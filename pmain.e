@@ -475,7 +475,7 @@ end function
 
 -- for inc,dec,div2 optimisations, etc:
 atom secondintval   -- only ever tested for >=-1, iff twoInitInts() returns true
-        secondintval = -2
+     secondintval = -2
 integer firstintval     -- only ever tested for >=-1, iff twoInitInts() returns true
         firstintval = -2
 --integer bothconst     -- only valid if twoInitInts() returns true,
@@ -1141,6 +1141,11 @@ end if
                     scode = opMove
                 end if
             end if
+--9/1/17:
+            if not symtab[p1][S_Init] then
+                Unassigned(p1)
+            end if
+
             emitHexMov(scode,N,p1)
         end if
         freeTmp(-1)
@@ -3590,23 +3595,23 @@ if default_found then
                 end if
 end if
                 ttidx = -1
-        else
 --          end if
-            N = InTable(-InAny)     -- -ve means no errors (eg/ie namespace rqd)
-            if N>0 then
-                SNtyp = symtab[N][S_NTyp]
-                if SNtyp=S_Type then
-                    Warn("assumed to be a variable_id, not a type",tokline,tokcol,0)
-                elsif SNtyp=S_Rsvd then
-                    Aborp("illegal use of a reserved word")
+            else
+                N = InTable(-InAny)     -- -ve means no errors (eg/ie namespace rqd)
+                if N>0 then
+                    SNtyp = symtab[N][S_NTyp]
+                    if SNtyp=S_Type then
+                        Warn("assumed to be a variable_id, not a type",tokline,tokcol,0)
+                    elsif SNtyp=S_Rsvd then
+                        Aborp("illegal use of a reserved word")
+                    end if
                 end if
-            end if
---          signature = append(signature,Typ)
-            -- Defer param creation until after ')'.
-            k = find(ttidx,paramNames)
+--              signature = append(signature,Typ)
+                -- Defer param creation until after ')'.
+                k = find(ttidx,paramNames)
 --              if ttidx=rtnttidx or (k and k<=nParams) then Duplicate() end if
-            if k and k<=nParams then Duplicate() end if
-        end if
+                if k and k<=nParams then Duplicate() end if
+            end if
             nParams += 1                
             if nParams>length(paramNames) then
                 paramNames = append(paramNames,ttidx)
@@ -4135,7 +4140,9 @@ end if
                     Q_Routine = 0
                     if resolveRoutineId() then
                         k = addRoutineId(Q_Routine)
+--DEV 1? (5/1/17)
                         PushFactor(k,1,T_integer)
+--                      PushFactor(k,0,T_integer)
                         actsig &= T_integer
                         sigidx += 1
                         siglen += 1
@@ -4713,6 +4720,7 @@ object dbg -- DEV (temp)
                         and opcode!=opLeaveCS
                         and opcode!=opDeleteCS
                         and opcode!=opCrashMsg
+                        and opcode!=opCrashRtn
                         and opcode!=opAbort
                         and opcode!=opWrap
                         and opcode!=opProfile then
@@ -4951,6 +4959,7 @@ dbg = symtab[routineNo]
 --                  PushFactor(Q_Routine,1,T_integer)
 --                  return
                     isLiteral = 1
+--                  isLiteral = 0
 --              else
                 elsif emitON then
                     if isForward and not wasUsed then
@@ -6376,7 +6385,7 @@ procedure isinit()
 -- In the last case, (--**-- above), there is a potentially huge performance
 --  cost, keeping multiple tables of prior init states and merging them at
 --  endif/else/elsif. For example "if <set 300 vars> else <set 300 vars> end"
---  could cost O(90,000) if done naievely. The cost is reduced significantly
+--  could cost O(90,000) if done naively. The cost is reduced significantly
 --- by keeping these sets in order, but that is not free either. We elect to
 --  only incur this penalty when compiling, but not when interpreting, and
 --  use 2 to mean "init when compiling, not init when interpreting".
@@ -6958,6 +6967,8 @@ end if
             if emitON then  --DEV 17/7 umm?
                 etype = opstype[opsidx]
                 if opsltrl[opsidx]=1
+--5/1/17
+                and and_bits(symtab[opstack[opsidx]][S_State],K_rtn)=0
                 and not and_bits(etype,T_sequence) then
                     TokN = -symtab[opstack[opsidx]][S_value]
 --3/1/16:
@@ -7722,8 +7733,8 @@ sequence idii
         if snNtyp=S_GVar2 then
             VAmask = power(2,remainder(tidx,29))
         end if
+        wasMapEndToMinusOne=mapEndToMinusOne
         while 1 do
-            wasMapEndToMinusOne=mapEndToMinusOne
             mapEndToMinusOne = 1
             MatchChar('[')
             Expr(0,asBool)
@@ -7735,11 +7746,16 @@ sequence idii
             else
                 subscript=SubscriptOp
             end if
+--7/2/17:
+if toktype=',' and subscript=SubscriptOp then
+    toktype = '['
+else
             mapEndToMinusOne = 0
             MatchChar(']')
             mapEndToMinusOne = wasMapEndToMinusOne
             if subscript=SliceOp then exit end if
             if toktype!='[' then exit end if
+end if
             if rtype=T_string then Aborp("attempt to subscript an atom (char of string)") end if
             noofsubscripts += 1
         end while
@@ -8236,7 +8252,7 @@ end if
             and RHStype=T_integer and opsltrl[1]=1
             and snNtyp=S_GVar2      --DEV t45aod...  (or no fwd calls outstanding) [umm, see below]
 --30/12/14:
-            and not and_bits(symtab[opstack[1]][S_State],K_rtn)
+            and and_bits(symtab[opstack[1]][S_State],K_rtn)=0
 --??        and (snNtyp=S_GVar2 or no_of_fwd_calls=0)
 -- 28/04/2010:
 --          and (symtabN[S_vtype]=T_integer or no_of_fwd_calls=0) then
@@ -10334,9 +10350,14 @@ integer rtype
                         localsubscripts=SubscriptOp
                     end if
                     mapEndToMinusOne = 0
+-- 7/2/17:
+if toktype = ',' then
+    toktype = '['
+else
                     MatchChar(']')
                     if localsubscripts=SliceOp then exit end if
                     if toktype!='[' then exit end if
+end if
                     if rtype=T_string then Aborp("attempt to subscript an atom (char of string)") end if
 --                  noofsubscripts += 1
                 end while
@@ -10952,7 +10973,7 @@ end procedure
 --rBlock = routine_id("Block")
 
 
---with trace
+with trace
 
 procedure DoConstant()
 integer N, Ntype, state
@@ -10963,7 +10984,9 @@ integer slink, glink, scope
 integer wastokcol, wastokline
 integer SNtyp
 --object dbg
---trace(1)
+--if isGlobal then
+--  trace(1)
+--end if
 --if tokline=404 then trace(1) end if
     if DEBUG then
         if opsidx!=0 then ?9/0 end if
@@ -11115,6 +11138,8 @@ integer SNtyp
         --              N = addSymEntryAt(wasttidx,isGlobal,S_Const,T_object,0,K_litnoclr,wastokcol)
                         N = addSymEntryAt(wasttidx,isGlobal,S_Const,Ntype,0,K_litnoclr,wastokcol)
                         symtabN = symtab[N]
+--2/1/17: (re-fetch in case S_Nlink updated by addSymEntry! [full desc also added to readme.txt])
+                        symtabO = symtab[O]
                         symtab[N] = 0
                         symtab[O] = 0
                         symtabN[S_value] = symtabO[S_value]     -- 8

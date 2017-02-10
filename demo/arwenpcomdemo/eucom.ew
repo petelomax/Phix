@@ -681,10 +681,11 @@ CI_VTBL = 3,
 CI_PARENTS = 4
 
 -- IID indices
-integer disp_ix, quickactivate_ix, persist_ix, persiststreaminit_ix,
-        oleobject_ix, olewindow_ix
+integer disp_ix, quickactivate_ix, persiststreaminit_ix,
+        oleobject_ix
+--integer persist_ix, olewindow_ix
 
-constant event_offset = IDispatch_Invoke
+--constant event_offset = IDispatch_Invoke
 
 sequence event_vtbl
 clsid_table = repeat({}, 4)
@@ -831,7 +832,8 @@ global function get_dispid(integer obj_ix, sequence dispnames)
 integer c
 atom rgszNames, rgDispId
 sequence names
-object ok, dispid, res
+--object dispid
+object ok, res
         
     c = length(dispnames)
 
@@ -934,10 +936,12 @@ end function
 --/li /b disp_method One of DISPATCH_PROPERTYPUT, DISPATCH_PROPERTYGET or DISPATCH_METHOD
 global function invoke(object obj, sequence dispnames, sequence args, sequence argtypes, integer disp_method)
 integer c
-object ok, dispid, retval, bstr, iid
+--object bstr, iid
+object ok, dispid, retval
 atom pDispParams, pVarResult, rgvarg, pExcepInfo,
-     puArgErr, rdispidNamedArgs, dummy, riid, rgszNames, rgDispId,
+     puArgErr, rdispidNamedArgs, rgszNames, rgDispId,
      this, pvtbl
+atom dummy, riid
 sequence params, source, desc, dispargs
 sequence names
 
@@ -1118,7 +1122,7 @@ end function
 global function add_iid(integer clsid_ix, sequence iid)
 integer iid_ix
 sequence iid_b
-object ok
+--object ok
 
     iid_ix = find(iid, iid_table[IID_GUID])
         
@@ -1299,7 +1303,7 @@ end function
 
 global function i_release(atom this, sequence iid)
 integer ix, ref
-atom pvtbl
+--atom pvtbl
 
     ix = find(this, p_table[PT_THIS])
     ref = p_table[PT_REF][ix]
@@ -1333,7 +1337,8 @@ end function
 
 -- Return the this pointer from an obj_ix and IID
 global function get_obj_iid_this(atom obj, sequence iid)
-integer o_ix, iid_ix, ix, jx
+--integer o_ix
+integer iid_ix, ix, jx
 
     if length(iid) != 16 then
         iid = string_to_guid(iid)
@@ -1384,7 +1389,8 @@ end function
 
 function imp_int(atom obj, sequence iid, 
                   sequence vtbl, sequence parents, atom this)
-atom pvtbl, ppv
+atom pvtbl
+--atom ppv
 
     if length(iid) != 16 then
         iid = string_to_guid(iid)
@@ -1425,7 +1431,7 @@ end function
 
 global function implement_interface(atom obj, sequence iid, 
                                      sequence vtbl, sequence parents)
-atom pvtbl, ppv, this
+--atom pvtbl, ppv, this
 
     return imp_int(obj, iid, vtbl, parents, 0)  
 
@@ -1450,7 +1456,8 @@ end function
 
 procedure add_com_events(integer obj_ix)
 atom this, pconnection, ppconnection, riid, ok, pevent, pvtbl,
-     punadvise, ppenum, penum, venum, rgpcn, pcFetched, pIID
+     punadvise, 
+--atom ppenum, penum, venum, rgpcn, pcFetched, pIID
 
 integer ev_id, ce_ix, clsid
 sequence iid_b, vtbl
@@ -1621,9 +1628,10 @@ end function
 
 global function create_com_object(integer clsid_ix)
 integer obj_ix
-atom pvtbl, ppv, rclsid, riid
+--atom pvtbl
+atom ppv, rclsid, riid
 object ok
-sequence iids
+--sequence iids
 
     ppv = allocate(4)
     rclsid = allocate(16)
@@ -1667,7 +1675,8 @@ global function quick_activate(integer obj_ix, atom fore_color,
 atom pcontainer, pcontrol, ok, ppvIFont, riid,
 --   ppvClient, ppvAdvise, ppvUnk, 
      iocs
-object duh, vtbl
+object duh
+--object vtbl
 
     ppvIFont = allocate(4)
     riid = allocate(16)
@@ -2025,24 +2034,24 @@ function IOleInPlaceSite_OnPosRectChange(atom this, atom lprcPosRect)
     return 0
 end function
 
-constant IOleInPlaceSite_vtbl = 
-        {
-                call_back(routine_id("impl_QueryInterface")),
-                call_back(routine_id("IOleInPlaceSite_AddRef_")),
-                call_back(routine_id("IOleInPlaceSite_Release_")),
-                call_back(routine_id("IOleWindow_GetWindow")),
-                call_back(routine_id("IOleWindow_ContextSensitiveHelp")),
-                call_back(routine_id("IOleInPlaceSite_CanInPlaceActivate")),
-                call_back(routine_id("IOleInPlaceSite_OnInPlaceActivate")),
-                call_back(routine_id("IOleInPlaceSite_OnUIActivate")),
-                call_back(routine_id("IOleInPlaceSite_GetWindowContext")),
-                call_back(routine_id("IOleInPlaceSite_Scroll")),
-                call_back(routine_id("IOleInPlaceSite_OnUIDeactivate")),
-                call_back(routine_id("IOleInPlaceSite_OnInPlaceDeactivate")),
-                call_back(routine_id("IOleInPlaceSite_DiscardUndoState")),
-                call_back(routine_id("IOleInPlaceSite_DeactivateAndUndo")),
-                call_back(routine_id("IOleInPlaceSite_OnPosRectChange"))
-        }
+--constant IOleInPlaceSite_vtbl = 
+--      {
+--              call_back(routine_id("impl_QueryInterface")),
+--              call_back(routine_id("IOleInPlaceSite_AddRef_")),
+--              call_back(routine_id("IOleInPlaceSite_Release_")),
+--              call_back(routine_id("IOleWindow_GetWindow")),
+--              call_back(routine_id("IOleWindow_ContextSensitiveHelp")),
+--              call_back(routine_id("IOleInPlaceSite_CanInPlaceActivate")),
+--              call_back(routine_id("IOleInPlaceSite_OnInPlaceActivate")),
+--              call_back(routine_id("IOleInPlaceSite_OnUIActivate")),
+--              call_back(routine_id("IOleInPlaceSite_GetWindowContext")),
+--              call_back(routine_id("IOleInPlaceSite_Scroll")),
+--              call_back(routine_id("IOleInPlaceSite_OnUIDeactivate")),
+--              call_back(routine_id("IOleInPlaceSite_OnInPlaceDeactivate")),
+--              call_back(routine_id("IOleInPlaceSite_DiscardUndoState")),
+--              call_back(routine_id("IOleInPlaceSite_DeactivateAndUndo")),
+--              call_back(routine_id("IOleInPlaceSite_OnPosRectChange"))
+--      }
 
 -- End: IOleInPlaceSite        IOleWindow
 
@@ -2298,7 +2307,7 @@ function IDispatch_GetIDsOfNames_(atom this, atom riid, atom rgszNames,
 end function
 
 
-atom invoke_args
+--atom invoke_args
 --        virtual /* [local] */ HRESULT STDMETHODCALLTYPE Invoke(
 --            /* [in] */ DISPID dispIdMember,
 --            /* [in] */ REFIID riid,
@@ -2311,7 +2320,7 @@ atom invoke_args
 function IDispatch_Invoke_(atom this,atom dispIdMember, atom riid, atom lcid, atom wFlags, 
                            atom pDispParams, atom pVarResult, atom  pExcepInfo, atom puArgErr)
 
-integer ix
+--integer ix
 sequence arg
 
 
@@ -2417,11 +2426,13 @@ constant IErrorInfo_vtbl =
 -- This initializes a visible control
 global procedure init_control(integer obj_ix)
 object ok
-atom szName, rgszNames, rgDispId, c, this, pfont, fontdesc,
-     pfontname, pclient, padvise, pDisp, psite, pframe, pcontainer,
-     perror, psuperr, prectl, pcbSize, pcontrolsite
+--atom szName, rgszNames, rgDispId, c, pfont, padvise, psuperr, pcbSize
+atom this, fontdesc,
+     pfontname, pclient, pDisp, psite, pframe, pcontainer,
+     perror, prectl, pcontrolsite
 
-sequence wname, name, rectl
+--sequence wname
+sequence name, rectl
 
     this = allocate(4)
 
@@ -2787,7 +2798,7 @@ end procedure
 --object /i obj_ix.
 global procedure com_event_routine(integer obj_ix, atom event, integer rid)
 integer clsid_ix, ev_ix
-sequence clsid
+--sequence clsid
 
     clsid_ix = find(obj_table[OBJ_CLSID_IX][obj_ix], com_eventsink_table[CE_CLSID])
         
@@ -2814,7 +2825,7 @@ function signed(atom unsigned)
     poke4(sptr,unsigned)
     return peek4s(sptr)
 end function
-atom event_invoke_args
+--atom event_invoke_args
 --        virtual /* [local] */ HRESULT STDMETHODCALLTYPE Invoke(
 --            /* [in] */ DISPID dispIdMember,
 --            /* [in] */ REFIID riid,
@@ -2828,8 +2839,10 @@ atom event_invoke_args
 function event_invoke(atom this, atom dispIdMember, atom riid, atom lcid, atom wFlags, 
                       atom pDispParams, atom pVarResult, atom pExcepInfo, atom puArgErr)
 
-integer ix, num_args, rid, iid_ix, ix_ix, ev_ix, obj_ix, clsid
-sequence arg, param, obj
+--integer ix, iid_ix
+integer num_args, rid, ix_ix, ev_ix, obj_ix, clsid
+--sequence arg
+sequence param, obj
 atom pvars, signed_dispid
 
     signed_dispid = signed(dispIdMember)
@@ -2928,7 +2941,7 @@ function event_addref(atom this)
 end function
 
 function event_release(atom this)
-integer obj_ix
+--integer obj_ix
     return i_release(this, obj_this_to_iid_b(this))
 end function
 

@@ -1288,6 +1288,15 @@ end procedure
 --integer traceon = 0
 integer needclr = 0
 
+string trace3 = join({
+"                                                                       ",
+"                                                                       ",
+"=== THE END ===                                                        ",
+"                                                                       ",
+"                                                                       ",
+"                                                                       ",},"\r\n")
+integer trace3fn = 0, trace3pos
+
 --function debug(atom fileno, atom line, atom trclvl)
 --function debug(integer fileno, integer line, integer trclvl)
 --procedure debug(integer line)
@@ -1436,19 +1445,46 @@ integer fileno
 --  wascbrClrDbg = cbrClrDbg
 --  cbrClrDbg = 0
 
-    if tracelevel=3 then
---DEV
-        puts(1,"oops, trace(3) not yet supported (see pTrace.e)\n")
-        if getc(0) then end if
-        abort(1)
-    end if
-
     if equal(expandedYet[fileno],0) then
         text = allfiles[fileno]
         exptext[fileno] = expandIntoLines()
         expandedYet[fileno] = linestarts
     end if
     laff = length(exptext[fileno])
+
+    if tracelevel=3 then
+--DEV
+--      puts(1,"oops, trace(3) not yet supported (see pTrace.e)\n")
+--      if getc(0) then end if
+--      abort(1)
+        if trace3fn=0 then
+            trace3fn = open("ctrace.out","wb")
+            trace3pos = 0
+        else
+            trace3pos += 73
+            if trace3pos>505*73 then
+                trace3pos = 0
+            end if
+        end if
+--?{filenames[fileno][2],line,exptext[fileno][line]}
+        string oneline = iff(line>length(exptext[fileno])?"???":trim(exptext[fileno][line],"\r\n"))
+        oneline = sprintf("%s:%d\t%s",{filenames[fileno][2],line,oneline})
+        if length(oneline)>=71 then
+            oneline = oneline[1..71]
+        else
+            oneline &= repeat(' ',71-length(oneline))
+        end if
+        trace3[1..71] = oneline
+        if seek(trace3fn,trace3pos)!=SEEK_OK then
+            puts(1,"seek() error in ctrace.out")
+            ?9/0
+        end if
+        puts(trace3fn,trace3)
+--DEV far too slow...
+--      flush(trace3fn)
+        return
+    end if
+
     if not debugOn then
         debug_screen(1)
     end if

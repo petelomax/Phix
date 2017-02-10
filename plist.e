@@ -724,16 +724,20 @@ else
                     name = filenames[fNo][2]
 end if
 --23/4/15:
-                elsif si[S_Name]=-1 then
+--6/1/17:
+--              elsif si[S_Name]=-1 then
+                elsif integer(si[S_Name]) then
 -- added 1/5/15: (for the "call :%opFrame" in pDiagN.e/:!diagFrame, where edx got set in pemit2.e)
 --8/7/15:
 --if trim(tj)="call :%opFrame" then
 if match("call :%opFrame",trim(tj))=1 then
                     name = ""
 else
-printf(1,"warning: symtab[%d][S_Name] is -1, plist.e line 728\n",{lastmov})
+--printf(1,"warning: symtab[%d][S_Name] is -1, plist.e line 728\n",{lastmov})
+printf(1,"warning: symtab[%d][S_Name] is %d, plist.e line 728\n",{lastmov,si[S_Name]})
 ?tj
-                    name = "??-1??"
+--                  name = "??-1??"
+                    name = sprintf("??%d??",si[S_Name])
 end if
                 else
                     name = si[S_Name]

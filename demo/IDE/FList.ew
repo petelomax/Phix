@@ -1,0 +1,1173 @@
+--/topic Formatted List Box
+--/func FList
+--/desc Creates a formatted list box - FList
+------------------------------------------------------------------
+--                              FList Creation
+--                              ==============
+--
+--              This creates a listview box which has th eability to allow the
+--      user to specify foreground and background colors and text style
+--      for each line of text.
+--
+--      Usage:
+--      (at Window1_Final, after all controls have been created, and the dummy
+--              sequence contains all the routine_id's of the event handlers)
+--
+--      FList(integer parent, sequence dummy)
+--
+--      The normal code handler editing of IDE can be used, but thus far the only
+--      event handled is the onClick event.
+--
+--      Where attributes are specified, these may be EITHER an integer giving the text color,
+--      OR a sequence of one or more items as below:
+--
+--      {text color, back color, text style, user data1, user data2...}
+--
+--      color or style values of -1 imply that the default value is to be used.
+--
+--      When an item is returned by either specific request or by clicking on an item,
+--      the text and attributes are returned. Thus the user may add any data he likes to an
+--      item and it will be returned when that item is accessed.
+--
+--      There are entry points for:
+--
+--      addFLItem(id, text, attributes)         id is as normal, text is ASCII string
+--
+--      insertFLItem(id, where, text, attributes)
+--                                                                              where is the position in the list of items, 1 - n.
+--      replaceFLItem(id, where, text, attributes)
+--                                                                              same as insert but replaces current item
+--      deleteFLItem(id, where)                         as you'd expect
+--      returnFLItem(id, where)                         return item at position given
+--
+--      setFLVisible(if, T/F)                           set the FList visible or invisible
+--
+--
+--      When the click handler is invoked, the params sequence received at the
+--      handler is the complete item itself.  The format of this is:
+--
+--              {text, attr}    where   text is the text string displayed
+--                                                              attr is the sequence as above, the fourth element
+--                                                              of which, if present, is the associated user data
+--
+------------------------------------------------------------------------------------------
+--      IMPORTANT NOTICE                                                                                                                                        --      
+--      ****************                                                                                                                                        --
+--                                                                                                                                                                              --
+--      Because the control sequence passed to this control when it is created contains         --
+--      the routine-id's of the handler routines, it has to be located at the END of the	--
+--      program. But the control may be referenced EARLIER in the program.  Therefore,          --
+--      the id must be DECLARED at the program start, and ASSIGNED at the creation time         --
+--      at the end of the program. It must therefore be a VARIABLE, not a constant id.          --
+------------------------------------------------------------------------------------------
+
+--with trace
+
+--              ICONS
+--              -----
+
+global atom hFList
+setTransparentColor(getSysColor(COLOR_BTNFACE))
+constant FList_xpm = xpmToEuBmp(
+{
+ "32 32 2 1",
+ "o c None",
+ ", c #000000",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "ooooooooooo,,,,,,,,ooooooooooooo",
+ "oooooooooooo,,,,,,oooooooooooooo",
+ "ooooooooooooo,,,,ooooooooooooooo",
+ "oooooooooooooo,,oooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo"}
+)
+hFList = createDIB({FList_xpm[1],FList_xpm[2]})
+
+global atom hFListDis
+setTransparentColor(getSysColor(COLOR_BTNFACE))
+constant FListDis_xpm = xpmToEuBmp(
+{
+ "32 32 3 1",
+ "o c None",
+ "@ c #646464",
+ "J c #969696",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "ooooooooooo@JJJJJJJooooooooooooo",
+ "oooooooooooo@JJJJJoooooooooooooo",
+ "ooooooooooooo@JJJooooooooooooooo",
+ "oooooooooooooo@Joooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo",
+ "oooooooooooooooooooooooooooooooo"}
+)
+hFListDis = createDIB({FListDis_xpm[1],FListDis_xpm[2]})
+
+
+sequence Dummies        Dummies = {}    -- Holds details of as many FLists have been created...
+
+global
+constant D_X    =       1,
+D_Y =       2,
+         D_W    =       3,
+         D_H    =       4,
+         D_Cap  =       5,
+         D_BG   =       6,
+         D_FG   =       7,
+         D_Filled = 8,
+         D_Font =       9,
+         D_FSize =      10,
+         D_FStyle =     11,
+         D_Handlers = 12
+
+constant D_HChange =    2
+--constant D_HClick=        3
+--constant D_HClose=        4       -- The rest can wait
+
+constant D_FLFlags = 13
+constant D_Id      = 14
+constant D_FLScroll = 15
+constant D_FLTextHt = 16
+constant D_FLLastY = 17
+constant D_FLData  = 18
+constant D_FLNmax  = 19
+constant D_FLHeight = 20
+constant D_FLSelected = 21
+constant D_FLEditTextId = 22
+constant D_FLPushButtonId = 23
+
+--constant FL_FG       =1
+--constant FL_BG       =2
+--constant FL_Style  =3
+
+constant FL_VarH   = 1
+constant FL_Visible = 2
+constant FL_Enable = 4
+constant FL_Dropped = 256
+
+integer NeedPaint = False
+integer getsfocus       --judith
+integer FocusFlag
+
+
+----------------------------------------------------------------------------------
+--              This finds which custom control this id relates to.
+--      Given the id of a dummy control, this finds which dummy in sequence
+--      that it relates to. 'id' is the id of the dummy control, whereas ID is
+--      the index of the id to match in the control parameter structure.
+--              So calling ix=getIx(D_Id, id) returns the dummy index of the control
+--      whose main id (D_Id) is that provided as 'id'.
+
+function getIx(integer id, integer ID)
+integer n
+
+    n = 0
+
+    for i=1 to length(Dummies) do   -- scan all dummy controls
+        if id=Dummies[i][ID] then   -- if supplied id is in its parameter block
+            n = i                                   -- then we are done. Return the sequence number
+            exit
+        end if
+    end for
+
+    if n=0 then
+        n = message_box("No FList control has this id: "&sprint(id),"Help",MB_OK)
+        abort(0)
+    end if
+
+    return n
+end function
+
+
+----------------------------------------------------------------------------------
+--      This inserts an element into a sequence at a given place
+
+function insert(object what, object destn, integer at)
+    if at<=length(destn) then
+        destn = destn[1..at] & destn[at..$]     -- Duplicates item at "at"
+        destn[at] = what                                        -- Overwrites item with new data
+    else
+        destn = append(destn, what)
+    end if
+
+    return destn
+end function
+
+
+----------------------------------------------------------------------------------
+--      THIS is simply used to set the length of a sequence to 'n' by adding 0's
+--      I'm sure it exists elsewhere...
+
+function setSeqLength(sequence dum, integer len)
+    while length(dum)<len do
+        dum = dum & 0
+    end while
+
+    dum = dum[1..len]
+    return dum
+end function
+
+
+----------------------------------------------------------------------------------
+--      Flag set/clear/test routine
+--      This has not worked out as well as I'd have liked ... I like macro capability
+
+function TestFlag(integer var, integer bit)
+    return and_bits(var, bit)
+end function
+
+function SetFlag(integer var, integer bit)
+    return or_bits(var, bit)
+end function
+
+function ClearFlag(integer var, integer bit)
+    return and_bits(var, not_bits(bit))
+end function
+
+
+----------------------------------------------------------------------------------
+--      THIS checks the text supplied and makes sure the parameters are OK
+--      If just a color value supplied, the background & style are defaulted.
+--      If any field is omitted them we create them from defaults.
+
+function CheckAttr(integer id, object attr)
+    if atom(attr) then                                              -- attr is just text color ..
+        attr = {attr}                                           -- .. use default for others
+    end if
+
+    if length(attr)<1 then                              -- If the element is missing,
+        attr &= -1                                                      -- the IDE-set default value
+    end if
+
+    if attr[1]<0 then                                           -- If the element is negative, we use
+        attr[1] = Dummies[id][D_FG]             -- the IDE-set default value
+    end if                                                                  -- and that applies to all three values
+
+    if length(attr)<2 then
+        attr &= -1
+    end if
+
+    if attr[2]<0    then
+        attr[2] = Dummies[id][D_BG]
+    end if
+
+    if length(attr)<3 then
+        attr &= -1
+    end if
+
+    if attr[3]<0    then
+        attr[3] = Dummies[id][D_FStyle]
+    end if
+
+    return attr
+end function
+
+
+----------------------------------------------------------------------------------
+--      /func addFLItem(id, text, attribute)
+--      /desc
+--              ADD Item to Database for FList whose id is id, with attributes attr.
+
+global procedure addFLItem(integer id, sequence text, object attr)
+    id = getIx(id, D_Id)
+    attr = CheckAttr(id, attr)
+    text = {text, attr}
+    Dummies[id][D_FLData] = append(Dummies[id][D_FLData], text)
+    NeedPaint = 3
+    repaintWindow(Dummies[id][D_Id])
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      /func insertFLItem(id, pos, text, attributes)
+--      /desc
+--              INSERT Item into Database for FList id 'ic', at position pos.
+
+global
+procedure insertFLItem(integer id, integer wher, sequence text, object attr)
+    id = getIx(id, D_Id)
+    attr = CheckAttr(id, attr)
+    text = {text, attr}
+    Dummies[id][D_FLData] = insert(text, Dummies[id][D_FLData], wher)
+
+    if Dummies[id][D_FLLastY]>=wher then
+        Dummies[id][D_FLLastY] += 1
+    end if
+
+    if wher<Dummies[id][D_FLSelected] then
+        Dummies[id][D_FLSelected] += 1
+    end if
+
+    NeedPaint = 3
+    repaintWindow(Dummies[id][D_Id])
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      /func replaceFLItem(id, pos, text, attributes)
+--      /desc
+--              REPLACE Item in Database for FList id, at position pos.
+--      This overwrites the data currently at position pos.
+
+global
+procedure replaceFLItem(integer id, integer wher, sequence text, object attr)
+    id = getIx(id, D_Id)
+
+    if wher>length(Dummies[id][D_FLData]) or wher<1 then
+        return
+    end if
+
+    attr = CheckAttr(id, attr)
+    text = {text, attr}
+    Dummies[id][D_FLData][wher] = text
+    NeedPaint = 3
+    repaintWindow(Dummies[id][D_Id])
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      /func deleteFLItem(id, pos)
+--      /desc
+--              DELETE Item from FList Database at position pos.
+--      If pos = -1 then erase all items
+
+global
+procedure deleteFLItem(integer id, integer wher)
+    id = getIx(id, D_Id)
+
+    if wher>length(Dummies[id][D_FLData]) then  -- Impossible item - skip off
+        return
+    end if
+
+    if wher=length(Dummies[id][D_FLData]) then  -- Last item? Just chop end off
+        Dummies[id][D_FLData] = Dummies[id][D_FLData][1..wher-1]
+    else
+        if wher<=0 then                                                     -- All items? Just null everything
+            Dummies[id][D_FLData]     = {}
+            Dummies[id][D_FLLastY]    = 0
+            Dummies[id][D_FLSelected] = 0
+        else                                                                            -- Otherwise remove the one item
+            Dummies[id][D_FLData] = Dummies[id][D_FLData][1..wher-1] & Dummies[id][D_FLData][wher+1..$]
+        end if
+    end if
+                                                                                                        -- If last selected changed, correct it
+-- If we deleted an item AFTER the current one, all says as it was
+-- If we delete an item BEFORE the selected one, then the selection index must decrement.
+-- If we delete the current item then there will be NO current item..
+
+    if wher=Dummies[id][D_FLSelected] then
+        Dummies[id][D_FLLastY]    = 0
+        Dummies[id][D_FLSelected] = 0
+    end if
+
+    if wher<Dummies[id][D_FLSelected] and wher>0 then
+        Dummies[id][D_FLLastY]    -= 1
+        Dummies[id][D_FLSelected] -= 1
+    end if                                                                                  -- If last selected changed, correct it
+                                                                                                        -- If there is an item available to be the
+    if Dummies[id][D_FLSelected]>0 then                 -- selected one, display it. Else clear.
+        setText(Dummies[id][D_FLEditTextId], Dummies[id][D_FLData][Dummies[id][D_FLSelected]])
+    else
+        setText(Dummies[id][D_FLEditTextId], "")
+    end if
+
+    NeedPaint = 2                                                           -- Repaint - three times? Oh well...
+    repaintWindow(Dummies[id][D_Id])
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      /func   returnFLItem(id, pos)
+--      /desc
+--              RETURNs Item from FLItem Database at position pos.
+--      Returns {text, attributes}
+
+global
+function returnFLItem(integer id, integer wher)
+sequence item
+
+    id = getIx(id, D_Id)
+
+    if wher=0 then
+        wher = Dummies[id][D_FLSelected]
+        item = Dummies[id][D_FLData][wher]
+        item[1] = getText(Dummies[id][D_FLEditTextId])  -- Last returned/selected text
+        return item
+    end if
+
+    if wher<=length(Dummies[id][D_FLData])then
+        return Dummies[id][D_FLData][wher]
+    end if
+
+    return {"",""}
+end function
+
+
+----------------------------------------------------------------------------------
+--      /func   getFLIndex(id)
+--      /desc
+--              RETURNs index of last selected item in List
+
+
+global
+function getFLIndex(integer id)
+    id = getIx(id, D_Id)
+
+    return Dummies[id][D_FLSelected]        -- Index of last selected item
+end function
+
+----------------------------------------------------------------------------------
+--      /func   reOpenFL(id)
+--      /desc
+--              RE-OPEN drop down list - in case user selects undesirable item.
+--      When the user has selected an item and the drop down list has closed,
+--      this allows the caller to re-drop the list requiring a different selection.
+
+global
+procedure reOpenFL(integer id)
+    id = getIx(id, D_Id)
+
+    Dummies[id][D_FLFlags] = SetFlag(Dummies[id][D_FLFlags], FL_Dropped)
+    setVisible(Dummies[id][D_Id], True)
+    setVisible(Dummies[id][D_FLEditTextId], True)
+    setVisible(Dummies[id][D_FLPushButtonId], True)
+    NeedPaint = 3
+    repaintWindow(Dummies[id][D_Id])
+    setFocus(Dummies[id][D_Id])
+end procedure
+
+----------------------------------------------------------------------------------
+--      /func   closeupFL(id)
+--      /desc
+--              CLOSE UP drop down list - revert to just the edit text box and pushbutton.
+
+global
+procedure closeupFL(integer id)
+    id = getIx(id, D_Id)
+
+    Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Dropped)
+    setVisible(Dummies[id][D_Id], True)
+    setVisible(Dummies[id][D_Id], True)
+    setVisible(Dummies[id][D_Id], True)
+    NeedPaint = 2
+    repaintWindow(Dummies[id][D_Id])
+    setFocus(Dummies[id][D_Id])
+end procedure
+
+----------------------------------------------------------------------------------
+--      /func setFLVisible(id, state)
+--      /desc
+--              SET VISIBLE ... or INVISIBLE
+--      I'm having bother with this because when the drop-down list loses focus,
+--      it closes up. When another control gets focus and thus the drop-down gets
+--      onLostFocus, the control WITH focus does not seem to get the message which
+--      caused it to get focus. Confused? Pushbutton gets clicked, dropdown gets a
+--      LostFocus message, but then the button does NOT seem to get the click message.
+
+global
+procedure setFLVisible(integer id, integer TF)
+    id = getIx(id, D_Id)
+    Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Dropped)
+
+    if TF then
+        Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Visible)
+        setVisible(Dummies[id][D_FLEditTextId], True)
+        setVisible(Dummies[id][D_FLPushButtonId], True)
+    else
+        Dummies[id][D_FLFlags] = SetFlag(Dummies[id][D_FLFlags], FL_Visible)
+        setVisible(Dummies[id][D_FLEditTextId], False)
+        setVisible(Dummies[id][D_FLPushButtonId], False)
+        setVisible(Dummies[id][D_FLScroll], False)
+        setVisible(Dummies[id][D_Id], False)
+    end if
+end procedure
+
+
+----------------------------------------------------------------------------------
+--              SET ENABLE (True|False)
+
+--      If the FList is disabled then the little push button is disabled and the edit text
+
+global
+procedure setFLEnable(integer id, integer TF)
+integer pb
+
+    id = getIx(id, D_Id)
+    Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Dropped)
+    pb = Dummies[id][D_FLPushButtonId]
+
+    if TF then
+        Dummies[id][D_FLFlags] = SetFlag(Dummies[id][D_FLFlags], FL_Enable)
+        VOID = sendMessage(pb, BM_SETIMAGE, IMAGE_BITMAP, hFList) --    Add id etc to end of sequence for future reference
+    else
+        Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Enable)
+        VOID = sendMessage(pb, BM_SETIMAGE, IMAGE_BITMAP, hFListDis) -- Add id etc to end of sequence for future reference
+    end if
+
+    NeedPaint = 2   -- But don't ask me why; one paint should be enough!
+    repaintWindow(Dummies[id][D_Id])
+end procedure
+
+
+----------------------------------------------------------------------------------
+--              GET COUNT
+
+--      Returns the number of elements in the database
+
+global function getFLCount(integer id)
+    id = getIx(id, D_Id)
+    return length(Dummies[id][D_FLData])
+end function
+
+
+----------------------------------------------------------------------------------
+--              SET INDEX
+
+--      Set the position of the currently selected item
+
+global procedure setFLIndex(integer id, integer index)
+integer ix
+
+    id = getIx(id, D_Id)
+    ix = w32abs(index)
+
+    if (ix>0) and (ix<=length(Dummies[id][D_FLData])) then
+        Dummies[id][D_FLLastY] = ix
+        Dummies[id][D_FLSelected] = ix
+    else
+        return
+    end if
+
+    setText(Dummies[id][D_FLEditTextId], Dummies[id][D_FLData][ix])
+
+    if index<0 then                                                     -- Want selected line to be in centre
+        if isVisible(Dummies[id][D_FLScroll]) then
+            if ix>floor(Dummies[id][D_FLNmax]/2) then
+                ix = ix-floor(Dummies[id][D_FLNmax]/2)
+            else
+                ix = 0
+            end if
+        else
+            ix = 0
+        end if
+    else
+        ix = 0
+    end if
+
+    setScrollPos(Dummies[id][D_FLScroll], ix-1)
+    NeedPaint = 1
+    repaintWindow(Dummies[id][D_Id])
+end procedure
+
+
+----------------------------------------------------------------------------------
+--              SET HEIGHT
+
+--      Set the height of the currently selected FList.
+--              Only needs to change child window & scrollbar height
+
+global procedure setFLHeight(integer id, integer height)
+sequence oldSize
+integer th, oldH, deltaH
+
+--      Get change in height
+
+    th = getTextHeight(id, "|")                                             -- get text height in this window
+    id = getIx(id, D_Id)                                                    -- get index into Dummies[]
+
+    oldH = Dummies[id][D_H]                                                 -- previous height of control
+    deltaH = height-oldH                                                    -- change in height required
+
+--      Make sure height change is integral number of rows
+
+    deltaH = floor(deltaH/th)                                               -- number of rows that change represents
+    Dummies[id][D_FLNmax] += deltaH                                 -- change that in Dummies[]
+    deltaH = deltaH*th                                                  -- height change required then
+    Dummies[id][D_H] += deltaH                                              -- update saved height
+
+--      Resize scrollbar
+
+    oldSize = getCtlSize(Dummies[id][D_FLScroll])
+    setCtlSize(Dummies[id][D_FLScroll], oldSize[1], oldSize[2]+deltaH)
+
+--      Resize main control
+
+    oldSize = getCtlSize(Dummies[id][D_Id])
+    setCtlSize(Dummies[id][D_Id], oldSize[1], oldSize[2]+deltaH)
+
+--      repaint
+
+    NeedPaint = 2
+    repaintWindow(Dummies[id][D_Id])
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      WRITE a line to the window - formatted etc etc
+
+--              cont is the serial number of the control - 1,2,3 etc
+--              which is the item to display from the database - 1-n
+--              pos is the location to display it at - 0-(m-1)
+
+procedure writeFLLine(integer cont, integer which)
+sequence textplusattr, text, attr, scrollpos
+integer  id, fg, bg, w, h, itop, pos
+
+    if which<=length(Dummies[cont][D_FLData]) and which>0 then
+        textplusattr = Dummies[cont][D_FLData][which]
+    else
+        textplusattr = {"<-None->",{Dummies[cont][D_FG],Dummies[cont][D_BG],0}}
+    end if
+
+--      itop can't be neg BUT itop can be greater than which so pos MAY be neg, dodgy!
+
+    if Dummies[cont][D_FLScroll] then
+        itop = getScrollPos(Dummies[cont][D_FLScroll])  -- 0 .. max-1           
+    end if
+
+    pos = which-itop                                -- Minimum = 1
+
+--      Addition 15Jan08 Andy
+
+    if pos<1 then
+        return                                          -- If this was NEG we would get nasty effects...
+    end if
+--      
+    text = textplusattr[1]
+    attr = textplusattr[2]
+    fg = attr[1]
+    bg = attr[2]
+    id = Dummies[cont][D_Id]                -- Id of window
+    h  = Dummies[cont][D_FLTextHt]  -- Height of window
+    w  = Dummies[cont][D_W]                 -- Width of window
+
+--      If this line is active line then highlight text a la M$ style. 
+
+    if which=Dummies[cont][D_FLLastY] then
+        setTextColor(id, getSysColor(COLOR_HIGHLIGHTTEXT))
+        setPenColor(id, getSysColor(COLOR_HIGHLIGHT))
+    else
+        setTextColor(id, fg)
+        setPenColor(id, bg)
+    end if
+
+--      Erase old text in this location, and rewrite new text
+--      Do this by drawing a rectangle up to the RH edge of the window or the LH edge of the scrollbar
+--      if that is visible.
+
+    pos -= 1
+    setFont(id, Dummies[cont][D_Font], Dummies[cont][D_FSize], attr[3])
+
+    if isVisible(Dummies[cont][D_FLScroll]) then
+        setVisible(Dummies[cont][D_FLScroll], False)
+        scrollpos = getRect(Dummies[cont][D_FLScroll])  -- Find where scrollbar IS
+        drawRectangle(id, True, 1, pos*h, w-(scrollpos[3]-scrollpos[1]), (pos+1)*h)
+        wPuts({id, 3, pos*h}, text)
+        setVisible(Dummies[cont][D_FLScroll], True)
+    else
+        drawRectangle(id, True, 1, pos*h, w, (pos+1)*h)
+        wPuts({id, 3, pos*h}, text)
+    end if
+
+    setFocus(id)
+end procedure
+
+
+
+----------------------------------------------------------------------------------
+--      SCROLLBAR onScroll Handler
+
+procedure FList_onScroll(integer id, integer event, sequence params)
+    id = getIx(id, D_FLScroll)
+    NeedPaint = 2
+    repaintWindow(Dummies[id][D_Id])
+    setFocus(Dummies[id][D_Id])
+end procedure
+
+
+
+
+
+----------------------------------------------------------------------------------
+--      SCROLLBAR GotFocus Handler
+
+procedure FList_onGotFocus(integer id, integer event, sequence params)
+    id = getIx(id, D_FLScroll)
+    Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Visible)
+    repaintWindow(Dummies[id][D_FLScroll])
+end procedure
+
+
+
+----------------------------------------------------------------------------------
+--      CLICK Handler Scheduler  (not REALLY a click, but a mouseMove or leftDown)
+
+procedure FList_onMouse(integer id, integer event, sequence params)
+integer ev, w, h, itop
+
+    id = getIx(id, D_Id)
+    ev = params[1]
+    h = Dummies[id][D_FLTextHt]
+    itop = getScrollPos(Dummies[id][D_FLScroll])
+
+--      MouseMove; if the cursor is looking at a new row, highlight it
+
+    if ev=MouseMove then
+        setFocus(Dummies[id][D_Id])                     -- Set focus to list if mouse over list
+        ev = floor(params[3]/h)                         -- Line number in window (0 - n-1)
+        ev += itop+1                                                    -- Data line where mouse is
+
+        if ev!=Dummies[id][D_FLLastY] then-- Line pointed to (ev) changed?
+            w = Dummies[id][D_FLLastY]              -- Get previous line highlit
+            Dummies[id][D_FLLastY] = ev             -- Save new position
+
+            if w>=0 then
+                writeFLLine(id,  w)             -- Rewrite previous highlit line unhighlit
+            end if
+
+            writeFLLine(id, ev)                             -- Write new line highlit
+            return                                                  -- Tout fait!
+        end if
+    end if
+
+--      Only left-mouse-down useful apart from that above
+
+    if ev!=LeftDown then
+        return
+    end if
+
+    setVisible(Dummies[id][D_Id], False)    -- Hide drop down list
+
+--      Record index of item selected
+
+    ev = Dummies[id][D_FLLastY]                             -- Index of current item
+
+    if ev>length(Dummies[id][D_FLData]) then
+        ev = length(Dummies[id][D_FLData])
+    end if
+
+    Dummies[id][D_FLSelected] = ev                  -- Index of selected item
+
+--      Set flag to show dropdown window is closed up
+
+    Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Dropped)
+
+--      Set selected item text into editText window
+
+    setText(Dummies[id][D_FLEditTextId], Dummies[id][D_FLData][ev])
+    setFocus(Dummies[id][D_FLEditTextId])
+
+--      Handler id = 0 means IGNORE; otherwise call the "change" handler
+
+    if Dummies[id][D_Handlers][D_HChange]>0 then
+        call_proc(Dummies[id][D_Handlers][D_HChange], {id, 0, Dummies[id][D_FLData][ev]})
+    end if
+
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      Get here if we click the pushbutton to open/close the dropdown
+
+procedure PushButton_onClick(integer idin, integer event, sequence params)
+integer id
+
+    id = getIx(idin, D_FLPushButtonId)
+    Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Visible)
+
+--      If the control is disabled, ignore it...
+
+    if TestFlag(Dummies[id][D_FLFlags], FL_Enable)=False then
+        setFocus(getsfocus)     --judith
+        returnValue(True)
+        return
+    end if
+
+    if TestFlag(Dummies[id][D_FLFlags], FL_Dropped) then
+        Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Dropped)
+        setVisible(Dummies[id][D_Id], False)
+        setFocus(Dummies[id][D_FLEditTextId])
+    else
+        Dummies[id][D_FLFlags] = SetFlag(Dummies[id][D_FLFlags], FL_Dropped)
+        setVisible(Dummies[id][D_Id], True)
+        setFocus(Dummies[id][D_Id])
+    end if
+
+    NeedPaint = 2   -- But don't ask me why; one paint should be enough!
+    FocusFlag = True
+    repaintWindow(Dummies[id][D_Id])
+
+--      if Dummies[id][D_Handlers][D_HClick] > 0 then
+--              call_proc(Dummies[id][D_Handlers][D_HClick], {id, 0, {0,0,0}})          
+--      end if
+end procedure
+
+----------------------------------------------------------------------------------
+--      PAINT Handler
+
+--      This draws the text into the listbox in the right color & style. It uses the position 
+--      of the scrollbar to decide which line of the data is to be at the top of the window.
+
+procedure FList_onPaint(integer id, integer event, sequence params)
+integer ntot, itop, h
+sequence data
+
+    if NeedPaint=0 then
+        FocusFlag = False
+        return
+    end if
+
+    id = getIx(id, D_Id)                                                            -- Id of window
+
+    if      TestFlag(Dummies[id][D_FLFlags], FL_Visible) then
+        setVisible(Dummies[id][D_FLEditTextId], False)
+        setVisible(Dummies[id][D_FLPushButtonId], False)
+        return
+    end if
+
+    if Dummies[id][D_FLEditTextId]!=0 then
+        if TestFlag(Dummies[id][D_FLFlags], FL_Enable) then
+            setEnable(Dummies[id][D_FLEditTextId], True)
+        else
+            setEnable(Dummies[id][D_FLEditTextId], False)
+        end if
+    end if
+
+    h = Dummies[id][D_FLTextHt]                                                     -- Character height
+    ntot = length(Dummies[id][D_FLData])                            -- Number of entries
+
+    if TestFlag(Dummies[id][D_FLFlags], FL_VarH)=0 then
+        Dummies[id][D_FLFlags] = SetFlag(Dummies[id][D_FLFlags], FL_Dropped)
+    end if
+
+--      Now to handle the drop-down bit of the thing. If we want a drop-down list
+--      (FL_VarH is true) then we test the FL_Dropped flag here. If we are NOT dropped
+--      then we just display the top line with the text of the last selected item.
+
+    if TestFlag(Dummies[id][D_FLFlags], FL_Dropped) then
+        setVisible(Dummies[id][D_Id], True)
+    else
+        setVisible(Dummies[id][D_Id], False)
+    end if
+
+--      If this is a variable-height box, then make it as big as we need it to hold
+--      the number of lines we have, limiting at the given height
+
+    data = getRect(Dummies[id][D_FLScroll])         -- Always the max height of the list
+
+    if TestFlag(Dummies[id][D_FLFlags], FL_VarH) then
+        if ntot<=Dummies[id][D_FLNmax] then
+            setCtlSize(Dummies[id][D_Id], Dummies[id][D_W], h*ntot+5)
+            setCtlSize(Dummies[id][D_FLScroll], data[3]-data[1], h*ntot+1)
+            setVisible(Dummies[id][D_FLScroll], True)
+        end if
+    else
+        setCtlSize(Dummies[id][D_Id], Dummies[id][D_W], Dummies[id][D_FLNmax]*h+5)
+        setCtlSize(Dummies[id][D_FLScroll], data[3]-data[1], h*Dummies[id][D_FLNmax]+1)
+    end if
+
+--      Then if the number of entries is too great for the window we light up the scroll bar
+--      (Course, the scrollBar is parented to the dropDown window, so if THAT is off, no scroll)
+
+    if ntot>=Dummies[id][D_FLNmax] then
+        itop = getScrollPos(Dummies[id][D_FLScroll])
+        setScrollRange(Dummies[id][D_FLScroll], 0, ntot-Dummies[id][D_FLNmax])
+        setScrollChange(Dummies[id][D_FLScroll], 1, Dummies[id][D_FLNmax]-1)
+        setVisible(Dummies[id][D_FLScroll], True)
+        ntot = Dummies[id][D_FLNmax]
+    else
+        setVisible(Dummies[id][D_FLScroll], False)
+        itop = 0
+    end if
+
+    for i=1 to ntot do
+        writeFLLine(id, i+itop)                                 -- Write lines which are visible
+    end for
+
+    NeedPaint -= 1
+end procedure
+
+----------------------------------------------------------------------------------
+--      Key Down handler - control keys like arrows
+
+procedure FList_onKeyDown(integer id, integer event, sequence params)
+integer key
+
+    id = getIx(id, D_Id)
+    key = params[1]
+
+    if key=VK_UP and Dummies[id][D_FLLastY]>1 then
+        setScrollPos(Dummies[id][D_FLScroll], getScrollPos(Dummies[id][D_FLScroll])-1)
+        Dummies[id][D_FLLastY] -= 1
+    end if
+
+    if key=VK_DOWN and Dummies[id][D_FLLastY]<length(Dummies[id][D_FLData]) then
+        setScrollPos(Dummies[id][D_FLScroll], getScrollPos(Dummies[id][D_FLScroll])+1)
+        Dummies[id][D_FLLastY] += 1
+    end if
+
+    if key=VK_PAGEUP then
+        setScrollPos(Dummies[id][D_FLScroll], getScrollPos(Dummies[id][D_FLScroll])-Dummies[id][D_FLNmax])
+    end if
+
+    if key=VK_PAGEDOWN then
+        setScrollPos(Dummies[id][D_FLScroll], getScrollPos(Dummies[id][D_FLScroll])+Dummies[id][D_FLNmax])
+    end if
+
+    if key=VK_ENTER then
+        FList_onMouse(Dummies[id][D_Id],0,{LeftDown})
+    end if
+
+    repaintWindow(Dummies[id][D_Id])
+    NeedPaint = 5
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      On losing focus we need to close down
+
+
+procedure FList_onLostFocus(integer idin, integer event, sequence params)
+integer id
+
+    if FocusFlag then
+        return
+    end if
+
+    id = getIx(idin, D_Id)  -- Is it main window which has lost focus?
+
+--      If we have lost focus to the scrollbar - forget it, who cares?
+--      Ah, no! Set focus back to the main window!!!
+
+    if getFocus()=Dummies[id][D_FLScroll] then
+        setFocus(Dummies[id][D_Id])
+        return
+    end if
+
+--      If we have lost focus to someone else, and we were dropped, close up
+
+    if TestFlag(Dummies[id][D_FLFlags], FL_Dropped) then
+--              Dummies[id][D_FLFlags] = ClearFlag(Dummies[id][D_FLFlags], FL_Dropped)
+        setVisible(Dummies[id][D_Id], False)
+    end if
+end procedure
+
+
+----------------------------------------------------------------------------------
+--      Key Press handler - Conventional keys
+
+--      No use has been found for this yet; it may be that in future I will allow editing
+--      of the contents of the list. Then Enter would call an onChange handler to tell
+--      the user that the text has changed in an item.
+
+procedure FList_onKeyPress(integer id, integer event, sequence params)
+integer key
+sequence res
+
+    id = getIx(id, D_FLEditTextId)
+    key = params[1]
+
+    if key=VK_ENTER then
+        res = Dummies[id][D_FLData][Dummies[id][D_FLSelected]]
+        res[1] = getText(Dummies[id][D_FLEditTextId])
+
+        if Dummies[id][D_Handlers][D_HChange]>0 then
+            call_proc(Dummies[id][D_Handlers][D_HChange], {id, 0, res})
+        end if
+    end if
+
+end procedure
+
+----------------------------------------------------------------------------------
+--      /func FList(parent, dummySeq)
+--      /desc
+--              FList creation call.
+--      This is called with the dummy sequence as parameter as supplied by IDE.
+
+global function FList(integer parent, sequence Dummy)
+integer id,     -- ID of main child window
+                        sb,     -- ID of scrollbar - parent is id
+                        th,     -- text height of | in window
+                        et,     -- edit text ID - parent = parent
+                        pb,     -- pushbutton - parent ditto
+                        ft,             -- frame thickness around text boxes, pushbuttons etc
+                        s               -- overall control height to contain a | character
+
+object IDEFlags
+
+    Dummy = setSeqLength(Dummy, 23)
+    Dummy[D_FLFlags] = SetFlag(Dummy[D_FLFlags], FL_Enable)
+
+--      Create an invisible child window the right size
+
+    if TestFlag(Dummy[D_FLFlags], FL_VarH) then
+        sb = 10
+    else
+        sb = Dummy[D_H]         -- Use sb as a temporary height setting
+    end if
+
+    ft = getSystemMetrics(SM_CXFRAME)
+    IDEFlags = classDefaults(Window, {{1, {WS_SYSMENU}},{2, {WS_EX_STATICEDGE}}})
+    id = createEx(Window, "", parent, Dummy[D_X], Dummy[D_Y], Dummy[D_W], sb, w32or_all({WS_CHILD, WS_CLIPSIBLINGS, WS_DLGFRAME}), w32or_all({WS_EX_STATICEDGE}))
+
+--      Default font gives standard vertical pitch which is why we don't CHANGE font!
+
+    if length(Dummy[D_Font]) then
+        setFont(id, Dummy[D_Font], Dummy[D_FSize], Dummy[D_FStyle])
+    end if
+
+    th = getTextHeight(id, "|")
+    s = th+2*ft
+
+--      Move window down that height
+
+    if TestFlag(Dummy[D_FLFlags], FL_VarH) then
+        setWindowRect(id, {Dummy[D_X],                          -- X1
+                           Dummy[D_Y]+s,                            -- Y1
+                           Dummy[D_X]+Dummy[D_W],           -- X2
+                           Dummy[D_H]-s})                           -- Y2
+        Dummy[D_H] -= (s+ft)    -- So we understand window height less
+    end if                                                                  -- than dummy height
+
+
+--      Open the window and put it Topmost
+
+    openWindow(id, Normal)
+    moveZOrder(id, HWND_TOP)
+
+--      Create scrollbar on RHS, edit text above CWindow & ScrollBar, pushbutton at TR corner
+
+    sb = createEx(VScroll, "", id, Dummy[D_W]-th-ft-ft, --X
+                  0,                                                --Y
+                  th+ft,                                    --W
+                  Dummy[D_H]-ft,                    --H
+                  0, 0)
+    openWindow(sb, Normal)
+
+--      Only do these if a dropdown box is wanted
+
+    if TestFlag(Dummy[D_FLFlags], FL_VarH) then
+        et = createEx(EditText, "", parent,
+                      Dummy[D_X],                   -- X 
+                      Dummy[D_Y],                   -- Y
+                      Dummy[D_W],                   -- W
+                      s,                                    -- H
+                      0, 0)
+        openWindow(et, Normal)
+
+        if length(Dummy[D_Font]) then
+            setFont(et, Dummy[D_Font], Dummy[D_FSize], Normal)
+        end if
+
+        pb = createEx(PictureButton, "", parent,
+                      Dummy[D_X]+Dummy[D_W]-th-ft-ft, -- X
+                      Dummy[D_Y]+ft,                                    -- Y
+                      th+ft+1,                                              -- W
+                      th+1,                                         -- H
+                      0, 0)
+
+        openWindow(pb, Normal)
+        moveZOrder(pb, HWND_TOP)
+        setHandler(pb, w32HClick, routine_id("PushButton_onClick"))
+        setVisible(id, False)
+    else
+        pb = 0
+        et = 0
+    end if
+
+--      Check colors sensible; dummy controls default seems to be 0 & 0 - black on black!!
+
+    if Dummy[D_BG]=0 then
+        Dummy[D_BG] = getSysColor(COLOR_WINDOW)
+    end if
+
+    if Dummy[D_FG]=0 then
+        Dummy[D_FG] = getSysColor(COLOR_BTNTEXT)
+    end if
+
+--      Set the event handlers for the control
+
+--              For the basic list box
+    setHandler(id, w32HPaint,    routine_id("FList_onPaint"))               -- Draw all data
+    setHandler(id, w32HMouse,    routine_id("FList_onMouse"))               -- Highlight/select lines
+    setHandler(id, w32HKeyDown,  routine_id("FList_onKeyDown"))             -- Arrow keys on box
+    setHandler(id, w32HLostFocus,routine_id("FList_onLostFocus"))   -- Must close box
+--              For the scrollbar on the box
+    setHandler(sb, w32HScroll,   routine_id("FList_onScroll"))              -- Change topline index
+    setHandler(sb, w32HGotFocus, routine_id("FList_onGotFocus"))    -- Been clicked; focus->box
+--              For the editText box itself     
+    setHandler(et, w32HKeyDown,  routine_id("FList_onKeyPress"))    -- Editing text itself
+
+    if pb>0 then
+        VOID = sendMessage(pb, BM_SETIMAGE, IMAGE_BITMAP, hFList)       --      Add id etc to end of sequence for future reference              
+    end if
+
+
+    Dummy[D_Id] = id
+    Dummy[D_FLScroll] = sb
+    Dummy[D_FLTextHt] = th
+    Dummy[D_FLLastY] = -1
+    Dummy[D_FLData] = {}
+    Dummy[D_FLNmax] = floor(Dummy[D_H]/th)
+    Dummy[D_FLHeight] = 0
+    Dummy[D_FLSelected] = 1
+    Dummy[D_FLEditTextId] = et
+    Dummy[D_FLPushButtonId] = pb
+
+    Dummies &= {Dummy}      -- Save the parameters in our local memory
+    NeedPaint = 10
+    --add button to receive focus after clicking button on disabled Flist -- judith
+    getsfocus = createEx(PushButton,"",parent,-100,-100,32,32,0,0)
+    return id
+end function
+
+------------------------------------------------------------------
+

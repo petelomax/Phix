@@ -1,0 +1,1269 @@
+-- Properties Module v1.03
+-- 2002,2003 (c) Martin Stachon
+-- <martin.stachon@tiscali.cz>
+-- http://www.webpark.cz/stachon/
+-- started  :  8 July      2002
+-- last mod : 12 March     2003
+-- free for non-commercial use
+-- pieces of code taken from win32lib, Judith's IDE
+-- Thanks to Judith for a lot of testing/suggestions
+-- additional testing by Roland Stowasser
+--
+-- Replacing tabs with spaces is strictly prohibited here!
+-- HISTORY :
+--   1.03 adjust pCellCY according to font height, adjust
+--        combo height for pCellCY, new param for peChange - typeChange,setPropCaption
+--   1.02 Some bugs fixed
+--   1.01 tabbing to ptCheckBox and ptButton works (toggle with space/enter)
+--   1.00 initial release (preceded by several testing versions for Judtih)
+-- TODO:
+--  - make sure double click (peDblClick) on Edit controls work
+--    (set w32Clickable in win32lib classAttrib - not yet in 0.57.9)
+--  - improve some expanding/collapsing speed (redraw only expanded cells)
+
+--include win32lib.ew
+--include gradientFill.ew --wont work on all Windows
+object void
+
+sequence props
+
+constant
+        EM_SETMARGINS  = #00D3,
+        EC_RIGHTMARGIN = #0002
+
+constant
+        xScrollWindow = registerw32Procedure(user32, "ScrollWindow", {C_LONG,C_LONG,C_LONG,C_POINTER,C_POINTER}),
+        xDrawFocusRect = registerw32Procedure(user32, "DrawFocusRect", {C_LONG,C_LONG})
+
+global constant
+        -- property types
+        ptNone          = 0, -- no edit, only caption
+        ptEditBox       = 1,
+        ptComboBox      = 2,
+        ptDropDownList  = 3,
+        ptButton        = 4,
+        ptCheckBox      = 5,
+        ptEditAndButton = 6, -- has button on right
+
+        -- events
+        peLeftUp     = 0,
+        peRightUp    = 1,
+        peDblClick   = 2,
+        peChange     = 3,
+        peEditButton = 4  -- when button of ptEditAndButton is clicke
+constant
+        peLast       = 4  -- total number of events
+
+integer index_count
+index_count = 0
+function new()
+    index_count += 1
+    return index_count
+end function
+
+constant
+        PCAPTION          = new(),
+
+        PHANDLER_RID      = new() -- routine_ids
+
+        -- event handlers here
+
+        index_count += peLast
+constant
+        PHAS_CHILD        = new(),
+        PCHILD_LEVEL      = new(),
+        PPARENT           = new(),
+
+        PTYPE             = new(),
+        PVISIBLE          = new(), -- want we it to be visible?
+        PSUBVISIBLE       = new(), -- for childs, PVISIBLE changes with toggle/expand, so use this to hide
+        PVALUE            = new(),
+        PEXPANDED         = new(),
+        PENABLED          = new(),
+
+        PCOMBOITEMS       = new(), -- items for combo
+        PCOMBOINDEX       = new(), -- index of selected item
+
+        PWAITFORENTER     = new(), -- does the property wait for enter to trigger peChange?
+
+        PBUTTON_PUSHED    = new(), -- for ptButton
+
+        SIZEOF_P          = index_count
+
+integer
+        pPixmap,
+        pPixmapCX,
+        pPixmapCY,
+        pSizingBuffer1,
+        pSizingBuffer2,
+        pWin,
+        pEditBox,
+        pEditBoxButton, -- child of pEditBox
+        pComboBox,
+        pComboBoxEdit, -- subclass of pComboBox
+        pDropDownList,
+        pX,
+        pY,
+        pCX,
+        pCY,
+        pCellCY,
+        pCaptionCX,
+        pScrollPts,
+        pTotalCY, -- pCellCY * (num visible cells)
+        pSpaceX1, -- between left and caption
+        pSpaceY1, --         top
+        pSpaceX2, --         left     value
+        pSpaceY2, --         top      value
+        pPlusWidth,  -- width of the '+' character
+        pMinusWidth, --              '-'
+        pSelectedCell,  --cell number of all available cells even if not for current record
+        pSelectedType,  --cell type of pSelectedCell    
+        pSelectedEditControl,   --can be pEditBox, pComboBox or pDropDownList   
+        pWaitForEnter,
+        pSizingCaption, -- are we resizing?
+        pEditButtonCX,
+        pLastButtonPushed
+atom
+        pBgColor
+sequence
+        pressButtonText pressButtonText = "Press To Access"
+
+-- xpms stacked to take less lines
+-- checkbox checked
+constant CheckPix1 = xpmToPixmap({
+                                  "13 13 4 1", "+        c #000000", "@        c #C0C0C0", "         c #808080",
+                                  ".        c #FFFFFF", "            .", " ++++++++++@.", " +.........@.",
+                                  " +.......+.@.", " +......++.@.", " +.+...+++.@.", " +.++.+++..@.",
+                                  " +.+++++...@.", " +..+++....@.", " +...+.....@.", " +.........@.",
+                                  " @@@@@@@@@@@.", "............."})
+
+-- checkbox unchecked
+constant CheckPix0 = xpmToPixmap({
+                                  "13 13 4 1", "+        c #000000", "@        c #C0C0C0",
+                                  "         c #808080", ".        c #FFFFFF",
+                                  "            .", " ++++++++++@.", " +.........@.", " +.........@.",
+                                  " +.........@.", " +.........@.", " +.........@.", " +.........@.",
+                                  " +.........@.", " +.........@.", " +.........@.", " @@@@@@@@@@@.",
+                                  "............."})
+
+procedure drawFocusRect(atom id, atom x1, atom y1, atom x2, atom y2)
+atom rect, hDC
+    hDC = getDC(id)
+    rect = acquire_mem(0, SIZEOF_RECT)
+    w32store(rect, rectLeft,    x1)
+    w32store(rect, rectTop, y1)
+    w32store(rect, rectRight,   x2)
+    w32store(rect, rectBottom, y2)
+    w32Proc(xDrawFocusRect, {hDC, rect})
+    releaseDC(id)
+    release_mem(rect)
+end procedure
+
+procedure onPaint_Properties(integer self, integer event, sequence params)
+    bitBlt(pWin, 0, 0, pPixmap, 0, pScrollPts, pCX, pCY, SRCCOPY)
+end procedure
+
+procedure initSizingBuffer()
+    -- create two buffers, one with left column, and the second with right column
+    -- so resizing is smooth
+    setCtlSize(pSizingBuffer1, pPixmapCX, pPixmapCY)
+    setCtlSize(pSizingBuffer2, pPixmapCX, pPixmapCY)
+    bitBlt(pSizingBuffer1, 0, 0, pPixmap, 0, 0, pCaptionCX-1, pPixmapCY, SRCCOPY)
+    bitBlt(pSizingBuffer2, 0, 0, pPixmap, pCaptionCX, 0, pPixmapCX-pCaptionCX, pPixmapCY, SRCCOPY)
+    setPenColor(pSizingBuffer1, pBgColor)
+    drawRectangle(pSizingBuffer1, True, pCaptionCX-1, 0, pPixmapCX-1, pPixmapCY)
+    setPenColor(pSizingBuffer1, Black)
+    for y=0 to pTotalCY by pCellCY do
+        drawLine(pSizingBuffer1, pCaptionCX-1, y, pPixmapCX, y)
+    end for
+    setPenColor(pSizingBuffer2, BrightWhite)
+    drawRectangle(pSizingBuffer2, True, pPixmapCX-pCaptionCX, 0, pPixmapCX, pPixmapCY)
+    setPenColor(pSizingBuffer2, Black)
+    for y=0 to pTotalCY by pCellCY do
+        drawLine(pSizingBuffer2, 0, y, pPixmapCX, y)
+    end for
+end procedure
+
+procedure sizingBlit()
+    bitBlt(pWin, 0, 0, pSizingBuffer1, 0, pScrollPts, pCaptionCX, pCY, SRCCOPY)
+    bitBlt(pWin, pCaptionCX, 0, pSizingBuffer2, 0, pScrollPts, pCX, pCY, SRCCOPY)
+end procedure
+
+function getCellY(integer cell)
+integer offsetY
+    offsetY = 0
+    for i=1 to (cell-1) do
+        if props[i][PVISIBLE] then
+            offsetY += pCellCY
+        end if
+    end for
+    return offsetY
+end function
+
+--function getTotalCY()
+---- get CY of all visible cells
+--integer y
+--  y = 0
+--  for i=1 to length(props) do
+--      if props[i][PVISIBLE] then
+--          y += pCellCY
+--      end if
+--  end for
+--  return y
+--end function
+
+function isCellEnabled(integer cell)
+    return props[cell][PENABLED]
+end function
+
+integer toggle_last_visible
+
+global procedure toggleProp(integer cell)
+integer new, old, now
+sequence parents -- stack
+integer exit_loop -- if we'd have exit(n)...
+    new = not props[cell][PEXPANDED]
+    props[cell][PEXPANDED] = new
+    parents = {cell}
+    cell += 1
+    exit_loop = 0
+    while 1 do
+        while props[cell][PPARENT]!=parents[length(parents)] do
+            -- parent has no more children
+            parents = parents[1..length(parents)-1]
+            if not length(parents) then
+                exit_loop = 1
+                exit
+            end if
+        end while
+        if exit_loop then exit end if
+        if props[cell][PPARENT]=parents[length(parents)] then
+            -- child of the last parent
+            if length(parents)=1 then
+                now = new
+            else
+                now = True
+            end if
+            old = props[cell][PVISIBLE]
+            now = now and props[props[cell][PPARENT]][PEXPANDED]
+                  and props[props[cell][PPARENT]][PVISIBLE]
+                  and props[cell][PSUBVISIBLE]
+            props[cell][PVISIBLE] = now
+            if (not old) and now then
+                pTotalCY += pCellCY
+            elsif old and (not now) then
+                pTotalCY -= pCellCY
+            end if
+            if now then
+                toggle_last_visible = cell
+            end if
+            if props[cell][PHAS_CHILD] then
+                -- now its children will follow
+                parents &= cell
+            end if
+        end if
+        if cell=length(props) then
+            exit
+        end if
+        cell += 1
+    end while
+end procedure
+
+global function invokePropHandler(integer cell, integer event, sequence params)
+integer rid
+    if event>peLast or event<0 then
+        ?1/0
+    end if
+    rid = props[cell][PHANDLER_RID+event]
+    if rid!= -1 then
+        return call_func(rid, {cell, event, params})
+    else
+        return -1
+    end if
+end function
+
+-- taken from IDE
+procedure paintButton(integer onId, integer x1, integer y1, integer x2, integer y2, integer pushed, integer enabled, sequence text)
+    setPenColor(onId, getSysColor(COLOR_BTNFACE))
+    drawRectangle(onId, 1, x1, y1, x2, y2)
+    if pushed then
+        -- top shadow
+        setPenColor(onId, Black)
+        drawLine(onId, x1, y1, x1, y2)
+        drawLine(onId, x1, y1, x2, y1)
+        -- inner shadow      
+        setPenColor(onId, getSysColor(COLOR_BTNSHADOW))
+        drawLine(onId, x1+1, y1+1, x1+1, y2-1)
+        drawLine(onId, x1+1, y1+1, x2-1, y1+1)
+        -- bottom reflection
+        setPenColor(onId, getSysColor(COLOR_BTNHIGHLIGHT))
+        drawLine(onId, x2, y1+1, x2, y2)
+        drawLine(onId, x1+1, y2, x2, y2)
+    else -- not pushed   
+        -- top reflection
+        setPenColor(onId, getSysColor(COLOR_BTNHIGHLIGHT))
+        drawLine(onId, x1+1, y1+1, x1+1, y2)
+        drawLine(onId, x1+1, y1+1, x2, y1+1)
+        -- bottom shadow (black)
+        setPenColor(onId, Black)
+        drawLine(onId, x2, y1, x2, y2+1)
+        drawLine(onId, x1, y2, x2+1, y2)
+        -- bottom shadow (gray)
+        setPenColor(onId, getSysColor(COLOR_BTNSHADOW))
+        drawLine(onId, x2-1, y1+1, x2-1, y2)
+        drawLine(onId, x1+1, y2-1, x2, y2-1)
+    end if
+    if enabled then
+        setTextColor(onId, getSysColor(COLOR_BTNTEXT))
+    else
+        setTextColor(onId, getSysColor(COLOR_GRAYTEXT))
+    end if
+    wPuts({onId, x1+3,floor(y1+(y2-y1)/2)-getTextHeight(onId,text)/2}, text)
+end procedure
+
+procedure drawPropertyButton(integer id, integer offsetY, integer pushed)
+integer x1, y1, x2, y2, cx
+sequence text
+    x1 = pCaptionCX+1
+    if offsetY<0 then
+        offsetY = getCellY(id)
+    end if
+    y1 = offsetY+1
+    if props[id][ptButton] then
+        text = pressButtonText--"Press to access"
+    else
+        text = props[id][PVALUE]
+    end if
+    cx = getTextWidth(pPixmap, text)+6
+    -- calculate x2 and y2
+    x2 = x1+cx-1
+    y2 = y1+pCellCY-1
+    paintButton(pPixmap,x1,y1,x2,y2,pushed,isCellEnabled(id),text)
+end procedure
+
+global procedure drawCheckBox(integer id, integer offsetY)
+atom pix
+integer x,y,x1,y1
+sequence result
+    if props[id][PVALUE] then
+        pix = CheckPix1
+    else
+        pix = CheckPix0
+    end if
+    if offsetY<1 then
+        offsetY = getCellY(id)
+    end if
+    y1 = offsetY
+    x1 = pCaptionCX+pSpaceX2
+    -- get the size of the image
+    result = getCtlSize(pix)
+    x = result[1]
+    y = result[2]
+
+    -- center image on y axis
+    y = offsetY+floor((pCellCY-y)/2)
+
+    -- draw the image
+    transBlt(pPixmap, x1, y, pix)
+end procedure
+
+function redrawCell(integer id, integer offsetY)
+sequence prop, caption
+integer parent,dx
+    if not id then return offsetY end if
+    if offsetY<0 then
+        -- need to calculate by own
+        offsetY = getCellY(id)
+    end if
+
+    if props[id][PVISIBLE] then
+        parent = props[id][PPARENT]
+        prop = props[id]
+        caption = repeat(' ', prop[PCHILD_LEVEL]*4)
+        if prop[PHAS_CHILD] then
+            if prop[PEXPANDED] then
+                caption &= '-'
+                dx = pPlusWidth-pMinusWidth
+            else
+                caption &= '+'
+                dx = 0
+            end if
+        else
+            dx = pPlusWidth
+        end if
+        caption &= ' ' & prop[PCAPTION]
+        -- draw caption
+        if id=pSelectedCell then
+            setPenColor(pPixmap,  getSysColor(COLOR_HIGHLIGHT))
+            drawRectangle(pPixmap, True, 1, offsetY+1, pCaptionCX, offsetY+pCellCY)
+            setTextColor(pPixmap, getSysColor(COLOR_HIGHLIGHTTEXT))
+            drawFocusRect(pPixmap, 2, offsetY+2, pCaptionCX-1, offsetY+pCellCY-1)
+        else
+            setPenColor(pPixmap, pBgColor)
+            drawRectangle(pPixmap, True, 1, offsetY+1, pCaptionCX, offsetY+pCellCY)
+            if isCellEnabled(id) then
+                setTextColor(pPixmap, getSysColor(COLOR_BTNTEXT))
+            else
+                setTextColor(pPixmap, getSysColor(COLOR_GRAYTEXT))
+            end if
+        end if
+        wPuts({pPixmap, pSpaceX1+dx, offsetY+pSpaceY1}, caption)
+        setPenColor(pPixmap, BrightWhite)
+        drawRectangle(pPixmap, True, pCaptionCX+1, offsetY+1, pPixmapCX, offsetY+pCellCY)
+        --gradientRectH(pPixmap, pBgColor, BrightWhite, pCaptionCX+1, offsetY+1, pCaptionCX+10, offsetY+pCellCY)
+        if find(prop[PTYPE], {ptEditBox,ptEditAndButton, ptComboBox,ptDropDownList}) then
+            wPuts({pPixmap, pCaptionCX+pSpaceX2, offsetY+pSpaceY2}, prop[PVALUE])
+        elsif prop[PTYPE]=ptButton then
+            drawPropertyButton(id, offsetY, props[id][PBUTTON_PUSHED])
+        elsif prop[PTYPE]=ptCheckBox then
+            drawCheckBox(id, offsetY)
+        end if
+        offsetY += pCellCY
+        setPenColor(pPixmap, Black)
+        drawLine(pPixmap, 0, offsetY, pPixmapCX, offsetY)
+    end if
+    return offsetY
+end function
+
+procedure drawCell(integer id)
+integer y
+    y = redrawCell(id,-1)
+    void = invokeHandler(pWin, w32HPaint, {})
+end procedure
+
+global constant
+        prInvalidDontChange = -2
+
+-- to prevent infinite loop when onChange -> setProperty -> onChange
+integer ignoreOnchange
+ignoreOnchange = 0
+
+function changeText(integer cell, sequence value, integer typeChange)
+-- typeChange is 0 for keying, 1 for clicking into another prop,enter,tab
+integer rid, result, handlerChangedValue
+sequence oldvalue
+    if equal(value, props[cell][PVALUE]) and not typeChange then
+        return 1
+    end if
+    handlerChangedValue = 0
+    rid = props[cell][PHANDLER_RID+peChange]
+    if not equal(getText(pSelectedEditControl), value) then
+        -- probably only needed only when ptEditButton sets its value
+        ignoreOnchange = 1
+        setText(pSelectedEditControl, value)
+        ignoreOnchange = 0
+    end if
+    if rid>0 then
+        oldvalue = props[cell][PVALUE]
+        result = invokePropHandler(cell, peChange, {value, typeChange})
+        if not equal(props[cell][PVALUE], oldvalue) then
+            handlerChangedValue = 1
+        end if
+        if result=False  then
+            -- value invalid, restore previous value
+            ignoreOnchange = 1
+            setText(pSelectedEditControl, props[cell][PVALUE])
+            ignoreOnchange = 0
+            setFocus(pSelectedEditControl)
+            return 0
+        elsif result=prInvalidDontChange then
+            -- value invalid, let user's input be
+            return 0
+        elsif result=True then
+                        -- continue below
+        end if
+    end if
+    if not handlerChangedValue then
+        props[cell][PVALUE] = value
+    end if
+    if props[cell][PTYPE]=ptDropDownList then
+        props[cell][PCOMBOINDEX] = getIndex(pSelectedEditControl)
+    end if
+    return 1
+end function
+
+integer pOldScrollPos
+pOldScrollPos = 0
+procedure setPropScrollPos(integer pos)
+atom sif
+    pScrollPts = pos
+    -- in win32lib 0.57.x, we can use setWindowScrollRange, but this doesn't
+    -- allow us to set SIF_DISABLENOSCROLL so do it by hand
+
+    -- Allocate structure
+    sif = acquire_mem(0, SIZEOF_SCROLLINFO)
+    -- store values
+    w32store(sif, sifSize, SIZEOF_SCROLLINFO)
+    w32store(sif, sifMask, or_all({SIF_POS, SIF_DISABLENOSCROLL}))
+    w32store(sif, sifPos,   pos)
+    void = w32Func(xSetScrollInfo, {getHandle(pWin), SB_VERT,   sif, True})
+    -- Free structure
+    release_mem(sif)
+
+    -- with this, OS automatically moves child windows.
+    w32Proc(xScrollWindow, {getHandle(pWin),0,pOldScrollPos-pos,0,0})
+
+    pOldScrollPos = pos
+end procedure
+
+procedure padEditControl(integer offsetY)
+sequence rect
+    if not pSelectedCell then
+        return
+    end if
+    if offsetY<0 then
+        offsetY = getCellY(pSelectedCell)
+    end if
+    if pSelectedEditControl and not props[pSelectedCell][PVISIBLE] then
+        setVisible(pSelectedEditControl, False)
+        return
+    end if
+    if pSelectedEditControl=pComboBox or pSelectedEditControl=pDropDownList then
+        setRect(pSelectedEditControl, pCaptionCX+1, offsetY+1-pScrollPts,
+                pCX-pCaptionCX-1, pCellCY*5, 1)
+        -- trick to adjust combo height
+        void = getCtlSize(pComboBoxEdit)
+        void = void[2]
+--/**/          void = sq_sub(getCtlSize(pComboBox),{0,void-1}) --/* -- Phix
+                void = getCtlSize(pComboBox) - {0,void-1}       --*/ -- RDS
+        void = sendMessage(pComboBox, CB_SETITEMHEIGHT, -1, pCellCY-void[2])
+        ignoreOnchange = 1
+        setText(pSelectedEditControl, props[pSelectedCell][PVALUE])
+        ignoreOnchange = 0
+    elsif pSelectedEditControl=ptButton then
+                -- SHOULD NEVER HAPPEN
+    elsif pSelectedEditControl=ptCheckBox then
+                -- SHOULD NEVER HAPPEN
+    elsif pSelectedEditControl=pEditBox then
+        setRect(pSelectedEditControl, pCaptionCX+1, offsetY+1-pScrollPts, pCX-pCaptionCX-1, pCellCY-1, 1)
+        ignoreOnchange = 1
+        setText(pSelectedEditControl, props[pSelectedCell][PVALUE])
+        ignoreOnchange = 0
+    end if
+    if pSelectedType=ptEditAndButton then
+        rect = getClientRect(pEditBox)
+        setRect(pEditBoxButton, rect[3]-pEditButtonCX,rect[2],pEditButtonCX,rect[4],True)
+        setVisible(pEditBoxButton, True)
+    else
+        setVisible(pEditBoxButton, False)
+    end if
+    if pSelectedEditControl then
+        setFocus(pSelectedEditControl)
+        setVisible(pSelectedEditControl, True)
+    elsif pSelectedCell then
+        setFocus(pWin)
+    end if
+end procedure
+
+procedure setPropFocus(integer new, integer offsetY, integer fromScroll)
+integer old, oldType, newType, newpos, oldControl
+
+    old = pSelectedCell
+    if old=0 and new=0 then
+        return
+    end if
+    if old then
+        oldType = props[old][PTYPE]
+    else
+        oldType = -1
+    end if
+    if new then
+        newType = props[new][PTYPE]
+    else --new=0
+        newType = 0--oldType
+    end if
+
+    -- hide combo dropdown
+    if oldType=ptComboBox or oldType=ptDropDownList then
+        void = sendMessage(pSelectedEditControl, CB_SHOWDROPDOWN, False, 0)
+    end if
+
+    oldControl = pSelectedEditControl
+
+    if pSelectedEditControl then
+        if not changeText(old, getText(pSelectedEditControl), 1) then
+            return
+        end if
+    end if
+
+    if    newType=ptButton then
+        pSelectedEditControl = 0
+    elsif newType=ptCheckBox then
+        pSelectedEditControl = 0
+    elsif newType=ptComboBox then
+        pSelectedEditControl = pComboBox
+    elsif newType=ptDropDownList then
+        pSelectedEditControl = pDropDownList
+    elsif newType=ptEditBox or newType=ptEditAndButton then
+        pSelectedEditControl = pEditBox
+        if newType=ptEditAndButton then
+            -- make space for "..." button
+            void = sendMessage(pEditBox, EM_SETMARGINS, EC_RIGHTMARGIN, pack_word(0, pEditButtonCX))
+        else -- ptEditBox
+            void = sendMessage(pEditBox, EM_SETMARGINS, EC_RIGHTMARGIN, pack_word(0, 0))
+        end if
+    end if
+
+    pSelectedCell = new
+    pSelectedType = newType
+
+    -- need to hide the previous edit control
+    if oldControl!=0 then
+        if (not new) or ((old!=new) and (newType!=oldType)) then
+            setVisible(oldControl, False)
+        end if
+    end if
+
+    if not new then
+        -- finished here, just wanted to unselect the old
+        pSelectedEditControl = 0
+        drawCell(old)
+        setFocus(pWin)
+        return
+    end if
+
+    if offsetY<0 then
+        offsetY = getCellY(new)
+    end if
+
+    if new!=old then
+        void = redrawCell(new, offsetY)
+    end if
+    if new!=old then
+        void = redrawCell(old, -1)
+    end if
+    if not fromScroll then -- doing this when scrolling is annoing
+        -- scroll to focus
+        if ((offsetY)>pCY+pScrollPts)
+        or (offsetY<pScrollPts) then
+            newpos = offsetY
+            if newpos+pCY>pTotalCY then
+                newpos = pTotalCY-pCY
+            end if
+            setPropScrollPos(newpos)
+        elsif (offsetY+pCY>pTotalCY) then
+        end if
+    end if
+
+    if find(newType, {ptDropDownList,ptComboBox}) then
+        if not (new=old) then
+            eraseItems(pSelectedEditControl)
+            addItem(pSelectedEditControl, props[pSelectedCell][PCOMBOITEMS])
+        end if
+        if newType=ptDropDownList then
+            setIndex(pSelectedEditControl, props[pSelectedCell][PCOMBOINDEX])
+            -- hide combo dropdown
+        end if
+    end if
+    padEditControl(offsetY)
+    void = invokeHandler(pWin, w32HPaint, {})
+end procedure
+
+procedure setPropScroll()
+atom sif
+integer pos
+
+-- Allocate structure
+    sif = acquire_mem(0, SIZEOF_SCROLLINFO)
+
+    -- store values
+    w32store(sif, sifSize, SIZEOF_SCROLLINFO)
+    w32store(sif, sifMask, or_all({SIF_RANGE, SIF_PAGE, SIF_DISABLENOSCROLL}))
+    w32store(sif, sifMin,   0)
+    w32store(sif, sifMax,   pTotalCY)
+    w32store(sif, sifPage, pCY)
+
+    void = w32Func(xSetScrollInfo, {getHandle(pWin), SB_VERT,   sif, True})
+
+    -- check if current position is out of the new renge
+    pos = getVScrollPos(pWin)
+    if pos!=0 and (pos>(pTotalCY-pCY)) then
+        setPropScrollPos(pTotalCY-pCY+1)
+        void = invokeHandler(pWin, w32HPaint, {})
+    end if
+    if pCY>pTotalCY then -- the scrollbar will be disabled
+        setPropScrollPos(0)
+        void = invokeHandler(pWin, w32HPaint, {})
+    end if
+
+    -- Free structure
+    release_mem(sif)
+end procedure
+
+global procedure redrawProperties(integer fromCell)
+integer offsetY
+    offsetY = getCellY(fromCell)
+    for i=fromCell to length(props) do
+        offsetY = redrawCell(i, offsetY)
+    end for
+    pTotalCY = offsetY
+    setPropScroll()
+    setPenColor(pPixmap, Black)
+    drawLine(pPixmap, 0, 0, 0, pTotalCY)
+    drawLine(pPixmap, 0, 0, pPixmapCX, 0)
+    drawLine(pPixmap, pCaptionCX, 0, pCaptionCX, pTotalCY)
+    -- fill out the rest in case it is shown
+    setPenColor(pPixmap, pBgColor)
+    drawRectangle(pPixmap, 1, 0, offsetY+1, pPixmapCX, pPixmapCY)
+    padEditControl(-1)
+    void = invokeHandler(pWin, w32HPaint, {})
+end procedure
+
+procedure tabTo(integer direction) -- dir=1 - next, dir=0 - prev
+integer id
+
+    id = pSelectedCell
+    if not pSelectedCell then
+        return
+    end if
+    if pSelectedType=ptComboBox or pSelectedType=ptDropDownList then
+        void = sendMessage(pSelectedEditControl, CB_SHOWDROPDOWN, False, 0)
+    end if
+    -- switch to next property
+    if pSelectedEditControl and not changeText(pSelectedCell, getText(pSelectedEditControl), 0) then
+        -- typeChange is 0 because we will call setPropFocus with typeChange 1
+        return
+    end if
+    direction = 2*direction-1 -- fancy way of 0->(-1) 1->1
+    id += direction
+    if id<=0 then id = length(props)
+    elsif id>length(props) then id = 1
+    end if
+    while not (props[id][PVISIBLE] and props[id][PENABLED] and
+               props[id][PTYPE]!=ptNone and props[id][PTYPE]!=ptCheckBox) do
+        id += direction
+        if id<=0 then id = length(props)
+        elsif id>length(props) then id = 1
+        elsif id=pSelectedCell then -- dont go in circles
+            id = 0
+            exit
+        end if
+    end while
+    if pSelectedType=ptCheckBox then
+    else
+        setPropFocus(id, -1, 0)
+    end if
+end procedure
+
+procedure onKey_EditBox(integer self, integer event, sequence params)
+    if params[1]=VK_ENTER then
+        void = changeText(pSelectedCell, getText(pSelectedEditControl), 1)
+    elsif params[1]=VK_TAB then
+        tabTo(not and_bits(params[2], ShiftMask))
+    end if
+end procedure
+
+procedure onChange_EditControl(integer self, integer event, sequence params)
+    if not ignoreOnchange then
+        if not props[pSelectedCell][PWAITFORENTER] then
+            void = changeText(pSelectedCell, getText(pSelectedEditControl), 0)
+        end if
+    end if
+end procedure
+
+procedure onMouse_EditControl(integer self, integer event, sequence params)
+    if    params[1]=RightDown then
+        void = invokePropHandler(pSelectedCell, peRightUp, getPointerRelPos(pWin))
+        setFocus(self)
+    elsif params[1]=LeftDoubleClick then
+        void = invokePropHandler(pSelectedCell, peDblClick, {})
+    end if
+end procedure
+
+procedure onClick_EditBoxButton(integer self, integer event, sequence params)
+object result
+    result = invokePropHandler(pSelectedCell, peEditButton, {getText(pSelectedEditControl)})
+    if not atom(result) then
+        void = changeText(pSelectedCell, result, 1)
+    end if
+end procedure
+
+integer wasSizing -- was the cursor set to <--> ?
+wasSizing = False
+procedure onMouse_Properties(integer self, integer event, sequence params)
+integer cell
+integer offsetY
+
+    offsetY = 0
+    cell = 0
+    -- calculate cell
+    for i=1 to length(props) do
+        if props[i][PVISIBLE] then
+            if ((params[3]+pScrollPts)>offsetY) and ((params[3]+pScrollPts)<(offsetY+pCellCY)) then
+                cell = i
+                exit
+            end if
+            offsetY += pCellCY
+        end if
+    end for
+--DEV      (                                   )??
+    if (not cell or not isCellEnabled(cell)) and params[1]!=MouseMove then
+        setFocus(pWin)
+        return
+    end if
+    if params[1]=LeftDown then
+        -- within edit area?
+        if params[2]>(pCaptionCX)+2 then
+            if props[cell][PTYPE]=ptNone then
+                setPropFocus(0, offsetY, 0)
+            elsif props[cell][PTYPE]=ptCheckBox then
+                -- check box click
+                props[cell][PVALUE] = not props[cell][PVALUE]
+                void = invokePropHandler(cell, peChange, {props[cell][PVALUE]})
+                void = invokePropHandler(cell, peLeftUp, {props[cell][PVALUE]})
+                drawCell(cell)
+            elsif props[cell][PTYPE]=ptButton then
+                -- button click
+                props[cell][PBUTTON_PUSHED] = True
+                pLastButtonPushed = cell
+                setPropFocus(cell, offsetY, 0)
+                drawCell(cell)
+            else
+                setPropFocus(cell, offsetY, 0)
+            end if
+        -- within caption area
+        elsif params[2]<(pCaptionCX)-2 then
+            if props[cell][PHAS_CHILD] then
+                -- expand subitems?
+                toggleProp(cell)
+                setPropScroll()
+                if (offsetY+pCellCY+pCY>=pTotalCY+(pCY>pTotalCY)*(pCY-pTotalCY)) then
+                    if (pCY>pTotalCY) then
+                        setPropScrollPos(0)
+                    else
+                        setPropScrollPos(pTotalCY-pCY+1)
+                    end if
+                end if
+                if pSelectedCell then
+                    setPropFocus(pSelectedCell, -1, True)
+                end if
+                redrawProperties(cell)
+            else
+                setFocus(pWin)
+            end if
+        elsif params[2]>=pCaptionCX-2 and params[2]<=pCaptionCX+2 then
+            -- begin resizing caption
+            setMousePointer(pWin, SizeWEPointer)
+            pSizingCaption = 1
+            setPropFocus(0, -1, False)
+            initSizingBuffer()
+            wasSizing = True
+        end if
+    elsif params[1]=LeftUp then
+        if pSizingCaption then
+            -- finish resizing caption
+            pSizingCaption = 0
+            redrawProperties(1)
+            setMousePointer(pWin, ArrowPointer)
+        end if
+        if pLastButtonPushed and (pLastButtonPushed!=cell) then
+            -- user clicked button but moved mouse out
+            props[pLastButtonPushed][PBUTTON_PUSHED] = 0
+            drawCell(pLastButtonPushed)
+        end if
+        if params[2]>(pCaptionCX) then
+            if props[cell][PTYPE]=ptButton then
+                if props[cell][PHANDLER_RID+peLeftUp]>0 then
+                    -- invoke action
+                    props[cell][PVALUE] = invokePropHandler(cell, peLeftUp, {})
+                end if
+                props[cell][PBUTTON_PUSHED] = False
+                pLastButtonPushed = 0
+                drawCell(cell)
+            end if
+        end if
+    elsif params[1]=LeftDoubleClick and params[2]>(pCaptionCX) then
+        void = invokePropHandler(cell, peDblClick, {})
+    elsif params[1]=RightUp and params[2]>(pCaptionCX) then
+        void = invokePropHandler(cell, peRightUp, getPointerRelPos(pWin))
+    elsif params[1]=MouseMove then
+        if params[2]>=pCaptionCX-2 and params[2]<=pCaptionCX+2 then
+            setMousePointer(pWin, SizeWEPointer)
+            wasSizing = True
+            if pSizingCaption then
+                pCaptionCX = params[2]
+                sizingBlit()
+            end if
+        else
+            if pSizingCaption then
+                pCaptionCX = params[2]
+                sizingBlit()
+            elsif wasSizing then
+                setMousePointer(pWin, ArrowPointer)
+                wasSizing = False
+            end if
+        end if
+    end if
+
+end procedure
+
+procedure onEvent_Properties(integer self, integer event, sequence params)
+integer pos,origpos,request
+sequence range
+    if params[1]=WM_VSCROLL then
+        -- the default win32lib processing in < 0.57.10 for this has bug
+        -- that prevents us from using window scrollbars in child windows
+        -- version 0.57.10 is doing this fine, except that sometimes it scrolls
+        -- to pos > range[2] ?? so i am doing this by hand.
+        request = w32lo_word(params[2])
+
+        -- judith informs that dropdown stays open when scrolling and messes up graphics
+        if pSelectedType=ptComboBox or pSelectedType=ptDropDownList then
+            void = sendMessage(pSelectedEditControl, CB_SHOWDROPDOWN, False, 0)
+        end if
+
+        pos = getVScrollPos(pWin)
+        origpos = pos
+
+        if pCY>pTotalCY then
+            range = {0,0} -- scrollbar is disabled
+        else
+            range = {0, pTotalCY-pCY+1}
+        end if
+
+        if    request=SB_LINEUP then -- move up by 1 line
+            pos -= pCellCY
+        elsif request=SB_LINEDOWN then -- move down by 1 line
+            pos += pCellCY
+        elsif request=SB_PAGEUP then -- move up by 1 page
+            pos -= floor(pCY/pCellCY)*pCellCY
+        elsif request=SB_PAGEDOWN then -- move down by 1 page
+            pos += floor(pCY/pCellCY)*pCellCY
+        end if
+
+        if    request=SB_TOP      then  -- to top of page
+            pos = range[1]
+        elsif request=SB_BOTTOM then    -- to bottom of page
+            pos = range[2]
+        elsif request=SB_THUMBPOSITION or request=SB_THUMBTRACK then
+            -- track thumb position
+            pos = w32hi_word(params[2])
+        end if
+
+        -- clip to range
+        if pos<range[1] then
+            pos = range[1]
+        elsif pos>range[2] then
+            pos = range[2]
+        end if
+
+        setPropScrollPos(pos)
+
+        void = invokeHandler(pWin, w32HPaint, {})
+        returnValue(0)
+    elsif params[1]=WM_MOUSEWHEEL then
+        -- mouse wheel scrolling
+        -- seems that some mouse drivers do this automatically
+        pos = getVScrollPos(pWin)-shortInt(w32hi_word(params[2]))
+        if pos<0 then pos = 0 end if
+        void = sendMessage(self, WM_VSCROLL, pack_word(SB_THUMBPOSITION,pos), 0)
+    elsif params[1]=WM_ERASEBKGND then
+        -- to prevent a bit of flicker with combos and when resizing
+        -- (we're already redrawing everything)
+        returnValue(True)
+    end if
+end procedure
+
+procedure onResize_pWin(integer self, integer event, sequence params)
+    pCX = params[2]
+    pCY = params[3]
+    setPropScroll()
+    if pCX>pPixmapCX then
+        -- need to rebuild new buffer
+        pPixmapCX *= 2
+        setCtlSize(pPixmap, pPixmapCX, pPixmapCY)
+        redrawProperties(1)
+    end if
+    if pSelectedCell then
+        padEditControl(-1)
+    end if
+end procedure
+
+procedure onKeyDown_pWin(integer self, integer event, sequence params)
+    if params[1]=VK_ENTER or params[1]=VK_SPACE then
+        if pSelectedType=ptCheckBox then
+            props[pSelectedCell][PVALUE] = not props[pSelectedCell][PVALUE]
+            void = invokePropHandler(pSelectedCell, peChange, {props[pSelectedCell][PVALUE]})
+            void = invokePropHandler(pSelectedCell, peLeftUp, {props[pSelectedCell][PVALUE]})
+            drawCell(pSelectedCell)
+        elsif pSelectedType=ptButton then
+            props[pSelectedCell][PBUTTON_PUSHED] = True
+            drawCell(pSelectedCell)
+            if props[pSelectedCell][PHANDLER_RID+peLeftUp]>0 then
+                -- invoke action
+                props[pSelectedCell][PVALUE] = invokePropHandler(pSelectedCell, peLeftUp, {})
+            end if
+            props[pSelectedCell][PBUTTON_PUSHED] = False
+            pLastButtonPushed = 0
+            drawCell(pSelectedCell)
+        end if
+    elsif params[1]=VK_TAB then
+        tabTo(not and_bits(params[2], ShiftMask))
+    end if
+end procedure
+
+procedure onLostFocus_pWin(integer self, integer event, sequence params)
+    if pSelectedType=ptComboBox or pSelectedType=ptDropDownList then
+        void = sendMessage(pSelectedEditControl, CB_SHOWDROPDOWN, False, 0)
+    end if
+end procedure
+
+global function createProperties(integer hParent, integer x, integer y, integer cx, integer cy, integer capCX)
+sequence rect, kids
+
+    props = {}
+    pX = x
+    pY = y
+    pCaptionCX = capCX
+    pScrollPts = 0
+    pCellCY = 20
+    -- the pixmap is always kept larger than pCX,pCY; so we get smooth resizing/scrolling
+    pPixmapCX = 3*cx
+    pPixmapCY = 600
+
+    pWin      = createEx(Window,   "", hParent, x, y, cx, cy, {WS_VISIBLE, WS_CHILD, WS_VSCROLL, WS_CLIPCHILDREN}, {WS_EX_STATICEDGE})
+    pPixmap   = createEx(Pixmap,   "", 0, 0, 0, pPixmapCX, pPixmapCY, 0, 0)
+    pSizingBuffer1 = createEx(Pixmap,   "", 0, 0, 0, pPixmapCX, pPixmapCY, 0, 0)
+    pSizingBuffer2 = createEx(Pixmap,   "", 0, 0, 0, pPixmapCX, pPixmapCY, 0, 0)
+    pEditBox  = createEx(EditText, "", pWin, 0, 0, 0, 0, {WS_CHILD, ES_AUTOHSCROLL}, 0)
+    pEditBoxButton = createEx(PushButton, "...", pEditBox, 0, 0, 0, 0, {WS_CHILD}, 0)
+    pComboBox = createEx(ComboBox, "", pWin, 0, 0, 0, 0, {WS_CHILD, CBS_DROPDOWN, CBS_AUTOHSCROLL, CBS_NOINTEGRALHEIGHT}, 0)
+    pDropDownList = createEx(DropDownList, "", pWin, 0, 0, 0, 0, {WS_CHILD, CBS_DROPDOWNLIST, CBS_NOINTEGRALHEIGHT, WS_VSCROLL},0)
+    -- subclass the edit control of ComboBox (from Derek)
+    pComboBoxEdit = 0
+    kids = findChildren(pComboBox)
+    for i=1 to length(kids) do
+        if kids[i][2]=EditText then
+            pComboBoxEdit = kids[i][1]
+            exit
+        end if
+    end for
+    if not pComboBoxEdit then
+        puts(2,"prop.ew:Subclassing ComboBox failed! Contact author.\n")
+    end if
+    -- to be able to trap tab keys
+    void = setTabEnabled(pEditBox, False)
+    void = setTabEnabled(pComboBoxEdit, False)
+    void = setTabEnabled(pDropDownList, False)
+    void = setTabEnabled(pWin, False)
+
+    setVisible(pEditBox, False)
+
+    rect = getClientSize(pWin)
+    pCX = rect[3]
+    pCY = rect[4]
+
+    pBgColor = White
+
+    pSpaceX1 = 2
+    pSpaceX2 = 4
+    pSpaceY1 = 5
+    pSpaceY2 = pSpaceY1
+    pPlusWidth  = getTextWidth(pPixmap, "+")
+    pMinusWidth = getTextWidth(pPixmap, "-")
+    pEditButtonCX = getSystemMetrics(SM_CXHSCROLL)
+
+    pSelectedCell = 0
+    pSelectedType = 0
+    pSelectedEditControl = 0
+    pTotalCY = 0
+    pWaitForEnter = True
+    pSizingCaption = False
+    pLastButtonPushed = 0
+
+    setFont(pPixmap, "MS Sans Serif", 9, 0)
+    pCellCY = getTextHeight(pPixmap, "MARTINyjp^'")+8
+
+    setHandler(pWin, w32HResize, routine_id("onResize_pWin"))
+    setHandler(pWin, w32HPaint,  routine_id("onPaint_Properties"))
+    setHandler(pWin, w32HMouse,  routine_id("onMouse_Properties"))
+    setHandler(pWin, w32HEvent,  routine_id("onEvent_Properties"))
+    setHandler(pWin, w32HKeyDown,routine_id("onKeyDown_pWin"))
+    setHandler(pWin, w32HLostFocus,routine_id("onLostFocus_pWin"))
+    setHandler({pEditBox,pComboBox,pDropDownList,pComboBoxEdit}, w32HKeyDown, routine_id("onKey_EditBox"))
+    setHandler({pEditBox,pComboBox,pDropDownList,pComboBoxEdit}, w32HChange, routine_id("onChange_EditControl"))
+    setHandler({pEditBox,pComboBox,pDropDownList,pComboBoxEdit}, w32HMouse,  routine_id("onMouse_EditControl"))
+    setHandler(pEditBoxButton, w32HClick,  routine_id("onClick_EditBoxButton"))
+
+    return pWin
+end function
+
+global procedure setPropsWaitForEnter(integer flag)
+    pWaitForEnter = flag and 1
+    for i=1 to length(props) do
+        props[i][PWAITFORENTER] = pWaitForEnter
+    end for
+end procedure
+
+global function addProperty(sequence caption, integer parent, integer ptype)
+sequence newprop
+integer id
+    id = length(props)+1
+    newprop = repeat(0, SIZEOF_P)
+    newprop[PCAPTION]      = caption
+    for i=PHANDLER_RID to PHANDLER_RID+peLast do
+        -- default to no handlers
+        newprop[i] = -1
+    end for
+    newprop[PTYPE]         = ptype
+    if ptype=ptCheckBox then
+        newprop[PVALUE]        = 0
+    else
+        newprop[PVALUE]        = ""
+    end if
+    newprop[PEXPANDED]     = False
+    newprop[PENABLED]      = True
+    newprop[PWAITFORENTER] = pWaitForEnter
+    newprop[PCOMBOITEMS]   = {}
+    newprop[PBUTTON_PUSHED] = 0
+    if parent>=1 then -- child
+        props[parent][PHAS_CHILD] += 1
+        newprop[PCHILD_LEVEL] = props[parent][PCHILD_LEVEL]+1
+        newprop[PPARENT]  = parent
+        newprop[PVISIBLE] = False
+        newprop[PSUBVISIBLE] = True
+    else -- top-level
+        newprop[PCHILD_LEVEL] = 0
+        newprop[PPARENT]      = 0
+        newprop[PVISIBLE]     = True
+        pTotalCY += pCellCY
+    end if
+    props &= {newprop}
+    if pPixmapCY<pCellCY*id then
+        -- ensure the buffer is large enough to draw all props
+        pPixmapCY *= 2
+        setCtlSize(pPixmap, pPixmapCX, pPixmapCY)
+    end if
+    return id
+end function
+
+global integer propDelayDraw
+propDelayDraw = 0
+global procedure setProperty(integer id, object value)
+    props[id][PVALUE] = value
+    if (id=pSelectedCell) and pSelectedEditControl then
+        ignoreOnchange = 1
+        setText(pSelectedEditControl, value)
+        ignoreOnchange = 0
+    else
+        if not propDelayDraw then
+            drawCell(id)
+        end if
+    end if
+end procedure
+
+global procedure setPropertyCombo(integer id, integer index, sequence list)
+    if length(list) then
+        if id=pSelectedCell then
+            eraseItems(pSelectedEditControl)
+            addItem(pSelectedEditControl, list)
+        end if
+        props[id][PCOMBOITEMS] = list
+    end if
+    props[id][PCOMBOINDEX] = index
+    props[id][PVALUE] = props[id][PCOMBOITEMS][index]
+    if id=pSelectedCell then
+        setIndex(pSelectedEditControl, index)
+    else
+        drawCell(id)
+    end if
+end procedure
+
+global procedure setPropHandler(integer id, integer event, integer rid)
+    props[id][PHANDLER_RID+event] = rid
+end procedure
+
+global function getProperty(integer id)
+    return props[id][PVALUE]
+end function
+
+global procedure showProperty(integer id, integer value)
+integer old, parent
+    if props[id][PCHILD_LEVEL]=0 then
+        old = props[id][PVISIBLE]
+        props[id][PVISIBLE] = value
+        if not old and value then
+            pTotalCY += pCellCY
+        elsif old and not value then
+            pTotalCY -= pCellCY
+        end if
+    else -- child
+        old = props[id][PVISIBLE]
+        parent = props[id][PPARENT]
+        props[id][PSUBVISIBLE] = value
+        value = value and props[parent][PEXPANDED]
+                and props[parent][PVISIBLE]
+        props[id][PVISIBLE] = value
+        if not old and value then
+            pTotalCY += pCellCY
+        elsif old and not value then
+            pTotalCY -= pCellCY
+        end if
+    end if
+end procedure
+
+global procedure setPropEnabled(integer id, integer value)
+    props[id][PENABLED] = value
+    if id=pSelectedCell then
+        -- need to unselect
+        setPropFocus(0, -1, 0)
+    else
+        drawCell(id)
+    end if
+end procedure
+
+global procedure toggleProperty(integer id)
+integer cellY
+    if props[id][PHAS_CHILD] then
+        -- expand subitems?
+        toggleProp(id)
+        setPropScroll()
+        cellY = getCellY(id)
+        if cellY>(pTotalCY-pCY) then
+            setPropScrollPos(pTotalCY-pCY+1)
+        else
+            setPropScrollPos(cellY)
+        end if
+        redrawProperties(id)
+        setPropFocus(pSelectedCell, -1, 1)
+    end if
+end procedure
+
+global procedure expandProperty(integer id)
+    if props[id][PHAS_CHILD] and not props[id][PEXPANDED] then
+        toggleProperty(id)
+    end if
+end procedure
+
+global procedure collapseProperty(integer id)
+    if props[id][PHAS_CHILD] and props[id][PEXPANDED] then
+        toggleProperty(id)
+    end if
+end procedure
+
+global procedure setPropWaitForEnter(integer id, integer flag)
+    props[id][PWAITFORENTER] = flag and 1
+end procedure
+
+global procedure setPropCaption(integer id, sequence text)
+    props[id][PCAPTION] = text
+end procedure
+
+global procedure cutProp()
+    VOID = sendMessage(pEditBox, WM_CUT, 0, 0)
+end procedure
+
+global procedure copyProp()
+    VOID = sendMessage(pEditBox, WM_COPY, 0, 0)
+end procedure
+
+global procedure pasteProp()
+    VOID = sendMessage(pEditBox, WM_PASTE, 0, 0)
+end procedure
+global procedure undoProp()
+    VOID = sendMessage(pEditBox, WM_UNDO, 0, 0)
+end procedure
+global procedure changePressButtonText(sequence text)
+    pressButtonText = text
+end procedure
+

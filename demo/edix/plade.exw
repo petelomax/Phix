@@ -1,0 +1,2450 @@
+--
+-- plade.exw    (Phix Layout Designer)
+-- =========
+--  plc - Phix Layout Constructor (pronounced pluck)
+--  pluck - Phix Layout Constructor Kickstarter (pronounced pluck)
+--  pdle - no!
+
+include pGUI.e
+with trace
+--
+-- I really need to finish the documentation before I can do this... [DONE]
+--/*
+IupFill                                                                                                             [plade_fill.png]
+IupNormalizer[?]                                                                                                    [plade_normal.png]
+IupGridBox                                                                                                          [plade_grid.png]
+IupCbox [maybe... quick and dirty...]                                                                               [plade_cbox.png]
+IupHbox                                                                                                             [plade_hbox[2].png]
+IupVbox                                                                                                             [plade_vbox[2/3].png]
+IupZbox                                                                                                             [plade_zbox.png]
+IupScrollBox                                                                                                        [plade_scroll.png]
+IupBackgroundBox                                                                                                    [plade_backgroundbox.png]
+IupDialog                                                                                                           [application.png]
+IupButton  - Creates an interface element that is a button, that can contain a text and/or an image.                [plade_button.png]
+IupFlatButton                                                                                                       [plade_flatbutton.png]
+IupCanvas  - Creates an interface element that is a canvas - a working area for your application.                   [plade_canvas.png]
+IupFrame  - Creates a native container, which draws a frame with a title around its child.                          [plade_frame[2].png]
+IupImage[?]  - Creates an image to be shown on a label, button, toggle, or as a cursor.                             [plade_image.png]
+IupLabel  - Creates a label interface element, which displays a separator, a text or an image.                      [plade_label[2].png]
+IupList  - Creates an interface element that displays a list of items.                                              [plade_list.png]
+IupMatrix  - Creates a matrix of alphanumeric fields.                                                               [plade_matrix.png]
+IupMenu  - Creates a menu element, which groups 3 types of interface elements: item, submenu and separator.         [plade_menu.png]
+IupMenuItem  - Creates an item of the menu interface element. Aka IupItem.                                          [plade_menuitem.png]
+IupSeparator  - Creates the separator interface element. It shows a line between two menu items.                    [plade_sep.png]
+IupSubmenu  - Creates a menu item that, when selected, opens another menu.                                          [plade_submenu.png]
+IupProgressBar  - Creates a progress bar control.                                                                   [plade_progress.png]
+IupRadio  - Creates a void container for grouping mutual exclusive toggles.                                         [plade_radio[s].png]
+IupSbox  - Creates a void container that allows its child to be resized.                                            [plade_resize.png]
+IupSplit  - Creates a void container that split its client area in two.                                             [plade_split.png]
+IupTabs  - Creates a tab control (like IupZbox, but interactively visibile)                                         [plade_tabs.png]
+IupText  - Creates an editable text field.                                                                          [plade_text[2].png]
+IupToggle  - Creates a toggle interface element                                                                     [plade_check.png]
+IupTree  - Creates a tree containing nodes of branches or leaves.                                                   [plade_tree.png]
+IupValuator  - Creates a Valuator control (aka Scale, Slider, or Trackbar).                                         [plade_slider.png]
+IupLink (note below)                                                                                                [plade_link.png]
+IupSpinBox                                                                                                          [plade_spin.png]
+IupDetachBox                                                                                                        [plade_detach[2].png]
+IupExpander                                                                                                         [plade_expand.png]
+IupDial                                                                                                             [plade_dial.png]
+IupCells                                                                                                            [plade_cells.png]
+IupCalendar                                                                                                         [plade_calendar.png]
+IupDatePick                                                                                                         [plade_date_picker.png]
+
+Not supported: IupGetParam - As well as being a significant technical challenge, it would almost certainly be both physically and
+                             intellectually more difficult to modify string fmt and sequence param_data in a GUI than it would be
+                             to edit them in a plain text file. Considerable effort for a negative gain. Instead I might suggest
+                             making a copy of demo/pGUI/getparam.exw to experiment with the layout or construct the first draft.
+
+None of the IupGL* functions are currently supported. The samples I have might be too complex for this anyway...
+
+I am going to need lots of icons...
+
+note: I chose the chrome logo as it felt the most readily recognisable. 
+      I suppose I should really retrieve the system html-file association... (at least on Windows/make a builtin?)
+--*/
+
+constant IupFuncs = {"IupDialog",
+                     "IupBackgroundBox",
+                     "IupButton",
+                     "IupCalendar",
+                     "IupCanvas",
+                     "IupCbox",
+                     "IupCells",
+                     "IupDatePick",
+                     "IupDetachBox",
+                     "IupDial",
+                     "IupExpander",
+                     "IupFill",
+                     "IupFrame",
+                     "IupGridBox",
+                     "IupHbox",
+--                   "IupImage",
+--                   "IupItem", (IupMenuItem) [DEV we should really]
+                     "IupLabel",
+                     "IupLink",
+                     "IupList",
+                     "IupMatrix",
+                     "IupMenu",
+                     "IupMenuItem",
+                     "IupMultiLine",    -- maybe..
+                     "IupScrollBox",
+                     "IupSeparator",
+                     "IupSubmenu",
+                     "IupProgressBar",
+                     "IupRadio",
+                     "IupSbox",
+                     "IupSpinBox",
+                     "IupSplit",
+                     "IupTabs",
+                     "IupText",
+                     "IupToggle",
+                     "IupTree",
+                     "IupValuator",
+                     "IupVbox",
+                     "IupZbox"}
+
+-- (obviously set only, we don't care about get)
+constant IupProcs = {"IupSetAttribute",
+                     "IupSetAttributes",
+                     "IupSetAttributeHandle",
+                     "IupSetHandle",
+                     "IupSetInt",
+                     "IupSetCallback",
+                     "IupMatSetAttribute",
+                     "IupSetStrAttribute"}
+
+
+--Searching for: iupdialog
+-- Files scanned 61, Directories scanned 7, Lines 43042
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\edix\\plade.exw"--:165    dlg = IupDialog(canvas)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\GraphR.exw"--:165   dlg = IupDialog(canvas)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\alarm.exw"--:19       IupShow(IupDialog(NULL)) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\buffer.exw"--:79   dlg = IupDialog(canvas)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\calendar.exw"--:44 dlg = IupDialog(box)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\cdtest.exw"--:84   hDialog = IupDialog(hIupCanvas)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\detachbox.exw"--:44     dlg = IupDialog(IupVbox({dbox, lbl, restore_btn, txt}),
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\dialog2.exw"--:24   dialog = IupDialog(vbox,"TITLE=\"Dialog Title\"")
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\filedump.exw"--:9983   maindlg = IupDialog(IupVbox({tabs,
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\fill.exw"--:38   dialog = IupDialog(IupVbox({frame_left,frame_center,frame_right,NULL}))
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\frame.exw"--:25       Ihandle dialog = IupDialog(IupFrame(IupVbox({IupLabel(labeltext),
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\gears.exw"--:373   dialog = IupDialog(box)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\glcanvas_cube.exw"--:217   dialog = IupDialog(box);
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\hbox.exw"--:43 dialog = IupDialog(IupVbox({fr1,fr2,fr3}),"TITLE=IupHbox")
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\image.exw"--:111   Ihandle dlg = IupDialog(IupVbox({
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\imgdisp.exw"--:78 hDlg = IupDialog(IupHbox({hImg1Lbl, hImg2Lbl}))
+--IupGL*:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\iup3Dctrls.exw"--:567   dlg = IupDialog(box)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\iup3Dgl.exw"--:147   dialog = IupDialog(canvas, "SIZE=640x480");
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\listview.exw"--:208       Ihandle dlg = IupDialog(vbox)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\mandelbrot.exw"--:89   hDialog = IupDialog(hIupCanvas)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\matrix.exw"--:71   dlg = IupDialog(mat)
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:112   Ihandle dlg = IupDialog(mat)
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:173   Ihandle dlg = IupDialog(IupVbox({mat},"MARGIN=10x10"),"TITLE=\"IupMatrix Example\"")
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:215   Ihandle dlg = IupDialog(IupVbox({mat},"MARGIN=10x10"),"TITLE=\"IupMatrix Example\"")
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:438 Ihandle dlg = IupDialog(matrix, "TITLE=\"IupMatrix in Callback Mode\"")
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:486   Ihandle dlg = IupDialog(IupVbox({mat}, "MARGIN=10x10"))
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:532   Ihandle dlg = IupDialog(matrix,"TITLE=\"teste\"")
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:799   dlg = IupDialog(
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\menu.exw"--:33   dlg = IupDialog(IupCanvas(),"MENU=mymenu, TITLE=IupMenu, SIZE=200x100")
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\multiline1.exw"--:35   dlg = IupDialog(ml, "TITLE=IupMultiline, SIZE=QUARTERxQUARTER")
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\pdemo.exw"--:202   dlg = IupDialog(vbox)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\radio.exw"--:38       dialog = IupDialog(IupHbox({IupFill(),frame,IupFill()})) 
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\rot13.exw"--:111 hDialog = IupDialog(hMainBox)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\sample.exw"--:517   dlg = IupDialog(vbox_1);
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\separator.exw"--:172   dlg = IupDialog(text)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\simple_notepad.exw"--:371   goto_dlg = IupDialog(box);
+--C:\Program Files (x86)\Phix\demo\pGUI\simple_notepad.exw:512   find_dlg = IupDialog(box);
+--C:\Program Files (x86)\Phix\demo\pGUI\simple_notepad.exw:897   dlg = IupDialog(vbox);
+--IupGL*
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\simple_paint.exw"--:767       dlg = IupDialog(text)
+--C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:2096   toolbox = IupDialog(vbox)
+--C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:2193   dlg = IupDialog(vbox)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\submenu.exw"--:127   dlg = IupDialog(text)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\t.exw"--:52       xIupDialog              = define_c_func(iup, "IupDialog", {P}, P),
+--C:\Program Files (x86)\Phix\demo\pGUI\t.exw:137 function IupDialog(atom child)
+--C:\Program Files (x86)\Phix\demo\pGUI\t.exw:138 atom result = c_func(xIupDialog, {child})
+--C:\Program Files (x86)\Phix\demo\pGUI\t.exw:206   atom dialog = IupDialog(toolbar)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\t2.exw"--:76   xIupDialog              = define_c_func(iup, "IupDialog", {P}, P),
+--C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:127 function IupDialog(Ihandln child)
+--C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:128   Ihandle ih = c_func(xIupDialog, {child})
+--C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:219   atom dialog = IupDialog(toolbar)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tabs.exw"--:41   dlg = IupDialog(box)
+--NO: (ifdef)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tee.exw"--:1815 atom dialog = IupDialog(vbox)
+--C:\Program Files (x86)\Phix\demo\pGUI\teselation.exw:154 dlg = iup.dialog{cnv; title="LuaGL Image Texture Loader"}
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\test.exw"--:37   dlg = IupDialog(vbx)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\text.exw"--:66   dlg = IupDialog(IupVbox({text, pwd}))
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\toggle.exw"--:109   dlg = IupDialog(toggles, "TITLE=IupToggle, MARGIN=5x5, GAP=5, RESIZE=NO")
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\triangle.exw"--:70   dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\vol_fog.exw"--:263   dialog = IupDialog(box);
+--IupWebBrowser:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\webbrowser.exw"--:56   hDialog = IupDialog(IupVbox({hToolBar, hWebBrowser}, "MARGIN=5x5,GAP=5"))
+--Split over multiple files... but should be able to do the amend_dlg...
+constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\pdemo\\demo.ew"--:815        amend_dlg = IupDialog(vbox);
+
+integer fn = open(src,"r")
+sequence text = get_text(fn,GT_LF_STRIPPED)
+close(fn)
+--?text
+--/*
+Strategy:
+Write new routines, based on rein/wpaint, in such a way they can replace the ones currently in rein.
+Flaws: rein works directly off filetext[currfile], tabs are treated as a single space.
+       This program should baulk when it finds ifdef (and IupDialog(NULL)).
+       (aside: if you want any windows of plade itself to be editable, they may have to be hived off 
+        into a separate file.)
+
+Rather than make this smarter, tweak the api (ie pGUI.e) to make things easier. For instance, instead of
+get_image() as used in Edix, add IupGetImage(or whatever you want to call it) so that plade can call it
+too. Likewise menu_item(), if possible. And maybe fix pdemo so all the GUI is in one file.
+
+Whitespace:
+    Treat tab characters as single spaces through this program.
+    When you have decided what needs updating, calculate column by treating all multiple spaces/tabs as 1,
+    and when Edix applies, it does likewise, eg
+        "  constant text  = `Title`"
+         12345678901234567890123456
+         1 23456789012345 678901234
+    might attract Replace columns 19..23 (was "Title") with "Whatever", rather than columns 21..25.
+    Obviously all updates are applied last to first, right to left.
+    The following seem to work (not that we really need colend):
+
+function replace_at(string s, integer col, integer colend, string oldtext, string newtext)
+integer start = 0, ch
+    if colend-col+1!=length(was) then ?9/0 end if
+    for i=1 to col do
+        start += 1
+        ch = s[start]
+        if ch=' ' or ch='\t' then
+            for j=start+1 to length(s) do
+                ch = s[j]
+                if ch!=' ' and ch!='\t' then exit end if
+                start = j
+            end for
+        end if
+    end for
+    ?{s[start..start+length(oldtext)-1],oldtext}
+    s[start..start+length(oldtext)-1] = newtext
+    return s
+end function
+?replace_at("  constant text  = `Title`",19,23,"Title","Whatever")
+
+function colidx(string s, integer col)
+integer res = col, ch, last='x'
+    for i=1 to col do
+        ch = s[i]
+        if ch=' ' or ch='\t' then
+            res -= (last=' ')
+            ch = ' '
+        end if
+        last = ch
+    end for
+    return res
+end function
+?colidx("  constant text  = `Title`",21)
+
+    
+
+Shared memory:
+Edix creates a block of shared memory, named "Edix", and sets the state to 0 (waiting), possibly along with some file that
+can be used for locking (eg C:\Program Files (x86)\Phix\demo\edix\help\Phix.txt).
+Other apps can write to the shared memory, setting the state to 2 (in progress) then 1 (ready), along with a specific key
+(similar to eg CD_ISENS) to identify the precise contents. One message may of course be the unique name of another block
+of shared memory, should Edix want/need to write back. Edix will poll for 1 and read/reset things, likewise other apps
+should, especially if sending multiple messages, poll for 0 and lock and clobber.
+There should be a fixed size limit that everyone has to adhere to.
+
+enum ATTRIBUTE, CONTAINER, ELEMENT
+
+(not entirely dissimilar to simple_paint.exw, which of course has the pixel-level handling we need)
+plade: 
+Menu: File (Open/Save/Test/Cancel/Exit), Edit (Undo/Redo/Properties), Tools (?), Options (?), Help (Manual, About)..
+[Parse] [Designer]
+Hierarchy       dialog      Containers
+<------------- Elements ------------->
+
+The Parse tab is more like filedump, showing source fragments, sortable by column, and possibly with
+a drop-down list of important multi-key orderings. For use during development of plade itself.
+--> Make it a pop-up window (Tools (or File or Options) menu)
+There may want to be a Current tab, or maybe Replace/Insert/Delete entries on Parse will suffice.
+
+It may be better to have Containers and Elements on the Menu (checkbox) <== Yep, do that. Or dropdown <== better.
+Likewise the dialog can be standalone <== Yep, do that.
+
+The Hierarcy is an IupTree, with full drag and drop support. Individual items can be right clicked 
+on and an IupElementPropertiesDialog for them opened. Some elements (eg IupCbox) in the dialog may
+also support drag and drop, some will probably not. The dialog will be a real IupDialog, constructed
+dynamically. As the cursor moves around the dialog, set the focus in the IupTree, and if possible 
+update the IupElementPropertiesDialog (or close and reopen in the same place).
+
+Containers and Elements will be IupList?
+
+SUG:
+WARNING: Leaving controls with generic names (such as button1) will made code difficult to understand.
+Click resume to return to the IDE and enter something more meaningful (offending control names are shown
+in red), unless this is a one-off quick and dirty which will never need any maintainance (clicking ignore 
+exits and saves your work, with the unhelpful generic names). [Resume] [Ignore]
+-- and/or --
+have/use a function that does "Load" -> "btn_load", with a clever way (isense-based?) to ensure that
+btn_load does not already exist.
+
+The aim of this program is to knock up a simple layout and get things going. It has no further ambitions 
+beyond being a very simple utility of limited use at the start of a project, and will cease being useful
+once you have configurable layouts, common routines to create elements, more than one variable scope, or 
+code spread out over more than one source file. Most effort, and thinking, should be done elsewhere.
+
+Plade is usually run from Edix. You can run it standalone, but you'll get a warning at startup that Edix 
+is not running, and errors when you exit, unless you cancel, if Edix is still not running. It is Edix 
+which actually performs the save, so that you can try something and then undo it, plus Edix has run(F5) 
+logic, which plade does not, but instead passes an F5 to Edix. Also note that Plade does not have any 
+undo logic, other than a simple "cancel all", and that within Edix changes are applied and hence undone, 
+from the last line to the first, rather than chronologically or any form of logically.
+
+DEV/DOC: (decision time...)
+Note that opening plade from Edix causes save to transmit updates back to Edix, which can then undo/redo 
+them one at a time. Conversely, opening a file from within plade causes save to directly overwrite the
+file...
+
+Once a dialog exceeds a certain complexity, or starts using clever tricks, it is likely to have outgrown 
+plade and require any further modifications to be performed by hand. The real target is getting from a 
+blank screen to something resembling what you want, rather than forever mollycoddling the programmer and
+that way slowly turning this into a huge lumbering creaking beast. Besides, every new release of IUP is
+likely to have new elements and attributes that this has no knowledge of, and you do not want to sit and
+twiddle your thumbs while this plays catch up.
+
+IupSetAttributesf is not supported. (Obviously the dialog was not originally created via plade.) You can
+try changing say btn=IupSetAttributesf(IupButton(),xx) to btn=IupButton(); IupSetAttributes(btn,xx), and
+often such changes will require additional (local) vars and moving the element creation up a few lines.
+With a bit of luck, paranormalised functions will allow btn=IupButton(..,xx) direct.
+
+--*/
+--with trace
+--
+-- src/plscan.ew    -- (source code scanner part of plade)
+-- =============
+--
+-- Ideally this program should only be run on programs that compile cleanly.
+--  This is not a full-featured compiler, and hence there will always be 
+--  some things that it does not cope particularly well with, eg:
+--
+--  * Generally speaking this program is designed to be able to reload any
+--    code it originally wrote out. While it is impractical to attempt to
+--    support any possibly pre-existing code, some limited attempts are
+--    made to offer suggestions of things that would need to change.
+--    (As a quick example, this might support {btnOK,btnCancel} but just
+--     simply not recognise btnOK&btnCancel as being equivalent.)
+--
+--  * If it is not immediately obvious what some error is, try running the
+--      compiler proper (possibly with -norun) against the source.
+--
+--  * Externally defined types. This program does not scan included files, or
+--     for that matter the file(s) that include it. Hence it must sometimes
+--     assume an external type and display a warning. You can specify eg:
+--          --#withtype boolean
+--     (strictly for the benefit of this & rein) to eliminate the warning.
+--
+--  * Overloaded types. While "integer integer integer = 1" is technically
+--     legal, don't expect this to cope. Likewise procedure p(flag boolean)
+--     where boolean is also a type, is quite likely to trip this up. (The
+--     latter, being quite legal according to RDS Eu/Phix language rules, 
+--     declares a /variable/ named boolean of type flag, and is nothing 
+--     whatsoever to do with some previously declared boolean type.)
+--
+--  * This program does not recognise ifdef (which the Phix compiler only 
+--      supports in a bare minimum compability fashion anyway).
+--
+--  * code such as
+--          Ihandle frm_3 = IupFrame(..)
+--          frm_3 = IupExpander(frm_3)
+--      will confuse plade, which obviously cannot treat frm_3 as both an
+--      IupFrame and an IupExpander. Use more (local) variables, or nest.
+
+--
+-- There are three main parts to this program:
+--
+-- Part 1. Tokeniser and error routines.
+-- Part 2. The (highly simplified) parser.
+-- Part 3. The main control routine.
+--
+
+
+--
+-- Part 1. Tokeniser and error routines
+--
+
+integer textlen
+integer CurrLine, col, tokline, tokstart, tokend, toktype
+string token
+atom tokint
+atom tokatm
+
+integer returnexpr          --   1 for function/type "return <expr>",
+        returnexpr = -1     --   0 for procedure "return",
+                            --  -1 for toplevel statements (return is illegal)
+
+sequence vartypes
+
+-- (There is no particular need for these to be kept in step with ptok.e,
+--  on which this was based, except that doing so may ease porting of new
+--  features.)
+constant SYMBOL  = 1,
+         DQUOTE  = 2,
+         BKTICK  = 3,   -- Back tick (string with no escape characters)
+         SQUOTE  = 4,
+         ELLIPSE = 5,
+         HEXDEC  = 6,
+         DIGIT   = 7,
+         FLOAT   = 8,
+         USCORE  = 9,
+         LETTER  = 10,
+--       SLICE   = 11,
+--       SUBSCR  = 12,
+         ILLEGAL = 99
+
+--eg: {20, "IupCanvas", 159, 14,22, {{-1, "NULL", 159,24,27}}, {-1, "canvas", 159,5,10}},
+--     type,name,      line,bgn,end,args,                      tgt
+--     1    2          3    4   5   6                          7
+--
+--#without reformat
+constant FUNC = 20, --DEV
+--           TYPE = 1,
+--           NAME = 2,
+--           LINE = 3,
+--           BEGIN = 4,
+--           END = 5,
+             ARGS = 6,
+             TARGET = 7,
+         PROC = 21,
+         SEQUENCE = -5,
+         UNKNOWN = -1
+--#with reformat
+
+function setCharClass()
+sequence charClass = repeat(ILLEGAL,255)
+    charClass['!'] = SYMBOL
+    charClass['\"'] = DQUOTE
+    charClass['#'] = HEXDEC
+    charClass['&'] = SYMBOL
+    charClass['\''] = SQUOTE
+    charClass['('..'/'] = SYMBOL    -- ()*+,-./
+    charClass['.'] = ELLIPSE
+    charClass['0'..'9'] = DIGIT
+    charClass[':'..'?'] = SYMBOL    -- :;<=>?
+--  charClass['@'] = SYMBOL
+    charClass['A'..'Z'] = LETTER
+    charClass['['] = SYMBOL
+    charClass[']'] = SYMBOL
+    charClass['_'] = USCORE
+    charClass['`'] = BKTICK
+    charClass['a'..'z'] = LETTER
+    charClass['{'] = SYMBOL
+    charClass['}'] = SYMBOL
+    return charClass
+end function
+sequence charClass = setCharClass()
+
+integer Ch
+
+--DEV tokline??
+procedure Abort(string msg)
+    if tokline>=1 and tokline<=textlen then
+        printf(1,"Error in line %d\n%s\n%s^ %s.\n",
+               {tokline,
+                substitute(text[tokline],"\t"," "),
+                repeat(' ',tokstart-1),msg})
+    else
+        printf(1,"%s.\n",{msg})
+        ?9/0
+    end if
+    {} = wait_key()
+    abort(0)
+end procedure
+
+procedure SkipBlockComment()
+-- Skip nested /!* block comments *!/
+-- Note that "*!/" inside a string is interpreted as end of comment, 
+--  (since it is technically text not code, and for example we must
+--   treat '/!* if x="*!/" then' as '" then'), though a "/!*" and "*!/" 
+--   pair (of strings/within a string) behave as expected.
+-- The opening /!* has already been processed; if we cannot find a 
+-- matching *!/ before EOF then display an error.
+integer oline, ocol
+--trace(1)
+    ocol = col
+    oline = CurrLine
+-- if line!=0 then ?9/0 end if  -- we must maintain this!
+    while CurrLine<=textlen do
+        if col>=length(text[CurrLine]) then
+            CurrLine += 1
+            col = 1
+        else
+            Ch = text[CurrLine][col]
+            if Ch='*' then
+                if text[CurrLine][col+1]='/' then
+                    col += 2
+                    if col>length(text[CurrLine]) then
+                        CurrLine += 1
+                        col = 1
+                    else
+                        Ch = text[CurrLine][col]
+                    end if
+                    return
+                end if
+            elsif Ch='/' then
+                if text[CurrLine][col+1]='*' then
+                    col += 2
+                    SkipBlockComment()
+                    col -= 1
+                end if
+            end if
+            col += 1
+        end if
+    end while
+    tokline = oline
+    tokstart = ocol
+    Abort("missing closing block comment")
+end procedure
+
+global sequence Results
+                Results = {}
+
+--DEV not sure we really need this...
+--/*
+sequence insertion_points = {}
+
+sequence insertion_point,
+         next_insertion_point
+         next_insertion_point = {1,1}
+--*/
+
+procedure SkipSpacesAndComments()
+-- Note: To skip "include", we just increment CurrLine and set col to 1.
+--       We also set col to 1:
+--          * if we fall off the end of a line (see nextCh()), and 
+--          * at the very start.
+--       Thus if col=1 we *must* set Ch.
+sequence oneline, wtoken
+integer onelen, k, l
+--  insertion_point = next_insertion_point
+--  next_insertion_point = {CurrLine,col}
+    while 1 do -- until eof or non-blank/comment char found
+        while 1 do -- until eof or non-blank line (with Ch set)
+            if CurrLine>textlen then
+                Ch = -1
+                return
+            end if
+--          if next_insertion_point[2]>1 then
+--              next_insertion_point = {CurrLine,1}
+--          end if
+            oneline = text[CurrLine]
+            onelen = length(oneline)
+
+            if col!=1 then exit end if
+
+            if onelen>=1 then -- (equivalent to col<=onelen)
+                Ch = oneline[1] -- (equivalent to Ch=oneline[col])
+                exit
+            end if
+            CurrLine += 1
+            col = 1
+        end while
+        if Ch=' ' or Ch='\t' then
+            k = col
+            while 1 do -- until Ch!=' '|'\t'
+                col += 1
+                if col>onelen then
+                    CurrLine += 1
+                    col = 1
+                    exit
+                end if
+                Ch = oneline[col]
+                if Ch!=' ' and Ch!='\t' then
+                    exit
+                end if
+            end while
+        elsif Ch='-'
+          and col<onelen
+          and oneline[col+1]='-' then
+            -- This line is a comment (-- just found), check for
+            -- --/!* (block comment) and --# directives
+            if col+2<onelen
+            and oneline[col+2]='/'
+            and oneline[col+3]='*' then
+                col += 4
+                SkipBlockComment()
+            else
+                if col+6<=onelen
+                and equal(oneline[col+2..col+6],"#with") then
+                    oneline = oneline[col..length(oneline)]
+                    if match("--#without reformat",oneline)=1 then
+--                          reformat = 0
+                    elsif match("--#with reformat",oneline)=1 then
+--                          reformat = 1
+                    else
+                        if match("--#withdef",oneline)=1 then
+                            k = 11
+                        elsif match("--#withtype",oneline)=1 then
+                            k = 12
+                        else
+                            k = 0
+                        end if
+                        wtoken = ""
+                        if k and find(oneline[k]," \t") then
+                            while k<length(oneline) do
+                                k += 1
+                                if not find(oneline[k]," \t") then
+                                    l = k+1
+                                    while l<=length(oneline) do
+                                        if find(oneline[l]," \t") then exit end if
+                                        l += 1
+                                    end while
+                                    wtoken = oneline[k..l-1]
+                                    exit
+                                end if
+                            end while
+                        end if
+                        if length(wtoken) then
+                            if oneline[8]='d' then -- withdef
+--                              if not find(wtoken,withdefs) then
+--                                  withdefs = append(withdefs,wtoken)
+--                              end if
+                            elsif oneline[8]='t' then -- withtype
+                                if not find(wtoken,vartypes) then
+                                    vartypes = append(vartypes,wtoken)
+                                end if
+                            else
+                                ?9/0
+                            end if
+                        elsif k then
+                            Abort("a name is expected here")
+                        else
+                            Abort("unrecognised --#with directive")
+                        end if
+                    end if
+                end if
+                CurrLine += 1
+                col = 1
+            end if
+        elsif Ch='/' then
+            if col<onelen
+            and oneline[col+1]='*' then
+                col += 2
+                SkipBlockComment()
+            else -- (we just found a divide symbol then)
+                exit
+            end if
+        else
+            exit
+        end if
+    end while
+end procedure
+
+procedure nextCh()
+    tokend = col-1
+    if col<=length(text[CurrLine]) then
+        Ch = text[CurrLine][col]
+    else
+        CurrLine += 1
+        col = 1
+    end if
+    SkipSpacesAndComments()
+end procedure
+
+procedure getFloat()
+-- finish off a float. The first few DIGITS (if any) have been processed;
+-- continue from '.' or 'eE'
+integer lenTC, exponent, esign
+atom dec, fraction
+sequence oneline
+    oneline = text[CurrLine]
+    lenTC = length(oneline)
+    tokatm = tokint
+    if Ch='.' then
+        -- make sure it is not an ellipse
+        if col<lenTC
+        and text[CurrLine][col+1]='.' then
+--          col -= 1
+        else
+            toktype = FLOAT
+            dec = 1
+            fraction = 0
+            while 1 do
+                col += 1
+                if col>lenTC then exit end if
+                Ch = oneline[col]
+                if charClass[Ch]!=DIGIT then
+                    if Ch!='_' then exit end if
+                else
+                    fraction = fraction*10+(Ch-'0')
+                    dec *= 10
+                end if
+            end while
+            tokatm += fraction/dec
+        end if
+    end if
+    if find(Ch,"eE")
+    and col<lenTC then
+        toktype = FLOAT
+        Ch = oneline[col+1]
+        esign = iff(Ch='-'?-1:+1)
+        if Ch='-' or Ch='+' then
+            col += 1
+            Ch = oneline[col+1]
+        end if
+        exponent = 0
+        while 1 do
+            col += 1
+            if col>lenTC then exit end if
+            Ch = oneline[col]
+            if charClass[Ch]!=DIGIT then
+                if Ch!='_' then exit end if
+            else
+                exponent = exponent*10+Ch-'0'
+            end if
+        end while
+        tokatm = tokatm*power(10,exponent*esign)
+    end if
+--  token = text[CurrLine][tokstart..col-1]
+    nextCh()
+end procedure
+
+constant bases = {8,16,2,10}    -- NB: oxbd order
+integer base
+        base = -1
+
+procedure loadBase()
+integer lenTC
+sequence oneline
+    oneline = text[CurrLine]
+    lenTC = length(oneline)
+    if base=5 then      -- 0(nn) case
+        base = 0
+        while 1 do
+            col += 1
+            if col>lenTC then exit end if
+            Ch = oneline[col]
+            if Ch<'0' or Ch>'9' then exit end if
+            base = (base*10)+(Ch-'0')
+        end while
+        if base<2 or base>36 then
+            Abort("unsupported number base")
+        end if
+        if Ch!=')' then
+            Abort("')' expected")
+        end if
+    else
+        base = bases[base]
+    end if
+    col += 1
+    if col>lenTC then Abort("number expected") end if
+    Ch = oneline[col]
+    if base=8 and Ch='b' then
+        col += 1
+        if col>lenTC then Abort("number expected") end if
+        Ch = oneline[col]
+    end if
+    while 1 do
+        if Ch!='_' then
+            if Ch>='0' and Ch<='9' and Ch<='0'+base-1 then
+                Ch -= '0'
+            elsif Ch>='A' and Ch<='Z' and Ch<='A'+base-11 then
+                Ch -= 'A'+10
+            elsif Ch>='a' and Ch<='z' and Ch<='a'+base-11 then
+                Ch -= 'a'+10
+            else
+                exit
+            end if
+            tokint = tokint*base+Ch
+        end if
+        col += 1
+        if col>lenTC then exit end if
+        Ch = oneline[col]
+    end while
+    nextCh()
+end procedure
+
+integer mapEndToMinusOne
+        mapEndToMinusOne = 0
+
+--constant Operators={"<","<=",">",">=","=","!=",
+--                  "+","+=","-","-=","*","*=",
+--                  "/","/=","..","&","&="}
+--DEV rename as TwoCharOps?
+constant Operators = {"==",":=","<=",">=","!=","+=","-=","*=","/=","&=","@="}
+
+function escMap(integer escChar)
+    if escChar='t' then return '\t' end if
+    if escChar='r' then return '\r' end if
+    if escChar='n' then return '\n' end if
+    if escChar='0' then return '\0' end if
+    if escChar='\"' then return '\"' end if
+    if escChar='\'' then return '\'' end if
+    if escChar='\\' then return '\\' end if
+    -- oops!
+    Abort("invalid escape character")
+end function
+
+procedure getToken()
+integer nxtCh, lenTC
+string oneline
+    if Ch=-1 then return end if
+    oneline = text[CurrLine]
+    tokline = CurrLine
+    tokstart = col
+    token = ""
+    toktype = charClass[Ch]
+    lenTC = length(oneline)
+    if col<lenTC then
+        nxtCh = oneline[col+1]
+    else
+        nxtCh = -1
+    end if
+    if toktype=LETTER then
+        while 1 do
+            col += 1
+            if col>lenTC then exit end if
+            nxtCh = charClass[oneline[col]]
+            if nxtCh<DIGIT then exit end if
+            if nxtCh>LETTER then exit end if
+        end while
+        tokend = col-1
+        token = oneline[tokstart..tokend]
+        if mapEndToMinusOne and equal(token,"end") then
+--??    if mapEndToMinusOne=1 and equal(token,"end") then
+            token = "-1"
+            toktype = DIGIT
+        elsif token="ifdef" then
+            Abort("not supported")
+        end if
+        nextCh()
+    elsif toktype=SYMBOL then
+        if find({Ch,nxtCh},Operators) then
+            col += 1
+        elsif Ch='?' then
+            toktype = LETTER
+        end if
+        col += 1
+        token = text[CurrLine][tokstart..col-1]
+        nextCh()
+    elsif toktype=DQUOTE then
+        if col+2<=lenTC
+        and oneline[col+1]='\"'
+        and oneline[col+2]='\"' then
+            -- multiline (""") string. (no point doing trim handling)
+            token = ""
+            col += 3
+            while 1 do -- until closing """ found
+                while col>lenTC do
+                    CurrLine += 1
+--                  if CurrLine>length(text) then
+                    if CurrLine>textlen then
+                        Abort("missing \"\"\"")
+                        exit
+                    end if
+                    token &= '\n'
+                    oneline = text[CurrLine]
+                    lenTC = length(oneline)
+                    col = 1
+                end while
+                token &= nxtCh
+                nxtCh = oneline[col]
+                if nxtCh='\"'
+                and col+2<=lenTC
+                and oneline[col+1]='\"'
+                and oneline[col+2]='\"' then
+                    col += 3
+                    exit    -- (closing """ found)
+                end if
+                col += 1
+            end while
+--29/9/16:
+            nextCh()
+            return
+        end if
+        while 1 do
+            col += 1
+            if col>lenTC then
+                Abort("missing \"")
+                exit
+            end if
+            nxtCh = oneline[col]
+            if nxtCh='\\' then
+                col += 1
+            elsif nxtCh='\"' then
+                col += 1
+                exit
+            end if
+        end while
+        token = oneline[tokstart..col-1]
+        nextCh()
+    elsif toktype=BKTICK then
+        token = ""
+        while 1 do
+            col += 1
+            while col>lenTC do  -- convert any blank lines to \n
+                CurrLine += 1
+--              if CurrLine>length(text) then
+                if CurrLine>textlen then
+                    Abort("missing `")
+                    exit
+                end if
+                token &= '\n'
+                oneline = text[CurrLine]
+                lenTC = length(oneline)
+                col = 1
+            end while
+            -- otherwise add chars unaltered, to closing tick
+            nxtCh = oneline[col]
+            if nxtCh='`' then
+                col += 1
+                exit        -- (closing ` found)
+            end if
+            token &= nxtCh
+        end while
+        toktype = DQUOTE
+        nextCh()
+    elsif toktype=SQUOTE then
+        if nxtCh='\\' then
+            tokint = escMap(text[CurrLine][col+2])
+            col += 4
+        else
+            tokint = text[CurrLine][col+1]
+            col += 3
+        end if
+        nextCh()
+    elsif toktype=HEXDEC then
+--DEV #456ilasm?
+--/* (see below)
+        if col<lenTC and nxtCh='i' then
+            col += 1
+            nextCh()
+            -- #ilasm{inline assembly},
+            -- #istype{var_id,var_type}, or
+            -- #isinit{var_id,0/1}.
+--          toktype = ILASM
+            toktype = LETTER
+--DEV: (be gone ??)
+            token = "#i"
+            return
+        end if
+--*/
+        tokatm = 0
+        while 1 do
+            col += 1
+            if col>lenTC then exit end if
+            nxtCh = oneline[col]
+            if nxtCh!='_' then
+                if nxtCh<'0' then exit end if
+                if nxtCh>'9' then
+                    if nxtCh<'A' then exit end if
+                    if nxtCh>'F' then
+                        if nxtCh<'a' then exit end if
+                        if nxtCh>'f' then exit end if
+                        tokatm = tokatm*16+nxtCh-'W'
+                    else
+                        tokatm = tokatm*16+nxtCh-'7'
+                    end if
+                else
+                    tokatm = tokatm*16+nxtCh-'0'
+                end if
+            end if
+        end while
+-- 19/03/10 (gave up)
+-- 18/07/13 (made it happen)
+        if nxtCh='i' and tokstart=col-1 then
+--          Abort("Sorry, #ilasm etc should be hidden from eawpaint with --/**/")
+            nextCh()
+            getToken()
+            if toktype!=LETTER
+            or not find(token,{"ilasm","ilASM"}) then
+                Abort("ilASM expected")
+            end if
+            getToken()
+            if toktype!=SYMBOL
+            or not equal(token,"{") then
+                Abort("{ expected")
+            end if
+            while 1 do
+                getToken()
+                if toktype=SYMBOL then
+                    if equal(token,"}") then exit end if
+                end if
+                while find(Ch,"%@") do
+                    col += 1
+                    nextCh()
+                end while
+            end while
+            getToken()
+        else
+            nextCh()
+        end if
+--      token = text[CurrLine][tokstart..col-1]
+--      nextCh()
+    elsif toktype=ELLIPSE then
+        if nxtCh='.' then
+            col += 2
+--          token = text[CurrLine][tokstart..col-1]
+            nextCh()
+        else
+            tokint = 0
+            getFloat()
+        end if
+    elsif toktype=DIGIT then
+        tokint = Ch-'0'
+        if Ch='0' then  -- check for 0x/o/b/d formats
+            if col<lenTC then
+                Ch = oneline[col+1]
+                base = find(Ch,"toxbd(")
+                if base then
+                    if base>1 then base -= 1 end if
+                    col += 1
+                    loadBase()
+                    return
+                end if
+            end if
+        end if
+        while 1 do
+            col += 1
+            if col>lenTC then exit end if
+            Ch = oneline[col]
+            if charClass[Ch]!=DIGIT then
+                if Ch!='_' then exit end if
+            else
+                tokint = tokint*10+Ch-'0'
+            end if
+        end while
+        if find(Ch,".eE") then
+            getFloat() -- (checks for ellipse)
+        else
+            nextCh()
+        end if
+    elsif toktype=ILLEGAL
+      and mapEndToMinusOne
+      and Ch='$' then
+        mapEndToMinusOne = '$'
+        token = "-1"
+        toktype = DIGIT
+        col += 1
+        nextCh()
+    else
+        Abort("unrecognised")
+    end if
+--pp(token)
+end procedure
+
+procedure Match(sequence text)
+    if not equal(token,text) then
+        Abort(text&" expected")
+    end if
+    getToken()
+end procedure
+
+--
+-- Part 2. The (highly simplified) parser.
+--
+forward function Expression()
+forward procedure Block()
+
+function DoSequence(integer vch)
+-- Process a sequence
+-- vch is from DoMultipleAssignment, ie/eg {a,?,b} [@]= <expr>.
+--      (if non-0, both the ? and @ are allowed)
+-- token=="{" on entry
+integer wasMapEndToMinusOne -- allow {1,2,3,$} [==={1,2,3}]
+sequence res = {}
+    wasMapEndToMinusOne = mapEndToMinusOne
+    mapEndToMinusOne = 1
+    Match("{")
+    res = {}
+    while not equal(token,"}") do
+        if mapEndToMinusOne='$' then
+            getToken()
+            exit
+        end if
+        mapEndToMinusOne = 0
+        if vch!=0 then
+            if token="?" then
+                getToken()
+            else
+                {} = Expression()
+            end if
+        else
+            res = append(res,Expression())
+            res = append(res,{SYMBOL,token,tokline,tokstart,tokend})
+--DEV/SUG:
+--          res = append(res,{SYMBOL,token,tokline,tokstart,tokend,Expression()})
+        end if
+        if not equal(token,",") then exit end if
+        if Ch='$' then
+            mapEndToMinusOne = 1
+            Match(",")
+            getToken()
+            exit
+        end if
+        mapEndToMinusOne = 1
+        Match(",")
+    end while
+    if vch!=0 then
+        charClass['@'] = SYMBOL
+    end if
+    mapEndToMinusOne = wasMapEndToMinusOne
+    Match("}")
+    if token=";" then
+        getToken()
+    end if
+    return res
+end function
+
+function Params(integer asiff)
+string procname
+integer namedparams = 0
+sequence res = {}
+    procname = token
+    if find(procname,{"IupSetAttributesf","IupWebBrowser"})
+    or match("IupGL",procname)=1 then
+        Abort("not supported")
+    end if
+    getToken()
+    Match("(")
+    if not equal(token,")") then
+        while Ch!=-1 do
+            res = append(res,Expression())
+            if asiff then
+                if not find(token,{",","?",":"}) then exit end if
+            else
+--<25/1/17> (named and defaulted parameters)
+                if find(token,{":=","="}) then
+                    getToken()
+                    {} = Expression()
+                    namedparams = 1
+                elsif namedparams then
+                    Match("=")  -- trigger error
+                end if
+--</25/1/17>
+                if not equal(token,",") then exit end if
+            end if
+            getToken()
+        end while
+    end if
+    if find(procname,IupProcs) then
+        res = {PROC,procname,tokline,tokstart,tokend,res}
+        Results = append(Results,res)
+--?res
+--      insert_point = 1    -- mark as valid insertion point
+--/*
+        if Ch=-1 then
+            insertion_point = next_insertion_point
+        end if
+        insertion_points = append(insertion_points,insertion_point)
+--*/
+    end if
+    Match(")")
+    return res
+end function
+
+function DoSubScripts(object res)
+integer wasMapEndToMinusOne
+object subscr1, subscr2
+    wasMapEndToMinusOne = mapEndToMinusOne
+    mapEndToMinusOne = 1
+    while 1 do
+        Match("[")
+        subscr1 = Expression()
+        if toktype=ELLIPSE then
+            getToken()
+            subscr2 = Expression()
+--          res = {SLICE,subscr1,subscr2,res}
+            res = {}
+            exit
+        end if
+--      res = {SUBSCR,subscr1,res}
+        res = {}
+        if Ch!='[' then exit end if
+        Match("]")
+    end while
+    mapEndToMinusOne = wasMapEndToMinusOne
+    Match("]")
+    return res
+end function
+
+procedure skip_namespace()
+    if CurrLine>textlen
+    or col>=length(text[CurrLine])
+    or text[CurrLine][col+1]!='=' then
+        getToken()
+        Match(":")
+    end if
+end procedure
+
+sequence tgtname = ""   -- set by Assignment
+--SUG?? (for consistency would need many more {})
+--       tgtpos         -- {line,begin,end}
+integer tgtline = 0,
+        tgtbgn = 0,
+        tgtend = 0
+
+integer treatColonAsThen = 0
+
+function Factor()
+object res
+integer k
+    if toktype=LETTER then
+        if not treatColonAsThen then
+            if Ch=':' then skip_namespace() end if
+        end if
+        if Ch='(' then  -- a function, we presume
+            res = {FUNC,token,tokline,tokstart,tokend,0,0}
+            --    {?,  NAME=2,?,      ?,       ?,ARGS=6,TARGET=7}
+            if length(tgtname) then
+                res[TARGET] = {UNKNOWN,tgtname,tgtline,tgtbgn,tgtend}
+                tgtname = ""
+            end if
+            k = find(token,IupFuncs)
+--/*
+            if k!=0 then
+--              insert_point = 1    -- mark as valid insertion point
+                if Ch=-1 then
+                    insertion_point = next_insertion_point
+                end if
+                insertion_points = append(insertion_points,insertion_point)
+            end if
+--*/
+            res[ARGS] = Params(find(token,{"iff","iif"}))
+--          if find(res[2],{"IupDialog","IupVbox"}) then
+--          if find(res[2],IupFuncs) then   -- name
+--          if find(res[NAME],IupFuncs) then
+--          if k!=0 then
+            if k!=0 and res[TARGET]!=0 then
+                Results = append(Results,res)
+--?res
+--/*
+--              insert_point = 1    -- mark as valid insertion point
+                if Ch=-1 then
+                    insertion_point = next_insertion_point
+                end if
+                insertion_points = append(insertion_points,insertion_point)
+--*/
+            end if
+        else -- a variable, we presume
+            res = {UNKNOWN,token,tokline,tokstart,tokend}
+            getToken()
+        end if
+    elsif toktype=DIGIT then
+        res = {DIGIT,tokint,tokline,tokstart,tokend}
+        getToken()
+    elsif toktype=FLOAT then
+        res = {FLOAT,tokatm,tokline,tokstart,tokend}
+        getToken()
+    elsif toktype=HEXDEC then
+        res = {HEXDEC,tokatm,tokline,tokstart,tokend}
+        getToken()
+    elsif toktype=DQUOTE then
+--DEV should we leave the quotes in???
+--18/07/2013:
+--      res = {DQUOTE,token[2..length(token)-1],tokline,tokstart+1,tokend-1}
+        res = {DQUOTE,token,tokline,tokstart,tokend}
+        getToken()
+    elsif toktype=SQUOTE then
+        res = {SQUOTE,tokint,tokline,tokstart,tokend}
+        getToken()
+    elsif toktype=SYMBOL and equal(token,"{") then
+        res = {SEQUENCE,token,tokline,tokstart,tokend}
+        res = append(res,DoSequence(0))
+    elsif toktype=SYMBOL and equal(token,"(") then
+        getToken()
+        res = Expression()
+        Match(")")
+    else
+        Abort("unrecognised")
+        res = -1
+    end if
+    if toktype=SYMBOL and equal(token,"[") then
+        res = DoSubScripts(res)
+    end if
+    return res
+end function
+
+function Unary()
+object res
+    if toktype=SYMBOL and equal(token,"-") then
+        Match("-")
+        res = {"-",Factor(),tokline,tokstart,tokend}
+    elsif toktype=SYMBOL and equal(token,"+") then -- (ignore)
+        Match("+")
+        res = Factor()
+    elsif toktype=LETTER and equal(token,"not") then
+        Match(token)
+        res = {"not",Factor(),tokline,tokstart,tokend}
+    else
+        res = Factor()
+    end if
+    return res
+end function
+
+function Term()
+object res
+    res = Unary()
+    while find(token,{"*","/"}) do
+        res = {token,res}
+        Match(token)
+        res = append(res,Unary())
+    end while
+    return res
+end function
+
+function Sum()
+object res
+    res = Term()
+    while find(token,{"+","-"}) do
+        res = {token,res}
+        Match(token)
+        res = append(res,Term())
+    end while
+    return res
+end function
+
+function Concat()
+object res
+    res = Sum()
+    while equal(token,"&") do
+        Match("&")
+        res = {"&",res,Sum()}
+    end while
+    return res
+end function
+
+function Relation()
+object res
+    res = Concat()
+    while find(token,{"<","<=","=","==","!=",">",">="}) do
+        res = {token,res}
+        Match(token)
+        res = append(res,Concat())
+    end while
+    return res
+end function
+
+function Expression()
+object res
+    res = Relation()
+    while find(token,{"and","or","xor"}) do
+        res = {token,res}
+        Match(token)
+        res = append(res,Relation())
+    end while
+    return res
+end function
+--function Expression()
+--  {} = Factor()
+--  while find(token,{"<","<=","=","==","!=",">",">=","*","/","+","-","and","or","xor","&","not"}) do
+--      Match(token)
+--      {} = Factor()
+--  end while
+--  return {}
+--end function
+
+procedure DoIf()    -- Process an if construct
+    Match("if")
+    {} = Expression()
+    Match("then")
+    Block()
+    while equal(token,"elsif") do
+        Match("elsif")
+        {} = Expression()
+        Match("then")
+        Block()
+    end while
+    if equal(token,"else") then
+        Match("else")
+        Block()
+    end if
+    Match("end")
+    Match("if")
+end procedure
+
+procedure DoWhile()
+    Match("while")
+    {} = Expression()
+    Match("do")
+    Block()
+    Match("end")
+    Match("while")
+end procedure
+
+procedure DoSwitch()
+    Match("switch")
+    {} = Expression()
+    if find(token,{"with","without"}) then
+        while Ch!=-1 do
+            getToken()
+            if not find(token,{"fallthru","fallthrough","jump_table"}) then exit end if
+            getToken()
+            if not equal(token,",") then exit end if
+        end while
+    end if
+    if token="do" then Match("do") end if
+    while Ch!=-1 do
+        if find(token,{"else","default"}) then
+            getToken()
+        else
+            Match("case")
+            if find(token,{"else","default"}) then
+                getToken()
+            else
+                treatColonAsThen = 1
+                while Ch!=-1 do
+                    {} = Expression()
+                    if not equal(token,",") then exit end if
+                    getToken()
+                end while
+                treatColonAsThen = 0
+            end if
+        end if
+        if find(token,{":","then"}) then
+            getToken()
+        end if
+        Block()
+        if find(token,{"fallthru","fallthrough","break"}) then
+            getToken()
+        end if
+        if token=";" then
+            getToken()
+        end if
+        if equal(token,"end") then exit end if
+    end while
+    Match("end")
+    Match("switch")
+end procedure
+
+procedure DoFor()
+    Match("for")
+    getToken()
+    Match("=")
+    {} = Expression()
+    Match("to")
+    {} = Expression()
+    if equal(token,"by") then
+        getToken()
+        {} = Expression()
+    end if
+    Match("do")
+    Block()
+    Match("end")
+    Match("for")
+end procedure
+
+procedure DoReturn()
+    if returnexpr=-1 then Abort("return must be inside a procedure or function") end if
+    Match("return")
+    if returnexpr then
+        {} = Expression()
+    end if
+end procedure
+
+procedure DoQu()
+    getToken()
+    {} = Expression()
+end procedure
+
+--Now skipped in getToken()[??]
+--procedure DoIlasmEtc()
+--  getToken()
+--  if not find(token,{"ilasm","ilASM","istype","isinit","isginfo"}) then
+--      Abort("ilasm, istype, isinit, or isginfo expected")
+--      return
+--  end if
+--  getToken()
+--  Match("{")
+--  while Ch!=-1 do
+--      while find(Ch,":%@") do
+--          col += 1
+--          nextCh()
+--      end while
+--      getToken()
+--      if equal(token,"}") then
+--          getToken()
+--          exit
+--      end if
+--  end while
+--end procedure
+
+procedure Assignment(bool allowsubscripts)
+    tgtname = token
+    tgtline = tokline
+    tgtbgn = tokstart
+    tgtend = tokend
+    getToken()
+    if toktype=SYMBOL and equal(token,"[") then
+        if not allowsubscripts then Abort("invalid") end if
+--      tgtname &= "[?]"
+        tgtname = ""
+        {} = DoSubScripts(0)
+    end if
+    if not find(token,{"=",":="}) then
+        if not allowsubscripts
+        or not find(token,{"+=","-=","*=","/=","&="}) then
+            Abort("assignment operator expected")
+        end if
+        tgtname = ""
+    end if
+    getToken()
+    {} = Expression()
+end procedure
+
+procedure DoMultipleAssignment()
+--  charClass['@'] = SYMBOL
+    -- [non-0 param to DoSequence() makes it allow ?,
+    --  and set '@' as valid on the final Match("}")]
+    {} = DoSequence('@')
+    charClass['@'] = ILLEGAL
+    if not find(token,{"=",":=","@="}) then
+        Abort("assignment operator expected")
+        return
+    end if
+    getToken()
+    {} = Expression()
+    if token=";" then
+        getToken()
+    end if
+end procedure
+
+procedure WarnType()
+    printf(1,"Warning: %s assumed to be external type",{token})
+end procedure
+
+--constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i"}
+constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","ifdef"}
+constant elseetc = {"elsif","else","end","case","default","fallthru","fallthrough"}
+
+procedure Locals()
+    while toktype=LETTER do
+        if not find(token,vartypes) then    -- see Note1
+            if find(token,ifforwhileetc) then exit end if
+            --
+            if charClass[Ch]!=LETTER then exit end if
+            -- ^explanation^: word word (not word =, or word[... etc) must be
+            --                a variable definition (eg boolean t), not code.
+            --
+            WarnType()
+            vartypes = append(vartypes,token)
+        end if
+        while 1 do
+            getToken()
+            if toktype=SYMBOL and equal(token,"{") then
+                DoMultipleAssignment()
+                if Ch!=',' then exit end if
+            end if
+            if Ch='=' then
+                Assignment(False)
+                if toktype!=SYMBOL or token!="," then exit end if
+            else
+                if Ch!=',' then getToken() exit end if
+                getToken()
+            end if
+        end while
+        if token=";" then
+            getToken()
+        end if
+    end while
+end procedure
+
+procedure DoRoutineDef(integer rType, integer fwd)
+sequence sType, tType, res
+
+    sType = token   -- procedure/function/type
+    getToken()
+--?{"DoRoutineDef",token}
+    res = {token,tokline,0}
+    tType = token   -- type name
+    getToken()
+    Match("(")
+    if not equal(token,")") then
+        while Ch!=-1 do
+            if Ch=':' then skip_namespace() end if
+-- 22/07/2013
+            if not find(Ch,"=,") then
+                if not find(token,vartypes) then
+                    if charClass[Ch]!=LETTER then
+                        Abort("a type is expected here")
+                        exit
+                    end if
+                    WarnType()
+                    vartypes = append(vartypes,token)
+                end if
+                getToken()
+            end if
+--15/2/16: (unnamed params)
+            if equal(token,",") then
+                while 1 do
+                    getToken()
+                    if toktype!=SYMBOL or not equal(token,",") then exit end if
+                end while
+                if equal(token,")") then exit end if
+            elsif equal(token,")") then
+                exit
+            else
+                getToken()
+                if find(token,{"=",":="}) then
+                    getToken()
+                    {} = Expression()
+                end if
+                if not equal(token,",") then exit end if
+                getToken()
+            end if
+--DEV positive types..
+--          while Ch=',' do
+--              getToken()
+--              getToken()
+--          end while
+        end while
+    end if
+    Match(")")
+    if fwd then return end if
+    Locals()
+    returnexpr = (rType>1)
+    Block()
+    returnexpr = -1
+    Match("end")
+    Match(sType)
+    if rType=3 then
+        vartypes = append(vartypes,tType)
+    end if
+end procedure
+
+procedure Statement()
+    if toktype=LETTER then
+        if find(token,vartypes) then Locals()
+        elsif token="if"        then DoIf()
+        elsif token="for"       then DoFor()
+        elsif token="while"     then DoWhile()
+        elsif token="continue"  then Match("continue")
+        elsif token="exit"      then Match("exit")
+        elsif token="break"     then Match("break")
+        elsif token="switch"    then DoSwitch()
+        elsif token="return"    then DoReturn()
+        elsif token="end"       then Abort("unexpected")
+        elsif token="?"         then DoQu()
+--      elsif token="#i"        then DoIlasmEtc()
+        elsif token="ifdef"     then Abort("invalid")
+        else
+            if Ch=':' then skip_namespace() end if
+            if Ch='(' then
+                {} = Params(0)
+            else
+                Assignment(True)
+            end if
+        end if
+        if equal(token,";") then
+            getToken()
+        end if
+    elsif toktype=SYMBOL and equal(token,"{") then
+        DoMultipleAssignment()
+    else
+        Abort("unrecognised")
+    end if
+end procedure
+
+procedure Block()
+    while 1 do
+        if toktype=LETTER then
+            if find(token,elseetc) then exit end if
+-- 13/2/14 ("declare anywhere")
+            while toktype=LETTER do
+                if not find(token,vartypes) then    -- see Note1
+                    if find(token,ifforwhileetc) then exit end if
+                    --
+                    if charClass[Ch]!=LETTER then exit end if
+                    -- ^explanation^: word word (not word =, or word[... etc) must be
+                    --                a variable definition (eg boolean t), not code.
+                    --
+                    WarnType()
+                    vartypes = append(vartypes,token)
+                end if
+                while 1 do
+                    getToken()
+-- 18/6/16:
+                    if toktype=SYMBOL and equal(token,"{") then
+                        DoMultipleAssignment()
+                        if Ch!=',' then exit end if
+                    end if
+                    if Ch='=' or Ch=':' then
+                        Assignment(False)
+                        if token!="," then exit end if
+                    else
+                        if Ch!=',' then getToken() exit end if
+                        getToken()
+                    end if
+                end while
+                if token=";" then
+                    getToken()
+                end if
+            end while
+            if find(token,elseetc) then exit end if
+            Statement()
+        elsif toktype=SYMBOL and equal(token,"{") then
+            DoMultipleAssignment()
+        else
+            exit
+        end if
+    end while
+end procedure
+
+procedure TopDecls()
+integer wasMapEndToMinusOne
+    while Ch!=-1 do
+        getToken()
+        if toktype=SYMBOL and equal(token,"{") then
+            DoMultipleAssignment()
+            if Ch!=',' then exit end if
+        end if
+        if Ch='=' then
+            Assignment(False)
+            if toktype!=SYMBOL or not equal(token,",") then exit end if
+        else
+            if Ch!=',' then getToken() exit end if
+            getToken()
+        end if
+        if Ch='$' then
+            wasMapEndToMinusOne = mapEndToMinusOne
+            mapEndToMinusOne = 1
+            getToken()
+            mapEndToMinusOne = wasMapEndToMinusOne
+            getToken()
+            exit
+        end if
+    end while
+    if token=";" then
+        getToken()
+    end if
+end procedure
+
+--sequence constnames = {},
+--       constvals = {}
+--integer constidx = 0
+
+--integer resolvable
+
+--with trace
+--/*
+function Resolve(object constval)
+sequence res
+integer idx
+--object subscr1, subscr2, Seq
+object cv1
+    cv1 = constval[1]
+    if cv1="+" then
+        return Resolve(constval[2])+Resolve(constval[3])
+    elsif sequence(cv1) then
+        resolvable = 0
+        return 0
+    elsif cv1=UNKNOWN then
+        idx = find(constval[2],constnames)
+        if idx then
+            return constvals[idx]
+        end if
+        resolvable = 0
+        return 0
+    elsif cv1=FUNC then
+        if equal(constval[NAME],"or_all") then
+            return or_all(Resolve(constval[ARGS][1]))
+        elsif equal(constval[NAME],"or_bits") then
+            return or_bits(Resolve(constval[ARGS][1]),Resolve(constval[ARGS][2]))
+        end if
+        resolvable = 0
+        return 0
+--18/07/2013:
+    elsif cv1=DQUOTE then
+--      return constval[2][2..-2]   -- strip quotes
+        return constval[2][2..$-1]  -- strip quotes
+--  elsif find(cv1,{DQUOTE,SQUOTE,HEXDEC,DIGIT,FLOAT}) then
+    elsif find(cv1,{SQUOTE,HEXDEC,DIGIT,FLOAT}) then
+        return constval[2]
+    elsif cv1=SEQUENCE then
+        res = {}
+        for i=1 to length(constval[6]) by 2 do
+            res = append(res,Resolve(constval[6][i]))
+        end for
+        return res
+--  elsif cv1=SUBSCR then
+--DEV this sort of works, but we can't replace it. Maybe it should be
+-- {SUBSCR,{seq},{"["},{idx},{"]"}} like SEQUENCE is.
+--      if resolvable then
+--          subscr1=Resolve(constval[2])
+--          if resolvable and integer(subscr1) then
+--              Seq=Resolve(constval[3])
+--              if resolvable and sequence(Seq)
+--              and subscr1>=1 and subscr1<=length(Seq) then
+--                  return Seq[subscr1]
+--              end if
+--          end if
+--      end if
+--      resolvable = 0
+--      return 0
+--  elsif cv1=SLICE then
+--DEV ditto, with ".." and {endslice}
+--      if resolvable then
+--          subscr1=Resolve(constval[2])
+--          if resolvable and integer(subscr1) then
+--              subscr2=Resolve(constval[3])
+--              if resolvable and integer(subscr2) then
+--                  Seq=Resolve(constval[4])
+--                  if resolvable and sequence(Seq)
+--                  and subscr1>=1 and subscr2<=length(Seq)
+--                  and subscr2>=subscr1-1 then
+--                      return Seq[subscr1..subscr2]
+--                  end if
+--              end if
+--          end if
+--      end if
+--      resolvable = 0
+--      return 0
+    end if
+--?9/0
+    resolvable = 0
+    return 0
+end function
+--*/
+
+procedure DoConstant()
+--integer insert_point = 0
+integer wasMapEndToMinusOne
+    getToken()  -- discard "constant".
+    while Ch!=-1 do
+        if toktype=LETTER
+        and find(token,vartypes)
+        and (charClass[Ch]=LETTER or Ch='{') then
+            -- cope with typed constant definitions, eg:
+            --  constant string s = "string",
+            --           integer {i,j,k} @= 0
+            getToken()
+        end if
+        if toktype=SYMBOL and equal(token,"{") then
+            DoMultipleAssignment()
+        else
+            Assignment(False)
+        end if
+        if not equal(token,",") then exit end if
+        if Ch='$' then
+            wasMapEndToMinusOne = mapEndToMinusOne
+            mapEndToMinusOne = 1
+            getToken()
+            mapEndToMinusOne = wasMapEndToMinusOne
+            getToken()
+            exit
+        end if
+        getToken()
+    end while
+--/*
+    if insert_point then
+        if Ch=-1 then
+            insertion_point = next_insertion_point
+        end if
+        insertion_points = append(insertion_points,insertion_point)
+    end if
+--*/
+    if token=";" then
+        getToken()
+    end if
+end procedure
+
+procedure DoEnum()
+integer wasMapEndToMinusOne -- allow enum 1,2,3,$ [=== enum 1,2,3]
+    wasMapEndToMinusOne = mapEndToMinusOne
+    mapEndToMinusOne = 1
+    Match("enum")
+    while 1 do
+        if mapEndToMinusOne='$' then
+            getToken()
+            exit
+        end if
+        mapEndToMinusOne = 0
+        getToken()
+        if equal(token,"=") then
+            getToken()
+            {} = Expression()
+        end if
+        if not equal(token,",") then exit end if
+        mapEndToMinusOne = 1
+        Match(",")
+    end while
+    mapEndToMinusOne = wasMapEndToMinusOne
+end procedure
+
+--
+-- Part 3. The main control routine.
+--
+
+global procedure Scan()
+integer t
+integer fwd = 0
+
+    CurrLine = 1
+    treatColonAsThen = 0
+    vartypes = {"atom","integer","bool","sequence","string","object","Ihandle","Ihandln","cdCanvas","cdCanvan","nullable_string","imImage"}
+    textlen = length(text)
+    if textlen
+    and match("#!",text[1])=1 then  -- skip shebang
+        CurrLine = 2
+    end if
+    col = 1
+    SkipSpacesAndComments()
+    getToken()
+    while Ch!=-1 do
+        if toktype=LETTER then
+            t = find(token,{"procedure","function","type"})
+            if t then
+                DoRoutineDef(t,fwd)
+                fwd = 0
+            elsif equal(token,"constant") then
+                DoConstant()
+            elsif equal(token,"enum") then
+                DoEnum()
+            elsif find(token,{"global","public","export","override","forward"}) then
+                if token="forward" then fwd = 1 end if
+                getToken()  -- otherwise ignore it
+            elsif find(token,{"include","with","without","namespace"}) then
+                CurrLine += 1
+                col = 1
+                SkipSpacesAndComments()
+                getToken()
+            elsif token="ifdef" then
+                Abort("invalid")
+            else
+                if Ch=':' then skip_namespace() end if
+                t = find(token,vartypes)
+                if not t and not equal(token,"?") then
+                    if charClass[Ch]=LETTER
+                    and not find(token,ifforwhileetc) then
+                        -- word word (not word =, or word[... etc) /must/ be
+                        --  a variable definition (eg boolean t), not code.
+                        WarnType()
+                        vartypes = append(vartypes,token)
+                        t = length(vartypes)
+                    end if
+                end if
+                if t then
+                    TopDecls()
+                else
+                    if equal(token,"abort") and Ch='(' then
+                        exit
+                    end if
+                    Statement()
+                end if
+            end if
+        elsif toktype=SYMBOL and equal(token,"{") then
+            DoMultipleAssignment()
+        else
+            Abort("invalid")
+            exit
+        end if
+    end while
+--  IupMessage("ReIndent", "???")
+    ?CurrLine
+end procedure
+
+-- src/rein.ew
+--*!/
+--/*
+-- Source code scanner.
+-- Builds routine lists, block start/end sets, etc.
+--
+
+--procedure appendX(sequence entry)
+--integer line, k
+--  line=entry[2]
+--  k=length(Results)
+--  while k and line<Results[k][2] do
+--      k-=1
+--  end while
+--  if k=length(Results) then
+--      Results=append(Results,entry)
+--  else
+--      Results=Results[1..k]&0&Results[k+1..length(Results)]
+--      Results[k+1]=entry
+--  end if
+--end procedure
+
+--procedure AssignOrProc()
+---- Decide if a Statement is an Assignment or Procedure Call
+--object Type
+--integer N
+----trace(1)
+--  N=InAnyTable(1)
+--  if N=0 then -- forward procedure call?
+--      if Ch!='(' then Undefined(token) end if
+--      ForwardProc(token,{'p',GetFnLn()},0)
+--  else
+--      Type=VarType(N)
+--      if N<0 and N>=BI_BImax then --CallBuiltin(token,N,Type,"Pp")
+--                                CallProc(N,Type)
+--      elsif sequence(Type) then CallProc(N,Type)
+--      elsif find(Type,INSPO) then Next() Assignment(N,Type)
+--      else Abort("Identifier " & token & " cannot be used here")
+--      end if
+--  end if
+--end procedure
+
+--*/
+
+Scan()
+--ppOpt({pp_StrFmt,-2})
+--pp(Results)
+--?insertion_points
+--/*
+{{20, "IupCanvas", 159,14,22, {{-1, "NULL", 159,24,27}}, {-1, "canvas", 159,5,10}},
+ {21, "IupSetAttribute", 162,5,18, {{-1, "canvas", 160,21,26}, {2, "\"RASTERSIZE\"", 160,29,40}, {2, "\"600x400\"", 160,43,51}}},
+ {21, "IupSetCallback", 163,5,18, {{-1, "canvas", 162,20,25}, {2, "\"MAP_CB\"", 162,28,35}, {20, "Icallback", 162,41,49, {{2, "\"map_cb\"", 162,51,58}}, 0}}},
+ {21, "IupSetCallback", 165,5,7, {{-1, "canvas", 163,20,25}, {2, "\"UNMAP_CB\"", 163,28,37}, {20, "Icallback", 163,41,49, {{2, "\"unmap_cb\"", 163,51,60}}, 0}}},
+ {20, "IupDialog", 165,11,19, {{-1, "canvas", 165,21,26}}, {-1, "dlg", 165,5,7}},
+ {21, "IupSetAttribute", 167,5,18, {{-1, "dlg", 166,21,23}, {2, "\"TITLE\"", 166,26,32}, {2, "\"GraphR\"", 166,35,42}}},
+ {21, "IupSetCallback", 168,5,18, {{-1, "canvas", 167,20,25}, {2, "\"ACTION\"", 167,28,35}, {20, "Icallback", 167,38,46, {{2, "\"redraw_cb\"", 167,48,58}}, 0}}},
+ {21, "IupSetCallback", 170,5,10, {{-1, "dlg", 168,20,22}, {2, "\"K_ANY\"", 168,25,31}, {20, "Icallback", 168,38,46, {{2, "\"esc_close\"", 168,48,58}}, 0}}},
+ {21, "IupSetAttribute", 173,5,13, {{-1, "canvas", 171,21,26}, {2, "\"RASTERSIZE\"", 171,29,40}, {-1, "NULL", 171,43,46}}}}
+
+Ignore: IupSetAttribute(clipboard,"TEXT",currentfilename)
+Treat specially/ignore: IupSetAttribute(dlg,"RASTERSIZE",NULL)
+Obviously you can have bespoke attributes (eg DIRTY in simple_notepad) - separate tab?
+
+--*/
+function nr(string name, integer rid = routine_id(name))
+    return {name,rid}
+end function
+--constant ctrls = {
+--constant {{names,rids},attrs,callbacks} = columnize({
+constant {iupnamerids, sigs, icons, attrs, callbacks} = columnize({
+         {nr("IupBackgroundBox"),"H",
+                                 "plade_backgroundbox.png",
+                                 {},
+                                 {}},
+         {nr("IupButton")       ,"[T]AFAD",
+                                 "plade_button.png",
+                                 {"ACTIVE","BGCOLOR","CANFOCUS","EXPAND","FLAT","IMAGE","IMPRESS","NAME","PADDING","SIZE","TIP","VISIBLE"},
+                                 {"ACTION"}},
+         {nr("IupCalendar"),     "AFAD",
+                                 "plade_calendar.png",
+                                 {"VALUE"},
+                                 {"VALUECHANGED_CB"}},
+         {nr("IupCanvas"),       "",
+                                 "plade_canvas.png",
+                                 {"BGCOLOR","BORDER","BUFFER","DRAWSIZE","EXPAND","MARGIN","RASTERSIZE","SCROLLBAR"},
+                                 {"ACTION","BUTTON_CB","MAP_CB","MOTION_CB","RESIZE_CB","UNMAP_CB"}},
+         {nr("IupCbox"),         "",
+                                 "plade_cbox.png",
+                                 {},
+                                 {}},
+         {nr("IupCells"),        "",
+                                 "plade_cells.png",
+                                 {},
+                                 {}},
+         {nr("IupDatePick"),     "",
+                                 "plade_date_picker.png",
+                                 {"MONTHSHORTNAMES","VALUE","ZEROPRECED"},
+                                 {}},
+         {nr("IupDetachBox"),    "",
+                                 "plade_detach.png",
+                                 {"DETACH","ORIENTATION","RESTORE"},
+                                 {"DETACHED_CB"}},
+         {nr("IupDial"),         "",
+                                 "plade_dial.png",
+                                 {},
+                                 {}},
+         {nr("IupDialog"),       "",
+                                 "application.png",
+                                 {"BACKGROUND","CURSOR","DEFAULTENTER","DEFAULTESC","DIALOGFRAME","GAP","MARGIN","MAXBOX","MENU","MINBOX","MINSIZE",
+                                  "PARENTDIALOG","RASTERSIZE","RESIZE","SHRINK","SIZE","TITLE"},
+                                 {"CLOSE_CB","COPYDATA_CB","DROPFILES_CB","K_ANY","K_cV","K_cF3","K_F3","K_cG","K_cH","K_cF","K_cS","K_cO","K_cN","RESIZE_CB"}},
+         {nr("IupExpander"),     "",
+                                 "plade_expand.png",
+                                 {"BARPOSITION","EXTRABUTTONS","TITLE"},
+                                 {"ACTION","EXTRABUTTON_CB","IMAGEEXTRAid","IMAGEEXTRAPRESSid","IMAGEEXTRAHIGHLIGHTid"}},
+         {nr("IupFill"),         "",
+                                 "plade_fill.png",
+                                 {},
+                                 {}},
+         {nr("IupFlatButton"),   "[T]AFAD",
+                                 "plade_flatbutton.png",
+                                 {"ACTIVE","EXPAND"},
+                                 {"ACTION"}},
+         {nr("IupFrame"),        "",
+                                 "plade_frame.png",
+                                 {"ALIGNMENT","GAP","POSITION","SIZE","TITLE"},
+                                 {}},
+         {nr("IupGridBox"),      "",
+                                 "plade_grid.png",
+                                 {},
+                                 {}},
+         {nr("IupHbox"),         "",
+                                 "plade_hbox.png",
+                                 {"CMARGIN","FLOATING","GAP","MARGIN","NORMALIZESIZE","SIZE","TABTITLE","VISIBLE"},
+                                 {}},
+--       {nr("IupImage"),        "",
+--                               "plade_image.png",
+--                               {},
+--                               {}},
+--       {nr("IupItem"),         "",
+--                               "plade_menuitem.png",
+--                               {},
+--                               {}},
+         {nr("IupLabel"),        "[T]AD",
+                                 "plade_label.png",
+                                 {"ALIGNMENT","EXPAND","FLOATING","IMAGE","MAXSIZE","NAME","PADDING","SEPARATOR","TITLE","VISIBLE"},
+                                 {}},
+         {nr("IupLink"),         "[TT]AFAD",
+                                 "plade_link.png",
+                                 {},
+                                 {}},
+         {nr("IupList"),         "",
+                                 "plade_list.png",
+                                 {"n","DROPDOWN","EDITBOX","TIP","VALUE"},
+                                 {}},
+         {nr("IupMatrix"),       "",
+                                 "plade_matrix.png",
+                                 {"ALIGNMENT","ALIGNMENTLIN0","BORDER","CURSOR","FGCOLOR2:2","FOCUSCELL","FRAMECOLOR","HEIGHT0","HIDEFOCUS",
+                                  "MARKl:c","MARKAREA","MARKED","MARKMODE","NUMCOL","NUMCOL_VISIBLE","NUMLIN","NUMLIN_VISIBLE","ORIGIN",
+                                  "RASTERWIDTHn","RESIZEMATRIX","SORTSIGNn","TYPE*:1","WIDTHn","WIDTHDEF"},
+                                 {"CLICK_CB","COLRESIZE_CB","ENTERITEM_CB","RELEASE_CB","VALUE_CB"}},
+         {nr("IupMenu"),         "",
+                                 "plade_menu.png",
+                                 {},
+                                 {"OPEN_CB"}},
+         {nr("IupMenuItem"),     "TAFAD",
+                                 "plade_menuitem.png",
+                                 {"ACTIVE","AUTOTOGGLE","IMAGE","NAME?","VALUE"},
+                                 {"ACTION"}},
+         {nr("IupMultiLine"),    "",
+                                 "plade_text.png",
+                                 {"EXPAND","FONT","INSERT?","NAME?","SELECTEDTEXT?","SELECTION?","SELECTIONPOS","SIZE","VALUE","VISIBLECOLUMNS"},
+                                 {"ACTION","CARET_CB","DROPFILES_CB","VALUECHANGED_CB"}},
+         {nr("IupSeparator"),    "",
+                                 "plade_sep.png",
+                                 {},
+                                 {}},
+         {nr("IupSubmenu"),      "",
+                                 "plade_submenu.png",
+                                 {},
+                                 {}},
+--       {nr("IupNormalizer"),   "",
+--                               "plade_normal.png",
+--                               {},
+--                               {}},
+         {nr("IupProgressBar"),  "",
+                                 "plade_progress.png",
+                                 {"VALUE"},
+                                 {}},
+         {nr("IupRadio"),        "",
+                                 "plade_radio.png",
+                                 {"VALUE"},
+                                 {}},
+         {nr("IupSbox"),         "",
+                                 "plade_resize.png",
+                                 {},
+                                 {}},
+         {nr("IupScrollBox"),    "",
+                                 "plade_scroll.png",
+                                 {},
+                                 {}},
+         {nr("IupSpinBox"),      "",
+                                 "plade_spin.png",
+                                 {},
+                                 {}},
+         {nr("IupSplit"),        "",
+                                 "plade_split.png",
+                                 {},
+                                 {}},
+         {nr("IupTabs"),         "",
+                                 "plade_tabs.png",
+                                 {"RASTERSIZE","TABIMAGEn","TABTITLEn","TABTYPE","SIZE"},
+                                 {"TABCHANGE_CB"}},
+         {nr("IupText"),         "",
+                                 "plade_text.png",
+                                 {"EXPAND","FONT","INSERT?","MASK","MULTILINE","READONLY","SELECTEDTEXT?","SELECTION?","SELECTIONPOS",
+                                  "SIZE","SCROLLBAR","VALUE","VISIBLECOLUMNS","VISIBLELINES","WORDWRAP"},
+                                 {"ACTION","CARET_CB","DROPFILES_CB","K_ANY","VALUECHANGED_CB"}},
+         {nr("IupToggle"),       "[T]AFAD",
+                                 "plade_check.png",
+                                 {"ACTIVE","FGCOLOR","FONT","IMAGE","IMPRESS","NAME","TIP"},
+                                 {"ACTION"}},
+         {nr("IupTree"),         "",
+                                 "plade_tree.png",
+                                 {"ADDLEAFid","ADDBRANCHid","RASTERSIZE","SHOWRENAME","TITLEid"},
+                                 {}},
+         {nr("IupValuator"),     "",
+                                 "plade_slider.png",
+                                 {},
+                                 {}},
+         {nr("IupVbox"),         "",
+                                 "plade_vbox.png",
+                                 {"ALIGNMENT","GAP","MARGIN","POSITION","SHRINK","TABTITLE","TITLE"},
+                                 {}},
+         {nr("IupZbox"),         "",
+                                 "plade_zbox.png",
+                                 {},
+                                 {}},
+         $})
+
+--erm:
+--"ACTIVE=YES,NO,Yes"
+--"ALIGNMENT=ACENTER,ALEFT,ATOP,ABOTTOM"
+--"ALIGNMENTLIN0=ALEFT,"
+--"AUTOTOGGLE=YES,NO"
+--"BACKGROUND=\"240 240 240\""
+--"BARPOSITION=TOP,BOTTOM,LEFT,RIGHT"
+--"BGCOLOR="\"128 255 0\""
+--"BORDER=NO,"
+--"BUFFER=DOUBLE"
+--"CANFOCUS=No,"
+--"CMARGIN=13x3"
+--"CURSOR=ARROW"
+--"CURSOR=img_cursor" (via IupSetHandle("img_cursor", img_cursor)
+--"DIALOGFRAME=Yes,YES,NO"
+--"DROPDOWN=YES,NO"
+--"EDITBOX=YES,NO"
+--"EXPAND=YES,HORIZONTAL,VERTICAL,NO"
+--"FGCOLOR2:2=\"200 0 0\""
+--"FLAT=Yes,"
+--"FLOATING=YES,NO,IGNORE"
+--"FRAMECOLOR=\"220 220 220\""
+--"GAP=5"
+--"HEIGHT0=10"
+--"HIDEFOCUS=YES,NO"
+--"ORIENTATION=VERTICAL"
+--"MARKl:c=1,0" (Also via IupMatSetAttribute(matrix,"MARK", lin, 0, "Yes")
+--"MARKAREA=CONTINUOUS,"
+--"MARKMODE=LIN,"
+--"MARGIN=10x10"
+--"MASK=IUP_MASK_UINT"
+--"MAXBOX=NO"
+--"MAXSIZE=150"
+--"MENU=mymenu" (via IupSetHandle("mymenu", IupMenu({IupSubmenu("File", file_menu)}))   <== cannot do??
+-- MENU=<atom> (via IupSetAttributeHandle(hDialog,"MENU",hMenu)                         <== can do
+--"MINBOX=NO"
+--"MINSIZE=862x705"
+--"MOVEABLE=Yes"
+--"MULTILINE=YES,NO"
+--"NAME=<any>"
+--"NORMALIZESIZE=HORIZONTAL,VERTICAL"
+--"NUMCOL=3"
+--"NUMCOL_VISIBLE=3"
+--"NUMLIN=13"
+--"NUMLIN_VISIBLE=3"
+--"PADDING=10x5"
+--"PARENTDIALOG=<atom>" (via IupSetAttributeHandle(hDlg,"PARENTDIALOG",hDialog)
+--"POSITION="250,350"
+--"RASTERSIZE=100x150,100x,x100"    (100x=100x0,x100=0x100)
+--"READONLY=YES,NO"
+--"REDRAW=ALL,(L|C)n[-n]"
+--"RESIZE=NO"
+--"RESIZEMATRIX=YES,NO"
+--"SCROLLBAR=YES,NO"
+--"SEPARATOR=HORIZONTAL,VERTICAL"
+--"SELECTION?=l,c:l,c|ALL"
+--"SELECTIONPOS=n:n"
+--"SHOWRENAME=YES,NO"
+--"SHRINK=YES,NO"
+--"SIZE=120[x300]"
+--"SIZE=HALFxQUARTER,HALFxHALF,QUARTERxQUARTER,QUARTERxEIGHTH" (IupDialog only)
+--"SORTSIGNn=NO,UP,DOWN"
+--"TABTYPE=LEFT,"
+--"TIP=<any>"
+--"TITLE=<any>"
+--"TYPE*:C=IMAGE"   (C is column; 1 etc)
+--"VALUE=<any>" (ON/OFF on an IupToggle,IupMenuItem)
+--"VISIBLE=YES,NO"
+--"VISIBLECOLUMNS=20"
+--"VISIBLELINES=5"
+--"WIDTH1=60"
+--"WIDTHDEF=60"
+--"WORDWRAP=YES,NO"
+
+
+--IupGLExpander MOVEABLE
+--IupGLFrame MOVEABLE
+--IupExpander TITLE only shown when BARPOSITION=TOP
+--IupWebBrowser EXPAND, NAVIGATE_CB, COMPLETED_CB
+
+
+--constant {{names,rids},attrs,callbacks} = columnize(ctrls)
+--constant {iuprids,attrs,callbacks} = columnize(ctrls)
+constant {iupnames,iuprids} = columnize(iupnamerids)
+?"=="
+if 0 then
+?iupnames
+?iuprids
+?sigs
+?icons
+?attrs
+?callbacks
+end if
+--{} = wait_key()
+
+--DEV temp:
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+function exit_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+
+constant string initialcurrentdir = get_proper_dir(command_line()[2])
+
+function get_image(string image)
+-- images are loaded from the icons subdirectory (demo/edix/icons/xxx.png).
+-- see http://www.iconarchive.com
+nullable_string res
+
+    if length(image)=0 then
+        res = NULL
+    elsif platform()=WINDOWS
+      and IupGetHandle(image)!=NULL then    -- (already loaded)
+        res = image
+    else
+        string path = join_path({initialcurrentdir,"icons",image})
+        if platform()=WINDOWS then
+
+            -- use IM library to load image
+            Ihandln handle = IupLoadImage(path)
+            if handle=NULL then
+--?path
+                res = NULL
+            else
+                -- store the image handle
+                IupSetHandle(image, handle)
+                return image
+            end if
+        else -- LINUX
+            -- natively supports PNG images
+            res = path
+        end if
+    end if
+    return res
+end function
+
+procedure main()
+Ihandle dlg, file_menu
+
+--  IupOpen(join_path({initialcurrentdir,"..","pGUI"},1))
+    IupOpen(join_path({"..","pGUI"},1))
+
+    file_menu = IupMenu({IupMenuItem("&Cancel"),
+--                       IupMenuItem("&Save"),
+                         IupSeparator(),
+--                       IupMenuItem("&Undo", "ACTIVE=NO"),
+                         IupMenuItem("Save and E&xit", Icallback("exit_cb"))})
+
+    IupSetHandle("mymenu", IupMenu({IupSubmenu("File", file_menu)}))
+
+--  img = IupLabel(NULL,"IMAGE=???")
+--  male = IupToggle("Male",Icallback("action_cb"))
+    Ihandle lbl = IupLabel("NULL")
+    IupSetStrAttribute(lbl, "IMAGE", get_image("application.png"))
+    Ihandle tgl = IupToggle("IupDialog")
+--,"NORMALSIZE=VERTICAL"
+    Ihandle frame = IupFrame(IupRadio(IupVbox({IupHbox({lbl,tgl})})),
+                             "TITLE=Controls, PADDING=x5")
+
+--  dlg = IupDialog(frame,"MENU=mymenu, TITLE=plade, SOIZE=200x100, GOAP=5x5")
+    dlg = IupDialog(IupHbox({frame,IupFill()},"MARGIN=5x"),
+                    "MENU=mymenu, SIZE=250x60") 
+    IupSetAttribute(dlg, "TITLE", "plade - Phix Layout Designer")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+
+--  IupShow(dlg)
+    IupShowXY(dlg,IUP_LEFT,IUP_TOP)
+
+    IupMainLoop()
+    IupClose()
+end procedure
+main()
+
+--/*
+--
+-- radio.exw
+--  Creates a dialog for the user to select his/her gender. 
+--  In this case, the radio element is essential to prevent the user from selecting both options.
+--
+
+Ihandle male, female, exclusive, frame, dialog 
+
+function action_cb(Ihandle ih, integer state)
+    -- this gets the 0 first, then the 1:
+--  ?{iff(ih=male?"MALE":iff(ih=female?"FEMALE":"???")),state}
+    IupSetAttribute(dialog,"TITLE",iff(ih=male?"MALE":iff(ih=female?"FEMALE":"???")))
+    return IUP_DEFAULT
+end function
+
+
+    IupOpen()
+
+    male = IupToggle("Male",Icallback("action_cb"))
+    female = IupToggle("Female",Icallback("action_cb"))
+
+    exclusive = IupRadio(IupVbox({male,female})) 
+    IupSetHandle("male", male) 
+    IupSetHandle("female", female) 
+    IupSetAttribute(exclusive, "VALUE", "female") 
+    IupSetAttribute(male, "TIP",     "Two state button - Exclusive - RADIO") 
+    IupSetAttribute(female, "TIP",   "Two state button - Exclusive - RADIO") 
+
+    frame = IupFrame(exclusive, "TITLE=Gender")
+
+    dialog = IupDialog(IupHbox({IupFill(),frame,IupFill()})) 
+
+    IupSetAttributes(dialog, "SIZE=140x55, TITLE=IupRadio, RESIZE=NO, MINBOX=NO, MAXBOX=NO") 
+    IupSetCallback(dialog, "K_ANY", Icallback("esc_close"));
+
+    IupShow(dialog) 
+    IupMainLoop() 
+    IupClose() 
+
+
+--
+-- detachbox.exw
+-- =============
+--
+
+Ihandle detach_btn, restore_btn, dbox
+
+function detached_cb(Ihandle /*ih*/, Ihandle new_parent, integer /*x*/, integer /*y*/)
+    IupSetAttribute(new_parent, "TITLE", "New Dialog");
+    IupSetAttribute(restore_btn, "ACTIVE", "YES");
+    IupSetAttribute(detach_btn, "ACTIVE", "NO");
+    return IUP_DEFAULT
+end function
+
+function btn_restore_cb(Ihandle /*restore_btn*/)
+  IupSetAttribute(dbox, "RESTORE", NULL);
+  IupSetAttribute(restore_btn, "ACTIVE", "NO");
+  IupSetAttribute(detach_btn, "ACTIVE", "Yes");
+  return IUP_DEFAULT;
+end function
+
+function btn_detach_cb(Ihandle /*detach_btn*/)
+  IupSetAttribute(dbox, "DETACH", NULL);
+  IupSetAttribute(detach_btn, "ACTIVE", "NO");
+  IupSetAttribute(restore_btn, "ACTIVE", "Yes");
+  return IUP_DEFAULT
+end function
+
+procedure DetachBoxTest()
+  Ihandle dlg, lbl, ml, hbox, txt;
+
+  detach_btn = IupButton("Detach Me!", Icallback("btn_detach_cb"))
+  ml = IupText("MULTILINE=YES, EXPAND=YES, VISIBLELINES=5")
+  hbox = IupHbox({detach_btn, ml},"MARGIN=10x0")
+  dbox = IupDetachBox(hbox);
+  IupSetAttribute(dbox, "ORIENTATION", "VERTICAL");
+  IupSetCallback(dbox, "DETACHED_CB", Icallback("detached_cb"));
+  lbl = IupLabel("Label","EXPAND=VERTICAL")
+  restore_btn = IupButton("Restore me!", Icallback("btn_restore_cb"),"EXPAND=YES, ACTIVE=NO")
+  txt = IupText("EXPAND=HORIZONTAL")
+
+  dlg = IupDialog(IupVbox({dbox, lbl, restore_btn, txt}),
+                  "TITLE=\"IupDetachBox Example\", MARGIN=10x10, GAP=10, RASTERSIZE=300x300")
+
+  IupShow(dlg);
+end procedure
+
+--*/
+

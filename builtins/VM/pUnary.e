@@ -12,27 +12,30 @@ include VM\pFPU.e   -- :%down53 etc
 
 #ilASM{ jmp :%opRetf
 
---DEV
-        ::e1407souma
-            int3
-        ::e1408sona
-            int3
         ::e1406sofa
+            mov edi,6   -- sq_floor
+            jmp @f
+        ::e1407souma
+            mov edi,7   -- sq_uminus
+            jmp @f
+        ::e1408sona
+            mov edi,8   -- sq_not
+            jmp @f
+        ::e1412sonba
+            mov edi,12  -- sq_not_bits
+        @@:
             [32]
                 pop edx
                 mov al,14   -- e14soa(edi)
-                mov edi,6   --- (floor->sq_floor)
                 sub edx,1
             [64]
                 pop rdx
                 mov al,14   -- e14soa(edi)
-                mov rdi,6   -- (floor->sq_floor)
+--              mov rdi,6   -- (floor->sq_floor)
                 sub rdx,1
             []
                 jmp :!iDiag
                 int3
-        ::e1412sonba
-            int3
     [32]
         ::e111bolt32besp
             int3
@@ -69,7 +72,7 @@ end procedure -- (for Edita/CtrlQ)
         ret
 
       ::opUminusToN             -- special case: as integers are -1073741824..+1073741823,
-        push ecx                --  -(-1073741824) needs to be stored as a float.
+        push ecx                --           -(-1073741824) needs to be stored as a float.
         fild dword[esp]         -- (obviously, we want it signed)
         pop ecx
         jmp opUminusfchs
@@ -89,7 +92,6 @@ end procedure -- (for Edita/CtrlQ)
         --  call :%opUminus
         --    rax/rcx/rdx/rsi/rdi/r14/r15 trashed unless result is integer, left in rcx [DEV? (not true for storeFlt anyway)]
 
---      cmp rcx,h4
         mov r15,h4
         cmp rcx,r15
         jge :opUminusN
@@ -105,8 +107,6 @@ end procedure -- (for Edita/CtrlQ)
 
         mov rdx,[rdi]           -- previous value of target
         mov [rdi],rcx
---      cmp rdx,h4
---      mov r15,h4
         cmp rdx,r15
         jle @f
             sub qword[rbx+rdx*4-16],1
@@ -115,7 +115,7 @@ end procedure -- (for Edita/CtrlQ)
         ret
 
       ::opUminusToN             -- special case: as integers are -4611686018427387904..+4611686018427387903,
-        push rcx                --  -(-4611686018427387904) needs to be stored as a float.
+        push rcx                --                  -(-4611686018427387904) needs to be stored as a float.
         fild qword[rsp]         -- (obviously, we want it signed)
         pop rcx
         jmp opUminusfchs
@@ -218,7 +218,6 @@ end procedure -- (for Edita/CtrlQ)
             jz @f
                 add edx,1
                 jnz e111bolt32besp      -- bitwise operations limited to 32 bits
---          jne e111bolt32besp      -- bitwise operations limited to 32 bits
       @@:
 
 --      not eax
@@ -238,6 +237,7 @@ end procedure -- (for Edita/CtrlQ)
         sub rsp,8
         cmp rax,r15
         jl @f
+--DEV %pLoadMint
             cmp byte[rbx+rax*4-1],0x12
             jne :e1412sonba         -- sequence op (not_bits) attempted
             fld tbyte[rbx+rax*4]
@@ -286,7 +286,7 @@ end procedure -- (for Edita/CtrlQ)
         fld qword[ebx+eax*4]
         call :%down64
         frndint
---DEV near64? (spotted in passing)
+--DEV near64? (spotted in passing) [maybe the above have been down53?]
         call :%near53
 
         fld st0
@@ -325,6 +325,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,[rdi]
         cmp rax,r15
         jl :opFloorStoreInt
+--DEV %pLoadMint
         cmp byte[rbx+rax*4-1],0x12
         jne e1406sofa
         sub rsp,8

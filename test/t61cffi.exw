@@ -58,28 +58,31 @@ if res!={2011,2016,2022,2033,2039,2044,2050,2061,2067,2072,2078,2089,2095,2101,2
 
 constant gdipSI="""
 typedef struct {
-    UINT32       GdiplusVersion;
-    DebugEventProc DebugEventCallback;
-    BOOL             SuppressBackgroundThread;
-    BOOL             SuppressExternalCodecs;
+    UINT32          GdiplusVersion;
+    DebugEventProc  DebugEventCallback;
+    BOOL            SuppressBackgroundThread;
+    BOOL            SuppressExternalCodecs;
 } GdiplusStartupInput;
 """
-if define_struct(gdipSI,S32,0)!={"GdiplusStartupInput",16,4,{{"GdiplusVersion","DebugEventCallback","SuppressBackgroundThread","SuppressExternalCodecs"},
-                                                             {{"UINT32",4,0,0},{"DebugEventProc",4,4,0},{"BOOL",4,8,1},{"BOOL",4,12,1}}},{}} then end if
-if define_struct(gdipSI,S64,0)!={"GdiplusStartupInput",24,8,{{"GdiplusVersion","DebugEventCallback","SuppressBackgroundThread","SuppressExternalCodecs"},
-                                                             {{"UINT32",4,0,0},{"DebugEventProc",8,8,0},{"BOOL",4,16,1},{"BOOL",4,20,1}}},{}} then ?9/0 end if
+res = define_struct(gdipSI,32,0)
+if res!={"GdiplusStartupInput",16,4,{{"GdiplusVersion","DebugEventCallback","SuppressBackgroundThread","SuppressExternalCodecs"},
+                                     {{"UINT32",4,0,0},{"DebugEventProc",4,4,0},{"BOOL",4,8,1},{"BOOL",4,12,1}}},{}} then end if
+res = define_struct(gdipSI,64,0)
+if res!={"GdiplusStartupInput",24,8,{{"GdiplusVersion","DebugEventCallback","SuppressBackgroundThread","SuppressExternalCodecs"},
+-- (28/12/16)                        {{"UINT32",4,0,0},{"DebugEventProc",8,8,0},{"BOOL",4,16,1},{"BOOL",4,20,1}}},{}} then ?9/0 end if
+                                     {{"UINT32",4,0,0},{"DebugEventProc",8,8,1},{"BOOL",4,16,1},{"BOOL",4,20,1}}},{}} then ?9/0 end if
 
 constant func1="""
 DWORD WINAPI GetLastError(void);
 """
-if define_cffi_func("kernel32.dll",func1,0)<=0 then ?9/0 end if
+if define_cffi_func("kernel32.dll",func1)<=0 then ?9/0 end if
 
 constant func2="""
 void WINAPI SetLastError(
   _In_  DWORD dwErrCode
 );
 """
-if define_cffi_proc("kernel32.dll",func2,0)<=0 then ?9/0 end if
+if define_cffi_proc("kernel32.dll",func2)<=0 then ?9/0 end if
 
 --include builtins\cffi.e
 constant tMB="""
@@ -91,7 +94,7 @@ int WINAPI MessageBox(
 );
 """
 set_unicode(0)
-constant xMessageBox = define_cffi_func("user32.dll",tMB,0)
+constant xMessageBox = define_cffi_func("user32.dll",tMB)
 --?c_func(xMessageBox,{0,"text","caption",0})
 atom pText = allocate_string("text"),
      pCaption = allocate_string("caption")
@@ -131,10 +134,10 @@ atom pMBP = allocate_struct(idMBP)
 --tests:
 
 procedure check(string struct_str, sequence expected, sequence expected64=expected)
-sequence actual = define_struct(struct_str,S32,0)
+sequence actual = define_struct(struct_str,32,0)
 integer le = length(expected)
     if not equal(actual[1..le],expected) then ?9/0 end if
-    actual = define_struct(struct_str,S64,0)
+    actual = define_struct(struct_str,64,0)
 --  if atom(expected64) then expected64=expected end if
     if not equal(actual[1..le],expected64) then ?9/0 end if
 end procedure
@@ -307,8 +310,8 @@ procedure testPS()
 integer idRECT, idPS, size, sign
 atom pPS, pRECT
 --sequence res
-    idRECT = define_struct(tRECT,0,1)
-    idPS = define_struct(tPS,S32,1)
+    idRECT = define_struct(tRECT,32,1)
+    idPS = define_struct(tPS,32,1)
     pPS = allocate_struct(idPS)
 
     {pRECT,size,sign} = get_field_details(idPS,"rcPaint.left")
@@ -335,15 +338,15 @@ LONG WINAPI RegOpenKeyEx(
 );
 """		   
 if 01 then
-    if define_cffi_func("Advapi32.dll",testROK,S32)<=0 then ?9/0 end if
+    if define_cffi_func("Advapi32.dll",testROK,32)<=0 then ?9/0 end if
 end if
 
 --constant test = "struct x{char *ps; short s;} "
---?define_struct(test,S32,0)
---?define_struct(test,S64,0)
+--?define_struct(test,32,0)
+--?define_struct(test,64,0)
 
---?define_struct(structx,S32,0)
---?define_struct(structx,S64,0)
+--?define_struct(structx,32,0)
+--?define_struct(structx,64,0)
 
 --constant bad1 = "struct {char *; long;} "     -- error
 --constant bad1 = "struct x{char *; long;} "    -- error
@@ -356,8 +359,9 @@ end if
 --  int nybble:4;
 --  int septet:7;
 --};"""
---?define_struct(bad1,S32,0)
+--?define_struct(bad1,32,0)
 
+?"ok"
 --{} = wait_key()
 --if wait_key() then end if
 --abort(0)

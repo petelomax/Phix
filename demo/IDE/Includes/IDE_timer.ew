@@ -1,0 +1,1057 @@
+--IDE_timer.ew
+
+global integer TimerEditWindow TimerEditWindow = -1
+integer LName,TimerEditList,TimerEditOk,TimerEditCancel,TimerEditAdd,TimerEditDelete
+integer TimerEditName,LInterval,TimerInterval,LSetTimer,SetEventList,LSetTimerC
+integer SetControlList,LKill,KillEventList,LKillC,KillControlList,LWarning
+
+integer ok
+object VOID
+--------------------------------------------------------------------------------
+sequence timer        -- list of timers
+sequence saveTimer    -- timers to save after editing
+sequence deleteList   -- list of deleted timers
+
+
+integer msg
+integer fault
+
+integer is_changed
+is_changed = w32False    --flag w32True when any changes have been made and check this
+                    --if user close editor without saving
+integer Sw
+Sw = w32False
+
+sequence name       --name of control in Code Editor when Timer Editor opened
+----------------------------------------------------------------------------- 
+procedure updateTimerEditList(integer index)
+
+sequence text
+
+-- erase the list 
+    eraseItems(TimerEditList)
+    fault = 0
+
+    -- rebuild the list               
+
+    for i=1 to length(timer) do
+
+        -- build the text 
+        text = timer[i][Name]
+
+        --win32lib version .55 will not load zero length text to list
+        if not length(text) then
+            text = " "
+        end if
+
+        --check that first position of Name is alpha
+        if (text[1]>='a' and text[1]<='z')
+        or (text[1]>='A' and text[1]<='Z') then
+                        --is ok
+        else
+            text &= "          << ==== " & IDEText[1174][1]  --first char must be alpha
+            fault += 1
+        end if
+
+        --check for duplicate timer Name
+        for j=1 to length(timer) do
+            if equal(timer[j][Name], timer[i][Name])
+            and j!=i then
+                text &= IDEText[697][1] --"   <======= Name not unique"
+                fault += 1
+            end if
+        end for
+
+        for j=1 to length(controls) do
+            if equal(controls[j][Name], timer[i][Name])
+            and not equal(controls[j][Class], timer[i][Class]) then
+                text &= IDEText[697][1] --"   <======= Name not unique"
+                fault += 1
+            end if
+        end for
+
+        -- add to list 
+        addItem(TimerEditList, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(TimerEditList, index)
+    end if
+
+end procedure
+ -----------------------------------------------------------------------------
+procedure chooseTimerEditItem(integer index)
+
+    -- copy values to fields 
+    if index then
+        setText(TimerEditName, timer[index][Name])
+        setText(TimerInterval, sprint(timer[index][TimerInt]))
+        for i=1 to getCount(SetEventList) do
+            if equal(timer[index][SetEvent],
+                     getItem(SetEventList,i)) then
+                setIndex(SetEventList, i)
+            end if
+        end for
+        for i=1 to getCount(SetControlList) do
+            if equal(timer[index][SetControl],
+                     getItem(SetControlList,i)) then
+                setIndex(SetControlList, i)
+            end if
+        end for
+        for i=1 to getCount(KillEventList) do
+            if equal(timer[index][KillEvent],
+                     getItem(KillEventList,i)) then
+                setIndex(KillEventList, i)
+            end if
+        end for
+        for i=1 to getCount(KillControlList) do
+            if equal(timer[index][KillControl],
+                     getItem(KillControlList,i)) then
+                setIndex(KillControlList, i)
+            end if
+        end for
+    else
+        setText(TimerEditName, "")
+        setText(TimerInterval, sprint(0))
+        setIndex(SetControlList,1)
+        setIndex(KillControlList,1)
+        setIndex(SetEventList, 1)
+        setIndex(KillEventList, 1)
+    end if
+
+    -- set list item 
+    setIndex(TimerEditList, index)
+
+end procedure
+ -----------------------------------------------------------------------------
+procedure addTimerWidget(sequence class)
+
+-- Create a new timer
+integer index
+sequence new
+
+
+    index = getIndex(TimerEditList)
+
+    if index=0 and not equal(class,"Timer") then
+        return
+    end if
+
+
+    new = repeat(0, ControlSize)
+
+    -- increment counter 
+    counter += 1         -- Id
+
+    -- values
+    new[AWindow] = 3
+    new[Id]         = counter
+    new[Class]      = class
+    new[Checked]    = w32False
+    new[Enabled]    = w32True
+    new[ControlParent] = {}
+    new[ParentClass] = {}
+    new[StyleType] = {}
+    new[Visible] = w32True
+    new[EnableC] = w32True
+    new[Buddy] = ""
+    new[IcoFile] = {}
+    new[TwoIcoFile] = ""
+    new[TriIcoFile] = ""
+    new[BitmapFile] = {}
+    new[FontName] = ""
+    new[HintFontName] = ""
+    new[HintText] = ""
+    new[ExStyle] = "0"
+    new[XPM] = ""
+    new[XPMmember] = ""
+    new[XpmObject] = {}
+    new[XpmDisableObject] = {}
+    new[InitialVal] = {}
+    new[SetEvent] = ""
+    new[SetControl] = ""
+    new[KillEvent] = ""
+    new[KillControl] = ""
+    new[SubClass] = ""
+    new[CCWinStyle] = ""
+    new[WidthTitle] = {}
+    new[ExtExStyle] = {}
+    new[SelectWidth] = {}
+    new[SystemBkColor] = {}
+    new[OutX] = {}
+    new[OutY] = {}
+    new[OutCX] = {}
+    new[OutCY] = {}
+    new[ControlComment] = {}
+    new[DEFIndex] = {}
+    new[SysTrayIcon] = {}
+    new[SysTrayHint] = {}
+    new[SysTrayText] = {}
+    new[IndexParent] = {}
+    new[Parent] = {}
+    new[SeqParentName] = {}
+    new[SeqParentClass] = {}
+    new[SeqChildName] = {}
+    new[GridFormat] = {}
+    new[GridDataArrayName] = {}
+    new[GridColListValues] = {}
+    new[WinOpenAtCtrl] = {}
+    new[ControlLayer] = layerNumber
+    new[ClassDefaults] = {}
+    new[ValueEdit] = {}
+    new[OrigTitle] = {}
+    new[ControlPartners] = {}
+    new[FontVarName] = {}
+    new[FontVarPts] = {}
+    new[FontVarItalic] = {}
+    new[FontVarBold] = {}
+    new[FontVarUnderline] = {}
+    new[FontVarStrikeout] = {}
+    new[HintFontVarName] = {}
+    new[HintFontVarPts] = {}
+    new[HintFontVarItalic] = {}
+    new[HintFontVarBold] = {}
+    new[HintFontVarUnderline] = {}
+    new[HintFontVarStrikeout] = {}
+    new[FontVarColor] = {}
+    new[HintVarText] = {}
+    new[GenFromName] = {}
+
+    new[Code]       = repeat({}, length(Events))
+
+    --changes by Roland
+    if equal(new[Class], "Timer") then
+        new[Name]   = sprintf("Timer%d", counter)
+        new[Title]  = ""
+        --add to sequence for colorization
+        controlNameKeywords &= {new[Name]}
+    end if
+
+    -- where in the timer?
+    index = getIndex(TimerEditList)
+    if index=0 then
+        timer &= {new}
+        index = length(timer)
+
+    elsif index=length(timer) then
+        -- insert after current item 
+        index += 1
+        timer &= {new}
+
+    else
+        -- insert after current item 
+        timer = timer[1..index]
+                & {new}
+                & timer[index+1..length(timer)]
+        index += 1
+    end if
+
+    is_changed = w32True
+
+    -- update the list 
+    updateTimerEditList(index)
+
+    -- update the list            
+    chooseTimerEditItem(index)
+
+end procedure
+----------------------------------------------------------------------------- 
+procedure savetheTimer()
+integer cnts, startAt, controlnamelength
+sequence treedata, extent
+
+    treedata = {"",""}
+
+    -- save changes 
+    -- all ok? 
+    if fault>0
+    and length(timer) then
+        msg = displayErrorMessage(268,{})
+        return
+    end if
+
+    fault = w32False
+
+    cnts = 0
+    for i=1 to getCount(TimerEditList) do
+        if length(timer[i][SetControl]) then
+            cnts += 1
+        end if
+        if length(timer[i][SetEvent]) then
+            cnts += 1
+        end if
+        if cnts=1 then
+            fault = w32True
+        end if
+        cnts = 0
+        if length(timer[i][KillControl]) then
+            cnts += 1
+        end if
+        if length(timer[i][KillEvent]) then
+            cnts += 1
+        end if
+        if cnts=1 then
+            fault = w32True
+        end if
+    end for
+
+    -- all ok? 
+    if fault>0
+    and length(timer) then
+        msg = displayErrorMessage(155,{})
+        return
+    end if
+
+    -- create list without the timers
+    saveTimer = {}
+    for i=1 to length(controls) do
+        if equal(controls[i][Class], "Timer") then
+            -- don't add  
+        else
+            -- add to list  
+            saveTimer &= {controls[i]}
+        end if
+    end for
+
+    -- add timers to the list
+    saveTimer &= timer
+    saveTimer = sort(saveTimer)
+    controls = saveTimer
+
+    if is_changed then
+
+        eraseItems(CodeControls)
+        controlnamelength = 0
+        for i=1 to length(saveTimer) do
+            addItem(CodeControls, saveTimer[i][Name])
+            if length(saveTimer[i][Name])>controlnamelength then
+                controlnamelength = length(saveTimer[i][Name])
+            end if
+        end for
+        extent = getTextExtent(CodeControls, "M")
+        controlnamelength *= extent[1]
+        VOID = sendMessage(CodeControls, LB_SETHORIZONTALEXTENT, controlnamelength, 0)
+
+        for i=1 to getCount(CodeControls) do
+            if equal(name, getItem(CodeControls, i)) then
+                setIndex(CodeControls, i)
+                editorSelectedControl = i
+                exit
+            end if
+        end for
+
+        --backup controls
+        windows[selectedWindow] = controls
+        backupControls = windows
+        backupSelectedWindow = selectedWindow
+        backupLayerTabItemSeq = layerTabItemSeq
+        backupLayerCaptionSeq = layerCaptionSeq
+        setEnable(MenuControlUndo, w32True)
+        setVisible(ToolUndo, w32True)
+        setVisible(ToolUndoD, w32False)
+
+        IDE_Changed = w32True
+
+        startAt = 0
+        for i=length(controls) to 1 by -1 do
+            if equal(controls[i][Class], "Timer") then
+                controls[i][SeqParentName] = "The Timers:" & controls[1][Name]
+                startAt = i
+            else
+                exit
+            end if
+
+        end for
+
+        if startAt then
+            for i=startAt to startAt+length(timer)-1 do
+                if i=startAt then
+                    --add timers to project tree
+                    addTreeViewNode(controls[1][Name],"The Timers:" & controls[1][Name])
+                end if
+                deleteTreeViewNodeAndCode("",controls[i][Name])
+                addTreeViewNode(controls[i][SeqParentName],
+                                controls[i][Name])
+                treedata[1] = controls[i][Name]
+                treedata[2] = controls[i][Class]
+                theTreeForm &= {treedata}
+            end for
+        end if
+
+        for i=1 to length(deleteList) do
+            deleteTreeViewNodeAndCode("", deleteList[i])
+        end for
+    end if
+
+    --reset flag for subsequent changes
+    is_changed = w32False
+
+    if not length(timer) then
+        selectedControl = TheWindow
+        deleteTreeViewNodeAndCode("","The Timers:" & controls[1][Name])
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditWindow_Close()
+
+    if is_changed then
+        ok = displayErrorMessage(156,{})
+        if ok=IDCANCEL then
+            showWindow(TimerEditWindow, SW_RESTORE)
+            returnValue(-1)
+            return
+        elsif ok=IDYES then
+            savetheTimer()
+            if fault>0
+            and length(timer) then
+                showWindow(TimerEditWindow, SW_RESTORE)
+                returnValue(-1)
+                return
+            end if
+        end if
+    end if
+
+
+    -- set the save timer and repaint the design window
+    controls = saveTimer
+
+    TimerEditWindow = -1
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditWindow_Open(integer self, integer event, sequence params)
+
+-- open the timer edit window
+sequence text
+
+    name = getItem(CodeControls, getIndex(CodeControls))
+
+    is_changed = w32False
+
+    deleteList = {}
+
+    setText(TimerEditName, "")
+    setText(TimerInterval, sprint(0))
+
+    eraseItems(SetControlList)
+    eraseItems(KillControlList)
+
+    for i=1 to length(controls) do
+        -- add the control name to the list
+
+        --win32lib version .55 can not load zero length Name
+        if not length(controls[i][Name]) then
+            controls[i][Name] = " "
+        end if
+        if not equal(controls[i][Class], "Timer") then
+            addItem(SetControlList, controls[i][Name])
+            addItem(KillControlList, controls[i][Name])
+        end if
+    end for
+
+    eraseItems(SetEventList)
+    eraseItems(KillEventList)
+
+    for i=1 to length(Events) do
+
+        -- get the event name
+        text = Events[i][1]
+
+        addItem(SetEventList, text)
+        addItem(KillEventList, text)
+    end for
+                          --"Timer Editor - "
+    setText(TimerEditWindow,IDEText[698][1] & controls[TheWindow][Name])
+
+
+    -- save a copy of the controls
+    saveTimer = controls
+
+    -- copy all the timer controls to the timer array
+    timer = {}
+    for i=1 to length(controls) do
+        if equal(controls[i][Class], "Timer") then
+            -- append to the timer
+            timer &= {controls[i]}
+        end if
+    end for
+
+    -- update the list
+    updateTimerEditList(0)
+
+    --if came from project view update with that entry
+    if cameFromProjectView then
+        cameFromProjectView = w32False
+        -- set list item
+        for i=1 to getCount(TimerEditList) do
+            if length(projectViewTitle) then
+                if match(projectViewTitle, getItem(TimerEditList, i)) then
+                    setIndex(TimerEditList, i)
+                    ok = invokeHandler(TimerEditList, w32HChange,{})
+                    exit
+                end if
+            else
+                ok = displayErrorMessage(237,{"Timer Editor"})
+                exit
+            end if
+        end for
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditWindow_Paint(integer self, integer event, sequence params)
+
+    if length(timer)=0 then
+        setFocus(TimerEditList)
+        setIndex(TimerEditList, length(timer))
+        setFocus(TimerEditName)
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditWindow_Resize(integer self, integer event, sequence params)
+-- adjust size of TimerEditList
+-- constants must be adapted if changing the design of TimerEditWindow
+
+integer heightEL
+
+    heightEL = params[3]-208-10
+    if heightEL<125 then heightEL = 125 end if
+
+    setRect(TimerEditList, 12, 208, params[2]-22, heightEL, w32True)
+
+end procedure
+--------------------------------------------------------------------------------
+integer canChangeIt             canChangeIt = w32False
+procedure TimerEditName_change(integer self, integer event, sequence params)
+
+
+-- update the name
+integer index, at, changedText
+sequence origName, text, comparetext
+
+    if self or event or sequence(params) then end if
+
+    index = getIndex(TimerEditList)
+    if index then
+
+        --save original Name
+        origName = timer[index][Name]
+
+        -- update the data
+        if length(getText(TimerEditName)) then
+            timer[index][Name] = getText(TimerEditName)
+        end if
+
+        -- update the list
+        updateTimerEditList(index)
+
+        if canChangeIt then
+            comparetext = timer[index][Name]
+            if (comparetext[1]>='a' and comparetext[1]<='z')
+            or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                --is ok continue checking
+                comparetext = origName
+                if (comparetext[1]>='a' and comparetext[1]<='z')
+                or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                                        --is ok
+                else
+                    canChangeIt = w32False
+                end if
+            else
+                canChangeIt = w32False
+            end if
+        end if
+
+        if canChangeIt then
+            if not equal(origName, timer[index][Name]) then
+                canChangeIt = w32False
+                if CodeWinOpen then
+                    --save editor state for reopen
+                    CodeWinState = SW_NORMAL    --Normal
+                    if isMaximized(CodeWin) then
+                        CodeWinState = SW_MAXIMIZE
+                    elsif isMinimized(CodeWin) then
+                        CodeWinState = SW_MINIMIZE
+                    end if
+
+                    if not length(isModule) then
+                        setIndex(CodeControls,selectedControl)
+                        ok = invokeHandler(CodeControls,w32HClick,{})
+                        showWindow(CodeWin, SW_HIDE)
+                    end if
+                end if
+
+                flushControls()     --save changes in controls to windows seq
+                saveTimer = controls
+
+                for i=1 to length(windows) do
+                    for j=1 to length(windows[i]) do
+                        if equal(windows[i][j][Name], origName) then
+                            windows[i][j][Name] = timer[index][Name]
+                        end if
+                        if length(windows[i][j][Code]) then
+                            for k=1 to length(windows[i][j][Code]) do
+                                for m=1 to length(windows[i][j][Code][k]) do
+                                    text = windows[i][j][Code][k][m]
+                                    comparetext = text
+                                    at = 1
+                                    while at do
+                                        changedText = w32False
+                                        --find old name somewhere in line of code
+                                        at = match(origName, comparetext)
+                                        if at then
+                                            --look at prior and next character for uniqueness of name
+                                            if at>1 then
+                                                if not((text[at-1]>='a' and text[at-1]<='z') or
+                                                       (text[at-1]>='A' and text[at-1]<='Z') or
+                                                       (text[at-1]>='0' and text[at-1]<='9')) then
+                                                    if at+length(origName)-1<length(text) then
+                                                        if not((text[at+length(origName)]>='a' and text[at+length(origName)]<='z') or
+                                                               (text[at+length(origName)]>='A' and text[at+length(origName)]<='Z') or
+                                                               (text[at+length(origName)]>='0' and text[at+length(origName)]<='9'))
+                                                        and not textInQuotes(text,at,length(origName)) then
+                                                            --ok to convert
+                                                            text = text[1..at-1] & timer[index][Name]
+                                                                   & text[at+length(origName)..length(text)]
+                                                            windows[i][j][Code][k][m] = text
+                                                            changedText = w32True
+                                                        end if
+                                                    else
+                                                        --ok to convert
+                                                        text = text[1..at-1] & timer[index][Name]
+                                                               & text[at+length(origName)..length(text)]
+                                                        windows[i][j][Code][k][m] = text
+                                                        changedText = w32True
+                                                    end if
+                                                end if
+                                            else
+                                                if at+length(origName)-1<length(text) then
+                                                    if not((text[at+length(origName)]>='a' and text[at+length(origName)]<='z') or
+                                                           (text[at+length(origName)]>='A' and text[at+length(origName)]<='Z') or
+                                                           (text[at+length(origName)]>='0' and text[at+length(origName)]<='9'))
+                                                    and not textInQuotes(text,at,length(origName)) then
+                                                        --ok to convert
+                                                        text = text[1..at-1] & timer[index][Name]
+                                                               & text[at+length(origName)..length(text)]
+                                                        windows[i][j][Code][k][m] = text
+                                                        changedText = w32True
+                                                    end if
+                                                else
+                                                    --ok to convert
+                                                    text = text[1..at-1] & timer[index][Name]
+                                                           & text[at+length(origName)..length(text)]
+                                                    windows[i][j][Code][k][m] = text
+                                                    changedText = w32True
+                                                end if
+                                            end if
+                                            --remove matches from comparetext so don't keep hitting them in while loop
+                                            if changedText then
+                                                comparetext = comparetext[1..at-1] & repeat(' ',length(timer[index][Name]))
+                                                              & comparetext[at+length(origName)..length(comparetext)]
+                                            else
+                                                comparetext = comparetext[1..at-1] & repeat(' ',length(origName))
+                                                              & comparetext[at+length(origName)..length(comparetext)]
+                                            end if
+                                        end if
+                                    end while
+                                end for
+                            end for
+                        end if
+                    end for
+                    if i=selectedWindow then
+                        controls = windows[i]
+                        for j=1 to length(windows[i]) do
+                            if equal(windows[i][j][Class], "Timer") then
+                                for k=1 to length(timer) do
+                                    if equal(windows[i][j][Name], timer[k][Name]) then
+                                        timer[k] = windows[i][j]
+                                        selectedControl = j
+                                        exit
+                                    end if
+                                end for
+                            else
+                                for k=1 to length(saveTimer) do
+                                    if equal(windows[i][j][Name],saveTimer[k][Name]) then
+                                        saveTimer[k] = windows[i][j]
+                                        exit
+                                    end if
+                                end for
+                            end if
+                        end for
+                    end if
+                    deleteTreeViewNodeAndCode("",origName)
+                end for
+
+                if CodeWinOpen
+                and not length(isModule) then
+                    setIndex(CodeControls,selectedControl)
+                    ok = invokeHandler(CodeControls,w32HClick,{})
+                    showWindow(CodeWin, CodeWinState)
+                end if
+            end if
+        end if
+
+    end if
+
+
+end procedure
+--------------------------------------------------------------------------------
+procedure keyDown_TimerEditName(integer self, integer event, sequence params)
+integer index, shift
+
+    index = getIndex(TimerEditList)
+    shift = params[2]
+
+    if params[1]=VK_TAB
+    or params[1]=VK_RETURN then
+        if index
+        and not equal(timer[index][Name], getText(TimerEditName)) then
+            canChangeIt = w32True
+            TimerEditName_change(0,0,{})
+        elsif params[1]=VK_RETURN then
+            addTimerWidget("Timer")
+            return
+        end if
+    end if
+    is_changed = w32True
+end procedure
+-------------------------------------------------------------------------------
+procedure TimerInterval_Change(integer self, integer event, sequence params)
+
+-- update the name
+integer index
+
+    index = getIndex(TimerEditList)
+    if index then
+
+        -- update the data
+        timer[index][TimerInt] = getNumber(TimerInterval)
+
+        -- update the list
+        updateTimerEditList(index)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure keyPress_TimerInterval(integer self, integer event, sequence params)
+    is_changed = w32True
+end procedure
+-------------------------------------------------------------------------------
+procedure TimerEditAdd_Click(integer self, integer event, sequence params)
+    -- add a timer to the timer list
+    addTimerWidget("Timer")
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditDelete_Click(integer self, integer event, sequence params)
+-- delete selected timer item
+
+integer index, ignore
+    index = getIndex(TimerEditList)
+    if index then
+        --remove from treeview
+        deleteList &= {timer[index][Name]}
+
+        -- remove from sequence
+        timer = timer[1..index-1] & timer[index+1..length(timer)]
+
+        -- remove from list
+        ignore = deleteItem(TimerEditList, index)
+
+        is_changed = w32True
+
+        setFocus(TimerEditList)
+        if length(timer)=0 then
+            setIndex(TimerEditList, length(timer))
+        elsif index=1 then
+            setIndex(TimerEditList, index)
+        else
+            setIndex(TimerEditList, index-1)
+        end if
+        setFocus(TimerEditName)
+
+        chooseTimerEditItem(index-1)
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditDelete_keyPress(integer self, integer event, sequence params)
+    if params[1]=13 then TimerEditDelete_Click(TimerEditDelete, w32HClick,{}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditList_Change(integer self, integer event, sequence params)
+-- delete selected timer item
+
+integer index
+
+    index = getIndex(TimerEditList)
+    if index then
+        chooseTimerEditItem(index)
+    else
+        setText(TimerEditName, "")
+        setText(TimerInterval, sprint(0))
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+constant LB_GETITEMHEIGHT = #01A1,
+LB_GETTOPINDEX = #018E
+--------------------------------------------------------------------------------
+procedure TimerEditList_Mouse(integer self, integer Event, sequence params)
+integer event, x, y, timerEvent
+-- right click calls CodeEditor
+
+integer index, state
+atom flag,height,topindex,indexoffset
+
+    event   = params[1]
+    x       = params[2]
+    y       = params[3]
+
+    if event=RightDown
+    or event=LeftDoubleClick then
+
+        state = Normal
+
+        --to find index when right click
+        if event=RightDown
+        and not Sw then
+            height = sendMessage(TimerEditList,LB_GETITEMHEIGHT,0,0)
+            topindex = sendMessage(TimerEditList,LB_GETTOPINDEX,0,0)
+            indexoffset = floor(y/height)
+            index = indexoffset+topindex
+
+            flag = sendMessage(TimerEditList,LB_SETCURSEL,index,0)
+            index += 1
+            if index>getCount(TimerEditList) then
+                index = 0
+            end if
+        end if
+        --to use left doubleclick
+        if event=LeftDoubleClick
+        or Sw then
+            index = getIndex(TimerEditList)
+        end if
+        Sw = w32False
+
+        if index=0 then
+            msg = displayErrorMessage(157,{})
+            returnValue(-1)
+            return
+        end if
+
+        --dont go to code editor without asking
+        if is_changed then
+            msg = displayErrorMessage(158,{})
+            if msg=IDNO then
+                return
+            end if
+        end if
+
+        -- save changes  
+        savetheTimer()
+        if fault>0
+        and length(timer) then
+            returnValue(-1)
+            return
+        end if
+
+        controls = saveTimer
+
+        closeWindow(TimerEditWindow)
+        TimerEditWindow_Close()
+
+        state = SW_NORMAL
+        if CodeWinOpen then
+            if isMaximized(CodeWin) then
+                state = SW_MAXIMIZE
+            elsif isMinimized(CodeWin) then
+                state = SW_MINIMIZE
+            end if
+        end if
+
+        --force editor to window ontimer event
+        selectedControl = TheWindow
+        for i=1 to length(Events) do
+            if equal(Events[i][1], "onTimer") then
+                timerEvent = i
+                showEvent = i
+                exit
+            end if
+        end for
+        showScroll = 1
+        showCol = 1
+
+        cameFromTimerEditor = w32True
+
+        if not CodeWinOpen then
+            showWindow(CodeWin, state)
+            CodeWinOpen = w32True
+        end if
+        showEvent = timerEvent
+        setIndex(CodeControls,selectedControl)
+        ok = invokeHandler(CodeControls,w32HClick,{})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditOk_Click(integer self, integer event, sequence params)
+
+    savetheTimer()
+    if fault>0
+    and length(timer) then
+        return
+    end if
+
+    -- close the window 
+    closeWindow(TimerEditWindow)
+    TimerEditWindow_Close()
+
+    if CodeWinOpen then
+        ok = w32Func(xSetForegroundWindow,{getHandle(CodeWin)})
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditOk_keyPress(integer self, integer event, sequence params)
+    if params[1]=13 then TimerEditOk_Click(TimerEditOk, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditCancel_Click(integer self, integer event, sequence params)
+    -- close the window
+    closeWindow(TimerEditWindow)
+    TimerEditWindow_Close()
+
+    if CodeWinOpen then
+        ok = w32Func(xSetForegroundWindow,{getHandle(CodeWin)})
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure TimerEditCancel_keyPress(integer self, integer event, sequence params)
+    if params[1]=13 then TimerEditCancel_Click(TimerEditCancel, w32HClick,{}) end if
+end procedure
+-------------------------------------------------------------------------------
+procedure change_SetEventList(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(TimerEditList)
+
+    if not index then
+        return
+    end if
+
+    if not equal(getItem(SetEventList, getIndex(SetEventList)),
+                 timer[index][SetEvent]) then
+        is_changed = w32True
+    end if
+    timer[index][SetEvent] = getItem(SetEventList, getIndex(SetEventList))
+end procedure
+-------------------------------------------------------------------------------
+procedure change_SetControlList(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(TimerEditList)
+    if not index then
+        return
+    end if
+    if not equal(getItem(SetControlList, getIndex(SetControlList)),
+                 timer[index][SetControl]) then
+        is_changed = w32True
+    end if
+    timer[index][SetControl] = getItem(SetControlList, getIndex(SetControlList))
+end procedure
+-----------------------------------------------------------------------------
+procedure change_KillEventList(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(TimerEditList)
+    if not index then
+        return
+    end if
+    if not equal(getItem(KillEventList, getIndex(KillEventList)),
+                 timer[index][KillEvent]) then
+        is_changed = w32True
+    end if
+    timer[index][KillEvent] = getItem(KillEventList, getIndex(KillEventList))
+end procedure
+-------------------------------------------------------------------------------
+procedure change_KillControlList(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(TimerEditList)
+    if not index then
+        return
+    end if
+    if not equal(getItem(KillControlList, getIndex(KillControlList)),
+                 timer[index][KillControl]) then
+        is_changed = w32True
+    end if
+    timer[index][KillControl] = getItem(KillControlList, getIndex(KillControlList))
+end procedure
+--------------------------------------------------------------------------------
+procedure lostFocus_TimerEditName(integer self, integer event, sequence params)
+    canChangeIt = w32True
+    TimerEditName_change(0,0,{})
+end procedure
+--------------------------------------------------------------------------------
+global procedure createTimerEditWindow()
+    if TimerEditWindow= -1 then
+                                      --"Timer Control Editor"
+        TimerEditWindow = createEx(Window, IDEText[699][1], Form, Default, Default, 566, 380, {WS_THICKFRAME+WS_DLGFRAME}, 0)
+                                                --"Name:"
+        LName = createEx(LText, IDEText[700][1], TimerEditWindow, 12, 4, 48, 20, 0, 0)
+        TimerEditName = createEx(EditText, "", TimerEditWindow, 64, 4, 288, 24, 0, 0)
+                                                                                --"OK"
+        TimerEditOk = createEx(PushButton, IDEText[701][1], TimerEditWindow, 454, 4, 90, 30, 0, 0)
+                                                                                        --"Cancel"
+        TimerEditCancel = createEx(PushButton, IDEText[702][1], TimerEditWindow, 454, 34, 90, 30, 0, 0)
+                                                                --"Interval"
+        LInterval = createEx(LText, IDEText[705][1], TimerEditWindow, 8, 36, 56, 20, 0, 0)
+        TimerInterval = createEx(EditText, "", TimerEditWindow, 64, 36, 52, 20, 0, 0)
+        SetEventList = createEx(Combo, "", TimerEditWindow, 132, 72, 132, 24*6, 0, 0)
+        KillEventList = createEx(Combo, "", TimerEditWindow, 416, 72, 132, 24*6, 0, 0)
+                                                                --"SetTimer in:"
+        LSetTimer = createEx(LText, IDEText[706][1], TimerEditWindow, 8, 76, 120, 20, 0, 0)
+                                                        --KillTimer in"
+        LKill = createEx(LText, IDEText[708][1], TimerEditWindow, 292, 76, 120, 20, 0, 0)
+        SetControlList = createEx(Combo, "", TimerEditWindow, 132, 100, 132, 24*6, 0, 0)
+        KillControlList = createEx(Combo, "", TimerEditWindow, 416, 100, 132, 24*6, 0, 0)
+                                                                --"For Control"
+        LSetTimerC = createEx(LText, IDEText[707][1], TimerEditWindow, 8, 104, 120, 20, 0, 0)
+                                                        --"For control"
+        LKillC = createEx(LText, IDEText[709][1], TimerEditWindow, 288, 104, 128, 20, 0, 0)
+                                                        --"If you do not use these, you must code SetTimer and killTimer statements yourself."
+        LWarning = createEx(LText, IDEText[710][1], TimerEditWindow, 32, 132, 496, 40, 0, 0)
+                                                                                --"add timer"
+        TimerEditAdd = createEx(PushButton, IDEText[703][1], TimerEditWindow, 52, 172, 194, 30, 0, 0)
+                                                                --"Delete Timer"
+        TimerEditDelete = createEx(PushButton, IDEText[704][1], TimerEditWindow, 296, 172, 190, 30, 0, 0)
+        TimerEditList = createEx(List, "List3", TimerEditWindow, 12, 208, 534, 125, w32or_all({LBS_NOINTEGRALHEIGHT}), 0)
+
+        setHandler(TimerEditWindow, w32HOpen, routine_id("TimerEditWindow_Open"))
+        setHandler(TimerEditWindow, w32HPaint, routine_id("TimerEditWindow_Paint"))
+        setHandler(TimerEditWindow, w32HResize, routine_id("TimerEditWindow_Resize"))
+        setHandler(TimerEditName, w32HKeyDown, routine_id("keyDown_TimerEditName"))
+        setHandler(TimerEditName, w32HLostFocus, routine_id("lostFocus_TimerEditName"))
+        setHandler(TimerInterval, w32HChange, routine_id("TimerInterval_Change"))
+        setHandler(TimerInterval, w32HKeyPress, routine_id("keyPress_TimerInterval"))
+        setHandler(TimerEditAdd, w32HClick, routine_id("TimerEditAdd_Click"))
+        setHandler(TimerEditDelete, w32HClick, routine_id("TimerEditDelete_Click"))
+        setHandler(TimerEditDelete, w32HKeyPress, routine_id("TimerEditDelete_keyPress"))
+        setHandler(TimerEditList, w32HChange, routine_id("TimerEditList_Change"))
+        setHandler(TimerEditList, w32HMouse, routine_id("TimerEditList_Mouse"))
+        setHandler(TimerEditOk, w32HClick, routine_id("TimerEditOk_Click"))
+        setHandler(TimerEditOk, w32HKeyPress, routine_id("TimerEditOk_keyPress"))
+        setHandler(TimerEditCancel, w32HClick, routine_id("TimerEditCancel_Click"))
+        setHandler(TimerEditCancel, w32HKeyPress, routine_id("TimerEditCancel_keyPress"))
+        setHandler(SetEventList, w32HChange, routine_id("change_SetEventList"))
+        setHandler(SetControlList, w32HChange, routine_id("change_SetControlList"))
+        setHandler(KillEventList, w32HChange, routine_id("change_KillEventList"))
+        setHandler(KillControlList, w32HChange, routine_id("change_KillControlList"))
+
+    end if
+end procedure
+

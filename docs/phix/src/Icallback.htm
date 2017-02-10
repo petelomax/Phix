@@ -17,7 +17,7 @@
             include pGUI.e
             <br>
             <br>
-            atom res = Icallback(<i>"routine"</i>)
+            cbfunc res = Icallback(<i>"routine"</i>)
           </font>
          </td>
         </tr>
@@ -37,12 +37,20 @@
             <br>
             <br>
             pGUI records a list of all callbacks generated via Icallback and validates all attempts to set callbacks against that list,
-            since attempts to invoke something which is not a valid callback will always produce an indecipherable error message (or
-            worse quietly terminate for no apparent reason), at least that is when said call is actually somewhere deep inside one of 
-            the linked IUP dynamic libraries (which are written in C).
+            since attempts to invoke something which is not a valid callback will always produce an indecipherable error message, or
+            worse quietly terminate for no apparent reason, at least that is when said call is actually somewhere deep inside one of 
+            the precompiled IUP dynamic link libraries (which are written in C).
             <br>
             <br>
-            The type cbfunc is used to validate an atom address is the result of a previous call to Icallback.
+            The type cbfunc is used to validate that an atom address is (NULL or) the result of a previous call to Icallback, 
+            alternatively you could just use the atom type. <br>
+            string name = iup_name_from_cb(atom addr) can also be used to retrieve the name corresponding to a valid (non-null) Icallback address.
+            <br>
+            <br>
+            You should not construct strings to pass to Icallback. Instead the function cbfunc func = iup_cb_from_name(string name) can be
+            used when needed, and declare constant <i>&lt;possibly_otherwise_unused&gt;</i>=Icallback(<i>"routine"</i>), immediately 
+            following the actual definition of each and every routine that you might require this for. It returns null when unable to 
+            find a previously generated Icallback of that name, and any name conflicts should have been caught by Icallback().
             <br>
             <br>
             When translating C code to Phix, a common requirement is to replace <code>(Icallback)xxx_cb</code> with <code>Icallback("xxx_cb")</code>.
@@ -59,8 +67,9 @@ include pGUI.e
 function quit_cb()
   return IUP_CLOSE;
 end function
+constant cb_quit = Icallback("quit_cb")
 
-Ihandle quit_bt = IupButton("Quit", Icallback("quit_cb"))
+Ihandle quit_btn = IupButton("Quit", cb_quit)
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pGUI.e
@@ -68,8 +77,9 @@ Ihandle quit_bt = IupButton("Quit", Icallback("quit_cb"))
 </font><font color="#008080">function</font><font color="#000000"> quit_cb</font><font color="#0000FF">()
 </font><font color="#008080">  return</font><font color="#004600"> IUP_CLOSE</font><font color="#0000FF">;
 </font><font color="#008080">end function
+constant</font><font color="#000000"> cb_quit</font><font color="#0000FF"> =</font><font color="#5E005E"> Icallback</font><font color="#0000FF">(</font><font color="#008000">"quit_cb"</font><font color="#0000FF">)
 
-</font><font color="#5E005E">Ihandle</font><font color="#000000"> quit_bt</font><font color="#0000FF"> =</font><font color="#5E005E"> IupButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"quit_cb"</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</font><font color="#5E005E">Ihandle</font><font color="#000000"> quit_btn</font><font color="#0000FF"> =</font><font color="#5E005E"> IupButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">,</font><font color="#000000"> cb_quit</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

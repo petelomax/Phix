@@ -72,11 +72,9 @@ object res = -1
                 lea edi,[pRes]
                 call :%pStoreMint
             [ELF64]
-                mov rax,[var]
-                shl rax,2
-                push rax
+                mov rdi,[var]
+                shl rdi,2
                 call "libc.so.6","getenv"
-                add rsp,8
                 lea rdi,[pRes]
                 call :%pStoreMint
             []
@@ -124,12 +122,10 @@ integer res
                     add esp,4
                     mov [res],eax
                 [ELF64]
-                    mov rax,[var]
-                    shl rax,2
-                    push rax                    -- name
+                    mov rdi,[var]
+                    shl rdi,2                   -- name
                     call "libc.so.6","unsetenv"
                     add rax,1 -- (0=success=>1, -1=failure=>0)
-                    add rsp,8
                     mov [res],rax
                 []
                   }
@@ -148,16 +144,13 @@ integer res
                     add esp,12
                     mov [res],eax
                 [ELF64]
-                    mov rax,[var]
+                    mov rdi,[var]
                     mov rsi,[newValue]
-                    shl rax,2
-                    shl rsi,2
-                    push 1                      -- overwrite
-                    push rsi                    -- value
-                    push rax                    -- name
+                    shl rdi,2                   -- name
+                    shl rsi,2                   -- value
+                    mov rdx,1                   -- overwrite
                     call "libc.so.6","setenv"
                     add rax,1 -- (0=success=>1, -1=failure=>0)
-                    add rsp,12
                     mov [res],rax
                 []
                   }
@@ -176,16 +169,14 @@ integer res
                     add esp,12
                     mov [res],eax
                 [ELF64]
-                    mov rsi,[var]
                     mov rax,[newValue]
-                    shl rsi,2
                     call :%pLoadMint
-                    push 1                      -- overwrite
-                    push rax                    -- value
-                    push rsi                    -- name
+                    mov rdi,[var]
+                    mov rdx,1                   -- overwrite
+                    mov rsi,rax                 -- value
+                    shl rdi,2                   -- name
                     call "libc.so.6","setenv"
                     add rax,1 -- (0=success=>1, -1=failure=>0)
-                    add rsp,12
                     mov [res],rax
                 []
                   }

@@ -660,6 +660,23 @@ atom res
                     cmp byte[rbx+rax*4-1],0x12          -- (ebx==0)
                     jne :kaboom
                     fld tbyte[rbx+rax*4]
+--DEV untested:
+                    mov r15,h4
+
+                    -- if uint>#7FFF... then uint-=#1_0000...
+                    push r15            -- #4000_0000_0000_0000
+                    fild qword[rsp]
+                    fadd st0,st0        -- #8000_0000_0000_0000
+                    fld st1
+                    fcomp
+                    fnstsw ax
+                    sahf
+                    jb :below80
+                        fadd st0,st0    -- #1_0000_0000_0000_0000
+                        fsub st1,st0
+                  ::below80
+                    fstp st0            -- discard
+
                     fistp qword[rsp]
                     pop rax
               @@:

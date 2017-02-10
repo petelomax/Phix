@@ -1,0 +1,185 @@
+-- ----------------------------------------------------------------
+-- Skinned Windows Library
+-- ----------------------------------------------------------------
+-- Copyright: ©2005 Dave Probert
+-- Email: probert.dave@gmail.com
+-- Author: Dave Probert
+-- Created: 20 June 2005
+-- Modified: 22 June 2005
+-- Version: 0.4.8
+-- Requires: win32lib.ew (Can easily be converted to other windows libs)
+-- Notes: Skining windows from passed bitmap image
+--      Still lots of extra stuff that can be done :)
+-- ----------------------------------------------------------------
+-- Credits: Based on ideas from PakRat's Irregular.ew file - sent to me by Euman
+--              And skinning tutorial on flipcode.com
+--  Thanks To:  Elliott S. de Andrade (for pointing me at the right docs for getting region data)
+-- ----------------------------------------------------------------
+
+include dll.e
+without warning
+
+constant
+    GDI32  = open_dll("gdi32"),
+    USER32 = open_dll("user32")
+
+constant
+    xCreateRectRgn  = define_c_func(GDI32, "CreateRectRgn",     {C_LONG,C_LONG,C_LONG,C_LONG},C_LONG),
+    xCombineRgn     = define_c_proc(GDI32, "CombineRgn",        {C_LONG ,C_LONG,C_LONG,C_LONG}),
+    xDeleteObject   = define_c_proc(GDI32, "DeleteObject",      {C_LONG}),
+    xCreateRgnEx    = define_c_func(GDI32, "ExtCreateRegion",   {C_LONG ,C_LONG,C_LONG},C_LONG),
+    xGetRegionData  = define_c_func(GDI32, "GetRegionData",     {C_LONG ,C_LONG,C_LONG},C_LONG),
+--  xPaintRegion    = define_c_func(GDI32, "PaintRgn",          {C_LONG ,C_LONG},C_LONG),
+    xSetWindowRgn   = define_c_proc(USER32,"SetWindowRgn",      {C_LONG, C_LONG,C_LONG})
+
+-- ----------------------------------------------------------------
+-- Apply the Region to the Window
+global procedure setWindowRegion(atom HWnd,atom Region)
+    c_proc(xSetWindowRgn,{HWnd,Region,-1})
+end procedure
+
+-- ----------------------------------------------------------------
+-- got to work on this bit !!
+--global procedure paintRegion(atom Region, atom bmp)
+--atom dc
+--  dc = getDC(bmp)
+--  VOID = c_func(xPaintRegion,{dc,Region})
+--  releaseDC(dc)
+--end procedure
+
+-- ----------------------------------------------------------------
+-- returns a sequence with the size and buffered region data for a passed Region
+-- Use this for saving a file of the region
+-- don't forget to free() the buffer somewhere after using it
+global function getRegionData(atom Region)
+atom buf,siz
+    siz = c_func(xGetRegionData,{Region,0,0})   -- get the required size
+    if siz>0 then
+        buf = allocate(siz)
+        siz = c_func(xGetRegionData,{Region,siz,buf})   -- get the actual data
+        return {siz,buf}
+    end if
+    return {0,0}
+end function
+
+-- ----------------------------------------------------------------
+-- Saves an already created Region to a disc file for later use
+-- Pass the region as the var from scanRegionBitmap or getRegionData
+-- Obviously pass a valid filename
+-- Returns 0 on failure or 1 on success
+global function saveRegionToFile(object region, sequence filename)
+integer fh
+sequence bytestream
+atom tmp
+    if length(filename)>0 then
+        if atom(region) then
+            tmp = region
+            region = getRegionData(tmp)
+        end if
+        if sequence(region) then
+            if region[1]>0 then
+                fh = open(filename,"wb")
+                if fh then
+                    bytestream = peek({region[2],region[1]})
+                    puts(fh,bytestream)     -- write bytes
+                    free(region[2]) -- free the buffer
+                    close(fh)
+                    return 1
+                end if
+            end if
+        end if
+    end if
+    return 0
+end function
+
+-- ----------------------------------------------------------------
+-- Pass the size of buffer and buffer address containing the Region data
+-- usually from a file
+global function makeRegionFromBuffer(integer siz, atom buf)
+    if siz>0 then
+        return c_func(xCreateRgnEx,{0,siz,buf})
+    end if
+    return NULL
+end function
+
+-- ----------------------------------------------------------------
+-- Attempts to load the region data from disc file and create the region from it
+-- Obviously pass a valid filename
+-- returns NULL on failure
+global function loadRegionFromFile(sequence filename)
+atom bytestream, rgn
+integer fh
+atom siz
+    siz = 0
+    fh = open(filename,"rb")
+    if fh then
+        VOID = seek(fh,-1)      -- go to end of file
+        siz = where(fh)     -- get size of file
+        if siz>0 then
+            bytestream = allocate(siz+1)
+            if bytestream>0 then
+                VOID = seek(fh,0)   -- rewind file
+                poke(bytestream,get_bytes(fh,siz))
+            else
+                VOID = message_box("Region File Cant allocate bytestream","Region Loader Error",MB_OK)
+                siz = 0     -- stops the make region trying to do stuff
+            end if
+        else
+            VOID = message_box("Region File Size is 0","Region Loader Error",MB_OK)
+        end if
+        close(fh)
+        if siz>0 then
+            rgn = makeRegionFromBuffer(siz,bytestream)
+            free(bytestream)
+            return rgn
+        end if
+    end if
+    return NULL
+end function
+
+-- ----------------------------------------------------------------
+-- Scan a passed bitmap for the trans colour and then make a windows 
+--  Region that excludes pixels with that colour.
+-- Params: 
+--      pBitmap = HBITMAP (from loadBitmapFromFile or wherever)
+--      trans       = rgb transparent colour (from rgb(x,x,x) call, or wherever)
+-- NOTE: For future, there must be some way of accessing the created region data 
+--          and then saving it off to a file for later loading.  This function would 
+--          then be used in a different way - pre-parse the image and in the 
+--          application simply reload the calculated data.
+global function scanRegionBitmap(atom pBitmap, atom trans)
+integer wBmpWidth,wBmpHeight
+atom hRgn, hTmpRgn, bmpDC
+sequence regs,wh
+atom p
+    wh = getRect(pBitmap)
+    wBmpWidth = wh[3]
+    wBmpHeight = wh[4]
+    -- create our working region
+    hRgn = c_func(xCreateRectRgn,{0,0,wBmpWidth,wBmpHeight})
+
+    if not hRgn then
+        return NULL
+    end if
+    -- grab the DC for the image, for use in the GetPixel call 
+    -- saves calling win32lib GetPixel() and grabbing the DC every time
+    bmpDC = getDC(pBitmap)
+    regs = {hRgn}
+    -- scan the bitmap
+    -- This can probably be optimised a bit ;)
+    for y=0 to wBmpHeight-1 do
+        for x=0 to wBmpWidth-1 do
+            p = w32Func(xGetPixel, {bmpDC, x, y})
+            if p=trans then
+                -- remove transparent color from region
+                hTmpRgn = c_func(xCreateRectRgn,{x,y,x+1,y+1})
+                c_proc(xCombineRgn,{hRgn,hRgn,hTmpRgn,4})
+                c_proc(xDeleteObject,{hTmpRgn})
+            end if
+        end for
+    end for
+    -- clear the DC
+    releaseDC(bmpDC)
+    -- return the region
+    return hRgn
+end function

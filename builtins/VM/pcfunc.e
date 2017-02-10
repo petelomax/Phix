@@ -38,7 +38,7 @@
 --  c) In Phix, calls to machine_func(M_DEFINE_C) are not supposed to
 --      occur, however if an application includes an old version (say 
 --      RDS Eu 2.4) of dll.e, then pmach.e maps it here. Now, if we
---      left this in dll.e, and pmach.e (naievely) mapped M_DEFINE_C
+--      left this in dll.e, and pmach.e (naively) mapped M_DEFINE_C
 --      to dll:define_c_func(), it would result in an infinite loop. 
 --      Hence I moved them, but kept it as compatible as possible.
 --
@@ -239,13 +239,10 @@ atom res
             lea edi,[res]
             call :%pStoreMint   -- [edi]:=eax, as float if rqd
         [ELF64]
-            mov rax,[filename]
---          push 1              -- flags (RTLD_LAZY)
-            push 0x00101        -- flags (RTLD_GLOBAL|RTLD_LAZY)
-            shl rax,2           -- ref->raw
-            push rax            -- library name
+            mov rdi,[filename]
+            mov rsi,0x00101     -- flags (RTLD_GLOBAL|RTLD_LAZY)
+            shl rdi,2           -- ref->raw (library name)
             call "libdl.so.2", "dlopen"
-            add rsp,16
             lea rdi,[res]
             call :%pStoreMint   -- [rdi]:=rax, as float if rqd
         []
@@ -281,7 +278,7 @@ atom addr
         [32]
             mov eax,[lib]
             mov edx,[name]
-            call :%pLoadMint
+            call :%pLoadMint -- (eax:=(int32)eax; edx preserved)
             shl edx,2
         [PE32]
             push edx                            -- lpProcName
@@ -312,10 +309,10 @@ atom addr
                         -- obviously rsp is now xxx8, whatever alignment we started with
 
             mov rax,[lib]
-            mov r15,h4
+--          mov r15,h4
             sub rsp,8*5                         -- minimum 4 param shadow space, and align
             mov rdx,[name]
-            call :%pLoadMint
+            call :%pLoadMint -- (rax:=(int64)rax; rdx preserved)
             shl rdx,2                           -- lpProcName
             mov rcx,rax                         -- hModule
             call "kernel32.dll","GetProcAddress"
@@ -325,14 +322,12 @@ atom addr
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
             call :%pStoreMint
         [ELF64]
-            mov rdx,[name]
             mov rax,[lib]
-            shl rdx,2
-            call :%pLoadMint
-            push rdx                            -- symbol
-            push rax                            -- handle
+            mov rsi,[name]
+            call :%pLoadMint -- (rax:=(int64)rax; rdx preserved)
+            shl rsi,2                           -- symbol
+            mov rdi,rax                         -- handle
             call "libdl.so.2", "dlsym"
-            add rsp,16
             lea rdi,[addr]
             call :%pStoreMint
         []
@@ -363,7 +358,11 @@ procedure check(object o, integer level)
     and o!=C_UINT
     and o!=C_FLOAT
     and o!=C_DOUBLE then
+--DEV
+--if o!=#2000008 then
+if o!=#1000008 then
         fatalN(level,e74dcfpe)
+end if
     end if
 end procedure
 
@@ -661,267 +660,7 @@ constant S_NTyp     = 2,
          T_const1   = 26,
          DEBUG      = 0
 
-
---/*
-procedure :%cbhandler(:%)
-end procedure -- (for Edita/CtrlQ)
---*/
-    #ilASM{
-            :%cbhandler
-            -----------
-        [32]
-                pushad
-
-                -- [esp] is saved edi (from the pushad)
-                -- [esp+4] is saved esi
-                -- [esp+8] is saved ebp
-                -- [esp+12] is saved esp
-                -- [esp+16] is saved ebx
-                -- [esp+20] is saved edx    -- (now used for prevebp)
-                -- [esp+24] is saved ecx
-                -- [esp+28] is saved eax    -- (save of symtab[routineno], then result)
-                -- [esp+32] is return address into stdcb clone (ret nnn instruction)
-                -- [esp+36] is routine no   -- (also used to save result addr)
-                -- [esp+40] another return address [into C code, probably]
-                -- [esp+44] params
-
-                -- (same for both STDCALL and CDECL, cmiiw)
-
-                xor ebx,ebx
-                -- restore ebp (from last call()/c_func()/c_proc())
-                xor edx,edx             -- edx:=0
-                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
-                test eax,eax
-                jz @f
---15/9/16:
---mov edx,ebp
-                    mov ebp,eax
---push eax
---call :%pSetSaveEBP
---pop eax
-              @@:
-                mov [esp+20],eax        -- prevebp
-                mov edx,[esp+36]        -- rtnid
-                call :%pGetSymPtr       -- (mov esi,[ds+8])
-                mov esi,[esi+edx*4-4]   -- esi:=symtab[rtnid]
-                mov [esp+28],esi        -- save symtab[rtnid] (in eax after popad)
-                mov edi,[ebx+esi*4+32]  -- edi:=esi[S_ParmN=9]
-                push edi                -- [1] push edi (no of params [min==max])
-                mov ecx,[ebx+esi*4+36]  -- ecx:=esi[S_Ltot=10]
-                --
-                -- Create a frame:
-                --
-                --  ecx ==> number of params+locals
-                --  edx ==> routineNo to call
-                --
-                call :%opFrame
-                --
-                -- Set params, converting any big 32-bit values to floats
-                --
-                mov edi,ebp             -- (addr first param)
-                pop ecx                 -- [1] pop ecx (no of params)
-                test ecx,ecx
-                jz :zeroparams
-                    lea esi,[esp+44]    -- params (on stack)
-                ::paramloop
-                    lodsd               --  eax:=[esi], esi+=4
-                    cmp eax,h4
-                    jb :paramstosd      -- (0..#3FFFFFFF)
---DEV this is viable, treating #FFFFFFFF as -1, but disagrees with RDS Eu...
-                    cmp eax,#C0000000
-                    jae :paramstosd     -- (#C0000000..#FFFFFFFF)
---DEV this loads it unsigned (agreeing with RDS Eu)....
---                  push ebx            -- (=0)
---                  push eax
---                  fild qword[esp]
---                  add esp,8
---DEV ... whereas this loads it signed (disagreeing with RDS Eu).
-                    fild dword[esi-4]
-                    call :%pStoreFlt    -- ([edi]:=ST0)
-                    jmp :nextparam
-                ::paramstosd
-                    mov [edi],eax
-                ::nextparam
-                    sub edi,4
-                    sub ecx,1
-                    jnz :paramloop
-            ::zeroparams
-                mov esi,[esp+28]        -- restore symtab[rtnid]
-                mov dword[ebp+16],:retaddr
-                jmp dword[ebx+esi*4+40] -- execute first opcode (S_il=11)
-            ::retaddr
-                mov edx,[esp+20]        -- prevebp
---15/9/16:
---test edx,edx
---jz @f
-                push eax
-                call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
-                pop eax
---@@:
-                -- result is in eax, but >31bit stored as a float
-                cmp eax,h4 --DEV :%pLoadMint
-                jl :retint
-                    cmp byte[ebx+eax*4-1],0x12          -- (ebx==0)
-                    je @f
-                        mov esi,[esp+28]                -- restore symtab[rtnid]
-                        mov al,80                       -- e80cbrna(esi)
-                        mov edx,[ebx+esi*4+40]          -- first opcode (S_il=11)
-                        mov esi,[esp+36]                -- routine no
-                        jmp :!iDiag
-                        int3
-                  @@:
-                    sub esp,8
-                    fld qword[ebx+eax*4]
-                    fistp qword[esp]
-                    sub dword[ebx+eax*4-8],1
-                    jnz @f
-                        mov edx,eax
-                        push dword[esp+40]              -- era
-                        call :%pDealloc0
-                  @@:
-                    pop eax
-                    add esp,4
-            ::retint
-                mov [esp+28],eax        -- keep eax, but
-                popad                   -- restore all other registers
-                ret 4                   -- (the dword pushed by template code)
-
-            -- end of cbhandler (32 bit)
-
-            [64]
-                -- rax is routine number
-                -- [rsp] is return address into stdcb clone (ret nnn instruction)
-                -- [rsp+8] another return address [into C code, probably]
-                -- PE64 only, not ELF64:
-                -- [rsp+16] params: shadow space: rcx/[rsp+16]
-                --                                rdx/[rsp+24]
-                --                                r8 /[rsp+32]
-                --                                r9 /[rsp+40]
-                -- (same for both STDCALL and CDECL, cmiiw)
-
---[PE64]
---15/2/16:
-                -- rax/rcx/rdx/r8/r9/r10/r11 are damaged, as are xmm0..5 and st0..7
-                -- rbx/rbp/rdi/rsi/r12/r13/r14/r15 are preserved (as are xmm6..15)
-                push rbx
-                push rbp
-                push rdi
-                push rsi
-                push r12
-                push r13
-                push r14
-                push r15
-                xor rbx,rbx
-            [PE64]
-                mov [rsp+16+64],rcx
-                mov [rsp+24+64],rdx
-                mov [rsp+32+64],r8
-                mov [rsp+40+64],r9
-            [64]
-
-                push rax                -- routine number
-                xor rdx,rdx             -- rdx:=0
-                call :%pSetSaveEBP      -- (rax<-pTCB.SaveEBP<-rdx, all regs trashed)
-                call :%pGetSymPtr       -- (mov rsi,[ds+8])
-                pop rdx                 -- routine number
-                test rax,rax
-                jz @f
-                    mov rbp,rax
-              @@:
-                push rax                --[0] saved ebp
-
-                mov rsi,[rsi+rdx*8-8]   -- rsi:=symtab[rtnid]
-                push rsi                --[1] save symtab[rtnid]
-                mov rdi,[rbx+rsi*4+64]  -- rdi:=rsi[S_ParmN=9]
-                mov rcx,[rbx+rsi*4+72]  -- rcx:=rsi[S_Ltot=10]
-                push rdi                --[2] push rdi (no of params [min==max])
-
-                call :%opFrame          -- (with rcx==number of params+locals, rdx==routine no)
-
-                --
-                -- Set params, converting any big 32-bit values to floats
-                --
-                mov rdi,rbp             -- (addr first param)
-                pop rcx                 --[2] pop rcx (no of params)
-                mov r15,h4
-                test rcx,rcx
-                jz :zeroparams
-                    lea rsi,[rsp+32+64] -- params (on stack)
-                ::paramloop
-                    lodsq               --  rax:=[rsi], rsi+=8
-                    cmp rax,r15
-                    jb :paramstosd      -- (0..#3FFFFFFF)
---DEV this is viable, treating #FFFFFFFF as -1, but disagrees with RDS Eu...
---                  cmp eax,#C0000000
---                  jae :paramstosd     -- (#C0000000..#FFFFFFFF)
---DEV this loads it unsigned (agreeing with RDS Eu)....
---pop al    -- DEV done to here...
-----                push ebx            -- (=0)
---                  push rax
---                  fild qword[rsp]
---                  add rsp,8
---DEV ... whereas this loads it signed (disagreeing with RDS Eu).       [DEV seems like I'm going this route...]
-                    fild qword[rsi-8]
-                    call :%pStoreFlt                    -- ([rdi]:=ST0)
-                    jmp :nextparam
-                ::paramstosd
-                    mov [rdi],rax
-                ::nextparam
-                    sub rdi,8
-                    sub rcx,1
-                    jnz :paramloop
-            ::zeroparams
-                pop rsi                 --[1] symtab[rtnid]
-                push rdx                --[1] routine No
-                mov qword[rbp+32],:retaddr64
-                jmp dword[rbx+rsi*4+80] -- execute first opcode (S_il=11)
-            ::retaddr64
-                pop rsi                 --[1] routine No
-                pop rdx                 --[0] saved ebp
-                push rax
-                call :%pSetSaveEBP      -- (rax<-pTCB.SaveEBP<-rdx, all regs trashed)
-                pop rax             
-
-                -- result is in rax, but >63bit stored as a float
-                mov r15,h4
-                cmp rax,r15
-                jl :retint
-                    sub rsp,8
-                    cmp byte[rbx+rax*4-1],0x12          -- (ebx==0)
-                    je @f
-                        mov al,80                       -- e80cbrna
-                        mov rcx,rsi                     -- routine no
-                        call :%pGetSymPtr               -- (mov rsi,[ds+8])
-                        mov rsi,[rsi+rcx*8-8]           -- rsi:=symtab[rtnid]
-                        mov rdx,[rbx+rsi*4+80]          -- first opcode (S_il=11)
-                        mov rsi,rcx
-                        jmp :!iDiag
-                        int3
-                  @@:
-                    fld tbyte[rbx+rax*4]
-                    fistp qword[rsp]
-                    sub qword[rbx+rax*4-16],1
-                    jnz @f
-                        mov rdx,rax
-                        push qword[rsp+24]
-                        call :%pDealloc0
-                  @@:
-                    pop rax
-            ::retint
-                pop r15
-                pop r14
-                pop r13
-                pop r12
-                pop rsi
-                pop rdi
-                pop rbp
-                pop rbx
-                ret
-
-            -- end of cbhandler (64-bit)
-
-            []
-        }
+include builtins\VM\cbhand.e    -- (now separate so that :%cb_ret can be in the optable)
 
 global function call_back(object id)
 --
@@ -1351,6 +1090,9 @@ integer esp4
                              #02000002,     -- C_USHORT (a 16 bit signed integer)
                              #01000004,     -- C_INT
                              #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+--DEV:
+--,#2000008
+,#1000008
                             }) then
                 #ilASM{
                         [32]
@@ -1563,6 +1305,8 @@ end if
             if find(argdefi,{
                              #01000004,     -- C_INT
                              #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+--,#02000008
+,#01000008
                             }) then
                 #ilASM{
                         [32]
@@ -1841,6 +1585,9 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                              C_USHORT,      -- #02000002
                              C_INT,         -- #01000004    -- == C_LONG
                              C_UINT,        -- #02000004    -- == C_ULONG, C_POINTER, C_PTR
+--DEV
+--#2000008,
+#1000008,
                              C_FLOAT,       -- #03000004
                              C_DOUBLE,      -- #03000008
 --                               E_INTEGER,     -- #06000004    \
@@ -1897,7 +1644,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                 mov edx,[return_type]
                 mov esp,ecx
 
-                cmp edx,0x01000004  -- (C_INT [== C_LONG])
+                cmp edx,0x01000004  -- (C_INT [== C_LONG], signed)
                 jne @f
                     cmp eax,h4
                     jb :intres          -- (0..#3FFFFFFF)
@@ -1908,7 +1655,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                         pop eax -- (discard)
                         jmp :cstore
             @@:
-                cmp edx,0x02000004  -- (C_UINT [== C_ULONG, C_POINTER, C_PTR])
+                cmp edx,0x02000004  -- (C_UINT [== C_ULONG, C_POINTER, C_PTR], unsigned)
                 jne @f
                     cmp eax,h4
                     jb :intres          -- (0..#3FFFFFFF)
@@ -1929,30 +1676,25 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                     call :%pStoreFlt                    -- ([edi]:=ST0)
                     jmp :done
             @@:
-                cmp edx,0x01000002  -- (C_SHORT)
+                cmp edx,0x01000002  -- (C_SHORT, signed)
                 jne @f
                     cwde                                    -- (ax->eax) [in range -32768..32767]
                     jmp :intres
             @@:
-                cmp edx,0x02000001  -- (C_UCHAR)
+                cmp edx,0x02000001  -- (C_UCHAR, unsigned)
                 jne @f
                     and eax,0xFF
                     jmp :intres
             @@:
-                cmp edx,0x02000002  -- (C_USHORT)
+                cmp edx,0x02000002  -- (C_USHORT, unsigned)
                 jne @f
                     and eax,0x0000FFFF
                     jmp :intres
             @@:
---              cmp edx,0x01000001  -- (C_CHAR)
+--              cmp edx,0x01000001  -- (C_CHAR, signed)
 --              jne @f
 --                  cbw                                     -- (al->ax)
 --                  cwde                                    -- (ax->eax) [in range -128..127]
---                  jmp :intres
---          @@:
---              cmp edx,0x02000001  -- (C_UCHAR)
---              jne @f
---                  and eax,0xFF
 --                  jmp :intres
 --          @@:
                 int3
@@ -1989,8 +1731,15 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                 mov rdx,[return_type]
                 mov rsp,rcx
 
-                cmp rdx,0x01000004  -- (C_INT [== C_LONG])
+--DEV this is and isn't quite right... (definition of C_INT suspect for starter, inability to really mean DWORD for desert)
+-- (probably wants cdqe (eax -> rax))
+                cmp rdx,0x01000004  -- (C_INT [== C_LONG], signed)
                 jne @f
+
+--DEV tryme:
+--                  cdqe            -- (eax->rax)
+--                  jmp :intres
+
 --                  cmp rax,h4
 --                  mov r15,h4
                     cmp rax,r15
@@ -2005,8 +1754,13 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                         pop rax -- (discard)
                         jmp :cstore
             @@:
-                cmp rdx,0x02000004  -- (C_UINT [== C_ULONG, C_POINTER, C_PTR])
+                cmp rdx,0x02000004  -- (C_UINT [== C_ULONG, C_POINTER, C_PTR], unsigned)
                 jne @f
+
+--DEV tryme:
+--                  and eax,#FFFFFFFF
+--                  jmp :intres
+
 --                  cmp rax,h4
 --                  mov r15,h4
                     cmp rax,r15
@@ -2028,6 +1782,56 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                     fadd st0,st0
                     faddp
                     jmp :cstore
+--added 25/12/16:
+            @@:
+                cmp rdx,#01000008   -- (C_PTR, C_HANDLE etc [signed 64 bit])
+                jne @f
+                    cmp rax,r15
+                    jb :intres          -- (0..#3FFFFFFFFFFFFFFF)
+                    mov r14,#C0000000
+                    shl r14,32
+                    cmp rax,r14
+                    jae :intres         -- (#C0000000..#FFFFFFFF)
+                        push rax
+                        fild qword[rsp]
+                        pop rax -- (discard)
+                        jmp :cstore
+--(this should be made invalid)
+            @@:
+                cmp rdx,#02000008   -- (C_PTR, C_HANDLE etc [unsigned 64 bit])
+                jne @f
+--                  cmp rax,h4
+--                  mov r15,h4
+                    cmp rax,r15
+                    jb :intres          -- (0..#3FFFFFFFFFFFFFFF)
+--                  cmp eax,#C000000000000000
+--                  jae :intres         -- (#C0000000..#FFFFFFFF)
+--                  push rax
+--                  fild qword[rsp]
+--                  add rsp,8
+                    -- to load unsigned, right shift rax by 1, save odd bit in rcx, then *2+[0|1]
+                    mov rcx,rbx
+mov r10,rax
+                    shr rax,1
+                    rcl rcx,1
+                    push rax
+                    push rcx
+                    fild qword[rsp]
+                    fild qword[rsp+8]
+--                  add rsp,16
+                    fadd st0,st0
+                    faddp
+--DEV :%pLoadMint..??
+fld st0
+call :%down64
+fistp qword[rsp]
+call :%near64
+mov r11,[rsp]
+add rsp,16
+cmp r10,r11
+je :cstore
+int3
+--                  jmp :cstore
             @@:
                 cmp rdx,0x03000004  -- (C_FLOAT)
                 je :cstorexmm0
@@ -2045,33 +1849,28 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                     call :%pStoreFlt                    -- ([rdi]:=ST0)
                     jmp :done
             @@:
-                cmp rdx,0x01000002  -- (C_SHORT)
+                cmp rdx,0x01000002  -- (C_SHORT, signed)
                 jne @f
                     cwde                                    -- (ax->eax) [in range -32768..32767]
 --                  and rax,0xFFFF
                     cdqe                                    -- (nb does not list right in FDBG)
                     jmp :intres                             -- ( - but it seems fine in x64dbg)
             @@:
-                cmp rdx,0x02000001  -- (C_UCHAR)
+                cmp rdx,0x02000001  -- (C_UCHAR, unsigned)
                 jne @f
                     and rax,0x00FF
                     jmp :intres
             @@:
-                cmp rdx,0x02000002  -- (C_USHORT)
+                cmp rdx,0x02000002  -- (C_USHORT, unsigned)
                 jne @f
                     and rax,0x0000FFFF
                     jmp :intres
             @@:
---              cmp rdx,0x01000001  -- (C_CHAR)
+--              cmp rdx,0x01000001  -- (C_CHAR, signed)
 --              jne @f
 --                  cbw                                     -- (al->ax)
 --                  cwde                                    -- (ax->eax) [in range -128..127]
 --                  cdqe                                    -- (eax->rax)
---                  jmp :intres
---          @@:
---              cmp rdx,0x02000001  -- (C_UCHAR)
---              jne @f
---                  and rax,0xFF
 --                  jmp :intres
 --          @@:
                 call :%e02atdb0

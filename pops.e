@@ -486,12 +486,13 @@ opProfout = 171,        -- profile_dump()
 --  opCrshRtn = 182,    -- internal, see pexec.e/pdiag.e
 --newEmit
 --  opRbldIds = 183,    -- internal, see pemit.e/calling convention below.
-    opCrshMsg = 184,    -- implements crash_message()
+--  opCrshMsg = 184,    -- implements crash_message() [see pDiagN.e]
 --DEV togo/newEmit:
 --  opDelRtn = 185,     -- internal, see pdelete.e/calling covention below.
-    opCrshFile = 186,   -- implements crash_file()
+--  opCrshFile = 186,   -- implements crash_file()
 --  opInterp = 187,     -- interpret(symtab,CSvaddr,DSvaddr,opstat,ptab,errorcode) [internal routine]
-    opAbort = 188,      -- abort(a)
+--  opCrshRtn = 188,    -- implements crash_routine(rid) [see pDiagN.e]
+    opAbort = 178,      -- abort(a)
 --newEmit
 --  opCleanUp = 189,    -- internal, for debugleak check
 --  opCleanUp1 = 190,   -- internal, for debugleak check
@@ -599,7 +600,8 @@ opProfout = 171,        -- profile_dump()
     opCrashMsg = 240,   -- opCrashMsg,cm
 --  opCrash = 241,      -- opCrash,fmt,data
 --  opCrash1 = 242,     -- opCrash,fmt
-    opCrashFile = 243,  -- opCrashFile,file_path
+    opCrashFile = 242,  -- opCrashFile,file_path
+    opCrashRtn = 243,   -- opCrashRtn,rid
 
     opWrap = 244,       -- opWrap,flag
     opScroll = 245,     -- opScroll,amount,top,bottom
@@ -836,28 +838,29 @@ opProfout = 171,        -- profile_dump()
 --  opUsed += 2
     opName("opDelRtn",opDelRtn,4) -- ??                 -- ""
     opName("opDelete",opDelete,2) -- ??                 -- ""
+    opName("opAbort",opAbort,2)
 --  opName("opGetVMep",opGetVMep,0) --??
 --  opName("opReadVM",opReadVM,0) --??
 --end if
 --  opName("opPokeRef",opPokeRef,0) -- ??
 --  opName("opGetRaw",opGetRaw,0)   --??
-    opUsed += 6
+    opUsed += 22
 --  opName("opLicence",opLicence,0) -- (#ilASM only, see pemit.e)
 --  opName("opSetDbg",opSetDbg,0)   --??
 --  opName("opCrshRtn",opCrshRtn,0) --??
 --  opName("opRbldIds",opRbldIds,0) --??
-    opName("opCrshMsg",opCrshMsg,2)
-    opUsed += 1
+--  opName("opCrshMsg",opCrshMsg,2)
+--  opUsed += 2
 --  opName("opDelRtn",opDelRtn,0)   --??
-    opName("opCrshFile",opCrshFile,2)
-    opUsed += 1
+--  opName("opCrshFile",opCrshFile,2)
+--  opUsed += 2
 --  opName("opInterp",opInterp,0)   --??
-    opName("opAbort",opAbort,2)
-    opUsed += 2
+--  opName("opAbort",opAbort,2)
+--  opUsed += 3
 --  opName("opCleanUp",opCleanUp,0) --??
 --  opName("opCleanUp1",opCleanUp1,0)   --??
 
-    opUsed += 7
+--  opUsed += 7
 --  opName("opGetRRC",opGetRRC,0)   -- (#ilASM only, see pgui.exw)
 --  opName("opSetBatchMode",opSetBatchMode,0)
 --  opName("opLichk",opLichk,0) -- (#ilASM only, TEMP!)
@@ -869,7 +872,7 @@ opProfout = 171,        -- profile_dump()
 
 --  opUsed += 4
 --  opUsed += 2
-    opUsed += 3
+--  opUsed += 3
 
 
 -- virtual opcodes:
@@ -940,8 +943,9 @@ opProfout = 171,        -- profile_dump()
 --  opName("opCrash",opCrash,3)
 --DEV??
 --  opName("opCrash1",opCrash1,2)
-    opUsed += 2
+    opUsed += 1
     opName("opCrashFile",opCrashFile,2)
+    opName("opCrashRtn",opCrashRtn,2)
 
     opName("opWrap",opWrap,2)
     opName("opScroll",opScroll,4)
@@ -1059,6 +1063,7 @@ opProfout = 171,        -- profile_dump()
 --   of {explicit,inferred}, but for my money it simply ain't worth the effort.)
 --
 --
+--DEV add to docs (Internals/ilASM/goto):
 -- A brief note from the author about goto.
 -- ========================================
 --  The subject of many a holy war, perhaps the most compelling argument against
@@ -1071,15 +1076,15 @@ opProfout = 171,        -- profile_dump()
 --
 --  There is no hll goto statement in Phix. However goto/jmp is unavoidable in
 --  assembly programming, and of course Phix supports inline assembly, hence in 
---  the very rare cases a goto is genuinely needed in hll code, the following 
---  construct(s) may be used:
+--  the very rare cases a goto is genuinely needed in hll code (I have seen just
+--  /three/ in the last two decades), the following construct(s) may be used:
 --
---          #ilASM{ jump :label }
+--          #ilASM{ jump :meaningful_label }
 --          ...
---          #ilASM{ ::label }
+--          #ilASM{ ::meaningful_label }
 --
 --  In top level code, label scope is restricted to a single ilASM construct, 
---  but within a routine, the scope is across all the ilasm in that routine. 
+--  but within a routine, the scope is across all the ilASM in that routine. 
 --
 --  There is quite deliberately no support for jumping from the middle of one 
 --  routine into another: without a frame, then quite simply parameters and 
@@ -1090,6 +1095,23 @@ opProfout = 171,        -- profile_dump()
 --  it is far less likely to be abused, and discourages newbie programmers 
 --  from adopting it as a weapon of choice, as usually(/always) happens with 
 --  a hll goto.
+--
+--  Ultimately, and paradoxically, the real problem with goto is that as soon
+--  as they get daisy-chained together, something will inevitably end up in 
+--  the wrong place, usually with no clue as to how or why they got there.
+--  Minor savings when writing code should of course always be balanced against
+--  potential wasted time trying to understand or debug it at some later date.
+--  Meaningless label names (eg "label4") make code substantially harder to 
+--  understand. Error handling is much better and easier with normal hll code 
+--  such as "return error(..)" or "error(..); return" - not only will any 
+--  diagnostics have a clear "called from", but you can pass any required 
+--  arguments, have just one error handler which serves several different 
+--  routines, and very easily write unit tests for it - which you simply 
+--  cannot do should it be embedded as a label inside something else.
+--  It is plain wrong to use more than one "goto" a year in hll code, the
+--  only real justification is when you find an algorithm which works and
+--  there is no simple way to replace jumps with proper hll constructs, or
+--  (extremely rarely) when doing so significantly impacts performance.
 --
 --DEV test this: (and rewrite) [I think labels have their own namespace now]
 --  Gotcha: what is wrong with this?
@@ -1229,10 +1251,10 @@ opProfout = 171,        -- profile_dump()
 --  possible to declare global labels, which are superficially similar however 
 --  quite different internally, and have a different set of restrictions:
 --
---          #ilASM{ call :%label }
+--          #ilASM{ call :%unique_label }
 --          ...
 --          #ilASM{ jmp :skip
---                 :%label
+--                 :%unique_label
 --                  ret
 --                 ::skip }
 --

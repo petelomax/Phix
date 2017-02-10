@@ -1,0 +1,42 @@
+--wrap voicetext speak function (vtext.dll) with EUCOM 
+--2/8/2005 Michael J Raley (thinkways@yahoo.com")
+
+
+include win32lib.ew
+
+include eucom.ew
+include vtext.ew
+
+
+object Speaker_1,
+       this_one,
+       void1,
+       vtitle,
+       still_speaking
+       
+ Speaker_1 = ""
+ still_speaking = 1 
+
+constant
+  Win = create( Window, "SpeakQueasy", 0, 200, 200, 360, 250, 0 ),
+  TextEdit = create( EditText, "Holy Cow! Euphoria Speaks!", Win, 10, 20, 320, 60, 0 ),
+  Speakeu = create( PushButton, "Speak", Win, 10, 150, 120, 30, 0 )
+  Speaker_1 = create_com_object(TextToSpeech_clsid_ix)
+
+procedure pushme(integer self, atom msg, sequence params )
+  vtitle = alloc_bstr(getText(TextEdit))
+
+  void1 = invoke(Speaker_1,{TextToSpeech_m_Speak},{vtitle},{VT_BSTR},DISPATCH_METHOD)
+  
+  setEnable(Speakeu,False) --disable until I have finished speaking 
+  while still_speaking  do
+  still_speaking = invoke(Speaker_1,{TextToSpeech_p_IsSpeaking},{},{},DISPATCH_PROPERTYGET)
+  end while
+  
+  setEnable(Speakeu,True)
+  free_bstr(vtitle)
+end procedure
+setHandler( Speakeu, w32HClick, routine_id("pushme"))
+
+WinMain( Win, Normal )
+release_com()

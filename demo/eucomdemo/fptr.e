@@ -41,7 +41,7 @@ fptr_paramcount = 2,
 fptr_params = 7,
 fptr_funcptr = 22+0,
 fptr_retptr = 27+0,
-retval = allocate(4),
+--retval = allocate(4),
 
 fptr_asm_addr = allocate( length( fptr_asm ) + 20 * 4 )
 
@@ -100,27 +100,27 @@ end function
 
 without trace
 
-constant 
-func_asm = {
+--constant 
+--func_asm = {
+--
+--  #55,                    --    0: push ebp
+--  #89,#E5,                --    1: mov ebp, esp
+--  #51,                    --    3: push ecx
+--  #B9,#00,#00,#00,#00,    --    4: mov ecx, argnum (5)
+--  #89,#E6,                --    9: mov esi, esp
+--  #83,#C6,#0C,            --    B: add esi, 12
+--  #BF,#00,#00,#00,#00,    --    E: mov edi, myargs (15)
+--  #F3,#A5,                --   13: rep movsd; next we call the proc
+--
+--  #FF,#15,#00,#00,#00,#00,--   15: call dword ptr [pfunc] (#17)
+--
+--  #59,                    --   1B: pop ecx
+--  #89,#EC,                --   1C: mov esp, ebp
+--  #5D,                    --   1E: pop ebp
+--  #C2,#00,#00,#00,#00}    --   1F: ret [argnum] (#20)
 
-    #55,                    --    0: push ebp
-    #89,#E5,                --    1: mov ebp, esp
-    #51,                    --    3: push ecx
-    #B9,#00,#00,#00,#00,    --    4: mov ecx, argnum (5)
-    #89,#E6,                --    9: mov esi, esp
-    #83,#C6,#0C,            --    B: add esi, 12
-    #BF,#00,#00,#00,#00,    --    E: mov edi, myargs (15)
-    #F3,#A5,                --   13: rep movsd; next we call the proc
 
-    #FF,#15,#00,#00,#00,#00,--   15: call dword ptr [pfunc] (#17)
-
-    #59,                    --   1B: pop ecx
-    #89,#EC,                --   1C: mov esp, ebp
-    #5D,                    --   1E: pop ebp
-    #C2,#00,#00,#00,#00}    --   1F: ret [argnum] (#20)
-
-
-constant offset = length( func_asm )
+--constant offset = length( func_asm )
 
 
 constant
@@ -145,7 +145,7 @@ fptr_cdecl_paramcount = 2,
 fptr_cdecl_params = 7,
 fptr_cdecl_funcptr = 22+0,
 fptr_cdecl_retptr = 27+0,
-cdecl_retval = allocate(4),
+--cdecl_retval = allocate(4),
 
 fptr_cdecl_asm_addr = allocate( length( fptr_cdecl_asm ) + 20 * 4 )
 

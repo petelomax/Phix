@@ -1,0 +1,214 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupLayoutDialog</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            Ihandle ih = IupLayoutDialog(Ihandle dialog)
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a Layout Dialog. <br>
+            It is a predefined dialog to visually edit the layout of another dialog in run time. <br>
+            It is a standard <a href="IupDialog.htm">IupDialog</a> constructed with other IUP elements. <br>
+            The dialog can be shown with any of the show functions <a href="IupShow.htm">IupShow</a>, <a href="IupShowXY.htm">IupShowXY</a> or <a href="IupPopup.htm">IupPopup</a>.
+            <br>
+            <br>
+            Any existing dialog can be selected. It does not need to be mapped on the native system nor visible.
+            <br>
+            <br>
+            The layout dialog is composed by two areas: one showing the given dialog children hierarchy tree, and one displaying its layout.
+            <br>
+            <br>
+            This is a dialog intended for developers, so they can see and inspect their dialogs in other ways.
+            <br>
+            <br>
+            dialog: identifier of the dialog to display the layout. Can be NULL.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+            <br>
+            <br>
+            Refer to <a href="IupDialog.htm">IupDialog</a> for details of available attributes and callbacks.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes</b>
+         </td>
+         <td>
+        <b>Menu</b><pre>Dialog
+        New  - creates a new empty dialog, it will be destroyed when the layout is destroyed.
+        Load - loads an existent dialog from the application.
+        Load Visible - lists only visible dialogs from the application to be loaded.
+        Reload - reloads the current dialog into the Layout Dialog.
+        Export - exports the current dialog to a text file in the specified language.
+                C
+                LED
+                Lua
+        Refresh - recalculates the dialog layout of the current dialog (IupRefresh).
+        Redraw - send a redraw to the current dialog (IupRedraw).
+        Show - shows the current dialog (<a href="IupShow.htm">IupShow</a>) 
+        Hide - hides the current dialog (IupHide) 
+        Close - hides the Layout Dialog, optionally self destroy according to DESTROYWHENCLOSED.
+Layout
+        Hierarchy - shows or hides the layout hierarchy tree at left.
+        Update - redraw the layout.
+        Auto Update - periodically redraw the layout.
+        Show Hidden - show hidden elements in the layout.
+        Opacity - controls the Layout Dialog opacity so you can composite it on top of the selected dialog.
+ </pre>
+        Use Reload when the dialog has been changed and the layout was modified by the application. <br>
+        Use Update when attributes of the dialog were changed by the application and the layout needs to be redrawn.<br>
+<!-- DEV (never seen this work..)
+Since IUP 3.15 we added a global hot key to display the layout dialog loading the current dialog, just press Alt+Ctrl+Shft+L.
+-->
+        The Export items will export only the dialog and its children. <br>
+        Associated elements such as menus and images will not be exported. <br>
+        The selected file will be overwritten if it already exists.
+        <br>
+        <br>
+        <b>Hierarchy Tree</b><br>
+        Each element inside the dialog is mapped to a node in the tree, and elements that are containers are branches in the tree. <br>
+        The node title shows the element class name, its <a href="iupattr.htm#TITLE">TITLE</a> attribute when available and its name when available. <br>
+        The selected node is synced with the selected element in the layout display in both ways. <br>
+        Using the right click over a node shows a context menu.
+        <br>
+        <br>
+        You can drag and drop items in the tree. <br>
+        But there are some restrictions according to each container possibilities. <br>
+        Some containers have internal children that are displayed but can not be changed.
+        <br>
+        <br>
+        <b>Layout Display</b></br>
+        The layout of an element is drawn with its Current size using its <a href="iupattr.htm#FONT">FONT</a>, <a href="iupattr.htm#TITLE">TITLE</a>, 
+        <a href="iupattr.htm#BGCOLOR">BGCOLOR</a> and <a href="iupattr.htm#FGCOLOR">FGCOLOR</a> if any. <br>
+        But inheritance is not used intentionally to emphasize the element attributes. <br>
+        Only the first line (limited to 50 characters in the tree) is used from the element <a href="iupattr.htm#TITLE">TITLE</a>. <br>
+        Images are also used, but position of text and images are not the same as in the native control. <br>
+        This decoration is there simply to help locating the elements in the layout.
+        <br>
+        <br>
+        Containers that are not native elements are shown with dashed lines, other elements are shown with solid lines. <br>
+        When a red line is displayed along with a border of an element it means that element is maximizing its parent size, 
+        i.e. its Current size is equal to its Natural size and both are equal to the parent Client size. <br>
+        Usually this is the element determining the natural size of the container at least in the direction marked with red.
+        <br>
+        <br>
+        You can NOT drag and drop elements in the layout. <br>
+        Using the right click over an element shows a context menu, the same as in a tree node. <br>
+        When an element in the layout is double clicked and the actual element is visible, then the actual element will blink twice.
+        <br>
+        <br>
+        <b>Context Menu</b><pre>Properties - shows the properties dialog for the selected element.
+Map - maps the selected element to the native system.
+Unmap - unmaps the selected element from the native system. Its attribute are saved before unmapping.
+Copy - copy the selected element to an internal clipboard. Its attributes are also copied.
+Paste Child - paste the copied element as the first child of the selected container. 
+Paste Brother - paste the copied element as brother of the selected element.
+Add Child - adds a new element as the first child of the selected container. The new element is not mapped.
+Add Brother - adds a new element as brother of the selected element. The new element is not mapped.
+Remove - removes the selected element.
+ </pre>
+        <b>Properties</b><br>
+        The properties dialog allows the inspection and change of the elements attributes. <br>
+        It contains 3 Tab sections: <br>
+        one for the registered attributes of the element, <br>
+        one for custom attributes set at the hash table, and <br>
+        one for the callbacks. <br>
+        The callbacks are just for inspection, and custom attribute should be handled carefully because they may be not strings. <br>
+        Registered attributes values are shown in red when they were changed by the application. <br>
+        It uses the <a href="IupElementPropertiesDialog.htm">IupElementPropertiesDialog</a>.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            See also the <a href="IupDialog.htm">IupDialog</a> attributes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DESTROYWHENCLOSED
+         </td>
+         <td>
+            The dialog will be automatically destroyed when closed. Default: Yes.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+            <div class="wraptocenter">
+             <span></span>
+             <img src="images/layoutdlg1.png" />
+            </div>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupDialog.htm">IupDialog</a>,
+          <a href="IupShow.htm">IupShow</a>,
+          <a href="IupShowXY.htm">IupShowXY</a>,
+          <a href="IupPopup.htm">IupPopup</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            I translated the C code for this to Phix/pGUI, in the hope that it might be a useful basis for an IDE. See demo\pGUI\iup_layoutdlg.e<br>
+            Use/testing is simply a matter of adding something like the following to an existing program, replacing "dialog" as appropriate:
+<!--eucode>
+include iup_layoutdlg.e
+    Ihandle layout = IupLayoutDialog2(dialog)
+    IupSetAttribute(layout, "SIZE", "500x300")
+    IupShowXY(layout, IUP_CURRENT, IUP_CURRENT)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> iup_layoutdlg.e
+</font><font color="#5E005E">    Ihandle</font><font color="#000000"> layout</font><font color="#0000FF"> =</font><font color="#000000"> IupLayoutDialog2</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)
+</font><font color="#5E005E">    IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">layout</font><font color="#0000FF">,</font><font color="#008000"> "SIZE"</font><font color="#0000FF">,</font><font color="#008000"> "500x300"</font><font color="#0000FF">)
+</font><font color="#5E005E">    IupShowXY</font><font color="#0000FF">(</font><font color="#000000">layout</font><font color="#0000FF">,</font><font color="#004600"> IUP_CURRENT</font><font color="#0000FF">,</font><font color="#004600"> IUP_CURRENT</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

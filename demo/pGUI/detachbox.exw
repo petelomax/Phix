@@ -1,0 +1,98 @@
+--
+-- detachbox.exw
+-- =============
+--
+
+include pGUI.e
+
+Ihandle detach_btn, restore_btn, dbox
+
+--DEV failed attempt to get detach to restore window to previous position...
+--/*
+--string screenpos = ""
+sequence screenpos = {}
+function close_cb(Ihandle new_parent)
+--  screenpos = IupGetAttribute(new_parent,"SCREENPOSITION")
+    screenpos = IupGetIntInt(new_parent,"SCREENPOSITION")
+?screenpos
+--  IupConfigDialogClosed(config, toolbox, "Toolbox")
+--  IupSetAttribute(item_toolbox, "VALUE", "OFF")
+--  IupConfigSetVariableStr(config, "MainWindow", "Toolbox", "OFF")
+--  return IUP_CLOSE
+    return IUP_DEFAULT
+end function
+--*/
+
+function detached_cb(Ihandle /*ih*/, Ihandle new_parent, integer /*x*/, integer /*y*/)
+    IupSetAttribute(new_parent, "TITLE", "New Dialog");
+--/*
+    IupSetCallback(new_parent, "CLOSE_CB", Icallback("close_cb"));
+    if length(screenpos) then
+?{screenpos}
+--      IupSetAttribute(new_parent,"SCREENPOSITION",screenpos)
+--      IupHide(new_parent)
+--      IupShowXY(new_parent,screenpos[1],screenpos[2])
+--NO!   IupPopup(new_parent,screenpos[1],screenpos[2])
+    end if
+--*/
+    IupSetAttribute(restore_btn, "ACTIVE", "YES");
+    IupSetAttribute(detach_btn, "ACTIVE", "NO");
+    return IUP_DEFAULT
+end function
+
+function btn_restore_cb(Ihandle /*restore_btn*/)
+--  screenpos = IupGetAttribute(hbox,"SCREENPOSITION")
+--?screenpos
+    IupSetAttribute(dbox, "RESTORE", NULL);
+    IupSetAttribute(restore_btn, "ACTIVE", "NO");
+    IupSetAttribute(detach_btn, "ACTIVE", "Yes");
+    return IUP_DEFAULT;
+end function
+
+function btn_detach_cb(Ihandle /*detach_btn*/)
+    IupSetAttribute(dbox, "DETACH", NULL);
+--  if length(screenpos) then
+--?{screenpos}
+--      IupSetAttribute(hbox,"SCREENPOSITION",screenpos)
+--  end if
+    IupSetAttribute(detach_btn, "ACTIVE", "NO");
+    IupSetAttribute(restore_btn, "ACTIVE", "Yes");
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
+procedure DetachBoxTest()
+Ihandle dlg, lbl, ml, hbox, txt;
+
+    detach_btn = IupButton("Detach Me!", Icallback("btn_detach_cb"))
+    ml = IupText("MULTILINE=YES, EXPAND=YES, VISIBLELINES=5")
+    hbox = IupHbox({detach_btn, ml},"MARGIN=10x0")
+    dbox = IupDetachBox(hbox);
+    IupSetAttribute(dbox, "ORIENTATION", "VERTICAL");
+    IupSetCallback(dbox, "DETACHED_CB", Icallback("detached_cb"));
+    lbl = IupLabel("Label","EXPAND=VERTICAL")
+    restore_btn = IupButton("Restore me!", Icallback("btn_restore_cb"),"EXPAND=YES, ACTIVE=NO")
+    txt = IupText("EXPAND=HORIZONTAL")
+
+    dlg = IupDialog(IupVbox({dbox, lbl, restore_btn, txt}),
+                    "TITLE=\"IupDetachBox Example\", MARGIN=10x10, GAP=10, RASTERSIZE=300x300")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+
+    IupShow(dlg);
+end procedure
+
+procedure main()
+    IupOpen()
+
+    DetachBoxTest();
+
+    IupMainLoop();
+
+    IupClose();
+
+end procedure
+main()

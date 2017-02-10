@@ -103,6 +103,7 @@ end procedure -- (for Edita/CtrlQ)
         mov r15,h4
         cmp rax,r15
         jl @f
+--DEV %pLoadMint
       :!opXore92a                   -- exception here mapped to e91vhnbaavecx
             cmp byte[rbx+rax*4-1],0x12
             jne :e1414soxa
@@ -115,6 +116,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp rsi,r15
         jl @f
+--DEV %pLoadMint
       :!opXore92b                   -- exception here mapped to e94vhnbaavedx
             cmp byte[rbx+rsi*4-1],0x12
             jne :e1414soxa

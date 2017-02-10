@@ -23,6 +23,18 @@ include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
             int3
 --DEV
         ::e1405sora
+        [32]
+            pop edx
+            mov al,14   -- e14soa(edi)
+            mov edi,5   -- remainder
+            sub edx,1
+        [64]
+            pop rdx
+            mov al,14   -- e14soa(edi)
+            mov rdi,5   -- remainder
+            sub rdx,1
+        []
+            jmp :!iDiag
             int3
 
 --/*
@@ -61,7 +73,7 @@ end procedure -- (for Edita/CtrlQ)
 
     ::opRmdrIN
         --
-        -- eax/p2 is set, ecx/p3 is (must be) a float.
+        -- eax/p2 is int, ecx/p3 is (must be) a float.
         --
         push eax
         shl ecx,2
@@ -140,7 +152,7 @@ end procedure -- (for Edita/CtrlQ)
 
     ::opRmdrIN
         --
-        -- rax/p2 is set, rcx/p3 is (must be) a float.
+        -- rax/p2 is int, rcx/p3 is (must be) a float.
         --
         push rax
         shl rcx,2

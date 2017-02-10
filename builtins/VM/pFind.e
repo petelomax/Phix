@@ -5,8 +5,8 @@
 --  (Temporary) hll implementation of find()
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
---without trace
---without debug
+without trace
+without debug
 
 global function find(object x, sequence s, integer start=1)
     if start<0 then start += length(s)+1 end if

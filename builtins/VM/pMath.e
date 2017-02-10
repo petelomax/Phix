@@ -999,6 +999,7 @@ end procedure -- (for Edita/CtrlQ)
         jmp :opMathIII
     [64]
         sub rsp,8
+--DEV :%pLoadMint?
         fistp qword[rsp]
         mov rcx,[rsp]
         fistp qword[rsp]
@@ -1042,6 +1043,7 @@ end procedure -- (for Edita/CtrlQ)
         jmp :opMathIII
     [64]
         sub rsp,8
+--DEV :%pLoadMint?
         fistp qword[rsp]
         mov rcx,[rsp]
         fistp qword[rsp]
@@ -1085,6 +1087,7 @@ end procedure -- (for Edita/CtrlQ)
         jmp :opMathIII
     [64]
         sub rsp,8
+--DEV :%pLoadMint?
         fistp qword[rsp]
         mov rcx,[rsp]
         fistp qword[rsp]

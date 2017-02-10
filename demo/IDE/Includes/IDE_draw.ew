@@ -1,0 +1,1935 @@
+-- ide_draw.ew
+-- control rendering routines for win32lib ide
+-- modifications by Judith Evans
+-- modifications by Roland Stowasser
+global integer dontdraw dontdraw = w32False
+--------------------------------------------------------------------------------
+
+global sequence tabItemCoordinates
+tabItemCoordinates = {}
+
+-------------------------------------------------------------------------------
+-- control pixmaps
+setTransparentColor(getSysColor(COLOR_BTNFACE))
+constant
+RadioPix = xpmToPixmap({
+"12 12 5 1",
+"+        c #000000",
+"#        c #C0C0C0",
+".        c #808080",
+"         c None",
+"@        c #FFFFFF",
+"    ....    ",
+"  ..++++..  ",
+" .++@@@@++@ ",
+" .+@@@@@@#@ ",
+".+@@@++@@@#@",
+".+@@++++@@#@",
+".+@@++++@@#@",
+".+@@@++@@@#@",
+" .+@@@@@@#@ ",
+" .##@@@@##@ ",
+"  @@####@@  ",
+"    @@@@    "}),
+
+CheckPix = xpmToPixmap({
+"13 13 4 1",
+"+        c #000000",
+"@        c #C0C0C0",
+"         c #808080",
+".        c #FFFFFF",
+"            .",
+" ++++++++++@.",
+" +.........@.",
+" +.......+.@.",
+" +......++.@.",
+" +.+...+++.@.",
+" +.++.+++..@.",
+" +.+++++...@.",
+" +..+++....@.",
+" +...+.....@.",
+" +.........@.",
+" @@@@@@@@@@@.",
+"............."}),
+
+TriCheckPix = xpmToPixmap({
+"13 13 5 1",
+"+        c #000000",
+"@        c #C0C0C0",
+"         c #808080",
+".        c #C0C0C0",
+"^        c #FFFFFF",
+"            ^",
+" ++++++++++@^",
+" +.........@^",
+" +.......+.@^",
+" +......++.@^",
+" +.+...+++.@^",
+" +.++.+++..@^",
+" +.+++++...@^",
+" +..+++....@^",
+" +...+.....@^",
+" +.........@^",
+" @@@@@@@@@@@^",
+"^^^^^^^^^^^^^"})
+
+
+-------------------------------------------------------------------------------
+global procedure drawButton(integer id, integer x1, integer y1,
+    integer cx, integer cy,
+    integer pushed, atom color, atom linecolor, integer withHatching)
+
+atom x2, y2
+
+-- calculate x2 and y2
+    x2 = x1+cx-1
+    y2 = y1+cy-1
+
+    -- Background color
+    if color<0 then
+        setPenColor(id, Black)
+    else
+        setPenColor(id, color)
+    end if
+    drawRectangle(id, 1, x1, y1, x2, y2)
+
+    if linecolor then
+        setPenColor(id, linecolor)
+        drawRectangle(id, 0, x1, y1, x2, y2)
+    end if
+
+    if pushed= -1 then
+        --this is a control in EuGrid
+    elsif pushed then
+
+        -- top shadow
+        setPenColor(id, Black)
+        drawLine(id, x1, y1, x1, y2)
+        drawLine(id, x1, y1, x2, y1)
+
+        -- inner shadow      
+        setPenColor(id, ShadowColor)
+        drawLine(id, x1+1, y1+1, x1+1, y2-1)
+        drawLine(id, x1+1, y1+1, x2-1, y1+1)
+
+        -- bottom reflection
+        setPenColor(id, ButtonHighlightColor)
+        drawLine(id, x2, y1+1, x2, y2)
+        drawLine(id, x1+1, y2, x2, y2)
+
+    else
+
+        -- top reflection
+        setPenColor(id, ButtonHighlightColor)
+        drawLine(id, x1+1, y1+1, x1+1, y2)
+        drawLine(id, x1+1, y1+1, x2, y1+1)
+
+        -- bottom shadow (black)
+        setPenColor(id, Black)
+        drawLine(id, x2, y1, x2, y2+1)
+        drawLine(id, x1, y2, x2+1, y2)
+
+        -- bottom shadow (gray)
+        setPenColor(id, ShadowColor)
+        drawLine(id, x2-1, y1+1, x2-1, y2)
+        drawLine(id, x1+1, y2-1, x2, y2-1)
+
+    end if
+
+    if withHatching then
+        bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-(2*SnapSize),cy-(2*SnapSize),SRCCOPY)
+    end if
+
+end procedure
+-------------------------------------------------------------------------------
+procedure drawScrollButton(integer id, integer x1, integer y1,
+    integer cx, integer cy,
+    integer direction, integer withHatching)
+
+integer x2, y2
+
+-- calculate x2 and y2
+    x2 = x1+cx-2
+    y2 = y1+cy-2
+
+    -- Background color
+    setPenColor(id, ButtonColor)
+    drawRectangle(id, 1, x1, y1, x2, y2)
+
+    -- top reflection
+    setPenColor(id, ButtonHighlightColor)
+    drawLine(id, x1+1, y1+1, x1+1, y2)
+    drawLine(id, x1+1, y1+1, x2, y1+1)
+
+    -- bottom shadow (black)
+    setPenColor(id, Black)
+    drawLine(id, x2, y1, x2, y2+1)
+    drawLine(id, x1, y2, x2+1, y2)
+
+    -- bottom shadow (gray)
+    setPenColor(id, ShadowColor)
+    drawLine(id, x2-1, y1+1, x2-1, y2)
+    drawLine(id, x1+1, y2-1, x2, y2-1)
+
+    -- calculate the offset
+    x1 = x1+floor(cx/2)-3
+    y1 = y1+floor(cy/2)-3
+
+    -- set pen color of arrow
+    setPenColor(id, ButtonTextColor)
+    if direction=Up then
+        drawLine(id, x1+2, y1+0, x1+3, y1+0)
+        drawLine(id, x1+1, y1+1, x1+4, y1+1)
+        drawLine(id, x1+0, y1+2, x1+5, y1+2)
+
+    elsif direction=Down then
+        drawLine(id, x1+0, y1+0, x1+5, y1+0)
+        drawLine(id, x1+1, y1+1, x1+4, y1+1)
+        drawLine(id, x1+2, y1+2, x1+3, y1+2)
+
+    elsif direction=Left then
+        drawLine(id, x1+0, y1+2, x1+0, y1+1)
+        drawLine(id, x1+1, y1+1, x1+1, y1+4)
+        drawLine(id, x1+2, y1+0, x1+2, y1+5)
+
+    elsif direction=Right then
+        drawLine(id, x1+0, y1+0, x1+0, y1+5)
+        drawLine(id, x1+1, y1+1, x1+1, y1+4)
+        drawLine(id, x1+2, y1+2, x1+2, y1+1)
+    end if
+    if withHatching then
+        bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-(2*SnapSize),cy-(2*SnapSize),SRCCOPY)
+    end if
+end procedure
+------------------------------------------------------------------------------
+integer trys
+trys = 0
+
+procedure drawTabControlTabItems(integer id, sequence control, integer index, integer drawHatching)
+
+integer TabControlLen, isLong, cntTabs, currentTab, t1, testFontAttrib,flag
+sequence sizeText, firstTabTitle, theDirParent, firstTabName
+integer x1, y1, cx, cy, x2, y2, y, sx1, sx2, sy1, totalLen,childCnt
+sequence textLen, firstTab, Entry
+
+    TabControlLen = 0
+    currentTab = 0
+
+    x1 = control[X]-WinX
+    y1 = control[Y]-WinY+(MenuY+TitleY)
+
+
+    cx = control[CX]
+    cy = control[CY]
+    x2 = x1+cx-1
+    y2 = y1+cy-1
+
+    --see how many TabItem's titles can get on the drawing
+
+    firstTabTitle = {}
+    firstTabName = {}
+    isLong = w32False
+    cntTabs = 0
+    firstTab = {}
+    totalLen = 0
+
+    --get the tab item's parent so can get all the same level tabs next
+    theDirParent = control[SeqParentName]
+
+    firstTab = {}
+    firstTabTitle = {}
+    textLen = {0,0}
+
+    --retrieve all the TabItems for this level
+    flag = findSeqParentName(index)
+
+    if not flag then
+        --happens when adding a new tabitem to design (parent not assigned yet)
+        currentTab = length(firstTab)+1
+        TabControlLen = control[CX]
+
+        --figure if can put this title on the tabs
+        sizeText = control[Title]
+
+        textLen = getTextExtent(id, sizeText)
+
+        --add 9 for addition below for spacing after title and
+        --add 8 for offset when drawing the titles
+        if totalLen+textLen[1]+9+8<=TabControlLen then
+
+            cntTabs += 1
+            firstTab = append(firstTab, textLen[1]+9)
+            totalLen += textLen[1]+9
+
+            firstTabTitle = append(firstTabTitle, sizeText)
+            firstTabName = append(firstTabName, control[Name])
+
+        else
+
+            --flag too long
+            isLong = w32True
+
+        end if
+    else
+        childCnt = 0
+        for j=flag to length(controls) do
+            if find(controls[j][Name], controls[flag][SeqChildName]) then
+                childCnt += 1
+                if controls[j][Active]
+                or not currentTab then
+                    currentTab = length(firstTab)+1
+                end if
+
+                TabControlLen = controls[j][CX]
+
+                --figure if can put this title on the tabs
+                sizeText = controls[j][Title]
+
+                textLen = getTextExtent(id, sizeText)
+
+                --add 9 for addition below for spacing after title and
+                --add 8 for offset when drawing the titles
+                if totalLen+textLen[1]+9+8<=TabControlLen then
+
+                    cntTabs += 1
+                    firstTab = append(firstTab, textLen[1]+9)
+                    totalLen += textLen[1]+9
+
+                    firstTabTitle = append(firstTabTitle, sizeText)
+                    firstTabName = append(firstTabName, controls[j][Name])
+
+                else
+
+                    --flag too long
+                    isLong = w32True
+
+                end if
+
+            end if
+            if childCnt>=length(controls[flag][SeqChildName]) then
+                exit
+            end if
+        end for
+    end if
+
+    if not length(firstTab)
+    and textLen[1]<=TabControlLen
+    and trys<1 then
+        if control[FontPts]>10 then
+            ok = displayErrorMessage(115,{control[FontPts]})
+            controls[index][FontPts] = 10
+            control[FontPts] = 10
+            call_proc(updateProperties_id,{})
+        end if
+
+        testFontAttrib = 0
+        if control[FontAttrib] then
+            testFontAttrib = Italic
+        end if
+
+        testFontAttrib += control[FontBold]
+
+        if control[FontStrikeout] then
+            testFontAttrib += 8
+        end if
+
+        if control[FontUnderline] then
+            testFontAttrib += 4
+        end if
+
+        setFont(id, control[FontName], 10, testFontAttrib)
+        textLen = getTextExtent(id, control[Title])
+        trys += 1
+        drawTabControlTabItems(id, control, index, 0)
+        return
+    end if
+
+    -- erase background
+    if control[BkColor]
+    and isChecked(MenuColorNoSuppress) then
+        if control[BkColor]<0 then
+            setPenColor(id, Black)
+        else
+            setPenColor(id, control[BkColor])
+        end if
+    else
+        setPenColor(id, ButtonColor)
+    end if
+    drawRectangle(id, 1, x1, y1, x2, y2)
+    if drawHatching then
+        bitBlt(id, x1+SnapSize, y1+SnapSize, BackBlit, 0, 0, cx-(2*SnapSize),cy-(2*SnapSize),SRCCOPY)
+    end if
+    -- offset by half the height of the text
+    y = y1+floor(textLen[2]/2)
+
+    -- border reflection
+    setPenColor(id, ButtonHighlightColor)
+
+    drawLine(id, x1, y+15, x2, y+15)    --under the tabs
+    drawLine(id, x1,y1, x1, y2)     --left
+    drawLine(id, x1,y1, x1+totalLen+9, y1) --top
+
+    setPenColor(id, Black)
+    drawLine(id, x1, y2, x2, y2)        --bottom
+    drawLine(id, x2, y+15, x2, y2)  --right
+    drawLine(id, x1+totalLen+8,y1, x1+totalLen+8, y+15) --right end of titles
+
+    if not isLong then
+
+        -- erase where text will go
+        setPenColor(id, ButtonColor)
+        --this happens when added move, copy, paste to rightclick
+        --just block it for now until I can find why currentTab=0
+        --it is because the new tabitem is parented to Window1 instead of tabControl!
+        if currentTab then
+            t1 = x1
+            for i=1 to currentTab do
+                t1 += firstTab[i]
+            end for
+            t1 -= firstTab[currentTab]-4
+            setPenColor(id, ButtonColor)
+            drawLine(id, t1, y+15, t1+firstTab[currentTab]+8 , y+15)
+        end if
+
+    else
+        --draw the left/right scroll arrows
+        setPenColor(id, ButtonTextColor)
+
+        sx1 = x1+TabControlLen-15
+        sx2 = x1+TabControlLen-10
+        sy1 = y+5
+
+
+        --left
+        drawLine(id, sx1+0, sy1+2, sx1+0, sy1+1)
+        drawLine(id, sx1+1, sy1+1, sx1+1, sy1+4)
+        drawLine(id, sx1+2, sy1+0, sx1+2, sy1+5)
+
+        --right
+        drawLine(id, sx2+0, sy1+0, sx2+0, sy1+5)
+        drawLine(id, sx2+1, sy1+1, sx2+1, sy1+4)
+        drawLine(id, sx2+2, sy1+2, sx2+2, sy1+1)
+
+    end if
+
+    -- text
+    t1 = x1+8
+    for i=1 to length(firstTabTitle) do
+        setPenPos(id, t1, y1)
+        wPuts(id, firstTabTitle[i])
+        t1 = t1+firstTab[i]
+    end for
+
+    --draw dividers
+    setPenColor(id, Black)
+    t1 = x1+8
+
+    for i=1 to length(firstTabTitle) do
+        for j=1 to length(tabItemCoordinates) do
+            if equal(firstTabName[i],tabItemCoordinates[j][5]) then
+                --remove the entry
+                tabItemCoordinates = tabItemCoordinates[1..j-1]
+                                     & tabItemCoordinates[j+1..length(tabItemCoordinates)]
+                exit
+            end if
+        end for
+    end for
+
+    --if tab was made so small no tabs can be drawn, bail out
+    if not length(firstTab) then
+        return
+    end if
+
+    Entry = {0,0,0,0,""}
+    Entry[1] = x1
+    Entry[2] = y1
+    Entry[3] = t1+firstTab[1]-3
+    Entry[4] = y1+20
+
+
+    for i=1 to length(firstTab) do
+        if i=currentTab then
+            setPenColor(id, ButtonHighlightColor)
+        else
+            setPenColor(id, Black)
+        end if
+        if i>1 then
+            drawLine(id, t1-3, y1, t1-3, y+15)
+        end if
+        --trap ending of prior tab
+        t1 += firstTab[i]
+        Entry[3] = t1-3
+        Entry[4] = y1+20
+        Entry[5] = firstTabName[i]
+        tabItemCoordinates &= {Entry}
+        --trap beginning of next title
+        Entry[1] = Entry[3]
+        Entry[2] = y1
+    end for
+
+end procedure
+--------------------------------------------------------------------------------
+global procedure drawChildWindow(integer id, integer x1, integer y1,
+    integer cx, integer cy, atom color,
+    integer header, integer withHatching, sequence control)
+
+integer x2, y2
+
+-- calculate x2 and y2
+    x2 = x1+cx-1
+    y2 = y1+cy-1
+
+    -- Background color
+    if color<0 then
+        setPenColor(id, Black)
+    else
+        setPenColor(id, color)
+    end if
+    if header then
+        --draw background color         
+        drawRectangle(id, 1, x1, y1, x2, y2)
+        --draw borders
+        setPenColor(id, ButtonColor)
+        drawRectangle(id, 1, x1, y1, x2, y1+borderY)
+        drawRectangle(id, 1, x1, y1, x1+borderX, y2)
+        drawRectangle(id, 1, x2-borderX, y1, x2, y2)
+        drawRectangle(id, 1, x1, y2, x2, y2-borderX)
+        -- bottom shadow (black)     
+        setPenColor(id, Black)
+        drawLine(id, x2, y1, x2, y2+1)
+        drawLine(id, x1, y2, x2+1, y2)
+               -- top reflection         
+        setPenColor(id, ButtonHighlightColor)
+        drawLine(id, x1, y1, x1+1, y2)
+        drawLine(id, x1, y1, x2, y1+1)
+        --draw titlebar      
+        setPenColor(id, getSysColor(COLOR_INACTIVECAPTION))
+        drawRectangle(id, 1, x1+borderX, y1+borderY, x2-borderX, y1+titleBar+borderY)
+    else
+        if color then
+            drawRectangle(id, 1, x1, y1, x2, y2)
+            if color=ButtonColor then
+                if match("WS_BORDER",control[Style])
+                or match("WS_THICKFRAME",control[Style])
+                or match("WS_DLGFRAME",control[Style]) then
+                    setPenStyle(id, Solid)
+                else setPenStyle(id, Dot)
+                end if
+                setPenColor(id, Black)
+                drawRectangle(id, 0, x1, y1, x2, y2)
+            end if
+        else
+            if match("WS_BORDER",control[Style])
+            or match("WS_THICKFRAME",control[Style])
+            or match("WS_DLGFRAME",control[Style]) then
+                setPenStyle(id, Solid)
+            else setPenStyle(id, Dot)
+            end if
+            setPenColor(id, Black)
+            drawRectangle(id, 0, x1, y1, x2, y2)
+        end if
+    end if
+
+    if withHatching then
+        bitBlt(id,x1+borderX,y1+borderY,BackBlit,0,0,cx-(2*borderX),cy-(2*borderY),SRCCOPY)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+global procedure drawEuGrid(integer id, integer x1, integer y1,
+    integer cx, integer cy, atom color,
+    integer headerColor, integer header,
+    integer sider, integer lineColor, integer withHatching)
+
+integer x2, y2
+
+-- calculate x2 and y2
+    x2 = x1+cx-1
+    y2 = y1+cy-1
+
+    -- Grid Background color
+    if color<0 then
+        setPenColor(id, Black)
+    else
+        setPenColor(id, color)
+    end if
+    drawRectangle(id, 1, x1, y1, x2, y2)
+
+    setPenColor(id, headerColor)
+    if header then
+        --draw column header
+        drawRectangle(id, 1, x1, y1, x2, y1+header)
+    end if
+    if sider then
+        --draw row header
+        drawRectangle(id, 1, x1, y1, x1+sider, y2)
+    end if
+
+    --outline
+    setPenColor(id, Black)
+    drawRectangle(id, 0, x1, y1, x2, y2)
+    setPenColor(id, lineColor)
+    if header then
+        drawLine(id, x1+sider, y1+header, x2, y1+header)
+    end if
+    if sider then
+        drawLine(id, x1+sider, y1+header, x1+sider, y2)
+    end if
+    if withHatching then
+        bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-(2*SnapSize),cy-(2*SnapSize),SRCCOPY)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+global sequence tableFontName, tableFontAttrib
+global integer tableFontPts, tableFontBold, tableFontUnderline, tableFontStrikeout
+
+tableFontName = {}
+tableFontAttrib = {}
+tableFontPts = 0
+tableFontBold = 0
+tableFontUnderline = 0
+tableFontStrikeout = 0
+
+sequence reBarFontName
+integer reBarFontPts, reBarFontBold, reBarFontUnderline, reBarFontStrikeout, reBarFontAttrib
+
+reBarFontName = {}
+reBarFontAttrib = 0--{}
+reBarFontPts = 0
+reBarFontBold = 0
+reBarFontUnderline = 0
+reBarFontStrikeout = 0
+
+integer ICON
+ICON = 0
+
+global integer downButton
+downButton = 0
+--------------------------------------------------------------------------------
+global procedure drawControl(integer id, sequence control, integer state, integer index, integer withHatching)
+
+integer x1, y1, cx, cy, x2, y2, x, y, size, pix, titlesize, nx1, buttoncenter,
+                bitmapcenter, offsetX, offsetY, at, testFontPts, testFontAttrib, addMore
+sequence textLen, result, size2
+atom hBitmap, hXpm
+object whereIs, testIcoFile, styleCheck
+integer header,flag
+    if dontdraw then
+        return
+    end if
+    if find(control[Class], controlsWithOutColor) then
+        control[BkColor] = 0
+    end if
+
+    -- don't draw normal windows (yet)
+    if equal(control[Class], "Window")
+    and state!=Dragging then
+        return
+    end if
+
+    if control[DontDraw] then
+        --control is child to Table Control but doesn't fit inside it
+        return
+    end if
+
+    -- get attributes from the control
+
+    x1 = control[X]-WinX
+    if equal(control[Class], "StatusBar") then
+        y1 = control[Y]+MenuY
+    else
+        y1 = control[Y]-WinY+(MenuY+TitleY)
+    end if
+
+    cx = control[CX]
+    cy = control[CY]
+    x2 = x1+cx-1
+    y2 = y1+cy-1
+
+    flag = findSeqParentName(index)
+
+    if equal(control[SeqParentClass],"CWindow") then
+        if flag and match("WS_CHILD",controls[flag][Style])
+        and not equal(controls[flag][StyleType],"{...}") then
+            if equal(control[Class],"StatusBar") then
+                x1 += borderX
+                x2 -= borderX
+            end if
+        end if
+    end if
+
+    if state=RedSelected then
+        setPenColor(id, Red)
+        setPenStyle(id, Solid)
+        drawRectangle(id, 0, x1, y1, x2, y2)
+        return
+    end if
+
+    setPenStyle(id, Solid)
+
+    -- get the metrics of the text
+    setControlFont()
+
+    if not isChecked(MenuFontNoSuppress) then
+        control[FontName] = ""
+    end if
+
+    if not length(control[FontName])
+    and control[TableCell] then
+    --did Table control have a font?
+        if flag then
+            if equal(controls[flag][Class], "Table") then
+                if length(controls[flag][FontName]) then
+                    tableFontName = controls[flag][FontName]
+                    tableFontAttrib = controls[flag][FontAttrib]
+                    tableFontBold = controls[flag][FontBold]
+                    tableFontUnderline = controls[flag][FontUnderline]
+                    tableFontStrikeout = controls[flag][FontStrikeout]
+                    tableFontPts = controls[flag][FontPts]
+                else
+                    tableFontName = {}
+                end if
+            end if
+        end if
+    end if
+
+    if not length(control[FontName])
+    and control[TableCell]
+    and length(tableFontName) then
+    --use the table font
+        testFontAttrib = 0
+--      if tableFontAttrib then
+        if 9/0 then
+            testFontAttrib = Italic
+        end if
+        if tableFontBold then
+            testFontAttrib += tableFontBold
+        end if
+        if tableFontUnderline then
+            testFontAttrib += 4
+        end if
+        if tableFontStrikeout then
+            testFontAttrib += 8
+        end if
+        testFontPts = tableFontPts
+
+        setFont(id, tableFontName, testFontPts, testFontAttrib)
+    end if
+
+    if equal(control[Class], "ReBar") then
+        if length(control[FontName]) then
+            reBarFontName = control[FontName]
+            reBarFontAttrib = control[FontAttrib]
+            reBarFontBold = control[FontBold]
+            reBarFontUnderline = control[FontUnderline]
+            reBarFontStrikeout = control[FontStrikeout]
+            reBarFontPts = control[FontPts]
+        else
+            reBarFontName = ""
+        end if
+    end if
+
+    if not length(control[FontName])
+    and equal(control[Class], "ReBarBand")
+    and length(reBarFontName) then
+    --use the reBar font
+        testFontAttrib = 0
+        if reBarFontAttrib then
+            testFontAttrib = Italic
+        end if
+        if reBarFontBold then
+            testFontAttrib += reBarFontBold
+        end if
+        if reBarFontUnderline then
+            testFontAttrib += 4
+        end if
+        if reBarFontStrikeout then
+            testFontAttrib += 8
+        end if
+        testFontPts = reBarFontPts
+
+        setFont(id, reBarFontName, testFontPts, testFontAttrib)
+    end if
+
+    if length(control[FontName]) then
+        testFontPts = control[FontPts]
+        testFontAttrib = 0
+        if control[FontAttrib] then
+            testFontAttrib = Italic
+        end if
+
+        if control[FontBold] then
+            testFontAttrib += control[FontBold]
+        end if
+
+        if control[FontStrikeout] then
+            testFontAttrib += 8
+        end if
+
+        if control[FontUnderline] then
+            testFontAttrib += 4
+        end if
+
+        if not testFontPts then
+            testFontPts = 10
+        end if
+        setFont(id, control[FontName], testFontPts, testFontAttrib)
+    end if
+
+    textLen = getTextExtent(id, control[Title])
+
+    --if RichEdit and has FontColor then use it
+    if equal(control[Class], "RichEdit") then
+        if control[FontColor] then
+            setTextColor(id, control[FontColor])
+            --this doesn't work because color is assigned via setFont. But since id is not 
+            --RichEdit but the pixmap, I can not use color in the setFont statement.                     
+        end if
+    end if
+
+    if state=Normal then
+        -- draw the control
+        if equal(control[Class], "Menu")
+        or equal(control[Class], "MenuItem")
+        or equal(control[Class], "Submenu") --RS
+        or equal(control[Class], "SubmenuItem") --RS
+        or equal(control[Class], "Sub2menu") --RS
+        or equal(control[Class], "Sub2menuItem") --RS
+        or equal(control[Class], "Sub3menu") --RS
+        or equal(control[Class], "Sub3menuItem") then --RS
+            -- don't render it
+
+        elsif equal(control[Class], "Popup")
+           or equal(control[Class], "PopupItem")
+           or equal(control[Class], "Subpopup") --RS
+           or equal(control[Class], "SubpopupItem") --RS
+           or equal(control[Class], "Sub2popup") --RS
+           or equal(control[Class], "Sub2popupItem") --RS
+           or equal(control[Class], "Sub3popup") --RS
+           or equal(control[Class], "Sub3popupItem") then --RS
+
+            -- don't render it
+
+        elsif equal(control[Class], "LText")
+           or equal(control[Class], "CText")
+           or equal(control[Class], "RText") then
+
+            -- erase background
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                if control[BkColor]<0 then
+                    setPenColor(id, Black)
+                else
+                    setPenColor(id, control[BkColor])
+                end if
+            else
+                setPenColor(id, ButtonColor)
+            end if
+            drawRectangle(id, 1, x1, y1, x2, y2)
+            if equal(control[SeqParentClass], "EuGrid") then
+                setPenColor(id, controls[flag][GridLineColor])
+                drawRectangle(id, 0, x1, y1, x2, y2)
+            end if
+
+            if withHatching then
+                bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-(2*SnapSize),cy-(2*SnapSize),SRCCOPY)
+            end if
+
+            -- display the text
+            setPenPos(id, x1+4, y1+2)
+
+            --keep text inside the control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+4>x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            if equal(control[Class], "RText") then
+                --put the text to the right
+                nx1 = x2-textLen[1]
+                setPenPos(id,nx1, y1+2)
+            elsif equal(control[Class], "CText") then
+                --center the text
+                titlesize = floor(textLen[1]/2)
+                nx1 = x1+floor(( x2-x1)/2)-titlesize
+                setPenPos(id, nx1, y1+2)
+            end if
+
+            setTextColor(id, control[TxtColor])
+            wPuts(id, control[Title])
+
+        elsif equal(control[Class], "Bitmap") then
+            setPenColor(id, ButtonColor)
+            drawButton(id, x1, y1, cx, cy, 1, ButtonColor, 0, withHatching)
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+4>
+                                x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            setPenPos(id, x1+4, y1+2)
+            wPuts(id, control[Title])
+
+            if isChecked(MenuBitmapNoSuppress)
+            and not withHatching then
+                if length(control[BitmapFile]) then
+                    for i=1 to length(controlResource) do
+                        if equal(control[Name], controlResource[i][1])
+                        and equal(control[BitmapFile], controlResource[i][2]) then
+                            hBitmap = controlResource[i][3]
+                            drawBitmap(id, hBitmap, x1, y1)
+                        end if
+                    end for
+                else
+                    --might be from Xpmmer
+                    if length(control[XpmObject])
+                    and downButton!=14 then
+                        for i=1 to length(controlResource) do
+                            if equal(control[Name], controlResource[i][1])
+                            and equal(control[XpmObject], controlResource[i][2]) then
+                                hBitmap = controlResource[i][3]
+                                drawBitmap(id, hBitmap, x1, y1)
+                                exit
+                            end if
+                        end for
+                    end if
+                    if length(control[XpmDisableObject])
+                    and downButton=14 then
+                        for i=1 to length(controlResource) do
+                            if equal(control[Name], controlResource[i][1])
+                            and equal(control[XpmDisableObject], controlResource[i][2]) then
+                                hBitmap = controlResource[i][3]
+                                drawBitmap(id, hBitmap, x1, y1)
+                                exit
+                            end if
+                        end for
+                    end if
+                end if
+            end if
+
+        elsif equal(control[Class], "Pixmap") then
+            -- render pushed button
+            -- erase background
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                if control[BkColor] then
+                    setPenColor(id, control[BkColor])
+                    drawButton(id, x1, y1, cx, cy, 1, control[BkColor],0, withHatching)
+                end if
+            else
+                setPenColor(id, ButtonColor)
+                drawButton(id, x1, y1, cx, cy, 1, ButtonColor, 0, withHatching)
+            end if
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+4>
+                                x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            setPenPos(id, x1+4, y1+2)
+            wPuts(id, control[Title])
+
+        elsif equal(control[Class], "Icon") then
+            for i=1 to length(iconStrings) do
+                iconData = iconStrings[i]
+                if equal(control[Name], iconData[1]) then
+                    if validId(iconData[2]) then
+                        destroy(iconData[2])
+                        iconStrings = iconStrings[1..i-1]
+                                      & iconStrings[i+1..length(iconStrings)]
+                    end if
+                    exit
+                end if
+            end for
+
+            -- render pushed button
+            -- erase background
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                drawButton(id, x1, y1, cx, cy, 1, control[BkColor], 0, 0)
+            else
+                setPenColor(id, ButtonColor)
+                drawButton(id, x1, y1, cx, cy, 1, ButtonColor, 0, 0)
+            end if
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+4>
+                                x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            if isChecked(MenuBitmapNoSuppress)
+            and not withHatching then
+                if length(control[IcoFile]) then
+                    whereIs = dir(control[IcoFile])
+                    if sequence(whereIs) then
+                        --don't try to use until have full name
+                        at = match(".ico",lower(control[IcoFile]))
+                        if at then
+                            ICON = createEx(Icon, "", Design, x1, y1, cx, cy, 0, 0)
+                            setHandler(ICON, w32HMouse, routine_id("selectIconMouse"))
+                            setIcon(ICON, control[IcoFile])
+                            iconData[1] = control[Name]
+                            iconData[2] = ICON
+                            iconStrings &= {iconData}
+                        end if
+                    end if
+                end if
+            end if
+
+            if withHatching then
+                bitBlt(id, x1+SnapSize, y1+SnapSize, BackBlit, 0, 0, cx-SnapSize-2, cy-SnapSize-2, SRCCOPY)
+            end if
+            setPenPos(id, x1+4, y1+2)
+            wPuts(id, control[Title])
+
+        elsif equal(control[Class], "EditText")
+           or equal(control[Class], "MleText")
+--            or equal( control[Class], "RichEdit" )
+           or equal(control[Class], "LabelEdit") then
+
+            if equal(control[SeqParentClass], "EuGrid") then
+                if control[BkColor]
+                and isChecked(MenuColorNoSuppress) then
+                    drawButton(id, x1, y1, cx, cy, -1, control[BkColor],
+                               controls[flag][GridLineColor], withHatching)
+                else
+                    -- render pushed button
+                    drawButton(id, x1, y1, cx, cy, -1, WindowColor, 0, withHatching)
+                end if
+            else
+                if control[BkColor]
+                and isChecked(MenuColorNoSuppress) then
+                    drawButton(id, x1, y1, cx, cy, 1, control[BkColor], 0, withHatching)
+                else
+                    -- render pushed button
+                    drawButton(id, x1, y1, cx, cy, 1, WindowColor, 0, withHatching)
+                end if
+            end if
+
+            if equal(control[Class], "LabelEdit") then
+                --figure placement of text to left or right
+                if control[LabelSide]=0 then
+                    nx1 = x1-textLen[1]
+                else
+                    nx1 = x2
+                end if
+                setPenPos(id, nx1, y1+6)
+                setTextColor(id, control[TxtColor])
+                wPuts(id, control[Title])
+                -- data
+                setPenPos(id, x1+4, y1+2)
+                --keep text inside control
+                while w32True do
+                    textLen = getTextExtent(id, control[ValueEdit])
+                    if textLen[1]+4>x2-x1 then
+                        if not length(control[ValueEdit]) then
+                            exit
+                        end if
+                        control[ValueEdit] = control[ValueEdit][1..length(control[ValueEdit])-1]
+                    else
+                        exit
+                    end if
+                end while
+            else
+                -- text
+                setPenPos(id, x1+4, y1+2)
+            end if
+
+            --keep text inside control
+            --this doesn't affect LabelEdit control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+4>x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            if find(control[Class], {"EditText","LabelEdit"}) then
+                setTextColor(id, control[TxtColor])
+                if equal(control[Class],"LabelEdit") then
+                    wPuts(id, control[ValueEdit])
+                else
+                    wPuts(id, control[Title])
+                end if
+            end if
+
+        elsif equal(control[Class], "TabItem") then
+            trys = 0
+            drawTabControlTabItems(id, control, index, withHatching)
+
+        elsif equal(control[Class], "Group") then
+            -- erase background
+            setPenColor(id, ButtonColor)
+            drawRectangle(id, 0, x1, y1, x2, y2)
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+8>
+                                x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            -- offset by half the height of the text
+            y = y1+floor(textLen[2]/2)
+
+            -- border reflection
+            setPenColor(id, ButtonHighlightColor)
+            drawRectangle(id, 0, x1+1, y+1, x2, y2)
+
+            -- border shadow
+            setPenColor(id, ShadowColor)
+            drawRectangle(id, 0, x1, y, x2-1, y2-1)
+
+            if withHatching then
+                bitBlt(id,x1+SnapSize,y1+(3*SnapSize),BackBlit,0,0,cx-(2*SnapSize),cy-(4*SnapSize),SRCCOPY)
+            end if
+
+            -- erase where text will go
+            setPenColor(id, ButtonColor)
+            drawLine(id, x1+4, y, x1+textLen[1]+12, y)
+            drawLine(id, x1+4, y+1, x1+textLen[1]+12, y+1)
+
+            -- color caption area
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                if control[BkColor]<0 then
+                    setPenColor(id, Black)
+                else
+                    setPenColor(id, control[BkColor])
+                end if
+                drawRectangle(id, 1, x1+4, y1, x1+textLen[1]+12, y1+textLen[2]+2)
+            else
+                setPenColor(id, ButtonColor)
+                drawRectangle(id, 1, x1+4, y1, x1+textLen[1]+12, y1+textLen[2]+2)
+                setPenColor(id , ShadowColor)
+                drawRectangle(id, 0, x1+4, y1, x1+textLen[1]+12, y1+textLen[2]+2)
+            end if
+
+            -- text
+            setPenColor(id, Black)
+            setPenPos(id, x1+8, y1)
+            wPuts(id, control[Title])
+
+        elsif equal(control[Class], "Table") then
+
+            setPenColor(id, Black)
+            drawLine(id, x1,y1,x2,y1)
+            drawLine(id, x2,y1,x2,y2)
+            drawLine(id, x1,y2,x2,y2)
+            drawLine(id, x1,y1,x1,y2)
+
+            -- set background
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress)
+            and control[Visible] then
+                if control[BkColor]<0 then
+                    setPenColor(id, Black)
+                else
+                    setPenColor(id, control[BkColor])
+                end if
+            else
+                setPenColor(id, ButtonColor)
+            end if
+            drawRectangle(id, 1, x1+1, y1+1, x2-1, y2-1)
+
+            -- size of scrollbar
+            size = getSystemMetrics(SM_CXHTHUMB)
+
+            if control[TableHScroll]
+            and control[TableVScroll] then
+                addMore = size
+            else
+                addMore = 0
+            end if
+
+            if control[TableHScroll] then
+                -- frame for scrollbar
+                setPenColor(id, getSysColor(COLOR_SCROLLBAR))
+                drawRectangle(id, w32True, x1, y2-size, x2-addMore, y2)
+
+                -- left button
+                drawScrollButton(id, x1, y2-size, size, size, Left, 0)
+
+                -- right button
+                drawScrollButton(id, x2-size-addMore, y2-size, size, size, Right,0)
+            end if
+
+            if control[TableVScroll] then
+                -- frame for scrollbar
+                setPenColor(id, getSysColor(COLOR_SCROLLBAR))
+                drawRectangle(id, w32True, x2-size, y1, x2, y2-addMore)
+
+                -- top button
+                drawScrollButton(id, x2-size, y1, size, size, Up,0)
+
+                -- bottom button
+                drawScrollButton(id, x2-size, y2-size-addMore, size, size, Down,0)
+            end if
+
+            if withHatching then
+                bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-(2*SnapSize),cy-(2*SnapSize),SRCCOPY)
+            end if
+
+            -- text
+            setPenPos(id, x1+2, y1+2)
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+2>
+                                x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            wPuts(id, control[Title])
+
+
+        elsif find(control[Class], {"PushButton","DefPushButton","ToggleButton",
+                                    "PictureButton","TogglePicture","CancelButton"}) then
+            if control[TreatAsColorButton] then
+                if control[BkColor]
+                and isChecked(MenuColorNoSuppress) then
+                    drawButton(id, x1, y1, cx, cy, 0, control[BkColor], 0, withHatching)
+                elsif control[cbColor]
+                  and isChecked(MenuColorNoSuppress) then
+                    drawButton(id, x1, y1, cx, cy, 0, control[cbColor], 0, withHatching)
+                else
+                    drawButton(id, x1, y1, cx, cy, 0, ButtonColor, 0, withHatching)
+                end if
+            else
+                drawButton(id, x1, y1, cx, cy, 0, ButtonColor, 0, withHatching)
+            end if
+
+            if (find(control[Class], {"PictureButton","TogglePicture"}))
+            and not withHatching then
+                if isChecked(MenuBitmapNoSuppress) then
+                    if length(control[BitmapFile]) then
+                        for i=1 to length(controlResource) do
+                            if equal(control[Name], controlResource[i][1])
+                            and equal(controls[index][BitmapFile], controlResource[i][2]) then
+                                hBitmap = controlResource[i][3]
+                                size2 = getCtlSize(hBitmap)
+                                ---what is width and center of button?
+                                buttoncenter = floor(cx/2)
+                                --what is width and center of bitmap?
+                                bitmapcenter = floor(size2[1]/2)
+                                --what is offset of bitmap respective to button?
+                                offsetX = buttoncenter-bitmapcenter
+                                --do same thing for height
+                                buttoncenter = floor(cy/2)
+                                --what is width and center of bitmap?
+                                bitmapcenter = floor(size2[2]/2)
+                                offsetY = buttoncenter-bitmapcenter
+                                if control[cbGraphicPos]=1 then
+                                    drawBitmap(id, hBitmap, x1, y1+offsetY)
+                                elsif control[cbGraphicPos]=3 then
+                                    drawBitmap(id, hBitmap, x1+cx-size2[1], y1+offsetY)
+                                else
+                                    drawBitmap(id, hBitmap, x1+offsetX, y1+offsetY)
+                                end if
+                            end if
+                        end for
+                    end if
+
+                    if length(control[XPM])
+                    and match(".xpm", lower(control[XPM])) then
+                        -- assign a real xpm to the button
+                        for i=1 to length(controlResource) do
+                            if equal(control[Name], controlResource[i][1])
+                            and equal(control[XPM], controlResource[i][2]) then
+                                hXpm = controlResource[i][3]
+                                size2 = getCtlSize(hXpm)
+                                ---what is width and center of button?
+                                buttoncenter = floor(cx/2)
+                                --what is width and center of XPM?
+                                bitmapcenter = floor(size2[1]/2)
+                                --what is offset of XPM respective to button?
+                                offsetX = buttoncenter-bitmapcenter
+                                --do same thing for height
+                                buttoncenter = floor(cy/2)
+                                bitmapcenter = floor(size2[2]/2)
+                                offsetY = buttoncenter-bitmapcenter
+                                if control[cbGraphicPos]=1 then
+                                    transBlt(id, x1, y1+offsetY, hXpm)
+                                elsif control[cbGraphicPos]=3 then
+                                    transBlt(id, x1+cx-size2[1], y1+offsetY, hXpm)
+                                else
+                                    transBlt(id,x1+offsetX, y1+offsetY,hXpm)
+                                end if
+                            end if
+                        end for
+                    end if
+
+                    if length(control[XPM])
+                    and not match(".xpm", lower(control[XPM]))
+                    and length(control[XPMmember]) then
+                        for i=1 to length(controlResource) do
+                            if equal(control[Name], controlResource[i][1])
+                            and equal(control[XPM], controlResource[i][2]) then
+                                hXpm = controlResource[i][3]
+                                size2 = getCtlSize(hXpm)
+                                ---what is width and center of button?
+                                buttoncenter = floor(cx/2)
+                                --what is width and center of XPM?
+                                bitmapcenter = floor(size2[1]/2)
+                                --what is offset of XPM respective to button?
+                                offsetX = buttoncenter-bitmapcenter
+                                --do same thing for height
+                                buttoncenter = floor(cy/2)
+                                bitmapcenter = floor(size2[2]/2)
+                                offsetY = buttoncenter-bitmapcenter
+                                if control[cbGraphicPos]=1 then
+                                    transBlt(id, x1, y1+offsetY, hXpm)
+                                elsif control[cbGraphicPos]=3 then
+                                    transBlt(id, x1+cx-size2[1], y1+offsetY,hXpm)
+                                else
+                                    transBlt(id,x1+offsetX,y1+offsetY,hXpm)
+                                end if
+                                exit
+                            end if
+                        end for
+                    end if
+
+                    if length(control[XpmObject])
+                    and downButton!=14 then
+                        for i=1 to length(controlResource) do
+                            if equal(control[Name], controlResource[i][1])
+                            and equal(control[XpmObject], controlResource[i][2]) then
+                                hXpm = controlResource[i][3]
+                                size2 = getCtlSize(hXpm)
+                                ---what is width and center of button?
+                                buttoncenter = floor(cx/2)
+                                --what is width and center of XPM?
+                                bitmapcenter = floor(size2[1]/2)
+                                --what is offset of XPM respective to button?
+                                offsetX = buttoncenter-bitmapcenter
+                                --do same thing for height
+                                buttoncenter = floor(cy/2)
+                                bitmapcenter = floor(size2[2]/2)
+                                offsetY = buttoncenter-bitmapcenter
+                                if control[cbGraphicPos]=1 then
+                                    transBlt(id, x1, y1+offsetY,hXpm)
+                                elsif control[cbGraphicPos]=3 then
+                                    transBlt(id, x1+cx-size2[1], y1+offsetY,hXpm)
+                                else
+                                    transBlt(id,x1+offsetX,y1+offsetY,hXpm)
+                                end if
+                                exit
+                            end if
+                        end for
+                    end if
+
+                    if length(control[XpmDisableObject])
+                    and downButton=14 then
+                        for i=1 to length(controlResource) do
+                            if equal(control[Name], controlResource[i][1])
+                            and equal(control[XpmDisableObject], controlResource[i][2]) then
+                                hXpm = controlResource[i][3]
+                                size2 = getCtlSize(hXpm)
+                                ---what is width and center of button?
+                                buttoncenter = floor(cx/2)
+                                --what is width and center of XPM?
+                                bitmapcenter = floor(size2[1]/2)
+                                --what is offset of XPM respective to button?
+                                offsetX = buttoncenter-bitmapcenter
+                                --do same thing for height
+                                buttoncenter = floor(cy/2)
+                                bitmapcenter = floor(size2[2]/2)
+                                offsetY = buttoncenter-bitmapcenter
+                                if control[cbGraphicPos]=1 then
+                                    transBlt(id, x1, y1+offsetY, hXpm)
+                                elsif control[cbGraphicPos]=3 then
+                                    transBlt(id, x1+cx-size2[1], y1+offsetY, hXpm)
+                                else
+                                    transBlt(id,x1+offsetX,y1+offsetY,hXpm)
+                                end if
+                                exit
+                            end if
+                        end for
+                    end if
+
+                    for i=1 to length(iconStrings) do
+                        iconData = iconStrings[i]
+                        if equal(control[Name], iconData[1]) then
+                            if validId(iconData[2]) then
+                                destroy(iconData[2])
+                                iconStrings = iconStrings[1..i-1]
+                                              & iconStrings[i+1..length(iconStrings)]
+                            end if
+                            exit
+                        end if
+                    end for
+
+                    testIcoFile = ""
+                    if not downButton
+                    or downButton=1 then
+                        if length(control[IcoFile]) then
+                            testIcoFile = control[IcoFile]
+                        end if
+                    end if
+                    if downButton=2
+                    and length(control[TwoIcoFile]) then
+                        testIcoFile = control[TwoIcoFile]
+                    end if
+                    if downButton=3
+                    and length(control[TriIcoFile]) then
+                        testIcoFile = control[TriIcoFile]
+                    end if
+                    if length(testIcoFile) then
+                        whereIs = dir(testIcoFile)
+                        if sequence(whereIs) then
+                            --don't try to use until have full name
+                            at = match(".ico",lower(testIcoFile))
+                            if at then
+                                --Larry Meyers gave me an idea how to do this
+                                ICON = createEx(Icon, "", Design, x1, y1, cx, cy, 0, 0)
+                                setHandler(ICON, w32HMouse, routine_id("selectIconMouse"))
+                                setIcon(ICON, testIcoFile)
+                                iconData[1] = control[Name]
+                                iconData[2] = ICON
+                                iconStrings &= {iconData}
+                            end if
+                        end if
+                    end if
+                end if
+                if withHatching then
+                    bitBlt(id, x1+SnapSize, y1+SnapSize, BackBlit, 0, 0, cx-2, cy-2, SRCCOPY)
+                end if
+            end if
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]>
+                              x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            if equal(control[Class], "CancelButton") then
+                --get the default font
+                setFont(id,theDefaultFont[1],theDefaultFont[2],Italic)
+            end if
+
+            -- center text on x and y axis
+            x = x1+floor((cx/2)-(textLen[1]/2))
+            y = y1+floor((cy/2)-(textLen[2]/2))
+
+            if control[PB_Caption_Pos]=1 then
+                --left justify
+                x = x1+borderX
+            elsif control[PB_Caption_Pos]=2 then
+                --right justify
+                x = x1+cx-borderX-textLen[1]
+            end if
+            --if find(control[Class], {"TogglePicture","PictureButton", "PushButton"}) then
+            if control[cbCaptionPos]=1 then
+                --left justify
+                x = x1+borderX
+            elsif control[cbCaptionPos]=3 then
+                --right justify
+                x = x1+cx-borderX-textLen[1]
+            end if
+                        --end if            
+            setPenPos(id, x, y)
+            setTextColor(id, ButtonTextColor)
+            if control[cbCaptionColor] then
+                setTextColor(id, control[cbCaptionColor])
+            end if
+            wPuts(id, control[Title])
+
+            if equal(control[Class], "CancelButton") then
+                --get the default font
+                --set font attribute to Italic
+                setFont(id,theDefaultFont[1],theDefaultFont[2],theDefaultFont[3])
+            end if
+
+        elsif equal(control[Class], "CheckBox")
+           or     equal(control[Class], "TriCheckBox")
+           or     equal(control[Class], "Radio")
+            then
+
+            -- erase background
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                if control[BkColor]<0 then
+                    setPenColor(id, Black)
+                else
+                    setPenColor(id, control[BkColor])
+                end if
+            else
+                setPenColor(id, ButtonColor)
+            end if
+            drawRectangle(id, 1, x1, y1, x2, y2)
+            if equal(control[SeqParentClass], "EuGrid") then
+                setPenColor(id, controls[flag][GridLineColor])
+                drawRectangle(id, 0, x1, y1, x2, y2)
+            end if
+
+            -- select image for control
+            if equal(control[Class], "CheckBox") then
+                pix = CheckPix
+            elsif equal(control[Class], "TriCheckBox") then
+                pix = TriCheckPix
+            else
+                pix = RadioPix
+            end if
+
+            -- get the size of the image
+            result = getCtlSize(pix)
+            x = result[1]
+            y = result[2]
+
+            -- center image on y axis
+            y = y1+floor(( cy/2 )-( y/2 ))
+
+            -- draw the image
+            transBlt(id, x1, y, pix)
+
+            -- move past image on x axis
+            x = x1+x+4
+
+            -- center text on y axis
+            y = y1+floor((cy/2)-(textLen[2]/2))
+
+            if withHatching then
+                bitBlt(id,x1+SnapSize,y1-SnapSize,BackBlit,0,0,cx-2,cy-2,SRCCOPY)
+            end if
+
+            setPenPos(id, x, y)
+            setTextColor(id, ButtonTextColor)
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]>
+                              x2-x then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+            wPuts(id, control[Title])
+
+
+        elsif equal(control[Class], "Combo")
+           or equal(control[Class], "SimpleCombo")
+           or equal(control[Class], "SortedCombo")
+           or equal(control[Class], "ComboBoxEx") then
+            -- this should be limited in height...
+            if equal(control[SeqParentClass],"EuGrid") then
+                -- frame for combo
+                if control[BkColor]
+                and isChecked(MenuColorNoSuppress) then
+                    drawButton(id, x1, y1, cx, cy, -1, control[BkColor],
+                               controls[flag][GridLineColor], withHatching)
+                else
+                    drawButton(id, x1, y1, cx, cy, -1, WindowColor, 0, withHatching)
+                end if
+            else
+                -- frame for combo
+                if control[BkColor]
+                and isChecked(MenuColorNoSuppress) then
+                    drawButton(id, x1, y1, cx, cy, w32True, control[BkColor], 0, withHatching)
+                else
+                    drawButton(id, x1, y1, cx, cy, w32True, WindowColor, 0, withHatching)
+                end if
+            end if
+            -- text
+            setPenPos(id, x1+4, y1+2)
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+4>
+                                x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+
+            wPuts(id, control[Title])
+
+            -- right button
+            drawScrollButton(id, x2-20, y1+1, 20, cy-2, Down, 0)
+
+
+        elsif equal(control[Class], "HScroll") then
+
+            -- size of scrollbar
+            size = cy
+            if size>cx/5 then
+                size = floor(cx/5)
+            end if
+
+            -- frame for scrollbar 
+            setPenColor(id, control[BkColor])
+            if control[BkColor] then
+                if control[BkColor]<0 then
+                    setPenColor(id, Black)
+                else
+                    setPenColor(id, control[BkColor])
+                end if
+            else
+                setPenColor(id, getSysColor(COLOR_SCROLLBAR))
+            end if
+            drawRectangle(id, w32True, x1, y1, x2, y2)
+            if withHatching then
+                bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-SnapSize-2,cy-SnapSize-2,SRCCOPY)
+            end if
+            -- left button
+            drawScrollButton(id, x1, y1, size, cy, Left, 0)
+
+            -- right button
+            drawScrollButton(id, x2-size, y1, size, cy, Right, 0)
+
+        elsif equal(control[Class], "VScroll") then
+
+            -- size of scrollbar
+            size = cx
+            if size>cy/5 then
+                size = floor(cy/5)
+            end if
+
+            -- frame for scrollbar
+            if control[BkColor] then
+                if control[BkColor]<0 then
+                    setPenColor(id, Black)
+                else
+                    setPenColor(id, control[BkColor])
+                end if
+            else
+                setPenColor(id, getSysColor(COLOR_SCROLLBAR))
+            end if
+            drawRectangle(id, w32True, x1, y1, x2, y2)
+            if withHatching then
+                bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-SnapSize-2,cy-SnapSize-2,SRCCOPY)
+            end if
+            -- top button
+            drawScrollButton(id, x1, y1, cx, size, Up,0)
+
+            -- bottom button
+            drawScrollButton(id, x1, y2-size, cx, size, Down, 0)
+
+        elsif equal(control[Class], "List")
+           or equal(control[Class], "SortedList")
+           or equal(control[Class], "DropDownList") then
+            -- frame for list
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                drawButton(id, x1, y1, cx, cy, w32True, control[BkColor], 0, withHatching)
+            else
+                drawButton(id, x1, y1, cx, cy, w32True, WindowColor, 0, withHatching)
+            end if
+
+            -- text
+            setPenPos(id, x1+4, y1+2)
+
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+4>x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+            if equal(control[Class], "DropDownList") then
+                                -- right button
+                drawScrollButton(id, x2-20, y1+1, 20, cy-2, Down, 0)
+            end if
+
+            setTextColor(id, control[TxtColor])
+            wPuts(id, control[Title])
+
+        elsif equal(control[Class], "CWindow") then
+            header = w32True
+            styleCheck = control[Style]
+            if integer(styleCheck) then
+                --what to do here?
+            else
+                if length(control[Style])
+                and length(control[StyleType]) then
+                    if match("WS_CHILD",control[Style]) then
+                        header = w32True
+                        if equal(control[StyleType],"{...}") then
+                            header = w32False
+                        end if
+                        if equal(control[StyleType],"...") then
+                            header = w32True
+                        end if
+                    end if
+                    if match("WS_POPUP",control[Style]) then
+                        header = w32False
+                        if equal(control[StyleType],"w32or_all({...})")
+                        or equal(control[StyleType],"...") then
+                            header = w32True
+                        end if
+                    end if
+                    if match("WS_POPUP",control[Style])
+                    and match("WS_CHILD",control[Style]) then
+                        header = w32False
+                        if equal(control[StyleType],"w32or_all({...})")
+                        or equal(control[StyleType],"...") then
+                            header = w32True
+                        end if
+                    end if
+                    if match("WS_CAPTION",control[Style]) then
+                        header = w32True
+                    end if
+                end if
+            end if
+
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                drawChildWindow(id, x1, y1, cx, cy, control[BkColor], header,withHatching,control)
+            else
+                drawChildWindow(id, x1, y1, cx, cy, ButtonColor, header,withHatching,control)
+            end if
+
+        elsif equal(control[Class], "EuGrid") then
+            if isChecked(MenuColorNoSuppress) then
+                drawEuGrid(id, x1, y1, cx, cy, control[BkColor],control[GridHeaderColor],
+                           control[GridColHeaderCY],
+                           control[GridRowHeaderCX],
+                           control[GridLineColor],withHatching)
+            else
+                drawEuGrid(id, x1, y1, cx, cy, ButtonColor, ButtonColor,
+                           control[GridColHeaderCY],
+                           control[GridRowHeaderCX],
+                           Black,withHatching)
+            end if
+
+        else
+            -- generic control
+
+            -- background
+            if control[BkColor]
+            and isChecked(MenuColorNoSuppress) then
+                if control[BkColor]<0 then
+                    setPenColor(id, Black)
+                else
+                    setPenColor(id, control[BkColor])
+                end if
+            else
+                setPenColor(id, ButtonColor)
+            end if
+
+            drawRectangle(id, 1, x1, y1, x2, y2)
+
+            if equal(control[Class],"ProgressBar") then
+                if control[BkBarColor] then
+                    if control[BkColor]<0 then
+                        setPenColor(id,Black)
+                    else
+                        setPenColor(id,control[BkBarColor])
+                    end if
+                else
+                    setPenColor(id,getSysColor(COLOR_HIGHLIGHT))
+                end if
+                drawRectangle(id, 1, x1, y1, x1+floor((x2-x1)/2), y2)
+            end if
+
+            -- border        
+            setPenColor(id, Black)
+            drawRectangle(id, 0, x1, y1, x2, y2)
+
+            if withHatching then
+                bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-SnapSize-2,cy-SnapSize-2,SRCCOPY)
+            end if
+
+            -- text
+            setPenPos(id, x1+2, y1+2)
+            --keep text inside control
+            while w32True do
+                textLen = getTextExtent(id, control[Title])
+                if textLen[1]+2>
+                                x2-x1 then
+                    if not length(control[Title]) then
+                        exit
+                    end if
+                    control[Title] = control[Title][1..length(control[Title])-1]
+                else
+                    exit
+                end if
+            end while
+            setTextColor(id, Black)
+            wPuts(id, control[Title])
+
+        end if
+
+
+    elsif state=Selected
+       or     state=Dragging
+       or     state=Borders then
+
+        if state=Dragging then
+
+            -- set pen to XOR mode
+            setPenMode(id, R2_XORPEN)
+
+            -- inverse border color
+            setPenColor(id, WindowColor)
+            -- border        
+            drawRectangle(id, 0, x1, y1, x2, y2)
+            drawRectangle(id, 0, x1+1, y1+1, x2-1, y2-1)
+        else
+            -- border color
+            if state=Borders then
+                setPenColor(id, ButtonHighlightColor)
+                drawRectangle(id, 0, x1, y1, x2, y2)
+                if withHatching then
+                    bitBlt(id,x1+SnapSize,y1+SnapSize,BackBlit,0,0,cx-(2*SnapSize),cy-(2*SnapSize),SRCCOPY)
+                end if
+            else
+                --is Selected               
+                setPenColor(id, Black)
+
+                if equal(control[Class], "TabControl") then
+                    setPenStyle(id, Dash)
+                end if
+
+                -- border                 
+                drawRectangle(id, 0, x1, y1, x2, y2)
+                drawRectangle(id, 0, x1+1, y1+1, x2-1, y2-1)
+
+                if (find(control[Class], {"PictureButton","TogglePicture"}))
+                and not withHatching then
+                    if isChecked(MenuBitmapNoSuppress) then
+                        if length(control[XpmObject])
+                        and downButton!=14 then
+                            for i=1 to length(controlResource) do
+                                if equal(control[Name], controlResource[i][1])
+                                and equal(control[XpmObject], controlResource[i][2]) then
+                                    hXpm = controlResource[i][3]
+                                    size2 = getCtlSize(hXpm)
+                                    ---what is width and center of button?
+                                    buttoncenter = floor(cx/2)
+                                    --what is width and center of XPM?
+                                    bitmapcenter = floor(size2[1]/2)
+                                    --what is offset of XPM respective to button?
+                                    offsetX = buttoncenter-bitmapcenter
+                                    --do same thing for height
+                                    buttoncenter = floor(cy/2)
+                                    bitmapcenter = floor(size2[2]/2)
+                                    offsetY = buttoncenter-bitmapcenter
+                                    if control[cbGraphicPos]=1 then
+                                        transBlt(id, x1, y1+offsetY, hXpm)
+                                    elsif control[cbGraphicPos]=3 then
+                                        transBlt(id, x1+cx-size2[1], y1+offsetY, hXpm)
+                                    else
+                                        transBlt(id,x1+offsetX,y1+offsetY,hXpm)
+                                    end if
+                                    exit
+                                end if
+                            end for
+                        end if
+
+                        if length(control[XpmDisableObject])
+                        and downButton=14 then
+                            for i=1 to length(controlResource) do
+                                if equal(control[Name], controlResource[i][1])
+                                and equal(control[XpmDisableObject], controlResource[i][2]) then
+                                    hXpm = controlResource[i][3]
+                                    size2 = getCtlSize(hXpm)
+                                    ---what is width and center of button?
+                                    buttoncenter = floor(cx/2)
+                                    --what is width and center of XPM?
+                                    bitmapcenter = floor(size2[1]/2)
+                                    --what is offset of XPM respective to button?
+                                    offsetX = buttoncenter-bitmapcenter
+                                    --do same thing for height
+                                    buttoncenter = floor(cy/2)
+                                    bitmapcenter = floor(size2[2]/2)
+                                    offsetY = buttoncenter-bitmapcenter
+                                    if control[cbGraphicPos]=1 then
+                                        transBlt(id, x1, y1+offsetY, hXpm)
+                                    elsif control[cbGraphicPos]=3 then
+                                        transBlt(id, x1+cx-size2[1], y1+offsetY, hXpm)
+                                    else
+                                        transBlt(id,x1+offsetX,y1+offsetY,hXpm)
+                                    end if
+                                    exit
+                                end if
+                            end for
+                        end if
+                    end if
+                end if
+            end if
+        end if
+
+        if state=Dragging then
+            -- restore pen mode
+            setPenMode(id, R2_COPYPEN)
+        end if
+
+    end if
+
+end procedure
+drawControl_id = routine_id("drawControl")
+

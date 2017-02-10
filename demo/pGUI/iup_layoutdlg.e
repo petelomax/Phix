@@ -306,11 +306,11 @@ constant
 function iLayoutGetTitle(Ihandle ih)
 string str = sprintf("[%s]", {IupGetClassName(ih)})
 string title = IupGetAttribute(ih, "TITLE")
-nullable_string name = IupGetName(ih);
+string name = IupGetName(ih);
   if length(title) then
       str &= sprintf(" %.50s", {title});
   end if
-  if name!=NULL then
+  if name!="" then
       str &= sprintf(" \"%.50s\"", {name})
   end if
   return str
@@ -685,11 +685,11 @@ function iLayoutAttributeChanged(Ihandle ih, string name, string val, nullable_s
 end function
 
 function iLayoutGetName(Ihandle ih)
-nullable_string name = IupGetName(ih)
-  if string(name) and iupATTRIB_ISINTERNAL(name) then
-    name = NULL
+string name = IupGetName(ih)
+  if length(name) and iupATTRIB_ISINTERNAL(name) then
+    name = ""
   end if
-  if name=NULL and IupGetClassType(ih)="dialog" then
+  if name="" and IupGetClassType(ih)="dialog" then
     name = iupAttribGet(ih, "_IUP_DIALOG_NAME")
   end if
   return name
@@ -914,17 +914,17 @@ end if
 end function
 
 procedure iLayoutExportElementC(integer fn, Ihandle ih)
-nullable_string name = IupGetName(ih);
+string name = IupGetName(ih);
 string classname = IupGetClassName(ih)
 string indent = "    ";
 integer idx
   if ih_iclass_childtype(ih)==IUP_CHILDNONE then
     indent = "        ";
   end if
-  if name!=NULL and iupATTRIB_ISINTERNAL(name) then
-    name = NULL
+  if name!="" and iupATTRIB_ISINTERNAL(name) then
+    name = ""
   end if
-  name = iff(name=NULL?"NULL":"\""&name&"\"")
+  name = iff(name=""?"NULL":"\""&name&"\"")
   if ih_iclass_childtype(ih)==IUP_CHILDNONE then
     printf(fn, "      IupSetAtt(%s, IupCreate(\"%s\"), \n", {name,classname})
   else
@@ -1102,8 +1102,8 @@ string classname = upper(IupGetClassName(ih))
       Ihandln child = ih_firstchild(ih)
       while child!=NULL do
         if not and_bits(ih_flags(child),IUP_INTERNAL) then
-          nullable_string childname = iLayoutGetName(child);
-          if childname=NULL then
+          string childname = iLayoutGetName(child);
+          if childname="" then
             iLayoutExportElementLED(fn, child, NULL, indent_level+1);   /* here process the ones that does NOT have names */
           else
             printf(fn, "%s%s", {repeat(' ',indent_count), childname})
@@ -1149,7 +1149,7 @@ string classname = upper(IupGetClassName(ih))
 end procedure
 
 procedure iLayoutExportChildrenLED(integer fn, Ihandle ih)
-nullable_string name;
+string name;
 
   /* export children first */
   Ihandln child = ih_firstchild(ih)
@@ -1161,15 +1161,15 @@ nullable_string name;
   end while
 
   name = iLayoutGetName(ih);
-  if name!=NULL then /* here process only the ones that have names */
+  if name!="" then /* here process only the ones that have names */
     iLayoutExportElementLED(fn, ih, name, 0)
   end if
 end procedure
 
 procedure iLayoutExportDialogLED(integer fn, Ihandle dialog, string filename)
 string title
-nullable_string name = IupGetName(dialog)
-  if name=NULL then
+string name = IupGetName(dialog)
+  if name="" then
     title = iupStrFileGetTitle(filename);
     title = iLayoutRemoveExt(title, "led");
     IupSetAttribute(dialog, "_IUP_DIALOG_NAME", title);
@@ -2869,7 +2869,7 @@ end function
  ***************************************************************************/
 
 
-function iLayoutDialogKAny_CB(Ihandle dlg, integer key)
+function iLayoutDialogKAny_CB(Ihandle dlg, atom key)
   switch key
   case K_DEL:
     return iLayoutContextMenuRemove_CB(dlg);

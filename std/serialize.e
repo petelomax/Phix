@@ -1,3 +1,6 @@
+--
+-- serialise.e (Phix compatible)
+--
 -- (c) Copyright - See License.txt
 --
 --/*
@@ -9,35 +12,37 @@ namespace serialize
 --
 -- <<LEVELTOC depth=2>>
 
+--/*
 include std/convert.e
 include std/machine.e
+--*/
 
 -- Serialized format of Euphoria objects
 --
 -- First byte:
 --          0..248    -- immediate small integer, -9 to 239
-                                          -- since small negative integers -9..-1 might be common
+                      -- since small negative integers -9..-1 might be common
 constant I2B = 249,   -- 2-byte signed integer follows
-                 I3B = 250,   -- 3-byte signed integer follows
-                 I4B = 251,   -- 4-byte signed integer follows
-                 F4B = 252,   -- 4-byte f.p. number follows
-                 F8B = 253,   -- 8-byte f.p. number follows
-                 S1B = 254,   -- sequence, 1-byte length follows, then elements
-                 S4B = 255    -- sequence, 4-byte length follows, then elements
+         I3B = 250,  -- 3-byte signed integer follows
+         I4B = 251,  -- 4-byte signed integer follows
+         F4B = 252,  -- 4-byte f.p. number follows
+         F8B = 253,  -- 8-byte f.p. number follows
+         S1B = 254,  -- sequence, 1-byte length follows, then elements
+         S4B = 255    -- sequence, 4-byte length follows, then elements
 
 constant MIN1B = -9,
-                 MAX1B = 239,
-                 MIN2B = -power(2, 15),
-                 MAX2B =  power(2, 15)-1,
-                 MIN3B = -power(2, 23),
-                 MAX3B =  power(2, 23)-1,
-                 MIN4B = -power(2, 31)
+         MAX1B = 239,
+         MIN2B = -power(2, 15),
+         MAX2B =  power(2, 15)-1,
+         MIN3B = -power(2, 23),
+         MAX3B =  power(2, 23)-1,
+         MIN4B = -power(2, 31)
 
 atom mem0, mem1, mem2, mem3
-mem0 = allocate(4)
-mem1 = mem0 + 1
-mem2 = mem0 + 2
-mem3 = mem0 + 3
+     mem0 = allocate(4)
+     mem1 = mem0+1
+     mem2 = mem0+2
+     mem3 = mem0+3
 
 function get4(integer fh)
 -- read 4-byte value at current position in database file
@@ -54,53 +59,48 @@ function deserialize_file(integer fh, integer c)
 sequence s
 integer len
 
-    if c = 0 then
+    if c=0 then
         c = getc(fh)
-        if c < I2B then
-            return c + MIN1B
+        if c<I2B then
+            return c+MIN1B
         end if
     end if
-        
+
     if c=I2B then
-        return getc(fh) +
-                #100 * getc(fh) +
-                MIN2B
+        return getc(fh)+#100*getc(fh)+MIN2B
 
     elsif c=I3B then
-        return getc(fh) +
-                #100 * getc(fh) +
-                #10000 * getc(fh) +
-                MIN3B
+        return getc(fh)+#100*getc(fh)+#10000*getc(fh)+MIN3B
 
     elsif c=I4B then
-        return get4(fh) + MIN4B
+        return get4(fh)+MIN4B
 
     elsif c=F4B then
         return float32_to_atom({getc(fh), getc(fh),
-                getc(fh), getc(fh)})
+                                getc(fh), getc(fh)})
 
     elsif c=F8B then
         return float64_to_atom({getc(fh), getc(fh),
-                getc(fh), getc(fh),
-                getc(fh), getc(fh),
-                getc(fh), getc(fh)})
+                                getc(fh), getc(fh),
+                                getc(fh), getc(fh),
+                                getc(fh), getc(fh)})
 
     else
         -- sequence
-        if c = S1B then
-                len = getc(fh)
+        if c=S1B then
+            len = getc(fh)
         else
-                len = get4(fh)
+            len = get4(fh)
         end if
         s = repeat(0, len)
-        for i = 1 to len do
-                -- in-line small integer for greater speed on strings
-                c = getc(fh)
-                if c < I2B then
-                        s[i] = c + MIN1B
-                else
-                        s[i] = deserialize_file(fh, c)
-                end if
+        for i=1 to len do
+            -- in-line small integer for greater speed on strings
+            c = getc(fh)
+            if c<I2B then
+                s[i] = c+MIN1B
+            else
+                s[i] = deserialize_file(fh, c)
+            end if
         end for
         return s
     end if
@@ -121,54 +121,54 @@ sequence s
 integer len
 sequence temp
 
-    if c = 0 then
+    if c=0 then
         c = sdata[pos]
         pos += 1
-        if c < I2B then
-                return {c + MIN1B, pos}
+        if c<I2B then
+            return {c+MIN1B, pos}
         end if
     end if
-        
+
     if c=I2B then
-        return {sdata[pos] +
-                #100 * sdata[pos+1] +
-                MIN2B, pos + 2}
+        return {sdata[pos]+
+                #100*sdata[pos+1]+
+                MIN2B, pos+2}
 
     elsif c=I3B then
-        return {sdata[pos] +
-                #100 * sdata[pos+1] +
-                #10000 * sdata[pos+2] +
-                MIN3B, pos + 3}
+        return {sdata[pos]+
+                #100*sdata[pos+1]+
+                #10000*sdata[pos+2]+
+                MIN3B, pos+3}
 
     elsif c=I4B then
-        return {getp4(sdata, pos) + MIN4B, pos + 4}
+        return {getp4(sdata, pos)+MIN4B, pos+4}
 
     elsif c=F4B then
         return {float32_to_atom({sdata[pos], sdata[pos+1],
-                sdata[pos+2], sdata[pos+3]}), pos + 4}
+                                 sdata[pos+2], sdata[pos+3]}), pos+4}
 
     elsif c=F8B then
         return {float64_to_atom({sdata[pos], sdata[pos+1],
-                sdata[pos+2], sdata[pos+3],
-                sdata[pos+4], sdata[pos+5],
-                sdata[pos+6], sdata[pos+7]}), pos + 8}
+                                 sdata[pos+2], sdata[pos+3],
+                                 sdata[pos+4], sdata[pos+5],
+                                 sdata[pos+6], sdata[pos+7]}), pos+8}
 
     else
         -- sequence
-        if c = S1B then
-                len = sdata[pos]
-                pos += 1
+        if c=S1B then
+            len = sdata[pos]
+            pos += 1
         else
-                len = getp4(sdata, pos)
-                pos += 4
+            len = getp4(sdata, pos)
+            pos += 4
         end if
         s = repeat(0, len)
-        for i = 1 to len do
+        for i=1 to len do
             -- in-line small integer for greater speed on strings
             c = sdata[pos]
             pos += 1
-            if c < I2B then
-                s[i] = c + MIN1B
+            if c<I2B then
+                s[i] = c+MIN1B
             else
                 temp = deserialize_object(sdata, pos, c)
                 s[i] = temp[1]
@@ -281,19 +281,19 @@ end function
 -- </eucode>
 --
 
-public function deserialize(object sdata, integer pos = 1)
+global function deserialize(object sdata, integer pos = 1)
 -- read a serialized Euphoria object
-        
-        if integer(sdata) then
-                return deserialize_file(sdata, 0)
-        end if
-        
-        if atom(sdata) then
-                return 0
-        end if
-        
-        return deserialize_object(sdata, pos, 0)
-        
+
+    if integer(sdata) then
+        return deserialize_file(sdata, 0)
+    end if
+
+    if atom(sdata) then
+        return 0
+    end if
+
+    return deserialize_object(sdata, pos, 0)
+
 end function
 
 --**
@@ -350,50 +350,50 @@ end function
 --  Address = res[4]
 -- </eucode>
 --
-public function serialize(object x)
+global function serialize(object x)
 -- return the serialized representation of a Euphoria object
 -- as a sequence of bytes
-        sequence x4, s
+sequence x4, s
 
-        if integer(x) then
-                if x >= MIN1B and x <= MAX1B then
-                        return {x - MIN1B}
+    if integer(x) then
+        if x>=MIN1B and x<=MAX1B then
+            return {x-MIN1B}
 
-                elsif x >= MIN2B and x <= MAX2B then
-                        x -= MIN2B
-                        return {I2B, and_bits(x, #FF), floor(x / #100)}
+        elsif x>=MIN2B and x<=MAX2B then
+            x -= MIN2B
+            return {I2B, and_bits(x, #FF), floor(x/#100)}
 
-                elsif x >= MIN3B and x <= MAX3B then
-                        x -= MIN3B
-                        return {I3B, and_bits(x, #FF), and_bits(floor(x / #100), #FF), floor(x / #10000)}
-
-                else
-                        return I4B & int_to_bytes(x-MIN4B)
-
-                end if
-
-        elsif atom(x) then
-                -- floating point
-                x4 = atom_to_float32(x)
-                if x = float32_to_atom(x4) then
-                        -- can represent as 4-byte float
-                        return F4B & x4
-                else
-                        return F8B & atom_to_float64(x)
-                end if
+        elsif x>=MIN3B and x<=MAX3B then
+            x -= MIN3B
+            return {I3B, and_bits(x, #FF), and_bits(floor(x/#100), #FF), floor(x/#10000)}
 
         else
-                -- sequence
-                if length(x) <= 255 then
-                        s = {S1B, length(x)}
-                else
-                        s = S4B & int_to_bytes(length(x))
-                end if
-                for i = 1 to length(x) do
-                        s &= serialize(x[i])
-                end for
-                return s
+            return I4B & int_to_bytes(x-MIN4B)
+
         end if
+
+    elsif atom(x) then
+        -- floating point
+        x4 = atom_to_float32(x)
+        if x=float32_to_atom(x4) then
+            -- can represent as 4-byte float
+            return F4B & x4
+        else
+            return F8B & atom_to_float64(x)
+        end if
+
+    else
+        -- sequence
+        if length(x)<=255 then
+            s = {S1B, length(x)}
+        else
+            s = S4B & int_to_bytes(length(x))
+        end if
+        for i=1 to length(x) do
+            s &= serialize(x[i])
+        end for
+        return s
+    end if
 end function
 
 --**
@@ -423,21 +423,21 @@ end function
 -- end if
 -- </eucode>
 --
-public function dump(sequence data, sequence filename)
-        integer fh
-        sequence sdata
-        
-        fh = open(filename, "wb")
-        if fh < 0 then
-                return 0
-        end if
-        
-        sdata = serialize(data)
-        puts(fh, sdata)
-        
-        close(fh)
-        
-        return length(sdata) -- Length is always > 0
+global function dump(sequence data, sequence filename)
+integer fh
+sequence sdata
+
+    fh = open(filename, "wb")
+    if fh<0 then
+        return 0
+    end if
+
+    sdata = serialize(data)
+    puts(fh, sdata)
+
+    close(fh)
+
+    return length(sdata) -- Length is always > 0
 end function
 
 --**
@@ -466,17 +466,17 @@ end function
 -- end if
 -- </eucode>
 --
-public function load(sequence filename)
-        integer fh
-        sequence sdata
+global function load(sequence filename)
+integer fh
+sequence sdata
 
-        fh = open(filename, "rb")
-        if fh < 0 then
-                return {0}
-        end if
-        
-        sdata = deserialize(fh)
-        
-        close(fh)
-        return {1, sdata}
+    fh = open(filename, "rb")
+    if fh<0 then
+        return {0}
+    end if
+
+    sdata = deserialize(fh)
+
+    close(fh)
+    return {1, sdata}
 end function

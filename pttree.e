@@ -1217,6 +1217,7 @@ global constant T_BITS32        = 5052  tt_stringF("BITS32",T_BITS32)
 global constant T_BITS64        = 5064  tt_stringF("BITS64",T_BITS64)
 global constant T_DLLMAIN       = 5092  tt_stringF("DllMain",T_DLLMAIN)
 global constant T_movd          = 5100  tt_stringF("movd",T_movd)
+global constant T_PHIX          = 5116  tt_stringF("PHIX",T_PHIX)
 
 --global constant T_DLLATTACH       = 5098  tt_stringF("DLL_PROCESS_ATTACH",T_DLLATTACH)
 --global constant T_movq            = 4912  tt_stringF("movq",T_movq)
@@ -1690,6 +1691,7 @@ end if
 --  iload("opStoreMem",{opStoreMem+#10000000,2})
 --  iload("opFildMem", {opFildMem +#10000000,1})
 
+--DEV is this still actually used?? (search for il_search)
     for src=1 to 8 do   -- eax to edi (as idx to regs/r8)
         rs = regs[src]
         iload(rs,src-1)

@@ -17,7 +17,7 @@
             include pGUI.e
             <br>
             <br>
-            sequence res = IupGetParam(string title, cbfunc action, atom user_data, string fmt, sequence param_data={})
+            sequence res = IupGetParam(string title, <a href="Icallback.htm">cbfunc</a> action, atom user_data, string fmt, sequence param_data={})
           </font>
          </td>
         </tr>
@@ -37,6 +37,9 @@
             <br>
             <br>
             Returns: args plus a status code 1 in res[$] if the button 1 was pressed, 0 if the button 2 was pressed or if an error occurred.
+            <br>
+            <br>
+            IupGetParam should now be used instead of IupScanf.
          </td>
         </tr>
         <tr>
@@ -85,10 +88,10 @@
                  In this case we do no use the brackets '[' and ']' to avoid conflict with the specified mask.</li>
              <li>|item0|item1|item2,...| are the items of the list. At least one item must exist. 
                  Again the brackets are not used to increase the possibilities for the strings, instead you must use '|'. Items index are zero based start.</li>
-             <li>[dialogtype|filter|directory|nochangedir|nooverwriteprompt] are the respective attribute values passed to the IupFileDlg control when activated. 
+             <li>[dialogtype|filter|directory|nochangedir|nooverwriteprompt] are the respective attribute values passed to the <a href="IupFileDlg.htm">IupFileDlg</a> control when activated. 
                  All '|' must exist, but you can let empty values to use the default values. No mask can be set.</li>
              </ul></li>
-            <li>tip is a string that is displayed in a TIP for the main control of the parameter. (since 3.0)</li>
+            <li>tip is a string that is displayed in a <a href="iupattr.htm#TIP">TIP</a> for the main control of the parameter. (since 3.0)</li>
             </ul>
             The number of lines in the format string (number of '\n') will determine the number of required parameters. But separators will not count as parameters. 
             There is no maximum number of parameters (since 3.13). [Internally Phix wraps IupGetParamsv, rather than IupGetParams, not that it matters.]
@@ -121,6 +124,10 @@
             <br>
             <br>
             The dialog uses a global attribute called "PARENTDIALOG" as the parent dialog if it is defined. It also uses a global attribute called "ICON" as the dialog icon if it is defined.
+            <br>
+            <br>
+            Note that IupGetParam is quietly ignored by Edix/Tools/Layout Designer - instead I might suggest making a copy of demo/pGUI/getparam.exw (as reproduced below) 
+            to experiment with the layout or construct the first draft of the dialog, and to do so all directly on the plain text source.
          </td>
         </tr>
 
@@ -137,7 +144,7 @@
             <br>
             The IupUser element can be directly used if the internal attributes are set. Here are the respective attributes according to the IupGetParam format specification: 
             <ul>
-            <li>TITLE: text of the parameter, used as label.</li>
+            <li><a href="iupattr.htm#TITLE">TITLE</a>: text of the parameter, used as label.</li>
             <li>INDENT: number of indentation levels.</li>
             <li>TYPE: can be BOOLEAN, LIST, OPTIONS, REAL, STRING, INTEGER, FILE, COLOR, SEPARATOR, BUTTONNAMES and HANDLE. And describe the type of the parameter.</li>
             <li>DATATYPE: can be INT (int), FLOAT (float), DOUBLE (double), STRING (char*), HANDLE (Ihandle*) or NONE (when buttons and separators are used). 
@@ -146,11 +153,11 @@
             <li>ANGLE: can be Yes or No. defines if the REAL type is an angle.</li>
             <li>TRUE, FALSE: boolean names.</li>
             <li>INTERVAL (Yes/No), MIN, MAX, STEP, PARTIAL (Yes/No): optional limits for integer and real types.</li>
-            <li>DIALOGTYPE, FILTER, DIRECTORY, NOCHANGEDIR, NOOVERWRITEPROMPT: used for the FILE parameter dialog. See IupFileDlg.</li>
+            <li>DIALOGTYPE, FILTER, DIRECTORY, NOCHANGEDIR, NOOVERWRITEPROMPT: used for the FILE parameter dialog. See <a href="IupFileDlg.htm">IupFileDlg</a>.</li>
             <li>BUTTON1, BUTTON2, BUTTON3: button titles. Default is "OK/Cancel/Help" for regular IupGetParam, and "Apply/Reset/Help" for IupParamBox.</li>
             <li>0, 1, 2, 3, ... : list items.</li>
             <li>MASK: mask for the edit box input.</li>
-            <li>TIP: text of the tip.</li>
+            <li><a href="iupattr.htm#TIP">TIP</a>: text of the tip.</li>
             <li>VALUE: the parameter value.</li>
             <li>STATUS: set to 1 when button1 is activated, and set to 0 when button2 is activated or the dialog close button is clicked.</li>
             </ul>
@@ -209,7 +216,7 @@
           <b>Callbacks:</b>
          </td>
          <td>
-            int function(Ihandle* dialog, int param_index, void* user_data)<br>
+            function param_cb(Ihandle dialog, integer param_index, atom pUserData)<br>
             dialog: dialog handle<br>
             param_index: current parameter being changed. Can have negative values to indicate specific situations: 
             <ul>
@@ -219,7 +226,7 @@
             <li>IUP_GETPARAM_BUTTON3 (-4) = if the user pressed the button 3, if any;</li>
             <li>IUP_GETPARAM_CLOSE (-5) = if the user clicked on the dialog close button. Not called for IupParamBox; (since 3.13)</li>
             </ul>
-            user_data: a user pointer that is passed in the function call.
+            pUserData: a user pointer (void*) that is passed in the function call.
             <br>
             <br>
             Returns: You can reject the change or the button action by returning 0 in the callback, otherwise you must return 1. By default button 1 and button2 will close the dialog.
@@ -231,34 +238,32 @@
             You should not programmatically change the current parameter value during the callback. On the other hand you can freely change the value of other parameters.
             <br>
             <br>
-            <br>
-            Use the dialog attribute "PARAMn" to get the parameter "Ihandle*", where "n" is the parameter index in the order they are specified starting at 0, but separators and button names are not counted. 
+            Use the dialog attribute "PARAMn" to get the parameter "Ihandle*", where "n" is the parameter index in the order they are specified starting at 0, 
+            but separators and button names are not counted. 
             Notice that this is not the actual control, use the parameter attribute "CONTROL" to get the actual control. For example:
 <!--eucode>
-Ihandle* param2 = (Ihandle*)IupGetAttribute(dialog, "PARAM2");
-int value2 = IupGetInt(param2, IUP_VALUE);
+Ihandle param2 = IupGetAttributeHandle(dialog, "PARAM2")
+int value2 = IupGetInt(param2, IUP_VALUE)
 
-Ihandle* param5 = (Ihandle*)IupGetAttribute(dialog, "PARAM5");
-Ihandle* ctrl5 = (Ihandle*)IupGetAttribute(param5, "CONTROL");
+Ihandle param5 = IupGetAttributeHandle(dialog, "PARAM5")
+Ihandle ctrl5 = IupGetAttributeHandle(param5, "CONTROL")
 
-if (value2 == 0)
-{
-  IupSetAttribute(param5, IUP_VALUE, "New Value");
-  IupSetAttribute(ctrl5, IUP_VALUE, "New Value");
-}
+if value2 == 0 then
+  IupSetAttribute(param5, IUP_VALUE, "New Value")
+  IupSetAttribute(ctrl5, IUP_VALUE, "New Value")
+end if
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#0000FF">*</font><font color="#000000"> param2</font><font color="#0000FF"> = (</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*)</font><font color="#5E005E">IupGetAttribute</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "PARAM2"</font><font color="#0000FF">);
-</font><font color="#000000">int value2</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetInt</font><font color="#0000FF">(</font><font color="#000000">param2</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">);
+<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> param2</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "PARAM2"</font><font color="#0000FF">)
+</font><font color="#000000">int value2</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetInt</font><font color="#0000FF">(</font><font color="#000000">param2</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">)
 
-</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*</font><font color="#000000"> param5</font><font color="#0000FF"> = (</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*)</font><font color="#5E005E">IupGetAttribute</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "PARAM5"</font><font color="#0000FF">);
-</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*</font><font color="#000000"> ctrl5</font><font color="#0000FF"> = (</font><font color="#5E005E">Ihandle</font><font color="#0000FF">*)</font><font color="#5E005E">IupGetAttribute</font><font color="#0000FF">(</font><font color="#000000">param5</font><font color="#0000FF">,</font><font color="#008000"> "CONTROL"</font><font color="#0000FF">);
+</font><font color="#5E005E">Ihandle</font><font color="#000000"> param5</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "PARAM5"</font><font color="#0000FF">)
+</font><font color="#5E005E">Ihandle</font><font color="#000000"> ctrl5</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">param5</font><font color="#0000FF">,</font><font color="#008000"> "CONTROL"</font><font color="#0000FF">)
 
-</font><font color="#008080">if</font><font color="#0000FF"> (</font><font color="#000000">value2</font><font color="#0000FF"> ==</font><font color="#000000"> 0</font><font color="#0000FF">)
-{
-</font><font color="#5E005E">  IupSetAttribute</font><font color="#800000">(</font><font color="#000000">param5</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">,</font><font color="#008000"> "New Value"</font><font color="#800000">)</font><font color="#0000FF">;
-</font><font color="#5E005E">  IupSetAttribute</font><font color="#800000">(</font><font color="#000000">ctrl5</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">,</font><font color="#008000"> "New Value"</font><font color="#800000">)</font><font color="#0000FF">;
-}</font>
+</font><font color="#008080">if</font><font color="#000000"> value2</font><font color="#0000FF"> ==</font><font color="#000000"> 0</font><font color="#008080"> then
+</font><font color="#5E005E">  IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">param5</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">,</font><font color="#008000"> "New Value"</font><font color="#0000FF">)
+</font><font color="#5E005E">  IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ctrl5</font><font color="#0000FF">,</font><font color="#000000"> IUP_VALUE</font><font color="#0000FF">,</font><font color="#008000"> "New Value"</font><font color="#0000FF">)
+</font><font color="#008080">end if</font>
 </pre>
             <br>
             Since parameters are user controls and not real controls, you must update the control value and the parameter value.
@@ -419,13 +424,11 @@ Sep5 %t
           <b>See Also:</b>
          </td>
          <td>
-          <a href="IupOpen.htm">XIupOpen</a>,
           <a href="IupGetColor.htm">IupGetColor</a>,
           <a href="IupValuator.htm">IupValuator</a>,
+          <a href="IupDial.htm">IupDial</a>,
           <a href="IupList.htm">IupList</a>,
           <a href="IupFileDlg.htm">IupFileDlg</a>
-<br>
-See Also IupScanf, IupGetColor, IupMask, IupValuator, IupDial, IupList, IupFileDlg. 
          </td>
         </tr>
        </table>

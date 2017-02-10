@@ -1,8 +1,7 @@
 -- (c) Copyright - See License.txt
 --
---/*
+--/**/ **NOT PHIX COMPATIBLE!** [see/maybe include builtins/map.e]
 namespace map
---*/
 
 --****
 -- == Map (hash table)
@@ -246,11 +245,7 @@ constant maxInt = #3FFFFFFF
 public function calc_hash(object key_p, integer max_hash_p = 0)
 atom ret_
 
---DEV (hash not implemented)
---/**/  ret_= 9/0
---/*
         ret_ = hash(key_p, -4) --HSIEH32)
---*/
         if max_hash_p<=0 then
             return ret_
         end if

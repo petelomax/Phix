@@ -6,7 +6,7 @@
 --
 
 -- Quick analysis of int:=power(int,int) that we could do in the ALU. Originally written because power(3,5) is non-exact on X64, 
---  which I have now conceded as not important, it looks like "+/177,<=4" should have been "+/-181,<=4" but otherwise seems to
+--  which I have now conceded as not important, it looks like "+/-177,<=4" should have been "+/-181,<=4" but otherwise seems to
 --  be a perfectly reasonable compromise. 
 --  What I have not done is test performance: is ALU better/worse than fyl2x/frndint/f2xm1/fscale etc? If it is (which I doubt) 
 --  then some more power(x,2..3) optimisations might just have merits.

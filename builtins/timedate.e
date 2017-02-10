@@ -1498,6 +1498,7 @@ sequence res = {}
         fmti = fmts[i]
         res = parse_one(s,fmti,partial)
         if length(res)!=3 then return res end if
+--?res
     end for
     return res  -- fail the lot
 end function

@@ -1189,6 +1189,7 @@ integer iThis
             mov r15,h4
             cmp rax,r15
             jl @f
+--DEV %pLoadMint
                 sub rsp,8
                 fld tbyte[rbx+rax*4]
                 fistp qword[rsp]
@@ -2289,6 +2290,7 @@ integer iThis
             mov r15,h4
             cmp rdx,r15
             jl @f
+--DEV %pLoadMint
                 push rbx
                 fld tbyte[rbx+rdx*4]
                 fistp qword[rsp]
@@ -5088,6 +5090,7 @@ end procedure -- (for Edita/CtrlQ)
             jne :puts1sqe65sfics
             fld tbyte[rbx+rax*4]
             fistp qword[rsp]
+--          mov rax,[rsp]   -- maybe, see below
       @@:
     [PE64]
         mov rcx,rsp -- put 2 copies of rsp onto the stack...
@@ -5099,6 +5102,7 @@ end procedure -- (for Edita/CtrlQ)
                     -- obviously rsp is now xxx8, whichever alignment we started with
 --      sub rsp,8*5     -- minimum 4 param shadow space, lpOverlapped, and align (none in this case)
         sub rsp,8*7     -- minimum 4 param shadow space, lpOverlapped, and align (none in this case)
+--DEV unnecessary, or last fistp needs that mov rax,[rsp] (spotted in passing)
         mov [rsp+40],rax                -- char/buffer
         mov [rsp+32],rbx                -- lpOverlapped (NULL)
 --      mov r9,rbx                      -- lpNumberOfBytesWritten (NULL)    -- NO!

@@ -1,0 +1,1 @@
+Editor.exw is designed to be placed in the same folder as IDE because it uses IDE_syntax.ew, IDE_msg.e, IDE_hints.e, IDE.cfg, nlsEu.ew, process.ew, OtherC.ini, synFont2.ini, sysMain2.ini and IDE_launch.ew.

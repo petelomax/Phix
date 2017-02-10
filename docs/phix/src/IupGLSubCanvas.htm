@@ -1,0 +1,286 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupGLSubCanvas</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            Ihandle ih = IupGLCanvasBox(sequence children, string attributes="", sequence data={})
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+DEV
+Creation
+ Attributes
+ Callbacks
+ Notes
+ Examples
+ See Also
+  (since 3.11)
+Creates an embedded OpenGL sub-canvas. It exists only inside an IupGLCanvasBox.
+
+This is an additional control that depends on the OpenGL library. It is included in the IupGLControls library.
+
+It is a void element that does not map to a native canvas. It mimics an IupCanvas with several attributes and callbacks in common, but everything is done inside a region of the IupGLCanvasBox.
+
+The element does not to be a direct child of the IupGLCanvasBox. It can be place inside void containers like IupHbox, IupVbox, IupGridBox and so on.
+
+This control is used as the base control for all visual elements of the IupGLControls library.
+
+Creation
+Ihandle* IupGLSubCanvas(void); [in C]
+iup.glsubcanvas{} -> (elem: ihandle) [in Lua]
+glsubcanvas() [in LED]Returns: the identifier of the created element, or NULL if an error occurs.
+
+Attributes
+BGCOLOR: background color used in derived controls. Can have an alpha component. Default: NULL.
+
+BORDERCOLOR: color used for borders in derived controls. Can have an alpha component. Default: "50 150 255".
+
+BORDERWIDTH: line width used for borders in derived controls. Default: "1". Any borders can be disabled by simply setting this value to 0.
+
+<a href="iupattr.htm#CURSOR">CURSOR</a>
+(non inheritable): Defines a cursor for the sub-canvas.
+
+FONT: Uses the FTGL library to render text. Depends on locating a font file that matches the font attribute. See Notes bellow. The default font typeface is changed to Helvetica to avoid system fonts that are not well processed by FreeType.
+
+HIGHLIGHT (non inheritable): flag indicating that the control is highlighted. Dynamically updated during mouse move.
+
+HLCOLOR: color used to indicate a highlight state in derived controls. Can have an alpha component. Default: "200 225 245".
+
+PSCOLOR: color used to indicate a press state in derived controls. Can have an alpha component. Default: "150 200 235".
+
+PRESSED (non inheritable): flag indicating that the control is pressed with button1. Dynamically updated during button press.
+
+REDRAWALL (non inheritable): flag to control the redraw update during a change of state like highlight or pressed. If "No" only the element is redrawn, else all the IupGLCanvasBox is redrawn. It will work only if the control is fully opaque. Default: "Yes".
+
+REDRAWFRONT (non inheritable, write-only): redraw only the control on the front buffer. It will work only if the control is fully opaque. 
+
+UNDERLINE (non inheritable): flag indicating that the control text should be redrawn with an underline. Since FTGL does not supports underline, the drawing of the text will manually draw a line under the text.
+
+WID (non inheritable): returns the same value as the IupGLCanvasBox where the element is inside.
+
+ZORDER (non inheritable, write-only): change the order of the control inside its parent.
+
+
+--------------------------------------------------------------------------------
+
+ACTIVE, SCREENPOSITION, POSITION, MINSIZE, MAXSIZE, TIP, SIZE, RASTERSIZE, VISIBLE: also accepted.
+
+Callbacks
+GL_ACTION: Action generated when the sub-canvas needs to be redrawn.
+
+int function(Ihandle *ih); [in C]elem:action() -> (ret: number) [in Lua]ih: identifier of the element that activated the event.
+
+GL_BUTTON_CB: Action generated when any mouse button is pressed or released. Same parameters as BUTTON_CB. If IUP_CONTINUE is returned the application callback is called even the user clicked on the sub-canvas.
+
+GL_ENTERWINDOW_CB: Action generated when the mouse enters the element. Same parameters as ENTERWINDOW_CB.
+
+GL_LEAVEWINDOW_CB: Action generated when the mouse leaves the element. Same parameters as LEAVEWINDOW_CB.
+
+GL_MOTION_CB: Action generated when the mouse is moved. Same parameters as MOTION_CB.  If IUP_CONTINUE is returned the application callback is called even the user moved the cursor on the sub-canvas.
+
+GL_WHEEL_CB: Action generated when the mouse wheel is rotated. Same parameters as WHEEL_CB.  If IUP_CONTINUE is returned the application callback is called even the user clicked on the sub-canvas.
+
+
+--------------------------------------------------------------------------------
+
+MAP_CB, UNMAP_CB, DESTROY_CB: common callbacks are supported.
+
+Notes
+ FTGL is used to draw text in OpenGL. This is a third party library not developed at Tecgraf. But its license is also free and have the same freedom as the Tecgraf Library License. You can read the FTGL license and copyright in the file ftgl.txt. FTGL is copyright to Henry Maddocks.
+
+IUP uses the same FTGL library included in the CD library. Currently CD is using the FTGL version 2.1.3-rc5 with modifications.
+
+To locate font files we use several strategies.
+
+search for the font in the system. In Windows use the Registry to locate the font, in UNIX use the FontConfig library; 
+use the type face as a file title, compose with the font path to get a filename (assume style already in the typeface); 
+try some pre-defined names, and use the style to compose the filename; 
+use the typeface directly as the file name; 
+It will search for TrueType (*.ttf) and OpenType (*.otf) font files. It will search in the current directory; in the path returned by the FREETYPEFONTS_DIR environment variable or from the FREETYPEFONTS_DIR global attribute; and in Windows on the Fonts folder.
+
+FTGL fonts are cached internally to optimal use of multiple fonts in the same IupGLCanvasBox.
+
+We use OpenGL textures to draw images, so the image width and height MUST be a power of two if OpenGL version is 1.x, modern OpenGL does not have this limitation. 
+
+See Also
+IupCanvas
+            Creates an OpenGL canvas container. It inherits from <a href="IupGLCanvas.htm">IupGLCanvas</a>.
+            <br>
+            <br>
+            children: List of the identifiers that will be placed in the box. It can be {}.
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            This is an additional control that depends on the OpenGL library. It is included in the IupGLControls library.
+            <br>
+            <br>
+            To use the controls available in the IupGLControls library inside your OpenGL canvas you must replace the IupGLCanvas by the IupGLCanvasBox element.
+            <br>
+            <br>
+            It can have any number of children. 
+            Controls from the IupGLControls library can be used as children along with the void containers such as <a href="IupHbox.htm">IupHbox</a>, 
+            <a href="IupVbox.htm">IupVbox</a>, and so on, including <a href="IupFill.htm">IupFill</a>. 
+            Native elements can also be placed on top although they will not be clipped by IupGLFrame and other IupGlControls containers.
+            <br>
+            <br>
+            The elements that are a direct child of the box can be positioned using the VERTICALALIGN and/or HORIZONTALALIGN attributes, 
+            or using a position in pixels relative to the top left corner of the box by setting the attribute POSITION.
+            <br>
+            <br>
+            Each direct children will be sized to its natural size by default, except if EXPANDHORIZONTAL or EXPANDVERTICAL are set.
+            <br>
+            <br>
+            The box can be created with no elements and filled dynamically using <a href="IupAppend.htm">IupAppend</a>() or <a href="IupInsert.htm">IupInsert</a>().
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            The IupGLCanvasBox element handle all attributes defined for an OpenGL canvas and a conventional canvas, 
+            see <a href="IupGLCanvas.htm">IupGLCanvas</a> and <a href="IupCanvas.htm">IupCanvas</a>.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MARGIN
+         </td>
+         <td>
+            (non inheritable) Defines a margin in pixels. <br>
+            Its value has the format "widthxheight", where width and height are integer values corresponding to the horizontal and vertical margins, respectively. <br>
+            Default: "0x0" (no margin).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          REDRAW
+         </td>
+         <td>
+            (non inheritable, write-only) force a full redraw of all elements and the main canvas.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            (at Children)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          HORIZONTALALIGN
+         </td>
+         <td>
+            (non inheritable, at children only): Horizontally aligns the element inside the box. <br>
+            Possible values: "ALEFT", "ACENTER", "ARIGHT" or "FLOAT". Default: "FLOAT". <br>
+            When FLOAT is used its horizontal position is obtained from the POSITION attribute.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          VERTICALALIGN
+         </td>
+         <td>
+            (non inheritable, at children only): Vertically aligns the element inside the box. <br>
+            Possible values: "ATOP", "ACENTER", "ABOTTOM" or "FLOAT". Default: "FLOAT". <br>
+            When FLOAT is used its vertical position is obtained from the POSITION attribute.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EXPANDHORIZONTAL
+         </td>
+         <td>
+            (non inheritable, at children only): Expand the horizontal size of the element to the box width. Can be Yes or No. Default: No. (since 3.13)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          EXPANDVERTICAL
+         </td>
+         <td>
+            (non inheritable, at children only): Expand the vertical size of the element to the box height. Can be Yes or No. Default: No. (since 3.13)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            <a href="iupattr.htm#CLIENTSIZE">CLIENTSIZE</a>,
+            <a href="iupattr.htm#CLIENTOFFSET">CLIENTOFFSET</a>: also accepted.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callbacks</b>
+         </td>
+         <td>
+            The IupGLCanvasBox element understands all callbacks defined for the <a href="IupGLCanvas.htm">IupGLCanvas</a>.
+            <br>
+            <br>
+            But since it has to forward the mouse and action callbacks to the IupGLControls elements when it is mapped the 
+            callbacks ACTION, BUTTON_CB, MOTION_CB, WHEEL_CB, and LEAVEWINDOW_CB are replaced by internal callbacks. 
+            The application callbacks will still be called and they can be retrieved by using the prefix "APP_" on the callback name. 
+            If for some reason the application set one of these callbacks after being mapped, the box internal callback can be retrieved 
+            by using the prefix "GLBOX_" on the callback name. 
+            <br>
+            <br>
+            Keyboard focus is NOT processed for IupGLCanvasBox children.
+            <br>
+            <br>
+            The IupGLCanvas SWAPBUFFERS_CB callback is used internally to enable a correct display for the box children. 
+            This means that when the application calls IupGLSwapBuffers, then children will be drawn before actually swapping the double buffer.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupCanvas.htm">IupCanvas</a>,
+          <a href="IupGLCanvas.htm">IupGLCanvas</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

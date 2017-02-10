@@ -1,0 +1,3090 @@
+--------------------NOTICE-------------------------------*
+-- Software ID: w32forms.ew
+-- Version:     0.70.4a
+-- Copyright:   (c) 2000 David Cuny and friends
+--              All rights reserved.
+-- Licence:
+-- This software is provided 'as-is', without any express or implied warranty.
+-- In no event will the authors be held liable for any damages arising from
+-- the use of this software.
+--
+-- Permission is granted to anyone to use this software for any purpose,
+-- including commercial applications, and to alter it and redistribute it
+-- freely, subject to the following restrictictions:
+-- 1. The origin of this software must not be misrepresented; you must not
+--    claim that you wrote the original software.
+-- 2. If you use this software in a product, acknowedgement in the product's
+--    documenation and binary are required.
+-- 3. Altered source versions, and works substantially derived from the it,
+--    must...
+--   a) be plainly be marked as such,
+--   b) not be misrepresented as the original software,
+--   c) include this notice, unaltered.
+--------------------End of NOTICE------------------------*
+
+
+
+include w32support.e
+
+sequence vRecentNewUI vRecentNewUI = {}
+
+constant vWinIconNames = {
+                          "APPLICATION",
+                          "ERROR",
+                          "QUESTION",
+                          "WARNING",
+                          "ASTERISK",
+                          "WINLOGO"
+                         }
+
+
+constant vWinFlagValues = {
+                           WS_OVERLAPPED,
+                           WS_POPUP,
+                           WS_CHILD,
+                           WS_MINIMIZE,
+                           WS_VISIBLE,
+                           WS_DISABLED,
+                           WS_CLIPPINGCHILD,
+                           WS_CLIPSIBLINGS,
+                           WS_CLIPCHILDREN,
+                           WS_MAXIMIZE,
+                           WS_CAPTION,
+                           WS_BORDER,
+                           WS_DLGFRAME,
+                           WS_HSCROLL,
+                           WS_VSCROLL,
+                           WS_SYSMENU,
+                           WS_THICKFRAME,
+                           WS_GROUP,
+                           WS_TABSTOP,
+                           WS_SCROLLBARS,
+                           WS_MINIMIZEBOX,
+                           WS_MAXIMIZEBOX,
+                           WS_TILED,
+                           WS_ICONIC,
+                           WS_SIZEBOX,
+                           WS_OVERLAPPEDWINDOW,
+                           WS_TILEDWINDOW,
+                           WS_POPUPWINDOW,
+                           WS_CHILDWINDOW,
+                           BS_3STATE,
+                           BS_AUTO3STATE,
+                           BS_AUTOCHECKBOX,
+                           BS_AUTORADIOBUTTON,
+                           BS_BITMAP,
+                           BS_BOTTOM,
+                           BS_CENTER,
+                           BS_CHECKBOX,
+                           BS_DEFPUSHBUTTON,
+                           BS_GROUPBOX,
+                           BS_ICON,
+                           BS_LEFT,
+                           BS_LEFTTEXT,
+                           BS_MULTILINE,
+                           BS_NOTIFY,
+                           BS_OWNERDRAW,
+                           BS_PUSHBUTTON,
+                           BS_PUSHLIKE,
+                           BS_RADIOBUTTON,
+                           BS_RIGHT,
+                           BS_RIGHTBUTTON,
+                           BS_TEXT,
+                           BS_TOP,
+                           BS_USERBUTTON,
+                           BS_VCENTER,
+                           ES_LEFT,
+                           ES_CENTER,
+                           ES_RIGHT,
+                           ES_MULTILINE,
+                           ES_AUTOHSCROLL,
+                           ES_AUTOVSCROLL,
+                           ES_DISABLENOSCROLL,
+                           ES_LOWERCASE,
+                           ES_NUMBER,
+                           ES_NUMERIC,
+                           ES_OEMCONVERT,
+                           ES_PASSWORD,
+                           ES_READONLY,
+                           ES_UPPERCASE,
+                           ES_WANTRETURN,
+                           ES_AUTOSCROLL,
+                           ES_SAVESEL,
+                           ES_NOHIDESEL,
+                           LBS_NOTIFY,
+                           LBS_SORT,
+                           LBS_NOREDRAW,
+                           LBS_MULTIPLESEL,
+                           LBS_OWNERDRAWFIXED,
+                           LBS_OWNERDRAWVARIABLE,
+                           LBS_HASSTRINGS,
+                           LBS_USETABSTOPS,
+                           LBS_NOINTEGRALHEIGHT,
+                           LBS_MULTICOLUMN,
+                           LBS_WANTKEYBOARDINPUT,
+                           LBS_EXTENDEDSEL,
+                           LBS_DISABLENOSCROLL,
+                           LBS_NODATA,
+                           LBS_NOSEL,
+                           LBS_STANDARD,
+                           LVS_ICON,
+                           LVS_REPORT,
+                           LVS_SMALLICON,
+                           LVS_LIST,
+                           LVS_TYPEMASK,
+                           LVS_SINGLESEL,
+                           LVS_SHOWSELALWAYS,
+                           LVS_SORTASCENDING,
+                           LVS_SORTDESCENDING,
+                           LVS_SHAREIMAGELISTS,
+                           LVS_NOLABELWRAP,
+                           LVS_AUTOARRANGE,
+                           LVS_EDITLABELS,
+                           LVS_OWNERDATA,
+                           LVS_NOSCROLL,
+                           LVS_TYPESTYLEMASK,
+                           LVS_ALIGNTOP,
+                           LVS_ALIGNLEFT,
+                           LVS_ALIGNMASK,
+                           LVS_OWNERDRAWFIXED,
+                           LVS_NOCOLUMNHEADER,
+                           LVS_NOSORTHEADER,
+                           RBS_TOOLTIPS,
+                           RBS_VARHEIGHT,
+                           RBS_BANDBORDERS,
+                           RBS_FIXEDORDER,
+                           RBS_REGISTERDROP,
+                           RBS_AUTOSIZE,
+                           RBS_VERTICALGRIPPER,
+                           RBS_DBLCLKTOGGLE,
+                           RBBS_BREAK,
+                           RBBS_FIXEDSIZE,
+                           RBBS_CHILDEDGE,
+                           RBBS_HIDDEN,
+                           RBBS_NOVERT,
+                           RBBS_FIXEDBMP,
+                           RBBS_VARIABLEHEIGHT,
+                           RBBS_GRIPPERALWAYS,
+                           RBBS_NOGRIPPER,
+                           TVS_HASBUTTONS,
+                           TVS_HASLINES,
+                           TVS_LINESATROOT,
+                           TVS_EDITLABELS,
+                           TVS_DISABLEDRAGDROP,
+                           TVS_SHOWSELALWAYS,
+                           TVS_RTLREADING,
+                           TVS_NOTOOLTIPS,
+                           TVS_CHECKBOXES,
+                           TVS_TRACKSELECT,
+                           TVS_SINGLEEXPAND,
+                           TVS_INFOTIP,
+                           TVS_FULLROWSELECT,
+                           TVS_NOSCROLL,
+                           TVS_NONEVENHEIGHT,
+                           UDS_ALIGNLEFT,
+                           UDS_ALIGNRIGHT,
+                           UDS_ARROWKEYS,
+                           UDS_AUTOBUDDY,
+                           UDS_HORZ,
+                           UDS_NOTHOUSANDS,
+                           UDS_SETBUDDYINT,
+                           UDS_WRAP,
+                           SS_NOPREFIX,
+                           SS_NOTIFY,
+                           SS_CENTERIMAGE,
+                           SS_RIGHTJUST,
+                           SS_REALSIZEIMAGE,
+                           SS_SUNKEN,
+                           SS_ENDELLIPSIS,
+                           SS_PATHELLIPSIS
+
+                          }
+
+constant vWinExFlagNames = {
+                            "WS_EX_ACCEPTFILES",
+                            "WS_EX_APPWINDOW",
+                            "WS_EX_CLIENTEDGE",
+                            "WS_EX_CONTEXTHELP",
+                            "WS_EX_CONTROLPARENT",
+                            "WS_EX_DLGMODALFRAME",
+                            "WS_EX_LEFT",
+                            "WS_EX_LEFTSCROLLBAR",
+                            "WS_EX_LTRREADING",
+                            "WS_EX_MDICHILD",
+                            "WS_EX_NOPARENTNOTIFY",
+                            "WS_EX_OVERLAPPEDWINDOW",
+                            "WS_EX_PALETTEWINDOW",
+                            "WS_EX_RIGHT",
+                            "WS_EX_RIGHTSCROLLBAR",
+                            "WS_EX_RTLREADING",
+                            "WS_EX_STATICEDGE",
+                            "WS_EX_TOOLWINDOW",
+                            "WS_EX_TOPMOST",
+                            "WS_EX_TRANSPARENT",
+                            "WS_EX_WINDOWEDGE",
+                            "WS_EX_LAYERED",
+                            "WS_EX_NOINHERITLAYOUT",
+                            "WS_EX_LAYOUTRTL",
+                            "WS_EX_NOACTIVATE"
+                           }
+
+constant vLVExFlagNames = {
+                           "LVS_EX_GRIDLINES",
+                           "LVS_EX_SUBITEMIMAGES",
+                           "LVS_EX_CHECKBOXES",
+                           "LVS_EX_TRACKSELECT",
+                           "LVS_EX_HEADERDRAGDROP",
+                           "LVS_EX_FULLROWSELECT",
+                           "LVS_EX_ONECLICKACTIVATE",
+                           "LVS_EX_TWOCLICKACTIVATE",
+                           "LVS_EX_FLATSB",
+                           "LVS_EX_REGIONAL",
+                           "LVS_EX_NFOTIP",
+                           "LVS_EX_UNDERLINEHOT",
+                           "LVS_EX_UNDERLINECOLD",
+                           "LVS_EX_MULTIWORKAREAS"
+                          }
+
+constant vLVExFlagValues = {
+                            LVS_EX_GRIDLINES,
+                            LVS_EX_SUBITEMIMAGES,
+                            LVS_EX_CHECKBOXES,
+                            LVS_EX_TRACKSELECT,
+                            LVS_EX_HEADERDRAGDROP,
+                            LVS_EX_FULLROWSELECT,
+                            LVS_EX_ONECLICKACTIVATE,
+                            LVS_EX_TWOCLICKACTIVATE,
+                            LVS_EX_FLATSB,
+                            LVS_EX_REGIONAL,
+                            LVS_EX_NFOTIP,
+                            LVS_EX_UNDERLINEHOT,
+                            LVS_EX_UNDERLINECOLD,
+                            LVS_EX_MULTIWORKAREAS
+                           }
+
+
+constant vWinExFlagValues = {
+                             WS_EX_ACCEPTFILES,
+                             WS_EX_APPWINDOW,
+                             WS_EX_CLIENTEDGE,
+                             WS_EX_CONTEXTHELP,
+                             WS_EX_CONTROLPARENT,
+                             WS_EX_DLGMODALFRAME,
+                             WS_EX_LEFT,
+                             WS_EX_LEFTSCROLLBAR,
+                             WS_EX_LTRREADING,
+                             WS_EX_MDICHILD,
+                             WS_EX_NOPARENTNOTIFY,
+                             WS_EX_OVERLAPPEDWINDOW,
+                             WS_EX_PALETTEWINDOW,
+                             WS_EX_RIGHT,
+                             WS_EX_RIGHTSCROLLBAR,
+                             WS_EX_RTLREADING,
+                             WS_EX_STATICEDGE,
+                             WS_EX_TOOLWINDOW,
+                             WS_EX_TOPMOST,
+                             WS_EX_TRANSPARENT,
+                             WS_EX_WINDOWEDGE,
+                             WS_EX_LAYERED,
+                             WS_EX_NOINHERITLAYOUT,
+                             WS_EX_LAYOUTRTL,
+                             WS_EX_NOACTIVATE
+                            }
+
+
+constant vWinFlagNames = {
+                          "WS_OVERLAPPED",
+                          "WS_POPUP",
+                          "WS_CHILD",
+                          "WS_MINIMIZE",
+                          "WS_VISIBLE",
+                          "WS_DISABLED",
+                          "WS_CLIPPINGCHILD",
+                          "WS_CLIPSIBLINGS",
+                          "WS_CLIPCHILDREN",
+                          "WS_MAXIMIZE",
+                          "WS_CAPTION",
+                          "WS_BORDER",
+                          "WS_DLGFRAME",
+                          "WS_HSCROLL",
+                          "WS_VSCROLL",
+                          "WS_SYSMENU",
+                          "WS_THICKFRAME",
+                          "WS_GROUP",
+                          "WS_TABSTOP",
+                          "WS_SCROLLBARS",
+                          "WS_MINIMIZEBOX",
+                          "WS_MAXIMIZEBOX",
+                          "WS_TILED",
+                          "WS_ICONIC",
+                          "WS_SIZEBOX",
+                          "WS_OVERLAPPEDWINDOW",
+                          "WS_TILEDWINDOW",
+                          "WS_POPUPWINDOW",
+                          "WS_CHILDWINDOW",
+                          "BS_3STATE",
+                          "BS_AUTO3STATE",
+                          "BS_AUTOCHECKBOX",
+                          "BS_AUTORADIOBUTTON",
+                          "BS_BITMAP",
+                          "BS_BOTTOM",
+                          "BS_CENTER",
+                          "BS_CHECKBOX",
+                          "BS_DEFPUSHBUTTON",
+                          "BS_GROUPBOX",
+                          "BS_ICON",
+                          "BS_LEFT",
+                          "BS_LEFTTEXT",
+                          "BS_MULTILINE",
+                          "BS_NOTIFY",
+                          "BS_OWNERDRAW",
+                          "BS_PUSHBUTTON",
+                          "BS_PUSHLIKE",
+                          "BS_RADIOBUTTON",
+                          "BS_RIGHT",
+                          "BS_RIGHTBUTTON",
+                          "BS_TEXT",
+                          "BS_TOP",
+                          "BS_USERBUTTON",
+                          "BS_VCENTER",
+                          "ES_LEFT",
+                          "ES_CENTER",
+                          "ES_RIGHT",
+                          "ES_MULTILINE",
+                          "ES_AUTOHSCROLL",
+                          "ES_AUTOVSCROLL",
+                          "ES_DISABLENOSCROLL",
+                          "ES_LOWERCASE",
+                          "ES_NUMBER",
+                          "ES_NUMERIC",
+                          "ES_OEMCONVERT",
+                          "ES_PASSWORD",
+                          "ES_READONLY",
+                          "ES_UPPERCASE",
+                          "ES_WANTRETURN",
+                          "ES_AUTOSCROLL",
+                          "ES_SAVESEL",
+                          "ES_NOHIDESEL",
+                          "LBS_NOTIFY",
+                          "LBS_SORT",
+                          "LBS_NOREDRAW",
+                          "LBS_MULTIPLESEL",
+                          "LBS_OWNERDRAWFIXED",
+                          "LBS_OWNERDRAWVARIABLE",
+                          "LBS_HASSTRINGS",
+                          "LBS_USETABSTOPS",
+                          "LBS_NOINTEGRALHEIGHT",
+                          "LBS_MULTICOLUMN",
+                          "LBS_WANTKEYBOARDINPUT",
+                          "LBS_EXTENDEDSEL",
+                          "LBS_DISABLENOSCROLL",
+                          "LBS_NODATA",
+                          "LBS_NOSEL",
+                          "LBS_STANDARD",
+                          "LVS_ICON",
+                          "LVS_REPORT",
+                          "LVS_SMALLICON",
+                          "LVS_LIST",
+                          "LVS_TYPEMASK",
+                          "LVS_SINGLESEL",
+                          "LVS_SHOWSELALWAYS",
+                          "LVS_SORTASCENDING",
+                          "LVS_SORTDESCENDING",
+                          "LVS_SHAREIMAGELISTS",
+                          "LVS_NOLABELWRAP",
+                          "LVS_AUTOARRANGE",
+                          "LVS_EDITLABELS",
+                          "LVS_OWNERDATA",
+                          "LVS_NOSCROLL",
+                          "LVS_TYPESTYLEMASK",
+                          "LVS_ALIGNTOP",
+                          "LVS_ALIGNLEFT",
+                          "LVS_ALIGNMASK",
+                          "LVS_OWNERDRAWFIXED",
+                          "LVS_NOCOLUMNHEADER",
+                          "LVS_NOSORTHEADER",
+                          "RBS_TOOLTIPS",
+                          "RBS_VARHEIGHT",
+                          "RBS_BANDBORDERS",
+                          "RBS_FIXEDORDER",
+                          "RBS_REGISTERDROP",
+                          "RBS_AUTOSIZE",
+                          "RBS_VERTICALGRIPPER",
+                          "RBS_DBLCLKTOGGLE",
+                          "RBBS_BREAK",
+                          "RBBS_FIXEDSIZE",
+                          "RBBS_CHILDEDGE",
+                          "RBBS_HIDDEN",
+                          "RBBS_NOVERT",
+                          "RBBS_FIXEDBMP",
+                          "RBBS_VARIABLEHEIGHT",
+                          "RBBS_GRIPPERALWAYS",
+                          "RBBS_NOGRIPPER",
+                          "TVS_HASBUTTONS",
+                          "TVS_HASLINES",
+                          "TVS_LINESATROOT",
+                          "TVS_EDITLABELS",
+                          "TVS_DISABLEDRAGDROP",
+                          "TVS_SHOWSELALWAYS",
+                          "TVS_RTLREADING",
+                          "TVS_NOTOOLTIPS",
+                          "TVS_CHECKBOXES",
+                          "TVS_TRACKSELECT",
+                          "TVS_SINGLEEXPAND",
+                          "TVS_INFOTIP",
+                          "TVS_FULLROWSELECT",
+                          "TVS_NOSCROLL",
+                          "TVS_NONEVENHEIGHT",
+                          "UDS_ALIGNLEFT",
+                          "UDS_ALIGNRIGHT",
+                          "UDS_ARROWKEYS",
+                          "UDS_AUTOBUDDY",
+                          "UDS_HORZ",
+                          "UDS_NOTHOUSANDS",
+                          "UDS_SETBUDDYINT",
+                          "UDS_WRAP",
+                          "SS_NOPREFIX",
+                          "SS_NOTIFY",
+                          "SS_CENTERIMAGE",
+                          "SS_RIGHTJUST",
+                          "SS_REALSIZEIMAGE",
+                          "SS_SUNKEN",
+                          "SS_ENDELLIPSIS",
+                          "SS_PATHELLIPSIS"
+
+                         }
+
+
+sequence hasDeferredHandlers
+hasDeferredHandlers = {}
+integer haveDeferredHandlers
+haveDeferredHandlers = 0
+sequence ctrl_Deferred_Handlers
+ctrl_Deferred_Handlers = {}
+
+constant r_autoclose = w32routine_id("autoclose")
+------------------------------------------------------------------
+procedure ResolveDeferredHandler(integer id)
+------------------------------------------------------------------
+sequence lEventName
+object lRtnId
+sequence lRoutineName
+integer lPos
+integer lEvent
+sequence lTemp
+integer skip
+
+    lPos = find(id,hasDeferredHandlers)
+    if lPos=0 or lPos>haveDeferredHandlers then
+        return
+    end if
+
+    lTemp = ctrl_Deferred_Handlers[lPos]
+    skip = 0
+
+    for i=1 to length(lTemp) do
+        if skip then
+            skip = 0
+        else
+            lEvent = lTemp[i]
+            lEventName = w32lookup(lEvent, w32EventCodes, w32EventNames)
+            if length(lEventName)>0 then
+                if i!=length(lTemp) and sequence(lTemp[i+1]) then
+                    skip = 1
+                    lRoutineName = lTemp[i+1]
+                else
+                    lRoutineName = lEventName & '_' & getIdName(id)
+                end if
+                if not find(r_autoclose,getHandler(id, lEvent)) then
+                    lRtnId = invokeHandler(id, w32HGetHandler, {
+                                                                lRoutineName,
+                                                                lEvent,
+                                                                getIdName(id)})
+                    if sequence(lRtnId) then
+                        setHandler(id, lEvent, lRtnId[1])
+                    end if
+                end if
+            end if
+        end if
+    end for
+
+    -- Clear the list of events to resolve.
+    ctrl_Deferred_Handlers[lPos] = ctrl_Deferred_Handlers[haveDeferredHandlers]
+    hasDeferredHandlers[lPos] = hasDeferredHandlers[haveDeferredHandlers]
+    haveDeferredHandlers -= 1
+end procedure
+
+sequence autoSizes,autoFlags
+autoSizes = {}
+autoFlags = {}
+
+function getDeferredHandlers(integer id)
+integer p
+
+    p = find(id,hasDeferredHandlers)
+    if p>0 and p<=haveDeferredHandlers then
+        return ctrl_Deferred_Handlers[p]
+    else
+        return {}
+    end if
+end function
+
+function getAutoSize(integer id,integer flag)
+integer p
+
+    p = find(id,autoSizes)
+    if p=0 then
+        return w32False
+    else
+        return and_bits(autoFlags[p],flag)!=0
+    end if
+end function
+registerRoutine("getAutoSize",routine_id("getAutoSize"))
+
+procedure setDeferredHandlers(integer id,object events)
+integer p
+    p = find(id,hasDeferredHandlers)
+    if p<=haveDeferredHandlers then
+        if p>0 then
+            if atom(events) then
+                ctrl_Deferred_Handlers[p] &= events
+            else
+                ctrl_Deferred_Handlers[p] = events
+            end if
+        else
+            if atom(events) then
+                events = {events}
+            end if
+            haveDeferredHandlers += 1
+            if haveDeferredHandlers>length(hasDeferredHandlers) then
+                hasDeferredHandlers &= id
+                ctrl_Deferred_Handlers = append(ctrl_Deferred_Handlers,events)
+            else
+                hasDeferredHandlers[haveDeferredHandlers] = id
+                ctrl_Deferred_Handlers[haveDeferredHandlers] = events
+            end if
+        end if
+    else
+        if atom(events) then
+            events = {events}
+        end if
+        haveDeferredHandlers += 1
+        hasDeferredHandlers[haveDeferredHandlers] = id
+        ctrl_Deferred_Handlers[haveDeferredHandlers] = events
+    end if
+end procedure
+registerRoutine("getDeferredHandlers",routine_id("getDeferredHandlers"))
+
+global procedure ResolveDeferredHandlers()
+    for i=1 to haveDeferredHandlers do
+        ResolveDeferredHandler(hasDeferredHandlers[i])
+    end for
+end procedure
+registerRoutine("ResolveDeferredHandlers",routine_id("ResolveDeferredHandlers"))
+
+constant w32AKey = 1,
+         w32AValue = 2
+constant
+        w32NumValues = 2,
+        w32ConvCode = 3,
+        w32NumValue = 4,
+        w32PartialText = 5,
+        w32CompleteText = 6
+
+--constant dataUnknown = 0, dataAtom = 1,dataString=2,dataMultiple=3, dataSequence=4
+constant dataAtom = 1,dataString = 2,dataMultiple = 3, dataSequence = 4
+
+function getArgValue(sequence s)
+-- returns a pair {data type,value}
+integer lDataType
+object lData
+object action_code
+
+    action_code = 0
+    if s[w32NumValues]>1 then
+        lDataType = dataMultiple
+        lData = s[w32PartialText]
+    elsif s[w32ConvCode]=0 then
+        if w32string(s[w32CompleteText]) then
+            lDataType = dataString
+        else
+            lDataType = dataSequence
+        end if
+        lData = s[w32CompleteText]
+    else
+        lData = s[w32NumValue]
+        lDataType = dataAtom
+        if s[w32ConvCode]=1 then -- some partial text
+            action_code = s[w32PartialText]
+            if not w32string(action_code) then
+                action_code = action_code[w32PartialText]
+            end if
+        end if
+    end if
+    return {lDataType,lData,action_code}
+end function
+
+function extractArgs(sequence s)
+    for i=1 to length(s) do
+        s[i] = getArgValue(s[i])
+        s[i] = s[i][w32AValue]
+    end for
+    return s
+end function
+
+include rttext.e as rt
+
+sequence vEventNamesUpper
+constant
+    r_setRecent   = w32routine_id("setRecent"),
+    r_clearRecents = w32routine_id("clearRecents"),
+    r_setSWStyle  = w32routine_id("setSWStyle")
+
+procedure setRecent(integer pType,integer x)
+    call_proc(r_setRecent,{pType,x})
+end procedure
+
+procedure setSWStyle(integer id,integer flag)
+    call_proc(r_setSWStyle,{id,flag})
+end procedure
+
+--------------------------------------
+function w32MakeArgs(sequence pData, integer pArgDelim, integer pKeyDelim)
+--------------------------------------
+sequence lArgs
+sequence lNumData
+integer lPos
+sequence lValue
+sequence lNumConv
+sequence lCurArg
+sequence lReturn
+
+-- Remove any enclosing whitespace.
+    lArgs = w32trim(pData)
+
+    -- Check for enclosing brackets.
+    if length(lArgs)>1 and
+    (lArgs[1]='(' and lArgs[length(lArgs)]=')')
+    then
+        -- Strip off the brackets and split it into separate args.
+        lArgs = w32split(lArgs[2..length(lArgs)-1], pArgDelim)
+        lNumConv = repeat(1, length(lArgs))
+    else
+        -- Split it into separate args and trim each argument.
+        lArgs = w32split(lArgs, pArgDelim)
+        lNumConv = repeat(1, length(lArgs))
+        for i=1 to length(lArgs) do
+            if length(lArgs[i])>0 and find(lArgs[i][1], "'\"") then
+                lNumConv[i] = 0
+            end if
+            lArgs[i] = w32trim(lArgs[i])
+        end for
+    end if
+    lReturn = repeat({{},1,-1,0,"",""},length(lArgs))
+
+    -- Check for numeric args and for keyword/value args.
+    for i=1 to length(lArgs) do
+        lCurArg = lArgs[i]
+        lReturn[i][w32CompleteText] = lCurArg
+        -- Try to convert it to a number.
+        if lNumConv[i]=0 then
+            lReturn[i][w32ConvCode] = 0
+        else
+            lNumData = w32TextToNumber({lCurArg, w32True})
+            if lNumData[2]=0 then
+                -- Successfully converted.
+                lReturn[i][w32ConvCode] = 2
+                lReturn[i][w32NumValue] = lNumData[1]
+            elsif lNumData[1]!=0 then
+                -- Partial conversion.
+                lReturn[i][w32ConvCode] = 1
+                lReturn[i][w32NumValue] = lNumData[1]
+                lReturn[i][w32PartialText] = w32trim(lCurArg[lNumData[2]..length(lCurArg)])
+            elsif pKeyDelim>0  then -- Check for a keyword/value pair.
+                lPos = find(pKeyDelim, lCurArg)
+                if lPos>0 then
+                    lValue = lCurArg[lPos+1..length(lCurArg)]
+                    lReturn[i][w32AKey] = upper(w32trim(lCurArg[1..lPos-1]))
+                    -- Check for 'escaped' text; ie. no sub fields.
+                    if length(lValue)>1 and
+                    (lValue[1]='{' and lValue[length(lValue)]='}') then
+                        -- Strip off the braces
+                        lReturn[i][w32CompleteText] = w32trim(lValue[2..length(lValue)-1])
+                        lReturn[i][w32ConvCode] = 0
+                    else
+                        lValue = w32MakeArgs(lValue, pArgDelim, pKeyDelim)
+                        while length(lValue)=1 do
+                            lValue = lValue[1]
+                        end while
+                        if equal(lValue[1],{}) then
+                            lReturn[i][2..6] = lValue[2..6]
+                        else
+                            lReturn[i][w32NumValues] = length(lValue)
+                        end if
+                        lReturn[i][w32PartialText] = lValue
+                    end if
+                else
+                    lReturn[i][w32ConvCode] = 0
+                    lReturn[i][w32CompleteText] = w32trim(lCurArg)
+                end if
+            end if
+        end if
+-- modified CChris <oedoc@free.fr> Dec 2, 2006
+-- When numerical conversion occurs, the converted string is returned too
+-- This way, names may be represent an atom and remain unconverted
+
+    end for
+    return lReturn
+end function
+registerRoutine("w32MakeArgs",routine_id("w32MakeArgs"))
+
+
+constant kStarted = 1
+---------------------------
+--/topic Defining Controls
+--/info
+--This section describes how to create windows and the various elements that can appear in them.
+
+--/topic Defining Controls
+--/proc newUIObj(sequence Definition)
+--/desc Defines a User Interface Object, a.k.a. a Control
+--This is a high-level method of defining the attributes of a control
+--to be used by your program. It is an interface to the /create() routine.
+--
+-- /setCallback() is usually used in conjunction with applications that use newUIObj()
+--
+-- The /i Definition parameter is used to specify a specific type of control
+-- to create and its attributes. It consists of one or more parameters that
+-- can be expressed in a variety of formats, depending on your preferred
+-- way of doing things. However they are all variations on a set of /i "keyword=value"
+-- pairs, where the /b key is expresses the type of parameter and the /b value
+-- is the parameter's information. /n
+--
+-- The parameters inside /i Definition can be formed as a 2-element sequence
+-- where the first element is the keyword and the second is the information. For
+-- example /b'("width", 200)'. The alternative to this is to have the
+-- parameter as a string, /b'"width=200"'. In fact, when using the string form
+-- you can have multiple parmeters in the same string, eg.
+-- /b'"width=200, height=300, left=20, top=35"' with each parmeter delimited
+-- by a comma. /n
+--So to summarize this, the /i Definition sequence consists of one or more
+-- elements, and each element can /b either be a 2-element sequence of
+-- (keyword,value) or a string that contains one or more comma delimited
+-- 'keyword=value' entries.
+--
+--All the parameters have a keyword name, which is not case sensitive, meaning
+-- that "width=200" and "WIDTH=200" are both acceptable. However, certain
+-- parameters can have assumed keyword names if not supplied. The first unnamed
+-- parameter is assumed to be the "TYPE" parameter, the second unnamed
+-- is assumed to be "CAPTION", and so on for "NAME", "LEFT", "TOP", "WIDTH",
+-- "HEIGHT", "FLAGS", and "EXFLAGS" parameters, in that order. If there
+-- are still unnamed parameters after all the assumed ones have been
+-- allocated, an error message is issued.
+--
+-- /b"Reference Control"
+-- Some of the commands deal with a 'reference control'. By default, this is the previously
+-- defined control, but can be explictly named in some cases too.
+--
+--The keywords supported are ... /n
+--/b AT ** This is a shorthand for LEFT=n,TOP=n. It specifies both the left and top position
+-- of the control. The format is AT=(leftpos,toppos) where both /i leftpos and /i toppos have the
+-- same formats as allowed for /i LEFT= and /i TOP= parameters respectively. /n
+--Additionally, if either /i leftpos or /i toppos is omitted, then /i () is assumed
+-- for them, meaning that they use the same position as the previous control, respectively.
+--Also, if /i leftpos or /i toppos are in the form /i /b"x"nnn where /i x is either '>' or '~<'
+-- and /i nnn is a number. The '>' means that the control is positioned /i nnn pixels after
+-- the previous control's /i other edge and '~<' means it is positioned /i nnn pixels before
+-- the previous control's /i other edge. By " /i other" edge
+-- the same as LEFT=(+/-nnn) and TOP=(+/-nnn) respectively. /n
+--~s~seg.~s /b "at=(20,10)" --> The control's is positioned at 20 pixels from the left,
+--and 10 pixels from the top. /n
+--~s~seg.~s /b "at=((3),(0,OtherControl))" --> The control's is positioned at 3 pixels to the left
+-- of the previously defined control, and 0 pixels from the bottom a control called "OtherControl". /n
+--~s~seg.~s /b "at=(,+4)" --> The control is positioned with the same /i left position as the
+-- previous control and 4 pixels below the previous control.
+--
+--/b BARS or /b BAR ** This only applies to a Window control. It is used to specify any toolbar,
+-- scrollbar, and statusbar that the window has.  /n
+-- For statusbars, the form is either /i "BAR=status", which will cause a simple statusbar to be defined for
+-- the window, or /i "BAR=status=(re1,re2,...)" which specifies the set of /b righthand edge
+-- locations for a multi-panel statusbar. /n
+-- /i "BAR=(vert,horz)" can be used to specify vertical and horizontal scrollbars for the window /n
+-- /i "BAR=toolbar" will define a toolbar, 34 pixels high. /n
+-- /i "BAR=flattoolbar" will define a FlatToolbar, high enough for a 32x32 button and text underneath.
+-- /b Note that the name assigned to the statusbar, toolbar and flattoolbar will be the name of the Window
+-- with "SB", "TB", and "FB" appended respectively.
+--
+--/b BGCOLOR or /b BGCOLOUR ** This specifies the background color for the control. Note that
+-- some types of controls, for example Buttons, cannot have their background changed by this method.
+--
+-- It can take one of three forms: A single RGB value, the name of one of the predefined colors, or
+-- a list of three color values from 0 - 255.
+--
+--Example:
+--   BGCOLOR=1188733
+--   BGCOLOR=Purple
+--   BGCOLOR=(#70,#80,#FF)
+--
+--/b BOTTOM ** This specifies the bottom edge position of the control. You
+-- would only specify either TOP or BOTTOM, but if you did use both, then the
+-- BOTTOM specification takes precedence. /n
+--~s~seg.~s /b "bottom=20" --> The control's bottom edge is 20 pixels above it's
+-- container's bottom edge.
+--
+--/b BUDDY ** This only applies to an UpDown control. It specifies the 'buddy' control that
+-- is linked to the UpDown control being defined.
+--
+--/b CAPTION or /b TEXT ** Specifies the control's initial display value. If
+-- the value is not enclosed in () then it is trimmed of leading and
+--trailing spaces. And note that if the value has any commas, it must be
+--enclosed in (). /n
+--~s~s~seg.~s /b <"caption= Customer's Name: "> --> The spaces are trimmed to
+-- produce a value of "Customer's Name:". /n
+--~s~s~seg.~s /b <"caption=( Customer's Name: )"> --> The spaces are not trimmed to
+-- produce a value of " Customer's Name: ". /n
+--~s~s~seg.~s /b <"caption=(Hello, world!)"> --> The text value has an embedded
+-- comma so is enclosed in (). /n
+--~s~s~seg.~s /b <"caption=Hello, world!"> --> This example shows why the ()
+-- are needed for text that as commas. Without the enclosing () this would
+-- produce the value "Hello" and the "world!" would be interpreted as an
+-- unknown keyword. /n
+--
+--It is also possible to look up caption text from an external file. If the
+-- caption parameter has the form /b'"caption=~<HW>"', the library looks
+-- for the "HW" key in the messages text file. Unless changed by /setMsgFile
+--this is "msgs.ini" in the current folder. Also, unless changed by
+-- /setUserLanguage, this looks in the [english] section of the messages file. /n
+--Thus if the messages file looked like ...
+--
+--/code
+--    [english]
+--    HW = Hello World
+--    [francais]
+--    HW = Bonjour Monde
+--/endcode
+--
+-- and the user's language was 'francais' then the above caption example
+-- would be equivalent to /b<"caption=Bonjour Monde">
+--
+-- A special format is available to load a combo or list control with its
+--initial set of list items. To do this, the keyword and value must use the
+-- 2-element sequence form rather than the simple string form. /n
+--~s~seg.~s /b <("text", ("item1","item2","item3"))> --> causes the three
+-- items to be loaded as the initial list values. /b Note that this only applies
+-- to /i combo and /i list type of controls. /n
+--
+--/b CHECK or /b CHECKED ** This specifies whether or not the control is initially checked. It
+-- has the form of check=~<setting>, where ~<setting> can be one of Yes, w32True, 1, or On
+-- to set it to checked, or anything else to uncheck it. /n
+--~s~seg.~scheck=no
+--
+--/b COLUMNS or /b COLUMN ** This specifies the column headings, widths, and alignment for
+-- ListView controls. This takes the form of a list of column definitions enclosed in braces. Each
+-- column definition is a set of one, two, or three elements enclosed in braces. The elements
+-- are a column header (text), a column width (integer) and an alignment keyword - /b left,
+-- /b center, and /b right. You can also use the characters ~<, ^, >, for left, center and right
+-- respectively. /n
+-- Example: columns=((First Name, 80, ~<), (Surname, 110, ~<), (Age, 30, >), (Status, 40, ^)) /n
+-- Note that if you specify ListView columns, the flag LVS_REPORT is automatically added.
+--
+--/b DELTA ** This specifies the increments for scrollbars. It takes the form of
+-- delta=(small,large). /n
+--~s~seg.~sdelta=(1,15) /n
+--
+--/b ENABLE or /b ENABLED ** This specifies whether or not the control is initially enabled. It
+-- has the form of enable=~<setting>, where ~<setting> can be one of Yes, w32True, 1, or On
+-- to set it to enabled, or anything else to disable it. /n
+--~s~seg.~senable=no
+--
+--/b EVENTS or /b EVENT ** This specifies one or more events that the control expects your application
+-- to provide handlers for. It takes the form of a list of event names or 2-element sets of the
+-- form (eventname, eventhandler_name). /n
+--Example:
+--
+--  event=((click,ShowCustomer)) /n
+--  event=(mouse,keypress)
+--
+--Some controls always assume certain events even if you don't specify them here. /n
+--/li Button-type controls, Statusbar and MenuItems always assume a w32HClick event.
+--/li HScroll, VScroll, HTrackBar, VTrackBar, ProgressBar, and UpDown
+--controls always assume a w32HScroll event.
+--/li Window controls always assume w32HScroll, w32HPaint, w32HOpen, w32HActivate, w32HResize, and
+-- w32HClose events.
+--
+-- All this means is that for these control types, you do not have to explicitly add these event
+-- types as they will be automatically assumed.
+--
+-- The suggested naming convention for event handlers is ~<eventname>_~<controlname>, for example
+-- a control called "Go Button" that invokes the w32HClick event, the suggested handler name
+-- would be "Click_GoButton"
+--
+-- When the application starts and if an event resolution callback routine has been supplied,
+-- Win32lib calls the event resolution callback routine for each event specified in this parameter.
+-- This callback routine is expected to return a routine_id that will handle any events for the
+-- control. /n
+--/code
+--  procedure AppCallback(integer self, integer event, sequence parms)
+--      -- self is the control's id value
+--      -- event can be w32HGetHandler, in which case ...
+--          -- parms[1] is the routine handler name
+--          -- if a handler name is not supplied then this
+--          -- is in the form ~<eventname>_~<controlname>
+--          -- eg. "Click_PushBtn"
+--          -- parms[2] is the event code to be handled
+--          -- eg. w32HClick
+--          -- parms[3] is the control's name
+--          -- eg. "PushBtn"
+--
+--      if event = w32HGetHandler then
+--          returnValue(routine_id(parms[1]))
+--      end if
+--  end procedure
+--  startApp(routine_id("AppCallback"))
+--/endcode
+--
+--/b EXFLAGS or /b EXFLAG ** This is similar to the FLAGS keyword but /i only
+-- applies to the extended flag values. Its primary usage is for when you need to
+-- replace the default extended flags with the ones you enter with this keyword.
+--
+--~s~seg.~sflags=(NEW, WS_EX_CLIENTEDGE) -- Replaces the default extended flags /n
+--~s~s~s~s~s~s~sflags=WS_EX_CLIENTEDGE -- combined with default flags.
+--
+--/b FGCOLOR or /b FGCOLOUR ** This specifies the text (foreground) color for the control. Note that
+-- some types of controls, for example Buttons, cannot have their text color changed by this method.
+--
+-- It can take one of three forms: A single RGB value, the name of one of the predefined colors, or
+-- a list of three color values from 0 - 255.
+--
+--Example:
+--   FGCOLOR=1188733
+--   FGCOLOR=Purple
+--   FGCOLOR=(#70,#80,#FF)
+--
+--/b FLAGS or /b FLAG ** This specifies one or more flag values used to
+-- create the control. If you need more than one flag value, you must enclose
+-- all the values in matching () and separate the values with commas. Normally
+-- the values are combined with a control's default flags but if you need to
+-- replace the default flags, include the special value 'NEW' in the list
+-- of flag values. Note that you can freely intermix normal flags with extended
+-- flags. /n
+--~s~seg.~sflags=(NEW, WS_VISIBLE, WS_POPUP, WS_BORDER, WS_EX_CLIENTEDGE) /n
+--~s~s~s~s~s~s~sflags=SS_NOTIFY /n
+-- If you specify WS_CHILD and do not specify a parent control, the most recent
+-- Window is used as the parent control.
+--/b POSITION ** This specifies the initial position of the thumb in scrollbars. /n
+--~s~seg.~sposition=10
+--
+--/b FONT ** This specifies the font to use for the control. It takes the form
+-- FONT=(w32FontName, size, style)
+--
+--/b FROM ** The specifies the reference control to use with subsequent commands for
+-- the current control definition. This is a control that is the basis for the
+-- relative values in any LEFT, TOP, WIDTH, and HEIGHT parameters for this control.
+-- Normally, these values are relative to the previously defined control, but
+-- sometimes you may need to override that.
+--
+-- Example: FROM=Go Button, left=(5), top=() /n
+-- which means that the control being defined starts 5 pixels to the left of the Go Button
+-- and has the same 'top' value as the go button.
+--
+-- This is really a shorthand because the same effect could be achieved by doing ... /n
+-- left=(5,Go Button), top=(0,Go Button,) /n
+--
+--/b HEIGHT ** This specifies the height of the control. It has three basic forms, a simple
+-- value that is the absolute height, a percentage value that is relative to the control's
+-- container, and a specification that is relative to another control. /n
+-- Some examples... /n
+--~s~seg.~s /b"height=400" --> Exactly 400 pixels high. /n
+--~s~seg.~s /b"height=400pxl" --> Just an alternative to above, exactly 400 pixels high. /n
+--~s~seg.~s /b"height=100char" --> Exactly 100 characters high. The exact pixel value depends on the font
+-- set for the control. /n
+--~s~seg.~s /b"height=40%" --> 40 percent of the container's height. /n
+--~s~seg.~s /b"height=CustName+10" --> The height is calculated as 'CustName' height + 10 pixels /n
+--~s~seg.~s /b"height=CustName*2" --> The height is calculated as 'CustName' height * 2 /n
+--~s~seg.~s /b"height=CustName" --> The height is calculated as the same as 'CustName' height /n
+--~s~seg.~s /b"height=CustName*90%" --> The height is calculated as 'CustName' height * 0.9 /n
+--~s~seg.~s /b"height=*" --> The height is the same the current reference control's height. /n
+--~s~seg.~s /b"height=*-5" --> The height is calculated as the current reference control's height less 5 pixels/n
+--~s~seg.~s /b"height=**0.5" --> The height is calculated as half the current reference control's height. /n
+--The examples above talk about a /i "current reference control". This is the control used
+-- as a reference point in WIDTH, HEIGHT, TOP and LEFT parameters when no explicit control
+-- is named in those parameters. You can set the current reference control by using the FROM
+-- parameter, otherwise it is the control that was most recently defined before the current one.
+--
+--/b "Note:" If you specify /b more than one height parameter in a control's definition,
+-- the values accumulate. Thus if you need a control to be half the height of another control
+-- plus 3 pixels you would specify "height=OtherControl*0.5,height=3", or if you need the
+-- sum of two other controls, "height=CTRL1,height=CTRL2"
+--
+--/b IMAGE ** This specifies an image to be used with Window, Icon, and Bitmap controls. For
+-- Bitmaps it must be the name of a ".BMP" file and for Windows and Icon controls, it can be either
+-- an ".ICO" file or a predefined MS-Windows name "APPLICATION", "ERROR", "QUESTION", "WARNING",
+-- "ASTERISK", or "WINLOGO". For TabItems, it can be either a filename or a string
+-- <filename>,<icon index>.
+--
+-- /b INDEX: this is used as the 1 based insertion point for TabItems.
+--
+--/b INITIALFOCUS ** This indicates that the control is the one that has the initial focus
+-- when the form is opened.  It has the form of initialfocus=~<setting>, where ~<setting> can be
+-- one of Yes, 1, or On to set it, or anything else to unset it. /n
+--
+--/b LEFT ** This specifies the left edge position of the control. It has four forms, a simple
+-- value that is the absolute position, a percentage value that is relative to the control's
+-- container's width, the word 'Center', and one that is relative to another control. /n
+-- Some examples... /n
+--~s~seg.~s /b"left=400" --> Exactly 400 pixels. /n
+--~s~seg.~s /b"left=400pxl" --> Just an alternative to above, exactly 400 pixels. /n
+--~s~seg.~s /b"left=100char" --> Exactly 100 characters. The exact pixel value depends on the font
+-- set for the container control. /n
+--~s~seg.~s /b"left=40%" --> 40 percent of the container's width. /n
+--~s~seg.~s /b"left=center" --> The control is centered horizontally in its container. /n
+--~s~seg.~s /b"left=CustName" --> The left is calculated as the same as 'CustName' right. /n
+--~s~seg.~s /b"left=CustName+10" --> The left is calculated as 'CustName' right + 10 pixels. /n
+--~s~seg.~s /b"left=CustName*" --> The left is calculated as 'CustName' left. /n
+--~s~seg.~s /b"left=CustName*+10" --> The left is calculated as 'CustName' left + 10. /n
+--~s~seg.~s /b"left=*" --> The left is calculated as the current reference control's right /n
+--~s~seg.~s /b"left=*+5" --> The left is calculated as the current reference control's right + 5 /n
+--~s~seg.~s /b"left=**" --> The left is the same the current reference control's left. /n
+--The examples above talk about a /i "current reference control". This is the control used
+-- as a reference point in WIDTH, HEIGHT, TOP and LEFT parameters when no explicit control
+-- is named in those parameters. You can set the current reference control by using the FROM
+-- parameter, otherwise it is the control that was most recently defined before the current one.
+--
+--/b "Note:" If you specify more than one left parameter in a control's definition,
+-- the values /b "do not" accumulate. Instead, the last /i "left=" parameter is used.
+--
+--/b MEMBER ** This specifies the ControlSet that the new control will belong to. Its value
+-- must be a positive integer. See /showControlSet and /setControlSet for details about
+-- control sets. /n
+-- Example: MEMBER=2
+--
+--Example:
+--/code
+--      procedure Click_AcceptForm(integer self, integer event, sequence parms)
+--          -- code to handle the user pressing the Accept Form button.
+--          . . .
+--      end procedure
+--
+--      procedure AppCallback(integer self, integer event, sequence parms)
+--          if event = w32HGetHandler then
+--              returnValue(routine_id(parms[1]))
+--          end if
+--      end procedure
+--
+--      newUIObj(("Window,Main Window", "width=400,height=50%"))
+--      newUIObj("LText, at=(5,5),caption=Name:")
+--      newUIObj(("EditText, UserName", "left=(),top=(0),width=20char"))
+--      newUIObj(("Button,AcceptForm", "left=5,bottom=5,height=40",
+--                                     "caption=&Accept"))
+--      newUIObj(("List,Devices,left=100, top=5, height=4char",
+--                ("text", ("Tape","DVD","Disk","Printer")),
+--                "events=(Click,change)")
+--      prevValue = setCallback(routine_id("AppCallback"))
+--      . . .
+--/endcode
+--
+--/b NAME ** Each control created by newUIObj should have a unique name. The name can
+--have any character in it however all but alphabetic characters, digits and the
+--underscore character are stripped out of the supplied name. Also, any leading
+--digits are stripped out. For example, if you had used /b"NAME=(Customer's Name)"
+--then the actual stored name would be /b"CustomersName"
+--
+--If no /i name parameter is supplied, the control's caption, if supplied is used. And
+--if neither /i name or /i caption is supplied, the control's name is set to /b NoName~<id>,
+--where ~<id> is the control's Id number.
+--
+--You can always change a control's name with the /setIdName() routine, and fetch a control's
+--name with /getIdName()
+--
+--/b OWNER or /b PARENT ** This specifies the parent control, also known as 'owner', of the control
+-- being defined. It can be either the name of a control or the actual control id value.
+-- Most of the time this is not required as the default parent is sufficient. /n
+-- The default parent is determined as ... /n
+-- If the control is a MenuItem or MenuSpacer then the most recently defined menu, otherwise if the control
+-- is a TabItem, the most recently defined TabControl, otherwise if the control is a ReBarBand then
+-- the toolbar attached to the most recently defined window, otherwise if the control is /b not
+-- a Window and not a Pixmap then the most recently defined Window, TabItem or Group, otherwise
+-- the main window.
+--
+-- /b See the keyword '*' for details about how to change the default parent id.
+--
+--/b POINTER ** This specifies the shape of the mouse pointer when it is over this control. It
+-- can specify either a cursor file (.CUR or .ANI) or one of the system predefined shapes. See
+-- /setMousePointer for more details. /n
+-- Example:   POINTER=SizeWE
+--
+--/b POPUP ** This specifies the menu(s) that will popup when the user presses the
+-- righthand mouse button in this control. It takes the form of
+-- POPUP=(normal,shift,control,shift-control) where 'normal','shift', 'control', and
+-- 'shift-control' are the names of menus that will popup in combination of the Righthand mouse
+-- button being pressed and No-Control-Shift, Shift, Control, and Shift-Control keys
+-- being held down respectively. /n
+-- If any of these names are omitted, the corresponding combination is not set. Thus to
+-- set popup menus for only the Normal and Control key combinations, use /n
+-- something like POPUP=(NormalPopup,,ControlPopup)
+--
+--/b PRAGMA ** This is a /i directive type command and does not actually create a control. It can
+-- only have the value 'PARENT' for now. This will cause the named control to become the
+-- default parent for subsequent controls being created in the form. /n
+-- This is typically used after the last control in a Group control has been defined, or
+-- after the last menu item in a sub-menu has been defined. /n
+-- Example:  "Window,name=MainWin,pragma=PARENT" says that 'MainWin' is the new default Window. /n
+-- Example:  "Menu,name=FileMenu,pragma=PARENT" says that 'FileMenu' is the new default Menu. /n
+--
+--/b RANGE ** This specifies the minimum and maximum values for scrollbars,
+--progressbars and UpDown controls. It takes the form of range=(lower,upper). /n
+--~s~seg.~srange=(4,1200)
+--
+--/b RIGHT ** This specifies the right edge position of the control. You
+-- would only specify either LEFT or RIGHT, but if you did use both, then the
+-- RIGHT specification takes precedence. /n
+--~s~seg.~s /b "right=20" --> The control's right edge is 20 pixels to the left
+-- of it's container's right edge.
+--
+--/b SIZE ** This is a shorthand for WIDTH=n,HEIGHT=n. It specifies both the width and height
+-- of the control. The format is SIZE=(width,height) where both /i width and /i height have the
+-- same formats as allowed for /i WIDTH= and /i HEIGHT= parameters respectively. /n
+--Additionally, if either /i width or /i height is omitted, then /i () is assumed
+-- for them, meaning that they use the same dimensions as the reference control, respectively.
+--Also, if /i width or /i height are in the form ?+nnn or ?-nnn this is taken to be
+-- the same as WIDTH=(+/-nnn) and HEIGHT=(+/-nnn) respectively. /n
+--~s~seg.~s /b "size=(100,200)" --> The control's is 100 pixels wide, and 200 pixels high. /n
+--~s~seg.~s /b "size=(,?-15)" --> The control is the same /i width as the
+-- reference control and 15 pixels shorter the reference control.
+--
+--There are some special forms of /b size. /n
+-- /b "size=()" means that the width and height of this control is
+-- the same as the respective values of the reference control (usually the previously defined
+-- control). /n
+--/b "size=maximum" means that when this window is first opened, it will be maximized. /n
+--/b "size=minimum" means that when this window is first opened, it will be minimized. /n
+--/b "size=~<cntrl>" where ~<cntl> is the name of a control previously defined in this form./n
+--/b "size=*" which makes this new control the same size as the reference control./n
+--
+--/b TAG ** This is a general purpose value that can be attached to any control.
+-- Win32lib does not use this in any way at all. It is in fact a shorthand for
+-- adding a User Defined Property called "Tag" to the control. You would get and
+-- set the Tag value using the /getUserProperty(cntrl, "Tag") and
+-- /setUserProperty(cntrl, "Tag", newvalue). /n
+--~s~seg.~stag=Special
+--
+--/b TOOLTIP or /b HINT ** This specifies the hint text for a control. If the text has an embedded
+-- comma, it must be enclosed in braces eg. HINT=(This has a, comma in it)
+--
+--/b TOP ** This specifies the top edge position of the control. It has four forms, a simple
+-- value that is the absolute position, a percentage value that is relative to the control's
+-- container's height, the word 'Center', and one that is relative to another control. /n
+-- Some examples... /n
+--~s~seg.~s /b"top=400" --> Exactly 400 pixels. /n
+--~s~seg.~s /b"top=400pxl" --> Just an alternative to above, exactly 400 pixels. /n
+--~s~seg.~s /b"top=100char" --> Exactly 100 characters. The exact pixel value depends on the font
+-- set for the container control. /n
+--~s~seg.~s /b"top=40%" --> 40 percent of the container's height. /n
+--~s~seg.~s /b"top=center" --> The control is centered vertically in its container. /n
+--~s~seg.~s /b"top=CustName" --> The top is calculated as the same as 'CustName' bottom. /n
+--~s~seg.~s /b"top=CustName+10" --> The top is calculated as 'CustName' bottom + 10 pixels. /n
+--~s~seg.~s /b"top=CustName*" --> The top is calculated as 'CustName' top. /n
+--~s~seg.~s /b"top=CustName*+10" --> The top is calculated as 'CustName' top + 10. /n
+--~s~seg.~s /b"top=*" --> The top is the same the current reference control's bottom. /n
+--~s~seg.~s /b"top=*+5" --> The top is calculated as the current reference control's bottom + 5 /n
+--~s~seg.~s /b"top=**" --> The top is the same the current reference control's top. /n
+--The examples above talk about a /i "current reference control". This is the control used
+-- as a reference point in WIDTH, top, TOP and LEFT parameters when no explicit control
+-- is named in those parameters. You can set the current reference control by using the FROM
+-- parameter, otherwise it is the control that was most recently defined before the current one.
+--
+--/b "Note:" If you specify more than one top parameter in a control's definition,
+-- the values /b "do not" accumulate. Instead, the last /i "top=" parameter is used.
+--
+--/b TYPE ** This specifies the type of control you are defining. If omitted, and
+-- there are no 'unnamed' parameters, the default type is LText. If you specify an
+-- unknown type, an error is generated.
+--If you are using the /i "/b events" /i Parameter, you will also have to
+-- use either the /setCallback or /startApp routine in your program. /n
+-- If the /i type is a Window and a window has already been defined, then this new
+-- window will be forced into being a child window.
+--
+--/b USER ** This is similar to TAG but can be used to add any user defined property
+-- to the control. It takes the form of user=(PropertyName, PropertyValue). /n
+--~s~seg.~suser=(DefaultColor, #308817) /n
+--
+--/b VISIBLE ** This specifies whether or not the control is initially visible. It
+-- has the form of visible=~<setting>, where ~<setting> can be one of Yes, w32True, 1, or On
+-- to set it to visible, or anything else to hide it. /n
+--~s~seg.~svisible=off
+--
+--/b WIDTH ** This specifies the width of the control. It has three basic forms, a simple
+-- value that is the absolute width, a percentage value that is relative to the control's
+-- container, and a specification that is relative to another control.
+-- Some examples... /n
+--~s~seg.~s /b"width=400" --> Exactly 400 pixels wide. /n
+--~s~seg.~s /b"width=400pxl" --> Just an alternative to above, exactly 400 pixels wide. /n
+--~s~seg.~s /b"width=100char" --> Exactly 100 characters wide. The exact pixel value depends on the font
+-- set for the control. /n
+--~s~seg.~s /b"width=40%" --> 40 percent of the container's width. /n
+--~s~seg.~s /b"width=CustName+10" --> The width is calculated as 'CustName' width + 10 pixels /n
+--~s~seg.~s /b"width=CustName*2" --> The width is calculated as 'CustName' width * 2 /n
+--~s~seg.~s /b"width=CustName" --> The width is calculated as the same as 'CustName' width /n
+--~s~seg.~s /b"width=CustName*90%" --> The width is calculated as 'CustName' width * 0.9 /n
+--~s~seg.~s /b"width=*-5" --> The width is calculated as the current reference control's width less 5 pixels /n
+--~s~seg.~s /b"width=**0.5" --> The width is calculated as half the current reference control's width. /n
+--~s~seg.~s /b"width=*" --> The width is the same the current reference control's width. /n
+--The examples above talk about a /i "current reference control". This is the control used
+-- as a reference point in WIDTH, HEIGHT, TOP and LEFT parameters when no explicit control
+-- is named in those parameters. You can set the current reference control by using the FROM
+-- parameter, otherwise it is the control that was most recently defined before the current one.
+--
+--/b "Note:" If you specify more than one WIDTH parameter in a control's definition,
+-- the values accumulate. Thus if you need a control to be half the width of another control
+-- plus 3 pixels you would specify "width=OtherControl*0.5,width=3", or if you need the
+-- sum of two other controls, "width=CTRL1,width=CTRL2"
+--
+
+global procedure newUIObj(object pParms)
+integer i
+integer incr
+integer lType
+integer lID
+sequence lCaption
+object lOwner
+object lLeft, lTop, lWidth, lHeight
+object lDefLeft, lDefTop, lDefWidth, lDefHeight
+object lFlags, lExFlags, lLVExFlags
+sequence lKey
+sequence lKeyValue
+integer lPos
+object lData
+integer lDataType
+object lTemp
+atom lSizeInc
+object lUpperData
+object lNumData
+object lTooltip
+integer lAutoClose
+sequence lChar
+integer lCharSize
+sequence lTE
+sequence lParentRect
+sequence lFont
+sequence lFormattedFont
+integer lResize
+sequence lEnable
+sequence lVisible
+sequence lCheck
+sequence lEventList
+integer lParent
+sequence lName
+sequence lRefControl
+sequence lUserProp
+sequence lScrollRange
+sequence lScrollChange
+object lScrollPosition
+object lImage
+object lBGColor
+object lFGColor
+object lStatusBar
+object lToolbar
+object lFlatToolbar
+integer lNewFlag
+integer lNewExFlag
+object lRight
+object lBottom
+object lReBarBand
+sequence lAssumedKeys
+integer lAKPosn
+sequence lText
+object lPointer
+integer lBuddy
+object lDirective
+integer lBarId
+object lAttachPopup
+integer lSetMember
+sequence lLVColumns
+sequence lCTitle
+atom  lCWidth
+atom  lCAlign
+sequence lFlds
+sequence lButtons
+integer lInitView
+sequence lIFOptions
+integer lInitFocus
+integer lTabIndex
+object bgcolor
+sequence lValue
+object iTemp
+
+    if sequence(pParms) and length(pParms)=0 then
+        return
+    end if
+
+    lType = 0
+    lTooltip = ""
+    lCaption = ""
+    lOwner = {}
+    lWidth = {}
+    lHeight = {}
+    lLeft = {}
+    lTop = {}
+    lFlags = 0
+    lExFlags = 0
+    lLVExFlags = 0
+    lAutoClose = w32False
+    lFont = ""
+    lResize = w32False
+    lCheck = {w32False,0}
+    lEnable = {w32False,0}
+    lVisible = {w32False,0}
+    lEventList = {}
+    lName = ""
+    lReBarBand = {}
+    lRefControl = {}
+    lUserProp = {{},{}}
+    lScrollRange = {}
+    lScrollChange = {}
+    lScrollPosition = {}
+    lImage = {}
+    lBGColor = {}
+    lFGColor = {}
+    lStatusBar = {}
+    lToolbar = {}
+    lFlatToolbar = {}
+    lNewFlag = w32False
+    lNewExFlag = w32False
+    lRight = {}
+    lBottom = {}
+    lAssumedKeys = {"TYPE","CAPTION","NAME","LEFT","TOP","WIDTH","HEIGHT","FLAGS","EXFLAGS"}
+    lText = {}
+    lPointer = {}
+    lBuddy = 0
+    lDirective = 0
+    lBarId = 0
+    lAttachPopup = 0
+    lSetMember = 0
+    lLVColumns = ""
+    lButtons = {}
+    lInitView = 0
+    lChar = repeat(w32False, 2)
+    lIFOptions = {}
+    lAKPosn = 0
+    lInitFocus = 0
+    lTabIndex = 0
+
+    -- Extract the key/value pairs from the parms.
+    if w32string(pParms) then
+        if length(pParms)>0 and find(pParms[1], ";`~|#/\\-_^*@,") then
+            lTemp = pParms[1]
+            pParms = pParms[2..length(pParms)]
+        else
+            lTemp = ','
+        end if
+        pParms = w32MakeArgs(pParms,lTemp, '=')
+    -- Check for string fragments
+    elsif sequence(pParms) then
+        lPos = 1
+        while lPos<=length(pParms) do
+            if w32string(pParms[lPos]) then
+                if length(pParms[lPos])>0 and find(pParms[lPos][1], ";`~|#/\\-_^*@,") then
+                    lTemp = pParms[lPos][1]
+                    pParms[lPos] = pParms[lPos][2..length(pParms[lPos])]
+                else
+                    lTemp = ','
+                end if
+                lTE = w32MakeArgs(pParms[lPos], lTemp, 0)
+                if length(lTE)>0 then
+                    pParms = pParms[1..lPos-1] & lTE & pParms[lPos+1..length(pParms)]
+                    lPos += length(lTE)-1
+                end if
+            end if
+            lPos += 1
+        end while
+    else
+        warnErr(sprintf("Bad newUIObj() parameter %d\n" &
+                        "Last good one was '%s'\n" &
+                        "Parameter was not a sequence/string.",{pParms,vRecentNewUI}))
+        return
+    end if
+
+    -- Start processing the parms.
+    i = 1
+    incr = 1
+    while i<=length(pParms) do
+-- modified CChris <oedoc@free.fr> Dec 2, 2006
+-- now that w32MakeArgs returns the litteral string associated with a converted number,
+-- names and captions are no longer treated as number if they happen to represent some.
+        lKeyValue = pParms[i]
+        incr = 1
+        lCharSize = w32False
+        lTE = ""
+
+--      if sequence(lKeyValue) and length(lKeyValue) = 6 then
+        if length(lKeyValue)=6 then
+            if w32string(lKeyValue[1]) then
+                lKey = upper(w32trim(lKeyValue[1]))
+                lValue = getArgValue(lKeyValue)
+                lDataType = lValue[1]
+                lData = lValue[2]
+                if sequence(lValue[3]) then
+                    lTE = lValue[3]
+                    if equal(lTE, "%") then  -- no longer hapens, as w32TextToNumber takes care of it
+                        lData /= 100
+                    elsif match("CH", upper(lTE))=1 then
+                        lCharSize = w32True
+                    end if
+                end if
+                if length(lKey)=0 then
+                    -- No keyword, so get the next assumed one.
+                    lAKPosn += 1
+                    if lAKPosn<=length(lAssumedKeys) then
+                        lKey = lAssumedKeys[lAKPosn]
+                        if equal("TYPE", lKey) then
+                            if lDataType=dataString then
+                                lType = w32lookup(upper(w32trim(lData)), w32ControlNames, w32ControlTypes)
+                            elsif lDataType=dataAtom then
+                                lType = lData
+                            end if
+
+                            if lType<1 or lType>length(w32ControlTypes) then
+                                lType = Label
+                                lAKPosn += 1
+                                lKey = lAssumedKeys[lAKPosn]
+                            end if
+                            lData = {lType} -- ???
+                        end if
+
+
+                    else
+                        -- Too many assumed keys used, so ignore it.
+                        warnErr(sprintf("Bad newUIObj() parameter %d\n" &
+                                        "Last good one was '%s'\n" &
+                                        "Too many assumed keys used.",{i,vRecentNewUI}))
+                        return
+                    end if
+                end if
+            else
+                -- Badly formed parm so ignore it.
+                warnErr(sprintf("Bad newUIObj parameter %d\n" &
+                                "Last good one was '%s'\n" &
+                                "The key name in a 2-element key/value is not a string.",
+                                {i,vRecentNewUI}))
+                return
+            end if
+        else
+            -- Wrongly formatted parameter, so ignore it.
+            warnErr(sprintf("Bad newUIObj parameter %d\n" &
+                            "Last good one was '%s'\n" &
+                            "Wrongly formatted parameter.",
+                            {i,vRecentNewUI}))
+            return
+        end if
+
+        if find(lKey, {"CAPTION","TEXT","NAME","TOOLTIP"}) then
+            lData = lKeyValue[w32CompleteText]
+        end if
+
+--/**/  vEventNamesUpper = sq_and_bits(w32EventNames,#DF)   --/* -- Phix
+        vEventNamesUpper = and_bits(w32EventNames,#DF)      --*/ -- RDS
+
+        if equal(lKey, "FLAGS") or equal(lKey, "FLAG") then
+            lKey = "FLAGS" -- Standardize
+            if lDataType=dataAtom then
+                lFlags = or_bits(lFlags,lData)
+            else
+                if w32string(lData) then
+                    lData = {{dataString,lData}}
+                else -- multiple
+                    for j=1 to length(lData) do
+                        lData[j] = getArgValue(lData[j])
+                    end for
+                end if
+                for j=1 to length(lData) do
+                    if lData[j][1]=dataString then
+                        lUpperData = upper(w32trim(lData[j][2]))
+                        if equal(lUpperData,"NEW") then
+                            lNewFlag = w32True
+                        else
+                            if equal(lUpperData,"AUTOCLOSE") or equal(lUpperData,"W32AUTOCLOSE") then
+                                lAutoClose = w32True
+                            else
+                                lFlags = or_bits(lFlags, w32lookup(lUpperData, vWinFlagNames, vWinFlagValues))
+                                lExFlags = or_bits(lExFlags, w32lookup(lUpperData, vWinExFlagNames, vWinExFlagValues))
+                                lLVExFlags = or_bits(lLVExFlags, w32lookup(lUpperData, vLVExFlagNames, vLVExFlagValues))
+                            end if
+                        end if
+                    elsif lData[j][1]=dataAtom then
+                        lFlags = or_bits(lFlags,lData[j][2])
+                    end if
+                end for
+            end if
+
+        elsif equal(lKey, "EXFLAGS") or equal(lKey, "EXFLAG") then
+            lKey = "EXFLAGS" -- Standardize
+            if lDataType=dataAtom then
+                lFlags = or_bits(lFlags,lData)
+            else
+                if lDataType=dataString then
+                    lData = {lData}
+                else -- multiple
+                    for j=1 to length(lData) do
+                        lData[j] = getArgValue(lData[j])
+                    end for
+                end if
+                for j=1 to length(lData) do
+                    if lData[j][1]=dataString then
+                        lUpperData = upper(w32trim(lData[j][2]))
+                        if equal(lUpperData,"NEW") then
+                            lNewFlag = w32True
+                        else
+                            lExFlags = or_bits(lExFlags, w32lookup(lUpperData, vWinExFlagNames, vWinExFlagValues))
+                            lLVExFlags = or_bits(lLVExFlags, w32lookup(lUpperData, vLVExFlagNames, vLVExFlagValues))
+                        end if
+                    end if
+                end for
+            end if
+
+        elsif equal(lKey, "TAG") then
+            lPos = find("Tag", lUserProp[1])
+            if lPos=0 then
+                lUserProp[1] = append(lUserProp[1], "Tag")
+                lUserProp[2] = append(lUserProp[2], 0)
+                lPos = length(lUserProp[1])
+            end if
+
+            lUserProp[2][lPos] = lData
+
+        elsif equal(lKey, "USER") then
+            -- grab the property name and value
+            if lDataType=dataMultiple then
+                lData[1] = getArgValue(lData[1])
+                lData[2] = getArgValue(lData[2])
+                lData = {lData[1][2],lData[2][2]}
+            else
+                lData = {lData, ""}
+            end if
+            lPos = find(lData[1], lUserProp[1])
+            if lPos=0 then
+                lUserProp[1] = append(lUserProp[1], lData[1])
+                lUserProp[2] = append(lUserProp[2], 0)
+                lPos = length(lUserProp[1])
+            end if
+            lUserProp[2][lPos] = lData[2]
+
+        elsif equal(lKey, "RANGE") then
+            if length(lData)>=2 and length(lData)<=3 then
+                lScrollRange = extractArgs(lData)
+            end if
+
+
+        elsif equal(lKey, "DELTA") then
+            if length(lData)=2 then
+                lScrollChange = extractArgs(lData)
+            end if
+
+        elsif equal(lKey, "POSITION") then
+            lScrollPosition = lData
+
+        elsif equal(lKey, "TYPE") then
+            if lType=0 then
+                if lDataType=dataString then
+                    lType = w32lookup(upper(w32trim(lData)), w32ControlNames, w32ControlTypes)
+                elsif lDataType=dataAtom then
+                    lType = lData
+                end if
+            end if
+
+            if lType<1 or lType>length(w32ControlTypes) then
+                warnErr(sprintf("Bad newUIObj() parameter %d\n" &
+                                "Last good one was '%s'\n" &
+                                "Unknown control TYPE specified.",{i,vRecentNewUI}))
+
+                return
+            end if
+
+            if lType=Window then
+                lDefLeft = Default
+                lDefTop = Default
+                lDefWidth = lWidth
+                lDefHeight = lHeight
+            else
+                lDefLeft = 5
+                lDefTop  = 5
+                lDefWidth = lWidth
+                lDefHeight = lHeight
+            end if
+
+            if find(lType, {Menu,MenuItem,MenuSpacer,Popup,TabItem,StatusBar}) then
+                lDefWidth = 0
+                lDefHeight = 0
+                lDefLeft = 0
+                lDefTop = 0
+            elsif find(lType, {ReBar,ReBarBand,Pixmap}) then
+                lDefWidth = 1
+                lDefHeight = 1
+                lDefLeft = 0
+                lDefTop = 0
+            end if
+
+            if equal(lLeft,"") then
+                lLeft = lDefLeft
+            end if
+            if equal(lTop,"") then
+                lTop = lDefTop
+            end if
+            if equal(lWidth,"") then
+                lWidth = lDefWidth
+            end if
+            if equal(lHeight,"") then
+                lHeight = lDefHeight
+            end if
+
+        elsif equal(lKey, "CHECK") or equal(lKey, "CHECKED") then
+            if atom(lData) then
+                lCheck = {w32True,(lData!=0)}
+            elsif length(lData)=0 then
+                lCheck = {w32True,w32True}
+            elsif equal(upper(lData), "ON") then
+                lCheck = {w32True,w32True}
+            else
+                lCheck = {w32True, (find(lData[1],"YT1yt"))}  -- Yes True 1
+            end if
+
+        elsif equal(lKey, "ENABLE") or equal(lKey, "ENABLED") then
+            if atom(lData) then
+                lEnable = {w32True,(lData!=0)}
+            elsif length(lData)=0 then
+                lEnable = {w32True,w32True}
+            elsif equal(upper(lData), "ON") then
+                lEnable = {w32True,w32True}
+            else
+                lEnable = {w32True, (find(lData[1],"YT1yt"))}  -- Yes True 1
+            end if
+
+        elsif equal(lKey, "VISIBLE") then
+            if atom(lData) then
+                lVisible = {w32True,(lData!=0)}
+            elsif length(lData)=0 then
+                lVisible = {w32True,w32True}
+            elsif equal(upper(lData), "ON") then
+                lVisible = {w32True,w32True}
+            else
+                lVisible = {w32True, (find(lData[1],"YT1yt"))}  -- Yes True 1
+            end if
+
+        elsif equal(lKey, "WIDTH") then
+            -- =num      {num}
+            -- =*        {"*"}
+            -- =*-num    {"*-num"}
+            -- =fld      {"fld"}
+            -- =fld-num  {"fld-num"}
+            -- =fld-fld  {"fld-fld"}
+            -- =-fld     {"-fld"}
+            lChar[1] = lCharSize
+            lSizeInc = 0
+            if equal(lWidth,"") then
+                lWidth = 0
+            end if
+            if lDataType=dataAtom then
+                lSizeInc = lData
+            else
+                lPos = 0 -- zero means add, 1 means multiply, -1 means subtract.
+                -- Relative to another control.
+                if length(lData)=0 then
+                    lData = "*"
+                end if
+                if equal(lData[1], '*') then
+                    if length(lRefControl)=0 then
+                        lData = vRecentNewUI & lData[2..length(lData)]
+                    else
+                        lData = lRefControl & lData[2..length(lData)]
+                    end if
+                end if
+                if find('-', lData) then
+                    lData = w32split(lData,'-')
+                    lPos = -1
+                elsif find('*', lData) then
+                    lData = w32split(lData,'*')
+                    lPos = 1
+                else
+                    lData = w32split(lData,'+')
+                    lPos = 0
+                end if
+                -- lData[1] should be control name
+                -- lData[2] should be offset, but can be omitted
+                if length(lData)=1 then
+                    if length(lData[1])=0 or equal(lData[1], "*") then
+                        if length(lRefControl)=0 then
+                            lData[1] = vRecentNewUI
+                        else
+                            lData[1] = lRefControl
+                        end if
+                    end if
+                    lData &= 0
+                    lPos = 0 -- Force 'add' operation
+                else
+                    if length(lData[1])=0 or equal(lData[1], "*") then
+                        if length(lRefControl)=0 then
+                            lData[1] = vRecentNewUI
+                        else
+                            lData[1] = lRefControl
+                        end if
+                    end if
+                    lNumData = w32TextToNumber({lData[2],w32True})
+                    if lNumData[2]!=0 then
+                        lTE = getRecent(w32RecentForms)
+                        lData[2] = getNameIdInContext(w32trim(lData[2]), lTE[length(lTE)])
+                        if lData[2]>0 then
+                            lTE = getRect(lData[2])
+                            lData[2] = lTE[3]-lTE[1]
+                        else
+                            lData[2] = 0
+                            lPos = 0
+                        end if
+                    else
+                        lData[2] = lNumData[1]
+                    end if
+                end if
+                if sequence(lData[1]) then
+                    lTE = getRecent(w32RecentForms)
+                    lData[1] = getNameIdInContext(w32trim(lData[1]), lTE[length(lTE)])
+                end if
+                if lData[1]>0 then
+                    lTE = getRect(lData[1])
+                    lSizeInc = lTE[3]-lTE[1]
+                    if lPos=0 then
+                        lSizeInc += lData[2]
+                    elsif lPos= -1 then
+                        lSizeInc -= lData[2]
+                    else
+                        lSizeInc *= lData[2]
+                    end if
+                end if
+
+            end if
+
+            lWidth += lSizeInc
+            if lWidth>1 then
+                lWidth = floor(lWidth)
+            end if
+
+
+        elsif equal(lKey, "HEIGHT") then
+            -- =num      {num}
+            -- =*        {"*"}
+            -- =*-num    {"*-num"}
+            -- =fld      {"fld"}
+            -- =fld-num  {"fld-num"}
+            -- =fld-fld  {"fld-fld"}
+            -- =-fld     {"-fld"}
+
+            lChar[2] = lCharSize
+            lSizeInc = 0
+            if equal(lHeight,"") then
+                lHeight = 0
+            end if
+            if lDataType=dataAtom then
+                lSizeInc = lData
+            else
+                if length(lData)=0 then
+                    lData = "*"
+                end if
+                if equal(lData[1], '*') then
+                    if length(lRefControl)=0 then
+                        lData = vRecentNewUI & lData[2..length(lData)]
+                    else
+                        lData = lRefControl & lData[2..length(lData)]
+                    end if
+                end if
+                lPos = 0 -- zero means add, 1 means multiply, -1 means subtract.
+                -- Relative to another control.
+                if find('-', lData) then
+                    lData = w32split(lData,'-')
+                    lPos = -1
+                elsif find('*', lData) then
+                    lData = w32split(lData,'*')
+                    lPos = 1
+                else
+                    lData = w32split(lData,'+')
+                    lPos = 0
+                end if
+                -- lData[1] should be control name
+                -- lData[2] should be offset, but can be omitted
+                if length(lData)=1 then
+                    if length(lData[1])=0 or equal(lData[1], "*") then
+                        if length(lRefControl)=0 then
+                            lData[1] = vRecentNewUI
+                        else
+                            lData[1] = lRefControl
+                        end if
+                    else
+                        lData &= 0
+                    end if
+                    lData &= 0
+                    lPos = 0 -- Force 'add' operation
+                else
+                    if length(lData[1])=0 or equal(lData[1], "*") then
+                        if length(lRefControl)=0 then
+                            lData[1] = vRecentNewUI
+                        else
+                            lData[1] = lRefControl
+                        end if
+                    end if
+                    lNumData = w32TextToNumber({lData[2],w32True})
+                    if lNumData[2]!=0 then
+                        lTE = getRecent(w32RecentForms)
+                        lData[2] = getNameIdInContext(w32trim(lData[2]), lTE[length(lTE)])
+                        if lData[2]>0 then
+                            lTE = getRect(lData[2])
+                            lData[2] = lTE[4]-lTE[2]
+                        else
+                            lData[2] = 0
+                            lPos = 0
+                        end if
+                    else
+                        lData[2] = lNumData[1]
+                    end if
+                end if
+                if sequence(lData[1]) then
+                    lTE = getRecent(w32RecentForms)
+                    lData[1] = getNameIdInContext(w32trim(lData[1]), lTE[length(lTE)])
+                end if
+                if lData[1]>0 then
+                    lTE = getRect(lData[1])
+                    lSizeInc = lTE[4]-lTE[2]
+                    if lPos=0 then
+                        lSizeInc += lData[2]
+                    elsif lPos= -1 then
+                        lSizeInc -= lData[2]
+                    else
+                        lSizeInc *= lData[2]
+                    end if
+                end if
+
+            end if
+
+            lHeight += lSizeInc
+            if lHeight>1 then
+                lHeight = floor(lHeight)
+            end if
+
+        elsif equal(lKey, "TOP") then
+            if atom(lData) then
+                lTop = lData
+            else
+                lPos = 0 -- zero means add, -1 means subtract.
+                -- Relative to another control.
+                if find('-', lData) then
+                    lData = w32split(lData,'-')
+                    lPos = -1
+                else
+                    lData = w32split(lData,'+')
+                    lPos = 0
+                end if
+                while length(lData)<3 do
+                    lData = append(lData, 0)
+                end while
+
+                -- lData[1] should be control name
+                -- lData[2] should be offset
+                -- lData[3] indicates which edge is relative
+                if atom(lData[1]) or length(lData[1])=0 then
+                    lData[1] = "*"
+                end if
+
+                lUpperData = upper(lData[1])
+                if equal(lUpperData,"CENTER") or equal(lUpperData,"CENTRE") then
+                    lTop = Center
+                elsif equal(lUpperData,"DEFAULT") then
+                    lTop = Default
+                else
+                    if length(lData[1])>1 and lData[1][length(lData[1])]='*' then
+                        lData[3] = 1
+                        lData[1] = lData[1][1..length(lData[1])-1]
+                    end if
+
+                    if length(lData[1])=0 or equal(lData[1],"*")    then
+                        if length(lRefControl)=0 then
+                            lData[1] = vRecentNewUI
+                        else
+                            lData[1] = lRefControl
+                        end if
+                    end if
+                    lTE = getRecent(w32RecentForms)
+                    lData[1] = getNameIdInContext(w32trim(lData[1]), lTE[length(lTE)])
+                    if lData[1]>0 then
+                        if sequence(lData[2]) then
+                            lNumData = w32TextToNumber({lData[2],1})
+                            if lNumData[2]=0 then
+                                lData[2] = lNumData[1]
+                            else
+                                lData[2] = 0
+                            end if
+                        end if
+                        lTE = getRect(lData[1])
+                        if lPos<0 then
+                            lData[2] = -lData[2]
+                        end if
+                        if sequence(lData[3]) or lData[3]!=0 then
+                            lTop = lData[2]+lTE[2]
+                        else
+                            lTop = lData[2]+lTE[4]
+                        end if
+                    end if
+                end if
+            end if
+
+        elsif equal(lKey, "LEFT") then
+            if atom(lData) then
+                lLeft = lData
+            else
+                lPos = 0 -- zero means add, -1 means subtract.
+                -- Relative to another control.
+                if find('-', lData) then
+                    lData = w32split(lData,'-')
+                    lPos = -1
+                else
+                    lData = w32split(lData,'+')
+                    lPos = 0
+                end if
+                while length(lData)<3 do
+                    lData = append(lData, 0)
+                end while
+
+                -- lData[1] should be control name
+                -- lData[2] should be offset
+                -- lData[3] indicates which edge is relative
+                if atom(lData[1]) or length(lData[1])=0 then
+                    lData[1] = "*"
+                end if
+
+                lUpperData = upper(lData[1])
+                if equal(lUpperData,"CENTER") or equal(lUpperData,"CENTRE") then
+                    lLeft = Center
+                elsif equal(lUpperData,"DEFAULT") then
+                    lLeft = Default
+                else
+                    if length(lData[1])>1 and lData[1][length(lData[1])]='*' then
+                        lData[3] = 1
+                        lData[1] = lData[1][1..length(lData[1])-1]
+                    end if
+
+                    if length(lData[1])=0 or equal(lData[1],"*")    then
+                        if length(lRefControl)=0 then
+                            lData[1] = vRecentNewUI
+                        else
+                            lData[1] = lRefControl
+                        end if
+                    end if
+                    lTE = getRecent(w32RecentForms)
+                    lData[1] = getNameIdInContext(w32trim(lData[1]), lTE[length(lTE)])
+                    if lData[1]>0 then
+                        if sequence(lData[2]) then
+                            lNumData = w32TextToNumber({lData[2],1})
+                            if lNumData[2]=0 then
+                                lData[2] = lNumData[1]
+                            else
+                                lData[2] = 0
+                            end if
+                        end if
+                        lTE = getRect(lData[1])
+                        if lPos<0 then
+                            lData[2] = -lData[2]
+                        end if
+                        if sequence(lData[3]) or lData[3]!=0 then
+                            lLeft = lData[2]+lTE[1]
+                        else
+                            lLeft = lData[2]+lTE[3]
+                        end if
+                    end if
+                end if
+            end if
+
+        elsif equal(lKey, "BOTTOM") then
+            lBottom = lData
+
+        elsif equal(lKey, "RIGHT") then
+            lRight = lData
+
+        elsif equal(lKey, "AT") then
+            -- This must have either zero, or two sub-values, or 'center'.
+            if lDataType=dataMultiple then
+                lData[1][1] = "LEFT"
+                lData[2][1] = "TOP"
+                pParms[i] = lData[1]
+                pParms = w32insertElement(pParms, i+1, lData[2])
+                incr = 0
+            elsif lDataType=dataString then
+                if length(lData)=0 then
+                    lData = "*"
+                else
+                    lUpperData = upper(w32trim(lData))
+                    if find(lUpperData, {"CENTER","CENTRE"}) then
+                        lData = "CENTER"
+                    end if
+                end if
+                pParms[i] = {"LEFT",1,0,0,"",lData}
+                pParms = w32insertElement(pParms, i+1, {"TOP",1,0,0,"",lData})
+                incr = 0
+            end if
+
+        elsif equal(lKey, "SIZE") then
+            -- This must have either zero, or two sub-values, or 'center'.
+            if lDataType=dataMultiple then
+                lData[1][1] = "WIDTH"
+                lData[2][1] = "HEIGHT"
+                pParms[i] = lData[1]
+                pParms = w32insertElement(pParms, i+1, lData[2])
+                incr = 0
+            elsif lDataType=dataString then
+                if length(lData)=0 then
+                    lData = "*"
+                else
+                    lUpperData = upper(w32trim(lData))
+                    if find(lUpperData, {"CENTER","CENTRE"}) then
+                        lData = "CENTER"
+                    elsif equal(lUpperData, "MAXIMUM") then
+                        lInitView = 1
+                        lData = ""
+                    elsif equal(lUpperData, "MINIMUM") then
+                        lInitView = 2
+                        lData = ""
+                    end if
+                end if
+                if length(lData) then
+                    pParms[i] = {"WIDTH",1,0,0,"",lData}
+                    pParms = w32insertElement(pParms, i+1, {"HEIGHT",1,0,0,"",lData})
+                    incr = 0
+                end if
+            end if
+
+        elsif equal(lKey, "CAPTION") or equal(lKey, "TEXT") then
+            if length(lData) and lData[1]='<' and lData[length(lData)]='>' then
+                lData = rt:UseText(lData[2..length(lData)-1],"")
+            end if
+            lCaption = w32trim(lData)
+
+        elsif equal(lKey, "VALUE") then
+            if atom(lData) then
+                lText = sprintf("%d",lData)
+            elsif not w32string(lData) then
+                lText = extractArgs(lData)
+            else
+                lText = w32trim(lData)
+            end if
+
+        elsif equal(lKey, "NAME") then
+            lName = w32trim(lData)
+
+        elsif equal(lKey, "IMAGE") then
+            lImage = w32lookup(upper(lData), vWinIconNames, WinIcons)
+            if lImage=0 then
+                lImage = lData
+            end if
+
+        elsif equal(lKey, "OWNER") or equal(lKey, "PARENT") then
+            lKey = "OWNER" -- Standardize
+            if atom(lData) then
+                lOwner = lData
+            else
+                lOwner = getNameId(w32trim(lData))
+            end if
+            if lOwner>0 and getControlInfo(lOwner,CONTROLINFO_alias)=ReBarBand then
+                lReBarBand = lOwner
+                lOwner = getControlInfo(lOwner,CONTROLINFO_owner)
+            end if
+
+        elsif equal(lKey, "TOOLTIP") or equal(lKey, "HINT") then
+            lKey = "TOOLTIP" -- Standardize
+            lTooltip = lData
+
+        elsif equal(lKey, "EVENT") or equal(lKey, "EVENTS") then
+            lKey = "EVENTS" -- Standardize
+            if atom(lData) then
+                lEventList &= lData
+            elsif w32string(lData) then
+                lEventList &= w32lookup(upper(w32trim(lData)), vEventNamesUpper,w32EventCodes)
+--          elsif sequence(lData) then
+            else -- sequence(lData)
+                while length(lData)=1 do
+                    lData = lData[1]
+                end while
+                if w32string(lData[1]) then
+                    lData = {lData}
+                end if
+                for j=1 to length(lData) do
+                    lUpperData = lData[j]
+                    if w32string(lUpperData) then
+                        lEventList &= w32lookup(upper(w32trim(lUpperData)), vEventNamesUpper,w32EventCodes)
+                    elsif not length(lUpperData[1]) then
+                        lEventList &= w32lookup(upper(w32trim(lUpperData[w32CompleteText])), vEventNamesUpper,w32EventCodes)
+                    else
+                    -- 2-element: code plus event handler name
+                        lEventList &= w32lookup(upper(w32trim(lUpperData[w32AKey])), vEventNamesUpper,w32EventCodes)
+                        lEventList = append(lEventList ,lUpperData[w32PartialText][w32CompleteText])
+                    end if
+                end for
+            end if
+
+        elsif equal(lKey, "BAR") or equal(lKey, "BARS") then
+            lKey = "BARS" -- Standardize
+            if w32string(lData) then
+                lData = {lData}
+            else
+                lData = extractArgs(lData)
+            end if
+            for j=1 to length(lData) do
+                if w32string(lData[j]) then
+                    lData[j] = upper(w32trim(lData[j]))
+                    -- Only support statusbar so far.
+                    if find(lData[j], {"TOOLBAR","TOOL"})  then
+                        lToolbar = w32True
+
+                    elsif find(lData[j], {"FLATTOOLBAR","FLAT", "FLATTOOL"}) then
+                        lFlatToolbar = w32True
+
+                    elsif find(lData[j], {"VERT","VERTICAL"}) then
+                        lFlags = or_bits(lFlags, WS_VSCROLL)
+
+                    elsif find(lData[j], {"HORZ","HORIZONTAL"}) then
+                        lFlags = or_bits(lFlags, WS_HSCROLL)
+
+                    elsif find(lData[j], {"STATUS","STATUSBAR"}) then
+                        lStatusBar = w32True
+                    end if
+                elsif length(lData[j])>=w32AValue then
+                    lData[j] = extractArgs(lData[j])
+                    if find(upper(lData[j][w32AKey]), {"STATUS","STATUSBAR"}) then
+                        lStatusBar = repeat(-1, length(upper(lData[j][w32AValue])))
+                        for k=1 to length(upper(lData[j][w32AValue])) do
+                            if length(lData[j][w32AValue][k])>=w32AValue then
+                                lStatusBar[k] = lData[j][w32AValue][k][w32AValue]
+                            end if
+                        end for
+                    end if
+                end if
+
+            end for
+
+        elsif equal(lKey, "FONT") then
+            lFont = lData
+
+        elsif equal(lKey, "INITIAL") or equal(lKey, "INITIALFOCUS") then
+            lKey = "INITIALFOCUS"
+
+            if atom(lData) then
+                lInitFocus = (lData!=0)
+            elsif equal(upper(lData), "ON") then
+                lInitFocus = w32True
+            else
+                lInitFocus = (find(lData[1],"YT1yt"))  -- Yes True 1
+            end if
+
+        elsif equal(lKey, "COLUMNS") or equal(lKey, "COLUMN") then
+            lKey = "COLUMNS"
+            lLVColumns = ""
+            lData = extractArgs(lData)
+
+            -- It must be enclosed in braces.
+            for k=1 to length(lData) do
+                lFlds = w32trim(lData[k])
+                if length(lFlds)>0 and lFlds[1]='(' and lFlds[length(lFlds)]=')' then
+                    lFlds = w32split(lFlds[2..length(lFlds)-1],',')
+                    lCTitle = ""
+                    lCWidth = 100
+                    lCAlign = -1
+
+                    for j=1 to length(lFlds) do
+                        lFlds[j] = w32trim(lFlds[j])
+                        if equal(lFlds[j], ">") and lCAlign= -1 then
+                            lCAlign = LVCFMT_RIGHT
+                        elsif equal(lFlds[j], "^") and lCAlign= -1 then
+                            lCAlign = LVCFMT_CENTER
+                        elsif equal(lFlds[j], "<") and lCAlign= -1 then
+                            lCAlign = LVCFMT_LEFT
+                        elsif equal(upper(lFlds[j]), "LEFT") and lCAlign= -1 then
+                            lCAlign = LVCFMT_LEFT
+                        elsif equal(upper(lFlds[j]), "RIGHT") and lCAlign= -1 then
+                            lCAlign = LVCFMT_RIGHT
+                        elsif equal(upper(lFlds[j]), "CENTER") and lCAlign= -1 then
+                            lCAlign = LVCFMT_CENTER
+                        else
+                            lNumData = w32TextToNumber({lFlds[j],w32True})
+                            if sequence(lNumData) and lNumData[2]=0 then
+                                -- Yes, it converts nicely.
+                                lCWidth = w32abs(floor(lNumData[1]))
+                            else
+                                lCTitle = lFlds[j]
+                            end if
+                        end if
+                    end for
+                    lLVColumns = append(lLVColumns, {lCTitle, lCWidth, lCAlign})
+                end if
+            end for
+
+        elsif equal(lKey, "FROM") then
+
+            if compare(lData,"")=1 then
+                lRefControl = w32trim(lData)
+                if equal(lRefControl,"{}") then
+                    lRefControl = vRecentNewUI
+                end if
+            else
+                lRefControl = vRecentNewUI
+            end if
+
+        elsif equal(lKey, "BGCOLOR") or equal(lKey, "BGCOLOUR") or equal(lKey, "BG") then
+            lKey = "BGCOLOR" -- Standardize
+            if lDataType=dataAtom then
+                lBGColor = lData
+            elsif lDataType=dataString then
+                lBGColor = w32lookup(upper(w32trim(lData)), w32ColorNames, w32ColorValues)
+            else
+                lData = {lData[1][w32NumValue],lData[2][w32NumValue],lData[3][w32NumValue]}
+                lBGColor = rgb(lData[1], lData[2], lData[3])
+                w32ColorValues[length(w32ColorValues)] = lBGColor
+            end if
+
+        elsif equal(lKey, "FGCOLOR") or equal(lKey, "FGCOLOUR") or equal(lKey, "FG") then
+            lKey = "FGCOLOR" -- Standardize
+            if lDataType=dataAtom then
+                lFGColor = lData
+            elsif lDataType=dataString then
+                lFGColor = w32lookup(upper(w32trim(lData)), w32ColorNames, w32ColorValues)
+            else
+                lData = extractArgs(lData)
+                lFGColor = rgb(lData[1], lData[2], lData[3])
+                w32ColorValues[length(w32ColorValues)] = lFGColor
+            end if
+
+        elsif equal(lKey, "POINTER") then
+            lPointer = w32trim(lData)
+
+        elsif equal(lKey,"INDEX") then
+            if lType=TabItem then
+                lTabIndex = lData
+            end if
+
+        elsif equal(lKey, "MEMBER") then
+            if integer(lData) and lData>0 then
+                lSetMember = lData
+            end if
+
+        elsif equal(lKey, "BUDDY") then
+            if atom(lData) then
+                lBuddy = floor(lData)
+            else
+                lBuddy = getNameId(w32trim(lData))
+            end if
+
+        elsif equal(lKey, "PRAGMA") then
+            lDirective = upper(w32trim(lData))
+
+        elsif equal(lKey, "POPUP") then
+
+            if length(lData)>0 then
+
+                lData = extractArgs(lData)
+                for j=1 to length(lData) do
+                    lData[j] = w32trim(lData[j])
+                    if length(lData[j])=0 then
+                        lData[j] = -1
+                    else
+                        lData[j] = getNameId(lData[j])
+                    end if
+                end for
+
+                lAttachPopup = lData
+            end if
+
+
+        end if
+
+        lPos = find(lKey, lAssumedKeys)
+        if lPos then
+            lAssumedKeys = w32removeIndex(lPos, lAssumedKeys)
+            if lPos<=lAKPosn then
+                lAKPosn -= 1
+            end if
+        end if
+
+        i += incr
+    end while
+
+    -- All parameters have been processed.
+
+    -- so now we check for missing values etc...
+    if equal(lCaption, {{}}) then
+        lCaption = ""
+        if length(lName)=0 then
+            lName = {{}}
+        end if
+
+    elsif length(lCaption)=0 then
+        if length(lName)=0 then
+            -- This is fixed up after the control is created.
+        else
+            -- Do not set a default caption for certain control types.
+            if find(lType, {StatusBar, EditText, MleText, ToolBar, FlatToolBar,
+                            Pixmap, Bitmap,Group})=0 then
+                lCaption = lName
+            end if
+        end if
+    else
+        if lCaption[1]='<' and lCaption[length(lCaption)]='>' then
+            lCaption = rt:UseText(lCaption[2..length(lCaption)-1],"")
+        end if
+    end if
+
+    if length(lName)=0 then
+        if w32string(lCaption) then
+            lName = lCaption
+        else
+            lName = {{}}
+        end if
+    end if
+
+    if sequence(lOwner) then
+        -- No parent was specified.
+        if lType=MenuItem or lType=MenuSpacer then
+            lOwner = getRecent(w32RecentMenu)
+
+        elsif lType=TabItem then
+            lOwner = getRecent(w32RecentTabControl)
+
+        elsif lType=ReBarBand then
+            lOwner = 0
+
+        elsif find(lType, {Window, Pixmap})=0 then
+            lOwner = getRecent(w32RecentWindow)
+
+        else
+            if (lType=Window) and getRecent(w32RecentWindow)!=0 then
+                -- Make this a child window.
+                if sequence(lFlags) then
+                    lFlags = lFlags[1]
+                end if
+                lFlags = w32or_all({lFlags, WS_CHILD, WS_VISIBLE, WS_CLIPSIBLINGS})
+                lFlags = {and_bits(lFlags,#FF30FFFF)}
+                lOwner = getRecent(w32RecentWindow)
+            else
+                lOwner = 0
+            end if
+        end if
+    end if
+
+    -- Both top and left must either be 'Default' or 'not Default'.
+    -- We can't have a mixture.
+    if equal(lTop,Default) and not equal(lLeft, Default) then
+        lTop = 0
+    elsif equal(lLeft,Default) and not equal(lTop, Default) then
+        lLeft = 0
+    end if
+
+    if lType=ListView then
+        if length(lLVColumns)>0 then
+            lCaption = lLVColumns
+            lFlags = or_bits(lFlags, LVS_REPORT)
+        end if
+    end if
+
+    if lTabIndex then
+        lLeft = lTabIndex
+    end if
+
+    if lNewFlag then
+        lFlags = {lFlags}
+    end if
+    if lNewExFlag then
+        lExFlags = {lExFlags}
+    end if
+
+    ------------------------------------------
+    -- Finally we get to create the control.
+
+    lID = createEx(lType, lCaption, lOwner,
+                   lLeft, lTop, lWidth, lHeight,
+                   lFlags, lExFlags)
+    ------------------------------------------
+
+    -- Test for user defined properties.
+    for j=1 to length(lUserProp[1]) do
+        defineUserProperty(lID, lUserProp[1][j], lUserProp[2][j])
+    end for
+
+    if equal(lName, {{}}) then
+        lName = sprintf("NoName%d", lID)
+
+    elsif length(lName)=0 then
+        lName = sprintf("NoName%d", lID)
+--        if find(lType, {StatusBar, EditText, MleText, ToolBar, FlatToolBar,
+--                            Pixmap, Bitmap,Combo,ComboBoxEx,Group}) = 0 then
+--            lCaption = lName
+--        end if
+--        call_proc(r_setText,{lID, lCaption})
+    end if
+
+    setIdName(lID, lName)
+    vRecentNewUI = getIdName(lID)
+
+    if lType=ListView then
+        if lLVExFlags!=0 then
+            setLVStyle(lID, lLVExFlags)
+        end if
+    end if
+
+    if lType=Window then
+        if atom(lStatusBar) then
+            lBarId = create(StatusBar, "", lID, 0, 0, 0, 0, 0)
+            setIdName(lBarId, lName & "SB")
+            setDeferredHandlers(lBarId, w32HClick)
+        elsif length(lStatusBar)>0 then
+            lBarId = create(StatusBar, "", lID, 0, lStatusBar, 0, 0, 0)
+            setIdName(lBarId, lName & "SB")
+            setDeferredHandlers(lBarId, w32HClick)
+        end if
+
+        if atom(lToolbar) then
+            lBarId = create(ToolBar, "", lID, 0, 0, 0, 34, 0)
+            setIdName(lBarId, lName & "TB")
+
+        elsif atom(lFlatToolbar) then
+            lTemp = getTextExtent(Screen, "|")
+            lTemp = (32+12+lTemp[2])
+            lBarId = create(FlatToolBar, "", lID, 0, 0, 0, lTemp, 0)
+            setIdName(lBarId, lName & "FB")
+        end if
+
+        if lInitView=1 then
+            setSWStyle(lID, SW_MAXIMIZE)
+        elsif lInitView=2 then
+            setSWStyle(lID, SW_MINIMIZE)
+        end if
+    end if
+
+    if lInitFocus!=0 then
+        lTE = getControlInfo(lOwner,CONTROLINFO_focus_order)
+        lInitFocus = find(lID,lTE)
+        if lInitFocus>1 then
+            lTE[1..lInitFocus] = lID & lTE[1..lInitFocus-1]
+            lTE = setTabStops(lOwner,lTE)
+        end if
+    end if
+
+    -- See if a list needs initial data
+    if length(lText)>0 then
+        lTE = getControlInfo(lID, CONTROLINFO_classinfo)
+        if find(lTE[2], {COMBO,LISTBOX}) then
+            addItem(lID, lText)
+        end if
+    end if
+
+    -- See if we need to add this to a rebar band
+    if atom(lReBarBand) then
+        addToBand(lID,  lReBarBand)
+    end if
+
+    -- See if this has a special mouse pointer
+    if atom(lPointer) or length(lPointer)>0 then
+        setMousePointer(lID, lPointer)
+    end if
+
+
+    if length(lFont)>0 then
+        lFormattedFont = getControlInfo(lID,CONTROLINFO_font)
+        if w32string(lFont) then
+            lFormattedFont[w32FontName] = lFont
+        else
+            for j=1 to length(lFont) do
+                if lFont[j][w32ConvCode]=2 then
+                    lFormattedFont[w32FontSize] = lFont[j][w32NumValue]
+                else
+                    lUpperData = upper(w32trim(lFont[j][w32CompleteText]))
+                    if equal(lUpperData,"NEW") then
+                        lFormattedFont[w32FontAttrib] = 0
+                    elsif equal(lUpperData,"BOLD") then
+                        lFormattedFont[w32FontAttrib] = or_bits(Bold, lFormattedFont[w32FontAttrib])
+                    elsif equal(lUpperData, "ITALIC") then
+                        lFormattedFont[w32FontAttrib] = or_bits(Italic, lFormattedFont[w32FontAttrib])
+                    elsif equal(lUpperData, "UNDERLINE") then
+                        lFormattedFont[w32FontAttrib] = or_bits(Underline, lFormattedFont[w32FontAttrib])
+                    elsif equal(lUpperData, "STRIKEOUT") then
+                        lFormattedFont[w32FontAttrib] = or_bits(Strikeout, lFormattedFont[w32FontAttrib])
+                    elsif equal(lUpperData, "NORMAL") then
+                        -- do nothing.
+                    else
+                        lFormattedFont[w32FontName] = lFont[j][w32CompleteText]
+                    end if
+                end if
+            end for
+        end if
+
+        setFont(lID,lFormattedFont[1],lFormattedFont[2],lFormattedFont[3])
+    end if
+
+    if equal(lWidth,"") then
+        if lType=Window then
+            iTemp = find(lID,autoSizes)
+            if iTemp then
+                autoFlags[iTemp] = or_bits(autoFlags[iTemp],2)
+            else
+                autoSizes &= lID
+                autoFlags &= 2
+            end if
+        end if
+        if length(lCaption)>0 then
+            lWidth = getTextWidth(lID, lCaption)
+            lTE = getControlInfo(lID, CONTROLINFO_classinfo)
+            if lTE[2]=BUTTON then
+                lWidth += 12
+            elsif lType=Window then
+                lWidth += getSystemMetrics(SM_CXICON)*4
+            end if
+
+            if lType=CheckBox then
+                lWidth += 12
+            elsif lType=Radio then
+                lWidth += 12
+            end if
+        else
+            lWidth = 1
+            lChar[1] = w32True
+        end if
+        lResize = w32True
+    end if
+
+    if equal(lHeight,"") then
+        if lType=Window then
+            iTemp = find(lID,autoSizes)
+            if iTemp then
+                autoFlags[iTemp] = or_bits(autoFlags[iTemp],1)
+            else
+                autoSizes &= lID
+                autoFlags &= 1
+            end if
+            lHeight = 50
+        elsif length(lCaption)>0 then
+            lHeight = 10+getTextHeight(lID, lCaption)
+            lTE = getControlInfo(lID, CONTROLINFO_classinfo)
+            if lTE[2]=BUTTON then
+                lHeight += 6
+            end if
+        else
+            lHeight = 1
+            lChar[2] = w32True
+        end if
+        lResize = w32True
+    end if
+
+    if find(w32True, lChar) then
+        lTE = getTextExtent(lID, "M")
+        if lChar[1] then
+            lWidth = lWidth*lTE[1]+6
+            iTemp = getControlInfo(lID, CONTROLINFO_classinfo)
+            if iTemp[2]=BUTTON then
+                lWidth += 6
+            end if
+        end if
+
+        if lChar[2] then
+            lHeight = lHeight*lTE[2]+10
+            lTE = getControlInfo(lID, CONTROLINFO_classinfo)
+            if lTE[2]=BUTTON then
+                lHeight += 6
+            end if
+        end if
+
+        lResize = w32True
+    end if
+
+    if atom(lRight) then
+        lTE = getRect(lID)
+        if lTE[3]-lTE[1]>lWidth then
+            lWidth = lTE[3]-lTE[1]
+        end if
+        lOwner = findParent(lID)
+        if lOwner=0 then
+            lOwner = Screen
+        end if
+        lParentRect = getClientRect(lOwner)
+        lLeft = lParentRect[3]-lRight-lWidth-lParentRect[1]
+
+        setRect(lID, lLeft, lTE[2], lWidth, lTE[4]-lTE[2], w32True)
+
+
+    end if
+
+    if atom(lBottom) then
+        lTE = getRect(lID)
+        if lTE[4]-lTE[2]>lHeight then
+            lHeight = lTE[4]-lTE[2]
+        end if
+        lOwner = findParent(lID)
+        if lOwner=0 then
+            lOwner = Screen
+        end if
+        lParentRect = getClientRect(lOwner)
+        lTop = lParentRect[4]-lBottom-lHeight-lParentRect[2]
+
+        setRect(lID, lTE[1], lTop, lTE[3]-lTE[1], lHeight, w32True)
+
+    end if
+
+    if lResize then
+        lTE = getRect(lID)
+        if not equal(lLeft, Center) then
+            lLeft = lTE[1]
+        end if
+        if not equal(lTop, Center) then
+            lTop = lTE[2]
+        end if
+        setRect(lID, lLeft, lTop, lWidth, lHeight, w32True)
+    end if
+
+    if atom(lTooltip) or length(lTooltip)>0 then
+        setHintEx(lID, lTooltip,0)
+    end if
+
+    if lCheck[1] then
+        setCheck(lID, lCheck[2])
+    end if
+    if lEnable[1] then
+        setEnable(lID, lEnable[2])
+    end if
+    if lVisible[1] then
+        if lVisible[2]=0 and lType=Window then
+            setSWStyle(lID,SW_HIDE)
+        else
+            setVisible(lID, lVisible[2])
+        end if
+    end if
+
+    if lAutoClose then
+        setHandler(lID, w32HClick, r_autoclose)
+    end if
+
+    if lSetMember>0 then
+        setControlSet(lSetMember, w32True, lID)
+    end if
+
+    if (getControlInfo(lID,CONTROLINFO_class)=BUTTON or find(lType,{MenuItem, StatusBar,Bitmap,Icon,LText,RText,CText})) and find(w32HClick, lEventList)=0 then
+        lEventList &= w32HClick
+
+    elsif find(lType,{HScroll,VScroll,HTrackBar,VTrackBar,ProgressBar,UpDown}) and find(w32HScroll, lEventList)=0 then
+        lEventList &= w32HScroll
+
+    elsif find(lType,{EditText,MleText,RichEdit}) then
+        if find(w32HKeyPress, lEventList)=0 then
+            lEventList &= w32HKeyPress
+        end if
+
+        if find(w32HKeyDown, lEventList)=0 then
+            lEventList &= w32HKeyDown
+        end if
+
+        if find(w32HKeyUp, lEventList)=0 then
+            lEventList &= w32HKeyUp
+        end if
+
+    elsif lType=Window then
+        if find(w32HScroll, lEventList)=0 then
+            lEventList &= w32HScroll
+        end if
+        if find(w32HPaint, lEventList)=0 then
+            lEventList &= w32HPaint
+        end if
+        if find(w32HOpen, lEventList)=0 then
+            lEventList &= w32HOpen
+        end if
+        if find(w32HActivate, lEventList)=0 then
+            lEventList &= w32HActivate
+        end if
+        if find(w32HResize, lEventList)=0 then
+            lEventList &= w32HResize
+        end if
+        if find(w32HClose, lEventList)=0 then
+            lEventList &= w32HClose
+        end if
+    end if
+    setDeferredHandlers(lID, lEventList)
+
+    -- Check if this has been added since the application started running.
+    if getAppState()=kStarted and setCallback(-2)>=0 then
+        ResolveDeferredHandler(lID)
+        if lBarId!=0 then
+            ResolveDeferredHandler(lBarId)
+        end if
+    end if
+
+    -- Test for special scrollbar values
+    if length(lScrollRange)!=0 then
+        if length(lScrollRange)=2 then
+            setScrollRange(lID, lScrollRange[1], lScrollRange[2])
+        elsif length(lScrollRange)=3 then
+            setWindowScrollRange(lID, 0, lScrollRange[1], lScrollRange[2], lScrollRange[3])
+        end if
+    end if
+    if length(lScrollChange)!=0 then
+        setScrollChange(lID, lScrollChange[1], lScrollChange[2])
+    end if
+    if atom(lScrollPosition) then
+        setScrollPos(lID, lScrollPosition)
+    end if
+    if lBuddy>0 then
+        setBuddy(lID, lBuddy)
+    end if
+
+    -- Test for image setting
+    if sequence(lImage) then
+        if length(lImage)>0 then
+            if find(lType, {Window, Icon})!=0 then
+                setIcon(lID, lImage)
+            elsif lType=Bitmap then
+                setBitmap(lID, lImage)
+            elsif lType=TabItem then
+                w32VOID = setTabImage(lID,lImage)
+            end if
+        end if
+    else
+        setIcon(lID, lImage)
+    end if
+    lParent = getControlInfo(lID,CONTROLINFO_owner)
+
+    -- Test for background color change
+    if equal(lBGColor, "PARENT") then
+        bgcolor = getControlInfo(lParent,CONTROLINFO_bcolor)
+        setBackground(lID,sequence(bgcolor), bgcolor)
+    elsif not sequence(lBGColor) then
+        setWindowBackColor(lID, lBGColor)
+    end if
+    if not sequence(lFGColor) then
+        setTextColor(lID, lFGColor)
+    end if
+
+    -- Test for parent auto sizing.
+    if lParent!=0 and not find(lType,{Popup,Menu,MenuItem,MenuSpacer,Pixmap}) then
+        iTemp = find(lParent,autoSizes)
+        if iTemp and and_bits(autoFlags[iTemp],1) then
+            lTE = getRect(lID)
+            lParentRect = getClientRect(lParent)
+            if lTE[4]+5>lParentRect[4]-lParentRect[2] then
+                setClientRect(lParent,lParentRect[3]-lParentRect[1],lTE[4]+5)
+            end if
+
+        end if
+
+        if iTemp and and_bits(autoFlags[iTemp],2) then
+            lTE = getRect(lID)
+            lParentRect = getClientRect(lParent)
+            if lTE[3]+5>lParentRect[3]-lParentRect[1] then
+                setClientRect(lParent,lTE[3]+5,lParentRect[4]-lParentRect[2])
+            end if
+
+        end if
+    end if
+
+    if sequence(lAttachPopup) then
+        w32VOID = attachPopup(lID, lAttachPopup)
+    end if
+
+    if sequence(lDirective) then
+        if equal(lDirective, "PARENT") or equal(lDirective, "*") then
+            lType = getControlInfo(lID,CONTROLINFO_alias)
+            if lType=Menu then
+                setRecent(w32RecentMenu, getNameId(lName))
+            elsif lType=Window then
+                setRecent(w32RecentWindow, getNameId(lName))
+            elsif lType=TabControl then
+                setRecent(w32RecentTabControl, getNameId(lName))
+            end if
+        end if
+
+        return
+    end if
+
+end procedure
+
+--/topic Forms
+--/proc createForm( sequence pFormDefinition )
+--/desc This creates a Window and its controls.
+--/i pFormDefinition is a list of Control definitions, the first is assumed to be
+-- a Window definition and the rest are the controls that the window is to contain.
+--Each control definition is passed on to /newUIObj to create the actual control in
+-- the order they are defined in /i pFormDefinition.
+--
+--The elements in /i pFormDefinition as strings that each define a single control. The
+-- string is a comma separated list of parameters in the form KEY=VALUE, but note
+-- that some key names can be defaulted if omitted.
+-- All the parameters have a keyword name, which is not case sensitive, meaning
+-- that "width=200" and "WIDTH=200" are both acceptable. However, certain
+-- parameters can have assumed keyword names if not supplied. The first unnamed
+-- parameter is assumed to be the "TYPE" parameter, the second unnamed
+-- is assumed to be "CAPTION", and so on for "NAME", "LEFT", "TOP", "WIDTH",
+-- "HEIGHT", "FLAGS", and "EXFLAGS" parameters, in that order. If there
+-- are still unnamed parameters after all the assumed ones have been
+-- allocated, an error message is issued.
+--
+-- Also note that /b "include w32Start.ew" is usually used in conjunction with
+-- applications that use createForm()
+--
+--Example:
+--/code
+--      createForm({"Window, Login,height=200,bar=status, left=10, top=Center",
+--                  "RText,   User Name:, left=10,top=10",
+--                  "EditText,User Name Text,caption=(), from=UserName" &
+--                            ", left=(2),top=(-2,,), width=25chars",
+--                  "RText,   Password:, from=UserName,left=(),top=(15),width=()",
+--                  "EditText,Password Text,caption=(), from=Password" &
+--                            ", left=(2),top=(-2,,), width=(),flag=es_password",
+--                  "DefPushButton,&Submit, right=75, width=70,bottom=5, height=25",
+--                  "CancelButton,&Cancel,  from=Submit, left=(5),top=()" &
+--                  ", height=(), width=(), flag=autoclose",
+--                  "TabOrder=(UserName,PasswordText,Submit)"
+--                  })
+--/endcode
+
+global procedure createForm(sequence pForm)
+object lCtlDefn
+integer lPos
+object lTemp
+--  integer lNewId
+integer lDelim
+sequence lKeyValue
+
+    if length(pForm)=0 then
+        return
+    end if
+
+
+    -- Pass 1: Standardize the control definitions.
+    if w32string(pForm) then
+        pForm = {pForm}
+    end if
+
+    for i=1 to length(pForm) do
+        if not w32string(pForm[i]) then
+            lPos = 0
+            while lPos<length(pForm[i]) do
+                lPos += 1
+                if sequence(pForm[i][lPos]) then
+                    -- Convert an embedded sequence to a string.
+                    lTemp = w32ToString(pForm[i][lPos])
+                    if not find(',', lTemp) then
+                        -- Strip off enclosing parens if not a list of items.
+                        lTemp = lTemp[2..length(lTemp)-1]
+                    end if
+                    pForm[i] = pForm[i][1..lPos-1] &
+                               lTemp &
+                               pForm[i][lPos+1..length(pForm[i])]
+                    lPos -= 1
+                end if
+            end while
+        end if
+    end for
+
+    lPos = 1
+    while lPos<=length(pForm) do
+        lCtlDefn = pForm[lPos]
+
+        -- Only deal with non-empty definitions!
+        if length(lCtlDefn)!=0 then
+            -- Split it up delimited by commas
+            if length(lCtlDefn)>0 and find(lCtlDefn[1], ";`~|#/\\-_^*@,") then
+                lDelim = lCtlDefn[1]
+                lCtlDefn = lCtlDefn[2..length(lCtlDefn)]
+            else
+                lDelim = ','
+            end if
+            pForm[lPos] = w32MakeArgs(lCtlDefn, lDelim, '=')
+
+        else
+            -- delete the empty string.
+            pForm = pForm[1..lPos-1] & pForm[lPos+1..length(pForm)]
+            lPos -= 1
+        end if
+
+        lPos += 1
+    end while
+
+    -- Pass 2: Make sure a 'window' definition is the first one.
+    lPos = 0
+    for i=1 to length(pForm) do
+        lCtlDefn = pForm[i]
+        for j=1 to length(lCtlDefn) do
+            lKeyValue = lCtlDefn[j]
+
+            if j=1 and equal(upper(lKeyValue[w32CompleteText]), "WINDOW") then
+                lPos = i
+                exit
+            end if
+        end for
+        if lPos!=0 then
+            exit
+        end if
+    end for
+    if lPos=0 then
+        -- No Window explictly defined, so I assume one.
+        pForm[1] = prepend(pForm[1], {"TYPE",1,2,Window,"",""})
+    end if
+
+    -- Ensure form type is first element.
+    if lPos>1 then
+        lCtlDefn = pForm[lPos]
+        pForm = prepend(w32removeIndex(lPos, pForm), lCtlDefn)
+    end if
+
+    call_proc(r_clearRecents,{})
+
+    -- Pass 3: Define each control in order.
+    for i=1 to length(pForm) do
+        newUIObj(pForm[i])
+        if i=1 then
+            setRecent(w32RecentForms,getRecent(w32RecentWindow))
+        end if
+    end for
+
+end procedure
+
+--/topic Forms
+--/func getFormIds(integer Action)
+--/desc Returns the most recently created form(s)
+--/ret SEQUENCE: A list of window ids created by the /createForm routine.
+--If /i Action = 1 then only the most recent form id is returned,
+--otherwise all the form ids are returned as a list ordered from
+--oldest to most recently created.
+--
+--Example:
+--/code
+--      sequence fid
+--      -- Create a form
+--      createForm( FormDefn )
+--      -- Get its form (window) id.
+--      fid = getFormIds(1)
+--/endcode
+global function getFormIds(integer pAction)
+sequence s
+
+    s = getRecent(w32RecentForms)
+    -- N.B. The first entry is a dummy one and should never be used.
+    if length(s)<=1 then
+        return {}
+    end if
+
+    if pAction=1 then
+        return {s[length(s)]}
+    end if
+
+    return s[2..length(s)]
+end function
+
+--/topic Forms
+--/func loadForms(sequence FileName)
+--/desc Builds a form definition from a text file.
+--/ret SEQUENCE: A form definition suitable to give to /createForm()
+--/i FileName is the pathname of a file that contains form definition
+--statements. These are almost identical to the ones used by /newUIObject
+--but there are a few differences to help laying out the text file.
+--
+--The form definition file consists of one or more lines of text. Any
+--text following the /b"comment string" are stripped off. Initially
+-- the comment string is two semi-colons, eg. ";;". /n
+--The lines are grouped into UI Object definitions. Each definition
+-- starts in column 1. If you need to extend a definition over
+-- multiple lines, offset the second and subsequent lines by at least
+-- one space (or tab) character.
+--
+--You can change the default comment string by inserting a comment
+-- in the form "comment=~<xxx>" where "~<xxx>" is one or more characters
+--that become the new comment lead-in string from that point onwards.
+--
+--Example of a form definition file:
+--/code
+-- ;;comment=---
+-- --- Customer.form
+-- --- This defines the customer input screen.
+--
+-- Window, Customer Input
+--         at={20, 20}
+--         bar=status
+--
+--
+-- Label, Number ------------------ Customer Number
+--      at={5,10}
+-- EditText
+--      left={}, top={0}, width=20ch
+--
+-- Label, Name ------------------ Customer Name
+--      left={}, top={4}
+-- EditText
+--      left={}, top={0}, width=50char
+--
+-- Button, Accept
+--      left={}, top={10}
+-- Button, Cancel
+--      left={4}, top={}
+--/endcode
+--
+--Example for calling loadForm:
+--/code
+--      sequence lFormDefn
+--      lFormDefn = loadForm("customer.form")
+--      createForm(lFormDefn)
+--      lFormId = getFormIds(1)
+--      setText(lFormId[1], sprintf("%s (%d)",{getText(lFormId[1]), lFormId[1]}))
+--/endcode
+
+-----------------------------
+global function loadForm(sequence pName)
+-----------------------------
+integer lFH
+sequence lForm
+object lLine
+sequence lDefn
+integer lCont
+integer lPos
+sequence lCommentLead
+sequence lComment
+
+
+    lCommentLead = ";;"
+    lForm = {}
+    lFH = w32FileOpen(pName, "r")
+    if lFH= -1 then
+        return {}
+    end if
+
+    lDefn = ""
+    lLine = gets(lFH)
+    while sequence(lLine) do
+        lCont = lLine[1]
+        lLine = w32trim(lLine)
+        lPos = match(lCommentLead, lLine)
+        if lPos!=0 then
+            lComment = lLine[lPos+length(lCommentLead)..length(lLine)]
+            lLine = w32trim(lLine[1..lPos-1])
+            if match("comment=", lComment)=1 and length(lComment)>8 then
+                lCommentLead = lComment[9..length(lComment)]
+            end if
+        end if
+        if length(lLine)>0 then
+            if lCont=' ' or lCont='\t' then
+                if length(lDefn)>0 and lDefn[length(lDefn)]!=',' then
+                    lDefn &= ','
+                end if
+                lDefn &= lLine
+            else
+                if length(lDefn)>0 then
+                    lForm = append(lForm, lDefn)
+                end if
+                lDefn = lLine
+            end if
+        end if
+
+        lLine = gets(lFH)
+    end while
+    if length(lDefn)>0 then
+        lForm = append(lForm, lDefn)
+    end if
+
+    close(lFH)
+
+    return lForm
+end function
+

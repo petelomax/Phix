@@ -277,6 +277,7 @@ end procedure -- (for Edita/CtrlQ)
         xor rax,rax
         cmp rsi,r15
         jl @f
+--DEV :%pLoadMint?
             cmp byte[rbx+rsi*4-1],0x12
             jne :e110opPeekiSeq
             fld tbyte[rbx+rsi*4]
@@ -885,6 +886,7 @@ end procedure -- (for Edita/CtrlQ)
         push rcx
         cmp rsi,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rsi*4-1],0x12
             jne :PeekNxSeq64
             fld tbyte[rbx+rsi*4]
@@ -991,6 +993,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rcx,[rbx+rsi*4+8]           -- len (ie p2[2])
         cmp rcx,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rcx*4-1],0x12
             jne :e43atpmbaoso2a
             fld tbyte[rbx+rcx*4]
@@ -1003,6 +1006,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rsi,[rbx+rsi*4]             -- addr (ie p2[1])
         cmp rsi,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rsi*4-1],0x12
             jne :e43atpmbaoso2a
             fld tbyte[rbx+rsi*4]
@@ -1423,6 +1427,7 @@ end procedure -- (for Edita/CtrlQ)
         xor rdx,rdx
         cmp rdi,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rdi*4-1],0x12
             jne :e42fatp4mba        -- first argument to poke4 must be atom
             fld tbyte[rbx+rdi*4]
@@ -1434,6 +1439,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp rax,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rax*4-1],0x12
             jne :PokeNSeq64
             fld tbyte[rbx+rax*4]
@@ -1486,6 +1492,7 @@ end procedure -- (for Edita/CtrlQ)
             add rsi,8
             cmp rax,r15
             jl @f
+--DEV :%pLoadMint
                 cmp byte[rbx+rax*4-1],0x12
                 jne :e114stbpmoca           -- sequence to be poked must only contain atoms
                 fld tbyte[rbx+rax*4]
@@ -1634,6 +1641,7 @@ end procedure -- (for Edita/CtrlQ)
         mov r15,h4
         cmp rcx,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rcx*4-1],0x12
             jne :e39atmcmba    -- arguments to mem_copy must be atoms
             fld tbyte[rbx+rcx*4]
@@ -1648,6 +1656,7 @@ end procedure -- (for Edita/CtrlQ)
 
         cmp rsi,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rsi*4-1],0x12
             jne :e39atmcmba    -- arguments to mem_copy must be atoms
             fld tbyte[rbx+rsi*4]
@@ -1659,6 +1668,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp rdi,r15
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rdi*4-1],0x12
             jne :e39atmcmba    -- arguments to mem_copy must be atoms
             fld tbyte[rbx+rdi*4]
@@ -1736,6 +1746,7 @@ end procedure -- (for Edita/CtrlQ)
         mov r15,h4
         cmp rax,r15     -- value
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rax*4-1],0x12
             jne :e40atmsmba    -- arguments to mem_set must be atoms
             fld tbyte[rbx+rax*4]
@@ -1747,6 +1758,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp rcx,r15     -- length
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rcx*4-1],0x12
             jne :e40atmsmba    -- arguments to mem_set must be atoms
             fld tbyte[rbx+rcx*4]
@@ -1761,6 +1773,7 @@ end procedure -- (for Edita/CtrlQ)
 
         cmp rdi,r15     -- memory address
         jl @f
+--DEV :%pLoadMint
             cmp byte[rbx+rdi*4-1],0x12
             jne :e40atmsmba     -- arguments to mem_set must be atoms
             fld tbyte[rbx+rdi*4]

@@ -2,20 +2,18 @@
 
 include pGUI.e
 
-function value_cb(atom ih)
-  printf(1, "VALUE_CB(%s)\n", IupGetAttribute(ih, "VALUE"))
-  return IUP_DEFAULT
-end function
---constant cb_value = routine_id("value_cb")
+Ihandle btn, calendar, datepick
 
-function set_value(atom ih)
-  IupSetAttribute(IupGetBrother(ih), "VALUE", "1970/07/11")
---  IupSetAttribute(cal, "VALUE", "1970/07/11")
-  IupSetAttribute(IupGetBrother(IupGetBrother(ih)), "VALUE", "1970/07/11")
---  IupSetAttribute(the_date, "VALUE", "1970/07/11")
+function action_cb(Ihandle /*btn*/)
+    IupSetAttribute(calendar, "VALUE", "1970/07/11")
+    IupSetAttribute(datepick, "VALUE", "1970/07/11")
+    return IUP_DEFAULT
+end function
+
+function value_cb(Ihandle /*calendar*/)
+  printf(1, "VALUE_CB(%s)\n", IupGetAttribute(calendar, "VALUE"))
   return IUP_DEFAULT
 end function
---constant value_set = routine_id("set_value")
 
 function esc_close(Ihandle /*ih*/, atom c)
 -- (I like all my demos to close when escape is keyed)
@@ -23,23 +21,17 @@ function esc_close(Ihandle /*ih*/, atom c)
 end function
 
 procedure CalendarTest()
-Ihandle dlg, box, btn, cal, the_date
+Ihandle dlg, box
 
-  btn = IupButton("Set Value")
-  cal = IupCalendar()
-  the_date = IupDatePick()
-  IupSetAttribute(the_date, "ZEROPRECED", "Yes")
-  IupSetAttribute(the_date, "MONTHSHORTNAMES", "Yes")
+  btn = IupButton("Set Value","ACTION", Icallback("action_cb"))
+  calendar = IupCalendar("VALUECHANGED_CB", Icallback("value_cb"))
+  datepick = IupDatePick()
+  IupSetAttribute(datepick, "ZEROPRECED", "Yes")
+  IupSetAttribute(datepick, "MONTHSHORTNAMES", "Yes")
 
-  box = IupVbox({btn, cal, the_date})
+  box = IupVbox({btn, calendar, datepick})
   IupSetAttribute(box, "MARGIN", "10x10")
   IupSetAttribute(box, "GAP", "10")
---  IupSetCallback(btn, "ACTION", Icallback(value_set))
-  IupSetCallback(btn, "ACTION", Icallback("set_value"))
---  IupSetCallback(cal, "VALUECHANGED_CB", Icallback(cb_value))
-  IupSetCallback(cal, "VALUECHANGED_CB", Icallback("value_cb"))
---  IupSetCallback(the_date, "VALUECHANGED_CB", Icallback(value_set))
---  IupSetCallback(the_date, "VALUECHANGED_CB", Icallback("set_value"))
 
   dlg = IupDialog(box)
 

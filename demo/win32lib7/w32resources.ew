@@ -1,0 +1,5593 @@
+        --------------------NOTICE-------------------------------*
+-- Software ID: w32resources.ew
+-- Version:     0.70.4a
+-- Copyright:   (c) 2000 David Cuny and friends
+--              All rights reserved.
+-- Licence:
+-- This software is provided 'as-is', without any express or implied warranty.
+-- In no event will the authors be held liable for any damages arising from
+-- the use of this software.
+--
+-- Permission is granted to anyone to use this software for any purpose,
+-- including commercial applications, and to alter it and redistribute it
+-- freely, subject to the following restrictictions:
+-- 1. The origin of this software must not be misrepresented; you must not
+--    claim that you wrote the original software.
+-- 2. If you use this software in a product, acknowedgement in the product's
+--    documenation and binary are required.
+-- 3. Altered source versions, and works substantially derived from the it,
+--    must...
+--   a) be plainly be marked as such,
+--   b) not be misrepresented as the original software,
+--   c) include this notice, unaltered.
+--------------------End of NOTICE------------------------*
+
+-- w32resources.ew contains most of the code dealing with GDI objects. Some parts
+-- have been kept in win32lib.ew, most importantly font handling.
+without trace
+without type_check
+without warning
+include series.e as series
+
+object VOID
+
+constant
+   Err_GETDCFAIL = {"getDC:GetDC failed.", 494},
+--   Err_SAVEDCFAIL = {"getDC:SaveDC failed.", 493},
+   Err_RELEASEDCRESTORE = {"releaseDC:RestoreDC failed.", 492},
+   Err_ECFSAVEDCFAIL = {"ezCreateFont:SaveDC failed.", 491},
+--   Err_ECFSETVIEWPORT = {"ezCreateFont:SetViewportOrgEx failed.", 490},
+--   Err_ECFSETWINDOW = {"ezCreateFont:SetWindowOrgEx failed.", 489},
+--   Err_ECFDPTOLP = {"ezCreateFont:DPtoLP failed.", 488},
+--   Err_ECFGETTEXTMETRICS = {"ezCreateFont:GetTextMetrics failed.", 487},
+   Err_ECFRESTOREDC = {"ezCreateFont:RestoreDC failed.", 486},
+   Err_RELEASEPRINTER = {"releasePrinter:DeleteDC failed.",458},
+--   Err_GETDCBITMAP = {"getDC( bitmap ):CreateCompatibleDC failed.",457},
+--   Err_GETDCSELECTBITMAP = {"getDC:SelectObject(bitmap) failed.",456},
+--   Err_GETDCPIXMAP = {"getDC(pixmap):CreateCompatibleDC failed.",455},
+--   Err_GETDCSELECTPIXMAP = {"getDC:SelectObject(pixmap) failed.",454},
+--   Err_EMPTYDCSTACK = {"ReleaseDC without matching GetDC.",453},
+   Err_RELEASESCREEN = {"releaseDC:ReleaseDC (screen) failed.",452},
+   Err_RELEASEBITMAP = {"releaseDC:DeleteDC (bitmap) failed.",451},
+   Err_RELEASEPIXMAP = {"releaseDC:DeleteDC (Pixmap) failed.",450},
+   Err_RELEASEDC = {"releaseDC:ReleaseDC failed.",449},
+   Err_WRONGOWNER = {"LOGIC ERROR: Held resource owner is not the actual owner.", 425}
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+-- RESOURCE TRACKING
+--
+-- This is used to track GDI resources held by the application.
+-- This module is defined early on so that on an abortErr, the
+-- code can still run the cleanup.
+
+--/topic Resources
+--/const ForPaint
+--/desc Indicates that the resource lives until the end of the onPaint operation.
+
+--/topic Resources
+--/const ForProgram
+--/desc Indicates that the resource lives until the end of the program.
+
+global constant
+    ForPaint   = -1,    -- resource lives until end of onPaint
+    ForProgram = -2     -- resource lives until end of program
+
+constant
+    ResSTRUCT   = series:next_number(0),
+    ResHandle   = series:next_number(ResSTRUCT),    -- Win32 handle (primary key)
+    ResOwner    = series:next_number(ResSTRUCT),    -- the resource WinLib id
+    ResLife     = series:next_number(ResSTRUCT),    -- how long the resource lives
+    ResObjType  = series:next_number(ResSTRUCT),    -- Type of resource being tracked.
+    ResCnt      = series:next_number(ResSTRUCT),    -- Number of times tracked.
+    ResTag      = series:next_number(ResSTRUCT),    -- Optional user supplied data
+    ResStatus   = series:next_number(ResSTRUCT),    -- Optional user supplied data
+    NewRes      = repeat(0, series:current_number(ResSTRUCT))
+
+global constant
+    enumObject = series:next_number(0),
+    kPenObject = series:next_number(enumObject),
+    kBrushObject = series:next_number(enumObject),
+    kFontObject = series:next_number(enumObject),
+    kBitmapObject = series:next_number(enumObject),
+    kIconObject = series:next_number(enumObject)
+constant
+    kObjectTypes = {kPenObject,kBrushObject, kFontObject,
+                    kBitmapObject, kIconObject},
+    kNewDC = 0 & repeat({}, series:current_number(enumObject)),
+
+    kUnknownObject = 0,
+    kTrackedID = 1,
+    kTrackedCurDC = 2,
+    kTrackedDCCnt = 1,
+    kTrackedDCHdl = 2,
+    kTrackedDCSaved = 3,
+    kTrackedDCReason = 4,
+    kDCReasonApp = 1,
+    kDCReasonPaint = 0
+
+
+sequence
+    heldResource,   -- list of held resources, and their scope
+    heldCursor,     -- list of held cursors
+    vHRFree         -- list of free spots in heldResource
+integer vHRI
+
+sequence grabbedHDC
+    grabbedHDC = {}
+
+-- This variable is used to help debugging of resources. It is not
+-- 'used' in the library itself.
+
+
+    -- initialize
+    heldResource    = {}
+    heldCursor      = {}
+    vHRFree = {}
+    vHRI = 0
+
+integer vFontWeight     vFontWeight = FW_BOLD
+sequence vFontKeys      vFontKeys = {}
+-- default font
+atom DefaultFontID  DefaultFontID = -1
+
+
+--/topic Fonts
+--/func setFontWeight( integer pNewWeight)
+--/desc Possibly sets what you mean by 'bold' when using /setFont(..., /i Bold )
+--/ret The font weight setting before you changed it.
+-- You can use <a href="..\win32_constants.htm#Font weights"> the following names</a> for the standard font weights. Also, you can use
+-- /w32GetValue to just return the current bold weight value. /n
+--
+-- For video devices, there is not much difference in the rendering, but on other devices
+-- it might make a difference.
+--
+-- Example:
+--/code
+--    integer lOldWeight
+--    lOldWeight = setFontWeight(FW_LIGHT)
+--    /setFont(aControl, "Courier New", 12, Bold)
+--
+--/endcode
+------------------------------------------------------------------------------
+global function setFontWeight(integer pNewWeight)
+integer lOldWeight
+
+    lOldWeight = vFontWeight
+
+    if pNewWeight>=0 then
+        pNewWeight = 100*floor((pNewWeight+99)/100)
+        if pNewWeight>FW_HEAVY then
+            pNewWeight = FW_HEAVY
+        end if
+
+        vFontWeight = pNewWeight
+    end if
+
+    return lOldWeight
+end function
+
+sequence vStockResources
+         vStockResources = {DefaultFontID, DefaultPenID, NullBrushID}
+
+    for i=0 to STOCK_LAST do
+        vStockResources &= i
+    end for
+
+-----------------------------------------------------------------------------
+function isStockResource(atom a)
+    -- returns true if a is a stock object
+    -- any resource created with GetStockObject should be added here
+
+    return find(a, vStockResources)
+end function
+
+
+sequence vDCs vDCs = {}
+--integer vMaxPenCache vMaxPenCache = 20
+
+--/topic Resources
+--/info
+-- This set of routines helps you to manage Windows resources.
+--
+-- A number of different types of resources are used in Windows programmming. The
+-- main ones are GDI objects, such as Fonts, and Brushes.
+--
+-- Whenever a resource is created by the library, it is tracked so that it can be released back to
+-- Windows when finished with. Typically, a resource is created when you call a drawing routine or
+-- change a font, and a resource is deleted when the drawing routine is fininshed or replaced with
+-- another resource of the same type.
+
+
+--/topic Resources
+--/proc deleteObject( object resource )
+--/desc Deletes a Windows GDI resource.
+-- /i resource is the Handle of the object to be deleted.
+global procedure deleteObject(object resource)
+atom lObject
+-- deletes an object if not a stock resource
+-- removes it from the tracking list
+integer at
+integer lDelete
+--  atom lRC
+
+    if atom(resource) then
+        lObject = resource
+        lDelete = w32True
+    else
+        lObject = resource[1]
+        lDelete = resource[2]
+    end if
+
+    -- Stock resources are not tracked.
+    if isStockResource(lObject) then
+        return
+    end if
+
+    -- Was a real delete requested?
+    if lDelete=w32True then
+        VOID = w32Func(xDeleteObject, {lObject})
+    end if
+
+    -- is this a known resource?
+    at = w32findKey(lObject, heldResource)
+    if at!=0 then
+        -- remove from my list of held resources --
+        heldResource[at][ResHandle] = 0  -- Invalidate entry
+        heldResource[at][ResStatus] = 0  -- Invalidate entry
+        vHRI += 1 -- Point to next freelist entry
+        vHRFree[vHRI] = at -- Update free list
+    end if
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Resources
+--/func findTrackedObject( integer pOwner, sequence pTag )
+--/desc Looks amongst the tracked objects for one that matches the criteria.
+--/ret A sequence containing a list of resources matching the criteria.
+-- /i pOwner is the /b ID of the control that owns the resource being tracked. /n
+-- /i pTag is the 'tag' data stored with the resource when it was first tracked.
+-- If this is an empty sequence, all resources for this /i pOwner will be returned.
+global function findTrackedObject(object pOwner, sequence pTag)
+sequence lResult
+sequence lResource
+
+    lResult = {}
+    for i=1 to length(heldResource) do
+        lResource = heldResource[i]
+        if lResource[ResStatus]=1 and equal(lResource[ResOwner], pOwner)    then
+            if length(pTag)>0 then
+                if equal(pTag, lResource[ResTag]) then
+                    lResult &= lResource[ResHandle]
+                end if
+            else
+                lResult &= lResource[ResHandle]
+            end if
+        end if
+    end for
+
+    return lResult
+end function
+
+--/topic Resources
+--/func getTrackedObject( object Resource )
+--/desc Gets the data saved against this /i Resource
+--/ret A sequence containing the tracking data
+-- /i Resource is the resource, eg. Bitmap, Pen, Brush, that was tracked. /n
+-- If this is an empty sequence, it means that the resource was not being tracked.
+global function getTrackedObject(object pResource)
+sequence lResult
+
+    lResult = {}
+    for i=1 to length(heldResource) do
+        if heldResource[i][ResStatus]=1 and equal(heldResource[i][ResHandle],pResource)  then
+            return heldResource[i]
+        end if
+    end for
+    return {}
+end function
+
+-----------------------------------------------------------------------------
+--/topic Resources
+--/proc trackObject( object owner, object resource, integer lifetime )
+--/desc Tracks an object as a held resource.
+-- /i owner is the /b ID of the control that owns the resource being tracked. It
+-- can be a simple control id or  a 2-element sequence {id, object-type}. There
+-- are some predefined object types: /n
+--<ul>
+--/li IMAGE_BITMAP
+--/li IMAGE_ICON
+--</ul>
+-- /i resource is the resource being tracked. This is usually a memory address of a structure you have created.
+-- /i lifetime is how long this resource needs to be kept for. The possible code values are /n
+-- /li /ForPaint if this a resource held during a Paint operation. /n
+-- /li /ForProgram if this is to be held for the duration of the application. Win32lib
+-- won't delete this resource. If you need to, you have to explicitly delete it.
+--
+-- Note that /i resource can be a two-element sequence. The first element is the
+-- actual resource being tracked, and the second is anything you wish to tag
+-- along with the resource. You can then use /findTrackedObject() to retrieve
+-- the resource being tracked.
+--
+-- You don't need to track objects created by loadIconFromFile(), loadBitmapFromFile(), 
+-- createPixmap() and setFont(), because the library does so for the purpose of reducing
+-- memory leaks. All objects that get replaced at any point are tracked too.
+--
+--Example:
+--/code
+--      trackObject (myEdit, hBGBrush, ForProgram)
+--/endcode
+
+global procedure trackObject(object owner, object pObject, integer lifetime)
+atom lObject
+integer at
+
+-- tracks object as held resource
+--  sequence res
+object lTag
+integer lObjType
+-- Get the 'extra' parameters...
+    if atom(pObject) then
+        lObject = pObject
+        lTag = -1
+    else
+        lObject = pObject[1]
+        lTag = pObject[2]
+    end if
+    if isStockResource(lObject) then
+        -- Don't bother tracking stock resources.
+        return
+    end if
+
+    if atom(owner) then
+        lObjType = kUnknownObject
+    else
+        lObjType = owner[2]
+        owner = owner[1]
+    end if
+
+
+    -- don't add to list if it's already there.
+    at = w32findKey(lObject, heldResource)
+    if at=0 then
+        -- add the resource to the resource list
+
+        if vHRI<1 then
+            heldResource &= repeat(NewRes, 16)
+            vHRFree &= repeat(0, 16)
+            for i=1 to 16 do
+                vHRFree[i] = length(heldResource)-i+1
+            end for
+            vHRI = 16
+        end if
+        at = vHRFree[vHRI]
+        vHRI -= 1
+        -- create a resource and assign its attributes
+        heldResource[at][ResHandle] = lObject
+        heldResource[at][ResOwner]  = owner
+        heldResource[at][ResLife]   = lifetime
+        heldResource[at][ResTag]    = lTag
+        heldResource[at][ResObjType] = lObjType
+        heldResource[at][ResCnt] = 1
+        heldResource[at][ResStatus] = 1 -- Valid entry
+
+    else
+        if heldResource[at][ResOwner]=owner then
+            heldResource[at][ResCnt] += 1
+
+        elsif heldResource[at][ResOwner]= -1 then
+            -- This resource now has an owner
+            heldResource[at][ResOwner] = owner
+
+        else
+            -- ?? Should this ever happen?
+            warnErr(Err_WRONGOWNER)
+        end if
+    end if
+
+end procedure
+
+sequence vFontHandles   vFontHandles = {}
+
+--/topic Resources
+--/proc replaceObject( object pId, integer pObjType, atom pDC, atom pNewObject,integer pLifetime )
+--/desc Selects an object into a device context, which automatically tracks that object.
+-- /i pID is the control ID into whose device context the new object is to be selected;
+-- /i pObjType is a constant that identifies which kind of object is being added. Supported types are:
+--/li kPenObject
+--/li kBrushObject
+--/li kFontObject
+--/li kBitmapObject
+--/li kIconObject
+-- /i pDC is the device context handle;
+-- /i pNewObject is the GDI handle for the new object;
+-- /i pLifeTime is like for /trackObject().
+-----------------------------------------------------------------------------
+global procedure replaceObject(object pId, integer pObjType, atom pDC, atom pNewObject,
+                        integer pLifetime)
+
+-- adds resource tracking to selectObject
+atom lReplacedObject
+integer lDCI
+integer lObjType
+sequence lDC
+
+
+    -- Track the DC's current objects
+    lDCI = w32findKey(pDC, vDCs)
+    if lDCI=0 then
+        vDCs = append(vDCs, kNewDC)
+        lDCI = length(vDCs)
+        vDCs[lDCI][1] = pDC
+    end if
+
+    -- select current, replace prior
+    lReplacedObject = w32Func(xSelectObject, {pDC, pNewObject})
+
+    lObjType = pObjType+1
+
+    -- Take a local copy of the DC's tracking data for performance reasons.
+    lDC = vDCs[lDCI][lObjType]
+
+    if length(lDC)=0 then
+        -- First time this type of object has been replaced in this DC.
+        lDC = {lReplacedObject, pNewObject}
+        -- track the object
+        trackObject({pId, pObjType}, pNewObject, pLifetime)
+
+    elsif lReplacedObject=lDC[2] then
+        -- Candidate for deletion (except fonts, bitmaps and icons)
+        -- 'cos I've just replaced the one I previously installed.
+        if find(pObjType, {kBitmapObject, kIconObject, kFontObject})=0 then
+            deleteObject(lReplacedObject)
+        else
+            deleteObject({lReplacedObject, w32False})
+        end if
+
+        if pNewObject=lDC[1] then
+            -- Just replaced the original, so remove tracking data.
+            deleteObject({pNewObject, w32False})
+            lDC = {}
+        else
+            -- Record the one I just installed.
+            lDC[2] = pNewObject
+            -- track the object
+            trackObject({pId,pObjType}, pNewObject, pLifetime)
+        end if
+
+    elsif lReplacedObject=lDC[1] then
+        -- I've just replaced the original object
+        -- So I must delete the one I just replaced.
+        if pObjType!=kFontObject then
+            deleteObject(lDC[2])
+        end if
+        lDC = {}
+
+    else
+        -- Not one of mine.
+        if lReplacedObject!=0 then
+            if find(lReplacedObject, vFontHandles)=0 then
+                deleteObject(lReplacedObject)
+            end if
+        end if
+
+        -- Remember to delete installed resource, unless its a font.
+        if (pObjType!=kFontObject) and length(getTrackedObject(lDC[2]))>0 then
+            deleteObject(lDC[2])
+        end if
+
+        -- If I've just replaced the original, then
+        -- clear out the entries.
+        if pNewObject=lDC[1] then
+            if find(pNewObject, vFontHandles)=0 then
+                deleteObject(pNewObject)
+            end if
+            lDC = {}
+        else
+            -- Record the one I just installed.
+            lDC[2] = pNewObject
+        end if
+
+    end if
+
+    -- Update the shared DC tracking variable.
+    vDCs[lDCI][lObjType] = lDC
+end procedure
+
+-----------------------------------------------------------------------------
+procedure trackCursor(object hCursor)
+
+    -- tracks cursors as resources
+    -- don't add to list if already there
+    if not find(hCursor, heldCursor) then
+        -- add to list
+        heldCursor = append(heldCursor, hCursor)
+    end if
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Mouse
+--/func loadCursor(sequence CursorFile)
+--/desc Loads a cursor from a file.
+--/ret ATOM: The handle to a loaded cursor
+--
+-- If this returns zero, then the cursor was not loaded.
+--
+--/Example:
+--/code
+--      mC = loadCursor("hands.ani")
+--      setMousePointer(myList, mC)
+--/endcode
+global function loadCursor(sequence pCursorFile)
+atom hCursor
+
+    hCursor = w32Func(xLoadCursorFromFile, {pCursorFile})
+    trackCursor(hCursor)
+
+    return hCursor
+end function
+
+-----------------------------------------------------------------------------
+procedure releaseResourcesForID(object pIdLife)
+atom id
+integer lSpecificLifetime
+
+-- Free resources associated with a particular resource
+sequence lHeld
+sequence lResList
+
+    if atom(pIdLife) then
+        id       = pIdLife
+        lSpecificLifetime = 0    -- Force release to happen.
+    else
+        id       = pIdLife[1]
+        lSpecificLifetime = pIdLife[2]
+        if lSpecificLifetime=ForProgram then
+            return -- Not allowed to get rid of these ones.
+        end if
+    end if
+
+    -- copy, because list shrinks
+    lHeld = heldResource
+
+    -- for each resource
+    for i=1 to length(lHeld) do
+        lResList = lHeld[i]
+        if lResList[ResStatus]=1    -- still valid
+        and lResList[ResOwner]=id   -- got the correct id
+        and (lSpecificLifetime=0 or lResList[ResLife]=lSpecificLifetime) then
+            -- release the object
+            deleteObject(lResList[ResHandle])
+        end if
+    end for
+end procedure
+registerRoutine("releaseResourcesForID",routine_id("releaseResourcesForID"))
+
+-----------------------------------------------------------------------------
+-- Handle to the cryptographic service provider
+atom vCSP vCSP = 0
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+-- Printer Support
+
+atom printerDC
+     printerDC = 0
+global constant
+    w32InchScale = 'i',
+    w32MillScale = 'm',
+    w32PixelScale = 'p',
+    w32TwipsScale = 't'
+
+
+-----------------------------------------------------------------------------
+--/topic Printing
+--/proc releasePrinter()
+--/desc Release the /Printer, freeing it up for others to use.
+-- The /Printer must first be grabbed with /getPrinter.
+--
+-- Refer to /Printer for details.
+
+global procedure releasePrinter()
+    -- is there a dc to delete?
+    if printerDC then
+
+        -- release resources
+        releaseResourcesForID({Printer, ForPaint})
+
+        -- attempt to delete it
+        if not w32Func(xDeleteDC, {printerDC}) then
+            warnErr(Err_RELEASEPRINTER)
+        end if
+
+        -- clear the handle
+        printerDC = 0
+
+    end if
+
+end procedure
+
+sequence vPrinterName
+
+----------------------------pointers
+atom hdmPtr,hdefPtr          --handles to dvmode structure with default values
+atom pname -- points to printer name
+     pname = 0
+     hdmPtr = 0
+     hdefPtr = 0
+
+---------------------------------------------------------------------------
+--      for default printer name w/o printer dialog use next 2 functions
+--      returning default printer name and the printer DC
+--                              OR
+--      can use SelectedPrinterName with PD_RETURNDEFAULT to start printing
+--                                                           ----- --------
+--      on default printer with default settings.
+----------------------------------------------------------------------------
+
+function default_printer_exit(atom mem,atom pBuffer)
+    if not pBuffer then
+        w32release_mem(mem)
+        return ""
+    else
+        vPrinterName  = w32peek_string(pBuffer)
+        pname = w32acquire_mem(0,vPrinterName)
+        w32release_mem(mem)
+        return vPrinterName
+    end if
+end function
+
+constant ERROR_FILE_NOT_FOUND = 2
+
+--/topic Printing
+--/func getDefaultPrinterName()
+--/desc Determines the name of the current default printer.
+--/ret (STRING) "" on failure, printer name on success.
+global function getDefaultPrinterName()
+-- this compiles code by J. Deschênes,  -- api_wrap.ew
+--                       J. Evans,      -- prt32lib.ew, ca 1999
+--                       L. Miller,     -- EuForum, Jan 10, 2006
+--                       W. Fritz,      -- EuForum, Feb 2006
+--                       C. Cuvier      -- May 27, 2007
+atom pPInfo5, pNeeded, pReturned,mem,pBuffer
+--sequence PrinterName
+integer rc, needed
+
+    mem = w32new_memset()
+    pNeeded = w32acquire_mem(mem,Long)
+
+    if WINDOWS_VERSION[1]>=WIN_2000 then -- Win2K and later
+        needed = 64  -- some supposedly reasonable start value
+        pBuffer = w32acquire_mem(mem,needed)
+        poke4(pNeeded,needed)
+        rc = w32Func(xGetDefaultPrinter,{pBuffer,pNeeded})
+        if rc=0 then
+            rc = w32Func(xGetLastError,{})
+            if rc=ERROR_FILE_NOT_FOUND then
+                return default_printer_exit(mem,0) -- no default printer
+            else
+                -- reallocate buffer based on function result
+                pBuffer = w32acquire_mem(mem,peek4u(pNeeded))
+                -- try again, now it will work
+                rc = w32Func(xGetDefaultPrinter,{pBuffer,pNeeded})
+            end if
+        end if
+        -- if we get here, buffer holds the ASCIZ string
+    elsif WINDOWS_VERSION[1]<=WIN_ME then
+        pReturned = w32acquire_mem(mem,Long)
+        -- first try to know how many bytes needed for pPInfo5
+        VOID = w32Func(xEnumPrinters, {PRINTER_ENUM_DEFAULT,NULL,5,0,0,pNeeded,pReturned})
+
+        needed = peek4u(pNeeded)
+
+        pPInfo5 = w32acquire_mem(mem,needed)
+
+        -- now get the string
+        rc = w32Func(xEnumPrinters,{PRINTER_ENUM_DEFAULT,NULL,5,pPInfo5,needed,
+                                    pNeeded,pReturned})
+        if rc then
+            pBuffer = peek4u(pPInfo5)
+        else
+            pBuffer = 0
+        end if
+    else -- WinNT4.0 and earlier
+        needed = 64  -- some supposedly reasonable start value
+        pBuffer = w32acquire_mem(mem,needed)
+        rc = needed-1
+        while rc=needed-1 do
+            rc = w32Func(xGetProfileString,{w32acquire_mem(mem,"windows"),
+                                            w32acquire_mem(mem,"device"),
+                                            w32acquire_mem(mem," "),pBuffer,needed})
+            if rc=0 then
+                return default_printer_exit(mem,0)
+            elsif rc=needed-1 then -- buffer just large enough or not enough
+                needed += 64
+                pBuffer = w32acquire_mem(mem,needed)
+            end if
+        end while
+        pReturned = pBuffer
+        rc = peek(pReturned)
+        while rc!=',' do
+            if rc=0 then -- no priter name
+                return default_printer_exit(mem,0)
+            else
+                pReturned += 1
+                rc = peek(pReturned)
+            end if
+        end while
+        poke(pReturned,0)  -- cut returned string short
+    end if
+
+    return default_printer_exit(mem,pBuffer)
+end function
+vPrinterName = getDefaultPrinterName()
+
+atom vPrinterHandle
+integer vDevmodeSize
+
+function is_valid_printer()
+atom phndl
+
+    phndl = allocate(4)
+    if not w32Func(xOpenPrinter,{pname,phndl,0}) then
+        free(phndl)
+        return 0
+    end if
+    vPrinterHandle = peek4u(phndl)
+    vDevmodeSize = w32Func(xDocumentProperties,{0,vPrinterHandle,pname,0,0,0})
+    free(phndl)
+    return vDevmodeSize>0
+
+end function
+
+procedure setPrinterPointers(integer flag)
+atom ptr,ptr2
+
+    if not is_valid_printer() then
+        return
+    end if
+    if flag then
+        VOID = w32Func(xClosePrinter,{vPrinterHandle})
+        w32release_handle(hdmPtr,1)
+        w32release_handle(hdefPtr,1)
+    end if
+
+    hdefPtr = w32acquire_handle(GMEM_MOVEABLE,vDevmodeSize)
+    hdmPtr = w32acquire_handle(GMEM_MOVEABLE,vDevmodeSize)
+    ptr = w32handle_to_memory(hdefPtr)
+    ptr2 = w32handle_to_memory(hdmPtr)
+    VOID = w32Func(xDocumentProperties,{0,vPrinterHandle,pname,ptr,0,DM_COPY})
+    mem_copy(ptr2,ptr,vDevmodeSize)
+    w32release_handle(hdefPtr,0)
+    w32release_handle(hdmPtr,0)
+end procedure
+    if length(vPrinterName) then
+        setPrinterPointers(0)
+    end if
+
+    --/topic Printing
+    --/func getPrinterName()
+    --/desc Gets the current printer name.
+    --/ret (STRING) The current printer name.
+global function getPrinterName()
+    return vPrinterName
+end function
+
+sequence job_properties
+         job_properties = {1,1,1,1,1,0,0,0,0,0,0,0}
+
+constant known_props = {
+                        JP_FromPage,
+                        JP_ToPage,
+                        JP_MinPage,
+                        JP_MaxPage,
+                        JP_Copies,
+                        JP_PrintFlags,
+                        JP_Orientation,
+                        JP_SetupFlags,
+                        JP_PaperSize,
+                        JP_PaperBin,
+                        JP_Collate,
+                        JP_Margins
+                       }
+
+constant wsp = w32acquire_mem(0,"WINSPOOL") -- name of the printer spool .drv/.dll
+integer new_left_margin,new_top_margin
+        new_left_margin = 0
+        new_top_margin = 0
+
+--/topic Attributes
+--/func queryDevice(object device,integer attribute)
+--/desc Gets device informtion for the screen or a printer.
+--/ret (OBJECT) 0 on failure, a sequence made of an integer on success.
+-- If /i device is an atom, the request concrns the screen. If it is a sequence, it concerns a printer.
+-- If the sequence is empty, the current printer will be queried, otherwise the printer with the supplied name will. /n
+-- Look up <a href="..\win32_constants.htm#queryDevice() constants">this list </a>
+-- for recognised constants which can be passes as /i attribute, or the
+-- Microsoft documentation for the GetDeviceCaps() API. 
+global function queryDevice(object device,integer attribute)
+atom info_dc,name_ptr,devname_ptr,all_mem
+integer which
+sequence result
+
+    which = compare(device,"")
+    all_mem = w32new_memset()
+    if which=-1 then
+        devname_ptr = w32acquire_mem(all_mem,"DISPLAY")
+        name_ptr = 0
+    else
+        devname_ptr = wsp
+        if which=0 then
+            name_ptr = pname
+        else
+            name_ptr = w32acquire_mem(all_mem,device)
+        end if
+    end if
+    info_dc = w32Func(xCreateIC,{devname_ptr,name_ptr,0,0})
+    if not info_dc then
+        return 0
+    end if
+    result = {w32Func(xGetDeviceCaps,{info_dc,attribute})}
+    VOID = w32Func(xDeleteDC,{info_dc})
+    w32release_mem(all_mem)
+    return result
+end function
+
+function setPageMargins_9x(sequence new_value)
+integer margin_l,margin_w,ppi_l,ppi_w, unit,phy_l,phy_w
+atom dp2lp,flags, info_dc
+
+-- get printer margins in logical pixels
+    info_dc = w32Func(xCreateIC, {wsp, pname,0,0})
+    dp2lp = w32acquire_mem(0,16)
+    margin_w = w32Func(xGetDeviceCaps,{info_dc,PHYSICALOFFSETX})
+    margin_l = w32Func(xGetDeviceCaps,{info_dc,PHYSICALOFFSETY})
+    phy_w = w32Func(xGetDeviceCaps,{info_dc,PHYSICALWIDTH})
+    phy_l = w32Func(xGetDeviceCaps,{info_dc,PHYSICALHEIGHT})
+    poke4(dp2lp,{margin_w,margin_l, phy_w,phy_l})
+    VOID = w32Func(xDPtoLP,{info_dc,dp2lp,2})
+
+    -- convert all margins to logical pixels
+    ppi_w = w32Func(xGetDeviceCaps,{info_dc,LOGPIXELSX})
+    ppi_l = w32Func(xGetDeviceCaps,{info_dc,LOGPIXELSY})
+    unit = new_value[5]
+    if unit!=w32PixelScale then
+--/**/  new_value = sq_mul(new_value[1..4],{ppi_w,ppi_l,ppi_w,ppi_l})   --/* -- Phix
+        new_value = new_value[1..4] * {ppi_w,ppi_l,ppi_w,ppi_l}         --*/ -- RDS
+        if unit=w32MillScale then
+--/**/      new_value = sq_floor_div(new_value,25.4)    --/* -- Phix
+            new_value = floor(new_value/25.4)           --*/ -- RDS
+        elsif unit=w32TwipsScale then
+--/**/      new_value = sq_floor_div(new_value,1440)    --/* -- Phix
+            new_value = floor(new_value/1440)           --*/ -- RDS
+        elsif unit!=w32InchScale then
+            warnErr("Unknown custom paper size unit - pixels assumed")
+        end if
+    end if
+
+    -- ensure that margins are not set any thinner than what the device can support, and
+    if new_value[1]<peek4u(dp2lp) then
+        new_value[1] = peek4u(dp2lp)
+    end if
+    if new_value[2]<peek4u(dp2lp+4) then
+        new_value[2] = peek4u(dp2lp+4)
+    end if
+    -- left/top margins are implemented by setting the printer viewport.
+    -- this will be done on a real printer DC, which may not be available yet
+    new_left_margin = new_value[1]
+    new_top_margin = new_value[2]
+
+    -- right/bottom margins are implemented by faking a paper size with lesser dimensions
+    -- new paper width = standard - (new right margin - std right margin), and similar for height.
+    -- convert offsets to tenths of millimeters
+    margin_l = new_value[4]-peek4u(dp2lp+4)
+    if margin_l<=0 then
+        margin_l = 0
+        flags = 0
+    else
+        flags = DM_PAPERLENGTH
+        margin_l = floor(margin_l*254/ppi_l)
+        phy_l = floor(peek4u(dp2lp+12)*254/ppi_l)
+        margin_l = phy_l-margin_l
+    end if
+    margin_w = new_value[3]-peek4u(dp2lp)
+    if margin_w<=0 then
+        margin_w = 0
+    else
+        flags += DM_PAPERWIDTH
+        margin_w = floor(margin_w*254/ppi_w)
+        phy_w = floor(peek4u(dp2lp+8)*254/ppi_l)
+        margin_w = phy_w-margin_w
+    end if
+
+    w32release_mem(dp2lp)
+    VOID = w32Func(xDeleteDC,{info_dc})
+    return {margin_l,margin_w,flags}
+end function
+
+integer created_forms created_forms = 0
+function setPaperMargins_not9x(sequence new_value)
+-- use forms, adding one if needed
+-- the name of the corresponding form is in _retval
+atom mem,fi1,int1,int2,forms,info_dc,dp2lp
+integer size,rc,form_index
+integer ppi_l,ppi_w, unit
+sequence new_name,my_paper,my_area
+
+    info_dc = w32Func(xCreateIC, {wsp, pname,0,0})
+    if not info_dc then
+        return ""
+    end if
+    mem = w32new_memset()
+    my_paper = {w32Func(xGetDeviceCaps,{info_dc,PHYSICALWIDTH})
+                 ,w32Func(xGetDeviceCaps,{info_dc,PHYSICALHEIGHT})}
+    -- transform point to hundredths of millimeter
+    dp2lp = w32acquire_mem(mem,{{2,Long}})
+    -- # mm/100 in an inch
+--/**/  poke4(dp2lp,sq_mul(my_paper,2540))  --/* -- Phix
+    poke4(dp2lp,my_paper*2540)              --*/ -- RDS
+    VOID = w32Func(xDPtoLP,{info_dc,1,dp2lp})
+    my_paper = peek4u({dp2lp,2}) -- now we have values in pixels * 2540
+    w32release_mem(dp2lp)
+    ppi_w = w32Func(xGetDeviceCaps,{info_dc,LOGPIXELSX})  -- in pixels/inch
+    ppi_l = w32Func(xGetDeviceCaps,{info_dc,LOGPIXELSY})
+    VOID = w32Func(xDeleteDC,{info_dc})
+    my_paper[1] /= ppi_w
+    my_paper[2] /= ppi_l             -- values in inches*2540, ie mm/100
+    -- rounded to integers
+--/**/  my_paper = sq_round(my_paper) --/* -- Phix
+    my_paper=floor(my_paper+0.5)    --*/ -- RDS
+
+    unit = new_value[5]
+    -- convert dimensions to hundredths of millimeters
+    if unit=w32MillScale then
+--/**/  new_value = sq_floor(sq_mul(new_value,100.0))   --/* -- Phix
+        new_value=floor(new_value*100.0)                --*/ -- RDS
+    elsif unit=w32InchScale then
+--/**/  new_value = sq_floor(sq_mul(new_value,2540.0))  --/* -- Phix
+        new_value=floor(new_value*2540.0)               --*/ -- RDS
+    elsif unit=w32TwipsScale then
+--/**/  new_value = sq_floor(sq_mul(new_value,2540/1440)) --/* -- Phix
+        new_value=floor(new_value*(2540/1440))          --*/ -- RDS
+    elsif unit=w32PixelScale then
+--/**/  new_value = sq_floor_div(sq_mul(new_value,2540),{ppi_w,ppi_l,ppi_w,ppi_l})  --/* -- Phix
+        new_value=floor((new_value*2540)/{ppi_w,ppi_l,ppi_w,ppi_l})                 --*/ -- RDS
+    end if
+
+    my_area = new_value[1..4]
+--/**/  my_area[3..4] = sq_sub(my_paper,my_area[3..4])  --/* -- Phix
+    my_area[3..4] = my_paper - my_area[3..4]            --*/ -- RDS
+
+    -- get array of form info structure
+    fi1 = w32acquire_mem(mem,ID_FORM_INFO_1)
+    int1 = w32acquire_mem(mem,Long)
+    int2 = w32acquire_mem(mem,Long)
+
+    -- first call retrieves needed size
+    rc = w32Func(xEnumForms,{vPrinterHandle,1,fi1,SIZEOF_FORM_INFO_1,int1,int2})
+    size = peek4u(int1)
+
+    -- now get the data
+    forms = w32acquire_mem(mem,size)
+    rc = w32Func(xEnumForms,{vPrinterHandle,1,forms,size,int1,int2})
+    if not rc then
+        w32release_mem(mem)
+        return ""
+    end if
+
+    -- check whether the form we want already exists
+    form_index = 0
+    for i=1 to peek4u(int2) do
+        if equal(my_paper,w32fetch(forms,FORM_INFO_1_Size)) and equal(my_area,w32fetch(forms,FORM_INFO_1_ImageableArea)) then
+            -- yes it does: retrieve name and exit
+            new_name = w32fetch(forms,FORM_INFO_1_pName)
+            form_index = i
+            exit
+        end if
+        forms += SIZEOF_FORM_INFO_1
+    end for
+    if not form_index then
+        created_forms += 1
+        new_name = sprintf("Win32lib_forms_#%d",created_forms)
+        w32set_memory(fi1,ID_FORM_INFO_1,{0,new_name,my_paper,my_area}) -- add as user form
+        rc = w32Func(xAddForm,{vPrinterHandle,1,fi1})
+        if not rc then
+            new_name = ""
+        end if
+    end if
+    w32release_mem(mem)
+    return new_name
+end function
+
+integer rgpc
+--/topic Printing
+--/func setPrintJobProperty(integer which,object new_value)
+--/desc Gets, and possibly sets, a print job property.
+--/ret Current/former value for the property.
+-- Using the w32GetValue pseudo value will cause the current property value to be returned
+-- without attempting to set it.
+-- This function is typically used after a call to /newPrinter() to set a few settings
+-- without the user having to interact with a print/page setup dialog box.
+-- Changes will be effective on the next call to getPrinter().
+--
+-- Recognised properties, and respective meanings of /i new_value, are:
+-- /li /b JP_FromPage : the starting page number
+-- /li /b JP_ToPage   : the last page number
+-- /li /b JP_MinPage  : the minimum value allowed for the starting page number
+-- /li /b JP_MaxPage  : the maximum value allowed for the last page number
+-- /li /b JP_Copies   : the number of requested copies
+--/li /b JP_PrintFlags: the flags used to build the print dialog. Please refer to Microsoft documentation for more details on uses and values.
+--              Tge supported values are the PD_* values in w32constants.ew
+--/li /b JP_Orientation : either DMORIENT_PORTRAIT or DMORIENT_LANDSCAPE
+--/li /b JP_SetupFlags  : the flags used to build the page setup dialog.
+--/li /b JP_PaperBin: the source of paper the printer is to use. Please refer to w32constants.ew
+--             for a list of supported DMBIN_* values.
+--/li /b JP_PaperSize: either a predefined DMPAPER_* constants in w32constants.ew,
+--             or a triple {length,width,unit}. Supported units are:
+--<ul>
+--/li w32InchScale : values are in inches
+--/li w32MillScale : values are in millimeters
+--/li w32PixelScale : values are in pixels
+--/li w32TwipsScale : values are in twips (1/1440th of an inch)
+--</ul>
+--/li /b JP_Margins: a 5 element sequence {left margin,top margin,right margin,bottom margin,unit}
+--              where /i unit is as above.
+--/li /b JP_Collate: 0 to disable collation of multiple copies, any positive value to enable.
+--
+-- The first properties (JP_From/To/Min/MaxPage) only affect the print dialog box, not
+-- the printer itself. You can control which pages are printed in the contents of a RichEdit control by using /printRichEditPages().
+-- In later versions, /startPage() may be modified to take these parameters into account.
+global function setPrintJobProperty(integer which,object new_value)
+integer p, alt_value, ppi_l, ppi_w, use_alt_value
+object old_value
+atom ptr,flags, converter
+sequence storage
+
+    p = find(which,known_props) -- p=which if valid
+    if p=0 then
+        return 0  -- unknown property
+    else
+        if which=JP_Collate then
+            new_value = compare(new_value,0)
+        end if
+        old_value = job_properties[p]
+        if compare(new_value,0)= -1 then -- just peeking
+            return old_value
+        end if
+    end if
+
+    if p=JP_Orientation and not (new_value=DMORIENT_PORTRAIT or new_value=DMORIENT_LANDSCAPE) then
+        warnErr("Not a valid orientation: " & sprintf("%d",new_value)&"\nOrientation reset to Portrait.")
+        new_value = DMORIENT_PORTRAIT
+    end if
+    job_properties[p] = new_value
+    use_alt_value = 0
+
+    -- now setup the printer
+    if which=JP_Orientation then
+        storage = DEVMODE_dmOrientation
+        flags = DM_ORIENTATION
+    elsif which=JP_Copies then
+        storage = DEVMODE_dmCopies
+        flags = DM_COPIES
+    elsif which=JP_PaperSize then
+        if not printerDC then
+            warnErr("There should be a valid printer in order to set the paper size!")
+            return old_value
+        end if
+        if atom(new_value) then
+            storage = DEVMODE_dmPaperSize
+            flags = DM_PAPERSIZE
+        else
+            storage = DEVMODE_dmPaperLength
+            flags = DM_PAPERLENGTH+DM_PAPERWIDTH
+            -- convert length and width to tenths of millimeter
+            converter = new_value[3]
+            if converter=w32InchScale then
+                converter = 254.0
+            elsif converter=w32MillScale then
+                converter = 10.0
+            elsif converter=w32TwipsScale then
+                converter = 254/1440
+            elsif converter=w32PixelScale then
+                ppi_w = w32Func(xGetDeviceCaps,{printerDC,LOGPIXELSX})
+                ppi_l = w32Func(xGetDeviceCaps,{printerDC,LOGPIXELSY})
+                new_value[2] *= 254.0/ppi_w
+                new_value[1] *= 254.0/ppi_l
+                converter = 1.0
+            else
+                warnErr("Unknown custom paper size unit - millimeters assumed")
+                converter = 10.0
+            end if
+--/**/      new_value = sq_mul(new_value,converter)     --/* -- Phix
+            new_value *= converter                      --*/ -- RDS
+            alt_value = floor(new_value[2]) -- new width
+            new_value = floor(new_value[1]) -- new length
+            use_alt_value = 1
+        end if
+    elsif which=JP_PaperBin then
+        storage = DEVMODE_dmDefaultSource
+        flags = DM_DEFAULTSOURCE
+    elsif which=JP_Collate then
+        storage = DEVMODE_dmCollate
+        flags = DM_COLLATE
+    elsif which=JP_Margins then
+        if WINDOWS_VERSION[1]<=WIN_ME then
+            new_value = setPageMargins_9x(new_value)
+            flags = new_value[3]
+            if and_bits(flags,DM_PAPERWIDTH) then
+                alt_value = new_value[2]
+                use_alt_value = 1
+            end if
+            new_value = new_value[1]
+            storage = DEVMODE_dmPaperLength
+        else
+        -- define a form for the printer, or add one if it doesn't exist
+            new_value = setPaperMargins_not9x(new_value)
+            if length(new_value)>32 then
+                new_value = new_value[1..32]
+            elsif length(new_value)<32 then
+                new_value &= 0
+            end if
+            flags = DM_FORMNAME
+            storage = DEVMODE_dmFormName
+        end if
+    else
+        flags = 0
+    end if
+
+    if not hdmPtr then
+        warnErr("No valid printer selected, please select one")
+        VOID = call_func(rgpc,{})
+    end if
+    if flags and hdmPtr then -- other properties are not sent to printer
+        ptr = w32handle_to_memory(hdmPtr)
+        if and_bits(flags,DM_PAPERLENGTH) then
+            flags += DM_PAPERSIZE
+            w32store(ptr,DEVMODE_dmPaperSize,DMPAPER_USER)
+        end if
+        w32store(ptr,DEVMODE_dmFields,flags)
+        w32store(ptr,storage,new_value)
+        if use_alt_value then
+            w32store(ptr,DEVMODE_dmPaperWidth,alt_value)
+        end if
+        VOID = w32Func(xDocumentProperties,{0,vPrinterHandle,pname,ptr,ptr,DM_IN_BUFFER+DM_OUT_BUFFER})
+        w32release_handle(hdmPtr,0)
+    end if
+
+    return old_value
+end function
+
+procedure clean_release(integer iBuiltDevMode,atom struct)
+    if struct then
+        w32release_mem(struct)
+    end if
+    if iBuiltDevMode then
+        w32release_handle(hdmPtr,w32True)
+    end if
+end procedure
+
+global constant Err_NOPRINTERDIALOG = {"Unable to open printer dialog",454}
+
+function changePrinter(sequence name,integer flag)
+sequence save_name
+atom save_vph, save_pname
+integer save_dms
+
+    save_vph = vPrinterHandle
+    save_name = vPrinterName
+    save_pname = pname
+    save_dms = vDevmodeSize
+    pname = w32acquire_mem(0,name)
+    if is_valid_printer() then
+        free(save_pname)
+        if flag then
+            releasePrinter()
+        end if
+        setPrinterPointers(1)
+        vPrinterName = name
+        return w32True
+    else -- roll everything back
+        vPrinterHandle = save_vph
+        vPrinterName  = save_name
+        pname = save_pname
+        vDevmodeSize = save_dms
+        return w32False
+    end if
+end function
+
+--/topic Printing
+--/func getPrintChoice(integer pMaxPages, object pFlags, atom pPrintDlg)
+--/desc Get the choices from a user before printing.
+--/ret SEQUENCE: { startpage, endpage, copies, printerDC, collate, p2f, orient, paper }, or {} if user aborted.
+-- This pops up the "Select Printer" dialog for the
+-- user to select a printer from.
+--
+-- /i pMaxPages specifies the maximum number of pages that a user can print,
+-- /i pFlags is additional flags for the dialog box. See the Microsoft
+-- documentation for details. It is either a sequence of flag values, in
+-- which case it replaces the default ones, or it is an atom of OR'd flags
+-- which are OR'd with the defaults (PD_ALLPAGES). If pFlags is {}, the current value
+-- for the JP_PrintFlags job property will be used.
+--
+-- /i pPrintDlg is used for experts only. If zero, it is ignored. Otherwise
+-- it is the address of a PRINTDLG structure which has been correctly setup
+-- by the caller.
+--
+-- The returned sequence has the starting and ending pages that the user selected. If
+-- these are both 0, then the user only wants the current document selection printed.
+-- If these are both -1, then the user wants all pages printed.
+--
+-- /i copies is the number of copies to be printed. /n
+-- /i printerDC is the Printer's Device Context. This is not normally used directly
+-- but is available for advanced users. /n
+-- /i collate is w32True if the user wants the output collated. /n
+-- /i p2f is w32True if the user wants output to go to a file rather than the printer. /n
+-- /i orient is either DMORIENT_PORTRAIT or DMORIENT_LANDSCAPE. /n
+-- /i paper is the numeric code for the type of paper requested. /n
+-- /i flags is the state of the print dialog after user interaction. /n
+--
+-- See also /Printer
+
+global function getPrintChoice(integer pMaxPages, object pFlags, atom pPrintDlg)
+integer rc,fromPage, toPage, copies, collate, p2f, orient, paper,iBuiltDevMode
+atom mem, flags, ptr, curr_devmode,pDC
+sequence pName
+
+--if PD_RETURNDEFAULT is not one of the flags we can pass the 
+--orientation and/or printer name:
+--if we already have orientation (from users use of page dialog or
+--author supplied)
+--or printer name (from users use of page dialog or from
+--   GetDefaultPrinter)
+--then we will global allocate the devMode structure and fill with 
+--these items.
+    if pMaxPages then end if
+
+    -- default flags
+    if equal(pFlags ,{}) then
+        pFlags = job_properties[JP_PrintFlags]
+    elsif atom(pFlags) then
+        pFlags &= PD_ALLPAGES -- initially set the 'All Pages' radio button
+    end if
+    flags = w32or_all(pFlags & PD_RETURNDC)
+
+        -- set up
+    if pPrintDlg=0 then
+    -- get memory for the dialog
+        mem = w32acquire_mem(0,SIZEOF_PRINTDLG)
+        w32store(mem, PRINTDLG_lStructSize, SIZEOF_PRINTDLG)
+        w32store(mem, PRINTDLG_flags, flags)
+        w32store(mem, PRINTDLG_nMaxPage, job_properties[JP_MaxPage])
+        w32store(mem, PRINTDLG_nMinPage, job_properties[JP_MinPage])
+        w32store(mem, PRINTDLG_nCopies, job_properties[JP_Copies])
+        w32store(mem, PRINTDLG_nToPage, job_properties[JP_ToPage])
+        w32store(mem, PRINTDLG_nFromPage, job_properties[JP_FromPage])
+    else
+        mem = pPrintDlg -- use externally supplied structure
+    end if
+
+    iBuiltDevMode = 1
+    curr_devmode = hdmPtr
+    if and_bits(PD_RETURNDEFAULT,flags) then
+        curr_devmode = hdefPtr
+        iBuiltDevMode = 0
+    elsif length(vPrinterName) and hdefPtr then
+        if job_properties[JP_Orientation] then
+
+            --get the pointer
+            -- This function returns a pointer to the 'fixed' memory block
+            -- need to do this only if print dialog created the structure
+            ptr = w32handle_to_memory(hdmPtr)
+
+            -- set up some fields
+            w32store(ptr,DEVMODE_dmSize,SIZEOF_DEVMODE)
+            w32store(ptr,DEVMODE_dmOrientation,job_properties[JP_Orientation])   --poke in orientation flag
+            w32store(ptr,DEVMODE_dmFields,DM_ORIENTATION)
+            w32store(ptr,DEVMODE_dmDeviceName,vPrinterName)       --poke in printer name
+            w32store(ptr,DEVMODE_dmCopies,job_properties[JP_Copies])
+
+            -- register new devmode state
+            VOID = w32Func(xDocumentProperties,{0,vPrinterHandle,pname,ptr,ptr,DM_IN_BUFFER+DM_OUT_BUFFER})
+
+            -- tell the dlg box that curr_devmode is the starting point
+            w32store(mem,PRINTDLG_hDevMode,hdmPtr)
+            w32release_handle(hdmPtr,0)
+        end if
+    end if
+
+    -- call the routine
+    if not w32Func(xPrintDlg, {mem}) then
+    --check CommDlgExtendedError for error reason. A zero return means user
+    --closed or cancelled the dialog.
+        rc = w32Func(CommDlgExtendedError,{})
+        clean_release(iBuiltDevMode,pPrintDlg)
+        if rc then
+            abortErr(Err_NOPRINTERDIALOG)
+        else
+            return {}        --user closed or cancelled dialog
+        end if
+    end if
+
+    -- get some values from devMode structure after user has accessed Print Dialog
+    --    (user might have changed something)
+
+    if iBuiltDevMode then
+    -- first look for the handle DEVMODE
+        curr_devmode = w32fetch(mem ,PRINTDLG_hDevMode)
+        hdmPtr = curr_devmode
+    end if
+    -- DevMode is a dynamic, moveable structure
+    -- so lock the memory so it can't be moved. 
+    if curr_devmode then
+        ptr = w32handle_to_memory(curr_devmode)
+
+        --get the selected printer
+        copies = w32fetch(ptr,DEVMODE_dmCopies)
+        --print for the number of copies in printdlg if devmode copies 1
+        if copies=1 or copies=0 then
+            copies = w32fetch(mem,PRINTDLG_nCopies)
+        end if
+        job_properties[JP_Copies] = copies
+
+        pName = w32peek_string(w32address(ptr,DEVMODE_dmDeviceName))
+        paper = w32fetch(ptr, DEVMODE_dmPaperSize)
+    end if
+
+    --get the printer orientation
+    orient = w32fetch(ptr,DEVMODE_dmOrientation)
+    job_properties[JP_Orientation] = orient
+
+    flags    = w32fetch(mem, PRINTDLG_flags)
+    if and_bits(flags, PD_PAGENUMS) then
+        fromPage = w32fetch(mem, PRINTDLG_nFromPage)
+        toPage   = w32fetch(mem, PRINTDLG_nToPage)
+        job_properties[JP_FromPage] = fromPage
+        job_properties[JP_ToPage] = toPage
+        job_properties[JP_MinPage] = w32fetch(mem,PRINTDLG_nMinPage)
+        job_properties[JP_MaxPage] = w32fetch(mem,PRINTDLG_nMaxPage)
+
+    elsif not and_bits(flags, PD_SELECTION) then    --PD_ALLPAGES is 0!
+        fromPage = -1
+        toPage   = -1
+
+    else -- PD_SELECTION active
+        fromPage = 0
+        toPage   = 0
+    end if
+
+    collate = (and_bits(flags,PD_COLLATE)!=0)
+    p2f = (and_bits(flags,PD_PRINTTOFILE)!=0)
+
+    -- unlock the memory so the program can use the datastructure
+    w32release_handle(curr_devmode,0)
+
+    -- check for printer or DC change
+    if compare(pName,vPrinterName) then
+        if changePrinter(pName,1) then end if
+    end if
+
+    pDC = w32fetch(mem ,PRINTDLG_hdc)
+    if pDC!=printerDC then -- this will happen if name changed, as pinterDC will be zero
+        if printerDC then
+            releasePrinter()
+        end if
+        printerDC = pDC
+    end if
+
+    if not pPrintDlg then
+        w32release_mem(mem)
+    end if
+
+    if printerDC then
+        -- information the user selected
+        return {fromPage, toPage, copies, printerDC, collate, p2f, orient, paper,flags}
+    else
+        -- failed
+        return {}
+    end if
+end function
+
+-----------------------------------------------------------------------------
+--/topic Printing
+--/func getPrinter()
+--/desc Get the /Printer.
+--/ret SEQUENCE: { start page, end page, copies, printerDC, collate, p2f, orient, paper }, or {} if user aborted.
+-- This pops up the "Select Printer" dialog for the
+-- user to select a printer from. It defaults to a maximum of 999 pages.
+--
+-- See /getPrintChoice for details about this routine. /n
+--
+-- See also /Printer.
+
+global function getPrinter()
+    return getPrintChoice(999, 0, 0)
+end function
+rgpc = routine_id("getPrinter")
+global constant Err_NOPAGEDIALOG = {"Unable to open page dialog ",453}
+
+constant ambiguous_flags = PSD_INHUNDREDTHSOFMILLIMETERS+PSD_INTHOUSANDTHSOFINCHES
+--/topic Dialogs
+--/func getPageSetupEx(atom Flags)
+--/desc Page setup dialog
+--/ret SEQUENCE : { paperSize, margins , orientation, papertype}  /b or  w32False if the user cancels
+--/i Flags are zero or more of <a href="..\win32_constants.htm#getPageSetup() flags">these flags</a> /b"or'd" together: /n
+--
+-- Passing an empty sequence will use whatever last value iwas stored for the page setup flags.
+--
+--The return values are ... /n
+--</ul>
+-- /li /i paperSize: { x, y }
+-- /li /i margins: {left, top, right, bottom }
+-- /li /i orientation: Either DMORIENT_PORTRAIT or DMORIENT_LANDSCAPE.
+-- /li /i papertype: The numeric code for the type of paper.
+--
+-- This also sets the printer to the user's selection.
+global function getPageSetupEx(object pFlags, atom pSetupDlg)
+atom psd,  devname,units_flag,units_loc
+sequence result, margins, psize
+integer rc,orient, iBuiltDevMode
+atom ptr,curr_devmode,flags
+
+    iBuiltDevMode = 0
+
+    -- get memory for the dialog
+    if pSetupDlg=0 then
+        psd = w32to_memory(0, ID_PAGESETUPDLG,0)
+    else
+        psd = pSetupDlg
+    end if
+
+
+    if atom(pFlags) then
+        flags = pFlags
+    elsif not length(pFlags) then
+        flags = job_properties[JP_SetupFlags]
+    else
+        flags = w32or_all(pFlags)
+    end if
+
+    -- sanity test for units of measurement
+    units_flag = and_bits(flags,ambiguous_flags)
+    if units_flag=ambiguous_flags or units_flag=0 then -- check user locale info
+        units_loc = w32acquire_mem(0,Long)
+        flags -= units_flag
+        rc = w32Func(xGetLocaleInfo,{LOCALE_USER_DEFAULT,LOCALE_RETURN_NUMBER+LOCALE_IMEASURE,units_loc,SIZEOF_Long})
+        if not rc then  -- can this ever happen?
+            flags += PSD_INTHOUSANDTHSOFINCHES
+        else
+            rc = peek(units_loc)
+            if rc then
+                flags += PSD_INTHOUSANDTHSOFINCHES
+            else
+                flags += PSD_INHUNDREDTHSOFMILLIMETERS
+            end if
+        end if
+        w32release_mem(units_loc)
+    end if
+    if and_bits(PSD_RETURNDEFAULT,flags) then
+        curr_devmode = hdefPtr
+    elsif job_properties[JP_Orientation] or length(vPrinterName) then
+        iBuiltDevMode = 1
+
+        --get the pointer
+        ptr = w32handle_to_memory(hdmPtr)
+
+        w32store(ptr,DEVMODE_dmSize,SIZEOF_DEVMODE)
+        w32store(ptr,DEVMODE_dmOrientation,job_properties[JP_Orientation])   --poke in orientation flag
+        w32store(ptr,DEVMODE_dmFields,DM_ORIENTATION)
+        w32store(ptr,DEVMODE_dmDeviceName,vPrinterName)       --poke in printer name
+        w32store(psd,PAGESETUPDLG_hDevMode,hdmPtr)
+        VOID = w32Func(xDocumentProperties,{0,vPrinterHandle,pname,ptr,ptr,DM_IN_BUFFER+DM_OUT_BUFFER})
+        w32release_handle(hdmPtr,w32False)
+    end if
+    w32store(psd, PAGESETUPDLG_Flags, flags)
+
+    -- call OS
+    if not w32Func(xPageSetupDlg, {psd}) then
+    --check CommDlgExtendedError for error reason. A zero return means user
+    --closed or cancelled the dialog.
+        clean_release(iBuiltDevMode,pSetupDlg)
+        if w32Func(CommDlgExtendedError,{}) then
+            abortErr(Err_NOPAGEDIALOG)
+        else
+            return {}
+        end if
+    end if
+    releasePrinter()
+
+    if iBuiltDevMode then
+        curr_devmode = w32fetch(psd,PAGESETUPDLG_hDevMode)
+        hdmPtr = curr_devmode
+    end if
+    ptr = w32handle_to_memory(curr_devmode)
+
+    --  get the orientation from devMode
+    orient = w32fetch(ptr,DEVMODE_dmOrientation)
+    job_properties[JP_Orientation] = orient
+
+    --  get the selected printer name from devMode
+    result = w32peek_string(ptr)
+    if compare(result,vPrinterName) then
+        if changePrinter(result,0) then end if
+    end if
+
+    -- get the flags
+    job_properties[JP_SetupFlags]  = w32fetch(psd,PAGESETUPDLG_Flags)
+
+    -- get margins
+    margins = w32fetch(psd, PAGESETUPDLG_rtMargin)
+    if and_bits(flags,PSD_INTHOUSANDTHSOFINCHES) then
+--/**/  job_properties[JP_Margins] = sq_div(margins,1000) & w32InchScale    --/* -- Phix
+        job_properties[JP_Margins] = margins/1000 & w32InchScale            --*/ -- RDS
+    else
+--/**/  job_properties[JP_Margins] = sq_div(margins,100) & w32MillScale     --/* -- Phix
+        job_properties[JP_Margins] = margins/100 & w32MillScale             --*/ -- RDS
+    end if
+
+    -- get paper size
+    rc = w32fetch(ptr, DEVMODE_dmPaperSize)
+    psize = w32fetch(psd, PAGESETUPDLG_ptPaperSize)
+    if rc!=DMPAPER_USER then
+        job_properties[JP_PaperSize] = rc
+    elsif and_bits(flags,PSD_INTHOUSANDTHSOFINCHES) then
+--/**/  job_properties[JP_PaperSize] = sq_div(psize,1000) & w32InchScale    --/* -- Phix
+        job_properties[JP_PaperSize] = psize/1000 & w32InchScale            --*/ -- RDS
+    else
+--/**/  job_properties[JP_PaperSize] = sq_div(psize,100) & w32MillScale     --/* -- Phix
+        job_properties[JP_PaperSize] = psize/100 & w32MillScale             --*/ -- RDS
+    end if
+
+    result = {
+              psize,
+              margins,
+              orient,
+              rc
+             }
+
+    -- get new printer's DC
+    devname = w32fetch(psd, PAGESETUPDLG_pDevNames)
+    printerDC = w32Func(xCreateDC, {
+                                    wsp, -- 0 doesn't seem to be a problm under XP, but in theotyr is
+                 -- and actually was (CChris 06/17/2007)
+                                    --devname + w32fetch( devname, DEVNAMES_wDeviceOffset ) ,
+                                    pname,
+                                    0,
+                                    ptr
+                                   })
+
+    -- release the memory
+    w32release_handle(curr_devmode,w32False)
+    if not pSetupDlg then
+        w32release_mem(psd)
+    end if
+    return result
+end function
+
+--/topic Printing
+--/proc getDefaultPrinter()
+--/desc Sets up the last printer used (or default printer) for printing
+-- The other printing options are the onez that were set on the last printing attempt or
+-- subsequent calls to /setPrintJobProperty().
+global procedure getDefaultPrinter()
+atom ptr
+
+    ptr = w32handle_to_memory(hdmPtr)
+    printerDC = w32Func(xCreateDC, {wsp,pname,0,ptr})
+    w32release_handle(hdmPtr,w32False)
+    VOID = w32Func(xSetViewportOrgEx,{printerDC,new_left_margin,new_top_margin,0})
+end procedure
+
+--/topic Printing
+--/proc newPrinter(sequence s,integer flag)
+--/desc Sets up the printer whose friendly name is supplied.
+-- If /i flag is set, all properties that had been set using /setPrintJobProperty() will
+-- be applied to the new printer. Otherwise, the default new printer configuration will be
+-- in force.
+global procedure newPrinter(sequence s,integer flag)
+    if changePrinter(s,1) then
+        if flag then
+            for i=JP_Copies to length(job_properties) do
+                if not equal(job_properties[i],0) then
+                    VOID = setPrintJobProperty(i,job_properties[i])
+                end if
+            end for
+        else -- reset to defaults
+            job_properties[JP_Copies..$] = 0
+            if WINDOWS_VERSION[1]<=WIN_ME then
+                new_left_margin = 0
+                new_top_margin = 0
+            end if
+        end if
+    else
+        warnErr("Invalid printer name - no action taken.")
+    end if
+end procedure
+
+--/topic Dialogs
+--/func getPageSetup()
+--/desc Page setup dialog
+--/ret SEQUENCE: { paperSize, margins, orientation, papertype }  /b or  w32False if the user cancels
+-- This calls /getPageSetupEx() using the default flags of ... /n
+--<ul>
+--/li PSD_DEFAULTMINMARGINS
+--/li PSD_INTHOUSANDTHSOFINCHES
+--</ul>
+global function getPageSetup()
+    return getPageSetupEx(or_bits(PSD_DEFAULTMINMARGINS,
+                                  PSD_INTHOUSANDTHSOFINCHES),
+                          0
+                         )
+end function
+
+--/topic Printing
+--/proc checkPrinter(integer release_if_exists)
+--/desc Checks if a printer was chosen. Prompts the user if none found, or possibly release it.
+-- If the passed flag is 0, and there is a printer, it won't be released.
+-- If there is no printer, getPrinterChoice() will be invoked. If still no
+-- printer is selected, the procedure raises an error.
+global procedure checkPrinter(integer release_if_exists)
+    if not length(vPrinterName) then
+        if not length(getPageSetup()) then
+            warnErr("Printer has not be chosen")
+            return
+        end if
+    elsif release_if_exists then
+        releasePrinter()
+    end if
+end procedure
+
+
+---------------------------------------------------------------------------
+--/topic Printing
+--/func startDoc( sequence jobname )
+--/desc Starts a new document on /Printer.
+--/ret INTEGER: w32True if succeeds.
+-- Start a new document on the /Printer. /n
+-- The /i jobname parameter can either be the name of the job as seen by the system or
+-- { jobname, filename }. If /i filename is "", then the default of "FILE:" is used. /n
+--
+-- If the filename is specified, the document is sent to the file rather than the printer device. /n
+-- If the filename is "FILE:" then the user will be prompted for the name of the file to use.
+--
+-- Refer to /Printer for details.
+
+global function startDoc(sequence job)
+-- start the document
+
+atom di, result
+sequence docName,out
+
+    result = 0
+    checkPrinter(0)
+    if printerDC!=0 then
+        if length(job)=2 and sequence(job[2]) then  -- print to file requested
+            docName = job[1]
+            if length(job[2])!=0 then
+                out = job[2]
+            else
+                out = "FILE:"
+            end if
+        else
+            docName = job
+            out = ""
+        end if
+
+        -- Allocate the structure, and store the values
+        di = w32to_memory(0,ID_DOCINFO, {docName,out})
+
+        result = w32Func(xStartDoc, {printerDC, di})
+
+        -- Free the structure
+        w32release_mem(di)
+    end if
+
+    -- returns true if succeeds
+    return (result>0)
+
+end function
+
+-----------------------------------------------------------------------------
+--/topic Printing
+--/func endDoc()
+--/desc Ends the print job.
+--/ret w32True if succeeds.
+-- Applications should call endDoc() when finished printing.
+--
+-- Refer to /Printer for details.
+
+global function endDoc()
+    checkPrinter(0)
+    if printerDC!=0 then
+        -- end the document
+        return w32Func(xEndDoc, {printerDC})>=0
+    else
+        return 0
+    end if
+
+end function
+
+--/topic Printing
+--/proc abortDoc()
+--/desc Abandons the print job, flushing anything created so far for it.
+-- Applications should call abortDoc() to cancel a print job.
+
+global procedure abortDoc()
+    checkPrinter(0)
+    if printerDC!=0 then
+        -- cancel the document.
+        VOID = w32Func(xAbortDoc, {printerDC})
+    end if
+end procedure
+
+
+-----------------------------------------------------------------------------
+--/topic Printing
+--/func startPage()
+--/desc Prepares the printer to begin a new page.
+--/ret w32True if succeeds.
+--
+-- Refer to /Printer for details.
+
+global function startPage()
+    checkPrinter(0)
+    if printerDC!=0 then
+        -- start the document
+        return w32Func(xStartPage, {printerDC})>=0
+    else
+        return 0
+    end if
+end function
+
+-----------------------------------------------------------------------------
+--/topic Printing
+--/func endPage()
+--/desc Ends the printing of the current page.
+--/ret w32True if succeeds.
+--
+-- Refer to /Printer for details.
+
+global function endPage()
+    checkPrinter(0)
+    if printerDC!=0 then
+        -- end the document
+        return w32Func(xEndPage, {printerDC})>=0
+    else
+        return 0
+    end if
+end function
+
+-----------------------------------------------------------------------------
+
+global constant
+    DC_OPT_ERROR = 1,
+    DC_OPT_WINDOW = 2
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+--/topic Low Level Routines
+--/func getDC( id )
+--/desc Get the DC (device context) of the control.
+--/ret ATOM: Device Context (DC) of the control.
+-- If the DC is already grabbed, the value is simply returned without
+-- grabbing it again.
+--
+-- /i id is either a simple integer or a sequence {id,option}. In the latter case, /i option 
+-- is the sum of zero or more flags:
+--/li DC_OPT_ERROR: if returned DC is 0, trigger an error instead of quietly returning it
+--/li DC_OPT_WINDOW: get a full window DC rather than a standard client DC. This flag only makes sense for standard windows. 
+--
+-- When using the DC_OPT_WINDOW flag, be sure to have released the standard window DC prior.
+-- In these DC's, coordinates are relative to the window rectangle, and not to the client rectangle.
+--
+-- There are some special cases that are handled:
+-- /li Normal controls: This includes any control that is normally
+--          visible on the screen. This performs a normal /b GetDC.
+-- /li /Screen: Passing the parameter of /Screen returns the
+--          DC of the monitor.
+-- /li /Printer: Passing the parameter of /Printer returns the
+--          printer's DC, assuming that one has been selected with
+--          /getPrinter.
+-- /li /b Pixmaps: This causes a DC compatible with the screen resolution
+--          to be created with the pixmap selected into it.
+-- /li /b Other: If the value passed is not identifiable as a valid
+--          Win32Lib control, it is assumed to be a DIB. A compatible DC
+--          is created, and the DIB is selected into it.
+--
+-- When you are done with the DC, it should be released with /releaseDC
+-- /b unless the DC was obtained during an /onPaint event, since the DC
+-- will be released automatically.
+
+global function getDC(object pID)
+-- get device context.
+
+integer lPos
+atom lhDC, lNewBmp, lSavedDC
+object lOption
+
+    lOption = {}
+
+    if sequence(pID) then
+        lOption = pID[2]
+        if sequence(lOption) then
+            lOption = DC_OPT_ERROR
+        end if
+        pID = pID[1]
+    else
+        lOption = 0
+    end if
+
+    -- Check that I haven't already got a DC for this control.
+    lPos = w32findKey(pID, grabbedHDC)
+    if lPos!=0 then
+        grabbedHDC[lPos][kTrackedCurDC][kTrackedDCCnt] += 1
+        return grabbedHDC[lPos][kTrackedCurDC][kTrackedDCHdl]
+    end if
+
+    lhDC = NULL
+    lSavedDC = NULL
+    lNewBmp = NULL
+
+    -- get the device context
+    if pID=Screen then
+
+        lhDC = w32Func(xGetDC, {0})
+
+    elsif pID=Printer then
+        -- the printer dc
+        lhDC = printerDC
+
+    elsif not validId(pID) then
+        -- the pID isn't a valid handle, so assume it is a bitmap.
+
+        -- create a memory device context compatible with the screen
+        lhDC = w32Func(xCreateCompatibleDC, {NULL})
+
+        -- select the bitmap into it
+        lNewBmp = pID
+
+    elsif getControlInfo(pID,CONTROLINFO_class)=PIXMAP then
+        -- pixmap class
+
+        -- create a memory device context compatible with the screen
+        lhDC = w32Func(xCreateCompatibleDC, {NULL})
+
+        -- select the bitmap into it
+        lNewBmp = getHandle(pID)
+
+    else
+        if not and_bits(lOption,DC_OPT_WINDOW) then
+            lhDC = w32Func(xGetDC, {getHandle(pID)})
+        else
+            lhDC = w32Func(xGetWindowDC, {getHandle(pID)})
+        end if
+
+    end if
+
+    if lhDC=NULL then
+        if and_bits(lOption,DC_OPT_ERROR) then
+            warnErr(Err_GETDCFAIL)
+        else
+            return 0
+        end if
+    end if
+
+
+    if lNewBmp!=NULL then
+
+        replaceObject(pID, kBitmapObject, lhDC, lNewBmp, ForProgram)
+    else
+        -- save the current device context
+        lSavedDC = w32Func(xSaveDC, {lhDC})
+    end if
+
+    -- add to list
+
+    grabbedHDC = prepend(grabbedHDC, {pID,{1,lhDC, lSavedDC, kDCReasonApp}})
+
+    return lhDC
+
+end function
+
+-----------------------------------------------------------------------------
+--/topic Low Level Routines
+--/proc releaseDC( control )
+--/desc Release the device context of the control.
+-- The DC should have been obtained with /getDC.
+--
+-- If the control is not a Pixmap or DIB, and the DC was obtained during an
+-- /onPaint event, there is no need to release the DC. Win32Lib will
+-- automatically release all DCs obtained during an /onPaint event.
+--
+-- If the control is the /Printer, there is no need to release the
+-- DC using /releaseDC. Instead, use /releasePrinter
+global procedure releaseDC(atom pID)
+
+atom lhDC
+integer lPos, lObjIdx
+sequence lData
+
+    lPos = w32findKey(pID, grabbedHDC)
+    if lPos=0 then
+        -- Nothing to release.
+        return
+    end if
+
+    -- Count down the references.
+    grabbedHDC[lPos][kTrackedCurDC][kTrackedDCCnt] -= 1
+    if grabbedHDC[lPos][kTrackedCurDC][kTrackedDCCnt]>0 then
+        -- Still some 'gets' outstanding, so don't release it yet.
+        return
+    end if
+
+    -- get the lhDC from the list
+    lData = grabbedHDC[lPos][kTrackedCurDC]
+
+    -- remove from grabbed list
+    grabbedHDC[lPos] = w32removeIndex(kTrackedCurDC, grabbedHDC[lPos])
+    if length(grabbedHDC[lPos])=1 then
+        -- No DCs remaining for this ID.
+        grabbedHDC = w32removeIndex(lPos, grabbedHDC)
+    end if
+
+    lhDC = lData[kTrackedDCHdl]
+    lPos = 0
+    -- Restore any original resources.
+    lPos = w32findKey(lhDC, vDCs)
+    if lPos!=0 then
+        for i=1 to length(kObjectTypes)  do
+            lObjIdx = kObjectTypes[i]+1
+            if length(vDCs[lPos][lObjIdx])>0 then
+                replaceObject(pID, kObjectTypes[i], lhDC, vDCs[lPos][lObjIdx][1], 0)
+            end if
+        end for
+        vDCs = w32removeIndex(lPos, vDCs)
+    end if
+
+    -- restore the device context if required.
+    if lData[kTrackedDCSaved]!=NULL then
+        if not w32Func(xRestoreDC, {lhDC, lData[kTrackedDCSaved]}) then
+            abortErr(Err_RELEASEDCRESTORE)
+        end if
+    end if
+    -- Do a real release if not during a Paint event.
+    if lData[kTrackedDCReason]=kDCReasonApp then
+        if pID=Screen then
+
+            -- release screen
+            if w32Func(xReleaseDC, {0, lhDC})=0 then
+                warnErr(Err_RELEASESCREEN)
+            end if
+
+        elsif pID=Printer then
+            -- does nothing; use releasePrinter instead.
+
+        elsif not validId(pID) then
+            -- release the device context
+            if not w32Func(xDeleteDC, {lhDC}) then
+                warnErr(Err_RELEASEBITMAP)
+            end if
+
+        elsif getControlInfo(pID,CONTROLINFO_class)=PIXMAP then
+            -- release the device context
+            if not w32Func(xDeleteDC, {lhDC}) then
+                warnErr(Err_RELEASEPIXMAP)
+            end if
+
+        else
+            -- normal release
+            if w32Func(xReleaseDC, {getHandle(pID), lhDC})=0 then
+                warnErr(Err_RELEASEDC)
+            end if
+
+        end if
+
+    end if
+end procedure
+
+integer extract_mode
+function extractDC(object pDC)
+atom lDC
+
+    if sequence(pDC) then -- an actual DC
+        if length(pDC)=0 then
+            return 0
+        else
+            lDC = pDC[1]
+            extract_mode = 2
+        end if
+    else
+        if w32Func(xIsWindow,{pDC}) then
+            --  Windows handle
+            lDC = w32Func(xGetDC,{pDC})
+            extract_mode = 1
+        else
+            -- Then a control ID was passed
+            lDC = getDC(pDC)
+            extract_mode = 0
+        end if
+
+    end if
+
+    return lDC
+end function
+
+procedure resetDC(atom pDC)
+    VOID = w32Func(xSaveDC, {pDC})
+    if VOID=0 then
+        abortErr(Err_ECFSAVEDCFAIL)
+    end if
+
+    -- these are NT specific. they should have no effect in Win95
+    VOID = w32Func(xSetGraphicsMode, {pDC, GM_ADVANCED})
+    VOID = w32Func(xModifyWorldTransform, {pDC, NULL, MWT_IDENTITY})
+
+    VOID = w32Func(xSetViewportOrgEx, {pDC, 0, 0, NULL})
+    VOID = w32Func(xSetWindowOrgEx,   {pDC, 0, 0, NULL})
+end procedure
+
+--/topic Fonts
+--/func convPointsToLogical(object id, object points, integer pLogRes)
+--/desc Calculates the 'logical' height of a font given its 'points' size.
+--/ret The logical font height.
+--This can be used to speed up /setFont and /EzCreateFont calls by allowing
+--you to pre-calculate the font heights that Windows needs to find the correct
+--font. See example for how it can be used.
+--
+--/i id is either a control's ID or a sequence starting with a control's DC or a Window handle. /n
+--/i points is either a single font point value, or a sequence containing
+-- a set of point values to convert. /n
+--/i pLogRes is a flag - w32True or w32False. If w32True then the logical device
+--resolution is used otherwise the physical device resolution is used.
+--
+--/b Note that if the /i points is supplied as a sequence, the the /b return
+-- value is also a sequence of the same length.
+--
+--Examples:
+--/code
+--      sequence lFontHeights
+--      -- Calc font heights to be used.
+--      -- This returns a set of 4 height values.
+--      lFontHeights = convPointsToLogical(mainpanel, {10,12,15,26}, w32True)
+--      . . .
+--      -- Set the font using one of the precalc heights.
+--      setFont(mainpanel, "Arial", {lFontHeights[kHeading1]}, Normal)
+--/endcode
+global function convPointsToLogical(object pDC, object pHeight, integer pLogRes)
+sequence lHeight
+atom lDC
+atom lDpiY
+atom lPoint
+
+    -- save the current device context because I'm about to
+    -- possibly mess it up.
+
+    if atom(pHeight) then
+        lHeight = {pHeight}
+    else
+        lHeight = pHeight
+    end if
+
+    lDC = extractDC(pDC)
+
+    -- reset the DC
+    resetDC(lDC)
+
+    if ( pLogRes ) then
+        lDpiY = w32Func(xGetDeviceCaps, {lDC, LOGPIXELSY})
+
+    else
+        lDpiY = (25.4*w32Func(xGetDeviceCaps, {lDC, VERTRES})/
+                 w32Func(xGetDeviceCaps, {lDC, VERTSIZE}) )
+
+    end if
+
+    -- w32allot
+    lPoint  = w32acquire_mem(0, SIZEOF_POINT)
+    for i=1 to length(lHeight) do
+        w32store(lPoint,ptY, floor(lHeight[i]*lDpiY/72.0))
+        VOID = w32Func(xDPtoLP, {lDC, lPoint, 1})
+        lHeight[i] = -floor(w32abs(w32fetch(lPoint,ptY))+0.5)
+    end for
+    w32release_mem(lPoint)
+
+    -- restore the device context
+    if not w32Func(xRestoreDC, {lDC, -1}) then
+        abortErr(Err_ECFRESTOREDC)
+    end if
+
+    if extract_mode=0 then
+        releaseDC(pDC)
+    elsif extract_mode=1 then
+        VOID = w32Func(xReleaseDC,{pDC,lDC})
+    end if
+    if extract_mode!=2 then
+
+    end if
+
+    if atom(pHeight) then
+        return lHeight[1]
+    else
+        return lHeight
+    end if
+
+end function
+
+--/topic Fonts
+--/func getFontPointSize(object pDC)
+--/desc Returns the logical size, in points, of the font currently used by the target window.
+--/ret (INTEGER) The logidal font size in points.
+-- The argument is either:
+--/li an integer, the id of a win32lib control;       
+--/li a sequence starting with a window handle;
+--/li a sequence starting wih the handle to a device context.
+global function getFontPointSize(object pDC)
+integer pointSize
+atom lDC
+atom currentFont
+atom lDpiY
+atom lPoint,logFont
+
+    lDC = extractDC(pDC)
+
+    -- save the current device context because I'm about to
+    -- possibly mess it up.
+
+    resetDC(lDC)
+
+    lDpiY = w32Func(xGetDeviceCaps, {lDC, LOGPIXELSY})
+
+    -- w32allot
+    lPoint = w32acquire_mem(0, SIZEOF_POINT)
+    currentFont = w32Func(xGetCurrentObject,{lDC,OBJ_FONT})
+    logFont = w32acquire_mem(0,SIZEOF_LOGFONT)
+    VOID = w32Func(xGetObject,{currentFont,SIZEOF_LOGFONT,logFont})
+    w32store(lPoint,ptY, peek4u(logFont))
+    VOID = w32Func(xLPtoDP, {lDC, lPoint, 1})
+    pointSize = w32fetch(lPoint,ptY)
+    w32release_mem(lPoint)
+    w32release_mem(logFont)
+    pointSize = floor(pointSize*(72.0/lDpiY)+0.5)
+
+    -- restore the device context
+    if not w32Func(xRestoreDC, {lDC, -1}) then
+        abortErr(Err_ECFRESTOREDC)
+    end if
+
+    if extract_mode=0 then
+        releaseDC(pDC)
+    elsif extract_mode=1 then
+        VOID = w32Func(xReleaseDC,{lDC})
+    end if
+    if extract_mode!=2 then
+
+    end if
+
+    return pointSize
+
+end function
+
+
+--/topic Fonts
+--/func EzCreateFont( integer id, atom pDC, sequence faceName, integer iDeciPtHeight, integer iDeciPtWidth, object iAttributes, integer fLogRes, atom logfont )
+--/desc Creates a Font resource
+--/ret The new font resource.
+-- This is a low-level routine that is not normally required to be called
+-- directly. It is primarily for advanced users. /n
+--The parameters are: /n
+--/code
+-- /i id           : The control whose Device Context will be used. /n
+-- /i pDC          : The device context. If zero, the routine will
+--                   get and release the device context itself. /n
+-- /i faceName     : font name /n
+-- /i iHeight      : font size, * 10 (i.e.: 125 = 12.5 points /n
+-- /i iWidth       : /b Note this is no longer supported. /n
+-- /i iAttributes  : flags for attributes, see Bold, etc. /n
+-- /i fLogRes      : if true, uses logical resolution instead of screen res. /n
+-- /i logfont      : if non-zero, a pointer to user-supplied LOGFONT structure. /n
+--/endcode
+--
+global function EzCreateFont(integer id, atom pDC, sequence pFaceName,
+                                object pHeight, atom pDeciPtWidth,
+                                object pAttributes, integer pLogRes,
+                                atom pLogFont)
+atom    hdc
+atom    hFont
+atom    lf
+atom    lHeight,
+--          lWidth,
+--          lEscapement,
+--          lOrientation,
+--          lCharSet,
+--          lOutPrecision,
+--          lClipPrecision,
+--          lQuality,
+--          lPitchAndFamily,
+            lStdAttribs
+
+sequence lFontKey
+integer lPosn
+
+    if pDeciPtWidth then end if
+
+    if pLogFont!=0 then
+        return w32Func(xCreateFontIndirect, {pLogFont})
+    end if
+
+    if sequence(pHeight) then
+        -- User supplied the logical device height
+        lHeight = pHeight[1]
+
+    else
+        -- Need to convert point size into logical device height.
+        if pDC=0 then
+            hdc = getDC(id)
+        else
+            hdc = pDC
+        end if
+
+        lHeight = convPointsToLogical({hdc}, pHeight/10.0, pLogRes)
+
+        if pDC=0 then
+            releaseDC(id)
+        end if
+
+    end if
+
+    lFontKey =  {
+                 'E',
+                 lHeight,
+                 pAttributes,
+                 vFontWeight,
+                 pFaceName
+                }
+    lPosn = find(lFontKey, vFontKeys)
+    if lPosn=0 then
+
+        lf  = w32acquire_mem(0, SIZEOF_LOGFONT)
+        w32store(lf, lfHeight,      lHeight)
+        w32store(lf, lfFaceName,        pFaceName)
+
+        if sequence(pAttributes) then
+            lStdAttribs   = pAttributes[1]
+            w32store(lf, lfWidth,           pAttributes[2])
+            w32store(lf, lfEscapement,  pAttributes[3])
+            w32store(lf, lfOrientation, pAttributes[4])
+            w32store(lf, lfCharSet,     pAttributes[5])
+            w32store(lf, lfOutPrecision,    pAttributes[6])
+            w32store(lf, lfClipPrecision,   pAttributes[7])
+            w32store(lf, lfQuality,     pAttributes[8])
+            w32store(lf, lfPitchAndFamily, pAttributes[9])
+        else
+            lStdAttribs   = pAttributes
+        end if
+
+        w32store(lf, lfWeight,      ((and_bits(lStdAttribs, Bold)     )!=0)*vFontWeight)
+        w32store(lf, lfItalic,      (and_bits(lStdAttribs, Italic)   )!=0)
+        w32store(lf, lfUnderline,       (and_bits(lStdAttribs, Underline))!=0)
+        w32store(lf, lfStrikeOut,       (and_bits(lStdAttribs, Strikeout))!=0)
+
+        -- create the font
+        hFont = w32Func(xCreateFontIndirect, {lf})
+
+        vFontKeys = append(vFontKeys, lFontKey)
+        vFontHandles &= hFont
+        w32release_mem(lf)
+    else
+        hFont = vFontHandles[lPosn]
+    end if
+-- **NOTE** This is not supported from v0.59.2
+--    if (pDeciPtWidth != 0 ) then
+--
+--        -- replace the current font
+--       replaceObject( id, kFontObject, hdc, hFont, ForProgram )
+--
+--        -- text metric
+--        tm  = w32acquire_mem( mset, SIZEOF_TEXTMETRIC )
+--
+--        -- get the text metrics on the font
+--        if not w32Func( xGetTextMetrics, {hdc, tm} ) then
+--            abortErr( Err_ECFGETTEXTMETRICS )
+--        end if
+--
+--        -- calculate the new size
+--        w32store( lf, lfWidth, floor( w32fetch(tm,tmAveCharWidth) *
+--                                   w32abs( w32fetch(pt,ptX) ) /
+--                                   w32abs( w32fetch(pt,ptY) ) + 0.5
+--                                )
+--             )
+--
+--        -- build the font
+--        hFont = w32Func( xCreateFontIndirect, {lf} )
+--
+--    end if
+
+
+
+
+    -- return handle to font
+    return hFont
+
+end function
+
+--/topic Low Level Routines
+--/func getIdFromDC(atom DC)
+--/desc Finds the control Id associated with the supplied Device Context.
+--/ret INTEGER: Control ID or 0 if the DC is not associated with a win32lib control.
+--/i DC is the device context returned by /getDC
+--
+--This is primarily used by add-on libraries as a way to use Win32lib routines that need
+-- a control ID rather than a device context.
+--
+--Example:
+--/code
+--      integer id
+--      id = getIdFromDC ( theDC )
+--/endcode
+
+global function getIdFromDC(atom pHDC)
+integer lID
+integer lPos
+
+    lPos = w32findKeyEx(pHDC, grabbedHDC, {kTrackedCurDC, kTrackedDCHdl})
+    if lPos!=0 then
+        lID = grabbedHDC[lPos][kTrackedID]
+    else
+        lID = 0
+    end if
+    return lID
+end function
+
+-- Begin Wolf
+--/topic Fonts
+--/proc setStartupFont( integer font )
+--/desc Establishes the default font to use when creating a window or control.
+--/i font is one of the system constants... /n
+--/li    OEM_FIXED_FONT
+--/li    ANSI_FIXED_FONT
+--/li    ANSI_VAR_FONT
+--/li    SYSTEM_FONT
+--/li    DEVICE_DEFAULT_FONT
+--/li    SYSTEM_FIXED_FONT
+--
+--Example
+--/code
+--     setStartupFont(SYSTEM_FIXED_FONT)
+--/endcode
+
+global procedure setStartupFont(integer font)
+    DefaultFontID   =  w32Func(xGetStockObject, {font})
+    vStockResources[1] = DefaultFontID
+end procedure
+-- End Wolf
+
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/func getPixel( window, x, y )
+--/desc Get a pixel value from /i window's client area.
+--/ret rgb value of point.
+-- Example:
+--
+--/code
+--      -- get a pixel color from {10,10} in TheWindow
+--      atom rgb
+--      rgb = /getPixel( TheWindow, 10, 10 )
+--/endcode
+
+-- NEW! 0.43b restored as global
+global function getPixel(integer id, integer x, integer y)
+
+integer rgb
+atom hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- get pixel
+    rgb = w32Func(xGetPixel, {hdc, x, y})
+
+    -- release the device context
+    releaseDC(id)
+
+    return rgb
+
+end function
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc setPixel( window, x, y, rgb color )
+--/desc Set a pixel value in /i window's client area.
+--
+-- Example:
+--
+--/code
+--      -- set pixel at {10,10} to Red
+--      /setPixel( TheWindow, 10, 10, Red )
+--/endcode
+
+global procedure setPixel(integer id, integer x, integer y, object rgbColor)
+
+-- returns RGB value from point
+atom hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- get pixel
+    VOID = w32Func(xSetPixel, {hdc, x, y, colorValue(rgbColor)})
+
+    -- release the device context
+    releaseDC(id)
+
+end procedure
+
+-----------------------------------------------------------------------------
+procedure createPen(integer id, atom hdc)
+
+-- make sure the pen is set
+
+atom rop2, hPen
+--  integer lLifeTime
+--  integer idx
+sequence lPenDefn,pen
+
+    pen = getControlInfo(id,CONTROLINFO_pen)
+    lPenDefn = {
+                pen[PenStyle],
+                pen[PenWidth],
+                UseColor(pen[PenColor])
+               }
+
+    hPen = w32Func(xCreatePen, lPenDefn)
+
+    -- select into the current device
+    replaceObject(id, kPenObject, hdc, hPen, ForProgram)
+
+    -- set the ROP2 style
+    rop2 = pen[PenROP2]
+    if rop2 then
+        if not w32Func(xSetROP2, {hdc, rop2}) then
+            warnErr("SetROP2 in createPen failed.")
+        end if
+    end if
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawLine( window, pStartX, pStartY, pEndX, pEndY )
+--/desc Draw a line.
+-- The line is drawn in the current pen color between { /i pStartX, /i pStartY }
+-- and { /i pEndX, /i pEndY }.
+--
+-- Example:
+--
+--/code
+--      -- draw a line in TheWindow from {10,10} to {100,100}
+--      /drawLine( TheWindow, 10, 10, 100, 100 )
+--/endcode
+
+global procedure drawLine(integer id, integer pStartX, integer pStartY, integer pEndX, integer pEndY)
+
+object hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- move to the first point
+    VOID = w32Func(xMoveToEx, {hdc, pStartX, pStartY, NULL})
+
+    -- draw the line
+    VOID = w32Func(xLineTo, {hdc, pEndX, pEndY})
+
+    -- release the device context
+    releaseDC(id)
+
+end procedure
+
+-----------------------------------------------------------------------------
+procedure createBrush(integer id, integer filled, atom hdc)
+
+-- create the appropriate brush for the filled shape
+-- 'filled' is the brush flag
+
+atom hBrush
+--  integer idx
+atom lColor
+
+    if filled!=0 then
+        -- create a pen
+        VOID = getControlInfo(id,CONTROLINFO_pen)
+        if length(VOID[PenBrushColor])=0 then
+            lColor = colorValue(VOID[PenColor])
+        else
+            lColor = colorValue(VOID[PenBrushColor][1])
+        end if
+        hBrush = w32Func(xCreateSolidBrush, {lColor})
+
+    else
+        -- use null brush
+        hBrush = NullBrushID
+    end if
+
+    -- replace the brush in the dc
+    replaceObject(id, kBrushObject, hdc, hBrush, ForProgram)
+
+end procedure
+
+--/topic Graphics
+--/proc drawLines( integer id, sequence coords )
+--/desc Draws zero or more lines.
+-- The lines are drawn between the sets of coordinates in /i coords. /n
+-- This sequence can contain Colors, Points, Lines, or Rects. /n
+--/li A /b Color is a single atom that is a 24-bit color value. Subsequent lines use this color.
+--/li A /b Point is a 2-element sequence {X,Y} that gives the X,Y position of the end-point
+-- of a line. The line is drawn to this position from the last end-point supplied,
+-- or if this is the first Point specified, the current pen position for the control.
+-- See /setPenPos().
+--/li A /b Line is a 4-element sequence {X1,Y1,X2,Y2} that specifies the X,Y position of a line's
+-- starting point and the X,Y position of its end point. The line is drawn from X1,Y1
+-- to X2,Y2.
+-- /li A /b Rect is a 5-element sequence {Fill, X1,Y1,X2,Y2} that specifies a rectangle.
+-- The first element is w32True for a filled rectangle and w32False for an outline only. The
+-- X1,Y1 is the X,Y position of the top-left corner and X2,Y2 is the X,Y position of the
+-- bottom-right corner.
+--
+-- If no color parameters are supplied, the current pen color for the control is used.
+--
+-- Example:
+--
+--/code
+--      -- draw a shape in TheWindow
+--      /drawLines( TheWindow, {White,{40,0,0,80},{80,80},{40,0},
+--                              Blue,{40,5,0,85},{80,85},{40,5}
+--                             } )
+--/endcode
+global procedure drawLines(integer id, sequence coords)
+integer x1, y1,
+            x2, y2
+
+object hdc
+
+-- Initialize them to improbable values.
+    x2 = -987654321
+    y2 = -987654321
+
+    -- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    if length(coords)>0 and not atom(coords[1]) then
+        -- Make sure we have a pen to start with.
+        createPen(id, hdc)
+    end if
+
+    x1 = getControlInfo(id,CONTROLINFO_x)
+    y1 = getControlInfo(id,CONTROLINFO_y)
+
+    for i=1 to length(coords) do
+        if atom(coords[i]) then
+            setPenColor(id, coords[i])
+            createPen(id, hdc)
+
+        elsif length(coords[i])=5 then
+            createBrush(id, coords[i][1], hdc)
+            x1 = coords[i][2]
+            y1 = coords[i][3]
+            x2 = coords[i][4]
+            y2 = coords[i][5]
+            VOID = w32Func(xRectangle, {hdc, x1, y1, x2, y2})
+
+        elsif length(coords[i])=4 then
+            x1 = coords[i][1]
+            y1 = coords[i][2]
+            x2 = coords[i][3]
+            y2 = coords[i][4]
+            -- move to the first point
+            VOID = w32Func(xMoveToEx, {hdc, x1, y1, NULL})
+
+            -- draw the line
+            VOID = w32Func(xLineTo, {hdc, x2, y2})
+
+        elsif length(coords[i])=2 then
+            if x2!= -987654321 or y2!= -987654321 then
+                x1 = x2
+                y1 = y2
+            end if
+            x2 = coords[i][1]
+            y2 = coords[i][2]
+
+            -- move to the first point
+            VOID = w32Func(xMoveToEx, {hdc, x1, y1, NULL})
+
+            -- draw the line
+            VOID = w32Func(xLineTo, {hdc, x2, y2})
+        end if
+    end for
+
+    -- release the device context
+    releaseDC(id)
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawRectangle( window, filled, x1, y1, x2, y2 )
+--/desc Draw a rectangle.
+-- Draws the rectangle in the current pen color from { /i x1, /i y1 }
+-- to { /i x2, /i y2 }. If /i filled is true, the rectangle is filled
+-- in the current pen color.
+--
+-- Example:
+--
+--/code
+--      -- draw a filled green rectangle in TheWindow
+--      /setPenColor( TheWindow, Green )
+--      /drawRectangle( TheWindow, w32True, 10, 10, 100, 100 )
+--/endcode
+global procedure drawRectangle(integer id, integer filled,
+                    integer x1, integer y1,
+                    integer x2, integer y2)
+
+-- draw a rectangle
+atom hdc
+--  atom lErr
+
+    -- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- create the brush
+    createBrush(id, filled, hdc)
+
+    -- call Rectangle
+    VOID = w32Func(xRectangle, {hdc, x1, y1, x2, y2})
+
+    -- release the device context
+    releaseDC(id)
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawRoundRect( window, filled, x1, y1, x2, y2, xc, yc )
+--/desc Draw a rounded rectangle.
+-- Draws the rounded rectangle in the current pen color. The upper left of the carved 
+-- out rectangle is at { /i x1, /i y1 }, and its lower right corner at
+-- to { /i x2, /i y2 }. The ellipse corner width and height are specified
+-- in /i xc and /i yc. If /i filled is true, the rectangle is filled
+-- in the current pen color.
+--
+-- Example:
+--
+--/code
+--      -- draw a filled blue round rectangle in TheWindow
+--      /setPenColor( TheWindow, Green )
+--      /drawRoundRect( TheWindow, w32True, 10, 10, 100, 100, 5, 5 )
+--/endcode
+
+global procedure drawRoundRect(integer id, integer filled,
+                    integer x1, integer y1,
+                    integer x2, integer y2,
+                    integer xc, integer yc)
+
+-- draw a rounded rectangle
+-- xc = ellipse corner width
+-- yc = ellipse corner height
+atom hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- create the brush
+    createBrush(id, filled, hdc)
+
+    -- call RoundRect
+    VOID = w32Func(xRoundRect, {hdc, x1, y1, x2, y2, xc, yc})
+
+    -- release the device context
+    releaseDC(id)
+end procedure
+
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawEllipse( window, filled, x1, y1, x2, y2 )
+--/desc Draw an ellipse.
+-- Draws the ellipse in the current pen color within the rectangle
+-- bounded by { /i x1, /i y1 } and { /i x2, /i y2 }. If /i filled
+-- is true, the ellipse is filled in the current pen color.
+--
+-- Example:
+--
+--/code
+--      -- draw a black ellipse in TheWindow
+--      /setPenColor( TheWindow, Black )
+--      /drawEllipse( TheWindow, w32True, 10, 10, 100, 100 )
+--/endcode
+
+global procedure drawEllipse(integer id, integer filled,
+                    integer x1, integer y1,
+                    integer x2, integer y2)
+
+-- draw an ellipse
+atom hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- create the brush
+    createBrush(id, filled, hdc)
+
+    -- call Ellipse
+    VOID = w32Func(xEllipse, {hdc, x1, y1, x2, y2})
+
+    -- release the device context
+    releaseDC(id)
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawArc( window, filled, x1, y1, x2, y2, xStart, yStart, xEnd, yEnd )
+--/desc Draw an arc.
+-- Draws the arc in the current pen color. The arc's bounding rectangle
+-- is defined as { /i x1, /i y1 } to { /i x2, /i y2 }. If /i filled
+-- is true, the ellipse is filled in the current pen color.
+--
+-- The arc is defined by the intersection between the radial start point
+-- and radial end point. The radial start point is a line running from
+-- the center of the bounding rectangle to { /i xStart, /i yStart }, and
+-- radial end point by a line running from the center of the bounding
+-- rectangle to { /i xEnd, /i yEnd }.
+--
+-- If /i filled is true, the arc will be filled.
+--
+-- Example:
+--
+--/code
+--      -- draw a bright cyan filled arc in TheWindow
+--      /setPenColor( TheWindow, BrightCyan )
+--      /drawArc( TheWindow,
+--                  w32True,           -- filled
+--                  1, 1,           -- upper left boundary
+--                  100, 100,       -- lower right boundary
+--                  49, 1,          -- top center of rectangle
+--                  100, 49 )       -- right center of rectangle
+--/endcode
+
+global procedure drawArc(integer id, integer filled,
+                    integer x1, integer y1,
+                    integer x2, integer y2,
+                    integer xStart, integer yStart,
+                    integer xEnd, integer yEnd)
+
+-- draw an arc
+-- xStart, yStart: start of arc; on imaginary line from center of arc
+-- xEnd, yEnd    : end of arc; on imaginary line from center of arc
+atom hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- create the brush
+    createBrush(id, filled, hdc)
+
+    -- call Arc
+    VOID = w32Func(xArc, {hdc, x1, y1, x2, y2, xStart, yStart, xEnd, yEnd})
+
+    -- release the device context
+    releaseDC(id)
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawChord( window, filled, x1, y1, x2, y2, xStart, yStart, xEnd, yEnd )
+--/desc Draw a chord.
+-- Draws the chord in the current pen color.
+--
+-- A /i chord is a region bounded by the intersection of an ellipse and a
+-- line segment. The ellipse is bounding rectangle is defined
+-- { /i x1, /i y1 } to { /i x2, /i y2 }.  If /i filled is true, the
+-- chord is filled in the current pen color.
+--
+-- The chord is defined by the intersection between the radial start point
+-- and radial end point. The radial start point is a line running from
+-- the center of the bounding rectangle to { /i xStart, /i yStart }, and
+-- radial end point by a line running from the center of the bounding
+-- rectangle to { /i xEnd, /i yEnd }.
+--
+-- If /i filled is true, the chord will be filled.
+--
+-- Example:
+--
+--/code
+--      -- draw a yellow chord in TheWindow
+--      /setPenColor( TheWindow, Yellow )
+--      /drawChord( TheWindow,
+--                  w32True,           -- filled
+--                  1, 1,           -- upper left boundary
+--                  100, 100,       -- lower right boundary
+--                  49, 1,          -- top center of rectangle
+--                  100, 49 )       -- right center of rectangle
+--/endcode
+
+global procedure drawChord(integer id, integer filled,
+                    integer x1, integer y1,
+                    integer x2, integer y2,
+                    integer xStart, integer yStart,
+                    integer xEnd, integer yEnd)
+
+-- draw an chord
+-- xStart, yStart: start of arc; on imaginary line from center of arc
+-- xEnd, yEnd    : end of arc; on imaginary line from center of arc
+atom hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- create the brush
+    createBrush(id, filled, hdc)
+
+    -- call Chord
+    VOID = w32Func(xChord, {hdc, x1, y1, x2, y2, xStart, yStart, xEnd, yEnd})
+
+    -- release the device context
+    releaseDC(id)
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawPie( window, filled, x1, y1, x2, y2, xStart, yStart, xEnd, yEnd )
+--/desc Draw a pie slice.
+-- Draws the pie slice in the current pen color. The bounding rectangle
+-- is defined as { /i x1, /i y1 } to { /i x2, /i y2 }. If /i filled
+-- is true, the slice is filled in the current pen color.
+
+--
+-- The curve start and end points are defined by the intersection between
+-- the radial start point and radial end point. The radial start point is
+-- a line running from the center of the bounding rectangle to {
+--  /i xStart, /i yStart }, and radial end point by a line running from
+-- the center of the bounding rectangle to { /i xEnd, /i yEnd }.
+--
+-- If /i filled is true, the pie will be filled.
+--
+-- Example:
+--
+--/code
+--      -- draw a blue filled arc in TheWindow
+--      /setPenColor( TheWindow, Blue )
+--      /drawPie( TheWindow,
+--                  w32True,           -- filled
+--                  1, 1,           -- upper left boundary
+--                  100, 100,       -- lower right boundary
+--                  49, 1,          -- top center of rectangle
+--                  100, 49 )       -- right center of rectangle
+--/endcode
+
+global procedure drawPie(integer id, integer filled,
+                    integer x1, integer y1,
+                    integer x2, integer y2,
+                    integer xStart, integer yStart,
+                    integer xEnd, integer yEnd)
+
+-- draw a pie slice
+-- xStart, yStart: start of arc; on line from center of arc
+-- xEnd, yEnd    : end of arc; on line from center of arc
+atom hdc
+
+-- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- create the brush
+    createBrush(id, filled, hdc)
+
+    -- call DrawPie
+    VOID = w32Func(xPie, {hdc, x1, y1, x2, y2, xStart, yStart, xEnd, yEnd})
+
+    -- release the device context
+    releaseDC(id)
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawPolygon( integer id, integer filled, sequence points )
+--/desc Draw a polygon.
+-- Draws the polygon in /i id in the current pen color using /i points.
+-- If i/ filled is true, the polygon will be filled.
+--
+-- /i points is either a set of two-element co-ordinates or a list of alternating
+-- x,y coordinates.
+--
+-- Example:
+--
+--/code
+--      -- draw a blue filled triangle in TheWindow
+--      sequence points
+--
+--      -- define the points
+--      points = {  { 10, 10 },
+--                  { 80, 40 },
+--                  { 40, 80 } }
+--
+--      -- alternative method to define the points
+--      points = {  10, 10,
+--                  80, 40,
+--                  40, 80  }
+--      -- set pen color
+--      /setPenColor( TheWindow, Blue )
+--
+--      -- draw a filled polygon using the points
+--      /drawPolygon( TheWindow, w32True, points )
+--/endcode
+
+global procedure drawPolygon(integer id, integer filled, sequence points)
+
+-- draw a polygon
+integer count, offset
+atom hdc, address
+
+-- count of points
+    count = length(points)
+    if count=0 then
+        return
+    end if
+
+    if atom(points[1]) then
+        -- Allocate room for points
+        address = w32acquire_mem(0, count*4)
+        poke4(address, points)
+        count /= 2
+    else
+        -- Allocate room for points
+        address = w32acquire_mem(0, count*4*2)
+        -- poke the points
+        offset = address
+        for i=1 to count do
+
+            -- x,y point
+            poke4(offset, points[i])
+            -- increment offset
+            offset += 8
+
+        end for
+    end if
+
+    -- get the device context
+    hdc = getDC(id)
+
+    -- create a pen
+    createPen(id, hdc)
+
+    -- create the brush
+    createBrush(id, filled, hdc)
+
+    -- call Polygon
+    VOID =  w32Func(xPolygon, {hdc, address, count})
+
+    -- release the device context
+    releaseDC(id)
+
+    -- release the memory
+    w32release_mem(address)
+
+end procedure
+
+--/topic Graphics
+--/func floodFill( atom pControl, integer pXStart, integer pYStart, object pColor, integer pFillType)
+--/desc Performs a 'flood fill' operation.
+--/ret ATOM: 0 if failed, !0 if success
+--
+--This routine will fill an area of adjacent pixels with the same color. It works by searching for
+-- a specific color, the Search Color, and changing pixels to the Flood Color as it goes. There
+-- are two types of searching. One searches for a border and all pixels inside the border are
+-- changed to the flood color. The other type searches for a specific color and only changes
+-- adjacent pixels with that color to the flood color.
+--
+--/i pControl is either a valid control ID, or a Device Context returned by /getDC. If /i pControl is
+-- a control Id, then the default flood color is the current pen color ( /setPenColor ) otherwise you need to
+-- create your own brush before calling this ( /createBrush ).
+--
+--/i pXStart and /i pYStart are the pixel coordinates of the flood starting position.
+--
+--/i pFillType is one of either /b FLOODFILLBORDER or /b FLOODFILLSURFACE. A border fill changes each pixel
+-- until the border is encountered. A surface fill changes each adjacent pixel that is the same color as
+-- the /i pColor value.
+--
+--/i pColor is used to supply the search color or both colors. To supply just the search color then
+-- /i pColor is a single value. To supply both search and flood colors, then /i pColor is
+-- a two-element sequence in the form { SearchColor, FloodColor }. /n
+-- Either color can be a single atom color value, a 3-element {R,G,B} value or the name of one of
+-- the predefined color names, eg. /i <"Black">, /i <"BrightCyan">, etc...
+--
+-- The Search Color's usage depends on the  flood type. If doing a border fill, then
+-- the search color is the border's color. If a surface fill, this is the color of the pixels to change from. /n
+-- There is a special value for Search Color. If you supply a value of -1, then Search Color is taken from the
+-- pixel currently at /i "pXStart, pYStart". This means that for a border fill, nothing happens. For a
+-- surface fill, the pixel at the start position and all adjacent pixels will be changed to the flood
+-- color. /n
+-- /b Note that if no Flood Color is supplied the current pen color is used when /i pControl
+-- is a control ID, or the current brush if /i pControl is a device context. /n
+-- If the Flood Color is supplied, and it has the value -1, then the current pen color for the control
+-- is used.
+--
+--Examples:
+--/code
+--      -- Using the current pen, set all pixels inside the black border.
+--      VOID = floodFill( myPixmap, x, y, Black, FLOODFILLBORDER)
+--      -- Set the start pixel and all adjacent pixels of the same color to Pink
+--      VOID = floodFill( myPixmap, x, y, {-1, Pink}, FLOODFILLSURFACE)
+--/endcode
+global function floodFill(atom pHDC, integer pXStart, integer pYStart, object pColor, integer pFillType)
+atom lRC
+integer lID
+object lSearchColor
+object lFloodColor
+integer lRelease
+integer lBrush
+
+    if validId(pHDC) then
+        lID = pHDC
+        pHDC = getDC(lID)
+        lRelease = 1
+        lBrush = 1
+    else
+        lID = getIdFromDC(pHDC)
+        lRelease = 0
+        lBrush = 0
+    end if
+
+    if sequence(pColor) then
+        if length(pColor)=2 then
+            lSearchColor = pColor[1]
+            lFloodColor = pColor[2]
+        else
+            lSearchColor = pColor
+            lFloodColor = {}
+        end if
+    else
+        lSearchColor = pColor
+        lFloodColor = {}
+    end if
+
+    if equal(lSearchColor, -1) then
+        lSearchColor = getPixel(lID, pXStart, pYStart)
+    else
+        lSearchColor = colorValue(lSearchColor)
+    end if
+
+    if equal(lFloodColor, -1) then
+        lBrush = 1
+    elsif not equal(lFloodColor, {}) then
+        setPenColor(lID, lFloodColor)
+    end if
+
+    if lBrush!=0 then
+        createBrush(lID, w32True, pHDC)
+    end if
+
+    lRC = w32Func(xExtFloodFill, {pHDC, pXStart, pYStart, lSearchColor, pFillType})
+
+    if lRelease!=0 then
+        releaseDC(lID)
+    end if
+
+    return lRC
+end function
+
+------------------------------------------------------------------------------
+function loadBitmapFromFile2(sequence fileName)
+
+-- alternate version of loadBitmapFromFile
+-- this should work for NT and other versions not
+-- supporting LoadImage's load from file option.
+--
+-- this version is called if the default version fails
+
+atom        bmFile, bmInfoHeader, bmBits, bmColors, hdc, hDib
+integer     hFile, fSize, byte
+
+
+    hFile = w32FileOpen(fileName, "rb")
+    if hFile= -1 then
+        -- warning
+        warnErr(sprintf("Unable to open '%s', in ReadDIB", {fileName}))
+        return NULL
+    end if
+
+    -- Get the file size
+    VOID = seek(hFile, -1)
+    fSize = where(hFile)
+    VOID = seek(hFile, 0)
+
+    -- read the whole file
+    bmFile = w32acquire_mem(0, fSize)
+    for i=0 to fSize-1 do
+
+        -- get a byte from the file
+        byte = getc(hFile)
+
+        -- eof?
+        if byte= -1 then
+
+            -- Free memory
+            w32release_mem(bmFile)
+
+            -- warning
+            warnErr(sprintf("Early EOF in '%s', in ReadDIB", {fileName}))
+
+            -- return failure
+            return NULL
+
+        else
+            -- poke into structure
+            poke(bmFile+i, byte)
+        end if
+
+    end for
+
+
+    -- check header
+    if compare(w32fetch(bmFile, bfType), "BM")!=0 then
+        close(hFile)
+        w32release_mem(bmFile)
+        -- warning
+        warnErr(sprintf("'%s' not a bitmap file, in ReadDIB", {fileName}))
+        return NULL
+    end if
+
+    -- check header size against file size
+    if w32fetch(bmFile, bfSize)!=fSize then
+        -- warning
+        warnErr(sprintf("Bitmap '%s' is corrupt, in ReadDIB", {fileName}))
+        -- correct header in memory
+        w32store(bmFile, bfSize, fSize)
+    end if
+
+    -- address of BitmapInfoHeader
+    bmInfoHeader = bmFile+SIZEOF_BITMAPFILEHEADER
+
+    -- offset to bitmap data
+    bmBits = bmFile+w32fetch(bmFile, bfOffBits)
+
+    -- address of color information
+    bmColors = bmInfoHeader+SIZEOF_BITMAPINFOHEADER
+
+    -- Get the screen's device context.
+    hdc = getDC(Screen)
+
+    -- Create the DIB.
+    hDib = w32Func(xCreateDIBitmap, {
+                                     hdc,               -- handle to device context
+                                     w32address(bmInfoHeader, bmiHeader), -- pointer to BITMAPINFOHEADER
+                                     CBM_INIT,          -- initialization flag
+                                     bmBits,            -- address of initialization data
+                                     bmInfoHeader,      -- pointer to color data
+                                     DIB_RGB_COLORS})   -- colors are RGB tuples
+
+    -- release the screen dc
+    releaseDC(Screen)
+
+    -- Free memory
+    w32release_mem(bmFile)
+
+    return hDib
+
+end function
+
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/func loadBitmapFromFile( file name )
+--/desc Loads a bitmap file.
+--/ret Win32 handle of bitmap, or /b Null if an error occured.
+-- /b Note: The name /i bitmap is a bit confusing; it should be more
+-- properly called /i loadDIBFromFile. At some point, the graphic
+-- routines need to be renamed in a more consistant manner.
+--
+-- Example:
+--
+--/code
+--          -- load a bitmap, and display in window
+--          atom hBitmap
+--
+--          -- load the bitmap
+--          hBitmap = /loadBitmapFromFile( "graphic.bmp" )
+--
+--          -- display the bitmap in TheWindow at {1,1}
+--          /drawBitmap( theWindow, hBitmap, 1, 1 )
+--
+--/endcode
+
+global function loadBitmapFromFile(sequence fName)
+
+-- loads a bitmap, returns the handle
+atom hImage
+atom lImageType
+integer lObjectType
+
+
+    -- load it
+    lImageType = IMAGE_BITMAP
+    lObjectType = kBitmapObject
+    fName = w32FindFile(fName)
+    if match(".ico", lower(fName))=length(fName)-3 then
+        lImageType = IMAGE_ICON
+        lObjectType = kIconObject
+    end if
+
+    hImage = w32Func(xLoadImage,
+                     {NULL, fName, lImageType, 0, 0, LR_LOADFROMFILE})
+
+    -- success?
+    if hImage=NULL then
+        -- try using alternate version
+        hImage = loadBitmapFromFile2(fName)
+        -- failed again?
+        if hImage=NULL then
+            warnErr("LoadImage in loadBitmapFrom File failed.")
+        end if
+    end if
+
+    trackObject({-1, lObjectType}, hImage, ForProgram)
+
+    return hImage
+
+end function
+
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc drawBitmap( window, DIB handle, x, y )
+--/desc Draws /i DIB (device independant bitmap) in /i window at { /i x, /i y }.
+-- /b Note: The term /i bitmap is inconsistant; I expect to be renaming
+-- these routines in the future.
+--
+-- Example:
+--
+--/code
+--          -- load a bitmap, and display in window
+--          atom hBitmap
+--
+--          -- load the bitmap
+--          hBitmap = /loadBitmapFromFile( "graphic.bmp" )
+--
+--          -- display the bitmap in TheWindow at {1,1}
+--          /drawBitmap( theWindow, hBitmap, 1, 1 )
+--
+--/endcode
+
+global procedure drawBitmap(integer id, object bitmap,
+                integer xStart, integer yStart)
+
+-- Draw a bitmap onto the requested device
+atom lTargetDC, lSourceDC, lImageHandle
+atom mset, bm, ptSize, ptOrg
+atom lPrevBmp
+
+    mset    = w32new_memset()
+    bm      = w32acquire_mem(mset, SIZEOF_BITMAP)
+    ptSize  = w32acquire_mem(mset, SIZEOF_POINT)
+    ptOrg   = w32acquire_mem(mset, SIZEOF_POINT)
+
+
+    -- need to load the bitmap?
+    lImageHandle = 0
+    if w32string(bitmap) then
+        -- passed a file name
+        lImageHandle = loadBitmapFromFile(bitmap)
+
+    elsif atom(bitmap) then
+        lImageHandle = w32Func(xGetObjectType, {bitmap})
+        if lImageHandle=0 or lImageHandle=OBJ_BITMAP then
+            -- passed handle
+            lImageHandle = bitmap
+        end if
+    end if
+
+    -- get the dimensions of the bitmap
+    if not w32Func(xGetObject, {lImageHandle, SIZEOF_BITMAP, bm}) then
+        warnErr("drawBitmap:GetObject failed.")
+        w32release_mem(mset)
+        return
+    end if
+
+
+    -- get the DC of the destination
+    lTargetDC = getDC(id)
+
+    -- create a memory device context based on the destination
+    lSourceDC = w32Func(xCreateCompatibleDC, {lTargetDC})
+    if lSourceDC=NULL then
+        warnErr("drawBitmap:CreateCompatibleDC failed.")
+        releaseDC(id)
+        w32release_mem(mset)
+        return
+    end if
+
+    -- select the bitmap into it
+    lPrevBmp = w32Func(xSelectObject, {lSourceDC, lImageHandle})
+
+    -- set mapping mode to same as destination
+    VOID = w32Func(xSetMapMode, {lSourceDC, w32Func(xGetMapMode, {lTargetDC})})
+
+    -- move the size into the point structure ptSize (logical coordinates)
+    w32store(ptSize, ptX, w32fetch(bm, bmWidth))
+    w32store(ptSize, ptY, w32fetch(bm, bmHeight))
+    VOID = w32Func(xDPtoLP, {lTargetDC, ptSize, 1})
+
+    -- get the origin of the bitmap (logical coordinates)
+    w32store(ptOrg, ptX, 0)
+    w32store(ptOrg, ptY, 0)
+    VOID = w32Func(xDPtoLP, {lTargetDC, ptOrg, 1})
+
+    -- copy bitmap to device context
+    VOID = w32Func(xBitBlt, {
+                             lTargetDC, xStart, yStart,
+                             w32fetch(ptSize, ptX), w32fetch(ptSize, ptY),
+                             lSourceDC,
+                             w32fetch(ptOrg, ptX), w32fetch(ptOrg, ptY),
+                             SRCCOPY})
+
+    -- release the device context
+    VOID = w32Func(xSelectObject, {lSourceDC, lPrevBmp})
+    VOID = w32Func(xDeleteDC, {lSourceDC})
+
+    -- cleanup
+    releaseDC(id)
+    w32release_mem(mset)
+
+end procedure
+
+
+
+-----------------------------------------------------------------------------
+function codeToBytes(sequence bits)
+-- Convert a sequence of text into bytes
+-- This is a support routine for createMonochromeBitmap
+-- Ex:  "1,1,1,1,1,1,1,1,0,0"
+--      --> { #FF, #00 }
+
+integer byte, extra
+sequence slice, bytes
+
+-- add extra bits: must be multiple of 16
+    extra = remainder(length(bits), 16)
+    if extra then
+        bits = bits & repeat(1, 16-extra)
+    end if
+
+    -- convert bits to bytes
+    bytes = {}
+
+    for i=1 to length(bits) by 8 do
+        -- get an 8 bit slice
+        slice = bits[i..i+7]
+        -- reverse it for conversion
+        slice = reverse(slice)
+        -- convert bits to a byte
+        byte = bits_to_int(slice)
+        -- add to list
+        bytes = append(bytes, byte)
+    end for
+    return bytes
+end function
+
+
+-- NEW! 0.43 removed global
+function createBitmap(sequence s)
+-- build a monochrome bitmap from text
+
+integer wide, high
+atom bitmapData, hBitmap
+sequence data
+
+-- get the size
+    wide = length(s[1])
+    high = length(s)
+
+
+    -- build the data
+    data = {}
+    for i=1 to length(s) do
+        data = data & codeToBytes(s[i])
+    end for
+
+    -- poke the bitmap into memory
+    bitmapData = w32acquire_mem(0, length(data))
+    poke(bitmapData, data)
+
+    -- create a bitmap
+    hBitmap = w32Func(xCreateBitmap, {wide, high, 1, 1, bitmapData})
+
+    if hBitmap=0 then
+        warnErr("CreateBitmap failed.")
+    end if
+
+    -- track resource for length of program
+    trackObject({-1,kBitmapObject}, hBitmap, ForProgram)
+
+    -- release memory
+    w32release_mem(bitmapData)
+
+    return hBitmap
+
+end function
+
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/func textToBitmap( text )
+--/desc Converts a sequence of text into a monochrome bitmap.
+--/ret Handle to Win32 bitmap, or /b Null on an error.
+-- Spaces are converted to White pixels; all other characters are
+-- converted to Black pixels.
+--
+-- /b Note: This routine should probably be deprecated, or at least
+--          renames.
+--
+-- Example:
+--
+--/code
+--          -- create a bitmap, and display it
+--          atom hBitmap
+--          sequence image
+--
+--          -- the image
+--          image = {   " xxxxxx ",
+--                      "x      x",
+--                      "x x  x x",
+--                      "x      x",
+--                      "x x  x x",
+--                      "x x  x x",
+--                      "x xxxx x",
+--                      " xxxxxx ",
+--
+--
+--          -- create the bitmap
+--          hBitmap = /textToBitmap( image )
+--
+--          -- display the bitmap in TheWindow at {1,1}
+--          /drawBitmap( theWindow, hBitmap, 1, 1 )
+--
+--/endcode
+
+global function textToBitmap(sequence s)
+
+    -- build a monochrome bitmap from text
+
+    -- all spaces become 1 and all non-spaces become 0.
+--/**/  s = sq_eq(s,' ')    --/* Phix 
+    s = ( s = ' ' )         --  RDS */
+
+    -- create the bitmap
+    return createBitmap(s)
+
+end function
+
+-----------------------------------------------------------------------------
+function packScanLine(sequence pal, sequence pixels, integer bitsPer)
+-- convert a scanline of data into a packed scanline
+integer fill, bytes, at, pixtemp
+sequence packed
+
+-- NEW! 0.43 handled 24 bits
+    if bitsPer=24 then
+        -- bytes in packed array
+        bytes = length(pixels)*3
+
+        -- packed pixels
+        packed = repeat(0, bytes)
+
+        -- 3 byte triplet; blue, green, red
+        at = 1
+        for i=1 to bytes/3 do
+            pixtemp = pixels[i]+1
+            packed[at]   = pal[pixtemp][3]
+            packed[at+1] = pal[pixtemp][2]
+            packed[at+2] = pal[pixtemp][1]
+            -- move to start of next triplet
+            at += 3
+        end for
+
+-- NEW! 0.43 changed >= to =
+    elsif bitsPer=8 then -- 1:1
+        packed = pixels
+
+    elsif bitsPer=4 then -- 4:1
+
+        -- pad to even length
+        pixels = pixels & repeat(0, 1)  ---- 3
+
+        -- bytes in packed array
+        bytes = floor(length(pixels)/2)  ---- 4
+
+        -- packed pixels
+        packed = repeat(0, bytes)
+
+        -- 4 bits per; 2 numbers per byte
+        at = 1
+        for i=1 to bytes*2 by 2 do  ---- 4
+
+            -- build a byte
+            packed[at] = (pixels[i]*16)
+                         +(pixels[i+1]*1 ) ---- 4
+
+            -- move to start of next byte
+            at = at+1
+
+        end for
+
+    elsif bitsPer=1 then -- 8:1
+
+        -- pad to even length
+        pixels = pixels & repeat(0, 7)
+
+        -- bytes in packed array
+        bytes = floor(length(pixels)/8)
+
+        -- packed pixels
+        packed = repeat(0, bytes)
+
+        -- 1 bits per; 8 numbers per byte
+        at = 1
+        for i=1 to bytes*8 by 8 do
+
+            -- build a byte
+            packed[at] =  (pixels[i]*128)
+                          +(pixels[i+1]*64)
+                          +(pixels[i+2]*32)
+                          +(pixels[i+3]*16)
+                          +(pixels[i+4]*8 )
+                          +(pixels[i+5]*4 )
+                          +(pixels[i+6]*2 )
+                          +pixels[i+7]
+
+            -- move to next byte
+            at = at+1
+
+        end for
+
+    end if
+
+    -- scanline needs to fall on an long boundary (4 bytes)
+    fill = remainder(length(packed), 4)
+    if fill then
+        packed = packed & repeat(0, 4-fill)
+    end if
+
+    return packed
+
+end function
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/func createDIB( data )
+--/ret Handle to Win32 bitmap, or /b Null on an error.
+--/desc Converts a Euphoria bitmap format into a Win32 bitmap.
+-- The data is in the form { pal, data }.
+--
+-- You only need to supply as many palette entries that are actually
+-- used by the image. Pixel indexes into the palette start at 0 (to be
+-- compatible with how Euphoria uses bitmaps)
+--
+-- Palette entries are color tuples in the form { r, g, b }, with each
+-- color value ranging from 0 to 255.
+--
+-- Example:
+--
+--/code
+--          -- create a bitmap, and display it
+--          atom hBitmap
+--          sequence pixels, pal
+--
+--          -- the pixels data
+--          pixels = {
+--              { 0,0,0,0 },        -- scan line 1
+--              { 0,1,1,0 },        -- scan line 2
+--              { 0,1,1,0 },        -- scan line 3
+--              { 0,0,0,0 } }       -- scan line 4
+--
+--          -- the pal data (color tuples)
+--          pal = {
+--                { 255, 0, 0 },    -- color 0 is bright red
+--                { 0, 0, 255 } }   -- color 1 is bright blue
+--
+--          -- create the DIB
+--          hBitmap = /createDIB( {Pal, Pixels} )
+--
+--          -- display the bitmap in TheWindow at {1,1}
+--          /drawBitmap( theWindow, hBitmap, 1, 1 )
+--/endcode
+
+-- NEW! 0.41 now is passed a Euphoria bitmap
+global function createDIB(sequence euBmp)
+
+-- create a DIB (bitmap) from pixels and palette
+-- note that the sequence of pixels is *zero* based.
+
+integer colors, palSize, headerSize, bitsPer, h, w
+sequence pal, pixels
+atom memBitmapInfo, memBits, at, hdc, hDIB, mset
+
+    mset = w32new_memset()
+    -- get values
+    pal = euBmp[1]
+    pixels = euBmp[2]
+
+    -- number of colors
+    colors = length(pal)
+
+    -- palette and packing size
+    if colors<=2 then
+        palSize = 2
+        bitsPer = 1
+    elsif colors<=16 then
+        palSize = 16
+        bitsPer = 4
+    elsif colors<=256 then
+        palSize = 256
+        bitsPer = 8
+
+    elsif colors<=16777216 then
+        palSize = colors
+        bitsPer = 24
+    end if
+
+    -- size of bitmap
+    w = length(pixels[1])
+    h = length(pixels)
+
+    -- calculate the size of the BITMAPINFO header
+    headerSize = SIZEOF_BITMAPINFOHEADER+(SIZEOF_RGBQUAD*palSize )
+
+    -- Allocate memory for DIB
+    memBitmapInfo = w32acquire_mem(mset,headerSize)
+    w32set_memory(memBitmapInfo, ID_BITMAPINFOHEADER,
+                  {SIZEOF_BITMAPINFOHEADER,w, -h, 1, bitsPer,0,0,0,0,colors,0})
+    -- at this stage, the palette hasn't been allocated yet
+
+    -- pack the pixels
+    for i=1 to h do
+        pixels[i] = packScanLine(pal, pixels[i], bitsPer)
+    end for
+
+    -- get bytes per scanline
+    w = length(pixels[1])
+
+    -- Allocate storage
+    memBits = w32acquire_mem(mset, h*w)
+
+    -- copy pixels to memory
+    at = memBits
+    for i=1 to h do
+        poke(at, pixels[i])
+        at = at+w
+    end for
+
+    -- get the address of the first rgb tuple
+    at = w32address(memBitmapInfo, bmiColors)
+
+    -- copy the pal to memory
+    for i=1 to colors do
+
+        -- store values
+        w32store(at, rgbRed, pal[i][1])
+        w32store(at, rgbGreen, pal[i][2])
+        w32store(at, rgbBlue, pal[i][3])
+        w32store(at, rgbReserved, 0)
+
+
+        -- move to next quad
+        at += SIZEOF_RGBQUAD
+
+    end for
+
+    -- Get the screen's device context.
+    hdc = getDC(Screen)
+
+    -- Create the DIB.
+    hDIB = w32Func(xCreateDIBitmap, {
+                                     hdc,
+                                     w32address(memBitmapInfo, bmiHeader),
+                                     CBM_INIT,
+                                     memBits,
+                                     memBitmapInfo,
+                                     DIB_RGB_COLORS})
+
+
+    -- release the screen dc
+    releaseDC(Screen)
+
+    -- Free memory
+    w32release_mem(mset)
+
+    trackObject({-1,kBitmapObject}, hDIB, ForProgram)
+
+    return hDIB
+
+
+end function
+
+
+-----------------------------------------------------------------------------
+--/topic System Attributes
+--/func loadIconFromFile( object iconfile )
+--/desc Get an icon from a file.
+--/ret ATOM: A handle to an icon
+-- /i iconfile is the name of an icon file. This can be a ICO, EXE,
+-- or DLL file. However, this will only fetch the first icon in that file. Some
+-- icon files can contain multiple icons. To use one of the other icons in a
+-- multi-icon file, you need to use the syntax {filename, icon#}. The /icon# is the
+-- number of the icon to use. The first icon is 1, the second is 2, etc...
+--
+-- Example:
+--
+--/code
+--      -- get the icon from a file
+--      hIcon = loadIconFromFile("euphoria.ico" )
+--
+--      -- get the 3rd icon from a file
+--      hIcon = loadIconFromFile({"applib.ico", 3} )
+--/endcode
+
+global function loadIconFromFile(object icon)
+atom handle
+integer lIconNum
+
+-- is the icon a string (pathname) or a constant?
+    if sequence(icon) then
+        lIconNum = 0
+        if length(icon)=2 and sequence(icon[1]) then
+            lIconNum = icon[2]-1
+            icon = icon[1]
+        end if
+        -- get the icon handle
+        icon = w32FindFile(icon)
+        handle = w32Func(xExtractIcon, {instance(), icon, lIconNum})
+        trackObject({-1,kIconObject}, handle, ForProgram)
+    else
+        handle = 0
+    end if
+
+    return handle
+end function
+
+-----------------------------------------------------------------------------
+--/topic Values
+--/proc setIcon( integer id, object icon )
+--/desc Assign an icon to /i object.
+-- /i id can be one of the following:
+--
+-- /li /Window
+-- /li /Icon
+-- /li /PictureButton
+-- /li /TogglePicture
+--/li StatusBar
+--
+-- /i icon can represent a file name, a handle to an icon, or a predefined system
+-- icon code. /n
+--
+-- To use an icon handle, you need to first get the handle using some other
+-- method (eg /loadIconFromFile) and pass it to this routine as a
+-- sequence that only contains the handle. For example:  /b"{hIcon}" /n
+--
+-- To use a system icon, you need to specify one of <a href="win32_constants.htm#System icons">these names</a> /n
+--
+-- To use an icon from a file, just supply the file name. This can be a ICO, EXE,
+-- or DLL file. However, this will only fetch the first icon in that file. Some
+-- icon files can contain multiple icons. To use one of the other icons in a
+-- multi-icon file, you need to use the syntax {filename, icon#}. The /icon# is the
+-- number of the icon to use. The first icon is 1, the second is 2, etc...
+--
+-- For StatusBar controls, /i id may be a pair {control id,part number}. The part number is
+-- 1-based. If it is 0, it means that the status bar has no parts and is in the so called
+-- simple mode. If /i id is an integer, this latter option is assumed. Systems with an IE 
+-- version earlier than 4.0 will ignore the attempt.
+--
+-- Example:
+--
+--/code
+--      -- assign an icon to the window
+--      setIcon( TheWindow, "euphoria.ico" )
+--
+--      -- assign the third icon to a button
+--      setIcon( pBtnStop, {"applib.ico", 3} )
+--
+--      -- Use a icon handle
+--      hIcon = /loadIconFromFile({"applib.ico", 2})
+--      setIcon( pBtnGo, {hIcon})
+--
+--      -- Use a system icon
+--      setIcon( bBtnErr, IDI_ERROR )
+--
+--/endcode
+
+global procedure setIcon(object id, object icon)
+-- assign an icon to an window
+-- Credit: Pete Eberlein
+
+atom handle
+integer lIconNum, iPart
+
+-- is the icon a string (pathname) or a constant?
+    if sequence(icon) then
+        if length(icon)=1 and atom(icon[1]) then
+            handle = icon[1]
+        else
+            lIconNum = 0
+            if length(icon)=2 and sequence(icon[1]) then
+                lIconNum = icon[2]-1
+                icon = icon[1]
+            end if
+            -- get the icon handle
+            icon = w32FindFile(icon)
+            handle = w32Func(xExtractIcon, {getHandle(id), icon, lIconNum})
+        end if
+    elsif getControlInfo(id,CONTROLINFO_class)=WINDOW then
+        handle = icon
+
+    elsif find(icon, WinIcons) then
+        -- use LoadIcon to load a Windows icon resource
+        handle = w32Func(xLoadIcon, {NULL, icon})
+
+    else
+        handle = icon
+
+    end if
+
+    iPart = 0
+    if sequence(id) then
+        iPart = id[2]
+        id = id[1]
+    end if
+    VOID = getControlInfo(id,CONTROLINFO_classinfo)
+    if and_bits(VOID[5], w32PictCtrl)!=0 then
+        VOID = sendMessage(id, BM_SETIMAGE, IMAGE_ICON, handle)
+
+    elsif and_bits(VOID[5], w32Statusbar)!=0 then
+        VOID = sendMessage(id, SB_SETICON, iPart-1, handle)
+
+    elsif getControlInfo(id,CONTROLINFO_class)=WINDOW then
+        -- WM_SETICON associates an icon with a window
+        VOID = sendMessage(id, WM_SETICON, ICON_BIG, handle)
+        VOID = sendMessage(id, WM_SETICON, ICON_SMALL, handle)
+
+    else
+        -- STM_SETICON associates an icon with a control
+        VOID = sendMessage(id, STM_SETICON, handle, 0)
+    end if
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+--/topic Values
+--/proc setBitmap( integer Object, object Bitmap )
+--/desc Assign an bitmap to /i Object.
+-- /i Object can be one of the following:
+--
+-- /li /Bitmap
+-- /li /PictureButton
+-- /li /TogglePicture
+--
+-- If /i Bitmap is a sequence, it will be assumed to be the name of an
+-- bitmap file, and Win32Lib will attempt to load the bitmap.
+--
+-- Otherwise, /i bitmap is assumed to be the handle of a bitmap.
+--
+-- Example:
+--
+--/code
+--          -- assign a bitmap to the picture button
+--          /setBitmap( PictureButton1, "close.bmp" )
+--/endcode
+
+global procedure setBitmap(integer id, object bitmap)
+
+    -- assign an bitmap to a control
+    -- Credit: Pete Eberlein
+--  atom pstr
+atom lImageType
+atom lMsgCode
+sequence lTrackingDetails
+
+
+    -- is it a constant, or a file path?
+    if sequence(bitmap) then
+        -- it's a pathname. use LOADFROMFILE.
+        bitmap = loadBitmapFromFile(bitmap)
+
+    elsif bitmap=0 then
+        return
+    end if
+
+    lTrackingDetails = getTrackedObject(bitmap)
+    if length(lTrackingDetails)>0 then
+        if lTrackingDetails[ResObjType]=kBitmapObject then
+            lImageType = IMAGE_BITMAP
+        else
+            lImageType = IMAGE_ICON
+        end if
+    else
+        lImageType = IMAGE_BITMAP
+    end if
+
+    VOID = getControlInfo(id,CONTROLINFO_classinfo)
+    if and_bits(VOID[5], w32PictCtrl)!=0 then
+        lMsgCode = BM_SETIMAGE
+    else
+        lMsgCode = STM_SETIMAGE
+    end if
+
+    VOID = sendMessage(id, lMsgCode,  lImageType, bitmap)
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/func split_rgb( object pColor)
+--/desc Convert a color into a {red, green, blue}.
+--/ret Sequence: 3-element {RED, GREEN, BLUE}
+-- Converts the color value into its component colors.
+--
+-- Example:
+-- /code
+--      -- get the colors got a pixel
+--      RGB = split_rgb( getPixel(myBMP, 4,7) )
+--      RGB = split_rgb( "BrightCyan" )
+--      RGB = split_rgb( COLOR_BUTTONFACE )
+--      RGB = split_rgb( Magenta )
+-- /endcode
+atom gColors gColors = w32acquire_mem(-2, 4)
+global function split_rgb(object pColor)
+    poke4(gColors, colorValue(pColor))
+    return peek({gColors,3})
+end function
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/func copyToBitmapFile( window, fileName, x1, y1, x2, y2 )
+--/desc Copies image from /i window to file /i fileName.
+--/ret Returns 0 if succeeds.
+--
+-- /i x1 and /i y1 refer to the top left pixel corner of the image,
+-- and /i x2 and /i y2 refer to the bottom right corner of the image.
+--
+-- There are a number of caveats:
+--
+-- /li It uses /getPixel , so it's slow.
+-- /li It uses /b save_bitmap, so it's currently limited to 256 colors.
+-- The error codes are the also the same as those returned by /b save_bitmap.
+--
+-- Example:
+--
+--/code
+--          -- save {0,0} {100,100} on the screen to a file
+--          /copyToBitmapFile( Screen, "screen.bmp", 0, 0, 100, 100 )
+--/endcode
+
+global function copyToBitmapFile(integer id, sequence fileName,
+    integer x1, integer y1,
+    integer x2, integer y2)
+
+integer index, cx, cy, colors, row, column
+atom hdc, lColor
+sequence image, scanline, lPalette
+
+-- get DC of the control
+    hdc = getDC(id)
+
+    -- empty palette
+    lPalette = {}
+
+    -- calculate width (cx) and height (cy) of the bitmap
+    cx = x2-x1+1
+    cy = y2-y1+1
+
+    -- empty scanline of width cx
+    scanline = repeat(0, cx)
+
+    -- empty image of height cy
+    image = repeat(scanline, cy)
+
+    -- start at row 1
+    row = 1
+
+    -- scan a cx*cy image from the window
+    for y=y1 to y2 do
+
+        -- start at column 1
+        column = 1
+
+        -- scan the x column
+        for x=x1 to x2 do
+
+            -- get the pixel
+            lColor = w32Func(xGetPixel, {hdc, x, y})
+
+            -- is it in the palette yet?
+            index = find(lColor, lPalette)
+            if index=0 then
+
+                -- save the atom in the pixel palette
+                lPalette = append(lPalette, lColor)
+
+                -- index the last palette entry
+                index = length(lPalette)
+
+            end if
+
+            -- add the palette index to the scanline
+            scanline[column] = index
+
+            -- go to the next column
+            column += 1
+
+        end for
+
+        -- add the scanline to the image
+        image[row] = scanline
+
+        -- go to the next row
+        row += 1
+
+    end for
+
+    -- The indexes are zero-based
+--/**/  image = sq_sub(image,1)     --/* -- Phix
+    image -= 1                      --*/ -- RDS
+
+    -- release the DC of the control
+    releaseDC(id)
+
+    -- the palette size MUST be 2, 16 or 256, or Euphoria
+    -- will not save the file.
+    if length(lPalette)<=2 then
+        colors = 2
+    elsif length(lPalette)<=16 then
+        colors = 16
+    elsif length(lPalette)<=256 then
+        colors = 256
+    else
+        -- error
+        return BMP_INVALID_MODE
+    end if
+
+    -- Convert palette to RGB triplets
+    for i=1 to length(lPalette) do
+        lPalette[i] = split_rgb(lPalette[i])
+    end for
+
+    -- pad the palette, if needed
+    if length(lPalette)<colors then
+        lPalette &= repeat({0,0,0}, colors-length(lPalette))
+    end if
+
+    -- write the bitmap
+    return save_bitmap({lPalette, image}, fileName)
+
+end function
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/func copyToTrueColorBitmapFile( window, fileName, x1, y1, x2, y2 )
+--/desc Copies image from /i window to file /i fileName.
+--/ret Returns 0 if succeeds.
+--
+-- /i x1 and /i y1 refer to the top left pixel corner of the image,
+-- and /i x2 and /i y2 refer to the bottom right corner of the image.
+--
+-- /b "Note 1:" It uses /getPixel , so it's slow. /n
+-- /b "Note 2:" It uses the full 24-bit color range (16+ million colors). /n
+--
+-- Example:
+--
+--/code
+--          -- save {0,0} {100,100} on the screen to a file
+--          /copyToTrueColorBitmapFile( Screen, "screen.bmp", 0, 0, 100, 100 )
+--/endcode
+
+-------------------------------
+global function copyToTrueColorBitmapFile(integer id, sequence fileName, integer x1, integer y1, integer x2, integer y2)
+-------------------------------
+integer fn, width, height, index, r, g, b
+atom hdc, rgb
+sequence line
+
+    width = x2-x1+1 -- calculate the width of the bitmap
+    height = y2-y1+1 -- calculate the height of the bitmap
+    fn = w32FileOpen(fileName, "wb") -- open the file for writing
+    if fn= -1 then return 1 end if -- unable to open? return 1
+
+    line = repeat(0, floor(((24*width)+31)/32)*4) -- create an empty line
+
+    -- write the bitmap-header
+    puts(fn, "BM")
+    puts(fn, int_to_bytes(54+height*length(line)))
+    puts(fn, {0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0})
+    puts(fn, int_to_bytes(width))
+    puts(fn, int_to_bytes(height))
+    puts(fn, {1, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 11, 0, 0, 64, 11, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0})
+
+    hdc = getDC(id) -- get the device context
+    for y=y2 to y1 by -1 do -- the bitmap has to be saved bottom to top
+        index = 1
+        for x=x1 to x2 do
+            rgb = w32Func(xGetPixel,{hdc, x, y}) -- get the pixel
+            r = and_bits(rgb, #FF) -- calculate r (red)
+            rgb = floor(rgb/#100)
+            g = and_bits(rgb, #FF) -- calculate g (green)
+            b = floor(rgb/#100) -- calculate b (blue)
+            line[index] = b -- each pixel is 3 bytes, each element in line is 1 byte
+            index += 1 -- the color of a pixel has to be saved as #BBGGRR instead of #RRGGBB
+            line[index] = g
+            index += 1
+            line[index] = r
+            index += 1
+        end for
+        puts(fn, line) -- write the current line to the file
+    end for
+    releaseDC(id) -- release the device context
+    close(fn) -- close the file
+    return 0 -- return 0 if successful
+end function
+
+
+-----------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+-- BitBlt Support Routines
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc bitBlt( dst, dstX, dstY, src, srcX, srcY, wide, high, rop )
+--/desc Copy image (or partial image) from source to destination.
+-- The /bitBlt function can be used to rapidly copy images, or
+-- portions of images.
+--
+-- If you want to copy the entire source image with the /b SRCCOPY
+-- /b ROP code, /copyBlt does the same thing, but requires less
+-- arguments.
+--
+-- To copy images with transparency, use /transBlt.
+--
+-- The arguments are:
+--
+-- /li /i dst: Image destination
+-- /li /i dstX: X position in destination
+-- /li /i dstY: Y position in destination
+-- /li /i src: Image source
+-- /li /i srcX: X position in source
+-- /li /i srcY: Y position in source
+-- /li /i wide: Width of image to copy
+-- /li /i high: Height of image to copy
+-- /li /i rop: Raster opeartion (ROP) code to apply
+--
+-- The /b ROP (raster operation) specifies how to combine the source with
+-- the destination. The codes are <a href="..\win32_constants.htm#bitBlt flags">listed here</a>./n:
+--
+-- /b Note: The coordinates are relative to zero.
+--
+--/b Note: The destination and source can be the same control.
+--
+-- Example:
+--/code
+--          -- draw a bitmap in a window
+--          atom hDIB
+--
+--          -- load the bitmap
+--          hDib = /loadBitmapFromFile( "lizard.bmp" )
+--
+--          -- copy 40x40 portion of source image to destination
+--          /bitBlt( TheWindow,  -- copy to TheWindow
+--                  10, 10,     -- put at {10,10} in TheWindow
+--                  hDIB,        -- copy from loaded bitmap
+--                  0, 0        -- upper left hand corner is {0,0}
+--                  40, 40,     -- copy a 40x40 pixel portion
+--                  SRCCOPY )   -- replace destination with image
+--/endcode
+
+global procedure bitBlt(atom dst, integer dstX, integer dstY,
+                atom src, integer srcX, integer srcY,
+                integer wide, integer high,
+                integer rop)
+
+
+-- wrapper to bitblt
+
+-- copy portion of window into bitmap
+atom srcDC, dstDC
+
+    -- get the DCs
+    srcDC = getDC(src)
+    dstDC = getDC(dst)
+
+
+    -- copy area, ignoring any errors.
+    VOID = w32Func(xBitBlt, {
+                             dstDC, dstX, dstY,
+                             wide, high,
+                             srcDC,
+                             srcX, srcY,
+                             rop})
+
+    -- release the DCs
+    releaseDC(dst)
+    releaseDC(src)
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc copyBlt( dst, dstX, dstY, src )
+--/desc Copy full image from source to destination.
+-- If you only want to copy a portion of the source or need to combine
+-- the source and destination, use /bitBlt.
+--
+-- To copy images with transparency, use /transBlt.
+--
+-- The arguments are:
+--
+-- /li /i dst: Image destination
+-- /li /i dstX: X position in destination
+-- /li /i dstY: Y position in destination
+-- /li /i src: Image source
+--
+--
+-- /b Note: At the moment, the coordinates are zero relative; this will
+--          be changed in later releases.
+-- Example:
+--/code
+--          -- draw a bitmap in a window
+--          atom hDIB
+--
+--          -- load the bitmap
+--          hDib = /loadBitmapFromFile( "shuttle.bmp" )
+--
+--          -- copy the entire image to TheWindow
+--          /copyBlt( TheWindow, 10, 10, hDib )
+--/endcode
+
+global procedure copyBlt(atom dst, integer x, integer y, atom src)
+
+-- copy entire destination to source
+sequence size
+
+-- get the size of the pixmap
+    size = getCtlSize(src)
+
+    -- bitblt with scrCopy
+    bitBlt(dst, x, y, src, 0, 0, size[1], size[2], SRCCOPY)
+
+end procedure
+
+atom transColor    -- transparent color
+sequence transTuple
+
+--/topuc Graphics
+--/func getTransparentColor()
+--/desc Returns the transparent color.
+--/ret (ATOM) The color used to denote transparent areas in bitmaps.
+global function getTransparentColor()
+    return transColor
+end function
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc transBlt( dst, dstX, dstY, src )
+--/desc Copy full image from source to destination, with transparency.
+-- TransBlt is typically used for displaying non-rectangular bitmaps -
+-- /i sprites. It is a computationally expensive operation; if there
+-- is no transparency in your image, you should use /copyBlt or /bitBlt
+-- instead.
+--
+-- By default, /transBlt assumes that the color {255,0,255} is to be
+-- treated as transparent. To change the transparent color, use
+-- /setTransparentColor.
+--
+-- The arguments are:
+--
+-- /li /i dst: Image destination
+-- /li /i dstX: X position in destination
+-- /li /i dstY: Y position in destination
+-- /li /i src: Image source
+--
+-- /b Note: At the moment, the coordinates are zero relative; this will
+--          be changed in later releases.
+-- Example:
+--/code
+--          -- draw a bitmap using transparency
+--          atom hDIB
+--          sequence size
+--
+--          -- get the size of TheWindow
+--          size = getCtlSize( TheWindow )
+--
+--          -- load the bitmap
+--          hDib = /loadBitmapFromFile( "shuttle.bmp" )
+--
+--          -- treat the color BrightWhite as transparent
+--          /setTransparentColor( BrightWhite )
+--
+--          -- copy multiple images to TheWindow
+--          for i = 1 to 20 do
+--              /transBlt( TheWindow,       -- destination
+--                  rand( size[1] ),        -- x position
+--                  rand( size[2] ),        -- y position
+--                  hDib )                  -- image to copy
+--          end for
+--/endcode
+global procedure transBlt(atom dest, integer destX, integer destY,
+                object src)
+
+integer
+    wide,           -- width of the source bitmap
+    high,            -- height of the source bitmap
+    xoff, yoff
+
+atom
+    srcBmp,         -- source bitmap
+    destDC,         -- device context of destination
+    srcDC,          -- source bitmap (color)
+    saveDC,         -- backup copy of source bitmap
+    maskDC,         -- mask bitmap (monochrome)
+    invDC,          -- inverse of mask bitmap (monochrome)
+    resultDC,       -- combination of source bitmap & background
+    hResultBmp,     -- Bitmap combination of source & background
+    hSaveBmp,       -- Bitmap stores backup copy of source bitmap
+    hMaskBmp,       -- Bitmap stores mask (monochrome)
+    hInvBmp,        -- Bitmap holds inverse of mask (monochrome)
+    hSrcPrevBmp,    -- Holds previous bitmap in source DC
+    hSavePrevBmp,   -- Holds previous bitmap in saved DC
+    hDestPrevBmp,   -- Holds previous bitmap in destination DC
+    hMaskPrevBmp,   -- Holds previous bitmap in the mask DC
+    hInvPrevBmp,    -- Holds previous bitmap in inverted mask DC
+    OrigColor       -- Holds original background color from source DC
+
+sequence
+    size            -- holder for size of source
+
+    -- is the source a bitmap, or a pixmap?
+    if sequence(src) then
+        xoff = src[2]
+        yoff = src[3]
+        wide = src[4]
+        high = src[5]
+        src = src[1]
+    else
+        wide = -1
+        high = -1
+        xoff = 0
+        yoff = 0
+    end if
+
+    if not validId(src) then
+        -- assume it's a bitmap
+        srcBmp = src
+
+    elsif getControlInfo(src,CONTROLINFO_class)=PIXMAP then
+
+        -- get the handle
+        srcBmp = getHandle(src)
+
+        -- release resources for it
+        releaseResourcesForID({src, ForPaint})
+
+    else
+        -- no good
+        warnErr("Source to transBlt must be bitmap or Pixmap")
+        return
+
+    end if
+
+    if wide= -1 then
+        -- get the size of the bitmap
+        size = getCtlSize(srcBmp)
+
+        -- get the values from the bitmap
+        wide = size[1]
+        high = size[2]
+    end if
+    -- get the DC of the destintation
+    destDC = getDC(dest)
+
+    -- create DCs to hold temporary information
+    srcDC = w32Func(xCreateCompatibleDC, {destDC})
+    saveDC = w32Func(xCreateCompatibleDC, {destDC})
+    maskDC = w32Func(xCreateCompatibleDC, {destDC})
+    invDC = w32Func(xCreateCompatibleDC, {destDC})
+    resultDC = w32Func(xCreateCompatibleDC, {destDC})
+
+    -- Create monochrome bitmaps for the mask-related bitmaps:
+    hMaskBmp = w32Func(xCreateBitmap, {wide, high, 1, 1, 0})
+    hInvBmp = w32Func(xCreateBitmap, {wide, high, 1, 1, 0})
+
+    -- Create color bitmaps for final result & stored copy of source
+    hResultBmp = w32Func(xCreateCompatibleBitmap, {destDC, wide, high})
+    hSaveBmp = w32Func(xCreateCompatibleBitmap, {destDC, wide, high})
+
+    -- select the bitmaps into the DCs
+    hSrcPrevBmp = w32Func(xSelectObject, {srcDC, srcBmp})
+    hSavePrevBmp = w32Func(xSelectObject, {saveDC, hSaveBmp})
+    hMaskPrevBmp = w32Func(xSelectObject, {maskDC, hMaskBmp})
+    hInvPrevBmp = w32Func(xSelectObject, {invDC, hInvBmp})
+    hDestPrevBmp = w32Func(xSelectObject, {resultDC, hResultBmp})
+
+    -- Make backup of source bitmap to restore later
+    VOID = w32Func(xBitBlt, {saveDC, 0, 0, wide, high, srcDC, xoff, yoff, SRCCOPY})
+
+    -- Create mask: set background color of source to transparent color.
+    OrigColor = w32Func(xSetBkColor, {srcDC, UseColor(transColor)})
+    VOID = w32Func(xBitBlt, {maskDC, 0, 0, wide, high, srcDC, xoff, yoff, SRCCOPY})
+
+    -- restore the original color
+    VOID = w32Func(xSetBkColor, {srcDC, OrigColor})
+
+    -- Create inverse of mask to AND w/ source & combine w/ background.
+    VOID = w32Func(xBitBlt, {invDC, 0, 0, wide, high, maskDC, 0, 0, NOTSRCCOPY})
+
+    -- Copy background bitmap to result & create final transparent bitmap
+    VOID = w32Func(xBitBlt, {resultDC, 0, 0, wide, high, destDC, destX, destY, SRCCOPY})
+
+    -- AND mask bitmap w/ result DC to punch hole in the background by
+    -- painting black area for non-transparent portion of source bitmap.
+    VOID = w32Func(xBitBlt, {resultDC, 0, 0, wide, high, maskDC, 0, 0, SRCAND})
+
+    -- AND inverse mask w/ source bitmap to turn off bits associated
+    -- with transparent area of source bitmap by making it black.
+    VOID = w32Func(xBitBlt, {srcDC, xoff, yoff, wide, high, invDC, 0, 0, SRCAND})
+
+    -- XOR result w/ source bitmap to make background show through.
+    VOID = w32Func(xBitBlt, {resultDC, 0, 0, wide, high, srcDC, xoff, yoff, SRCPAINT})
+
+    -- Display transparent bitmap on backgrnd
+    VOID = w32Func(xBitBlt, {destDC, destX, destY, wide, high, resultDC, 0, 0, SRCCOPY})
+
+    -- Restore backup of bitmap.
+    VOID = w32Func(xBitBlt, {srcDC, xoff, yoff, wide, high, saveDC, 0, 0, SRCCOPY})
+
+    -- select the original objects
+    VOID = w32Func(xSelectObject, {srcDC, hSrcPrevBmp})
+    VOID = w32Func(xSelectObject, {saveDC, hSavePrevBmp})
+    VOID = w32Func(xSelectObject, {resultDC, hDestPrevBmp})
+    VOID = w32Func(xSelectObject, {maskDC, hMaskPrevBmp})
+    VOID = w32Func(xSelectObject, {invDC, hInvPrevBmp})
+
+    -- remove system resources
+    VOID = w32Func(xDeleteObject, {hSaveBmp})
+    VOID = w32Func(xDeleteObject, {hMaskBmp})
+    VOID = w32Func(xDeleteObject, {hInvBmp})
+    VOID = w32Func(xDeleteObject, {hResultBmp})
+    VOID = w32Func(xDeleteDC, {srcDC})
+    VOID = w32Func(xDeleteDC, {saveDC})
+    VOID = w32Func(xDeleteDC, {invDC})
+    VOID = w32Func(xDeleteDC, {maskDC})
+    VOID = w32Func(xDeleteDC, {resultDC})
+
+    -- release the DC of the destintation
+    releaseDC(dest)
+
+end procedure
+
+
+-----------------------------------------------------------------------------
+--/topic Graphics
+--/proc stretchBlt( dst, dstX, dstY, dstWide, dstHigh, src, srcX, srcY, srcWide, srcHigh, rop )
+--/desc Copy image (or partial image) from source to destination, changing its size as you go.
+-- This is used to resize an image and/or create mirror images. If the dstWide and dstHigh
+-- parameters are negative, the image is also reflected in the X-axis and Y-axis
+-- respectively.
+--
+--
+-- The arguments are:
+--
+-- /li /i dst: Image destination
+-- /li /i dstX: X position in destination
+-- /li /i dstY: Y position in destination
+-- /li /i dstWide: Width of resulting image
+-- /li /i dstHigh: Height of resulting image
+-- /li /i src: Image source
+-- /li /i srcX: X position in source
+-- /li /i srcY: Y position in source
+-- /li /i srcWide: Width of image to copy
+-- /li /i srcHigh: Height of image to copy
+-- /li /i rop: Raster opeartion (ROP) code to apply
+--
+-- The /b ROP (raster operation) specifies how to combine the source with
+-- the destination. The codes are <a href="..\win32_constants.htm#bitBlt() flags">listed here</a>.
+--
+-- /b Note: The coordinates are relative to zero.
+--
+--/b Note: The destination and source can be the same control.
+--
+-- Example:
+--/code
+--          -- draw a bitmap in a window
+--          atom hDIB
+--
+--          -- load the bitmap
+--          hDib = /loadBitmapFromFile( "lizard.bmp" )
+--
+--          -- copy 40x40 portion of source image to destination
+--          /stretchBlt( TheWindow,  -- copy to TheWindow
+--                  10, 10,     -- put at {10,10} in TheWindow
+--                  100, 50,    -- cause it to be this size
+--                  hDIB,       -- copy from loaded bitmap
+--                  0, 0        -- upper left hand corner is {0,0}
+--                  40, 40,     -- copy a 40x40 pixel portion
+--                  SRCCOPY )   -- replace destination with image
+--/endcode
+
+global procedure stretchBlt(
+            atom dst, integer dstX, integer dstY,
+                integer dstWide, integer dstHigh,
+                atom src, integer srcX, integer srcY,
+                integer srcWide, integer srcHigh,
+                integer rop)
+
+
+-- wrapper to bitblt
+
+-- copy portion of window into bitmap
+atom srcDC, dstDC
+
+    -- get the DCs
+    srcDC = getDC(src)
+    dstDC = getDC(dst)
+
+
+    -- copy area, ignoring any errors.
+    VOID = w32Func(xStretchBlt, {
+                                 dstDC, dstX, dstY, dstWide, dstHigh,
+                                 srcDC, srcX, srcY, srcWide, srcHigh,
+                                 rop})
+
+    -- release the DCs
+    releaseDC(dst)
+    releaseDC(src)
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic XPM
+--/proc setTransparentColor( object color )
+--/desc Defines what the transparent color is to be.
+-- The /i color can be an rgb atom, or a sequence in the form {r,g,b}.
+--
+-- The default color is {255,0,255} (a light pink).
+--
+-- For routines that create XPMs, this means that the color specified
+-- in the XPM as /i None are rendered using this color.
+--
+-- The /transBlt routine uses this value to determine what color /i not
+-- to render on the destination.
+--
+-- This routine can also be used to make the transparent color of XPMs
+-- match the system color of buttons. This is useful for /PictureButtons.
+--
+--/code
+--          -- set transparent colors to match button face color
+--          setTransparentColor( /getSysColor( COLOR_BTNFACE ) )
+--/endcode
+
+global procedure setTransparentColor(object pColor)
+    transColor = colorValue(pColor)
+    transTuple = split_rgb(transColor)
+end procedure
+
+-- set default transparent color
+setTransparentColor(BrightMagenta)
+
+global atom w32Seed w32Seed = #30000000+rand(#FFFFFFF)
+--/topic Miscellaneous
+--/func getRandInt(atom pMin, atom pMax)
+--/desc Gets a random number.
+--/ret ATOM: A random number from /i Min and /i Max inclusive.
+--This uses the cryptographic routines built into Windows. It gathers entropy from
+--various sources in between calls and thus you cannot seed this generator
+--to produce a known stream of numbers.
+--
+-- /i pMin and pMax are limited to 32-bit integer values.
+--
+--Example:
+--/code
+--      integer guess
+--      Get a random number between 4 and 19.
+--      guess = getRandInt(4, 19)
+--/endcode
+
+global function getRandInt(atom pMin, atom pMax)
+atom lRC
+atom lMem
+atom lValue
+atom lRange
+atom lMax
+sequence lProviders
+atom lTempSeed
+integer intSeed
+
+    lProviders = {
+                  PROV_RSA_FULL        ,
+                  PROV_RSA_SIG         ,
+                  PROV_DSS             ,
+                  PROV_FORTEZZA        ,
+                  PROV_MS_EXCHANGE     ,
+                  PROV_SSL             ,
+                  PROV_RSA_SCHANNEL    ,
+                  PROV_DSS_DH          ,
+                  PROV_EC_ECDSA_SIG    ,
+                  PROV_EC_ECNRA_SIG    ,
+                  PROV_EC_ECDSA_FULL       ,
+                  PROV_EC_ECNRA_FULL       ,
+                  PROV_DH_SCHANNEL     ,
+                  PROV_SPYRUS_LYNKS    ,
+                  PROV_RNG             ,
+                  PROV_INTEL_SEC           ,
+                  PROV_REPLACE_OWF     ,
+                  PROV_RSA_AES
+                 }
+
+
+    if vCSP=0 then
+        intSeed = remainder(w32Seed,#3FFFFFFF)+floor(w32Seed/#40000000)
+        set_rand(intSeed)
+        lMem = w32acquire_mem(0, 8)
+        -- Locate a default crypto provider.
+        for i=1 to length(lProviders) do
+            lRC = w32Func(xCryptAcquireContext, {lMem, 0, 0, lProviders[i], 0})
+            if lRC!=0 then
+                vCSP = peek4u(lMem)
+                exit
+            end if
+        end for
+        if vCSP=0 then
+            -- There are no crypto providers.
+            vCSP  = -1
+        end if
+
+    elsif vCSP= -1 then
+        lTempSeed = rand(w32Seed)*w32Seed
+        lTempSeed -= floor(lTempSeed/#3FFFFFFF)*#3FFFFFFF
+        w32Seed = remainder(xor_bits(w32Seed, lTempSeed), #100000000)
+        set_rand(w32Seed)
+    else
+        lMem = w32acquire_mem(0, 4)
+
+    end if
+
+    if vCSP>0 then
+        poke4(lMem, w32Seed)
+        lRC = w32Func(xCryptGenRandom, {vCSP, 4, lMem})
+        lMax = #100000000
+        lValue = peek4u(lMem)
+        w32release_mem(lMem)
+    else
+        lMax = #100000000
+        lValue = w32rand32(lMax)
+    end if
+
+
+    lRange = pMax-pMin+1
+    if lRange<0 then
+        lRange = -lRange
+    end if
+    lValue = pMin+floor((lValue/lMax)*lRange)
+
+    return lValue
+end function
+
+constant r_resetFont = w32routine_id("resetFont")
+-----------------------------------------------------------------------------
+--/topic Fonts
+--/proc setDefaultFont( id )
+--/desc Set the font to default system font.
+--
+-- Example:
+--
+--/code
+--      -- restore MyWindow to the default font
+--      /setDefaultFont( MyWindow )
+--/endcode
+
+global procedure setDefaultFont(integer id)
+
+    -- Window fonts are set as attributes for later assignment
+
+    call_proc(r_resetFont,{id})
+
+    VOID = getControlInfo(id,CONTROLINFO_class)
+    if VOID=WINDOW or VOID=PIXMAP then
+        -- defer creation until print event
+
+    else
+        -- update immediately
+        VOID = sendMessage(id, WM_SETFONT, DefaultFontID, w32True)
+
+    end if
+
+end procedure
+
+function getDefaultFontId()
+    return DefaultFontID
+end function
+registerRoutine("getDefaultFontId",routine_id("getDefaultFontId"))
+
+--/topic RichEdit controls
+--/proc printRichText(integer OutId, integer InId, integer Start, integer End, sequence Box, integer Render)
+--/desc Prints some or all the contents of a rich edit control.
+--/i OutId is the control Id where the text is displayed. Usually 'Printer' but can be
+-- a Window or Pixmap. If not a printer, this can be used to do a print-preview display. /n
+--/i InId is the RichText control /n
+--/i Start is the first position in the RichEdit to start from. /n
+--/i End is the last position in the RichEdit control. Use /b "-1" to include all text up
+-- to the end of the control. /n
+--/i Box is the area in the output control that will receive the formatted text. It is in the form
+-- {Left, Top, Right, Bottom, Scale}, where /i Scale is one of ... /n
+--/li w32InchScale : values are in inches
+--/li w32MillScale : values are in millimeters
+--/li w32PixelScale : values are in pixels
+--/li w32TwipsScale : values are in twips (1/1440th of an inch)
+--
+--/i Render is w32True if you wish to actually output the text, w32False to format it but
+-- not print it.
+--
+--Example:
+--/code
+--    if length(getPrinter()) > 0 then
+--        VOID = startDoc("RichText Printer Test")
+--        VOID = startPage()
+--        printRichText(Printer, RE, 0, -1, {0.5, 0.5, 2.5, 3, w32InchScale}, w32True)
+--        VOID = endPage()
+--        VOID = endDoc()
+--
+--        releasePrinter()
+--        repaintWindow(PPV)
+--    end if
+--/endcode
+global procedure printRichText(integer pOutId, integer pInId, integer pStart, integer pEnd, sequence pBox, integer pRender)
+atom lFR
+atom lOldMode
+atom lIDDC
+atom lHScale
+atom lVScale
+
+    if pOutId=Printer then
+        lIDDC = printerDC
+    else
+        lIDDC = getDC(pOutId)
+    end if
+    lOldMode = w32Func(xGetMapMode, {lIDDC})
+    VOID = w32Func(xSetMapMode, {lIDDC, MM_TEXT})
+
+    if length(pBox)=5 then
+        if pBox[5]=w32InchScale then
+            -- Inches supplied
+            lHScale = 1440
+            lVScale = 1440
+
+        elsif pBox[5]=w32MillScale then
+            -- Millimeters supplied
+            lHScale = 1440/25.4
+            lVScale = 1440/25.4
+
+        elsif pBox[5]=w32PixelScale then
+            -- Pixels supplied
+            lHScale = 1440/w32Func(xGetDeviceCaps,{lIDDC, LOGPIXELSX})
+            lVScale = 1440/w32Func(xGetDeviceCaps,{lIDDC, LOGPIXELSY})
+
+        else
+            -- Twips supplied
+            lHScale = 1
+            lVScale = 1
+        end if
+    else
+        -- Pixels supplied
+        lHScale = 1440/w32Func(xGetDeviceCaps,{lIDDC, LOGPIXELSX})
+        lVScale = 1440/w32Func(xGetDeviceCaps,{lIDDC, LOGPIXELSY})
+    end if
+
+    lFR = w32to_memory(0, ID_FORMATRANGE,{
+                                          lIDDC, lIDDC,
+                                          {floor(pBox[1]*lHScale),floor(pBox[2]*lVScale),
+                                           floor(pBox[3]*lHScale),floor(pBox[4]*lVScale)},
+                                          {0,0,floor(w32Func(xGetDeviceCaps,{lIDDC, HORZRES})*lHScale),floor(w32Func(xGetDeviceCaps,{lIDDC, VERTRES})*lVScale)},
+                                          pStart, pEnd
+                                         })
+
+    VOID = sendMessage(pInId, EM_FORMATRANGE, pRender, lFR)
+
+    -- Release cached formatting.
+    VOID = sendMessage(pInId, EM_FORMATRANGE, 0, 0)
+
+    w32release_mem(lFR)
+    if lIDDC!=printerDC then
+        releaseDC(pOutId)
+    end if
+    VOID = w32Func(xSetMapMode, {lIDDC, lOldMode})
+
+end procedure
+
+global constant
+    w32RP_Print     = 'P',
+    w32RP_LastPage  = 'L',
+    w32RP_Skip      = 'S',
+    w32RP_SkipAll   = 'A',
+    w32RP_Cancel    = 'C',
+    w32RP_Build     = 'b',
+    w32RP_Output    = 'o'
+
+--/topic RichEdit controls
+--/proc printRichTextPages(integer InId, integer pCallBack, object pUserData)
+--/desc Prints the contents of a RichText control.
+--/i InId is the RichText control /n
+--/i pCallBack is a routine_id of a user defined function that is called before each page
+-- is built and again just before each page is output. If this is not a valid routine_id
+-- (eg. -1) then this routine will assume a 0.5 inch margin and print the entire RichText
+-- document, using multiple pages if required. /n
+--
+-- The function will be passed a two parameters.
+--<ul>
+--/li An integer that will either have the value w32RP_Build or w32RP_Output
+--/li A sequence that contains ...
+--<ul>
+-- /li the Page number,
+-- /li the Index into the richedit control for the first element on the page,
+-- /li the value -1 (for w32RP_Build) or the Index into the richedit control
+-- for the last element on the page (for w32RP_Output)
+--/li the Page Size in pixels { Width, Height }
+--/li the /i pUserData parameter
+--</ul>
+--</ul>
+-- When the function is called using w32RP_Build, the function must return one of ...
+--/li w32RP_SkipAll ==> Do not build this page, just end the document.
+--/li w32RP_Cancel ==> Do not build this page, just cancel the document.
+--/li {Left, Top, Right, Bottom, Scale} ==> the area in the page that will receive the formatted text.
+--
+--/i Left and /i Top indicate an offset from the left and top edges of the page, respectively. /n
+--/i Right and /i Bottom, if positive values are also offsets from the left and top
+-- edges respectively, but if negative, they are offsets from the right and bottom
+--edges. /n
+--/i Scale is one of ... /n
+--<ul>
+--/li w32InchScale : values are in inches
+--/li w32MillScale : values are in millimeters
+--/li w32PixelScale : values are in pixels
+--/li w32TwipsScale : values are in twips (1/1440th of an inch)
+--</ul>
+--
+-- When the function is called using w32RP_Output, the function must return one of ...
+--/li w32RP_Print ==> Print the page
+--/li w32RP_LastPage ==> Print the page and then end the document.
+--/li w32RP_Skip ==> Skip this page and go on to the next page.
+--/li w32RP_SkipAll ==> Do not print this page or any others, just end the document.
+--/li w32RP_Cancel ==> Do not print this page but cancel the document.
+--
+--/b Note that you need to set the Printer device context before calling this. That can be
+-- done by calling getPrinter() or getPrintChoice().
+--
+--Example:
+--/code
+--    function RTPager(integer pCode, sequence pParms)
+--      if pCode = w32RP_Build then
+--         -- Return the printable page area
+--         -- which is different for odd
+--         -- and even pages.
+--         if and_bits(pParms[1], 1) then
+--            return {0.25, 1, -0.75, -0.5, w32InchScale}
+--         else
+--            return {0.75, 1, -0.25, -0.5, w32InchScale}
+--         end if
+--      end if
+--
+--      if pCode = w32RP_Output then
+--          -- The page has been built with text from the richedit control, so now
+--          -- I can add my own touches...
+--
+--         -- Display the title text on the top left corner.
+--         wPuts( {Printer, 0, 0}, pParms[5] )
+--
+--          -- Display the page number on the bottom-right of the page.
+--         lFooter = sprintf(" Page %d", pParms[1])
+--         wPuts( {Printer, lParms[4][1] -  getTextWidth(lFooter),
+--                          lParms[4][2] - (getTextHeight(lFooter) * 2)}, lFooter )
+--
+--         -- Tell win32lib to output the page now.
+--         return w32RP_Print
+--      end if
+--    end function
+--
+--    . . .
+--
+--    if length(getPrinter()) > 0 then
+--        printRichTextPages(RE, routine_id("RTPager"), "This Is The Title")
+--        releasePrinter()
+--    end if
+--/endcode
+
+global procedure printRichTextPages(integer pInId, sequence pDocName, integer pCallBack, object pUserData)
+atom lFR
+atom lOldMode
+atom lHScale
+atom lVScale
+--  integer lOutId
+integer lStart
+--  integer lEnd
+object lBox
+--  integer lRender
+integer lPageNo
+atom lNextElem
+integer lDocStarted
+integer lTextPrinted
+integer lTextLength
+sequence lPageSizePixels
+sequence lPageSizeTwips
+integer lResponse
+sequence lPageRect
+
+    if printerDC=0 then
+        return
+    end if
+
+    lOldMode = w32Func(xGetMapMode, {printerDC})
+    if lOldMode!=MM_TEXT then
+        VOID = w32Func(xSetMapMode, {printerDC, MM_TEXT})
+    end if
+
+    lHScale = 1440/w32Func(xGetDeviceCaps,{printerDC, LOGPIXELSX})
+    lVScale = 1440/w32Func(xGetDeviceCaps,{printerDC, LOGPIXELSY})
+    lPageSizeTwips = {floor(w32Func(xGetDeviceCaps,{printerDC, HORZRES})*lHScale),
+                      floor(w32Func(xGetDeviceCaps,{printerDC, VERTRES})*lVScale)
+                     }
+    lPageSizePixels = {w32Func(xGetDeviceCaps,{printerDC, HORZRES})-w32Func(xGetDeviceCaps,{printerDC, PHYSICALOFFSETX}),
+                       w32Func(xGetDeviceCaps,{printerDC, VERTRES})-w32Func(xGetDeviceCaps,{printerDC, PHYSICALOFFSETY})
+                      }
+    lFR = w32to_memory(0, ID_FORMATRANGE,{printerDC, printerDC,{0,0,  lPageSizeTwips[1], lPageSizeTwips[2]}})
+
+    lPageNo = 0
+    lNextElem = 0
+    lTextPrinted = 0
+    lTextLength = sendMessage(pInId, WM_GETTEXTLENGTH, 0, 0)
+
+    VOID = startDoc(pDocName)
+    lDocStarted = w32True
+
+    while lTextPrinted<lTextLength do
+        lPageNo += 1
+        lStart = lNextElem
+        if pCallBack>=0 then
+            lBox = call_func(pCallBack, {w32RP_Build, {lPageNo, lStart, -1, lPageSizePixels,  pUserData}})
+            if equal(lBox, w32RP_SkipAll) then
+                exit
+            elsif equal(lBox, w32RP_Cancel) then
+                abortDoc()
+                lDocStarted = w32False
+                exit
+            end if
+
+        else
+            lBox = {0.5, 0.5, -0.5, -0.5, w32InchScale}
+        end if
+
+        if length(lBox)=5 then
+            if lBox[5]=w32InchScale then
+                -- Inches supplied
+                lHScale = 1440
+                lVScale = 1440
+
+            elsif lBox[5]=w32MillScale then
+                -- Millimeters supplied
+                lHScale = 1440/25.4
+                lVScale = 1440/25.4
+
+            elsif lBox[5]=w32PixelScale then
+                -- Pixels supplied
+                lHScale = 1440/w32Func(xGetDeviceCaps,{printerDC, LOGPIXELSX})
+                lVScale = 1440/w32Func(xGetDeviceCaps,{printerDC, LOGPIXELSY})
+
+            else
+                -- Twips supplied
+                lHScale = 1
+                lVScale = 1
+            end if
+        else
+            -- Pixels supplied
+            lHScale = 1440/w32Func(xGetDeviceCaps,{printerDC, LOGPIXELSX})
+            lVScale = 1440/w32Func(xGetDeviceCaps,{printerDC, LOGPIXELSY})
+        end if
+        lPageRect = w32fetch(lFR,FORMATRANGE_rcRect)
+        lPageRect[1] = floor(lBox[1]*lHScale)
+        lPageRect[2] = floor(lBox[2]*lVScale)
+        if lBox[3]<0 then
+            lPageRect[3] = lPageSizeTwips[1]+floor(lBox[3]*lHScale)
+        else
+            lPageRect[3] = floor(lBox[3]*lHScale)
+        end if
+
+        if lBox[4]<0 then
+            lPageRect[4] = lPageSizeTwips[2]+floor(lBox[4]*lVScale)
+        else
+            lPageRect[4] = floor(lBox[4]*lVScale)
+        end if
+
+        w32store(lFR,FORMATRANGE_rcRect,lPageRect)
+        w32store(lFR, FORMATRANGE_chrgStart, lStart)
+        w32store(lFR, FORMATRANGE_chrgEnd, -1)
+
+        if pCallBack>=0 then
+            lNextElem = sendMessage(pInId, EM_FORMATRANGE, 0, lFR)
+            if lNextElem>lTextPrinted then
+                lResponse = call_func(pCallBack, {w32RP_Output, {lPageNo, lStart, lNextElem-1, lPageSizePixels, pUserData}})
+
+                if find(lResponse, {w32RP_Print, w32RP_LastPage}) then
+                    VOID = startPage()
+                    VOID = sendMessage(pInId, EM_DISPLAYBAND, 0, w32address(lFR, FORMATRANGE_rcRect))
+                    VOID = endPage()
+
+                    if equal(lResponse, w32RP_LastPage) then
+                        -- Pretend we are at the end.
+                        lNextElem = lTextLength+1
+                    end if
+                end if
+
+            elsif equal(lResponse, w32RP_Skip) then
+                -- Don't bother printing it.
+
+            elsif equal(lResponse, w32RP_SkipAll) then
+                -- Pretend we are at the end.
+                lNextElem = lTextLength+1
+
+            elsif equal(lResponse, w32RP_Cancel) then
+                -- Pretend we are at the end.
+                lNextElem = lTextLength+1
+                abortDoc()
+                lDocStarted = w32False
+            end if
+        else
+            -- Default is to print the page.
+            lNextElem = sendMessage(pInId, EM_FORMATRANGE, 0, lFR)
+            if lNextElem>lTextPrinted then
+                VOID = startPage()
+                VOID = sendMessage(pInId, EM_DISPLAYBAND, 0, w32address(lFR, FORMATRANGE_rcRect))
+                VOID = endPage()
+            end if
+        end if
+
+        if lNextElem<=lTextPrinted then
+            -- Nothing happened?!
+            exit
+        end if
+
+        lTextPrinted = lNextElem
+
+    end while
+
+    if lDocStarted=w32True then
+        -- That's all folks.
+        VOID = endDoc()
+    end if
+
+    -- Release cached formatting.
+    VOID = sendMessage(pInId, EM_FORMATRANGE, 0, 0)
+
+    w32release_mem(lFR)
+    if lOldMode!=MM_TEXT then
+        VOID = w32Func(xSetMapMode, {printerDC, lOldMode})
+    end if
+
+end procedure
+
+constant r_setCursorInternal = w32routine_id("setCursorInternal")
+
+integer current_depth
+atom previous_cursor
+procedure restoreMousePointer_(object id, integer depth)
+sequence lKids,lCursors,mouse_pos
+
+    -- set pointer style
+    if sequence(id) then
+        lKids = findChildren(id[1])
+        for i=1 to length(lKids) do
+            restoreMousePointer_({lKids[i][1]}, depth+1)
+        end for
+        id = id[1]
+    end if
+
+    lCursors = getControlInfo(id,CONTROLINFO_cursor)
+    mouse_pos = getPointerPos()
+    if length(lCursors)>1 then
+        lCursors = lCursors[2..$]
+    end if
+    if isScreenPointIn(id,mouse_pos[1],mouse_pos[2]) and depth>current_depth then
+        current_depth = depth
+        previous_cursor = lCursors[1]
+    end if
+    call_proc(r_setCursorInternal,{id,lCursors})
+
+end procedure
+
+-- /topic Mouse
+-- /proc restoreMousePointer( object id)
+-- /desc Gets back the previous pointer the mouse had before the last /setMousePointer call.
+-- This restores the pointer shape for /i id by popping it from the /i id's stack. /n
+-- /i id can either be a single control ID, or a sequence containing a control ID.
+-- You use the second form to restore the pointer for all the controls contained
+-- in /i id.
+-- 
+-- Example:
+-- 
+-- /code
+--     -- Change mouse pointer in MyWindow to hourglass
+--     /setMousePointer( {MyWindow}, WaitPointer )
+--     -- Do some long job...
+--     . . .
+--     -- Restore the previous shape.
+--     /restoreMousePointer( {MyWindow} )
+-- /endcode
+-- 
+global procedure restoreMousePointer(object id)
+    current_depth = -1
+    restoreMousePointer_(id,0)
+    if current_depth>=0 then
+        VOID = w32Func(xSetCursor, {previous_cursor})
+    end if
+end procedure
+
+constant PointerValues = {
+                          ArrowPointer,
+                          IBeamPointer,
+                          WaitPointer,
+                          WaitPointer,
+                          CrossPointer,
+                          UpArrowPointer,
+                          SizeNWSEPointer,
+                          SizeNESWPointer,
+                          SizeWEPointer,
+                          SizeNSPointer,
+                          SizeAllPointer,
+                          NoPointer,
+                          NoPointer,
+                          AppStartingPointer,
+                          HelpPointer,
+                          IconPointer,
+                          HandPointer,
+                          0,
+                          -1,
+                          -2
+                         }
+constant PointerNames = {
+                         "ARROW",
+                         "IBEAM",
+                         "WAIT",
+                         "HOURGLASS",
+                         "CROSS",
+                         "UPARROW",
+                         "SIZENWSE",
+                         "SIZENESW",
+                         "SIZEWE",
+                         "SIZENS",
+                         "SIZEALL",
+                         "NO",
+                         "NOT",
+                         "APPSTARTING",
+                         "HELP",
+                         "ICON",
+                         "HAND",
+                         "NULL",
+                         "DEFAULT",
+                         "NOTHING"
+                        }
+procedure setMousePointer_(object id, atom handle, integer flag)
+sequence lKids,lCursors
+integer real_id
+
+    if atom(id) then
+        real_id = id
+    else
+        real_id = id[1]
+    end if
+    if not isVisible(real_id) then
+        return
+    end if
+    -- set pointer style
+    if sequence(id) then
+        lKids = findChildren(real_id)
+        for i=1 to length(lKids) do
+            setMousePointer_({lKids[i][1]}, handle,flag)
+        end for
+        id = id[1]
+    end if
+
+    lCursors = getControlInfo(id,CONTROLINFO_cursor)
+    if flag then
+--      lCursors=handle
+        lCursors = {handle}
+    elsif equal(handle, -1) then
+        lCursors = {lCursors[length(lCursors)]}
+    else
+        lCursors = prepend(lCursors, handle)
+    end if
+    call_proc(r_setCursorInternal,{id,lCursors})
+
+end procedure
+
+function to_cursor(object style)
+atom handle, result
+
+    if sequence(style) then
+        result = find(upper(style), PointerNames)
+        if result!=0 then
+            style = PointerValues[result]
+        else
+            handle = w32Func(xLoadCursorFromFile, {style})
+            if handle then
+                trackCursor(handle)
+                style = handle
+            else
+                warnErr(sprintf("setPointer: The cursor file '%s' didn't load.",{style}))
+                return -2
+            end if
+        end if
+    end if
+
+    -- load the cursor
+    if find(style,{0,-1,-2}) then  -- either 0 or "NULL" was passed
+        return style
+    else
+        if find(style, heldCursor) then
+            -- don't need to load. either null or user defined
+            handle = style
+        elsif find({style}, heldCursor) then
+            -- don't need to load. either null or user defined
+            handle = style
+        else
+            -- load system cursor
+            handle = w32Func(xLoadCursor, {NULL, style})
+            if handle=NULL then
+                -- warning
+                warnErr("setPointer:LoadCursor failed.")
+            else
+                trackCursor({handle})
+            end if
+        end if
+        return handle
+    end if
+end function
+
+--/topic Mouse
+--/proc setMousePointer( object id, object pointer )
+--/desc Set the pointer the mouse displays when in /i id.
+-- This saves the current pointer for /i id by pushing it onto the /i id's stack
+-- and sets the /i pointer as the new shape. You can get the previous pointer
+-- shape by calling /restoreMousePointer().
+--
+-- /i id can either be a single control ID, or a sequence that contains a control
+-- ID. You use the second form to set the pointer for all the controls contained
+-- in /i id.
+--
+-- The initial mouse pointer displayed is the /i ArrowPointer, except
+-- for /TextEdit and /MleText controls, which use the /i IBeamPointer.
+--
+-- The /i pointer can either be a special value, a system pointer, or one created with
+-- the /createMousePointer function, or a path to .CUR or .ANI file. Special values are:
+--/li 0: restore mouse pointer to its previous shape;
+--/li -1: restor mouse pointer to its default shape, popping off any change;
+--/li -2: do nothing
+--
+-- Repeated use of setMousePointer() with the same shape will result in it being stored only
+-- once. This way, a single call to /restoreMousePointer() willl restore the previous shape, 
+-- if any.
+--
+-- If the mouse pointer is not above /i id, the cursor shape change is effective only when the 
+-- cursor comes above /i id.
+--
+-- Known system mouse pointers are listed <a href="win32_constants.htm#System mouse pointers">here</a>
+-- Example:
+--
+--/code
+--     -- Change mouse pointer in MyWindow and all its child controls to hourglass
+--     /setMousePointer( {MyWindow}, WaitPointer )
+--     -- Do some long job...
+--     . . .
+--     -- Restore the previous shape.
+--     /restoreMousePointer( {MyWindow} )
+--
+--     -- use a shape stored in some external file
+--      /setMousePointer( ListPanel, "SpecialCursor.cur")
+--     -- this one does all children of WindowX recursively
+--      /setMousePointer( {WindowX}, "hourglass")
+--/endcode
+
+global procedure setMousePointer(object id, object style)
+sequence mouse_pos
+
+    style = to_cursor(style)
+    if style=-2 then -- error or do nothing
+        return
+    elsif style=0 then
+        restoreMousePointer(id)
+        return
+    end if
+
+    setMousePointer_(id,style,0) -- this will handle the -1 special value
+    -- where is the cursor?
+    if sequence(id) then
+        id = id[1]
+    end if
+    -- If cursor is in affected window, force windows to show new shape right now!
+    mouse_pos = getPointerPos()
+    if isScreenPointIn(id,mouse_pos[1],mouse_pos[2]) then
+        mouse_pos = getControlInfo(id,CONTROLINFO_cursor)
+        VOID = w32Func(xSetCursor, {mouse_pos[1]})
+    end if
+
+end procedure
+
+--/topic Mouse
+--/proc changeMousePointer( object id, object pointer )
+--/desc Set the pointer the mouse displays when in /i id, without saving the previous shape.
+-- This behaves like /setMousePointer(), but does not stack the previous shape for later restore.
+-- It just changes the top of the stack shape. /n
+-- However, using a special style value (0, -1 or -2) will cause no change to take place.
+--
+-- Use this routine, rather than /setMousePointer(), when you continuously monitor the mouse
+-- position and update cursor accordingly, as it avoids a lag effect when the mouse lingers in 
+-- some area of a window and then leaves to an area that displays another shape.
+--
+-- Example:
+--
+--/code
+--     -- Change mouse pointer in MyWindow and all its child controls to hourglass
+--     /setMousePointer( {MyWindow}, WaitPointer )
+--     -- Do some long job, and allow pinpointing some place
+--     --    changeMousePointer(MyWindow,Cross)
+--     -- Restore the shape that was changed for WaitPointer.
+--     /restoreMousePointer( {MyWindow} )
+--
+--      /changeMousePointer( ListPanel, "SpecialCursor.cur")
+--     -- this one does all children of WindowX recursively
+--      /changeMousePointer( {WindowX}, "hourglass")
+--/endcode
+
+global procedure changeMousePointer(object id, object style)
+sequence mouse_pos
+
+    style = to_cursor(style)
+    if find(style, {0,-1,-2})  then
+        return
+    end if
+
+    setMousePointer_(id,style,1)
+    -- where is the cursor?
+    if sequence(id) then
+        id = id[1]
+    end if
+    -- If cursor is in affected window, force windows to show new shape right now!
+    mouse_pos = getPointerPos()
+    if isScreenPointIn(id,mouse_pos[1],mouse_pos[2]) then
+        mouse_pos = getControlInfo(id,CONTROLINFO_cursor)
+        VOID = w32Func(xSetCursor, {mouse_pos[1]})
+    end if
+
+end procedure
+
+-----------------------------------------------------------------------------
+--/topic Mouse
+--/func createMousePointer( hotspotX, hotspotY, image )
+--/desc Create a new mouse pointer.
+-- The /i hotspotX and /i hotspotY values are the "hotspot". The image is
+-- a 2x2 text sequence of the pointer. Bytes are interpreted as follows:
+--
+--~s~s  /ff<' '> = transparent /n
+--~s~s  /ff<'.'> = solid white /n
+--~s~s  /ff<'x'> = solid black /n
+--
+-- Example:
+--
+--/code
+--      constant PlusPointer = /createMousePointer( 8, 8, {
+--          "     xxxxxx      ",
+--          "     x....xx     ",
+--          "     x....xx     ",
+--          "     x....xx     ",
+--          "     x....xx     ",
+--          "xxxxxx....xxxxxx ",
+--          "x..............xx",
+--          "x..............xx",
+--          "x..............xx",
+--          "x..............xx",
+--          "xxxxxx....xxxxxxx",
+--          " xxxxx....xxxxxxx",
+--          "     x....xx     ",
+--          "     x....xx     ",
+--          "     x....xx     ",
+--          "     xxxxxxx     ",
+--          "      xxxxxx     "} )
+--
+--          -- set as pointer for MyWindow
+--          /setMousePointer( MyWindow, PlusPointer )
+--
+--/endcode
+
+global function createMousePointer(integer x, integer y, sequence image)
+
+-- load the cursor
+integer cx, cy, diff
+atom andPlane, xorPlane, hCursor, mset
+sequence data, maskBits
+
+    mset = w32new_memset()
+    -- get the metrics for the cursor
+    cx = w32Func(xGetSystemMetrics, {SM_CXCURSOR})
+    cy = w32Func(xGetSystemMetrics, {SM_CYCURSOR})
+
+    -- ensure image is wide enough
+    diff = cx-length(image[1])
+    for i=1 to length(image) do
+
+        -- add padding...
+        image[i] &= repeat(' ', cx)
+
+        -- trim
+        image[i] = image[i][1..cx]
+
+    end for
+
+    -- ensure the image is tall enough
+    for i=1 to cy do
+        -- add extra padding
+        image = append(image, repeat(' ', cx))
+    end for
+    -- trim
+    image = image[1..cy]
+
+    -- create the and mask
+--/**/  maskBits = sq_eq(image,' ')     --/* -- Phix 
+    maskBits = ( image = ' ' )          --*/ -- RDS
+
+    -- convert the bits to bytes
+    data = {}
+    for i=1 to length(maskBits) do
+        data = data & codeToBytes(maskBits[i])
+    end for
+
+    -- Allocate and poke the and plane data
+    andPlane = w32acquire_mem(mset, length(data))
+    poke(andPlane, data)
+
+    -- create the xor mask
+--/**/  maskBits = sq_eq(image,'.')     --/* -- Phix 
+    maskBits = (image = '.')            --*/ -- RDS
+
+    -- convert the bits to bytes
+    data = {}
+    for i=1 to length(maskBits) do
+        data = data & codeToBytes(maskBits[i])
+    end for
+
+    -- Allocate and poke the xor plane data
+    xorPlane = w32acquire_mem(mset, length(data))
+    poke(xorPlane, data)
+
+    -- create the cursor
+    hCursor = w32Func(xCreateCursor,
+                      {instance(),      -- application instance
+                       x, y,            -- x and y of hotspot
+                       length(image),     -- cursor width
+                       length(image[1]), -- cursor height
+                       andPlane,
+                       xorPlane})
+
+    -- keep track of cursor
+    trackCursor(hCursor)
+
+    -- Free the data
+    w32release_mem(mset)
+
+    return hCursor
+
+end function
+
+procedure updateHDC(integer id,atom hdc)
+integer pos
+
+    pos = w32findKey(id, grabbedHDC)
+    if pos=0 then
+        grabbedHDC = prepend(grabbedHDC, {id,{1, hdc, 0, kDCReasonPaint}})
+    else
+      -- Insert the Paint hdc as the 'topmost' dc.
+        grabbedHDC[pos] = {id , {1, hdc, 0, kDCReasonPaint} , grabbedHDC[pos][2]}
+    end if
+end procedure
+registerRoutine("updateHDC",routine_id("updateHDC"))
+
+constant r_finishAppInternal = w32routine_id("finishAppInternal")
+procedure releaseAllResources(integer pMode,integer r_libCleanUp,integer r_destroy)
+integer lType
+
+    -- Free up all resources
+    VOID = detachCleanUp(r_libCleanUp)
+
+    for i=1 to length(getHandles()) do
+        lType = getControlInfo(i,CONTROLINFO_alias)
+        if lType=Window then
+            if getControlInfo(i,CONTROLINFO_owner)=0 then
+                call_proc(r_destroy,{i})
+            end if
+        elsif lType=Pixmap then
+            call_proc(r_destroy,{i})
+        end if
+    end for
+
+    -- for each resource
+    for i=1 to length(heldResource) do
+        -- release the object and remove it from the list
+        if heldResource[i][ResStatus]=1 then
+            deleteObject(heldResource[i][ResHandle])
+        end if
+    end for
+
+    -- release the cursors
+    for i=1 to length(heldCursor) do
+        if atom(heldCursor[i]) then
+            VOID = w32Func(xDestroyCursor, {heldCursor[i]})
+        end if
+    end for
+
+    heldCursor = {}
+
+    -- Release the crypto handle.
+    if vCSP!=0 then
+        VOID = w32Func(xCryptReleaseContext,{vCSP, 0})
+        vCSP = 0
+    end if
+
+    -- give back all memory blocks acquired.
+    w32release_mem(-2)
+
+    -- w32release_all_mem() -- obsolete
+
+    call_proc(r_finishAppInternal,{})
+
+    if pMode=0 then
+        abortErr("") -- Force any user cleanups to run.
+    end if
+end procedure
+registerRoutine("releaseAllResources",routine_id("releaseAllResources"))

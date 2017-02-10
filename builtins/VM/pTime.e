@@ -6,16 +6,21 @@
 --
 -- Note that the clock tick may wrap if your system has been running for around
 --  16 times longer than the universe has thus far been in existence (scnr).
+-- Actually this will fail(wrap) in 2038 on Linux 32 bit and Windows XP.
 --
 
 include VM\pHeap.e  -- :%pStoreFlt etc
 include VM\pFPU.e   -- :%down53 etc
 
-atom t0 = 0
+atom t0 = 0         -- (millisecs on windows, whole secs on linux)
 constant ONETHOUSAND = 1000 -- (so we can fild it, rather than push/fild/pop)
 
---constant string GetTickCount64 = "GetTickCount64"
---atom pGetTickCount64 = NULL
+integer nsec0       -- linux only (should always be 0..999,999,999)
+constant NSEC_PER_SEC = 1000000000  -- (a 31-bit int, just)
+
+--GetTickCount64 is not available on XP...
+constant string szGetTickCount64 = "GetTickCount64"
+atom pGetTickCount64 = NULL -- (fall back to GetTickCount if we must)
 
 #ilASM{ jmp :%opRetf
 
@@ -25,9 +30,7 @@ constant ONETHOUSAND = 1000 -- (so we can fild it, rather than push/fild/pop)
         jne :dont_set_t0_twice
 
     [PE32]
---DEV GetTickCount64 is not available on XP... (untried)
---/*
-        mov eax,[GetTickCount64]
+        mov eax,[szGetTickCount64]
         shl eax,2
         push eax                            -- lpLibFileName
         call "kernel32.dll","LoadLibraryA"
@@ -50,28 +53,29 @@ constant ONETHOUSAND = 1000 -- (so we can fild it, rather than push/fild/pop)
         push eax
         fild qword[esp]
         add esp,8
---*/
-        call "kernel32","GetTickCount64"
+--/*
+        call "kernel32","GetTickCount65"
         push edx
         push eax
         fild qword[esp]
         add esp,8
+--*/
     [ELF32]
 --#     Name                        Registers                                                                                                               Definition
 --                                  eax     ebx                     ecx                     edx                     esi                     edi
--->13   sys_time                    0x0d    time_t *tloc            -                       -                       -                       -               kernel/posix-timers.c:855
-        xor ebx,ebx
-        mov eax,13      -- sys_time
+--265   sys_clock_gettime           0x109   clockid_t which_clock   struct timespec *tp     -                       -                       -                       kernel/posix-timers.c:954
+        sub esp,8
+        mov eax,265     -- sys_clock_gettime
+        xor ebx,ebx     -- CLOCK_REALTIME
+        mov ecx,esp     -- timespec *tp
         int 0x80
         xor ebx,ebx     -- (common requirement after int 0x80)
-        push ebx
-        push eax
-        fild qword[esp]
+        mov eax,[esp+4] -- tp.tv_nsec
+        fild dword[esp] -- tp.tv_sec
+        mov [nsec0],eax
         add esp,8
---13        sys_time                    0x0d    time_t *tloc            -                       -                       -                       -               kernel/posix-timers.c:855
     [32]
         lea edi,[t0]
---      mov edi,t0      -- lea edi,[t0]
         call :%pStoreFlt
     [PE64]
         mov rcx,rsp -- put 2 copies of rsp onto the stack...
@@ -91,13 +95,16 @@ constant ONETHOUSAND = 1000 -- (so we can fild it, rather than push/fild/pop)
         add rsp,8
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
---201   sys_time                time_t *tloc
-        xor rdi,rdi
-        mov rax,201     -- sys_time
+--228   sys_clock_gettime       const clockid_t which_clock     struct timespec *tp
+        sub rsp,16
+        mov rax,228     -- sys_clock_gettime
+        xor rdi,rdi     -- CLOCK_REALTIME
+        mov rsi,rsp     -- timespec *tp
         syscall
-        push rax
-        fild qword[rsp]
-        add rsp,8
+        mov rax,[rsp+8] -- tp.tv_nsec
+        fild qword[rsp] -- tp.tv_sec
+        mov [nsec0],rax
+        add rsp,16
     [64]
         lea rdi,[t0]
         call :%pStoreFlt    -- (also sets r15 to h4)
@@ -115,7 +122,6 @@ end procedure -- (for Edita/CtrlQ)
         --calling convention:
         --  lea edi,[p1]    -- result location
         --  call :%opTime   -- [edi]=time()
---/*
         mov eax,[pGetTickCount64]
         test eax,eax
         jz :use32
@@ -123,28 +129,33 @@ end procedure -- (for Edita/CtrlQ)
             call eax      -- GetTickCount64
             push edx
             jmp @f
-      :use32
+      ::use32
             call "kernel32","GetTickCount"
             push ebx
      @@:                            
         push eax
-        fild qword[esp]
-        add esp,8
---*/
+--/*
         call "kernel32","GetTickCount64"
         push edx
         push eax
+--*/
     [ELF32]
---DEV rubbish! (only does whole seconds) try sys_clock_gettime
 --#     Name                        Registers                                                                                                               Definition
 --                                  eax     ebx                     ecx                     edx                     esi                     edi
--->13   sys_time                    0x0d    time_t *tloc            -                       -                       -                       -               kernel/posix-timers.c:855
-        xor ebx,ebx
-        mov eax,13      -- sys_time
+--265   sys_clock_gettime           0x109   clockid_t which_clock   struct timespec *tp     -                       -                       -                       kernel/posix-timers.c:954
+--#define CLOCK_REALTIME 0
+        sub esp,8
+        mov eax,265     -- sys_clock_gettime
+        xor ebx,ebx     -- CLOCK_REALTIME
+        mov ecx,esp     -- timespec *tp
         int 0x80
-        xor ebx,ebx     -- (common requirement after int 0x80)
-        push ebx
-        push eax
+        xor ebx,ebx             -- (common requirement after int 0x80)
+        fild dword[esp+4]       -- tp.tv_nsec
+        fild dword[nsec0]
+        fsubp
+        fild dword[NSEC_PER_SEC]
+        fdivp                   -- (should be in the range -1.0..+1.0)
+        mov dword[esp+4],ebx    -- (for the fild qword)
     [32]
         mov esi,[t0]
         fild qword[esp]
@@ -163,6 +174,8 @@ end procedure -- (for Edita/CtrlQ)
     [PE32]
         fild dword[ONETHOUSAND]
         fdivp st1,st0
+    [ELF32]
+        faddp
     [PE64]
         --calling convention:
         --  lea rdi,[p1]    -- result location
@@ -182,11 +195,19 @@ end procedure -- (for Edita/CtrlQ)
         push rax
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
---201   sys_time                time_t *tloc
-        xor rdi,rdi
-        mov rax,201     -- sys_time
+--228   sys_clock_gettime       const clockid_t which_clock     struct timespec *tp
+        sub rsp,16
+        mov eax,228     -- sys_clock_gettime
+        xor rdi,rdi     -- CLOCK_REALTIME
+        mov rsi,rsp     -- timespec *tp
         syscall
-        push rax
+        fild qword[rsp+8]       -- tp.tv_nsec
+        fild qword[nsec0]
+        pop rax                 -- (move tv_sec)
+        fsubp
+        fild qword[NSEC_PER_SEC]
+        fdivp                   -- (should be in the range -1.0..+1.0)
+        mov [rsp],rax           -- (overwrite tv_nsec with tv_sec)
     [64]
         mov rsi,[t0]
         fild qword[rsp]
@@ -203,6 +224,8 @@ end procedure -- (for Edita/CtrlQ)
     [PE64]
         fild qword[ONETHOUSAND]
         fdivp st1,st0
+    [ELF64]
+        faddp
     []
         jmp :%pStoreFlt
 

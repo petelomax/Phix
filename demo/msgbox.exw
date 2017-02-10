@@ -92,7 +92,7 @@ integer res
             push eax                        -- hwnd
             call "user32","MessageBoxA"
             mov [res],eax
-        [ELF64]
+        [ELF32]
             pop al
         [PE64]
             mov rcx,rsp -- put 2 copies of rsp onto the stack...
@@ -134,7 +134,7 @@ atom zGetActiveWindow,
 
 integer initZ = 0
 
--- Now we could do initialisation the naieve and difficult way...
+-- Now we could do initialisation the naive and difficult way...
 --/*
 constant szUser32 = "user32.dll",
          szGetActiveWindow = "GetActiveWindow",
@@ -253,7 +253,7 @@ integer res
                 -- addr>#3FFFFFFF stored as float:
                 push rbx -- create space
                 fld tbyte[rbx+rax*4]
-                fistp qword[rsp]
+                fistp qword[rsp]    -- (ok, C_PTR/zGetActiveWindow is signed)
                 pop rax
           @@:
             call rax    -- call GetActiveWindow
@@ -272,7 +272,7 @@ integer res
                 -- addr>#3FFFFFFF stored as float:
                 push rbx -- create space
                 fld tbyte[rbx+rax*4]
-                fistp qword[rsp]
+                fistp qword[rsp]    -- (ok, C_PTR/zMessageBoxA is signed)
                 pop rax
           @@:
             call rax    -- call MessageBoxA
@@ -292,7 +292,7 @@ end function
 --  and provided you wrap it in a separate source file, it becomes completely
 --  and utterly irrelevant as far as the rest of your application is concerned.
 
-    if platform()!=WIN32 then ?9/0 end if
+    if platform()!=WINDOWS then ?9/0 end if
     {} = MessageBox1("c_func style", "MessageBox1", MB_OK)
     {} = MessageBox2("direct import table", "MessageBox2", MB_OK)
     {} = MessageBox3("preloaded inline", "MessageBox3", MB_OK)

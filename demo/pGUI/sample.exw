@@ -201,42 +201,50 @@ end function
 --  return IUP_DEFAULT;
 --end function
 
-procedure show_menu(Ihandle ih)
-integer x, y;
+Ihandln text_menu = NULL
+
+procedure show_text_menu(Ihandle ih)
+integer x, y
+Ihandle menu_file
 
 --DEV dunno what "item_cb" is meant to be, anyway it does nothing...
---DEV ditto all the images...
-Ihandle menu_file = IupMenu({IupSetAttributesf(IupMenuItem("Item with Image", "item_cb"), "IMAGE=image_tec"),
-                             IupSetAttributesf(IupMenuItem("Toggle using VALUE", NULL), "VALUE=ON, KEY=K_V"),
-                             IupSetAttributesf(IupMenuItem("Auto &Toggle", "item_cb"), "AUTOTOGGLE=YES, VALUE=OFF, IMAGE=image_test, IMPRESS=image_test_pressed"),
+--DEV ditto all the images... (I fixed image_tec)
+--Ihandle menu_file = IupMenu({IupSetAttributesf(IupMenuItem("Item with Image", "item_cb"), "IMAGE=image_tec"),
+    if text_menu=NULL then
+        menu_file = IupMenu({IupMenuItem("Item with Image", "IMAGE=image_tec"),
+--                           IupSetAttributesf(IupMenuItem("Toggle using VALUE", NULL), "VALUE=ON, KEY=K_V"),
+                             IupMenuItem("Toggle using &VALUE", "VALUE=ON, AUTOTOGGLE=YES"),
+--                           IupSetAttributesf(IupMenuItem("Auto &Toggle", "item_cb"), "AUTOTOGGLE=YES, VALUE=OFF, IMAGE=image_test, IMPRESS=image_test_pressed"),
+                             IupMenuItem("Auto &Toggle", "AUTOTOGGLE=YES, VALUE=OFF, IMAGE=image_test, IMPRESS=image_test_pressed"),
                              IupSeparator(),
-                             IupMenuItem("E&xit (Close)", NULL)});
+--                           IupMenuItem("E&xit (Close)", NULL)});
+                             IupMenuItem("E&xit (Close)")});
 
---DEV paranormalise IupSubmenu
-Ihandle menu = IupMenu({IupSetAttributesf(IupSubmenu("Submenu", menu_file), "KEY=K_S, IMAGE=image_tec"),
-                        IupMenuItem("Item", "item_cb"),
-                        IupSetAttributesf(IupMenuItem("Item", "item_cb"), "VALUE=ON"),
-                        IupSetAttributesf(IupMenuItem("Item", "item_cb"), "KEY=K_I, IMAGE=image_tec")});
+--      text_menu = IupMenu({IupSetAttributesf(IupSubmenu("Submenu", menu_file), "KEY=K_S, IMAGE=image_tec"),
+        text_menu = IupMenu({IupSubmenu("&Submenu", menu_file, "IMAGE=image_tec"),
+--                           IupMenuItem("Item", "item_cb"),
+                             IupMenuItem("Item"),
+--                           IupSetAttributesf(IupMenuItem("Item", "item_cb"), "VALUE=ON"),
+                             IupMenuItem("Item", "VALUE=ON"),
+--                           IupSetAttributesf(IupMenuItem("Item", "item_cb"), "KEY=K_I, IMAGE=image_tec")});
+                             IupMenuItem("&Item", "IMAGE=image_tec")});
+    end if
 
     x = IupGetInt(ih, "X");
     y = IupGetInt(ih, "Y")+IupGetInt2(ih, "RASTERSIZE");
 
-    IupPopup(menu, x, y);
-    IupDestroy(menu);
+    IupPopup(text_menu, x, y);
+--  IupDestroy(text_menu);
 end procedure
 
-function action1_cb(Ihandle ih)
+function text_click_cb(Ihandle ih)
 --  IupSetAttribute(IupGetDialog(ih), "BACKGROUND", "255 128 128");
-    show_menu(ih);
+    show_text_menu(ih);
     return IUP_DEFAULT;
 end function
 
 function action2_cb(Ihandle ih)
-    if IupGetAttribute(IupGetDialog(ih), "BGCOLOR")="240 240 240" then
-        IupSetAttribute(IupGetDialog(ih), "BGCOLOR", "0 128 0");
-    else
-        IupSetAttribute(IupGetDialog(ih), "BGCOLOR", "240 240 240");
-    end if
+    printf(1,"ACTION2\n");
     return IUP_DEFAULT;
 end function
 
@@ -247,20 +255,54 @@ function action3_cb(Ihandle ih)
     return IUP_DEFAULT;
 end function
 
-function set_callbacks(Ihandle ih)
-    IupSetCallback(ih, "VALUECHANGED_CB", Icallback("valuechanged_cb"));
+procedure set_callbacks(object ih)
+    if sequence(ih) then
+        for i=1 to length(ih) do
+            set_callbacks(ih[i])
+        end for
+    else
+        IupSetCallback(ih, "VALUECHANGED_CB", Icallback("valuechanged_cb"));
 
---  IupSetCallback(ih, "GETFOCUS_CB", Icallback("getfocus_cb"));
---  IupSetCallback(ih, "KILLFOCUS_CB", Icallback("killfocus_cb"));
+--      IupSetCallback(ih, "GETFOCUS_CB", Icallback("getfocus_cb"));
+--      IupSetCallback(ih, "KILLFOCUS_CB", Icallback("killfocus_cb"));
 
---  IupSetCallback(ih, "ENTERWINDOW_CB", Icallback("enterwindow_cb"));
---  IupSetCallback(ih, "LEAVEWINDOW_CB", Icallback("leavewindow_cb"));
+--      IupSetCallback(ih, "ENTERWINDOW_CB", Icallback("enterwindow_cb"));
+--      IupSetCallback(ih, "LEAVEWINDOW_CB", Icallback("leavewindow_cb"));
 
-    IupSetCallback(ih, "K_ANY", Icallback("k_any"));
---  IupSetCallback(ih, "HELP_CB", Icallback("help_cb"));
+        IupSetCallback(ih, "K_ANY", Icallback("k_any"));
+--      IupSetCallback(ih, "HELP_CB", Icallback("help_cb"));
 
-    return ih;
+    end if
+end procedure
+
+function background_cb(Ihandle ih)
+    if IupGetAttribute(IupGetDialog(ih), "BACKGROUND")="240 240 240" then
+        IupSetAttribute(IupGetDialog(ih), "BACKGROUND", "0 128 0");
+    else
+        IupSetAttribute(IupGetDialog(ih), "BACKGROUND", "240 240 240");
+    end if
+    return IUP_DEFAULT;
 end function
+constant cb_background = Icallback("background_cb")
+
+function dlgbg_cb(Ihandle ih)
+string bgcolor = IupGetAttribute(IupGetDialog(ih), "BGCOLOR")
+string newcolor = iff(bgcolor="240 240 240"?"128 0 0":"240 240 240")
+    IupSetAttribute(IupGetDialog(ih), "BGCOLOR", newcolor)
+    return IUP_DEFAULT;
+end function
+constant cb_dlgbg = Icallback("dlgbg_cb")
+
+function childbg_cb(Ihandle ih)
+string dlgcolor = IupGetAttribute(IupGetDialog(ih), "BGCOLOR")
+string bgcolor = IupGetAttribute(IupGetChild(IupGetDialog(ih),0), "BGCOLOR")
+nullable_string newcolor = iff(bgcolor=dlgcolor?"0 0 128":NULL)
+    for pos=0 to IupGetChildCount(IupGetDialog(ih)) do
+        IupSetAttribute(IupGetChild(IupGetDialog(ih), pos), "BGCOLOR", newcolor);
+    end for
+    return IUP_DEFAULT;
+end function
+constant cb_childbg = Icallback("childbg_cb")
 
 Ihandle pbar
 integer pval = 0
@@ -294,8 +336,15 @@ end function
 --  printf(1,"GLOBALWHEEL_CB(delta=%g, x=%d, y=%d, status=%s)\n",{delta, x, y, peek_string(pStatus)});
 --end procedure
 
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+
 procedure SampleTest()
-Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
+Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, dlg, img,
+    btn_1, btn_2, btn_3, btn_4, btn_5,
+    tgl_1, tgl_2, tgl_3, tgl_4, tgl_5, exp_3,
     frm_1, frm_2, frm_3, frm_4, frm_5, val, tabs,
     list_1, list_2, list_3, text_1, ml_1, tree;
 
@@ -315,45 +364,57 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(img, "2", "BGCOLOR");
     IupSetAttribute(img, "3", "255 0 0");
 
-    mnu = IupMenu({IupSubmenu("IupSubmenu 1", IupMenu({IupSetAttributesf(IupMenuItem("IupMenuItem 1 Checked", NULL), "VALUE=ON"),
-                                                       IupSeparator(),
-                                                       IupSetAttributesf(IupMenuItem("IupMenuItem 2 Disabled", NULL), "ACTIVE=NO")})),
+    menu1 = IupMenu({IupMenuItem("IupMenuItem 1 Checked", "VALUE=ON"),
+                     IupSeparator(),
+                     IupMenuItem("IupMenuItem 2 Disabled", "ACTIVE=NO")})
+    backmenu = IupMenu({IupMenuItem("toggle BACKGROUND",cb_background,"AUTOTOGGLE=YES"),
+                        IupMenuItem("toggle dialog BGCOLOR",cb_dlgbg, "AUTOTOGGLE=YES"),
+                        IupMenuItem("toggle child BGCOLOR",cb_childbg,"AUTOTOGGLE=YES")})
+    mnu = IupMenu({IupSubmenu("IupSubmenu 1", menu1),
                    IupMenuItem("IupMenuItem 3", NULL),
-                   IupMenuItem("IupMenuItem 4", NULL)});
+                   IupMenuItem("IupMenuItem 4", NULL),
+                   IupSubmenu("Background",backmenu)});
 
     IupSetHandle("mnu",mnu);
 
-    frm_1 = IupFrame(
-    IupVbox({set_callbacks(IupButton("Button Text", "PADDING=5x5")),
-             set_callbacks(IupButton("Text", Icallback("action1_cb"), "IMAGE=img1, PADDING=5x5")),
-             set_callbacks(IupButton(NULL, Icallback("action2_cb"), "IMAGE=img1")),
-             set_callbacks(IupButton(NULL, Icallback("action3_cb"), "IMAGE=img1,IMPRESS=img2")),
-             set_callbacks(IupButton(NULL, Icallback("action3_cb"), "BGCOLOR=\"255 0 128\", SIZE=20x10"))}));
+    btn_1 = IupButton("Button Text", "PADDING=5x5")
+    btn_2 = IupButton("Text", Icallback("text_click_cb"), "IMAGE=img1, PADDING=5x5")
+    btn_3 = IupButton(NULL, Icallback("action2_cb"), "IMAGE=img1")
+    btn_4 = IupButton(NULL, Icallback("action3_cb"), "IMAGE=img1,IMPRESS=img2")
+    btn_5 = IupButton(NULL, Icallback("action3_cb"), "BGCOLOR=\"255 0 128\", SIZE=20x10")
+    set_callbacks({btn_1,btn_2,btn_3,btn_4,btn_5})
+--DEV this will confuse plade: (fixed, any more?)
+--  frm_1 = IupFrame(IupVbox({btn_1,btn_2,btn_3,btn_4,btn_5}),"TITLE=IupButton")
+--  frm_1 = IupExpander(frm_1)
+    frm_1 = IupExpander(IupFrame(IupVbox({btn_1,btn_2,btn_3,btn_4,btn_5}),"TITLE=IupButton"))
+    IupSetAttribute(frm_1,"BARPOSITION","LEFT");
 
-    IupSetAttribute(frm_1,"TITLE","IupButton");
+    frm_2 = IupFrame(IupVbox({IupLabel("Label Text"),
+                              IupLabel(NULL,"SEPARATOR=HORIZONTAL, MAXSIZE=150, NAME=SAMP_SEP"),
+                              IupLink("http://google.co.uk"),
+--                            IupLabel(NULL,"IMAGE=img1")}),
+                              IupLabel(NULL,"IMAGE=image_tec")}),
+                     "TITLE=IupLabel");
 
-    frm_2 = IupFrame(
-    IupVbox({IupLabel("Label Text"),
-             IupSetAttributesf(IupLabel(), "SEPARATOR=HORIZONTAL, MAXSIZE=150, NAME=SAMP_SEP"),
-             IupSetAttributesf(IupLabel(), "IMAGE=img1")}));
+    tgl_1 = IupToggle("Toggle Text", "VALUE=ON")
+    tgl_2 = IupToggle("", "VALUE=ON,IMAGE=img1,IMPRESS=img2")
+    tgl_3 = IupToggle("", "VALUE=ON,IMAGE=img1")
+    tgl_4 = IupToggle("Toggle Text")
+    tgl_5 = IupToggle("Toggle Text")
+    set_callbacks({tgl_1,tgl_2,tgl_3,tgl_4,tgl_5})
 
-    IupSetAttribute(frm_2,"TITLE","IupLabel");
+    frm_3 = IupFrame(IupRadio(IupVbox({tgl_4,tgl_5})),
+                     "TITLE=IupRadio")
+--  frm_3 = IupFrame(IupRadio(IupVbox({IupHbox({IupLabel(NULL,"IMAGE=image_tec"),tgl_4}),
+--                                     IupHbox({IupLabel(NULL,"IMAGE=image_tec"),tgl_5})})),
+--                   "TITLE=IupRadio")
 
-    frm_3 = IupFrame(
---  IupVbox({set_callbacks(IupSetAttributesf(IupToggle("Toggle Text"), "VALUE=ON")),
---           set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1,IMPRESS=img2")),
---           set_callbacks(IupSetAttributesf(IupToggle(""), "VALUE=ON,IMAGE=img1")),
---           IupSetAttributesf(IupFrame(IupRadio(IupVbox({set_callbacks(IupToggle("Toggle Text")),
---                                                        set_callbacks(IupToggle("Toggle Text"))}))),
---                             "TITLE=IupRadio")}));
-    IupVbox({set_callbacks(IupToggle("Toggle Text", "VALUE=ON")),
-             set_callbacks(IupToggle("", "VALUE=ON,IMAGE=img1,IMPRESS=img2")),
-             set_callbacks(IupToggle("", "VALUE=ON,IMAGE=img1")),
-             IupFrame(IupRadio(IupVbox({set_callbacks(IupToggle("Toggle Text")),
-                                        set_callbacks(IupToggle("Toggle Text"))})),
-                      "TITLE=IupRadio")}));
+    exp_3 = IupExpander(IupVbox({tgl_1,tgl_2,tgl_3,
+--                               IupFrame(IupRadio(IupVbox({tgl_4,tgl_5})),
+                                 frm_3}));
 
-    IupSetAttribute(frm_3,"TITLE","IupToggle");
+    IupSetAttribute(exp_3,"TITLE","IupToggle");
+    IupSetAttribute(exp_3,"BARPOSITION","TOP");
 
     text_1 = IupText();
     IupSetAttribute(text_1,"VALUE","Single Line Text");
@@ -366,8 +427,8 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(ml_1,"EXPAND","YES");
     IupSetAttribute(ml_1,"SIZE","80x40");
 
-    frm_4 = IupFrame(IupVbox({set_callbacks(text_1),
-                              set_callbacks(ml_1)}));
+    set_callbacks({text_1,ml_1})
+    frm_4 = IupFrame(IupVbox({text_1,ml_1}));
 
     IupSetAttribute(frm_4,"TITLE","IupText");
 
@@ -397,20 +458,20 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(list_3,"3","Item 3 Text");
     IupSetAttribute(list_3,"TIP","List 3");
 
-    frm_5 = IupFrame(IupVbox({set_callbacks(list_1),
-                              set_callbacks(list_2),
-                              set_callbacks(list_3)}));
+    set_callbacks({list_1,list_2,list_3})
+    frm_5 = IupFrame(IupVbox({list_1,list_2,list_3}));
     IupSetAttribute(frm_5,"TITLE","IupList");
 
-    hbox_1 = IupHbox({frm_1,frm_2,frm_3,frm_4,frm_5});
+    hbox_1 = IupHbox({frm_1,frm_2,exp_3,frm_4,frm_5});
 
-    val = set_callbacks(IupValuator());
+    val = IupValuator()
+    set_callbacks(val)
 
     pbar = IupProgressBar();
     IupSetAttribute(pbar, "VALUE", "0");
 --  IupSetAttribute(pbar, "DASHED", "YES"); -- (no effect on windows 10)
 --  IupSetAttribute(pbar, "MARQUEE", "YES");
-    {} = set_callbacks(pbar);
+    set_callbacks(pbar);
 
     Ihandle hTimer = IupTimer(Icallback("OnTimer"), 300)
 
@@ -419,7 +480,11 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
                     IupVbox({IupFill()})});
     IupSetAttribute(tabs,"TABTITLE0","Tab Title 0");
     IupSetAttribute(tabs,"TABTITLE1","Tab Title 1");
-    IupSetAttributeHandle(tabs,"TABIMAGE1", load_image_LogoTecgraf());
+--  IupSetAttributeHandle(tabs,"TABIMAGE1", load_image_LogoTecgraf());
+    img = load_image_LogoTecgraf()
+    IupSetHandle("image_tec", img);
+    IupSetAttributeHandle(tabs,"TABIMAGE1", img)
+
 --  IupSetAttributeId(tabs,"TABIMAGE", 1, load_image_LogoTecgraf()) -- no
 --  IupSetAttributeId(tabs,"TABIMAGE", 1, NULL) -- yes (clears)
 --  IupSetAttribute(tabs,"TABIMAGE1", load_image_LogoTecgraf()) -- no
@@ -427,12 +492,12 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(tabs,"RASTERSIZE","300x50");
 --  IupSetAttribute(tabs,"FGCOLOR","255 0 255") -- ineffective
 --  IupSetAttribute(tabs,"PADDING","5x5");
-    {} = set_callbacks(tabs);
+    set_callbacks(tabs);
 
     tree = IupTree();
     IupSetAttribute(tree, "SHOWRENAME", "YES");
     IupSetAttribute(tree,"RASTERSIZE","100x150");
-    {} = set_callbacks(tree);
+    set_callbacks(tree);
 
     cnv_1 = IupCanvas();
     IupSetAttribute(cnv_1,"BGCOLOR","128 255 0");
@@ -440,14 +505,9 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(cnv_1,"EXPAND","HORIZONTAL");
     IupSetAttribute(cnv_1,"RASTERSIZE","x100");
 --  IupSetAttribute(cnv_1,"CANFOCUS","NO");
-    {} = set_callbacks(cnv_1);
+    set_callbacks(cnv_1);
 
     vbox_1 = IupVbox({hbox_1,
---                    IupHbox({IupSetAttributesf(IupFrame(IupHbox({val})), "TITLE=IupVal"),
---                             IupSetAttributesf(IupFrame(IupHbox({pbar})), "TITLE=IupProgressBar"),
---                             IupSetAttributesf(IupFrame(IupHbox({tabs})), "TITLE=IupTabs")}),
---                    IupHbox({IupSetAttributesf(IupFrame(IupHbox({cnv_1})), "TITLE=IupCanvas"),
---                             IupSetAttributesf(IupFrame(IupHbox({tree})), "TITLE=IupTree")})});
                       IupHbox({IupFrame(IupHbox({val}), "TITLE=IupVal"),
                                IupFrame(IupHbox({pbar}), "TITLE=IupProgressBar"),
                                IupFrame(IupHbox({tabs}), "TITLE=IupTabs")}),
@@ -456,7 +516,14 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
     IupSetAttribute(vbox_1,"MARGIN","5x5");
     IupSetAttribute(vbox_1,"GAP","5");
 
+-- test (seems fine)
+--if 01 then
+--  Ihandle scbox = IupScrollBox(vbox_1)
+--  -- (note: SIZE must be specified here, else it looks silly)
+--  dlg = IupDialog(scbox,"SIZE=300x200")
+--else
     dlg = IupDialog(vbox_1);
+--end if
     IupSetHandle("dlg",dlg);
     IupSetAttribute(dlg,"MENU","mnu");
     IupSetAttribute(dlg,"TITLE","Iup Sample Dialog");
@@ -486,6 +553,8 @@ Ihandle mnu, hbox_1, cnv_1, vbox_1, dlg, img,
   --IupSetFunction("GLOBALMOTION_CB", Icallback("globalmotion_cb"));
   --IupSetFunction("GLOBALBUTTON_CB", Icallback("globalbutton_cb"));
   --IupSetFunction("GLOBALWHEEL_CB", Icallback("globalwheel_cb"));
+
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
 
     IupMap(dlg);
 

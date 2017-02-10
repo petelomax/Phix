@@ -1,0 +1,3954 @@
+--written by Don Phillips with some modifications for IDE
+
+--without warning
+--with type_check
+include Includes\nlsEU.ew
+--/*
+include Includes\Print.e
+--*/
+object VOID
+integer ok
+--judith forced Syntax parent to open and close Syntax once per IDE session. This
+--might help somewhat with 'font changing' problem.
+
+-- Brian Broker has made a few changes in this module. His changes are now
+--   documented with his name.
+
+-- register a few API calls -------------------------------------------------------------
+-- Brian Broker removed API declarations that already existed in Win32Lib
+--   and re-declared the 2 remaining routines using current Win32Lib functions
+constant
+xStrlen     = registerw32Function(kernel32, "lstrlenA", {C_POINTER}, C_LONG),
+xExtTextOut = registerw32Procedure(gdi32, "ExtTextOutA", {C_POINTER,C_LONG,C_LONG,C_LONG,C_POINTER,C_POINTER,C_LONG,C_POINTER})
+
+-- variables for Syntax2 ----------------------------------------------------------------
+
+-- control handles
+integer
+SynFrame, LineGutter, Syntax, SynPix, SynVScroll, SynHScroll, CursorPix, SynInput, Options, ParID
+
+integer SynPopup
+sequence PopEditItems
+atom
+OptWin, WL_Group, WLN_Add, WLN_Remove, WLN_Lists, WLN_Color, WL_Add, WL_Remove,
+WL_List, Close, FNT_Group, FNT_Change, FNT_List, FNT_Pnt, UND_Group, UND_Unlim,
+UND_Ed, UND_UpDn, TS_Group, TS_Width, TS_UpDn, Add_Txt1, Add_Txt2, Cancel
+integer
+GoToWin, GoToLbl, GoTo_Ed, GoTo_ok, GoTo_can
+global integer FindWin
+integer FindW_Lbl, FindW_Ed, FindR_Lbl, FindR_Ed, FindHW, FindMC, FindN, FindR,
+FindRA, FindC, Find_RU, Find_RD, Find_Restrict--, Find_G
+
+-- state variables
+global
+sequence       Actual      Actual      = {{}}
+global
+sequence       Printable   Printable   = {{}}
+global
+sequence       UnBuff      UnBuff      = {}
+integer        SynSizeX    SynSizeX    = 0
+integer        SynSizeY    SynSizeY    = 0
+integer        TabStop     TabStop     = 4
+global
+integer        MaxLine     MaxLine     = 0
+integer        NumLinesX   NumLinesX   = 0
+integer        NumLinesY   NumLinesY   = 0
+integer        StartLine   StartLine   = 1
+integer        StartOff    StartOff    = 1
+integer   synautocomplete  synautocomplete = w32True
+
+-- variables related to cursor
+integer        CursorX1    CursorX1    = 0
+integer        CursorX2    CursorX2    = 0
+integer        CursorY     CursorY     = 1
+integer        CursorW     CursorW     = 0
+integer        CursorSt    CursorSt    = 1
+integer        CarrotVis   CarrotVis   = w32False
+integer        BlinkTime   BlinkTime   = 0
+-- Brian Broker
+--integer      lastCursX   lastCursX   = 0
+
+-- variables related to selection
+integer        DragMouse   DragMouse   = w32False
+integer        HasSelec    HasSelec    = w32False
+integer        CursorXs1   CursorXs1   = 0
+integer        CursorXs2   CursorXs2   = 0
+integer        CursorYs    CursorYs    = 1
+integer        CursorWs    CursorWs    = 0
+integer        CursorXo2   CursorXo2   = 0
+integer        CursorYo    CursorYo    = 0
+
+-- hightlight word lists
+sequence    WordName    WordName    = {}
+sequence    WordList    WordList    = {}
+sequence    ColorList   ColorList   = {}
+
+-- character class for scanning
+sequence    Variable    Variable    = repeat(0, 255)
+            Variable['a'..'z']      = 1
+            Variable['A'..'Z']      = 1
+            Variable['0'..'9']      = 1
+            Variable['_']           = 1
+            Variable['\'']          = 2
+            Variable['"']           = 2
+            Variable['-']           = 3
+            Variable['.']           = 4
+            Variable['\'']          = 5
+
+-- character class for print filter
+sequence    PFilter        PFilter   = repeat(1, 255)
+            PFilter[8]               = 0
+            PFilter[10]              = 0
+            PFilter[127]             = 0
+
+-- character class for non-print filter
+sequence    NPFilter    NPFilter    = repeat(0, 255)
+            NPFilter[8]             = 1
+            NPFilter[46]            = 1
+            NPFilter[33..40]        = 1
+            NPFilter[112]           = 1
+
+-- variables related to the font
+atom        hFont        hFont        = 0
+sequence    FontSize     FontSize     = {}
+
+-- extra variable
+object        Void
+
+-- variables related to the options window
+integer     NumDeflts    NumDeflts   = 0
+sequence    oWordName    oWordName   = {}
+sequence    oWordList    oWordList   = {}
+sequence    oColorList   oColorList  = {}
+
+-- variables related to open file
+sequence    synFileN    synFileN    = {}
+integer     FileOpen    FileOpen    = w32False
+sequence    CurrPath    CurrPath    = {}
+global
+integer     EnableHL    EnableHL    = w32True
+integer     isModified  isModified  = w32False
+
+-- variables related dialogs
+integer     OptOpen        OptOpen        = w32False
+integer     OpenDialog     OpenDialog     = w32False
+
+-- variables related to MainLine
+integer     F1CallBack              F1CallBack    = 0
+integer     HintCB                  HintCB        = 0
+global
+integer     HintLocY                HintLocY      = 0
+global
+integer     synSaveAsFileName_id    synSaveAsFileName_id = 0
+global
+integer     synOpenFileName_id      synOpenFileName_id = 0
+global
+integer     sendUserHotKey_id       sendUserHotKey_id   = 0
+global
+integer     synNoFileName_id        synNoFileName_id  = 0
+global
+atom        RepaintEditorCaption_id RepaintEditorCaption_id = -1 --Josef
+global
+integer     syntaxCallCE_id         syntaxCallCE_id = -1
+integer     findRoutineName_id      findRoutineName_id = -1
+global
+integer     moduleIsInProject_id    moduleIsInProject_id = -1
+global
+integer     badFile                 badFile = 0
+global
+integer     colorLocals             colorLocals = w32False   --for v0.18.0
+integer     colorModuleLocals       colorModuleLocals = w32False --for v0.18.0
+integer     colorControlName        colorControlName = w32False --for v0.20.0
+integer     hideGutter              hideGutter = w32False
+sequence    UserHotKeys             UserHotKeys = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+sequence    UserHotKeyText          UserHotKeyText = {{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""}}
+sequence    defaultHotKeyFileName   defaultHotKeyFileName = "IDE_HotKey.dat"
+sequence    ValidFKeys              ValidFKeys = {"#F2#","#F3#","#F4#","#F7#","#F8#","#F9#","#F10#","#F11#",
+                                                  "#Shift-F2#","#Shift-F3#","#Shift-F4#","#Shift-F7#","#shift-F8#",
+                                                  "#Shift-F9#","#Shift-F10#","#Shift-F11#"}
+integer     oldStartLine            oldStartLine = 0
+integer     oldNumLinesY            oldNumLinesY = 0
+integer     newguttersize           newguttersize = 50
+integer     skipCtrl_S              skipCtrl_S = w32False
+integer     skipState               skipState = w32False
+-- CChris 11/05/2007
+-- CtrlShift is now private to onKeyDown_SynInput()
+integer     synUnindent_id
+global
+integer     abortClose              abortClose = w32False
+global
+integer     ActiveModule            ActiveModule = w32False
+
+integer         adjustEscLineNumberSw   adjustEscLineNumberSw = w32False
+integer         adjustedEscLineNumber   adjustedEscLineNumber = 0
+
+global sequence EscStack EscStack = {}
+global sequence EscStackItem    EscStackItem = {"",0,1,1,0,"",""}
+--jumpName,jumpPos1,jumpPos2,jumpTopLine,jumpId,jumpEvent,F1Name
+global sequence currentControlEvent currentControlEvent = {}
+
+
+-- gets a selection in the right order --------------------------------------------------
+function GetSelection()
+sequence Sel1
+sequence Sel2
+sequence Temp
+
+    if CursorY<1 then CursorY = 1 end if
+    if CursorY>length(Actual) then CursorY = length(Actual) end if
+    if CursorX1<0 then CursorX1 = 0 end if
+    if CursorX1>length(Actual[CursorY]) then CursorX1 = length(Actual[CursorY]) end if
+    if CursorX2<0 then CursorX2 = 0 end if
+    if CursorX2>length(Printable[CursorY]) then CursorX2 = length(Printable[CursorY]) end if
+    if CursorW<0 then CursorW = 0 end if
+    if CursorW>length(Printable[CursorY]) then CursorW = length(Printable[CursorY]) end if
+
+    if CursorYs<1 then CursorYs = 1 end if
+    if CursorYs>length(Actual) then CursorYs = length(Actual) end if
+    if CursorXs1<0 then CursorXs1 = 0 end if
+    if CursorXs1>length(Actual[CursorYs]) then CursorXs1 = length(Actual[CursorYs]) end if
+    if CursorXs2<0 then CursorXs2 = 0 end if
+    if CursorXs2>length(Printable[CursorYs]) then CursorXs2 = length(Printable[CursorYs]) end if
+    if CursorWs<0 then CursorWs = 0 end if
+    if CursorWs>length(Printable[CursorYs]) then CursorWs = length(Printable[CursorYs]) end if
+
+    Sel1 = {CursorY, CursorX1, CursorX2, CursorW}
+    Sel2 = {CursorYs, CursorXs1, CursorXs2, CursorWs}
+
+    if compare(Sel2,Sel1)= -1 then
+        Temp = Sel1
+        Sel1 = Sel2
+        Sel2 = Temp
+    end if
+
+    return( {Sel1,Sel2} )
+end function
+
+-- keep cursor in view ------------------------------------------------------------------
+function ShiftView()
+integer DidPaint
+
+--judith
+integer size1
+sequence size,fontsize
+    size = getCtlSize(LineGutter)
+    fontsize = getFontSize(LineGutter)
+    size1 = floor(size[1]/fontsize[1])
+    if hideGutter then
+        size1 = 0
+    end if
+    --
+
+    DidPaint = 0
+    if CursorX2<StartOff then             --CoJaBo:CursorX1 didnt account for tabs
+        setScrollPos(SynHScroll, CursorX2)  --ditto
+        DidPaint = 1
+    elsif CursorW+size1>=(StartOff+NumLinesX-1) then   --judith added size1
+        setScrollPos(SynHScroll, CursorX2-NumLinesX+2+size1)  --ditto
+        DidPaint = 1
+    end if
+
+    if CursorY<StartLine then
+        setScrollPos(SynVScroll, CursorY)
+        DidPaint = 1
+    elsif CursorY>StartLine+NumLinesY-3 then
+        setScrollPos(SynVScroll, CursorY-NumLinesY+3)
+        DidPaint = 1
+    end if
+    return DidPaint
+end function
+
+-- convert actual line w/tabs to spaced -------------------------------------------------
+function RemoveTabs(object Line)
+sequence NewLine
+integer TabPos
+
+    NewLine = {}
+
+    if sequence(Line) then
+        TabPos = find(9, Line)
+        while TabPos do
+            NewLine &= Line[1..TabPos-1]
+            NewLine &= repeat(32, TabStop-remainder(length(NewLine),TabStop))
+            Line = Line[TabPos+1..length(Line)]
+            TabPos = find(9, Line)
+        end while
+        NewLine &= Line
+    end if
+
+    return( NewLine )
+end function
+
+-- resets the scroll bars ---------------------------------------------------------------
+procedure ResetScrollBars()
+atom PageSize
+--judith
+sequence size,fontsize
+integer size1
+    size = getCtlSize(LineGutter)
+    fontsize = getFontSize(LineGutter)
+    size1 = floor(size[1]/fontsize[1])
+    if hideGutter then
+        size1 = 0
+    end if
+    --
+
+    setScrollRange(SynVScroll, 1, length(Actual)-1)--CoJaBo added -1 to correct bug caused by corrected bug
+    setScrollRange(SynHScroll, 0, MaxLine+size1-1)  --judith added size1, CoJaBo added -1 to correct bug caused by corrected bug
+
+    PageSize = allocate(28)
+    mem_set(PageSize, 0, 28)
+    poke4(PageSize, {28,w32or_all({SIF_PAGE,SIF_DISABLENOSCROLL})})
+    poke4(PageSize+16, NumLinesY-2)
+    Void = w32Func(xSetScrollInfo, {getHandle(SynVScroll),SB_CTL,PageSize,w32True})
+    poke4(PageSize+16, NumLinesX-1)
+    Void = w32Func(xSetScrollInfo, {getHandle(SynHScroll),SB_CTL,PageSize,w32True})
+    free(PageSize)
+    repaintWindow(SynVScroll)
+    repaintWindow(SynHScroll)
+end procedure
+
+------------------------------
+-- initialize syntax
+global procedure establishSyntax()
+integer ok
+
+    Actual = {{}}
+    Printable = {{}}
+
+    MaxLine    = 0
+    CursorX1   = 0
+    CursorX2   = 0
+    CursorW    = 0
+    CursorY    = 1
+
+    UnBuff = {}
+
+    isModified = w32False
+    FileOpen = w32False
+    HasSelec    = w32False
+
+
+    ResetScrollBars()
+    repaintWindow(Syntax)
+    ok = invokeHandler(Syntax, w32HChange, {}) --in editors module
+
+end procedure
+
+
+-- load a file and format ---------------------------------------------------------------
+procedure loadFile(sequence FileName)
+atom hFile
+object Line
+integer LastChar
+sequence ModLine
+integer ok
+
+    LastChar = 10
+    synFileN = FileName
+    FileOpen = w32False
+
+    Actual = {}
+    Printable = {}
+    MaxLine = 0
+    CursorX1    = 0
+    CursorX2    = 0
+    CursorW     = 0
+    CursorY     = 1
+
+    UnBuff = {}
+    HasSelec    = w32False
+    isModified = w32False
+
+    setScrollPos(SynVScroll, 1)
+    setScrollPos(SynHScroll, 0)
+
+    ActiveModule = w32False
+    if match("win32lib.ew", lower(synFileN)) then
+        ActiveModule = w32True
+    end if
+
+    hFile = open(synFileN, "r")
+    if hFile= -1 then
+        ok = displayErrorMessage(148,{synFileN})
+    end if
+
+    if hFile!= -1 then
+        FileOpen = w32True
+        badFile = w32False
+
+        --dont re-parse file already loaded to project
+        if moduleIsInProject_id!= -1 then
+            call_proc(moduleIsInProject_id,{synFileN})
+        end if
+
+        while 1 do
+            Line = gets(hFile)
+
+            if atom(Line) then exit end if
+            if find(0,Line) then
+                badFile = w32True
+                exit
+            end if
+
+            LastChar = Line[length(Line)]
+            Line = Line[1..length(Line)-1]
+
+            ModLine = RemoveTabs(Line)
+
+            --check for colorization
+            if EnableHL then
+                if not ActiveModule then
+                    call_proc(findRoutineName_id,{Line})  --Andy Drummond
+                end if
+            end if
+
+            Actual = append(Actual, Line)
+            Printable = append(Printable, ModLine)
+
+            if length(ModLine)>MaxLine then
+                MaxLine = length(ModLine)
+            end if
+        end while
+
+        if LastChar=10 then
+            Actual = append(Actual, {})
+            Printable = append(Printable, {})
+        else
+            Actual[length(Actual)] &= LastChar
+            Printable[length(Printable)] &= LastChar
+
+            if length(ModLine)+1>MaxLine then
+                MaxLine = length(ModLine)+1
+            end if
+        end if
+
+        close(hFile)
+    end if
+
+    if length(Actual)=0 then
+        Actual = {{}}
+        Printable = {{}}
+    end if
+
+    ResetScrollBars()
+    repaintWindow(Syntax)
+
+    ok = invokeHandler(Syntax, w32HChange, {}) --in editor's module
+
+end procedure
+
+-- blink the carrot ---------------------------------------------------------------------
+procedure InvertCarrot(integer CntlID, integer Event, sequence Params)
+integer YCoord
+integer End
+
+    YCoord = ( CursorY-StartLine )*FontSize[2]
+    End = ( CursorX2-StartOff )*FontSize[1]
+
+    if CarrotVis then
+        CursorSt *= -1
+        if CursorSt=1 then -- it's visible so hide it...
+            setPenColor(Syntax, ColorList[2])
+            drawRectangle(Syntax, w32True, End, YCoord, End+2, YCoord+FontSize[2])
+        else
+            bitBlt(Syntax, End, YCoord, CursorPix, 0, 0, 2, FontSize[2], SrcCopy)
+        end if
+    else
+        bitBlt(Syntax, End, YCoord, CursorPix, 0, 0, 2, FontSize[2], SrcCopy)
+    end if
+
+end procedure
+
+-- place a font into a dc ---------------------------------------------------------------
+procedure putFontIntoDC(atom cntlID, atom hDC, sequence FontName, integer PointSize)
+atom lfHeight
+atom Logfont
+
+    if cntlID then end if
+    if hFont=0 then
+        lfHeight = -( PointSize*w32Func(xGetDeviceCaps,{hDC,#5A}) )/72
+        Logfont = allocate(60)
+        mem_set(Logfont, 0, 60)
+        poke4(Logfont, lfHeight)
+        poke(Logfont+28, FontName)
+        hFont = w32Func(xCreateFontIndirect, {Logfont})
+        free(Logfont)
+    end if
+end procedure
+
+-- Brian Broker added for line number gutter
+procedure onPaint_MainWin(integer CntlID, integer Event, sequence Params)
+    if not hideGutter then
+        copyBlt(CntlID,0,0,LineGutter)
+    end if
+end procedure
+
+-------------------------------------------------------
+-- Brian Broker added for Line Gutter
+procedure onResize_MainWin(integer CntlID, integer Event, sequence Params)
+    if not hideGutter then
+        setCtlSize(LineGutter,newguttersize,Params[3])
+    end if
+    repaintWindow(Syntax)
+end procedure
+
+-- repaint the highlighter --------------------------------------------------------------
+procedure onPaint_Syntax(integer CntlID, integer Event, sequence Params)
+integer YCoord
+integer End
+sequence Sel1, Sel2
+sequence Temp
+integer Loop, Loop3
+atom hWnd, hDC
+atom cpDC
+atom oldcr, oldFont
+atom Rect
+atom hdcMem, hbmMem, hbmOld
+atom buffer
+atom mset
+atom tm
+object size --Changed to object by CoJaBo for code below
+integer tiscomment
+
+
+    --don't know if this will help with problem when hibernate computer and Win32lib
+    --puts out a lot of warning messages
+    if isMinimized(ParID) then
+        return
+    end if
+
+    YCoord  = 0
+
+    hWnd = getHandle(Syntax)
+
+    hDC = w32Func(xGetDC, {hWnd})
+    Rect = allocate(16)
+    Void = w32Func(xGetClientRect, {hWnd,Rect})
+
+    hdcMem = w32Func(xCreateCompatibleDC, {hDC})
+    hbmMem = w32Func(xCreateCompatibleBitmap, {hDC,peek4s(Rect+8)-peek4s(Rect),peek4s(Rect+12)-peek4s(Rect+4)})
+    hbmOld = w32Func(xSelectObject, {hdcMem,hbmMem})
+    oldFont = w32Func(xSelectObject, {hdcMem,hFont})
+
+    mset = w32new_memset()
+    tm  = w32acquire_mem(mset, SIZEOF_TEXTMETRIC)
+    FontSize = {0,0}
+    Void = w32Func(xGetTextMetrics, {hdcMem,tm})
+    FontSize[1] = floor(w32fetch(tm,tmAveCharWidth))
+    FontSize[2] = floor(w32fetch(tm,tmHeight))+1
+    w32release_mem(mset)
+    setCtlSize(CursorPix, 2, FontSize[2])
+    NumLinesX = floor(SynSizeX/FontSize[1]) --+ 1
+    NumLinesY = floor(SynSizeY/FontSize[2]) --+ 1
+    setScrollChange(SynVScroll, 1, NumLinesY)
+    setScrollChange(SynHScroll, 1, NumLinesX)
+    ResetScrollBars()
+
+    killTimer(Syntax, 1)
+
+    Void = w32Func(xSetBkMode, {hdcMem,OPAQUE})
+    oldcr = w32Func(xSetBkColor, {hdcMem,ColorList[1]})
+    w32Proc(xExtTextOut, {hdcMem,0,0,2,Rect,0,0,0})
+
+    StartLine = getScrollPos(SynVScroll)
+    StartOff = getScrollPos(SynHScroll)
+    End = StartLine+NumLinesY-1
+
+    if End>length(Actual) then
+        End = length(Actual)
+    end if
+
+    Void = w32Func(xSetBkColor, {hdcMem,ColorList[1]})
+
+    if MaxLine!=0 then
+        buffer = allocate(MaxLine+1)
+        YCoord = 0
+        for Iter=StartLine to End do
+            Temp = Printable[Iter]
+            Void = w32Func(xSetTextColor, {hdcMem,ColorList[3]})
+            poke(buffer, Temp)--& 0 )
+            w32Proc(xTextOut, {hdcMem,-StartOff*FontSize[1],YCoord,buffer,length(Temp)})
+
+--            if EnableHL then
+            tiscomment = w32False
+            Temp &= 32 & 32
+            Loop = 1
+            while Loop<length(Temp)-1 do
+                if Temp[Loop]=0 then
+                    --not valid file type
+                    exit
+                end if
+
+                if Variable[Temp[Loop]]=1 then
+                    for Loop2=Loop+1 to length(Temp)-1 do
+                        if Variable[Temp[Loop2]]!=1 then
+                            Sel1 = Temp[Loop..Loop2-1]
+
+                            if EnableHL then
+                                for list=1 to length(WordList) do
+                                    if find(Sel1, WordList[list]) then
+                                        Void = w32Func(xSetTextColor, {hdcMem,ColorList[list]})
+                                        poke(buffer, Sel1)
+                                        w32Proc(xTextOut, {hdcMem,(Loop-StartOff-1)*FontSize[1],YCoord,buffer,length(Sel1)})
+                                        exit
+                                    end if
+                                end for
+                            else
+                                for list=1 to length(WordList)-1 do
+                                    if find(Sel1, WordList[list]) then
+                                        Void = w32Func(xSetTextColor, {hdcMem,ColorList[list]})
+                                        poke(buffer, Sel1)
+                                        w32Proc(xTextOut, {hdcMem,(Loop-StartOff-1)*FontSize[1],YCoord,buffer,length(Sel1)})
+                                        exit
+                                    end if
+                                end for
+                            end if
+
+                            if colorLocals then
+                            --new feature for v0.18.0
+                                if colorModuleLocals then
+                                    if find(Sel1, localKeywords) then --module local keywords
+                                        Void = w32Func(xSetTextColor, {hdcMem,ColorList[15]}) --use Module color list
+                                        poke(buffer, Sel1)
+                                        w32Proc(xTextOut, {hdcMem,(Loop-StartOff-1)*FontSize[1],YCoord,buffer,length(Sel1)})
+                                        exit
+                                    end if
+                                else
+                                    if find(Sel1, ceKeywords) then  --control-event local keywords
+                                        Void = w32Func(xSetTextColor, {hdcMem,ColorList[15]}) --use Module color list
+                                        poke(buffer, Sel1)
+                                        w32Proc(xTextOut, {hdcMem,(Loop-StartOff-1)*FontSize[1],YCoord,buffer,length(Sel1)})
+                                        exit
+                                    end if
+                                end if
+                            end if
+                            if colorControlName then        --0.20.0
+                                if find(Sel1, controlNameKeywords) then --control name keywords
+                                    Void = w32Func(xSetTextColor, {hdcMem,ColorList[15]}) --use Module color list
+                                    poke(buffer, Sel1)
+                                    w32Proc(xTextOut, {hdcMem,(Loop-StartOff-1)*FontSize[1],YCoord,buffer,length(Sel1)})
+                                    exit
+                                end if
+                            end if
+
+                            Loop = Loop2-1
+                            exit
+                        end if
+                    end for
+                elsif Variable[Temp[Loop]]=3 then
+                    if Variable[Temp[Loop+1]]=3 then
+                        Void = w32Func(xSetTextColor, {hdcMem,ColorList[6]})
+                        poke(buffer, Temp[Loop..length(Temp)-2])
+                        w32Proc(xTextOut, {hdcMem,(Loop-StartOff-1)*FontSize[1],YCoord,buffer,length(Temp[Loop..length(Temp)-2])})
+                        tiscomment = w32True
+                        exit
+                    end if
+                elsif Variable[Temp[Loop]]=2 then
+                    Loop3 = Loop+1
+                    while Loop3<=length(Temp) do
+                        if Temp[Loop3]=Temp[Loop] or
+                        Loop3=length(Temp) then
+                            Void = w32Func(xSetTextColor, {hdcMem,ColorList[7]})
+                            poke(buffer, Temp[Loop..Loop3])
+                            w32Proc(xTextOut, {hdcMem,(Loop-StartOff-1)*FontSize[1],YCoord,buffer,length(Temp[Loop..Loop3])})
+                            Loop = Loop3+1
+                            exit
+                        elsif Temp[Loop3]=92 then --47 then
+                            Loop3 += 1
+                        end if
+                        Loop3 += 1
+                    end while
+                    Loop = Loop3--The ""-- bug is FIXED! (CoJaBo)
+                end if
+                Loop += 1
+                if tiscomment then
+                    exit
+                end if
+            end while
+--            end if
+            YCoord += FontSize[2]
+        end for
+
+        if HasSelec then
+            Void = w32Func(xSetTextColor, {hdcMem,ColorList[5]})
+            Void = w32Func(xSetBkColor, {hdcMem,ColorList[4]})
+
+            Temp = GetSelection()
+            Sel1 = Temp[1]
+            Sel2 = Temp[2]
+
+            if CursorY=CursorYs then
+                poke(buffer, Printable[CursorY][Sel1[3]+1..Sel2[3]])
+                w32Proc(xTextOut, {hdcMem,(Sel1[3]-StartOff)*FontSize[1],(CursorY-StartLine)*FontSize[2],buffer,length(Printable[CursorY][Sel1[3]+1..Sel2[3]])})
+            else
+                Temp = {Sel1[1], Sel2[1]}
+                if Temp[1]<StartLine-1 then Temp[1] = StartLine-1 end if
+                if Temp[2]>End+1 then Temp[2] = End+1 end if
+
+                poke(buffer, Printable[Sel1[1]][Sel1[3]+1..length(Printable[Sel1[1]])])
+                w32Proc(xTextOut, {hdcMem,(Sel1[3]-StartOff)*FontSize[1],(Sel1[1]-StartLine)*FontSize[2],buffer,length(Printable[Sel1[1]][Sel1[3]+1..length(Printable[Sel1[1]])])})
+                for iter=Temp[1]+1 to Temp[2]-1 do
+                    poke(buffer, Printable[iter])
+                    w32Proc(xTextOut, {hdcMem,-StartOff*FontSize[1],(iter-StartLine)*FontSize[2],buffer,length(Printable[iter])})
+                end for
+                poke(buffer, Printable[Sel2[1]][1..Sel2[3]])
+                w32Proc(xTextOut, {hdcMem,-StartOff*FontSize[1],(Sel2[1]-StartLine)*FontSize[2],buffer,length(Printable[Sel2[1]][1..Sel2[3]])})
+            end if
+        end if
+
+        free(buffer)
+    end if
+
+    if CarrotVis then
+        YCoord = ( CursorY-StartLine )*FontSize[2]
+        End = ( CursorX2-StartOff )*FontSize[1]
+        cpDC = getDC(CursorPix)
+        Void = w32Func(xBitBlt, {cpDC,0,0,2,FontSize[2],hdcMem,End,YCoord,SrcCopy})
+        releaseDC(cpDC)
+    end if
+
+    Void = w32Func(xSetBkColor, {hdcMem,ColorList[2]})
+    poke4(Rect, {End,YCoord,End+2,YCoord+FontSize[2]-1})
+    w32Proc(xExtTextOut, {hdcMem,0,0,2,Rect,0,0,0})
+    Void = w32Func(xSetBkColor, {hdcMem,oldcr})
+
+    CursorSt = 1
+    setTimer(Syntax, 1, BlinkTime)
+
+    Void = w32Func(xBitBlt, {hDC,0,0,SynSizeX,SynSizeY,hdcMem,0,0,SrcCopy})
+
+    free(Rect)
+    Void = w32Func(xSelectObject, {hdcMem,oldFont})
+    Void = w32Func(xSelectObject, {hdcMem,hbmOld})
+    Void = w32Func(xDeleteObject, {hbmMem})
+    Void = w32Func(xDeleteObject, {hdcMem})
+    Void = w32Func(xReleaseDC, {hWnd,hDC})
+
+    --Brian Broker: paint line gutter
+    --judith: size line gutter to accommodate 6 characters at different user
+    --        resolutions
+    --CoJaBo: Fixed slight bug in line gutter
+    size = getRect(LineGutter) size = size[4]-size[2]
+    if not hideGutter then
+        if StartLine!=oldStartLine
+        or size!=oldNumLinesY then
+            oldNumLinesY = size
+            oldStartLine = StartLine
+            drawRectangle(LineGutter,w32True,0,0,newguttersize,size)
+            for y=0 to NumLinesY do
+                setPenPos(LineGutter, 0, (y*FontSize[2]+FontSize[2]/2-7))
+                wPrintf(LineGutter, "%6d", {StartLine+y})
+            end for
+            copyBlt(SynFrame,0,0,LineGutter)
+        end if
+    end if
+    if RepaintEditorCaption_id!= -1 then
+        call_proc(RepaintEditorCaption_id,{}) --Josef
+    end if
+end procedure
+
+-- reset maxline ------------------------------------------------------------------------
+procedure ResetMaxLine()
+    MaxLine = 0
+    for iter=1 to length(Printable) do
+        if length(Printable[iter])>MaxLine then
+            MaxLine = length(Printable[iter])
+        end if
+    end for
+end procedure
+
+-- calculate x coords from wanted -------------------------------------------------------
+procedure ResetXCoordsToW()
+sequence NewLine
+
+    NewLine = {}
+    if not CursorY then return end if --judith
+    if length(Printable[CursorY])>CursorW then
+        for iter=1 to length(Actual[CursorY]) do
+            CursorX1 = iter-1
+            if Actual[CursorY][iter]=9 then
+                NewLine &= repeat(0, TabStop-remainder(length(NewLine),TabStop))
+            else
+                NewLine &= 0
+            end if
+            if length(NewLine)>CursorW then exit end if
+        end for
+        CursorX2 = length(RemoveTabs(Actual[CursorY][1..CursorX1]))
+    else
+        CursorX1 = length(Actual[CursorY])
+        CursorX2 = length(Printable[CursorY])
+    end if
+end procedure
+
+-- mouse handler ------------------------------------------------------------------------
+procedure onMouse_SynInput(integer CntlID, integer Event, sequence Params)
+    --Josef Jindra determined the place for this code was here and not in onMouse_Syntax
+    if Params[1]=WheelMove then  --Tommy Carlier
+        if Params[4]=0 then
+            --Tommy Carlier
+            if Params[5]=1 then -- scroll up
+                Void = getScrollPos(SynVScroll)
+                setScrollPos(SynVScroll, Void-1)
+            elsif Params[5]= -1 then -- scroll down
+                Void = getScrollPos(SynVScroll)
+                setScrollPos(SynVScroll, Void+1)
+            end if
+            --end Tommy carlier
+        else
+            if Params[5]=1 then -- scroll left
+                Void = getScrollPos(SynHScroll)
+                setScrollPos(SynHScroll, Void-1)
+            elsif Params[5]= -1 then -- scroll right
+                Void = getScrollPos(SynHScroll)
+                setScrollPos(SynHScroll, Void+1)
+            end if
+        end if
+    end if
+end procedure
+
+procedure onMouse_Syntax(integer CntlID, integer Event, sequence Params)
+integer ok, tabsCnt
+sequence Temp, Pos
+
+    if Params[1]=LeftDown then
+        if and_bits(Params[4], ShiftMask) then
+            DragMouse = w32True
+            captureMouse(Syntax)
+            Params[1] = MouseMove
+        else
+            HasSelec = w32False
+        end if
+    end if
+
+    if Params[1]=LeftDoubleClick then
+        --highlight the word where user double clicked
+        CursorY = floor(Params[3]/FontSize[2])+StartLine
+        if CursorY>length(Actual) then
+            CursorY = length(Actual)
+            StartOff = length(Actual[CursorY])  --judith
+        end if
+        Pos = {0,0}
+        Temp = 32 & 32 & Actual[CursorY] & 32 & 32
+        --find beginning and ending positon of word d-clicked        
+        for Loop=CursorX1+2 to 2 by -1 do
+            if Variable[Temp[Loop]]!=1 then
+                Pos[1] = Loop+1
+                exit
+            end if
+        end for
+        for Loop=CursorX1+3 to length(Temp)-1 do
+            if Variable[Temp[Loop]]!=1 then
+                Pos[2] = Loop-1
+                exit
+            end if
+        end for
+
+        --find any tabs prior to word d-clicked
+        tabsCnt = 0
+        for i=1 to Pos[1]-1 do
+            if Temp[i]=9 then
+                tabsCnt += (TabStop-1)
+            end if
+        end for
+        Pos[1] += tabsCnt
+        Pos[2] += tabsCnt
+
+        --adjust positions for spaces before and after compare sequence
+        Pos[1] -= 3
+        Pos[2] -= 2
+
+        if Pos[2]<Pos[1] then Pos[2] = Pos[1] end if
+        --set starting position within Actual and Printable
+        CursorW = Pos[1]
+        if CursorW<0 then CursorW = 0 end if
+        ResetXCoordsToW()
+        CursorXs1 = CursorX1
+        CursorXs2 = CursorX2
+        CursorYs = CursorY
+        CursorWs = CursorW
+        CursorXo2 = CursorX2
+        CursorYo = CursorY
+        HasSelec = w32True
+        --highlight each position from word start to word end
+        for x=Pos[1] to Pos[2] do
+            CursorY = floor(Params[3]/FontSize[2])+StartLine
+            if CursorY<1 then CursorY = 1 end if
+            if CursorY>length(Actual) then CursorY = length(Actual) end if
+            --CursorW = floor( (x+FontSize[1]/2) / FontSize[1] ) + StartOff         
+            CursorW = x
+            if CursorW<0 then CursorW = 0 end if
+            ResetXCoordsToW()
+            if CursorY!=CursorYo or CursorX2!=CursorXo2 then
+                HasSelec = w32True
+                CursorXo2 = CursorX2
+                CursorYo = CursorY
+                if not ShiftView() then
+                    repaintWindow(Syntax)
+                end if
+                ok = invokeHandler(Syntax, w32HChange, {})  --in editors module
+            end if
+        end for
+    end if
+
+    if Params[1]=LeftDown then
+        CursorY = floor(Params[3]/FontSize[2])+StartLine
+        if CursorY>length(Actual) then
+            CursorY = length(Actual)
+            StartOff = length(Actual[CursorY])  --judith
+        end if
+        CursorW = floor((Params[2]+FontSize[1]/2)/FontSize[1])+StartOff
+        ResetXCoordsToW()
+        CursorXs1 = CursorX1
+        CursorXs2 = CursorX2
+        CursorYs = CursorY
+        CursorWs = CursorW
+        CursorXo2 = CursorX2
+        CursorYo = CursorY
+        if not ShiftView() then
+            repaintWindow(Syntax)
+        end if
+        DragMouse = w32True
+        captureMouse(Syntax)
+
+        ok = invokeHandler(Syntax, w32HChange, {})  --in editors module
+
+    elsif Params[1]=MouseMove then
+        if DragMouse then
+            CursorY = floor(Params[3]/FontSize[2])+StartLine
+            if CursorY<1 then CursorY = 1 end if
+            if CursorY>length(Actual) then CursorY = length(Actual) end if
+            CursorW = floor((Params[2]+FontSize[1]/2)/FontSize[1])+StartOff
+            if CursorW<0 then CursorW = 0 end if
+            ResetXCoordsToW()
+            if CursorY!=CursorYo or CursorX2!=CursorXo2 then
+                HasSelec = w32True
+                CursorXo2 = CursorX2
+                CursorYo = CursorY
+                if not ShiftView() then
+                    repaintWindow(Syntax)
+                end if
+
+                ok = invokeHandler(Syntax, w32HChange, {})  --in editors module
+            end if
+        end if
+
+    elsif Params[1]=RightDown then
+        setMousePointer(Syntax, ArrowPointer)
+        -- modify menu here
+        if HasSelec then
+            --setEnable( Item2, w32True )
+            --setEnable( Item3, w32True )
+            setEnable(PopEditItems[3..4], w32True)
+        else
+            --setEnable( Item2, w32False )
+            --setEnable( Item3, w32False )
+            setEnable(PopEditItems[3..4], w32False)
+        end if
+        if length(UnBuff) then
+            --setEnable( Item5, w32False )
+            setEnable(PopEditItems[1], w32True)
+        else
+            --setEnable( Item5, w32False )
+            setEnable(PopEditItems[1], w32False)
+        end if
+        if w32Func(xIsClipboardFormatAvailable,{CF_TEXT}) then
+            --setEnable( Item4, w32True )
+            setEnable(PopEditItems[5],w32True)
+        else
+            --setEnable( Item4, w32False )
+            setEnable(PopEditItems[5],w32False)
+        end if
+        popup(SynPopup, Params[2], Params[3])
+        setMousePointer(Syntax, IBeamPointer)
+
+    elsif Params[1]=LeftUp then
+        if DragMouse then
+            DragMouse = w32False
+            releaseMouse()
+        end if
+    end if
+end procedure
+
+-- procedure to place cursor at a relative position -------------------------------------
+procedure MoveCursorRel(integer XMod, integer YMod, integer RePaint)
+    if YMod=0 then
+        CursorX1 += XMod
+        if CursorX1<0 then
+            if CursorY!=1 then
+                CursorY -= 1
+                CursorX1 = length(Actual[CursorY])
+            else
+                CursorX1 = 0
+            end if
+        end if
+        if CursorX1>length(Actual[CursorY]) then
+            if CursorY!=length(Actual) then
+                CursorX1 = 0
+                CursorY += 1
+            else
+                CursorX1 = length(Actual[CursorY])
+            end if
+        end if
+        CursorW = length(RemoveTabs(Actual[CursorY][1..CursorX1]))
+        CursorX2 = CursorW
+    else
+        CursorY += YMod
+        if CursorY<1 then CursorY = 1 end if
+        if CursorY>length(Actual) then CursorY = length(Actual) end if
+        ResetXCoordsToW()
+    end if
+
+    if RePaint then
+        if not ShiftView() then repaintWindow(Syntax) end if
+    end if
+end procedure
+
+-- procedure to place cursor at an absolute position ------------------------------------
+procedure MoveCursorAbs(integer XPos, integer YPos, integer RePaint)
+    CursorX1 = XPos
+    if YPos<1 then
+        YPos = 1
+    end if
+    --Josef
+    if length(Actual)<YPos then
+        CursorY = length(Actual)
+    else
+        CursorY = YPos
+    end if
+    --end Josef
+    if CursorX1>length(Actual[CursorY]) then
+        CursorX1 = length(Actual[CursorY])
+    end if
+    CursorW = length(RemoveTabs(Actual[CursorY][1..CursorX1]))
+    CursorX2 = CursorW
+
+    if RePaint then
+        if not ShiftView() then
+            repaintWindow(Syntax)
+        end if
+    end if
+end procedure
+
+-- function to return current selected text in file format ------------------------------
+function ReturnSelection()
+sequence RetText
+sequence Sel
+
+    Sel = GetSelection()
+    if Sel[1][1]=Sel[2][1] then
+        RetText = Actual[CursorY][Sel[1][2]+1..Sel[2][2]]
+    else
+        RetText = Actual[Sel[1][1]][Sel[1][2]+1..length(Actual[Sel[1][1]])] & 13 & 10
+        for iter=Sel[1][1]+1 to Sel[2][1]-1 do
+            RetText &= Actual[iter][1..length(Actual[iter])] & 13 & 10
+        end for
+        RetText &= Actual[Sel[2][1]][1..Sel[2][2]]
+    end if
+
+    return( RetText )
+end function
+
+-- clipboard stuff ----------------------------------------------------------------------
+function ModifyClipboard(object setting)
+object retVal
+sequence seqCopy
+atom hglbCopy
+atom lptstrCopy
+integer StrLen
+
+    if sequence(setting) then
+        seqCopy = setting
+        setting = 2
+    end if
+
+    retVal = 0
+
+    if setting=0 or setting=2 then
+        if setting=0 then
+            seqCopy = ReturnSelection()
+        end if
+
+        Void = w32Func(xOpenClipboard, {getHandle(Syntax)})
+        Void = w32Func(xEmptyClipboard, {})
+        hglbCopy = w32Func(xGlobalAlloc, {w32or_all({GMEM_DDESHARE,GMEM_MOVEABLE}),length(seqCopy)+1})
+        if hglbCopy then
+            lptstrCopy = w32Func(xGlobalLock, {hglbCopy})
+            seqCopy &= 0
+            poke(lptstrCopy, seqCopy)
+            Void = w32Func(xGlobalUnlock, {hglbCopy})
+            Void = w32Func(xSetClipboardData, {CF_TEXT,hglbCopy})
+        end if
+        w32Proc(xCloseClipboard, {})
+    else
+        retVal = {{}}
+        if w32Func(xIsClipboardFormatAvailable,{CF_TEXT}) then
+            Void = w32Func(xOpenClipboard, {getHandle(Syntax)})
+            hglbCopy = w32Func(xGetClipboardData, {CF_TEXT})
+            if hglbCopy then
+                lptstrCopy = w32Func(xGlobalLock, {hglbCopy})
+                StrLen = w32Func(xStrlen, {lptstrCopy})
+                retVal = peek({lptstrCopy, StrLen})
+                Void = w32Func(xGlobalUnlock, {hglbCopy})
+            end if
+        end if
+        w32Proc(xCloseClipboard, {})
+    end if
+
+    return( retVal )
+end function
+
+-- Set limits to the undo buffer --------------------------------------------------------
+procedure TruncateUnBuff()
+object Depth
+
+    Depth = isChecked(UND_Unlim)
+    if Depth=0 then
+        Depth = value(getText(UND_Ed))
+        if Depth[1]=GET_SUCCESS then
+            if length(UnBuff)>Depth[2] then
+                UnBuff = UnBuff[length(UnBuff)-Depth[2]+1..length(UnBuff)]
+            end if
+        end if
+    end if
+end procedure
+
+-- procedure to insert text into syntax -------------------------------------------------
+procedure InsertText(object NewText, integer enableUndo)
+sequence Temp
+sequence Act
+
+--judith
+    if not CursorY then
+        establishSyntax()
+    end if
+    --end
+
+    if atom(NewText) then
+        if enableUndo then
+            UnBuff = append(UnBuff, {1,{CursorY,CursorX1,CursorX2,CursorW}})
+            TruncateUnBuff()
+        end if
+
+        --judith
+        if not length(Actual) then
+            Actual &= {""}
+            Printable &= {""}
+        end if
+        --end
+
+        Actual[CursorY] = Actual[CursorY][1..CursorX1] & NewText & Actual[CursorY][CursorX1+1..length(Actual[CursorY])]
+        Printable[CursorY] = RemoveTabs(Actual[CursorY])
+        if length(Printable[CursorY])>MaxLine then
+            MaxLine = length(Printable[CursorY])
+        end if
+
+        MoveCursorRel(1, 0, enableUndo)
+    else
+        if enableUndo then
+            UnBuff = append(UnBuff, {5,{CursorY,CursorX1,CursorX2,CursorW},NewText})
+            TruncateUnBuff()
+        end if
+
+        if length(NewText)=1 then
+            Act = Actual[CursorY]
+            Act = Act[1..CursorX1] & NewText[1] & Act[CursorX1+1..length(Act)]
+            Printable[CursorY] = RemoveTabs(Act)
+            Actual[CursorY] = Act
+
+        elsif length(NewText)>1 then
+            Temp = Actual[CursorY]
+            Act = Temp
+            Act = Act[1..CursorX1] & NewText[1]
+            Printable[CursorY] = RemoveTabs(Act)
+            Actual[CursorY] = Act
+
+            Actual = Actual[1..CursorY] & NewText[2..length(NewText)] & Actual[CursorY+1..length(Actual)]
+            Printable = Printable[1..CursorY] & NewText[2..length(NewText)] & Printable[CursorY+1..length(Printable)]
+            for iter=CursorY+1 to length(NewText)+CursorY-1 do
+                Printable[iter] = RemoveTabs(Printable[iter])
+            end for
+
+            Actual[length(NewText)+CursorY-1] = Actual[length(NewText)+CursorY-1] & Temp[CursorX1+1..length(Temp)]
+            Printable[length(NewText)+CursorY-1] = RemoveTabs(Actual[length(NewText)+CursorY-1])
+        end if
+    end if
+end procedure
+
+-- procedure to delete the current selection --------------------------------------------
+procedure RemoveSelection()
+sequence Sel
+sequence UnLines
+integer S11, S12, S21, S22
+sequence Act
+
+    Sel = GetSelection()
+    S11 = Sel[1][1]
+    S12 = Sel[1][2]
+    S21 = Sel[2][1]
+    S22 = Sel[2][2]
+    Act = Actual[CursorY]
+
+    UnLines = {}
+    if CursorY=CursorYs then
+        UnLines = append(UnLines, Act[S12+1..S22])
+
+        Act = Act[1..S12] & Act[S22+1..length(Act)]
+        Printable[CursorY] = RemoveTabs(Act)
+        Actual[CursorY] = Act
+    else
+        UnLines = {Actual[S11][S12+1..length(Actual[S11])]} & Actual[S11+1..S21-1] & {Actual[S21][1..S22]}
+        Actual[S11] = Actual[S11][1..S12] & Actual[S21][S22+1..length(Actual[S21])]
+        Printable[S11] = RemoveTabs(Actual[S11])
+        Actual = Actual[1..S11] & Actual[S21+1..length(Actual)]
+        Printable = Printable[1..S11] & Printable[S21+1..length(Printable)]
+    end if
+
+    UnBuff = append(UnBuff, {4,Sel[1],UnLines})
+    TruncateUnBuff()
+
+    HasSelec = w32False
+    MoveCursorAbs(S12, S11, w32False)
+    ResetMaxLine()
+    if adjustEscLineNumberSw then
+        if S21<adjustedEscLineNumber then
+            adjustedEscLineNumber -= (S21-S11)
+        end if
+        for i=1 to length(EscStack) do
+            if S21<EscStack[i][3]
+            and equal(currentControlEvent,EscStack[i][1])
+            and equal(currentControlEvent,EscStack[i][7]) then
+                EscStack[i][3] -= (S21-S11)
+                EscStack[i][4] -= (S21-S11)
+            end if
+        end for
+    end if
+end procedure
+
+-- procedure to delete next char from syntax --------------------------------------------
+procedure RemoveChar(integer enableUndo, integer RePaint)
+    if CursorX1=length(Actual[CursorY]) then
+        if enableUndo then
+            UnBuff = append(UnBuff, {3,{CursorY,CursorX1,CursorX2,CursorW}})
+            TruncateUnBuff()
+        end if
+
+        if CursorY!=length(Actual) then
+            Actual[CursorY] &= Actual[CursorY+1]
+            Printable[CursorY] = RemoveTabs(Actual[CursorY])
+            Actual = Actual[1..CursorY] & Actual[CursorY+2..length(Actual)]
+            Printable = Printable[1..CursorY] & Printable[CursorY+2..length(Printable)]
+            if adjustEscLineNumberSw then
+                if CursorY<adjustedEscLineNumber then
+                    adjustedEscLineNumber -= 1
+                end if
+                for i=1 to length(EscStack) do
+                    if CursorY<EscStack[i][3]
+                    and equal(currentControlEvent,EscStack[i][1])
+                    and equal(currentControlEvent,EscStack[i][7]) then
+                        EscStack[i][3] -= 1
+                        EscStack[i][4] -= 1
+                    end if
+                end for
+            end if
+            if length(Printable[CursorY])>MaxLine then
+                MaxLine = length(Printable[CursorY])
+            end if
+        end if
+    else
+        if enableUndo then
+            UnBuff = append(UnBuff, {2,{CursorY,CursorX1,CursorX2,CursorW},Actual[CursorY][CursorX1+1]})
+            TruncateUnBuff()
+        end if
+
+        Actual[CursorY] = Actual[CursorY][1..CursorX1] & Actual[CursorY][CursorX1+2..length(Actual[CursorY])]
+        Printable[CursorY] = RemoveTabs(Actual[CursorY])
+        if length(Printable[CursorY])+1=MaxLine then ResetMaxLine() end if
+    end if
+    ResetMaxLine()--Bug fix-caused H scrollbar to incorrectly position sometimes (CoJaBo)
+    if RePaint then
+        repaintWindow(Syntax)
+    end if
+end procedure
+
+-- load a file into syntax --------------------------------------------------------------
+global procedure synLoadFile(object File)
+    --sequence NewFile
+    if not sequence(File) then
+                                            --"Euphoria Program"                   --"Text File"            --"All Files"
+        File = getOpenFileName(Syntax, "", {IDEText[488][1],"*.EX;*.EXW;*.E;*.EW",IDEText[522][1],"*.TXT",IDEText[523][1], "*.*"})
+        if length(File) then
+            loadFile(File)
+        else
+            return
+        end if
+    else
+        loadFile(File)
+    end if
+    --send synFileN back to Mainline
+    if synOpenFileName_id then
+        call_proc(synOpenFileName_id, {synFileN})
+    end if
+end procedure
+
+-- returns the padding at the start of a line -------------------------------------------
+function GetPadding(sequence Line)
+    Void = {}
+    for iter=1 to length(Line) do
+        if Line[iter]!=9 and Line[iter]!=32 then
+            Void = Line[1..iter-1]
+            exit
+        end if
+    end for
+    return( Void )
+end function
+
+-- allow mainline to tell syntax what folder to start in
+sequence openFolder
+
+global procedure synSetCurrentFolder(sequence fname)
+    openFolder = fname
+end procedure
+
+-- printable key handler routine --------------------------------------------------------
+procedure onKeyPress_SynInput(integer CntlID, integer Event, sequence Params)
+sequence Temp
+integer RetPos
+sequence Rect
+integer ok
+integer trap40
+integer cnt
+integer skipIt
+object x
+   -- CChris 11/05/2007
+   -- CtrlShift was used only here and the relevant info is available here, so it is now private here
+integer    CtrlShift
+
+--    integer checkPrior
+integer haveComments
+-- Brian Broker: added flag to paste an ending CR
+--   (I may eventually find a better way to do this)
+integer pasteEndingCR
+    pasteEndingCR = w32False
+
+    if length(Actual)<CursorY then --Josef , there were bad >
+        CursorY = length(Actual) --Josef
+    end if --Josef
+
+    if skipState then
+        setText(SynInput, "")
+        return
+    end if
+
+    -- CChris 11/05/2007
+    -- moved from onKeyPress_SynInput(), since the relevant info is available here
+    if and_bits(Params[2],ShiftMask)
+    and and_bits(Params[2],ControlMask) then
+        CtrlShift = w32True
+    else
+        CtrlShift = w32False
+    end if
+    -- end CChris
+
+    if Params[1]=VK_ESCAPE then
+        setText(SynInput, "")
+        --need protection here? If F1 had not been previously pressed then don't do the following?
+        call_proc(jump_rid,{})
+        return
+    end if
+
+    -- CChris 11/05/2007
+    -- processing a Ctrl-Shift key doesn't imply that Ctrl aor Shift was released, even though it is a 99.9% safe assumtion
+    -- A. Drummond proved it's only 99.9%. CtrlShift will be computed again on next kbd event.
+    if CtrlShift
+    and Params[1]=2 then
+        call_proc(synUnindent_id,{})
+        --CtrlShift=w32False
+        return
+    elsif CtrlShift then
+        --CtrlShift=w32False
+        return
+    end if
+
+    if PFilter[Params[1]] then
+        if Params[1]=VK_ENTER then
+            if HasSelec then
+                RemoveSelection()
+                isModified = w32True
+            end if
+            UnBuff = append(UnBuff, {1,{CursorY,CursorX1,CursorX2,CursorW}})
+            TruncateUnBuff()
+            Temp = Actual[CursorY]
+            if match("procedure", Temp)
+            or match("function", Temp) then
+                if EnableHL then
+                    call_proc(findRoutineName_id,{Temp})
+                end if
+            end if
+            Actual[CursorY] = Actual[CursorY][1..CursorX1]
+            Printable[CursorY] = RemoveTabs(Actual[CursorY])
+            Actual = Actual[1..CursorY] & {{}} & Actual[CursorY+1..length(Actual)]
+            Printable = Printable[1..CursorY] & {{}} & Printable[CursorY+1..length(Printable)]
+
+            if adjustEscLineNumberSw then
+                if CursorY<adjustedEscLineNumber then
+                    adjustedEscLineNumber += 1
+                end if
+                for i=1 to length(EscStack) do
+                    if CursorY<EscStack[i][3]
+                    and equal(currentControlEvent,EscStack[i][1])
+                    and equal(currentControlEvent,EscStack[i][7]) then
+                        EscStack[i][3] += 1
+                        EscStack[i][4] += 1
+                    end if
+                end for
+            end if
+
+            Void = GetPadding(Temp)
+            if CursorX1+1<=length(Temp) then
+                if Temp[CursorX1+1]=9 then --tab
+                    Actual[CursorY+1] = Temp[CursorX1+1..length(Temp)]
+                else
+                    Actual[CursorY+1] = Void & Temp[CursorX1+1..length(Temp)]
+                end if
+            else
+                Actual[CursorY+1] = Void & Temp[CursorX1+1..length(Temp)]
+            end if
+            Printable[CursorY+1] = RemoveTabs(Actual[CursorY+1])
+
+            MoveCursorAbs(0, CursorY+1, w32False)
+            MoveCursorRel(length(Void), 0, w32False)
+
+            if length(RemoveTabs(Temp))=MaxLine then ResetMaxLine() end if
+            if ShiftView() then --if not ShiftView() then
+           --   repaintWindow( Syntax )--Not needed because of change below (CoJaBo)
+            end if
+        else
+            if Params[2]=2 then
+                -- Cntl-Z
+                if Params[1]=26 then
+                    if length(UnBuff)>0 then
+                        isModified = w32True
+                        MoveCursorAbs(UnBuff[length(UnBuff)][2][2], UnBuff[length(UnBuff)][2][1], w32False)
+                        if UnBuff[length(UnBuff)][1]=1 then -- remove char from pos
+                            RemoveChar(w32False, w32False)
+                        elsif UnBuff[length(UnBuff)][1]=2 then -- replace char at pos
+                            InsertText(UnBuff[length(UnBuff)][3], w32False)
+                            MoveCursorAbs(UnBuff[length(UnBuff)][2][2], UnBuff[length(UnBuff)][2][1], w32False)
+                            repaintWindow(Syntax)
+                        elsif UnBuff[length(UnBuff)][1]=3 then -- rebuild line
+                            Temp = Actual[CursorY]
+                            Actual[CursorY] = Actual[CursorY][1..CursorX1]
+                            Printable[CursorY] = RemoveTabs(Actual[CursorY])
+                            Actual = Actual[1..CursorY] & {{}} & Actual[CursorY+1..length(Actual)]
+                            Printable = Printable[1..CursorY] & {{}} & Printable[CursorY+1..length(Printable)]
+
+                            Actual[CursorY+1] = Temp[CursorX1+1..length(Temp)]
+                            Printable[CursorY+1] = RemoveTabs(Actual[CursorY+1])
+
+                            MoveCursorAbs(0, CursorY+1, w32False)
+                        elsif UnBuff[length(UnBuff)][1]=4 then -- insert sequence to pos
+                            InsertText(UnBuff[length(UnBuff)][3], w32False)
+                        elsif UnBuff[length(UnBuff)][1]=5 then -- remove sequence from pos
+                            if length(UnBuff[length(UnBuff)][3])=1 then
+                                Actual[UnBuff[length(UnBuff)][2][1]] =
+                                    Actual[UnBuff[length(UnBuff)][2][1]][1..UnBuff[length(UnBuff)][2][2]] &
+                                    Actual[UnBuff[length(UnBuff)][2][1]][UnBuff[length(UnBuff)][2][2]+length(UnBuff[length(UnBuff)][3][1])+1..length(Actual[UnBuff[length(UnBuff)][2][1]])]
+                                Printable[UnBuff[length(UnBuff)][2][1]] = RemoveTabs(Actual[UnBuff[length(UnBuff)][2][1]])
+                            else
+                                Actual[UnBuff[length(UnBuff)][2][1]] =
+                                    Actual[UnBuff[length(UnBuff)][2][1]][1..UnBuff[length(UnBuff)][2][2]] &
+                                    Actual[UnBuff[length(UnBuff)][2][1]+length(UnBuff[length(UnBuff)][3])-1]
+                                    [length(UnBuff[length(UnBuff)][3][length(UnBuff[length(UnBuff)][3])])+1
+                                    ..
+                                    length(Actual[UnBuff[length(UnBuff)][2][1]+length(UnBuff[length(UnBuff)][3])-1])]
+                                Printable[UnBuff[length(UnBuff)][2][1]] = RemoveTabs(Actual[UnBuff[length(UnBuff)][2][1]])
+                                Actual = Actual[1..UnBuff[length(UnBuff)][2][1]] &
+                                         Actual[UnBuff[length(UnBuff)][2][1]+length(UnBuff[length(UnBuff)][3])..length(Actual)]
+                                Printable = Printable[1..UnBuff[length(UnBuff)][2][1]] &
+                                            Printable[UnBuff[length(UnBuff)][2][1]+length(UnBuff[length(UnBuff)][3])..length(Printable)]
+                            end if
+                        elsif UnBuff[length(UnBuff)][1]=6 then -- remove comment on each lines
+                            for iter=UnBuff[length(UnBuff)][2][1] to UnBuff[length(UnBuff)][2][2] do
+                                if length(Actual[iter])>=2
+                                and Actual[iter][1]=45 then
+                                    Actual[iter] = Actual[iter][3..length(Actual[iter])]
+                                else
+                                    Actual[iter] = 45 & 45 & Actual[iter]
+                                end if
+                                Printable[iter] = RemoveTabs(Actual[iter])
+                            end for
+                            MoveCursorRel(2, 0, w32True)
+                        elsif UnBuff[length(UnBuff)][1]=7 then -- unindent
+                            for iter=UnBuff[length(UnBuff)][2][1] to UnBuff[length(UnBuff)][2][2] do
+                                if length(Actual[iter])>=2
+                                and Actual[iter][1]=9 then
+                                    Actual[iter] = Actual[iter][2..length(Actual[iter])]
+                                elsif length(Actual[iter]) then
+                                    Actual[iter] = 9 & Actual[iter] --this is undo for unindent
+                                end if
+                                Printable[iter] = RemoveTabs(Actual[iter])
+                            end for
+                            MoveCursorRel(2, 0, w32True)
+                        elsif UnBuff[length(UnBuff)][1]=8 then -- reindent
+                            for iter=UnBuff[length(UnBuff)][2][1] to UnBuff[length(UnBuff)][2][2] do
+                                if length(Actual[iter]) then
+                                    Actual[iter] = 9 & Actual[iter]
+                                end if
+                                Printable[iter] = RemoveTabs(Actual[iter])
+                            end for
+                            MoveCursorRel(2, 0, w32True)
+                        end if
+                        UnBuff = UnBuff[1..length(UnBuff)-1]
+
+                        HasSelec = w32False
+                        ResetMaxLine()
+                    end if
+                -- Cntl-A
+                elsif Params[1]=1 then
+                    CursorXs1 = 0
+                    CursorXs2 = 0
+                    CursorWs = 0
+                    CursorYs = 1
+                    HasSelec = w32True
+                    MoveCursorAbs(length(Actual[length(Actual)]), length(Actual), w32True)
+                -- Cntl-C
+                elsif Params[1]=3 then
+                    if HasSelec then
+                        Void = ModifyClipboard(0)
+                    end if
+                -- Cntl-X
+                elsif Params[1]=24 then
+                    if HasSelec then
+                        Void = ModifyClipboard(0)
+                        RemoveSelection()
+                        isModified = w32True
+                        ResetMaxLine()
+                       -- if not ShiftView() then--Not needed because of change below (CoJaBo)
+                       --   repaintWindow( Syntax )
+                       -- end if
+                    end if
+                -- Cntl-V
+                elsif Params[1]=22 then
+                    if HasSelec then
+                        RemoveSelection()
+                    end if
+                    Temp = ModifyClipboard(1)
+
+                    if not length(Temp) then
+                        --no data in clipboard
+                        return
+                    end if
+
+                    if length(Temp)=1 then
+                        --no data in clipboard
+                        return
+                    end if
+                    Void = {}
+
+                    -- Brian Broker:
+                    --   if user selected an ending carriage return then
+                    --    we should paste an ending carriage return
+                    if Temp[length(Temp)]=10 then
+                        pasteEndingCR = w32True
+                    end if
+
+                    RetPos = find(13, Temp)
+                    if not RetPos then
+                        Void = append(Void, Temp)
+                        Temp = {}
+                    end if
+
+                    while RetPos do
+                        Void = append(Void, Temp[1..RetPos-1])
+                        Temp = Temp[RetPos+2..length(Temp)]
+                        RetPos = find(13, Temp)
+                    end while
+
+                    if length(Temp)!=0 then
+                        if Temp[length(Temp)]=10 then
+                            -- Can this ever happen???
+                            Void = append(Void, Temp[1..length(Temp)-2])
+                        else
+                            Void = append(Void, Temp[1..length(Temp)])
+                        end if
+                    end if
+
+                    -- Brian Broker
+                    --  When all is said and done, append the ending CR
+                    --    if it was selected
+                    if pasteEndingCR then
+                        Void = append(Void, {})
+                    end if
+
+                    for i=1 to length(Void) do
+                        if EnableHL then
+                            call_proc(findRoutineName_id,{Void[i]})
+                        end if
+                    end for
+
+                    InsertText(Void, w32True)
+                    isModified = w32True
+                    ResetMaxLine()  -- Brian Broker
+                    if not sequence(Void) then
+                        MoveCursorRel(1, 0, w32True)
+                    elsif length(Void)=1 then
+                        MoveCursorRel(length(Void[1]), 0, w32True)
+                    else
+                        MoveCursorAbs(length(Void[length(Void)]), CursorY+length(Void)-1, w32False)
+                    end if
+
+                   -- if not ShiftView() then--Not needed because of change below (CoJaBo)
+                   --   repaintWindow( Syntax )
+                   -- end if
+                -- Cntl-O
+                elsif Params[1]=15 then
+                    if isModified
+                    and not skipCtrl_S then
+                        skipCtrl_S = w32False
+                        ok = displayErrorMessage(30,{})
+                        if ok=IDYES then
+                            onKeyPress_SynInput(SynInput, w32HKeyPress, {19,2})
+                            if not length(synFileN) then
+                                --user cancelled saveAs
+                                isModified = w32False
+                                return
+                            end if
+                        elsif ok=IDCANCEL then
+                            return
+                        end if
+                        isModified = w32False
+                    elsif isModified then
+                        --tell to save control-event change
+                        if syntaxCallCE_id!= -1 then
+                            call_proc(syntaxCallCE_id,{})
+                            isModified = w32False
+                        end if
+                    end if
+                    localKeywords = {""}
+                    synLoadFile(0)
+                    if length(synFileN) then
+                        skipCtrl_S = w32False
+                        colorModuleLocals = w32True
+                    end if
+                -- Cntl-F
+                elsif Params[1]=6 then
+                    if HasSelec then
+                        HasSelec = 0
+                        repaintWindow(Syntax)
+                    end if
+                    Rect = getClientRect(Screen)
+                    setRect(FindWin, Rect[3]/2-219, Rect[4]/2-88, 438, 170, w32True)
+                    moveZOrder(FindWin,  HWND_TOPMOST)
+                    setText(FindR_Ed, "")
+                    setEnable(FindR, w32False)
+                    setEnable(FindRA, w32False)
+                    doingFind = w32True
+                    openWindow(FindWin, Normal)
+                    setFocus(FindW_Ed)
+                -- Cntl-G
+                elsif Params[1]=7 then
+                    CarrotVis = w32False
+                    InvertCarrot(Syntax, w32HTimer, {1})
+                    killTimer(Syntax, 1)
+
+                    Rect = getClientRect(Screen)
+                    setRect(GoToWin, Rect[3]/2-150, Rect[4]/2-50, 300, 100, w32True)
+                                            --"Enter Line Number"
+                    setText(GoToLbl, sprintf(IDEText[489][1] & " (1 - %d):",{length(Actual)}))
+                    setText(GoTo_Ed, "")
+                    OpenDialog = w32True
+                    openWindow(GoToWin, Modal)
+                    setFocus(GoTo_Ed)
+                -- Cntl-S
+                elsif Params[1]=19
+                  and skipCtrl_S then
+                    --pass back to mainline for error message and ask to save project
+                    if synNoFileName_id then
+                        call_proc(synNoFileName_id, {})
+                    end if
+                    return
+                elsif Params[1]=19
+                  and not skipCtrl_S then
+                    --judith:
+                    --because Screen also tests for Ctrl-S, only do this one
+                    --when something has changed.
+
+                    --remove blank lines at bottom of file
+                    while w32True do
+                        if not length(Actual) then
+                            exit
+                        end if
+                        if not length(Actual[length(Actual)]) then
+                            Actual = Actual[1..length(Actual)-1]
+                        else
+                            exit
+                        end if
+                    end while
+
+                    Temp = {}
+                    for iter=1 to length(Actual) do
+                        Temp &= Actual[iter] & 10
+                    end for
+
+                    if length(synFileN)=0 then -- save as                  
+                        synFileN = getSaveFileName(Syntax, openFolder & "\\", {IDEText[1112][1],"*.EX;*.EXW;*.E;*.EW",IDEText[1113][1],"*.TXT",IDEText[1103][1], "*.*"})
+                        x = "good"
+                    else
+                        --check the file for readonly
+                        x = dir(synFileN)
+                        for y=1 to length(x) do
+                            if match("r", x[y][D_ATTRIBUTES]) then
+                                x = {}
+                                ok = displayErrorMessage(267,{})
+                                exit
+                            end if
+                        end for
+                        if length(x) then
+                            Void = open(synFileN, "w")
+                            if Void= -1 then
+                                synFileN = getSaveFileName(Syntax, openFolder & "\\", {IDEText[1112][1],"*.EX;*.EXW;*.E;*.EW",IDEText[1113][1],"*.TXT",IDEText[1103][1], "*.*"})
+                            end if
+                            close(Void)
+                        end if
+                    end if
+
+                    if not length(Actual) then
+                        Actual = {{}}
+                    end if
+
+                    if length(synFileN)
+                    and length(x) then
+                        Void = open(synFileN, "w")
+                        if Void!= -1 then
+                            printf(Void, "%s", {Temp})
+                            close(Void)
+                        end if
+
+                        UnBuff = {}
+                        isModified = w32False
+                        --send synFileN back to Mainline
+                        if synSaveAsFileName_id then
+                            call_proc(synSaveAsFileName_id, {synFileN})
+                        end if
+                    else
+                        isModified = w32False
+                    end if
+                -- Cntl-D = Comment selected lines
+                elsif Params[1]=4 then
+                    if HasSelec then
+                        Void = GetSelection()
+                        UnBuff = append(UnBuff, {6,{Void[1][1],Void[2][1]},""})
+                        TruncateUnBuff()
+                        HasSelec = 0
+                        haveComments = w32True
+                        for iter=Void[1][1] to Void[2][1] do
+                            if length(Actual[iter])>=2 then
+                                if Actual[iter][1]!=45 then
+                                    haveComments = w32False
+                                end if
+                            end if
+                        end for
+                        for iter=Void[1][1] to Void[2][1] do
+                            if length(Actual[iter])>=2
+                            and haveComments=w32True then
+                                Actual[iter] = Actual[iter][3..length(Actual[iter])]
+                            else
+                                Actual[iter] = 45 & 45 & Actual[iter]
+                            end if
+                            Printable[iter] = RemoveTabs(Actual[iter])
+                        end for
+                        MoveCursorRel(2, 0, w32True)
+                        isModified = w32True
+                    end if
+                -- Cntl-B = Indent selected lines   Judith
+                elsif Params[1]=2 then
+                    if HasSelec then
+                        Void = GetSelection()
+                        UnBuff = append(UnBuff, {7,{Void[1][1],Void[2][1]},""})
+                        TruncateUnBuff()
+                        HasSelec = 0
+                        for iter=Void[1][1] to Void[2][1] do
+                            Actual[iter] = 9 & Actual[iter]
+                            Printable[iter] = RemoveTabs(Actual[iter])
+                        end for
+                        MoveCursorRel(1, 0, w32True)
+                        isModified = w32True
+                    end if
+                -- Cntl-Space
+                elsif Params[1]=32 then
+                    trap40 = 0
+                    --look for keyword preceeding Cntl-space
+                    Void = Actual[CursorY][1..CursorX1]
+                    HintLocY = ( CursorY-StartLine )*FontSize[2]
+                    for iter=CursorX1 to 1 by -1 do
+                        if Actual[CursorY][iter]='(' then
+                            --find ending position for keyword
+                            trap40 = iter
+                            if trap40>1 then
+                                trap40 -= 1
+                            end if
+                        end if
+                        if Variable[Actual[CursorY][iter]]!=1
+                        and Actual[CursorY][iter]!='(' then
+                            if HintCB!=0
+                            and trap40 then
+                                call_proc(HintCB, {Actual[CursorY][iter+1..trap40]})
+                                exit
+                            end if
+                        end if
+                    end for
+
+                    if length(Actual[CursorY]) then
+                        if Variable[Actual[CursorY][1]]=1
+                        and trap40 then
+                            if HintCB!=0 then
+                                call_proc(HintCB, {Actual[CursorY][1..trap40]})
+                            end if
+                        end if
+                    end if
+
+                    --if not found after paranthesis maybe clicked in keyword itself
+                    Void = {0,0}
+                    Temp = 32 & 32 & Actual[CursorY] & 32 & 32
+                    for Loop=CursorX1+2 to 2 by -1 do
+                        if Variable[Temp[Loop]]!=1 then
+                            Void[1] = Loop+1
+                            exit
+                        end if
+                    end for
+                    for Loop=CursorX1+3 to length(Temp)-1 do
+                        if Variable[Temp[Loop]]!=1 then
+                            Void[2] = Loop-1
+                            exit
+                        end if
+                    end for
+                    if Void[2]<Void[1] then Void[2] = Void[1] end if
+                    if length(Temp) then
+                        if HintCB!=0 then
+                            call_proc(HintCB, {Temp[Void[1]..Void[2]]})
+                        end if
+                    end if
+                end if
+            -- all printable characters
+            else
+                isModified = w32True
+                if HasSelec then RemoveSelection() end if
+                InsertText(Params[1], w32True)
+
+                -- hints
+                -- 40 ( 41 ) 44 ,
+                Void = Actual[CursorY]
+                --judith: no Hints or autocomplete if comment line or inside string
+                cnt = 0
+                skipIt = w32False
+
+                for iter=1 to CursorX1  do  -- - 1 do
+                    if Variable[Actual[CursorY][iter]]=2 then
+                        --count it
+                        cnt += 1
+                    end if
+                end for
+                if cnt>0 then
+                    if remainder(cnt,2) then
+                                --if odd number of quotes, must be in middle of string
+                        skipIt = w32True
+                    end if
+                end if
+
+                if match("--", Void)
+                and match("--", Void)<CursorX1 then
+                    --ignore                
+                else
+                    if not skipIt then
+                        if Params[1]=40 then
+                            Void = Actual[CursorY][1..CursorX1-1]
+                            HintLocY = ( CursorY-StartLine )*FontSize[2]
+                            for iter=CursorX1-1 to 1 by -1 do
+                                if Variable[Actual[CursorY][iter]]!=1 then
+                                    if HintCB!=0 then
+                                        call_proc(HintCB, {Actual[CursorY][iter+1..CursorX1-1]})
+                                        exit
+                                    end if
+                                end if
+                            end for
+                            if Variable[Actual[CursorY][1]]=1 then
+                                if HintCB!=0 then
+                                    call_proc(HintCB, {Actual[CursorY][1..CursorX1-1]})
+                                end if
+                            end if
+                        elsif Params[1]=41 then
+                            if HintCB!=0 then
+                                call_proc(HintCB, {0})
+                            end if
+                        end if
+
+                        -- autocomplete
+                        if synautocomplete
+                        and Params[1]=32 and Params[2]=0 then--New feature-ONLY an unshifted space can activate autocomplete. (CoJaBo)
+                      --This allows the user to skip autocomplete for a short time using shift instead of changeing options.
+                      --Also prevents running checks when they aren't needed, they only need to run on a space.
+                            Void = Actual[CursorY]
+
+                            if CursorX1>2 then
+                                if compare(Void[CursorX1-2..CursorX1], "if ")=0 then
+                                    if match("then", Void) or match("end if", Void) then--Bug fix-space after "end _" would reactivate autocomplete (CoJaBo)                                                
+                                                --do nothing autocompletion already in
+                                    elsif CursorX1>3 then
+                                        if Void[CursorX1-3]=32
+                                        or Void[CursorX1-3]=9 then
+                                            --must not have any char prior to "if"
+                                            Void = GetPadding(Actual[CursorY])
+                                            InsertText({" then",Void&9,Void&"end if"}, w32True)
+                                            Void = Actual[CursorY]
+                                        end if
+                                    elsif CursorX1<4 then
+                                        Void = GetPadding(Actual[CursorY])
+                                        InsertText({" then",Void&9,Void&"end if"}, w32True)
+                                        Void = Actual[CursorY]
+                                    end if
+                                end if
+                            end if
+
+                            if CursorX1>3 then
+                                if compare(Void[CursorX1-3..CursorX1], "for ")=0 then
+                                    if match("do", Void) or match("end for", Void) then--Bug fix-space after "end _" would reactivate autocomplete (CoJaBo)
+                                        --already done  
+                                    elsif CursorX1>4 then
+                                        if Void[CursorX1-4]=32
+                                        or Void[CursorX1-4]=9 then
+                                            --must not have any char prior to "for"
+                                            Void = GetPadding(Actual[CursorY])
+                                            InsertText({" do",Void&9,Void&"end for"}, w32True)
+                                            Void = Actual[CursorY]
+                                        end if
+                                    elsif CursorX1<5 then
+                                        Void = GetPadding(Actual[CursorY])
+                                        InsertText({" do",Void&9,Void&"end for"}, w32True)
+                                        Void = Actual[CursorY]
+                                    end if
+                                end if
+                            end if
+                            if CursorX1>4 then
+                                if compare(Void[CursorX1-4..CursorX1], "type ")=0 then
+                                    if match("(", Void) or match("end type", Void) then--Should help prevent autocomplete from activating twice (CoJaBo)
+                              --already done
+                                    elsif CursorX1>5 then
+                                        if Void[CursorX1-5]=32
+                                        or Void[CursorX1-5]=9 then
+                                            --must not have any char prior to "type"
+                                            Void = GetPadding(Actual[CursorY])
+                                            InsertText({"",Void&9,Void&"end type"}, w32True)
+                                            Void = Actual[CursorY]
+                                        end if
+                                    elsif CursorX1<6 then
+                                        Void = GetPadding(Actual[CursorY])
+                                        InsertText({"",Void&9,Void&"end type"}, w32True)
+                                        Void = Actual[CursorY]
+                                    end if
+                                end if
+                            end if
+                            if CursorX1>5 then
+                                if compare(Void[CursorX1-5..CursorX1], "while ")=0 then
+                                    if match("do", Void) or match("end while", Void) then--Bug fix-space after "end _" would reactivate autocomplete (CoJaBo)
+                                        --do nothing
+                                    elsif CursorX1>6 then
+                                        if Void[CursorX1-6]=32
+                                        or Void[CursorX1-6]=9 then
+                                            --must not have any char prior to "while"
+                                            Void = GetPadding(Actual[CursorY])
+                                            InsertText({" do",Void&9,Void&"end while"}, w32True)
+                                            Void = Actual[CursorY]
+                                        end if
+                                    elsif CursorX1<7 then
+                                        Void = GetPadding(Actual[CursorY])
+                                        InsertText({" do",Void&9,Void&"end while"}, w32True)
+                                        Void = Actual[CursorY]
+                                    end if
+                                end if
+                                if compare(Void[CursorX1-5..CursorX1], "elsif ")=0 then
+                                    if match("then", Void) then
+                                --do nothing
+                                    elsif CursorX1>6 then
+                                        if Void[CursorX1-6]=32
+                                        or Void[CursorX1-6]=9 then
+                                            --must not have any char prior to "elsif"
+                                            Void = GetPadding(Actual[CursorY])
+                                            InsertText({" then",Void&9},w32True)
+                                            Void = Actual[CursorY]
+                                        end if
+                                    elsif CursorX1<7 then
+                                        Void = GetPadding(Actual[CursorY])
+                                        InsertText({" then",Void&9},w32True)
+                                        Void = Actual[CursorY]
+                                    end if
+                                end if
+                            end if
+                            if CursorX1>8 then
+                                if match("(", Void) or match("end function", Void) then--Should help prevent autocomplete from activating twice (CoJaBo)
+                              --already done
+                                elsif compare(Void[CursorX1-8..CursorX1], "function ")=0 then
+                                    Void = GetPadding(Actual[CursorY])
+                                    InsertText({Void,Void&9,Void&"end function"}, w32True)--Was adding an unneeded tab (CoJaBo)
+                                    ResetMaxLine() --judith
+                                    Void = Actual[CursorY]
+                                end if
+                            end if
+                            if CursorX1>9 then
+                                if match("(", Void) or match("end procedure", Void) then--Should help prevent autocomplete from activating twice (CoJaBo)
+                              --already done
+                                elsif compare(Void[CursorX1-9..CursorX1], "procedure ")=0 then
+                                    Void = GetPadding(Actual[CursorY])
+                                    InsertText({Void,Void&9,Void&"end procedure"}, w32True)--Was adding an unneeded tab (CoJaBo)
+                                    ResetMaxLine()--judith
+                                    Void = Actual[CursorY]
+                                end if
+                            end if
+                        end if
+                    end if
+                end if
+            end if
+        end if
+        VOID = ShiftView()
+        repaintWindow(Syntax)--Corrects a problem where the H scrollbar is positionde incorectly (CoJaBo,Josef)
+        setText(SynInput, "")
+
+        ok = invokeHandler(Syntax, w32HChange, {}) --in editors module
+
+    end if
+end procedure
+
+
+-- non-printable key handler routine ----------------------------------------------------
+procedure onKeyDown_SynInput(integer CntlID, integer Event, sequence Params)
+integer ScrollOff
+integer iter
+sequence Temp
+integer ok, startAt, endAt
+
+    if skipState then
+        setText(SynInput, "")
+        return
+    end if
+
+    --               cchris     --
+    if Params[1]>255 or and_bits(Params[2], AltMask) then   --stops crash when horizontal wheelmouse scrolling
+        return
+    end if
+
+    -- CCChris 11/05/2007
+    -- moved setting CtrlShift from here to onKeyPress_SynInput()
+    if NPFilter[Params[1]] then
+        if Params[1]=VK_DELETE then
+            if HasSelec then
+                RemoveSelection()
+                repaintWindow(Syntax)
+            else
+                RemoveChar(w32True, w32True)
+            end if
+            isModified = w32True
+        elsif Params[1]=VK_BACKSPACE then
+            if HasSelec then
+                RemoveSelection()
+                isModified = w32True
+                repaintWindow(Syntax)
+            else
+                if CursorX1!=0 then
+                    MoveCursorRel( -1, 0, w32False)
+                elsif CursorY!=1 then
+                    MoveCursorAbs(length(Actual[CursorY-1]), CursorY-1, w32False)
+                end if
+                RemoveChar(w32True, w32True)
+                isModified = w32True
+            end if
+        end if
+
+        if and_bits(Params[2],ShiftMask) then
+            if not HasSelec then
+                CursorXs1 = CursorX1
+                CursorXs2 = CursorX2
+                CursorWs = CursorW
+                CursorYs = CursorY
+                HasSelec = w32True
+            end if
+        else
+            HasSelec = w32False
+        end if
+
+        if Params[1]=VK_LEFT then
+            if and_bits(Params[2],ControlMask) then
+                if CursorX1=0 then
+                    MoveCursorRel( -1, 0, w32True)
+                else
+                    iter = CursorX1-1
+                    while iter>0 do
+                        if Variable[Actual[CursorY][iter]]=1 then
+                            exit
+                        end if
+                        iter -= 1
+                    end while
+                    while iter>0 do
+                        if Variable[Actual[CursorY][iter]]=0 then
+                            exit
+                        end if
+                        iter -= 1
+                    end while
+                    CursorX1 = iter
+                    CursorW = length(RemoveTabs(Actual[CursorY][1..iter]))
+                    CursorX2 = CursorW
+                    if not ShiftView() then
+                        repaintWindow(Syntax)
+                    end if
+                end if
+            else
+                MoveCursorRel( -1, 0, w32True)
+            end if
+        elsif Params[1]=VK_RIGHT then
+            if and_bits(Params[2],ControlMask) then
+                if CursorX1=length(Actual[CursorY]) then
+                    MoveCursorRel(1, 0, w32True)
+                else
+                    iter = CursorX1+1
+                    while iter<length(Actual[CursorY]) do
+                        if Variable[Actual[CursorY][iter+1]]=0 then
+                            exit
+                        end if
+                        iter += 1
+                    end while
+                    while iter<length(Actual[CursorY]) do
+                        if Variable[Actual[CursorY][iter+1]]=1 then
+                            exit
+                        end if
+                        iter += 1
+                    end while
+                    CursorX1 = iter
+                    CursorW = length(RemoveTabs(Actual[CursorY][1..iter]))
+                    CursorX2 = CursorW
+                    if not ShiftView() then
+                        repaintWindow(Syntax)
+                    end if
+                end if
+            else
+                MoveCursorRel(1, 0, w32True)
+            end if
+        elsif Params[1]=VK_UP then
+            if and_bits(Params[2],ControlMask) then
+                Void = getScrollPos(SynVScroll)
+                setScrollPos(SynVScroll, Void-1)
+            else
+                MoveCursorRel(0, -1, w32True)
+            end if
+        elsif Params[1]=VK_DOWN then
+            if and_bits(Params[2],ControlMask) then
+                Void = getScrollPos(SynVScroll)
+                setScrollPos(SynVScroll, Void+1)
+            else
+                MoveCursorRel(0, 1, w32True)
+            end if
+        elsif Params[1]=VK_PAGEUP then
+            ScrollOff = getScrollPos(SynVScroll)
+            MoveCursorRel(0, -NumLinesY, w32False)
+            setScrollPos(SynVScroll, ScrollOff-NumLinesY)
+        elsif Params[1]=VK_PAGEDOWN then
+            ScrollOff = getScrollPos(SynVScroll)
+            MoveCursorRel(0, +NumLinesY, w32False)
+            setScrollPos(SynVScroll, ScrollOff+NumLinesY)
+        elsif Params[1]=VK_HOME then
+            if and_bits(Params[2],ControlMask) then
+                MoveCursorAbs(0, 1, w32True)
+            else
+                MoveCursorAbs(0, CursorY, w32True)
+            end if
+        elsif Params[1]=VK_END then
+            if and_bits(Params[2],ControlMask) then
+                MoveCursorAbs(length(Actual[length(Actual)]), length(Actual), w32True)
+            else
+                MoveCursorAbs(length(Actual[CursorY]), CursorY, w32True)
+            end if
+        elsif Params[1]=VK_F1 then
+            if F1CallBack!=0 then
+                Void = {0,0}
+                Temp = 32 & 32 & Actual[CursorY] & 32 & 32
+                for Loop=CursorX1+2 to 2 by -1 do
+                    if Variable[Temp[Loop]]!=1 then
+                        Void[1] = Loop+1
+                        exit
+                    end if
+                end for
+                for Loop=CursorX1+3 to length(Temp)-1 do
+                    if Variable[Temp[Loop]]!=1 then
+                        Void[2] = Loop-1
+                        exit
+                    end if
+                end for
+                if Void[2]<Void[1] then Void[2] = Void[1] end if
+                call_proc(F1CallBack, {Temp[Void[1]..Void[2]]})
+            end if
+        end if
+
+        setText(SynInput, "")
+
+        ok = invokeHandler(Syntax, w32HChange, {})   --in editors module
+    else
+        if and_bits(Params[2],ControlMask) then
+            --ignore Ctrl+F keys
+        else
+            if length(UserHotKeys) then
+                startAt = 1
+                endAt = 8
+                if and_bits(Params[2],ShiftMask) then
+                    startAt = 9
+                    endAt = 16
+                end if
+                for i=startAt to endAt do
+                    if UserHotKeys[i]=Params[1]
+                    and length(UserHotKeyText[i]) then
+                        InsertText(UserHotKeyText[i], w32False)
+                        isModified = w32True
+                        if length(UserHotKeyText[i])=1 then
+                            MoveCursorRel(length(UserHotKeyText[i][1]), 0, w32True)
+                        else
+                            MoveCursorAbs(length(UserHotKeyText[i][length(UserHotKeyText[i])]),
+                                          CursorY+length(UserHotKeyText[i])-1, w32False)
+                        end if
+                        ResetMaxLine()
+                        repaintWindow(Syntax)
+                        ok = invokeHandler(Syntax, w32HChange, {}) --in editors module
+                    end if
+                end for
+            end if
+        end if
+    end if
+end procedure
+
+
+-- procedure to find next string --------------------------------------------------------
+function FindNext()
+integer strLen
+sequence findWhat
+sequence Line
+integer AtPos
+integer Before
+integer Whole
+integer Found
+
+    findWhat = getText(FindW_Ed)
+    strLen = length(findWhat)
+    Found = 0
+
+    if not isChecked(FindMC) then -- not match case
+        findWhat = nlsLower(findWhat) -- nlsEu
+    end if
+
+    for iter=CursorY to length(Actual) do
+        Whole = 1
+        Line = Actual[iter]
+        if isChecked(Find_Restrict) then
+            --when restrict to current procedure or function        
+            if match("end procedure",Line)
+            or match("end function",Line) then
+                exit
+            end if
+        end if
+        if not isChecked(FindMC) then -- not match case
+            Line = nlsLower(Line)
+        end if
+        Before = 0
+        if iter=CursorY then
+            if CursorX1<length(Line)-strLen then
+                Before = CursorX1+1
+                Line = Line[CursorX1+2..length(Line)]
+            else
+                Line = {}
+            end if
+        end if
+        AtPos = match(findWhat,Line)
+        while AtPos do
+            if isChecked(FindHW) then -- whole word
+                if AtPos>1 then  --was 0
+                    if Variable[Line[AtPos-1]]>0 then
+                        Whole = 0
+                        Line[AtPos] = 32
+                    end if
+                end if
+                if AtPos+strLen<length(Line) then
+                    if Variable[Line[AtPos+strLen]]>0 then
+                        Whole = 0
+                        Line[AtPos] = 32
+                    end if
+                end if
+            end if
+            if Whole then
+                Found = 1
+
+                CursorY = iter
+                CursorX1 = AtPos+Before+strLen-1
+                CursorW = length(RemoveTabs(Actual[CursorY][1..CursorX1]))
+                CursorX2 = CursorW
+
+                CursorYs = iter
+                CursorXs1 = AtPos+Before-1
+                CursorWs = length(RemoveTabs(Actual[CursorY][1..CursorXs1]))
+                CursorXs2 = CursorWs
+                ResetMaxLine()--judith
+
+                HasSelec = w32True
+                exit
+            end if
+            if Found=0 and Whole=0 then
+                Whole = 1
+                AtPos = match(findWhat, Line)
+            end if
+        end while
+        if Found then exit end if
+    end for
+
+    return( Found )
+end function
+
+-- procedure to find previous string ----------------------------------------------------
+function FindPrevious()
+integer strLen
+sequence findWhat
+sequence Line
+integer AtPos
+integer Before
+integer Whole
+integer Found
+integer NewX
+
+    findWhat = reverse(getText(FindW_Ed))
+    strLen = length(findWhat)
+    Found = 0
+
+    if not isChecked(FindMC) then -- not match case
+        findWhat = nlsLower(findWhat)
+    end if
+    NewX = length(Actual[CursorY])-CursorX1
+
+    for iter=CursorY to 1 by -1 do
+        Whole = 1
+        Line = reverse(Actual[iter])
+
+        if not isChecked(FindMC) then -- not match case
+            Line = nlsLower(Line)
+        end if
+        Before = 0
+        if iter=CursorY then
+            if NewX<length(Line)-strLen then
+                Before = NewX+1
+                Line = Line[NewX+2..length(Line)]
+            else
+                Line = {}
+            end if
+        end if
+        AtPos = match(findWhat,Line)
+        while AtPos do
+            if isChecked(FindHW) then -- whole word
+                if AtPos>1 then     --was > 0 but when 1 the next line crashes
+                    if Variable[Line[AtPos-1]]>0 then
+                        Whole = 0
+                        Line[AtPos] = 32
+                    end if
+                end if
+                if AtPos+strLen<length(Line) then
+                    if Variable[Line[AtPos+strLen]]>0 then
+                        Whole = 0
+                        Line[AtPos] = 32
+                    end if
+                end if
+            end if
+            if Whole then
+                Found = 1
+                CursorY = iter
+                CursorX1 = length(Actual[iter])-AtPos-Before-strLen+1
+                CursorW = length(RemoveTabs(Actual[CursorY][1..CursorX1]))
+                CursorX2 = CursorW
+
+                CursorYs = iter
+                CursorXs1 = length(Actual[iter])-AtPos-Before+1
+                CursorWs = length(RemoveTabs(Actual[CursorY][1..CursorXs1]))
+                CursorXs2 = CursorWs
+                ResetMaxLine()--judith
+
+                HasSelec = w32True
+                exit
+            end if
+            if Found=0 and Whole=0 then
+                Whole = 1
+                AtPos = match(findWhat, Line)
+            end if
+        end while
+        if Found then exit end if
+    end for
+
+    return( Found )
+end function
+
+-- procedure to replace selection from find dialog --------------------------------------
+procedure Replace_Next()
+sequence replaceWith
+
+    if HasSelec then
+        RemoveSelection()
+        replaceWith = getText(FindR_Ed)
+        InsertText({replaceWith}, w32True)
+        isModified = w32True
+        ResetMaxLine()  --judith
+        MoveCursorRel(length(replaceWith), 0, w32False)
+    end if
+end procedure
+
+-- dont erase previous on repaint
+-------------------------------------------------------
+procedure onEvent_Syntax(integer CntlID, integer Event, sequence Params)
+
+    if Params[1]=WM_SETFOCUS then
+        setFocus(SynInput)
+    elsif Params[1]=WM_ERASEBKGND then
+        returnValue(w32True)
+    end if
+end procedure
+
+-- paint on scroll bar changes ----------------------------------------------------------
+procedure onScroll_SynScroll(integer CntlID, integer Event, sequence Params)
+
+    if Params[2]!=SB_ENDSCROLL then -- Brian Broker: optimization
+        repaintWindow(Syntax)
+    end if
+end procedure
+
+-- fix focus problems -------------------------------------------------------------------
+procedure onGotFocus_Input(integer CntlID, integer Event, sequence Params)
+object checkTabs
+
+    if OptOpen then
+        OptOpen = w32False
+        OpenDialog = w32False
+
+        checkTabs = value(getText(TS_Width))
+        if checkTabs[1]=GET_SUCCESS then
+            if checkTabs[2]!=TabStop then
+                TabStop = checkTabs[2]
+                for iter=1 to length(Actual) do
+                    Printable[iter] = RemoveTabs(Actual[iter])
+                end for
+                CursorW = length(RemoveTabs(Actual[CursorY][1..CursorX1]))
+                ResetXCoordsToW()
+            end if
+        end if
+    else
+        CarrotVis = w32True
+        InvertCarrot(Syntax, w32HTimer, {1})
+    end if
+    repaintWindow(Syntax)
+end procedure
+
+procedure onLostFocus_Input(integer CntlID, integer Event, sequence Params)
+    if not OpenDialog then
+        CarrotVis = w32False
+        InvertCarrot(Syntax, w32HTimer, {1})
+        killTimer(Syntax, 1)
+    end if
+end procedure
+
+procedure onClick_Syntax(integer CntlID, integer Event, sequence Params)
+    if not OpenDialog then
+        setFocus(SynInput)
+    end if
+end procedure
+
+procedure GotFocus_Options(integer CntlID, integer Event, sequence Params)
+    if Params[1]=WM_SETFOCUS then
+        returnValue(w32True)
+    end if
+end procedure
+
+procedure onEvent_SynScroll(integer CntlID, integer Event, sequence Params)
+      --Martin Stachon:
+    if not find(Params[1], {WM_MOUSEMOVE, WM_SETCURSOR, #84, WM_PAINT}) then
+        if not OpenDialog then
+            CarrotVis = w32True
+        end if
+    end if
+end procedure
+
+constant  EditItemKeys = {26,0,24,3,22,0,1}
+procedure onClick_EditItem(integer CntlID, integer Event, sequence Params)
+integer key
+    key = EditItemKeys[find(CntlID,PopEditItems)]
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {key,ControlMask})
+end procedure
+
+-- Custom options window ----------------------------------------------------------------
+procedure onClick_Cancel(integer CntlID, integer Event, sequence Params)
+    WordName = oWordName
+    WordList = oWordList
+    ColorList = oColorList
+
+    OptOpen = w32False
+    OpenDialog = w32False
+    closeWindow(OptWin)
+    setFocus(SynInput)
+end procedure
+
+procedure onClick_Close(integer CntlID, integer Event, sequence Params)
+    closeWindow(OptWin)
+    setFocus(SynInput)
+end procedure
+
+global procedure onClick_Options(integer CntlID, integer Event, sequence Params)
+sequence Rect
+integer oldPos
+
+    CarrotVis = w32False
+    InvertCarrot(Syntax, w32HTimer, {1})
+    killTimer(Syntax, 1)
+
+    Rect = getClientRect(Screen)
+    setRect(OptWin, Rect[3]/2-268, Rect[4]/2-140, 536, 280, w32True)
+
+    oldPos = getIndex(WLN_Lists)
+    eraseItems(WLN_Lists)
+    addItem(WLN_Lists, WordName)
+    setIndex(WLN_Lists, oldPos)
+
+    -- save list info in case of cancel
+    oWordName = WordName
+    oWordList = WordList
+    oColorList = ColorList
+
+    OptOpen = w32True
+    OpenDialog = w32True
+    openWindow(OptWin, Modal)
+end procedure
+
+procedure onClick_WLN_Lists(integer CntlID, integer Event, sequence Params)
+
+    setTextColor(WLN_Lists,#FFFFFF-ColorList[1])
+    setWindowBackColor(WLN_Lists,ColorList[1])
+
+end procedure
+
+
+procedure onChange_WLN_Lists(integer CntlID, integer Event, sequence Params)
+integer LIndex
+
+    LIndex = getIndex(WLN_Lists)
+    eraseItems(WL_List)
+    if LIndex>NumDeflts then
+        setEnable(WLN_Remove, w32True)
+        setEnable(WL_Add, w32True)
+        setEnable(Add_Txt2, w32True)
+        setWindowBackColor(Add_Txt2, getSysColor(COLOR_WINDOW))
+        if length(WordList[LIndex]) then
+            setEnable(WL_List, w32True)
+            setEnable(WL_Remove, w32True)
+
+            --judith: can not add/remove words from Module
+            if equal(getItem(WLN_Lists, LIndex), "Module") then
+                setEnable(WL_Remove, w32False)
+                setEnable(WL_Add, w32False)
+            end if
+
+            addItem(WL_List, WordList[LIndex])
+
+            --Judith if only 1 word in the list, can not see its color because it
+            --is selected so only setIndex when more than one word.
+            if length(WordList[LIndex])>1 then
+                setIndex(WL_List, 1)
+            else
+                setIndex(WL_List, 0)
+            end if
+
+            setFocus(WL_List)
+        else
+            if equal(getItem(WLN_Lists, LIndex), "Module") then
+                --judith, if no entries then set edit box color to default
+                setEnable(Add_Txt2, w32False)
+                setWindowBackColor(Add_Txt2, getSysColor(COLOR_BTNFACE))
+                setEnable(WL_Remove, w32False)
+                setEnable(WL_Add, w32False)
+            end if
+        end if
+    else
+        setEnable(WL_Add, w32False)
+        setEnable(Add_Txt2, w32False)
+        setWindowBackColor(Add_Txt2, getSysColor(COLOR_BTNFACE))
+        setEnable(WL_Remove, w32False)
+        setEnable(WL_List, w32False)
+        setEnable(WLN_Remove, w32False)
+    end if
+    if LIndex>NumDeflts then
+        setTextColor(WL_List,ColorList[LIndex])
+        setWindowBackColor(WL_List,ColorList[1])
+        --judith: if there are no Module entries yet then set backcolor
+        --to the entire panel
+        if equal(getItem(WLN_Lists, LIndex), "Module")
+        and not length(WordList[LIndex]) then
+            setWindowBackColor(WL_List, ColorList[LIndex])
+        end if
+    else
+        setWindowBackColor(WL_List,ColorList[LIndex])
+    end if
+    repaintWindow(WL_List)
+end procedure
+
+procedure onClick_WLN_Color(integer CntlID, integer Event, sequence Params)
+atom LIndex
+atom NewColor
+
+    LIndex = getIndex(WLN_Lists)
+    NewColor = getColorDialog(OptWin, ColorList[LIndex])
+    ColorList[LIndex] = NewColor
+    setWindowBackColor(WL_List,ColorList[LIndex])
+end procedure
+
+procedure onEvent_OptWin(integer self, integer event, sequence params)
+--supplied by Elliott S. de Andrade
+    if params[1]=#0084 then -- WM_NCHITTEST
+        returnValue(2) -- HTCAPTION
+    end if
+end procedure
+
+procedure getFixedFontDialog()
+integer points
+sequence font
+atom hChooseFont,hLogFont,mset
+object result
+atom hFile
+
+    result = -1
+    mset = w32new_memset()
+    hChooseFont = w32acquire_mem(mset, SIZEOF_CHOOSEFONT)
+    hLogFont = w32acquire_mem(mset, SIZEOF_LOGFONT)
+    mem_set(hChooseFont, 0, SIZEOF_CHOOSEFONT)
+    w32store(hChooseFont, CF_lStructSize, SIZEOF_CHOOSEFONT)
+    w32store(hChooseFont, CF_hwndOwner, getHandle(OptWin))
+    w32store(hChooseFont, CF_Flags, w32or_all({CF_SCREENFONTS,#4000}))
+    w32store(hChooseFont, CF_hLogFont, hLogFont)
+
+    if w32Func(xChooseFont,{hChooseFont}) then
+        if w32fetch(hChooseFont,CF_hLogFont) then
+            font = w32peek_string(w32address(hLogFont,lfFaceName))
+            points = floor(w32fetch(hChooseFont,CF_iPointSize)/10)
+            if hFont!=0 then
+                Void = w32Func(xDeleteObject, {hFont})
+                hFont = w32Func(xCreateFontIndirect, {hLogFont})
+            end if
+            setText(FNT_List, font)
+            setText(FNT_Pnt, sprintf("%d",{points}))
+
+            hFile = open(CurrPath & "Files\\SynFont2.ini", "w")
+            print(hFile, {peek({hLogFont,SIZEOF_LOGFONT}),peek({hChooseFont,SIZEOF_CHOOSEFONT})})
+            close(hFile)
+        end if
+    end if
+    w32release_mem(mset)
+end procedure
+
+procedure onClick_FNT_Change(integer CntlID, integer Event, sequence Params)
+    getFixedFontDialog()
+end procedure
+
+procedure onClick_UND_Unlim(integer CntlID, integer Event, sequence Params)
+    if isChecked(UND_Unlim) then
+        setEnable(UND_Ed, w32False)
+        setWindowBackColor(UND_Ed, getSysColor(COLOR_BTNFACE))
+        setEnable(UND_UpDn, w32False)
+    else
+        setEnable(UND_Ed, w32True)
+        setWindowBackColor(UND_Ed, getSysColor(COLOR_WINDOW))
+        setEnable(UND_UpDn, w32True)
+    end if
+end procedure
+
+procedure onClick_WLN_Remove(integer CntlID, integer Event, sequence Params)
+integer Index
+
+    Index = getIndex(WLN_Lists)
+    WordName = WordName[1..Index-1] & WordName[Index+1..length(WordName)]
+    WordList = WordList[1..Index-1] & WordList[Index+1..length(WordList)]
+    ColorList = ColorList[1..Index-1] & ColorList[Index+1..length(ColorList)]
+
+    eraseItems(WLN_Lists)
+    addItem(WLN_Lists, WordName)
+    if Index>getCount(WLN_Lists) then
+        setIndex(WLN_Lists, getCount(WLN_Lists))
+    else
+        setIndex(WLN_Lists, Index)
+    end if
+    onChange_WLN_Lists(WLN_Lists, w32HChange, {})
+end procedure
+
+procedure onClick_WL_Remove(integer CntlID, integer Event, sequence Params)
+integer WLN_Index
+integer WL_Index
+integer ok
+
+    WLN_Index = getIndex(WLN_Lists)
+    WL_Index = getIndex(WL_List)
+
+    if WLN_Index<1
+    or WL_Index<1 then
+        ok = displayErrorMessage(194,{})
+        return
+    end if
+
+    if getCount(WL_List)>0 then
+        setEnable(WL_Remove, w32True)
+        setEnable(WL_List, w32True)
+        WordList[WLN_Index] = WordList[WLN_Index][1..WL_Index-1] & WordList[WLN_Index][WL_Index+1..length(WordList[WLN_Index])]
+
+        if getCount(WL_List)>1 then
+            eraseItems(WL_List)
+            addItem(WL_List, WordList[WLN_Index])
+            if WL_Index>getCount(WL_List) then
+                setIndex(WL_List, getCount(WL_List))
+            else
+                setIndex(WL_List, WL_Index)
+            end if
+        elsif getCount(WL_List)=1 then
+            setEnable(WL_Remove, w32False)
+            eraseItems(WL_List)
+            setEnable(WL_List, w32False)
+        end if
+    end if
+end procedure
+
+procedure onClick_WL_Add(integer CntlID, integer Event, sequence Params)
+sequence Text
+integer Index
+
+    Text = getText(Add_Txt2)
+    if length(Text) then
+        setText(Add_Txt2, "")
+        Index = getIndex(WLN_Lists)
+        WordList[Index] = append(WordList[Index], Text)
+        WordList[Index] = sort(WordList[Index])
+        eraseItems(WL_List)
+        addItem(WL_List, WordList[Index])
+
+        Index = find(Text, WordList[Index])
+        setIndex(WL_List, Index)
+    end if
+end procedure
+
+procedure onClick_WLN_Add(integer CntlID, integer Event, sequence Params)
+sequence Text
+integer Index
+
+    Text = getText(Add_Txt1)
+    if length(Text) then
+        setText(Add_Txt1, "")
+        WordName = append(WordName, Text)
+        WordList = append(WordList, {})
+        ColorList = append(ColorList, ColorList[3])
+        eraseItems(WLN_Lists)
+        addItem(WLN_Lists, WordName)
+
+        Index = find(Text, WordName)
+        setIndex(WLN_Lists, Index)
+        setEnable(WL_Add, w32True)
+        setEnable(Add_Txt2, w32True)
+        setEnable(WL_List, w32True)
+        setEnable(WLN_Remove, w32True)
+        setWindowBackColor(Add_Txt2, getSysColor(COLOR_WINDOW))
+        repaintWindow(WL_List)
+    end if
+end procedure
+
+procedure onClick_GoTo_can(integer CntlID, integer Event, sequence Params)
+    OpenDialog = w32False
+    closeWindow(GoToWin)
+end procedure
+
+procedure onKeyDown_GoTo_can(integer CntlID, integer Event, sequence Params)
+    if Params[1]=VK_RETURN then
+        onClick_GoTo_can(CntlID, w32HClick, {})
+    end if
+end procedure
+
+procedure onClick_GoTo_ok(integer CntlID, integer Event, sequence Params)
+sequence NewLine
+integer ok
+
+    NewLine = value(getText(GoTo_Ed))
+    if NewLine[1]=GET_SUCCESS then
+        if NewLine[2]>0 and NewLine[2]<=length(Actual) then
+            OpenDialog = w32False
+            closeWindow(GoToWin)
+            CursorX1 = 0
+            CursorX2 = 0
+            CursorW = 0
+            CursorY = NewLine[2]
+            setScrollPos(SynVScroll, NewLine[2]-floor(NumLinesY/2))
+            repaintWindow(Syntax)
+            ok = invokeHandler(Syntax, w32HChange, {}) --in editors module
+            MoveCursorAbs(0, CursorY, w32True)
+        else
+            Void = displayErrorMessage(191,{})
+        end if
+    end if
+end procedure
+
+procedure onKeyDown_GoTo_ok(integer CntlID, integer Event, sequence Params)
+    if Params[1]=VK_RETURN then
+        onClick_GoTo_ok(CntlID, w32HClick, {})
+    end if
+end procedure
+
+procedure onKeyDown_GoTo_Ed(integer CntlID, integer Event, sequence Params)
+    if Params[1]=VK_RETURN then
+        onClick_GoTo_ok(CntlID, w32HClick, {})
+    end if
+end procedure
+
+
+procedure onClick_FindC(integer CntlID, integer Event, sequence Params)
+    doingFind = w32False
+    if HasSelec then    --judith
+        --RemoveSelection()
+        HasSelec = w32False
+    end if
+
+    closeWindow(FindWin)
+end procedure
+
+procedure onKeyDown_FindC(integer CntlID, integer Event, sequence Params)
+    if Params[1]=VK_RETURN then
+        onClick_FindC(CntlID, w32HClick, {})
+    end if
+end procedure
+
+global procedure onClick_FindN(integer CntlID, integer Event, sequence Params)
+integer Found
+sequence findWhat
+
+    if isChecked(Find_RD) then
+        Found = FindNext()
+    else
+        Found = FindPrevious()
+    end if
+
+    if not Found then
+        findWhat = getText(FindW_Ed)
+        Void = displayErrorMessage(192,{findWhat})
+    else
+        setScrollPos(SynHScroll, 0)
+        if not ShiftView() then
+            repaintWindow(Syntax)
+        end if
+    end if
+end procedure
+
+procedure onKeyDown_FindN(integer CntlID, integer Event, sequence Params)
+    if Params[1]=VK_RETURN
+    or Params[1]=VK_F3 then
+        onClick_FindN(CntlID, w32HClick, {})
+    end if
+    if Params[1]=VK_F4 then
+        ok = invokeHandler(FindR,w32HClick,{})
+    end if
+end procedure
+
+global procedure onClick_FindR(integer CntlID, integer Event, sequence Params)
+    Replace_Next()
+    setScrollPos(SynHScroll, 0)
+    if not ShiftView() then
+        repaintWindow(Syntax)
+    end if
+end procedure
+
+procedure onKeyDown_FindR(integer CntlID, integer Event, sequence Params)
+    if Params[1]=VK_RETURN
+    or Params[1]=VK_F4 then
+        onClick_FindR(CntlID, w32HClick, {})
+    end if
+    if Params[1]=VK_F3 then
+        ok = invokeHandler(FindN,w32HClick,{})
+    end if
+end procedure
+
+procedure onClick_FindRA(integer CntlID, integer Event, sequence Params)
+integer Found
+
+    if isChecked(Find_RD) then
+        Found = FindNext()
+    else
+        Found = FindPrevious()
+    end if
+
+    while Found do
+        isModified = w32True
+        Replace_Next()
+        setScrollPos(SynHScroll, 0)
+        if not ShiftView() then
+            repaintWindow(Syntax)
+        end if
+        Found = FindNext()
+    end while
+end procedure
+
+procedure onKeyDown_FindRA(integer CntlID, integer Event, sequence Params)
+    if Params[1]=VK_RETURN then
+        onClick_FindRA(CntlID, w32HClick, {})
+    end if
+end procedure
+
+procedure onKeyDown_FindW_Ed(integer CntlID, integer Event, sequence Params)
+    if Params[1]=13
+    or Params[1]=VK_F3 then
+        Void = invokeHandler(FindN, w32HClick, {})
+    end if
+    if Params[1]=VK_F4 then
+        Void = invokeHandler(FindR, w32HClick, {})
+    end if
+end procedure
+
+procedure onChange_FindW_Ed(integer CntlID, integer Event, sequence Params)
+    setEnable(FindN, w32True)
+end procedure
+
+procedure onKeyDown_FindR_Ed(integer CntlID, integer Event, sequence Params)
+    if Params[1]=13
+    or Params[1]=VK_F3 then
+        Void = invokeHandler(FindN, w32HClick, {})
+    end if
+    if Params[1]=VK_F4 then
+        Void = invokeHandler(FindR, w32HClick, {})
+    end if
+end procedure
+
+procedure onChange_FindR_Ed(integer CntlID, integer Event, sequence Params)
+    setEnable(FindR, w32True)
+end procedure
+
+procedure onKeyUp_Find(integer CntlID, integer Event, sequence Params)
+    if length(getText(FindW_Ed)) then
+        setEnable(FindN, w32True)
+        if length(getText(FindR_Ed)) then
+            setEnable(FindR, w32True)
+            setEnable(FindRA, w32True)
+        else
+            setEnable(FindR, w32False)
+            setEnable(FindRA, w32False)
+        end if
+    else
+        setEnable(FindN, w32False)
+        setEnable(FindR, w32False)
+        setEnable(FindRA, w32False)
+    end if
+end procedure
+
+-- free resources -----------------------------------------------------------------------
+global procedure Close_MainWin(integer CntlID, integer Event, sequence Params)
+atom hFile
+sequence Data
+sequence Temp
+
+    if CntlID or Event or sequence(Params) then end if
+
+    if not closedUp then
+        --closing parent but not IDE
+        returnValue(-1)
+        return
+    end if
+
+    if hFont!=0 then
+        Void = w32Func(xDeleteObject, {hFont})
+    end if
+
+    -- save other config file
+    Data = {}
+    Data = append(Data, isChecked(UND_Unlim))
+    Temp = value(getText(UND_Ed))
+    Data = append(Data, Temp[2])
+    Temp = value(getText(TS_Width))
+    Data = append(Data, Temp[2])
+    Data = append(Data, ColorList[1..NumDeflts])
+    Data = append(Data, defaultHotKeyFileName)
+
+    hFile = open(CurrPath & "Files\\SynMain2.ini", "w")
+    if hFile!= -1 then
+        print(hFile, Data)
+        close(hFile)
+    end if
+
+end procedure
+
+-- function to w32store and set user F keys in MainLine
+global procedure sendUserHotKey(sequence HotKeys, sequence HotKeyText, sequence fName)
+--DEV
+    if sequence(HotKeys) or sequence(HotKeyText) then end if
+    if sendUserHotKey_id then
+        call_proc(sendUserHotKey_id,{UserHotKeys,UserHotKeyText,fName})
+    end if
+end procedure
+
+--read valid hot key data and w32store in array for mainline
+global procedure processHotKeyFileName(sequence fName)
+atom hFile
+object Data
+sequence FKey
+
+    FKey = {VK_F2,VK_F3,VK_F4,VK_F7,VK_F8,VK_F9,VK_F10,VK_F11,VK_F2,VK_F3,VK_F4,VK_F7,VK_F8,VK_F9,VK_F10,VK_F11}
+    UserHotKeys = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+
+    hFile = open(fName, "r")
+    if hFile!= -1 then
+        Data = get(hFile)
+        close(hFile)
+        UserHotKeyText = {}
+        if Data[1]=GET_SUCCESS then
+            for i=1 to length(Data[2]) do
+                if find(Data[2][i][1], ValidFKeys) then
+                    UserHotKeys[i] = FKey[i]
+                    UserHotKeyText &= {Data[2][i][2]}
+                end if
+            end for
+            sendUserHotKey(UserHotKeys,UserHotKeyText,fName)
+        end if
+    end if
+end procedure
+
+procedure onOpen_MainWin(integer CntlID, integer Event, sequence Params)
+atom hFile
+object Data
+atom mset
+atom hLogFont
+atom hChooseFont
+sequence font
+integer points
+
+    setBitmap(Options, the_current_dir & "\\Resources\\Opts.bmp")
+    BlinkTime = w32Func(xGetCaretBlinkTime, {})
+    setMousePointer(Syntax, IBeamPointer)
+
+    Void = getDC(Syntax)
+    putFontIntoDC(Syntax, Void, "Fixedsys", 9)
+    releaseDC(Void) --Syntax )
+
+    FontSize = getFontSize(Syntax)
+    FontSize[2] += 1
+
+    setCtlSize(CursorPix, 2, FontSize[2])
+    setFocus(SynInput)
+    setScrollRange(UND_UpDn, 0, 9999)
+    setScrollRange(TS_UpDn, 1, 10)
+
+    hFile = open(the_current_dir & "\\Files\\SynFont2.ini", "r")
+    if hFile= -1 then
+        hFile = open(the_current_dir & "\\Files\\FirstTimeSynFont2.ini", "r")
+    end if
+    if hFile!= -1 then
+        Data = get(hFile)
+        close(hFile)
+
+        if Data[1]=GET_SUCCESS then
+            mset = w32new_memset()
+            hLogFont = w32acquire_mem(mset, SIZEOF_LOGFONT)
+            poke(hLogFont, Data[2][1])
+            hChooseFont = w32acquire_mem(mset, SIZEOF_CHOOSEFONT)
+            poke(hChooseFont, Data[2][2])
+
+            font = w32peek_string(w32address(hLogFont,lfFaceName))
+            points = floor(w32fetch(hChooseFont,CF_iPointSize)/10)
+            if hFont!=0 then
+                Void = w32Func(xDeleteObject, {hFont})
+                hFont = w32Func(xCreateFontIndirect, {hLogFont})
+            end if
+            setText(FNT_List, font)
+            setText(FNT_Pnt, sprintf("%d",{points}))
+            w32release_mem(mset)
+        else
+            setText(FNT_List, "Fixedsys")
+            setText(FNT_Pnt, "9")
+        end if
+    else
+        setText(FNT_List, "Fixedsys")
+        setText(FNT_Pnt, "9")
+    end if
+
+    hFile = open(the_current_dir & "\\Files\\SynMain2.ini", "r")
+    if hFile!= -1 then
+        Data = get(hFile)
+        close(hFile)
+
+        if Data[1]=GET_SUCCESS then
+            setCheck(UND_Unlim, Data[2][1])
+            setText(UND_Ed, sprintf("%d",{Data[2][2]}))
+            setText(TS_Width, sprintf("%d",{Data[2][3]}))
+            if length(Data[2][4])=NumDeflts then
+                ColorList[1..NumDeflts] = Data[2][4]
+            else
+                ColorList[1..length(Data[2][4])] = Data[2][4]
+            end if
+
+            if Data[2][1] then
+                setEnable(UND_Ed, w32False)
+            else
+                setEnable(UND_Ed, w32True)
+            end if
+
+            defaultHotKeyFileName = the_current_dir & "\\Files\\IDE_HotKey.dat"
+            if length(Data[2])>4 then
+                --send default HotKey Filename to Mainline and
+                --read routine
+                --since I changed this after the first user testing, check for
+                --length of 2
+                if length(Data[2][5])=2 then
+                    --this is old data during early 0.16.0 testing phase
+                    UserHotKeys = Data[2][5][1]
+                    UserHotKeyText = Data[2][5][2]
+                    sendUserHotKey(UserHotKeys,UserHotKeyText,defaultHotKeyFileName)
+                else
+                    processHotKeyFileName(Data[2][5])
+                end if
+            else
+                processHotKeyFileName(defaultHotKeyFileName)
+            end if
+        end if
+    else
+        setCheck(UND_Unlim, 1)
+        setText(UND_Ed, sprintf("%d",{10}))
+        setText(TS_Width, sprintf("%d",{4}))
+        setEnable(UND_Ed, w32False)
+        processHotKeyFileName(defaultHotKeyFileName)
+    end if
+
+    CurrPath = the_current_dir & "\\"
+
+end procedure
+
+-- return if or not the file has been modified ------------------------------------------
+global function synGetModified()
+    return( isModified )
+end function
+
+-- CW add used by autosave so that it only autosaves when the file really has been modified
+global procedure resetModified()
+    isModified = w32False
+end procedure
+
+-- return all text in Syntax2 -----------------------------------------------------------
+global function synGetAllText()
+    return( Actual )
+end function
+
+global function synGetTextLine(integer Line)
+    return( Actual[Line] )
+end function
+
+-- set the callback for F1 support ------------------------------------------------------
+global procedure synSetF1CallBack(atom CallB)
+    F1CallBack = CallB
+end procedure
+
+-- set the callback for hint support ----------------------------------------------------
+global procedure synSetHintCallBack(atom CallB)
+    HintCB = CallB
+end procedure
+
+-- insert text at cursor position into Syntax2 ------------------------------------------
+global procedure synInsertText(object NewText)
+    if not length(NewText) then
+        return
+    end if
+    InsertText(NewText, w32False)
+    if length(NewText)=1 then
+        MoveCursorRel(length(NewText[1]), 0, w32True)
+    else
+        MoveCursorAbs(length(NewText[length(NewText)]), CursorY+length(NewText)-1, w32False)
+    end if
+    ResetMaxLine()
+    repaintWindow(Syntax)
+end procedure
+
+-- move cursor to absolute position (WARNING! If indexed wrong this will crash!) --------
+global procedure synMoveCursorAbs(integer NewX, integer NewY)
+    MoveCursorAbs(NewX, NewY, w32True)
+end procedure
+
+-- add a new wordlist to Syntax2 --------------------------------------------------------
+global procedure synAddWordList(sequence Name, sequence List, atom Color)
+    WordName = append(WordName, Name)
+    WordList = append(WordList, sort(List))
+    ColorList = append(ColorList, Color)
+end procedure
+
+-- get everything in one sequence what Syntax2 does not automatically save --------------
+global function synGetSavable()
+sequence Save
+
+    Save = {}
+    if length(WordList)>NumDeflts then
+        Save = append(Save, WordName[NumDeflts+1..length(WordName)])
+        Save = append(Save, WordList[NumDeflts+1..length(WordList)])
+        Save = append(Save, ColorList[NumDeflts+1..length(ColorList)])
+    end if
+    return( Save )
+end function
+
+-- get everything in one sequence what Syntax2 automatically save --------------
+global function synGetAutoSavable()
+sequence Save
+
+    Save = {}
+    if length(WordList)>=NumDeflts then
+        Save = append(Save, WordName[1..NumDeflts])
+        Save = append(Save, WordList[1..NumDeflts])
+        Save = append(Save, ColorList[1..NumDeflts])
+    end if
+    return( Save )
+end function
+
+-- amend Syntax2 with previously saved data ---------------------------------------------
+global procedure synSetSavable(sequence Data)
+    if Data[1]=GET_SUCCESS then
+        WordName = WordName[1..NumDeflts] & Data[2][1]
+        WordList = WordList[1..NumDeflts] & Data[2][2]
+        ColorList = ColorList[1..NumDeflts] & Data[2][3]
+    end if
+end procedure
+
+-- change data in syntax2
+global procedure synSetSavableCorrected(sequence Data)
+    WordName = WordName[1..NumDeflts] & Data[1]
+    WordList = WordList[1..NumDeflts] & Data[2]
+    ColorList = ColorList[1..NumDeflts] & Data[3]
+end procedure
+
+global procedure synReplaceWin32libName_List(sequence Data)
+--used by projectEditor
+integer index
+
+    index = find(Data[1],WordName)
+    if index then
+        WordName[index] = Data[2]
+        WordList[index] = Data[3]
+    end if
+end procedure
+
+-- wrapper for synGetSavable ------------------------------------------------------------
+global procedure synRestoreINIFile(sequence FileName)
+integer ok
+atom hFile
+sequence Data
+
+    WordName = WordName[1..NumDeflts]
+    WordList = WordList[1..NumDeflts]
+    ColorList = ColorList[1..NumDeflts]
+
+    hFile = open(CurrPath & FileName, "r")
+    if hFile!= -1 then
+        Data = get(hFile)
+        close(hFile)
+        synSetSavable(Data)
+    else
+        --try with firstTimeOtherC.ini file
+        hFile = open(CurrPath & "Files\\FirstTimeOtherC.ini", "r")
+        if hFile!= -1 then
+            Data = get(hFile)
+            close(hFile)
+            synSetSavable(Data)
+        else
+            ok = displayErrorMessage(193,{"Files\\OtherC.ini"})
+            abort(1)
+        end if
+    end if
+end procedure
+
+-- wrapper for synSetSavable ------------------------------------------------------------
+global procedure synSaveINIFile(sequence FileName)
+atom hFile
+sequence Data
+
+    hFile = open(CurrPath & FileName, "w")
+    if hFile!= -1 then
+        Data = synGetSavable()
+        print(hFile, Data)
+        close(hFile)
+    end if
+end procedure
+
+-- procedure to save currently loaded file ----------------------------------------------
+global procedure synSaveCurrentFile()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {19,2})
+end procedure
+
+-- procedure to save currently loaded file as filename ----------------------------------
+global procedure synSaveCurrentFileAs()
+    synFileN = {}
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {19,2})
+    if not isModified then
+        --probably cancelled save
+        isModified = w32True
+        abortClose = w32True
+    end if
+end procedure
+
+-- procedure to save file as filename ----------------------------------
+-- this is needed in multi file editor where last file loaded is not the
+-- file saved.
+global procedure synSaveCurrentFileName(sequence savename)
+    synFileN = savename
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {19,2})
+end procedure
+
+-- procedure to undo the last operation (if any) ----------------------------------------
+global procedure synUndoLast()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {26,2})
+end procedure
+
+-- function that returns if or not an undo operation can be made -----------------------
+global function synCanUndo()
+    return( length(UnBuff) )
+end function
+
+--function passes UnBuff to exerr.ew
+global function synGetUnBuff()
+    return( UnBuff )
+end function
+
+--procedure passes temp UnBuff held in exerr.ew back to syntax
+global procedure synStuffUnBuff(sequence data)
+    UnBuff = data
+end procedure
+
+-- procedure to cut the current selection and place on clipboard ------------------------
+global procedure synCutText()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {24,2})
+end procedure
+
+-- procedure to copy the current selection and place on clipboard -----------------------
+global procedure synCopyText()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {3,2})
+end procedure
+
+-- procedure to paste from the clipboard ------------------------------------------------
+global procedure synPasteText()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {22,2})
+end procedure
+
+-- procedure to unindent  ------------------------------------------------
+global procedure synUnindent()
+
+    if HasSelec then
+        Void = GetSelection()
+        HasSelec = 0
+        --check that all lines have tab
+        --CoJaBo discovered that blank lines will crash IDE
+        for iter=Void[1][1] to Void[2][1] do
+            if length(Actual[iter]) then
+                if Actual[iter][1]!=9 then
+                    MoveCursorRel(1, 0, w32True)
+                    return
+                end if
+            end if
+        end for
+
+        UnBuff = append(UnBuff, {8,{Void[1][1],Void[2][1]},""})
+        TruncateUnBuff()
+
+        for iter=Void[1][1] to Void[2][1] do
+            if length(Actual[iter]) then
+                if Actual[iter][1]=9 then
+                    Actual[iter] = Actual[iter][2..length(Actual[iter])]
+                    Printable[iter] = RemoveTabs(Actual[iter])
+                end if
+            end if
+        end for
+
+        MoveCursorRel(1, 0, w32True)
+        isModified = w32True
+    end if
+end procedure
+synUnindent_id = routine_id("synUnindent")
+
+-- function that returns if or not a paste operation can be made ------------------------
+global function synCanPaste()
+    return( w32Func(xIsClipboardFormatAvailable,{CF_TEXT}) )
+end function
+
+-- function that returns w32True if a selection is available -------------------------------
+global function synHasSelection()
+    return( HasSelec )
+end function
+
+--procedure that sets HasSelec to w32False from mainline such as before going to Menu Run, Menu GoToLine
+global procedure synTurnOffSelection()
+    HasSelec = w32False
+end procedure
+
+-- procedure to invoke the goto line dialog ---------------------------------------------
+global procedure synShowGotoLine()
+    HasSelec = w32False
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {7,2})
+end procedure
+
+-- procedure to invoke the Find\Replace dialog ------------------------------------------
+global procedure synShowFindRep()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {6,2})
+end procedure
+
+-- function to set user F keys from MainLine changes
+global procedure setUserHotKeys(sequence HotKeys, sequence HotKeyText,
+                                sequence fName, integer dlft)
+sequence Data,data
+atom hFile
+
+    UserHotKeys = HotKeys
+    UserHotKeyText = HotKeyText
+
+    --write HotKey File
+    Data = {}
+    data = {"",""}
+    for i=1 to length(UserHotKeys) do
+        data[1] = ValidFKeys[i]
+        data[2] = UserHotKeyText[i]
+        Data &= {data}
+    end for
+
+    hFile = open(fName, "w")
+    if hFile!= -1 then
+        print(hFile, Data)
+        close(hFile)
+    end if
+
+    if dlft then
+        --this is stored in slot 5 of synMain2.ini
+        defaultHotKeyFileName = fName
+    end if
+end procedure
+
+-- procedure to select all text ---------------------------------------------------------
+global procedure synSelectAll()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {1,2})
+end procedure
+
+-- procedure to block comment selected text --------------------------------------------
+global procedure synSelectBlkComment()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {4,2})
+end procedure
+
+-- procedure to block indent selected text ---------------------------------------------
+global procedure synSelectBlkIndent()
+    onKeyPress_SynInput(SynInput, w32HKeyPress, {2,2})
+end procedure
+
+-- procedure to resize Syntax2 ----------------------------------------------------------
+global procedure synSetRect(integer style, integer x, integer y, integer cx, integer cy)
+sequence FrameCR
+
+    if style=SIZE_MINIMIZED then
+        CarrotVis = w32False
+        InvertCarrot(Syntax, w32HTimer, {1})
+        killTimer(Syntax, 1)
+    else
+        setRect(SynFrame, x, y, cx, cy, w32True)
+        FrameCR = getClientRect(SynFrame)
+        SynSizeX = FrameCR[3]-FrameCR[1]-16
+        SynSizeY = FrameCR[4]-FrameCR[2]-16
+        if SynSizeX>0 and SynSizeY>0 then
+            setCtlSize(SynPix, SynSizeX, SynSizeY)
+        end if
+        if hideGutter then
+            setCtlSize(Syntax, SynSizeX, SynSizeY)
+        else
+            setCtlSize(Syntax, SynSizeX-newguttersize, SynSizeY)
+            setCtlSize(LineGutter, newguttersize, SynSizeY)
+        end if
+
+        setRect(SynVScroll, SynSizeX, 0, 16, SynSizeY, w32True)
+        setRect(SynHScroll, 0, SynSizeY, SynSizeX, 16, w32True)
+        setRect(Options, SynSizeX, SynSizeY, 16, 16, w32True)
+    end if
+end procedure
+
+-- function to get the current cursor coordinates ---------------------------------------
+global function synGetCursorPos()
+    return( {CursorX1,CursorY} )
+end function
+
+global function synGetTopLine()
+    return StartLine
+end function
+
+global procedure synGotoTopLine(integer line)
+    MoveCursorAbs(0,line, w32True)
+    CursorX1 = 0
+    CursorX2 = 0
+    CursorW = 0
+    CursorY = line
+    setScrollPos(SynVScroll, line)
+    repaintWindow(Syntax)
+end procedure
+
+--procedure to set focus to input after using a control in parent
+global procedure setFocusSynInput()
+    setFocus(SynInput)
+end procedure
+
+--set whether user want to have auto complete of input coding
+global procedure synAutoComplete(integer autocomplete)
+    synautocomplete = autocomplete
+end procedure
+
+--not currently used
+global procedure moveToLineEnd()
+    MoveCursorAbs(length(Actual[CursorY]), CursorY, w32True)
+end procedure
+
+--pass digits of tabstop to mainline
+global function getTabStop()
+    return TabStop
+end function
+
+global procedure hideTheGutter(integer hideState)
+sequence rect
+
+    rect = getCtlSize(Syntax)
+    if hideState then
+        hideGutter = w32True
+        setRect(Syntax, 0, 0, rect[1]+newguttersize, rect[2], w32True)
+    else
+        hideGutter = w32False
+        setRect(Syntax, newguttersize, 0, rect[1]-newguttersize, rect[2], w32True)
+    end if
+    repaintWindow(Syntax)
+end procedure
+
+global procedure synNoInputAllowed(integer state)
+    skipState = state
+end procedure
+
+--pass to syntax that file is or isn't in editor
+--if in editor do not skip using Ctrl+S
+global procedure synFileInEditor(integer which)
+    if which then
+        skipCtrl_S = w32False
+    else
+        skipCtrl_S = w32True
+    end if
+end procedure
+
+------------------------------------------------------------------------------
+global procedure synSetLocalCase(integer which)
+--for new feature in v0.18.0
+    colorModuleLocals = which
+end procedure
+
+-----------------------------------------------------------------------------
+global procedure synSetColor(integer which)
+--for new feature in v0.18.0
+    colorLocals = which
+    repaintWindow(Syntax)
+end procedure
+
+-----------------------------------------------------------------------------
+global procedure synSetNameColor(integer which)
+--for new feature in v0.20.0
+    colorControlName = which
+    repaintWindow(Syntax)
+end procedure
+
+-----------------------------------------------------------------------------
+
+--highlight ex.err line
+global procedure synHighlightLine(integer row)
+    CursorY = row
+    CursorX1 = 0
+    CursorX2 = length(Printable[CursorY])
+    CursorW = length(Printable[CursorY])
+    HasSelec = w32True
+    CursorYs = CursorY
+    CursorWs = CursorW
+    CursorXo2 = CursorX2
+    CursorYo = CursorY
+    CursorXs1 = 0
+    CursorXs2 = 0
+    if not ShiftView() then
+        repaintWindow(Syntax)
+    end if
+    HasSelec = w32False
+end procedure
+
+--empty last filename read
+global procedure synRemoveFilename()
+    synFileN = ""
+end procedure
+
+global procedure adjustEscLineNumber(integer mode)
+    adjustEscLineNumberSw = mode
+end procedure
+
+global procedure useEscLineNumber(integer number)
+    adjustedEscLineNumber = number
+end procedure
+
+global function getEscLineNumber()
+    return adjustedEscLineNumber
+end function
+
+function trimfromR(sequence S)
+
+    if not length(S) then
+        return {}
+    end if
+
+    for i=length(S) to 1 by -1 do
+        if S[i]!=' ' then return S[1..i] end if
+    end for
+    return {}
+
+end function
+
+-------------------------------------------------------------------------------
+function trimfromL(sequence S)
+
+    while w32True do
+        if not length(S) then
+            return {}
+        end if
+
+        if S[1]=32
+        or S[1]=9 then
+            S = S[2..length(S)]
+        else
+            return S
+        end if
+    end while
+end function
+
+sequence localwords localwords = {}
+procedure findRoutineName(sequence line)
+integer at,index,kind
+sequence keywordRoutine,data
+
+    line = trimfromL(line)
+    line = trimfromR(line)
+
+    kind = 0
+
+    --find procedure or function, save and strip
+    at = match("procedure", line)
+    if at then
+        if match("global", line[1..at-1])
+        or match("export", line[1..at-1]) then
+            kind = 1
+        else
+            kind = 2
+        end if
+        line = line[at+9..length(line)]
+    end if
+    at = match("function", line)
+    if at then
+        if match("global", line[1..at-1])
+        or match("export", line[1..at-1]) then
+            kind = 1
+        else
+            kind = 2
+        end if
+        line = line[at+8..length(line)]
+    end if
+
+    if not kind then
+        return
+    end if
+
+    --find the first paranthesis
+    at = find('(', line)
+    if not at then
+        --might be end procedure or end function
+        return
+    else
+        keywordRoutine = line[1..at-1]
+        keywordRoutine = trimfromL(keywordRoutine)
+        keywordRoutine = trimfromR(keywordRoutine)
+        if kind=1 then  --globals
+            if not find(keywordRoutine, localwords) then
+                localwords &= {keywordRoutine}
+                data = synGetSavable()
+                index = find("Module",data[1])
+                if index then
+                    if length(localwords) then
+                        data[2][index] &= {keywordRoutine}    --localwords
+                    end if
+                    synSetSavableCorrected(data)
+                else
+                    --make sure there is an entry for Module in order to color it
+                    if length(keywordRoutine) then
+                        synAddWordList("Module",localwords,#FF00FF)
+                    end if
+                end if
+            end if
+        else
+            if colorModuleLocals then
+                if not find(keywordRoutine, localKeywords) then
+                    localKeywords &= {keywordRoutine}
+                end if
+            else
+                if not find(keywordRoutine,ceKeywords) then
+                    ceKeywords &= {keywordRoutine}
+                end if
+            end if
+        end if
+    end if
+end procedure
+findRoutineName_id = routine_id("findRoutineName")
+
+-- create a new Syntax2 control ---------------------------------------------------------
+global function Syntax2(atom hParent, object x, object y, object cx, object cy, object styleFlags, object exFlags)
+sequence gutterfontsize
+
+    if object(x) or object(y) or object(cx) or object(cy) then end if
+
+    ParID = hParent
+
+    -- Syntax2 control
+    SynFrame    = createEx(Window, "", hParent, 0, 0, 1, 1, styleFlags, exFlags)
+    LineGutter  = createEx(Pixmap, "", SynFrame, 0, 0, 1, 1, 0, 0)
+    -- Brian Broker
+    setPenColor(LineGutter, getSysColor(COLOR_BTNFACE))
+    setFont(LineGutter, "Courier New",10, 0)
+    --judith
+    gutterfontsize = getFontSize(LineGutter)
+    newguttersize = gutterfontsize[1]*6
+    Syntax      = createEx(Window, "", SynFrame, newguttersize, 0, 1, 1, {WS_CHILD,WS_VISIBLE,WS_CLIPCHILDREN,WS_CLIPSIBLINGS}, 0)
+    SynPix      = createEx(Pixmap, "", NULL, 0, 0, 1, 1, 0, 0)
+    SynVScroll  = createEx(VScroll, "", SynFrame, 0, 0, 1, 1, {WS_CHILD,WS_VISIBLE,SBS_VERT,WS_CLIPCHILDREN,WS_CLIPSIBLINGS}, 0)
+    SynHScroll  = createEx(HScroll, "", SynFrame, 0, 0, 1, 1, {WS_CHILD,WS_VISIBLE,SBS_HORZ,WS_CLIPCHILDREN,WS_CLIPSIBLINGS}, 0)
+    CursorPix   = createEx(Pixmap, "", NULL, 0, 0, 1, 1, 0, 0)
+    SynInput    = createEx(MleText, "", hParent, 0, 0, 1, 1, 0, 0)
+    Options     = createEx(PictureButton, "", SynFrame, 0, 0, 1, 1, 0, 0)
+    if hideGutter then
+        setRect(Syntax, 0, 0, 1, 1, w32True)
+    end if
+
+    -- Right click context menu
+    SynPopup    = createEx(Popup, "", Syntax, 0, 0, 0, 0, 0, 0)
+                                      --"&Undo\tCtrl+Z"
+    PopEditItems = {createEx(MenuItem, IDEText[490][1], SynPopup, 0, 0, 0, 0, 0, 0),
+                    createEx(MenuItem, "-", SynPopup, 0, 0, 0, 0, 0, 0),
+                                      --"Cu&t\tCtrl+X"
+                    createEx(MenuItem, IDEText[491][1], SynPopup, 0, 0, 0, 0, 0, 0),
+                                      --"&Copy\tCtrl+C"
+                    createEx(MenuItem, IDEText[492][1], SynPopup, 0, 0, 0, 0, 0, 0),
+                                      --"&Paste\tCtrl+V"
+                    createEx(MenuItem, IDEText[493][1], SynPopup, 0, 0, 0, 0, 0, 0),
+                    createEx(MenuItem, "-", SynPopup, 0, 0, 0, 0, 0, 0),
+                                      --"&Select All\tCtrl+A"
+                    createEx(MenuItem, IDEText[494][1], SynPopup, 0, 0, 0, 0, 0, 0)}
+
+    -- Options window
+                                     --"Options"
+    OptWin      = createEx(Window, IDEText[495][1], NULL, 0, 0, 1, 1, {WS_POPUP,WS_DLGFRAME,WS_CLIPSIBLINGS}, 0)
+                                   --"Word Lists"
+    WL_Group    = createEx(Group, IDEText[496][1], OptWin, 5, 5, 310, 265, w32or_all({WS_CLIPCHILDREN,WS_CLIPSIBLINGS}), 0)
+                                      --"Add"
+    WLN_Add     = createEx(Button, IDEText[497][1], WL_Group, 13, 17, 50, 20, 0, 0)
+                                    --"Remove"
+    WLN_Remove  = createEx(Button, IDEText[498][1], WL_Group, 65, 17, 50, 20, 0, 0)
+    Add_Txt1    = createEx(EditText, "", WL_Group, 12, 37, 104, 20, 0, 0)
+    WLN_Lists   = createEx(List, "", WL_Group, 12, 57, 104, 165, 0, 0)
+                                    --"Color"
+    WLN_Color   = createEx(Button, IDEText[499][1], WL_Group, 13, 236, 103, 20, 0, 0)
+                                    --"Add"
+    WL_Add      = createEx(Button, IDEText[497][1], WL_Group, 131, 17, 50, 20, 0, 0)
+                                    --"Remove"
+    WL_Remove   = createEx(Button, IDEText[498][1], WL_Group, 183, 17, 50, 20, 0, 0)
+    Add_Txt2    = createEx(EditText, "", WL_Group, 130, 37, 168, 20, 0, 0)
+    WL_List     = createEx(SortedList, "", WL_Group, 130, 57, 168, 200, 0, 0)
+                                  --"Font"
+    FNT_Group   = createEx(Group, IDEText[500][1], OptWin, 325, 5, 200, 70, w32or_all({WS_CLIPCHILDREN,WS_CLIPSIBLINGS}), 0)
+                                    --"Change"
+    FNT_Change  = createEx(Button, IDEText[501][1], FNT_Group, 13, 17, 60, 20, 0, 0)
+                                     --"Fixedsys"
+    FNT_List    = createEx(EditText, IDEText[502][1], FNT_Group, 12, 37, 140, 20, ES_READONLY, 0)
+    FNT_Pnt     = createEx(EditText, "9", FNT_Group, 157, 37, 31, 20, ES_READONLY, 0)
+                                   --"Undo Depth"
+    UND_Group   = createEx(Group, IDEText[503][1], OptWin, 325, 92, 102, 80, w32or_all({WS_CLIPCHILDREN,WS_CLIPSIBLINGS}),0)
+                                    --"  Unlimited"
+    UND_Unlim   = createEx(CheckBox, IDEText[504][1], UND_Group, 14, 20, 70, 20, 0, 0)
+    UND_Ed      = createEx(EditText, "", UND_Group, 13, 45, 60, 20, 0, WS_EX_RIGHT)
+    UND_UpDn    = createEx(UpDown, "", UND_Group, 73, 45, 20, 20, w32or_all({UDS_AUTOBUDDY,UDS_SETBUDDYINT}), 0)
+                                 --"Tab Stops"
+    TS_Group    = createEx(Group, IDEText[505][1], OptWin, 326, 190, 102, 80, w32or_all({WS_CLIPCHILDREN,WS_CLIPSIBLINGS}), 0)
+    TS_Width    = createEx(EditText, "", TS_Group, 12, 21, 60, 20, 0, WS_EX_RIGHT)
+    TS_UpDn     = createEx(UpDown, "", TS_Group, 72, 21, 20, 20, w32or_all({UDS_AUTOBUDDY,UDS_SETBUDDYINT}),0)
+                                    --"Cancel"
+    Cancel      = createEx(Button, IDEText[506][1], OptWin, 434, 227, 91, 20, 0, 0)
+                                    --"Apply"
+    Close       = createEx(Button, IDEText[507][1], OptWin, 434, 250, 91, 20, 0, 0)
+
+    -- GoTo window
+                                     --"Go To Line"
+    GoToWin     = createEx(Window, IDEText[508][1], hParent, 0, 0, 1, 1, {WS_POPUP,WS_CAPTION,WS_DLGFRAME,WS_CLIPSIBLINGS}, {WS_EX_DLGMODALFRAME})
+    GoToLbl     = createEx(EditText, "", GoToWin, 10, 9, 210, 24, {WS_CHILD,WS_VISIBLE}, {0})
+    GoTo_Ed     = createEx(EditText, "", GoToWin, 10, 36, 200, 24, ES_NUMBER, 0)
+                                      --"Ok"
+    GoTo_ok     = createEx(Button, IDEText[509][1], GoToWin, 220, 15, 70, 20, 0, 0)
+                                      --"Cancel"
+    GoTo_can    = createEx(Button, IDEText[510][1], GoToWin, 220, 40, 70, 20, 0, 0)
+
+    -- find replace window
+                                     --"Find / Replace"
+    FindWin     = createEx(Window, IDEText[511][1], NULL, 0, 0, 1, 1, {WS_POPUP,WS_CAPTION,WS_DLGFRAME,WS_CLIPSIBLINGS}, 0)
+                                   --"Find What:"
+    FindW_Lbl   = createEx(LText, IDEText[512][1], FindWin, 10, 10, 100, 20, 0, 0)
+    FindW_Ed    = createEx(EditText, "", FindWin, 121, 7, 200, 24, 0, 0)
+                                  --"Replace With:"
+    FindR_Lbl   = createEx(LText, IDEText[513][1], FindWin, 10, 33, 100, 20, 0, 0)
+    FindR_Ed    = createEx(EditText, "", FindWin, 121, 30, 200, 24, 0, 0)
+                                        --"Find Next"
+    FindN       = createEx(Button, IDEText[519][1], FindWin, 327, 8, 90, 23, 0, 0)
+                                    --"Replace"
+    FindR       = createEx(Button, IDEText[520][1], FindWin, 327, 34, 90, 23, 0, 0)
+                                     --"Replace All"
+    FindRA      = createEx(Button, IDEText[521][1], FindWin, 327, 60, 90, 23, 0, 0)
+                                    --"Cancel"
+    FindC       = createEx(Button, IDEText[510][1], FindWin, 327, 86, 90, 23, 0, 0)
+                                      --"  Whole Word"
+    FindHW      = createEx(CheckBox, IDEText[514][1], FindWin, 10, 63, 155, 20, 0, 0)
+                                      --"  Case Sensitive"
+    FindMC      = createEx(CheckBox, IDEText[515][1], FindWin, 10, 85, 155, 20, 0, 0)
+                                    --"Direction"
+    --Find_G      = createEx( Group, IDEText[516][1], FindWin, 196, 55, 125, 54, 0, 0 )
+                                    --"Up"
+    Find_RU     = createEx(Radio, IDEText[517][1], FindWin, 6+196, 63, 100, 20, 0, 0)
+                                    --"Down"
+    Find_RD     = createEx(Radio, IDEText[518][1], FindWin, 6+196, 85, 100, 20, 0, 0)
+
+    Find_Restrict = createEx(CheckBox, IDEText[1209][1], FindWin, 10, 106, 300, 20, 0, 0)
+
+
+    -- set handlers
+--    setHandler( hParent, w32HClose, routine_id("Close_MainWin"))
+    setHandler(hParent, w32HOpen, routine_id("onOpen_MainWin"))
+    setHandler(SynFrame, w32HPaint, routine_id("onPaint_MainWin"))
+    setHandler(SynFrame, w32HResize, routine_id("onResize_MainWin"))
+    setHandler(Syntax, w32HEvent, routine_id("onEvent_Syntax"))
+    setHandler(Syntax, w32HTimer, routine_id("InvertCarrot"))
+    setHandler(Syntax, w32HPaint, routine_id("onPaint_Syntax"))
+    setHandler(Syntax, w32HMouse, routine_id("onMouse_Syntax"))
+    setHandler(Syntax, w32HClick, routine_id("onClick_Syntax"))
+    setHandler(SynInput, w32HKeyPress, routine_id("onKeyPress_SynInput"))
+    setHandler(SynInput, w32HKeyDown, routine_id("onKeyDown_SynInput"))
+    setHandler(SynInput, w32HGotFocus, routine_id("onGotFocus_Input"))
+    setHandler(SynInput, w32HLostFocus, routine_id("onLostFocus_Input"))
+    setHandler({SynVScroll,SynHScroll}, w32HScroll, routine_id("onScroll_SynScroll"))
+    setHandler({SynVScroll,SynHScroll}, w32HEvent, routine_id("onEvent_SynScroll"))
+    setHandler(PopEditItems, w32HClick, routine_id("onClick_EditItem"))
+    setHandler(Options, w32HEvent, routine_id("GotFocus_Options"))
+    setHandler(Options, w32HClick, routine_id("onClick_Options"))
+    setHandler(Cancel, w32HClick, routine_id("onClick_Cancel"))
+    setHandler(Close, w32HClick, routine_id("onClick_Close"))
+    setHandler(OptWin, w32HEvent, routine_id("onEvent_OptWin"))
+    setHandler(WLN_Lists, w32HClick, routine_id("onClick_WLN_Lists"))
+    setHandler(WLN_Add, w32HClick, routine_id("onClick_WLN_Add"))
+    setHandler(WLN_Remove, w32HClick, routine_id("onClick_WLN_Remove"))
+    setHandler(WLN_Lists, w32HChange, routine_id("onChange_WLN_Lists"))
+    setHandler(WLN_Color, w32HClick, routine_id("onClick_WLN_Color"))
+    setHandler(WL_Add, w32HClick, routine_id("onClick_WL_Add"))
+    setHandler(WL_Remove, w32HClick, routine_id("onClick_WL_Remove"))
+    setHandler(FNT_Change, w32HClick, routine_id("onClick_FNT_Change"))
+    setHandler(UND_Unlim, w32HClick, routine_id("onClick_UND_Unlim"))
+    setHandler(GoTo_can, w32HClick, routine_id("onClick_GoTo_can"))
+    setHandler(GoTo_can, w32HKeyDown, routine_id("onKeyDown_GoTo_can"))
+    setHandler(GoTo_ok, w32HClick, routine_id("onClick_GoTo_ok"))
+    setHandler(GoTo_ok, w32HKeyDown, routine_id("onKeyDown_GoTo_ok"))
+    setHandler(GoTo_Ed, w32HKeyDown, routine_id("onKeyDown_GoTo_Ed"))
+    setHandler(FindW_Ed, w32HChange, routine_id("onChange_FindW_Ed"))
+    setHandler(FindW_Ed, w32HKeyDown, routine_id("onKeyDown_FindW_Ed"))
+    setHandler(FindC, w32HClick, routine_id("onClick_FindC"))
+    setHandler(FindN, w32HClick, routine_id("onClick_FindN"))
+    setHandler(FindR, w32HClick, routine_id("onClick_FindR"))
+    setHandler(FindRA, w32HClick, routine_id("onClick_FindRA"))
+    setHandler(FindC, w32HKeyDown, routine_id("onKeyDown_FindC"))
+    setHandler(FindN, w32HKeyDown, routine_id("onKeyDown_FindN"))
+    setHandler(FindR, w32HKeyDown, routine_id("onKeyDown_FindR"))
+    setHandler(FindRA, w32HKeyDown, routine_id("onKeyDown_FindRA"))
+    setHandler(FindW_Ed, w32HKeyUp, routine_id("onKeyUp_Find"))
+    setHandler(FindR_Ed, w32HKeyUp, routine_id("onKeyUp_Find"))
+    setHandler(FindR_Ed, w32HKeyDown, routine_id("onKeyDown_FindR_Ed"))
+    setHandler(FindR_Ed, w32HKeyUp, routine_id("onKeyUp_Find"))
+    setHandler(FindR_Ed, w32HChange, routine_id("onChange_FindR_Ed"))
+    setHandler(SynInput, w32HMouse, routine_id("onMouse_SynInput"))
+
+    -- set default vals for colors
+    synAddWordList("Background", {}, #E0D5D1)
+    synAddWordList("Cursor", {}, #0000FF)
+    synAddWordList("Default text", {}, #000000)
+    synAddWordList("Selection back", {}, #7090B0)
+    synAddWordList("Selection text", {}, #000000)
+    synAddWordList("Comment", {}, #00A000)
+    synAddWordList("String", {}, #FF0000)
+    synAddWordList("Hint Back", {}, getSysColor(COLOR_INFOBK))
+    synAddWordList("Hint Text", {}, #000000)
+    synAddWordList("Hint Param", {}, #FF0000)
+    NumDeflts = length(WordList)
+    -- end color defaults
+
+    setEnable(WL_List, w32False)
+    setWindowBackColor(UND_Ed, getSysColor(COLOR_BTNFACE))
+    setEnable(UND_UpDn, w32False)
+    setEnable(WLN_Remove, w32False)
+    setEnable(WL_Add, w32False)
+    setEnable(Add_Txt2, w32False)
+    setWindowBackColor(Add_Txt2, getSysColor(COLOR_BTNFACE))
+    setEnable(WL_Remove, w32False)
+    setWindowBackColor(GoToLbl, getSysColor(COLOR_BTNFACE))
+    setCheck(Find_RD, w32True)
+    setEnable(FindN, w32False)
+    setEnable(FindR, w32False)
+    setEnable(FindRA, w32False)
+    setCheck(Find_Restrict, w32False)
+
+    addItem(WLN_Lists, WordName)
+    setIndex(WLN_Lists, 1)
+    Void = invokeHandler(WLN_Lists,w32HClick,{})
+
+    CurrPath = current_dir() & "\\"
+    return( Syntax )
+end function
+
+global procedure translateSyntax()
+    setText(PopEditItems[1], IDEText[490][1])
+    setText(PopEditItems[3], IDEText[491][1])
+    setText(PopEditItems[4], IDEText[492][1])
+    setText(PopEditItems[5], IDEText[493][1])
+    setText(PopEditItems[7], IDEText[494][1])
+    setText(OptWin, IDEText[495][1])
+    setText(WL_Group, IDEText[496][1])
+    setText(WLN_Add, IDEText[497][1])
+    setText(WLN_Remove, IDEText[498][1])
+    setText(WLN_Color, IDEText[499][1])
+    setText(WL_Add, IDEText[497][1])
+    setText(WL_Remove, IDEText[498][1])
+    setText(FNT_Group, IDEText[500][1])
+    setText(FNT_Change, IDEText[501][1])
+    setText(FNT_List, IDEText[502][1])
+    setText(UND_Group, IDEText[503][1])
+    setText(UND_Unlim, IDEText[504][1])
+    setText(TS_Group, IDEText[505][1])
+    setText(Cancel, IDEText[506][1])
+    setText(Close, IDEText[507][1])
+    setText(GoToWin, IDEText[508][1])
+    setText(GoTo_ok, IDEText[509][1])
+    setText(GoTo_can, IDEText[510][1])
+    setText(FindWin, IDEText[511][1])
+    setText(FindW_Lbl, IDEText[512][1])
+    setText(FindR_Lbl, IDEText[513][1])
+    setText(FindHW, IDEText[514][1])
+    setText(FindMC, IDEText[515][1])
+    --setText(Find_G, IDEText[516][1])
+    setText(Find_RU, IDEText[517][1])
+    setText(Find_RD, IDEText[518][1])
+    setText(FindN, IDEText[519][1])
+    setText(FindR, IDEText[520][1])
+    setText(FindRA, IDEText[521][1])
+    setText(FindC, IDEText[510][1])
+    setText(Find_Restrict, IDEText[1209][1])
+end procedure
+

@@ -29,7 +29,7 @@
 --  c) In Phix, calls to eg machine_func(M_PUT_SCREEN_CHAR) are not 
 --      supposed to occur, however if an application includes an old 
 --      version (say RDS Eu 2.4) of image.e, then pmach.e maps it to
---      here. Now, if we left this in image.e, and pmach.e (naievely) 
+--      here. Now, if we left this in image.e, and pmach.e (naively) 
 --      mapped M_PUT_SCREEN_CHAR to image:put_screen_char(), it would 
 --      result in an infinite loop. Hence I moved any such affected 
 --      routines, but kept everything as compatible as possible.

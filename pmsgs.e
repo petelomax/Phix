@@ -424,7 +424,10 @@ end if
             k = length(msg)
         end if
         k = tokcol+1+k-80
-        if k>0 then
+--31/1/17:
+--      if k>0 then
+        if k>0 
+        and k+3<length(txtline) then
             tokcol-=k
             txtline=".."&txtline[k+3..length(txtline)]
         end if

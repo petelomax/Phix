@@ -26,17 +26,17 @@ constant clock_period = 0.01
 constant TASK_NEVER = 1e300
 
 --constant e16cbchop        = 16    -- call_backs cannot have optional parameters
---constant e72iri       = 72    -- invalid routine_id
---constant e73atodmbs   = 73    -- argument to open_dll must be string
---constant e74dcfpe     = 74    -- define_c_func/proc parameter error
---constant e75cbrpmaba  = 75    -- call back routine parameters must all be atoms
+--constant e72iri           = 72    -- invalid routine_id
+--constant e73atodmbs       = 73    -- argument to open_dll must be string
+--constant e74dcfpe         = 74    -- define_c_func/proc parameter error
+--constant e75cbrpmaba      = 75    -- call back routine parameters must all be atoms
 --constant e81ipicfp        = 81    -- insufficient parameters in call_func/proc()
---constant e84cbpmbropr = 84    -- call_back parameter must be routine_id or {'+',routine_id}
+--constant e84cbpmbropr     = 84    -- call_back parameter must be routine_id or {'+',routine_id}
 --constant e88atcfpmbaos    = 88    -- arguments to c_func/proc must be atoms or strings
---constant e93tmpicfp   = 93    -- too many parameters in call_func/proc()
---constant e117rdnrav   = 117   -- routine does not return a value
---constant e118rrav     = 118   -- routine returns a value
---constant T_const1     = 26    -- (must match pglobals.e, but don't include that here)
+--constant e93tmpicfp       = 93    -- too many parameters in call_func/proc()
+--constant e117rdnrav       = 117   -- routine does not return a value
+--constant e118rrav         = 118   -- routine returns a value
+--constant T_const1         = 26    -- (must match pglobals.e, but don't include that here)
 
 --DEV use crash?
 --procedure fatal(integer errcode, integer ep1=0)
@@ -511,15 +511,6 @@ global procedure task_suspend(integer task_id)
     end if
 end procedure
 
-global procedure task_delay(atom delaytime)
-atom t = time()+delaytime
-    while 1 do
-        task_yield()
-        if time()>=t then exit end if
-        sleep(0.01)
-    end while
-end procedure
-
 procedure call_current_task()
 -- (Put into a separate routine as the frame of task_yield is no longer with us.)
 -- (It proved necessary to keep the system stack balanced, so this uses a trick
@@ -539,9 +530,10 @@ sequence args = tasks[current_task][TASK_ARGS]
             mov rax,[rid]       -- (opUnassigned)
             mov rsi,[args]      -- (opUnassigned)
             push rbx
-            jmp :%opCallProc    -- call_proc(eax,esi)
+            jmp :%opCallProc    -- call_proc(rax,rsi)
         []
           }
+    -- (note: any code placed here would never be executed)
 end procedure
 
 integer kill_ebp_id = 0     -- (delay till using somthing else)
@@ -596,6 +588,7 @@ global procedure task_yield()
 atom t
 --sequence task = tasks[current_task]   -- (maybe)
 
+    if current_task=0 then return end if
     #ilASM{
         [32]
             mov eax,ebp
@@ -702,6 +695,15 @@ atom t
     end if
 end procedure
 
+global procedure task_delay(atom delaytime)
+atom t = time()+delaytime
+    while 1 do
+        task_yield()
+        if time()>=t then exit end if
+        sleep(0.01)
+    end while
+end procedure
+
 global function task_self()
     return current_task
 end function
@@ -727,7 +729,7 @@ end procedure
 global procedure task_clock_start()
 -- resume the scheduler clock
 atom shift
-    if clock_stopped then
+    if clock_stopped and current_task!=0 then
         if save_clock>=0 and save_clock<time() then
             shift = time() - save_clock
             for i = 1 to length(tasks) do
@@ -743,12 +745,14 @@ global function task_list()
 -- return list of active and suspended tasks
 sequence list
     list = {}
-    for i=1 to length(tasks) do
-        if tasks[i][TASK_STATE]!=ST_DEAD then
---          list = append(list, tasks[i][TASK_TID])
-            list = append(list, i)
-        end if
-    end for
+    if current_task!=0 then
+        for i=1 to length(tasks) do
+            if tasks[i][TASK_STATE]!=ST_DEAD then
+--              list = append(list, tasks[i][TASK_TID])
+                list = append(list, i)
+            end if
+        end for
+    end if
     return list
 end function
 

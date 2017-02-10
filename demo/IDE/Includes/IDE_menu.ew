@@ -1,0 +1,1721 @@
+---- ide_menu.ew
+-- menu editor for win32lib ide
+
+--changes by Judith
+--revisions by Roland Stowasser
+-- added submenus
+-- added some error trapping
+-- MenuEditWindow can be resized to adjust the menus list
+-- right click in MenuEditList calls code editor - Item must be highlighted
+--      Judith fixed right click to work if item not highlighted
+
+integer ok
+object VOID
+global integer MenuEditWindow  MenuEditWindow = -1
+integer Static2,Static1,MenuEditTitle,MenuEditName,MenuEditChecked,MenuEditEnabled
+integer MenuEditLocal,MenuEditAddMenu,MenuEditAddItem,MenuEditMoveUp,MenuEditMoveDown
+integer MenuEditDelete,MenuEditList,MenuEditOk,MenuEditCancel,MMenuEditAdd
+integer MenuEditAddSubmenu,MenuEditAddSubItem,MMenuEditAddSub2menu
+integer MMenuEditAddSub2Item,MMenuEditAddSub3menu,MMenuEditAddSub3Item
+integer MMenuEditMove,MMenuEditMoveUp,MMenuEditMoveDown,MMenuEditDelete
+integer MMenuEditCode,MMenuEditCodeEditor,LText40,MenuEditDeleteSubs,MMenuEditDeleteSubs
+
+sequence menu        -- list of menus
+sequence saveMenu    -- menu to save after editing
+sequence deleteList  -- list of deleted menus
+
+--added by Roland
+integer fault        -- count mistakes
+integer counter2     -- count the menus / menuitems
+sequence tmpName     -- to compare the menu names
+object  is_num       -- checks the last 2 positions of name
+integer msg
+--Roland
+
+integer is_changed
+is_changed = w32False    --flag w32True when any changes have been made and check this
+                    --if user close editor without saving
+
+integer Sw
+Sw = w32False
+
+sequence name   --name of control in Code Editor when Menu Editor opens
+
+----------------------------------------------------------------------------- 
+procedure updateMenuEditList(integer index)
+
+sequence text, comparetext
+integer cnt,YOrder
+
+    -- erase the list 
+    eraseItems(MenuEditList)
+
+    -- rebuild the list               
+    counter2 = 0    -- menu / menuItems     
+    fault = 0
+    --use Y for order of menus
+    YOrder = 0
+    for i=1 to length(menu) do
+        YOrder += 1
+        menu[i][Y] = YOrder
+
+        -- build the text 
+        text = menu[i][Title]
+
+        -- add ... if menu item 
+        if equal(menu[i][Class], "MenuItem")then
+            text = "<<< " & text
+
+        --additions by Roland
+        elsif equal(menu[i][Class], "Submenu") then
+            text = "+++ " & text
+        elsif equal(menu[i][Class], "SubmenuItem")then
+            text = "<<< <<< " & text
+        elsif equal(menu[i][Class], "Sub2menu") then
+            text = "+++ +++ " & text
+        elsif equal(menu[i][Class], "Sub2menuItem") then
+            text = "<<< <<< <<< " & text
+        elsif equal(menu[i][Class], "Sub3menu") then
+            text = "+++ +++ +++ " & text
+        elsif equal(menu[i][Class], "Sub3menuItem") then
+            text = "<<< <<< <<< <<< " & text
+        end if
+       --end Roland                        
+
+        --additions by Roland
+        -- retract number if in name
+        tmpName = menu[i][Name]
+        if length(tmpName)>1 then
+            tmpName = tmpName[length(tmpName)-1..length(tmpName)]
+        end if
+        is_num =  value(tmpName)
+        if is_num[1]=GET_SUCCESS then
+            if is_num[2]>counter2 then
+                counter2 = is_num[2]
+            end if
+        end if
+
+        -- warnings  
+        if i=1 and not equal(menu[i][Class], "Menu") then
+            text &= "          << ==== " & IDEText[401][1]  -- must be Menu !"
+            fault += 1
+        end if
+
+        --check that first position of Name is alpha
+        comparetext = menu[i][Name]
+        if (comparetext[1]>='a' and comparetext[1]<='z')
+        or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                        --is ok
+        else
+            text &= "          << ==== " & IDEText[1174][1]  --first char must be alpha
+            fault += 1
+        end if
+
+        if i<length(menu) then
+            if equal(menu[i][Class],"Submenu")
+            or equal(menu[i][Class],"SubmenuItem") then
+                if equal(menu[i+1][Class],"Sub2menuItem")
+                or equal(menu[i+1][Class],"Sub3menuItem")
+
+                or equal(menu[i+1][Class],"Sub3menu") then
+
+                    text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                    fault += 1
+                end if
+            end if
+            if equal(menu[i][Class],"Sub2menu")
+            or equal(menu[i][Class],"Sub2menuItem") then
+                if equal(menu[i+1][Class],"Sub3menuItem") then
+                    text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                    fault += 1
+                end if
+            end if
+            if equal(menu[i][Class], "Menu") or equal(menu[i][Class], "MenuItem") then
+                if equal(menu[i+1][Class],"Sub2menu")
+                or equal(menu[i+1][Class],"SubmenuItem")
+                or equal(menu[i+1][Class],"Sub2menuItem")
+                or equal(menu[i+1][Class],"Sub3menu")
+                or equal(menu[i+1][Class],"Sub3menuItem") then
+                    text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                    fault += 1
+                end if
+            end if
+
+        end if
+        --end Roland
+
+        --check that name is unique not only within Menus but other controls
+        cnt = 0
+        for j=1 to length(controls) do
+            if equal(controls[j][Name], menu[i][Name])
+            and not equal(controls[j][Class], menu[i][Class]) then
+                cnt += 1
+            end if
+        end for
+
+        if cnt then
+            text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+            fault += 1
+        end if
+
+        cnt = 0
+        for j=1 to  length(menu) do
+            if equal(menu[j][Name], menu[i][Name])
+            and j!=i then
+                cnt += 1
+            end if
+        end for
+
+        if cnt then
+            text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+            fault += 1
+        end if
+
+        -- add to list 
+        addItem(MenuEditList, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(MenuEditList, index)
+    end if
+
+end procedure
+-----------------------------------------------------------------------------
+procedure chooseMenuEditItem(integer index)
+
+    -- copy values to fields 
+    if index then
+        setText(MenuEditName, menu[index][Name])
+        setText(MenuEditTitle, menu[index][Title])
+        setCheck(MenuEditChecked, menu[index][Checked])
+        setCheck(MenuEditEnabled, menu[index][Enabled])
+        setCheck(MenuEditLocal, menu[index][Local])
+    else
+        setText(MenuEditName, "")
+        setText(MenuEditTitle, "")
+        setCheck(MenuEditChecked, w32False)
+        setCheck(MenuEditEnabled, w32False)
+        setCheck(MenuEditLocal, w32False)
+
+    end if
+
+    -- set list item 
+    setIndex(MenuEditList, index)
+
+end procedure
+-----------------------------------------------------------------------------
+procedure addMenuWidget(sequence class)
+
+-- create a new menu 
+integer index
+sequence new
+
+    --Roland additions
+    index = getIndex(MenuEditList)
+
+    if index=0 and not equal(class,"Menu") then
+        return
+    elsif  equal(class,"SubmenuItem") or equal(class, "Sub2menu") then
+        if not equal(menu[index][Class],"Submenu")
+        and not equal(menu[index][Class],"Sub2menu")
+        and not equal(menu[index][Class],"SubmenuItem")
+        and not equal(menu[index][Class],"Sub2menuItem") then
+            msg = displayErrorMessage(125,{})
+            return
+        end if
+    elsif equal(class,"Sub2menuItem") or equal(class, "Sub3menu") then
+        if not equal(menu[index][Class],"Sub2menu")
+        and not equal(menu[index][Class],"Sub3menu")
+        and not equal(menu[index][Class],"Sub2menuItem")
+        and not equal(menu[index][Class],"Sub3menuItem") then
+            msg = displayErrorMessage(126,{})
+            return
+        end if
+    elsif equal(class,"Sub3menuItem")
+      and not equal(menu[index][Class],"Sub3menu")
+      and not equal(menu[index][Class],"Sub3menuItem") then
+        msg = displayErrorMessage(127,{})
+        return
+    end if
+    --end Roland
+
+    new = repeat(0, ControlSize)
+
+    -- increment counter 
+    counter += 1         -- Id
+    counter2 += 1        -- number of menu / item
+
+    -- values
+    new[AWindow]    = 1
+    new[Id]         = counter
+    new[Class]      = class
+    new[Checked]    = w32False
+    new[Enabled]    = w32True
+    new[ControlParent] = {}
+    new[ParentClass] = {}
+    new[StyleType] = {}
+    new[Visible] = w32True
+    new[EnableC] = w32True
+    new[Buddy] = ""
+    new[IcoFile] = {}
+    new[TwoIcoFile] = ""
+    new[TriIcoFile] = ""
+    new[BitmapFile] = {}
+    new[FontName] = ""
+    new[HintFontName] = ""
+    new[HintText] = ""
+--    new[HintFontAttrib]=""
+--    new[FontAttrib]=""
+    new[ExStyle] = "0"
+    new[XPM] = ""
+    new[XPMmember] = ""
+    new[XpmObject] = {}
+    new[XpmDisableObject] = {}
+    new[InitialVal] = {}
+    new[SetEvent] = ""
+    new[SetControl] = ""
+    new[KillEvent] = ""
+    new[KillControl] = ""
+    new[SubClass] = ""
+    new[CCWinStyle] = ""
+    new[WidthTitle] = {}
+    new[ExtExStyle] = {}
+    new[SelectWidth] = {}
+    new[SystemBkColor] = {}
+    new[OutX] = {}
+    new[OutY] = {}
+    new[OutCX] = {}
+    new[OutCY] = {}
+    new[ControlComment] = {}
+    new[DEFIndex] = {}
+    new[SysTrayIcon] = {}
+    new[SysTrayHint] = {}
+    new[SysTrayText] = {}
+    new[IndexParent] = {}
+    new[Parent] = {}
+    new[SeqParentName] = {}
+    new[SeqParentClass] = {}
+    new[SeqChildName] = {}
+    new[GridFormat] = {}
+    new[GridDataArrayName] = {}
+    new[GridColListValues] = {}
+    new[WinOpenAtCtrl] = {}
+    new[ControlLayer] = layerNumber
+    new[ClassDefaults] = {}
+    new[ValueEdit] = {}
+    new[OrigTitle] = {}
+    new[ControlPartners] = {}
+    new[FontVarName] = {}
+    new[FontVarPts] = {}
+    new[FontVarItalic] = {}
+    new[FontVarBold] = {}
+    new[FontVarUnderline] = {}
+    new[FontVarStrikeout] = {}
+    new[HintFontVarName] = {}
+    new[HintFontVarPts] = {}
+    new[HintFontVarItalic] = {}
+    new[HintFontVarBold] = {}
+    new[HintFontVarUnderline] = {}
+    new[HintFontVarStrikeout] = {}
+    new[FontVarColor] = {}
+    new[HintVarText] = {}
+    new[GenFromName] = {}
+
+    if isChecked(ClickLocal) then
+        new[Local] = w32True
+    else
+        new[Local] = w32False
+    end if
+
+    new[Code]       = repeat({}, length(Events))
+
+    --changes by Roland
+    if equal(new[Class], "Menu") then
+        new[Name]   = sprintf("Menu_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Menu %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"MenuItem") then
+        new[Name]   = sprintf("MenuItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Menu Item%d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class], "Submenu") then
+        new[Name]   = sprintf("Level2Menu_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level2Menu %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"SubmenuItem") then
+        new[Name]   = sprintf("Level2MenuItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level2Menu Item%d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class], "Sub2menu") then
+        new[Name]   = sprintf("Level3Menu_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level3Menu %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"Sub2menuItem") then
+        new[Name]   = sprintf("Level3MenuItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level3Menu Item%d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class], "Sub3menu") then
+        new[Name]   = sprintf("Level4Menu_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level4Menu %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"Sub3menuItem") then
+        new[Name]   = sprintf("Level4MenuItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level4Menu Item%d", counter2+100*selectedWindow)
+    else
+        msg = displayErrorMessage(128,{})
+    end if
+    --end Roland
+
+    --add to sequence for colorization
+    controlNameKeywords &= {new[Name]}
+
+    -- where in the menu? 
+    index = getIndex(MenuEditList)
+    if index=0 then
+        menu &= {new}
+        index = length(menu)
+
+    elsif index=length(menu) then
+        -- insert after current item 
+        index += 1
+        menu &= {new}
+
+    else
+        -- insert after current item 
+        menu = menu[1..index]
+               & {new}
+               & menu[index+1..length(menu)]
+        index += 1
+    end if
+
+    is_changed = w32True
+
+    -- update the list 
+    updateMenuEditList(index)
+
+    -- update the list            
+    chooseMenuEditItem(index)
+
+end procedure
+----------------------------------------------------------------------------- 
+sequence lastMenuName, lastSubmenuName, lastSub2menuName, lastSub3menuName
+procedure savetheMenu()
+sequence treedata, codeName, extent
+integer controlnamelength
+
+    treedata = {"",""}
+
+    -- all ok?
+    if fault>0
+    and length(menu) then
+        msg = displayErrorMessage(129,{})
+        return
+    end if
+
+    --assign parent 
+    for i=1 to length(menu) do
+        if equal(menu[i][Class], "Menu") then
+        --save the name for following menuitems.
+            lastMenuName = menu[i][Name]
+            menu[i][SeqParentName] = {}
+        end if
+
+        if equal(menu[i][Class], "Submenu") then
+            --save the name for following submenuitems.
+            lastSubmenuName = menu[i][Name]
+        end if
+
+        if equal(menu[i][Class], "Sub2menu") then
+            --save the name for following sub2menuitems.
+            lastSub2menuName = menu[i][Name]
+        end if
+
+        if equal(menu[i][Class], "Sub3menu") then
+            --save the name for following sub3menuitems.
+            lastSub3menuName = menu[i][Name]
+        end if
+
+        --now set parenting                             
+        if equal(menu[i][Class], "MenuItem")
+        or equal(menu[i][Class], "Submenu") then
+                        --use the last menu name
+            menu[i][SeqParentName] = lastMenuName
+        end if
+
+        if equal(menu[i][Class], "SubmenuItem")
+        or equal(menu[i][Class], "Sub2menu") then
+            --use the last Submenu name
+            menu[i][SeqParentName] = lastSubmenuName
+        end if
+
+        if equal(menu[i][Class], "Sub2menuItem")
+        or equal(menu[i][Class], "Sub3menu") then
+            --use the last Sub2menu name
+            menu[i][SeqParentName] = lastSub2menuName
+        end if
+
+        if equal(menu[i][Class], "Sub3menuItem") then
+            --use the last Sub3menu name
+            menu[i][SeqParentName] = lastSub3menuName
+        end if
+    end for
+
+    -- create list without the menus      
+    saveMenu = {}
+    for i=1 to length(controls) do
+        if equal(controls[i][Class], "Menu")
+        or equal(controls[i][Class], "MenuItem")
+        or equal(controls[i][Class], "Submenu")
+        or equal(controls[i][Class], "SubmenuItem")
+        or equal(controls[i][Class], "Sub2menu")
+        or equal(controls[i][Class], "Sub2menuItem")
+        or equal(controls[i][Class], "Sub3menu")
+        or equal(controls[i][Class], "Sub3menuItem") then
+            -- don't add  
+        else
+            -- add to list  
+            saveMenu &= {controls[i]}
+        end if
+    end for
+
+    if not length(menu) then
+        MenuY = 0
+        deleteTreeViewNodeAndCode("","The Menus:" & controls[1][Name])
+    end if
+
+    -- add menus to the list
+    saveMenu &= menu
+    saveMenu = sort(saveMenu)
+    controls = saveMenu
+
+    if is_changed then
+        --keep CodeControls in sync with controls
+        eraseItems(CodeControls)
+        controlnamelength = 0
+        for i=1 to length(saveMenu) do
+            addItem(CodeControls, saveMenu[i][Name])
+            if length(saveMenu[i][Name])>controlnamelength then
+                controlnamelength = length(saveMenu[i][Name])
+            end if
+        end for
+        extent = getTextExtent(CodeControls, "M")
+        controlnamelength *= extent[1]
+        VOID = sendMessage(CodeControls, LB_SETHORIZONTALEXTENT, controlnamelength, 0)
+
+        for i=1 to getCount(CodeControls) do
+            if equal(name, getItem(CodeControls, i)) then
+                setIndex(CodeControls, i)
+                editorSelectedControl = i
+                exit
+            end if
+        end for
+
+        --backup controls
+        windows[selectedWindow] = controls
+        backupControls = windows
+        backupSelectedWindow = selectedWindow
+        backupLayerTabItemSeq = layerTabItemSeq
+        backupLayerCaptionSeq = layerCaptionSeq
+        setEnable(MenuControlUndo, w32True)
+        setVisible(ToolUndo, w32True)
+        setVisible(ToolUndoD, w32False)
+
+        IDE_Changed = w32True
+
+        for i=1 to length(menu) do
+            if i=1 then
+                --add menus to project tree
+                addTreeViewNode(controls[1][Name],"The Menus:" & controls[1][Name])
+            end if
+            if equal(controls[i+1][Class], "Menu") then
+                controls[i+1][SeqParentName] = "The Menus:" & controls[1][Name]
+            end if
+            deleteTreeViewNodeAndCode("",controls[i+1][Name])
+            addTreeViewNode(controls[i+1][SeqParentName],
+                            controls[i+1][Name])
+
+            treedata[1] = controls[i+1][Name]
+            treedata[2] = controls[i+1][Class]
+            theTreeForm &= {treedata}
+            for j=1 to length(controls[i+1][Code]) do
+                if length(controls[i+1][Code][j]) then
+                    codeName = controls[i+1][Name] & "_" & Events[j][1]
+                    addTreeViewNode("Class Modules", codeName)
+                    theTreeClassModules &= {codeName}
+                end if
+            end for
+        end for
+
+        for i=1 to length(deleteList) do
+            deleteTreeViewNodeAndCode("", deleteList[i])
+        end for
+    end if
+
+    --reset flag for subsequent changes
+    is_changed = w32False
+
+    if not MenuY then
+        selectedControl = TheWindow
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditWindow_Close()
+
+    --additions by Roland
+    if is_changed then
+        ok = displayErrorMessage(130,{})
+        if ok=IDCANCEL then
+            showWindow(MenuEditWindow, SW_RESTORE)
+            returnValue(-1)
+            return
+        elsif ok=IDYES then
+            savetheMenu()
+            if fault>0
+            and length(menu) then
+                showWindow(MenuEditWindow, SW_RESTORE)
+                returnValue(-1)
+                return
+            end if
+        end if
+    end if
+    --end Roland
+
+    -- set the save menu and repaint the design window
+    controls = saveMenu
+
+    call_proc(drawIt_id,{})
+    copyBlt(Design, 0, 0, ControlBlit)
+
+    MenuEditWindow = -1
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditWindow_Open(integer self, integer event, sequence params)
+
+    -- open the menu edit window
+
+    --Roland
+    is_changed = w32False
+
+    deleteList = {}
+
+    cameFromMenuEditor = w32False
+
+    name = getItem(CodeControls, getIndex(CodeControls))
+
+    setText(MenuEditName, "")
+    setText(MenuEditTitle, "")
+    setCheck(MenuEditChecked, w32False)
+    setCheck(MenuEditEnabled, w32False)
+    setCheck(MenuEditLocal, w32False)
+
+    --added by Roland
+                          --"Menu Editor - "
+    setText(MenuEditWindow, IDEText[374][1] & controls[TheWindow][Name])
+
+    -- save a copy of the controls
+    saveMenu = controls
+
+    -- copy all the menu controls to the menu array
+    menu = {}
+    for i=1 to length(controls) do
+        if equal(controls[i][Class], "Menu")
+        or equal(controls[i][Class], "MenuItem")
+
+        --added by Roland
+        or equal(controls[i][Class], "Submenu")
+        or equal(controls[i][Class], "SubmenuItem")
+        or equal(controls[i][Class], "Sub2menu")
+        or equal(controls[i][Class], "Sub2menuItem")
+        or equal(controls[i][Class], "Sub3menu")
+        or equal(controls[i][Class], "Sub3menuItem") then
+        --end Roland
+            -- append to the menu
+            menu &= {controls[i]}
+        end if
+    end for
+
+    -- update the list
+    updateMenuEditList(0)
+
+    --if came from project view update with that entry
+    if cameFromProjectView then
+        cameFromProjectView = w32False
+        -- set list item
+        for i=1 to getCount(MenuEditList) do
+            if length(projectViewTitle) then
+                if match(projectViewTitle, getItem(MenuEditList, i)) then
+                    setIndex(MenuEditList, i)
+                    ok = invokeHandler(MenuEditList,w32HChange,{})
+                    exit
+                end if
+            else
+                ok = displayErrorMessage(237,{IDEText[404][1]}) --"Menu Editor"
+                exit
+            end if
+        end for
+    end if
+
+end procedure
+------------------------------------------------------------------------------
+procedure MenuEditWindow_Resize(integer self, integer event, sequence params)
+--Roland
+-- adjust size of MenuEditList
+-- constants must be adapted if changing the design of MenuEditWindow
+
+sequence sizeEW, sizeEL
+integer heightEL
+
+    sizeEW   = getRect(MenuEditWindow)
+    sizeEL   = getRect(MenuEditList)
+    heightEL = sizeEW[4]-sizeEW[2]-180-125+floor(sizeEW[4]/13)
+    if heightEL<125 then heightEL = 125 end if
+
+    setRect(MenuEditList ,12, 180,params[2]-22, heightEL, w32True)
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditTitle_Change(integer self, integer event, sequence params)
+
+-- update the title
+integer index,ok,cnt
+sequence text
+
+    index = getIndex(MenuEditList)
+    if index then
+
+        -- update the data
+        menu[index][Title] = getText(MenuEditTitle)
+
+        -- update the list
+        fault = 0
+
+        for i=1 to length(menu) do
+
+            -- build the text 
+            text = menu[i][Title]
+
+            -- add ... if menu item 
+            if equal(menu[i][Class], "MenuItem")then
+                text = "<<< " & text
+            elsif equal(menu[i][Class], "Submenu") then
+                text = "+++ " & text
+            elsif equal(menu[i][Class], "SubmenuItem")then
+                text = "<<< <<< " & text
+            elsif equal(menu[i][Class], "Sub2menu") then
+                text = "+++ +++ " & text
+            elsif equal(menu[i][Class], "Sub2menuItem") then
+                text = "<<< <<< <<< " & text
+            elsif equal(menu[i][Class], "Sub3menu") then
+                text = "+++ +++ +++ " & text
+            elsif equal(menu[i][Class], "Sub3menuItem") then
+                text = "<<< <<< <<< <<< " & text
+            end if
+
+            -- warnings
+            if i=1 and not equal(menu[i][Class], "Menu") then
+                text &= "          << ==== " & IDEText[401][1]  --must be Menu !"
+                fault += 1
+            end if
+
+            if i<length(menu) then
+                if equal(menu[i][Class],"Submenu")
+                or equal(menu[i][Class],"SubmenuItem") then
+                    if equal(menu[i+1][Class],"Sub2menuItem")
+                    or equal(menu[i+1][Class],"Sub3menuItem")
+                    or equal(menu[i+1][Class],"Sub3menu") then
+                        text &= "          << ==== " & IDEText[402][1]    --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(menu[i][Class],"Sub2menu")
+                or equal(menu[i][Class],"Sub2menuItem") then
+                    if equal(menu[i+1][Class],"Sub3menuItem") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(menu[i][Class], "Menu") or equal(menu[i][Class], "MenuItem") then
+                    if equal(menu[i+1][Class],"Sub2menu")
+                    or equal(menu[i+1][Class],"SubmenuItem")
+                    or equal(menu[i+1][Class],"Sub2menuItem")
+                    or equal(menu[i+1][Class],"Sub3menu")
+                    or equal(menu[i+1][Class],"Sub3menuItem") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+            end if
+
+            --check that name is unique not only within Menus but other controls
+            cnt = 0
+            for j=1 to length(controls) do
+                if equal(controls[j][Name], menu[i][Name])
+                and not equal(controls[j][Class], menu[i][Class]) then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            cnt = 0
+            for j=1 to  length(menu) do
+                if equal(menu[j][Name], menu[i][Name])
+                and j!=i then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            ok = deleteItem(MenuEditList,i)
+            ok = insertItem(MenuEditList,text,i)
+
+        end for
+
+        setIndex(MenuEditList, index)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure keyPress_MenuEditTitle(integer self, integer event, sequence params)
+integer shift
+
+    shift = params[2]
+    if params[1]=13 then
+        if and_bits(shift, ShiftMask) then
+            addMenuWidget("Menu")
+        else
+            addMenuWidget("MenuItem")
+        end if
+        return
+    end if
+
+    is_changed = w32True
+end procedure
+--------------------------------------------------------------------------------
+integer canChangeIt     canChangeIt = w32False
+global procedure MenuEditName_Change(integer self, integer event, sequence params)
+
+-- update the name
+integer index, at, changedText, ok, cnt
+sequence origName, text, comparetext
+
+    if self or event or sequence(params) then end if
+
+    index = getIndex(MenuEditList)
+    if index then
+        --save original Name
+        origName = menu[index][Name]
+
+        -- update the data
+        if length(getText(MenuEditName)) then
+            menu[index][Name] = getText(MenuEditName)
+        end if
+
+        -- update the list
+        fault = 0
+        for i=1 to length(menu) do
+            -- build the text
+            text = menu[i][Title]
+
+            -- add ... if menu item 
+            if equal(menu[i][Class], "MenuItem")then
+                text = "<<< " & text
+            elsif equal(menu[i][Class], "Submenu") then
+                text = "+++ " & text
+            elsif equal(menu[i][Class], "SubmenuItem")then
+                text = "<<< <<< " & text
+            elsif equal(menu[i][Class], "Sub2menu") then
+                text = "+++ +++ " & text
+            elsif equal(menu[i][Class], "Sub2menuItem") then
+                text = "<<< <<< <<< " & text
+            elsif equal(menu[i][Class], "Sub3menu") then
+                text = "+++ +++ +++ " & text
+            elsif equal(menu[i][Class], "Sub3menuItem") then
+                text = "<<< <<< <<< <<< " & text
+            end if
+
+            -- warnings  
+            if i=1 and not equal(menu[i][Class], "Menu") then
+                text &= "          << ==== " & IDEText[401][1]  --must be Menu !"
+                fault += 1
+            end if
+
+            --check that first position of Name is alpha
+            comparetext = menu[i][Name]
+            if (comparetext[1]>='a' and comparetext[1]<='z')
+            or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                                --is ok
+            else
+                text &= "          << ==== " & IDEText[1174][1]  --first char must be alpha
+                fault += 1
+            end if
+
+            if i<length(menu) then
+                if equal(menu[i][Class],"Submenu")
+                or equal(menu[i][Class],"SubmenuItem") then
+                    if equal(menu[i+1][Class],"Sub2menuItem")
+                    or equal(menu[i+1][Class],"Sub3menuItem")
+                    or equal(menu[i+1][Class],"Sub3menu") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(menu[i][Class],"Sub2menu")
+                or equal(menu[i][Class],"Sub2menuItem") then
+                    if equal(menu[i+1][Class],"Sub3menuItem") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(menu[i][Class], "Menu") or equal(menu[i][Class], "MenuItem") then
+                    if equal(menu[i+1][Class],"Sub2menu")
+                    or equal(menu[i+1][Class],"SubmenuItem")
+                    or equal(menu[i+1][Class],"Sub2menuItem")
+                    or equal(menu[i+1][Class],"Sub3menu")
+                    or equal(menu[i+1][Class],"Sub3menuItem") then
+                        text &= "          << ==== " & IDEText[402][1]    --will crash !"
+                        fault += 1
+                    end if
+                end if
+
+            end if
+
+            --check that name is unique not only within Menus but other controls
+            cnt = 0
+            for j=1 to length(controls) do
+                if equal(controls[j][Name], menu[i][Name])
+                and not equal(controls[j][Class], menu[i][Class]) then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            cnt = 0
+            for j=1 to  length(menu) do
+                if equal(menu[j][Name], menu[i][Name])
+                and j!=i then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            ok = deleteItem(MenuEditList,i)
+            ok = insertItem(MenuEditList,text, i)
+
+        end for
+
+        setIndex(MenuEditList, index)
+
+        if canChangeIt then
+            comparetext = menu[index][Name]
+            if (comparetext[1]>='a' and comparetext[1]<='z')
+            or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                --is ok continue checking
+                comparetext = origName
+                if (comparetext[1]>='a' and comparetext[1]<='z')
+                or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                                        --is ok
+                else
+                    canChangeIt = w32False
+                end if
+            else
+                canChangeIt = w32False
+            end if
+        end if
+
+        if canChangeIt then
+            if not equal(origName, menu[index][Name]) then
+                canChangeIt = w32False
+                CodeWinState = SW_NORMAL
+                if CodeWinOpen then
+                    --save editor state for reopen
+                    if isMaximized(CodeWin) then
+                        CodeWinState = SW_MAXIMIZE
+                    elsif isMinimized(CodeWin) then
+                        CodeWinState = SW_MINIMIZE
+                    end if
+
+                    if not length(isModule) then
+                        ok = invokeHandler(CodeControls,w32HClick,{})
+                        showWindow(CodeWin,SW_HIDE)
+                    end if
+                end if
+
+                flushControls()     --save changes in controls to windows seq        
+                saveMenu = controls
+
+                for i=1 to length(windows) do
+                    for j=1 to length(windows[i]) do
+                        if equal(windows[i][j][Name], origName) then
+                            windows[i][j][Name] = menu[index][Name]
+                        end if
+                        if length(windows[i][j][Code]) then
+                            for k=1 to length(windows[i][j][Code]) do
+                                for m=1 to length(windows[i][j][Code][k]) do
+                                    text = windows[i][j][Code][k][m]
+                                    comparetext = text
+                                    at = 1
+                                    while at do
+                                        --find old name somewhere in line of code
+                                        changedText = w32False
+                                        at = match(origName, comparetext)
+                                        if at then
+                                            --look at prior and next character for uniqueness of name
+                                            if at>1 then
+                                                if not((text[at-1]>='a' and text[at-1]<='z') or
+                                                       (text[at-1]>='A' and text[at-1]<='Z') or
+                                                       (text[at-1]>='0' and text[at-1]<='9')) then
+                                                    if at+length(origName)-1<length(text) then
+                                                        if not((text[at+length(origName)]>='a' and text[at+length(origName)]<='z') or
+                                                               (text[at+length(origName)]>='A' and text[at+length(origName)]<='Z') or
+                                                               (text[at+length(origName)]>='0' and text[at+length(origName)]<='9')) then
+                                                            if not textInQuotes(text,at,length(origName)) then
+                                                                --ok to convert
+                                                                text = text[1..at-1] & menu[index][Name]
+                                                                       & text[at+length(origName)..length(text)]
+                                                                windows[i][j][Code][k][m] = text
+                                                                changedText = w32True
+                                                            end if
+                                                        end if
+                                                    else
+                                                        --ok to convert
+                                                        text = text[1..at-1] & menu[index][Name]
+                                                               & text[at+length(origName)..length(text)]
+                                                        windows[i][j][Code][k][m] = text
+                                                        changedText = w32True
+                                                    end if
+                                                end if
+                                            else
+                                                if at+length(origName)-1<length(text) then
+                                                    if not((text[at+length(origName)]>='a' and text[at+length(origName)]<='z') or
+                                                           (text[at+length(origName)]>='A' and text[at+length(origName)]<='Z') or
+                                                           (text[at+length(origName)]>='0' and text[at+length(origName)]<='9'))
+                                                    and not textInQuotes(text,at,length(origName)) then
+                                                        --ok to convert
+                                                        text = text[1..at-1] & menu[index][Name]
+                                                               & text[at+length(origName)..length(text)]
+                                                        windows[i][j][Code][k][m] = text
+                                                        changedText = w32True
+                                                    end if
+                                                else
+                                                    --ok to convert
+                                                    text = text[1..at-1] & menu[index][Name]
+                                                           & text[at+length(origName)..length(text)]
+                                                    windows[i][j][Code][k][m] = text
+                                                    changedText = w32True
+                                                end if
+                                            end if
+                                            --remove matches from comparetext so don't keep hitting them in while loop
+                                            if changedText then
+                                                comparetext = comparetext[1..at-1] & repeat(' ',length(menu[index][Name]))
+                                                              & comparetext[at+length(origName)..length(comparetext)]
+                                            else
+                                                comparetext = comparetext[1..at-1] & repeat(' ',length(origName))
+                                                              & comparetext[at+length(origName)..length(comparetext)]
+                                            end if
+                                        end if
+                                    end while
+                                end for
+                            end for
+                        end if
+                    end for
+
+                    if i=selectedWindow then
+                        controls = windows[i]
+                        for j=1 to length(windows[i]) do
+                            if equal(windows[i][j][Class], "Menu")
+                            or equal(windows[i][j][Class], "MenuItem")
+                            or equal(windows[i][j][Class], "Submenu")
+                            or equal(windows[i][j][Class], "SubmenuItem")
+                            or equal(windows[i][j][Class], "Sub2menu")
+                            or equal(windows[i][j][Class], "Sub2menuItem")
+                            or equal(windows[i][j][Class], "Sub3menu")
+                            or equal(windows[i][j][Class], "Sub3menuItem") then
+                                for k=1 to length(menu) do
+                                    if equal(windows[i][j][Name], menu[k][Name])
+                                    and equal(windows[i][j][Title], menu[k][Title]) then
+                                        menu[k] = windows[i][j]
+                                        selectedControl = j
+                                        exit
+                                    end if
+                                end for
+                            else
+                                for k=1 to length(saveMenu) do
+                                    if equal(windows[i][j][Name],saveMenu[k][Name]) then
+                                        saveMenu[k] = windows[i][j]
+                                        exit
+                                    end if
+                                end for
+                            end if
+                        end for
+                    end if
+                    deleteTreeViewNodeAndCode("",origName)
+                end for
+
+                if CodeWinOpen
+                and not length(isModule) then
+                    setIndex(CodeControls, selectedControl)
+                    ok = invokeHandler(CodeControls,w32HClick,{})
+                    showWindow(CodeWin, CodeWinState)
+                end if
+            end if
+        end if
+    end if
+end procedure
+-------------------------------------------------------------------------------
+procedure keyDown_MenuEditName(integer self, integer event, sequence params)
+integer index, shift
+
+    index = getIndex(MenuEditList)
+    shift = params[2]
+
+    if params[1]=VK_TAB
+    or params[1]=VK_RETURN then
+        if index
+        and not equal(menu[index][Name], getText(MenuEditName)) then
+            canChangeIt = w32True
+            MenuEditName_Change(0,0,{})
+        elsif params[1]=VK_RETURN then
+            if and_bits(shift, ShiftMask) then
+                addMenuWidget("Menu")
+            else
+                addMenuWidget("MenuItem")
+            end if
+            setFocus(MenuEditTitle)
+            return
+        end if
+    end if
+    is_changed = w32True
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditChecked_Click(integer self, integer event, sequence params)
+-- update the checked flag
+integer index
+
+    index = getIndex(MenuEditList)
+    if index then
+        -- update the data
+        menu[index][Checked] = isChecked(MenuEditChecked)
+
+        is_changed = w32True
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditEnabled_Click(integer self, integer event, sequence params)
+-- update the enabled flag
+integer index
+
+    index = getIndex(MenuEditList)
+    if index then
+        -- update the data
+        menu[index][Enabled] = isChecked(MenuEditEnabled)
+
+        is_changed = w32True
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditLocal_Click(integer self, integer event, sequence params)
+-- update the global flag
+integer index
+
+    index = getIndex(MenuEditList)
+    if index then
+        -- update the data
+        menu[index][Local] = isChecked(MenuEditLocal)
+
+        is_changed = w32True
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditAddMenu_Click(integer self, integer event, sequence params)
+    -- add a menu to the menu list
+    addMenuWidget("Menu")
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditAddMenu_KeyPress(integer self, integer event, sequence params)
+--Roland
+    if params[1]=13 then MenuEditAddMenu_Click(MenuEditAddMenu, w32HClick,{}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditAddItem_Click(integer self, integer event, sequence params)
+    -- add a menu item to the menu list 
+    addMenuWidget("MenuItem")
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditAddItem_KeyPress(integer self, integer event, sequence params)
+--Roland
+    if params[1]=13 then MenuEditAddItem_Click(MenuEditAddItem, w32HClick, {}) end if
+end procedure
+-------------------------------------------------------------------------------
+procedure MenuEditAddSubmenu_Click(integer self, integer event, sequence params)
+--Roland
+    -- add a submenu to the menu list 
+    addMenuWidget("Submenu")
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditAddSubItem_Click(integer self, integer event, sequence params)
+--Roland
+    -- add a Submenu item to the menu list  
+    addMenuWidget("SubmenuItem")
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditMoveUp_Click(integer self, integer event, sequence params)
+-- move a menu item up
+sequence s
+integer index
+
+    -- is there an item selected?
+    index = getIndex(MenuEditList)
+    if index>1 then
+
+        -- swap
+        s = menu[index-1]
+        menu[index-1] = menu[index]
+        menu[index] = s
+
+        is_changed = w32True
+
+        -- update the list
+        updateMenuEditList(index-1)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditMoveUp_KeyPress(integer self, integer event, sequence params)
+--Roland
+    if params[1]=13 then MenuEditMoveUp_Click(MenuEditMoveUp, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditMoveDown_Click(integer self, integer event, sequence params)
+-- move a menu item down 
+sequence s
+integer index
+
+-- is there an item selected? 
+    index = getIndex(MenuEditList)
+    if index>0
+    and index<length(menu) then
+
+        -- swap 
+        s = menu[index+1]
+        menu[index+1] = menu[index]
+        menu[index] = s
+
+        is_changed = w32True
+
+        -- update the list 
+        updateMenuEditList(index+1)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditMoveDown_KeyPress(integer self, integer event, sequence params)
+--Roland
+    if params[1]=13 then MenuEditMoveDown_Click(MenuEditMoveDown, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditDelete_Click(integer self, integer event, sequence params)
+-- delete selected menu item
+
+integer index, ignore
+    index = getIndex(MenuEditList)
+
+    if index then
+        if index+1<=length(menu) then
+            if find(menu[index][Class], {"Menu","Submenu","Sub2menu","Sub3menu"})
+            and not equal(menu[index+1][Class], menu[index][Class]) then
+                ok = displayErrorMessage(246,{})
+                return
+            end if
+        end if
+        --remove from treeview
+        deleteList &= {menu[index][Name]}
+
+        -- remove from sequence
+        menu = menu[1..index-1] & menu[index+1..length(menu)]
+
+        -- remove from list
+        ignore = deleteItem(MenuEditList, index)
+
+        is_changed = w32True
+
+        --Added by Roland
+        setFocus(MenuEditList)
+        if length(menu)=0 then
+            setIndex(MenuEditList, length(menu))
+            chooseMenuEditItem(length(menu))
+            counter2 = 0
+        elsif index=1 then
+            setIndex(MenuEditList, index)
+            chooseMenuEditItem(index)
+        else
+            setIndex(MenuEditList, index-1)
+            chooseMenuEditItem(index-1)
+        end if
+
+        setFocus(MenuEditName)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditDelete_KeyPress(integer self, integer event, sequence params)
+--Roland
+    if params[1]=13 then MenuEditDelete_Click(MenuEditDelete, w32HClick,{}) end if
+end procedure
+---------------------------------------------------------------------------------------
+procedure MenuEditDeleteSubs_Click(integer self, integer event, sequence params)
+    -- delete selected menu item and subs
+
+sequence saveClass
+integer index, ignore, okToDelete
+    index = getIndex(MenuEditList)
+
+    if index then
+    --remove from treeview
+        deleteList &= {menu[index][Name]}
+        --save class of deleted item
+        saveClass = menu[index][Class]
+        -- remove from sequence
+        menu = menu[1..index-1] & menu[index+1..length(menu)]
+
+        -- remove from list
+        ignore = deleteItem(MenuEditList, index)
+
+
+        while w32True do
+            if index>length(menu) then
+                exit
+            end if
+            okToDelete = w32False
+            if equal(saveClass,"Menu") then
+                if not equal(menu[index][Class],"Menu") then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"MenuItem") then
+                if not find(menu[index][Class],{"Menu","MenuItem"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Submenu") then
+                if not find(menu[index][Class],{"Menu","MenuItem","Submenu"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"SubmenuItem") then
+                if not find(menu[index][Class],{"Menu","MenuItem","Submenu","SubmenuItem"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub2menu") then
+                if not find(menu[index][Class],{"Menu","MenuItem","Submenu","SubmenuItem","Sub2menu"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub2menuItem") then
+                if not find(menu[index][Class],{"Menu","MenuItem","Submenu","SubmenuItem","Sub2menu",
+                                                "Sub2menuItem"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub3menu") then
+                if not find(menu[index][Class],{"Menu","MenuItem","Submenu","SubmenuItem","Sub2menu",
+                                                "Sub2menuItem","Sub3menu"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub3menuItem") then
+                if not find(menu[index][Class],{"Menu","MenuItem","Submenu","SubmenuItem","Sub2menu",
+                                                "Sub2menuItem","Sub3menu","Sub3menuItem"}) then
+                    okToDelete = w32True
+                end if
+            else
+                exit
+            end if
+
+            if okToDelete then
+                deleteList &= {menu[index][Name]}
+                -- remove from sequence
+                menu = menu[1..index-1] & menu[index+1..length(menu)]
+
+                -- remove from list
+                ignore = deleteItem(MenuEditList, index)
+
+                if not length(menu)
+                or index>length(menu) then
+                    index -= 1
+                    exit
+                end if
+            else
+                exit
+            end if
+
+        end while
+
+        is_changed = w32True
+
+        --Added by Roland
+        setFocus(MenuEditList)
+        if length(menu)=0 then
+            setIndex(MenuEditList, length(menu))
+            chooseMenuEditItem(length(menu))
+            counter2 = 0
+        elsif index=1 then
+            setIndex(MenuEditList, index)
+            chooseMenuEditItem(index)
+        else
+            setIndex(MenuEditList, index-1)
+            chooseMenuEditItem(index-1)
+        end if
+
+        setFocus(MenuEditName)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditDeleteSubs_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then MenuEditDeleteSubs_Click(MenuEditDeleteSubs, w32HClick,{}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditList_Change(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(MenuEditList)
+    if index then
+        chooseMenuEditItem(index)
+    else
+        setText(MenuEditName, "")
+        setText(MenuEditTitle, "")
+        setCheck(MenuEditChecked, w32False)
+        setCheck(MenuEditEnabled, w32False)
+        setCheck(MenuEditLocal, w32False)
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--judith
+constant LB_GETITEMHEIGHT = #01A1,
+LB_GETTOPINDEX = #018E
+--------------------------------------------------------------------------------
+procedure MenuEditList_Mouse(integer self, integer event, sequence params)
+--Roland
+-- right click calls CodeEditor
+
+integer index, state
+atom flag,height,topindex,indexoffset
+
+    if params[1]=RightDown
+    or params[1]=LeftDoubleClick then
+
+        state = Normal
+
+        --judith to find index when right click
+        if params[1]=RightDown
+        and not Sw then
+            height = sendMessage(MenuEditList,LB_GETITEMHEIGHT,0,0)
+            topindex = sendMessage(MenuEditList,LB_GETTOPINDEX,0,0)
+            indexoffset = floor(params[3]/height)
+            index = indexoffset+topindex
+
+            flag = sendMessage(MenuEditList,LB_SETCURSEL,index,0)
+            index += 1
+            if index>getCount(MenuEditList) then
+                index = 0
+            end if
+        end if
+        --judith to use left doubleclick
+        if params[1]=LeftDoubleClick
+        or Sw then
+            index = getIndex(MenuEditList)
+        end if
+        Sw = w32False
+
+        if index=0 then
+            msg = displayErrorMessage(131,{})
+            returnValue(-1)
+            return
+        end if
+
+        --dont go to code editor without asking
+        if is_changed then
+            msg = displayErrorMessage(132,{})
+            if msg=IDNO then
+                return
+            end if
+        end if
+
+        -- save changes  
+        savetheMenu()
+
+        if fault>0
+        and length(menu) then
+            returnValue(-1)
+            return
+        end if
+
+        controls = saveMenu
+
+        selectedControl = w32findKeyAny(menu[index][Id], controls, Id)
+
+        if equal(controls[selectedControl][Class],"Menu")
+        and not find('!',controls[selectedControl][Title]) then
+            msg = displayErrorMessage(133,{})
+            returnValue(-1)
+            return
+        end if
+
+        if equal(controls[selectedControl][Class],"Submenu")
+        or equal(controls[selectedControl][Class],"Sub2menu")
+        or equal(controls[selectedControl][Class],"Sub3menu") then
+            msg = displayErrorMessage(133,{})
+            returnValue(-1)
+            return
+        end if
+
+
+        closeWindow(MenuEditWindow)
+        MenuEditWindow_Close()
+
+        cameFromMenuEditor = w32True
+
+        state = SW_NORMAL
+        if CodeWinOpen then
+            if isMaximized(CodeWin) then
+                state = SW_MAXIMIZE
+            elsif isMinimized(CodeWin) then
+                state = SW_MINIMIZE
+            end if
+        end if
+
+        if not CodeWinOpen then
+            showWindow(CodeWin, state)
+            CodeWinOpen = w32True
+        end if
+
+        setIndex(CodeControls, selectedControl)
+        ok = invokeHandler(CodeControls,w32HClick,{})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditOk_Click(integer self, integer event, sequence params)
+    --Roland
+    savetheMenu()
+    if fault>0
+    and length(menu) then
+        return
+    end if
+    --end Roland
+
+    -- close the window 
+    closeWindow(MenuEditWindow)
+    MenuEditWindow_Close()
+
+    if CodeWinOpen then
+        ok = w32Func(xSetForegroundWindow, {getHandle(CodeWin)})
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditOk_KeyPress(integer self, integer event, sequence params)
+--Roland
+    if params[1]=13 then MenuEditOk_Click(MenuEditOk, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditCancel_Click(integer self, integer event, sequence params)
+    -- close the window
+    closeWindow(MenuEditWindow)
+    MenuEditWindow_Close()
+
+    if CodeWinOpen then
+        ok = w32Func(xSetForegroundWindow, {getHandle(CodeWin)})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuEditCancel_KeyPress(integer self, integer event, sequence params)
+--Roland
+    if params[1]=13 then MenuEditCancel_Click(MenuEditCancel, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditAddSub2menu_Click(integer self, integer event, sequence params)
+    -- add a Subsubmenu to the menu list  
+    addMenuWidget("Sub2menu")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditAddSub2Item_Click(integer self, integer event, sequence params)
+    -- add a Subsubmenu item to the menu list   
+    addMenuWidget("Sub2menuItem")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditAddSub3menu_Click(integer self, integer event, sequence params)
+    -- add a Subsubsubmenu to the menu list   
+    addMenuWidget("Sub3menu")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditAddSub3Item_Click(integer self, integer event, sequence params)
+    -- add a Subsubsubmenu item to the menu list    
+    addMenuWidget("Sub3menuItem")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditMoveUp_Click(integer self, integer event, sequence params)
+    MenuEditMoveUp_Click(MenuEditMoveUp, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditMoveDown_Click(integer self, integer event, sequence params)
+    MenuEditMoveDown_Click(MenuEditMoveDown, w32HClick,{})
+end procedure
+--------------------------------------------------------------------------------
+procedure MMenuEditDeleteSubs_Click(integer self, integer event, sequence params)
+    MenuEditDeleteSubs_Click(MenuEditDeleteSubs, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditDelete_Click(integer self, integer event, sequence params)
+    MenuEditDelete_Click(MenuEditDelete, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MMenuEditCodeEditor_Click(integer self, integer event, sequence params)
+-- like mouse in MenuEditList
+    --judith
+    Sw = w32True
+
+    MenuEditList_Mouse(MenuEditList, w32HMouse, {RightDown,0,0,0})
+end procedure
+--------------------------------------------------------------------------------
+procedure lostFocus_MenuEditName(integer self, integer event, sequence params)
+    canChangeIt = w32True
+    MenuEditName_Change(0,0,{})
+end procedure
+--------------------------------------------------------------------------------
+global procedure createMenuEditWindow()
+    if MenuEditWindow= -1 then
+                                     --"Menu Editor - "
+        MenuEditWindow = createEx(Window, IDEText[374][1], Form, Default, Default, 585, 370, {WS_THICKFRAME+WS_DLGFRAME}, 0)
+                             --"Caption:"
+        Static2 = createEx(LText, IDEText[375][1], MenuEditWindow, 12, 20, 60, 20, 0, 0)
+                             --"Name"
+        Static1 = createEx(LText, IDEText[376][1], MenuEditWindow, 12, 48, 48, 20, 0, 0)
+        MenuEditTitle = createEx(EditText, "", MenuEditWindow, 72, 16, 288, 24, 0, 0)
+        MenuEditName = createEx(EditText, "", MenuEditWindow, 72, 48, 288, 24, 0, 0)
+                                        --"Checked"
+        MenuEditChecked = createEx(CheckBox, IDEText[377][1], MenuEditWindow, 16, 104, 75, 20, 0, 0)
+                                        --"Enabled"
+        MenuEditEnabled = createEx(CheckBox, IDEText[378][1], MenuEditWindow, 16, 124, 72, 20, 0, 0)
+                                        --"Local"
+        MenuEditLocal =   createEx(CheckBox, IDEText[379][1],       MenuEditWindow, 16, 144, 72, 20, 0, 0)
+                                          --"Add Menu"
+        MenuEditAddMenu = createEx(PushButton, IDEText[380][1], MenuEditWindow, 88, 100, 135, 28, 0, 0)
+                                          --"AddMenuItem"
+        MenuEditAddItem = createEx(PushButton, IDEText[381][1], MenuEditWindow, 88, 136, 135, 28, 0, 0)
+                                         --"Move Up"
+        MenuEditMoveUp = createEx(PushButton, IDEText[382][1], MenuEditWindow, 224, 100, 119, 28, 0, 0)
+                                           --"Move Down"
+        MenuEditMoveDown = createEx(PushButton, IDEText[383][1], MenuEditWindow, 224, 136, 119, 28, 0, 0)
+                                         --"Delete"
+        MenuEditDelete = createEx(PushButton, IDEText[384][1], MenuEditWindow, 344, 100, 172, 28, 0, 0)
+                                                                                --"Delete And Subs"
+        MenuEditDeleteSubs = createEx(PushButton, IDEText[1025][1], MenuEditWindow, 344, 136, 172, 28, 0, 0)
+        MenuEditList = createEx(List, "", MenuEditWindow, 12, 180, 450, 125, 0, 0)
+                                     --"OK"
+        MenuEditOk = createEx(PushButton, IDEText[385][1], MenuEditWindow, 380, 12, 136, 30, 0, 0)
+                                         --"Cancel"
+        MenuEditCancel = createEx(PushButton, IDEText[386][1], MenuEditWindow, 380, 48, 136, 30, 0, 0)
+                                 --"&Add SubMenu/SubMenu Items"
+        MMenuEditAdd = createEx(Menu, IDEText[387][1], MenuEditWindow, 0, 0, 0, 0, 0, 0)
+                                             --"&Level 2 Sub Menu"
+        MenuEditAddSubmenu =   createEx(MenuItem, IDEText[388][1], MMenuEditAdd, 0, 0, 0, 0, 0, 0)
+                                             --"L&evel 2 Sub Menu Item"
+        MenuEditAddSubItem =   createEx(MenuItem, IDEText[389][1], MMenuEditAdd, 0, 0, 0, 0, 0, 0)
+                                             --"Le&vel 3 Sub Menu"
+        MMenuEditAddSub2menu = createEx(MenuItem, IDEText[390][1], MMenuEditAdd, 0, 0, 0, 0, 0, 0)
+                                             --"Lev&el 3 Sub Menu Item"
+        MMenuEditAddSub2Item = createEx(MenuItem, IDEText[391][1], MMenuEditAdd, 0, 0, 0, 0, 0, 0)
+                                             --"Leve&l 4 Sub Menu"
+        MMenuEditAddSub3menu = createEx(MenuItem, IDEText[392][1], MMenuEditAdd, 0, 0, 0, 0, 0, 0)
+                                             --"Level 4 Sub Menu &Item"
+        MMenuEditAddSub3Item = createEx(MenuItem, IDEText[393][1], MMenuEditAdd, 0, 0, 0, 0, 0, 0)
+                                  --"&Move"
+        MMenuEditMove = createEx(Menu, IDEText[394][1], MenuEditWindow, 0, 0, 0, 0, 0, 0)
+                                        --"Move &Up"
+        MMenuEditMoveUp = createEx(MenuItem, IDEText[395][1], MMenuEditMove, 0, 0, 0, 0, 0, 0)
+                                          --"Move &Down"
+        MMenuEditMoveDown = createEx(MenuItem, IDEText[396][1], MMenuEditMove, 0, 0, 0, 0, 0, 0)
+                                        --"D&elete"
+        MMenuEditDelete = createEx(MenuItem, IDEText[397][1], MMenuEditMove, 0, 0, 0, 0, 0, 0)
+                                          --"Delete &Subs"
+        MMenuEditDeleteSubs = createEx(MenuItem, IDEText[1026][1], MMenuEditMove, 0, 0, 0, 0, 0, 0)
+                                                                  --"&Code"
+        MMenuEditCode = createEx(Menu, IDEText[398][1], MenuEditWindow, 0, 0, 0, 0, 0, 0)
+                                            --"&Code Editor"
+        MMenuEditCodeEditor = createEx(MenuItem, IDEText[399][1], MMenuEditCode, 0, 0, 0, 0, 0, 0)
+                             --"Menus"
+        LText40 = createEx(LText, IDEText[400][1], MenuEditWindow, 16, 160, 72, 20, 0, 0)
+
+        setHandler(MenuEditWindow, w32HOpen, routine_id("MenuEditWindow_Open"))
+--DEV PL no such routine!
+--      setHandler(MenuEditWindow, w32HPaint, routine_id("MenuEditWindow_oaint"))
+        setHandler(MenuEditWindow, w32HResize, routine_id("MenuEditWindow_Resize"))
+        setHandler(MenuEditTitle, w32HChange, routine_id("MenuEditTitle_Change"))
+        setHandler(MenuEditTitle, w32HKeyPress, routine_id("keyPress_MenuEditTitle"))
+        setHandler(MenuEditName, w32HKeyDown, routine_id("keyDown_MenuEditName"))
+        setHandler(MenuEditName, w32HLostFocus, routine_id("lostFocus_MenuEditName"))
+        setHandler(MenuEditChecked, w32HClick, routine_id("MenuEditChecked_Click"))
+        setHandler(MenuEditEnabled, w32HClick, routine_id("MenuEditEnabled_Click"))
+        setHandler(MenuEditLocal, w32HClick, routine_id("MenuEditLocal_Click"))
+        setHandler(MenuEditAddMenu, w32HClick, routine_id("MenuEditAddMenu_Click"))
+        setHandler(MenuEditAddMenu, w32HKeyPress, routine_id("MenuEditAddMenu_KeyPress"))
+        setHandler(MenuEditAddItem, w32HClick, routine_id("MenuEditAddItem_Click"))
+        setHandler(MenuEditAddItem, w32HKeyPress, routine_id("MenuEditAddItem_KeyPress"))
+        setHandler(MenuEditAddSubmenu, w32HClick, routine_id("MenuEditAddSubmenu_Click"))
+        setHandler(MenuEditAddSubItem, w32HClick, routine_id("MenuEditAddSubItem_Click"))
+        setHandler(MenuEditMoveUp, w32HClick, routine_id("MenuEditMoveUp_Click"))
+        setHandler(MenuEditMoveUp, w32HKeyPress, routine_id("MenuEditMoveUp_KeyPress"))
+        setHandler(MenuEditMoveDown, w32HClick, routine_id("MenuEditMoveDown_Click"))
+        setHandler(MenuEditMoveDown, w32HKeyPress, routine_id("MenuEditMoveDown_KeyPress"))
+        setHandler(MenuEditDelete, w32HClick, routine_id("MenuEditDelete_Click"))
+        setHandler(MenuEditDeleteSubs, w32HClick, routine_id("MenuEditDeleteSubs_Click"))
+        setHandler(MenuEditDelete, w32HKeyPress, routine_id("MenuEditDelete_KeyPress"))
+        setHandler(MenuEditDeleteSubs, w32HKeyPress, routine_id("MenuEditDeleteSubs_KeyPress"))
+        setHandler(MenuEditList, w32HChange, routine_id("MenuEditList_Change"))
+        setHandler(MenuEditList, w32HMouse, routine_id("MenuEditList_Mouse"))
+        setHandler(MenuEditOk, w32HClick, routine_id("MenuEditOk_Click"))
+        setHandler(MenuEditOk, w32HKeyPress, routine_id("MenuEditOk_KeyPress"))
+        setHandler(MenuEditCancel, w32HClick, routine_id("MenuEditCancel_Click"))
+        setHandler(MenuEditCancel, w32HKeyPress, routine_id("MenuEditCancel_KeyPress"))
+        setHandler(MMenuEditAddSub2menu, w32HClick, routine_id("MMenuEditAddSub2menu_Click"))
+        setHandler(MMenuEditAddSub2Item, w32HClick, routine_id("MMenuEditAddSub2Item_Click"))
+        setHandler(MMenuEditAddSub3menu, w32HClick, routine_id("MMenuEditAddSub3menu_Click"))
+        setHandler(MMenuEditAddSub3Item, w32HClick, routine_id("MMenuEditAddSub3Item_Click"))
+        setHandler(MMenuEditMoveUp, w32HClick, routine_id("MMenuEditMoveUp_Click"))
+        setHandler(MMenuEditMoveDown, w32HClick, routine_id("MMenuEditMoveDown_Click"))
+        setHandler(MMenuEditDelete, w32HClick, routine_id("MMenuEditDelete_Click"))
+        setHandler(MMenuEditDeleteSubs, w32HClick, routine_id("MMenuEditDeleteSubs_Click"))
+        setHandler(MMenuEditCodeEditor, w32HClick, routine_id("MMenuEditCodeEditor_Click"))
+
+        setFont(MenuEditList, "Courier New", 8, Normal)
+
+    end if
+end procedure
+

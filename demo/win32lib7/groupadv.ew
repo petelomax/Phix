@@ -1,0 +1,427 @@
+-- GroupAdv.ew
+include win32lib.ew
+-- This implements the GroupAdv control type for usage in Win32lib.ew
+
+--/topic Controls
+--/const GroupAdv
+--/desc An advanced Group control.
+--This is similar to the standard Group control that comes with Windows
+-- but allows greater control over its appearance.
+--
+--In order to use this control, you must add /n
+--/i "include groupadv.ew" after the Win32lib.ew include.
+--
+--You create the control using the standard methods in Win32lib.
+--/code
+--  constant GroupX = create(GroupAdv, "Display Options", theWindow, 100, 34, 200, 200, 0)
+--/endcode
+--
+--The purpose of the control is to group together a set of related controls. You
+-- do this by making the GroupAdv control the parent to those controls.
+--/code
+--  constant Rad1 = create(Radio, "300 x 200", GroupX, 10, 10, 100, 25, 0)
+--  constant Rad2 = create(Radio, "600 x 400", GroupX, 10, 40, 100, 25, 0)
+--  constant Rad3 = create(Radio, "800 x 600", GroupX, 10, 70, 100, 25, 0)
+--/endcode
+--
+--You can set the various appearance properties by calling /setUserProperty. The
+-- support properties are ... /n
+--/li /b BorderColor Sets the color of the group box outline. Must be a 24-bit color value.
+-- Initially it is set to getSysColor(COLOR_BTNSHADOW).
+--/li /b BorderWidth Sets the style and width of the border. A positive value is a simple
+-- width value for the border of the specified color. A value of zero means that no
+-- border is drawn. A negative value means that the border color is ignored and the
+-- border is given a 3-D look instead, using the absolute value of the width value.
+-- Initially it is set to 1.
+--/li /b CaptionFGColor Sets the color of the caption text. Initially it is set to getSysColor(COLOR_BTNTEXT).
+--/li /b CaptionBGColor Sets the color of the caption text background. A negative value means that
+-- the caption background is transparent. Initially it is set to getSysColor(COLOR_BTNFACE).
+--/li /b CaptionBorderColor Sets the color of the border around the caption text. A negative value
+-- means that no border is drawn around the caption text. Initially it is set to -1.
+--/li /b CaptionPlacement Determines whether the caption text is placed on the top or bottom of the
+-- group box. A value of 0 places it on the top, and any other value places it on the bottom.
+-- Initially is is set to 0 (top placement).
+--/li /b CaptionAlignment Determines left-center-right alignment of the caption text. A value of 0
+-- means left alignment, a value of 1 is center alignment, and a value of 2 is right alignment.
+-- Initially it is set to 0 (left alignment).
+--/li /b CaptionOffset Sets that number of pixels the text is offset from the alignment edge. If the
+-- alignment is left or center, this is the offset from the left, otherwise this is the offset
+-- from the right. Initially it is set to 10.
+--/li /b CaptionCornerSize Sets the amount of rounding for the caption text border. A value of 0 means
+-- that it doesn't have rounded corners. Initially it is set to 5.
+--/li /b CornerSize Sets the amount of rounding for the group box border. A value of 0 means
+-- that it doesn't have rounded corners. Initially it is set to 10.
+--/li /b CaptionIcon If not zero, this is the handle to a bitmap that is displayed to the left of
+-- the caption text. Initially it is set to 0.
+--
+--Example:
+--/code
+--    setUserProperty(lId, "BorderColor" , Red)
+--    setUserProperty(lId, "BorderWidth" , 2)
+--    setUserProperty(lId, "CaptionFGColor" ,Gray)
+--    setUserProperty(lId, "CaptionBGColor" ,BrightWhite)
+--    setUserProperty(lId, "CaptionBorderColor" , Blue)
+--    setUserProperty(lId, "CaptionPlacement" ,1)
+--    setUserProperty(lId, "CaptionAlignment" ,2)
+--    setUserProperty(lId, "CaptionOffset" ,0)
+--    setUserProperty(lId, "CaptionCornerSize" , 0)
+--    setUserProperty(lId, "CornerSize" ,0)
+--    setUserProperty(lId, "CaptionIcon", loadBitmapFromFile("image1.bmp"))
+--/endcode
+
+-- Routine to handle paint events
+procedure Paint_GroupAdv(integer self, integer event, sequence parms)
+    sequence lRect
+    sequence lBorderColor
+    sequence lBorderWidth
+    integer  lParent
+    sequence lCaption
+    sequence lCaptionFGColor
+    sequence lCaptionBGColor
+    sequence lCaptionAlignment
+    sequence lCaptionOffset
+    sequence lCaptionPlacement
+    sequence lCaptionBorderColor
+    sequence lCaptionIcon
+    atom     lBGColor
+    sequence lCornerSize
+    sequence lCaptionCornerSize
+    integer  lX
+    integer  lY
+    integer  lCaptionHeight
+    integer  lCaptionWidth
+    integer  lCaptionAreaHeight
+    integer  lCaptionAreaWidth
+    integer  lCapTopY
+    integer  lCapBotY
+    atom     lParentBGColor
+    atom     lDark
+    atom     lBright
+    integer  lCS
+    sequence lIconRect
+              
+    parms = parms
+    if event = w32HPaint then
+
+        if isVisible(self) = 0 then
+            return
+        end if
+
+        lBorderColor = getUserProperty(self, "BorderColor")
+        lBorderWidth = getUserProperty(self, "BorderWidth")
+        lCaptionFGColor = getUserProperty(self, "CaptionFGColor")
+        lCaptionBGColor = getUserProperty(self, "CaptionBGColor")
+        lCaptionBorderColor = getUserProperty(self, "CaptionBorderColor")
+        lCaptionPlacement = getUserProperty(self, "CaptionPlacement")
+        lCaptionAlignment= getUserProperty(self, "CaptionAlignment")
+        lCaptionOffset = getUserProperty(self, "CaptionOffset")
+        lCaptionCornerSize = getUserProperty(self, "CaptionCornerSize")
+        lCornerSize = getUserProperty(self, "CornerSize")
+        lCaptionIcon = getUserProperty(self, "CaptionIcon")
+
+
+        lCaption = getText(self)
+        lBGColor = getControlInfo(self, CONTROLINFO_bcolor)
+
+        lParent = getParent(self)
+
+        lRect = getRect(self)
+        lRect[1..2] = clientToClient(lParent,self,  lRect[1..2])
+        lRect[3..4] = clientToClient(lParent,self,  lRect[3..4])
+
+        -- Adjust to down to maximum corner size if too big.
+        lCS = lCornerSize[1]
+        lX = lRect[3]-lRect[1]
+        lY = lRect[4]-lRect[2]
+        if (2*lCS > lX) then
+            lCS = floor(lX/2)
+        end if
+        if (2*lCS > lY) then
+            lCS = floor(lY/2)
+        end if
+        lCornerSize[1] = lCS
+
+        -- Calc caption area
+        if length(lCaption) > 0 then
+            lCaption = ' ' & lCaption & ' '
+            lCaptionHeight = getTextHeight(self, lCaption)
+            lCaptionWidth = getTextWidth(self, lCaption)
+            if lCaptionPlacement[1] = 0 then
+                lCapTopY = floor((lCaptionHeight+1)/2)
+                lCapBotY = 0
+            else
+                lCapBotY = floor((lCaptionHeight-1)/2)
+                lCapTopY = 0
+            end if
+
+        else
+            lCaptionHeight = 0
+            lCaptionWidth = 0
+            lCapTopY = 0
+            lCapBotY = 0
+        end if
+        lCaptionAreaHeight = lCaptionHeight+2
+        lCaptionAreaWidth = lCaptionWidth
+
+        -- Calc caption area
+        if length(lCaptionIcon) > 0 and lCaptionIcon[1] != 0 then
+            lIconRect = getRect(lCaptionIcon[1])
+            if lIconRect[4] > lCaptionAreaHeight then
+                lCaptionAreaHeight = lIconRect[4]
+            end if
+            lCaptionAreaWidth += lIconRect[3] + 2
+        else
+            lIconRect = {0,0,-1,0}
+        end if
+
+        if lCaptionPlacement[1] = 0 then
+            lCapTopY = floor((lCaptionAreaHeight+1)/2)
+            lCapBotY = 0
+        else
+            lCapBotY = floor((lCaptionAreaHeight-1)/2)
+            lCapTopY = 0
+        end if
+
+        -- Fill in background
+        lParentBGColor = getControlInfo(lParent, CONTROLINFO_bcolor)
+        setPenColor(self, lParentBGColor)
+        drawRectangle(self, 1, lRect[1], lRect[2], lRect[3], lRect[4])
+
+        setPenColor(self, lBGColor)
+        drawRoundRect(self, 1, lRect[1], lRect[2]+lCapTopY, lRect[3], lRect[4]-lCapBotY, lCornerSize[1], lCornerSize[1])
+
+        -- Draw the border
+        if lBorderWidth[1] > 0 then
+            setPenColor(self, lBorderColor[1])
+            setPenWidth(self, lBorderWidth[1])
+            drawRoundRect(self, 0, lRect[1], lRect[2]+lCapTopY, lRect[3], lRect[4]-lCapBotY, lCornerSize[1], lCornerSize[1])
+        elsif lBorderWidth[1] < 0 then
+            setPenWidth(self, -lBorderWidth[1])
+            lDark = adjustBrightness(lBGColor, 0.65)
+            lBright = adjustBrightness(lBGColor, 1.3)
+            lX = floor((lCornerSize[1]+1)/2)
+            drawLines(self, {
+                      lBright,
+                      {lRect[3]-1-lX, lRect[2]+lCapTopY, lRect[1]+lX, lRect[2]+lCapTopY},
+                      {lRect[1], lRect[2]+lCapTopY+lX-1, lRect[1], lRect[4]-lCapBotY-1-lX},
+                      lDark,
+                      {lRect[1]+lX, lRect[4]-lCapBotY-1, lRect[3]-1-lX, lRect[4]-lCapBotY-1},
+                      {lRect[3]-1, lRect[4]-lCapBotY-1-lX, lRect[3]-1, lRect[2]+lCapTopY+lX-1}
+                        })
+
+            if lX > 0 then
+                -- Rounded corners needed.
+                lY = 2*lX
+                setPenColor(self, lBright)
+                drawArc(self, 0,
+                              0,lCapTopY, lY, lY+lCapTopY,
+                              lX, lCapTopY
+                              ,
+                              0, lX+lCapTopY
+                            )
+
+                setPenColor(self, adjustBrightness(lBright, 0.85))
+                drawArc(self, 0,
+                              0,lRect[4]-lCapBotY-lY, lY, lRect[4]-lCapBotY ,
+                              0, lRect[4]-lCapBotY-lX
+                              ,
+                              lX, lRect[4] - lCapBotY
+                            )
+
+                setPenColor(self, adjustBrightness(lDark, 1.15))
+                drawArc(self, 0,
+                              lRect[3]-lY,lCapTopY, lRect[3], lY+lCapTopY,
+                              lRect[3], lX+lCapTopY
+                              ,
+                              lRect[3]-lY+lX, lCapTopY
+                            )
+                setPenColor(self, lDark)
+                drawArc(self, 0,
+                              lRect[3]-lY,lRect[4]-lCapBotY-lY, lRect[3], lRect[4]-lCapBotY,
+                              lRect[3]-lX, lRect[4]-lCapBotY
+                              ,
+                              lRect[3], lRect[4]-lCapBotY-lX
+                            )
+            end if
+        end if
+        setPenWidth(self, 1)
+
+        -- Draw in the caption
+        if length(lCaption) > 0 or (length(lCaptionIcon) > 0 and lCaptionIcon[1] != 0) then
+            if lCaptionPlacement[1] = 0 then
+                lY = lRect[2]
+            else
+                lY = lRect[4]-lCaptionAreaHeight
+            end if
+            if lCaptionAlignment[1] = 2 then
+                -- Right edge
+                lX = lRect[3] - lCaptionOffset[1] - lCaptionAreaWidth
+                lX -= floor(0.4 * lCornerSize[1])
+
+            elsif lCaptionAlignment[1] = 1 then
+                -- Center
+                lX = floor((lRect[3] - lCaptionAreaWidth) / 2 ) + lCaptionOffset[1]
+
+            else
+                -- Left edge
+                lX = lCaptionOffset[1]
+                lX += floor(0.4 * lCornerSize[1])
+            end if
+
+
+            -- Draw Caption Background.
+            lCS = lCaptionCornerSize[1]
+            if (2*lCS > (lCaptionAreaWidth)) then
+                lCS = floor((lCaptionAreaWidth)/2)
+            end if
+            if (2*lCS > (lCaptionAreaHeight)) then
+                lCS = floor((lCaptionAreaHeight)/2)
+            end if
+            if compare(lCaptionBGColor[1],0) >= 0 then
+                setPenColor(self, lCaptionBGColor[1])
+                drawRoundRect(self, 1, lX, lY, lX + lCaptionAreaWidth, lY + lCaptionAreaHeight,lCS,lCS)
+            end if
+
+            if compare(lCaptionBorderColor[1],0) >= 0 then
+                setPenColor(self, lCaptionBorderColor[1])
+                drawRoundRect(self, 0, lX, lY, lX + lCaptionAreaWidth, lY + lCaptionAreaHeight,lCS,lCS)
+            end if
+
+            -- Draw icon
+            if  length(lCaptionIcon) > 0 and lCaptionIcon[1] != 0 then
+                copyBlt(self, lX, lY, lCaptionIcon[1])
+            end if
+
+            -- Draw Caption
+            if compare(lCaptionFGColor[1],0) >= 0 then
+                lY += floor((lCaptionAreaHeight - lCaptionHeight)/2)
+                setTextColor(self, lCaptionFGColor[1])
+                wPuts({self, lX + lIconRect[3]+1, lY }, lCaption )
+            end if
+
+        end if
+    end if
+
+
+end procedure
+
+-------------------------------------------------------
+function Create( sequence pAction, object pData)
+-------------------------------------------------------
+    object lResult
+    integer lId
+    sequence lBox
+
+    lResult = 0
+
+
+    if equal(pAction, "Pre") then
+        -- pData is {id, pCaption, pOwner,
+        --           pLeft, pTop, pWidth, pHeight,
+        --           styleFlags, exFlags}
+        lId = pData[1]
+        lBox = convPctToPixel(lId, pData[4], pData[5], pData[6], pData[7])
+        pData[4] = lBox[1]
+        pData[5] = lBox[2]
+        pData[6] = lBox[3]
+        pData[7] = lBox[4]
+
+        createWindow(lId,
+                pData[2],
+                pData[3],
+                lBox[1],
+                lBox[2],
+                lBox[3],
+                lBox[4],
+                pData[8],
+                pData[9])
+
+        setVisible(lId, 1)
+        lResult =  0
+
+    elsif equal(pAction, "Post") then
+        -- pData is { id }
+
+        lId = pData[1]
+        setUserProperty(lId, "BorderColor" ,getSysColor(COLOR_BTNSHADOW))
+        setUserProperty(lId, "BorderWidth" , 1)
+        setUserProperty(lId, "CaptionFGColor" ,getSysColor(COLOR_BTNTEXT))
+        setUserProperty(lId, "CaptionBGColor" ,getSysColor(COLOR_BTNFACE))
+        setUserProperty(lId, "CaptionBorderColor" , -1 )
+        setUserProperty(lId, "CaptionPlacement" ,0)
+        setUserProperty(lId, "CaptionAlignment" ,0)
+        setUserProperty(lId, "CaptionOffset" ,10)
+        setUserProperty(lId, "CaptionCornerSize" ,5)
+        setUserProperty(lId, "CornerSize" ,10)
+        setUserProperty(lId, "CaptionIcon", 0)
+
+        setHandler(lId, w32HPaint, routine_id("Paint_GroupAdv"))
+        lResult = 0
+
+    end if
+
+    return lResult
+end function
+
+-------------------------------------------------------
+function Control( sequence pAction, object pData)
+-------------------------------------------------------
+    if equal(pAction, "className") then
+        return ""   -- Determined at runtime.
+
+    elsif equal(pAction, "classType") then
+        return Group
+
+    elsif equal(pAction, "classStyle") then
+        return or_bits(WS_CHILD, WS_VISIBLE)
+
+    elsif equal(pAction, "classStyleEx") then
+        return 0
+
+    elsif equal(pAction, "classAttr") then
+        return w32Clickable + w32HasChildren
+
+    elsif equal(pAction, "classDefPointer") then
+        return pData
+
+    elsif equal(pAction, "classBGColor") then
+        return pData
+
+    elsif equal(pAction, "classFGColor") then
+        return pData
+
+    elsif equal(pAction, "NewOwner") then
+        if equal(pData,0) then
+            return(getRecent(w32RecentWindow))
+        else
+            return pData
+        end if
+    else
+        return pData
+    end if
+
+end function
+
+-------------------------------------------------------
+--function Destroy( sequence pAction, object pData)
+-------------------------------------------------------
+
+--    return 0
+
+--end function
+
+-------------------------------------------------------
+--function Process( sequence pAction, object pData)
+-------------------------------------------------------
+
+--    return 0
+
+--end function
+
+global constant
+    GroupAdv = registerControl("GroupAdv", {
+                    routine_id("Create"),
+                    -1, -- Not using the Destroy routine
+                    -1, -- Not using the Process routine
+                    routine_id("Control")
+                    })

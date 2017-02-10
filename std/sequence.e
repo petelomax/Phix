@@ -8,14 +8,13 @@ namespace stdseq
 -- == Sequence Manipulation
 --
 -- <<LEVELTOC depth=2>>
+--/*
 include std/error.e
 include std/search.e
-
---/*
 include std/sort.e
---*/
 include std/math.e
 include std/types.e
+--*/
 
 --****
 -- === Constants
@@ -997,6 +996,7 @@ end function
 -- See Also:
 --   [[:trim_head]], [[:pad_tail]], [[:head]]
 
+--/* not Phix (now in pseqc.e)
 public function pad_head(sequence target, integer size, object ch=' ')
     if size<=length(target) then
         return target
@@ -1004,6 +1004,7 @@ public function pad_head(sequence target, integer size, object ch=' ')
 
     return repeat(ch, size-length(target)) & target
 end function
+--*/
 
 --**
 -- Pad the end of a sequence with an object so as to meet a minimum length condition.
@@ -1040,6 +1041,7 @@ end function
 -- See Also:
 --   [[:trim_tail]], [[:pad_head]], [[:tail]]
 
+--/* not Phix (now in pseqc.e)
 public function pad_tail(sequence target, integer size, object ch=' ')
     if size<=length(target) then
         return target
@@ -1047,6 +1049,7 @@ public function pad_tail(sequence target, integer size, object ch=' ')
 
     return target & repeat(ch, size-length(target))
 end function
+--*/
 
 --**
 -- Adds an item to the sequence if its not already there. If it already exists
@@ -1402,6 +1405,7 @@ end function
 -- See Also:
 --   [[:slice]], [[:project]]
 
+--/* Not Phix (builtins/vslice.e, an autoinclude)
 public function vslice(sequence source, atom colno, object error_control=0)
 sequence ret
 integer substitutes, current_sub
@@ -1436,6 +1440,7 @@ integer substitutes, current_sub
 
     return ret
 end function
+--*/
 
 --****
 -- Signature:
@@ -2903,6 +2908,7 @@ end function
 -- See Also:
 --              [[:find]], [[:match]], [[:replace]], [[:mapping]]
 
+--/* Phix: see substitute_all
 public function transmute(sequence source_data, sequence current_items, sequence new_items, integer start=1, integer limit = length(source_data))
         integer pos
         integer cs
@@ -3012,6 +3018,7 @@ public function transmute(sequence source_data, sequence current_items, sequence
         return source_data
 
 end function
+--*/
 
 --**
 -- Calculates the similarity between two sequences.

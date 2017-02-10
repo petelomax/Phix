@@ -1,0 +1,324 @@
+--IDE_FindWin.ew
+
+global integer FindControlEventWin    FindControlEventWin = -1
+integer find_lb1,Find_FindText,FindGo,FindCancel,FindCheckBox1,FindCheckBox2
+integer find_lb2,find_lb3,FindList,FindList2
+--------------------------------------------------------------------------------
+global integer MenuFind_id, showAtRow
+sequence FindListLine, FindList2Line
+FindListLine = {}
+FindList2Line = {}
+showAtRow = 0
+--------------------------------------------------------------------------------
+function findIfText(sequence typetext, sequence text, sequence matchText)
+    if equal("line", typetext) then
+        --one line of code from module
+        if isChecked(FindCheckBox1) then
+            matchText = prepend(matchText,' ')
+            matchText = append(matchText,' ')
+            text = prepend(text,' ')
+            text = append(text,' ')
+        end if
+        if not isChecked(FindCheckBox2) then
+            matchText = upper(matchText)
+            text = upper(text)
+        end if
+
+        ok = match(matchText, text)
+        if ok then
+            return 1
+        else
+            return 0
+        end if
+    end if
+
+    --multiple lines from Class Module
+    for i=1 to length(text) do
+        if isChecked(FindCheckBox1) then
+            matchText = prepend(matchText,' ')
+            matchText = append(matchText,' ')
+            text[i] = prepend(text[i],' ')
+            text[i] = append(text[i],' ')
+        end if
+        if not isChecked(FindCheckBox2) then
+            matchText = upper(matchText)
+            text[i] = upper(text[i])
+        end if
+
+        ok = match(matchText, text[i])
+        if ok then
+            return i
+        end if
+    end for
+
+    return 0
+end function
+--------------------------------------------------------------------------------        
+procedure findAllOccurances(sequence matchText)
+integer ismatch, fn, at, cnt
+sequence currentControls, text, addToListName, fName
+object line
+
+    if selectedWindow then
+        windows[selectedWindow] = controls
+    end if
+
+    for i=1 to length(windows) do
+        currentControls = windows[i]
+        for j=1 to length(currentControls) do
+            if length(currentControls[j][Code]) then
+                for event=1 to length(currentControls[j][Code]) do
+                    -- code?
+                    text = currentControls[j][Code][event]
+                    if length(text) then
+                        ismatch = findIfText("lines", text, matchText)
+                        if ismatch then
+                            if event!=General
+                            and event!=Intro
+                            and event!=Final then
+                                addToListName =
+                                        currentControls[j][Name]
+                                        & "_"
+                                        & Events[event][1]
+                            else
+                                if event=General then
+                                    addToListName    =
+                                                currentControls[j][Name]
+                                                & "_"
+                                                & "(General)"
+                                elsif event=Intro then
+                                    addToListName =
+                                                currentControls[j][Name]
+                                                & "_"
+                                                & "(Intro)"
+                                elsif event=Final then
+                                    addToListName =
+                                                currentControls[j][Name]
+                                                & "_"
+                                                & "(Final)"
+                                end if
+                            end if
+                            addItem(FindList, addToListName)
+                            FindListLine &= ismatch
+                        end if
+                    end if
+                end for
+            end if
+        end for
+    end for
+
+    if equal(IDEText[476][1], getText(FindControlEventWin)) then    --"Find String In Project"
+        for i=1 to length(includeModules) do
+            cnt = 0
+            fn = open(includeModules[i][1], "r")
+            if fn!= -1 then
+                while 1 do
+                    line = gets(fn)
+                    cnt += 1
+                    if atom(line) then
+                        exit
+                    end if
+                    line = line[1..length(line)-1]
+                    ismatch = findIfText("line", line, matchText)
+                    if ismatch then
+                        --add only the file to the list
+                        fName = reverse(includeModules[i][1])
+                        at = find('\\', fName)
+                        if at then
+                            fName = fName[1..at-1]
+                        end if
+                        fName = reverse(fName)
+                        addItem(FindList2, fName)
+                        FindList2Line &= cnt
+                        exit
+                    end if
+                end while
+                close(fn)
+            end if
+        end for
+    end if
+
+    ok = displayErrorMessage(45,{})
+end procedure
+--------------------------------------------------------------------------------
+procedure FindGo_onClick(integer self, integer event, sequence params)
+    if length(getText(Find_FindText)) then
+        eraseItems(FindList)
+        eraseItems(FindList2)
+        FindListLine = {}
+        FindList2Line = {}
+        findAllOccurances(getText(Find_FindText))
+    else
+        ok = displayErrorMessage(46,{})
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure FindCancel_onClick(integer self, integer event, sequence params)
+    if validId(FindControlEventWin) then
+        destroy(FindControlEventWin)
+    end if
+    FindControlEventWin = -1
+end procedure
+--------------------------------------------------------------------------------
+procedure click_FindList(integer self, integer event, sequence params)
+sequence text, eventNode, windowFolder,fileNameWithoutPath, fileNamePath, euDir
+integer at
+object isOk
+
+    if self=FindList then
+        text = getItem(FindList, getIndex(FindList))
+        --do what I do in project view now
+        --save any code in editor
+        if CodeWinOpen then
+            --update last code before switching
+            call_proc(onChangeCodeFromProject_id,{})
+        end if
+
+        --open the editor for the control-event pair
+        --reverse text for test. Needed because Menu has "_" in name.
+        text = reverse(text)
+        at = find('_', text)
+        if at then
+            eventNode = text[1..at-1]
+            text = text[at+1..length(text)]
+            eventNode = reverse(eventNode)
+            text = reverse(text)
+            for k=1 to length(windows) do
+                windowFolder = windows[k]
+                if equal(windowFolder[1][Name], getItem(WinList, getIndex(WinList))) then
+                    windowFolder = controls
+                    windows[k] = controls
+                end if
+                for m=1 to length(windowFolder) do
+                    if equal(windowFolder[m][Name],text) then
+                        call_proc(PickWindowId,{k})
+                        selectedControl = m
+                        if equal(windowFolder[m][Class], "TabItem") then
+                            --set the tabItemCombo to this tabitem parent
+                            for n=1 to getCount(TheTabItemCombo) do
+                                if equal(getItem(TheTabItemCombo, n),
+                                         windowFolder[m][ControlParent]) then
+                                    setIndex(TheTabItemCombo, n)
+                                    ok = invokeHandler(TheTabItemCombo,w32HChange,{})
+                                end if
+                            end for
+                        end if
+                        if equal(windowFolder[m][Class], "TabControl") then
+                            --set the tabItemCombo to the first tabitem
+                            setIndex(TheTabItemCombo, 1)
+                            ok = invokeHandler(TheTabItemCombo,w32HChange,{})
+                        end if
+
+                        --force to the event for the control with onchange[CodeEvents]
+                        zeroEvent = w32True
+                        at = w32findKey(eventNode, Events)
+                        if at then
+                            showEvent = at
+                            showScroll = FindListLine[getIndex(FindList)]
+                            showCol = 1
+                        end if
+                        ok = invokeHandler(PopUpDesign_CodeEditor,w32HClick,{})
+                        exit
+                    end if
+                end for
+            end for
+        end if
+    else
+        isModule = ""
+        -- save data in editor
+        if CodeWinOpen then
+            --update last code before switching
+            call_proc(onChangeCodeFromProject_id,{})
+        end if
+
+        isModule = getItem(FindList2, getIndex(FindList2))
+
+        --open the editor for the module
+        --can editor find it?
+        --pick up the path from includeModules
+        isOk = w32False
+        for i=1 to length(includeModules) do
+            fileNameWithoutPath = reverse(includeModules[i][1])
+            at = find("\\", fileNameWithoutPath)
+            if at then
+                fileNamePath = fileNameWithoutPath[at+1..length(fileNameWithoutPath)]
+                fileNamePath = reverse(fileNamePath)
+                fileNameWithoutPath = fileNameWithoutPath[1..at-1]
+                fileNameWithoutPath = reverse(fileNameWithoutPath)
+
+                if equal(isModule, fileNameWithoutPath) then
+                    isOk = w32True
+                    isModule = fileNamePath & "\\" & isModule
+                    exit
+                end if
+            end if
+        end for
+
+        if not isOk then
+            --must be an old PRJ file module
+            --check the current directory
+            isOk = dir(isModule)
+            if atom(isOk) then
+                --maybe file is in IDE dir?
+                isOk = chdir(the_current_dir)
+                isOk = dir(isModule)
+            end if
+
+            if atom(isOk) then
+                --maybe file is in project dir?
+                isOk = chdir(projectDir)
+                isOk = dir(isModule)
+            end if
+
+            if atom(isOk) then
+                --maybe file is an EU include file?
+                euDir = whereEu
+                isOk = chdir(euDir & "\\include")
+                isOk = dir(isModule)
+            end if
+
+            if atom(isOk) then
+                --well I give up!
+                ok = displayErrorMessage(151,{isModule})
+                isModule = ""
+                return
+            end if
+        end if
+        cameFromProjectView = w32True
+
+        showAtRow = FindList2Line[getIndex(FindList2)]
+
+        ok = invokeHandler(PopUpDesign_CodeEditor,w32HClick,{})
+    end if
+end procedure
+----------------------------------------------------------------------------
+global procedure createFindControlEventwin()
+    if FindControlEventWin= -1 then
+                                             --"Find String in Controls-Events"
+        FindControlEventWin = createEx(Window, IDEText[475][1], Form, Default, Default, 374, 273, {WS_THICKFRAME+WS_DLGFRAME}, WS_EX_TOPMOST)
+                                  --"Find What:"
+        find_lb1 = createEx(LText, IDEText[563][1], FindControlEventWin, 0, 0, 72, 36, 0, 0)
+        Find_FindText = createEx(EditText, "", FindControlEventWin, 72, 8, 208, 24, 0, 0)
+                                     --"Find"
+        FindGo = createEx(PushButton, IDEText[564][1], FindControlEventWin, 284, 4, 80, 24, 0, 0)
+                                         --"Cancel"
+        FindCancel = createEx(PushButton, IDEText[565][1], FindControlEventWin, 284, 36, 80, 24, 0, 0)
+                                           --"Match Case"
+        FindCheckBox2 = createEx(CheckBox, IDEText[566][1], FindControlEventWin, 4, 68, 276, 20, 0, 0)
+                                            --"Match Whole Word Only"
+        FindCheckBox1 = createEx(CheckBox, IDEText[567][1], FindControlEventWin, 4, 40, 276, 20, 0, 0)
+                                  --"Class Modules"
+        find_lb2 = createEx(LText, IDEText[568][1], FindControlEventWin, 4, 96, 172, 20, 0, 0)
+                                  --"Include Modules"
+        find_lb3 = createEx(LText, IDEText[569][1], FindControlEventWin, 184, 96, 176, 20, 0, 0)
+        FindList = createEx(List, "", FindControlEventWin, 4, 116, 176, 120, 0, 0)
+        FindList2 = createEx(List, "", FindControlEventWin, 184, 116, 176, 120, 0, 0)
+
+        setHandler({FindList,FindList2}, w32HClick, routine_id("click_FindList"))
+        setHandler(FindCancel, w32HClick, routine_id("FindCancel_onClick"))
+        setHandler(FindGo, w32HClick, routine_id("FindGo_onClick"))
+
+    end if
+end procedure
+

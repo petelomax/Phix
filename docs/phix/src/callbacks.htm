@@ -15,8 +15,10 @@
         Even though callbacks have different purposes from attributes, they are also associated to an element by means of an name. 
         <br>
         <br>
-        The OLD method to associate a function to a callback, the application must employ the IupSetAttribute function, linking the action to a name (passed as a string). <br>
-        From this point on, this name will refer to a callback. By means of function <a href="IupSetGlobalFunction.htm">IupSetFunction</a>, the user connects this name to the callback. For example: 
+        The <b>OLD</b> method to associate a function to a callback, the application must employ the <a href="IupSetAttribute.htm">IupSetAttribute</a> function, 
+        linking the action to a name (passed as a string). <br>
+        From this point on, this name will refer to a callback. By means of function <a href="IupSetGlobalFunction.htm">IupSetFunction</a> (follow that link for an
+        explanation of why the following call to it is syntax-coloured red), the user connects this name to the callback. For example: 
 <!--eucode>
 function myButton_action(Ihandle self)
 ...
@@ -29,8 +31,8 @@ IupSetFunction("my_button_action", Icallback("myButton_action")
 </font><font color="#5E005E">IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">myButton</font><font color="#0000FF">,</font><font color="#008000"> "ACTION"</font><font color="#0000FF">,</font><font color="#008000"> "my_button_action"</font><font color="#0000FF">);
 </font><font color="#FF0000">IupSetFunction</font><font color="#0000FF">(</font><font color="#008000">"my_button_action"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"myButton_action"</font><font color="#800000">)</font>
 </pre>
-        <br>
-        In the NEW method, the application does not needs a global name, it directly sets the callback using the attribute name using IupSetCallback. For example:
+        In the <b>NEW</b> method, the application does not needs a global name, it directly sets the callback using the attribute name using 
+        <a href="IupSetCallback.htm">IupSetCallback</a>. For example:
 <!--eucode>
 function myButton_action(Ihandle self)
 ...
@@ -41,7 +43,8 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
 ..</font><font color="#FF0000">.
 </font><font color="#5E005E">IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">myButton</font><font color="#0000FF">,</font><font color="#008000"> "ACTION"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"myButton_action"</font><font color="#800000">)</font><font color="#0000FF">)</font>
 </pre>
-        The new method is more efficient and more secure, because there is no risk of a name conflict. Generally you should replace IupSetFunction by IupSetCallback.
+        The new method is more efficient and more secure, because there is no risk of a name conflict. <br>
+        Generally you should replace <a href="IupSetGlobalFunction.htm">IupSetFunction</a> by <a href="IupSetCallback.htm">IupSetCallback</a>.
         <br>
         <br>
         Although enabled in old versions, callbacks do NOT have inheritance like attributes.
@@ -49,11 +52,11 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
         <br>
         All callbacks receive at least the element which activated the action as a parameter (self). 
         <br>
-        <br>
         <a name=IUP_DEFAULT></a>
         <a name=IUP_CLOSE></a>
         <a name=IUP_IGNORE></a>
         <a name=IUP_CONTINUE></a>
+        <br>
         The callbacks implemented in the application must return one of the following values:
         <ul>
         <li>IUP_DEFAULT: Proceeds normally with user interaction. In case other return values do not apply, the callback should return this value. </li>
@@ -65,39 +68,26 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
         Only some callbacks support the last 3 return values. Check each callback documentation. When nothing is documented then only IUP_DEFAULT is supported.
         <br>
         <br>
-        Note: Avoid using IUP_IGNORE (etc) unless it is specifically documented for that callback. <br>
-        For example, if an <a href="IupButton.htm">IupButton</a> ACTION callback returns IUP_IGNORE, it effectively disables the button. <br>
-        Removing the callback is in fact the documented behaviour for IDLE_ACTION and doing so on an <a href="IupButton.htm">IupButton</a> might be - but such is 
-        the reality of undocumented behaviour. (I double checked that particular one, to be told that behaviour was as expected and not going to be changed.)
+        Note: Avoid using IUP_IGNORE (and IUP_CLOSE) unless it is specifically documented for that callback. <br>
+        For example, it is and always was the documented behaviour for an IDLE_ACTION callback to be removed when it returns IUP_IGNORE.<br>
+        It was not originally documented, but has since been noted, that if an <a href="IupButton.htm">IupButton</a> ACTION callback returns IUP_IGNORE, 
+        it likewise removes the callback, and in that way effectively disables the button.
         <br>
         <br>
         An important detail when using callbacks is that they are only called when the user actually executes an action over an element. <br>
-        A callback is not called when the programmer sets a value via IupSetAttribute. For instance: when the programmer changes a selected item on a list, no callback is invoked.
+        A callback is not called when the programmer sets a value via <a href="IupSetAttribute.htm">IupSetAttribute</a>.<br>
+        For instance: when the programmer changes a selected item on a list, no callback is invoked.
         <br>
         <br>
         The order of callback calling is system dependent. <br>
         For instance, the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> and the SHOW_CB are called in different order in Win32 and in X-Windows when the dialog is shown for the first time.
         <br>
         <br>
-        As well as its normal duty of verifying parameters, the cbfunc type can be used to declare variables suitable for storing callbacks.<br>
+        As well as its normal duty of verifying parameters, the <a href="Icallback.htm">cbfunc</a> type can be used to declare variables suitable for storing callbacks.<br>
         The C header file "iupcbs.h" lists some 50 different typedefs for callbacks (IFxxx/sIFxxx/dIFxxx). <br>
         In Phix you can always get by with "atom" for each parameter, if need be.
         <br>
         <br>
-<!-- DEV (this wants to be somewhere else...)
-        <h3>Main Loop</h3>
-        IUP is an event-oriented interface system, so it will keep a loop “waiting” for the user to interact with the application. <br>
-        For this loop to occur, the application must call the IupMainLoop function, which is generally used right before IupClose.
-        <br>
-        <br>
-        When the application is closed by returning IUP_CLOSE in a callback, calling <a href="IupExitLoop.htm">IupExitLoop</a> or by hiding the last visible dialog, the function IupMainLoop will return.
-        <br>
-        <br>
-        The <a href="IupLoopStep.htm">IupLoopStep</a> and the <a href="IupFlush.htm">IupFlush</a> functions force the processing of incoming events while inside an application callback.
-       <br>
-        &nbsp;
-       <br>
--->
         The following callbacks are common to several controls/interface elements:
        <br>
        <br>
@@ -109,11 +99,12 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
          </td>
          <td>
             While common to several elements, the callback parameters vary - see specific elements for details.
+            <br>
+              <a name=BUTTON_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=BUTTON_CB></a>
           BUTTON_CB
          </td>
          <td>
@@ -174,19 +165,21 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
 BUTTON_CB(but=1 (1), x=154, y=83 [  1  D    ])
 BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
  </pre>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupButton.htm">IupButton</a>, <a href="IupText.htm">IupText</a>, <a href="IupList.htm">IupList</a>, IupGLCanvas
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupButton.htm">IupButton</a>, <a href="IupText.htm">IupText</a>, 
+                     <a href="IupList.htm">IupList</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>
+            <br>
+              <a name=DESTROY_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=DESTROY_CB></a>
           DESTROY_CB
          </td>
          <td>
             Called right before an element is destroyed.
             <br>
             <br>
-            function(Ihandle ih)<br>
+            function destroy_cb(Ihandle ih)<br>
             ih: identifier of the element that activated the event.
             <br>
             <br>
@@ -201,17 +194,44 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             <br>
             Affects: All
+            <br>
+              <a name=ENTERWINDOW_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=GETFOCUS_CB></a>
+          ENTERWINDOW_CB
+         </td>
+         <td>
+            Action generated when the mouse enters the native element. 
+            <br>
+            <br>
+            function enterwindow_cb(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Notes<br>
+            When the cursor is moved from one element to another, the call order in all platforms will be first the 
+            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a> callback of the old control followed by the 
+            ENTERWINDOW_CB callback of the new control.
+            <br>
+            <br>
+            Affects: All controls with user interaction.
+            <br>
+            <br>
+            See Also: <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>
+            <br>
+              <a name=GETFOCUS_CB></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           GETFOCUS_CB
          </td>
          <td>
             Action generated when an element is given keyboard focus. <br>
             This callback is called after the <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a> of the element that loosed the focus. <br>
-            The IupGetFocus function during the callback returns the element that loosed the focus.
+            The <a href="IupGetFocus.htm">IupGetFocus</a> function during the callback returns the element that lost the focus.
             <br>
             function getfocus_cb(Ihandle ih)
             <br>
@@ -222,12 +242,34 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             Affects: All elements with user interaction, except menus.
             <br>
             <br>
-            See Also: <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, IupGetFocus, IupSetFocus 
+            See Also: <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, <a href="IupGetFocus.htm">IupGetFocus</a>, <a href="IupSetFocus.htm">IupSetFocus</a> 
+            <br>
+              <a name=HELP_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=IDLE_ACTION></a>
+          HELP_CB
+         </td>
+         <td>
+            Action generated when the user presses F1 at a control. <br>
+            In Motif is also activated by the Help button in some workstations keyboard.
+            <br>
+            <br>
+            function help_cb(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Returns: IUP_CLOSE will be processed.
+            <br>
+            <br>
+            Affects: All elements with user interaction.
+            <br>
+              <a name=IDLE_ACTION></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           IDLE_ACTION
          </td>
          <td>
@@ -249,7 +291,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             It is important it be set NULL when not used, otherwise the application consumes CPU even if the callback is doing nothing.
             <br>
             <br>
-            It can only be set using IupSetFunction(name, func).
+            It can only be set using <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>(name, func).
             <br>
             <br>
             Long Time Operations<br>
@@ -273,12 +315,13 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             If the timer is trigged then you are in idle state. If the <a href="IupCanvas.htm">IupCanvas</a> loses its focus then stop the timer.
             <br>
             <br>
-            See Also: IupSetFunction, IupTimer.
+            See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>, <a href="IupTimer.htm">IupTimer</a>.
+            <br>
+              <a name=K_ANY></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=K_ANY></a>
           K_ANY
          </td>
          <td>
@@ -532,11 +575,12 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             <br>
             Affects: All elements with keyboard interaction.
+            <br>
+              <a name=KEYPRESS_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=KEYPRESS_CB></a>
           KEYPRESS_CB
          </td>
          <td>
@@ -557,11 +601,12 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             <br>
             Affects: <a href="IupCanvas.htm">IupCanvas</a>
+            <br>
+              <a name=KILLFOCUS_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=KILLFOCUS_CB></a>
           KILLFOCUS_CB
          </td>
          <td>
@@ -584,12 +629,38 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             &nbsp;This causes the thread to yield control and can cause the application to stop responding to messages.” 
             <br>
             <br>
-            See Also: <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, IupGetFocus, IupSetFocus 
+            See Also: <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, <a href="IupGetFocus.htm">IupGetFocus</a>, <a href="IupSetFocus.htm">IupSetFocus</a> 
+            <br>
+              <a name=LEAVEWINDOW_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=MAP_CB></a>
+          LEAVEWINDOW_CB
+         </td>
+         <td>
+            Action generated when the mouse leaves the native element.
+            <br>
+            <br>
+            function leavewindow_cb(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Notes<br>
+            When the cursor is moved from one element to another, the call order in all platforms will be first the LEAVEWINDOW_CB callback 
+            of the old control followed by the <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a> callback of the new control.
+            <br>
+            <br>
+            Affects: All controls with user interaction.
+            <br>
+            <br>
+            See Also: <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>
+            <br>
+              <a name=MAP_CB></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           MAP_CB
          </td>
          <td>
@@ -600,16 +671,17 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             For all other elements it is called before the layout is updated, so the element current size will still be 0x0 during MAP_CB (since 3.14).
             <br>
             <br>
-            function(Ihandle ih)<br>
+            function map_cb(Ihandle ih)<br>
             ih: identifier of the element that activated the event.
             <br>
             <br>
             Affects: All elements that have a native representation.
+            <br>
+              <a name=MOTION_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=MOTION_CB></a>
           MOTION_CB
          </td>
          <td>
@@ -625,13 +697,15 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             Use the same routines for pStatus as <a href="callbacks.htm#BUTTON_CB">BUTTON_CB</a>.
             <br>
             <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, IupGLCanvas (DEV PL: <a href="IupList.htm">IupList</a>, <a href="IupMatrix.htm">IupMatrix</a>, 
-            <a href="IupText.htm">IupText</a>, <a href="IupTree.htm">IupTree</a>?)
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>,
+                     <a href="IupList.htm">IupList</a>, <a href="IupMatrix.htm">IupMatrix</a>, 
+                     <a href="IupText.htm">IupText</a>, <a href="IupTree.htm">IupTree</a>
+            <br>
+              <a name=RESIZE_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=RESIZE_CB></a>
           RESIZE_CB
          </td>
          <td>
@@ -654,12 +728,13 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             To update the parameters consult the DRAWSIZE attribute. Also activate the drawing toolkit only after updating the DX or DY attributes.
             <br>
             <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, IupGLCanvas, <a href="IupDialog.htm">IupDialog</a>
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>, <a href="IupDialog.htm">IupDialog</a>
+            <br>
+              <a name=SCROLL_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=SCROLL_CB></a>
           SCROLL_CB
          </td>
          <td>
@@ -706,31 +781,24 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             posx, posy: require messy conversion on 32-bit, and are unreliable on 64-bit - use IupGetDouble(ih,"POSX"|"POSY") instead.
             <br>
             <br>
-            Affects: <a href="IupCanvas.htm">IupCanvas</a>, IupGLCanvas, <a href="iupattr.htm#SCROLLBAR">SCROLLBAR</a>
+            Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>, <a href="iupattr.htm#SCROLLBAR">SCROLLBAR</a>
+            <br>
+              <a name=UNMAP_CB></a>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <a name=UNMAP_CB></a>
           UNMAP_CB
          </td>
          <td>
             Called right before an element is unmapped.
             <br>
             <br>
-            function(Ihandle ih)<br>
+            function unmap_cb(Ihandle ih)<br>
             ih: identifier of the element that activated the event.
             <br>
             <br>
             Affects: All elements that have a native representation.
-         </td>
-        </tr>
-        <tr>
-         <td valign=top>
-          also [DEV]
-         </td>
-         <td>
-            ENTERWINDOW_CB, LEAVEWINDOW_CB, HELP_CB: All common callbacks are supported.
          </td>
         </tr>
        </table>

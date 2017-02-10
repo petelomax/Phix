@@ -1,0 +1,3327 @@
+--------------------NOTICE-------------------------------*
+-- Software ID: w32memory.ew
+-- Version:     0.70.4a
+-- Copyright:   (c) 2000 David Cuny and friends
+--              All rights reserved.
+-- Licence:
+-- This software is provided 'as-is', without any express or implied warranty.
+-- In no event will the authors be held liable for any damages arising from
+-- the use of this software.
+--
+-- Permission is granted to anyone to use this software for any purpose,
+-- including commercial applications, and to alter it and redistribute it
+-- freely, subject to the following restrictictions:
+-- 1. The origin of this software must not be misrepresented; you must not
+--    claim that you wrote the original software.
+-- 2. If you use this software in a product, acknowedgement in the product's
+--    documenation and binary are required.
+-- 3. Altered source versions, and works substantially derived from the it,
+--    must...
+--   a) be plainly be marked as such,
+--   b) not be misrepresented as the original software,
+--   c) include this notice, unaltered.
+--------------------End of NOTICE------------------------*
+
+include w32msgs.e
+
+without trace
+--/topic Memory management
+--/info
+--Routines to allocate, use, and release of Random Access Memory (RAM).
+--Normally, a Euphoria program doesn't have to worry about this as it is handled quietly
+-- in the background. However, when working with external systems, such as the Windows API,
+-- the coder often needs to explicitly manage RAM as resource, primarily when sharing data
+-- between your application and Windows. /n/n
+--
+-- How the structure engine works.
+-- Memory structures are a set of fields. You define a structure by calling /w32allot()
+-- passing the fields in sequence, and retrieving a field descriptor which can be used
+-- to access the field. When done, call the /w32allotted_size(). This function does two things:
+--/li It returns the size of the structure, or at least its fixed stub size (read below).
+--/li As a side effect, it /b "registers the structure template you just defined" and
+-- cleans up so as to possibly start another structure definition later.
+-- In addition, you can define a structure identifier. This is returned by /w32define_this_struct(),
+-- and is used by the bulk load/store routines.
+-- w32define_this_struct() is also useful to define shorter variants of a maximal structure.
+-- For instance, Windows XP uses more fields than Windows 98 in some cases. You don't need
+-- to define two different structures: just insert a w32define_this_struct() call at the
+-- "break points" so as to retrieve structure ids for the various versions.
+-- /n
+-- Variable length members.
+-- Some Windows API structure include arrays or strings of variable length. In that case,
+-- only the length of the part of the structure preceding the first variable length field 
+-- is known and reported. The library supports a wide range of schemes and special alignment fields
+-- to deal with these beasts. Please read further under /w32allot().
+-- /n
+-- Unions are also supported. The only limitation is that no alternative field description 
+-- can be a union itself. Read further under /w32define_union().
+
+constant
+kernel32      = open_dll( "kernel32.dll" ),
+xIsBadWritePtr = define_c_func(kernel32, "IsBadWritePtr", {C_LONG, C_LONG}, C_LONG),
+xIsBadReadPtr = define_c_func(kernel32, "IsBadReadPtr", {C_LONG, C_LONG}, C_LONG),
+--xIsBadCodePtr = define_c_func(kernel32, "IsBadReadPtr", {C_LONG, C_LONG}, C_LONG),
+xlstrlen      = define_c_func(kernel32,"lstrlen",{C_POINTER},C_INT),
+xlstrlenw     = define_c_func(kernel32,"lstrlenW",{C_POINTER},C_INT)
+
+
+-- stores abort handler's routine id
+integer  vAbortRtn  vAbortRtn  = -1
+
+-- The number of allocations
+integer vAllocations vAllocations = 0
+sequence vExtraCare vExtraCare = {}
+
+-- List of memset ids
+sequence vOwners vOwners = {}
+
+-- List of address sets. Each set has a list of addresses.
+sequence vSets   vSets = {}
+
+-- stores the accumulated size of a structure as it is being defined.
+integer  vAllotted  vAllotted  = 0
+
+-- This is added to calls to alloc.
+integer vSafetyBuffer vSafetyBuffer = 4
+
+--/topic Memory Management 
+--/Var w32UsingSafeCode
+--/desc Determines whether or not the 'safe' versions of peek and poke are used.
+--This is primarily as debugging aid. You only need to set this if you suspect
+--that your program is causing memory corruptions or accessing strange locations.
+--
+-- Set this to zero to turn off the safe versions..
+--
+-- The initial setting is 0. That is, the safe versions are not being used.
+--
+--Example:
+--/code
+--     --Ensure I can change RAM safely
+--     w32UsingSafeCode = 1
+--     l_SafePoke4( adr, 0)
+--/endcode
+
+global integer w32UsingSafeCode w32UsingSafeCode = 0
+
+--/topic Memory Management 
+--/func w32llSetAbort( i )
+--/desc Possibly sets the routine id of an Abort routine.
+--/ret The previous value set.
+--
+-- Used to indicate if an error routine needs to be
+-- called in the event of a catastophic error.
+-- The error routine is assumed to be a procedure
+-- that accepts a single sequence (typically an
+-- message string). /n
+-- Use -1 to remove the handler. Use any sequence to simply return the handler.
+--
+-- Example:
+--
+-- /code
+--      integer RtnID, OldID
+--      RtnID = routine_id("abortErr")
+--      OldID = w32llSetAbort(RtnID)
+-- /endcode
+
+global function w32llSetAbort(object i)
+-- Set the abort handler id. The routine must take two parameters,
+-- a sequence (msg) and a integer (mode ==> 1=warning, 2=fatal)
+    integer lOldRtn
+
+    lOldRtn = vAbortRtn
+
+    if atom(i) then
+        vAbortRtn = i
+    end if
+
+    return lOldRtn
+end function
+
+
+procedure l_MyFreeMem(atom pAddress)
+    object VOID
+    integer lPosn
+
+    if c_func(xIsBadWritePtr, {pAddress, 1}) then -- not a valid address, or not suitable to free
+        return
+    end if
+          
+    -- Check if this addr needs extra care checking.
+    lPosn = find(pAddress, vExtraCare)
+    if lPosn != 0 then
+        pAddress -= 16
+        if peek4u(pAddress) != pAddress or
+           peek4u(pAddress+4) != pAddress + 4 or
+           peek4u(pAddress+8) != #C0D0E0F0 or
+           peek4u(pAddress+12) != #8899AABB then
+               -- The area prior to the users RAM was corrupted.
+                if vAbortRtn >= 0 then
+                    call_proc(vAbortRtn, {
+                                sprintf("Corrupted RAM at address %d.", pAddress)} )
+                else
+                    crash_message(sprintf("Corrupted RAM at address %d.", pAddress))
+                    VOID = 0/0 -- Force a crash
+                end if
+        end if
+        -- Remove it from the list.
+        vExtraCare = vExtraCare[1..lPosn-1] & vExtraCare[lPosn+1..length(vExtraCare)]
+    end if
+
+    pAddress -= 4
+
+    vAllocations -= 1
+
+    free(pAddress)
+    return
+
+end procedure
+
+ function l_MyAllocate(integer pSize)
+    atom lAddr
+    atom lPreSize
+    integer lMemSize
+
+
+
+    if w32UsingSafeCode != 0 then
+        lPreSize = 16
+    else
+        lPreSize = 0
+    end if
+
+    -- Add some bytes for a safety buffer
+    lMemSize = lPreSize + pSize + 4 + vSafetyBuffer
+    lAddr = allocate(lMemSize)
+
+    if lAddr != 0 then
+        mem_set( lAddr, 0, lMemSize)
+
+        vAllocations += 1
+
+
+        -- Save total size for later reuse.
+        poke4(lAddr, lMemSize)
+        lAddr += 4
+
+        -- If being safe, add this address to the extra care list,
+        -- so that the free() can see if nothing was messed up.
+        if lPreSize != 0 then
+            lPreSize = lAddr
+            lAddr += 16
+            vExtraCare &= lAddr
+            poke4(lPreSize, {lPreSize, lPreSize+4, #C0D0E0F0, #8899AABB})
+        end if
+    end if
+
+    return lAddr
+end function
+
+
+--/func l_SafePeek(object addr)
+--/desc This is an enhanced version of Euphoria's peek() function
+--/ret see peek() for details.
+--If /i w32UsingSafeCode is not zero, this does a memory access check first.
+
+ function l_SafePeek(object addr)
+    atom a, l
+    if w32UsingSafeCode = 0 then
+        return peek(addr)
+    end if
+
+    if sequence(addr) and length(addr) = 2 and atom(addr[1]) and atom(addr[2]) then
+        l = addr[2]
+        a = addr[1]
+    else
+        a = addr
+        l = 1
+    end if
+
+    if c_func(xIsBadReadPtr, {a,l}) = 0 then
+        return peek(addr)
+    else
+        if vAbortRtn >= 0
+        then
+            call_proc(vAbortRtn, {
+                        sprintf("Peek at address %d for length %d failed.",
+                                    {a,l})} )
+            return 0 -- Just in case the abort does not crash program.
+        else
+--          if object(addr) then
+                return {}
+--          else
+--              return 0
+--          end if
+        end if
+    end if
+end function
+
+
+--/func l_SafePeek4s(object addr)
+--/desc This is an enhanced version of Euphoria's peek4s() function
+--/ret see peek4s() for details.
+--If /i w32UsingSafeCode is not zero, this does a memory access check first.
+ function l_SafePeek4s(object addr)
+    atom a, l
+
+    if w32UsingSafeCode = 0 then
+        return peek4s(addr)
+    end if
+
+
+    if sequence(addr) and length(addr) = 2 and atom(addr[1]) and atom(addr[2]) then
+        l = addr[2] * 4
+        a = addr[1]
+    else
+        a = addr
+        l = 4
+    end if
+
+    if c_func(xIsBadReadPtr, {a,l}) = 0 then
+        return peek4s(addr)
+    else
+        if vAbortRtn >= 0
+        then
+            call_proc(vAbortRtn, {
+                        sprintf("Peek4s at address %d for count of %d failed.",
+                                    {a,l/4})} )
+            return 0 -- Just in case the abort does not crash program.
+        else
+--          if object(addr) then
+                return {}
+--          else
+--              return 0
+--          end if
+        end if
+    end if
+end function
+
+--/func l_SafePeek4u(object addr)
+--/desc This is an enhanced version of Euphoria's peek4u() function
+--/ret see peek4u() for details.
+--If /i w32UsingSafeCode is not zero, this does a memory access check first.
+ function l_SafePeek4u(object addr)
+    atom a, l
+
+    if w32UsingSafeCode = 0 then
+        return peek4u(addr)
+    end if
+
+
+    if sequence(addr) and length(addr) = 2 and atom(addr[1]) and atom(addr[2]) then
+        l = addr[2] * 4
+        a = addr[1]
+    else
+        a = addr
+        l = 4
+    end if
+
+    if c_func(xIsBadReadPtr, {a,l}) = 0 then
+        return peek4u(addr)
+    else
+        if vAbortRtn >= 0
+        then
+            call_proc(vAbortRtn, {
+                        sprintf("Peek4u at address %d for count of %d failed.",
+                                    {a,l/4})} )
+            return 0 -- Just in case the abort does not crash program.
+        else
+--          if object(addr) then
+                return {}
+--          else
+--              return 0
+--          end if
+        end if
+    end if
+end function
+
+--/func l_SafePoke(object addr)
+--/desc This is an enhanced version of Euphoria's poke() function
+--/ret see poke() for details.
+--If /i w32UsingSafeCode is not zero, this does a memory access check first.
+ procedure l_SafePoke(atom addr, object thedata)
+    atom lBytes
+
+    if w32UsingSafeCode = 0 then
+        poke(addr, thedata)
+        return
+    end if
+
+
+    if sequence(thedata) then
+        lBytes = length(thedata)
+    else
+        lBytes = 1
+    end if
+
+    if c_func(xIsBadWritePtr, {addr,lBytes}) = 0 then
+        poke(addr, thedata)
+    else
+        if vAbortRtn >= 0
+        then
+            call_proc(vAbortRtn, {
+                        sprintf("Poke at address %d for length of %d failed.",
+                                    {addr,lBytes})} )
+            return -- Just in case the abort does not crash program.
+        end if
+    end if
+end procedure
+
+--/func l_SafePoke4(object addr)
+--/desc This is an enhanced version of Euphoria's poke4() function
+--/ret see poke4() for details.
+--If /i w32UsingSafeCode is not zero, this does a memory access check first.
+ procedure l_SafePoke4(atom addr, object thedata)
+    atom lBytes
+
+    if w32UsingSafeCode = 0 then
+        poke4(addr, thedata)
+        return
+    end if
+
+
+    if sequence(thedata) then
+        lBytes = length(thedata) * 4
+    else
+        lBytes = 4
+    end if
+
+    if c_func(xIsBadWritePtr, {addr,lBytes}) = 0 then
+        poke4(addr, thedata)
+    else
+        if vAbortRtn >= 0
+        then
+            call_proc(vAbortRtn, {
+                        sprintf("Poke4 at address %d for count of %d failed.",
+                                    {addr,lBytes/4})} )
+            return -- Just in case the abort does not crash program.
+        end if
+    end if
+end procedure
+
+--/topic Memory management
+--/func w32peek2(object pos)
+--/desc Retrieves a sequence of double byte encoded characters as a regular sequence
+--/ret (OBJECT) A sequence where each element represents two contiguous bytes, lowest weight at lowest address.
+-- If pos is a {address,length} sequence, a sequence is returned. If /i pos is a
+-- single atom, the 16-bit word at that address is returned.
+
+global function w32peek2(object pos)
+    atom a
+    integer odd,n
+    sequence result
+
+    if atom(pos) then  -- peek single word
+        return peek(pos)+256*peek(pos+1)
+    else -- peek {at address, how many words}
+        a = pos[1]
+        n = pos[2]
+        odd = and_bits(n,1)
+        result = repeat(0,n)
+        for i=1 to n-odd-1 by 2 do  -- peek dwords for speedup
+            result[i..i+1]=w32unpack_dword(l_SafePeek4u(a))
+            a+=4
+        end for
+        if odd then
+            result[n] = peek(a)+256*peek(a+1)
+        end if
+        return result
+    end if
+end function
+
+--/topic Memory Management 
+--/func w32peek_string( address )
+--/desc Get sequence from address holding C-style string.
+--/ret SEQUENCE: containing the C-style string.
+-- This is typically done automatically by the /fetch
+-- function. Note that this will not work with UTF-16 encoded strings.
+--
+-- Example:
+--
+--/code
+--      -- get a C-string from address
+--      sequence s
+--
+--      s = /w32peek_string( address )
+--/endcode
+global function w32peek_string(atom a)
+-- V0.56 Al Getz
+    integer l
+    sequence s
+
+    -- Only deal with non-zero addresses
+    if a then
+        l = c_func(xlstrlen,{a})
+        s = l_SafePeek({a, l})
+    else
+        s = {}
+    end if
+
+    -- send back all the bytes found.
+    return s
+
+end function
+
+--/topic Memory management
+--/func w32peek_string16(atom addr)
+--/desc Returns a 0000 terminated DBCS encoded string starting at /i addr.
+--/ret (SEQUENCE) A sequence of integers, all of them in the 0-65535 range.
+global function w32peek_string16(atom addr)
+    sequence result
+    integer p,q
+
+    if not addr then
+        return {}
+    end if
+    p = c_func(xlstrlenw,{addr})
+    if p<=0 then
+        return {}
+    end if
+    result=peek({addr,2*p})
+    q=1
+    for i=1 to p do
+        result[i]=result[q]+256*result[q+1]
+        q+=2
+    end for
+    return result[1..p]
+end function
+
+atom vPermMemSet_
+
+function vPermMemSet()
+    return vPermMemSet_
+end function
+
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+-- Memory Management memory management Routines
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+
+--/topic Memory Management 
+--/func w32manage_mem( atom Owner, object Address)
+--/desc Records an acquired memory for garbage collection.
+-- Normally this is handled automatically by /w32acquire_mem() but if you
+-- are expected to manage some memory acquired by another means, such as
+-- a Windows call or a 'C' routine, you can use this to record the memory for
+-- subsequent release by /w32release_mem(). If Address is a sequence, it is a sequence of addresses to manage.
+--
+-- Example:
+-- /code
+--      atom mset, pt, pstr
+--
+--      -- Establish a new memory set.
+--      mset = /w32new_memset()
+--      -- calls a routine which returns a structure address.
+--      pt = c_func( xyz, {abc})
+--      -- register this memory
+--      w32manage_mem(mset, pt)
+--      . . .
+--      give all the memory area in 'mset' back
+--      w32release_mem(mset)
+-- /endcode
+
+global procedure w32manage_mem( atom pOwner, object pAddr )
+    -- save location for garbage collection
+    -- This also is used to move a block from one memset to another.
+    integer lOwnerSub, lAddrSub
+
+    if sequence(pAddr) then
+        for i=1 to length(pAddr) do
+            w32manage_mem(pOwner,pAddr[i])
+        end for
+        return
+    end if
+    -- Take the address out of any existing memset.
+    lAddrSub = 0
+    if pOwner = -2 then
+        pOwner = vPermMemSet()
+    end if
+    for i = 1 to length(vSets) do
+        lAddrSub = find(pAddr, vSets[i])
+        if lAddrSub != 0 then
+            vSets[i] = w32removeIndex(lAddrSub, vSets[i])
+            exit
+        end if
+    end for
+
+    -- Create a new memset if required.
+    lOwnerSub = find(pOwner, vOwners)
+    if lOwnerSub = 0 then
+        vOwners &= pOwner
+        lOwnerSub = length(vOwners)
+        vSets = append(vSets, {})
+    end if
+
+    -- Store the address into the specified memset
+    vSets[lOwnerSub] &= pAddr
+end procedure
+
+-----------------------------------------------------------------------------
+
+--/topic Memory Management 
+--/proc w32release_mem( atom structure )
+--/desc Returns the memory allocated by /w32acquire_mem() back to the system.
+-- If /i structure is a memory set id, as returned by /w32new_memset(), then
+-- all the memory owned in the memory set is returned and the memory set id
+-- is released. That is, it cannot be reused. /n
+-- If /i structure is a memory address returned by /w32acquire_mem(), then just
+-- that memory is released. The memory set it belonged to is still usable.
+--
+-- Example:
+-- /code
+--      atom mset, pt, pstr
+--
+--      -- Establish a new memory set.
+--      mset = /w32new_memset()
+--      -- get enough memory to hold a UInt datatype
+--      xy = /w32acquire_mem( UInt )
+--      -- allocate a point structure
+--      pt = /w32acquire_mem( mset, SIZEOF_POINT )
+--      -- copy a Euphoria string to a 'C' string area.
+--      pstr = /w32acquire_mem( mset, "My String Data" )
+--      . . .
+--      give all the memory area in 'mset' back
+--      w32release_mem(mset)
+-- /endcode
+
+global procedure w32release_mem( atom pData )
+    integer lOwnerSub
+    integer lAddrSub, lAddrList
+    integer ls, ss, Phase1
+    sequence sets
+
+    -- Check for "special" uninitialized memset value.
+    if pData = -1 then
+        return
+    elsif pData = -2 then
+        pData = vPermMemSet()
+    end if
+
+    -- See if this is a memset owner.
+    lOwnerSub = find(pData, vOwners)
+
+    if lOwnerSub = 0 then
+        -- If not a memset, see which memset it belongs to.
+        lAddrSub = 0
+        for i = 1 to length(vSets) do
+            lAddrSub = find(pData, vSets[i])
+            if lAddrSub != 0 then
+                lAddrList = i
+                exit
+            end if
+        end for
+
+        if lAddrSub = 0 then
+            -- Not in any memset!
+            if vAbortRtn >= 0 then
+                call_proc(vAbortRtn, {"Trying to release unacquired memory"})
+                return
+            end if
+
+        else
+            -- Remove it from the memset
+            vSets[lAddrList] = w32removeIndex(lAddrSub,
+                                           vSets[lAddrList])
+            -- Give the memory back to the system
+            l_MyFreeMem(pData)
+        end if
+
+        return
+    end if
+
+    --
+    sets = {pData}
+    ss   = 1
+
+    -- Phase 1: Identified the complete hierarchy of owned memory sets.
+    Phase1 = 1
+    while Phase1 do
+        ls = length(sets)
+        for i = ss to ls do
+            lOwnerSub = find(sets[i], vOwners)
+            for j = 1 to length(vSets[lOwnerSub]) do
+                lAddrSub = find(vSets[lOwnerSub][j],
+                                vOwners)
+                if lAddrSub != 0 then
+                    sets &= vOwners[lAddrSub]
+                end if
+            end for
+        end for
+        ss = ls + 1
+        Phase1 = (ls != length(sets))
+    end while
+
+    -- Phase 2: Free the memory addresses.
+    for i = length(sets) to 1 by -1 do
+        lOwnerSub = find(sets[i], vOwners)
+        for j = 1 to length(vSets[lOwnerSub]) do
+            if vSets[lOwnerSub][j] != 0 then
+                l_MyFreeMem(vSets[lOwnerSub][j])
+
+            end if
+        end for
+    end for
+    if sets[1] != 0 then
+        l_MyFreeMem(sets[1])
+
+    end if
+
+    -- Phase 3: - clean up the allocation array
+    for i = 1 to length(sets) do
+        lOwnerSub = find(sets[i], vOwners)
+        if lOwnerSub > 0 then
+            vSets = w32removeIndex(lOwnerSub, vSets)
+            vOwners = w32removeIndex(lOwnerSub, vOwners)
+        end if
+        for j = 1 to length(vSets) do
+            lOwnerSub = find(sets[i], vSets[j])
+            if lOwnerSub != 0 then
+                vSets[j] = w32removeIndex(lOwnerSub,
+                                         vSets[j])
+                exit
+            end if
+        end for
+    end for
+
+end procedure
+
+global constant
+    Align   = -17,
+    Byte    = -1,
+    Int8    = Byte,
+    Word    = -2,
+    Integer = Word,
+    Int16   = Word,
+    Long    = -3,
+    DWord   = Long,
+    Int32   = Long,
+    Lpsz    = -4,
+    Hndl    = -5,
+    HndlAddr = -6,
+    Strz    = -7,
+    UInt    = -8,
+    Ptr     = UInt,
+    ULong   = UInt,
+    Single  = -9,
+    Float   = Single,
+    Double  = -10,
+    Upsz    = -11,
+    Ustrz   = -12,
+    asBuffer= -13,
+    usBuffer= -14,
+    aszText = -16,
+    uszText = -15,
+    Point   = -18,
+    Rect    = -19,
+    ByteFill= -20,
+    AlignRel= -21
+
+constant vSizeNames = {Byte, Word, Long, Lpsz, Hndl, HndlAddr, Strz, UInt, Single, Double, Upsz, Ustrz, asBuffer, usBuffer, Align, aszText, uszText, Rect, Point, ByteFill, AlignRel}
+constant vSizeLengs = {   1,    2,    4,    4,    4,        4,    1,    4,      4,      8,    4,     4,        8,        8,    -1,      -1,      -1,   16,     8,        1,        1}
+constant vIsVirtual = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0}
+constant vFillers = {Align, ByteFill, AlignRel}
+
+global constant
+    SIZEOF_Long = 4,
+    SIZEOF_Word = 2
+--------- Structure management with variable length members -------------
+-- hereby called "virtual"
+
+sequence vStructSizes         -- sizes of all structures; only the initial fixed part when there are vlm's
+vStructSizes={}
+sequence vFirstVirtualFields  -- # of first virtual field or 0
+vFirstVirtualFields={}
+sequence vLayouts             -- sequence of field sequences
+vLayouts={}
+sequence vNumAligns           -- number of align fields in structure
+vNumAligns={}
+sequence vPreprocessDataIn    -- routine_id called by w32to_memory before writing data to this sort of structure
+vPreprocessDataIn={}
+
+sequence vStartWithSize       -- 1 if fixed size is first field. This optimises w32to_memory()
+vStartWithSize={}
+
+-- temp data used while building a structure
+sequence vLayout          -- current sequence of fields
+vLayout={}
+integer vNumField         -- number of the current field, if any
+vNumField=0
+integer vNumVirtual       -- index of the first virtual field, if any
+vNumVirtual=0
+integer vNumAlign         -- index of first alignment field, if any
+vNumAlign=0
+
+-- union description
+sequence unionVariants    -- lists of field variants for unions
+unionVariants={}
+sequence unionSelectors   -- list of selector routine_ids for unions
+unionSelectors={}
+sequence unionDataInfer   -- list of routine ids to call when assessing how to store data
+unionDataInfer={}
+
+-- structures holding virtualisation data for structs with variable length fields,
+-- unions not supported yet
+sequence virtualStructs       -- base addresses of structs which have a variable member
+                              -- and which were accessed
+virtualStructs = {}
+sequence virtualWasBlank      -- 1 if struct created thru w32acquire_mem()
+virtualWasBlank={}
+sequence virtualTypes         -- master type of the structure
+virtualTypes={}
+sequence virtualFields        -- field data for fields whose addr is known, for each struct
+virtualFields={}
+sequence virtualAddresses     -- addr (relocated or not) for these fields
+virtualAddresses={}
+sequence virtualSizes         -- global size of fields
+virtualSizes={}
+sequence virtualStatus        -- global status of fields
+virtualStatus={}   -- 0=fixed, -1=untouched, 1=relocated
+sequence virtualOrgAddresses  -- initial field addresses
+virtualOrgAddresses={}
+sequence virtualIndAddresses   -- current addr or set of addr
+virtualIndAddresses={}
+sequence virtualIndStatus      -- current status or set of status
+virtualIndStatus={}
+sequence virtualIndOrgAddresses  -- initial address or set of addresses
+virtualIndOrgAddresses={}
+sequence virtualIndSizes       -- current size or set of sizes
+virtualIndSizes={}
+sequence virtualUnions      -- selector for virtual fields which are unions
+virtualUnions={}
+
+-- fields of a structure field definition
+constant
+        numField  = 1,    -- order of current field in current master structure
+        fieldOffset = 2,  -- base fieldOffset, or {} when there's any variable length foeld before in the struct
+        fieldType = 3,    -- type of elementary unit in this field
+        arrayCount = 4,   -- # of units in the field,or field desc, or terminator string
+        strType = 5,      -- id of the maximal structure this field belongs to
+        isVirtual = 6,    -- 0 if not, 1 if it is vlm, -1 if it is only vpm
+        unitSize = 7,     -- size of an unit, or -1 if variable
+        unionSpec = 8,    -- selector for a union type structure
+        stdFieldEntry = 8,-- entries which don't refer to an array position stop here
+        arrayPos = 9,     -- 1 based position/slice start in array, when present
+        arrayEndSlice = 10-- 1 based end of slice, if present
+
+constant  -- format of a short structure descriptor. A structure descriptor is just {{type}}.
+        descType = 1,
+        descSize = 2,
+        descNumFields = 3,
+        descNumAligns = 4
+
+
+function check_array(sequence s)
+-- returns true if, in the field definition s, a position/slice is valid, else false
+-- all relevant fields must resolve to integers
+    if length(s)<=stdFieldEntry then
+        return s[arrayCount]
+    elsif not integer(s[arrayPos]) or s[arrayPos]<1 or s[arrayPos]>s[arrayCount] then
+        return 0
+    elsif length(s)=arrayPos then
+        return 1
+    elsif not integer(s[arrayEndSlice]) or s[arrayEndSlice]<s[arrayPos] or s[arrayEndSlice]>s[arrayCount] then
+        return 0
+    else
+        return s[arrayEndSlice]-s[arrayPos]+1
+    end if
+end function
+
+include series.e
+
+constant Structures = next_number(0)
+
+global function w32CurrentStructure()
+    return current_number(Structures)
+end function
+
+global function w32NextStructure()
+    return next_number(Structures)
+end function
+
+-----------------------------------------------------------------------------
+
+--/topic Memory management
+--/func w32define_union(sequence fields,integer selector, integer data_assess)
+--/desc Defines a union structure: the structure is any of the ones given in /i fields.
+--/ret (SEQUENCE) A structure id, which you can use almost like any other.
+-- The /i selector argument is a routine_id. The associated routine must be a function that 
+-- takes an atom as sole argument. This atom is the memory address of the structure being queried.
+-- The function must return an integer, the index in /i fields of the variant form that is stored
+-- at that address. /n
+-- /i data_assess is a routine_id of a function that takes an object (data to store in the union)
+-- and returns, as above, which sort of variant of the union should be used.
+--
+-- Example:
+--/code
+-- -- The following function returns 1 if addr points to an submenu template entry, and 2 for an item/separator entry
+--
+-- integer isPopup, isDataPopup
+-- function isAPopup(atom addr)
+-- return w32iff(and_bits(peek(a)+peek(a+1)*256,MF_POPUP),1,2)
+-- end function
+-- isPopup = routine_id("isAPopup")
+--
+-- function isDataForPopup(object x)
+-- return w32iff(atom(x),1,2)
+-- end function
+--
+-- isDataPopup=routine_id("isDataForPopup")
+--
+-- -- Now define a menu item template entry as understood by the LoadMenuIndirect() API.
+-- -- This has an option field (a word), an optional ID field (a word), and a wide char string.
+--
+-- constant
+-- -- define a substructure that will store both option and ID
+-- FULLMENUITEMTEMPLATE_flags = w32allot(Word),
+-- FULLMENUITEMTEMPLATE_id = w32allot(Word),
+-- SIZEOF_FULLMENUITEMTEMPLATE = w32allotted_size(),  -- 4
+-- ID_FULLMENUITEMTEMPLATE = w32define_this_struct(),
+--
+-- -- define the start of an entry as either a word or an item entry
+-- ID_STARTITEMTEMPLATE = w32define_union({Word,ID_FULLMENUITEMTEMPLATE},isPopup,isDataPopup),
+--
+-- -- Now here is the MENUITEMTEMPLATE entry structure
+-- MENUITEMTEMPLATE_flags = w32allot(ID_STARTITEMTEMPLATE),
+-- MENUITEMTEMPLATE_mtString = w32allot(Ustrz),
+-- SIZEOF_MENUITEMTEMPLATE = w32allotted_size(),
+--
+-- -- You may wish to access the original fields of the structure:
+-- -- define a specialised form of a STARTITEMTEMPLATE union
+-- MENUITEMENTRY = w32specialise(ID_STARTITEMTEMPLATE,ID_FULLMENUITEMTEMPLATE),
+--
+-- -- Now define the subfields for access
+-- MENUITEMTEMPLATE_mtOption = {MENUITEMENTRY,FULLMENUITEMTEMPLATE_flags},
+-- MENUITEMTEMPLATE_mtID = {MENUITEMENTRY,FULLMENUITEMTEMPLATE_id}
+--/endcode
+global function w32define_union(sequence fields,integer selector,integer data_assess)
+    unionVariants=append(unionVariants,fields)
+    unionSelectors&=selector
+    unionDataInfer&=data_assess
+    vLayouts&=length(unionVariants)
+    vStructSizes=append(vStructSizes,{})
+    vFirstVirtualFields=append(vFirstVirtualFields,{})
+    vNumAligns=append(vNumAligns,{})
+    return {{w32CurrentStructure()}}
+end function
+
+--/topic Memory management
+--/func w32specialise(sequence union,object variant)
+--/desc Returns a structure field descriptor that can be translated into an actual variant of a union.
+--/ret (SEQUENCE) A field descriptor.
+-- /i union is a field descriptor whose is of an union type. The point of w32specialise() is
+-- to give /w32store() a hint about what exactly is to be stored there. /n
+-- /i variant is either a field descriptor or a number. If a field descriptor, it must
+-- appear in the list of fields that /i union can have. If a number, it is the index of the
+-- field to choose among those defining the union.
+global function w32specialise(sequence union,object variant)
+    object p
+
+    p=vLayouts[union[strType]]
+    if sequence(p) or union[unionSpec]!=0 then
+        return union
+    end if
+    if integer(variant) then
+        if variant<1 or variant>length(unionVariants[p]) then
+            warnErr("Invalid union selector")
+        else
+            union[unionSpec]=variant
+        end if
+    else
+        variant=find(variant,unionVariants[p])
+        if variant=0 then
+            warnErr("Invalid union selector")
+        else
+            union[unionSpec]=variant
+        end if
+    end if
+    return union
+end function
+
+--/topic Memory Management
+--/func w32allotted_handle(hDefn)
+--/desc Returns the address of the supplied handle, but with fetch instructions
+-- to get the address from the handle, rather than the handle itself. /n
+-- An empty sequence is returned if the parameter was invalid.
+--/ret SEQUENCE: Handle's "fieldOffset" into a structure.
+--
+-- Example:
+--
+-- /code
+-- constant
+--    hDemo            = /w32allot( Hndl ),
+--    pDemo            = /w32allotted_handle( hDemo ),
+--    SIZEOF_DEMO      = /w32allotted_size()
+--     . . .
+--    x = w32acquire_mem(w32new_memset(),SIZEOF_DEMO)
+--    initDEMO(x)
+--
+--    h = w32fetch(x, hDemo)
+--    a = w32fetch(x, pDemo)
+--    -- 'h' will contain the handle, and 'a' the address from the handle.
+-- /endcode
+                   
+global function w32allotted_handle(sequence pHandle)
+   sequence result
+
+   result = {} 
+   if pHandle[fieldType] = Hndl then
+      result = pHandle
+      result[fieldType] = HndlAddr
+   end if
+   return result
+
+end function
+
+--/topic Memory Management
+--/func w32allotted_length(hDefn)
+--/desc Returns a modified field so as to /w32fetch() the length of the supplied buffer
+--/ret INTEGER: Buffer length "fieldOffset" into a structure.
+--w32fetch(), when given a field that represents an asBuffer or usBuffer, returns the string
+-- in the buffer. Use this function on the field, and w32fetch() will return the buffer length instead
+--  when using the returned field. This is similar to how /w32allotted_handle() works.
+global function w32allotted_length(sequence pHandle)
+   sequence result
+
+   result = {}
+   if pHandle[fieldType] = asBuffer or pHandle[fieldType] = usBuffer then
+      result = pHandle
+      result[fieldType] = Long
+      result[fieldOffset]+=4
+      result[unitSize]=4
+   end if
+   return result
+
+end function
+
+--/topic Memory Management
+--/func w32allotted_buffer(hDefn)
+--/desc Returns a modified field so as to /w32fetch() the address of the supplied buffer
+--/ret SEQUENCE: Handle's "fieldOffset" into a structure.
+--w32fetch(), when given a field that represents an asBuffer or usBuffer, returns the string
+-- in the buffer. Use this function on the field, and w32fetch() will return the buffer address instead
+--  when using the returned field. This is similar to how /w32allotted_handle() works.
+global function w32allotted_buffer(sequence pHandle)
+   sequence result
+
+   result = {}
+   if pHandle[fieldType] = asBuffer then
+      result = pHandle
+      result[fieldType] = Lpsz
+      result[unitSize]=4
+   elsif pHandle[fieldType] = usBuffer then
+      result = pHandle
+      result[fieldType] = Upsz
+      result[unitSize]=4
+   end if
+   return result
+
+end function
+
+integer radd  -- routine_id for w32address()
+--/topic Memory Management
+--/func w32buffer_address(atom struct,sequence bDefn)
+--/desc Returns the address of the buffer, while /w32fetch would return the string stored there.
+--/ret (ATOM) The address of the buffer.
+-- /i bDefn must be a field definition defining an Lpsz, Upsz, asBuffer or usBuffer field.
+global function w32buffer_address(atom struct,sequence bDefn)
+    if find(bDefn[fieldType],{asBuffer,usBuffer,Lpsz,Upsz}) then
+        return l_SafePeek4u(call_func(radd,{struct,bDefn}))
+    else
+        return 0
+    end if
+end function
+
+--/topic Memory Management
+--/func w32buffer_length(atom struct,sequence bDefn)
+--/desc Returns the stored length of the buffer.
+--/ret (INTEGER) The length of the buffer.
+-- /i bDefn must be a field definition defining an asBuffer or usBuffer field.
+global function w32buffer_length(atom struct,sequence bDefn)
+    if find(bDefn[fieldType],{asBuffer,usBuffer}) then
+        return l_SafePeek4u(call_func(radd,{struct,bDefn})+4)
+    else
+        return 0
+    end if
+end function
+
+--/topic Memory Management
+--/func w32allotted_sofar()
+--/desc Return size allotted sofar to the structure
+--/ret INTEGER: Allotted size of structure.
+--
+-- Example:
+--
+-- /code
+-- constant
+--    rectLeft            = /w32allot( Long ),
+--    rectTop             = /w32allot( Long ),
+--    SIZEOF_LT           = /w32allotted_sofar()
+--    rectRight           = /w32allot( Long ),
+--    rectBottom          = /w32allot( Long ),
+--    SIZEOF_RECT        = /w32allotted_size()
+-- /endcode
+
+global function w32allotted_sofar()
+
+    -- returns allotted size
+
+    return vAllotted
+
+end function
+
+integer raqm  -- routine_id for w32acquire_mem()
+
+function virtualise_blank(object strtype)
+-- record a sruct as virtual, setting a new container for relocation data.
+-- Returns address from where any field in the fixed initial part can be poked safely.
+-- Used by w32acquire_mem() to allocate memory for structures with vlms
+    atom at
+    sequence s,s0, sm2
+    integer size,virtual
+
+    if integer(strtype) then  -- index of a known structure
+        size=vStructSizes[strtype]
+        s=vLayouts[strtype]
+    elsif length(strtype)=4 then -- descriptor for short structure
+        size=strtype[2]
+        s=vLayouts[strtype[1]][1..strtype[3]]
+        strtype=strtype[1]
+    else
+        strtype=strtype[1][1]
+        size=vStructSizes[strtype]
+        s=vLayouts[strtype]
+    end if
+    virtual=vFirstVirtualFields[strtype]
+    at = call_func(raqm,{0,size})  -- fixed part address
+
+    -- initialise new reference to a virtual structure
+    virtualStructs &= at
+    virtualTypes = append(virtualTypes,strtype)
+    virtualWasBlank &= 1
+    virtualFields = append(virtualFields,s)
+    s0=repeat(0,length(s))
+    virtualAddresses = append(virtualAddresses,s0)
+    virtualOrgAddresses = append(virtualOrgAddresses,s0)
+    virtualIndAddresses = append(virtualIndAddresses,s0)
+    virtualIndOrgAddresses = append(virtualIndOrgAddresses,s0)
+--/**/  sm2 = sq_sub(s0,2)  --/* -- Phix
+    sm2 = s0-2              --*/ -- RDS
+    virtualStatus = append(virtualStatus,sm2)    -- 0=fixed, -1=untouched, 1=relocated -2 = undefined
+    virtualIndStatus = append(virtualIndStatus,sm2)   -- 0=fixed, -1=untouched, 1=relocated
+    virtualSizes = append(virtualSizes,s0)
+    virtualIndSizes = append(virtualIndSizes,s0)
+    virtualUnions = append(virtualUnions,s0)
+    if virtual>1 then  
+        virtualStatus[length(virtualStatus)][1..virtual-1]=0
+        for i=virtual to length(s) do
+            s0 = s[i]
+            if sequence(s0[arrayCount]) then -- $ has been avoided to accommodate pre Eu2.5 users
+                virtualIndAddresses[length(virtualIndStatus)][i]={}
+                virtualIndSizes[length(virtualIndStatus)][i]={}
+                virtualIndStatus[length(virtualIndStatus)][i]={}
+                virtualIndOrgAddresses[length(virtualIndOrgAddresses)][i]={}
+            elsif equal(s0[fieldType],Align) then
+                virtualStatus[length(virtualStatus)][i]=1
+                virtualSizes[length(virtualSizes)][i]={s0[arrayCount]}
+            elsif s0[isVirtual] and s0[arrayCount]>1 then
+                virtualIndAddresses[length(virtualIndStatus)][i]=repeat(0,s0[arrayCount])
+                virtualIndSizes[length(virtualIndStatus)][i]=repeat(0,s0[arrayCount])
+                virtualIndStatus[length(virtualIndStatus)][i]=repeat(-2,s0[arrayCount])
+            end if
+        end for
+    end if
+    w32manage_mem(0,at)  -- this address becomes a memset of its own
+    return at
+end function
+
+--/topic Memory Management 
+--/func w32acquire_mem( atom Owner, object structure )
+--/desc Allocate memory for structure, and initialize to zero.
+--/ret Address of allocated memory, or array of such addresses.
+-- The memory allocated is linked to the /i Owner and all the
+-- owner's memory can be released by one call. /n
+-- /i owner may have been returned by /w32new_memset(), or it may be the address of a structure.
+-- In both cases, releasing the owner will also release the acquired memory. /n
+-- If /i structure is a string, it is copied to the memory
+-- location along with a zero byte.
+--
+-- /i structure may also be a structure identifier
+-- previously returned by /w32define_this_struct(). In this case, it is recommended to
+-- /w32store() objects inside it rather than poke()ing them. If you attempt to poke a field
+-- whose address is not known, or to /w32fetch() one that you didn't fill yet, an error
+-- will occur.
+--
+-- If /i structure is an atom, it specifies that amount of memory to acquire
+-- (a minimum of 4 bytes will always be acquired) and
+-- the memory is set to all zeros. This atom may be a predefined size specifier.
+-- Using aszText or uszText will cause 0 to be returned, since these field types have
+-- an unknown data address until actually filled.
+--
+-- If the second argument has the form {{count,allocation_unit}}, and count is above 0 (0 will be returned if not greater),
+-- then the memory specified by allocation_unit will be allocated count times. In case the allocation
+-- unit has a variable length, the whole array of positions is returned. Each allocated unit can be freed individually. /n
+-- Example:
+-- /code
+--      atom mset, pt, pstr
+--
+--      -- Establish a new memory set.
+--      mset = /w32new_memset()
+--      -- get enough memory to hold a UInt datatype
+--      xy = w32acquire_mem( UInt )
+--      -- allocate a point structure
+--      pt = w32acquire_mem( mset, SIZEOF_POINT )
+--      -- copy a Euphoria string to a 'C' string area.
+--      pstr = /w32acquire_mem( mset, "My String Data" )
+--      . . .
+--      give all the memory area in 'mset' back
+--      w32release_mem(mset)
+-- /endcode
+global function w32acquire_mem( atom pOwner, object pData )
+
+        -- allocate space for a structure (mininum of 4 bytes)
+        -- and initialize to zero
+
+    atom at,a
+    integer cnt,ldata
+    sequence result
+
+    cnt=1
+    result={}
+    if sequence(pData) and length(pData)=1 and sequence(pData[1]) and length(pData[1])=2 then -- {count,type}
+        if not integer(pData[1][1]) or pData[1][1]<=0 then
+            return 0
+        end if
+        cnt=pData[1][1]
+        pData[1]=pData[1][2]
+    end if
+    if sequence(pData) then
+        if length(pData)=1 and sequence(pData[1]) then -- w32define()d structure
+            pData=pData[1]
+            if length(pData)=1 then  -- maximal
+                if vFirstVirtualFields[pData[descType]] then
+                    result=repeat(0,cnt)
+                    for i=1 to cnt do
+                        at = virtualise_blank(pData)
+                        if not at then
+                            exit
+                        else
+                            result[i]=at
+                        end if
+                    end for
+                else
+                    at = l_MyAllocate( cnt*vStructSizes[pData[descType]])
+                end if
+            else -- not maximal, length=4
+                if pData[descNumFields]>=vFirstVirtualFields[pData[1]] then
+                    result=repeat(0,cnt)
+                    for i=1 to cnt do
+                        at = virtualise_blank(pData)
+                        if not at then
+                            exit
+                        else
+                            result[i]=at
+                        end if
+                    end for
+                else  -- no virtual members
+                    at = l_MyAllocate( cnt*pData[descSize] )
+                end if
+            end if
+        else
+            -- place string in memory
+            ldata = 1 + length(pData)
+            at = l_MyAllocate(cnt*ldata)
+            if at != 0 then
+                a=at
+                for i=1 to cnt do
+                    poke(a, pData)
+                    a+=ldata
+                    poke(a-1, 0)
+                end for
+            end if
+        end if
+    else
+        -- Check for special datatypes in "names"
+        if pData < 0 then
+            pData = find(pData, vSizeNames)
+            if pData > 0 then
+                pData = vSizeLengs[pData]
+            end if
+        end if
+
+        if pData<0 then -- vlm are not statically allocated
+            return 0
+        elsif pData < 4 then
+            pData = 4
+        end if
+
+        at  = l_MyAllocate( cnt*pData )
+
+    end if
+
+    if at = 0 then  -- unexpected failure
+        if vAbortRtn >= 0 then
+            call_proc(vAbortRtn, { "Unable to allocate space."} )
+            return 0 -- Just in case the abort does not crash program.
+        else
+            crash_message("w32acquire_mem() could not find memory to allocate.")
+            ? 0/0 -- Force a crash
+        end if
+    elsif length(result) then
+        w32manage_mem(pOwner, result)
+        return result
+    else
+        w32manage_mem(pOwner, at)
+        return at
+    end if
+
+end function
+raqm = routine_id("w32acquire_mem")
+
+--/topic Memory Management
+--/func w32new_memset( )
+--/desc Allocates a unique id for a memory set.
+--/ret ATOM: An id for a new memory set (memset).
+-- A memset id is actually a machine address of a 4-bytes location. You can
+-- use this 4-byte area for anything you like, until you call /w32release_mem()
+--
+-- Example:
+--
+--/code
+--      atom ss
+--
+--              ss = w32new_memset()
+--      b = w32acquire_mem(ss, "All you need is love")
+--              ...
+--      w32release_mem( ss )  -- Let go of set 'ss'
+--/endcode
+global function w32new_memset()
+    return w32acquire_mem( 0, UInt )
+end function
+vPermMemSet_ = w32new_memset()
+
+constant
+    Err_GLOBALALLOC    = {"Unable to allocate memory",473},
+    Err_GLOBALLOCK     = {"Unable to lock memory",474},
+    Err_GLOBALUNLOCK   = {"Unable to unlock memory",475},
+    Err_GLOBALFREE     = {"Unable to free memory ",476}
+
+constant
+    xGlobalAlloc = define_c_func(kernel32,"GlobalAlloc",{C_LONG,C_LONG},C_POINTER),
+    xGlobalLock  = define_c_func(kernel32,"GlobalLock",{C_POINTER},C_UINT),
+    xGlobalUnlock  = define_c_func(kernel32,"GlobalUnlock",{C_POINTER},C_UINT),
+    xGlobalFree  = define_c_func(kernel32,"GlobalFree",{C_POINTER},C_UINT)
+
+
+
+--/topic Memory Management
+--/func w32acquire_handle(atom flags,integer size)
+--/desc Gets a Windows memory handle to memory of the requested size.
+--/ret (ATOM) Handle to memory.
+-- This is a very low level routine. /n
+-- To access the memory, you must call /w32handle_to_memory(returned_handle). When you are
+-- done with the memory operation, call the /w32release_handle(returned_handle,free_also) procedure. /n
+--/li <a href="..\win32_constants.htm#w32acquire_handle() flags">Here</a> are the known flags to or tohether as required.
+global function w32acquire_handle(atom flags,integer size)
+    atom result
+
+    result = c_func(xGlobalAlloc,{flags,size})
+    if not result then
+        abortErr(Err_GLOBALALLOC)
+    end if
+    return result
+end function
+
+--/topic Memory Management
+--/func w32handle_to_memory(atom handle)
+--/desc Gives current task exclusive access to the referenced memory block.
+--/ret (ATOM) Pointer to memory block.
+-- The handle must have been acquired using w32acquire_handle(). /n
+-- Writing data outside of the referenced memory block will very likely crash your application.
+global function w32handle_to_memory(atom handle)
+    atom result
+
+    result = c_func(xGlobalLock,{handle})
+    if not result then
+        abortErr(Err_GLOBALLOCK)
+    end if
+    return result
+end function
+
+--/topic Memory Management
+--/proc w32release_handle(atom handle,integer flag)
+--/desc Releases the referenced memory block, and optionally frees it.
+-- /i flag is 0 to keep the handle, and nonzero to free it. /n
+-- The handle must have been acquired using /w32acquire_handle(). /n
+global procedure w32release_handle(atom handle,integer flag)
+    if c_func(xGlobalUnlock,{handle}) then
+        abortErr(Err_GLOBALUNLOCK)
+    end if
+    if flag then
+        if c_func(xGlobalFree,{handle}) then
+            abortErr(Err_GLOBALFREE)
+        end if
+    end if
+end procedure
+
+--/topic Memory Management
+--/func w32allot( object FldDefn )
+--/desc Allocate space in structure for a new field.
+--/ret SEQUENCE: Definition of allotted memory.
+-- /i FldDefn is either:
+--/li a number of bytes to allocate, 
+--/li one of the predefined datatypes (listed below), 
+--/li a structure identifier, predefined or returned by /w32define_this_struct(),
+--/li a 2-element sequence containing a repeat count and any of the above.
+--
+-- The repeat count is either:
+--/li a positive number;
+--/li a field definition previously returned by this function. In that case, the length of the
+-- array is assumed to equal the contents of the supplied field in the structure;
+--/li a sequence holding a sequence of bytes. The length of the array is not known, and its end
+-- is marked by this sequence of bytes. For instance, a C-string could be defined using w32allot({{{0}},Byte}).
+--/li a sequence holding a sequence holding a sequence made of two routine_ids. The length
+-- of the array is not known, and the routine_ids are respectively used to determine and mark 
+-- when an item is the last item.
+-- If a number of bytes is supplied, the field is aligned to the next 32-bit
+-- boundary before allocation. /n
+-- If a {{{id_check_last,id_set_last}}} is supplied as a length, /i id_check_last is the
+-- routine_id of a function that takes an atom and returns zero if not last item, nonzero for
+-- last item (each item is examined in turn). /i id_set_last is the routine_id of a procedure 
+-- that takes a single atom as argument (the address of the item at which to apply some end mark).
+--
+-- The returned allotment definition is used by /w32store and /w32fetch. It has the
+-- following structure. /n
+-- The definition has seven items: /n
+-- A /i "structure field", an /i fieldOffset, a /i datatype, a /i"repeat length", a
+-- structure type, a flag (1 if member has variable length) and a /i "unit bytesize" /n
+-- Allowable types are: /n
+-- /li /b Byte: 8 bit value
+-- /li /b Int8: Signed 8 bit integer, same as /b Byte.
+-- /li /b Word: 16 bit value
+-- /li /b Integer: 16 bit value, same as /b Word
+-- /li /b Int16: 16 bit value, same as /b Word
+-- /li /b Long: Signed 32 bit value
+-- /li /b DWord: 32 bit value, same as /b Long
+-- /li /b Int32: 32 bit value, same as /b Long
+-- /li /b UInt: Unsigned 32 bit value.
+-- /li /b Ptr: 32 bit value, same as /b UInt
+-- /li /b ULong: 32 bit value, same as /b UInt
+-- /li /b Hndl: 32 bit value,
+-- /li /b HndlAddr: 32 bit value, a pointer to a pointer
+-- /li /b Lpsz: Long pointer (32 bits) to zero delimited string
+-- /li /b Strz: Fixed size buffer that holds a zero-delim string
+-- /li /b Single: 32-bit IEEE floating point value
+-- /li /b Float: Same as Single
+-- /li /b Double: 64-bit IEEE floating point value
+-- /li /b Upsz: Long pointer to 0000 delimited UTF-16 encoded string
+-- /li /b Ustrz: Fixed size buffer that holds a 0000 delimited DBCS encoded string
+-- /li /b aszText: An /b/i actual 0 terminated string
+-- /li /b uszText: An /b/i actual 0000 terminated UTF-16 encoded string
+--/li /b asBuffer: A pointer to an UTF-8 encoded string, followed by a dword storing its length
+--/li /b usBuffer: A pointer to an UTF-16 encoded string, followed by a dword storing its length in TCHARs
+--/li /b Align: A pseudo field that forces the next field address to be aligned on a
+-- multiple of the size passed. If no size is provided, 8 is assumed.
+--/li /b AlignRel: A pseudo field that forces the next field offset to be aligned on a
+-- multiple of the size passed. If no size is provided, 4 is assumed.
+--/li /b ByteFill: An unaccessible byte. If no size is specified, 1 is assumed. /n
+-- You cannot fetch/store the contents of an Align, AlignRel or ByteFill field. /n
+-- Arrays of Strz or Ustrz are not currently supported.
+--
+-- Example:
+--
+-- /code
+-- constant
+--    msLeft           = w32allot( Long ),
+--    msTop            = w32allot( Long ),
+--    msRight          = w32allot( Long ),
+--    msBottom         = w32allot( Long ),
+--    ID_BARERECT      = /w32define_this_struct()
+--    msVelocity       = w32allot( Single ),
+--    msXYZ            = w32allot( {4, DWord} ),
+--    msReserved       = w32allot( 5 ),
+--    msName           = w32allot( Lpsz ),
+--    msBuffer         = w32allot( {128, Strz} ),
+--    SIZEOF_MYSTRUCT  = /w32allotted_size(),
+--    ID_MYSTRUCT      = /w32define_this_struct()
+-- /endcode
+
+global function w32allot( object pDataType )
+
+    integer soFar, size,predef,fieldv
+    sequence result
+    object i, lCnt, spec
+            
+    predef = 0
+    fieldv=0
+    if equal(pDataType,Align) then
+        pDataType={8,Align}
+    elsif equal(pDataType,ByteFill) then
+        pDataType = {1,ByteFill}
+    elsif equal(pDataType,AlignRel) then
+        pDataType={4,AlignRel}
+    end if
+    if sequence(pDataType) then
+        if integer(pDataType[1]) then  -- {number,type}
+            lCnt = pDataType[1]
+            i =   pDataType[2]
+        else -- a predefined datatype or a structure id
+            lCnt = 1
+            i =   pDataType
+        end if
+        if sequence(i) then -- user defined
+            if not length(i) then
+                return 0
+            elsif atom(i[1]) then -- ???
+--                 size=-1
+--                 fieldv=1
+                return 0
+            else
+                predef = i[1][descType]
+                if length(i[1])=1 then
+                    if vFirstVirtualFields[predef] then
+                        fieldv=1
+                        size=-1
+                    else
+                        size=vStructSizes[predef]
+                    end if
+                else
+                    if vFirstVirtualFields[predef] and i[1][descNumFields] >= vFirstVirtualFields[predef] then
+                        fieldv=1
+                        size=-1
+                    else
+                        size = i[1][descSize]
+                    end if
+                end if
+            end if
+        end if
+    else
+        lCnt = 1
+        i = pDataType
+--      fieldv=sequence(lCnt)
+    end if
+
+    -- save position
+    soFar = vAllotted
+
+    -- assess size if not done already
+    if integer(i) then
+        size = w32lookup(i, vSizeNames, vSizeLengs&0)
+        if size = 0 then
+            if i > 0 then
+                soFar=w32round(soFar,4,w32RoundUp)
+            -- size is actual size
+                size = i
+            end if
+        end if
+        spec=-1
+    else
+        if atom(vLayouts[i[1][descType]]) then
+            spec=0  -- unspecialised union
+        else
+            spec=-1 -- not a union
+        end if
+    end if
+    vNumField+=1
+
+    if integer(i) and i<0 and vIsVirtual[-i] then
+        fieldv=1
+        if i=AlignRel then -- convert to fixed size, since it is known
+            fieldv = (vNumVirtual > 0)
+            if not fieldv then
+                i=remainder(vAllotted,lCnt)
+                if i then
+                    lCnt -= i
+                else
+                    lCnt=0
+                end if
+                i=ByteFill
+            end if
+        end if
+        if find(i,vFillers) then
+            vNumAlign+=1
+        end if
+    end if
+
+    -- w32allot space if thee is some real space there
+    if size>0 then
+        size *= lCnt
+        vAllotted += size
+    end if
+
+    -- record data
+    result = {vNumField,soFar, i,lCnt,w32CurrentStructure(), fieldv,  size, spec }
+    if vNumVirtual then
+        result[fieldOffset] = {}
+    end if
+
+    -- update first virtual
+    if fieldv and not vNumVirtual then
+        vNumVirtual = vNumField
+    elsif vNumVirtual and not fieldv then -- a fixed size field which occurs past a vlm, hence its address is unknown
+        result[isVirtual]=-1
+    end if
+
+    vLayout=append(vLayout,result)
+    return result
+end function
+
+
+-----------------------------------------------------------------------------
+--/topic Memory Management
+--/func w32allotted_size()
+--/desc Return allocate size of structure, and reset for new structure.
+--/ret INTEGER: Allotted size of structure.
+--
+-- Example:
+--
+-- /code
+-- constant
+--    rectLeft            = /w32allot( Long ),
+--    rectTop             = /w32allot( Long ),
+--    rectRight           = /w32allot( Long ),
+--    rectBottom          = /w32allot( Long ),
+--    SIZEOF_RECT        = /w32allotted_size()
+-- /endcode
+
+global function w32allotted_size()
+
+    -- returns allotted size, and clears size
+
+    integer soFar
+
+    soFar = w32allotted_sofar()
+
+    -- record current structure
+    vStructSizes &= soFar
+    vAllotted = w32NextStructure()  -- ignore return value
+    vFirstVirtualFields &= vNumVirtual
+    vLayouts = append(vLayouts,vLayout)
+    vNumAligns=append(vNumAligns,vNumAlign)
+    vPreprocessDataIn &= -1
+    vStartWithSize &= 0
+
+    -- get ready for next template
+    vAllotted = 0
+    vLayout={}
+    vNumField=0
+    vNumVirtual=0
+    vNumAlign=0 
+    return soFar
+
+end function
+
+--/topic Memory management
+--/func w32define_this_struct()
+--/desc Returns an identifier for the currently defined structure at the current point.
+--/ret (SEQUENCE) A structure identifier.
+-- {{struct number}} is returned if not currently defining a structure.
+-- Use /w32acquire_mem() to create an instance of the structure.
+global function w32define_this_struct()
+    if not vNumField then -- no structure is being defined
+        return {{w32CurrentStructure()}}
+    end if
+    -- this is part of a larger struct, return short struct descriptor
+    return {{w32CurrentStructure()+1,vAllotted,vNumField,vNumAlign}}
+end function
+
+-----------------------------------------------------------------------------
+              
+function stdElemAddr(atom struct,sequence s)
+-- Returns the address of a field with no vlm preceding it. 0 is returned on invalid array position.
+-- Helper for w32address().
+    atom offset
+
+    if length(s) > stdFieldEntry then
+        if check_array(s) then
+            offset = (s[arrayPos]-1) * s[unitSize]
+        else -- not a valid array spec
+            return 0
+        end if
+    else
+        offset = 0
+    end if
+
+    return struct + s[fieldOffset] + offset
+end function
+
+integer fcsz -- routine_id for fetch_size()
+function inner_fetch(atom struct,atom at,object size,integer cnt)
+-- performs the actual fetching of cnt fields of size size in a structure struct at addr at
+-- mutually calls fetchSize()
+    object result,item
+    sequence s,s0
+
+    if sequence(size) then
+    -- this is a user defined structure
+    -- result is a sequence of field values
+        size=size[1]
+        if atom(size) then
+            return 0
+        end if
+        if length(size)>1 then
+            s=vLayouts[size[descType]][1..size[descNumFields]]
+        else
+            s=vLayouts[size[descType]]
+        end if
+        result=repeat(0,cnt)
+        for i=1 to cnt do
+            s0=s
+            for j=1 to length(s0) do
+                item=call_func(fcsz,{struct,at,s[j],1}) -- size nd contents
+                -- advance pointer
+                if atom(item) then
+                    at+=item
+                elsif sequence(item[1]) then
+                    at+=item[1][3]
+                else
+                    at+=item[1]
+                end if
+                -- adjust field contents
+                if not find(s[j][fieldType],vFillers) then
+                    s0[j]=item[2]
+                else
+                    s0[j]={}
+                end if
+            end for
+            -- i-th structure value fetched
+            result[i]=s0
+        end for
+        if cnt=1 then
+            return result
+        else
+            return result[1]
+        end if
+    -- read, based on size
+    elsif      size = Byte then
+        -- return byte
+        if cnt > 1 then
+            return (l_SafePeek( {at, cnt}) )
+        else
+            return l_SafePeek( at )
+        end if
+
+    elsif   size = Word then
+        if cnt = 1 then
+            -- return word
+            return bytes_to_int( l_SafePeek({at, 2}) & {0, 0} )
+        else
+            return w32peek2({at,cnt})
+        end if
+
+    elsif   size = Long then
+        if cnt = 1 then
+            -- return signed long
+            return l_SafePeek4s( at )
+        else
+            s = l_SafePeek4s({at, cnt} )
+            return s
+        end if
+
+    elsif   size = UInt then
+        if cnt = 1 then
+            -- return unsigned long
+            return l_SafePeek4u( at )
+        else
+            s = l_SafePeek4u({at, cnt} )
+            return s
+        end if
+
+    elsif   size = Lpsz then
+        -- get the pointer
+        at = l_SafePeek4u(at)
+        if cnt=1 then
+            -- return the string
+            return w32peek_string( at ) -- at will be checked to be valid
+        else
+            result=repeat(0,cnt)
+            for i=1 to cnt do
+                struct = l_SafePeek4u(at)
+                result[i] = w32peek_string( struct )
+                at+=4
+            end for
+            return result
+        end if
+
+    elsif   size = Upsz then
+        -- get the pointer
+        at = l_SafePeek4u(at)
+        if cnt=1 then
+            -- return the string
+            return w32peek_string16( at ) -- at will be checked to be valid
+        else
+            result=repeat(0,cnt)
+            for i=1 to cnt do
+                struct = l_SafePeek4u(at)
+                result[i] = w32peek_string16( struct )
+                at+=4
+            end for
+            return result
+        end if
+
+    elsif   size = Hndl then
+        if cnt = 1 then
+            -- return handle
+            return l_SafePeek4u( at )
+        else
+            return l_SafePeek4u({at,cnt})
+        end if
+
+    elsif   size = HndlAddr then
+        -- return a handle's address
+        if cnt=1 then
+            return l_SafePeek4u( l_SafePeek4u( at ) )
+        else
+            result=repeat(0,cnt)
+            for i=1 to cnt do
+                result[i] = l_SafePeek4u( l_SafePeek4u( at ) )
+                at+=4
+            end for
+            return result
+        end if
+    elsif size = Strz then -- assumes cnt=1
+        return w32peek_string(at)
+    elsif size = Ustrz then -- assumes cnt=1
+        return w32peek_string16(at)
+    elsif size = Single then
+        if cnt=1 then
+            return float32_to_atom(l_SafePeek({at, 4}))
+        else
+            result = repeat(0,cnt)
+            for i = 1 to cnt do
+                s = l_SafePeek({at, 4} )
+                at += 4
+                result[i] = float32_to_atom(s)
+            end for
+            return result
+        end if
+
+    elsif size = Double then
+        if cnt=1 then
+            return float64_to_atom(l_SafePeek({at, 8}))
+        else
+            result = repeat(0,cnt)
+            for i = 1 to cnt do
+                s = l_SafePeek({at, 8} )
+                at += 8
+                result[i] = float64_to_atom(s)
+            end for
+            return result
+        end if
+
+    elsif size = aszText then  -- assumes cnt=1
+        return w32peek_string(at)
+    elsif size = uszText then  -- assumes cnt=1
+        return w32peek_string16(at)
+    elsif size = asBuffer then
+        if peek4s(at+4)<=0 then
+            return 0
+        end if
+        if cnt=1 then
+            return w32peek_string(peek4u(at))
+        else
+            result=repeat(0,cnt)
+            for i=1 to cnt do
+                if peek4u(at)=0 then
+                    result[i]=""
+                else
+                    result[i]=w32peek_string(peek4u(at))
+                end if
+                at+=8
+            end for
+            return result
+        end if
+    elsif size = usBuffer then
+        if peek4u(at)=0 then
+            return ""
+        end if
+        if cnt=1 then
+            cnt=peek4u(at+4)
+            if cnt=0 then
+                return ""
+            end if
+            result=w32peek_string16(peek4u(at))
+            size=1
+            for i=1 to 2*cnt by 2 do
+                result[size]=result[i]+256*result[i+1]
+                size+=1
+            end for
+            return result[1..cnt]
+        else
+            result=repeat(0,cnt)
+            for i=1 to cnt do
+                if peek4u(at)=0 then
+                    result[i]=""
+                else
+                    size=peek4u(at+4)
+                    if size then
+                        s=w32peek_string16(peek4u(at))
+                        cnt=1
+                        for j=1 to length(s) by 2 do
+                            s[cnt]=s[i]+256*s[i+1]
+                            cnt+=1
+                        end for
+                        result[i]=s[1..size]
+                    else
+                        result[i]=""
+                    end if
+                    at+=8
+                end if
+            end for
+            return result
+        end if
+
+    elsif size = Rect then
+        if cnt = 1 then
+            return l_SafePeek4u({at,4})
+        else
+            result = repeat(0,cnt)
+            s = l_SafePeek4u({at,4*cnt})
+            size = 1
+            for i = 1 to cnt do
+                result[i] = s[size..size+3]
+                size+=4
+            end for
+            return result
+        end if
+    elsif size = Point then
+        if cnt = 1 then
+            return l_SafePeek4u({at,2})
+        else
+            result = repeat(0,cnt)
+            s = l_SafePeek4u({at,2*cnt})
+            size = 1
+            for i = 1 to cnt do
+                result[i] = s[size..size+1]
+                size+=2
+            end for
+            return result
+        end if
+    elsif size > 0 then
+        -- return the 8-bit string or memory block
+        return l_SafePeek( {at, size} )
+    else
+        return {}
+    end if
+end function
+
+function fetchArray(atom struct,atom at,sequence s,integer flag)
+-- Returns the actual count of a terminated array
+-- helper for fetchSize(), which it calls.
+-- Returns like fetchSize().
+    integer totalsize,lterm,size,is_seq
+    sequence term
+    sequence sizes,addresses,contents
+    object x
+
+    term=s[arrayCount][1]
+    is_seq = atom(s[1])
+    if is_seq then -- either length of terminating sequence, or routine_id for termination predicate
+        lterm=length(term)
+    else
+        lterm=s[1][1]
+    end if
+    s[arrayCount]=1
+    totalsize=0
+    sizes={}
+    addresses={}
+    contents={}  
+    while 1 do
+        x=call_func(fcsz,{struct,at,s&1,flag})  -- fetch size/contents of next element
+        if atom(x) then
+            size=x
+        else
+            if length(x)=2 then
+                size=x[2]
+                contents=append(contents,x[2])
+                x=x[1]
+                if atom(x) then
+                    size=x
+                else
+                    sizes=append(sizes,x[1])
+                    addresses=append(addresses,x[2])
+                    size=x[3]
+                end if
+            else
+                sizes=append(sizes,x[1])
+                addresses=append(addresses,x[2])
+                size=x[3]
+            end if
+        end if
+        totalsize+=size
+        if not is_seq then
+            if call_func(lterm,{at}) then -- item identified as last
+                exit
+            end if
+        end if
+        at+=size
+        if is_seq and equal(term,peek({at,lterm})) then -- terminating sequence recognised
+            exit
+        end if
+    end while
+    if flag=1 then
+        if length(contents)=1 then
+            return {totalsize,contents[1]}
+        else
+            return {{sizes,addresses,totalsize},contents}
+        end if
+    elsif flag=-1 then
+        return totalsize
+    else
+        return {sizes,addresses,totalsize}
+    end if
+end function
+
+integer rsto,rfet -- routine_ids for w32store() and w32fetch()
+function fetchSize(atom struct,atom at,sequence s,integer flag)
+-- if flag=-1, return total size; if flag=0, return also ind sizes and addresses if applicable
+-- If flag=1, also return contents.
+    integer size
+    integer totalsize
+    integer count
+    sequence strings
+    sequence sizes
+    sequence addresses
+    integer strlen
+    integer wsize
+
+    while sequence(s[arrayCount]) do
+        if sequence(s[arrayCount][1]) then -- terminated array
+            return fetchArray(struct,at,s,flag)
+        else -- array has indirectly accessed length
+            s[arrayCount]=call_func(rfet,{struct,s[arrayCount]})
+        end if
+    end while
+    if s[unitSize]>0 then -- fixed size members
+        count=check_array(s)
+        if not count then
+            return {}
+        end if
+        size = s[unitSize]*count
+        if length(s)<arrayPos then
+            s&=0
+        else
+--/**/      s[arrayPos..length(s)]=sq_sub(s[arrayPos..length(s)],1) --/* -- Phix
+            s[arrayPos..length(s)]-=1                               --*/ -- RDS
+        end if
+        if flag=1 then
+            return {size,inner_fetch(struct,at+s[unitSize]*s[arrayPos],s[fieldType],count)}
+        else
+            return size
+        end if
+    elsif sequence(s[fieldType]) then -- type is a structure
+        sizes=s[fieldType]
+        if flag!=1 then
+            if (length(sizes)=1 and not vFirstVirtualFields[sizes[1]]) then
+                return vStructSizes[sizes[descType]]
+            elsif length(sizes)>1 and (vFirstVirtualFields[sizes[descType]]=0 or sizes[descNumFields]<vFirstVirtualFields[sizes[descType]]) then
+                return sizes[descSize]
+            else -- should not happen
+                ?1/0
+            end if
+        else -- should not happen
+            ?1/0
+        end if
+    elsif s[fieldType]=Align then -- no contents
+        size=remainder(at,s[arrayCount])
+        if size then
+            size=s[arrayCount]-size
+        end if
+        return size
+    elsif s[fieldType]=ByteFill then  -- no contents
+        return s[arrayCount]
+    elsif s[fieldType]=AlignRel then
+        size=remainder(at-struct,s[arrayCount])
+        if size then
+            size=s[arrayCount]-size
+        end if
+        return size
+    else -- other variable length - aszText or uszText
+        if length(s)<=stdFieldEntry then
+            s&=1
+        else
+            s=s[1..arrayPos]
+        end if
+        count=s[arrayCount]
+        sizes=repeat(0,count)
+        addresses=repeat(0,count)
+        strings=repeat(0,count)
+        totalsize=0
+        if s[fieldType]=aszText then
+            wsize=1
+            strlen=xlstrlen
+            s[fieldType]=Strz
+        else
+            wsize=2
+            strlen=xlstrlenw
+            s[fieldType]=Ustrz
+        end if
+        for i=1 to count do
+            size=c_func(strlen,{at})+wsize
+            size*=wsize
+            if flag=-1 then
+            else
+                sizes[i]=size
+                addresses[i]=at
+                if flag=0 then
+                    strings[i]=inner_fetch(struct,at,s,1)
+                end if
+            end if
+            totalsize += size
+            at += size
+            s[arrayPos]+=1
+        end for
+        if flag=1 then
+            if length(strings)=1 then
+                return {totalsize,strings[1]}
+            else
+                return {{sizes,addresses,totalsize},strings}
+            end if
+        elsif flag=-1 then
+            return totalsize
+        else
+            return {sizes,addresses,totalsize}
+        end if
+    end if
+end function
+fcsz=routine_id("fetchSize")
+
+integer rElemAddr
+
+function addVirtualField(atom struct,sequence s)
+-- call only for structures that have a realisation
+-- called by w32fetch(),w32store() and w32ElemAddr()
+    atom at
+    integer p,orgstatus,q,sel,var
+    object x
+
+    p=find(struct,virtualStructs) -- not zero -- DbC would be sooooo useful, but it will be deemed as complicated
+    if sequence(s[fieldOffset]) then
+        if not virtualWasBlank[p] then
+            q = find(s[numField]-1,virtualFields[p])  -- address of previous field known
+            if q=0 then -- no, add it first and so on till we know
+                q = addVirtualField(struct,vLayouts[s[strType]][s[numField]-1])
+                at = virtualAddresses[p][q] + virtualSizes[p][q]
+            else
+                at = virtualAddresses[p][q]
+            end if
+        else
+            return 0  -- should not happen
+        end if
+    else
+        at = struct + s[fieldOffset]
+    end if
+    virtualFields[p]=append(virtualFields[p],s)
+    orgstatus = w32iff(s[isVirtual]=1,-1,0)
+    virtualStatus[p] &= orgstatus
+    virtualIndStatus[p] &= orgstatus
+    if s[unionSpec]!=0 then
+        virtualUnions[p]&=s[unionSpec]
+        if s[unionSpec]>0 then --set type to supplied specialisation
+            s[fieldType]=unionVariants[vLayouts[s[fieldType][strType]]][s[unionSpec]]
+        end if
+    else -- determine the variant stored there
+        sel=vLayouts[s[fieldType][descType]]
+        var=call_func(unionSelectors[sel],{at})
+        virtualUnions[p]&=var
+        s[fieldType]=unionVariants[sel][var]
+    end if
+    -- assume now that s[fieldType] isn't a union
+
+    x = fetchSize(struct,at,s,0)
+    if atom(x) then
+        virtualSizes[p] &= x
+        virtualIndSizes[p] &= x
+        virtualOrgAddresses[p] &= at
+        virtualIndOrgAddresses[p] &= at
+        virtualAddresses[p] &= at
+        virtualIndAddresses[p] &= at
+        virtualIndAddresses[p] &= at
+    else
+        virtualSizes[p] &= x[3]
+        virtualIndSizes[p] = append(virtualIndSizes[p],x[1])
+        virtualOrgAddresses[p] &= at
+        virtualIndOrgAddresses[p] = append(virtualIndOrgAddresses[p],x[2])
+        virtualAddresses[p] &= at
+        virtualIndAddresses[p] = append(virtualIndAddresses[p],x[2])
+        virtualIndStatus[p] = append(virtualIndStatus[p],repeat(orgstatus,length(x[1])))
+    end if
+    return length(virtualOrgAddresses[p])
+end function
+
+function virtualise(atom struct,sequence s)
+-- record a struct as virtual, setting a new container for relocation data
+    integer p,q
+
+    p=find(struct,virtualStructs)
+    if not p then
+        virtualStructs &= struct
+        virtualTypes &= s[strType]
+        virtualWasBlank &= 0
+        virtualFields = append(virtualFields,{})
+        virtualAddresses = append(virtualAddresses,{})
+        virtualOrgAddresses = append(virtualOrgAddresses,{})
+        virtualIndAddresses = append(virtualIndAddresses,{})
+        virtualIndOrgAddresses = append(virtualIndOrgAddresses,{})
+        virtualStatus = append(virtualStatus,{})   -- 0=fixed, -1=untouched, 1=relocated
+        virtualIndStatus = append(virtualIndStatus,{})   -- 0=fixed, -1=untouched, 1=relocated
+        virtualSizes = append(virtualSizes,{})
+        virtualIndSizes = append(virtualIndSizes,{})
+        virtualUnions = append(virtualUnions,{})
+        p=length(virtualStructs)
+        q=0
+    else
+        q=find(s[1..stdFieldEntry],virtualFields[p])
+    end if
+    return {p,q}
+end function
+
+function getArrayCount(atom struct,sequence s)
+-- gets the size of a dynamic array
+    integer n,size,rid
+    atom base_addr
+    sequence s0
+
+    if atom(s[arrayCount][1]) then
+        return call_func(rfet,{struct,s[arrayCount]})
+    elsif atom(s[arrayCount][1][1]) then -- termination is assessed by calling a routine
+        base_addr=struct
+        struct=call_func(radd,{struct,s})
+        s0=s[arrayCount][1]
+        n=0
+        s[arrayCount]=1
+        while compare(s0,peek({struct,length(s0)})) do
+            n+=1
+            size=fetchSize(base_addr,struct,s,-1)
+            struct+=size
+        end while
+        return n
+    else -- termination is assessed by checking for a specific sequence
+        base_addr=struct
+        struct=call_func(radd,{struct,s})
+        rid=s[arrayCount][1][1][1]
+        n=1
+        s[arrayCount]=1
+        while not call_func(rid,{struct}) do
+            n+=1
+            size=fetchSize(base_addr,struct,s,-1)
+            struct+=size
+        end while
+        return n
+    end if
+end function
+
+function w32ElemAddr(atom struct,sequence s)
+-- returns The RAM address of /i field within the /i struct
+    integer p
+    integer q
+    sequence s0
+
+    if not s[isVirtual] then
+        return stdElemAddr(struct,s)
+    end if
+    s0=virtualise(struct,s)
+    p=s0[1]
+    q=s0[2]
+    s0=s[1..stdFieldEntry]
+    if not q then  -- unknown field for this struct, add to database
+        if virtualWasBlank[p] then -- should not happen
+            return 0
+        end if
+        q=addVirtualField(struct,s0)
+    end if
+    if sequence(s[arrayCount]) and s[arrayPos] then
+        s[arrayCount]=getArrayCount(struct,s)
+    end if
+    if not check_array(s) then
+        return 0
+    elsif length(s)=stdFieldEntry then
+        s&=1
+    end if
+    if s[unitSize]>0 then
+        return virtualAddresses[p][q]+s[unitSize]*(s[arrayPos]-1)
+    elsif s[arrayPos]=1 then
+        return virtualAddresses[p][q]
+    else
+        return virtualIndAddresses[p][q][s[arrayPos]]
+    end if
+
+end function
+rElemAddr = routine_id("w32ElemAddr")
+
+-----------------------------------------------------------------------------
+--/topic Memory Management
+--/func w32address( structure address, field )
+--/desc Get address of /i field in structure.
+--/ret ATOM: Address of the field in the structure.
+-- This is typically used if the structure contains an array.
+--
+-- In this snippet, the /b memBitmapInfo structure contains an array
+-- of /b RGBQUAD colors. The array is populated with the values in
+-- the pal:
+--
+-- /code
+--    -- get the start of the rgbQuad array
+--    rgbQuad = w32address( memBitmapInfo, bmiColors )
+--
+--    -- copy the pal to memory
+--    for i = 1 to colors do
+--
+--        -- store values
+--        /w32store( rgbQuad, rgbRed,      pal[i][1] )
+--        /w32store( rgbQuad, rgbGreen,    pal[i][2] )
+--        /w32store( rgbQuad, rgbBlue,     pal[i][3] )
+--        /w32store( rgbQuad, rgbReserved, 0 )
+--
+--        -- move to next quad
+--        rgbQuad += SIZEOF_RGBQUAD
+--
+--    end for
+--
+-- /endcode
+
+global function w32address( atom addr, object offset )
+    -- return address in structure
+    if atom( offset ) then
+        return addr + offset
+    elsif equal(offset,{}) then
+        return 0
+    else
+        while sequence(offset[1]) do -- nested field
+            for i=1 to length(offset)-1 do
+                addr = w32address(addr,offset[i])
+            end for
+            offset=offset[length(offset)]
+        end while
+        return w32ElemAddr(addr,offset)
+    end if
+end function
+radd=routine_id("w32address")
+
+------ Storing -----
+
+--/topic Memory management
+--/proc w32copy_field(atom struct,sequence s,atom origin)
+--/desc Copies contents of the field of the structure at /i origin described by /i s to /i struct.
+global procedure w32copy_field(atom struct,sequence s,atom origin)
+    integer sel,var,units
+    atom addr
+
+    while sequence(s[1]) do  -- nested fields
+        for i=1 to length(s)-1 do
+            origin = w32address(origin,s[i])
+        end for
+        s=s[length(s)]
+    end while
+    if find(s[fieldType],vFillers) then -- can't store to fillers
+        return
+    end if
+    if sequence(s[arrayCount]) then -- what's the source array length?
+        s[arrayCount]=getArrayCount(origin,s)
+    end if
+    units = check_array(s) 
+    if not units then
+        return
+    end if
+    if s[unionSpec]=0 then -- source field is a union, which variant?
+        sel=vLayouts[s[fieldType][descType]]
+        var=call_func(unionSelectors[sel],{addr})
+        s[fieldType]=unionVariants[sel][var]
+    elsif s[unionSpec]>0 then
+        s[fieldType]=unionVariants[vLayouts[s[fieldType][descType]]][s[unionSpec]]
+    end if
+    if s[unitSize]>0 and not s[isVirtual] then -- use raw emory copy
+        addr=w32address(origin,s)
+        mem_copy(struct,addr,s[unitSize]*units)
+    else -- more complicated, fetch source value and then store it to new location
+        call_proc(rsto,{struct,s,call_func(rfet,{origin,s})})
+    end if
+end procedure
+
+--/topic Memory Management
+--/proc w32copy_struct(atom struct,sequence id,atom origin)
+--/desc Copies the structure whose base address is /i origin to /i struct, its type being /i id.
+-- Assumes there is enough room at /i struct to store the structure
+global procedure w32copy_struct(atom struct,sequence id,atom origin)
+    integer fixed_size,is_v
+    sequence layout
+
+    id=id[1]
+    is_v=vFirstVirtualFields[id[descType]]
+    if length(id)=1 then
+        fixed_size = vStructSizes[id[descType]]
+    else
+        fixed_size = id[descSize]
+        if is_v > id[descNumFields] then
+            is_v = 0
+        end if
+    end if
+    -- copy fixed part
+    mem_copy(struct,origin,fixed_size)
+    -- anything left?
+    if is_v then
+        layout = vLayouts[id[descType]]
+        if length(id)>1 then
+            layout = layout[1..id[descNumFields]]
+        end if
+        -- copy following fields, whose position/length isn't fixed
+        for i=is_v to length(layout) do
+            call_proc(rsto,{struct,layout[i],call_func(rfet,{origin,layout[i]})})
+        end for
+    end if
+end procedure
+
+--/topic Memory management
+--/proc w32poke_words(atom at,object words)
+--/desc Poke one or more words at /i at.
+-- /i words is either a single word or a sequence of them. All low words are then stored.
+-- The caller is responsible to poke into memory s/he owns.
+global procedure w32poke_words(atom at,object words)
+    integer p,oddlen
+    sequence data
+
+    p=compare(words,{})
+    if p=0 then
+        return
+    elsif p=-1 then
+        words={words}
+    end if
+--/**/  words = sq_floor(sq_rmdr(words,65536))      --/* -- Phix
+        words = floor(remainder(words,65536))       --*/ -- RDS
+    oddlen=and_bits(length(words),1)
+    
+    -- pack words into dwords
+    data=repeat(0,(length(words)-oddlen)/2) -- first word poked apart if odd length
+    p=1+oddlen
+    for i=1 to length(data) do
+        data[i]=words[p]+65536*words[p+1]
+        p+=2
+    end for
+    
+    -- store values
+    if oddlen then
+        l_SafePoke4(at+2,data)
+        p=words[1]
+        l_SafePoke(at,{p,floor(p/256)})
+    else
+        l_SafePoke4(at,data)
+    end if
+
+end procedure
+
+procedure internal_store( atom struct, sequence s, object o,integer flag )
+
+    -- Store the data based on its type. Doesn't handle virtual members in initially blank structs
+    atom ram_addr
+    object datatype
+    integer lCnt,k,aligns
+    atom    at
+    sequence bytes
+
+    if not flag then
+        ram_addr = w32ElemAddr(struct, s)
+    else
+        ram_addr = struct
+    end if
+    datatype = s[fieldType]
+    lCnt     = s[arrayCount]
+    -- For sequences, make sure no more than lCnt elements are stored.
+    if sequence(o) and integer(datatype) then
+        if length(o) < lCnt then
+            lCnt = length(o)
+        end if
+    end if
+
+    -- write, based on datatype
+    if sequence(datatype) then -- it was checked right by w32store()
+        datatype=datatype[1]
+        if length(datatype)=4 then
+            bytes=vLayouts[datatype[descType]][1..datatype[descNumFields]]
+            aligns=datatype[descNumAligns]
+        else
+            bytes=vLayouts[datatype[descType]]
+            aligns=vNumAligns[datatype[descType]]
+        end if
+        if atom(o) then
+            if length(datatype)=4 then
+                lCnt=datatype[descSize]
+            else
+                lCnt=vStructSizes[datatype[descType]]
+            end if
+            mem_copy(ram_addr,o,lCnt)
+            return
+        elsif length(o)+aligns!=length(bytes) then
+            return
+        end if
+        k=0
+        for i=1 to length(bytes) do
+            if not find(bytes[i][fieldType],vFillers) then
+                call_proc(rsto,{struct,bytes[i],o[i-k]})
+            else
+                k+=1
+            end if
+        end for
+    elsif datatype = Byte then
+        -- poke a byte
+        if atom(o) then
+            l_SafePoke(ram_addr, o)
+        else
+            l_SafePoke(ram_addr, o[1 .. lCnt])
+        end if
+    elsif   datatype = Word then
+        -- poke a word
+        if atom(o) then
+            l_SafePoke(ram_addr,{o,floor(o/256)})
+        else
+            w32poke_words(ram_addr,o)
+        end if
+
+    elsif   datatype = Long then
+        -- poke long(s)
+        if atom(o) then
+            l_SafePoke4(ram_addr, o )
+        else
+            l_SafePoke4(ram_addr, o[1 .. lCnt])
+        end if
+    elsif   datatype = UInt then
+        -- poke long(s)
+        if atom(o) then
+            l_SafePoke4(ram_addr, o )
+        else
+            l_SafePoke4(ram_addr, o[1 .. lCnt])
+        end if
+
+    elsif   datatype = Lpsz then
+        -- if atom, treat as long
+        if atom( o ) then
+            l_SafePoke4(ram_addr, o )
+        else
+            -- poke the address of the allotted string
+            l_SafePoke4(ram_addr, w32acquire_mem( struct, o  ) )
+        end if
+
+    elsif   datatype = Hndl then
+        -- poke handle(s)
+        if atom(o) then
+            l_SafePoke4(ram_addr, o )
+        else
+            l_SafePoke4(ram_addr, o[1 .. lCnt])
+        end if
+
+    elsif   datatype = HndlAddr then
+        -- poke a handle's address
+        at = w32acquire_mem(struct, 4)
+        l_SafePoke4( at, o)
+        l_SafePoke4( ram_addr, at )
+
+    elsif  datatype = Strz then
+        -- poke a zero-terminated string
+        bytes = o & 0 
+        if lCnt < s[arrayCount] then
+            lCnt += 1
+        end if
+        l_SafePoke(ram_addr, bytes[1 .. lCnt])
+
+    elsif  datatype = Single then
+        if atom(o) then
+            o = {o}
+        end if
+        if lCnt > length(o) then
+            lCnt = length(o)
+        end if
+        for i = 1 to lCnt do
+            l_SafePoke(ram_addr, atom_to_float32(o[i]))
+            ram_addr += 4
+        end for
+
+    elsif  datatype = Double then
+        if atom(o) then
+            o = {o}
+        end if
+        if lCnt > length(o) then
+            lCnt = length(o)
+        end if
+        for i = 1 to length(o) do
+            l_SafePoke(ram_addr, atom_to_float64(o[i]))
+            ram_addr += 8
+        end for
+    -- added CChris <oedoc@free.fr> Jan 2, 2007
+    -- support for DBCS encoded strings
+    elsif datatype=Upsz then
+    -- store UTF-8 string as UTF-16
+        if atom( o ) then
+            l_SafePoke4( ram_addr, o )
+        else
+            bytes=repeat(0,2*length(o)+2)
+            lCnt=1
+            for i=1 to length(o) do
+                bytes[lCnt]=o[i]
+                lCnt+=2
+            end for
+            l_SafePoke4(ram_addr,w32acquire_mem(struct,bytes))
+        end if
+    elsif datatype = aszText then
+        if atom( o ) then
+            l_SafePoke4( ram_addr, o )
+        else
+            l_SafePoke4(ram_addr, w32acquire_mem(struct,o))
+        end if
+    elsif datatype = uszText then
+        if atom( o ) then
+            l_SafePoke4( ram_addr, o )
+        else
+            bytes=repeat(0,2*length(o)+2)
+            lCnt=1
+            for i=1 to length(o) do
+                bytes[lCnt]=o[i]
+                lCnt+=2
+            end for
+            l_SafePoke4(ram_addr,w32acquire_mem(struct,bytes))
+        end if
+    elsif datatype=asBuffer then
+        if lCnt=1 then
+            if sequence(o) then
+                if equal(o[1],{}) then
+                    l_SafePoke4(ram_addr,o[2])
+                else
+                    at=w32acquire_mem(struct,o)
+                    l_SafePoke4(ram_addr,{at,length(o)})
+                end if
+            elsif o=0 then
+                l_SafePoke4(ram_addr,{0,0})
+            else -- for compatibility with old code which was setting address and length separately
+                l_SafePoke4(ram_addr,o)
+            end if
+        else
+            for i=1 to lCnt do
+                if sequence(o[i]) then
+                    if equal(o[i][1],{}) then
+                        l_SafePoke4(ram_addr,o[i][2])
+                    else
+                        at=w32acquire_mem(struct,o[i])
+                        l_SafePoke4(ram_addr,{at,length(o[i])})
+                    end if
+                else
+                    l_SafePoke4(ram_addr,{0,0})
+                end if
+                ram_addr+=8
+            end for
+        end if
+    elsif datatype=usBuffer then
+        if lCnt=1 then
+            if sequence(o) then
+                if equal(o[1],{}) then
+                    l_SafePoke4(ram_addr,o[2])
+                else
+                    at = w32acquire_mem(struct,length(o)*2)
+                    w32poke_words(at,o)
+                    l_SafePoke4(ram_addr,{at,length(o)})
+                end if
+            else
+                l_SafePoke4(ram_addr,{0,0})
+            end if
+        else
+            for i=1 to lCnt do
+                if sequence(o[i]) then
+                    if equal(o[i][1],{}) then
+                        l_SafePoke4(ram_addr,o[i][2])
+                    else
+                        bytes = o[i]
+                        at = w32acquire_mem(struct,length(bytes)*2)
+                        w32poke_words(at,bytes)
+                        l_SafePoke4(ram_addr,{at,length(bytes)})
+                    end if
+                else
+                    l_SafePoke4(ram_addr,{0,0})
+                end if
+                ram_addr+=8
+            end for
+        end if
+    elsif datatype = Rect then
+        if lCnt = 1 then
+            l_SafePoke4(ram_addr,o)
+        else
+            bytes = repeat(0,4*lCnt)
+            k = 1
+            for i =1 to lCnt do
+                bytes[k..k+3]=o[i]
+                k+=4
+            end for
+            l_SafePoke4(ram_addr,bytes)
+        end if
+    elsif datatype = Point then
+        if lCnt = 1 then
+            l_SafePoke4(ram_addr,o)
+        else
+            bytes = repeat(0,2*lCnt)
+            k = 1
+            for i =1 to lCnt do
+                bytes[k..k+1]=o[i]
+                k+=2
+            end for
+            l_SafePoke4(ram_addr,bytes)
+        end if
+    else
+        -- poke a string
+        l_SafePoke( ram_addr, o[1 .. lCnt] )
+    -- else do nothing
+    end if
+    
+end procedure
+
+--/topic Memory Management
+--/proc w32store( structure, field, value )
+--/desc Store a value into a structure.
+-- Type conversion is automatic. For example, if an /b Lpsz field is
+-- used, the value is automatically converted from a sequence to a
+-- C-style string, and the address of that string is stored in the
+-- structure. /n
+-- If /i field is a union, it must be specialised, so that w32store() knows how to store /i data.
+-- If it is not, then the last known specialisation is used. Otherwise, you should call 
+-- /w32specialise() so as to get a specialised union which w32store() can handle.
+--
+-- Special rules apply to the asBuffer and usBuffer types. Normally, you'd store a string
+-- in such a field. However:
+--/li Using an atom stores the values 0 and 0;
+--/li Storing a pair {{},{u,v}}, where u and v are atoms, store these values without any 
+-- reference to a string.  /n
+-- Example:
+--
+--/code
+--      -- allocate RECT structure, and populate it
+--      atom rect
+--
+--      -- allocate the structure
+--      rect = /w32acquire_mem(w32new_memset(), SIZEOF_RECT )
+--
+--      -- store values into the structure
+--      /w32store( rect, rectLeft,   x1 )
+--      /w32store( rect, rectTop,    y1 )
+--      /w32store( rect, rectRight,  x2 )
+--      /w32store( rect, rectBottom, y2 )
+--
+--      -- Here we store individual elements to an /w32allot array.
+--      constant bCoords = w32allot( {4, Long} )
+--      . . .
+--      /w32store( rect, bCoords & 1, Col)
+--      /w32store( rect, bCoords & 2, Row)
+--/endcode
+
+global procedure w32store(atom struct,sequence s,object x)
+    integer p,q,item,len,arcount,u_index
+    sequence s0,s1
+              
+    if equal(s,{}) then
+        return
+    end if
+    while sequence(s[1]) do  -- this is a sequence of nested fields
+        p=length(s)
+        for i=1 to p-1 do
+            struct=w32address(struct,s[i])
+        end for
+        s=s[p]
+    end while
+    if not s[isVirtual] then -- well known field, internal_store() can handle it
+        internal_store(struct,s,x,0)
+        return
+    elsif find(s[fieldType],vFillers) then  -- can't store there
+        return
+    end if
+    s0=virtualise(struct,s)
+    p=s0[1]
+    q=s0[2]
+    s0=s[1..stdFieldEntry]
+    if not q then
+        if not virtualWasBlank[p] then 
+            q = addVirtualField(struct,s0)
+        else -- should not happen
+            return
+        end if
+    end if
+    if sequence(s[fieldType]) and atom(vLayouts[s[fieldType][descType]]) then -- store to union
+        u_index = vLayouts[s[fieldType][descType]]
+        s1=unionVariants[u_index]
+        if s[unionSpec]>0 then
+            virtualUnions[p][q]=s[unionSpec]
+            s[fieldType]=s1[s[unionSpec]]
+        elsif s[unionSpec]=0 then -- union variant not specified
+            item=call_func(unionDataInfer[u_index],{x})
+            if item<1 or item>length(s1) then -- still don't know
+                if virtualUnions[p][q] then -- perhaps previous type is just the best guess
+                    s[fieldType]=s1[virtualUnions[p][q]]
+                else
+                    warnErr("Please specialise union fields when the inference routine cannot deect the variant correctly")
+                    return
+                end if
+            else -- found it
+                s[fieldType]=s1[item]
+            end if
+        end if
+    end if
+    if not s[isVirtual] then -- we have an address, use standard process
+        s[fieldOffset] = virtualAddresses[p][q]
+        internal_store(struct,s,x,1)
+    elsif sequence(s[fieldType]) then -- structure type
+        if atom(x) then
+            w32copy_struct(struct,s[fieldType],x)
+        else
+            internal_store(virtualAddresses[p][q],s[fieldType],x,1)
+        end if
+    else    
+        if sequence(virtualIndSizes[p][q]) then
+            if length(s)=stdFieldEntry then
+                item=1
+            else
+                item=s[arrayPos]
+            end if
+            -- get array count
+            if virtualStatus[p][q]=-2 then
+                arcount=item
+            elsif sequence(s[arrayCount]) then
+                arcount=getArrayCount(struct,s)
+            else
+                arcount=s[arrayCount]
+            end if
+            len = length(virtualIndStatus[p][q])
+            if item > len then -- dynamic size array originally blank
+                virtualIndSizes[p][q] &= repeat(0,item-len)
+                virtualIndStatus[p][q] &= repeat(-2,item-len-1)
+                virtualIndStatus[p][q] &= 1
+                virtualIndAddresses[p][q]&= repeat(0,item-len)
+                if sequence(s[arrayCount]) and atom(s[arrayCount][1]) then
+                    w32store(struct,s[arrayCount],item)
+                end if
+            end if
+            virtualSizes[p][q]-=(virtualIndSizes[p][q][item]-length(x))
+            virtualIndSizes[p][q][item] = length(x)+1+(s[fieldType]=uszText)  -- problem: s[fieldType] may be a sequence
+            virtualIndStatus[p][q][item] = 1
+            virtualIndAddresses[p][q][item] = w32acquire_mem(struct,x)
+        else
+            virtualSizes[p][q] = length(x)+1+(s[fieldType]=uszText)
+            virtualAddresses[p][q] = w32acquire_mem(struct,x)
+        end if
+        virtualStatus[p][q] = 1
+    end if
+end procedure
+rsto=routine_id("w32store")
+
+------- Fetching --------
+
+function internal_fetch( atom struct, sequence s )
+    -- fetch the data based on the type
+    integer cnt
+    atom at
+
+    cnt = check_array(s)
+    if not cnt then
+        return 0 
+    end if
+
+    -- address is struct + fieldOffset
+    if atom(s[fieldOffset]) and not s[isVirtual] then
+        if length(s)<=stdFieldEntry then
+            at = s[fieldOffset] + struct
+        else
+            at = s[fieldOffset] + struct + (s[arrayPos]-1) * s[unitSize]
+        end if
+    elsif cnt=1 then
+        at = w32address(struct,s)
+    else
+        -- doesn't happen as w32fetch() has handled this case itself
+        return 0
+    end if
+    return inner_fetch(struct,at,s[fieldType],cnt)
+end function
+
+integer rfrm  -- routine_id for w32from_memoryEx
+
+--/topic Memory Management 
+--/func w32fetch( structure address, field )
+--/desc Fetch field from structure.
+--/ret OBJECT: Field from a structure.
+-- Data conversion is automatic. For example, if the field is
+-- an /b Lpsz, a sequence containing the string will automatically
+-- be returned.
+--
+-- Example:
+-- /code
+--      -- fetch the average character width from the text metrics structure
+--      width = /w32fetch( tm, tmAveCharWidth )
+--
+--      -- Here we get individual elements from an /w32allot array.
+--      constant bCoords = w32allot( {4, Long} )
+--      . . .
+--      x = /w32fetch( rect, bCoords & 1)
+--      y = /w32fetch( rect, bCoords & 2)
+--
+--      -- To get all the values at once
+--      sequence coords
+--      coords = /w32fetch( rect, bCoords)
+--
+-- /endcode
+
+global function w32fetch(atom struct,sequence s)
+    integer p,q,units
+    sequence s0,result
+    atom at
+                   
+    while sequence(s[1]) do -- nested fields
+        p=length(s)
+        for i=1 to p-1 do
+            struct=w32address(struct,s[i])
+        end for
+        s=s[p] 
+    end while
+    if not s[isVirtual] then  --- standard processing
+        return internal_fetch(struct,s)
+    elsif sequence(s[fieldType]) then -- fall back on w32from_memoryEx()
+        return call_func(rfrm,{w32address(struct,s),s[fieldType]})
+    elsif find(s[fieldType],vFillers) then -- return dummy data
+        return 0
+    end if
+    s0=virtualise(struct,s)
+    p=s0[1]
+    q=s0[2]
+    s0=s[1..stdFieldEntry]
+    if not q then
+        if virtualWasBlank[p] then
+            abortErr("Attempt to fetch a structure field that was not w32store()d first")
+            return 0
+        else
+            q=addVirtualField(struct,s0)
+        end if
+    end if
+    -- resolve unions
+    if s[unionSpec]>0 then
+        if s[unionSpec]=virtualUnions[p][q] then
+            s[fieldType]=unionVariants[vLayouts[s[fieldType][strType]]][s[unionSpec]]
+        else
+            warnErr("Mismatch between stated and observed state of a union")
+            return 0
+        end if
+    elsif s[unionSpec]=0 then
+        s[fieldType]=unionVariants[vLayouts[s[fieldType][strType]]][virtualUnions[p][q]]
+    end if
+    -- resolve arrays (non arrays are arrays of length 1)
+    -- then inner_fetch() will handle the job
+    at = virtualAddresses[p][q]
+    if sequence(s[arrayCount]) then
+        s[arrayCount]=length(virtualIndAddresses[p][q])
+    end if
+    units=check_array(s)
+    if not units then -- invalid array spec
+        return 0
+    elsif units=1 then
+        return inner_fetch(struct,virtualIndAddresses[p][q][s[arrayPos]],s[fieldType],1)
+    else
+        result=repeat(0,units)
+        units-=1
+        for i=s[arrayPos] to s[arrayPos]+units do
+            result[i-units]=inner_fetch(struct,virtualIndAddresses[p][q][i],s[fieldType],1)
+        end for
+        return result
+    end if
+
+end function
+rfet=routine_id("w32fetch")
+
+--------- Stitching together ---------
+
+procedure devirtualise(integer p)
+-- removes a structure from the virtual data system
+    virtualStructs = w32removeIndex(p,virtualStructs)
+    virtualTypes = w32removeIndex(p,virtualTypes)
+    virtualFields = w32removeIndex(p,virtualFields)
+    virtualAddresses = w32removeIndex(p,virtualAddresses)
+    virtualStatus = w32removeIndex(p,virtualStatus)
+    virtualOrgAddresses = w32removeIndex(p,virtualOrgAddresses)
+    virtualSizes = w32removeIndex(p,virtualSizes)
+    virtualIndAddresses = w32removeIndex(p,virtualIndAddresses)
+    virtualIndStatus = w32removeIndex(p,virtualIndStatus)
+    virtualIndOrgAddresses = w32removeIndex(p,virtualIndOrgAddresses)
+    virtualIndSizes = w32removeIndex(p,virtualIndSizes)
+    virtualWasBlank = w32removeIndex(p,virtualWasBlank)
+    virtualUnions = w32removeIndex(p,virtualUnions)
+end procedure
+
+--/topic Memory management
+--/func w32realise(atom struct,integer flag)
+--/desc Rebuilds a contiguous memory structure, possibly discarding virtual info
+--/ret (SEQUENCE) {Address of rebuilt structure,size of the structure}.
+-- If you ever used w32store() on a variable length field in a structure, the targeted
+-- member was most likely relocated. Since external code expects the structure to
+-- occupy a contiguous space in memory, you have to call w32realise() to get the
+-- address of a structure with the same data, but made   contiguous again.
+-- /i struct is the address of the structure to rebuild;
+-- /i memset is a memory set where to rebuild the structure;
+-- /i flag is zero if you don't plan to reuse the structure again, so that the old
+-- one and the support data are recycled.
+-- As always, you are responsible for freeing the returned structure.
+-- Note that, if the structure has Align fields, the created structure will use a slightly oversize
+-- memory block. The amount of slack past the end of the structure is not greater than the sum of
+-- the widths of the Align fields minus their number - usually only a few bytes.
+global function w32realise(atom struct,integer flag)
+-- general problem: compute the size of align fields while the address is not known
+    integer p,totalsize,curr_len,q
+    atom new_a,ptr
+    sequence index,blocklist,sorted,s
+
+    p=find(struct,virtualStructs)
+    if p=0 or not find(1,virtualStatus[p]) then -- structure doesn't need realisation
+        if p and flag then
+            devirtualise(p)
+        end if
+        return struct
+    end if
+    -- some virtual fields were relocated
+
+    if virtualWasBlank[p] then
+        if find(-2,virtualStatus[p]) then
+            warnErr("Some field(s) of a structure with variable length members were not assigned")
+            return 0
+        end if
+        for i=1 to length(virtualFields[p]) do
+            if sequence(virtualIndAddresses[p]) and find(-2,virtualIndAddresses[p]) then
+                warnErr("Some field(s) of a structure with variable length members were not assigned")
+                return 0
+            end if
+        end for
+    end if
+    -- can realise the struct, as all fields are defined somehow.
+
+    -- get a {start,len} list for the known virtual part
+    index = w32index_by(virtualFields[p],numField)
+    ptr = struct
+    blocklist = {}
+    curr_len = 0
+    for i=1 to length(index) do
+        s=virtualFields[p][index[i]]
+        if virtualStatus[p][index[i]]<1 then
+            curr_len += virtualSizes[p][index[i]]
+        elsif equal(s[fieldType],ByteFill) then
+            curr_len += s[arrayCount]
+        elsif equal(s[fieldType],Align) then
+            if curr_len then
+                blocklist=append(blocklist,{ptr,curr_len})
+            end if
+            blocklist=append(blocklist,{0,s[arrayCount]})
+            ptr+=s[arrayCount]
+            curr_len=0
+        elsif equal(s[fieldType],AlignRel) then
+            if curr_len then
+                blocklist=append(blocklist,{ptr-struct,curr_len})
+            end if
+            blocklist=append(blocklist,{0,s[arrayCount]})
+            ptr+=s[arrayCount]
+            curr_len=0
+        elsif atom(virtualIndSizes[p][index[i]]) then -- not an array
+            if curr_len then
+                blocklist=append(blocklist,{ptr,curr_len})
+            end if
+            blocklist=append(blocklist,{virtualAddresses[p][index[i]],virtualSizes[p][index[i]]})
+            ptr+=(curr_len+virtualIndSizes[p][index[i]])
+            curr_len=0
+        else
+            q=length(virtualIndAddresses[p][index[i]])
+            for j=1 to q do
+                if j=q and sequence(s[arrayCount]) and sequence(s[arrayCount][1]) and sequence(s[arrayCount][1][1]) then
+                    -- mark the end of the array
+                    call_proc(s[arrayCount][1][1][2],{virtualIndAddresses[p][index[i]][q]})
+                end if
+                if virtualIndStatus[p][index[i]][j]=-1 then
+                    curr_len += virtualIndSizes[p][index[i]][j]
+                else
+                    if curr_len then
+                        blocklist=append(blocklist,{ptr,curr_len})
+                    end if
+                    blocklist=append(blocklist,{virtualIndAddresses[p][index[i]][j],virtualIndSizes[p][index[i]][j]})
+                    ptr+=(curr_len+virtualIndSizes[p][index[i]][j])
+                    curr_len=0
+                end if
+            end for
+            if sequence(virtualFields[p][index[i]]) then
+                if sequence(s[1]) then
+                    if curr_len then
+                        blocklist=append(blocklist,{ptr,curr_len})
+                    end if
+                    q=length(s[1])
+                    new_a=w32acquire_mem(struct,q)
+                    poke(new_a,s[1])
+                    blocklist=append(blocklist,{new_a,q})
+                    ptr+=(curr_len+q)
+                    curr_len=0
+                end if
+            end if
+        end if
+        if sequence(s[arrayCount]) and sequence(s[arrayCount][1]) then  -- poke array terminator
+            if curr_len then
+                blocklist=append(blocklist,{ptr,curr_len})
+            end if
+            q=length(s[arrayCount][1])
+            new_a=w32acquire_mem(struct,q)
+            poke(new_a,s[arrayCount][1])
+            blocklist=append(blocklist,{new_a,q})
+            ptr+=(curr_len+q)
+            curr_len=0
+        end if
+    end for
+
+    -- get the unknown end part
+    if not virtualWasBlank[p] then -- otherwise, there is no end part
+        index=virtualFields[p][index[length(index)]]
+        sorted = vLayouts[virtualTypes[p]]
+        s=sorted[index[numField]+1..length(sorted)]
+        new_a = ptr
+        for i=1 to length(s) do
+            totalsize=fetchSize(struct,new_a,s[i],-1)
+            curr_len+=totalsize
+            new_a+=totalsize
+        end for
+        if curr_len then
+            blocklist=append(blocklist,{ptr,curr_len})
+        end if
+    end if
+
+    -- get info about fixed part
+    curr_len=vStructSizes[virtualFields[p][1][strType]]
+    
+    -- create and copy
+    totalsize=blocklist[1][2] -- this contains fixed part
+    for i=2 to length(blocklist) do
+        totalsize+=blocklist[i][2]
+    end for
+    new_a = w32acquire_mem(struct,totalsize+curr_len)
+    -- copy fixed part
+    mem_copy(new_a,struct,curr_len)
+    ptr = new_a + curr_len
+    -- copy all blocks in list
+    for i=1 to length(blocklist) do
+        if blocklist[i][1] then
+            mem_copy(ptr,blocklist[i][1],blocklist[i][2])
+            ptr+=blocklist[i][2]
+        else -- alignment field
+            q=remainder(ptr,blocklist[i][2])
+            if q then
+                ptr+=(q-blocklist[i][2])
+            end if
+        end if
+    end for
+    if flag then
+        devirtualise(p)
+    end if
+    return {new_a,totalsize}
+end function
+
+--/topic Memory Management
+--/func w32from_memoryEx(atom struct,sequence s,integer level)
+--/desc Returns the fields of a structure.
+--/ret (SEQUENCE) List of field values.
+-- If a field is itself a structure, its address is returned if /i level is 0.
+-- Use a positive value in /i level to define a maximum degree of recursion. Use -1 to resolve
+-- at any depth (ie replacing an embedded structure address by a list of field values).
+global function w32from_memoryEx(atom struct,sequence s,integer level)
+    integer p,k
+    sequence result
+
+    if atom(s[1]) or sequence(s[1][1]) then
+        return {}
+    end if
+    s=s[1]
+    p=s[descType]
+    if length(s)=1 then
+        s=vLayouts[p]
+        result=repeat(0,length(s)-vNumAligns[p])
+    else
+        s=s[1..s[descNumFields]]
+        result=repeat(0,s[descNumFields]-s[descNumAligns])
+    end if
+    k=0
+    for i=1 to length(s) do
+        if find(s[i][fieldType],vFillers) then
+            k+=1
+        elsif atom(s[i][fieldType]) then
+            result[i-k]=w32fetch(struct,s[i])
+        elsif level=0 then
+            result[i-k]=w32address(struct,s[i])
+        else
+            result[i-k]=w32from_memoryEx(w32address(struct,s[i]),s[i][fieldType],level-1)
+        end if
+    end for
+    return result
+end function
+rfrm=routine_id("w32from_memoryEx")
+
+--/topic Memory Management
+--/func w32from_memory(atom struct,sequence s)
+--/desc Returns the fields of a structure.
+--/ret (SEQUENCE) List of field values.
+-- If a field is itself a structure, its address is returned. If you need actual data, use /w32from_memoryEx(),
+-- which this function wraps.
+-- No values are returned for filler fields: Align, AlignRel and ByteFill.
+global function w32from_memory(atom struct,sequence s)
+    return w32from_memoryEx(struct,s,0)
+end function
+
+--/topic Memory Management
+--/proc w32set_memory(atom struct,sequence id,sequence data)
+--/desc Performs the same function as /w32to_memory(), but stores data at address /i struct.
+-- No realisation is attempted at /i addr.
+global procedure w32set_memory(atom struct,sequence id,sequence data)
+    integer num_fields,num_aligns
+    sequence layout
+
+    id=id[1]
+    layout=vLayouts[id[descType]]
+    if length(id)=1 then
+        num_fields=length(layout)
+    else
+        num_fields=id[descNumFields]
+    end if
+    num_aligns=0
+    for i=1 to num_fields do
+        if i-num_aligns>length(data) then
+            exit
+        elsif find(layout[i][fieldType],vFillers) then
+            num_aligns+=1
+        else
+            w32store(struct,layout[i],data[i-num_aligns])
+        end if
+    end for
+end procedure
+
+--/topic Memory Management
+--/func w32to_memoryEx(atom mem,sequence id,sequence data,integer flag)
+--/desc Initialises memory structiure of given type with supplied data.
+--/ret (ATOM) Address of initialised structure.
+-- /i mem is the memory set to allocate from, /i id is a structure identifier, /i data is a sequence of field contents.
+-- If /i flag is zero, a realised structure (see /w32realise()) will be created, otherwise,
+-- a virtual structure addresss will be returned. The flag is ignored if there are no
+-- variable length/position members. /w32to_memory() wraps this function with /i flag=0. /n
+-- If supplied /i data is shorter than expected, trailing zeroes are automatically stored in
+--  the corresponding fields. /n
+global function w32to_memoryEx(atom mem,sequence id,object data,integer flag)
+    atom addr
+    integer strtype
+
+    id=id[1]
+    strtype=id[descType]  
+    if length(id)=1 then
+        addr=w32acquire_mem(mem,vStructSizes[strtype])
+    else
+        addr=w32acquire_mem(mem,id[descSize])
+    end if
+    if not addr then
+        return 0
+    end if
+    if vPreprocessDataIn[strtype]!=-1 then
+        data=call_func(vPreprocessDataIn[strtype],{data})
+    end if
+    if atom(data) then
+        if vStartWithSize[strtype] then
+            poke4(addr,vStructSizes[strtype])
+        end if
+        return addr
+    end if
+    if vStartWithSize[strtype] then
+        data=prepend(data,vStructSizes[strtype])
+    end if
+
+    w32set_memory(addr,{id},data)
+
+    if flag then
+        return addr
+    else
+        return w32realise(addr,0)
+    end if
+end function
+
+--/topic Memory Management
+--/func w32to_memory(sequence id,sequence data)
+--/desc Initialises memory structiure of given type with supplied data.
+--/ret (ATOM) Address of initialised structure.
+-- /i id is a structure identifier, /i data is a sequence of field contents.
+-- If there are variable length/position members, use /w32to_memoryEx() instead. /n
+-- If supplied /i data is shorter than expected, trailing zeroes are automatically stored in
+--  the corresponding fields. /n
+-- This function supersedes most of the struct_XXX() functions, at least those which don't
+-- process their arguments.
+-- When structures start with the structure size, this value is automatically prepended to 
+-- /i data, so that you need not bother with it.
+-- Align, ByteFill and AlignRel fields are ignored, you should not to supply filler values.
+global function w32to_memory(atom mem,sequence id,object data)
+    return w32to_memoryEx(mem,id,data,0)
+end function
+
+--/topic Memory Management
+--/proc setPreProcessDataIn(sequence id,integer rid)
+--/desc Sets up a routine to preprocess data fed to /w32to_memory() for a given type of structure.
+-- The preprocess routine must take a sequence and return a sequence.
+-- Preprocess routines apply to all short structures derived from/from which derives /i id.
+global procedure setPreprocessDataIn(sequence id,integer rid)
+    vPreprocessDataIn[id[1][descType]]=rid
+end procedure
+
+--/topic Memory Management
+--/proc setStartWithSize(sequence struct_id)
+--/desc Indicates to w32to_memory() that, when filling a structure of this type, its size should be plugged in as the first field.
+-- Once taken, this decision cannot be rolled back. It simply avoids repetitively specifying the size as the first data item./n
+-- The following structure identifiers are already marked for this optimisation:
+--/li ID_OSVERSIONINFOEX
+--/li ID_INITCOMMONCONTROLSEX
+--/li ID_WINDOWINFO
+--/li ID_MENUITEMINFO
+--/li ID_WNDCLASSEX
+--/li ID_SCROLLINFO
+--/li ID_COLORDLG
+--/li ID_DOCINFO
+--/li ID_DRAWTEXTPARAMS
+--/li ID_OPENFILENAME
+--/li ID_BITMAPINFOHEADER
+--/li ID_PAGESETUPDLG
+--/li ID_CHARFORMAT
+--/li ID_TOOLINFO
+--/li ID_REBARBANDINFO
+--/li ID_OUTLINETEXTMETRIC
+--/li ID_PARAFORMAT
+
+global  procedure setStartWithSize(sequence struct_id)
+    vStartWithSize[struct_id[1][descType]]=1
+end procedure
+
+--/topic Memory Management
+--/func isFieldOf(sequence field,sequence struct_type)
+--/desc Determines whether /i field is a field of the /i struct_type structure type.
+--/ret (INTEGER) w32True if the field belongs to the structure, else w32False.
+-- /i field may be a nested field, in which case the leading field only is tested./n
+-- /i struct_type is a structure identifier, an ID_* constant or anything created by /w32define_this_struct().
+global function isFieldOf(sequence field,sequence struct_type)
+    integer pos
+
+    if sequence(field[1]) then
+        field=field[1]
+    end if
+    struct_type = struct_type[1]
+    if length(field)<stdFieldEntry then
+        return w32False -- bad field
+    else  -- remove all array and union stuff
+        field = field[1..stdFieldEntry]
+        if field[unionSpec]>0 then
+            field[unionSpec]=0
+        end if
+    end if
+    pos=find(field,vLayouts[struct_type[descType]])
+    if not pos then
+        return w32False -- field not found
+    elsif length(struct_type)>1 and pos>struct_type[descNumFields] then
+        return w32False -- field belongs to parent structure(s) only
+    else
+        return w32True
+    end if
+end function
+
+
+
+
+
+
+

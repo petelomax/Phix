@@ -380,7 +380,7 @@ integer msign, base, tokvalid
     return {}
 end function
 
-global function to_number(string s)
+global function to_number(string s, object failure={})
 sequence r
 atom N
 integer sidx
@@ -391,7 +391,8 @@ integer sidx
             return N
         end if
     end if
-    return {}   -- failure?
+--  return {}   -- failure?
+    return failure
 end function
 
 

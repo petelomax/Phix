@@ -11,12 +11,11 @@
 --  only then (if successful) return to trying to get it to work on Windows,
 --  at which point this (builtins\text.e) may yet prove valuable.
 
---DEV earein.e does not like this:
---!/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
---!/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
---!/**/ forward global function keyvalues(sequence source, object pair_delim = ";,",
---!/**/                                  object kv_delim = ":=", object quotes =  "\"'`",
---!/**/                                  object whitespace = " \t\n\r", integer haskeys = 1)
+--/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
+--/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
+--/**/ forward global function keyvalues(sequence source, object pair_delim = ";,",
+--/**/                               object kv_delim = ":=", object quotes =  "\"'`",
+--/**/                               object whitespace = " \t\n\r", integer haskeys = 1)
 
 --****
 -- == Text Manipulation
@@ -1104,81 +1103,83 @@ end function
 --
 
 --#withtype t_text
-public function quote(sequence text_in, object quote_pair = {"\"", "\""}, integer esc = -1, t_text sp = "")
-    if length(text_in)=0 then
-        return text_in
-    end if
-
-    if atom(quote_pair) then
-        quote_pair = {{quote_pair}, {quote_pair}}
-    elsif length(quote_pair)=1 then
-        quote_pair = {quote_pair[1], quote_pair[1]}
-    elsif length(quote_pair)=0 then
-        quote_pair = {"\"", "\""}
-    end if
-
-    if sequence(text_in[1]) then
-        for i=1 to length(text_in) do
-            if sequence(text_in[i]) then
-                text_in[i] = quote(text_in[i], quote_pair, esc, sp)
-            end if
-        end for
-
-        return text_in
-    end if
-
-    -- Only quote the input if it contains any of the items in 'sp'
-    for i=1 to length(sp) do
-        if find(sp[i], text_in) then
-            exit
-        end if
-
-        if i=length(sp) then
-            -- Contains none of them, so just return the input untouched.
-            return text_in
-        end if
-    end for
-
-    if esc>=0  then
-        -- If the input already contains a quote, replace them with esc-quote,
-        -- but make sure that if the input already contains esc-quote that all
-        -- embedded escapes are replaced with esc-esc first.
-        if atom(quote_pair[1]) then
-            quote_pair[1] = {quote_pair[1]}
-        end if
-        if atom(quote_pair[2]) then
-            quote_pair[2] = {quote_pair[2]}
-        end if
-
-        if equal(quote_pair[1], quote_pair[2]) then
-            -- Simple case where both open and close quote are the same.
-            if match(quote_pair[1], text_in) then
-                if match(esc & quote_pair[1], text_in) then
-                    text_in = replace_all(text_in, esc, esc & esc)
-                end if
-                text_in = replace_all(text_in, quote_pair[1], esc & quote_pair[1])
-            end if
-        else
-            if match(quote_pair[1], text_in) or
-            match(quote_pair[2], text_in) then
-                if match(esc & quote_pair[1], text_in) then
-                    text_in = replace_all(text_in, esc & quote_pair[1], esc & esc & esc & quote_pair[1])
-                end if
-                text_in = replace_all(text_in, quote_pair[1], esc & quote_pair[1])
-            end if
-
-            if match(quote_pair[2], text_in) then
-                if match(esc & quote_pair[2], text_in) then
-                    text_in = replace_all(text_in, esc & quote_pair[2], esc & esc & esc & quote_pair[2])
-                end if
-                text_in = replace_all(text_in, quote_pair[2], esc & quote_pair[2])
-            end if
-        end if
-    end if
-
-    return quote_pair[1] & text_in & quote_pair[2]
-
-end function
+--/* 31/12/16: (replace_all long since deprecated)
+--  public function quote(sequence text_in, object quote_pair = {"\"", "\""}, integer esc = -1, t_text sp = "")
+--      if length(text_in)=0 then
+--          return text_in
+--      end if
+--
+--      if atom(quote_pair) then
+--          quote_pair = {{quote_pair}, {quote_pair}}
+--      elsif length(quote_pair)=1 then
+--          quote_pair = {quote_pair[1], quote_pair[1]}
+--      elsif length(quote_pair)=0 then
+--          quote_pair = {"\"", "\""}
+--      end if
+--
+--      if sequence(text_in[1]) then
+--          for i=1 to length(text_in) do
+--              if sequence(text_in[i]) then
+--                  text_in[i] = quote(text_in[i], quote_pair, esc, sp)
+--              end if
+--          end for
+--
+--          return text_in
+--      end if
+--
+--      -- Only quote the input if it contains any of the items in 'sp'
+--      for i=1 to length(sp) do
+--          if find(sp[i], text_in) then
+--              exit
+--          end if
+--
+--          if i=length(sp) then
+--              -- Contains none of them, so just return the input untouched.
+--              return text_in
+--          end if
+--      end for
+--
+--      if esc>=0  then
+--          -- If the input already contains a quote, replace them with esc-quote,
+--          -- but make sure that if the input already contains esc-quote that all
+--          -- embedded escapes are replaced with esc-esc first.
+--          if atom(quote_pair[1]) then
+--              quote_pair[1] = {quote_pair[1]}
+--          end if
+--          if atom(quote_pair[2]) then
+--              quote_pair[2] = {quote_pair[2]}
+--          end if
+--
+--          if equal(quote_pair[1], quote_pair[2]) then
+--              -- Simple case where both open and close quote are the same.
+--              if match(quote_pair[1], text_in) then
+--                  if match(esc & quote_pair[1], text_in) then
+--                      text_in = replace_all(text_in, esc, esc & esc)
+--                  end if
+--                  text_in = replace_all(text_in, quote_pair[1], esc & quote_pair[1])
+--              end if
+--          else
+--              if match(quote_pair[1], text_in) or
+--              match(quote_pair[2], text_in) then
+--                  if match(esc & quote_pair[1], text_in) then
+--                      text_in = replace_all(text_in, esc & quote_pair[1], esc & esc & esc & quote_pair[1])
+--                  end if
+--                  text_in = replace_all(text_in, quote_pair[1], esc & quote_pair[1])
+--              end if
+--
+--              if match(quote_pair[2], text_in) then
+--                  if match(esc & quote_pair[2], text_in) then
+--                      text_in = replace_all(text_in, esc & quote_pair[2], esc & esc & esc & quote_pair[2])
+--                  end if
+--                  text_in = replace_all(text_in, quote_pair[2], esc & quote_pair[2])
+--              end if
+--          end if
+--      end if
+--
+--      return quote_pair[1] & text_in & quote_pair[2]
+--
+--  end function
+--*/
 
 --**
 -- Removes 'quotation' text from the argument.
@@ -1667,7 +1668,7 @@ integer bracketed
                         if bwz!=0 and arg_list[argn]=0 then
                             argtext = ""
                         elsif binout=1 then
---/**/?                     argtext = sprintf("%b", arg_list[argn])                                     --/*
+--/**/                      argtext = sprintf("%b", arg_list[argn])                                     --/*
 --/!**!/                    argtext = sq_add(reverse(int_to_bits(arg_list[argn], 32)),'0')              --/!*
                             argtext = stdseq:reverse( convert:int_to_bits(arg_list[argn], 32)) + '0'    --*/
                             for ib=1 to length(argtext) do

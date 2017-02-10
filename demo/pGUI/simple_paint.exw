@@ -4,7 +4,8 @@
 --  Translated from simple_paint.c (included in the distribution for comparison)
 --
 --  NB not yet very well tested.
---  BUG: does not work on 64-bit (I need to get an ex.err out of 64-bit Phix before doing anything else about that)
+--  BUG: [FIXED] does not work on 64-bit (I need to get an ex.err out of 64-bit Phix before doing anything else about that)
+--  BUG: picture vanishes when zooming in too far on 64-bit..
 --  BUG: [FIXED] statusbar not visible initially, but menu entry for it checked. (it should be visible and menu entry is then fine)
 --  BUG: [FIXED] as shown in the statusbar, it does not manage to retrieve RGB values under the cursor. There are two places to be 
 --          fixed, search for {r,g,b} = peek(??). Or, more than likely, it is im_data() at fault.   [FIXED (only tested on 32 bit)]
@@ -25,6 +26,7 @@ include pGUI.e
 --#withtype Ihandln
 --#withtype imImage
 --#withtype cdCanvas
+--#withtype cdCanvan
 
 constant USE_OPENGL = 01
 constant USE_CONTEXTPLUS = 0    -- (not working [on Windows])
@@ -1333,8 +1335,7 @@ function item_print_action_cb(Ihandle item_print)
 Ihandle canvas = IupGetDialogChild(item_print, "CANVAS")
 imImage image
 string title = IupGetAttribute(IupGetDialog(item_print), "TITLE")
-
-cdCanvas print_canvas = cdCreateCanvas(CD_PRINTER, "%s -d", {title})
+cdCanvan print_canvas = cdCreateCanvas(CD_PRINTER, "%s -d", {title})
     if print_canvas=NULL then
         return IUP_DEFAULT
     end if
@@ -1809,64 +1810,64 @@ Ihandle item_zoomin, item_zoomout, item_actualsize
 Ihandle recent_menu, item_background, item_toolbox, item_zoomgrid
 Ihandle sub_menu_image, image_menu
 
-    item_new = IupItem("&New\tCtrl+N", "ACTION", Icallback("item_new_action_cb"))
+    item_new = IupMenuItem("&New\tCtrl+N", "ACTION", Icallback("item_new_action_cb"))
     IupSetAttribute(item_new, "IMAGE", "IUP_FileNew")
 
-    item_open = IupItem("&Open...\tCtrl+O", "ACTION", Icallback("item_open_action_cb"))
+    item_open = IupMenuItem("&Open...\tCtrl+O", "ACTION", Icallback("item_open_action_cb"))
     IupSetAttribute(item_open, "IMAGE", "IUP_FileOpen")
 
-    item_save = IupItem("&Save\tCtrl+S", "ACTION", Icallback("item_save_action_cb"))
+    item_save = IupMenuItem("&Save\tCtrl+S", "ACTION", Icallback("item_save_action_cb"))
     IupSetAttribute(item_save, "NAME", "ITEM_SAVE")
     IupSetAttribute(item_save, "IMAGE", "IUP_FileSave")
 
-    item_saveas = IupItem("Save &As...", "ACTION", Icallback("item_saveas_action_cb"))
+    item_saveas = IupMenuItem("Save &As...", "ACTION", Icallback("item_saveas_action_cb"))
     IupSetAttribute(item_saveas, "NAME", "ITEM_SAVEAS")
 
-    item_revert = IupItem("&Revert", "ACTION", Icallback("item_revert_action_cb"))
+    item_revert = IupMenuItem("&Revert", "ACTION", Icallback("item_revert_action_cb"))
     IupSetAttribute(item_revert, "NAME", "ITEM_REVERT")
 
-    item_pagesetup = IupItem("Page Set&up...", "ACTION", Icallback("item_pagesetup_action_cb"))
+    item_pagesetup = IupMenuItem("Page Set&up...", "ACTION", Icallback("item_pagesetup_action_cb"))
 
-    item_print = IupItem("&Print...\tCtrl+P", "ACTION", Icallback("item_print_action_cb"))
+    item_print = IupMenuItem("&Print...\tCtrl+P", "ACTION", Icallback("item_print_action_cb"))
 
-    item_exit = IupItem("E&xit", "ACTION", Icallback("item_exit_action_cb"))
+    item_exit = IupMenuItem("E&xit", "ACTION", Icallback("item_exit_action_cb"))
 
-    item_copy = IupItem("&Copy\tCtrl+C", "ACTION", Icallback("item_copy_action_cb"))
+    item_copy = IupMenuItem("&Copy\tCtrl+C", "ACTION", Icallback("item_copy_action_cb"))
     IupSetAttribute(item_copy, "NAME", "ITEM_COPY")
     IupSetAttribute(item_copy, "IMAGE", "IUP_EditCopy")
 
-    item_paste = IupItem("&Paste\tCtrl+V", "ACTION", Icallback("item_paste_action_cb"))
+    item_paste = IupMenuItem("&Paste\tCtrl+V", "ACTION", Icallback("item_paste_action_cb"))
     IupSetAttribute(item_paste, "NAME", "ITEM_PASTE")
     IupSetAttribute(item_paste, "IMAGE", "IUP_EditPaste")
 
-    item_zoomin = IupItem("Zoom &In\tCtrl++", "ACTION", Icallback("zoomin_action_cb"))
+    item_zoomin = IupMenuItem("Zoom &In\tCtrl++", "ACTION", Icallback("zoomin_action_cb"))
     IupSetAttribute(item_zoomin, "IMAGE", "IUP_ZoomIn")
 
-    item_zoomout = IupItem("Zoom &Out\tCtrl+-", "ACTION", Icallback("zoomout_action_cb"))
+    item_zoomout = IupMenuItem("Zoom &Out\tCtrl+-", "ACTION", Icallback("zoomout_action_cb"))
     IupSetAttribute(item_zoomout, "IMAGE", "IUP_ZoomOut")
 
-    item_actualsize = IupItem("&Actual Size\tCtrl+0", "ACTION", Icallback("actualsize_action_cb"))
+    item_actualsize = IupMenuItem("&Actual Size\tCtrl+0", "ACTION", Icallback("actualsize_action_cb"))
     IupSetAttribute(item_actualsize, "IMAGE", "IUP_ZoomActualSize")
 
-    item_zoomgrid = IupItem("&Zoom Grid", "ACTION", Icallback("item_zoomgrid_action_cb"))
+    item_zoomgrid = IupMenuItem("&Zoom Grid", "ACTION", Icallback("item_zoomgrid_action_cb"))
     IupSetAttribute(item_zoomgrid, "NAME", "ZOOMGRID")
     IupSetAttribute(item_zoomgrid, "VALUE", "ON")  -- default is ON
 
-    item_background = IupItem("&Background...", "ACTION", Icallback("item_background_action_cb"))
+    item_background = IupMenuItem("&Background...", "ACTION", Icallback("item_background_action_cb"))
 
-    item_toolbar = IupItem("&Toobar", "ACTION", Icallback("item_toolbar_action_cb"))
+    item_toolbar = IupMenuItem("&Toobar", "ACTION", Icallback("item_toolbar_action_cb"))
     IupSetAttribute(item_toolbar, "VALUE", "ON")   -- default is ON
 
-    item_toolbox = IupItem("&Toobox", "ACTION", Icallback("item_toolbox_action_cb"))
+    item_toolbox = IupMenuItem("&Toobox", "ACTION", Icallback("item_toolbox_action_cb"))
     IupSetAttribute(item_toolbox, "NAME", "TOOLBOXMENU")
     IupSetAttribute(item_toolbox, "VALUE", "ON")   -- default is ON
 
-    item_statusbar = IupItem("&Statusbar", "ACTION", Icallback("item_statusbar_action_cb"))
+    item_statusbar = IupMenuItem("&Statusbar", "ACTION", Icallback("item_statusbar_action_cb"))
     IupSetAttribute(item_statusbar, "VALUE", "ON")  -- default is ON
 
-    item_help = IupItem("&Help...", "ACTION", Icallback("item_help_action_cb"))
+    item_help = IupMenuItem("&Help...", "ACTION", Icallback("item_help_action_cb"))
 
-    item_about = IupItem("&About...", "ACTION", Icallback("item_about_action_cb"))
+    item_about = IupMenuItem("&About...", "ACTION", Icallback("item_about_action_cb"))
 
     recent_menu = IupMenu({})
 
@@ -1898,15 +1899,15 @@ Ihandle sub_menu_image, image_menu
                          item_toolbox,
                          item_statusbar})
     image_menu = IupMenu({
-                          IupItem("&Resize...", "ACTION", Icallback("item_resize_action_cb")),
-                          IupItem("&Mirror", "ACTION", Icallback("item_mirror_action_cb")),
-                          IupItem("&Flip", "ACTION", Icallback("item_flip_action_cb")),
-                          IupItem("&Rotate 180º", "ACTION", Icallback("item_rotate180_action_cb")),
-                          IupItem("&Rotate +90º (clock-wise)", "ACTION", Icallback("item_rotate90cw_action_cb")),
-                          IupItem("&Rotate -90º (counter-clock)", "ACTION", Icallback("item_rotate90ccw_action_cb")),
+                          IupMenuItem("&Resize...", "ACTION", Icallback("item_resize_action_cb")),
+                          IupMenuItem("&Mirror", "ACTION", Icallback("item_mirror_action_cb")),
+                          IupMenuItem("&Flip", "ACTION", Icallback("item_flip_action_cb")),
+                          IupMenuItem("&Rotate 180º", "ACTION", Icallback("item_rotate180_action_cb")),
+                          IupMenuItem("&Rotate +90º (clock-wise)", "ACTION", Icallback("item_rotate90cw_action_cb")),
+                          IupMenuItem("&Rotate -90º (counter-clock)", "ACTION", Icallback("item_rotate90ccw_action_cb")),
                           IupSeparator(),
-                          IupItem("&Negative", "ACTION", Icallback("item_negative_action_cb")),
-                          IupItem("&Brightness and Contrast...", "ACTION", Icallback("item_brightcont_action_cb"))})
+                          IupMenuItem("&Negative", "ACTION", Icallback("item_negative_action_cb")),
+                          IupMenuItem("&Brightness and Contrast...", "ACTION", Icallback("item_brightcont_action_cb"))})
     help_menu = IupMenu({
                          item_help,
                          item_about})
@@ -1998,10 +1999,12 @@ Ihandle btn_copy, btn_paste, btn_new, btn_open, btn_save, btn_zoomgrid
                        btn_new,
                        btn_open,
                        btn_save,
-                       IupSetAttributesf(IupLabel(), "SEPARATOR=VERTICAL"),
+--                     IupSetAttributesf(IupLabel(), "SEPARATOR=VERTICAL"),
+                       IupLabel(NULL, "SEPARATOR=VERTICAL"),
                        btn_copy,
                        btn_paste,
-                       IupSetAttributesf(IupLabel(), "SEPARATOR=VERTICAL"),
+--                     IupSetAttributesf(IupLabel(), "SEPARATOR=VERTICAL"),
+                       IupLabel(NULL, "SEPARATOR=VERTICAL"),
                        btn_zoomgrid})
 
     IupSetAttribute(toolbar, "MARGIN", "5x5")

@@ -11,7 +11,9 @@ namespace machine
 include std/dll.e
 include std/error.e
 public include std/memconst.e
+?"std/types0"
 include std/types.e
+?"std/types2"
 
 ifdef SAFE then
 

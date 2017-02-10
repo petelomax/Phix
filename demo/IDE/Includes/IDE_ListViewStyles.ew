@@ -1,0 +1,2684 @@
+--IDE_ListViewStyles.ew
+--original concepts borrowed from program by UNKNOWN
+
+--------------------------------------------------------------------------------
+--  Window ListViewWin
+global integer ListViewWin      ListViewWin = -1
+integer MenuEdit,MenuCol,MenuRow,TestWinMenu,MenuShow,MenuRestore,MenuHelp,MenuAbout
+integer SelectMode,SelectShowAlways,SelectEditLabels,SelectHeader,SelectSortHeader
+integer SelectScroll,SelectSel,SelectGrid,SelectCheckBox,SelectFullRow,SelectTrack
+integer SelectBkColor,SelectTextBkColor,SelectTextColor,SelectOneClick,SelectTwoClick
+integer SelectUnderlineCold,SelectUnderlineHot,SelectFlatSB,SelectDragDrop,ToColumnWin
+integer ToRowWin,GoBut,CancelBut
+integer CodeTest,AutoArrange
+
+--  Window TestLVWin
+global integer TestLVWin       TestLVWin = -1
+integer ListViewTest
+
+--Window ListViewCol
+integer ListViewCol,ColMenuEdit,ColMenuAdd,ColMenuChange,ColMenuDelete,ColMenuSep1
+integer ColMenuUp,ColMenuDown,ColMenuSep2,ColMenuRows,MenuColHelp,MenuColAbout,ColMenuDelAll
+integer PopupCol,PopupColAdd,PopupColChange,PopupColDelete,PopupColUp,PopupColDown,ColMenuSep3
+integer PopupColDeleteAll,ColumnTitle,ColumnWidth,ChkColDef,ChkColSpecific
+integer ChkColFitTitle,ChkColFitData,AddBut,ChangeBut,DeleteBut,MoveUpBut,MoveDownBut
+integer ListColOk,ColumnData,ColumnLenData,ColumnWidthData,Label2,Label3,Label1,ApplyAll
+
+--Window ListViewRows
+integer ListViewRows,RowMenuEdit,RowMenuAdd,RowMenuChange,RowMenuDelete,RowMenuSep1
+integer RowMenuUp,RowMenuDown,RowMenuSep2,RowMenuDeleteAll,RowMenuSep3,RowMenuCol
+integer PopupRow,PopupRowAdd,PopupRowChange,PopupRowDelete,PopupRowUp,PopupRowDown
+integer PopupRowDeleteAll,ListViewRowData,ListViewIconName,IconBrowse,RowAddBut
+integer RowChangeBut,RowDeleteBut,RowMoveUpBut,RowMoveDownBut,ButtonOk,ListViewLabel1
+integer ListViewLabel2,ListRowData,IconData
+
+--------------------------------------------------------------------------------
+integer ok
+integer buildDefaultData_id
+integer VOID    VOID = setLVInsert(1)    --add listview in order
+
+--Roland
+integer Twin_w, Twin_h
+Twin_w = 200
+Twin_h = 120
+sequence Twin_r
+Twin_r = repeat({},2)
+Twin_r[1] = 335+Twin_w
+Twin_r[2] = 165+Twin_h
+
+sequence colMenu        -- the list values
+colMenu = {}
+sequence colMenuLen     -- the width values
+colMenuLen = {}
+sequence rowMenu        -- the list values
+rowMenu = {}
+sequence rowMenuIcon    -- the width values
+rowMenuIcon = {}
+sequence colMenuWidth   -- selected checkBox option
+colMenuWidth = {}
+
+integer CheckWidths
+sequence columnWidths
+columnWidths = {}
+sequence theColumnTitles
+theColumnTitles = {}
+sequence printData, printIcon, printWidths, printTitles
+sequence paramSeqMode
+sequence lvItems
+
+--add some test data
+constant
+icon01 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon01.ico")),
+icon02 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon02.ico")),
+icon03 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon03.ico")),
+icon04 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon04.ico")),
+icon05 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon05.ico")),
+icon06 = addIcon(extractIcon(the_current_dir & "\\Resources\\shuttle.ico"))
+
+sequence theParam, theExParam
+sequence printParam, printExParam
+atom color, color1, color2
+--------------------------------------------------------------------------------
+procedure GenerateStatements()
+
+    printParam = theParam[2..length(theParam)]  --strip leading comma
+    printExParam = {}
+
+    if length(theExParam)>2 then
+        printExParam = theExParam[3..length(theExParam)]
+    end if
+
+    printTitles = {}
+    for i=1 to length(theColumnTitles) do
+        printTitles &= "," & "\"" & theColumnTitles[i] & "\""
+    end for
+
+    --strip the comma
+    printTitles = printTitles[2..length(printTitles)]
+
+    columnWidths = call_func(CheckWidths,{})
+
+    printWidths = {}
+    for i=1 to length(columnWidths) do
+        if i=1 then
+            printWidths &= sprint(columnWidths[i])
+        else
+            printWidths &= ", " & sprint(columnWidths[i])
+        end if
+    end for
+
+    setText(CodeTest, IDEText[814][1] & 13 & 10 & printParam  --"Style:"
+            & 13 & 10
+            & 13 & 10 & IDEText[815][1]          --"ExtExStyle:"
+            & 13 & 10 & printExParam
+            & 13 & 10
+            & 13 & 10 & IDEText[816][1]          --"Captions:"
+            & 13 & 10 & printTitles
+            & 13 & 10
+            & 13 & 10 & IDEText[817][1]          --"Title Widths:"
+            & 13 & 10 & printWidths
+            & 13 & 10
+            & 13 & 10 & IDEText[818][1]          --"Initial Data:"
+            & 13 & 10 & printData
+            & 13 & 10 & IDEText[819][1]          --"Row Icons:"
+            & 13 & 10 & printIcon)
+
+end procedure
+-------------------------------------------------------------------------------
+procedure createTestWin(integer ListViewWin, sequence theTitles)
+--TestLVWin
+    TestLVWin = createEx(Window, "",ListViewWin, 0,0,100,100,{WS_POPUP},0)
+    ListViewTest = createEx(ListView, theTitles, TestLVWin, 0, 0, 200, 120,w32or_all({LVS_REPORT,LVS_SHOWSELALWAYS}),0)
+end procedure
+--------------------------------------------------------------------------------
+procedure buildTestWin()
+integer lvItemNo, index
+object ok
+sequence theConstant, pos
+atom lvMask
+integer VOID
+
+    --destroy and rebuild the test window
+    if validId(TestLVWin) then
+        if validId(ListViewTest) then
+            destroy(ListViewTest)
+        end if
+        destroy(TestLVWin)
+        if getCount(ColumnData) then
+            theColumnTitles = {}
+            for i=1 to getCount(ColumnData) do
+                theColumnTitles &= {getItem(ColumnData,i)}
+            end for
+        end if
+
+        createTestWin(ListViewWin,theColumnTitles)
+
+        pos = ClientToScreen(ListViewWin,0,0)
+        setRect(TestLVWin, pos[1]+454, pos[2]+30,Twin_w, Twin_h, w32True)
+    end if
+    VOID = setLVInsert(1)
+
+    theConstant = {}
+    theParam = {}
+    theExParam = {}
+
+    if not getCount(ColumnData) then
+        theColumnTitles = {IDEText[820][1],IDEText[821][1]} --"Column1 Title","Column2 Title"
+    else
+        theColumnTitles = {}
+        for i=1 to getCount(ColumnData) do
+            theColumnTitles &= {getItem(ColumnData,i)}
+        end for
+    end if
+
+    index = getIndex(SelectMode)
+    theConstant = append(theConstant,paramSeqMode[index][2])
+    if paramSeqMode[index][2]=LVS_REPORT then
+        theParam &= ",LVS_REPORT"
+        --enable all checkboxes now except SelectUnderlineHot and SelectUnderlineCold
+        --  which depend upon selection of SelectOneClick or SelectTwoClick.        
+        --  if SelectOneClick or SelectTwoClick, then disable SelectEditLabels
+        --  if SelectEditLabels then disabel SelectOneClick, SelectTwoClick,
+        --      SelectUnderlineHot and SelectUnderlineCold
+        --later if user unchecked column header, disable sort headers
+        --     and header drag and drop
+        --     and enable if recheck column header
+        setEnable(SelectHeader, w32True)
+        setEnable(SelectSortHeader, w32True)
+        setEnable(SelectGrid, w32True)
+        setEnable(SelectDragDrop, w32True)
+        setEnable(SelectFullRow, w32True)
+        setEnable(SelectCheckBox, w32True)
+        setEnable(SelectUnderlineCold, w32False)
+        setEnable(SelectUnderlineHot, w32False)
+        setEnable(AutoArrange, w32False)
+        if isChecked(SelectOneClick)
+        or isChecked(SelectTwoClick) then
+            setEnable(SelectUnderlineCold, w32True)
+            setEnable(SelectUnderlineHot, w32True)
+            setEnable(SelectEditLabels, w32False)
+        else
+            setEnable(SelectUnderlineCold, w32False)
+            setEnable(SelectUnderlineHot, w32False)
+            setEnable(SelectEditLabels, w32True)
+        end if
+
+        if isChecked(SelectEditLabels) then
+            setEnable(SelectOneClick, w32False)
+            setEnable(SelectTwoClick, w32False)
+            setEnable(SelectUnderlineCold, w32False)
+            setEnable(SelectUnderlineHot, w32False)
+        else
+            setEnable(SelectOneClick, w32True)
+            setEnable(SelectTwoClick, w32True)
+            if isChecked(SelectOneClick)
+            or isChecked(SelectTwoClick) then
+                setEnable(SelectUnderlineCold, w32True)
+                setEnable(SelectUnderlineHot, w32True)
+            end if
+        end if
+
+        --enable all column width adjustments
+        setEnable(ChkColDef, w32True)
+        setEnable(ChkColSpecific, w32True)
+        setEnable(ChkColFitData, w32True)
+        setEnable(ChkColFitTitle, w32True)
+    elsif paramSeqMode[index][2]=LVS_ICON then
+        theParam &= ",LVS_ICON"
+        --disable edit labels,column headers,sort headers,grid lines,
+        --heading drag & drop,full row select
+        setEnable(SelectHeader, w32False)
+        setEnable(SelectSortHeader, w32False)
+        setEnable(SelectGrid, w32False)
+        setEnable(SelectDragDrop, w32False)
+        setEnable(SelectFullRow, w32False)
+        setEnable(SelectEditLabels, w32False)
+        setEnable(SelectCheckBox, w32True)
+        setEnable(AutoArrange, w32True)
+        if isChecked(SelectOneClick)
+        or isChecked(SelectTwoClick) then
+            setEnable(SelectUnderlineCold, w32True)
+            setEnable(SelectUnderlineHot, w32True)
+        else
+            setEnable(SelectUnderlineCold, w32False)
+            setEnable(SelectUnderlineHot, w32False)
+        end if
+
+        --disable column width adjustments
+        setEnable(ChkColDef, w32False)
+        setEnable(ChkColSpecific, w32False)
+        setEnable(ChkColFitData, w32False)
+        setEnable(ChkColFitTitle, w32False)
+    elsif paramSeqMode[index][2]=LVS_SMALLICON then
+        theParam &= ",LVS_SMALLICON"
+        --disable same as icon but also check boxes
+        setEnable(SelectHeader, w32False)
+        setEnable(SelectSortHeader, w32False)
+        setEnable(SelectGrid, w32False)
+        setEnable(SelectDragDrop, w32False)
+        setEnable(SelectFullRow, w32False)
+        setEnable(SelectEditLabels, w32False)
+        setEnable(SelectCheckBox, w32False)
+        setEnable(AutoArrange, w32True)
+        if isChecked(SelectOneClick)
+        or isChecked(SelectTwoClick) then
+            setEnable(SelectUnderlineCold, w32True)
+            setEnable(SelectUnderlineHot, w32True)
+        else
+            setEnable(SelectUnderlineCold, w32False)
+            setEnable(SelectUnderlineHot, w32False)
+        end if
+        --disable column width adjustments
+        setEnable(ChkColDef, w32True)
+        setEnable(ChkColSpecific, w32True)
+        setEnable(ChkColFitData, w32False)
+        setEnable(ChkColFitTitle, w32False)
+    else
+        theParam &= ",LVS_LIST"
+        --disable column headers,sort headers,grid lines,headers drag & drop
+        --full row select
+        setEnable(SelectHeader, w32False)
+        setEnable(SelectSortHeader, w32False)
+        setEnable(SelectGrid, w32False)
+        setEnable(SelectDragDrop, w32False)
+        setEnable(SelectFullRow, w32False)
+        setEnable(SelectCheckBox, w32True)
+        setEnable(SelectUnderlineCold, w32False)
+        setEnable(SelectUnderlineHot, w32False)
+        setEnable(AutoArrange, w32False)
+        if isChecked(SelectOneClick)
+        or isChecked(SelectTwoClick) then
+            setEnable(SelectUnderlineCold, w32True)
+            setEnable(SelectUnderlineHot, w32True)
+            setEnable(SelectEditLabels, w32False)
+        else
+            setEnable(SelectUnderlineCold, w32False)
+            setEnable(SelectUnderlineHot, w32False)
+            setEnable(SelectEditLabels, w32True)
+        end if
+
+        if isChecked(SelectEditLabels) then
+            setEnable(SelectOneClick, w32False)
+            setEnable(SelectTwoClick, w32False)
+            setEnable(SelectUnderlineCold, w32False)
+            setEnable(SelectUnderlineHot, w32False)
+        else
+            setEnable(SelectOneClick, w32True)
+            setEnable(SelectTwoClick, w32True)
+        end if
+
+        --disable column width adjustments
+        setEnable(ChkColDef, w32True)
+        setEnable(ChkColSpecific, w32True)
+        setEnable(ChkColFitData, w32False)
+        setEnable(ChkColFitTitle, w32False)
+    end if
+
+    if isChecked(SelectShowAlways) then
+        theConstant = append(theConstant,LVS_SHOWSELALWAYS)
+        theParam &= ",LVS_SHOWSELALWAYS"
+    end if
+
+    --if icon or small icon ignore
+    if isEnabled(SelectEditLabels)
+    and isChecked(SelectEditLabels) then
+        theConstant = append(theConstant,LVS_EDITLABELS)
+        theParam &= ",LVS_EDITLABELS"
+    end if
+
+    --if list, icon or small icon ignore
+    if isEnabled(SelectSortHeader)
+    and not isChecked(SelectSortHeader)then
+        theConstant = append(theConstant,LVS_NOSORTHEADER)
+        theParam &= ",LVS_NOSORTHEADER"
+    end if
+
+    --if list, icon or small icon ignore
+    if isEnabled(SelectHeader) then
+        if not isChecked(SelectHeader) then
+            theConstant = append(theConstant,LVS_NOCOLUMNHEADER)
+            theParam &= ",LVS_NOCOLUMNHEADER"
+            --also disable sort header, header drag and drop
+            setEnable(SelectDragDrop, w32False)
+            setEnable(SelectSortHeader, w32False)
+        else
+            --enable sort header, header drag and drop
+            setEnable(SelectDragDrop, w32True)
+            setEnable(SelectSortHeader, w32True)
+        end if
+    end if
+
+    if isEnabled(AutoArrange) then
+        if isChecked(AutoArrange) then
+            theConstant = append(theConstant,LVS_AUTOARRANGE)
+            theParam &= ",LVS_AUTOARRANGE"
+        end if
+    end if
+
+    --if disabled ignore
+    if isEnabled(SelectScroll)
+    and not isChecked(SelectScroll) then
+        theConstant = append(theConstant,LVS_NOSCROLL)
+        theParam &= ",LVS_NOSCROLL"
+    end if
+
+    if isChecked(SelectSel) then
+        theConstant = append(theConstant,LVS_SINGLESEL)
+        theParam &= ",LVS_SINGLESEL"
+    end if
+
+    pos = ClientToScreen(ListViewWin,0,0)--VB
+
+    --Roland
+    setCheck(MenuShow, w32True)
+
+    if length(theColumnTitles) then
+        if length(theColumnTitles)=1 then
+            setColumnHeadings(ListViewTest, {theColumnTitles[1]})
+        elsif length(theColumnTitles)=2 then
+            setColumnHeadings(ListViewTest, {theColumnTitles[1],theColumnTitles[2]})
+        else
+            setColumnHeadings(ListViewTest, theColumnTitles)
+        end if
+    end if
+
+    for i=1 to length(lvItems) do       --add row data
+        --ivItems[1] is the icon.
+        lvItemNo = addLVItem(ListViewTest, lvItems[i][1], lvItems[i][2..length(lvItems[i])])
+    end for
+
+    if isEnabled(SelectUnderlineCold)
+    and isChecked(SelectUnderlineCold) then
+        lvMask = w32or_all({LVS_EX_UNDERLINECOLD})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_UNDERLINECOLD"
+    end if
+
+    if isEnabled(SelectUnderlineHot)
+    and isChecked(SelectUnderlineHot) then
+        lvMask = w32or_all({LVS_EX_UNDERLINEHOT})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_UNDERLINEHOT"
+    end if
+
+    if isChecked(SelectTrack) then
+        lvMask = w32or_all({LVS_EX_TRACKSELECT})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_TRACKSELECT"
+    end if
+
+    if isEnabled(SelectTwoClick)
+    and isChecked(SelectTwoClick) then
+        lvMask = w32or_all({LVS_EX_TWOCLICKACTIVATE})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_TWOCLICKACTIVATE"
+    end if
+
+    if isEnabled(SelectOneClick)
+    and isChecked(SelectOneClick) then
+        lvMask = w32or_all({LVS_EX_ONECLICKACTIVATE})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_ONECLICKACTIVATE"
+    end if
+
+    if isChecked(SelectFlatSB) then
+        lvMask = w32or_all({LVS_EX_FLATSB})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= " ,LVS_EX_FLATSB"
+    end if
+
+    --if it is disabled ignore
+    if isEnabled(SelectFullRow)
+    and isChecked(SelectFullRow) then
+        lvMask = w32or_all({LVS_EX_FULLROWSELECT})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_FULLROWSELECT"
+    end if
+
+    --if list, icon or small icon ignore
+    if isEnabled(SelectDragDrop)
+    and isChecked(SelectDragDrop) then
+        lvMask = w32or_all({LVS_EX_HEADERDRAGDROP})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_HEADERDRAGDROP"
+    end if
+
+    --if small icon ignore
+    if isEnabled(SelectCheckBox)
+    and isChecked(SelectCheckBox) then
+        lvMask = w32or_all({LVS_EX_CHECKBOXES})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_CHECKBOXES"
+    end if
+
+    --if list, icon or small icon ignore
+    if isEnabled(SelectGrid)
+    and isChecked(SelectGrid) then
+        lvMask = w32or_all({LVS_EX_GRIDLINES})
+        ok = sendMessage(ListViewTest, LVM_SETEXTENDEDLISTVIEWSTYLE, lvMask, lvMask)
+        theExParam &= ", LVS_EX_GRIDLINES"
+    end if
+
+    if isChecked(SelectBkColor) then
+        ok = sendMessage(ListViewTest, LVM_SETBKCOLOR, 0, color)
+        theExParam &= ", LVM_SETBKCOLOR:" & sprint(color)
+    end if
+
+    if isChecked(SelectTextBkColor) then
+        ok = sendMessage(ListViewTest, LVM_SETTEXTBKCOLOR, 0, color1)
+        theExParam &= ", LVM_SETTEXTBKCOLOR:" & sprint(color1)
+    end if
+
+    if isChecked(SelectTextColor) then
+        ok = sendMessage(ListViewTest, LVM_SETTEXTCOLOR, 0, color2)
+        theExParam &= ", LVM_SETTEXTCOLOR:" & sprint(color2)
+    end if
+
+    for i=1 to getCount(ColumnWidthData) do
+        if equal(getItem(ColumnWidthData,i),IDEText[893][1]) then--Fit to Title
+            ok = sendMessage(ListViewTest, LVM_SETCOLUMNWIDTH, i-1, -2)
+            theExParam &= ", LVM_SETCOLUMNWIDTH:-2 Column " & sprint(i) & " OVR"
+        elsif equal(getItem(ColumnWidthData,i),IDEText[894][1]) then  --Fit to Data             
+            ok = sendMessage(ListViewTest, LVM_SETCOLUMNWIDTH, i-1, -1)
+            theExParam &= ", LVM_SETCOLUMNWIDTH:-1 Column " & sprint(i) & " OVR"
+        elsif equal(getItem(ColumnWidthData,i),IDEText[872][1]) then --Specific Width
+            --check widths again
+            columnWidths = call_func(CheckWidths,{})
+            if length(columnWidths) then
+                ok = sendMessage(ListViewTest, LVM_SETCOLUMNWIDTH, i-1, columnWidths[i])
+                theExParam &= ", LVM_SETCOLUMNWIDTH:" & sprint(columnWidths[i]) & " Column "
+                              & sprint(i) & " OVR"
+            end if
+        end if
+    end for
+
+    openWindow(TestLVWin, Normal)
+
+    GenerateStatements()
+
+    --highlight listViewWin titlebar
+    setFocus(ListViewWin)
+    MenuEditDoubleClick = w32True
+
+end procedure
+--------------------------------------------------------------------------------
+procedure loadListViewData(integer selectedControl)
+integer at
+sequence the, theColor
+
+    call_proc(buildDefaultData_id,{})
+
+    --put back style
+    setCheck(SelectEditLabels, w32False)
+    setCheck(SelectSel, w32False)
+    setCheck(AutoArrange, w32False)
+    if length(controls[selectedControl][Style]) then
+        the = controls[selectedControl][Style]
+        if match("LVS_REPORT", the) then
+            setIndex(SelectMode, 1)
+        elsif match("LVS_LIST", the) then
+            setIndex(SelectMode, 2)
+        elsif match("LVS_ICON", the) then
+            setIndex(SelectMode, 3)
+        elsif match("LVS_SMALLICON", the) then
+            setIndex(SelectMode, 4)
+        end if
+        if match("LVS_SHOWSELALWAYS", the) then
+            setCheck(SelectShowAlways, w32True)
+        else
+            setCheck(SelectShowAlways, w32False)
+        end if
+        if match("LVS_EDITLABELS", the) then
+            setCheck(SelectEditLabels, w32True)
+        else
+            setCheck(SelectEditLabels, w32False)
+        end if
+        if match("LVS_NOSORTHEADERS", the) then
+            setCheck(SelectSortHeader, w32False)
+        else
+            setCheck(SelectSortHeader, w32True)
+        end if
+        if match("LVS_NOCLUMNHEDERS", the) then
+            setCheck(SelectHeader, w32False)
+        else
+            setCheck(SelectHeader, w32True)
+        end if
+        if match("LVS_NOSCROLL", the) then
+            setCheck(SelectScroll, w32False)
+        else
+            setCheck(SelectScroll, w32True)
+        end if
+        if match("LVS_SINGLESEL", the) then
+            setCheck(SelectSel, w32True)
+        else
+            setCheck(SelectSel, w32False)
+        end if
+        if match("LVS_AUTOARRANGE", the) then
+            setCheck(AutoArrange, w32True)
+        else
+            setCheck(AutoArrange, w32False)
+        end if
+    end if
+
+    --put back extended style
+    setCheck(SelectUnderlineCold, w32False)
+    setCheck(SelectUnderlineHot, w32False)
+    setCheck(SelectTrack, w32False)
+    setCheck(SelectTwoClick, w32False)
+    setCheck(SelectOneClick, w32False)
+    setCheck(SelectFlatSB, w32False)
+    setCheck(SelectFullRow, w32False)
+    setCheck(SelectDragDrop, w32False)
+    setCheck(SelectCheckBox, w32False)
+    setCheck(SelectGrid, w32False)
+    setCheck(SelectBkColor, w32False)
+    setCheck(SelectTextBkColor, w32False)
+    setCheck(SelectTextColor, w32False)
+    setCheck(ChkColDef, w32True)
+    setCheck(ChkColSpecific, w32False)
+    setCheck(ChkColFitTitle, w32False)
+    setCheck(ChkColFitData, w32False)
+
+    if length(controls[selectedControl][ExtExStyle]) then
+        for i=1 to length(controls[selectedControl][ExtExStyle]) do
+            the = controls[selectedControl][ExtExStyle][i]
+            if match("LVS_EX_UNDERLINECOLD", the) then
+                setCheck(SelectUnderlineCold, w32True)
+            end if
+            if match("LVS_EX_UNDERLINEHOT", the) then
+                setCheck(SelectUnderlineHot, w32True)
+            end if
+            if match("LVS_EX_TRACKSELECT", the) then
+                setCheck(SelectTrack, w32True)
+            end if
+            if match("LVS_EX_TWOCLICKACTIVATE", the) then
+                setCheck(SelectTwoClick, w32True)
+            end if
+            if match("LVS_EX_ONECLICKACTIVATE", the) then
+                setCheck(SelectOneClick, w32True)
+            end if
+            if match("LVS_EX_FLATSB", the) then
+                setCheck(SelectFlatSB, w32True)
+            end if
+            if match("LVS_EX_FULLROWSELECT", the) then
+                setCheck(SelectFullRow, w32True)
+            end if
+            if match("LVS_EX_HEADERDRAGDROP", the) then
+                setCheck(SelectDragDrop, w32True)
+            end if
+            if match("LVS_EX_CHECKBOXES", the) then
+                setCheck(SelectCheckBox, w32True)
+            end if
+            if match("LVS_EX_GRIDLINES", the) then
+                setCheck(SelectGrid, w32True)
+            end if
+            if match("LVM_SETBKCOLOR", the) then
+                setCheck(SelectBkColor, w32True)
+                --parse for the color
+                at = match(":", the)
+                if at then
+                    theColor = the[at+1..length(the)]
+                    theColor = value(theColor)
+                    if theColor[1]=GET_SUCCESS then
+                        color = theColor[2]
+                    end if
+                end if
+            end if
+            if match("LVM_SETTEXTBKCOLOR", the) then
+                setCheck(SelectTextBkColor, w32True)
+                --parse for the color
+                at = match(":", the)
+                if at then
+                    theColor = the[at+1..length(the)]
+                    theColor = value(theColor)
+                    if theColor[1]=GET_SUCCESS then
+                        color1 = theColor[2]
+                    end if
+                end if
+            end if
+            if match("LVM_SETTEXTCOLOR", the) then
+                setCheck(SelectTextColor, w32True)
+                --parse for the color
+                at = match(":", the)
+                if at then
+                    theColor = the[at+1..length(the)]
+                    theColor = value(theColor)
+                    if theColor[1]=GET_SUCCESS then
+                        color2 = theColor[2]
+                    end if
+                end if
+            end if
+
+            if match("LVM_SETCOLUMNWIDTH", the) then
+                --parse for length values to know which one above to setCheck
+                at = match(":", the)
+                if at then
+                    theColor = the[at+1..length(the)]
+                    if match("-1", theColor)
+                    and match("OVR", theColor) then
+                    elsif match("-2", theColor)
+                      and match("OVR", theColor) then
+                    elsif match("OVR", theColor) then
+                    end if
+                end if
+            end if
+        end for
+    end if
+
+    --look at controls[selectedControl][SelectWidth] to discover the
+    --individual column settings.
+    --build listbox
+    the = controls[selectedControl]
+    colMenuWidth = {}
+    eraseItems(ColumnWidthData)
+    if not length(the[SelectWidth]) then
+        setCheck(ChkColDef, w32True)
+        colMenuWidth &= {IDEText[822][1]}   --"Default"
+        addItem(ColumnWidthData,IDEText[822][1])  --"Default"
+    end if
+
+    for j=1 to length(the[SelectWidth]) do
+        --individual column selection in column order; there is always an entry
+        if equal(the[SelectWidth][j], IDEText[822][1]) then --"Default"
+            colMenuWidth &= {IDEText[822][1]}                 --"Default"
+            addItem(ColumnWidthData,IDEText[822][1])          --"Default"
+        elsif equal(the[SelectWidth][j], IDEText[825][1]) then --"Specific"
+            colMenuWidth &= {IDEText[872][1]}                    --"Specific Width"
+            addItem(ColumnWidthData,IDEText[872][1])             --"Specific Width"
+        elsif equal(the[SelectWidth][j], IDEText[872][1]) then --"Specific Width"
+            colMenuWidth &= {IDEText[872][1]}                    --"Specific Width"
+            addItem(ColumnWidthData,IDEText[872][1])             --"Specific Width"
+        elsif equal(the[SelectWidth][j], IDEText[823][1]) then  --"Fit Title"
+            colMenuWidth &= {IDEText[893][1]}                     --"Fit to Title"
+            addItem(ColumnWidthData,IDEText[893][1])              --"Fit to Title"
+        elsif equal(the[SelectWidth][j], IDEText[893][1]) then  --"Fit to Title"
+            colMenuWidth &= {IDEText[893][1]}                     --"Fit to Title"
+            addItem(ColumnWidthData,IDEText[893][1])              --"Fit to Title"
+        elsif equal(the[SelectWidth][j], IDEText[824][1]) then  --"Fit Data"
+            colMenuWidth &= {IDEText[894][1]}                     --"Fit Data"
+            addItem(ColumnWidthData,IDEText[894][1])              --"Fit Data"
+        elsif equal(the[SelectWidth][j], IDEText[894][1]) then  --"Fit to Data"
+            colMenuWidth &= {IDEText[894][1]}                     --"Fit to Data"
+            addItem(ColumnWidthData,IDEText[894][1])              --"Fit to Data"    
+        end if
+    end for
+
+    --put back titles
+    if length(controls[selectedControl][Title]) then
+        theColumnTitles = controls[selectedControl][Title]
+
+        --remove front and back "
+        at = match("\"",theColumnTitles)
+        if at=1 then
+            theColumnTitles = theColumnTitles[2..length(theColumnTitles)]
+        end if
+        theColumnTitles = reverse(theColumnTitles)
+        at = match("\"",theColumnTitles)
+        if at=1 then
+            theColumnTitles = theColumnTitles[2..length(theColumnTitles)]
+        end if
+        theColumnTitles = reverse(theColumnTitles)
+
+        --find "," in theColumnTitles and rebuild ColumnData
+        eraseItems(ColumnData)
+        eraseItems(ColumnLenData)
+        colMenu = {}
+        colMenuLen = {}
+        at = match("\",\"", theColumnTitles)
+        if at then
+            addItem(ColumnData,theColumnTitles[1..at-1])
+            addItem(ColumnLenData,"0")
+            colMenu &= {theColumnTitles[1..at-1]}
+            colMenuLen &= {"0"}
+            if getCount(ColumnData)>getCount(ColumnWidthData) then
+                colMenuWidth &= {IDEText[822][1]}         --"Default"
+                addItem(ColumnWidthData,IDEText[822][1])  --"Default"
+            end if
+            theColumnTitles = theColumnTitles[at+3..length(theColumnTitles)]
+            while at do
+                at = match("\",\"", theColumnTitles)
+                if at then
+                    addItem(ColumnData,theColumnTitles[1..at-1])
+                    addItem(ColumnLenData,"0")
+                    colMenu &= {theColumnTitles[1..at-1]}
+                    colMenuLen &= {"0"}
+                    theColumnTitles = theColumnTitles[at+3..length(theColumnTitles)]
+                else
+                    if length(theColumnTitles) then
+                        addItem(ColumnData, theColumnTitles)
+                        addItem(ColumnLenData,"0")
+                        colMenu &= {theColumnTitles}
+                        colMenuLen &= {"0"}
+                    end if
+                end if
+                if getCount(ColumnData)>getCount(ColumnWidthData) then
+                    colMenuWidth &= {IDEText[822][1]}        --"Default"
+                    addItem(ColumnWidthData,IDEText[822][1]) --"Default"
+                end if
+            end while
+        else
+            if length(theColumnTitles) then
+                addItem(ColumnData, theColumnTitles)
+                addItem(ColumnLenData, "0")
+                colMenu &= {theColumnTitles}
+                colMenuLen &= {"0"}
+                if getCount(ColumnData)>getCount(ColumnWidthData) then
+                    colMenuWidth &= {IDEText[822][1]}              --"Default"
+                    addItem(ColumnWidthData,IDEText[822][1])       --"Default"
+                end if
+            end if
+        end if
+    else
+        if length(theColumnTitles) then
+            if getCount(ColumnData)>getCount(ColumnWidthData) then
+                colMenuWidth &= {IDEText[822][1]}                       --"Default"
+                addItem(ColumnWidthData,IDEText[822][1])                --"Default"
+            end if
+        end if
+    end if
+    theColumnTitles = controls[selectedControl][Title]
+
+    --parse the lengths and put back into ColumnLenData
+    printWidths = controls[selectedControl][WidthTitle]
+    if length(printWidths) then
+        eraseItems(ColumnLenData)
+        colMenuLen = {}
+        at = match(", ",printWidths)
+        if at then
+            addItem(ColumnLenData, printWidths[1..at-1])
+            colMenuLen &= {printWidths[1..at-1]}
+            printWidths = printWidths[at+2..length(printWidths)]
+            while at do
+                at = match(", ",printWidths)
+                if at then
+                    addItem(ColumnLenData, printWidths[1..at-1])
+                    colMenuLen &= {printWidths[1..at-1]}
+                    printWidths = printWidths[at+2..length(printWidths)]
+                else
+                    if length(printWidths) then
+                        addItem(ColumnLenData, printWidths)
+                        colMenuLen &= {printWidths}
+                    end if
+                end if
+            end while
+        else
+            if length(printWidths) then
+                addItem(ColumnLenData, printWidths)
+                colMenuLen &= {printWidths}
+            end if
+        end if
+    end if
+    printWidths = controls[selectedControl][WidthTitle]
+
+    --put back row data
+    eraseItems(ListRowData)
+    rowMenu = {}
+    eraseItems(IconData)
+    rowMenuIcon = {}
+    if length(controls[selectedControl][InitialVal]) then
+        for i=1 to length(controls[selectedControl][InitialVal]) do
+            addItem(ListRowData,controls[selectedControl][InitialVal][i])
+            addItem(IconData," ")
+            rowMenu &= {controls[selectedControl][InitialVal][i]}
+            rowMenuIcon &= {" "}
+        end for
+    end if
+
+    --put back icon data
+    if length(controls[selectedControl][IcoFile]) then
+        eraseItems(IconData)
+        rowMenuIcon = {}
+        for i=1 to length(controls[selectedControl][IcoFile]) do
+            addItem(IconData,controls[selectedControl][IcoFile][i])
+            rowMenuIcon &= {controls[selectedControl][IcoFile][i]}
+        end for
+    end if
+
+    if length(controls[selectedControl][InitialVal])
+    or length(controls[selectedControl][IcoFile]) then
+        ok = invokeHandler(ButtonOk, w32HClick,{})
+    else
+        printData = {}
+        printIcon = {}
+        buildTestWin()
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewWin_Event(integer self, integer event, sequence params)
+sequence pos
+--Roland
+sequence MPos, info
+
+    if params[1]=WM_MOVE then
+        --move the test window also
+        pos = ClientToScreen(ListViewWin,0,0)--VB
+        --Roland
+        setRect(TestLVWin, pos[1]+454, pos[2]+30,Twin_w, Twin_h, w32True)  --VB
+    end if
+    if params[1]=WM_NCACTIVATE then
+        --martin to prevent deactiv. of TitleBar after menu dbl click
+        if params[2]=0 and MenuEditDoubleClick then-- being deactivated?
+            returnValue(w32False) -- just say no :)
+            MenuEditDoubleClick = w32False
+        end if
+    end if
+    --Roland
+    info = getControlInfo(TestLVWin, {CONTROLINFO_closed})
+    if info[1] then
+       -- TestLVWin is closed, don't measure
+        return
+    end if
+
+    if params[1]=WM_MOUSEMOVE then
+        MPos = getPointerRelPos(ListViewWin) -- x, y in Window
+        if MPos[1]<Twin_r[1]+4 and MPos[1]>Twin_r[1]-16 and MPos[2]>165 and MPos[2]<Twin_r[2] then
+            setMousePointer(ListViewWin, SizeWEPointer)
+        else
+            setMousePointer(ListViewWin, NULL)
+        end if
+
+        if mouseDown then
+            pos = ClientToScreen(ListViewWin,0,0)--VB
+
+        end if
+
+    elsif params[1]=WM_LBUTTONDOWN then
+        info = getControlInfo(ListViewWin, {CONTROLINFO_cursor})
+        if length(info[1])>1 then
+            mouseDown = w32True
+            captureMouse(ListViewWin)
+        end if
+
+    elsif params[1]=WM_LBUTTONUP then
+        if mouseDown then
+            mouseDown = w32False
+            MPos = getPointerRelPos(ListViewWin)
+            Twin_w += MPos[1]-Twin_r[1]
+            Twin_r[1] = MPos[1]
+
+            pos = ClientToScreen(ListViewWin,0,0)--VB          
+            setRect(TestLVWin, pos[1]+454, pos[2]+30,Twin_w, Twin_h, w32True)  --VB
+            setRect(ListViewTest, pos[1]+330, pos[2]+30, Twin_w, Twin_h, w32True)  --VB 
+            releaseMouse()
+            buildTestWin()
+        end if
+       --end Roland
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewWin_Close()
+    closeWindow(TestLVWin)
+    closeWindow(ListViewRows)
+    closeWindow(ListViewCol)
+    closeWindow(ListViewWin)
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewWin_Open(integer self, integer event, sequence params)
+
+    mouseDown = w32False
+
+    --if ListView currently in Properties use it
+    if equal(controls[selectedControl][Class], "ListView") then
+        --get existing data
+        loadListViewData(selectedControl)
+        buildTestWin()
+    else
+        eraseItems(ListRowData)
+        rowMenu = {}
+        eraseItems(IconData)
+        rowMenuIcon = {}
+
+        call_proc(buildDefaultData_id,{})
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewWin_Resize(integer self, integer event, sequence params)
+        --increase the list box
+    setRect(CodeTest, 4, 348, params[2]-4, params[3]-4-344, w32True)
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuCol_Click(integer self, integer event, sequence params)
+    openWindow(ListViewCol, Normal)
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuRow_Click(integer self, integer event, sequence params)
+    openWindow(ListViewRows, Normal)
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuShow_Click(integer self, integer event, sequence params)
+    setCheck(MenuShow, (not isChecked(MenuShow)))
+    setVisible(TestLVWin, isChecked(MenuShow))
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuRestore_Click(integer self, integer event, sequence params)
+    --RS
+    Twin_w = 200
+    Twin_h = 120
+    Twin_r[1] = 335+Twin_w
+    Twin_r[2] = 165+Twin_h
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuAbout_Click(integer self, integer event, sequence params)
+integer ok
+
+    ok = displayErrorMessage(177,{})
+
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectMode_Change(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectShowAlways_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectBkColor_Click(integer self, integer event, sequence params)
+    if isChecked(SelectBkColor) then
+        color = getColorDialog(ListViewWin, BrightWhite)
+    end if
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectEditLabels_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectTextBkColor_Click(integer self, integer event, sequence params)
+    if isChecked(SelectTextBkColor) then
+        color1 = getColorDialog(ListViewWin, BrightWhite)
+    end if
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectHeader_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectTextColor_Click(integer self, integer event, sequence params)
+    if isChecked(SelectTextColor) then
+        color2 = getColorDialog(ListViewWin, BrightWhite)
+    end if
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectSortHeader_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectOneClick_Click(integer self, integer event, sequence params)
+    if isChecked(SelectOneClick) then
+        setCheck(SelectTwoClick, w32False)
+    end if
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectScroll_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure AutoArrange_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectTwoClick_Click(integer self, integer event, sequence params)
+    if isChecked(SelectTwoClick) then
+        setCheck(SelectOneClick, w32False)
+    end if
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectSel_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectUnderlineCold_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectGrid_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectUnderlineHot_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectCheckBox_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectFlatSB_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectFullRow_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectDragDrop_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectTrack_Click(integer self, integer event, sequence params)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure ToRowWin_Click(integer self, integer event, sequence params)
+    MenuRow_Click(MenuRow, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure ToRowWin_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        ToRowWin_Click(ToRowWin, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure GoBut_Click(integer self, integer event, sequence params)
+integer ok
+
+    GenerateStatements()
+
+    if not equal(controls[selectedControl][Class], "ListView") then
+        ok = displayErrorMessage(179,{})
+        return
+    end if
+    controls[selectedControl][Style] = printParam
+    controls[selectedControl][ExtExStyle] = {}
+    while length(printExParam) do
+        ok = match(", ",printExParam)
+        if not ok then
+            controls[selectedControl][ExtExStyle] &= {printExParam}
+            exit
+        end if
+        controls[selectedControl][ExtExStyle] &= {printExParam[1..ok-1]}
+        printExParam = printExParam[ok+2..length(printExParam)]
+    end while
+    controls[selectedControl][Title] = printTitles
+    controls[selectedControl][WidthTitle] = printWidths
+    controls[selectedControl][SelectWidth] = {}
+
+    for i=1 to getCount(ColumnWidthData) do
+        controls[selectedControl][SelectWidth] &= {getItem(ColumnWidthData,i)}
+    end for
+    controls[selectedControl][InitialVal] = {}
+    for i=1 to getCount(ListRowData) do
+        controls[selectedControl][InitialVal] &= {getItem(ListRowData,i)}
+    end for
+    controls[selectedControl][IcoFile] = {}
+    if getCount(IconData) then
+        for i=1 to getCount(IconData) do
+            controls[selectedControl][IcoFile] &= {getItem(IconData,i)}
+        end for
+    end if
+    ListViewWin_Close()
+    call_proc(updateProperties_id,{}) --this isn't really needed but it does allow IDE main window
+                                                                  --to be reshown               
+    drawControl(ControlBlit, controls[selectedControl], Normal, selectedControl, 0)
+    bitBlt(Design, 0, 0, ControlBlit,0,0,gridX,gridY,SRCCOPY)
+
+end procedure
+--------------------------------------------------------------------------------
+procedure GoBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        GoBut_Click(GoBut, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure CancelBut_Click(integer self, integer event, sequence params)
+    ListViewWin_Close()
+
+    call_proc(updateProperties_id,{})
+end procedure
+--------------------------------------------------------------------------------
+procedure CancelBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        CancelBut_Click(CancelBut, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ToColumnWin_Click(integer self, integer event, sequence params)
+    MenuCol_Click(MenuCol, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure ToColumnWin_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        ToColumnWin_Click(ToColumnWin, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+constant LB_GETITEMHEIGHT = #01A1,
+         LB_GETTOPINDEX = #018E
+
+integer is_changedCol
+is_changedCol = w32False       --flag w32True when any changes have been made and check this
+                        --if user close editor without saving                                         
+----------------------------------------------------------------------------- 
+procedure updateInitialColList(integer index)
+
+sequence text
+
+    -- erase the list 
+    eraseItems(ColumnData)
+
+    for i=1 to length(colMenu) do
+
+        -- build the text
+        text = colMenu[i]
+
+        -- add to list
+        addItem(ColumnData, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(ColumnData, index)
+    end if
+
+end procedure
+-----------------------------------------------------------------------
+procedure updateInitialColListLen(integer index)
+
+sequence text
+
+    -- erase the list 
+    eraseItems(ColumnLenData)
+
+    for i=1 to length(colMenuLen) do
+
+        -- build the text
+        text = colMenuLen[i]
+
+        -- add to list if have a title
+        addItem(ColumnLenData, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(ColumnLenData, index)
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure updateInitialColListWidth(integer index)
+
+sequence text
+
+    -- erase the list 
+    eraseItems(ColumnWidthData)
+
+    for i=1 to length(colMenuWidth) do
+
+        -- build the text
+        text = colMenuWidth[i]
+
+        -- add to list if have a title
+        addItem(ColumnWidthData, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(ColumnWidthData, index)
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewCol_Open(integer self, integer event, sequence params)
+    setText(ColumnTitle,"")
+    setText(ColumnWidth,"")
+    setFocus(ColumnTitle)
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewCol_Resize(integer self, integer event, sequence params)
+integer style, cx, cy
+sequence size
+
+    style   = params[1]
+    cx      = params[2]
+    cy      = params[3]
+
+    size = getRect(ListViewCol)
+    --place buttons
+    setRect(AddBut, cx-88, 84, 88, 28, w32True)
+    setRect(ChangeBut, cx-88, 116, 88, 28, w32True)
+    setRect(DeleteBut, cx-88, 148, 88, 28, w32True)
+    setRect(MoveUpBut, cx-88, 180, 88, 28, w32True)
+    setRect(MoveDownBut, cx-88, 212, 88, 28, w32True)
+    setRect(ListColOk, cx-88, 244, 88, 28, w32True)
+
+    --move radio, checkbox and width data
+    setRect(ChkColDef, cx-212,0,152,16, w32True)
+    setRect(ChkColSpecific, cx-212,16,152,16, w32True)
+    setRect(ChkColFitTitle, cx-212,32,152,16, w32True)
+    setRect(ChkColFitData, cx-212,48,152,16, w32True)
+    setRect(ApplyAll,cx-212,64,300,20, w32True)
+    setRect(ColumnWidthData, cx-12-112-88-8,84,125,(cy-52)-68,w32True)
+
+    --move length label and data
+    setRect(Label3, cx-4-84-112-88-18, 24, 84, 20, w32True)
+    setRect(ColumnWidth, cx-27-44-112-88-12-8, 44, 44, 20, w32True)
+    setRect(ColumnTitle, 4, 44, cx-71-24-4-88-112, 20, w32True)
+    setRect(ColumnLenData, cx-19-44-112-88-8-5, 84, 44, (cy-52)-68, w32True)
+    setRect(ColumnData, 4, 84, cx-63-24-4-88-112, (cy-52)-68, w32True)
+    setRect(Label1, 8, cy-35, 524, 24, w32True)
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ColMenuAdd_Click(integer self, integer event, sequence params)
+    if length(getText(ColumnTitle)) then
+        addItem(ColumnData,getText(ColumnTitle))
+        colMenu &= {getText(ColumnTitle)}
+        setText(ColumnTitle,"")
+
+        if length(getText(ColumnWidth))
+        and isChecked(ChkColSpecific) then
+            addItem(ColumnLenData,sprint(getNumber(ColumnWidth)))
+        else
+            addItem(ColumnLenData, "0")
+            setText(ColumnWidth, "0")
+        end if
+
+        colMenuLen &= {sprint(getNumber(ColumnWidth))}
+
+        if isChecked(ChkColFitData) then
+            addItem(ColumnWidthData, IDEText[894][1])       --"Fit to Data"
+            colMenuWidth &= {IDEText[894][1]}               --"Fit to Data"
+        elsif isChecked(ChkColSpecific) then
+            addItem(ColumnWidthData, IDEText[872][1])       --"Specific Width"
+            colMenuWidth &= {IDEText[872][1]}               --"Specific Width"
+        elsif isChecked(ChkColFitTitle) then
+            addItem(ColumnWidthData, IDEText[893][1])       --"Fit to Title"
+            colMenuWidth &= {IDEText[893][1]}               --"Fit to Title"
+        else
+            addItem(ColumnWidthData, IDEText[822][1])       --"Default"
+            colMenuWidth &= {IDEText[822][1]}               --"Default"
+        end if
+
+    end if
+
+    setText(ColumnWidth,"")
+    setFocus(ColumnTitle)
+
+    -- update the lists
+    updateInitialColList(getCount(ColumnData))
+    updateInitialColListLen(getCount(ColumnLenData))
+    updateInitialColListWidth(getCount(ColumnWidthData))
+    is_changedCol = w32True
+end procedure
+--------------------------------------------------------------------------------
+procedure ColMenuChange_Click(integer self, integer event, sequence params)
+integer index
+
+-- is there an item selected?
+    index = getIndex(ColumnData)
+    if index>0
+    and length(getText(ColumnTitle)) then
+        colMenu[index] = {getText(ColumnTitle)}
+        if not isChecked(ChkColSpecific) then
+            setText(ColumnWidth,"0")
+        end if
+        -- update the list
+        updateInitialColList(index)
+
+        colMenuLen[index] = {sprint(getNumber(ColumnWidth))}
+        updateInitialColListLen(index)
+
+        if isChecked(ChkColFitData) then
+            colMenuWidth[index] = IDEText[894][1]         --"Fit to Data"
+        elsif isChecked(ChkColSpecific) then
+            colMenuWidth[index] = IDEText[872][1]         --"Specific Width"
+        elsif isChecked(ChkColFitTitle) then
+            colMenuWidth[index] = IDEText[893][1]         --"Fit to Title"
+        else
+            colMenuWidth[index] = IDEText[822][1]         --"Default"
+        end if
+        updateInitialColListWidth(index)
+    end if
+    setText(ColumnTitle,"")
+    setText(ColumnWidth,"")
+end procedure
+--------------------------------------------------------------------------------
+procedure ColMenuDelete_Click(integer self, integer event, sequence params)
+integer index, ok
+
+-- is there an item selected?
+    index = getIndex(ColumnData)
+    if index>0 then
+        ok = deleteItem(ColumnData, index)
+        colMenu = colMenu[1..index-1] & colMenu[index+1..length(colMenu)]
+        ok = deleteItem(ColumnLenData, index)
+        colMenuLen = colMenuLen[1..index-1] & colMenuLen[index+1..length(colMenuLen)]
+        ok = deleteItem(ColumnWidthData, index)
+        colMenuWidth = colMenuWidth[1..index-1] & colMenuWidth[index+1..length(colMenuWidth)]
+        -- update the list
+        updateInitialColList(index-1)
+        updateInitialColListLen(index-1)
+        updateInitialColListWidth(index-1)
+        is_changedCol = w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ColMenuUp_Click(integer self, integer event, sequence params)
+-- move a item up
+sequence s, s1, s2
+integer index
+
+-- is there an item selected?
+    index = getIndex(ColumnData)
+    if index>1 then
+
+        -- swap
+        s = colMenu[index-1]
+        s1 = colMenuLen[index-1]
+        s2 = colMenuWidth[index-1]
+        colMenu[index-1] = colMenu[index]
+        colMenuLen[index-1] = colMenuLen[index]
+        colMenuWidth[index-1] = colMenuWidth[index]
+        colMenu[index] = s
+        colMenuLen[index] = s1
+        colMenuWidth[index] = s2
+
+        is_changedCol = w32True
+
+        -- update the list
+        updateInitialColList(index-1)
+        updateInitialColListLen(index-1)
+        updateInitialColListWidth(index-1)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ColMenuDown_Click(integer self, integer event, sequence params)
+-- move a item down
+sequence s, s1, s2
+integer index
+
+-- is there an item selected? 
+    index = getIndex(ColumnData)
+    if index>0
+    and index<length(colMenu) then
+
+        -- swap 
+        s = colMenu[index+1]
+        s1 = colMenuLen[index+1]
+        s2 = colMenuWidth[index+1]
+        colMenu[index+1] = colMenu[index]
+        colMenuLen[index+1] = colMenuLen[index]
+        colMenuWidth[index+1] = colMenuWidth[index]
+        colMenu[index] = s
+        colMenuLen[index] = s1
+        colMenuWidth[index] = s2
+
+        is_changedCol = w32True
+
+        -- update the list 
+        updateInitialColList(index+1)
+        updateInitialColListLen(index+1)
+        updateInitialColListWidth(index+1)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ColMenuDelAll_Click(integer self, integer event, sequence params)
+    eraseItems(ColumnData)
+    eraseItems(ColumnLenData)
+    eraseItems(ColumnWidthData)
+    colMenu = {}
+    colMenuLen = {}
+    colMenuWidth = {}
+end procedure
+--------------------------------------------------------------------------------
+procedure ColMenuRows_Click(integer self, integer event, sequence params)
+    openWindow(ListViewRows, Normal)
+end procedure
+--------------------------------------------------------------------------------
+procedure MenuColAbout_Click(integer self, integer event, sequence params)
+integer ok
+
+    ok = displayErrorMessage(180,{})
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ColumnTitle_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        if length(getText(ColumnTitle)) then
+            addItem(ColumnData,getText(ColumnTitle))
+            colMenu &= {getText(ColumnTitle)}
+            setText(ColumnTitle,"")
+            if not length(sprint(getNumber(ColumnWidth))) then
+                setText(ColumnWidth,"0")
+            end if
+            addItem(ColumnLenData,sprint(getNumber(ColumnWidth)))
+            colMenuLen &= {sprint(getNumber(ColumnWidth))}
+            setText(ColumnWidth,"")
+            if isChecked(ChkColFitData) then
+                addItem(ColumnWidthData, IDEText[894][1])        --"Fit to Data"
+                colMenuWidth &= {IDEText[894][1]}                --"Fit to Data"
+            elsif isChecked(ChkColSpecific) then
+                addItem(ColumnWidthData, IDEText[872][1])        --"Specific Width"
+                colMenuWidth &= {IDEText[872][1]}                --"Specific width"
+            elsif isChecked(ChkColFitTitle) then
+                addItem(ColumnWidthData, IDEText[893][1])        --"Fit to Title"
+                colMenuWidth &= {IDEText[893][1]}                --"Fit to Title"
+            else
+                addItem(ColumnWidthData, IDEText[822][1])        --"Default"
+                colMenuWidth &= {IDEText[822][1]}                --"Default"
+            end if
+        end if
+        -- update the list
+        updateInitialColList(getCount(ColumnData))
+        updateInitialColListLen(getCount(ColumnLenData))
+        updateInitialColListWidth(getCount(ColumnWidthData))
+        is_changedCol = w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ColumnWidth_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        if length(sprint(getText(ColumnTitle))) then
+            addItem(ColumnData,getText(ColumnTitle))
+            colMenu &= {getText(ColumnTitle)}
+            setText(ColumnTitle,"")
+            if not length(sprint(getNumber(ColumnWidth))) then
+                setText(ColumnWidth,"0")
+            end if
+            addItem(ColumnLenData,sprint(getNumber(ColumnWidth)))
+            colMenuLen &= {sprint(getNumber(ColumnWidth))}
+            setText(ColumnWidth,"")
+
+            if isChecked(ChkColFitData) then
+                addItem(ColumnWidthData, IDEText[894][1])       --"Fit to Data"
+                colMenuWidth &= {IDEText[894][1]}               --"Fit to Data"
+            elsif isChecked(ChkColSpecific) then
+                addItem(ColumnWidthData, IDEText[872][1])       --"Specific Width"
+                colMenuWidth &= {IDEText[872][1]}               --"Specific Width"
+            elsif isChecked(ChkColFitTitle) then
+                addItem(ColumnWidthData, IDEText[893][1])       --"Fit to Title"
+                colMenuWidth &= {IDEText[893][1]}               --"Fit to Title"
+            else
+                addItem(ColumnWidthData, IDEText[822][1])       --"Default"
+                colMenuWidth &= {IDEText[822][1]}               --"Default"
+            end if
+            setFocus(ColumnTitle)
+        end if
+        -- update the list
+        updateInitialColList(getCount(ColumnData))
+        updateInitialColListLen(getCount(ColumnLenData))
+        updateInitialColListWidth(getCount(ColumnWidthData))
+        is_changedCol = w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ChkColSpecific_Click(integer self, integer event, sequence params)
+integer ok
+
+    if isChecked(ChkColSpecific) then
+        columnWidths = call_func(CheckWidths,{})
+        if not length(columnWidths) then
+            ok = displayErrorMessage(178,{})
+        end if
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure AddBut_Click(integer self, integer event, sequence params)
+    ColMenuAdd_Click(ColMenuAdd, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure AddBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        ColMenuAdd_Click(ColMenuAdd, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ChkApplyAll_Click(integer self, integer event, sequence params)
+    if isChecked(ApplyAll) then
+        if isChecked(ChkColDef) then
+            for i=1 to getCount(ColumnWidthData) do
+                VOID = deleteItem(ColumnWidthData,i)
+                VOID = insertItem(ColumnWidthData,IDEText[822][1],i)
+                VOID = deleteItem(ColumnLenData,i)
+                VOID = insertItem(ColumnLenData,"0",i)
+            end for
+        elsif isChecked(ChkColSpecific) then
+            for i=1 to getCount(ColumnWidthData) do
+                VOID = deleteItem(ColumnWidthData,i)
+                VOID = insertItem(ColumnWidthData,IDEText[872][1],i)
+                if length(getText(ColumnWidth)) then
+                    VOID = deleteItem(ColumnLenData,i)
+                    VOID = insertItem(ColumnLenData,getText(ColumnWidth),i)
+                end if
+            end for
+        elsif isChecked(ChkColFitTitle) then
+            for i=1 to getCount(ColumnWidthData) do
+                VOID = deleteItem(ColumnWidthData,i)
+                VOID = insertItem(ColumnWidthData,IDEText[893][1],i)
+                VOID = deleteItem(ColumnLenData,i)
+                VOID = insertItem(ColumnLenData,"0",i)
+            end for
+        elsif isChecked(ChkColFitData) then
+            for i=1 to getCount(ColumnWidthData) do
+                VOID = deleteItem(ColumnWidthData,i)
+                VOID = insertItem(ColumnWidthData,IDEText[894][1],i)
+                VOID = deleteItem(ColumnLenData,i)
+                VOID = insertItem(ColumnLenData,"0",i)
+            end for
+        end if
+        setCheck(ApplyAll,w32False)
+    end if
+end procedure
+-----------------------------------------------------------------------------------
+procedure ColumnData_Change(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(ColumnData)
+
+    setText(ColumnTitle, getItem(ColumnData, index))
+    setText(ColumnWidth, getItem(ColumnLenData, index))
+    setCheck(ChkColDef, w32False)
+    setCheck(ChkColSpecific, w32False)
+    setCheck(ChkColFitTitle, w32False)
+    setCheck(ChkColFitData, w32False)
+    if equal(getItem(ColumnWidthData,index), IDEText[822][1]) then    --"Default"
+        setCheck(ChkColDef, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[872][1]) then   --"Specific Width"
+        setCheck(ChkColSpecific, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[893][1]) then   --"Fit to Title"
+        setCheck(ChkColFitTitle, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[994][1]) then   --"Fit to Data"
+        setCheck(ChkColFitData, w32True)
+    end if
+    setIndex(ColumnLenData,index)
+    setIndex(ColumnWidthData,index)
+end procedure
+--------------------------------------------------------------------------------
+procedure ColumnData_Mouse(integer self, integer event, sequence params)
+atom flag,height,topindex,indexoffset
+integer index
+
+    if params[1]=RightDown then
+        --find index when right click
+        height = sendMessage(ColumnData,LB_GETITEMHEIGHT,0,0)
+        topindex = sendMessage(ColumnData,LB_GETTOPINDEX,0,0)
+        indexoffset = floor(params[3]/height)
+        index = indexoffset+topindex
+
+        flag = sendMessage(ColumnData,LB_SETCURSEL,index,0)
+        index += 1
+        if index>getCount(ColumnData) then
+            if not length(getText(ColumnTitle)) then
+                return
+            end if
+            index = 0
+            --assume add?
+            setEnable(PopupColAdd, w32True)
+            setEnable(PopupColChange, w32False)
+            setEnable(PopupColDelete, w32False)
+            setEnable(PopupColUp, w32False)
+            setEnable(PopupColDown, w32False)
+            setEnable(PopupColDeleteAll, w32False)
+        elsif not length(getText(ColumnTitle)) then
+            --can not be add?
+            setEnable(PopupColAdd, w32False)
+            setEnable(PopupColChange, w32False)
+            setEnable(PopupColDelete, w32True)
+            setEnable(PopupColUp, w32True)
+            setEnable(PopupColDown, w32True)
+            setEnable(PopupColDeleteAll, w32True)
+        else
+            setEnable(PopupColAdd, w32True)
+            setEnable(PopupColChange, w32True)
+            setEnable(PopupColDelete, w32True)
+            setEnable(PopupColUp, w32True)
+            setEnable(PopupColDown, w32True)
+            setEnable(PopupColDeleteAll, w32True)
+        end if
+
+        popup(PopupCol, params[2], params[3])
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ColumnLenData_Change(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(ColumnLenData)
+
+    setIndex(ColumnData, index)
+    setIndex(ColumnWidth, index)
+
+    setText(ColumnTitle, getItem(ColumnData, index))
+    setText(ColumnWidth, getItem(ColumnLenData, index))
+    setCheck(ChkColDef, w32False)
+    setCheck(ChkColSpecific, w32False)
+    setCheck(ChkColFitTitle, w32False)
+    setCheck(ChkColFitData, w32False)
+    if equal(getItem(ColumnWidthData,index), IDEText[822][1]) then      --"Default"
+        setCheck(ChkColDef, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[872][1]) then   --"Specific Width"
+        setCheck(ChkColSpecific, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[893][1]) then   --"Fit to Title"
+        setCheck(ChkColFitTitle, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[894][1]) then   --"Fit to Data"
+        setCheck(ChkColFitData, w32True)
+    end if
+    setIndex(ColumnData,index)
+    setIndex(ColumnWidthData,index)
+end procedure
+--------------------------------------------------------------------------------
+procedure ColumnWidthData_Change(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(ColumnWidthData)
+
+    setText(ColumnTitle, getItem(ColumnData, index))
+    setText(ColumnWidth, getItem(ColumnLenData, index))
+    setCheck(ChkColDef, w32False)
+    setCheck(ChkColSpecific, w32False)
+    setCheck(ChkColFitTitle, w32False)
+    setCheck(ChkColFitData, w32False)
+    if equal(getItem(ColumnWidthData,index), IDEText[822][1]) then    --"Default"
+        setCheck(ChkColDef, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[872][1]) then   --"Specific Width"
+        setCheck(ChkColSpecific, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[893][1]) then   --"Fit to Title"
+        setCheck(ChkColFitTitle, w32True)
+    elsif equal(getItem(ColumnWidthData,index), IDEText[894][1]) then   --"Fit to Data"
+        setCheck(ChkColFitData, w32True)
+    end if
+    setIndex(ColumnData, index)
+    setIndex(ColumnLenData, index)
+end procedure
+--------------------------------------------------------------------------------
+procedure ChangeBut_Click(integer self, integer event, sequence params)
+    ColMenuChange_Click(ColMenuChange, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure ChangeBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        ColMenuChange_Click(ColMenuChange, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure DeleteBut_Click(integer self, integer event, sequence params)
+    ColMenuDelete_Click(ColMenuDelete, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure DeleteBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        ColMenuDelete_Click(ColMenuDelete, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MoveUpBut_Click(integer self, integer event, sequence params)
+    ColMenuUp_Click(ColMenuUp, w32HClick, {})
+end procedure
+-------------------------------------------------------------------------------
+procedure MoveUpBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        ColMenuUp_Click(ColMenuUp, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure MoveDownBut_Click(integer self, integer event, sequence params)
+    ColMenuDown_Click(ColMenuDown, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure MoveDownBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        ColMenuDown_Click(ColMenuDown, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ListColOk_Click(integer self, integer event, sequence params)
+    closeWindow(ListViewCol)
+    buildTestWin()
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupColAdd_Click(integer self, integer event, sequence params)
+    ColMenuAdd_Click(ColMenuAdd, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupColChange_Click(integer self, integer event, sequence params)
+    ColMenuChange_Click(ColMenuChange, w32HChange, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupColDelete_Click(integer self, integer event, sequence params)
+    ColMenuDelete_Click(ColMenuDelete, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupColUp_Click(integer self, integer event, sequence params)
+    ColMenuUp_Click(ColMenuUp, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupColDown_Click(integer self, integer event, sequence params)
+    ColMenuDown_Click(ColMenuDown, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupColDeleteAll_Click(integer self, integer event, sequence params)
+    ColMenuDelAll_Click(ColMenuDelAll, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+integer is_changedRow
+is_changedRow = w32False       --flag w32True when any changes have been made and check this
+                        --if user close editor without saving                        
+----------------------------------------------------------------------------- 
+procedure updateInitialRowList(integer index)
+
+sequence text
+
+    -- erase the list 
+    eraseItems(ListRowData)
+
+    for i=1 to length(rowMenu) do
+
+        -- build the text
+        text = rowMenu[i]
+
+        -- add to list
+        addItem(ListRowData, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(ListRowData, index)
+    end if
+
+end procedure
+-----------------------------------------------------------------------
+procedure updateInitialRowListIcon(integer index)
+
+sequence text
+
+    -- erase the list 
+    eraseItems(IconData)
+
+    for i=1 to length(rowMenuIcon) do
+
+        -- build the text
+        text = rowMenuIcon[i]
+
+        -- add to list
+        addItem(IconData, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(IconData, index)
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewRows_Open(integer self, integer event, sequence params)
+    setText(ListViewRowData,"")
+    setText(ListViewIconName,"")
+    setFocus(ListViewRowData)
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewRows_Resize(integer self, integer event, sequence params)
+integer style, cx, cy
+sequence size
+
+    style   = params[1]
+    cx      = params[2]
+    cy      = params[3]
+
+    size = getRect(ListViewRows)
+    --place buttons
+    setRect(IconBrowse, cx-88, 24, 88, 28, w32True)
+    setRect(RowAddBut, cx-88, 64, 88, 28, w32True)
+    setRect(RowChangeBut, cx-88, 100, 88, 28, w32True)
+    setRect(RowDeleteBut, cx-88, 136, 88, 28, w32True)
+    setRect(RowMoveUpBut, cx-88, 172, 88, 28, w32True)
+    setRect(RowMoveDownBut, cx-88, 209, 88, 28, w32True)
+    setRect(ButtonOk,cx-88, 252, 88, 28, w32True)
+
+    --move length label and data
+    setRect(ListViewLabel2, cx-4-172-88, 4, 176, 20, w32True)
+    setRect(ListViewIconName, cx-4-172-88, 24, 172, 32, w32True)
+    setRect(ListViewRowData, 0, 24, cx-4-176-16-88, 32, w32True)
+    setRect(IconData, cx-4-168-88, 108, 168, cy-140, w32True)
+    setRect(ListRowData, 0, 108, cx-8-176-16-88, cy-140, w32True)
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMenuAdd_Click(integer self, integer event, sequence params)
+    if length(getText(ListViewRowData)) then
+        rowMenu &= {getText(ListViewRowData)}
+        setText(ListViewRowData,"")
+    end if
+    if not length(getText(ListViewIconName)) then
+        setText(ListViewIconName, " ")
+    end if
+    rowMenuIcon &= {getText(ListViewIconName)}
+    setText(ListViewIconName,"")
+    setFocus(ListViewRowData)
+
+    -- update the lists
+    updateInitialRowList(getCount(ListRowData))
+    updateInitialRowListIcon(getCount(IconData))
+    is_changedRow = w32True
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMenuChange_Click(integer self, integer event, sequence params)
+integer index
+
+-- is there an item selected?
+    index = getIndex(ListRowData)
+    if index>0
+    and length(getText(ListViewRowData)) then
+        rowMenu[index] = {getText(ListViewRowData)}
+        -- update the list
+        updateInitialRowList(index)
+        if not length(getText(ListViewIconName)) then
+            setText(ListViewIconName," ")
+        end if
+        if index<=length(rowMenuIcon) then
+            rowMenuIcon[index] = {getText(ListViewIconName)}
+            updateInitialRowListIcon(index)
+        end if
+        setText(ListViewRowData,"")
+        setText(ListViewIconName,"")
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMenuDelete_Click(integer self, integer event, sequence params)
+integer index, ok
+
+-- is there an item selected?
+    index = getIndex(ListRowData)
+    if index>0 then
+        ok = deleteItem(ListRowData, index)
+        rowMenu = rowMenu[1..index-1] & rowMenu[index+1..length(rowMenu)]
+        ok = deleteItem(IconData, index)
+        if getCount(IconData) then
+            rowMenuIcon = rowMenuIcon[1..index-1] & rowMenuIcon[index+1..length(rowMenuIcon)]
+            -- update the list
+            updateInitialRowList(index-1)
+            updateInitialRowListIcon(index-1)
+        end if
+        is_changedRow = w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMenuUp_Click(integer self, integer event, sequence params)
+-- move a item up
+sequence s, s1
+integer index
+
+-- is there an item selected?
+    index = getIndex(ListRowData)
+    if index>1 then
+
+        -- swap
+        s = rowMenu[index-1]
+        s1 = rowMenuIcon[index-1]
+        rowMenu[index-1] = rowMenu[index]
+        rowMenuIcon[index-1] = rowMenuIcon[index]
+        rowMenu[index] = s
+        rowMenuIcon[index] = s1
+
+        is_changedRow = w32True
+
+        -- update the list
+        updateInitialRowList(index-1)
+        updateInitialRowListIcon(index-1)
+
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMenuDown_Click(integer self, integer event, sequence params)
+-- move a item down
+sequence s, s1
+integer index
+
+-- is there an item selected? 
+    index = getIndex(ListRowData)
+    if index>0
+    and index<length(rowMenu) then
+
+        -- swap 
+        s = rowMenu[index+1]
+        s1 = rowMenuIcon[index+1]
+        rowMenu[index+1] = rowMenu[index]
+        rowMenuIcon[index+1] = rowMenuIcon[index]
+        rowMenu[index] = s
+        rowMenuIcon[index] = s1
+
+        is_changedRow = w32True
+
+        -- update the list 
+        updateInitialRowList(index+1)
+        updateInitialRowListIcon(index+1)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMenuDeleteAll_Click(integer self, integer event, sequence params)
+    eraseItems(ListRowData)
+    eraseItems(IconData)
+    rowMenu = {}
+    rowMenuIcon = {}
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMenuCol_Click(integer self, integer event, sequence params)
+    openWindow(ListViewCol, Normal)
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewRowData_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        if length(getText(ListViewRowData)) then
+            rowMenu &= {getText(ListViewRowData)}
+            setText(ListViewRowData,"")
+            if not length(getText(ListViewIconName)) then
+                setText(ListViewIconName," ")
+            end if
+            rowMenuIcon &= {getText(ListViewIconName)}
+            setText(ListViewIconName,"")
+        end if
+        -- update the list
+        updateInitialRowList(getCount(ListRowData))
+        updateInitialRowListIcon(getCount(IconData))
+        is_changedRow = w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ListViewIconName_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        if length(getText(ListViewRowData)) then
+            rowMenu &= {getText(ListViewRowData)}
+            setText(ListViewRowData,"")
+            if not length(getText(ListViewIconName)) then
+                setText(ListViewIconName," ")
+            end if
+
+            rowMenuIcon &= {getText(ListViewIconName)}
+            setText(ListViewIconName,"")
+            setFocus(ListViewRowData)
+        end if
+        -- update the list
+        updateInitialRowList(getCount(ListRowData))
+        updateInitialRowListIcon(getCount(IconData))
+        is_changedRow = w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure IconBrowse_Click(integer self, integer event, sequence params)
+sequence fileName, IcoFileTypes, currentdirectory
+integer ok
+
+    currentdirectory = current_dir()
+
+    IcoFileTypes = {IDEText[829][1],"*.ICO"}   --"Ico File"
+
+    fileName = getOpenFileName(ListViewRows, current_dir() & "\\*.ico", IcoFileTypes)
+
+    if length(fileName) then
+        setText(ListViewIconName, fileName)
+    end if
+    setFocus(ListViewIconName)
+
+    ok = chdir(currentdirectory)
+end procedure
+--------------------------------------------------------------------------------
+procedure RowAddBut_Click(integer self, integer event, sequence params)
+    RowMenuAdd_Click(RowMenuAdd, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure RowAddBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        RowMenuAdd_Click(RowMenuAdd, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure RowChangeBut_Click(integer self, integer event, sequence params)
+    RowMenuChange_Click(RowMenuChange, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure RowChangeBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        RowMenuChange_Click(RowMenuChange, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ListRowData_Change(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(ListRowData)
+
+    setText(ListViewRowData, getItem(ListRowData, index))
+    setText(ListViewIconName, getItem(IconData, index))
+end procedure
+--------------------------------------------------------------------------------
+procedure ListRowData_Mouse(integer self, integer event, sequence params)
+atom flag,height,topindex,indexoffset
+integer index
+
+    if params[1]=RightDown then
+        --find index when right click
+        height = sendMessage(ListRowData,LB_GETITEMHEIGHT,0,0)
+        topindex = sendMessage(ListRowData,LB_GETTOPINDEX,0,0)
+        indexoffset = floor(params[3]/height)
+        index = indexoffset+topindex
+
+        flag = sendMessage(ListRowData,LB_SETCURSEL,index,0)
+        index += 1
+        if index>getCount(ListRowData) then
+            if not length(getText(ListViewRowData)) then
+                return
+            end if
+            index = 0
+            --assume add?
+            setEnable(PopupRowAdd, w32True)
+            setEnable(PopupRowChange, w32False)
+            setEnable(PopupRowDelete, w32False)
+            setEnable(PopupRowUp, w32False)
+            setEnable(PopupRowDown, w32False)
+            setEnable(PopupRowDeleteAll, w32False)
+        elsif not length(getText(ListViewRowData)) then
+            --can not be add?
+            setEnable(PopupRowAdd, w32False)
+            setEnable(PopupRowChange, w32False)
+            setEnable(PopupRowDelete, w32True)
+            setEnable(PopupRowUp, w32True)
+            setEnable(PopupRowDown, w32True)
+            setEnable(PopupRowDeleteAll, w32True)
+        else
+            setEnable(PopupRowAdd, w32True)
+            setEnable(PopupRowChange, w32True)
+            setEnable(PopupRowDelete, w32True)
+            setEnable(PopupRowUp, w32True)
+            setEnable(PopupRowDown, w32True)
+            setEnable(PopupRowDeleteAll, w32True)
+        end if
+
+        popup(PopupRow, params[2], params[3])
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure IconData_Change(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(IconData)
+    setIndex(ListRowData, index)
+
+    setText(ListViewRowData, getItem(ListRowData, index))
+    setText(ListViewIconName, getItem(IconData, index))
+end procedure
+--------------------------------------------------------------------------------
+procedure RowDeleteBut_Click(integer self, integer event, sequence params)
+    RowMenuDelete_Click(RowMenuDelete, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure RowDeleteBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        RowMenuDelete_Click(RowMenuDelete, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMoveUpBut_Click(integer self, integer event, sequence params)
+    RowMenuUp_Click(RowMenuUp, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMoveUpBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        RowMenuUp_Click(RowMenuUp, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMoveDownBut_Click(integer self, integer event, sequence params)
+    RowMenuDown_Click(RowMenuDown, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure RowMoveDownBut_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        RowMenuDown_Click(RowMenuDown, w32HClick, {})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ButtonOk_Click(integer self, integer event, sequence params)
+sequence testData, newData, newData2
+object data
+integer at, ico
+
+    printData = {}  --for display box in main window
+
+    if getCount(ListRowData) then
+        --build data for lvItems,leaving row data intact for moving to Properties.
+        --replace " with \" 
+        lvItems = {}
+        printData = {}
+        printIcon = {}
+        for i=1 to getCount(ListRowData) do
+            newData = {}
+            newData2 = {}
+            printData &= "\""
+            testData = getItem(ListRowData,i)
+            at = match("\"",testData)
+            if at then
+                newData = testData[1..at-1] & "\\" & testData[at]
+                testData = testData[at+1..length(testData)]
+                --keep looking
+                while at do
+                    at = match("\"",testData)
+                    if at then
+                        newData &= testData[1..at-1] & "\\" & testData[at]
+                        testData = testData[at+1..length(testData)]
+                    else
+                        newData &= testData[1..length(testData)]
+                    end if
+                end while
+            else
+                newData &= testData[1..length(testData)]
+            end if
+
+            --divide at caret
+            at = w32True
+            while at do
+                at = match("^", newData)
+                if at then
+                    newData2 &= {newData[1..at-1]}
+                    printData &= newData[1..at-1] & "\",\""
+                    newData = newData[at+1..length(newData)]
+                else
+                    newData2 &= {newData[1..length(newData)]}
+                    printData &= newData[1..length(newData)]
+                end if
+            end while
+
+            printData &= "\""
+            printData &= 13 & 10
+
+            --replace data in lvItems with new values
+                --if icon input, extract it                                
+            if length(getItem(IconData,i)) then
+                if equal(getItem(IconData,i), " ") then
+                    data = 0
+                else
+                    ico = addIcon(extractIcon(getItem(IconData,i)))
+                    data = ico
+                end if
+            else
+                data = 0
+            end if
+            for j=1 to length(newData2) do
+                data &= {newData2[j]}
+            end for
+            lvItems &= {data}
+
+            --trap icons
+            printIcon &= getItem(IconData,i)
+            printIcon &= 13 & 10
+        end for
+
+    else
+        --if all data removed, restore default row information
+        lvItems = {
+                   {icon01, IDEText[909][1],  IDEText[830][1]}, --"First icon in list"
+                   {icon02, IDEText[910][1], IDEText[831][1]}, --"Second icon in list"
+                   {icon03, IDEText[911][1],  IDEText[832][1]}, --"Third icon in list"
+                   {icon04, IDEText[912][1], IDEText[833][1]}, --"Fourth icon in list"
+                   {icon05, IDEText[913][1],  IDEText[834][1]}, --"Fifth icon in list"
+                   {icon06, IDEText[914][1],  IDEText[835][1]}  --"Sixth icon in list"
+                  }
+    end if
+    closeWindow(ListViewRows)
+    buildTestWin()
+
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupRowAdd_Click(integer self, integer event, sequence params)
+    RowMenuAdd_Click(RowMenuAdd, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupRowChange_Click(integer self, integer event, sequence params)
+    RowMenuChange_Click(RowMenuChange, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupRowDelete_Click(integer self, integer event, sequence params)
+    RowMenuDelete_Click(RowMenuDelete, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupRowUp_Click(integer self, integer event, sequence params)
+    RowMenuUp_Click(RowMenuUp, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupRowDown_Click(integer self, integer event, sequence params)
+    RowMenuDown_Click(RowMenuDown, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupRowDeleteAll_Click(integer self, integer event, sequence params)
+    RowMenuDeleteAll_Click(RowMenuDeleteAll, w32HClick, {})
+end procedure
+-----------------------------------------------------------------------
+function CheckTheWidths()
+sequence lengths,item,val
+integer allZero
+
+    lengths = {}
+    allZero = w32True
+
+    for i=1 to getCount(ColumnLenData) do
+        item = getItem(ColumnLenData, i)
+        val = value(item)
+        if val[1]=GET_SUCCESS then
+            lengths &= val[2]
+            if val[2]>0 then
+                allZero = w32False
+            end if
+        else
+            lengths &= 0
+        end if
+    end for
+
+
+
+    if allZero then
+        lengths = {}
+    end if
+
+    return lengths
+
+end function
+CheckWidths = routine_id("CheckTheWidths")
+---------------------------------------------------------------------------------
+global procedure createListViewWindow()
+                                  --"Visual List View Styles"
+    ListViewWin = createEx(Window, IDEText[836][1], Controls, Default, Default, 719, 480, {WS_THICKFRAME+WS_DLGFRAME}, 0)
+                              --"&Edit"
+    MenuEdit = createEx(Menu, IDEText[837][1], ListViewWin, 0, 1, 0, 0, 0, 0)
+                                --"&Column Information"
+    MenuCol = createEx(MenuItem, IDEText[838][1], MenuEdit, 0, 2, 0, 0, 0, 0)
+                                 --"&Row Information"
+    MenuRow = createEx(MenuItem, IDEText[839][1], MenuEdit, 0, 3, 0, 0, 0, 0)
+                                --"&TestWin"
+    TestWinMenu = createEx(Menu, IDEText[840][1], ListViewWin, 0, 4, 0, 0, 0, 0)
+                                 --"&Show"
+    MenuShow = createEx(MenuItem, IDEText[841][1], TestWinMenu, 0, 5, 0, 0, 0, 0)
+    setCheck(MenuShow, w32True)
+                                     --"&Restore Original Size"
+    MenuRestore = createEx(MenuItem, IDEText[842][1], TestWinMenu, 0, 5, 0, 0, 0, 0)
+                             --"&Help"
+    MenuHelp = createEx(Menu, IDEText[843][1], ListViewWin, 0, 6, 0, 0, 0, 0)
+                                  --"&About"
+    MenuAbout = createEx(MenuItem, IDEText[844][1], MenuHelp, 0, 7, 0, 0, 0, 0)
+    SelectMode = createEx(DropDownList, "", ListViewWin, 4, 0, 144, 100, 0, 0)
+                                         --"Show Always"
+    SelectShowAlways = createEx(CheckBox, IDEText[845][1], ListViewWin, 4, 40, 220, 20, 0, 0)
+                                         --"Edit Labels"
+    SelectEditLabels = createEx(CheckBox, IDEText[846][1], ListViewWin, 4, 60, 220, 20, 0, 0)
+                                     --"Column Headers"
+    SelectHeader = createEx(CheckBox, IDEText[847][1], ListViewWin, 4, 80, 208, 20, 0, 0)
+                                         --"Sort Headers"
+    SelectSortHeader = createEx(CheckBox, IDEText[848][1], ListViewWin, 4, 100, 220, 20, 0, 0)
+                                      --"Scroll Bars"
+    SelectScroll = createEx(CheckBox, IDEText[849][1], ListViewWin, 4, 120, 220, 20, 0, 0)
+                                   --"Single Select"
+    SelectSel = createEx(CheckBox, IDEText[850][1], ListViewWin, 4, 140, 220, 20, 0, 0)
+                                   --"Grid Lines"
+    SelectGrid = createEx(CheckBox, IDEText[851][1], ListViewWin, 4, 160, 220, 20, 0, 0)
+                                        --"Check Boxes"
+    SelectCheckBox = createEx(CheckBox, IDEText[852][1], ListViewWin, 4, 180, 220, 20, 0, 0)
+                                       --"Full Row Select"
+    SelectFullRow = createEx(CheckBox, IDEText[853][1], ListViewWin, 4, 200, 220, 20, 0, 0)
+                                     --"Track Select"
+    SelectTrack = createEx(CheckBox, IDEText[854][1], ListViewWin, 4, 220, 220, 20, 0, 0)
+                                      --"Background Color"
+    SelectBkColor = createEx(CheckBox, IDEText[855][1], ListViewWin, 232, 40, 216, 20, 0, 0)
+                                           --"Text Back Color"
+    SelectTextBkColor = createEx(CheckBox, IDEText[856][1], ListViewWin, 232, 60, 216, 20, 0, 0)
+                                        --"Text Color"
+    SelectTextColor = createEx(CheckBox, IDEText[857][1], ListViewWin, 232, 81, 216, 20, 0, 0)
+                                        --"Single Click Activate"
+    SelectOneClick = createEx(CheckBox, IDEText[858][1], ListViewWin, 232, 100, 216, 20, 0, 0)
+                                        --"Double Click Activate"
+    SelectTwoClick = createEx(CheckBox, IDEText[859][1], ListViewWin, 232, 120, 216, 20, 0, 0)
+                                             --"Underline Cold"
+    SelectUnderlineCold = createEx(CheckBox, IDEText[860][1], ListViewWin, 232, 140, 216, 20, 0, 0)
+                                            --"Underline Hot"
+    SelectUnderlineHot = createEx(CheckBox, IDEText[861][1], ListViewWin, 232, 160, 216, 20, 0, 0)
+                                      --"Flat Scroll Bars"
+    SelectFlatSB = createEx(CheckBox, IDEText[862][1], ListViewWin, 232, 180, 216, 20, 0, 0)
+                                       --"Header Drag and Drop"
+    SelectDragDrop = createEx(CheckBox, IDEText[863][1], ListViewWin, 232, 200, 216, 20, 0, 0)
+                                                                                --"AutoArrange"
+    AutoArrange = createEx(CheckBox, IDEText[978][1], ListViewWin, 232, 220, 156, 20, 0, 0)
+                                       --"To Column Data"
+    ToColumnWin = createEx(PushButton, IDEText[864][1], ListViewWin, 4, 313, 168, 28, 0, 0)
+                                   --"To Row Data"
+    ToRowWin = createEx(PushButton, IDEText[865][1], ListViewWin, 192, 312, 160, 28, 0, 0)
+                                --"Transfer To Properties"
+    GoBut = createEx(PushButton, IDEText[867][1], ListViewWin, 372, 312, 192, 28, 0, 0)
+                                     --"Cancel"
+    CancelBut = createEx(PushButton, IDEText[868][1], ListViewWin, 580, 312, 88, 28, 0, 0)
+
+    CodeTest = createEx(MleText, "", ListViewWin, 4, 244, 554, 80, w32or_all({ES_READONLY}), 0)
+
+--TestLVWin
+                                                                --"Column1","Column2"
+    createTestWin(ListViewWin,{IDEText[874][1],IDEText[875][1]})
+
+--Window ListViewCol                                  --"Column Titles and Lengths"
+    ListViewCol = createEx(Window, IDEText[876][1], ListViewWin, Default, Default, 552, 357, {WS_DLGFRAME,WS_THICKFRAME}, 0)
+                                 --"&Edit"
+    ColMenuEdit = createEx(Menu, IDEText[837][1], ListViewCol, 0, 1, 0, 0, 0, 0)
+                                    --"&Add"
+    ColMenuAdd = createEx(MenuItem, IDEText[877][1], ColMenuEdit, 0, 2, 0, 0, 0, 0)
+                                      --"&Change"
+    ColMenuChange = createEx(MenuItem, IDEText[878][1], ColMenuEdit, 0, 3, 0, 0, 0, 0)
+                                      --"&Delete"
+    ColMenuDelete = createEx(MenuItem, IDEText[879][1], ColMenuEdit, 0, 4, 0, 0, 0, 0)
+    ColMenuSep1 = createEx(MenuItem, "-", ColMenuEdit, 0, 5, 0, 0, 0, 0)
+                                   --"Move &Up"
+    ColMenuUp = createEx(MenuItem, IDEText[880][1], ColMenuEdit, 0, 6, 0, 0, 0, 0)
+                                     --"&Move Down"
+    ColMenuDown = createEx(MenuItem, IDEText[881][1], ColMenuEdit, 0, 7, 0, 0, 0, 0)
+    ColMenuSep2 = createEx(MenuItem, "-", ColMenuEdit, 0, 8, 0, 0, 0, 0)
+                                      --"D&elete All"
+    ColMenuDelAll = createEx(MenuItem, IDEText[882][1], ColMenuEdit, 0, 9, 0, 0, 0, 0)
+    ColMenuSep3 = createEx(MenuItem, "-", ColMenuEdit, 0, 10, 0, 0, 0, 0)
+                                     --"&Row Information"
+    ColMenuRows = createEx(MenuItem, IDEText[883][1], ColMenuEdit, 0, 11, 0, 0, 0, 0)
+                                 --"&Help"
+    MenuColHelp = createEx(Menu, IDEText[884][1], ListViewCol, 0, 12, 0, 0, 0, 0)
+                                      --"&How To Column Width"
+    MenuColAbout = createEx(MenuItem, IDEText[885][1], MenuColHelp, 0, 13, 0, 0, 0, 0)
+                               --"Edit"
+    PopupCol = createEx(Popup, IDEText[886][1], ListViewCol, 0, 1, 0, 0, 0, 0)
+                                    --"Add"
+    PopupColAdd = createEx(MenuItem, IDEText[887][1], PopupCol, 0, 2, 0, 0, 0, 0)
+                                       --"Change"
+    PopupColChange = createEx(MenuItem, IDEText[888][1], PopupCol, 0, 3, 0, 0, 0, 0)
+                                        --"Delete"
+    PopupColDelete = createEx(MenuItem, IDEText[889][1], PopupCol, 0, 4, 0, 0, 0, 0)
+                                    --"Move Up"
+    PopupColUp = createEx(MenuItem, IDEText[890][1], PopupCol, 0, 5, 0, 0, 0, 0)
+                                      --"Move Down"
+    PopupColDown = createEx(MenuItem, IDEText[891][1], PopupCol, 0, 6, 0, 0, 0, 0)
+                                          --"Delete All"
+    PopupColDeleteAll = createEx(MenuItem, IDEText[892][1], PopupCol, 0, 7, 0, 0, 0, 0)
+    ColumnTitle = createEx(EditText, "", ListViewCol, 4, 44, 208, 20, 0, 0)
+    ColumnWidth = createEx(EditText, "", ListViewCol, 236, 44, 44, 20, 0, 0)
+                                       --"Default"
+    ChkColDef = createEx(Radio, IDEText[822][1], ListViewCol, 304, 0, 112, 20, 0, 0)
+                                    --"Specific Width"
+    ChkColSpecific = createEx(Radio, IDEText[872][1], ListViewCol, 304, 16, 152, 20, 0, 0)
+                                    --"Fit to Data+Header"
+    ChkColFitTitle = createEx(Radio, IDEText[893][1], ListViewCol, 304, 32, 152, 20, 0, 0)
+    setHint(ChkColFitTitle,"Fit to Data+Header means the longest text in a column or the length of the Header, if longer, determines the volumn width.")
+                                    --"Fit to Data"
+    ChkColFitData = createEx(Radio, IDEText[894][1], ListViewCol, 304, 48, 152, 20, 0, 0)
+    setHint(ChkColFitData,"Fit to Data means the longest text in a column determines the column width.")
+                                                                --"Apply to all columns"
+    ApplyAll = createEx(CheckBox,IDEText[1211][1] , ListViewCol, 304, 64,152, 20, 0, 0)
+                                  --"Add"
+    AddBut = createEx(PushButton, IDEText[887][1], ListViewCol, 436, 68, 88, 28, 0, 0)
+                                     --"Change"
+    ChangeBut = createEx(PushButton, IDEText[888][1], ListViewCol, 436, 100, 88, 28, 0, 0)
+                                    --"Delete"
+    DeleteBut = createEx(PushButton, IDEText[889][1], ListViewCol, 436, 132, 88, 28, 0, 0)
+                                    --"Move Up"
+    MoveUpBut = createEx(PushButton, IDEText[890][1], ListViewCol, 436, 164, 88, 28, 0, 0)
+                                       --"Move Down"
+    MoveDownBut = createEx(PushButton, IDEText[891][1], ListViewCol, 436, 196, 88, 28, 0, 0)
+                                    --"OK"
+    ListColOk = createEx(PushButton, IDEText[895][1], ListViewCol, 436, 228, 88, 28, 0, 0)
+    ColumnData = createEx(List, "", ListViewCol, 4, 84, 208, 192, 0, 0)
+    ColumnLenData = createEx(List, "", ListViewCol, 236, 84, 44, 192, 0, 0)
+    ColumnWidthData = createEx(List, "", ListViewCol, 304, 84, 220, 192, 0, 0)
+                             --"Title"
+    Label2 = createEx(LText, IDEText[896][1], ListViewCol, 4, 24, 52, 20, 0, 0)
+                             --"     Width*"
+    Label3 = createEx(LText, IDEText[897][1], ListViewCol, 220, 24, 84, 20, 0, 0)
+                            --"* Required when Specific Width Selected"
+    Label1 = createEx(LText, IDEText[898][1], ListViewCol, 8, 264, 524, 24, 0, 0)
+
+--Window ListViewRows                                   --"Edit List View Initial Values"
+    ListViewRows = createEx(Window, IDEText[899][1], ListViewWin, Default, Default, 640, 372, {WS_THICKFRAME+WS_DLGFRAME}, 0)
+                                --"&Edit"
+    RowMenuEdit = createEx(Menu, IDEText[837][1], ListViewRows, 0, 1, 0, 0, 0, 0)
+                                   --"&Add"
+    RowMenuAdd = createEx(MenuItem, IDEText[877][1], RowMenuEdit, 0, 2, 0, 0, 0, 0)
+                                      --"&Change"
+    RowMenuChange = createEx(MenuItem, IDEText[878][1], RowMenuEdit, 0, 3, 0, 0, 0, 0)
+                                      --"&Delete"
+    RowMenuDelete = createEx(MenuItem, IDEText[879][1], RowMenuEdit, 0, 4, 0, 0, 0, 0)
+    RowMenuSep1 = createEx(MenuItem, "-", RowMenuEdit, 0, 5, 0, 0, 0, 0)
+                                   --"Move &Up"
+    RowMenuUp = createEx(MenuItem, IDEText[880][1], RowMenuEdit, 0, 6, 0, 0, 0, 0)
+                                     --"&Move Down"
+    RowMenuDown = createEx(MenuItem, IDEText[881][1], RowMenuEdit, 0, 7, 0, 0, 0, 0)
+    RowMenuSep2 = createEx(MenuItem, "-", RowMenuEdit, 0, 8, 0, 0, 0, 0)
+                                          --"D&elete All"
+    RowMenuDeleteAll = createEx(MenuItem, IDEText[882][1], RowMenuEdit, 0, 9, 0, 0, 0, 0)
+    RowMenuSep3 = createEx(MenuItem, "-", RowMenuEdit, 0, 10, 0, 0, 0, 0)
+                                   --"Column &Information"
+    RowMenuCol = createEx(MenuItem, IDEText[900][1], RowMenuEdit, 0, 11, 0, 0, 0, 0)
+                              --"Edit"
+    PopupRow = createEx(Popup, IDEText[886][1], ListViewRows, 0, 1, 0, 0, 0, 0)
+                                    --"Add"
+    PopupRowAdd = createEx(MenuItem, IDEText[887][1], PopupRow, 0, 2, 0, 0, 0, 0)
+                                      --"Change"
+    PopupRowChange = createEx(MenuItem, IDEText[888][1], PopupRow, 0, 3, 0, 0, 0, 0)
+                                       --"Delete"
+    PopupRowDelete = createEx(MenuItem, IDEText[889][1], PopupRow, 0, 4, 0, 0, 0, 0)
+                                    --"Move Up"
+    PopupRowUp = createEx(MenuItem, IDEText[890][1], PopupRow, 0, 5, 0, 0, 0, 0)
+                                      --"Move Down"
+    PopupRowDown = createEx(MenuItem, IDEText[891][1], PopupRow, 0, 6, 0, 0, 0, 0)
+                                          --"Delete All"
+    PopupRowDeleteAll = createEx(MenuItem, IDEText[892][1], PopupRow, 0, 7, 0, 0, 0, 0)
+    ListViewRowData = createEx(EditText, "", ListViewRows, 0, 24, 364, 32, 0, 0)
+    ListViewIconName = createEx(EditText, "", ListViewRows, 372, 24, 160, 32, 0, 0)
+                                     --"Browse"
+    IconBrowse = createEx(PushButton, IDEText[901][1], ListViewRows, 540, 24, 88, 28, 0, 0)
+                                    --"Add"
+    RowAddBut = createEx(PushButton, IDEText[887][1], ListViewRows, 540, 64, 88, 28, 0, 0)
+                                       --"Change"
+    RowChangeBut = createEx(PushButton, IDEText[888][1], ListViewRows, 540, 100, 88, 28, 0, 0)
+                                      --"Delete"
+    RowDeleteBut = createEx(PushButton, IDEText[889][1], ListViewRows, 540, 136, 88, 28, 0, 0)
+                                        --"Move Up"
+    RowMoveUpBut = createEx(PushButton, IDEText[890][1], ListViewRows, 540, 172, 88, 28, 0, 0)
+                                         --"Move Down"
+    RowMoveDownBut = createEx(PushButton, IDEText[891][1], ListViewRows, 540, 209, 88, 28, 0, 0)
+                                   --"OK"
+    ButtonOk = createEx(PushButton, IDEText[895][1], ListViewRows, 540, 252, 88, 28, 0, 0)
+                                    --"Column Data seperated by caret (^)"
+    ListViewLabel1 = createEx(LText, IDEText[902][1], ListViewRows, 0, 4, 232, 20, 0, 0)
+                                     --"Icon File Name (optional)"
+    ListViewLabel2 = createEx(LText, IDEText[903][1], ListViewRows, 376, 4, 176, 20, 0, 0)
+    ListRowData = createEx(List, "", ListViewRows, 4, 108, 364, 168, 0, 0)
+    IconData = createEx(List, "", ListViewRows, 376, 108, 160, 168, 0, 0)
+
+    paramSeqMode = {{"REPORT",LVS_REPORT},
+                    {"LIST",LVS_LIST},
+                    {"ICON",LVS_ICON},
+                    {"SMALL ICON",LVS_SMALLICON}
+                   }
+
+    addItem(SelectMode, "REPORT")
+    addItem(SelectMode, "LIST")
+    addItem(SelectMode, "ICON")
+    addItem(SelectMode, "SMALL ICON")
+
+    setHint(ColumnWidth, IDEText[905][1]) --"Value used for specific column width in Styles"
+    setHint(ColumnTitle, IDEText[906][1]) --"Title without beginning or ending quote marks")
+    setHint(ColumnLenData, IDEText[907][1]) --"Value used for specific column width in Styles"
+    setHint(ColumnData, IDEText[908][1]) --"Title without beginning or ending quote marks"
+
+    is_changedCol = w32False
+    is_changedRow = w32False
+
+    setHandler(ListViewWin, w32HEvent, routine_id("ListViewWin_Event"))
+    setHandler(ListViewWin, w32HOpen, routine_id("ListViewWin_Open"))
+    setHandler(ListViewWin, w32HResize, routine_id("ListViewWin_Resize"))
+    setHandler(MenuCol, w32HClick, routine_id("MenuCol_Click"))
+    setHandler(MenuRow,w32HClick, routine_id("MenuRow_Click"))
+    setHandler(MenuShow, w32HClick, routine_id("MenuShow_Click"))
+    setHandler(MenuRestore, w32HClick, routine_id("MenuRestore_Click"))
+    setHandler(MenuAbout, w32HClick, routine_id("MenuAbout_Click"))
+    setHandler(SelectMode, w32HChange, routine_id("SelectMode_Change"))
+    setHandler(SelectShowAlways, w32HClick, routine_id("SelectShowAlways_Click"))
+    setHandler(SelectBkColor, w32HClick, routine_id("SelectBkColor_Click"))
+    setHandler(SelectEditLabels, w32HClick, routine_id("SelectEditLabels_Click"))
+    setHandler(SelectTextBkColor, w32HClick, routine_id("SelectTextBkColor_Click"))
+    setHandler(SelectHeader, w32HClick, routine_id("SelectHeader_Click"))
+    setHandler(SelectTextColor, w32HClick, routine_id("SelectTextColor_Click"))
+    setHandler(SelectSortHeader, w32HClick, routine_id("SelectSortHeader_Click"))
+    setHandler(SelectOneClick, w32HClick, routine_id("SelectOneClick_Click"))
+    setHandler(SelectScroll, w32HClick, routine_id("SelectScroll_Click"))
+    setHandler(SelectTwoClick, w32HClick, routine_id("SelectTwoClick_Click"))
+    setHandler(SelectSel, w32HClick, routine_id("SelectSel_Click"))
+    setHandler(SelectUnderlineCold, w32HClick, routine_id("SelectUnderlineCold_Click"))
+    setHandler(SelectGrid, w32HClick, routine_id("SelectGrid_Click"))
+    setHandler(SelectUnderlineHot, w32HClick, routine_id("SelectUnderlineHot_Click"))
+    setHandler(SelectCheckBox, w32HClick, routine_id("SelectCheckBox_Click"))
+    setHandler(SelectFlatSB, w32HClick, routine_id("SelectFlatSB_Click"))
+    setHandler(SelectFullRow, w32HClick, routine_id("SelectFullRow_Click"))
+    setHandler(SelectDragDrop, w32HClick, routine_id("SelectDragDrop_Click"))
+    setHandler(SelectTrack, w32HClick, routine_id("SelectTrack_Click"))
+    setHandler(ToRowWin, w32HClick, routine_id("ToRowWin_Click"))
+    setHandler(ToRowWin, w32HKeyPress, routine_id("ToRowWin_KeyPress"))
+    setHandler(GoBut,w32HClick, routine_id("GoBut_Click"))
+    setHandler(GoBut, w32HKeyPress, routine_id("GoBut_KeyPress"))
+    setHandler(CancelBut, w32HClick, routine_id("CancelBut_Click"))
+    setHandler(CancelBut, w32HKeyPress, routine_id("CancelBut_KeyPress"))
+    setHandler(ToColumnWin, w32HClick, routine_id("ToColumnWin_Click"))
+    setHandler(ToColumnWin, w32HKeyPress, routine_id("ToColumnWin_KeyPress"))
+    setHandler(ListViewCol, w32HOpen, routine_id("ListViewCol_Open"))
+    setHandler(ListViewCol, w32HResize, routine_id("ListViewCol_Resize"))
+    setHandler(ColMenuAdd, w32HClick, routine_id("ColMenuAdd_Click"))
+    setHandler(ColMenuChange, w32HClick, routine_id("ColMenuChange_Click"))
+    setHandler(ColMenuDelete, w32HClick, routine_id("ColMenuDelete_Click"))
+    setHandler(ColMenuUp, w32HClick, routine_id("ColMenuUp_Click"))
+    setHandler(ColMenuDown, w32HClick, routine_id("ColMenuDown_Click"))
+    setHandler(ColMenuDelAll, w32HClick, routine_id("ColMenuDelAll_Click"))
+    setHandler(ColMenuRows, w32HClick, routine_id("ColMenuRows_Click"))
+    setHandler(MenuColAbout, w32HClick, routine_id("MenuColAbout_Click"))
+    setHandler(ColumnTitle, w32HKeyPress, routine_id("ColumnTitle_KeyPress"))
+    setHandler(ColumnWidth, w32HKeyPress, routine_id("ColumnWidth_KeyPress"))
+    setHandler(ChkColSpecific, w32HClick, routine_id("ChkColSpecific_Click"))
+    setHandler(ApplyAll, w32HClick, routine_id("ChkApplyAll_Click"))
+    setHandler(AddBut, w32HClick, routine_id("AddBut_Click"))
+    setHandler(AddBut, w32HKeyPress, routine_id("AddBut_KeyPress"))
+    setHandler(ColumnData, w32HChange, routine_id("ColumnData_Change"))
+    setHandler(ColumnData, w32HMouse, routine_id("ColumnData_Mouse"))
+    setHandler(ColumnLenData, w32HChange, routine_id("ColumnLenData_Change"))
+    setHandler(ColumnWidthData, w32HChange, routine_id("ColumnWidthData_Change"))
+    setHandler(ChangeBut, w32HClick, routine_id("ChangeBut_Click"))
+    setHandler(ChangeBut, w32HKeyPress, routine_id("ChangeBut_KeyPress"))
+    setHandler(DeleteBut, w32HClick, routine_id("DeleteBut_Click"))
+    setHandler(DeleteBut, w32HKeyPress, routine_id("DeleteBut_KeyPress"))
+    setHandler(MoveUpBut, w32HClick, routine_id("MoveUpBut_Click"))
+    setHandler(MoveUpBut, w32HKeyPress, routine_id("MoveUpBut_KeyPress"))
+    setHandler(MoveDownBut, w32HClick, routine_id("MoveDownBut_Click"))
+    setHandler(MoveDownBut, w32HKeyPress, routine_id("MoveDownBut_KeyPress"))
+    setHandler(ListColOk, w32HClick, routine_id("ListColOk_Click"))
+    setHandler(PopupColAdd, w32HClick, routine_id("PopupColAdd_Click"))
+    setHandler(PopupColChange, w32HClick, routine_id("PopupColChange_Click"))
+    setHandler(PopupColDelete, w32HClick, routine_id("PopupColDelete_Click"))
+    setHandler(PopupColUp, w32HClick, routine_id("PopupColUp_Click"))
+    setHandler(PopupColDown, w32HClick, routine_id("PopupColDown_Click"))
+    setHandler(PopupColDeleteAll, w32HClick, routine_id("PopupColDeleteAll_Click"))
+    setHandler(ListViewRows, w32HOpen, routine_id("ListViewRows_Open"))
+    setHandler(ListViewRows, w32HResize, routine_id("ListViewRows_Resize"))
+    setHandler(RowMenuAdd, w32HClick, routine_id("RowMenuAdd_Click"))
+    setHandler(RowMenuChange, w32HClick, routine_id("RowMenuChange_Click"))
+    setHandler(RowMenuDelete, w32HClick, routine_id("RowMenuDelete_Click"))
+    setHandler(RowMenuUp, w32HClick, routine_id("RowMenuUp_Click"))
+    setHandler(RowMenuDown, w32HClick, routine_id("RowMenuDown_Click"))
+    setHandler(RowMenuDeleteAll, w32HClick, routine_id("RowMenuDeleteAll_Click"))
+    setHandler(RowMenuCol, w32HClick, routine_id("RowMenuCol_Click"))
+    setHandler(ListViewRowData, w32HKeyPress, routine_id("ListViewRowData_KeyPress"))
+    setHandler(ListViewIconName, w32HKeyPress, routine_id("ListViewIconName_KeyPress"))
+    setHandler(IconBrowse, w32HClick, routine_id("IconBrowse_Click"))
+    setHandler(RowAddBut, w32HClick, routine_id("RowAddBut_Click"))
+    setHandler(RowAddBut, w32HKeyPress, routine_id("RowAddBut_KeyPress"))
+    setHandler(RowChangeBut, w32HClick, routine_id("RowChangeBut_Click"))
+    setHandler(RowChangeBut, w32HKeyPress,routine_id("RowChangeBut_KeyPress"))
+    setHandler(ListRowData, w32HChange, routine_id("ListRowData_Change"))
+    setHandler(ListRowData, w32HMouse, routine_id("ListRowData_Mouse"))
+    setHandler(IconData, w32HChange, routine_id("IconData_Change"))
+    setHandler(RowDeleteBut, w32HClick, routine_id("RowDeleteBut_Click"))
+    setHandler(RowDeleteBut, w32HKeyPress, routine_id("RowDeleteBut_KeyPress"))
+    setHandler(RowMoveUpBut, w32HClick, routine_id("RowMoveUpBut_Click"))
+    setHandler(RowMoveUpBut, w32HKeyPress, routine_id("RowMoveUpBut_KeyPress"))
+    setHandler(RowMoveDownBut, w32HClick, routine_id("RowMoveDownBut_Click"))
+    setHandler(RowMoveDownBut, w32HKeyPress, routine_id("RowMoveDownBut_KeyPress"))
+    setHandler(ButtonOk, w32HClick, routine_id("ButtonOk_Click"))
+    setHandler(PopupRowAdd, w32HClick, routine_id("PopupRowAdd_Click"))
+    setHandler(PopupRowChange, w32HClick, routine_id("PopupRowChange_Click"))
+    setHandler(PopupRowDelete, w32HClick, routine_id("PopupRowDelete_Click"))
+    setHandler(PopupRowUp, w32HClick, routine_id("PopupRowUp_Click"))
+    setHandler(PopupRowDown, w32HClick, routine_id("PopupRowDown_Click"))
+    setHandler(PopupRowDeleteAll, w32HClick, routine_id("PopupRowDeleteAll_Click"))
+    setHandler(AutoArrange, w32HClick, routine_id("AutoArrange_Click"))
+
+    call_proc(buildDefaultData_id,{})
+
+end procedure
+-------------------------------------------------------------------------------
+procedure buildDefaultData()
+    printData = {}
+    printIcon = {}
+    printWidths = {}
+    printTitles = {}
+    theColumnTitles = {IDEText[820][1],IDEText[821][1]}  --"Column1 Title","Column2 Title"
+    colMenu = {}
+    colMenuLen = {}
+    colMenuWidth = {}
+    eraseItems(ColumnData)
+    eraseItems(ColumnLenData)
+    eraseItems(ColumnWidthData)
+    addItem(ColumnData,IDEText[820][1]) --"Column1 Title"
+    addItem(ColumnData,IDEText[821][1]) --"Column2 Title"
+    colMenu &= {IDEText[820][1]}            --"Column1 Title"
+    colMenu &= {IDEText[821][1]}            --"Column2 Title"
+    addItem(ColumnLenData,"0")
+    addItem(ColumnLenData,"0")
+    colMenuLen &= {"0"}
+    colMenuLen &= {"0"}
+    addItem(ColumnWidthData,IDEText[822][1])  --"Default"
+    addItem(ColumnWidthData,IDEText[822][1])  --"Default"
+    colMenuWidth &= {IDEText[822][1]}         --"Default"
+    colMenuWidth &= {IDEText[822][1]}         --"Default"
+
+    lvItems = {
+               {icon01, IDEText[909][1],  IDEText[830][1]}, --"First icon in list"
+               {icon02, IDEText[910][1], IDEText[831][1]},  --"Second icon in list"
+               {icon03, IDEText[911][1],  IDEText[832][1]}, --"Third icon in list"
+               {icon04, IDEText[912][1], IDEText[833][1]},  --"Fourth icon in list"
+               {icon05, IDEText[913][1],  IDEText[834][1]}, --"Fifth icon in list"
+               {icon06, IDEText[914][1],  IDEText[835][1]}  --"Sixth icon in list"
+              }
+    setIndex(SelectMode, 1)
+    setCheck(SelectShowAlways, w32True)
+    setCheck(SelectHeader, w32True)
+    setCheck(SelectScroll, w32True)
+    setCheck(SelectSortHeader, w32True)
+    setCheck(SelectUnderlineCold, w32False)
+    setCheck(SelectUnderlineHot, w32False)
+    setCheck(SelectTrack, w32False)
+    setCheck(SelectTwoClick, w32False)
+    setCheck(SelectOneClick, w32False)
+    setCheck(SelectFlatSB, w32False)
+    setCheck(SelectFullRow, w32False)
+    setCheck(SelectDragDrop, w32False)
+    setCheck(SelectCheckBox, w32False)
+    setCheck(SelectGrid, w32False)
+    setCheck(SelectBkColor, w32False)
+    setCheck(SelectTextBkColor, w32False)
+    setCheck(SelectTextColor, w32False)
+    setCheck(ChkColDef, w32True)
+    setCheck(ChkColSpecific, w32False)
+    setCheck(ChkColFitData, w32False)
+    setCheck(ChkColFitTitle, w32False)
+    setCheck(ApplyAll, w32False)
+    setCheck(AutoArrange, w32False)
+end procedure
+buildDefaultData_id = routine_id("buildDefaultData")
+

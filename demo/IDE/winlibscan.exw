@@ -1,0 +1,182 @@
+include win32lib.ew
+
+sequence IDE_dir
+IDE_dir = current_dir()
+
+sequence outputFile
+outputFile=IDE_dir & "\\Files\\OtherC.ini"
+
+integer handle, ok, at
+sequence buffer, newBuffer, thedata, settingsBuffer, IdeDocs, folderName
+newBuffer={}
+IdeDocs={}
+constant cfgWin32libDocs=7
+
+--first thing to do find win32lib in configurations.
+handle=open(IDE_dir & "\\Files\\IDE.cfg","r" )
+if handle = -1 then
+    --user has not used saved IDE yet
+    ok=message_box("Can not find " & IDE_dir & "\\Files\\IDE.cfg" ,"",0)
+else
+    --read the records
+    thedata = get(handle)
+    if thedata[1] != GET_SUCCESS then
+        ok=message_box("Can not read your IDE.cfg file","",0)
+    else
+        settingsBuffer=thedata[2]
+        --look for location of documentation and substitute Include for Docs
+        if length(settingsBuffer[cfgWin32libDocs]) then
+            if equal( settingsBuffer[cfgWin32libDocs][1], "Win32libDocs" ) then
+                IdeDocs=settingsBuffer[cfgWin32libDocs][2]
+                if equal(upper(IdeDocs), "DOCS\\INDEX.HTM") then
+                    IdeDocs=IDE_dir & "\\" & IdeDocs
+                end if
+            end if
+        end if
+        folderName={}
+        if not length(IdeDocs) then
+        	ok=message_box("Please enter the location of Win32lib docs in Configurations","",0)	
+        else
+        	--remove docs and use include instead
+        	at=match("DOCS\\INDEX.HTM", upper(IdeDocs))
+        	if at then
+            	folderName=IdeDocs[1..at-1] & "include"
+        	else
+            	ok=message_box("Expecting docs in ..... Docs\\index.htm","",0)
+        	end if
+        end if
+    end if
+end if
+
+object d,reversedname,filetype
+
+procedure ProcessGlobalStatements(sequence fileName)
+
+    object line
+    integer at,cnt
+
+    cnt=0
+
+    --read include file and find all global procedure and
+    --global function statements
+    buffer = {}
+    while 1 do
+        line = gets(handle)
+        if atom(line) then
+            exit   -- -1 is returned at end of file
+        end if
+        at = match( "global procedure", line )
+        if at=1 then
+            buffer &= {line}
+            cnt+=1
+            buffer[cnt]=buffer[cnt][at+17..length( buffer[cnt] )]
+        end if
+        at = match("global function", line )
+        if at=1 then
+            buffer =append (buffer,line)
+            cnt+=1
+            buffer[cnt]=buffer[cnt][at+16..length( buffer[cnt] )]
+        end if
+        at = match( "export procedure", line )
+        if at=1 then
+            buffer &= {line}
+            cnt+=1
+            buffer[cnt]=buffer[cnt][at+17..length( buffer[cnt] )]
+        end if
+        at = match("export function", line )
+        if at=1 then
+            buffer =append (buffer,line)
+            cnt+=1
+            buffer[cnt]=buffer[cnt][at+16..length( buffer[cnt] )]
+        end if
+    end while
+
+    close( handle )
+    cnt = 0
+
+    if length(buffer) then
+        buffer=sort( buffer )
+        --strip off global procedure xxxxxx  and
+        --          global function xxxxxx
+        for i=1 to length( buffer ) do
+            at = find( '(', buffer[i] )
+            if at then
+                buffer[i] = buffer[i][1..at-1]
+            end if
+            newBuffer&={buffer[i]}
+        end for        
+    end if
+
+end procedure
+
+procedure processFile(sequence fileName)
+sequence data
+integer found
+
+	handle = open( fileName, "r" )
+    if handle = -1 then
+        ok=message_box("can not open " & fileName,"",0 )
+    else
+        ProcessGlobalStatements(fileName)
+    end if
+    
+	--next update Win32lib statements in OtherC.ini
+    if not length( newBuffer ) then
+        ok=message_box("Did not make any entries in file. Other.ini not changed.","",0)
+        return
+    end if
+
+    handle = open(outputFile, "r")
+    if handle = -1 then
+        ok=message_box("Can not open " & outputFile & " to read","",0)
+        return
+    else
+        data=get(handle)
+        close( handle )
+
+        if data[1] != GET_SUCCESS then
+            ok=message_box("problem reading " & outputFile,"",0)
+            return
+        end if
+
+        data=data[2]
+        found=0
+        for i=1 to length(data[1]) do
+            if equal( data[1][i], "Win32lib" ) then
+                found=i
+            end if
+        end for
+        if found then
+            data[2][found]=newBuffer
+        else
+            ok=message_box("Win32lib routines not found in " & outputFile,"",0)
+            return
+        end if
+
+        handle=open(outputFile, "w")
+        if handle != -1 then
+            print( handle, data )
+            close( handle )            
+        else
+            ok=message_box("problem opening " & outputFile & " for write","",0)
+        end if
+    end if
+end procedure
+
+d=dir(folderName)
+for i=1 to length(d) do	
+	reversedname=reverse(d[i][D_NAME])
+	at=find('.', reversedname)
+	if at then
+		filetype=reversedname[1..at-1]
+		filetype=reverse(filetype)		
+		if equal("ew",filetype) then		
+			processFile(folderName & "\\" & d[i][D_NAME])
+		elsif equal("e",filetype) then
+			processFile(folderName & "\\" & d[i][D_NAME])	
+		end if
+	end if	
+end for
+
+ok=message_box("Updated global and export routines in IDE ini file","",0)		
+­1.19

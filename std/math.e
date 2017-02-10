@@ -13,6 +13,7 @@ public include std/rand.e
 public include std/mathcons.e
 include std/error.e
 
+--/*
 type trig_range(object x)
 --  values passed to arccos and arcsin must be [-1,+1]
     if atom(x) then
@@ -26,7 +27,7 @@ type trig_range(object x)
         return 1
     end if
 end type
-
+--*/
 
 --****
 -- === Sign and comparisons

@@ -2225,6 +2225,8 @@ constant Read = 4, Write= 2, Execute = 1 -- (for S_FLAGS)
 
 --constant interpreter = "/lib/ld-linux.so.2\0\0",  -- (manually padded to whole dwords/DEV)
 string interpreter = "/lib/ld-linux.so.2\0"
+string interpreter64 = "/lib64/ld-linux-x86-64.so.2\0"
+
 
 constant PT_LOAD = 1,
          PT_DYNAMIC = 2,
@@ -2573,8 +2575,8 @@ end if
         dynalen = length(st)+length(ht)+length(dynstrings)+length(rt)+rtidx*8
                 
         dtentry = SetField(dtentry,8,QWORD,0)
-        interpreter = pad(interpreter,QWORD)
-        interplen = length(interpreter)
+        interpreter64 = pad(interpreter64,QWORD)
+        interplen = length(interpreter64)
         if dynalen=0 then
             segments = {{PT_INTERP,interplen,Read}}
         else
@@ -2670,7 +2672,7 @@ end if
             offset += size
         end for
 
-        res &= interpreter
+        res &= interpreter64
 
         vaddr = #00400000
         dynalen = vaddr+length(res)+length(dt)+9*16

@@ -1,0 +1,181 @@
+-- ----------------------------------------------------------------
+-- Skinned Windows Demo/Example
+-- ----------------------------------------------------------------
+-- Copyright: ©2005 Dave Probert
+-- Email: probert.dave@gmail.com
+-- Author: Dave Probert
+-- Created: 20 June 2005
+-- Version: 0.0.2
+-- Requires: win32lib.ew (Can easily be converted to other windows libs)
+-- Notes: Basic test application for a 'Skinned' windows program
+--              Uses Win32Lib mousetrap handler for 'system' buttons
+--      Thanks To:      Elliott S. de Andrade (for pointing me at the right docs for getting region data)
+-- ----------------------------------------------------------------
+include win32lib.ew
+-- The main skin library :)
+include skinwindow.ew
+
+without warning
+
+-- NOTE: Use WS_POPUP and WS_BORDER to get rid of the titlebar and edging on the window
+constant win = create(Window,"Skinned Window Demo",0,Default,Default,415,375,{WS_POPUP, WS_BORDER}),
+         txt = create(Label,"",win,100,100,200,20,0),
+         msg = create(Label,"Nice Skinned Window Tool - By Dave Probert\nRead the comments for further info.",win,20,150,340,40,0)
+
+-- Load the images up - as an alternative here, suggest using FreeImage along with Jpegs
+--              as whatever the image is once loaded it's scanned for the shape - the source shouldn't matter
+atom hDib,reg
+     hDib = loadBitmapFromFile("testskin.bmp")
+
+atom icon_x,icon_v
+     icon_x = loadBitmapFromFile("close_icon.bmp")
+     icon_v = loadBitmapFromFile("min_icon.bmp")
+
+-- some horrible globals, but they're neccessary :(
+integer dragWin
+        dragWin = w32False
+sequence dragWinPos
+         dragWinPos = {0,0}
+
+-- -----------  IMPORTANT SPEED UP BIT HERE ---------
+-- For the purpose of demonstration - this variable can be changed after the first Run of the program
+--              if rgsave=1 then                        run writes a Region to a file
+--              else if rgsave=0 then   attempts to read the created file (much faster than scanning each time)
+integer rgsave
+        rgsave = 1              -- change this to 0 for loading region from file
+
+    -- The part that actually creates the window shape based on the loaded bitmap
+    if rgsave=1 then
+        reg = scanRegionBitmap(hDib, rgb(255,0,255))
+        VOID = saveRegionToFile(reg,"fruitbat.rgn")
+    else
+        reg = loadRegionFromFile("fruitbat.rgn")
+    end if
+
+    if reg!=NULL then
+        setWindowRegion(getHandle(win),reg)
+    else
+        VOID = message_box("Region Failed","Error",MB_OK)
+    end if
+
+    -- A holder for the mousetrap icons
+sequence iconz
+         iconz = {}
+-- just to let the system know when a mousetrap has been activated
+integer icon_clicked
+        icon_clicked = w32False
+-- ----------------------------------------------------------------
+procedure makeIcon(integer parent, atom bmp, integer x, integer y, integer clickfunc)
+sequence wh
+    wh = getRect(bmp)
+    iconz = append(iconz,{bmp,x,y,clickfunc, createMouseTrap(parent, {x,y,x+wh[3],y+wh[4]})})
+end procedure
+
+-- ----------------------------------------------------------------
+-- simple paint handler
+-- NOTE: -1,-1 on position of the bitmap - seems to make it fit exactly over the shape properly!
+procedure paint_handler(integer self, integer event, sequence params)
+atom hdc
+    setTransparentColor(rgb(255,0,255))
+    copyBlt(win, -1, -1, hDib)
+    for i=1 to length(iconz) do
+        transBlt(win, iconz[i][2], iconz[i][3], iconz[i][1])
+    end for
+   -- Fake a window caption - based on the real window caption
+   -- Wanted to use DrawText() here, but can't get it to change the colour correctly :(
+    hdc = getDC(win)
+    textOut(hdc,{getCaption(win),123,4,White,Black,TRANSPARENT})
+    releaseDC(hdc)
+end procedure
+setHandler(win,w32HPaint,routine_id("paint_handler"))
+
+-- ----------------------------------------------------------------
+-- Call the registered procedure for a clicked icon
+procedure mousetrap_handler(integer self, integer event, sequence params)
+--integer pev,mx,my,mz,id
+integer mx,my
+sequence traps
+--  pev = params[1]
+    mx = params[2]
+    my = params[3]
+--  mz = params[4]
+    traps = params[5]
+--  id = params[6]
+    icon_clicked = w32False
+    for i=1 to length(traps) do
+        for j=1 to length(iconz) do
+            if traps[i][6]=iconz[j][5] then
+                call_proc(iconz[j][4],{j,mx,my})
+                icon_clicked = w32True
+                exit
+            end if
+        end for
+    end for
+end procedure
+setHandler(win,w32HMouseTrap,routine_id("mousetrap_handler"))
+
+-- ----------------------------------------------------------------
+-- Very rough and ready 'title bar' emulator
+-- Needs some more work to handle vertical movement loss of mouse tracking
+procedure mouse_handler(integer self, integer event, sequence params)
+integer x,y,dx,dy
+sequence winpos,msepos,winsz
+    x = params[2]
+    y = params[3]
+    setText(txt,sprintf("Mouse: %d,%d",{x,y}))
+    if params[1]=LeftDown then
+        if y>=2 and y<=26 and not icon_clicked then
+            dragWin = w32True
+            dragWinPos = getPointerPos()
+        else
+            icon_clicked = w32False         -- just reset this now
+            dragWin = w32False
+            dragWinPos = {0,0}
+        end if
+    elsif params[1]=MouseMove then
+        if dragWin and dragWinPos[1]!=0 and dragWinPos[2]!=0 then
+            msepos = getPointerPos()
+            dx = msepos[1]-dragWinPos[1]
+            dy = msepos[2]-dragWinPos[2]
+            if abs(dx)>1 or abs(dy)>1 then
+                winpos = getPosition(self)
+                winsz = getCtlSize(self)
+                setRect(self,
+                        winpos[1]+(dx),
+                        winpos[2]+(dy),
+                        winsz[1],winsz[2],w32True)
+                dragWinPos = msepos
+            end if
+        end if
+    elsif params[1]=LeftUp then
+        dragWin = w32False
+        dragWinPos = {0,0}
+    else
+        dragWin = w32False
+        dragWinPos = {0,0}
+    end if
+end procedure
+setHandler(win,w32HMouse,routine_id("mouse_handler"))
+
+-- ----------------------------------------------------------------
+-- These procedures are some simple handlers for mousetrapped icons
+procedure icon_close_click(integer icid, integer mx, integer my)
+    closeApp()
+end procedure
+
+procedure icon_min_click(integer icid, integer mx, integer my)
+    showWindow(win,SW_SHOWMINIMIZED)
+    -- do ths else the mouse 'sticks' to where it thought the 
+    --      window was when it's reopened
+    dragWin = w32False
+    dragWinPos = {0,0}
+end procedure
+
+-- ----------------------------------------------------------------
+-- Make the icons here
+makeIcon(win,icon_x,269,2,routine_id("icon_close_click"))
+makeIcon(win,icon_v,91,2,routine_id("icon_min_click"))
+
+-- ----------------------------------------------------------------
+WinMain(win,Normal)
+-- ----------------------------------------------------------------

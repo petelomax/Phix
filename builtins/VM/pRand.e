@@ -78,6 +78,9 @@ end procedure -- (for Edita/CtrlQ)
         -- lea edi,[res]    -- target addr
         -- mov eax,[p1]     -- range
         -- call :%opRand    -- [edi] = rand(eax)
+--16/12/16
+        call :%pLoadMint -- (eax:=(int32)eax; edi preserved)
+--/*
         cmp eax,h4  --DEV :%pLoadMint (test this, eg on RDS Eu, rand(0.5) is an error, rand(2.5)==rand(2))
 --      jae :e2801atrmbausq
         jl @f
@@ -96,8 +99,10 @@ end procedure -- (for Edita/CtrlQ)
 --          mov eax,[esp]
 --          add esp,8
       @@:
+--*/
         cmp eax,1
-        jle :opRand1                -- rand(1) is always 1
+--      jle :opRand1                -- rand(1) is always 1
+        jbe :opRand1                -- rand(1) is always 1
         mov esi,eax
 --DEV this is not thread safe... so why not just recalc every time?
 --/*
@@ -160,13 +165,20 @@ end procedure -- (for Edita/CtrlQ)
         jge :rslim
         add eax,1
         pop ecx
-        cmp eax,h4
-        jl :opRandStore
-            push eax
---          mov edx,edi         -- address of p1 (target)
-            fild dword[esp]
-            add esp,4
-            jmp :%pStoreFlt
+--      cmp eax,h4
+--      jl :opRandStore
+--          push eax
+----            mov edx,edi         -- address of p1 (target)
+--          fild dword[esp]
+--          add esp,4
+--          jmp :%pStoreFlt
+      ::opRandStore
+        push ebx
+        push eax
+        fild qword[esp]
+        add esp,8
+        jmp :%pStoreFlt
+
       ::opRand1
 --      jl :e27atrmbge1     -- argument to rand must be >=1
         je :opRandStore
@@ -175,21 +187,24 @@ end procedure -- (for Edita/CtrlQ)
             sub edx,1
             jmp :!iDiag
             int3
-      ::opRandStore
-        mov edx,[edi]
-        xor ebx,ebx
-        mov [edi],eax
-        cmp edx,h4
-        jle @f
-            sub dword[ebx+edx*4-8],1
-            jz :%pDealloc
-      @@:
-        ret
+--    ::opRandStore
+--      jmp :%pStoreMint
+--      mov edx,[edi]
+--      xor ebx,ebx
+--      mov [edi],eax
+--      cmp edx,h4
+--      jle @f
+--          sub dword[ebx+edx*4-8],1
+--          jz :%pDealloc
+--    @@:
+--      ret
     [64]
         --calling convention:
         -- lea rdi,[res]    -- target addr
         -- mov rax,[p1]     -- range
         -- call :%opRand    -- [rdi] = rand(rax)
+        call :%pLoadMint    -- (rax:=(int64)rax; rdi preserved, r15:=h4)
+--/*
         mov r15,h4
         cmp rax,r15
 --      jae :e2801atrmbausq
@@ -209,8 +224,10 @@ end procedure -- (for Edita/CtrlQ)
 --          mov eax,[esp]
 --          add esp,8
       @@:
+--*/
         cmp rax,1
-        jle :opRand1                -- rand(1) is always 1
+--      jle :opRand1                -- rand(1) is always 1
+        jbe :opRand1                -- rand(1) is always 1
         mov rsi,rax
 --/*
         cmp rax,[rplim]
@@ -268,13 +285,19 @@ or rax,rcx
         jge :rslim
         add rax,1
         pop rcx
-        cmp rax,r15
-        jl :opRandStore
-            push rax
---          mov rdx,rdi         -- address of p1 (target)
-            fild qword[rsp]
-            add rsp,8
-            jmp :%pStoreFlt
+--      cmp rax,r15
+--      jl :opRandStore
+--          push rax
+----            mov rdx,rdi         -- address of p1 (target)
+--          fild qword[rsp]
+--          add rsp,8
+--          jmp :%pStoreFlt
+      ::opRandStore
+        push rax
+        fild qword[rsp]
+        add rsp,8
+        jmp :%pStoreFlt
+
       ::opRand1
 --      jl :e27atrmbge1     -- argument to rand must be >=1
         je :opRandStore
@@ -283,16 +306,16 @@ or rax,rcx
             sub rdx,1
             jmp :!iDiag
             int3
-      ::opRandStore
-        mov rdx,[rdi]
-        xor rbx,rbx
-        mov [rdi],rax
-        cmp rdx,r15
-        jle @f
-            sub qword[rbx+rdx*4-16],1
-            jz :%pDealloc
-      @@:
-        ret
+--    ::opRandStore
+--      mov rdx,[rdi]
+--      xor rbx,rbx
+--      mov [rdi],rax
+--      cmp rdx,r15
+--      jle @f
+--          sub qword[rbx+rdx*4-16],1
+--          jz :%pDealloc
+--    @@:
+--      ret
     []
 
       }

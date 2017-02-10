@@ -1083,6 +1083,7 @@ public type ascii_string( object x )
     return 1
 end type
 
+?"std/types"
 --**
 -- Returns:
 --  TRUE if argument is a sequence that only contains zero or more byte characters.

@@ -1,0 +1,191 @@
+include win32lib.ew
+without warning
+
+global constant TabWindow1 = createEx(Window, "", CodeWin, Default, Default, 148, 210, 0, {WS_EX_TOOLWINDOW})
+removeStyle(TabWindow1, {(WS_THICKFRAME),(0)})
+sequence size size = getClientRect(TabWindow1)
+constant TabControl2 = createEx(TabControl, "", TabWindow1, 0, 0, size[3], size[4]-27, 0, 0)
+constant TabItem3 = createEx(TabItem, "System", TabControl2, 0, 0, 0, 0, 0, 0)
+sequence size1 size1 = getCtlSize(TabItem3)
+constant SystemColor = createEx(Window, "", TabItem3, 0, 20, size1[1], size1[2]-10, {WS_CHILD}, 0)
+sequence size2 size2 = getCtlSize(SystemColor)
+constant ShowColor = createEx(LText, "", SystemColor, 0, 0, size2[1], 13, 0, 0)
+constant List5 = createEx(List, "", SystemColor, 0, 13, size2[1], size2[2]-8, 0, 0)
+constant TabItem4 = createEx(TabItem, "Palette", TabControl2, 0, 0, 0, 0, 0, 0)
+constant Palette = createEx(Window, "", TabItem4, 0, 20, size1[1], size1[2], {WS_CHILD}, 0)
+--------------------------------------------------------------------------------
+sequence colorList
+colorList       =       {
+                         {"Scroll Bars", COLOR_SCROLLBAR},
+                         {"Desktop", COLOR_DESKTOP},
+                         {"Active Title Bar", COLOR_ACTIVECAPTION},
+                         {"Inactive Title Bar", COLOR_INACTIVECAPTION},
+                         {"Menu Bar", COLOR_MENU},
+                         {"Window Background", COLOR_WINDOW},
+                         {"Window Frame", COLOR_WINDOWFRAME},
+                         {"Menu Text", COLOR_MENUTEXT},
+                         {"Window Text", COLOR_WINDOWTEXT},
+                         {"Active Title Bar Text", COLOR_CAPTIONTEXT},
+                         {"Active Border", COLOR_ACTIVEBORDER},
+                         {"Inactive Border", COLOR_INACTIVEBORDER},
+                         {"Application Workspace", COLOR_APPWORKSPACE},
+                         {"Highlight", COLOR_HIGHLIGHT},
+                         {"Highlight Text", COLOR_HIGHLIGHTTEXT},
+                         {"Button Face", COLOR_BTNFACE},
+                         {"Button Shadow", COLOR_BTNSHADOW},
+                         {"Disabled Text", COLOR_GRAYTEXT},
+                         {"Button Text", COLOR_BTNTEXT},
+                         {"Inactive Title Bar Text", COLOR_INACTIVECAPTIONTEXT},
+                         {"Button Highlight", COLOR_BTNHIGHLIGHT},
+                         {"Button Dark Shadow", COLOR_3DDKSHADOW},
+                         {"Button Light Shadow", COLOR_3DLIGHT},
+                         {"ToolTip Text", COLOR_INFOTEXT},
+                         {"ToolTip", COLOR_INFOBK}
+                        }
+
+integer None
+None = getSysColor(COLOR_BTNFACE)
+
+sequence MyPalette  MyPalette = repeat(None,64)
+
+constant LUT = {    -- ,RGB,
+                000,000,030,050,070,090,004,034,054,074,094,009,039,059,079,099,
+                333,400,430,450,470,490,404,434,454,474,494,409,439,459,479,499,
+                555,700,730,750,770,790,704,734,754,774,794,709,739,759,779,799,
+                777,900,930,950,970,990,904,934,954,974,994,909,939,959,979,999}
+
+constant LUTMult = {0,25,50,75,100,133,161,199,227,255}
+
+sequence extraColors
+extraColors = {None,None,None,None,None,None,None,None}
+--------------------------------------------------------------------------------
+procedure Palette_onPaint(integer self, integer event, sequence params)
+--params is ( integer x1, integer y1, integer x2, integer y2 )
+integer i
+
+    for x=1 to 8 do
+        for y=1 to 8 do
+            i = (x-1)*8+y
+            setPenColor(Palette, MyPalette[i])
+            drawRectangle(Palette, w32True, x*17-17,y*17-17,x*17-1,y*17-1)
+        end for
+    end for
+
+end procedure
+setHandler(Palette, w32HPaint, routine_id("Palette_onPaint"))
+--------------------------------------------------------------------------------
+procedure Palette_onMouse(integer self, integer event, sequence params)
+--params is ( integer event, integer x, integer y, integer shift, integer wheelmove )
+integer x,y,ix,iy,i
+sequence pos
+
+    pos = getPointerRelPos(Palette)
+    x = pos[1]
+    y = pos[2]
+    ix = floor(x/17)+1
+    iy = floor(y/17)+1
+    i = (ix-1)*8+iy
+    x = (ix-1)*17
+    y = (iy-1)*17
+
+    if i>64 then
+        return
+    end if
+
+    if and_bits(params[4], LeftBtnMask) then
+        --show the color
+        setText(TabWindow1,sprint(MyPalette[i]))
+    end if
+
+end procedure
+setHandler(Palette, w32HMouse, routine_id("Palette_onMouse"))
+--------------------------------------------------------------------------------
+procedure TabWindow1_onMouse(integer self, integer event, sequence params)
+sequence pos
+integer x,y,ix,i,colors
+
+    pos = getPointerRelPos(Palette)
+    x = pos[1]
+    y = pos[2]
+    if y>144 then
+        ix = floor(x/17)+1
+        i = ix
+        x = (ix-1)*17
+        y = 167
+
+        if and_bits(params[4], LeftBtnMask) then
+            --show the color
+            setText(TabWindow1,sprint(extraColors[i]))
+        end if
+
+        if params[1]=LeftDoubleClick then
+            if i>8 then
+                return
+            end if
+            colors = getColorDialog(Palette, extraColors[i])
+            if colors!=None then
+                extraColors[i] = colors
+                setPenColor(TabWindow1, extraColors[i])
+                drawRectangle(TabWindow1, w32True,x,y,x+17,y+17)
+                --show the color
+                setText(TabWindow1,sprint(extraColors[i]))
+            end if
+        end if
+    end if
+end procedure
+setHandler(TabWindow1, w32HMouse, routine_id("TabWindow1_onMouse"))
+--------------------------------------------------------------------------------
+procedure TabWindow1_onPaint(integer self, integer event, sequence params)
+    --add spots for color dialog to fill
+    setPenColor(TabWindow1, Black)
+    for x=0 to 135 by 17 do
+        drawRectangle(TabWindow1, 0, x, size[4]-19, x+17, (size[4]-19)+17)
+    end for
+end procedure
+setHandler(TabWindow1, w32HPaint, routine_id("TabWindow1_onPaint"))
+--------------------------------------------------------------------------------
+procedure List5_onChange(integer self, integer event, sequence params)
+integer pos
+    pos = getIndex(List5)
+    setWindowBackColor(ShowColor, getSysColor(colorList[pos][2]))
+    --show the color
+    setText(TabWindow1,sprint(getSysColor(colorList[pos][2])))
+end procedure
+setHandler(List5, w32HChange, routine_id("List5_onChange"))
+--------------------------------------------------------------------------------
+procedure SystemColor_onOpen(integer self, integer event, sequence params)
+
+    for i=1 to 25 do
+        addItem(List5, colorList[i][1])
+    end for
+end procedure
+setHandler(SystemColor, w32HOpen, routine_id("SystemColor_onOpen"))
+--------------------------------------------------------------------------------
+procedure setPalette()
+integer n, c, ix
+
+    MyPalette[1] = None
+
+    for i=2 to length(LUT) do
+        n = LUT[i]
+        ix = remainder(n,10)
+        c = #10000*LUTMult[ix+1]
+        n = floor(n/10)
+        ix = remainder(n,10)
+        c += #100*LUTMult[ix+1]
+        n = floor(n/10)
+        ix = remainder(n,10)
+        c += LUTMult[ix+1]
+
+        MyPalette[i] = c
+    end for
+end procedure
+--------------------------------------------------------------------------------
+procedure TabWindow1_onOpen(integer self, integer event, sequence params)
+    setPalette()
+    openWindow(Palette, Normal)
+    openWindow(SystemColor, Normal)
+    moveZOrder(TabWindow1, HWND_TOP)
+end procedure
+setHandler(TabWindow1, w32HOpen, routine_id("TabWindow1_onOpen"))
+--------------------------------------------------------------------------------

@@ -1543,6 +1543,7 @@ global procedure syminit()
 
     -- from dll.e:
 --DEV 64 bit?
+--DEV doc
     initialConstant("C_BYTE",       #01000001)  -- an 8 bit signed integer
     initialConstant("C_CHAR",       #01000001)  -- an 8 bit signed?? integer
     initialConstant("C_UBYTE",      #02000001)  -- an 8 bit unsigned integer
@@ -1553,20 +1554,21 @@ global procedure syminit()
     initialConstant("C_INT",        #01000004)  -- a 32 bit signed integer
     initialConstant("C_BOOL",       #01000004)
     initialConstant("C_LONG",       #01000004)
-    initialConstant("C_WPARAM",     #01000004)
-    initialConstant("C_LPARAM",     #01000004)
-    initialConstant("C_HRESULT",    #01000004)
-    initialConstant("C_UINT",       #02000004)  -- a 32 bit signed integer
-    initialConstant("C_SIZE_T",     #02000004)
+    initialConstant("C_UINT",       #02000004)  -- a 32 bit unsigned integer
+--DEV!?
     initialConstant("C_DWORD",      #02000004)  -- a 32 bit unsigned integer
---  initialConstant("C_DWORD32",    #02000004)  -- a 32 bit unsigned integer [DEV/SUG]
---  initialConstant("C_DWORD64",    #02000008)  -- a 64 bit unsigned integer [DEV/SUG]
     initialConstant("C_ULONG",      #02000004)
     initialConstant("C_INT64",      #01000008)  -- a 64 bit signed integer
+--DEV!?
     initialConstant("C_QWORD",      #02000008)  -- a 64 bit unsigned integer
 --  initialConstant("C_LONGLONG",   #01000008)  -- a 64 bit signed integer [DEV/SUG]
 --  initialConstant("C_ULONGLONG",  #02000008)  -- a 64 bit unsigned integer [DEV/SUG]
-    initialConstant("C_POINTER",    #02000004)  -- [DEV] #02000008 on 64 bit
+--??
+    initialConstant("C_WPARAM",     #01000004)
+    initialConstant("C_LPARAM",     #01000004)
+    initialConstant("C_HRESULT",    #01000004)
+    initialConstant("C_SIZE_T",     #02000004)
+    initialConstant("C_POINTER",    #02000004)  -- [DEV] #01000008 on 64 bit
     initialConstant("C_PTR",        #02000004)  -- ""
     initialConstant("C_HANDLE",     #02000004)  -- ""
     initialConstant("C_HWND",       #02000004)  -- ""
@@ -1577,6 +1579,12 @@ global procedure syminit()
 --  initialConstant("C_FLT64",      #03000008)  -- (DEV/SUG)
 --  initialConstant("C_FLT80",      #0300000A)  -- (DEV/SUG)??
 --  initialConstant("C_DWORDLONG",  #03000008)  [DEV? (has also surfaced as #03000002, I say "it shd be #02000008!?")]
+
+--  signedmbi = iff(X64=0?#01000004:#01000008)
+--  unsignmbi = iff(X64=0?#02000004:#02000008)
+--  initialConstant("C_???",        signedmbi)  -- a signed machine_bit integer [NO]
+--  reset_on_format(symlimit) [or just document they may be incorrect during cross-compile?]
+
 
 -- For Phix-compiled .dll files [DEV when implemented!], and/or call_backs.
 --  (Instead of the four E_XXX values below. See ??[DEV] for an example of
@@ -1629,18 +1637,12 @@ global procedure syminit()
     Alias("bool",T_integer)
     initialConstant("NULL", 0)
     Alias("null", symlimit)
---  initialConstant("null", 0)
---DEV/SUG true, false, TRUE, FALSE, True, False
     initialConstant("TRUE", 1)
     Alias("True", symlimit)
     Alias("true", symlimit)
     initialConstant("FALSE", 0)
     Alias("False", symlimit)
     Alias("false", symlimit)
---  initialConstant("True", 1)
---  initialConstant("False", 0)
---  initialConstant("true", 1)
---  initialConstant("false", 0)
 
     -- from misc.e:
 --  initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
@@ -2043,6 +2045,7 @@ if newEmit then
     AutoGlabel(opRunCleanup,"%opRunCleanup","VM\\pStack.e")
     AutoGlabel(opAbort,     "%opAbort",     "VM\\pStack.e")
     AutoGlabel(opCrashMsg,  "%pCrashMsg",   "VM\\pDiagN.e")
+    AutoGlabel(opCrashRtn,  "%pCrashRtn",   "VM\\pDiagN.e")
     AutoGlabel(opTrace,     "%opTrace",     "VM\\pTrace.e")
     AutoGlabel(opLnt,       "%opLnt",       "VM\\pTrace.e")
     AutoGlabel(opClrDbg,    "%opClrDbg",    "VM\\pTrace.e")
@@ -2178,7 +2181,8 @@ if newEmit then
 --  AutoGlabel(opDcfunc,    "%opDcfunc",    "VM\\pcfuncN.e")
 --  AutoGlabel(opDcvar,     "%opDcvar",     "VM\\pcfuncN.e")
 --  AutoGlabel(opCallback,  "%opCallback",  "VM\\pcfuncN.e")
-    AutoGlabel(opCbHandler, "%cbhandler",   "VM\\pcfunc.e")
+--  AutoGlabel(opCbHandler, "%cbhandler",   "VM\\pcfunc.e")
+    AutoGlabel(opCbHandler, "%cbhandler",   "VM\\cbhand.e")
     AutoGlabel(opCallFunc,  "%opCallFunc",  "VM\\pcallfunc.e")
     AutoGlabel(opCallProc,  "%opCallProc",  "VM\\pcallfunc.e")
 
@@ -2275,6 +2279,7 @@ if newEmit then
     AutoAsm("clear_screen",     S_Proc,"P",     "VM\\pfileioN.e",   opClrScrn,  "%opClrScrn",   E_other,0)
     AutoAsm("close",            S_Proc,"PI",    "VM\\pfileioN.e",   opClose,    "%opClose",     E_other,0)
     AutoAsm("crash_message",    S_Proc,"PO",    "VM\\pDiagN.e",     opCrashMsg, "%pCrashMsg",   E_other,0)
+    AutoAsm("crash_routine",    S_Proc,"PI",    "VM\\pDiagN.e",     opCrashRtn, "%pCrashRtn",   E_other,0)
 --  AutoAsm("delete",           S_Proc,"PO",    "VM\\pDeleteN.e",   opDelete,   "%opDelete",    E_other,0)
     AutoAsm("delete",           S_Proc,"PO",    "VM\\pDeleteN.e",   opDelete,   "%opDelete",    E_all,  0)
     AutoAsm("delete_cs",        S_Proc,"PI",    "VM\\pHeap.e",      opDeleteCS, "%pDeleteCS",   E_other,0)
@@ -2354,6 +2359,8 @@ end if
     initialAutoEntry("delete_file",     S_Func,"FS",    "pfile.e",0,E_none)
     initialAutoEntry("day_of_week",     S_Func,"FIII",  "pdate.e",0,E_none)
     initialAutoEntry("day_of_year",     S_Func,"FIII",  "pdate.e",0,E_none)
+    initialAutoEntry("dict_size",       S_Func,"FI",    "dict.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("file_exists",     S_Func,"FS",    "pfile.e",0,E_none)
     initialAutoEntry("find_any",        S_Func,"FPPI",  "pfindany.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
@@ -2442,8 +2449,9 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("arccos",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
-    initialAutoEntry("bytes_to_int",    S_Func,"FP",    "machine.e",0,E_none)       --DEV should really be renamed
-    initialAutoEntry("bits_to_int",     S_Func,"FP",    "machine.e",0,E_none)       --              ""
+    initialAutoEntry("bytes_to_int",    S_Func,"FPI",   "machine.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("bits_to_int",     S_Func,"FP",    "machine.e",0,E_none)
     initialAutoEntry("ceil",            S_Func,"FN",    "pmaths.e",0,E_none)
 if newEmit then
     --DEV or is c_func an object result?? (eg C:\Program Files\Phix\demo\SUDOKU\EuWinGUI.ew:359)
@@ -2502,6 +2510,8 @@ end if
     Alias("filebase", symlimit)
     initialAutoEntry("get_file_path",   S_Func,"FSI",   "pfile.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+--added 31/12/16:(!!)
+    Alias("pathname", symlimit)
     initialAutoEntry("get_file_extension",S_Func,"FS",  "pfile.e",0,E_none)
     Alias("fileext", symlimit)
 --if newEmit then
@@ -2582,10 +2592,15 @@ else
     symtab[symlimit][S_ParmN] = 0
 end if
     initialAutoEntry("insert",          S_Func,"FPOI",  "pseqc.e",0,E_none)
-    initialAutoEntry("int_to_bytes",    S_Func,"FN",    "machine.e",0,E_none)
+    initialAutoEntry("int_to_bytes",    S_Func,"FNI",   "machine.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("int_to_bits",     S_Func,"FNI",   "machine.e",0,E_none)
     initialAutoEntry("match_replace",   S_Func,"FOPOI", "matchrepl.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
+    initialAutoEntry("pad_head",        S_Func,"FPIO", "pseqc.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("pad_tail",        S_Func,"FPIO", "pseqc.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("permute",         S_Func,"FIP",   "permute.e",0,E_none)
     initialAutoEntry("prime_factors",   S_Func,"FN",    "pfactors.e",0,E_none)
     initialAutoEntry("remove",          S_Func,"FPNN",  "pseqc.e",0,E_none)
@@ -2621,6 +2636,7 @@ end if
     initialAutoEntry("ppExf",           S_Func,"FOP",   "ppp.e",0,E_other)
     initialAutoEntry("value",           S_Func,"FP",    "get.e",0,E_other)
     initialAutoEntry("video_config",    S_Func,"F",     "pscreen.e",0,E_none)
+    initialAutoEntry("vslice",          S_Func,"FPI",   "vslice.e",0,E_none)
     initialAutoEntry("get_screen_char", S_Func,"FII",   "pscreen.e",0,E_other)
 
     T_ASeq = symlimit
@@ -2739,7 +2755,8 @@ end if
     initialAutoEntry("sq_upper",        S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_lower",        S_Func,"FO",    "psqop.e",0,E_none)
 
-    initialAutoEntry("to_number",       S_Func,"FS",    "scanf.e",0,E_none)
+    initialAutoEntry("to_number",       S_Func,"FSO",   "scanf.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("trim",            S_Func,"FOOI",  "ptrim.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("trim_head",       S_Func,"FOOI",  "ptrim.e",0,E_none)
@@ -2778,7 +2795,7 @@ if newEmit then
 --  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)  -- now opCallProc
     initialAutoEntry("crash",               S_Proc,"PPO",   "pCrashN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("crash_file",          S_Proc,"PO",    "VM\\pDiagN.e",0,E_other)
+--  initialAutoEntry("crash_file",          S_Proc,"PO",    "VM\\pDiagN.e",0,E_other)   --DEV removed 14/12/16... (now opCrashFile?)
 --  initialAutoEntry("crash_message",       S_Proc,"PO",    "VM\\pDiagN.e",0,E_other)   -- now opCrashMsg
 else
     initialAutoEntry("c_proc",              S_Proc,"PIP",   "pcfunc.e",0,E_all)
@@ -3032,6 +3049,8 @@ sequence msg
                 and sp[S_vtype]=symtab[r][S_vtype]
                 and sp[S_value]=symtab[r][S_value]
                 and and_bits(sp[S_State],K_noclr)
+--added 2/1/17: (no help)
+--              and and_bits(sp[S_State],K_gbl)
                 and and_bits(symtab[r][S_State],K_noclr) then
                 -- allow (eg) multiple [global] constant true=1
                 --? sp

@@ -1,0 +1,258 @@
+--IDE_scrollingTable.ew
+--for use with IDE and Table Control that needs to scroll to see all cells
+
+constant
+    IDEScrollWindow = registerw32Procedure(user32, "ScrollWindow", {C_LONG,C_LONG,C_LONG,C_POINTER,C_POINTER})
+
+global sequence IDEAssociatedTable
+--win id, table id, vOldScrollPos, hOldScrollPos
+IDEAssociatedTable = {}
+
+global integer IDE_ScrollWindow_bars  IDE_ScrollWindow_bars = 0
+--------------------------------------------------------------------------------
+procedure setTableScrollPos(integer pos, integer typeScroll, integer win)
+atom sif, void
+integer index
+
+                -- Allocate structure
+    sif = w32acquire_mem(0, SIZEOF_SCROLLINFO)
+    -- w32store values
+    w32store(sif, sifSize, SIZEOF_SCROLLINFO)
+    w32store(sif, sifMask, w32or_all({SIF_POS,SIF_DISABLENOSCROLL}))
+    w32store(sif, sifPos,   pos)
+    void = w32Func(xSetScrollInfo, {getHandle(win), typeScroll,  sif, w32True})
+    -- Free structure
+    w32release_mem(sif)
+
+    -- with this, OS automatically moves child windows.
+    if typeScroll=SB_VERT then
+        for i=1 to length(IDEAssociatedTable) do
+            if IDEAssociatedTable[i][1]=win then
+                index = i
+                exit
+            end if
+        end for
+        w32Proc(IDEScrollWindow, {getHandle(win),0,IDEAssociatedTable[index][3]-pos,0,0})
+        IDEAssociatedTable[index][3] = pos
+    else
+        for i=1 to length(IDEAssociatedTable) do
+            if IDEAssociatedTable[i][1]=win then
+                index = i
+                exit
+            end if
+        end for
+        w32Proc(IDEScrollWindow, {getHandle(win),IDEAssociatedTable[index][4]-pos,0,0,0})
+        IDEAssociatedTable[index][4] = pos
+    end if
+end procedure
+----------------------------------------------------------------------------------
+procedure setTableScrollRange(integer id, integer typeScroll,
+        integer min, integer max, atom pageSize)
+
+atom sif, lMask, VOID
+integer pos, Table3Size, CWindow2Size, TheTable
+sequence size, size1
+
+
+    -- Allocate structure
+    sif = w32acquire_mem(0, SIZEOF_SCROLLINFO)
+
+    -- w32store values
+    if pageSize<1 then
+        lMask = SIF_RANGE
+    else
+        lMask = w32or_all({SIF_RANGE,SIF_PAGE})--,SIF_DISABLENOSCROLL})
+    end if
+
+    w32store(sif, sifSize, SIZEOF_SCROLLINFO)
+    w32store(sif, sifMask, lMask)
+    w32store(sif, sifMin, min)
+    w32store(sif, sifMax, max)
+    w32store(sif, sifPage, pageSize)
+
+
+    VOID = w32Func(xSetScrollInfo,
+                   {getHandle(id),          -- handle
+                    typeScroll,
+                    sif,                            -- pointer to structure
+                    1})                         -- redraw flag
+
+    --out if range?
+    for i=1 to length(IDEAssociatedTable) do
+        if IDEAssociatedTable[i][1]=id then
+            TheTable = IDEAssociatedTable[i][2]
+            exit
+        end if
+    end for
+    size = getRect(TheTable)
+    size1 = getClientRect(id)
+    if typeScroll=SB_HORZ then
+        Table3Size = size[3]-size[1]
+        CWindow2Size = size1[3]
+        pos = getHScrollPos(id)
+        if pos!=0 and (pos>Table3Size-CWindow2Size) then
+            setTableScrollPos(Table3Size-CWindow2Size+1,SB_HORZ,id)
+        end if
+        if CWindow2Size>Table3Size then
+            setTableScrollPos(0,SB_HORZ,id)
+        end if
+    else
+        Table3Size = size[4]-size[2]
+        CWindow2Size = size1[4]
+        pos = getVScrollPos(id)
+        if pos!=0 and (pos>Table3Size-CWindow2Size) then
+            setTableScrollPos(Table3Size-CWindow2Size+1,SB_VERT,id)
+        end if
+        if CWindow2Size>Table3Size then
+            setTableScrollPos(0,SB_VERT,id)
+        end if
+    end if
+    -- Free structure
+    w32release_mem(sif)
+end procedure
+--------------------------------------------------------------------------------
+global procedure event_IDEChildWin(integer Self, integer Event, sequence Params)
+sequence size, size1, range
+integer pos, request, void, Table3Size, CWindow2Size, TheTable
+
+--Most of this routine taken from Martin Stachon's prop.ew
+--these can come out when activate w32HScroll above.....
+    if Params[1]=WM_VSCROLL then
+        request = w32lo_word(Params[2])
+        pos = getVScrollPos(Self)
+        for i=1 to length(IDEAssociatedTable) do
+            if IDEAssociatedTable[i][1]=Self then
+                TheTable = IDEAssociatedTable[i][2]
+                exit
+            end if
+        end for
+        size = getRect(TheTable)
+        size1 = getClientRect(Self)
+        Table3Size = size[4]-size[2]
+        CWindow2Size = size1[4]
+        if CWindow2Size>Table3Size then
+            range = {0,0}
+        else
+            range = {0,Table3Size-CWindow2Size+1}
+        end if
+
+        if    request=SB_LINEUP then -- move up by 1 line
+            pos -= 1
+        elsif request=SB_LINEDOWN then -- move down by 1 line
+            pos += 1
+        elsif request=SB_PAGEUP then -- move up by 1 page
+            pos -= CWindow2Size
+        elsif request=SB_PAGEDOWN then -- move down by 1 page
+            pos += CWindow2Size
+        end if
+        if    request=SB_TOP      then  -- to top of page
+            pos = range[1]
+        elsif request=SB_BOTTOM then    -- to bottom of page
+            pos = range[2]
+        elsif request=SB_THUMBPOSITION or request=SB_THUMBTRACK then
+                        -- track thumb position
+            pos = w32hi_word(Params[2])
+        end if
+        -- clip to range
+        if pos<range[1] then
+            pos = range[1]
+        elsif pos>range[2] then
+            pos = range[2]
+        end if
+        setTableScrollPos(pos, SB_VERT, Self)
+        returnValue(0)
+    elsif Params[1]=WM_HSCROLL then
+        request = w32lo_word(Params[2])
+        pos = getHScrollPos(Self)
+        for i=1 to length(IDEAssociatedTable) do
+            if IDEAssociatedTable[i][1]=Self then
+                TheTable = IDEAssociatedTable[i][2]
+                exit
+            end if
+        end for
+        size = getRect(TheTable)
+        size1 = getClientRect(Self)
+        Table3Size = size[3]-size[1]
+        CWindow2Size = size1[3]
+        if CWindow2Size>Table3Size then
+            range = {0,0}
+        else
+            range = {0,Table3Size-CWindow2Size+1}
+        end if
+
+        if    request=SB_LINEUP then -- move up by 1 line
+            pos -= 1
+        elsif request=SB_LINEDOWN then -- move down by 1 line
+            pos += 1
+        elsif request=SB_PAGEUP then -- move up by 1 page
+            pos -= CWindow2Size
+        elsif request=SB_PAGEDOWN then -- move down by 1 page
+            pos += CWindow2Size
+        end if
+        if    request=SB_TOP      then  -- to top of page
+            pos = range[1]
+        elsif request=SB_BOTTOM then    -- to bottom of page
+            pos = range[2]
+        elsif request=SB_THUMBPOSITION or request=SB_THUMBTRACK then
+                        -- track thumb position
+            pos = w32hi_word(Params[2])
+        end if
+
+        -- clip to range
+        if pos<range[1] then
+            pos = range[1]
+        elsif pos>range[2] then
+            pos = range[2]
+
+        end if
+        setTableScrollPos(pos, SB_HORZ, Self)
+        returnValue(0)
+    elsif Params[1]=WM_MOUSEWHEEL then
+                -- mouse wheel scrolling
+        pos = getVScrollPos(Self)-w32shortInt(w32hi_word(Params[2]))
+        if pos<0 then pos = 0 end if
+        void = sendMessage(Self, WM_VSCROLL, w32pack_word(SB_THUMBPOSITION,pos), 0)
+        pos = getHScrollPos(Self)-w32shortInt(w32hi_word(Params[2]))
+        if pos<0 then pos = 0 end if
+        void = sendMessage(Self, WM_HSCROLL, w32pack_word(SB_THUMBPOSITION,pos), 0)
+    --end of what can be removed later on
+    end if
+end procedure
+--------------------------------------------------------------------------------
+global procedure resize_IDEChildWin(integer self, integer event, sequence params)
+sequence size, size1
+integer TheTable
+integer tableCX, tableCY
+
+    size = getClientRect(self)
+    for i=1 to length(IDEAssociatedTable) do
+        if IDEAssociatedTable[i][1]=self then
+            TheTable = IDEAssociatedTable[i][2]
+            exit
+        end if
+    end for
+
+    size1 = getRect(TheTable)
+    tableCX = size1[3]-size1[1]
+    tableCY = size1[4]-size1[2]
+
+    if IDE_ScrollWindow_bars=1
+    or IDE_ScrollWindow_bars=3 then
+        if tableCX<=size[3] then
+            setTableScrollRange(self, SB_HORZ, 0, 0, 1)
+        else
+            setTableScrollRange(self, SB_HORZ, 1, tableCX, size[3])
+        end if
+        setHScrollPos(self, 1)
+    elsif IDE_ScrollWindow_bars=2
+--  or IDE_ScrollWindow_bars = 3 then
+       or IDE_ScrollWindow_bars=4 then
+        if tableCY<=size[4] then
+            setTableScrollRange(self, SB_VERT, 0, 0, 1)
+        else
+            setTableScrollRange(self, SB_VERT, 1, tableCY, size[4])
+        end if
+        setVScrollPos(self, 1)
+    end if
+
+end procedure

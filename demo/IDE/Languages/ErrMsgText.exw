@@ -1,0 +1,186 @@
+include Win32lib.ew
+without warning
+
+constant win=createEx(Window,"Test Language Changes",0,0,0,460,400,0,0)
+constant button1=createEx(PushButton,"Try A demo Message",win,0,0,150,30,0,0)
+constant button2=createEx(PushButton,"Test Your Messages",win,150,0,150,30,0,0)
+constant button3=createEx(PushButton,"Test Your Text",win,300,0,150,30,0,0)
+constant win2=createEx(Window,"Language File Test",win,Default,Default,310,150,0,0)
+constant label1=createEx(LText,"Start At Message",win2,0,0,100,30,0,0)
+constant startAt=createEx(EditText,"1",win2,100,0,50,30,ES_NUMBER,0)
+constant label2=createEx(LText,"End At Message",win2,0,30,100,30,0,0)
+constant endAt=createEx(EditText,"214",win2,100,30,50,30,ES_NUMBER,0)
+constant gobutton=createEx(PushButton,"Ready",win2,0,70,75,30,0,0)
+constant win3 = createEx(Window,"",win,Default,Default,700,200,0,0)
+constant label3 = createEx(MleText,"",win3,0,0,650,100,0,0)
+constant continue = createEx(PushButton,"Next",win3,0,120,90,30,0,0)
+
+sequence existingErrValues
+existingErrValues={
+    {"MB_APPLMODAL",MB_APPLMODAL},              -- User must respond before doing something else
+    {"MB_ICONERROR",MB_ICONERROR},
+    {"MB_ICONEXCLAMATION",MB_ICONEXCLAMATION},  -- Exclamation-point appears in the box
+    {"MB_ICONHAND",MB_ICONERROR},               -- A hand appears
+    {"MB_ICONINFORMATION",MB_ICONINFORMATION},  -- Lowercase letter i in a circle appears
+    {"MB_ICONQUESTION",MB_ICONQUESTION},        -- A question-mark icon appears
+    {"MB_ICONSTOP",MB_ICONERROR},
+    {"MB_ICONWARNING",MB_ICONEXCLAMATION},
+    {"MB_OK",MB_OK},                            -- Message box contains one push button: OK
+    {"MB_OKCANCEL",MB_OKCANCEL},                -- Message box contains OK and Cancel
+    {"MB_SETFOREGROUND",MB_SETFOREGROUND},      -- Message box becomes the foreground window
+    {"MB_SYSTEMMODAL",MB_SYSTEMMODAL},          -- All applications suspended until user responds
+    {"MB_TASKMODAL",MB_TASKMODAL},              -- Similar to MB_APPLMODAL
+    {"MB_YESNO",MB_YESNO},                      -- Message box contains Yes and No
+    {"MB_YESNOCANCEL",MB_YESNOCANCEL}           -- Message box contains Yes, No, and Cancel
+}
+
+integer total   total=0
+integer index   index=0
+atom chkbox
+integer y       y= 30
+sequence MsgNos,IDEText,fName
+fName={}
+
+procedure addToTotal(integer self, integer event, sequence params)
+    integer cnt
+    sequence val
+
+    --find the title in existingErrValues
+    for i=1 to length(existingErrValues) do
+        if equal(getText(self), existingErrValues[i][1]) then
+            val=sprintf("%g",existingErrValues[i][2])
+            val=value(val)
+            cnt=val[2]
+            exit
+        end if
+    end for
+
+    if isChecked(self) then
+        total+=cnt
+    else
+        total-=cnt
+    end if
+end procedure
+
+for i=1 to length(existingErrValues) do
+    y+=20
+    chkbox=createEx(CheckBox,existingErrValues[i][1],win,0,y,200,20,0,0)
+    setHandler(chkbox,w32HClick,routine_id("addToTotal"))
+end for
+
+procedure getValue(integer self, integer event, sequence params)
+    integer ok
+    ok=message_box("Testing","Decimal value " & sprint(total),total)
+end procedure
+setHandler(button1,w32HClick,routine_id("getValue"))
+
+procedure tryLang(integer self, integer event, sequence params)
+    sequence thedata
+    integer handle,ok
+
+    openWindow(win2, Normal)
+    if not length(fName) then
+        fName=getOpenFileName(win2,current_dir(),"")
+    end if
+    if length(fName)
+    and match(".lng",fName) then
+        handle=open(fName, "r")
+        if handle = -1 then
+            ok=message_box("can not open " & fName,"",0)
+            abort(1)
+        end if
+        thedata = get(handle)
+        if thedata[1] != GET_SUCCESS then
+            ok=message_box("can not read data from " & fName,"",0)
+            abort(1)
+        end if
+        MsgNos=thedata[2][1]
+        IDEText=thedata[2][2]
+        close(handle)
+
+        setText(label1,"Start At Message")
+        setText(label2,"End At Message")
+        --set the end number to last one
+        setText(startAt, sprint(1))
+        setText(endAt, sprint(length(MsgNos)))
+    end if
+end procedure
+setHandler(button2,w32HClick,routine_id("tryLang"))
+
+procedure tryLang3(integer self, integer event, sequence params)
+    sequence thedata
+    integer handle,ok
+
+    openWindow(win2, Normal)
+    if not length(fName) then
+        fName=getOpenFileName(win2,current_dir(),"")
+    end if
+    if length(fName)
+    and match(".lng",fName) then
+        handle=open(fName, "r")
+        if handle = -1 then
+            ok=message_box("can not open " & fName,"",0)
+            abort(1)
+        end if
+        thedata = get(handle)
+        if thedata[1] != GET_SUCCESS then
+            ok=message_box("can not read data from " & fName,"",0)
+            abort(1)
+        end if
+        MsgNos=thedata[2][1]
+        IDEText=thedata[2][2]
+        close(handle)
+
+        setText(label1,"Start At Text")
+        setText(label2,"End At Text")
+        --set the end number to last one
+        setText(startAt, sprint(1))
+        setText(endAt, sprint(length(IDEText)))
+    end if
+end procedure
+setHandler(button3,w32HClick,routine_id("tryLang3"))
+
+
+procedure ready(integer self, integer event, sequence params)
+    integer ok
+
+    if equal(getText(label1), "Start At Message") then
+        for i=getNumber(startAt) to getNumber(endAt) do
+            --Roland
+            if length(MsgNos[i])=1 then
+                ok = message_box("Message no longer used","Msg " & sprint(i),0)
+            elsif i=10 then
+            --end Roland
+                for j=1 to length(MsgNos[i]) do
+                    ok=message_box(MsgNos[i][j],"Msg 10: line " & sprint(j),0)
+                end for
+            else
+                ok=message_box(MsgNos[i][1],MsgNos[i][2],MsgNos[i][3])
+            end if
+        end for
+    else
+        openWindow(win3,Normal)
+        index=getNumber(startAt)
+        setText(label3,IDEText[index][1])
+    end if
+
+end procedure
+setHandler(gobutton,w32HClick,routine_id("ready"))
+
+procedure click_continue(integer self, integer event, sequence params)
+
+    index+=1
+
+    if index > getNumber(endAt) then
+        closeWindow(win3)
+    end if
+    if match("TEXT",upper(IDEText[index][2])) then
+        setText(label3,IDEText[index][1])
+    else
+        setText(label3,"Move Mouse Here To Test Hint")
+        setHint(label3,IDEText[index][1])
+    end if
+end procedure
+setHandler(continue,w32HClick,routine_id("click_continue"))
+
+WinMain(win,Normal)

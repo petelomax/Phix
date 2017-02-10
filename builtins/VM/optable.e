@@ -93,6 +93,7 @@ constant vm_names = {
 --                                  "%pCrash",
 --                                  "%pCrash1",
                                     "%pCrashFile",
+                                    "%pCrashRtn",
                                     "!SetBatchMode",
                                     "!fatalN",
                                     "!iDiag",
@@ -153,6 +154,8 @@ constant vm_names = {
                                      "%SetCCleanup",
                                      "%RunCleanup",     -- (DEV may not be necessary) [erm, maybe for p p p p parlour tricks]
                                      "%opAbort"}},
+                     {"cbhand.e",   {"%cbhandler",
+                                     "!cb_ret"}},
                      {"pDeleteN.e", {"%opDelRtn",
                                      "%opDelete"}},
                      {"pcallfunc.e",{"%opCallFunc",
@@ -283,12 +286,6 @@ constant vm_names = {
 --                                   "%opCproc",
 --                                   "%opGpct",
 --                                   "%opRpct"}},
---*/
---/*
-                     {"puts1.e",   {"%puts1",
-                                    {"%puts1ediesi","%puts1rdirsi"},
-                                    "%puthex32a",
-                                    "%getc0"}},
 --*/
                      $
                     }

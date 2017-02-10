@@ -670,7 +670,7 @@ end procedure -- (for Edita/CtrlQ)
         -- attempting a much more convoluted strategy, that I never got working, and,
         -- to be frank, was never going to do any better). Just in case you can find
         -- any use for it, the wcs analysis, focusing on a single prepend followed by
-        -- enough appends to discard slack and clone to a naievely chosen new size:
+        -- enough appends to discard slack and clone to a naively chosen new size:
         --
         --  --
         --  -- wscditty.exw (worst case scenario analysis)

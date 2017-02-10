@@ -1,0 +1,286 @@
+--IDE_exErr.ew Judith Evans 12-2000
+--some code stolen directly from David Cuny's EE.ex program.
+
+--attempt to retrieve error message and location of EXW error.
+--must delete ex.err file prior to MenuRun or will pick up older error.
+
+integer ok
+
+global sequence runShortName
+        runShortName = {}
+
+global sequence nameEventLine
+         nameEventLine={}
+
+global integer codeWinError --tells picWindow not to updateProperties
+    codeWinError=w32False
+        
+        errorEvent=0
+-------------------------------------------------------------------------
+global procedure deleteExErr()
+    -- delete old error file 
+    if sequence( dir("ex.err") ) then 
+        ok=deleteFile("ex.err")
+    end if
+    if length(crashfile) then
+        if sequence ( dir(crashfile) ) then
+            ok=deleteFile(crashfile)
+        end if
+    end if
+end procedure 
+-------------------------------------------------------------------------
+global procedure makeNameEventLine( integer window, sequence Name, sequence Event,
+                                    integer Line)
+
+    sequence data
+
+    data = window & {Name} & {Event} & Line
+    nameEventLine&={data}
+
+end procedure
+-------------------------------------------------------------------------
+function instr( integer n, sequence s1, sequence s2 ) 
+ 
+    -- return position of s1 in s2, starting at position n 
+ 
+    integer at 
+ 
+    at = match( s1, s2[n..length(s2)] ) 
+    if at != 0 then 
+        return at + n - 1 
+    else 
+        return 0 
+    end if 
+ 
+end function       
+-------------------------------------------------------------------------
+global function read_error_file()
+ 
+    -- read ex.err, returns: 
+    --  { file, message, line, col } 
+    --  or -1 if can't read file 
+     
+    integer handle, eStart, eEnd, errLine, errCol 
+    sequence text, errFile, errText 
+    object result 
+
+    errorEvent=0
+
+    if not length(crashfile) then
+        crashfile="ex.err"
+    end if
+
+    -- try to open the error file 
+    handle = open( crashfile, "r" )
+    if handle = -1 then
+        handle=open( "ex.err", "r" )
+    end if
+ 
+    -- does it exist? 
+    if handle = -1 then
+        -- no error file 
+        return -1  
+    else                       
+         -- read first 4 lines 
+        text = {} 
+        for i = 1 to 4 do 
+            text = append( text, gets( handle ) ) 
+        end for 
+ 
+        -- close the file 
+        close( handle ) 
+ 
+    end if 
+ 
+    -- get the first line, with the error line 
+ 
+    -- the line number is "...:nnnn " 
+    -- the 3 skips past the colon in the drive 
+    eStart = instr( 3, ":", text[1] ) 
+ 
+    -- check the value 
+    if eStart = 0 then 
+        -- can't read file; format is bad 
+        return -1 
+    end if
+                                        
+    -- file name comes before colon    
+    errFile = text[1][1..eStart-1]    
+    
+    -- value to left of space following colon...    
+    eEnd = instr( eStart, " ", text[1] )
+  
+    -- ...or line feed following colon 
+    if eEnd = 0 then 
+        eEnd = instr( eStart, {10}, text[1] ) 
+    end if 
+ 
+    -- found end? 
+    if eEnd = 0 then 
+        -- can't read file; format is bad 
+        return -1 
+    end if 
+ 
+    -- convert to number 
+    result = value( text[1][eStart+1..eEnd-1] ) 
+    if result[1] != GET_SUCCESS then 
+        -- can't read number, format is bad 
+        return -1                                         
+    else  
+        errLine = result[2]  
+    end if
+    
+    -- second line is error message  
+    errText = text[2][1..length(text[2])-1]  
+  
+    -- the fourth line points to the position  
+    errCol = find( '^', text[4] )  
+  
+    -- return values  
+    return { errFile, errText, errLine, errCol }  
+  
+end function                                         
+-------------------------------------------------------------------------
+global procedure goto_error()
+ 
+    -- jump to line with error, show error text 
+    integer ok
+    object err
+    sequence tempUnBuff	
+    
+	tempUnBuff={}
+	
+    --save state of editor for reopen
+    CodeWinState=SW_NORMAL
+    if CodeWinOpen then
+        setIndex(CodeControls, editorSelectedControl)
+        if isMaximized( CodeWin ) then
+            CodeWinState=SW_MAXIMIZE
+        elsif isMinimized( CodeWin ) then
+            CodeWinState=SW_MINIMIZE
+        end if
+    else
+        setIndex(CodeControls,TheWindow)
+    end if
+
+    errorEvent=0
+
+    -- read error file 
+    err = read_error_file()
+    if atom( err ) then
+        -- can't read file
+        ok=displayErrorMessage(248,{})
+        return
+    end if
+
+
+    -- same file name?
+    if not equal( upper( runShortName ), upper( err[1] ) ) then		
+
+        -- must be a different file
+        --jump to error module
+        isModule=err[1]
+
+        showEvent=1
+        errorEvent=1
+        showScroll=err[3]
+        showCol=err[4]
+
+        --open editor
+        openCodeWinStuff()
+        showWindow(CodeWin,CodeWinState)
+        return
+
+    end if    
+
+    isModule={}
+
+    if not length( nameEventLine ) then
+        return
+    end if
+
+     -- can go to line? 
+    if err[3] < nameEventLine[1][4] then
+        ok=displayErrorMessage(120,{})
+        return
+    end if
+
+    --find the statement in the stored control name, event, start line array
+    for i=1 to length( nameEventLine ) -1 do
+
+        if err[3] >= nameEventLine[i][4]
+        and err[3] < nameEventLine[i+1][4] then
+
+            if equal( nameEventLine[i][3], "create" ) then
+                setIndex( WinList, nameEventLine[i][1] )
+                ok=invokeHandler(WinList,w32HChange,{})
+                for j=1 to length( controls ) do
+                    if equal( nameEventLine[i][2], controls[j][Name] ) then
+                        selectedControl=j
+                        call_proc( updateProperties_id,{} )
+                        return
+                    end if
+                end for
+                return
+            end if
+
+            --force editor to this control and event
+            for k=1 to length( Events ) do
+                if equal( nameEventLine[i][3], Events[k][1] ) then
+                    errorEvent=k
+                    showEvent=k                    
+                    exit
+                end if
+            end for
+
+            --find the selected index and window of the
+            --control in error.
+
+            --WinList w32HChange opens editor so have scrolling values ready now
+            showScroll = (err[3] - nameEventLine[i][4]) + 1 --position scroll in editor
+
+            showCol = err[4]
+
+            --prevent updateProperties from WinList because will be doing it below
+            codeWinError=w32True
+
+            if getIndex( WinList ) != nameEventLine[i][1] then
+                setIndex( WinList, nameEventLine[i][1] )
+                ok=invokeHandler(WinList, w32HChange,{} )
+            end if
+
+            codeWinError=w32False
+
+            for j=1 to length( controls ) do
+                if equal( nameEventLine[i][2], controls[j][Name] ) then
+                    if j != editorSelectedControl then
+                        editorSelectedControl=j
+                        selectedControl=j
+                        call_proc(updateProperties_id,{})
+                    end if
+                    exit
+                end if
+            end for
+
+            --open editor
+            if not CodeWinOpen then
+                showWindow(CodeWin, CodeWinState)
+                CodeWinOpen=w32True
+            end if
+            setIndex(CodeControls,editorSelectedControl)
+            buildNewEventCombo()
+            findNextEvent()
+			--get UnBuff sequence
+			tempUnBuff=synGetUnBuff()                        
+            stockEditor(CodeControls)
+			--putBack UnBuff sequence and reset MenuUndo if UnBuff is not {}
+			if length(tempUnBuff) then
+				synStuffUnBuff(tempUnBuff)
+			end if       
+            synFileInEditor(w32False)
+            exit
+        end if
+    end for
+
+end procedure
+­274.2

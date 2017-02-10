@@ -1,0 +1,74 @@
+--
+-- ipcdemo.exw
+--
+include builtins/ipc.e
+
+atom smAtom, lpAtom, lpSequence
+sequence smSequence
+with trace
+
+procedure do_sharedMem()
+    atom lPointer
+
+    lPointer = sm_create("SM_Atom",4)
+    if lPointer < 0 and lPointer = SM_CREATE_EXIST then
+        lPointer = sm_open("SM_Atom")
+        if lPointer = SM_OPEN_FAIL then
+            puts(1,"Failed to Get Atom Memory\n")
+            smAtom = 0
+        else
+            smAtom = peek4u(lPointer)
+        end if
+        sm_close(lPointer)
+        lPointer = sm_open("SM_Sequence")
+        if lPointer = SM_OPEN_FAIL then
+            smSequence = "Failed to get String from Memory"
+        else
+            smSequence = peek_string(lPointer)
+            sm_close(lPointer)
+        end if
+        lpAtom = 0
+        lpSequence = 0
+    elsif lPointer = SM_CREATE_FAIL then
+        puts(1,"Unable to create Shared Memory!\n")
+        smSequence = ""
+        smAtom = 0
+        lpAtom = 0
+        lpSequence = 0
+    elsif lPointer = SM_OPEN_FAIL then
+        puts(1,"Unable to Get a Valid Memory Pointer!\n")
+        smSequence = ""
+        smAtom = 0
+        lpAtom = 0
+        lpSequence = 0
+    else
+        poke4(lPointer,#FF0033)
+        lpAtom = lPointer
+        lPointer = sm_alloc_lpsz("SM_Sequence","This is a string only for the Client")
+        if lPointer > 0 then
+            lpSequence = lPointer
+            smSequence = "This is the First Instance"
+            smAtom = 0
+        else
+            puts(1,"Unable to allocate Memory for String.\n")
+            lpSequence = 0
+            smSequence = ""
+            smAtom = 0
+        end if
+    end if
+end procedure
+
+do_sharedMem()
+printf(1,"Sequence: %s\n",{smSequence})
+printf(1,"Atom: #%x\n",{smAtom})
+puts(1,"Press Any key to Exit...")
+while get_key() = -1 do
+end while
+
+if lpSequence then
+ sm_close(lpSequence)
+end if
+
+if lpAtom then
+ sm_close(lpAtom)
+end if

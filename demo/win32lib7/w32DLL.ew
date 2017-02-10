@@ -1,0 +1,326 @@
+-- w32DLL.ew
+-- This implements a strategy for delayed loading of DLL routines.
+--
+include dll.e
+without trace
+without warning
+
+constant
+   Err_LINKDLL = {"Couldn't find DLL '%s'", 465},
+   Err_LINKFUNC = {"Couldn't link to C function '%s'", 464},
+   Err_LINKPROC = {"Couldn't link to C procedure '%s'", 463},
+   Err_BADFUNCID = {"An unknown GUI function ID used.", 425}
+
+-- DLL Links
+sequence vw32Libraries
+vw32Libraries = {}
+
+sequence vw32Routines
+vw32Routines = repeat({}, 400)
+
+integer vNextRtn
+vNextRtn = 1
+
+constant kMagicRtnID = #80000
+
+--/topic Low Level Routines
+--/func registerw32Library(sequence name)
+--/desc Associates an internal id number with the library name.
+--ret (INTEGER) An identifier for the library, to be used in /registerw32Function or /registerw32Procedure.
+-- /i name is either a DLL name or a list of DLL names. If a list, then they
+-- are tried from left to right until one is linked.
+--
+-- The library is not actually opened until it's first usage.
+--
+--Example
+--/code
+--     atom libRichEdit, libUser
+--     -- Use riched20 if possible else use riched32
+--     libRichEdit = registerw32Library({"riched20.dll", "riched32.dll"} )
+--
+--     libUser = registerw32Library("user32.dll")
+--
+--/endcode
+global function registerw32Library(sequence libname)
+
+    vw32Libraries &= {{{0,0}, libname}}
+    return length(vw32Libraries)
+end function
+
+--/topic Low Level Routines
+--/func registerw32Function( dll, name, args, result )
+--/desc Associates an internal id number with the function name.
+--/ret (INTEGER) An identifier for the function, to be used in /w32Func
+--
+--The library function is not actually linked until its first usage.
+--
+-- Example:
+--/code
+--      xLoadIcon = registerw32Function(user32, "LoadIconA", {C_POINTER, C_POINTER}, C_POINTER)
+--/endcode
+global function registerw32Function(integer libid, sequence name,
+                        sequence signature, integer returntype)
+integer rid
+    if vNextRtn>length(vw32Routines) then
+        vw32Routines &= repeat({}, 10)
+    end if
+
+    vw32Routines[vNextRtn] = { -libid, name, signature, returntype}
+    rid = vNextRtn+kMagicRtnID
+    vNextRtn += 1
+    return rid
+
+end function
+
+--/topic Low Level Routines
+--/func registerw32Procedure( dll, name, args )
+--/desc Associates an internal id number with the procedure name.
+--/ret (INTEGER) An identifier for the procedure, to be used in /w32Proc
+--
+--The library procedure is not actually linked until its first usage.
+--
+-- Example:
+--/code
+--      constant xKillTimer = registerw32Procedure(user32, "KillTimer", {C_POINTER, C_UINT})
+--/endcode
+
+global function registerw32Procedure(integer libid, sequence name,
+                        sequence signature)
+integer rid
+    if vNextRtn>length(vw32Routines) then
+        vw32Routines &= repeat({}, 10)
+    end if
+
+    vw32Routines[vNextRtn] = { -libid, name, signature}
+    rid = vNextRtn+kMagicRtnID
+    vNextRtn += 1
+    return rid
+
+end function
+
+-----------------------------------------------------------------------------
+function linkDLL(sequence name)
+
+-- dynamically link a DLL
+object handle
+
+    handle = {0,0}
+
+    if atom(name[1]) then
+        name = {name}
+    end if
+
+    -- open the dll
+    for i=1 to length(name) do
+        handle[2] = open_dll(name[i])
+        if handle[2]!=NULL then
+            handle[1] = i
+            exit
+        end if
+    end for
+
+    if handle[2]=NULL then
+        abortErr(append(Err_LINKDLL , {name[1]}))
+    end if
+    return handle
+
+end function
+
+
+-----------------------------------------------------------------------------
+
+function linkFunc(atom dll, sequence name, sequence args, atom result)
+
+-- dynamically link a C routine as a Euphoria function
+integer handle
+
+    handle = define_c_func(dll, name, args, result)
+    if handle= -1 then
+        abortErr(append(Err_LINKFUNC, {name}))
+    end if
+    return handle
+end function
+
+-----------------------------------------------------------------------------
+function linkProc(atom dll, sequence name, sequence args)
+
+integer handle
+
+    handle = define_c_proc(dll, name, args)
+    if handle= -1 then
+        -- give error and abort
+        abortErr(append(Err_LINKPROC, {name}))
+    end if
+    return handle
+end function
+
+--/topic Low Level Routines
+--/func w32Func(atom funcid, sequence parms)
+--/desc Invoke a Windows function.
+--/ret (ATOM) The value from the windows function is returned.
+--The function to invoke is supplied in /i funcid. This can either be an
+--identifier returned by /registerw32Function() or one returned by define_c_func().
+--
+-- The parameters for the function are contained in the sequence /i parms.
+--
+--Example:
+--/code
+--    -- Get the width of the screen.
+--    screenCX = w32Func(xGetSystemMetrics, {SM_CXSCREEN})
+--/endcode
+
+global function w32Func(atom funcid, sequence parms)
+object lRC
+--  atom libfunc
+object lFuncDef
+--  object linked
+atom memset
+
+    memset = 0
+    for i=1 to length(parms) do
+        if sequence(parms[i]) then
+            if memset=0 then
+                memset = w32new_memset()
+            end if
+            parms[i] = w32acquire_mem(memset, parms[i])
+        end if
+    end for
+
+    if funcid>kMagicRtnID then
+        funcid -= kMagicRtnID
+        if funcid<=length(vw32Routines) then
+            lFuncDef = vw32Routines[funcid]
+
+            if sequence(lFuncDef) then
+                if lFuncDef[1]<0 then
+                    lFuncDef[1] = -lFuncDef[1]
+                    if vw32Libraries[lFuncDef[1]][1][1]=0 then
+                        vw32Libraries[lFuncDef[1]][1] =
+                    linkDLL(vw32Libraries[lFuncDef[1]][2])
+                    end if
+                    lFuncDef[1] = vw32Libraries[lFuncDef[1]][1][2]
+                end if
+
+                lFuncDef = linkFunc(lFuncDef[1], -- library
+                                    lFuncDef[2], -- function name
+                                    lFuncDef[3], -- param signature
+                                    lFuncDef[4] -- return type
+                                   )
+                vw32Routines[funcid] = lFuncDef
+            end if
+
+            lRC = c_func(lFuncDef, parms)
+        else
+            abortErr(Err_BADFUNCID)
+        end if
+    else
+        if funcid>0 then
+            lRC = c_func(funcid, parms)
+        else
+            abortErr(Err_BADFUNCID)
+        end if
+    end if
+
+    if memset!=0 then
+        w32release_mem(memset)
+    end if
+
+    return lRC
+end function
+
+--/topic Low Level Routines
+--/proc w32Proc(atom procid, sequence parms)
+--/desc Invoke a Windows procedure.
+--The procedure to invoke is supplied in /i procid. This can either be an
+--identifier returned by /registerw32Procedure() or one returned by define_c_proc().
+--
+-- The parameters for the procedure are contained in the sequence /i parms.
+--
+--Example:
+--/code
+--    -- Force the window to be updated now.
+--    w32Func(xUpdateWindow, {getHandle(myWin)})
+--/endcode
+global procedure w32Proc(atom funcid, sequence parms)
+--  atom libfunc
+object lFuncDef
+
+atom memset
+
+    memset = 0
+    for i=1 to length(parms) do
+        if sequence(parms[i]) then
+            if memset=0 then
+                memset = w32new_memset()
+            end if
+            parms[i] = w32acquire_mem(memset, parms[i])
+        end if
+    end for
+
+
+    if funcid>kMagicRtnID then
+        funcid -= kMagicRtnID
+        if funcid<=length(vw32Routines) then
+            lFuncDef = vw32Routines[funcid]
+
+            if sequence(lFuncDef) then
+                if lFuncDef[1]<0 then
+                    lFuncDef[1] = -lFuncDef[1]
+                    if vw32Libraries[lFuncDef[1]][1][1]=0 then
+                        vw32Libraries[lFuncDef[1]][1] =
+                    linkDLL(vw32Libraries[lFuncDef[1]][2])
+                    end if
+                    lFuncDef[1] = vw32Libraries[lFuncDef[1]][1][2]
+                end if
+
+                lFuncDef = linkProc(lFuncDef[1], -- library
+                                    lFuncDef[2], -- function name
+                                    lFuncDef[3] -- param signature
+                                   )
+                vw32Routines[funcid] = lFuncDef
+            end if
+
+            c_proc(lFuncDef, parms)
+        else
+            abortErr(Err_BADFUNCID)
+        end if
+    else
+        if funcid>0 then
+            c_proc(funcid, parms)
+        else
+            abortErr(Err_BADFUNCID)
+        end if
+    end if
+
+
+    if memset!=0 then
+        w32release_mem(memset)
+    end if
+
+end procedure
+
+
+--/topic Constant
+--/const riched32
+--/desc Windows Library: Rich Edit Control
+
+global constant
+     riched32    =
+registerw32Library({"Msftedit.dll","riched20.dll","riched32.dll"}),
+    -- Rich Edit control
+     WC_RICHEDIT10       = "RICHEDIT",
+     WC_RICHEDIT20       = "RichEdit20A",
+     WC_RICHEDIT50       = "RICHEDIT50W"
+global sequence WC_RICHEDIT
+
+    vw32Libraries[riched32][1] = linkDLL(vw32Libraries[riched32][2])
+    if vw32Libraries[riched32][1][1]=1 then
+        WC_RICHEDIT = WC_RICHEDIT50
+
+    elsif vw32Libraries[riched32][1][1]=2 then
+        WC_RICHEDIT = WC_RICHEDIT20
+
+    else
+        WC_RICHEDIT = WC_RICHEDIT10
+    end if
+

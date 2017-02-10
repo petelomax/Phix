@@ -1,0 +1,105 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">sm_create</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          include builtins\ipc.e<br>
+          atom pSharedMem = sm_create(string name, integer nbytes)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Allocates a contiguous block of shared memory, nbytes in length, that will be uniquely identified by name.
+            <br>
+            <br>
+            Returns: the address of the newly created block of memory.<br>
+            If a block of memory that is identified by name already exists, or the memory cannot be allocated, 
+            then sm_create() returns one of the <a href="ipc.htm#smerr">predefined error values</a>.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            Before attempting to create a new block of memory, sm_open() can be called to find out if the name already exists.
+            <br>
+            <br>
+            Each application must call sm_close() to close it&rsquo;s handle to the shared memory.<br>
+            A block of shared memory will continue to exist until all handles to it have been closed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+include builtins\ipc.e
+include builtins\serialize.e
+sequence s = {"Pete",{-1,0,1},PI,-PI},
+         enc_s = serialize(s)
+integer len = length(enc_s)
+atom pMem = sm_create("test",len+4)
+poke4(pMem,len)
+poke(pMem+4,enc_s)
+
+--atom pMem = sm_open("test") -- (if a separate process)
+?deserialize(peek({pMem+4,peek4s(pMem)}))
+-- shows {"Pete",{-1,0,1},3.141592654,-3.141592654}
+sm_close(pMem)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\ipc.e
+</font><font color="#008080">include</font><font color="#000000"> builtins\serialize.e
+</font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#008000">"Pete"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600">PI</font><font color="#0000FF">,-</font><font color="#004600">PI</font><font color="#0000FF">},
+</font><font color="#000000">         enc_s</font><font color="#0000FF"> =</font><font color="#5E005E"> serialize</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> len</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">enc_s</font><font color="#0000FF">)
+</font><font color="#004080">atom</font><font color="#000000"> pMem</font><font color="#0000FF"> =</font><font color="#5E005E"> sm_create</font><font color="#0000FF">(</font><font color="#008000">"test"</font><font color="#0000FF">,</font><font color="#000000">len</font><font color="#0000FF">+</font><font color="#000000">4</font><font color="#0000FF">)
+</font><font color="#7060A8">poke4</font><font color="#0000FF">(</font><font color="#000000">pMem</font><font color="#0000FF">,</font><font color="#000000">len</font><font color="#0000FF">)
+</font><font color="#7060A8">poke</font><font color="#0000FF">(</font><font color="#000000">pMem</font><font color="#0000FF">+</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">enc_s</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>--atom pMem = sm_open("test") -- (if a separate process)
+</i></font><font color="#0000FF">?</font><font color="#5E005E">deserialize</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">pMem</font><font color="#0000FF">+</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#7060A8">peek4s</font><font color="#00FF00">(</font><font color="#000000">pMem</font><font color="#00FF00">)</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- shows {"Pete",{-1,0,1},3.141592654,-3.141592654}
+</i></font><font color="#5E005E">sm_close</font><font color="#0000FF">(</font><font color="#000000">pMem</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Obviously, in a client/server scenario, the sm_close() corresponding to an sm_create() in the server should not occur before 
+            the sm_open() in the client, but otherwise, if there are two, it does not matter which sm_close() happens first.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="sm_open.htm">sm_open</a>
+          <a href="sm_close.htm">sm_close</a>
+          <a href="serialize.htm">serialize</a>
+          <a href="deserialize.htm">deserialize</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

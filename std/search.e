@@ -402,6 +402,7 @@ end function
 -- See Also:
 --   [[:find]], [[:rmatch]]
 
+--/* Not Phix
 public function rfind(object needle, sequence haystack, integer start=length(haystack))
 integer len = length(haystack)
 
@@ -422,6 +423,7 @@ integer len = length(haystack)
 
     return 0
 end function
+--*/
 
 --**
 -- Finds a "needle" in a "haystack", and replace any, or only the first few, occurrences with a replacement.

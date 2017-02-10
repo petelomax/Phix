@@ -1,0 +1,66 @@
+-- Irregular.ew 14 Jan 2001
+--
+-- Helps to create irregular shaped windows, see readme.txt for (rather basic) instructions
+--
+-- Thomas Parslow (PatRat)
+-- patrat@rat-software.com
+
+include dll.e
+include machine.e
+
+constant GDI32  = open_dll("gdi32" ),
+	 USER32 = open_dll("user32")
+
+constant funcCreatePolygonRgn    = define_c_func(GDI32, "CreatePolygonRgn",  {C_ULONG,C_LONG,C_LONG},                     C_LONG),
+	 funcCreateRoundRectRgn  = define_c_func(GDI32, "CreateRoundRectRgn",{C_LONG, C_LONG,C_LONG,C_LONG,C_LONG,C_LONG},C_LONG),
+	 funcCreateEllipticRgn	 = define_c_func(GDI32, "CreateEllipticRgn", {C_LONG, C_LONG,C_LONG,C_LONG},		  C_LONG),
+	 procCombineRgn          = define_c_proc(GDI32, "CombineRgn",        {C_LONG ,C_LONG,C_LONG,C_LONG}                     ),
+	 procSetWindowRgn        = define_c_proc(USER32,"SetWindowRgn",      {C_LONG, C_LONG,C_LONG}                            ),
+	 procDeleteObject        = define_c_proc(GDI32, "DeleteObject",      {C_LONG}                                           )
+	
+	
+global function CreatePolygonRgn(sequence Points)
+	--This function creates a region from a series of points in the format: {{x1,y1},{x2,y},{x3,y}...
+	atom memPoints,Region
+	memPoints = allocate(length(Points) * 8) --each point is two longs
+	for i = 1 to length(Points) do
+		poke4(memPoints+((i-1)*8),Points[i])
+	end for
+	Region = c_func(funcCreatePolygonRgn,{memPoints,length(Points),1})
+	free(memPoints)
+	return Region
+end function
+
+global function CreateRoundRectRgn(integer x,integer y,integer width,integer height,integer corner)
+	--This functionc creates a rectangle shaped region with rounded edges, x and y indicate the size of the rectangle and corner indicates the size of the elipses that make the corners
+	return c_func(funcCreateRoundRectRgn,{x,x,x+width,y+height,corner,corner})
+end function
+
+global function CreateEllipticRgn(integer x,integer y,integer width,integer height)
+	--This function creates a elliptic region
+	return c_func(funcCreateEllipticRgn,{x,y,x+width,y+height})
+end function
+
+global function CombineRegions(sequence Regions)
+	--This function will come 2 or more other regions to create 1 single region
+	--Note: this function will delete all the regions passed to it
+	for i = 2 to length(Regions) do
+		c_proc(procCombineRgn,{Regions[1],Regions[i-1],Regions[i],2})
+		c_proc(procDeleteObject,{Regions[i]})
+	end for
+	--c_proc(procDeleteObject,{Regions[1]})
+	return Regions[1]
+end function
+
+global function CutRegion(atom Base,atom Cutter)
+	--This function will cut the cutter region out of the base region
+	c_proc(procCombineRgn,{Base,Base,Cutter,4})
+	c_proc(procDeleteObject,{Cutter})
+	return Base
+end function
+
+global procedure SetWindowRgn(atom HWnd,atom Region)
+	--This function will set a windows region
+	c_proc(procSetWindowRgn,{HWnd,Region,-1})
+end procedure
+­9.17

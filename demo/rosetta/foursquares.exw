@@ -1,0 +1,49 @@
+--
+-- demo\rosetta\foursquares.exw
+-- ============================
+--
+
+integer solutions
+
+procedure check(sequence set, bool show)
+    integer {a,b,c,d,e,f,g} = set, ab=a+b
+    if ab=b+d+c and ab=d+e+f and ab=f+g then
+        solutions += 1
+        if show then
+            ?set
+        end if
+    end if
+end procedure
+
+procedure foursquares(integer lo, integer hi, bool uniq, bool show)
+sequence set = repeat(lo,7)
+    solutions = 0
+    if uniq then
+        for i=1 to 7 do
+            set[i] = lo+i-1
+        end for
+        for i=1 to factorial(7) do
+            check(permute(i,set),show)
+        end for
+    else
+        integer done = 0
+        while not done do
+            check(set,show)
+            for i=1 to 7 do
+                set[i] += 1
+                if set[i]<=hi then exit end if
+                if i=7 then
+                    done = 1
+                    exit
+                end if
+                set[i] = lo
+            end for
+        end while
+    end if
+    printf(1,"%d solutions\n",solutions)
+end procedure
+foursquares(1,7,uniq:=True,show:=True)
+foursquares(3,9,uniq:=True,show:=True)
+foursquares(0,9,uniq:=False,show:=False)
+{} = wait_key()
+

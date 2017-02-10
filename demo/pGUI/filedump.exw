@@ -77,6 +77,10 @@ with trace
 --constant WINDERS=WINDOWS
 --constant WINDERS=LINUX
 
+--#withtype Ihandle
+--#withtype Ihandln
+--#withtype nullable_string
+
 --include arwen.ew
 include pGUI.e
 
@@ -141,7 +145,10 @@ global constant opFrame = 17
 global constant opCallOnce = 18
 include ..\..\p2asm.e as p2asm
 
-constant string initialcurrentdir = get_proper_dir(command_line()[2])
+--DEV fix rein! (done in pIDE)
+--constant string initialcurrentdir = get_proper_dir(command_line()[2])
+constant cl = command_line()
+constant string initialcurrentdir = get_proper_dir(cl[2])
 
 function get_image(string image)
 nullable_string res
@@ -286,8 +293,8 @@ function value_cb(Ihandle /*self*/, integer l, integer c)
     if c>=1 and c<=length(titles) then
         if l==R_TITLE-1 then
             semiperm = titles[c]    -- column title
-        elsif tabidx<1 
-           or tabidx>length(res) then 
+        elsif tabidx<1
+           or tabidx>length(res) then
             semiperm = "tabidx error"
         else
             semiperm = lvFormat(l,c)
@@ -366,7 +373,7 @@ constant cb_resize = Icallback("resize_cb")
 procedure SetTabIdx(string name)
 --integer id
 Ihandle tab
-?{"SetTabIdx",name}
+    ?{"SetTabIdx",name}
     tabidx = find(name,tabnames)
     if tabidx=0 then
         tabnames = append(tabnames,name)
@@ -810,7 +817,7 @@ function reconstitute_int64(sequence s8)
 -- (If invoked on 64-bit, does a pointless peek and returns an atom.)   [DEV, try below (once this has been ported to pGUI)]
 object res
     poke(h8a,s8)
-    #ilASM{ 
+    #ilASM{
 -- untested on 64 bit:
         [32]
             mov eax,[h8i]
@@ -828,7 +835,7 @@ object res
         [64]
             mov rax,[h8i]
             lea rdi,[res]
-            fild qword[rbx+rax*4]
+            fild qword[rbx+rax*4]   -- (assume signed)
             call :%pStoreFlt        -- ([edi]:=ST0)
 --          mov rax,[res]
 --          mov rdi,[h8i]
@@ -859,7 +866,7 @@ object res
         #ilASM{ 
                 mov rax,[h8i]
                 lea rdi,[res]
-                fild qword[rbx+rax*4]
+                fild qword[rbx+rax*4]       -- (assume signed)
                 call %:pStoreFlt            -- ([rdi]:=ST0)
               }
         return res
@@ -1138,7 +1145,7 @@ end procedure
 integer machine
 
 --global 
-       constant --T_integer = 1,
+constant --T_integer = 1,
                 T_N         = 2,    -- float but not atom (internal use only)
                 T_atom      = 3,
                 T_Dsq       = 4,    -- dword sequence but not string (internal use only)
@@ -1186,28 +1193,28 @@ constant SYMTABN = #01,
          SYMDESC = #04,
          GVARDDR = #08
 
-constant tdesc={"S_Const","S_GVar","S_TVar","S_Nspc","S_Rsvd","S_Type","S_Func","S_Proc"}
+constant tdesc = {"S_Const","S_GVar","S_TVar","S_Nspc","S_Rsvd","S_Type","S_Func","S_Proc"}
 integer siNTyp
 
 constant StateSet = {
-        { S_used,"S_used" },
-        { S_set,"S_set" },
-        { S_fwd,"S_fwd" },
-        { S_for,"S_for" },
-        { K_used,"K_used" },
-        { K_sqr,"K_sqr" },
-        { K_aod,"K_aod" },
-        { K_wdb,"K_wdb" },
-        { K_noclr,"K_noclr" },
-        { K_rtn,"K_rtn" },
-        { K_ran,"K_ran" },
-        { K_gbl,"K_gbl" },
-        { K_Fres,"K_Fres" },
-        { K_lit,"K_lit" },
-        { K_type,"K_type" },
-        { K_othr,"K_othr" },
-        { K_ridt,"K_ridt" },
-        { K_dlft,"K_dlft" }}
+                     {S_used,"S_used"},
+                     {S_set,"S_set"},
+                     {S_fwd,"S_fwd"},
+                     {S_for,"S_for"},
+                     {K_used,"K_used"},
+                     {K_sqr,"K_sqr"},
+                     {K_aod,"K_aod"},
+                     {K_wdb,"K_wdb"},
+                     {K_noclr,"K_noclr"},
+                     {K_rtn,"K_rtn"},
+                     {K_ran,"K_ran"},
+                     {K_gbl,"K_gbl"},
+                     {K_Fres,"K_Fres"},
+                     {K_lit,"K_lit"},
+                     {K_type,"K_type"},
+                     {K_othr,"K_othr"},
+                     {K_ridt,"K_ridt"},
+                     {K_dlft,"K_dlft"}}
 
 procedure SymtabN(object v, integer i)
 string desc = ""
@@ -1389,7 +1396,7 @@ end if
 global constant bind = 0
 global sequence tt
 global integer ttidx
-global constant EQ=0
+global constant EQ = 0
 --without warning -- (suppress no side effects*3)
 integer swm -- (suppress warning messages)
 global procedure Finc(string file)                      swm = length(file)  end procedure
@@ -1519,9 +1526,9 @@ string notes
             elsif (machine=64 and sequence(gvarX) and gvarX[1]=#40000000)
 --          elsif (machine=64 and sequence(gvarX) and gvarX[2]=#40000000)
 --          or (machine=32 and gvarX>#3FFFFFFF and gvarX<#C0000000) then
-            or (machine=32 and gvarX>#40000000 and gvarX<#C0000000) then
+               or (machine=32 and gvarX>#40000000 and gvarX<#C0000000) then
                 if machine=64 then
-                    gvarX=gvarX[2]
+                    gvarX = gvarX[2]
 --                  gvarX=gvarX[1]
                 end if
                 rawptr = and_bits(gvarX,#3FFFFFFF)*4
@@ -1582,7 +1589,7 @@ string notes
 --          if (machine=64 and sequence(siX) and siX[2]=#40000000)
             or (machine=32 and siX>#3FFFFFFF and siX<#C0000000) then
                 if machine=64 then
-                    siX=siX[2]
+                    siX = siX[2]
 --                  siX=siX[1]
                 end if
                 rawptr = and_bits(siX,#3FFFFFFF)*4
@@ -1606,13 +1613,13 @@ string notes
 --?length(todo)
         while length(todo) do
             rtidx = smallest(todo,1)
-if todx[rtidx]=0 then
--- (tip: to fix this, use File/Print and search the output file...) (I think it is OK now)
-printf(1,"warning: todx[rtidx]=0\n",{})
-            rtdesc = "(??todx[rtidx]=0??)"
-else
-            rtdesc = "("&res[tabidx][todx[rtidx]][R_DESC]&")"
-end if
+            if todx[rtidx]=0 then
+            -- (tip: to fix this, use File/Print and search the output file...) (I think it is OK now)
+                printf(1,"warning: todx[rtidx]=0\n",{})
+                rtdesc = "(??todx[rtidx]=0??)"
+            else
+                rtdesc = "("&res[tabidx][todx[rtidx]][R_DESC]&")"
+            end if
             rawptr = todo[rtidx]
             flags = tdfg[rtidx]
             rdiff = rawptr-addr
@@ -1660,20 +1667,20 @@ end if
 --              res[tabidx][$][R_NOTES] = sprintf("%g",float)
                 rtdesc = sprint(float)
                 res[tabidx][$][R_NOTES] = rtdesc
---end if
-if machine=64 then
-                addr += 10
-                size -= 10
-                {} = decode("padding","h2","")
-                addr += 2
-                size -= 2
-else
-                addr += 8
+                --end if
+                if machine=64 then
+                    addr += 10
+                    size -= 10
+                    {} = decode("padding","h2","")
+                    addr += 2
+                    size -= 2
+                else
+                    addr += 8
 --              address += 8
 --              binary_dump(8,"%08x: float")
-                size -= 8
---              addr += 8
-end if
+                    size -= 8
+                --              addr += 8
+                end if
             elsif rbyte=#82 then
                 maxlen = decode(sprintf("%08x: maxlen",{addr}),fmt,"(in bytes)")
                 size -= msize
@@ -1688,11 +1695,11 @@ end if
                 typebyteX = decode(sprintf("%08x: typebyte",{addr}),fmt,rtdesc)
                 size -= msize
                 addr += msize
-if machine=64 then
-                maxlen -= 32
-else
-                maxlen -= 16
-end if
+                if machine=64 then
+                    maxlen -= 32
+                else
+                    maxlen -= 16
+                end if
                 rtdesc = get_string(address)
                 rtdesc = sprint(rtdesc)
                 if maxlen<0 then return fatal("maxlen<0") end if
@@ -1718,11 +1725,11 @@ end if
                 typebyteX = decode(sprintf("%08x: typebyte",{addr}),fmt,rtdesc)
                 size -= msize
                 addr += msize
-if machine=64 then
-                maxlen -= 40
-else
-                maxlen -= 20
-end if
+                if machine=64 then
+                    maxlen -= 40
+                else
+                    maxlen -= 20
+                end if
                 siName = -1
                 for i=1 to seqlen do
                     notes = ""
@@ -1734,8 +1741,8 @@ end if
                         sdesc = sprintf("%08x: optable[%d]",{addr,i})
                         if i>length(vm_names) then
                             notes = sprintf("?vm_names[%d>%d]",{i,length(vm_names)})
---DEV NotPhix()
-?notes
+                            --DEV NotPhix()
+                            ?notes
                         else
                             notes = vm_names[i]
                         end if
@@ -1744,32 +1751,32 @@ end if
                         sdesc = sprintf("%08x: dseq[%d]",{addr,i})
                     end if
                     siX = decode(sdesc,fmt,notes)
-if length(notes) and notes[1]!='?' then
+                    if length(notes) and notes[1]!='?' then
     --DEV
     --append names,ptrs
-end if
---if machine=64 then ?"9/0(7)" end if
---(something else entirely will also likely be needed for (the very different case of) machine_bits()=64...)
---                  if siX>#3FFFFFFF and siX<#C0000000 then
+                    end if
+                    --if machine=64 then ?"9/0(7)" end if
+                    --(something else entirely will also likely be needed for (the very different case of) machine_bits()=64...)
+                    --                  if siX>#3FFFFFFF and siX<#C0000000 then
                     if (machine=64 and sequence(siX) and siX[1]=#40000000)
 --                  if (machine=64 and sequence(siX) and siX[2]=#40000000)
                     or (machine=32 and siX>#3FFFFFFF and siX<#C0000000) then
                         if machine=64 then
-                            siX=siX[2]
+                            siX = siX[2]
 --                          siX=siX[1]
                         end if
                         siX = and_bits(siX,#3FFFFFFF)*4
                         res[tabidx][$][R_NOTES] = sprintf("see #%08x",siX)
-if siX>addr then
-                        todo = append(todo,siX)
-                        todx = append(todx,length(res[tabidx]))
-                        if and_bits(flags,SYMTABN)
-                        and i=S_ltab then
-                            tdfg = append(tdfg,LINETAB)
-                        else
-                            tdfg = append(tdfg,0)
+                        if siX>addr then
+                            todo = append(todo,siX)
+                            todx = append(todx,length(res[tabidx]))
+                            if and_bits(flags,SYMTABN)
+                            and i=S_ltab then
+                                tdfg = append(tdfg,LINETAB)
+                            else
+                                tdfg = append(tdfg,0)
+                            end if
                         end if
-end if
                         if and_bits(flags,SYMTABN) then
                             if i=S_Name then
                                 siName = siX
@@ -1813,15 +1820,15 @@ end if
             brtdesc = " ("&rtdesc&")"
             while 1 do
                 if and_bits(flags,GVARDDR) then
---printf(1,"%s: %08x\n",{rtdesc,gvaraddrs[todx[rtidx]]})
---DEV:
-if todx[rtidx]=0 then
--- tip: fix this via File/Print and search... (I think it is OK now)
-printf(1,"warning: GVARDDR set but todx[rtidx]=0 for %s\n",{rtdesc})
-else
-                    knownAddr = append(knownAddr,gvaraddrs[todx[rtidx]])
-                    knownNames = append(knownNames,rtdesc)
-end if
+                    --printf(1,"%s: %08x\n",{rtdesc,gvaraddrs[todx[rtidx]]})
+                    --DEV:
+                    if todx[rtidx]=0 then
+                    -- tip: fix this via File/Print and search... (I think it is OK now)
+                        printf(1,"warning: GVARDDR set but todx[rtidx]=0 for %s\n",{rtdesc})
+                    else
+                        knownAddr = append(knownAddr,gvaraddrs[todx[rtidx]])
+                        knownNames = append(knownNames,rtdesc)
+                    end if
                 else
                     k = R_NOTES
                     if and_bits(flags,SYMDESC) then
@@ -1909,7 +1916,7 @@ end if
                     addr += 1
                 end if
 --              res[tabidx] = append(res[tabidx],line)
-                if delta=0 then exit end if     
+                if delta=0 then exit end if
             end while
         end if
     else
@@ -2024,7 +2031,7 @@ typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
 end function
 
 function decode_DOS_Stub()
-integer check
+atom check
 --string hex
 --string text
 --integer addrMax
@@ -2072,6 +2079,25 @@ integer size
         if check!=0xCD21 then return fatal("?") end if
         check = decode("padding","h2","")
         if check!=0x9090 then return fatal("?") end if
+    elsif byte=#B4 then
+        -- (powerbasic)
+        NotPhix("Wrong DOS Stub")
+            -- (obviously there is nothing "wrong" with this 
+            --  stub, it is just not the one that Phix uses.)
+        check = decode("mov ah,0x09","h2","(write to stdout)")
+        if check!=0xB409 then return fatal("?") end if
+        check = decode("mov dx,0x0010","h4","(ie ds:dx is text string below)")
+        if check!=0x66BA1000 then return fatal("?") end if
+        check = decode("push cs","h1","")
+        if check!=0x0E then return fatal("?") end if
+        check = decode("pop ds","h1","(ie data segment:=code segment)")
+        if check!=0x1F then return fatal("?") end if
+        check = decode("int 0x21","h2","")
+        if check!=0xCD21 then return fatal("?") end if
+        check = decode("mov ax,0x4C01","h4","(exit)")
+        if check!=0x66B8014C then return fatal("?") end if
+        check = decode("int 0x21","h2","")
+        if check!=0xCD21 then return fatal("?") end if
     end if
     asHex = 0
 
@@ -3906,12 +3932,12 @@ trace(1)
                             end while
                             if address+size!=EndAddress then ?9/0 end if
                             if Size!=0 then
---trace(1)
-if Size>0 then
-                                binary_dump(Size,"data")
-else
-    ?"negative size, line 3564..\n"
-end if
+                                --trace(1)
+                                if Size>0 then
+                                    binary_dump(Size,"data")
+                                else
+                                    ?"negative size, line 3564..\n"
+                                end if
                                 size -= Size
                             end if
 --                          if address+size!=EndAddress then ?9/0 end if
@@ -4006,9 +4032,9 @@ constant
 --      {UNW_FLAG_EHANDLER, "UNW_FLAG_EHANDLER"},
 --      {UNW_FLAG_UHANDLER, "UNW_FLAG_UHANDLER"},
 --      {UNW_FLAG_CHAININFO,"UNW_FLAG_CHAININFO"}}
-        {UNW_FLAG_EHANDLER, "EHANDLER"},
-        {UNW_FLAG_UHANDLER, "UHANDLER"},
-        {UNW_FLAG_CHAININFO,"CHAININFO"}}
+                         {UNW_FLAG_EHANDLER, "EHANDLER"},
+                         {UNW_FLAG_UHANDLER, "UHANDLER"},
+                         {UNW_FLAG_CHAININFO,"CHAININFO"}}
 
 function decode_exceptions(integer justsettab)
 integer size
@@ -4279,10 +4305,10 @@ atom ilen
         r_isdata = routine_id("is_PE_data")
 -- 4/9/14:
         r_iscode = routine_id("is_PE_code")
--- 4/9/14:
-X64 = (machine==64)
-newEmit = 1
-glblname = {}
+        -- 4/9/14:
+        X64 = (machine==64)
+        newEmit = 1
+        glblname = {}
         decodeinit(CSvaddr, address, machine, arch_PE)
         while addr<CSvaddr+size do
             ilen = addr
@@ -4293,10 +4319,10 @@ glblname = {}
             line = {address,sprintf("%08x:  %s",{taddr,asm}),"-",hex,analysis}
             address += ilen
             res[tabidx] = append(res[tabidx],line)
-            if asm="ret" 
-            or match("ret ",asm)=1 
+            if asm="ret"
+            or match("ret ",asm)=1
             or match("(ExitProcess)",asm) then
-                addsep() 
+                addsep()
             end if
         end while
         r_isdata = -1
@@ -4642,19 +4668,18 @@ constant PT_NULL = 0,       -- Unused segment
          PT_GNU_STACK       = 0x6474E551, -- Indicates stack executability.
          PT_GNU_RELRO       = 0x6474E552, -- Read-only after relocation.
          PT_ARM_UNK         = 0x70000001, -- ???/DEV
-         {PT_TYPES,PT_TDESC} = columnize({
-         {PT_NULL,"PT_NULL"},
-         {PT_LOAD,"PT_LOAD"},
-         {PT_DYNAMIC,"PT_DYNAMIC"},
-         {PT_INTERP,"PT_INTERP"},
-         {PT_NOTE,"PT_NOTE"},
-         {PT_SHLIB,"PT_SHLIB"},
-         {PT_PHDR,"PT_PHDR"},
-         {PT_TLS,"PT_TLS"},
-         {PT_GNU_EH_FRAME,"PT_GNU_EH_FRAME"},
-         {PT_GNU_STACK,"PT_GNU_STACK"},
-         {PT_GNU_RELRO,"PT_GNU_RELRO"},
-         {PT_ARM_UNK,"PT_ARM_UNK"}})
+         {PT_TYPES,PT_TDESC} = columnize({{PT_NULL,"PT_NULL"},
+                                          {PT_LOAD,"PT_LOAD"},
+                                          {PT_DYNAMIC,"PT_DYNAMIC"},
+                                          {PT_INTERP,"PT_INTERP"},
+                                          {PT_NOTE,"PT_NOTE"},
+                                          {PT_SHLIB,"PT_SHLIB"},
+                                          {PT_PHDR,"PT_PHDR"},
+                                          {PT_TLS,"PT_TLS"},
+                                          {PT_GNU_EH_FRAME,"PT_GNU_EH_FRAME"},
+                                          {PT_GNU_STACK,"PT_GNU_STACK"},
+                                          {PT_GNU_RELRO,"PT_GNU_RELRO"},
+                                          {PT_ARM_UNK,"PT_ARM_UNK"}})
 
 --#define PT_LOOS       0x60000000      /* Start of OS-specific */
 --#define PT_HIOS       0x6fffffff      /* End of OS-specific */
@@ -5122,12 +5147,12 @@ atom reloc_base
         elsif d_tag=DT_NEEDED           then    desc = "DT_NEEDED"          d_un = D_val        -- get_string, once we have the DT_STRTAB entry...
         elsif d_tag=DT_PLTRELSZ         then    desc = "DT_PLTRELSZ"        d_un = D_val
         elsif d_tag=DT_PLTGOT           then    desc = "DT_PLTGOT"          d_un = D_ptr
-        elsif d_tag=DT_HASH             then    desc = "DT_HASH"            d_un = D_ptr        if p_hash  !=-1 then return fatal(DUPE) end if  p_hash   = nidx
+        elsif d_tag=DT_HASH             then    desc = "DT_HASH"            d_un = D_ptr        if p_hash!=-1 then return fatal(DUPE) end if    p_hash   = nidx
         elsif d_tag=DT_STRTAB           then    desc = "DT_STRTAB"          d_un = D_ptr        if p_strtab!=-1 then return fatal(DUPE) end if  p_strtab = nidx
         elsif d_tag=DT_SYMTAB           then    desc = "DT_SYMTAB"          d_un = D_ptr        if p_symtab!=-1 then return fatal(DUPE) end if  p_symtab = nidx
-        elsif d_tag=DT_RELA             then    desc = "DT_RELA"            d_un = D_ptr        if p_rela  !=-1 then return fatal(DUPE) end if  p_rela   = nidx
-        elsif d_tag=DT_RELASZ           then    desc = "DT_RELASZ"          d_un = D_val        if relasz  !=-1 then return fatal(DUPE) end if  relasz   = nidx
-        elsif d_tag=DT_RELAENT          then    desc = "DT_RELAENT"         d_un = D_val        if relaent !=-1 then return fatal(DUPE) end if  relaent  = nidx
+        elsif d_tag=DT_RELA             then    desc = "DT_RELA"            d_un = D_ptr        if p_rela!=-1 then return fatal(DUPE) end if    p_rela   = nidx
+        elsif d_tag=DT_RELASZ           then    desc = "DT_RELASZ"          d_un = D_val        if relasz!=-1 then return fatal(DUPE) end if    relasz   = nidx
+        elsif d_tag=DT_RELAENT          then    desc = "DT_RELAENT"         d_un = D_val        if relaent!=-1 then return fatal(DUPE) end if   relaent  = nidx
         elsif d_tag=DT_STRSZ            then    desc = "DT_STRSZ"           d_un = D_val        if p_strtab==-1 then return fatal(DUPE) end if  strsize  = nidx
         elsif d_tag=DT_SYMENT           then    desc = "DT_SYMENT"          d_un = D_val
         elsif d_tag=DT_INIT             then    desc = "DT_INIT"            d_un = D_ptr
@@ -5135,9 +5160,9 @@ atom reloc_base
         elsif d_tag=DT_SONAME           then    desc = "DT_SONAME"          d_un = D_val
         elsif d_tag=DT_RPATH            then    desc = "DT_RPATH"           d_un = D_val
         elsif d_tag=DT_SYMBOLIC         then    desc = "DT_SYMBOLIC"        d_un = D_ignored
-        elsif d_tag=DT_REL              then    desc = "DT_REL"             d_un = D_ptr        if p_rel   !=-1 then return fatal(DUPE) end if  p_rel    = nidx
-        elsif d_tag=DT_RELSZ            then    desc = "DT_RELSZ"           d_un = D_val        if relsz   !=-1 then return fatal(DUPE) end if  relsz    = nidx
-        elsif d_tag=DT_RELENT           then    desc = "DT_RELENT"          d_un = D_val        if relent  !=-1 then return fatal(DUPE) end if  relent   = nidx
+        elsif d_tag=DT_REL              then    desc = "DT_REL"             d_un = D_ptr        if p_rel!=-1 then return fatal(DUPE) end if p_rel    = nidx
+        elsif d_tag=DT_RELSZ            then    desc = "DT_RELSZ"           d_un = D_val        if relsz!=-1 then return fatal(DUPE) end if relsz    = nidx
+        elsif d_tag=DT_RELENT           then    desc = "DT_RELENT"          d_un = D_val        if relent!=-1 then return fatal(DUPE) end if    relent   = nidx
         elsif d_tag=DT_PLTREL           then    desc = "DT_PLTREL"          d_un = D_val
         elsif d_tag=DT_DEBUG            then    desc = "DT_DEBUG"           d_un = D_ptr
         elsif d_tag=DT_TEXTREL          then    desc = "DT_TEXTREL"         d_un = D_ignored
@@ -5179,7 +5204,7 @@ atom reloc_base
             ?9/0
         end if
 --DEV check these will actually exist? Or use p_didx?
-        if d_tag=DT_HASH then   
+        if d_tag=DT_HASH then
 --          res[tabidx][$][R_NOTES] = "(See \"Hash\" tab)"
             res[tabidx][$][R_NOTES] = "(See \"Symtab\" tab, Hash)"
             n = find(0x5,shtypes)
@@ -5187,7 +5212,7 @@ atom reloc_base
                 -- (Phix programs don't have section headers, btw)
                 set_seetab2("Hash",n,pstab)
             end if
-        elsif d_tag=DT_SYMTAB then  
+        elsif d_tag=DT_SYMTAB then
             res[tabidx][$][R_NOTES] = "(See \"Symtab\" tab)"
             n = find(0xB,shtypes)
             if n!=0 then
@@ -5247,82 +5272,82 @@ atom reloc_base
     end if
     elfv[$][$] = address
 
---DEV[1] build a desc for a set_seetab("Symtab, Relocations, Hash, Strings",?idx)
---DEV[1] build a desc for a set_seetab("Symtab",?idx) <= better [erm...]
---DEV collect p_hash/p_symtab/p_strings(?)/p_rel/p_rela, sort on start...:
---DEV if there is a p_types PT_LOAD that starts where we are, dump it all here and PT_NULL it. [DONE]
-if 01 then
---if atom(sy_size) then
-    knownAddr = {}
-    knownNames = {}
+    --DEV[1] build a desc for a set_seetab("Symtab, Relocations, Hash, Strings",?idx)
+    --DEV[1] build a desc for a set_seetab("Symtab",?idx) <= better [erm...]
+    --DEV collect p_hash/p_symtab/p_strings(?)/p_rel/p_rela, sort on start...:
+    --DEV if there is a p_types PT_LOAD that starts where we are, dump it all here and PT_NULL it. [DONE]
+    if 01 then
+    --if atom(sy_size) then
+        knownAddr = {}
+        knownNames = {}
 
-    todo = {}
-    if p_hash!=-1   then todo = append(todo,{p_vals[p_hash],p_hash})        end if
-if p_hash!=-1 then -- hmm...
-    if p_symtab!=-1 then todo = append(todo,{p_vals[p_symtab],p_symtab})    end if
-end if
-    if p_rel!=-1    then todo = append(todo,{p_vals[p_rel],p_rel})          end if
-    if p_rela!=-1   then todo = append(todo,{p_vals[p_rela],p_rela})        end if
-    if p_strtab!=-1 then todo = append(todo,{p_vals[p_strtab],p_strtab})    end if
-    if length(todo) then
-        todo = sort(todo)
-        desc = "Symtab"
-        SetTabIdx(desc)
-        elfv = append(elfv,{desc,address,0})
-        reloc_addrs = {}
+        todo = {}
+        if p_hash!=-1   then todo = append(todo,{p_vals[p_hash],p_hash})        end if
+        if p_hash!=-1 then -- hmm...
+            if p_symtab!=-1 then todo = append(todo,{p_vals[p_symtab],p_symtab})    end if
+        end if
+        if p_rel!=-1    then todo = append(todo,{p_vals[p_rel],p_rel})          end if
+        if p_rela!=-1   then todo = append(todo,{p_vals[p_rela],p_rela})        end if
+        if p_strtab!=-1 then todo = append(todo,{p_vals[p_strtab],p_strtab})    end if
+        if length(todo) then
+            todo = sort(todo)
+            desc = "Symtab"
+            SetTabIdx(desc)
+            elfv = append(elfv,{desc,address,0})
+            reloc_addrs = {}
 --      reloc_base = address
-        reloc_base = 0
+            reloc_base = 0
 --DEV while
-        for i=1 to length(todo) do
-            nidx = todo[i][2]
+            for i=1 to length(todo) do
+                nidx = todo[i][2]
 --DEV padding
-            address = ds_normalise(todo[i][1])
-            if i=1 then
-                for j=1 to length(p_types) do
-                    if p_types[j]=PT_LOAD and p_offsets[j]=address then
-                        dsidx = find(j,sDataSegments)
-                        if dsidx=0 then ?9/0 end if
-                        sDataSegments[dsidx..dsidx] = {}
-                        sy_size = p_fileszs[j]
-                        elfv[$][$] = address+sy_size
-                        p_types[j] = PT_NULL
-                        set_seetab("Symtab", j)
-                        reloc_base = p_vaddrs[j] - p_offsets[j]
-                        exit
-                    end if
-                end for
-            end if
-            if nidx=p_hash then
+                address = ds_normalise(todo[i][1])
+                if i=1 then
+                    for j=1 to length(p_types) do
+                        if p_types[j]=PT_LOAD and p_offsets[j]=address then
+                            dsidx = find(j,sDataSegments)
+                            if dsidx=0 then ?9/0 end if
+                            sDataSegments[dsidx..dsidx] = {}
+                            sy_size = p_fileszs[j]
+                            elfv[$][$] = address+sy_size
+                            p_types[j] = PT_NULL
+                            set_seetab("Symtab", j)
+                            reloc_base = p_vaddrs[j]-p_offsets[j]
+                            exit
+                        end if
+                    end for
+                end if
+                if nidx=p_hash then
 --              n_hash = p_vals[p_hash]
 --              address = ds_normalise(n_hash)
 --              elfv = append(elfv,{"Hash",address,0})
 --              desc = sprintf("hash_table([#%08x])",n_hash)
-                if i>1 then
-                    addsep()
-                end if
-                addsymtabsep("--Hash--")
-                desc = sprintf("DT_HASH [#%08x]",p_vals[p_hash])
-                nBucket = decode("nbucket",4,desc)
-                nChain = decode("nchain",4,"(also defines DT_SYMTAB size)")
-                -- (1/12/14) note that all bucket and chain indexes are 0-based.
-                for b=1 to nBucket do
-                    {} = decode(sprintf("bucket[%d]",b-1),4,"")
-                end for
-                for c=1 to nChain do
-                    {} = decode(sprintf("chain[%d]",c-1),4,"")
-                end for
-                if atom(sy_size) then
-                    sy_size -= (nBucket+nChain+2)*4
-                end if
-            elsif nidx=p_symtab then
+                    if i>1 then
+                        addsep()
+                    end if
+                    addsymtabsep("--Hash--")
+                    desc = sprintf("DT_HASH [#%08x]",p_vals[p_hash])
+                    nBucket = decode("nbucket",4,desc)
+                    nChain = decode("nchain",4,"(also defines DT_SYMTAB size)")
+                    -- (1/12/14) note that all bucket and chain indexes are 0-based.
+                    for b=1 to nBucket do
+                        {} = decode(sprintf("bucket[%d]",b-1),4,"")
+                    end for
+                    for c=1 to nChain do
+                        {} = decode(sprintf("chain[%d]",c-1),4,"")
+                    end for
+                    if atom(sy_size) then
+                        sy_size -= (nBucket+nChain+2)*4
+                    end if
+                elsif nidx=p_symtab then
 --              p_symtab = p_vals[p_symtab]
 --              address = ds_normalise(p_symtab)
 --          elfv = append(elfv,{"Symtab",p_symtab,address})
 --          elfv = append(elfv,{"Symtab",address,0})
-                if i>1 then
-                    addsep()
-                end if
-                addsymtabsep("--Symtab--")
+                    if i>1 then
+                        addsep()
+                    end if
+                    addsymtabsep("--Symtab--")
 ----/*
 --typedef struct
 --{
@@ -5344,88 +5369,88 @@ end if
 --  UINT64  st_size;                /* Symbol size */
 --} Elf64_Sym;
 ----*/
-                global_found = 0
-                st_names = {}
-                if p_hash=-1 then ?9/0 end if
-                nChain = get_integer(ds_normalise(p_vals[p_hash])+4)
+                    global_found = 0
+                    st_names = {}
+                    if p_hash=-1 then ?9/0 end if
+                    nChain = get_integer(ds_normalise(p_vals[p_hash])+4)
 --              if nChain!=get_integer(ds_normalise(p_vals[p_hash])+4) then ?9/0 end if
-                for c=1 to nChain do
-                    if c>1 then
-                        addsep()
-                    end if
-                    st_name = decode(sprintf("st_name[%d]",c-1),"h4","")
-                    if atom(sy_size) then
-                        sy_size -= 4
-                    end if
-                    if c=1 then
-                        -- (first entry should be all null)
-                        if st_name!=0 then return fatal("first entry should be NULL") end if
+                    for c=1 to nChain do
+                        if c>1 then
+                            addsep()
+                        end if
+                        st_name = decode(sprintf("st_name[%d]",c-1),"h4","")
+                        if atom(sy_size) then
+                            sy_size -= 4
+                        end if
+                        if c=1 then
+                            -- (first entry should be all null)
+                            if st_name!=0 then return fatal("first entry should be NULL") end if
 --                      desc = sprintf("symbol_table([#%08x])",p_symtab)
 --                      desc = sprintf("symbol_table([#%08x])",p_vals[p_symtab])
-                        desc = sprintf("DT_SYMTAB [#%08x]",p_vals[p_symtab])
-                    else
-                        string_addrs = append(string_addrs,n_strtab+st_name)
-                        desc = get_string(n_strtab+st_name)
-                    end if
-                    res[tabidx][$][R_NOTES] = desc
-                    st_names = append(st_names,desc)
-                    if machine=32 then
-                        st_value = decode("st_value","h4","")
-                        st_size = decode("st_size",4,"")
-                        st_info = decode("st_info","h1","")
-                        st_info_idx = length(res[tabidx])
-                        st_other = decode("st_other","h1","(should be 0)")
-                        st_shndx = decode("st_shndx","h2","")
-                        if atom(sy_size) then
-                            sy_size -= 12
-                        end if
-                    elsif machine=64 then
-                        st_info = decode("st_info","h1","")
-                        st_info_idx = length(res[tabidx])
-                        st_other = decode("st_other","h1","(should be 0)")
-                        st_shndx = decode("st_shndx","h2","")
-                        st_value = decode("st_value","h8","")
-                        st_size = decode("st_size",8,"")
-                        if atom(sy_size) then
-                            sy_size -= 20
-                        end if
-                    else
-                        ?9/0
-                    end if
-                    if c>1 or st_info!=0 then
-                        binding = floor(st_info/#10)
-                        st_type = and_bits(st_info,#0F)
-                        if binding=STB_LOCAL then
-                            if global_found then ?9/0 end if
-                            desc = "STB_LOCAL"
+                            desc = sprintf("DT_SYMTAB [#%08x]",p_vals[p_symtab])
                         else
-                            global_found = 1
-                            if binding=STB_GLOBAL then
-                                desc = "STB_GLOBAL"
-                            elsif binding=STB_WEAK then
-                                desc = "STB_WEAK"
-                            else
-                                desc = "?"
+                            string_addrs = append(string_addrs,n_strtab+st_name)
+                            desc = get_string(n_strtab+st_name)
+                        end if
+                        res[tabidx][$][R_NOTES] = desc
+                        st_names = append(st_names,desc)
+                        if machine=32 then
+                            st_value = decode("st_value","h4","")
+                            st_size = decode("st_size",4,"")
+                            st_info = decode("st_info","h1","")
+                            st_info_idx = length(res[tabidx])
+                            st_other = decode("st_other","h1","(should be 0)")
+                            st_shndx = decode("st_shndx","h2","")
+                            if atom(sy_size) then
+                                sy_size -= 12
                             end if
-                        end if
-                        desc &= ", "
-                        if st_type=STT_NOTYPE then
-                            desc &= "STT_NOTYPE"
-                        elsif st_type=STT_OBJECT then
-                            desc &= "STT_OBJECT"
-                        elsif st_type=STT_FUNC then
-                            desc &= "STT_FUNC"
-                        elsif st_type=STT_SECTION then
-                            desc &= "STT_SECTION"
-                        elsif st_type=STT_FILE then
-                            desc &= "STT_FILE"
+                        elsif machine=64 then
+                            st_info = decode("st_info","h1","")
+                            st_info_idx = length(res[tabidx])
+                            st_other = decode("st_other","h1","(should be 0)")
+                            st_shndx = decode("st_shndx","h2","")
+                            st_value = decode("st_value","h8","")
+                            st_size = decode("st_size",8,"")
+                            if atom(sy_size) then
+                                sy_size -= 20
+                            end if
                         else
-                            desc &= "?"
+                            ?9/0
                         end if
-                        res[tabidx][st_info_idx][R_NOTES] = desc
-                    end if
-                end for
-            elsif nidx=p_rel then
+                        if c>1 or st_info!=0 then
+                            binding = floor(st_info/#10)
+                            st_type = and_bits(st_info,#0F)
+                            if binding=STB_LOCAL then
+                                if global_found then ?9/0 end if
+                                desc = "STB_LOCAL"
+                            else
+                                global_found = 1
+                                if binding=STB_GLOBAL then
+                                    desc = "STB_GLOBAL"
+                                elsif binding=STB_WEAK then
+                                    desc = "STB_WEAK"
+                                else
+                                    desc = "?"
+                                end if
+                            end if
+                            desc &= ", "
+                            if st_type=STT_NOTYPE then
+                                desc &= "STT_NOTYPE"
+                            elsif st_type=STT_OBJECT then
+                                desc &= "STT_OBJECT"
+                            elsif st_type=STT_FUNC then
+                                desc &= "STT_FUNC"
+                            elsif st_type=STT_SECTION then
+                                desc &= "STT_SECTION"
+                            elsif st_type=STT_FILE then
+                                desc &= "STT_FILE"
+                            else
+                                desc &= "?"
+                            end if
+                            res[tabidx][st_info_idx][R_NOTES] = desc
+                        end if
+                    end for
+                elsif nidx=p_rel then
 ----/*
 --// Relocation entry, without explicit addend.
 --struct Elf32_Rel {
@@ -5464,62 +5489,62 @@ end if
 ----*/
 --              p_rel = p_vals[p_rel]
 --              address = ds_normalise(p_rel)
-                if relsz=-1 then ?9/0 end if
-                if relent=-1 then ?9/0 end if
-                size = p_vals[relsz]
-                if atom(sy_size) then
-                    sy_size -= size
-                end if
+                    if relsz=-1 then ?9/0 end if
+                    if relent=-1 then ?9/0 end if
+                    size = p_vals[relsz]
+                    if atom(sy_size) then
+                        sy_size -= size
+                    end if
 --              elfv = append(elfv,{"Relocations",address,address+size})
         --      address = n_rel
-                if i>1 then
-                    addsep()
-                end if
-                addsymtabsep("--Relocations--")
-                desc = sprintf("DT_REL [#%08x]",p_vals[p_rel])
-                while size do
-                    if machine=32 then
-                        r_offset = decode("relocation offset","h4",desc)
-                        r_info = decode("r_info","h4","")
-                        r_symidx = floor(r_info/#100)
-                        r_type = and_bits(r_info,#FF)
-                        desc = "??"
-                        if r_type>=0 and r_type<length(R_386_DESCS) then
-                            desc = R_386_DESCS[r_type+1]
-                        end if
-                    elsif machine=64 then
-                        r_offset = decode("relocation offset","h8",desc)
-                        r_info = decode("r_info","h8","")
-                        r_symidx = floor(r_info/#100000000)
-                        r_type = and_bits(r_info,#FFFFFFFF)
-                        desc = "??"
-                        if r_type>=0 and r_type<length(R_X86_DESCS) then
-                            desc = R_X86_DESCS[r_type+1]
-                        end if
-                    else
-                        ?9/0
+                    if i>1 then
+                        addsep()
                     end if
-                    if r_type=R_386_RELATIVE then
-                        if r_symidx!=0 then ?9/0 end if
-                        res[tabidx][$][R_NOTES] = sprintf("%s",{desc})
-                    elsif p_hash=-1 then
-                        res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
-                    elsif r_symidx>=length(st_names) then
-                        name = sprintf("*** ioob st_names[%d]=??? ***",r_symidx+1)
-                        res[tabidx][$][R_NOTES] = name
-                        ?name
-                    else
-                        name = st_names[r_symidx+1]
-                        res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
-                        -- (for p2asm:)
-                        knownAddr = append(knownAddr,r_offset)
-                        knownNames = append(knownNames,name)
-                    end if
-                    reloc_addrs = append(reloc_addrs,r_offset-reloc_base)
-                    size -= p_vals[relent]
-                    desc = ""
-                end while
-            elsif nidx=p_rela then
+                    addsymtabsep("--Relocations--")
+                    desc = sprintf("DT_REL [#%08x]",p_vals[p_rel])
+                    while size do
+                        if machine=32 then
+                            r_offset = decode("relocation offset","h4",desc)
+                            r_info = decode("r_info","h4","")
+                            r_symidx = floor(r_info/#100)
+                            r_type = and_bits(r_info,#FF)
+                            desc = "??"
+                            if r_type>=0 and r_type<length(R_386_DESCS) then
+                                desc = R_386_DESCS[r_type+1]
+                            end if
+                        elsif machine=64 then
+                            r_offset = decode("relocation offset","h8",desc)
+                            r_info = decode("r_info","h8","")
+                            r_symidx = floor(r_info/#100000000)
+                            r_type = and_bits(r_info,#FFFFFFFF)
+                            desc = "??"
+                            if r_type>=0 and r_type<length(R_X86_DESCS) then
+                                desc = R_X86_DESCS[r_type+1]
+                            end if
+                        else
+                            ?9/0
+                        end if
+                        if r_type=R_386_RELATIVE then
+                            if r_symidx!=0 then ?9/0 end if
+                            res[tabidx][$][R_NOTES] = sprintf("%s",{desc})
+                        elsif p_hash=-1 then
+                            res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
+                        elsif r_symidx>=length(st_names) then
+                            name = sprintf("*** ioob st_names[%d]=??? ***",r_symidx+1)
+                            res[tabidx][$][R_NOTES] = name
+                            ?name
+                        else
+                            name = st_names[r_symidx+1]
+                            res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
+                            -- (for p2asm:)
+                            knownAddr = append(knownAddr,r_offset)
+                            knownNames = append(knownNames,name)
+                        end if
+                        reloc_addrs = append(reloc_addrs,r_offset-reloc_base)
+                        size -= p_vals[relent]
+                        desc = ""
+                    end while
+                elsif nidx=p_rela then
 ----/*
 --// Relocation entry with explicit addend.
 --struct Elf32_Rela {
@@ -5537,151 +5562,151 @@ end if
 ----*/
 --              p_rela = p_vals[p_rela]
 --              address = ds_normalise(p_rela)
-                if relasz=-1 then ?9/0 end if
-                if relaent=-1 then ?9/0 end if
-                size = p_vals[relasz]
-                if atom(sy_size) then
-                    sy_size -= size
-                end if
-                if i>1 then
-                    addsep()
-                end if
-                addsymtabsep("--Relocationas--")
-                desc = sprintf("DT_RELA [#%08x]",p_vals[p_rela])
-                while size do
-                    if machine=32 then
-                        r_offset = decode("relocation offset","h4",desc)
-                        r_info = decode("r_info","h4","")
-                        r_symidx = floor(r_info/#100)
-                        r_type = and_bits(r_info,#FF)
-                        desc = "??"
-                        if r_type>=0 and r_type<length(R_386_DESCS) then
-                            desc = R_386_DESCS[r_type+1]
-                        end if
-                        r_addend = decode("r_addend","h4","")
-                    elsif machine=64 then
+                    if relasz=-1 then ?9/0 end if
+                    if relaent=-1 then ?9/0 end if
+                    size = p_vals[relasz]
+                    if atom(sy_size) then
+                        sy_size -= size
+                    end if
+                    if i>1 then
+                        addsep()
+                    end if
+                    addsymtabsep("--Relocationas--")
+                    desc = sprintf("DT_RELA [#%08x]",p_vals[p_rela])
+                    while size do
+                        if machine=32 then
+                            r_offset = decode("relocation offset","h4",desc)
+                            r_info = decode("r_info","h4","")
+                            r_symidx = floor(r_info/#100)
+                            r_type = and_bits(r_info,#FF)
+                            desc = "??"
+                            if r_type>=0 and r_type<length(R_386_DESCS) then
+                                desc = R_386_DESCS[r_type+1]
+                            end if
+                            r_addend = decode("r_addend","h4","")
+                        elsif machine=64 then
 --                      r_offset = decode("relocation offset","h8",desc)
-                        r_offset = decode("r_offset","h8",desc)
-                        r_info = decode("r_info","h8","")
-                        if atom(r_info) then
-                            r_symidx = floor(r_info/#100000000)
-                            r_type = and_bits(r_info,#FFFFFFFF)
+                            r_offset = decode("r_offset","h8",desc)
+                            r_info = decode("r_info","h8","")
+                            if atom(r_info) then
+                                r_symidx = floor(r_info/#100000000)
+                                r_type = and_bits(r_info,#FFFFFFFF)
+                            else
+                                {r_symidx,r_type} = r_info
+                            end if
+                            desc = "??"
+                            if r_type>=0 and r_type<length(R_X86_DESCS) then
+                                desc = R_X86_DESCS[r_type+1]
+                            end if
+                            r_addend = decode("r_addend","h8","")
                         else
-                            {r_symidx,r_type} = r_info
+                            ?9/0
                         end if
-                        desc = "??"
-                        if r_type>=0 and r_type<length(R_X86_DESCS) then
-                            desc = R_X86_DESCS[r_type+1]
+                        if r_type=R_386_RELATIVE then
+                            if r_symidx!=0 then ?9/0 end if
+                            res[tabidx][$-1][R_NOTES] = sprintf("%s",{desc})
+                        elsif p_hash=-1 then
+                            res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
+                        else
+                            name = st_names[r_symidx+1]
+                            res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
+                            knownAddr = append(knownAddr,r_offset)
+                            knownNames = append(knownNames,name)
                         end if
-                        r_addend = decode("r_addend","h8","")
-                    else
-                        ?9/0
+                        reloc_addrs = append(reloc_addrs,r_offset-reloc_base)
+                        size -= p_vals[relaent]
+                        desc = ""
+                    end while
+                elsif nidx=p_strtab then
+                    if i>1 then
+                        addsep()
                     end if
-                    if r_type=R_386_RELATIVE then
-                        if r_symidx!=0 then ?9/0 end if
-                        res[tabidx][$-1][R_NOTES] = sprintf("%s",{desc})
-                    elsif p_hash=-1 then
-                        res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
-                    else
-                        name = st_names[r_symidx+1]
-                        res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
-                        knownAddr = append(knownAddr,r_offset)
-                        knownNames = append(knownNames,name)
-                    end if
-                    reloc_addrs = append(reloc_addrs,r_offset-reloc_base)
-                    size -= p_vals[relaent]
-                    desc = ""
-                end while
-            elsif nidx=p_strtab then
-                if i>1 then
-                    addsep()
-                end if
-                addsymtabsep("--Strings--")
-                --DEV bug: string addresses are shown as if the string table was the first thing in the symtab tab...
-                -- (untried/perhaps: address = p_vals[p_strtab]??) [DONE]
-                string_addrs = sort(string_addrs)
+                    addsymtabsep("--Strings--")
+                    --DEV bug: string addresses are shown as if the string table was the first thing in the symtab tab...
+                    -- (untried/perhaps: address = p_vals[p_strtab]??) [DONE]
+                    string_addrs = sort(string_addrs)
 --printf(1,"%08x, p[]:%08x\n",{addr,p_vals[p_strtab]})
-                addr = p_vals[p_strtab]
+                    addr = p_vals[p_strtab]
 --22/4/16:
 --              string_addrs = append(string_addrs,p_vals[p_strtab]-reloc_base+p_vals[strsize])
-                string_addrs = append(string_addrs,ds_normalise(p_vals[p_strtab])+p_vals[strsize])
-                for s=1 to length(string_addrs)-1 do
-                    size = string_addrs[s+1]-string_addrs[s]
+                    string_addrs = append(string_addrs,ds_normalise(p_vals[p_strtab])+p_vals[strsize])
+                    for s=1 to length(string_addrs)-1 do
+                        size = string_addrs[s+1]-string_addrs[s]
 --22/4/16:
 --if and_bits(size,#8000) then size -= #8000 end if
 --size = and_bits(size,#7FFF)
-                    if size!=0 then
+                        if size!=0 then
 --                  if size!=0 and and_bits(size,#8000)=0 then
-                        binary_dump(size,"%08x")
-                        if atom(sy_size) then
-                            sy_size -= size
+                            binary_dump(size,"%08x")
+                            if atom(sy_size) then
+                                sy_size -= size
+                            end if
                         end if
-                    end if
-                end for
-            else
-                ?9/0 -- unknown nidx
-            end if  
-        end for
-        if atom(sy_size) and sy_size!=0 then
-            addsep()
-            reloc_addrs = sort(reloc_addrs)
-            if length(reloc_addrs) and reloc_addrs[1]=address then
-                addsymtabsep("--relocs--")
-                -- note this only works when relocs are at end of symtab segment, 
-                -- (as per Phix\asm\fasm\dynelfexe\test.asm, not part of distro)
-                -- in the example on http://board.flatassembler.net/topic.php?t=10660
-                -- (first post), they need to be moved out of the data segment.
-                size = machine/8
-                for i=1 to length(reloc_addrs) do
-                    if reloc_addrs[i]!=address then
-                        ?{"reloc_addrs[i]!=address",reloc_addrs,i}
-                        exit
-                    end if
-                    binary_dump(size,sprintf("reloc[%d] (#%08x)",{i,address+reloc_base}))
-                    sy_size -= size
-                end for
-            else
-                addsymtabsep("--??--")
+                    end for
+                else
+                    ?9/0 -- unknown nidx
+                end if
+            end for
+            if atom(sy_size) and sy_size!=0 then
+                addsep()
+                reloc_addrs = sort(reloc_addrs)
+                if length(reloc_addrs) and reloc_addrs[1]=address then
+                    addsymtabsep("--relocs--")
+                    -- note this only works when relocs are at end of symtab segment, 
+                    -- (as per Phix\asm\fasm\dynelfexe\test.asm, not part of distro)
+                    -- in the example on http://board.flatassembler.net/topic.php?t=10660
+                    -- (first post), they need to be moved out of the data segment.
+                    size = machine/8
+                    for i=1 to length(reloc_addrs) do
+                        if reloc_addrs[i]!=address then
+                            ?{"reloc_addrs[i]!=address",reloc_addrs,i}
+                            exit
+                        end if
+                        binary_dump(size,sprintf("reloc[%d] (#%08x)",{i,address+reloc_base}))
+                        sy_size -= size
+                    end for
+                else
+                    addsymtabsep("--??--")
+                end if
+                if sy_size!=0 then
+                    binary_dump(sy_size,"%08x")
+                end if
             end if
-            if sy_size!=0 then
-                binary_dump(sy_size,"%08x")
-            end if
+            elfv[$][$] = address
         end if
-        elfv[$][$] = address
-    end if
-else
---DEV this should all be in separate tabs... [done]
---  res[tabidx] = append(res[tabidx],{0,"(dup)",0,0,"(for raw data of the following see data segment(s):)"})
-    if p_hash!=-1 then
+    else
+    --DEV this should all be in separate tabs... [done]
+    --  res[tabidx] = append(res[tabidx],{0,"(dup)",0,0,"(for raw data of the following see data segment(s):)"})
+        if p_hash!=-1 then
 --  if nidx=p_hash then
-        desc = "Hash"
-        SetTabIdx(desc)
---      n_hash = ds_normalise(p_hash)
-        n_hash = p_vals[p_hash]
---dev (see Hash tab)
-        address = ds_normalise(n_hash)
-        elfv = append(elfv,{"Hash",address,0})
-        desc = sprintf("hash_table([#%08x])",n_hash)
-        nBucket = decode("nbucket",4,desc)
-        if not integer(nBucket) then return fatal("not integer") end if
-        nChain = decode("nchain",4,"")
-        -- (1/12/14) note that all bucket and chain indexes are 0-based.
-        for i=1 to nBucket do
-            {} = decode(sprintf("bucket[%d]",i-1),4,"")
-        end for
-        for i=1 to nChain do
-            {} = decode(sprintf("chain[%d]",i-1),4,"")
-        end for
---      elfv[$][$] = address - elfv[$][$]
-        elfv[$][$] = address
-        if p_symtab!=-1 then
-            desc = "Symtab"
+            desc = "Hash"
             SetTabIdx(desc)
-            p_symtab = p_vals[p_symtab]
+--      n_hash = ds_normalise(p_hash)
+            n_hash = p_vals[p_hash]
+--dev (see Hash tab)
+            address = ds_normalise(n_hash)
+            elfv = append(elfv,{"Hash",address,0})
+            desc = sprintf("hash_table([#%08x])",n_hash)
+            nBucket = decode("nbucket",4,desc)
+            if not integer(nBucket) then return fatal("not integer") end if
+            nChain = decode("nchain",4,"")
+            -- (1/12/14) note that all bucket and chain indexes are 0-based.
+            for i=1 to nBucket do
+                {} = decode(sprintf("bucket[%d]",i-1),4,"")
+            end for
+            for i=1 to nChain do
+                {} = decode(sprintf("chain[%d]",i-1),4,"")
+            end for
+--      elfv[$][$] = address - elfv[$][$]
+            elfv[$][$] = address
+            if p_symtab!=-1 then
+                desc = "Symtab"
+                SetTabIdx(desc)
+                p_symtab = p_vals[p_symtab]
 --dev (see Symtab tab)
-            address = ds_normalise(p_symtab)
+                address = ds_normalise(p_symtab)
 --          elfv = append(elfv,{"Symtab",p_symtab,address})
-            elfv = append(elfv,{"Symtab",address,0})
+                elfv = append(elfv,{"Symtab",address,0})
 
 ----/*
 --typedef struct
@@ -5704,80 +5729,80 @@ else
 --  UINT64  st_size;                /* Symbol size */
 --} Elf64_Sym;
 ----*/
-            global_found = 0
-            st_names = {}
-            if p_hash=-1 then ?9/0 end if
-            --DEV nChain = get_integer(ds_normalise(p_vals[p_hash])+4)
-            if nChain!=get_integer(ds_normalise(p_vals[p_hash])+4) then ?9/0 end if
-            for i=1 to nChain do
-                st_name = decode(sprintf("st_name[%d]",i-1),"h4","")
-                if i=1 then
-                    -- (first entry should be all null)
-                    if st_name!=0 then ?9/0 end if
-                    desc = sprintf("symbol_table([#%08x])",p_symtab)
-                else
-                    desc = get_string(n_strtab+st_name)
-                end if
-                res[tabidx][$][R_NOTES] = desc
-                st_names = append(st_names,desc)
-                if machine=32 then
-                    st_value = decode("st_value","h4","")
-                    st_size = decode("st_size",4,"")
-                    st_info = decode("st_info","h1","")
-                    st_info_idx = length(res[tabidx])
-                    st_other = decode("st_other","h1","(should be 0)")
-                    st_shndx = decode("st_shndx","h2","")
-                elsif machine=64 then
-                    st_info = decode("st_info","h1","")
-                    st_info_idx = length(res[tabidx])
-                    st_other = decode("st_other","h1","(should be 0)")
-                    st_shndx = decode("st_shndx","h2","")
-                    st_value = decode("st_value","h8","")
-                    st_size = decode("st_size",8,"")
-                else
-                    ?9/0
-                end if
-                if i>1 or st_info!=0 then
-                    binding = floor(st_info/#10)
-                    st_type = and_bits(st_info,#0F)
-                    if binding=STB_LOCAL then
-                        if global_found then ?9/0 end if
-                        desc = "STB_LOCAL"
+                global_found = 0
+                st_names = {}
+                if p_hash=-1 then ?9/0 end if
+                --DEV nChain = get_integer(ds_normalise(p_vals[p_hash])+4)
+                if nChain!=get_integer(ds_normalise(p_vals[p_hash])+4) then ?9/0 end if
+                for i=1 to nChain do
+                    st_name = decode(sprintf("st_name[%d]",i-1),"h4","")
+                    if i=1 then
+                        -- (first entry should be all null)
+                        if st_name!=0 then ?9/0 end if
+                        desc = sprintf("symbol_table([#%08x])",p_symtab)
                     else
-                        global_found = 1
-                        if binding=STB_GLOBAL then
-                            desc = "STB_GLOBAL"
-                        elsif binding=STB_WEAK then
-                            desc = "STB_WEAK"
+                        desc = get_string(n_strtab+st_name)
+                    end if
+                    res[tabidx][$][R_NOTES] = desc
+                    st_names = append(st_names,desc)
+                    if machine=32 then
+                        st_value = decode("st_value","h4","")
+                        st_size = decode("st_size",4,"")
+                        st_info = decode("st_info","h1","")
+                        st_info_idx = length(res[tabidx])
+                        st_other = decode("st_other","h1","(should be 0)")
+                        st_shndx = decode("st_shndx","h2","")
+                    elsif machine=64 then
+                        st_info = decode("st_info","h1","")
+                        st_info_idx = length(res[tabidx])
+                        st_other = decode("st_other","h1","(should be 0)")
+                        st_shndx = decode("st_shndx","h2","")
+                        st_value = decode("st_value","h8","")
+                        st_size = decode("st_size",8,"")
+                    else
+                        ?9/0
+                    end if
+                    if i>1 or st_info!=0 then
+                        binding = floor(st_info/#10)
+                        st_type = and_bits(st_info,#0F)
+                        if binding=STB_LOCAL then
+                            if global_found then ?9/0 end if
+                            desc = "STB_LOCAL"
                         else
-                            desc = "?"
+                            global_found = 1
+                            if binding=STB_GLOBAL then
+                                desc = "STB_GLOBAL"
+                            elsif binding=STB_WEAK then
+                                desc = "STB_WEAK"
+                            else
+                                desc = "?"
+                            end if
                         end if
+                        desc &= ", "
+                        if st_type=STT_NOTYPE then
+                            desc &= "STT_NOTYPE"
+                        elsif st_type=STT_OBJECT then
+                            desc &= "STT_OBJECT"
+                        elsif st_type=STT_FUNC then
+                            desc &= "STT_FUNC"
+                        elsif st_type=STT_SECTION then
+                            desc &= "STT_SECTION"
+                        elsif st_type=STT_FILE then
+                            desc &= "STT_FILE"
+                        else
+                            desc &= "?"
+                        end if
+                        res[tabidx][st_info_idx][R_NOTES] = desc
                     end if
-                    desc &= ", "
-                    if st_type=STT_NOTYPE then
-                        desc &= "STT_NOTYPE"
-                    elsif st_type=STT_OBJECT then
-                        desc &= "STT_OBJECT"
-                    elsif st_type=STT_FUNC then
-                        desc &= "STT_FUNC"
-                    elsif st_type=STT_SECTION then
-                        desc &= "STT_SECTION"
-                    elsif st_type=STT_FILE then
-                        desc &= "STT_FILE"
-                    else
-                        desc &= "?"
-                    end if
-                    res[tabidx][st_info_idx][R_NOTES] = desc
-                end if
-                addsep()
-            end for
+                    addsep()
+                end for
 --          elfv[$][$] = address - elfv[$][$]
-            elfv[$][$] = address
+                elfv[$][$] = address
+            end if
         end if
-    end if
-    knownAddr = {}
-    knownNames = {}
-    if p_rel!=-1 then
+        knownAddr = {}
+        knownNames = {}
+        if p_rel!=-1 then
 ----/*
 --// Relocation entry, without explicit addend.
 --struct Elf32_Rel {
@@ -5814,55 +5839,55 @@ else
 --};
 --
 ----*/
-        desc = "Relocations"
-        SetTabIdx(desc)
-        p_rel = p_vals[p_rel]
-        address = ds_normalise(p_rel)
+            desc = "Relocations"
+            SetTabIdx(desc)
+            p_rel = p_vals[p_rel]
+            address = ds_normalise(p_rel)
 --      elfv = append(elfv,{"Relocations",p_rel,address})
-        if relsz=-1 then ?9/0 end if
-        if relent=-1 then ?9/0 end if
-        size = p_vals[relsz]
-        elfv = append(elfv,{"Relocations",address,address+size})
+            if relsz=-1 then ?9/0 end if
+            if relent=-1 then ?9/0 end if
+            size = p_vals[relsz]
+            elfv = append(elfv,{"Relocations",address,address+size})
 --      address = n_rel
-        while size do
-            desc = "??"
-            if machine=32 then
-                r_offset = decode("relocation offset","h4","")
-                r_info = decode("r_info","h4","")
-                r_symidx = floor(r_info/#100)
-                r_type = and_bits(r_info,#FF)
-                if r_type>=0 and r_type<length(R_386_DESCS) then
-                    desc = R_386_DESCS[r_type+1]
+            while size do
+                desc = "??"
+                if machine=32 then
+                    r_offset = decode("relocation offset","h4","")
+                    r_info = decode("r_info","h4","")
+                    r_symidx = floor(r_info/#100)
+                    r_type = and_bits(r_info,#FF)
+                    if r_type>=0 and r_type<length(R_386_DESCS) then
+                        desc = R_386_DESCS[r_type+1]
+                    end if
+                elsif machine=64 then
+                    r_offset = decode("relocation offset","h8","")
+                    r_info = decode("r_info","h8","")
+                    r_symidx = floor(r_info/#100000000)
+                    r_type = and_bits(r_info,#FFFFFFFF)
+                    if r_type>=0 and r_type<length(R_X86_DESCS) then
+                        desc = R_X86_DESCS[r_type+1]
+                    end if
+                else
+                    ?9/0
                 end if
-            elsif machine=64 then
-                r_offset = decode("relocation offset","h8","")
-                r_info = decode("r_info","h8","")
-                r_symidx = floor(r_info/#100000000)
-                r_type = and_bits(r_info,#FFFFFFFF)
-                if r_type>=0 and r_type<length(R_X86_DESCS) then
-                    desc = R_X86_DESCS[r_type+1]
+                if r_type=R_386_RELATIVE then
+                    if r_symidx!=0 then ?9/0 end if
+                    res[tabidx][$][R_NOTES] = sprintf("%s",{desc})
+                elsif p_hash=-1 then
+                    res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
+                else
+                    name = st_names[r_symidx+1]
+                    res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
+                    -- (for p2asm:)
+                    knownAddr = append(knownAddr,r_offset)
+                    knownNames = append(knownNames,name)
                 end if
-            else
-                ?9/0
-            end if
-            if r_type=R_386_RELATIVE then
-                if r_symidx!=0 then ?9/0 end if
-                res[tabidx][$][R_NOTES] = sprintf("%s",{desc})
-            elsif p_hash=-1 then
-                res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
-            else
-                name = st_names[r_symidx+1]
-                res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
-                -- (for p2asm:)
-                knownAddr = append(knownAddr,r_offset)
-                knownNames = append(knownNames,name)
-            end if
-            size -= p_vals[relent]
-        end while
+                size -= p_vals[relent]
+            end while
 --      elfv[$][$] = address - elfv[$][$]
-    end if
+        end if
 
-    if p_rela!=-1 then
+        if p_rela!=-1 then
 ----/*
 --// Relocation entry with explicit addend.
 --struct Elf32_Rela {
@@ -5878,58 +5903,58 @@ else
 --};
 --
 ----*/
-        desc = "Relocations2"
-        SetTabIdx(desc)
-        p_rela = p_vals[p_rela]
-        address = ds_normalise(p_rela)
+            desc = "Relocations2"
+            SetTabIdx(desc)
+            p_rela = p_vals[p_rela]
+            address = ds_normalise(p_rela)
 --      elfv = append(elfv,{"Relocations2",p_rela,address})
-        if relasz=-1 then ?9/0 end if
-        if relaent=-1 then ?9/0 end if
-        size = p_vals[relasz]
-        elfv = append(elfv,{"Relocations2",address,address+size})
-        while size do
-            desc = "??"
-            if machine=32 then
-                r_offset = decode("relocation offset","h4","")
-                r_info = decode("r_info","h4","")
-                r_symidx = floor(r_info/#100)
-                r_type = and_bits(r_info,#FF)
-                if r_type>=0 and r_type<length(R_386_DESCS) then
-                    desc = R_386_DESCS[r_type+1]
-                end if
-                r_addend = decode("r_addend","h4","")
-            elsif machine=64 then
-                r_offset = decode("relocation offset","h8","")
-                r_info = decode("r_info","h8","")
-                if atom(r_info) then
-                    r_symidx = floor(r_info/#100000000)
-                    r_type = and_bits(r_info,#FFFFFFFF)
+            if relasz=-1 then ?9/0 end if
+            if relaent=-1 then ?9/0 end if
+            size = p_vals[relasz]
+            elfv = append(elfv,{"Relocations2",address,address+size})
+            while size do
+                desc = "??"
+                if machine=32 then
+                    r_offset = decode("relocation offset","h4","")
+                    r_info = decode("r_info","h4","")
+                    r_symidx = floor(r_info/#100)
+                    r_type = and_bits(r_info,#FF)
+                    if r_type>=0 and r_type<length(R_386_DESCS) then
+                        desc = R_386_DESCS[r_type+1]
+                    end if
+                    r_addend = decode("r_addend","h4","")
+                elsif machine=64 then
+                    r_offset = decode("relocation offset","h8","")
+                    r_info = decode("r_info","h8","")
+                    if atom(r_info) then
+                        r_symidx = floor(r_info/#100000000)
+                        r_type = and_bits(r_info,#FFFFFFFF)
+                    else
+                        {r_symidx,r_type} = r_info
+                    end if
+                    if r_type>=0 and r_type<length(R_X86_DESCS) then
+                        desc = R_X86_DESCS[r_type+1]
+                    end if
+                    r_addend = decode("r_addend","h8","")
                 else
-                    {r_symidx,r_type} = r_info
+                    ?9/0
                 end if
-                if r_type>=0 and r_type<length(R_X86_DESCS) then
-                    desc = R_X86_DESCS[r_type+1]
+                if r_type=R_386_RELATIVE then
+                    if r_symidx!=0 then ?9/0 end if
+                    res[tabidx][$-1][R_NOTES] = sprintf("%s",{desc})
+                elsif p_hash=-1 then
+                    res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
+                else
+                    name = st_names[r_symidx+1]
+                    res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
+                    knownAddr = append(knownAddr,r_offset)
+                    knownNames = append(knownNames,name)
                 end if
-                r_addend = decode("r_addend","h8","")
-            else
-                ?9/0
-            end if
-            if r_type=R_386_RELATIVE then
-                if r_symidx!=0 then ?9/0 end if
-                res[tabidx][$-1][R_NOTES] = sprintf("%s",{desc})
-            elsif p_hash=-1 then
-                res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
-            else
-                name = st_names[r_symidx+1]
-                res[tabidx][$-1][R_NOTES] = sprintf("%s, symtab[%d]=%s",{desc,r_symidx,name})
-                knownAddr = append(knownAddr,r_offset)
-                knownNames = append(knownNames,name)
-            end if
-            size -= p_vals[relaent]
-        end while
+                size -= p_vals[relaent]
+            end while
 --      elfv[$][$] = address - elfv[$][$]
+        end if
     end if
-end if
 
     return 1
 end function
@@ -5948,17 +5973,17 @@ sequence line
 --integer ilen
 atom ilen
 
-if idx<0 then
-    desc = shdescs[-idx]
-else
-    csidx = find(idx,sCodeSegments)
-    if csidx=0 then ?9/0 end if
-    if csidx=1 then
-        desc = "Code Segment"
+    if idx<0 then
+        desc = shdescs[-idx]
     else
-        desc = sprintf("Code Segment(%d)",csidx)
+        csidx = find(idx,sCodeSegments)
+        if csidx=0 then ?9/0 end if
+        if csidx=1 then
+            desc = "Code Segment"
+        else
+            desc = sprintf("Code Segment(%d)",csidx)
+        end if
     end if
-end if
     SetTabIdx(desc)
     if justsettab then return end if    -- DEV reorder them all at the end instead...
 --DEV this could be on phtab or pstab...
@@ -5983,7 +6008,7 @@ end if
 --              address += 4 (2 for thumb mode?)
 --          end while
 --      else
-            binary_dump(size,"%08x")
+        binary_dump(size,"%08x")
 --      end if
         return
     end if
@@ -6038,14 +6063,14 @@ integer size = p_fileszs[idx]
 --  if p_types[idx]=PT_INTERP then -- interpreter
 --      desc = "Interpreter"
 --  else
-        if p_types[idx]!=PT_LOAD then ?9/0 end if
-        dsidx = find(idx,sDataSegments)
-        if dsidx=0 then ?9/0 end if
-        if dsidx=1 then
-            desc = "Data Segment"
-        else
-            desc = sprintf("Data Segment(%d)",dsidx)
-        end if
+    if p_types[idx]!=PT_LOAD then ?9/0 end if
+    dsidx = find(idx,sDataSegments)
+    if dsidx=0 then ?9/0 end if
+    if dsidx=1 then
+        desc = "Data Segment"
+    else
+        desc = sprintf("Data Segment(%d)",dsidx)
+    end if
 --  end if
     SetTabIdx(desc)
 --?desc
@@ -6191,8 +6216,8 @@ string asm, err = "", xtra, regs
             size -= 4
             addr += 4
             cond = floor(ins/#10000000)+1
-            if cond=16 then ?9/0 end if
---          if cond=16 then return fatal("???") end if
+--          if cond=16 then ?9/0 end if
+            if cond=16 then return fatal("???") end if
             ooo = mask(ins,OOO)
             Rn = mask(ins,RN)
             Rd = mask(ins,RD)
@@ -6200,7 +6225,7 @@ string asm, err = "", xtra, regs
             Rm = mask(ins,RM)
 --if ??=0 then return fatal("SBZ error") end if
 --if ??=1 then return fatal("SBO error") end if
-            if ooo=0b000 
+            if ooo=0b000
             and (and_bits(ins,#10)=0 or and_bits(ins,#80)=0) then
                 opcode = mask(ins,OPCODE)
                 s = mask(ins,S)
@@ -6239,7 +6264,7 @@ string asm, err = "", xtra, regs
                 res[tabidx][$][R_NOTES] = asm
                 if length(err) then return fatal(err) end if
 --              exit
-            elsif ooo=0b000 
+            elsif ooo=0b000
               and mask(ins,OPCODE)=0b0000
               and and_bits(ins,#F0)=0b10010000 then
 --            and and_bits(ins,#F0)=#90 then
@@ -6250,7 +6275,7 @@ string asm, err = "", xtra, regs
                 err = ""
                 res[tabidx][$][R_NOTES] = asm
 --              if length(err) then return fatal(err) end if
-                
+
             elsif ooo=0b000
               and mask(ins,Z)=1
               and and_bits(ins,#E0)>#80 then
@@ -6346,12 +6371,12 @@ string asm, err = "", xtra, regs
                 end if
                 asm &= ", "&R[Rm+1]
 --              if and_bits(ins,#10)=0 then
-                    if shifth!=0
-                    or shift!=0 then
+                if shifth!=0
+                or shift!=0 then
                         --DEV???
 --                      asm &= sprintf(" (shifth=0b%05b, shift=%02b)",{shifth,shift})
-                        asm &= sprintf(", %s %d",{shifts[shift+1],shifth})
-                    end if
+                    asm &= sprintf(", %s %d",{shifts[shift+1],shifth})
+                end if
 --              else
 --                  asm &= sprintf(", %s %s",{shifts[shift+1],R[Rs+1]})
 --              end if
@@ -6415,7 +6440,7 @@ string asm, err = "", xtra, regs
                                       :di[u+1]&ab[p+1])
                     asm = iff(y=0?"stm","ldm")&ccs[cond]&xtra&" "&R[Rn+1]&ws[w+1]&", {"
                 end if
-                
+
                 if x=0 then
 --                  asm &= sprintf(" (Rn=%s, P=%d, U=%d, X=0, W=%d, Y=%d, Regs=%016b)",{R[Rn+1],p,u,w,y,reg_list})
 --                  asm &= sprintf(" Regs=%016b ",{reg_list})
@@ -6425,7 +6450,7 @@ string asm, err = "", xtra, regs
                             if length(regs) then
                                 regs &= ","
                             end if
-                            regs &=R[i]
+                            regs &= R[i]
                         end if
                         reg_list = floor(reg_list/2)
                     end for
@@ -7785,8 +7810,8 @@ sequence codesegments
     supported = 0
     if    e_type=0 then     desc = "No file type"
     elsif e_type=1 then     desc = "Relocatable file"
---dev: (gets us further on the .o, but there are only sections not segments in the file...)
-supported = 1
+        --dev: (gets us further on the .o, but there are only sections not segments in the file...)
+        supported = 1
     elsif e_type=2 then     desc = "Executable file"                supported = 1
     elsif e_type=3 then     desc = "Shared object file"             supported = 1
     elsif e_type=4 then     desc = "Core file"
@@ -8164,9 +8189,9 @@ supported = 1
                             if dump_ELF_arm(i,desc) then end if
 -- 17/9/16: (experimental)
                         elsif find(desc,{
-                                      ".plt",       --DEV code...
-                                      ".text",      --DEV code...
-                                     }) then
+                                         ".plt",        --DEV code...
+                                         ".text",       --DEV code...
+                                        }) then
 --DEV fixme: (pstab??}
                             set_seetab2(desc,i,pstab)
                             sCodeSegments = append(sCodeSegments,-i)
@@ -8175,30 +8200,30 @@ supported = 1
 
 --DEV all of the following, of course, deserve a full and detailed treatment instead of this quick and dirty binary dump...
                         elsif find(desc,{
-                                      ".dynstr",
-                                      ".rel.plt",
-                                      ".plt",       --DEV code...
-                                      ".text",      --DEV code...
-                                      ".rodata",
-                                      ".preinit_array",
-                                      ".init_array",
-                                      ".fini_array",
-                                      ".ctors",
-                                      ".got",
-                                      ".comment",
-                                      ".debug_aranges",
-                                      ".debug_pubnames",
-                                      ".debug_info",
-                                      ".debug_abbrev",
-                                      ".debug_line",
-                                      ".debug_frame",
-                                      ".debug_str",
-                                      ".debug_loc",
-                                      ".ARM.attributes",
-                                      ".shstrtab",
-                                      ".symtab",
-                                      ".strtab"
-                                     }) then
+                                         ".dynstr",
+                                         ".rel.plt",
+                                         ".plt",        --DEV code...
+                                         ".text",       --DEV code...
+                                         ".rodata",
+                                         ".preinit_array",
+                                         ".init_array",
+                                         ".fini_array",
+                                         ".ctors",
+                                         ".got",
+                                         ".comment",
+                                         ".debug_aranges",
+                                         ".debug_pubnames",
+                                         ".debug_info",
+                                         ".debug_abbrev",
+                                         ".debug_line",
+                                         ".debug_frame",
+                                         ".debug_str",
+                                         ".debug_loc",
+                                         ".ARM.attributes",
+                                         ".shstrtab",
+                                         ".symtab",
+                                         ".strtab"
+                                        }) then
                             if dump_ELF_misc(i,desc) then end if
                         end if
                     end for
@@ -8516,7 +8541,7 @@ integer bWidth, bHeight, bColorCount, bReserved, wPlanes, wBitCount, dwBytesInRe
 sequence images
 integer k
 --integer biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage, 
-atom biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage, 
+atom biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage,
         biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant
 
     SetTabIdx("ICO File")
@@ -8547,7 +8572,7 @@ atom biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage
         dwImageOffset = decode("dwImageOffset","h4","")
         images = append(images,{dwImageOffset,dwBytesInRes,length(res[tabidx]),bColorCount})
         size -= 16
-        end for
+    end for
     images = sort(images)
     for i=1 to length(images) do
         {dwImageOffset,dwBytesInRes,k,bColorCount} = images[i]
@@ -8558,26 +8583,26 @@ atom biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage
 --      binary_dump(dwBytesInRes,sprintf("ICONIMAGE[%d]",i))
         desc = sprintf("[%d]",i)
         res[tabidx][k][R_NOTES] = desc
-if 0 then
-        binary_dump(dwBytesInRes,desc)
-        size -= dwBytesInRes
-else
--- this is too much:
---      biSize = decode("biSize",4,sprintf("ICONIMAGE[%d]",i))
-        biSize = decode("biSize",4,sprintf("BITMAPINFOHEADER[%d]",i))
+        if 0 then
+            binary_dump(dwBytesInRes,desc)
+            size -= dwBytesInRes
+        else
+            -- this is too much:
+            --      biSize = decode("biSize",4,sprintf("ICONIMAGE[%d]",i))
+            biSize = decode("biSize",4,sprintf("BITMAPINFOHEADER[%d]",i))
 --      biSize = decode("biSize",4,desc)
-        biWidth = decode("biWidth",4,"")
-        biHeight = decode("biHeight",4,"")
-        biPlanes = decode("biPlanes",2,"(should be 1)")
-        biBitCount = decode("biBitCount",2,"")
-        biCompression = decode("biCompression",4,"(should be 0)")
-        biSizeImage = decode("biSizeImage",4,"")
-        biXPelsPerMeter = decode("biXPelsPerMeter",4,"(should be 0)")
-        biYPelsPerMeter = decode("biYPelsPerMeter",4,"(should be 0)")
-        biClrUsed = decode("biClrUsed",4,"(should be 0)")
-        biClrImportant = decode("biClrImportant",4,"(should be 0)")
-        size -= 40
-        dwBytesInRes -= 40
+            biWidth = decode("biWidth",4,"")
+            biHeight = decode("biHeight",4,"")
+            biPlanes = decode("biPlanes",2,"(should be 1)")
+            biBitCount = decode("biBitCount",2,"")
+            biCompression = decode("biCompression",4,"(should be 0)")
+            biSizeImage = decode("biSizeImage",4,"")
+            biXPelsPerMeter = decode("biXPelsPerMeter",4,"(should be 0)")
+            biYPelsPerMeter = decode("biYPelsPerMeter",4,"(should be 0)")
+            biClrUsed = decode("biClrUsed",4,"(should be 0)")
+            biClrImportant = decode("biClrImportant",4,"(should be 0)")
+            size -= 40
+            dwBytesInRes -= 40
 --/*
     if    bColorCount<=2 then               palSize = 2     bpp = 1
     elsif bColorCount<=16 then              palSize = 16    bpp = 4
@@ -8594,9 +8619,9 @@ else
     headerSize = sizeofstruct(BITMAPINFOHEADER) + (sizeofstruct(RGBQUAD) * palSize)
 
 --*/
-        binary_dump(dwBytesInRes,desc)
-        size -= dwBytesInRes
-end if
+            binary_dump(dwBytesInRes,desc)
+            size -= dwBytesInRes
+        end if
     end for
 --/*
 typedef struct tagBITMAPINFOHEADER {
@@ -8647,7 +8672,7 @@ integer bfSize, bfReserved1, bfReserved2, bfOffBits
 --integer bWidth, bHeight, bColorCount, bReserved, wPlanes, wBitCount, dwBytesInRes, dwImageOffset
 --sequence images
 --integer k
-integer biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage, 
+integer biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage,
         biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant
 
     SetTabIdx("Bitmap File")
@@ -8673,7 +8698,7 @@ integer biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeIm
     biClrUsed = decode("biClrUsed",4,"(should be 0)")
     biClrImportant = decode("biClrImportant",4,"(should be 0)")
     size -= 40 -- sizeof(BITMAPINFOHEADER)
-    
+
 --/*
     idReserved = decode("idReserved",2,"(must be 0)")
     if idReserved!=0 then return fatal("error") end if
@@ -8785,7 +8810,7 @@ function hex4(string s)
 integer ch = 0
 atom res = 0, mul = 1
     for i=1 to length(s) do
-        if i>1 and ch = '\\' then
+        if i>1 and ch='\\' then
             ch = s[i]
             if ch='0' then
                 ch = 0
@@ -9167,7 +9192,7 @@ integer nCategory
             if atom(nTst) then
                 nTst = floor((nTst-(11644473600*10000000))/10000000)
             else
-?"oops filedump line 9152"
+                ?"oops filedump line 9152"
                 pFileTime = allocate(sizeofFILETIME)
                 poke4(pFileTime,reverse(nTst))
                 --DEV windows only: [erm, actually it's fine]
@@ -9181,10 +9206,10 @@ integer nCategory
             res[tabidx][$][R_NOTES] = format_timedate(adjust_timedate(Jan1st1970,nTst))
         elsif tag=MI_CODECRC then
             nCrc = decode("crc","h4","")
-        elsif tag=MI_USRLABEL 
+        elsif tag=MI_USRLABEL
            or tag=MI_ANALCOMM
            or tag=MI_MRULABEL
-           or tag=MI_APIARG 
+           or tag=MI_APIARG
            or tag=MI_MBA then
             nOffset = decode("offset","h4","")
             xlen = tagsize-4
@@ -9211,7 +9236,7 @@ integer nCategory
             if atom(nTst) then
                 nTst = floor((nTst-(11644473600*10000000))/10000000)
             else
-?"oops filedump line 9195"
+                ?"oops filedump line 9195"
                 pFileTime = allocate(sizeofFILETIME)
                 poke4(pFileTime,reverse(nTst))
                 --DEV windows only: [erm, actually its' fine]
@@ -9272,7 +9297,7 @@ integer nCategory
             binary_dump(tagsize,"-?")
         end if
         size -= tagsize
-        if size=0 then exit end if      
+        if size=0 then exit end if
     end while
 
     if size!=0 then
@@ -9319,7 +9344,7 @@ function is_so_or_bin(string filename, string extension)
 -- treat eg "libglfw.so.3.1" as "libglfw.so"
 integer ch
 --trace(1)
-    if find(extension,{"","so","bin","o"}) then return 1 end if
+    if find(extension,{"","so","bin","o","2_arm"}) then return 1 end if
     for i=length(filename) to 1 by -1 do
         ch = filename[i]
         if ch='.' then
@@ -9346,8 +9371,8 @@ string extension
 integer ch
 sequence todo, todos
 
---DEV/progressbar/statusbar:
-?"load_file"
+    --DEV/progressbar/statusbar:
+    ?"load_file"
     res = {}
     for i=1 to length(tabids) do
         id = tabids[i]
@@ -9462,9 +9487,9 @@ sequence todo, todos
         SetTabIdx("Binary dump")
         binary_dump(file_size, "-")
     end if
-?"load_file<"
---  reset_tabidx()
---> setText(Main,sprintf("%s file dump [%s]",{filetype,filename}))
+    ?"load_file<"
+    --  reset_tabidx()
+    --> setText(Main,sprintf("%s file dump [%s]",{filetype,filename}))
     IupSetStrAttribute(maindlg,"TITLE","%s file dump [%s]",{filetype,filename})
     currentfilename = filename
 
@@ -9514,25 +9539,25 @@ string name = ""
 --          filename = res
 --      end if
 --  else
-        filedlg = IupFileDlg()
+    filedlg = IupFileDlg()
 
-        IupSetAttributePtr(filedlg, "PARENTDIALOG", maindlg)
-        IupSetAttribute(filedlg, "DIALOGTYPE", "SAVE")
-        IupSetAttribute(filedlg, "TITLE", "Save")
+    IupSetAttributePtr(filedlg, "PARENTDIALOG", maindlg)
+    IupSetAttribute(filedlg, "DIALOGTYPE", "SAVE")
+    IupSetAttribute(filedlg, "TITLE", "Save")
 --DEV TEXTFILES
 --      IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
 --      IupSetAttributes(filedlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
 --      IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
 --      IupSetInt(filedlg, "FILTERUSED", 2)
 
-        IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
+    IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
 
-        integer status = IupGetInt(filedlg, "STATUS")
-        if status>=0 then   -- normal or new (not cancel)
-            name = IupGetAttribute(filedlg, "VALUE")
-        end if
+    integer status = IupGetInt(filedlg, "STATUS")
+    if status>=0 then   -- normal or new (not cancel)
+        name = IupGetAttribute(filedlg, "VALUE")
+    end if
 
-        IupDestroy(filedlg)
+    IupDestroy(filedlg)
 
 --  end if
 --  if sequence(name) and length(name)=1 then
@@ -9545,31 +9570,31 @@ string name = ""
 --                  exit
 --              end if
 --          end for
-            fn = open(name,"w")
-            if fn=-1 then
+        fn = open(name,"w")
+        if fn=-1 then
 -->             void = messageBox("Error","Cannot open "&name,MB_OK)
-                IupMessage("Error","Cannot open "&name)
-            else
-                for t=1 to length(tabnames) do
-                    tabidx = t
-                    rt = res[tabidx]
-                    if sequence(rt) and length(rt)>0 then
-                        name = tabnames[tabidx]
-                        printf(fn,"%s\n%s\n",{name,repeat('=',length(name))})
-                        len = length(rt)
-                        d = repeat("",length(titles))
-                        for i=1 to len do
-                            for j=1 to length(titles) do
-                                d[j] = lvFormat(i,j)
-                            end for
---                          printf(fn,"%s,%s,%s,%s,%s\n",d)
-                            printf(fn,"%s\n",{join(d,",")})
+            IupMessage("Error","Cannot open "&name)
+        else
+            for t=1 to length(tabnames) do
+                tabidx = t
+                rt = res[tabidx]
+                if sequence(rt) and length(rt)>0 then
+                    name = tabnames[tabidx]
+                    printf(fn,"%s\n%s\n",{name,repeat('=',length(name))})
+                    len = length(rt)
+                    d = repeat("",length(titles))
+                    for i=1 to len do
+                        for j=1 to length(titles) do
+                            d[j] = lvFormat(i,j)
                         end for
-                    end if
-                end for
-                close(fn)
+--                          printf(fn,"%s,%s,%s,%s,%s\n",d)
+                        printf(fn,"%s\n",{join(d,",")})
+                    end for
+                end if
+            end for
+            close(fn)
 --              reset_tabidx()
-            end if
+        end if
 --      end if
     end if
 end procedure
@@ -9702,25 +9727,25 @@ string filename = ""
         {} = wait_key()
 --*/
 --  else
-        filedlg = IupFileDlg()
+    filedlg = IupFileDlg()
 
-        IupSetAttributePtr(filedlg, "PARENTDIALOG", maindlg)
+    IupSetAttributePtr(filedlg, "PARENTDIALOG", maindlg)
 --      IupSetAttribute(filedlg, "DIALOGTYPE", "OPEN")
-        IupSetAttribute(filedlg, "TITLE", "Open")
+    IupSetAttribute(filedlg, "TITLE", "Open")
 --DEV exe,dll,so|All? (see FILTER)
 --      IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
 --      IupSetAttributes(filedlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
 --      IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
 --      IupSetInt(filedlg, "FILTERUSED", 2)
 
-        IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
+    IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
 
-        integer status = IupGetInt(filedlg, "STATUS")
-        if status=0 then    -- normal, existing file
-            filename = IupGetAttribute(filedlg, "VALUE")
-        end if
+    integer status = IupGetInt(filedlg, "STATUS")
+    if status=0 then    -- normal, existing file
+        filename = IupGetAttribute(filedlg, "VALUE")
+    end if
 
-        IupDestroy(filedlg)
+    IupDestroy(filedlg)
 
 --  end if
     if length(filename) then
@@ -9811,7 +9836,7 @@ integer tgtaddr
 end procedure
 
 function click_cb(Ihandle self, integer l, integer c, atom pStatus)
-    if c>=1 and c<=length(titles) 
+    if c>=1 and c<=length(titles)
     and l>0 then    -- (ignore title clicks)
         if iup_isdouble(pStatus) then
             clicked(l)
@@ -9912,7 +9937,7 @@ procedure main()
     file_open = IupMenuItem("&Open\tCtrl O",cb_open)
     file_print = IupMenuItem("&Print\tCtrl P",cb_print)
     file_copy = IupMenuItem("&Copy filename",cb_copyname)
-    file_graph = IupMenuItem("&Graphic view\tF9",cb_graph) 
+    file_graph = IupMenuItem("&Graphic view\tF9",cb_graph)
     file_exit = IupMenuItem("E&xit\t\tEsc/Alt F4",cb_exit)
     Ihandle file_menu = IupMenu({file_open,
                                  file_print,
@@ -9974,16 +9999,24 @@ procedure main()
     IupSetCallback(maindlg, "K_ANY", cb_key)
 
     IupMap(maindlg)
-if platform()=WINDOWS then
---  load_file("C:\\Program Files (x86)\\Phix\\p.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\e03") --**PERFECT**
---  load_file("C:\\Program Files (x86)\\Phix\\phixA")
---  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\demo\\iup\\libiupgl.so")
-    load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\OPENGL\\OPENGL.EXE")
-else
-    load_file("/usr/lib/libiup.so")
-end if
+    if platform()=WINDOWS then
+--      load_file("C:\\Program Files (x86)\\Phix\\p.exe")
+        load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\fdbg0011\\fdbg")
+    --  load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
+    --  load_file("C:\\Program Files (x86)\\Phix\\e03") --**PERFECT**
+--      load_file("C:\\Program Files (x86)\\Phix\\phix")
+--      load_file("C:\\Program Files (x86)\\Phix\\pth")
+--      load_file("C:\\Program Files (x86)\\Phix\\m01")
+--      load_file("C:\\Program Files (x86)\\Phix\\sfx\\test\\cat")
+    --  load_file("C:\\Program Files (x86)\\Phix\\sfx\\lua_5.0.2_arm")
+    --  load_file("C:\\Program Files (x86)\\Phix\\demo\\IDE\\IDE.exe")
+    --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\OPENGL\\Opengl\\wall.raw")
+--      load_file("C:\\Program Files (x86)\\Phix\\asm\\win32app\\win32_small_apps\\sprites\\spriteDDT.exe")
+    --  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\demo\\iup\\libiupgl.so")
+    --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\OPENGL\\OPENGL.EXE")
+    else
+        load_file("/usr/lib/libiup.so")
+    end if
 --DEV might want to be part of load_file:
     IupSetInt(tabs,"VALUEPOS",0)
     {} = tabchange_cb(tabs, NULL, NULL)

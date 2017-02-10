@@ -97,7 +97,7 @@ object res
         [64]
             mov rax,[h8i]
             lea rdi,[res]
-            fild qword[rbx+rax*4]
+            fild qword[rbx+rax*4]       -- (assume signed)
 --          call %opMovbi               -- call StoreFlt ([rdi]:=ST0)
             call :%pStoreFlt        -- ([edi]:=ST0)
 --          mov rax,[res]

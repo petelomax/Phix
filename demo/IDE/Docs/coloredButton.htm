@@ -1,0 +1,272 @@
+<HTML>
+<HEAD>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Author" CONTENT="Judith Evans">
+   <TITLE>Documentation For Colored Buttons</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF" TEXT="#000000" LINK="#0000FF" VLINK="#800080">
+<CENTER><FONT SIZE=+2 COLOR="#FF0000">Colored Buttons
+<BR>
+<FONT SIZE=+1>July, 2008</FONT></FONT>
+<BR>
+<HR WIDTH="100%">
+
+<FONT SIZE=3 COLOR="black">An include file for Win32lib applications 
+</CENTER>
+<BR><B>Author:</B> Judith Evans
+<BR><B>Release Version:</B> 0.1.17 build date 07-04-2008
+<P><B>Purpose:</B> 
+<BR>To provide programmers using Win32lib the ability to create buttons with color, caption and 
+graphics.
+<P><B>Credits:</B>
+	<BR>ColoredButtons was developed using Euphoria, Win32lib and IDE developmental tools
+	<BR><I>Andy Drummond</I> supplied many tips for drawing buttons as well as ideas to enhance colored buttons
+		and a trick to prevent w32HClick of real M$ button being handled twice.
+	<BR><I>Rajesh Deshpande</I> suggested placing Graphic on colored button, obtaining Hint text from the actual
+		createEx button, changing caption color when pressed, new Caption Postion 3 which means center
+		caption and graphic as a unit, suggested use of repaintFG when button is not completely repainted if another
+		window partially covers button, suggested improvements and helped me in use of icon and bitmap from 
+		Bernie Ryan's win32eru package.
+	<BR><I>Bernie Ryan</I> for reminding me about and_bits to get BS_MULTILINE  and Flat style
+	<BR><I>Roland Stowasser</I> informed me that getWindowInfo did not work on Win95 and suggested I use getControlStyles.
+	<BR><I>Stephen ?</I> informed me about usage of ClearWindow.
+	<BR><I>Gregory Haberek</I> suggested adding text rotation
+	<BR><I>Thomas Parslow</I> for the irregular.ew lib for drawing Elliptic and RoundedRectangle buttons.
+	<BR><I>Chris Cuvier</I> gave me assistence removing a stray pixel near non-rectangular buttons.
+	
+<P><B>License:</B> 
+<BR>You may use this file in any application for free but should acknowledge myself as original author. You may modify
+to include additional routines but I do ask that you send me a copy so that I might upgrade for other people's use.
+<P><B>To Do:</B>
+<BR>capability to rotate graphic as option when caption is rotated; may be restricted to 90 degree rotations
+<BR>capability to rotate rectangular button as option when caption is rotated
+<P><B>Method:</B> 
+<BR>Colored Buttons are emulated buttons built with Child Window and Pixmap controls and an 
+array holding original button Id and a generated Id for the colored button with all 
+information needed to color and manage the button.
+
+<P><B>Restrictions:</B>
+<BR>Colored buttons may be used in place of createEx buttons where permitted by Windows[tm] except
+	placing a coloredbutton on another button (colored or not) or on ReBarBand.
+<P>Using classDefaults on Window control will produce unpredictable appearance of colored buttons.
+
+<P><B>Tips and Tricks:</B>
+	<BR>If you have a message_box or another window in your program that covers colored buttons when the window
+		is moved or dismissed the colored button may not be entirely repainted. When this happens code repaintFG(Window Id)
+		after your message_box statement or after moving another window.
+	<P>If you see button sitting inside itself, you might need to add the statement clearWindow(id) prior to any 
+		forceCBPaint(id) or remove any classDefault statements for Window control.
+	<P>Code forceCBPaint(id) after coding setVisible, setEnable, setCheck			
+	<P>If you make your button elliptical and rotate the caption the button will appear to rotate as well unless you have
+		a graphic.
+<P><B>Problems:</B>
+	<BR>Drawing arc around corners of RoundedRectangle and the arc around Elliptical buttons is not smooth and there may be gaps.
+
+<P><B>Required include file</B>
+<BR>At the top of your program, or at least before any of the following routines, include <B>coloredButtons.ew</B> which includes <B>Irregular.ew</B>
+
+<P><B>Getting Started</B>
+<BR>To set up a colored button you would first define all the controls, including the buttons which 
+would later be colored, via createEx statements in the normal way. After all your controls are defined,
+for each button you desire color, add the following statement which builds an entry in the 
+ColoredButtonInformation array.
+	<P><B>translateToColoredButton</B>(integer Id, object graphic_filename, object disabled_graphic_filename)
+		
+		<LI><I>Id</I> is the button's Win32lib createEx name. 
+		<LI><I>graphic_filename</I> when a sequence is the file name of your graphic with complete or partial path. 
+				When not a sequence the handle of a graphic from Win32eru has been supplied. To use dib's from other
+				graphics use <B>addCBXpmmerGraphic</B>. If there is not a graphic use {}. 
+		<LI><I>disabled_graphic_filename</I> when a sequence is the file name of your disabled graphic which will show when
+				you have set Id disabled. When not a sequence the handle of a graphic from Win32eru has been supplied. 
+				To use dib's from other grahics use <B>addCBXpmmerGraphic</B>.
+				If you do not use this feature enter {}.						 
+		
+<P><I>Note:</I>
+	<BR>Style and ExStyle params from your createEx'd button will be ignored except for BS_MULTILINE and #8000 (FlatButton). 
+		If you have other Style or ExStyle please contact me and I'll investigate if it can be added. 
+	<BR>If your button class is PictureButton or TogglePicture, colored buttons can not determine BS_MULTILINE
+		or #8000 from Style and you must use <B>multilineCBCaption</B> and/or <B>changeCBClass</B>	
+	<Br>You may have colored buttons on more than one window.
+	<BR>You may place each of the <B>translateToColoredButton</B> statements after the button control it is to 
+	replace instead of after all the createEx statements but be sure all button controls to be colored are translated prior to your program routines.
+	<BR>If you have a Hint for your actual buttons, colored button will acquire the hint.
+	<BR>If you have assigned a font for your actual buttons, colored button will acquire the font.
+	<BR>If you change your actual button's Font via setFont or setCreateFont, the colored button will initially 
+		use that font.
+	<BR>There is a way to use your own routines which can
+		access the ColoredButtonInformation array and force a w32HPaint event if necessary.	
+<P>After all your controls are createEx'd and <B>translateToColoredButton</B> added, use the 
+	following statement to open and paint the colored buttons.	
+	<P><B>initiateColoredButtons()</B>
+		
+
+<P>In the routines that follow you may assign multiple Id 
+	by enclosing the Id in brackets separated by commas like so:{id,id,id}. If you enter {} for Id, 
+	all colored buttons will be affected. Most routines also have a corresponding routine for all ids in case
+	you do not like using {} to denote all ids.
+	In all cases where Id is referenced it is the Id, or Name, of the createEx button.  
+
+<P><B>addCBGraphic</B>(integer id, integer which, object graphic)
+	<BR>You can change the graphic and/or the disable graphic during execution of your program.
+		<LI><I>which</I> is 1 for graphic and 2 for disable graphic
+		<LI><I>graphic</I> is either a filename or handle from Win32eru
+
+<P><B>addCBXpmmerGraphic</B>(integer id, integer which, object graphic)
+	<BR>You can change the graphic and/or the disable graphic during execution of your program.
+		<LI><I>which</I> is 1 for graphic and 2 for disable graphic
+		<LI><I>graphic</I> is the dib of the graphic
+
+<P><B>assignParentBackColor</B>(object Id, integer color)
+	<BR>If you move, resize or setVisible w32False your colored button and there is left at the original position and size a
+	box of the wrong color, coloredbuttons.ew did not locate the parent color and you must tell coloredbuttons.ew
+	about the color. 
+		<LI><I>color</I> is the parent color. 
+<P><I>Note:</I>
+	<BR>If you have a colored button on a Group control which does not have color and the Group is on a Window
+		which does have color be sure to add color to your Group control or use this routine. Eventually
+		coloredbuttons.ew will provide for this situation.
+	<BR>If you have several controls within a parent, each one will use this statement.
+	<BR>If all your colored buttons are on the same parent and the parent has color, you may use 
+	<B>assignAllParentBackColor</B>(integer color)
+	 
+
+ <P>Following are routines to manage and manipulate colored buttons. 
+	
+	<P><B>changeBorderThickness</B>(object Id, integer thickness)
+			<LI><I>border thickness </I>is the width of the border, in pixels, of a button. Default is 1 which is the
+					default value for Windows[tm]. There is a reflection inside the border automatically generated for
+					the button and you should take that into account before deciding border thickness value. 
+					For example if you want the border around your caption to be 10 pixels thick you would
+						enter 9 for the border thickness. The border around buttons is only colored by the normal highlight and shadow colors used by 
+						Microsoft[tm] buttons.
+	<P><B>changeAllBorderThickness</B>(integer thicknessX)
+		<BR>This routine is the same as above, except works for all colored buttons.
+
+	<P><B>changeCBColor</B>(object Id, integer buttonState, integer color)					 
+			<LI><I>buttonState</I> is 1 for button up and 2 for button down.
+			<LI><I>color</I> is the numeric value of the color desired.
+			<BR>Up color default is getSysColor(COLOR_BTNFACE).
+			<BR>Down color default is also COLOR_BTNFACE except for TogglePicture and ToggleButton.
+			<BR>TogglePicture and ToggleButton are preset with a default down color. You may change to another
+			color if you wish. The default color may or may not be accurate with different Window[tm] Themes.		
+	<P><B>changeAllCBColor</B>(integer buttonState, integer color)
+		<BR>This routine is the same as above, except works for all colored buttons.
+	
+	<P><B>changeCBTextColor</B>(object Id, integer buttonState, integer color)	
+			<LI><I>color</I> is the numeric value of the  text color. The default is black.
+			<LI><I>buttonState</I> is 1 for button up and 2 for button down. The default is black.
+	<P><B>changeAllCBTextColor</B>(integer color)
+		<BR>This routine is the same as above, except works for all colored buttons.
+
+	<P><B>centerVerticallyCBText</B>(object Id, integer how)	
+			<LI><I>how</I> is true or false to vertically center caption. The default is true.
+	<P><B>centerAllVerticallyCBText</B>(object Id, integer how)
+		<BR>This routine is the same as above, except works for all colored buttons.
+	
+	<P><B>moveCBCaption</B>(object Id, integer placement)
+			<LI><I>placement</I> may be 0 = center, 1 = left, 2 = right or 3 = center caption and graphic as a unit where the
+					graphic may be on left or right as determined by <B>moveCBGraphic</B>.
+	<P><I>Note:</I>
+		<BR>Right placement allows room for caption to move when button is pressed.
+		<BR>When placement is 3 and there is not room for the entire graphic to show when positioned at left, it is forced to show. Same rule
+			applies to right side. This means if your caption is long it might have a portion overlayed by the graphic.
+	<P><B>moveAllCBCaption</B>(integer placement)
+		<BR>This routine is the same as above, except works for all colored buttons.
+	
+	<P><B>changeCBCaption</B>(object Id, sequence newCaption)
+			<LI><I>newCaption</I> is your replacement text for the button caption. newCaption may contain \n to
+					create new lines. If you do not use \n, a parsing routine may attempt to
+					logically break newCaption into several lines at spaces to fit the button face. If 
+					newCaption has too many consecutive letters without a space, the result will not be
+					pleasing. If you have used \n or caption does not fit on one line, you should specify
+					multiline.
+	<P><B>changeAllCBCaption</B>(sequence newCaption)
+		<BR>This routine is the same as above, except works for all colored buttons.
+
+	<P><B>multilineCBCaption</B>(object Id, integer how)
+			<LI><I>how</I> is true or false to (1) break caption at \n or not and (2) parse long captions or not
+	<P><B>multilineAllCBCaption</b>(integer how)
+		<BR>This routine is the same as above, except works for all colored buttons.
+
+	<P><B>showCBCaption</B>(object Id, integer showStatus
+			<LI><I>showStatus</I> is true or false to show or hide the caption
+	<P><B>showAllCBCaption</B>(integer whereIs)
+		<BR>This routine is the same as above, except works for all colored buttons.
+	
+	<P><B>moveCBGraphic</B>(object Id, integer position)
+			<LI><I>position</I> is center = 0, left = 1 and right = 2
+ 	<P><I>Note:</I>
+		<BR>Right placement allows room for graphic to move when button is pressed. 
+	<P><B>moveAllCBGraphic</B>(integer position)
+		<BR>This routine is the same as above, except works for all colored buttons.
+
+	<P><B>setCBHint</B>(object Id, sequence hint)
+		<LI><I>hint</I> is text which shows when cursor hovers over the button.
+	<P><I>Note:</I>
+		<BR>Hint will be obtained from the actual CreateEx button. You may use this routine when
+			you want to change the hint while your program is running.
+
+	<P><B>setAllCBHint</B>(sequence hint)
+		<BR>This routine is the same as above, except works for all colored buttons.
+	
+	<P><B>setCBFont</B>(object Id, sequence facename, integer pts, integer attribute)
+			<LI>facename is the Font Name
+			<LI>pts is the height of the font
+			<LI>attribute is either Normal, Bold, Italic, Underline or Strikeout or any combinations				
+				of these values, for example, Bold+Italic.
+	<P><I>Note:</I>
+		<BR>Font will be obtained from the actual CreateEx button. You may use this routine when
+			you want to change the font while your program is running.
+
+	<P><B>setAllCBFont</B>(sequence facename, integer pts, integer attribute)
+		<BR>This routine is the same as above, except works for all colored buttons.
+
+	<P><B>setCBDefaultFont</B>(object Id)
+		<LI>This routine sets Font back to Win32lib default font, as if you had never set font 
+				for the button
+	<P><B>setAllCBDefaultCBFont</B>()
+		<BR>This routine is the same as above, except works for all colored buttons.
+		
+	<P><B>changeCBClass</B>(object Id, sequence newclass)
+			<LI><I>newClass</I> is the class in quotes you wish to change the button
+	<P><B>changeAllCBClass</B>(sequence newclass)
+		<BR>This routine is the same as above, except works for all colored buttons.
+
+	<P><B>setNonGrayDisable</B>(object Id, integer state)
+		<BR><I>state</I> is w32True to disable and w32False to enable
+		<BR>The disabled state does not have a gray-ed out caption.
+	
+	<P><B>setCBFocus</B>(object Id)
+		<BR>The routine will issue a setFocus for Id.
+	
+	<P><B>changeCBButtonType</B>(object Id, sequence style, integer corner size)
+		<LI><I>style</I> is "Ellipse" if you desire an elliptical button. "Ellipse" will ignore corner size so enter 0. 
+		<BR>When button's cx and cy are the same value then the button is rounded.
+		<LI><I>style</I> is "RoundedRectangle" if you want a rectangular button with corner size rounded corners.
+		<BR>corner size of 0 or less than 10 will default to 10. 30 is the recommended corner size.
+	<P><B>changeAllCBButtonType</B>(sequence style, integer corner size)
+		<BR>This routine is the same as above, except works for all colored buttons.
+	
+	<P><B>setCBFontAngle</B>(object Id, integer angle)
+		<LI><I>angle</I> is the rotation amount when the caption is to be rotated.
+		<LI>This feature does not play well with multiple line captions.
+	<P><B>setAllCBFontAngle</B>(integer angle)
+		<BR>Same as above except works for all colored buttons.
+	
+	<P><B>forceCBPaint</B>(object Id)
+			<BR>This routine is used only in the event you need to code something that affects the
+				colored button such that a w32HPaint event needs to be invoked.
+			<BR>Examples would be using setVisible, setEnable, setCheck			
+
+	<P>ColoredButtons.ew can access w32HEvent and w32HLostFocus handlers for the createEx'd button as well
+		as setRect, isVisible and isEnabled statements. use setCBFocus( button id) instead of setFocus. Internally w32HPaint and w32HMouse handlers are used.
+		
+	<P><B>Using your own routines to manipulate colored buttons</b>
+	<BR>This is the way you would set a button visible/invisible.
+	<P>procedure setButtonVisible(integer id, integer state)
+	<BR>&nbsp;&nbsp;&nbsp;&nbsp;	setVisible(id, state)
+	<BR>&nbsp;&nbsp;&nbsp;&nbsp;	forceCBPaint(id)
+	<BR>end procedure
+	
+	
+	

@@ -3,8 +3,9 @@
 ----------
 -- =====
 --
--- At last count (29/4/16) there are ~173 routines yet to be documented... [all done to IupSbox, ~line 2061] DEV
---  (11/11/16 all done to IupSpin, ~line 2711]
+-- At last count (29/4/16) there are ~173 routines yet to be documented... 
+--           [all done to IupSbox, ~line 2061] DEV
+--  (11/11/16 all done to IupSpin, ~line 2790]
 --  (none of which are used in any of the demos, and some of which may get culled)
 --  (IupLayoutDialog skipped for now)
 
@@ -25,15 +26,33 @@ global type Ihandln(integer i)
 end type
 
 sequence callbacks = {}
+sequence cbnames = {}
 
 global type cbfunc(atom cb)
-    return cb=NULL or rfind(cb,callbacks)!=0
+--  return cb=NULL or rfind(cb,callbacks)!=0    --DEV (no idea why rfind was being used...)
+    return cb=NULL or find(cb,callbacks)!=0
 end type
 
-global function Icallback(sequence name, atom rid = routine_id(name))
+global function Icallback(string name, atom rid = routine_id(name))
     atom cb = call_back({'+', rid})
-    callbacks = append(callbacks,cb)
+    integer k = find(cb,callbacks)
+    if k=0 then
+        callbacks = append(callbacks,cb)
+        cbnames = append(cbnames,name)
+    else
+        if cbnames[k]!=name then ?9/0 end if
+    end if
     return cb
+end function
+
+global function iup_name_from_cb(atom cb)
+    return cbnames[find(cb,callbacks)]
+end function
+
+global function iup_cb_from_name(string name)
+    integer idx = find(name,cbnames)
+    if idx=0 then return NULL end if
+    return callbacks[idx]
 end function
 
 --type non_null_atom(object o)
@@ -48,8 +67,8 @@ global type nullable_string(object o)
     return string(o) or o=NULL
 end type
 
--- only used by IupSetAttribute, IupSetGlobal, and cdCreateCanvas:
-type atom_string(object o)
+-- used by IupSetAttribute, IupSetGlobal, and cdCreateCanvas:
+global type atom_string(object o)
     return string(o) 
         or (integer(o) and o>=NULL) 
         or (atom(o) and o>=NULL and o=floor(o))
@@ -253,15 +272,21 @@ sequence doubles
     end if
 end function
 
-procedure iup_poke_double(atom ptr, object data)
-    if atom(data) then
-        poke(ptr,atom_to_float64(data))
+--DEV fixme (failed attempt at the following, crashed in pilx86.e line 10509)
+--procedure iup_poke_double(atom ptr, object ddata={})
+procedure iup_poke_double(atom ptr, object ddata)
+    if atom(ddata) then
+        poke(ptr,atom_to_float64(ddata))
     else
-        for i=1 to length(data) do
-            poke(ptr+8*(i-1),atom_to_float64(data[i]))
+        for i=1 to length(ddata) do
+            poke(ptr+8*(i-1),atom_to_float64(ddata[i]))
         end for
     end if
 end procedure
+--DEV/fixme (xType=0 [pEmit2.e line 4247] on ddata (renamed from data, pls undo when done), when compiling simple_paint):
+if "abc"="def" then
+    iup_poke_double(0,1)
+end if
 
 procedure iup_poke_float(atom ptr, object data)
     if atom(data) then
@@ -1195,6 +1220,17 @@ atom
     iupControls,
     xIupControlsOpen,
     
+    xIupCells,
+    xIupColorbar,
+    xIupColorBrowser,
+    xIupDial,
+    xIupMatrix,
+    xIupMatSetAttribute,
+    xIupMatStoreAttribute,
+    xIupMatGetAttribute,
+    xIupMatGetInt,
+    xIupMatGetFloat,
+
     xIupLoad,
     xIupLoadBuffer,
     xIupSetLanguage,
@@ -1379,11 +1415,11 @@ procedure iup_init1(nullable_string dll_root)
     xIupRedraw          = iup_c_proc(iup, "IupRedraw", {P,I})
     xIupConvertXYToPos  = iup_c_func(iup, "IupConvertXYToPos", {P,I,I}, I)
 
-    xIupDialog  = iup_c_func(iup, "IupDialog", {P},P)
-    xIupPopup   = iup_c_func(iup, "IupPopup", {P,I,I},I)
-    xIupShow    = iup_c_func(iup, "IupShow", {P},I)
-    xIupShowXY  = iup_c_func(iup, "IupShowXY", {P,I,I},I)
-    xIupHide    = iup_c_proc(iup, "IupHide", {P})
+    xIupDialog          = iup_c_func(iup, "IupDialog", {P},P)
+    xIupPopup           = iup_c_func(iup, "IupPopup", {P,I,I},I)
+    xIupShow            = iup_c_func(iup, "IupShow", {P},I)
+    xIupShowXY          = iup_c_func(iup, "IupShowXY", {P,I,I},I)
+    xIupHide            = iup_c_proc(iup, "IupHide", {P})
 
     xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
     xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P})
@@ -1469,7 +1505,17 @@ procedure iup_init1(nullable_string dll_root)
                                 "libiupcontrols.so",
                                 "libiupcontrols.dylib"})
 
-    xIupControlsOpen    = iup_c_proc(iupControls, "IupControlsOpen", {})
+    xIupControlsOpen        = iup_c_proc(iupControls, "IupControlsOpen", {})
+    xIupCells               = iup_c_func(iupControls, "IupCells", {},P)
+    xIupColorbar            = iup_c_func(iupControls, "IupColorbar", {},P)
+    xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)
+    xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)
+    xIupMatrix              = iup_c_func(iupControls, "IupMatrix", {P},P)
+    xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
+    xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
+    xIupMatGetAttribute     = iup_c_func(iupControls, "IupMatGetAttribute",{P,P,I,I},P)
+    xIupMatGetInt           = iup_c_func(iupControls, "IupMatGetInt",{P,P,I,I},I)
+    xIupMatGetFloat         = iup_c_func(iupControls, "IupMatGetFloat",{P,P,I,I},F)
 
     xIupLoad                          = iup_c_func(iup, "+IupLoad", {P}, P)
     xIupLoadBuffer                    = iup_c_func(iup, "+IupLoadBuffer", {P}, P)
@@ -1742,11 +1788,17 @@ global procedure IupSetStrAttribute(Ihandle ih, string name, nullable_string val
     c_proc(xIupSetStrAttribute, {ih, name, val})
 end procedure
 
-global procedure IupSetStrAttributeId(Ihandle ih, string name, integer id, nullable_string v=NULL)
+global procedure IupSetStrAttributeId(Ihandle ih, string name, integer id, nullable_string v=NULL, sequence data={})
+    if length(data) then
+        v = sprintf(v, data)
+    end if
     c_proc(xIupSetStrAttributeId, {ih,name,id,v})
 end procedure
 
-global procedure IupSetStrAttributeId2(Ihandle ih, string name, integer lin, integer col, nullable_string v=NULL)
+global procedure IupSetStrAttributeId2(Ihandle ih, string name, integer lin, col, nullable_string v=NULL, sequence data={})
+    if length(data) then
+        v = sprintf(v, data)
+    end if
     c_proc(xIupSetStrAttributeId2, {ih,name,lin,col,v})
 end procedure
 
@@ -1812,6 +1864,128 @@ global procedure IupStoreAttribute(Ihandln ih, string name, nullable_string val,
     c_proc(xIupStoreAttribute, {ih, name, val})
 end procedure
 
+--DEV/SUG rewrite in Phix:
+--/*
+static const char* env_str = NULL;
+static void iAttribCapture(char* env_buffer, char* dlm)
+{
+  int i=0;
+  int c;
+  do
+  {
+    c = *env_str; ++env_str;
+    if (i < 256)
+      env_buffer[i++] = (char) c;
+  } while (c && !strchr(dlm,c));
+  env_buffer[i-1]='\0';                                /!* discard delimiter *!/
+}
+
+static void iAttribSkipComment(void)
+{
+  int c;
+  do
+  {
+    c = *env_str; ++env_str;
+  } while ((c > 0) && (c != '\n'));
+}
+
+static int iAttribToken(char* env_buffer)
+{
+  for (;;)
+  {
+    int c = *env_str; ++env_str;
+    switch (c)
+    {
+    case 0:
+      return IUPLEX_TK_END;
+
+    case '#':          /* Skip comment */
+    case '%':          /* Skip comment */
+      iAttribSkipComment();
+      continue;
+
+    case ' ':          /* ignore whitespace */
+    case '\t':
+    case '\n':
+    case '\r':
+    case '\f':
+    case '\v':
+      continue;
+
+    case '=':          /* attribuicao */
+      return IUPLEX_TK_SET;
+
+    case ',':
+      return IUPLEX_TK_COMMA;
+
+    case '\"':          /* string */
+      iAttribCapture(env_buffer, "\"");
+      return IUPLEX_TK_NAME;
+
+    default:
+      if (c > 32)          /* identifier */
+      {
+        --env_str;                     /* unget first character of env_buffer */
+        iAttribCapture(env_buffer, "=, \t\n\r\f\v"); /* get env_buffer until delimiter */
+        --env_str;                     /* unget delimiter */
+        return IUPLEX_TK_NAME;
+      }
+    }
+  }
+}
+
+static void iAttribParse(Ihandle *ih, const char* str)
+{
+  char env_buffer[256];
+  char* name=NULL;
+  char* value=NULL;
+  char state = 'a';               /* get attribute */
+  int end = 0;
+
+  env_str = str;
+
+  for (;;)
+  {
+    switch (iAttribToken(env_buffer))
+    {
+    case IUPLEX_TK_END:           /* same as IUPLEX_TK_COMMA */
+      end = 1;
+    case IUPLEX_TK_COMMA:
+      if (name)
+      {
+        IupStoreAttribute(ih, name, value);
+        free(name);
+      }
+      if (end)
+        return;
+      name = value = NULL;
+      state = 'a';
+      break;
+
+    case IUPLEX_TK_SET:
+      state = 'v';                /* get value */
+      break;
+
+    case IUPLEX_TK_NAME:
+      if (state == 'a')
+        name = iupStrDup(env_buffer);
+      else
+        value = env_buffer;
+      break;
+    }
+  }
+}
+
+Ihandle* IupSetAttributes(Ihandle *ih, const char* str)
+{
+  iupASSERT(iupObjectCheck(ih));
+  if (!iupObjectCheck(ih))
+    return ih;
+  if (str)
+    iAttribParse(ih, str);
+  return ih;
+}
+--*/
 global procedure IupSetAttributes(Ihandle ih, string attributes, sequence data={})
     if length(data) then
         attributes = sprintf(attributes, data)
@@ -1824,21 +1998,33 @@ global function IupSetAttributesf(Ihandle ih, string attributes, sequence data={
     return ih
 end function
 
---DEV (DOC) type changed
 global procedure IupSetAttributeHandle(Ihandln ih, string name, Ihandln ih_named)
 --  if name!=upper(name) then ?9/0 end if
     c_proc(xIupSetAttributeHandle, {ih, name, ih_named})
 end procedure
 
-global function IupSetAttributeHandlef(Ihandln ih, string name, Ihandle ih_named)
-    IupSetAttributeHandle(ih, name, ih_named)
-    return ih
-end function
+-- removed 18/1/17 (unused)
+--global function IupSetAttributeHandlef(Ihandln ih, string name, Ihandle ih_named)
+--  IupSetAttributeHandle(ih, name, ih_named)
+--  return ih
+--end function
 
 -- (deprecated, use IupSetAttributeHandle instead)
 global procedure IupSetHandle(string name, Ihandle ih)
+--  name = upper(name)
     c_proc(xIupSetHandle, {name, ih})
 end procedure
+
+global function IupSetAtt(nullable_string name, Ihandle ih, sequence attribute_pairs)
+    if and_bits(length(attribute_pairs),1) then ?9/0 end if
+    for i=1 to length(attribute_pairs) by 2 do
+        IupSetAttribute(ih, attribute_pairs[i], attribute_pairs[i+1])
+    end for
+    if name!=NULL then
+        IupSetHandle(name, ih)
+    end if
+    return ih
+end function
 
 global procedure IupResetAttribute(Ihandle ih, string name)
     c_proc(xIupResetAttribute, {ih,name})
@@ -1883,8 +2069,6 @@ integer n = c_func(xIupGetAllAttributes, {ih,NULL,0})
     return iup_peek_string_pointer_array(ptr, n)
 end function
 
---DEV/doc 4/5/16:
---global function IupGetAttributeHandle(Ihandle ih, string name)
 global function IupGetAttributeHandle(Ihandln ih, string name)
     Ihandln ih_named = c_func(xIupGetAttributeHandle, {ih, name})
     return ih_named
@@ -1906,8 +2090,6 @@ global function IupGetInt2(Ihandle ih, string name)
     return res
 end function
 
---DEV/doc 4/5/16:
---global function IupGetIntInt(Ihandle ih, string name)
 global function IupGetIntInt(Ihandln ih, string name)
 sequence res
 atom pTwoInts = allocate(8)
@@ -2011,6 +2193,14 @@ end procedure
 
 global function IupSetCallbackf(Ihandle ih, string name, cbfunc func)
     IupSetCallback(ih, name, func)
+    return ih
+end function
+
+global function IupSetCallbacks(Ihandle ih, sequence namefuncpairs)
+    if and_bits(length(namefuncpairs),1) then ?9/0 end if
+    for i=1 to length(namefuncpairs) by 2 do
+        IupSetCallback(ih,namefuncpairs[i],namefuncpairs[i+1])
+    end for
     return ih
 end function
 
@@ -2257,8 +2447,11 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupRadio(Ihandle pChild)
-    Ihandle ih = c_func(xIupRadio, {pChild})
+global function IupRadio(Ihandle child, string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupRadio, {child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
@@ -2270,6 +2463,10 @@ global function IupNormalizer(sequence ih_list, string attributes="", sequence d
         IupSetAttributes(ih, attributes, data)
     end if
     return ih
+end function
+
+global function IupNormaliser(sequence ih_list, string attributes="", sequence data={})
+    return IupNormalizer(ih_list, attributes, data)
 end function
 
 global function IupCbox(sequence children, string attributes="", sequence data={})
@@ -2518,8 +2715,19 @@ global function IupMessageDlg()
     return ih
 end function
 
-global function IupCalendar()
-    return c_func(xIupCalendar, {})
+global function IupCalendar(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    Ihandle ih = c_func(xIupCalendar, {})
+    if func!=NULL then
+        if action=NULL then
+            action = "VALUECHANGED_CB"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 global function IupColorDlg()
@@ -2553,7 +2761,7 @@ global function IupGetFile(string filefilter)
     atom pFilename = allocate(4096,1)   -- (NB: xIupGetFile param is InOut)
     poke(pFilename, filefilter & 0)
     if c_func(xIupGetFile, {pFilename})=-1 then
-        return NULL
+        return ""
     end if
     string filename = peek_string(pFilename)
     return filename
@@ -2652,7 +2860,7 @@ global function IupGetText(string title, string text)
 atom pText = allocate(10240,1)
     poke(pText, text&0)
     if c_func(xIupGetText, {title, pText})=0 then
-        return NULL
+        return ""
     end if
     text = peek_string(pText)
     return text
@@ -2690,7 +2898,6 @@ sequence pOptAry = {}, marked, selected = {}
     return selected
 end function
 
---DEV doc skipped for now (I translated this to hll somewhere)
 global function IupLayoutDialog(Ihandle dialog)
     Ihandle ih = c_func(xIupLayoutDialog, {dialog})
     return ih
@@ -2723,7 +2930,8 @@ global function IupButton(object title=NULL, object action=NULL, object func=NUL
     if func!=NULL then
 --      IupSetCallback(ih, ACTION, func)    -- action?
         if action=NULL then
-            action = ACTION
+--          action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)    -- action?
     end if
@@ -2738,7 +2946,7 @@ global function IupCanvas(object action=NULL, object func=NULL, sequence attribu
     Ihandle ih = c_func(xIupCanvas, {action})   --DEV NULL?
     if func!=NULL then
         if action=NULL then
-            action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)
     end if
@@ -2748,7 +2956,6 @@ global function IupCanvas(object action=NULL, object func=NULL, sequence attribu
     return ih
 end function
 
---DEV paranormalise?
 global function IupFrame(Ihandle child, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupFrame, {child})
     if length(attributes) then
@@ -2758,8 +2965,9 @@ global function IupFrame(Ihandle child, string attributes="", sequence data={})
 end function
 
 --global function IupLabel(nullable_string title=NULL, string attributes="", sequence data={})
-global function IupLabel(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+--global function IupLabel(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+--  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+global function IupLabel(object title=NULL, sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupLabel, {title})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -2767,13 +2975,12 @@ global function IupLabel(object title=NULL, object action=NULL, object func=NULL
     return ih
 end function
 
---DEV paranormalise?
 global function IupList(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupList, {NULL})
     if func!=NULL then
         if action=NULL then
-            action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)
     end if
@@ -2788,16 +2995,18 @@ global function IupProgressBar()
     return ih
 end function
 
---DEV doc (done to here)
-/* Old controls, use SPIN attribute of IupText */
 global function IupSpin()
     Ihandle ih = c_func(xIupSpin, {})
     return ih
 end function
 
-global function IupSpinbox(Ihandle child)
+global function IupSpinBox(Ihandle child)
     Ihandle ih = c_func(xIupSpinbox, {child})
     return ih
+end function
+
+global function IupSpinbox(Ihandle child)
+    return IupSpinBox(child)
 end function
 
 global function IupTabs(sequence children={})
@@ -2812,7 +3021,7 @@ global function IupText(object action=NULL, object func=NULL, sequence attribute
     Ihandle ih = c_func(xIupText, {NULL})
     if func!=NULL then
         if action=NULL then
-            action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)
     end if
@@ -2827,7 +3036,7 @@ global function IupMultiLine(object action=NULL, object func=NULL, sequence attr
     Ihandle ih = c_func(xIupMultiLine, {NULL})
     if func!=NULL then
         if action=NULL then
-            action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)
     end if
@@ -2855,7 +3064,7 @@ global function IupToggle(string title, object action=NULL, object func=NULL, se
     Ihandle ih = c_func(xIupToggle, {title, NULL})
     if func!=NULL then
         if action=NULL then
-            action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)
     end if
@@ -2875,7 +3084,7 @@ global function IupValuator(nullable_string orientation=NULL, object action=NULL
     Ihandle ih = c_func(xIupVal, {orientation})
     if func!=NULL then
         if action=NULL then
-            action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)
     end if
@@ -3011,26 +3220,62 @@ end procedure
 -- === Additional
 --
 
+global function IupCells(string attributes="", dword_seq data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupCells, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+--DEV doc (done to here)
+global function IupColorbar(string attributes="", dword_seq data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupColorbar, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupColorBrowser(string attributes="", dword_seq data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupColorBrowser, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupDial(string orientation, string attributes="", dword_seq data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupDial, {orientation})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupMatrix(string attributes="", sequence data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupMatrix, {ACTION_CB})
+--DEV tryme:
+--  Ihandle ih = c_func(xIupMatrix, {NULL})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
 atom
     iupMatrixEx = 0,
 
-    xIupCells,
-    xIupColorbar,
-    xIupColorBrowser,
-    xIupDial,
-    xIupMatrix,
     xIupMatrixEx,
     xIupMatrixExInit,
-    xIupMatrixExOpen,
-    xIupMatSetAttribute,
-    xIupMatStoreAttribute,
-    xIupMatGetAttribute,
-    xIupMatGetInt,
-    xIupMatGetFloat
+    xIupMatrixExOpen
 
---DEVsplit off iup_controls_init()
 procedure iup_init_matrix()
---DEV inline?
     IupControlsOpen()
     if iupMatrixEx=0 then
         iupMatrixEx = iup_open_dll({
@@ -3039,63 +3284,11 @@ procedure iup_init_matrix()
                                     "libiupmatrixex.dylib"
                                    })
 
---      xIupControlsOpen        = iup_c_proc(iupControls, "IupControlsOpen", {})
-        xIupCells               = iup_c_func(iupControls, "IupCells", {},P)
-        xIupColorbar            = iup_c_func(iupControls, "IupColorbar", {},P)
-        xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)
-        xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)
-        xIupMatrix              = iup_c_func(iupControls, "IupMatrix", {P},P)
         xIupMatrixEx            = iup_c_func(iupMatrixEx, "IupMatrixEx", {},P)
         xIupMatrixExInit        = iup_c_proc(iupMatrixEx, "IupMatrixExInit", {P})
         xIupMatrixExOpen        = iup_c_proc(iupMatrixEx, "IupMatrixExOpen", {})
-        xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
-        xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
-        xIupMatGetAttribute     = iup_c_func(iupControls, "IupMatGetAttribute",{P,P,I,I},P)
-        xIupMatGetInt           = iup_c_func(iupControls, "IupMatGetInt",{P,P,I,I},I)
-        xIupMatGetFloat         = iup_c_func(iupControls, "IupMatGetFloat",{P,P,I,I},F)
     end if
-
 end procedure
-
-global function cells()
-    iup_init_matrix()
-    return c_func(xIupCells, {})
-end function
-
-global function colorbar()
-    iup_init_matrix()
-    return c_func(xIupColorbar, {})
-end function
-
-global function color_browser()
-    iup_init_matrix()
-    return c_func(xIupColorBrowser, {})
-end function
-
-global function dial(string orientation)
-    iup_init_matrix()
-    Ihandle ih = c_func(xIupDial, {orientation})
-    return ih
-end function
-
---DEV paranormalise -- nah
---global function IupMatrix(nullable_string action=NULL, atom func=NULL, string attributes="", sequence data={})
-global function IupMatrix(string attributes="", sequence data={})
-    iup_init_matrix()
---  Ihandle ih = c_func(xIupMatrix, {action})
-    Ihandle ih = c_func(xIupMatrix, {ACTION_CB})
---  if func!=NULL then
-----        IupSetCallback(ih, ACTION, func)
-----        if action=NULL then
-----            action = ACTION
-----        end if
---      IupSetCallback(ih, action, func)
---  end if
-    if length(attributes) then
-        IupSetAttributes(ih, attributes, data)
-    end if
-    return ih
-end function
 
 integer matrixexopen = 0
 global procedure IupMatrixExOpen()
@@ -3129,18 +3322,19 @@ global procedure IupMatStoreAttribute(Ihandle ih, string name, integer lin, inte
 end procedure
 
 global function IupMatGetAttribute(Ihandle ih, string name, integer lin, integer col)
-atom pValue = c_func(xIupMatGetAttribute, {ih, name, lin, col})
-nullable_string res = iff(pValue=NULL?NULL:peek_string(pValue))
+    atom pValue = c_func(xIupMatGetAttribute, {ih, name, lin, col})
+    string res = iff(pValue=NULL?"":peek_string(pValue))
     return res
 end function
 
-global function mat_get_int(Ihandle ih, string name, integer lin, integer col)
-integer val = c_func(xIupMatGetInt, {ih, name, lin, col})
+global function IupMatGetInt(Ihandle ih, string name, integer lin, integer col)
+    integer val = c_func(xIupMatGetInt, {ih, name, lin, col})
     return val
 end function
 
-global function mat_get_float(Ihandle ih, string name, integer lin, integer col)
-atom val = c_func(xIupMatGetFloat, {ih, name, lin, col})
+--function IupMatGetFloat(atom ih, object name = NULL, atom lin, atom col)
+global function IupMatGetFloat(Ihandle ih, string name, integer lin, integer col)
+    atom val = c_func(xIupMatGetFloat, {ih, name, lin, col})
     return val
 end function
 
@@ -3787,7 +3981,10 @@ global function IupMenuItem(string title, object action=NULL, object func=NULL, 
     {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupItem, {title, action})
     if func!=NULL then
-        IupSetCallback(ih, ACTION, func)
+        if action=NULL then
+            action = "ACTION"
+        end if
+        IupSetCallback(ih, action, func)
     end if
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -3795,7 +3992,6 @@ global function IupMenuItem(string title, object action=NULL, object func=NULL, 
     return ih
 end function
 
--- ""
 global function IupItem(string title, nullable_string action=NULL, atom func=NULL, string attributes="", sequence data={})
     return IupMenuItem(title, action, func, attributes, data)
 end function
@@ -3806,9 +4002,16 @@ global function IupSeparator()
 end function
 
 --Ihandle* IupSubmenu(const char* title, Ihandle* child);
-global function IupSubmenu(nullable_string title, Ihandln menu)
+global function IupSubmenu(nullable_string title, Ihandln menu, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupSubmenu, {title, menu})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
+end function
+
+global function IupSubMenu(nullable_string title, Ihandln menu)
+    return IupSubmenu(title, menu)
 end function
 
 --****
@@ -4135,6 +4338,7 @@ global constant
     CD_GRAY         = #C0C0C0,
     CD_PARCHMENT    = #FFFFE0,
     CD_INDIGO       = #4B0082,
+    CD_PURPLE       = #D080D0,
     CD_VIOLET       = #EE82EE,
 
     --
@@ -5102,7 +5306,7 @@ end procedure
 global function cdCanvasGetAttribute(cdCanvas hCdCanvas, string name)
 atom pRes
     pRes = c_func(xcdCanvasGetAttribute, {hCdCanvas, name})
-    if pRes=NULL then return NULL end if
+    if pRes=NULL then return "" end if
     return peek_string(pRes)
 end function
 
@@ -6851,7 +7055,7 @@ global function IupGLCanvas(object action=NULL, object func=NULL, sequence attri
     Ihandle ih = c_func(xIupGLCanvas, {NULL})
     if func!=NULL then
         if action=NULL then
-            action = ACTION
+            action = "ACTION"
         end if
         IupSetCallback(ih, action, func)
     end if
@@ -7007,11 +7211,11 @@ end function
 --atom iupimglib = open_dll({"win32\\iupimglib.dll", "libiupimglib.so"})
 --if iupimglib=0 then ?9/0 end if
 
-public constant EXIT_SUCCESS = 0
-public constant EXIT_FAILURE = 1
+global constant EXIT_SUCCESS = 0
+global constant EXIT_FAILURE = 1
 
 -- allocate an image to memory
-public function allocate_image(sequence data, integer cleanup=0)
+global function allocate_image(sequence data, integer cleanup=0)
 atom buff = allocate_data(length(data), cleanup)
     poke(buff, data) return buff
 end function
@@ -7020,283 +7224,283 @@ end function
 --public include iupkey.e
 /* from 32 to 126, all character sets are equal, the key code is the same as the ASCii character code. */
 --/*
-public constant K_sHOME = iup_XkeyShift(K_HOME )
-public constant K_sUP = iup_XkeyShift(K_UP )
-public constant K_sPGUP = iup_XkeyShift(K_PGUP )
-public constant K_sLEFT = iup_XkeyShift(K_LEFT )
-public constant K_sMIDDLE = iup_XkeyShift(K_MIDDLE )
-public constant K_sRIGHT = iup_XkeyShift(K_RIGHT )
-public constant K_sEND = iup_XkeyShift(K_END )
-public constant K_sDOWN = iup_XkeyShift(K_DOWN )
-public constant K_sPGDN = iup_XkeyShift(K_PGDN )
-public constant K_sINS = iup_XkeyShift(K_INS )
-public constant K_sDEL = iup_XkeyShift(K_DEL )
-public constant K_sSP = iup_XkeyShift(' ')
-public constant K_sTAB = iup_XkeyShift(K_TAB )
-public constant K_sCR = iup_XkeyShift(K_CR )
-public constant K_sBS = iup_XkeyShift(K_BS )
-public constant K_sPAUSE = iup_XkeyShift(K_PAUSE )
-public constant K_sESC = iup_XkeyShift(K_ESC )
-public constant K_sF1 = iup_XkeyShift(K_F1 )
-public constant K_sF2 = iup_XkeyShift(K_F2 )
-public constant K_sF3 = iup_XkeyShift(K_F3 )
-public constant K_sF4 = iup_XkeyShift(K_F4 )
-public constant K_sF5 = iup_XkeyShift(K_F5 )
-public constant K_sF6 = iup_XkeyShift(K_F6 )
-public constant K_sF7 = iup_XkeyShift(K_F7 )
-public constant K_sF8 = iup_XkeyShift(K_F8 )
-public constant K_sF9 = iup_XkeyShift(K_F9 )
-public constant K_sF10 = iup_XkeyShift(K_F10 )
-public constant K_sF11 = iup_XkeyShift(K_F11 )
-public constant K_sF12 = iup_XkeyShift(K_F12 )
-public constant K_sPrint = iup_XkeyShift(K_Print )
-public constant K_sMenu = iup_XkeyShift(K_Menu )
-public constant K_cHOME = iup_XkeyCtrl(K_HOME )
-public constant K_cUP = iup_XkeyCtrl(K_UP )
-public constant K_cPGUP = iup_XkeyCtrl(K_PGUP )
-public constant K_cLEFT = iup_XkeyCtrl(K_LEFT )
-public constant K_cMIDDLE = iup_XkeyCtrl(K_MIDDLE )
-public constant K_cRIGHT = iup_XkeyCtrl(K_RIGHT )
-public constant K_cEND = iup_XkeyCtrl(K_END )
-public constant K_cDOWN = iup_XkeyCtrl(K_DOWN )
-public constant K_cPGDN = iup_XkeyCtrl(K_PGDN )
-public constant K_cINS = iup_XkeyCtrl(K_INS )
-public constant K_cDEL = iup_XkeyCtrl(K_DEL )
-public constant K_cSP = iup_XkeyCtrl(' ')
-public constant K_cTAB = iup_XkeyCtrl(K_TAB )
-public constant K_cCR = iup_XkeyCtrl(K_CR )
-public constant K_cBS = iup_XkeyCtrl(K_BS )
-public constant K_cPAUSE = iup_XkeyCtrl(K_PAUSE )
-public constant K_cESC = iup_XkeyCtrl(K_ESC )
-public constant K_cCcedilla = iup_XkeyCtrl(K_Ccedilla)
-public constant K_cF1 = iup_XkeyCtrl(K_F1 )
-public constant K_cF2 = iup_XkeyCtrl(K_F2 )
-public constant K_cF3 = iup_XkeyCtrl(K_F3 )
-public constant K_cF4 = iup_XkeyCtrl(K_F4 )
-public constant K_cF5 = iup_XkeyCtrl(K_F5 )
-public constant K_cF6 = iup_XkeyCtrl(K_F6 )
-public constant K_cF7 = iup_XkeyCtrl(K_F7 )
-public constant K_cF8 = iup_XkeyCtrl(K_F8 )
-public constant K_cF9 = iup_XkeyCtrl(K_F9 )
-public constant K_cF10 = iup_XkeyCtrl(K_F10 )
-public constant K_cF11 = iup_XkeyCtrl(K_F11 )
-public constant K_cF12 = iup_XkeyCtrl(K_F12 )
-public constant K_cPrint = iup_XkeyCtrl(K_Print )
-public constant K_cMenu = iup_XkeyCtrl(K_Menu )
-public constant K_mHOME = iup_XkeyAlt(K_HOME )
-public constant K_mUP = iup_XkeyAlt(K_UP )
-public constant K_mPGUP = iup_XkeyAlt(K_PGUP )
-public constant K_mLEFT = iup_XkeyAlt(K_LEFT )
-public constant K_mMIDDLE = iup_XkeyAlt(K_MIDDLE )
-public constant K_mRIGHT = iup_XkeyAlt(K_RIGHT )
-public constant K_mEND = iup_XkeyAlt(K_END )
-public constant K_mDOWN = iup_XkeyAlt(K_DOWN )
-public constant K_mPGDN = iup_XkeyAlt(K_PGDN )
-public constant K_mINS = iup_XkeyAlt(K_INS )
-public constant K_mDEL = iup_XkeyAlt(K_DEL )
-public constant K_mSP = iup_XkeyAlt(' ')
-public constant K_mTAB = iup_XkeyAlt(K_TAB )
-public constant K_mCR = iup_XkeyAlt(K_CR )
-public constant K_mBS = iup_XkeyAlt(K_BS )
-public constant K_mPAUSE = iup_XkeyAlt(K_PAUSE )
-public constant K_mESC = iup_XkeyAlt(K_ESC )
-public constant K_mCcedilla = iup_XkeyAlt(K_Ccedilla)
-public constant K_mF1 = iup_XkeyAlt(K_F1 )
-public constant K_mF2 = iup_XkeyAlt(K_F2 )
-public constant K_mF3 = iup_XkeyAlt(K_F3 )
-public constant K_mF4 = iup_XkeyAlt(K_F4 )
-public constant K_mF5 = iup_XkeyAlt(K_F5 )
-public constant K_mF6 = iup_XkeyAlt(K_F6 )
-public constant K_mF7 = iup_XkeyAlt(K_F7 )
-public constant K_mF8 = iup_XkeyAlt(K_F8 )
-public constant K_mF9 = iup_XkeyAlt(K_F9 )
-public constant K_mF10 = iup_XkeyAlt(K_F10 )
-public constant K_mF11 = iup_XkeyAlt(K_F11 )
-public constant K_mF12 = iup_XkeyAlt(K_F12 )
-public constant K_mPrint = iup_XkeyAlt(K_Print )
-public constant K_mMenu = iup_XkeyAlt(K_Menu )
-public constant K_yHOME = iup_XkeySys(K_HOME )
-public constant K_yUP = iup_XkeySys(K_UP )
-public constant K_yPGUP = iup_XkeySys(K_PGUP )
-public constant K_yLEFT = iup_XkeySys(K_LEFT )
-public constant K_yMIDDLE = iup_XkeySys(K_MIDDLE )
-public constant K_yRIGHT = iup_XkeySys(K_RIGHT )
-public constant K_yEND = iup_XkeySys(K_END )
-public constant K_yDOWN = iup_XkeySys(K_DOWN )
-public constant K_yPGDN = iup_XkeySys(K_PGDN )
-public constant K_yINS = iup_XkeySys(K_INS )
-public constant K_yDEL = iup_XkeySys(K_DEL )
-public constant K_ySP = iup_XkeySys(' ')
-public constant K_yTAB = iup_XkeySys(K_TAB )
-public constant K_yCR = iup_XkeySys(K_CR )
-public constant K_yBS = iup_XkeySys(K_BS )
-public constant K_yPAUSE = iup_XkeySys(K_PAUSE )
-public constant K_yESC = iup_XkeySys(K_ESC )
-public constant K_yCcedilla = iup_XkeySys(K_Ccedilla)
-public constant K_yF1 = iup_XkeySys(K_F1 )
-public constant K_yF2 = iup_XkeySys(K_F2 )
-public constant K_yF3 = iup_XkeySys(K_F3 )
-public constant K_yF4 = iup_XkeySys(K_F4 )
-public constant K_yF5 = iup_XkeySys(K_F5 )
-public constant K_yF6 = iup_XkeySys(K_F6 )
-public constant K_yF7 = iup_XkeySys(K_F7 )
-public constant K_yF8 = iup_XkeySys(K_F8 )
-public constant K_yF9 = iup_XkeySys(K_F9 )
-public constant K_yF10 = iup_XkeySys(K_F10 )
-public constant K_yF11 = iup_XkeySys(K_F11 )
-public constant K_yF12 = iup_XkeySys(K_F12 )
-public constant K_yPrint = iup_XkeySys(K_Print )
-public constant K_yMenu = iup_XkeySys(K_Menu )
-public constant K_sPlus = iup_XkeyShift(K_plus )
-public constant K_sComma = iup_XkeyShift(K_comma )
-public constant K_sMinus = iup_XkeyShift(K_minus )
-public constant K_sPeriod = iup_XkeyShift(K_period )
-public constant K_sSlash = iup_XkeyShift(K_slash )
-public constant K_sAsterisk = iup_XkeyShift(K_asterisk)
-public constant K_cA = iup_XkeyCtrl(K_A)
-public constant K_cB = iup_XkeyCtrl(K_B)
-public constant K_cC = iup_XkeyCtrl(K_C)
-public constant K_cD = iup_XkeyCtrl(K_D)
-public constant K_cE = iup_XkeyCtrl(K_E)
-public constant K_cF = iup_XkeyCtrl(K_F)
-public constant K_cG = iup_XkeyCtrl(K_G)
-public constant K_cH = iup_XkeyCtrl(K_H)
-public constant K_cI = iup_XkeyCtrl(K_I)
-public constant K_cJ = iup_XkeyCtrl(K_J)
-public constant K_cK = iup_XkeyCtrl(K_K)
-public constant K_cL = iup_XkeyCtrl(K_L)
-public constant K_cM = iup_XkeyCtrl(K_M)
-public constant K_cN = iup_XkeyCtrl(K_N)
-public constant K_cO = iup_XkeyCtrl(K_O)
-public constant K_cP = iup_XkeyCtrl(K_P)
-public constant K_cQ = iup_XkeyCtrl(K_Q)
-public constant K_cR = iup_XkeyCtrl(K_R)
-public constant K_cS = iup_XkeyCtrl(K_S)
-public constant K_cT = iup_XkeyCtrl(K_T)
-public constant K_cU = iup_XkeyCtrl(K_U)
-public constant K_cV = iup_XkeyCtrl(K_V)
-public constant K_cW = iup_XkeyCtrl(K_W)
-public constant K_cX = iup_XkeyCtrl(K_X)
-public constant K_cY = iup_XkeyCtrl(K_Y)
-public constant K_cZ = iup_XkeyCtrl(K_Z)
-public constant K_c1 = iup_XkeyCtrl(K_1)
-public constant K_c2 = iup_XkeyCtrl(K_2)
-public constant K_c3 = iup_XkeyCtrl(K_3)
-public constant K_c4 = iup_XkeyCtrl(K_4)
-public constant K_c5 = iup_XkeyCtrl(K_5)
-public constant K_c6 = iup_XkeyCtrl(K_6)
-public constant K_c7 = iup_XkeyCtrl(K_7)
-public constant K_c8 = iup_XkeyCtrl(K_8)
-public constant K_c9 = iup_XkeyCtrl(K_9)
-public constant K_c0 = iup_XkeyCtrl(K_0)
-public constant K_cPlus = iup_XkeyCtrl(K_plus )
-public constant K_cComma = iup_XkeyCtrl(K_comma )
-public constant K_cMinus = iup_XkeyCtrl(K_minus )
-public constant K_cPeriod = iup_XkeyCtrl(K_period )
-public constant K_cSlash = iup_XkeyCtrl(K_slash )
-public constant K_cSemicolon = iup_XkeyCtrl(K_semicolon )
-public constant K_cEqual = iup_XkeyCtrl(K_equal )
-public constant K_cBracketleft = iup_XkeyCtrl(K_bracketleft )
-public constant K_cBracketright = iup_XkeyCtrl(K_bracketright)
-public constant K_cBackslash = iup_XkeyCtrl(K_backslash )
-public constant K_cAsterisk = iup_XkeyCtrl(K_asterisk )
-public constant K_mA = iup_XkeyAlt(K_A)
-public constant K_mB = iup_XkeyAlt(K_B)
-public constant K_mC = iup_XkeyAlt(K_C)
-public constant K_mD = iup_XkeyAlt(K_D)
-public constant K_mE = iup_XkeyAlt(K_E)
-public constant K_mF = iup_XkeyAlt(K_F)
-public constant K_mG = iup_XkeyAlt(K_G)
-public constant K_mH = iup_XkeyAlt(K_H)
-public constant K_mI = iup_XkeyAlt(K_I)
-public constant K_mJ = iup_XkeyAlt(K_J)
-public constant K_mK = iup_XkeyAlt(K_K)
-public constant K_mL = iup_XkeyAlt(K_L)
-public constant K_mM = iup_XkeyAlt(K_M)
-public constant K_mN = iup_XkeyAlt(K_N)
-public constant K_mO = iup_XkeyAlt(K_O)
-public constant K_mP = iup_XkeyAlt(K_P)
-public constant K_mQ = iup_XkeyAlt(K_Q)
-public constant K_mR = iup_XkeyAlt(K_R)
-public constant K_mS = iup_XkeyAlt(K_S)
-public constant K_mT = iup_XkeyAlt(K_T)
-public constant K_mU = iup_XkeyAlt(K_U)
-public constant K_mV = iup_XkeyAlt(K_V)
-public constant K_mW = iup_XkeyAlt(K_W)
-public constant K_mX = iup_XkeyAlt(K_X)
-public constant K_mY = iup_XkeyAlt(K_Y)
-public constant K_mZ = iup_XkeyAlt(K_Z)
-public constant K_m1 = iup_XkeyAlt(K_1)
-public constant K_m2 = iup_XkeyAlt(K_2)
-public constant K_m3 = iup_XkeyAlt(K_3)
-public constant K_m4 = iup_XkeyAlt(K_4)
-public constant K_m5 = iup_XkeyAlt(K_5)
-public constant K_m6 = iup_XkeyAlt(K_6)
-public constant K_m7 = iup_XkeyAlt(K_7)
-public constant K_m8 = iup_XkeyAlt(K_8)
-public constant K_m9 = iup_XkeyAlt(K_9)
-public constant K_m0 = iup_XkeyAlt(K_0)
-public constant K_mPlus = iup_XkeyAlt(K_plus )
-public constant K_mComma = iup_XkeyAlt(K_comma )
-public constant K_mMinus = iup_XkeyAlt(K_minus )
-public constant K_mPeriod = iup_XkeyAlt(K_period )
-public constant K_mSlash = iup_XkeyAlt(K_slash )
-public constant K_mSemicolon = iup_XkeyAlt(K_semicolon )
-public constant K_mEqual = iup_XkeyAlt(K_equal )
-public constant K_mBracketleft = iup_XkeyAlt(K_bracketleft )
-public constant K_mBracketright = iup_XkeyAlt(K_bracketright)
-public constant K_mBackslash = iup_XkeyAlt(K_backslash )
-public constant K_mAsterisk = iup_XkeyAlt(K_asterisk )
-public constant K_yA = iup_XkeySys(K_A)
-public constant K_yB = iup_XkeySys(K_B)
-public constant K_yC = iup_XkeySys(K_C)
-public constant K_yD = iup_XkeySys(K_D)
-public constant K_yE = iup_XkeySys(K_E)
-public constant K_yF = iup_XkeySys(K_F)
-public constant K_yG = iup_XkeySys(K_G)
-public constant K_yH = iup_XkeySys(K_H)
-public constant K_yI = iup_XkeySys(K_I)
-public constant K_yJ = iup_XkeySys(K_J)
-public constant K_yK = iup_XkeySys(K_K)
-public constant K_yL = iup_XkeySys(K_L)
-public constant K_yM = iup_XkeySys(K_M)
-public constant K_yN = iup_XkeySys(K_N)
-public constant K_yO = iup_XkeySys(K_O)
-public constant K_yP = iup_XkeySys(K_P)
-public constant K_yQ = iup_XkeySys(K_Q)
-public constant K_yR = iup_XkeySys(K_R)
-public constant K_yS = iup_XkeySys(K_S)
-public constant K_yT = iup_XkeySys(K_T)
-public constant K_yU = iup_XkeySys(K_U)
-public constant K_yV = iup_XkeySys(K_V)
-public constant K_yW = iup_XkeySys(K_W)
-public constant K_yX = iup_XkeySys(K_X)
-public constant K_yY = iup_XkeySys(K_Y)
-public constant K_yZ = iup_XkeySys(K_Z)
-public constant K_y1 = iup_XkeySys(K_1)
-public constant K_y2 = iup_XkeySys(K_2)
-public constant K_y3 = iup_XkeySys(K_3)
-public constant K_y4 = iup_XkeySys(K_4)
-public constant K_y5 = iup_XkeySys(K_5)
-public constant K_y6 = iup_XkeySys(K_6)
-public constant K_y7 = iup_XkeySys(K_7)
-public constant K_y8 = iup_XkeySys(K_8)
-public constant K_y9 = iup_XkeySys(K_9)
-public constant K_y0 = iup_XkeySys(K_0)
-public constant K_yPlus = iup_XkeySys(K_plus )
-public constant K_yComma = iup_XkeySys(K_comma )
-public constant K_yMinus = iup_XkeySys(K_minus )
-public constant K_yPeriod = iup_XkeySys(K_period )
-public constant K_ySlash = iup_XkeySys(K_slash )
-public constant K_ySemicolon = iup_XkeySys(K_semicolon )
-public constant K_yEqual = iup_XkeySys(K_equal )
-public constant K_yBracketleft = iup_XkeySys(K_bracketleft )
-public constant K_yBracketright = iup_XkeySys(K_bracketright)
-public constant K_yBackslash = iup_XkeySys(K_backslash )
-public constant K_yAsterisk = iup_XkeySys(K_asterisk )
+global constant K_sHOME = iup_XkeyShift(K_HOME )
+global constant K_sUP = iup_XkeyShift(K_UP )
+global constant K_sPGUP = iup_XkeyShift(K_PGUP )
+global constant K_sLEFT = iup_XkeyShift(K_LEFT )
+global constant K_sMIDDLE = iup_XkeyShift(K_MIDDLE )
+global constant K_sRIGHT = iup_XkeyShift(K_RIGHT )
+global constant K_sEND = iup_XkeyShift(K_END )
+global constant K_sDOWN = iup_XkeyShift(K_DOWN )
+global constant K_sPGDN = iup_XkeyShift(K_PGDN )
+global constant K_sINS = iup_XkeyShift(K_INS )
+global constant K_sDEL = iup_XkeyShift(K_DEL )
+global constant K_sSP = iup_XkeyShift(' ')
+global constant K_sTAB = iup_XkeyShift(K_TAB )
+global constant K_sCR = iup_XkeyShift(K_CR )
+global constant K_sBS = iup_XkeyShift(K_BS )
+global constant K_sPAUSE = iup_XkeyShift(K_PAUSE )
+global constant K_sESC = iup_XkeyShift(K_ESC )
+global constant K_sF1 = iup_XkeyShift(K_F1 )
+global constant K_sF2 = iup_XkeyShift(K_F2 )
+global constant K_sF3 = iup_XkeyShift(K_F3 )
+global constant K_sF4 = iup_XkeyShift(K_F4 )
+global constant K_sF5 = iup_XkeyShift(K_F5 )
+global constant K_sF6 = iup_XkeyShift(K_F6 )
+global constant K_sF7 = iup_XkeyShift(K_F7 )
+global constant K_sF8 = iup_XkeyShift(K_F8 )
+global constant K_sF9 = iup_XkeyShift(K_F9 )
+global constant K_sF10 = iup_XkeyShift(K_F10 )
+global constant K_sF11 = iup_XkeyShift(K_F11 )
+global constant K_sF12 = iup_XkeyShift(K_F12 )
+global constant K_sPrint = iup_XkeyShift(K_Print )
+global constant K_sMenu = iup_XkeyShift(K_Menu )
+global constant K_cHOME = iup_XkeyCtrl(K_HOME )
+global constant K_cUP = iup_XkeyCtrl(K_UP )
+global constant K_cPGUP = iup_XkeyCtrl(K_PGUP )
+global constant K_cLEFT = iup_XkeyCtrl(K_LEFT )
+global constant K_cMIDDLE = iup_XkeyCtrl(K_MIDDLE )
+global constant K_cRIGHT = iup_XkeyCtrl(K_RIGHT )
+global constant K_cEND = iup_XkeyCtrl(K_END )
+global constant K_cDOWN = iup_XkeyCtrl(K_DOWN )
+global constant K_cPGDN = iup_XkeyCtrl(K_PGDN )
+global constant K_cINS = iup_XkeyCtrl(K_INS )
+global constant K_cDEL = iup_XkeyCtrl(K_DEL )
+global constant K_cSP = iup_XkeyCtrl(' ')
+global constant K_cTAB = iup_XkeyCtrl(K_TAB )
+global constant K_cCR = iup_XkeyCtrl(K_CR )
+global constant K_cBS = iup_XkeyCtrl(K_BS )
+global constant K_cPAUSE = iup_XkeyCtrl(K_PAUSE )
+global constant K_cESC = iup_XkeyCtrl(K_ESC )
+global constant K_cCcedilla = iup_XkeyCtrl(K_Ccedilla)
+global constant K_cF1 = iup_XkeyCtrl(K_F1 )
+global constant K_cF2 = iup_XkeyCtrl(K_F2 )
+global constant K_cF3 = iup_XkeyCtrl(K_F3 )
+global constant K_cF4 = iup_XkeyCtrl(K_F4 )
+global constant K_cF5 = iup_XkeyCtrl(K_F5 )
+global constant K_cF6 = iup_XkeyCtrl(K_F6 )
+global constant K_cF7 = iup_XkeyCtrl(K_F7 )
+global constant K_cF8 = iup_XkeyCtrl(K_F8 )
+global constant K_cF9 = iup_XkeyCtrl(K_F9 )
+global constant K_cF10 = iup_XkeyCtrl(K_F10 )
+global constant K_cF11 = iup_XkeyCtrl(K_F11 )
+global constant K_cF12 = iup_XkeyCtrl(K_F12 )
+global constant K_cPrint = iup_XkeyCtrl(K_Print )
+global constant K_cMenu = iup_XkeyCtrl(K_Menu )
+global constant K_mHOME = iup_XkeyAlt(K_HOME )
+global constant K_mUP = iup_XkeyAlt(K_UP )
+global constant K_mPGUP = iup_XkeyAlt(K_PGUP )
+global constant K_mLEFT = iup_XkeyAlt(K_LEFT )
+global constant K_mMIDDLE = iup_XkeyAlt(K_MIDDLE )
+global constant K_mRIGHT = iup_XkeyAlt(K_RIGHT )
+global constant K_mEND = iup_XkeyAlt(K_END )
+global constant K_mDOWN = iup_XkeyAlt(K_DOWN )
+global constant K_mPGDN = iup_XkeyAlt(K_PGDN )
+global constant K_mINS = iup_XkeyAlt(K_INS )
+global constant K_mDEL = iup_XkeyAlt(K_DEL )
+global constant K_mSP = iup_XkeyAlt(' ')
+global constant K_mTAB = iup_XkeyAlt(K_TAB )
+global constant K_mCR = iup_XkeyAlt(K_CR )
+global constant K_mBS = iup_XkeyAlt(K_BS )
+global constant K_mPAUSE = iup_XkeyAlt(K_PAUSE )
+global constant K_mESC = iup_XkeyAlt(K_ESC )
+global constant K_mCcedilla = iup_XkeyAlt(K_Ccedilla)
+global constant K_mF1 = iup_XkeyAlt(K_F1 )
+global constant K_mF2 = iup_XkeyAlt(K_F2 )
+global constant K_mF3 = iup_XkeyAlt(K_F3 )
+global constant K_mF4 = iup_XkeyAlt(K_F4 )
+global constant K_mF5 = iup_XkeyAlt(K_F5 )
+global constant K_mF6 = iup_XkeyAlt(K_F6 )
+global constant K_mF7 = iup_XkeyAlt(K_F7 )
+global constant K_mF8 = iup_XkeyAlt(K_F8 )
+global constant K_mF9 = iup_XkeyAlt(K_F9 )
+global constant K_mF10 = iup_XkeyAlt(K_F10 )
+global constant K_mF11 = iup_XkeyAlt(K_F11 )
+global constant K_mF12 = iup_XkeyAlt(K_F12 )
+global constant K_mPrint = iup_XkeyAlt(K_Print )
+global constant K_mMenu = iup_XkeyAlt(K_Menu )
+global constant K_yHOME = iup_XkeySys(K_HOME )
+global constant K_yUP = iup_XkeySys(K_UP )
+global constant K_yPGUP = iup_XkeySys(K_PGUP )
+global constant K_yLEFT = iup_XkeySys(K_LEFT )
+global constant K_yMIDDLE = iup_XkeySys(K_MIDDLE )
+global constant K_yRIGHT = iup_XkeySys(K_RIGHT )
+global constant K_yEND = iup_XkeySys(K_END )
+global constant K_yDOWN = iup_XkeySys(K_DOWN )
+global constant K_yPGDN = iup_XkeySys(K_PGDN )
+global constant K_yINS = iup_XkeySys(K_INS )
+global constant K_yDEL = iup_XkeySys(K_DEL )
+global constant K_ySP = iup_XkeySys(' ')
+global constant K_yTAB = iup_XkeySys(K_TAB )
+global constant K_yCR = iup_XkeySys(K_CR )
+global constant K_yBS = iup_XkeySys(K_BS )
+global constant K_yPAUSE = iup_XkeySys(K_PAUSE )
+global constant K_yESC = iup_XkeySys(K_ESC )
+global constant K_yCcedilla = iup_XkeySys(K_Ccedilla)
+global constant K_yF1 = iup_XkeySys(K_F1 )
+global constant K_yF2 = iup_XkeySys(K_F2 )
+global constant K_yF3 = iup_XkeySys(K_F3 )
+global constant K_yF4 = iup_XkeySys(K_F4 )
+global constant K_yF5 = iup_XkeySys(K_F5 )
+global constant K_yF6 = iup_XkeySys(K_F6 )
+global constant K_yF7 = iup_XkeySys(K_F7 )
+global constant K_yF8 = iup_XkeySys(K_F8 )
+global constant K_yF9 = iup_XkeySys(K_F9 )
+global constant K_yF10 = iup_XkeySys(K_F10 )
+global constant K_yF11 = iup_XkeySys(K_F11 )
+global constant K_yF12 = iup_XkeySys(K_F12 )
+global constant K_yPrint = iup_XkeySys(K_Print )
+global constant K_yMenu = iup_XkeySys(K_Menu )
+global constant K_sPlus = iup_XkeyShift(K_plus )
+global constant K_sComma = iup_XkeyShift(K_comma )
+global constant K_sMinus = iup_XkeyShift(K_minus )
+global constant K_sPeriod = iup_XkeyShift(K_period )
+global constant K_sSlash = iup_XkeyShift(K_slash )
+global constant K_sAsterisk = iup_XkeyShift(K_asterisk)
+global constant K_cA = iup_XkeyCtrl(K_A)
+global constant K_cB = iup_XkeyCtrl(K_B)
+global constant K_cC = iup_XkeyCtrl(K_C)
+global constant K_cD = iup_XkeyCtrl(K_D)
+global constant K_cE = iup_XkeyCtrl(K_E)
+global constant K_cF = iup_XkeyCtrl(K_F)
+global constant K_cG = iup_XkeyCtrl(K_G)
+global constant K_cH = iup_XkeyCtrl(K_H)
+global constant K_cI = iup_XkeyCtrl(K_I)
+global constant K_cJ = iup_XkeyCtrl(K_J)
+global constant K_cK = iup_XkeyCtrl(K_K)
+global constant K_cL = iup_XkeyCtrl(K_L)
+global constant K_cM = iup_XkeyCtrl(K_M)
+global constant K_cN = iup_XkeyCtrl(K_N)
+global constant K_cO = iup_XkeyCtrl(K_O)
+global constant K_cP = iup_XkeyCtrl(K_P)
+global constant K_cQ = iup_XkeyCtrl(K_Q)
+global constant K_cR = iup_XkeyCtrl(K_R)
+global constant K_cS = iup_XkeyCtrl(K_S)
+global constant K_cT = iup_XkeyCtrl(K_T)
+global constant K_cU = iup_XkeyCtrl(K_U)
+global constant K_cV = iup_XkeyCtrl(K_V)
+global constant K_cW = iup_XkeyCtrl(K_W)
+global constant K_cX = iup_XkeyCtrl(K_X)
+global constant K_cY = iup_XkeyCtrl(K_Y)
+global constant K_cZ = iup_XkeyCtrl(K_Z)
+global constant K_c1 = iup_XkeyCtrl(K_1)
+global constant K_c2 = iup_XkeyCtrl(K_2)
+global constant K_c3 = iup_XkeyCtrl(K_3)
+global constant K_c4 = iup_XkeyCtrl(K_4)
+global constant K_c5 = iup_XkeyCtrl(K_5)
+global constant K_c6 = iup_XkeyCtrl(K_6)
+global constant K_c7 = iup_XkeyCtrl(K_7)
+global constant K_c8 = iup_XkeyCtrl(K_8)
+global constant K_c9 = iup_XkeyCtrl(K_9)
+global constant K_c0 = iup_XkeyCtrl(K_0)
+global constant K_cPlus = iup_XkeyCtrl(K_plus )
+global constant K_cComma = iup_XkeyCtrl(K_comma )
+global constant K_cMinus = iup_XkeyCtrl(K_minus )
+global constant K_cPeriod = iup_XkeyCtrl(K_period )
+global constant K_cSlash = iup_XkeyCtrl(K_slash )
+global constant K_cSemicolon = iup_XkeyCtrl(K_semicolon )
+global constant K_cEqual = iup_XkeyCtrl(K_equal )
+global constant K_cBracketleft = iup_XkeyCtrl(K_bracketleft )
+global constant K_cBracketright = iup_XkeyCtrl(K_bracketright)
+global constant K_cBackslash = iup_XkeyCtrl(K_backslash )
+global constant K_cAsterisk = iup_XkeyCtrl(K_asterisk )
+global constant K_mA = iup_XkeyAlt(K_A)
+global constant K_mB = iup_XkeyAlt(K_B)
+global constant K_mC = iup_XkeyAlt(K_C)
+global constant K_mD = iup_XkeyAlt(K_D)
+global constant K_mE = iup_XkeyAlt(K_E)
+global constant K_mF = iup_XkeyAlt(K_F)
+global constant K_mG = iup_XkeyAlt(K_G)
+global constant K_mH = iup_XkeyAlt(K_H)
+global constant K_mI = iup_XkeyAlt(K_I)
+global constant K_mJ = iup_XkeyAlt(K_J)
+global constant K_mK = iup_XkeyAlt(K_K)
+global constant K_mL = iup_XkeyAlt(K_L)
+global constant K_mM = iup_XkeyAlt(K_M)
+global constant K_mN = iup_XkeyAlt(K_N)
+global constant K_mO = iup_XkeyAlt(K_O)
+global constant K_mP = iup_XkeyAlt(K_P)
+global constant K_mQ = iup_XkeyAlt(K_Q)
+global constant K_mR = iup_XkeyAlt(K_R)
+global constant K_mS = iup_XkeyAlt(K_S)
+global constant K_mT = iup_XkeyAlt(K_T)
+global constant K_mU = iup_XkeyAlt(K_U)
+global constant K_mV = iup_XkeyAlt(K_V)
+global constant K_mW = iup_XkeyAlt(K_W)
+global constant K_mX = iup_XkeyAlt(K_X)
+global constant K_mY = iup_XkeyAlt(K_Y)
+global constant K_mZ = iup_XkeyAlt(K_Z)
+global constant K_m1 = iup_XkeyAlt(K_1)
+global constant K_m2 = iup_XkeyAlt(K_2)
+global constant K_m3 = iup_XkeyAlt(K_3)
+global constant K_m4 = iup_XkeyAlt(K_4)
+global constant K_m5 = iup_XkeyAlt(K_5)
+global constant K_m6 = iup_XkeyAlt(K_6)
+global constant K_m7 = iup_XkeyAlt(K_7)
+global constant K_m8 = iup_XkeyAlt(K_8)
+global constant K_m9 = iup_XkeyAlt(K_9)
+global constant K_m0 = iup_XkeyAlt(K_0)
+global constant K_mPlus = iup_XkeyAlt(K_plus )
+global constant K_mComma = iup_XkeyAlt(K_comma )
+global constant K_mMinus = iup_XkeyAlt(K_minus )
+global constant K_mPeriod = iup_XkeyAlt(K_period )
+global constant K_mSlash = iup_XkeyAlt(K_slash )
+global constant K_mSemicolon = iup_XkeyAlt(K_semicolon )
+global constant K_mEqual = iup_XkeyAlt(K_equal )
+global constant K_mBracketleft = iup_XkeyAlt(K_bracketleft )
+global constant K_mBracketright = iup_XkeyAlt(K_bracketright)
+global constant K_mBackslash = iup_XkeyAlt(K_backslash )
+global constant K_mAsterisk = iup_XkeyAlt(K_asterisk )
+global constant K_yA = iup_XkeySys(K_A)
+global constant K_yB = iup_XkeySys(K_B)
+global constant K_yC = iup_XkeySys(K_C)
+global constant K_yD = iup_XkeySys(K_D)
+global constant K_yE = iup_XkeySys(K_E)
+global constant K_yF = iup_XkeySys(K_F)
+global constant K_yG = iup_XkeySys(K_G)
+global constant K_yH = iup_XkeySys(K_H)
+global constant K_yI = iup_XkeySys(K_I)
+global constant K_yJ = iup_XkeySys(K_J)
+global constant K_yK = iup_XkeySys(K_K)
+global constant K_yL = iup_XkeySys(K_L)
+global constant K_yM = iup_XkeySys(K_M)
+global constant K_yN = iup_XkeySys(K_N)
+global constant K_yO = iup_XkeySys(K_O)
+global constant K_yP = iup_XkeySys(K_P)
+global constant K_yQ = iup_XkeySys(K_Q)
+global constant K_yR = iup_XkeySys(K_R)
+global constant K_yS = iup_XkeySys(K_S)
+global constant K_yT = iup_XkeySys(K_T)
+global constant K_yU = iup_XkeySys(K_U)
+global constant K_yV = iup_XkeySys(K_V)
+global constant K_yW = iup_XkeySys(K_W)
+global constant K_yX = iup_XkeySys(K_X)
+global constant K_yY = iup_XkeySys(K_Y)
+global constant K_yZ = iup_XkeySys(K_Z)
+global constant K_y1 = iup_XkeySys(K_1)
+global constant K_y2 = iup_XkeySys(K_2)
+global constant K_y3 = iup_XkeySys(K_3)
+global constant K_y4 = iup_XkeySys(K_4)
+global constant K_y5 = iup_XkeySys(K_5)
+global constant K_y6 = iup_XkeySys(K_6)
+global constant K_y7 = iup_XkeySys(K_7)
+global constant K_y8 = iup_XkeySys(K_8)
+global constant K_y9 = iup_XkeySys(K_9)
+global constant K_y0 = iup_XkeySys(K_0)
+global constant K_yPlus = iup_XkeySys(K_plus )
+global constant K_yComma = iup_XkeySys(K_comma )
+global constant K_yMinus = iup_XkeySys(K_minus )
+global constant K_yPeriod = iup_XkeySys(K_period )
+global constant K_ySlash = iup_XkeySys(K_slash )
+global constant K_ySemicolon = iup_XkeySys(K_semicolon )
+global constant K_yEqual = iup_XkeySys(K_equal )
+global constant K_yBracketleft = iup_XkeySys(K_bracketleft )
+global constant K_yBracketright = iup_XkeySys(K_bracketright)
+global constant K_yBackslash = iup_XkeySys(K_backslash )
+global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --*/
 
---public constant -- function delcarations
+--global constant -- function delcarations
 --      xIupOpen                          = iup_c_func(iup, "+IupOpen", {P,P}, I),
 --      xIupClose                         = iup_c_proc(iup, "+IupClose", {}),
 --      xIupImageLibOpen                  = iup_c_proc(iupimglib, "+IupImageLibOpen", {}),
@@ -7491,25 +7695,25 @@ public constant K_yAsterisk = iup_XkeySys(K_asterisk )
 
 --if xIupSetCallback=0 then ?9/0 end if
 
-public constant IUP_NAME = "IUP - Portable User Interface"
-public constant IUP_DESCRIPTION = "Multi-platform Toolkit for Building Graphical User Interfaces"
-public constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
-public constant IUP_VERSION = "3.16" /* bug fixes are reported only by IupVersion functions */
-public constant IUP_VERSION_NUMBER = 316000
-public constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix releases */
+global constant IUP_NAME = "IUP - Portable User Interface"
+global constant IUP_DESCRIPTION = "Multi-platform Toolkit for Building Graphical User Interfaces"
+global constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
+global constant IUP_VERSION = "3.16" /* bug fixes are reported only by IupVersion functions */
+global constant IUP_VERSION_NUMBER = 316000
+global constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix releases */
 
 ----void IupSetLanguageString(const char* name, const char* str);
---public procedure IupSetLanguageString(string name, string str)
+--global procedure IupSetLanguageString(string name, string str)
 --  c_proc(xIupSetLanguageString, {name,str})
 --end procedure
 --
 ----void IupStoreLanguageString(const char* name, const char* str);
---public procedure IupStoreLanguageString(string name, string str)
+--global procedure IupStoreLanguageString(string name, string str)
 --  c_proc(xIupStoreLanguageString, {name,str})
 --end procedure
 --
 ----char* IupGetLanguageString(const char* name);
---public function IupGetLanguageString(string name)
+--global function IupGetLanguageString(string name)
 --  atom ptr = c_func(xIupGetLanguageString, {name})
 --  sequence str = ""
 --  if ptr!=NULL then str = peek_string(ptr) end if
@@ -7517,12 +7721,12 @@ public constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix rele
 --end function
 --
 ----void IupSetLanguagePack(Ihandle* ih);
---public procedure IupSetLanguagePack(atom ih)
+--global procedure IupSetLanguagePack(atom ih)
 --  c_proc(xIupSetLanguagePack, {ih})
 --end procedure
 
 ----Icallback IupGetFunction(const char *name);
---public function IupGetFunction(string name)
+--global function IupGetFunction(string name)
 global function IupGetGlobalFunction(string name)
     cbfunc result = c_func(xIupGetFunction, {name})
     return result
@@ -7538,7 +7742,7 @@ end procedure
 
 ----int IupClassMatch(Ihandle* ih, const char* classname);
 global function IupClassMatch(atom ih, string classname)
-    integer result = c_func(xIupClassMatch, {ih,classname})
+    bool result = c_func(xIupClassMatch, {ih,classname})
     return result   -- true(1) or false(0)
 end function
 
@@ -7547,39 +7751,59 @@ end function
 /************************************************************************/
 
 --Ihandle* IupScrollBox(Ihandle* child);
-public function IupScrollBox(atom child)
-atom result = c_func(xIupScrollBox, {child})
+global function IupScrollBox(Ihandln child)
+    Ihandle result = c_func(xIupScrollBox, {child})
     return result
 end function
 
 --Ihandle* IupExpander(Ihandle *child);
-public function IupExpander(atom child)
-atom result = c_func(xIupExpander, {child})
+global function IupExpander(Ihandln child)
+    Ihandle result = c_func(xIupExpander, {child})
     return result
 end function
 
 --Ihandle* IupDetachBox(Ihandle *child);
-public function IupDetachBox(atom child)
-atom result = c_func(xIupDetachBox, {child})
+global function IupDetachBox(Ihandln child)
+    Ihandle result = c_func(xIupDetachBox, {child})
     return result
 end function
 
 --Ihandle* IupBackgroundBox(Ihandle *child);
-public function IupBackgroundBox(atom child)
-atom result = c_func(xIupBackgroundBox, {child})
+global function IupBackgroundBox(Ihandln child)
+    Ihandle result = c_func(xIupBackgroundBox, {child})
     return result
 end function
 
 --Ihandle* IupLink(const char* url, const char* title);
-public function IupLink(nullable_string url=NULL, nullable_string title=NULL)
-    Ihandle result = c_func(xIupLink, {url,title})
-    return result
+global function IupLink(nullable_string url=NULL, nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    Ihandle ih = c_func(xIupLink, {url,title})
+    if func!=NULL then
+        if action=NULL then
+            action = "ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 --Ihandle* IupFlatButton(const char* title);
-public function IupFlatButton(nullable_string title=NULL)
-    Ihandle result = c_func(xIupFlatButton, {title})
-    return result
+global function IupFlatButton(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    Ihandle ih = c_func(xIupFlatButton, {title})
+    if func!=NULL then
+        if action=NULL then
+            action = "ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 /************************************************************************/
@@ -7587,52 +7811,52 @@ end function
 /************************************************************************/
 
 --void IupStoreAttributeId(Ihandle *ih, const char* name, int id, const char *v);
-public procedure IupStoreAttributeId(Ihandle ih, string name, integer id, nullable_string v=NULL)
+global procedure IupStoreAttributeId(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupStoreAttributeId, {ih,name,id,v})
 end procedure
 
 --void IupStoreAttributeId2(Ihandle* ih, const char* name, int lin, int col, const char* v);
-public procedure IupStoreAttributeId2(Ihandle ih, string name, atom lin, atom col, nullable_string v=NULL)
+global procedure IupStoreAttributeId2(Ihandle ih, string name, atom lin, atom col, nullable_string v=NULL)
     c_proc(xIupStoreAttributeId2, {ih,name,lin,col,v})
 end procedure
 
 /* IupTree utilities */
 --int IupTreeSetUserId(Ihandle* ih, int id, void* userid);
-public function IupTreeSetUserId(atom ih, atom id, atom userid)
+global function IupTreeSetUserId(atom ih, atom id, atom userid)
 atom result = c_func(xIupTreeSetUserId, {ih,id,userid})
     return result
 end function
 
 --void* IupTreeGetUserId(Ihandle* ih, int id);
-public function IupTreeGetUserId(atom ih, atom id)
+global function IupTreeGetUserId(atom ih, atom id)
 atom result = c_func(xIupTreeGetUserId, {ih,id})
     return result
 end function
 
 --int IupTreeGetId(Ihandle* ih, void *userid);
-public function IupTreeGetId(atom ih, atom userid)
+global function IupTreeGetId(atom ih, atom userid)
 atom result = c_func(xIupTreeGetId, {ih,userid})
     return result
 end function
 
 --void IupTreeSetAttributeHandle(Ihandle* ih, const char* name, int id, Ihandle* ih_named);
-public procedure IupTreeSetAttributeHandle(Ihandle ih, string name, integer id, Ihandle ih_named)
+global procedure IupTreeSetAttributeHandle(Ihandle ih, string name, integer id, Ihandle ih_named)
     c_proc(xIupTreeSetAttributeHandle, {ih,name,id,ih_named})
 end procedure
 
 /* DEPRECATED IupTree utilities, use Iup*AttributeId functions. It will be removed in a future version.  */
 --void IupTreeSetAttribute(Ihandle* ih, const char* name, int id, const char* v);
-public procedure IupTreeSetAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
+global procedure IupTreeSetAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupTreeSetAttribute, {ih,name,id,v})
 end procedure
 
 --void IupTreeStoreAttribute(Ihandle* ih, const char* name, int id, const char* v);
-public procedure IupTreeStoreAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
+global procedure IupTreeStoreAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupTreeStoreAttribute, {ih,name,id,v})
 end procedure
 
 --char* IupTreeGetAttribute(Ihandle* ih, const char* name, int id);
-public function IupTreeGetAttribute(Ihandle ih, string name, integer id)
+global function IupTreeGetAttribute(Ihandle ih, string name, integer id)
     atom ptr = c_func(xIupTreeGetAttribute, {ih,name,id})
     string str = ""
     if ptr!=NULL then str = peek_string(ptr) end if
@@ -7640,20 +7864,20 @@ public function IupTreeGetAttribute(Ihandle ih, string name, integer id)
 end function
 
 --int IupTreeGetInt(Ihandle* ih, const char* name, int id);
-public function IupTreeGetInt(Ihandle ih, string name, integer id)
+global function IupTreeGetInt(Ihandle ih, string name, integer id)
     atom result = c_func(xIupTreeGetInt, {ih,name,id})
     return result
 end function
 
 --float IupTreeGetFloat(Ihandle* ih, const char* name, int id);
-public function IupTreeGetFloat(Ihandle ih, string name, integer id)
+global function IupTreeGetFloat(Ihandle ih, string name, integer id)
     atom result = c_func(xIupTreeGetFloat, {ih,name,id})
     return result
 end function
 
 /* DEPRECATED font names. It will be removed in a future version.  */
 --char* IupMapFont(const char *iupfont);
-public function IupMapFont(nullable_string iupfont=NULL)
+global function IupMapFont(nullable_string iupfont=NULL)
     atom ptr = c_func(xIupMapFont, {iupfont})
     string str = ""
     if ptr!=NULL then str = peek_string(ptr) end if
@@ -7661,7 +7885,7 @@ public function IupMapFont(nullable_string iupfont=NULL)
 end function
 
 --char* IupUnMapFont(const char *driverfont);
-public function IupUnMapFont(nullable_string driverfont=NULL)
+global function IupUnMapFont(nullable_string driverfont=NULL)
     atom ptr = c_func(xIupUnMapFont, {driverfont})
     string str = ""
     if ptr!=NULL then str = peek_string(ptr) end if
@@ -7672,33 +7896,33 @@ end function
 /*                      Pre-defined dialogs                           */
 /************************************************************************/
 --Ihandle* IupProgressDlg(void);
-public function IupProgressDlg()
+global function IupProgressDlg()
     Ihandle result = c_func(xIupProgressDlg, {})
     return result
 end function
 
 --Ihandle* IupParamf(const char* format);
-public function IupParamf(nullable_string fmt=NULL)
+global function IupParamf(nullable_string fmt=NULL)
     Ihandle result = c_func(xIupParamf, {fmt})
     return result
 end function
 
 --Ihandle* IupParamBox(Ihandle* parent, Ihandle** params, int count);
-public function IupParamBox(Ihandle parent, atom params, integer count)
+global function IupParamBox(Ihandle parent, atom params, integer count)
     Ihandle result = c_func(xIupParamBox, {parent,params,count})
     return result
 end function
 
 --Ihandle* IupElementPropertiesDialog(Ihandle* elem);
-public function IupElementPropertiesDialog(Ihandle elem)
-    Ihandle result = c_func(xIupElementPropertiesDialog, {elem})
-    return result
+global function IupElementPropertiesDialog(Ihandle elem)
+    Ihandle ih = c_func(xIupElementPropertiesDialog, {elem})
+    return ih
 end function
 
 /************************************************************************/
 /*               SHOW_CB Callback Values                                */
 /************************************************************************/
-public enum
+global enum
         IUP_SHOW = 0,
         IUP_RESTORE,
         IUP_MINIMIZE,
@@ -7708,7 +7932,7 @@ $
 /************************************************************************/
 /*               SCROLL_CB Callback Values                              */
 /************************************************************************/
-public enum
+global enum
         IUP_SBUP = 0,
         IUP_SBDN,
         IUP_SBPGUP,
@@ -7725,37 +7949,37 @@ $
 /************************************************************************/
 /*                      Pre-Defined Masks                               */
 /************************************************************************/
-public constant IUP_MASK_FLOAT = "[+/-]?(/d+/.?/d*|/./d+)"
-public constant IUP_MASK_UFLOAT = "(/d+/.?/d*|/./d+)"
-public constant IUP_MASK_EFLOAT = "[+/-]?(/d+/.?/d*|/./d+)([eE][+/-]?/d+)?"
-public constant IUP_MASK_FLOATCOMMA = "[+/-]?(/d+/,?/d*|/,/d+)"
-public constant IUP_MASK_UFLOATCOMMA = "(/d+/,?/d*|/,/d+)"
-public constant IUP_MASK_INT = "[+/-]?/d+"
---public constant IUP_MASK_UINT = "/d+"
+global constant IUP_MASK_FLOAT = "[+/-]?(/d+/.?/d*|/./d+)"
+global constant IUP_MASK_UFLOAT = "(/d+/.?/d*|/./d+)"
+global constant IUP_MASK_EFLOAT = "[+/-]?(/d+/.?/d*|/./d+)([eE][+/-]?/d+)?"
+global constant IUP_MASK_FLOATCOMMA = "[+/-]?(/d+/,?/d*|/,/d+)"
+global constant IUP_MASK_UFLOATCOMMA = "(/d+/,?/d*|/,/d+)"
+global constant IUP_MASK_INT = "[+/-]?/d+"
+--global constant IUP_MASK_UINT = "/d+"
 /* Old definitions for backward compatibility */
-public constant IUPMASK_FLOAT = IUP_MASK_FLOAT
-public constant IUPMASK_UFLOAT = IUP_MASK_UFLOAT
-public constant IUPMASK_EFLOAT = IUP_MASK_EFLOAT
-public constant IUPMASK_INT = IUP_MASK_INT
-public constant IUPMASK_UINT = IUP_MASK_UINT
+global constant IUPMASK_FLOAT = IUP_MASK_FLOAT
+global constant IUPMASK_UFLOAT = IUP_MASK_UFLOAT
+global constant IUPMASK_EFLOAT = IUP_MASK_EFLOAT
+global constant IUPMASK_INT = IUP_MASK_INT
+global constant IUPMASK_UINT = IUP_MASK_UINT
 /************************************************************************/
 --/*                     IupGetParam Callback situations                    */
 --/************************************************************************/
---public constant IUP_GETPARAM_BUTTON1 = -1
---public constant IUP_GETPARAM_INIT = -2
---public constant IUP_GETPARAM_BUTTON2 = -3
---public constant IUP_GETPARAM_BUTTON3 = -4
---public constant IUP_GETPARAM_CLOSE = -5
---public constant IUP_GETPARAM_OK = IUP_GETPARAM_BUTTON1
---public constant IUP_GETPARAM_CANCEL = IUP_GETPARAM_BUTTON2
---public constant IUP_GETPARAM_HELP = IUP_GETPARAM_BUTTON3
+--global constant IUP_GETPARAM_BUTTON1 = -1
+--global constant IUP_GETPARAM_INIT = -2
+--global constant IUP_GETPARAM_BUTTON2 = -3
+--global constant IUP_GETPARAM_BUTTON3 = -4
+--global constant IUP_GETPARAM_CLOSE = -5
+--global constant IUP_GETPARAM_OK = IUP_GETPARAM_BUTTON1
+--global constant IUP_GETPARAM_CANCEL = IUP_GETPARAM_BUTTON2
+--global constant IUP_GETPARAM_HELP = IUP_GETPARAM_BUTTON3
 /************************************************************************/
 /*              Replacement for the WinMain in Windows,                 */
 /*        this allows the application to start from "main".             */
 /*        Used only for Watcom.                                         */
 /************************************************************************/
 
---public constant -- function delcarations
+--global constant -- function delcarations
 --  xIupConfig                        = iup_c_func(iup, "+IupConfig", {}, P),
 --  xIupConfigLoad                    = iup_c_func(iup, "+IupConfigLoad", {P}, I),
 --  xIupConfigSave                    = iup_c_func(iup, "+IupConfigSave", {P}, I),
@@ -7956,7 +8180,7 @@ end function
 --  $
 
 --/* DEV/SUG, from iup4eu3:
-    hIupSetCallbacks = define_c_func(iuplib, "IupSetCallbacks", {C_INT, C_POINTER, C_INT}, C_INT),
+--  hIupSetCallbacks = define_c_func(iuplib, "IupSetCallbacks", {C_INT, C_POINTER, C_INT}, C_INT),
     hIupColorDlg = define_c_func(iuplib, "IupColorDlg", {}, C_INT),
     hIupGetFile = define_c_func(iuplib, "IupGetFile", {C_POINTER}, C_INT),
     hIupGetText = define_c_func(iuplib, "IupGetText", {C_POINTER, C_POINTER}, C_INT),
@@ -7965,10 +8189,10 @@ end function
 -- Associates several callbacks to an event.
 -- To define each rid use the function Icallback.
 -- Returns: the same widget handle.
-global function IupSetCallbacks(atom widget, sequence action, sequence rids)
-    return c_func(hIupSetCallbacks, {widget, allocate_string(action)} &
-        rids & {NULL})
-end function
+--global function IupSetCallbacks(atom widget, sequence action, sequence rids)
+--  return c_func(hIupSetCallbacks, {widget, allocate_string(action)} &
+--      rids & {NULL})
+--end function
 
 -- Creates the Colour Dialog element. It is a predefined dialog for selecting a
 -- color.
@@ -8042,14 +8266,6 @@ end function
 -- end if
 -- IupClose()
 -- </eucode>
-global function IupGetFile(sequence filename)
-    atom pFile
-    sequence result
-    pFile = allocate_string(filename)
-    result = {c_func(hIupGetFile, {pFile}), peek_string3(pFile)}
-    free(pFile)
-    return result
-end function
 
 -- Shows a modal dialog to edit a multiline text. The parameter ##text## defines
 -- the initial value displayed in the dialog.
@@ -8080,15 +8296,6 @@ end function
 --
 -- main()
 -- </eucode>
-global function IupGetText(sequence title, sequence text)
-    atom ptext
-    sequence arg, result
-    ptext = allocate_string(text)
-    arg = {allocate_string(title), ptext}
-    result = {c_func(hIupGetText, arg), peek_string3(ptext)}
-    free(ptext)
-    return result
-end function
 
 -- Creates a progress dialog element. It is a predefined dialog for displaying
 -- the progress of an operation.

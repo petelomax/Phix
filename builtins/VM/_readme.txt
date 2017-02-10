@@ -94,7 +94,7 @@
 --  64-bit support. Hence they are ideal for porting to a new architecture 
 --  (eg ARM) though obviously you would probably have to run them one-by-one 
 --  by hand at the start. The first major task would be to make filedump.exw 
---  work on some test files, anything fro a real system that you know works.
+--  work on some test files, anything from a real system that you know works.
 --  Next, hack pemit2.e to create a test binary using a hand-crafted snippet 
 --  of machine code. Then extend the format directive and get "p -d(!)" to 
 --  create some reasonable-looking list.asm files. After that, a long slog.

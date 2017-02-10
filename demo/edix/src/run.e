@@ -159,6 +159,8 @@ without a queue, any locking, or a listener on a timer. However you
 might struggle to close Edix and leave any invoked apps running[??].
 --*/
 
+string last_cmd = ""
+
 procedure run_currfile(string cmd)
 atom hThread
     if length(cmd)!=0 then
@@ -168,6 +170,7 @@ atom hThread
         IupSetAttribute(listener,"RUN","YES")
 --DEV reindent no likey
 --      atom hThread = create_thread(r_run,{cmd,filepaths[currfile]})
+        last_cmd = cmd
         hThread = create_thread(r_run,{cmd,filepaths[currfile]})
     end if
 end procedure
@@ -309,7 +312,7 @@ Ihandle run_lbl, buttons, command, box, bt_help, bt_ok, bt_cancel
     IupPopup(run_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
 end procedure
 
-global procedure F5run(integer ctrl)--, integer shift, integer alt)
+global procedure F5run(integer ctrl, integer shift)--, integer alt)
 -- called by main thread
     if msgcs=0 then
         msgcs = init_cs()
@@ -318,9 +321,10 @@ global procedure F5run(integer ctrl)--, integer shift, integer alt)
         wcount = 0
         listener = IupTimer(Icallback("listen_cb"),250)
     end if
---DEV... shift F5 -> run last
     if ctrl then
         open_rundlg()
+    elsif shift then
+        run_currfile(last_cmd)
     else
         run_currfile(get_cmd(currfile,0))
     end if

@@ -1,0 +1,795 @@
+--Visual Styles Explorer by Don Phillips
+
+global integer TestWin  TestWin = -1
+sequence Disable
+Disable = {1,1,1,1,1,1,1}
+
+global atom WinStyles   WinStyles = -1
+integer MainHelp,MenuAbout,Label1,WinType,Label2,TitleBar,Label3,BorderType
+integer Label4,Sizeable,Label5,SysMenu,Label6,MinMenu,Label7,MaxMenu,Label8,CloseMenu
+integer Label9,QuestMenu,Group10,vscroll,hscroll,OkBut,CancelBut,GText
+
+sequence oldFlags
+--------------------------------------------------------------------------------
+--	Helper functions
+function getCurrentStyles()
+	atom styles, exstyles, classstyles
+
+	setEnable( Sizeable, w32True )
+	setIndex( Sizeable, Disable[1] )
+	setEnable( SysMenu, w32True )
+	setIndex( SysMenu, Disable[2] )
+	setEnable( MinMenu, w32True )
+	setIndex( MinMenu, Disable[3] )
+	setEnable( MaxMenu, w32True )
+	setIndex( MaxMenu, Disable[4] )
+	setEnable( CloseMenu, w32True )
+	setIndex( CloseMenu, Disable[5] )
+	setEnable( QuestMenu, w32False )
+	setIndex( QuestMenu, 0 )
+
+	styles = 0
+	exstyles = 0
+	classstyles = 0
+
+	if getIndex(WinType) = 1 then
+		if getIndex(TitleBar) = 1 then
+
+			if getIndex(BorderType) = 1 then
+				exstyles = or_bits( exstyles, WS_EX_DLGMODALFRAME )
+			elsif getIndex(BorderType) = 2 then
+				-- disable sizeable
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 3 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+			elsif getIndex(BorderType) = 4 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+			elsif getIndex(BorderType) = 5 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				-- disable sizeable, dont read from for this style
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 6 then
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+			end if
+
+		else
+			styles = or_bits( styles, WS_POPUP )
+			Disable[2] = getIndex( SysMenu )
+			setEnable( SysMenu, w32False )
+			setIndex( SysMenu, 0 )
+			Disable[3] = getIndex( MinMenu )
+			setEnable( MinMenu, w32False )
+			setIndex( MinMenu, 0 )
+			Disable[4] = getIndex( MaxMenu )
+			setEnable( MaxMenu, w32False )
+			setIndex( MaxMenu, 0 )
+			Disable[5] = getIndex( CloseMenu )
+			setEnable( CloseMenu, w32False )
+			setIndex( CloseMenu, 0 )
+
+			if getIndex(BorderType) = 1 then
+				-- disable sizeable
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 3 then
+				styles = or_bits( styles, WS_BORDER )
+				-- disable sizeable
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 4 then
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 1 )
+			elsif getIndex(BorderType) = 5 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 6 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+			elsif getIndex(BorderType) = 7 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 1 )
+			elsif getIndex(BorderType) = 8 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+			elsif getIndex(BorderType) = 9 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_DLGMODALFRAME )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 1 )
+			elsif getIndex(BorderType) = 10 then
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				styles = or_bits( styles, WS_DLGFRAME )
+			end if
+
+		end if
+	else
+		if getIndex(TitleBar) = 1 then
+			styles = or_bits( styles, WS_CHILD )
+			styles = or_bits( styles, WS_CAPTION )
+			styles = or_bits( styles, WS_CLIPSIBLINGS )
+
+			if getIndex(BorderType) = 1 then
+				exstyles = or_bits( exstyles, WS_EX_DLGMODALFRAME )
+			elsif getIndex(BorderType) = 2 then
+				-- disable sizeable
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 3 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 4 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				styles = or_bits( styles, WS_THICKFRAME )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 1 )
+			elsif getIndex(BorderType) = 5 then
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+			elsif getIndex(BorderType) = 6 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 7 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_DLGMODALFRAME )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 8 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				styles = or_bits( styles, WS_THICKFRAME )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 1 )
+			end if
+
+		else
+			styles = or_bits( styles, WS_CHILD )
+			styles = or_bits( styles, WS_CLIPSIBLINGS )
+
+			Disable[2] = getIndex( SysMenu )
+			setEnable( SysMenu, w32False )
+			setIndex( SysMenu, 0 )
+			Disable[3] = getIndex( MinMenu )
+			setEnable( MinMenu, w32False )
+			setIndex( MinMenu, 0 )
+			Disable[4] = getIndex( MaxMenu )
+			setEnable( MaxMenu, w32False )
+			setIndex( MaxMenu, 0 )
+			Disable[5] = getIndex( CloseMenu )
+			setEnable( CloseMenu, w32False )
+			setIndex( CloseMenu, 0 )
+
+			if getIndex(BorderType) = 1 then
+				-- disable sizeable
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 3 then
+				styles = or_bits( styles, WS_BORDER )
+				-- disable sizeable
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 4 then
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+			elsif getIndex(BorderType) = 5 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 6 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 0 )
+			elsif getIndex(BorderType) = 7 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+			elsif getIndex(BorderType) = 8 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				styles = or_bits( styles, WS_DLGFRAME )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 1 )
+			elsif getIndex(BorderType) = 9 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+			elsif getIndex(BorderType) = 10 then
+				exstyles = or_bits( exstyles, WS_EX_CLIENTEDGE )
+				exstyles = or_bits( exstyles, WS_EX_DLGMODALFRAME )
+				Disable[1] = getIndex( Sizeable )
+				setEnable( Sizeable, w32False )
+				setIndex( Sizeable, 1 )
+			elsif getIndex(BorderType) = 11 then
+				exstyles = or_bits( exstyles, WS_EX_STATICEDGE )
+				styles = or_bits( styles, WS_DLGFRAME )
+			end if
+
+		end if
+	end if
+
+	if getIndex(WinType) = 2 and getIndex(TitleBar) = 2 then
+		if getIndex(BorderType) = 4 then
+			if getIndex(Sizeable) = 1 then
+				styles = or_bits( styles, WS_THICKFRAME )
+			end if
+		else
+			if getIndex(Sizeable) > 0 then
+				if getIndex(Sizeable) = 1 then
+					styles = or_bits( styles, WS_THICKFRAME )
+				else
+					styles = or_bits( styles, WS_DLGFRAME )
+				end if
+			end if
+		end if
+	else
+		if getIndex(BorderType) = 7 and getIndex(WinType) = 1 then
+			styles = or_bits( styles, WS_DLGFRAME )
+			styles = or_bits( styles, WS_THICKFRAME )
+		else
+			if getIndex(Sizeable) > 0 then
+				if getIndex(Sizeable) = 1 then
+					styles = or_bits( styles, WS_THICKFRAME )
+				else
+					styles = or_bits( styles, WS_DLGFRAME )
+				end if
+			end if
+		end if
+	end if
+
+	setIndex( CloseMenu, Disable[5] )
+	if getIndex(SysMenu) = 1 then
+		styles = or_bits( styles, WS_SYSMENU )
+	else
+		Disable[5] = getIndex( CloseMenu )
+		setEnable( CloseMenu, w32False )
+		setIndex( CloseMenu, 0 )
+        setIndex( MinMenu, 0 )
+        setIndex( MaxMenu, 0 )
+	end if
+
+	if getIndex(MinMenu) = 1 then
+		styles = or_bits( styles, WS_MINIMIZEBOX )
+	end if
+
+	if getIndex(MaxMenu) = 1 then
+		styles = or_bits( styles, WS_MAXIMIZEBOX )
+	end if
+
+	if getIndex(CloseMenu) = 2 then
+		classstyles = or_bits( classstyles, CS_NOCLOSE )
+	end if
+
+	-- SysMenu,MinMenu,MaxMenu,CloseMenu
+	if getIndex(SysMenu) = 2 or getIndex(MinMenu) = 2 or getIndex(MaxMenu) = 2 or getIndex(CloseMenu) = 2 then
+		setEnable( QuestMenu, w32True )
+		setIndex( QuestMenu, Disable[7] )
+	end if
+
+	if getIndex(QuestMenu) = 2 then
+		exstyles = or_bits( exstyles, WS_EX_CONTEXTHELP )
+	end if
+
+    if isChecked( vscroll ) then
+        styles = or_bits( styles, WS_VSCROLL )
+    end if
+
+    if isChecked( hscroll ) then
+        styles = or_bits( styles, WS_HSCROLL )
+    end if
+
+	styles = or_bits( styles, WS_DISABLED )
+	return {styles,exstyles,classstyles}
+end function
+--------------------------------------------------------------------------------
+sequence TextOut1, TextOut2, TextOut3
+    TextOut1 = {}
+	TextOut2 = {}
+	TextOut3 = {}
+
+procedure generateStatements()
+	sequence newStyles
+	sequence Text
+	sequence isChild
+
+	isChild = "NULL"
+	Text = {}
+	TextOut1 = {}
+	TextOut2 = {}
+	TextOut3 = {}
+
+	newStyles = getCurrentStyles()
+
+	clear( GText )
+
+	if or_bits(newStyles[1], WS_POPUP) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_POPUP"
+	end if
+
+	if or_bits(newStyles[1], WS_CHILD) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_CHILD, WS_CLIPSIBLINGS"
+		isChild = "hParent"
+	end if
+
+	if or_bits(newStyles[1], WS_BORDER) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_BORDER"
+	end if
+
+	if or_bits(newStyles[1], WS_DLGFRAME) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_DLGFRAME"
+	end if
+	if or_bits(newStyles[1], WS_THICKFRAME) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_THICKFRAME"
+	end if
+
+	if or_bits(newStyles[1], WS_CAPTION) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_CAPTION"
+	end if
+	if or_bits(newStyles[1], WS_SYSMENU) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_SYSMENU"
+	end if
+	if or_bits(newStyles[1], WS_MINIMIZEBOX) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_MINIMIZEBOX"
+	end if
+	if or_bits(newStyles[1], WS_MAXIMIZEBOX) = newStyles[1] then
+		TextOut1 = TextOut1 & ", WS_MAXIMIZEBOX"
+	end if
+
+    if isChecked( vscroll ) then
+        TextOut1 = TextOut1 & ", WS_VSCROLL"
+    end if
+
+    if isChecked( hscroll ) then
+        TextOut1 = TextOut1 & ", WS_HSCROLL"
+    end if
+
+	if or_bits(newStyles[2], WS_EX_DLGMODALFRAME) = newStyles[2] then
+		TextOut2 = TextOut2 & ", WS_EX_DLGMODALFRAME"
+	end if
+	if or_bits(newStyles[2], WS_EX_CLIENTEDGE) = newStyles[2] then
+		TextOut2 = TextOut2 & ", WS_EX_CLIENTEDGE"
+	end if
+	if or_bits(newStyles[2], WS_EX_STATICEDGE) = newStyles[2] then
+		TextOut2 = TextOut2 & ", WS_EX_STATICEDGE"
+	end if
+	if or_bits(newStyles[2], WS_EX_CONTEXTHELP) = newStyles[2] then
+		TextOut2 = TextOut2 & ", WS_EX_CONTEXTHELP"
+	end if
+
+	if or_bits(newStyles[3], CS_NOCLOSE) = newStyles[3] then
+		TextOut3 = TextOut3 & ", CS_NOCLOSE"
+	end if
+
+	--	Chop off front ", "
+	if length( TextOut1 ) > 0 then
+		TextOut1 = TextOut1[3 .. length(TextOut1)]
+	end if
+	if length( TextOut2 ) > 0 then
+		TextOut2 = TextOut2[3 .. length(TextOut2)]
+	end if
+	if length( TextOut3 ) > 0 then
+		TextOut3 = TextOut3[3 .. length(TextOut3)]
+	end if
+
+    if not length(TextOut1) then
+        TextOut1 = TextOut1 & "WS_MINIMIZEBOX"
+    end if
+
+	--	Main portion (now that I know which styles are where)
+	if length( TextOut3 ) > 0 then
+		--	Have to use classDefaults function for this...
+		if length( TextOut1 ) > 0 then
+            Text = Text & IDEText[915][1] & TextOut1   --"Style:\r\n"
+		end if
+		if length( TextOut2 ) > 0 then
+            Text = Text & "\r\n\r\n" & IDEText[916][1] & TextOut2   --"ExStyle:\r\n"
+		end if
+		if length( TextOut3 ) > 0 then
+            Text = Text & "\r\n\r\n" & IDEText[917][1] & TextOut3   --"classDefault:\r\n"
+		end if
+	elsif length( TextOut2 ) > 0 then
+        Text = Text & "Style:\r\n" & TextOut1
+        Text = Text & "\r\n\r\n" & IDEText[918][1] & TextOut2       --"ExStyle:\r\n"
+	else
+        Text = Text & IDEText[915][1] & TextOut1 --"Style:\r\n"
+	end if
+
+	setText( GText, Text )
+end procedure
+--------------------------------------------------------------------------------
+procedure resetTestWin( sequence newStyles )
+	oldFlags = classDefaults( Window, { {1,newStyles[1]}, {2,newStyles[2]}, {3,newStyles[3]} } )
+
+    if validId(TestWin) then
+    	destroy( TestWin )
+    end if
+                                   --"Test Window"
+    TestWin     = createEx( Window, IDEText[919][1], WinStyles, 0, 0, 1, 1, 0, 0 )
+	
+	openWindow( TestWin, Normal )
+	setFocus( WinStyles )
+    generateStatements()
+end procedure
+--------------------------------------------------------------------------------
+--	Handle the list events
+procedure click_TitleBar(integer self, integer event, sequence params)
+	sequence newStyles
+
+	eraseItems( BorderType )
+	if getIndex(WinType) = 1 then
+		if getIndex(TitleBar) = 1 then
+                                --"3D (normal), "Flat", "Sunken", "Client", "Blended", "Static"
+            addItem( BorderType, {IDEText[920][1], IDEText[921][1], IDEText[922][1],
+                             IDEText[923][1], IDEText[924][1], IDEText[925][1]} )
+			setIndex( BorderType, 1 )
+		else
+                                --"None", "3D (normal)", "Flat", "Border", "Beveled", "Sunken thin", "Sunken thick", "Client thin", "Client thick", "Static"
+            addItem( BorderType, {IDEText[926][1], IDEText[927][1], IDEText[928][1],
+                                IDEText[929][1], IDEText[930][1], IDEText[931][1],
+                                IDEText[932][1], IDEText[933][1], IDEText[934][1],
+                                IDEText[935][1]} )
+			setIndex( BorderType, 2 )
+		end if
+	else
+        if getIndex(TitleBar) = 1 then
+                              -- "3D (normal)", "Flat", "Sunken thin", "Sunken thick", "Static", "Blended", "Client thin", "Client thick"
+            addItem( BorderType, {IDEText[920][1], IDEText[921][1], IDEText[931][1],
+                    IDEText[932][1], IDEText[935][1], IDEText[924][1], IDEText[933][1],
+                    IDEText[934][1]} )
+			setIndex( BorderType, 1 )
+		else
+                               --"None", "3D (normal)", "Flat", "Border", "Beveled thin", "Beveled thick", "Sunken thin", "Sunken thick", "Client thin", "Client thick", "Static"
+            addItem( BorderType, {IDEText[926][1], IDEText[927][1], IDEText[928][1],
+                                IDEText[929][1], IDEText[936][1], IDEText[937][1],
+                                IDEText[931][1], IDEText[932][1], IDEText[933][1],
+                                IDEText[934][1], IDEText[935][1]} )
+			setIndex( BorderType, 2 )
+		end if
+	end if
+
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_WinType(integer self, integer event, sequence params)
+	sequence newStyles
+
+    if equal(controls[selectedControl][Class], "CWindow") then
+        setIndex(WinType, 2)
+    end if
+
+	eraseItems( BorderType )
+	if getIndex(WinType) = 1 then
+		if getIndex(TitleBar) = 1 then
+                                --"3D (normal)", "Flat", "Border", "Beveled", "Sunken", "Client", "Static"
+            addItem( BorderType, {IDEText[920][1], IDEText[921][1], IDEText[922][1],
+                                IDEText[923][1], IDEText[924][1], IDEText[925][1]} )
+			setIndex( BorderType, 1 )
+		else
+                                --"None","3D (normal)", "Flat", "Sunken", "Client", "Blended", "Static"
+            addItem( BorderType, {IDEText[926][1], IDEText[920][1], IDEText[921][1],
+                                IDEText[929][1], IDEText[930][1], IDEText[922][1],
+                                IDEText[923][1], IDEText[925][1]} )
+			setIndex( BorderType, 2 )
+		end if
+	else
+		if getIndex(TitleBar) = 1 then
+                                --"3D (normal)", "Flat", "Sunken thin", "Sunken thick", "Static", "Blended", "Client thin", "Client thick"
+            addItem( BorderType, {IDEText[920][1], IDEText[921][1], IDEText[931][1],
+                                IDEText[932][1], IDEText[925][1], IDEText[924][1],
+                                IDEText[933][1], IDEText[934][1]} )
+			setIndex( BorderType, 1 )
+		else
+                               --"None", "3D (normal)", "Flat", "Border", "Beveled thin", "Beveled thick", "Sunken thin", "Sunken thick", "Client thin", "Client thick", "Static"
+            addItem( BorderType, {IDEText[926][1], IDEText[920][1], IDEText[921][1],
+                                IDEText[929][1], IDEText[936][1], IDEText[937][1],
+                                IDEText[931][1], IDEText[932][1], IDEText[933][1],
+                                IDEText[934][1], IDEText[935][1]} )
+			setIndex( BorderType, 2 )
+		end if
+	end if
+
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_Sizeable(integer self, integer event, sequence params)
+	sequence newStyles
+	Disable[1] = getIndex( Sizeable )
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_BorderType(integer self, integer event, sequence params)
+	sequence newStyles
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_SysMenu(integer self, integer event, sequence params)
+	sequence newStyles
+	Disable[2] = getIndex( SysMenu )
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_MinMenu(integer self, integer event, sequence params)
+	sequence newStyles
+	Disable[3] = getIndex( MinMenu )
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_MaxMenu(integer self, integer event, sequence params)
+	sequence newStyles
+	Disable[4] = getIndex( MaxMenu )
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_CloseMenu(integer self, integer event, sequence params)
+	sequence newStyles
+	Disable[5] = getIndex( CloseMenu )
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_QuestMenu(integer self, integer event, sequence params)
+	sequence newStyles
+	Disable[7] = getIndex( QuestMenu )
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_vscroll(integer self, integer event, sequence params)
+    sequence newStyles
+    newStyles = getCurrentStyles()
+    resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure click_hscroll(integer self, integer event, sequence params)
+    sequence newStyles
+    newStyles = getCurrentStyles()
+    resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+--	Keep the test window in sync with the main window
+procedure paint_WinStyles(integer self, integer event, sequence params)
+    --Martin Stachon code
+    sequence Pos    
+    if getIndex(WinType) = 1 then
+        Pos = ClientToScreen(WinStyles, 0, 0)
+        setRect( TestWin, Pos[1]+97, Pos[2]+151, 250, 150, w32True )
+    else
+        Pos = getClientRect(WinStyles)
+        setRect( TestWin, Pos[1]+97, Pos[2]+151, 250, 150, w32True )
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure open_WinStyles(integer self, integer event, sequence params)
+	sequence newStyles
+	oldFlags = classDefaults( Window, { {1, {WS_SYSMENU,WS_MINIMIZEBOX,WS_MAXIMIZEBOX,WS_DISABLED}},{2, {WS_EX_DLGMODALFRAME}} } )
+                                  --"Test Window"
+    TestWin	= createEx( Window, IDEText[919][1], WinStyles, 0, 0, 1, 1, 0, 0 )
+
+    if equal(controls[selectedControl][Class], "CWindow") then
+        setIndex(WinType, 2)
+    else
+        setIndex(WinType, 1)
+    end if
+    
+	newStyles = getCurrentStyles()
+	resetTestWin( newStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure resize_WinStyles(integer self, integer event, sequence params)
+    integer style, cx, cy
+
+    style = params[1]
+    cx    = params[2]
+    cy    = params[3]
+
+    --enlarge MLE
+    setRect( GText, 20, 325, cx-20-8,cy-8-325, w32True)
+end procedure
+--------------------------------------------------------------------------------
+---Begin Judith Changes:
+procedure click_About(integer self, integer event, sequence params)
+    integer ok
+
+    ok=displayErrorMessage(171,{})
+end procedure
+--------------------------------------------------------------------------------
+procedure click_OK(integer self, integer event, sequence params)
+    integer ok
+    sequence classdef
+
+    if not find(controls[selectedControl][Class], {"Window","CWindow"})then
+        ok=displayErrorMessage(170,{})
+        return
+    end if
+
+    generateStatements()
+
+    classdef={}
+    if match("WS_CAPTION", TextOut1) then
+        if match("WS_SYSMENU", TextOut1) then
+            classdef="WS_SYSMENU"
+            if match("WS_MINIMIZEBOX", TextOut1) then
+                classdef&=",WS_MINIMIZEBOX"
+            end if
+            if match("WS_MAXIMIZEBOX", TextOut1) then
+                classdef&=",WS_MAXIMIZEBOX"
+            end if
+        else
+            classdef="WS_DISABLED"
+        end if
+    else
+        classdef="WS_SYSMENU"
+    end if
+
+    controls[selectedControl][Style] = TextOut1
+    controls[selectedControl][ExStyle] = TextOut2
+    controls[selectedControl][CCWinStyle] = TextOut3
+    if length(classdef) then
+        controls[selectedControl][ClassDefaults]=classdef
+    end if
+
+    call_proc( updateProperties_id,{})
+
+    --if style contained WS_CHILD needs parent
+    if not equal(controls[selectedControl][Class], "CWindow" )
+    and match("WS_CHILD", controls[selectedControl][Style])
+    and not length(controls[selectedControl][ControlParent]) then
+        ok=displayErrorMessage(117,{controls[selectedControl][Name]})
+    end if
+
+    closeWindow( TestWin )
+    closeWindow( WinStyles )
+end procedure
+--------------------------------------------------------------------------------
+procedure close_WinStyles()
+    if validId(TestWin) then
+        destroy(TestWin)
+    end if
+    if validId(WinStyles) then
+        destroy(WinStyles)
+    end if
+    WinStyles = -1
+    TestWin = -1
+end procedure
+--------------------------------------------------------------------------------
+procedure click_cancel(integer self, integer event, sequence params)
+    closeWindow( TestWin )
+    closeWindow(WinStyles)
+    close_WinStyles()
+end procedure
+--------------------------------------------------------------------------------
+procedure event_WinStyles( integer self, integer event, sequence params)
+    if params[1]=WM_MOVE then
+    	repaintWindow(TestWin)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+global procedure createWinStyles()
+if WinStyles = -1 then
+                                   --"Visual Styles Explorer v1.0"
+    WinStyles   = createEx( Window, IDEText[938][1], Controls, Default, Default, 588, 480, {WS_DLGFRAME+WS_THICKFRAME}, 0 )
+                                --"Help"
+    MainHelp    = createEx( Menu, IDEText[939][1], WinStyles, 0, 0, 0, 0, 0, 0 )
+                                    --"About"
+    MenuAbout   = createEx( MenuItem, IDEText[940][1],MainHelp, 0, 0, 0, 0, 0, 0 )
+
+    --	Set up the menus
+                            --"Window Type  "
+    Label1 = createEx( LText, IDEText[941][1], WinStyles, 5, 5, 116, 15, 0, 0 )
+    WinType	= createEx(DropDownList, "", WinStyles, 124, 4, 84,100, 0, 0 )
+                     --"Top Level", "Child"
+    addItem( WinType, {IDEText[942][1], IDEText[943][1]} )
+    setIndex( WinType, 1 )
+                             --"Title Bar"
+    Label2 = createEx( LText, IDEText[944][1], WinStyles, 220, 4, 120, 16, 0, 0 )
+    TitleBar    = createEx( DropDownList, "", WinStyles, 344, 4, 84, 96, 0, 0 )
+                       --"Visible", "Hidden"
+    addItem( TitleBar, {IDEText[945][1], IDEText[946][1]} )
+    setIndex( TitleBar, 1 )
+                             --"Border Type"
+    Label3 = createEx( LText, IDEText[947][1], WinStyles, 5, 32, 116, 16, 0, 0 )
+    BorderType  = createEx( DropDownList, "", WinStyles, 124, 32, 84, 150, 0, 0 )
+                        --"3D (normal)", "Flat", "Sunken", "Client", "Blended", "Static"
+    addItem( BorderType, {IDEText[920][1], IDEText[921][1], IDEText[922][1],
+                        IDEText[923][1], IDEText[924][1], IDEText[925][1]} )
+    setIndex( BorderType, 1 )
+                           --"Sizable"
+    Label4 = createEx( LText, IDEText[948][1], WinStyles, 220, 32, 120, 16, 0, 0 )
+    Sizeable    = createEx( DropDownList, "", WinStyles, 344, 32, 84, 100, 0, 0 )
+                       --"Enabled", "Disabled"
+    addItem( Sizeable, {IDEText[949][1], IDEText[950][1]} )
+    setIndex( Sizeable, 1 )
+                            --"System Menu"
+    Label5 = createEx( LText, IDEText[951][1], WinStyles, 5, 60, 116, 16, 0, 0 )
+    SysMenu     = createEx( DropDownList, "", WinStyles, 124, 60, 84, 100, 0, 0 )
+                      --"Enabled", "Disabled"
+    addItem( SysMenu, {IDEText[949][1], IDEText[950][1]} )
+    setIndex( SysMenu, 1 )
+                            --"Minimize Button"
+    Label6 = createEx( LText, IDEText[952][1], WinStyles, 5, 88, 116, 16, 0, 0 )
+    MinMenu     = createEx( DropDownList, "", WinStyles, 124, 88, 84, 100, 0, 0 )
+                       --"Enabled", "Disabled"
+    addItem( MinMenu, {IDEText[949][1], IDEText[950][1]} )
+    setIndex( MinMenu, 1 )
+                             --"Maximize Button"
+    Label7 = createEx( LText, IDEText[953][1], WinStyles, 220, 88, 120, 16, 0, 0 )
+    MaxMenu     = createEx( DropDownList, "", WinStyles, 344, 88, 84, 100, 0, 0 )
+                      --"Enabled", "Disabled"
+    addItem( MaxMenu, {IDEText[949][1], IDEText[950][1]} )
+    setIndex( MaxMenu, 1 )
+                           --"Close Button"
+    Label8 = createEx( LText, IDEText[954][1], WinStyles, 220, 60, 120, 16, 0, 0 )
+    CloseMenu   = createEx( DropDownList, "", WinStyles, 344, 60, 84, 100, 0, 0 )
+                        --"Enabled", "Disabled"
+    addItem( CloseMenu, {IDEText[949][1], IDEText[950][1]} )
+    setIndex( CloseMenu, 1 )
+                        --"Context Help"
+    Label9 = createEx( LText, IDEText[955][1], WinStyles, 5, 116, 116, 16, 0, 0 )
+    QuestMenu   = createEx( DropDownList, "", WinStyles, 124, 116, 84, 100, 0, 0 )
+                        --"Disabled", "Enabled"
+    addItem( QuestMenu, {IDEText[950][1], IDEText[949][1]} )
+    setIndex( QuestMenu, 1 )
+                                 --"Scroll"
+    Group10     = createEx( Group, IDEText[956][1], WinStyles, 448, 0, 124, 57, 0, 0 )
+                                   --"Vertical"
+    vscroll     = createEx( CheckBox,IDEText[957][1], Group10, 4, 17, 112, 16, 0, 0 )
+                                   --"Horizontal"
+    hscroll     = createEx( CheckBox,IDEText[958][1],Group10, 4, 33, 112, 16, 0, 0 )
+                                  --"Copy To Properties"
+    OkBut       = createEx( Button, IDEText[959][1], WinStyles, 440, 152, 140, 20, 0, 0 )
+                                   --"Cancel"
+    CancelBut   = createEx( Button, IDEText[960][1], WinStyles, 440, 184, 140, 20, 0, 0 )
+    GText = createEx( MleText , "", WinStyles, 4, 344, 428, 100, 0, 0 )
+    
+    setHandler(TitleBar, w32HChange, routine_id( "click_TitleBar" ))
+    setHandler(WinType, w32HChange, routine_id( "click_WinType" ))
+    setHandler(Sizeable, w32HChange, routine_id( "click_Sizeable" ))
+    setHandler(BorderType, w32HChange, routine_id( "click_BorderType" ))
+    setHandler(SysMenu, w32HChange, routine_id( "click_SysMenu" ))
+    setHandler(MinMenu, w32HChange, routine_id( "click_MinMenu" ))
+    setHandler(MaxMenu, w32HChange, routine_id( "click_MaxMenu" ))
+    setHandler(CloseMenu, w32HChange, routine_id( "click_CloseMenu" ))
+    setHandler(QuestMenu, w32HChange, routine_id( "click_QuestMenu" ))
+    setHandler(vscroll, w32HClick, routine_id("click_vscroll"))
+    setHandler(hscroll, w32HClick, routine_id("click_hscroll"))
+    setHandler(WinStyles, w32HPaint, routine_id( "paint_WinStyles" ))
+    setHandler(WinStyles, w32HOpen, routine_id( "open_WinStyles" ))
+    setHandler(WinStyles, w32HResize, routine_id("resize_WinStyles"))
+    setHandler(MenuAbout, w32HClick, routine_id("click_About"))
+    setHandler(OkBut, w32HClick, routine_id("click_OK"))
+    setHandler(CancelBut, w32HClick, routine_id("click_cancel"))
+    setHandler(WinStyles, w32HEvent, routine_id("event_WinStyles"))
+    
+    oldFlags = classDefaults( Window, { {1, {WS_SYSMENU,WS_MINIMIZEBOX}},{2, {WS_EX_DLGMODALFRAME}} } )
+end if
+end procedure

@@ -1,0 +1,195 @@
+--Process control by Tone Skoda
+--converted to run with win32lib.ew version .55.1 and later by
+--Judith Evans
+
+--Josef
+constant
+xMsgWaitForMultipleObjects = registerw32Function(user32,
+                                                 "MsgWaitForMultipleObjects", {C_INT, C_POINTER, C_INT, C_INT, C_INT},
+                                                 C_LONG)
+--Josef
+
+global atom hProjectProcess
+--handle of project program process running, 0 if it isn't running
+hProjectProcess = 0
+
+---------------
+--sequence strings
+-- stores addresses of strings used in topic Low Level Routines
+--strings = {}
+
+---------------
+-- old w32allot_string() removed !!!
+---------------
+--STARTUPINFO structure
+
+constant
+STARTUPINFO_cb                          = w32allot(DWord),
+STARTUPINFO_lpReserved          = w32allot(Ptr),
+STARTUPINFO_lpDesktop           = w32allot(Ptr),
+STARTUPINFO_lpTitle                     = w32allot(Ptr),
+STARTUPINFO_dwX                         = w32allot(DWord),
+STARTUPINFO_dwY                         = w32allot(DWord),
+STARTUPINFO_dwXSize                     = w32allot(DWord),
+STARTUPINFO_dwYSize                     = w32allot(DWord),
+STARTUPINFO_dwXCountChars       = w32allot(DWord),
+STARTUPINFO_dwYCountChars       = w32allot(DWord),
+STARTUPINFO_dwFillAttribute     = w32allot(DWord),
+STARTUPINFO_dwFlags                     = w32allot(DWord),
+STARTUPINFO_wShowWindow         = w32allot(Word),
+STARTUPINFO_cbReserved2         = w32allot(Word),
+STARTUPINFO_lpReserved2         = w32allot(Ptr),
+STARTUPINFO_hStdInput           = w32allot(Long),
+STARTUPINFO_hStdOutput          = w32allot(Long),
+STARTUPINFO_hStdError           = w32allot(Long),
+SIZEOF_STARTUPINFO                      = w32allotted_size(),
+
+
+---------------
+--PROCESS_INFORMATION structure
+
+PROCESS_INFORMATION_hProcess    = w32allot(Long),
+PROCESS_INFORMATION_hThread     = w32allot(Long),
+PROCESS_INFORMATION_dwProcessId = w32allot(Long),
+PROCESS_INFORMATION_dwThreadId  = w32allot(Long),
+SIZEOF_PROCESS_INFORMATION      = w32allotted_size(),
+
+STILL_ACTIVE =  #103,
+
+
+xCreateProcess = registerw32Function(kernel32,"CreateProcessA",{C_POINTER,C_POINTER,C_POINTER,C_POINTER,C_LONG,C_LONG,C_POINTER,C_POINTER,C_POINTER,C_POINTER},C_INT),
+xGetExitCodeProcess = registerw32Function(kernel32,"GetExitCodeProcess",{C_LONG,C_POINTER},C_INT),
+xTerminateProcess = registerw32Function(kernel32,"TerminateProcess",{C_LONG,C_INT},C_INT),
+--xIsWindow = registerw32Function(user32, "IsWindow", {C_LONG}, C_INT),
+xExitProcess = registerw32Procedure(kernel32,"ExitProcess",{C_INT})
+
+
+---------------
+--arg. hProcess: process handle
+--returns:
+--0 if fails
+--else other return values, look for them in C manuals
+--the most important is STILL_ACTIVE, which means
+--that the process is still active (has not shutdown yet)
+---------------
+global function GetExitCodeProcess(atom hProcess)
+atom p,ret
+atom ok
+
+    p = w32acquire_mem(0,4)
+
+    ok = w32Func(xGetExitCodeProcess,{hProcess,p})
+    if ok=0 then
+        w32release_mem(p)
+        return 0
+    else
+        ret = peek4u(p)
+        w32release_mem(p)
+        return ret
+    end if
+end function
+
+---------------
+--returns:
+--if error then atom 0
+--if success then this sequence:
+--1. process handle
+--2. thread handle
+--3. process id
+--4. thread id
+--
+--arg. appNameAndComLn: application name to execute and command line delimited by space
+--
+--example:
+--object ok
+--ok=CreateProcessHi("C:\\windows\\notepad.exe c:\\get.e")
+--if atom(ok) then -- error
+-- TS_FDLL_FormatMessage(GetLastError())
+--else
+--end if
+---------------
+global function CreateProcessHi(sequence appNameAndComLn)
+
+atom pi --process information
+atom sp --startup info
+atom ok
+object ret
+atom pointer_to_line
+
+    pointer_to_line = w32acquire_mem(0,appNameAndComLn)
+
+
+    sp = w32acquire_mem(0,SIZEOF_STARTUPINFO)
+    pi = w32acquire_mem(0,SIZEOF_PROCESS_INFORMATION)
+
+    w32store(sp,STARTUPINFO_cb , SIZEOF_STARTUPINFO)
+    w32store(sp,STARTUPINFO_lpDesktop , NULL)
+    w32store(sp,STARTUPINFO_lpTitle , 0)
+    w32store(sp,STARTUPINFO_dwX , 0)
+    w32store(sp,STARTUPINFO_dwY , 0)
+    w32store(sp,STARTUPINFO_dwXSize , 0)
+    w32store(sp,STARTUPINFO_dwYSize , 0)
+    w32store(sp,STARTUPINFO_dwFlags , NULL)
+    w32store(sp,STARTUPINFO_wShowWindow , SW_SHOWDEFAULT)
+    w32store(pi,PROCESS_INFORMATION_hProcess , NULL)
+
+    ok = w32Func(xCreateProcess,{
+                                 0, -- app name
+                                 pointer_to_line, -- command line
+                                 0, --process attributes
+                                 0, --thread attributes
+                                 w32True, --inherit handles
+                                 0, --creation flags
+                                 0, --enviroment
+                                 0, --current directory
+                                 sp, --startup info
+                                 pi --process information
+                                })
+    if ok then
+        ret = repeat(0,4)
+        ret[1] = w32fetch(pi,PROCESS_INFORMATION_hProcess)
+        ret[2] = w32fetch(pi,PROCESS_INFORMATION_hThread)
+        ret[3] = w32fetch(pi,PROCESS_INFORMATION_dwProcessId)
+        ret[4] = w32fetch(pi,PROCESS_INFORMATION_dwThreadId)
+    else
+        ret = 0
+    end if
+    w32release_mem(pointer_to_line)
+    w32release_mem(pi)
+    w32release_mem(sp)
+    return ret
+end function
+
+global procedure terminateProcess()
+--terminate project program if it's running
+atom ok --judith
+
+    if hProjectProcess then
+        ok = w32Func(xTerminateProcess,{hProjectProcess,0})
+
+        -- gotta force it
+        --ok=sendMessage(Controls,WM_QUIT,0,0)
+        --w32Proc(xPostQuitMessage,{0})
+        --ok=w32Func(xPostMessage,{getHandle(Controls),WM_QUIT,0,0})
+        --ok=w32Func(xPostMessage,{getHandle(Controls),WM_DESTROY,0,0})
+        w32Proc(xExitProcess,{0})
+    end if
+end procedure
+
+global procedure CkProgress(atom hNewProcess)   --Jose, rewrote this
+atom msg, rval
+    --exit this loop when external process is terminated
+
+    msg = w32acquire_mem(0,SIZEOF_MSG)
+
+    while GetExitCodeProcess(hNewProcess)=STILL_ACTIVE do
+        rval = w32Func(xMsgWaitForMultipleObjects, {0, 0, w32True, 1000, #1FF}) --Josef
+        while w32Func(xPeekMessage, {msg, NULL, 0, 0, PM_REMOVE}) do
+            --Josef
+            w32Proc(xTranslateMessage, {msg})
+            w32Proc(xDispatchMessage, {msg})
+        end while
+        --Josef
+    end while
+    w32release_mem(msg)
+end procedure

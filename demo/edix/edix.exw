@@ -67,6 +67,8 @@ with trace
 --
 -- SUG: flip routine list into error list (and change colour), until empty.
 -- BUG: opening a recent file entry adds a duplicate tab!!
+-- SUG: cannot open -> offer browse (and default any more in the same dir)
+-- SUG: parameterised run should keep ~ten most recently run, in the config file.
 --/*
 filedlg [DONE, ish]
 listview
@@ -205,9 +207,11 @@ puts(1,"WARNING: This program is not useable in its current state\n")
 
 include builtins\pGUI.e
 
+--#withtype bool
 --#withtype Ihandle
 --#withtype Ihandln
 --#withtype cdCanvas
+--#withtype nullable_string
 
 constant RotateBackground = 0   -- development option (verify redraw is kept to a minimum)
 
@@ -221,6 +225,7 @@ global Ihandle dlg, sbmsg, config
 Ihandle autosavetimer
 Ihandle tbox, rtbox, tree, tcbox, tabs, canvas
 Ihandle sbhbox, sbline, sbinfo, sbdate, clipboard
+--Ihandln sbtemp = NULL
 cdCanvas cddbuffer, cdcanvas
 integer tip_visible = 0
 integer tabfile = 0 -- (if!=0, New/Open use dir from that tab [it's a FILEIDX])
@@ -235,8 +240,8 @@ atom tboxv = 150    -- file panel width (/not/ the N/1000'ths of width thing)
 
 --DEV enum ,,,SESSION_UNVISITEDCOUNT=11
 
-global sequence filenames, 
-                filepaths, 
+global sequence filenames,
+                filepaths,
                 filetext,   -- NOTE: filetext[file][line] should be either an
                             -- ****  ansi string, or a utf_32 dword_sequence;
                             --  **   it should //NEVER// be a utf_8 string,
@@ -289,7 +294,7 @@ sequence actions,   -- {sequence}   -- (as above)
 
 include builtins/pfile.e
 
-global 
+global
 integer currfile = 0
 
 --integer tabfile       -- tab if right clicked
@@ -427,11 +432,11 @@ integer prevWW,thisWW
 
     BookMarkSet = bookmarks[currfile]
     if cX<0 then  cX = 0  end if
-    if cY<TopLine 
+    if cY<TopLine
     or (isWordWrapON and cY=TopLine and cX<TopChunk) then
-        tY=  TopLine   tX = TopChunk   wY = cY   wX = cX   d = -1   dinc = -1
+        tY =  TopLine   tX = TopChunk   wY = cY  wX = cX   d = -1   dinc = -1
     else
-        wY = TopLine   wX = TopChunk   tY = cY   tX = cX   d = 0    dinc = 1 
+        wY = TopLine   wX = TopChunk   tY = cY   tX = cX   d = 0    dinc = 1
     end if
     landingChunk = TopChunk
     endChunk = 0
@@ -451,7 +456,7 @@ integer prevWW,thisWW
                 for i=bmistart+1 to length(BookMarkSet) do
                     SetEntry = BookMarkSet[i]
                     if sequence(SetEntry) then
-                        if SetEntry[bfStart]>=wY 
+                        if SetEntry[bfStart]>=wY
                         and and_bits(SetEntry[bfType],FW) then
                             nextImportantLine = SetEntry[bfStart]
                             bmistart = i
@@ -505,7 +510,10 @@ integer nacX    -- new adjusted cX, the 3rd param of adjustLine()
 --DEV begone!
 --include src/xlate.e
 --include src/icd.e -- initialcurrentdir
-global constant string initialcurrentdir = get_proper_dir(command_line()[2])
+--DEV fix rein:
+--global constant string initialcurrentdir = get_proper_dir(command_line()[2])
+constant cl = command_line()
+global constant string initialcurrentdir = get_proper_dir(cl[2])
 
 global function xl(sequence text)
     return text
@@ -571,7 +579,7 @@ object res
         end if
     else                            -- UTF16 (LE|BE)
         ch = get_unicode_char(fn)
-        if ch = -1 then
+        if ch= -1 then
             res = -1
         else
             res = {}
@@ -736,10 +744,10 @@ integer uniskip
     while not atom(line) do
 --      linelength = ExpLength(line)
 --      if linelength!=0 then   -- added 8/6/2013
-            line = trim(line,"\r\n")
-            linelength = ExpLength(line)
+        line = trim(line,"\r\n")
+        linelength = ExpLength(line)
 --29/9/16: 
-            line = ConvertTabs(line, isTabWidth, isTabWidth)
+        line = ConvertTabs(line, isTabWidth, isTabWidth)
 --                  DEV: allow override of ^ for reopen
 --      end if
         file = append(file,line)
@@ -844,7 +852,7 @@ procedure replaceLine(integer idx, string newline)
 -- maintain the linelengths array as lines are modified.
 -- note that idx is 1-based (unlike CursorY etc)
 integer len, c
-    len = ExpLength(filetext[currfile][idx]) + 1
+    len = ExpLength(filetext[currfile][idx])+1
 --DEV temp hack (load files as tab8?)
 --  if len>length(filelinelens[currfile]) then
 --  if not rlle then
@@ -859,15 +867,15 @@ integer len, c
 --  return
 --  end if
 
-    c = filelinelens[currfile][len] - 1
+    c = filelinelens[currfile][len]-1
     filelinelens[currfile][len] = c
-    len = ExpLength(newline) + 1
+    len = ExpLength(newline)+1
     if len>length(filelinelens[currfile]) then
         filelinelens[currfile] = filelinelens[currfile] &
                                  repeat(0,len-length(filelinelens[currfile])+1)
     end if
-    filelinelens[currfile][len] = filelinelens[currfile][len] + 1
-    if len > maxlen or c = 0 then
+    filelinelens[currfile][len] = filelinelens[currfile][len]+1
+    if len>maxlen or c=0 then
         reCalcMaxLen()
     end if
     filetext[currfile][idx] = newline
@@ -879,7 +887,7 @@ procedure removeLineLength(integer idx)
 integer len, c
 sequence fci
     fci = filetext[currfile][idx]
-    len = ExpLength(fci) + 1
+    len = ExpLength(fci)+1
 --DEV temp hack (load files as tab8?)
 --  if len>length(filelinelens[currfile]) then
 --      IupMessage("removeLineLength Error",
@@ -888,8 +896,8 @@ sequence fci
 --              {len,length(filelinelens[currfile])}))
 --  return
 --  end if
-    c = filelinelens[currfile][len] - 1
-    filelinelens[currfile][len] = c             
+    c = filelinelens[currfile][len]-1
+    filelinelens[currfile][len] = c
 --  for i = length(bookmarks[currfile]) to 1 by -1 do
 --  if bookmarks[currfile][i][bfStart]=idx-1 then
 --      bookmarks[currfile] = bookmarks[currfile][1..i-1]&
@@ -897,7 +905,7 @@ sequence fci
 --      exit
 --  end if
 --  end for
-    if c = 0 then reCalcMaxLen() end if
+    if c=0 then reCalcMaxLen() end if
 end procedure
 
 procedure removeLineLengths(integer ixFrom, integer ixTo)
@@ -906,20 +914,20 @@ procedure removeLineLengths(integer ixFrom, integer ixTo)
 integer len, c, recalc
 sequence fci
     recalc = 0
-    for idx = min(ixFrom,ixTo) to max(ixFrom,ixTo) do
+    for idx=min(ixFrom,ixTo) to max(ixFrom,ixTo) do
         fci = filetext[currfile][idx]
-        len = ExpLength(fci) + 1
+        len = ExpLength(fci)+1
 --DEV temp hack (load files as tab8?)
 -- 5/5/08 put back in. Compared d.asm with p.asm, deleted first 100 or so lines...
 --22/6/13 put back in..
-    if len>length(filelinelens[currfile]) then
-        string msg = sprintf("removing length %d, table length %d",
-                             {len,length(filelinelens[currfile])})
-        IupMessage("removeLineLengths Error",msg)
-        return
-    end if
-        c = filelinelens[currfile][len] - 1
-        filelinelens[currfile][len] = c         
+        if len>length(filelinelens[currfile]) then
+            string msg = sprintf("removing length %d, table length %d",
+                                 {len,length(filelinelens[currfile])})
+            IupMessage("removeLineLengths Error",msg)
+            return
+        end if
+        c = filelinelens[currfile][len]-1
+        filelinelens[currfile][len] = c
 --  for i = length(bookmarks[currfile]) to 1 by -1 do
 --      if bookmarks[currfile][i][bfStart]=idx-1 then
 --      bookmarks[currfile] = bookmarks[currfile][1..i-1]&
@@ -927,15 +935,42 @@ sequence fci
 --      exit
 --      end if
 --  end for
-        if c = 0 then recalc = 1 end if
+        if c=0 then recalc = 1 end if
     end for
     if recalc then reCalcMaxLen() end if
 end procedure
 
+--/*
+--global 
+integer prevRtnIdx
+               prevRtnIdx = 0
+
+procedure setRtnIndex()
+integer k
+sequence r
+    if currfile and sequence(routines[currfile]) then
+        r = routines[currfile]
+        k = 0
+        for i=1 to length(r[rtnNAMES]) do
+            if r[rtnSTART][i]>CursorY+1 then exit end if
+            if r[rtnEND][i]>CursorY then  k = i  exit end if
+        end for
+        if prevRtnIdx!=k then
+            prevRtnIdx = k
+            if rtnList and not F11mode then
+                if isEnabled(rtnList) then
+                    setIndex(rtnList,k)
+                end if
+            end if
+        end if
+    end if
+end procedure
+--*/
+
 --global 
 procedure setRtnList()
--- load the ComboDropDownList, rtnList and set the index
-?"setRtnList" --DEV
+    -- load the ComboDropDownList, rtnList and set the index
+    ?"setRtnList" --DEV
 --/*
     if rtnList then
         deleteItem(rtnList,0)   -- empty list
@@ -1023,15 +1058,15 @@ integer BiT
         for i=1 to L do
             rStart = routines[currfile][rtnSTART][i]
             if rStart>=cY then
-                for j = length(routines[currfile][rtnNAMES]) to i by -1 do
+                for j=length(routines[currfile][rtnNAMES]) to i by -1 do
                     rStart = routines[currfile][rtnSTART][j]
-                    if adjust<0 and rStart < cY-adjust then
+                    if adjust<0 and rStart<cY-adjust then
                         routines[currfile][rtnNAMES] = routines[currfile][rtnNAMES][1..j-1]&
                                                        routines[currfile][rtnNAMES][j+1..L]
                         routines[currfile][rtnSTART] = routines[currfile][rtnSTART][1..j-1]&
                                                        routines[currfile][rtnSTART][j+1..L]
-                        routines[currfile][rtnEND  ] = routines[currfile][rtnEND  ][1..j-1]&
-                                                       routines[currfile][rtnEND  ][j+1..L]
+                        routines[currfile][rtnEND] = routines[currfile][rtnEND][1..j-1]&
+                                                     routines[currfile][rtnEND][j+1..L]
                         L -= 1
                         setRtnList()
                     else
@@ -1068,7 +1103,7 @@ integer BiT
                 end while
                 --2: apply adjust to remainder of set
                 for j=i to L do
-                    bCfwd[j][1] = bCfwd[j][1] + adjust
+                    bCfwd[j][1] = bCfwd[j][1]+adjust
                 end for
                 exit
             end if
@@ -1090,7 +1125,7 @@ integer BiT
             if (lastFold>=rStart and lastFold<=rEnd)
             or (lastFoldEnd>=rStart and lastFoldEnd<=rEnd) then
                 lastFold = 0
-?"edix line 428: call_proc(r_enableMenuToolBar,{})"
+                ?"edix line 428: call_proc(r_enableMenuToolBar,{})"
             end if
         end if
     else -- adjust>0
@@ -1117,10 +1152,10 @@ integer BiT
     -- lastly, adjust the lastFold details, if any
     --
     if lastFold then
-        if lastFold >= cY then
+        if lastFold>=cY then
             lastFold += adjust
             lastFoldEnd += adjust
-        elsif lastFoldEnd >= cY then    --DEV see "if rEnd>cY then" above...
+        elsif lastFoldEnd>=cY then  --DEV see "if rEnd>cY then" above...
             lastFoldEnd += adjust
         end if
     end if
@@ -1163,7 +1198,7 @@ integer FW
                                     if j>1 then
                                         nacX -= BiE[j-1]
                                     end if
-                                    if j<length(BiE) 
+                                    if j<length(BiE)
                                     and nacX>=BiE[j+1] then
                                         -- cursor down onto shorter line:
                                         nacX = BiE[j+1]-1
@@ -1197,26 +1232,26 @@ integer FW
         while adjust<0 do
             if getNIL then
                 nextImportantLine = -1
-                for i = lineno+1 to 1 by -1 do
+                for i=lineno+1 to 1 by -1 do
 --maybe 10/7/16 (untested)
 --                  if i<=length(BookMarkSet) then
-                        SetEntry = BookMarkSet[i]
-                        if sequence(SetEntry) then
-                            BiE = SetEntry[bfEnd]
-                            if sequence(BiE) then
-                                BiE = SetEntry[bfStart]
-                            end if
-                            if BiE<=lineno --+1
-                            and BiE+1>nextImportantLine then
-                                if and_bits(SetEntry[bfType],FOLD) then
-                                    nextImportantLine = BiE+1
-                                    foldIdx = i
-                                elsif isWordWrapON and and_bits(SetEntry[bfType],WRAP) then
-                                    nextImportantLine = BiE
-                                    foldIdx = i
-                                end if
+                    SetEntry = BookMarkSet[i]
+                    if sequence(SetEntry) then
+                        BiE = SetEntry[bfEnd]
+                        if sequence(BiE) then
+                            BiE = SetEntry[bfStart]
+                        end if
+                        if BiE<=lineno --+1
+                        and BiE+1>nextImportantLine then
+                            if and_bits(SetEntry[bfType],FOLD) then
+                                nextImportantLine = BiE+1
+                                foldIdx = i
+                            elsif isWordWrapON and and_bits(SetEntry[bfType],WRAP) then
+                                nextImportantLine = BiE
+                                foldIdx = i
                             end if
                         end if
+                    end if
 --                  end if
                 end for
                 getNIL = False
@@ -1319,13 +1354,13 @@ integer bmI
     BookMarkSet = bookmarks[currfile]
     bookmarks[currfile] = 0 -- reduce ref count
     bmI = 1
-    while bmI <= length(BookMarkSet) do
+    while bmI<=length(BookMarkSet) do
         SetEntry = BookMarkSet[bmI]
         if sequence(SetEntry) then
-            if SetEntry[bfStart] > eY then exit end if
+            if SetEntry[bfStart]>eY then exit end if
             if and_bits(SetEntry[bfType],FOLD)
-            and SetEntry[bfEnd] >= eY
-            and (unfoldTop or SetEntry[bfStart] != eY) then
+            and SetEntry[bfEnd]>=eY
+            and (unfoldTop or SetEntry[bfStart]!=eY) then
                 if and_bits(SetEntry[bfType],MARK) then
                     BookMarkSet[bmI][bfType] = MARK -- leave the bookmark in place
                 else                                -- else remove entry
@@ -1342,11 +1377,27 @@ end procedure
 
 include builtins\timedate.e
 
+--DEV/temp:
+--function GetGuiResources()
+--integer res
+--  #ilASM{
+--          mov [res],0
+--      [PE32]
+--          call "kernel32.dll","GetCurrentProcess"
+--          push ebx                            -- DWORD uiFlags
+--          push eax                            -- HANDLE hProcess
+--          call "user32.dll","GetGuiResources"
+--          mov [res],eax
+--      []
+--        }
+--  return res
+--end function
+
 procedure update_statusbar()
     if currfile then
         IupSetStrAttribute(sbline,"TITLE","Line %d of %d, Column %d",{CursorY+1,length(filetext[currfile]),CursorX+1})
         string imode = iff(insertMode?"INS":"OVR")
-        string chstr="   "
+        string chstr = "   "
         if CursorY<length(filetext[currfile]) then
 --          string oneline = filetext[currfile][CursorY+1]
             sequence oneline = filetext[currfile][CursorY+1]
@@ -1356,14 +1407,29 @@ procedure update_statusbar()
             end if
         end if
         IupSetStrAttribute(sbinfo,"TITLE","%s  %s",{imode,chstr})
+--DEV[?]
+--/*
+                if atom(routines[currfile]) and isEu 
+                and match(untitled,filenames[currfile])!=1 then
+                    setText(SB6,"rebuilding routine list")
+                    setListOfAllRoutines(currfile,filetext[currfile],2,filenames[currfile])
+                    --      setRtnIndex()   -- added 17/05 (no help!)
+                    setText(SB6,"")
+                end if
+--*/
     else
         IupSetAttribute(sbline,"TITLE","")
         IupSetAttribute(sbinfo,"TITLE","")
     end if
     string datestr = format_timedate(date(),"dd Mmmm yyyy hh:mmpm")
     IupSetStrAttribute(sbdate,"TITLE",datestr)
+--DEV/temp:
+--  if sbtemp!=NULL and platform()=WINDOWS then
+--      IupSetStrAttribute(sbtemp,"TITLE","%d",{GetGuiResources()})
+--  end if
 end procedure
 
+atom cb_update_time
 function update_time_cb(Ihandle time_update)
     update_statusbar()
     if IupGetInt(time_update,"TIME")!=60000 then
@@ -1372,10 +1438,11 @@ function update_time_cb(Ihandle time_update)
         --  [and only once] recreate the timer with a 60 second period -
         --  I did try IupSetInt(time_update,"TIME",60000), but no joy.
         IupDestroy(time_update)
-        time_update = IupTimer(Icallback("update_time_cb"),60000,true)
+        time_update = IupTimer(cb_update_time,60000,true)
     end if
     return IUP_DEFAULT
 end function
+cb_update_time = Icallback("update_time_cb")
 
 -- used by undo.e and eafind.ew:
 global procedure forceCursorOnscreen()
@@ -1651,13 +1718,13 @@ integer newSelON
         --
         -- Set anchor at current cursor position
         --
-        newSelON = 1 + alt
+        newSelON = 1+alt
         if not selON then
             selON = newSelON
             selY = CursorY
             selX = CursorX
-        end if               
-        if selON != newSelON then
+        end if
+        if selON!=newSelON then
             paintLines(selY,CursorY)
             selON = newSelON
         end if
@@ -1728,13 +1795,16 @@ global procedure setSaveIcon(integer pos=-1, Ihandln tab=NULL)--integer c, integ
 --      end if
         integer modified = (actionsave[fidx]!=actionptr[fidx])
         string tabimage = iff(modified?"PNG_FileSave":"PNG_FileSaved")
+--DEV more complicated than this... (nb FileActive.png not yet in 7z.lst)
+--      string tabimage = iff(modified?"PNG_FileSave":
+--                        iff(fidx=currfile?"PNG_FileActive":"PNG_FileSaved"))
         IupSetAttributeId(tabs, "TABIMAGE", pos, get_image(tabimage))
     end if
 end procedure
 
 --DEV: (changeTo)
 --integer isCurrLineColoured    -- set to (ColourTab[HighLine]!=ColourTab[Background]) on Tab switch.
-integer isCurrLineColoured=0    -- set to (ColourTab[HighLine]!=ColourTab[Background]) on Tab switch.
+integer isCurrLineColoured = 0  -- set to (ColourTab[HighLine]!=ColourTab[Background]) on Tab switch.
 
 --DEV not yet used...
 global integer rCompareTarget
@@ -1885,6 +1955,7 @@ Ihandle toolb_fnxt
 Ihandle toolb_fprv
 Ihandle toolb_zoomin
 Ihandle toolb_zoomout
+Ihandle toolb_back
 Ihandle toolb_run
 
 --DEV extension handling....
@@ -2045,7 +2116,8 @@ integer revision
                     revision = 1
                 end if
                 backrev[k] = revision
-                backname = sprintf("backup\\%s.%04d.%s",{filebase(filename),revision,fileext(filename)})
+--              backname = sprintf("backup\\%s.%04d.%s",{filebase(filename),revision,fileext(filename)})
+                backname = join_path({"backup",sprintf("%s.%04d.%s",{filebase(filename),revision,fileext(filename)})})
                 string src = filepaths[c]&filenames[c]
                 if not file_exists(src)
                 or not copy_file(src, filepaths[c]&backname, 0) then
@@ -2268,6 +2340,7 @@ procedure changeTo(integer i)
 
 --DEV:
 --  setIsEu(filepaths[currfile]&filenames[currfile])
+--DEV rename as ColourTbl!
     ColourTab = colourTabs[newSyntax]
     isCurrLineColoured = (ColourTab[HighLine]!=ColourTab[Background])
 --DEV??
@@ -3446,7 +3519,7 @@ end function
 integer charheight,
         charwidth   -- (for cursor I)
 
-string fontname = "Consolas"    -- "Courier"
+string fontname = iff(platform()=LINUX?"Courier":"Consolas")
 integer fontstyle = CD_PLAIN
 integer fontsize = 12
 
@@ -3522,6 +3595,7 @@ integer marginColour
 integer charsLeft
 integer bkColour
 integer thisFont
+--DEV unneccesary?
 integer rebuildbCfwdAtEnd = 0
 --?"appUpdateRender"
 
@@ -5058,11 +5132,43 @@ function zoomout_cb(atom /*self*/)
 end function
 constant cb_zoomout = Icallback("zoomout_cb")
 
+Ihandln backtimer   -- (NULL if disabled)
+sequence rotate_images
+integer rot_idx = 0
+
+function backtimer_cb(Ihandle /*ih*/)
+    rot_idx += 1
+    if rot_idx>length(rotate_images) then
+        rot_idx = 1
+    end if
+    IupSetStrAttribute(toolb_back, "IMAGE", rotate_images[rot_idx])
+    return IUP_DEFAULT
+end function
+constant cb_backtimer = Icallback("backtimer_cb")
+
+--  IupSetAttribute(backtimer,"RUN","YES")
+
+
+function backoff_cb(atom /*self*/)
+    if IupAlarm("Disable background processing?",
+                "Background processing should not normally affect performance.\n"&
+                "It scans source files, saving details for project trees, help lookups, etc.\n"&
+                "If you disable background processing it remains off until Edix is restarted.",
+                "Disable","Cancel")=1 then
+        IupSetInt(toolb_back,"ACTIVE",0)
+        IupSetAttribute(backtimer,"RUN","NO")
+        IupDestroy(backtimer)
+        backtimer = NULL
+    end if
+    return IUP_IGNORE
+end function
+constant cb_backoff = Icallback("backoff_cb")
+
 include src/run.e as run
 
 function run_cb(atom /*self*/)
 --?"run_cb" --DEV
-    run:F5run(0)
+    run:F5run(0,0)
 --      IupAlarm( "Action", "Run", "OK" )
 --  if self then end if
 --  if skip_next_event() then
@@ -5101,8 +5207,8 @@ end function
 constant cb_run = Icallback("run_cb")
 
 function prun_cb(atom /*self*/)
-?"prun_cb" --DEV
-    run:F5run(1)
+--?"prun_cb" --DEV
+    run:F5run(1,0)
     return IUP_IGNORE
 end function
 constant cb_prun = Icallback("prun_cb")
@@ -5168,11 +5274,11 @@ function rcvr_cb(atom /*self*/)
 end function
 constant cb_rcvr = Icallback("rcvr_cb")
 
-function wpnt_cb(atom /*self*/)
-?"wpnt_cb" --DEV
+function design_cb(atom /*self*/)
+?"design_cb" --DEV
     return IUP_IGNORE
 end function
-constant cb_wpnt = Icallback("wpnt_cb")
+constant cb_design = Icallback("design_cb")
 
 function dvwr_cb(atom /*self*/)
 ?"dvwr_cb" --DEV
@@ -5394,6 +5500,8 @@ Ihandle edit_copy
 Ihandle edit_copya
 Ihandle edit_copyp
 Ihandle edit_paste
+Ihandle edit_clip
+Ihandle edit_clips
 Ihandle edit_delete
 Ihandle edit_find
 Ihandle find_next
@@ -5410,6 +5518,7 @@ integer sel = (currfile and selON and (selX!=CursorX or selY!=CursorY))
     IupSetInt({edit_cut,edit_copy,edit_delete},"ACTIVE",sel)
     IupSetInt({edit_cuta,edit_cutp,edit_copya,edit_copyp},"ACTIVE",sel and isclip)
     IupSetInt(edit_paste,"ACTIVE",currfile and isclip)
+    IupSetInt(edit_clips,"ACTIVE",sel or (currfile and isclip))
     integer findnp = fdlg:find_active()
     IupSetInt({find_next,find_prev},"ACTIVE",findnp)
     IupSetInt({edit_goto,edit_selall},"ACTIVE",currfile!=0)
@@ -5426,7 +5535,7 @@ Ihandle toolm_rein
 Ihandle toolm_cca
 Ihandle toolm_qjmp
 Ihandle toolm_recvr
-Ihandle toolm_paint
+Ihandle toolm_desgn
 Ihandle toolm_dbvwr
 Ihandle toolm_dbvfy
 Ihandle toolm_showf
@@ -5573,7 +5682,6 @@ integer c = currfile
 end function
 
 function create_file_menu()
---DEV shortcut keys from ini file
 Ihandle file_new    = menu_item("&New\t\tCtrl N",           "PNG_FileNew",      cb_new,         1)
 Ihandle file_open   = menu_item("&Open\tCtrl O",            "PNG_FileOpen",     cb_open,        1)
         file_reopen = menu_item("&ReOpen\tCtrl Shift O",    "PNG_FileReOpen",   cb_reopen,      0)
@@ -5608,10 +5716,9 @@ Ihandle file_recent = IupSubmenu("Recent &Files", recent_menu)
 end function
 
 function create_edit_menu()
---DEV shortcut keys from ini file
 edit_undo   = menu_item("Undo\tCtrl Z",             "PNG_EditUndo",     cb_undo,            1)
 edit_redo   = menu_item("Redo\tCtrl Y",             "PNG_EditRedo",     cb_redo,            1)
---DEV case sub-menu
+--DEV edit_case sub-menu
 --edit_case = create_edit_case_submenu()
 --DEV clipboard sub-menu; Clipboard History (updated by ctrl c/s/v, max clip entries=NN or -1)
 --    also filename/fullpath, and strip html.
@@ -5622,6 +5729,7 @@ edit_copy   = menu_item("&Copy\tCtrl C",            "PNG_EditCopy",     cb_copy,
 edit_copya  = menu_item("Copy Append\tCtrl Shift C","PNG_EditCopya",    cb_copya,           1)
 edit_copyp  = menu_item("Copy Prepend\tAlt Shift C","PNG_EditCopyp",    cb_copyp,           1)
 edit_paste  = menu_item("&Paste\tCtrl V",           "PNG_EditPaste",    cb_paste,           1)
+edit_clip = IupMenu({edit_cut,edit_cuta,edit_cutp,edit_copy,edit_copya,edit_copyp,edit_paste})
 edit_delete = menu_item("&Delete\tDelete",          "PNG_EditErase",    cb_delete,          0)
 edit_find   = menu_item("&Find...\tCtrl F",         "PNG_EditFind",     fdlg:cb_find,       1)
 find_next   = menu_item("Find Next\tF3",            "PNG_FindNext",     fdlg:cb_findnext,   0)
@@ -5640,16 +5748,18 @@ edit_selall = menu_item("Select &All\tCtrl A",      "PNG_EditSelectAll",cb_selec
 --  Ihandle tool_zoomin  = toolbar_item(cb_zoomin,  "PNG_ZoomIn",     "Zoom In (Ctrl +)",  0)
 --  Ihandle tool_zoomout = toolbar_item(cb_zoomout, "PNG_ZoomOut",    "Zoom Out (Ctrl -)", 0)
 
+edit_clips = IupSubmenu("Clipboard",edit_clip)
 Ihandle edit_menu = IupMenu({edit_undo,
                              edit_redo,
                              IupSeparator(),
-                             edit_cut,
-                             edit_cuta,
-                             edit_cutp,
-                             edit_copy,
-                             edit_copya,
-                             edit_copyp,
-                             edit_paste,
+--                           edit_cut,
+--                           edit_cuta,
+--                           edit_cutp,
+--                           edit_copy,
+--                           edit_copya,
+--                           edit_copyp,
+--                           edit_paste,
+                             edit_clips,
                              edit_delete,
                              IupSeparator(),
                              edit_find,
@@ -5676,7 +5786,9 @@ toolm_rein  = menu_item("Re-&Indent source",            "PNG_Reindent",         
 toolm_cca   = menu_item("Co&mmon Code Analysis",        "PNG_CommonCode",       cb_cca,      0)
 toolm_qjmp  = menu_item("&Quick Jump",                  "PNG_QuickJump",        cb_qjmp,     0)
 toolm_recvr = menu_item("&Recovery",                    "PNG_Recovery",         cb_rcvr,     0)
-toolm_paint = menu_item("&Window Painter",              "PNG_WindowPaint",      cb_wpnt,     0)
+--toolm_paint = menu_item("&Window Painter",                "PNG_WindowPaint",      cb_wpnt,     0)
+--toolm_paint = menu_item("&Layout Designer",               "PNG_Designer",     cb_wpnt,     0)
+toolm_desgn = menu_item("&Layout Designer",             "PNG_Designer",         cb_design,   01)
 toolm_dbvwr = menu_item("Database &Viewer",             "PNG_DatabaseViewer",   cb_dvwr,     0)
 toolm_dbvfy = menu_item("Verif&y Database",             "PNG_DatabaseVerify",   cb_dvfy,     0)
 toolm_showf = menu_item("Show Formatting\tCtrl Shift H","PNG_pilcrow",          cb_showfmt,  1)
@@ -5692,7 +5804,7 @@ Ihandle tool_menu = IupMenu({toolm_run,
                              toolm_cca,
                              toolm_qjmp,
                              toolm_recvr,
-                             toolm_paint,
+                             toolm_desgn,
                              toolm_dbvwr,
                              toolm_dbvfy,
                              toolm_showf,
@@ -5728,7 +5840,6 @@ Ihandle macro_menu = IupMenu({macro_rec6,
 end function
 
 function create_options_menu()
---DEV shortcut keys from ini file
 --DEV should zoom in/out be here?
 --DEV move AutoComplete to Edit options!
 --Ihandle options_autocomplete  = menu_item("&Auto Complete",       "PNG_MacroRecord",  cb_rec6,  0)
@@ -5844,6 +5955,7 @@ Ihandle toolb_open   = toolbar_item(cb_open,            "PNG_FileOpen",   "Open 
         toolb_fprv   = toolbar_item(fdlg:cb_findprev,   "PNG_FindPrev",   "Find Prev (Shift F3)",           0)
         toolb_zoomin  = toolbar_item(cb_zoomin,         "PNG_ZoomIn",     "Zoom In (Ctrl +)",               0)
         toolb_zoomout = toolbar_item(cb_zoomout,        "PNG_ZoomOut",    "Zoom Out (Ctrl -)",              0)
+        toolb_back   = toolbar_item(cb_backoff,         "PNG_rotate1",    "Background Processing",          0)
         toolb_run    = toolbar_item(cb_run,             "PNG_ToolRun",    "Run (F5)",                       0)
 --  Ihandle toolb_run    = toolbar_item(cb_run,         "IUP_ActionOk",   "Run (F5)",                       0)
 
@@ -5883,6 +5995,7 @@ Ihandle toolb_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
                                toolb_zoomin,
                                toolb_zoomout,
                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
+                               toolb_back,
                                toolb_run,
                                toolb_rtns})
 --/*
@@ -5983,6 +6096,7 @@ Ihandle cm_cut, cm_cuta, cm_cutp, cm_copy, cm_copya, cm_copyp, cm_paste--, cm_in
 
 procedure set_cmenu(integer shift)
     if cmenu=NULL then
+--DEV submenus? (case/clipboard..)
         cm_cut   = menu_item("Cu&t\tCtrl X",                "PNG_EditCut",      cb_cut,     1)
         cm_cuta  = menu_item("Cut Append\tCtrl Shift X",    "PNG_EditCuta",     cb_cuta,    1)
         cm_cutp  = menu_item("Cut Prepend\tAlt Shift X",    "PNG_EditCutp",     cb_cutp,    1)
@@ -6575,7 +6689,9 @@ procedure intellitip()
     appUpdateRender()
 end procedure
 
-procedure uparrow(integer ctrl, shift, alt)
+--DEV fix rein:
+--procedure uparrow(integer ctrl, shift, alt)
+procedure uparrow(integer ctrl, integer shift, integer alt)
 integer newY
     if and_bits(isClearOverStrike,cOVRup) then
         insertMode = 1
@@ -6614,7 +6730,9 @@ integer newY
     end if
 end procedure
 
-procedure downarrow(integer ctrl, shift, alt)
+--DEV ditto
+--procedure downarrow(integer ctrl, shift, alt)
+procedure downarrow(integer ctrl, integer shift, integer alt)
 integer newY, wasCursorX
     if and_bits(isClearOverStrike,cOVRdown) then
         insertMode = 1
@@ -7287,7 +7405,7 @@ function key_cb(Ihandle ih, atom c)
 --          case K_F2: F2mark(ctrl,shift,alt)
             case K_F3: fdlg:F3find(ctrl,shift)
 --          case K_F4: F4diff(ctrl,shift,alt)
-            case K_F5: run:F5run(ctrl)--,shift,alt)
+            case K_F5: run:F5run(ctrl,shift)--,alt)
 --          case K_F6, K_F7, K_F8, K_F9: macro(base,ctrl,shift,alt)
 --          case K_F12: F12() -- (jump to error) --ctrl,shift,alt)
 --          case '<','>': comment_indent(base,ctrl,shift,alt)
@@ -7295,10 +7413,9 @@ function key_cb(Ihandle ih, atom c)
 --          case '[',']': bracket(base,ctrl,shift,alt)
             case K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,
                  K_LALT,K_RALT,K_NUM,K_SCROLL,K_CAPS:
-                break   -- [DEV] temp, to avoid TITLE update
+                break   -- (avoid TITLE update)
             default:
             switch c do
---DEV ctrl shift L is line numbers: (do we even want them optional??)
                 case K_cA:  selectAll()
                 case K_cB:  show_as_base(2)
                 case K_csB: show_as_base(8)
@@ -7494,6 +7611,8 @@ procedure main()
 --  IupImageLibOpen()   -- (no longer used)
 
     IupSetGlobal("UTF8MODE","YES")
+--  IupSetGlobal("GLOBALMENU","YES")
+    IupSetGlobal("GLOBALMENU","NO")
 
     config = IupConfig()
     IupSetAttribute(config, "APP_NAME", "edix")
@@ -7657,6 +7776,13 @@ procedure main()
 
     cursorblink = IupTimer(cb_cursorblink, 400)
     autosavetimer = IupTimer(cb_save,isAutoSaveTimer*1000,isAutoSaveTimer!=0)   -- (every 5 mins)
+    -- image updating on toolb_back:
+    backtimer = IupTimer(cb_backtimer, 200)
+    IupSetAttribute(backtimer,"RUN","NO")
+    rotate_images = {get_image("PNG_rotate1"),
+                     get_image("PNG_rotate2"),
+                     get_image("PNG_rotate6"),
+                     get_image("PNG_rotate7")}
 
     tree = IupTree();
 --  IupSetAttribute(tree, "SHOWRENAME", "YES");
@@ -7704,6 +7830,7 @@ procedure main()
     sbline = IupLabel("Line 1 of 1, Column 1","PADDING=10x5,SIZE=120x")
     sbinfo = IupLabel("INS #cc dd Mmmm Yyyy hh:mmpm","PADDING=10x5,SIZE=50x")
     sbdate = IupLabel("dd Mmmm Yyyy hh:mmpm","PADDING=10x5")--,"SIZE=??")
+--  sbtemp = IupLabel("gdi","PADDING=10x5")
     sbmsg  = IupLabel("","EXPAND=HORIZONTAL, PADDING=10x5")
 --  sbhbox = IupHbox({sbline,sbinsovr,sbchar,sbdate,sbtime,sbmsg})
     sbhbox = IupHbox({sbline, -- (Line n of m, Column c)
@@ -7711,10 +7838,11 @@ procedure main()
                       sbinfo, -- (INS/OVR, char)
                       IupLabel(NULL, "SEPARATOR=VERTICAL"),
                       sbdate, -- (date and time)
+--                    sbtemp,
                       IupLabel(NULL, "SEPARATOR=VERTICAL"),
                       sbmsg})
     integer seconds = (60-date()[DT_SECOND])*1000 -- (on next whole minute)
-    Ihandle time_update = IupTimer(Icallback("update_time_cb"),seconds,true)
+    Ihandle time_update = IupTimer(cb_update_time,seconds,true)
 
     Ihandle vbox = IupVbox({toolbar,
                             tbox,
@@ -7766,6 +7894,7 @@ procedure main()
     IupSetGlobal("PARENTDIALOG", dlg)
 
     -- restore session
+    integer currfileN = IupConfigGetVariableInt(config,"Session","current")
     for i=1 to IupConfigGetVariableInt(config,"Session","Max") do
         string filepath = IupConfigGetVariableStrId(config,"Session","filepath",i)
         if filepath!="" then
@@ -7786,10 +7915,14 @@ procedure main()
 --          else
 --DEV delayed message
 --              ?? &= filepath&"\n"             
+            elsif currfileN>=i then
+--?9/0
+                currfileN -= 1
             end if
         end if
     end for
-    currfile = IupConfigGetVariableInt(config,"Session","current")
+--  currfile = IupConfigGetVariableInt(config,"Session","current")
+    currfile = currfileN
 --?currfile
 --  if currfile!=0 then
     if length(filenames)!=0 then

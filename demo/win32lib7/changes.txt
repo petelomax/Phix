@@ -1,0 +1,1347 @@
+k--/topic Changes
+--/info
+-- History of Changes to Win32Lib.ew
+-- This records, in brief, the major changes done to the source code.
+-- Where possible, the appropriate people are given credit as well.
+--
+--/b<V0.70.4a  17/Jun/2008 Christian Cuvier <oedoc@free.fr>>
+--/li Fixed. Memory leak in getRichText(). Thanks to L. Miller.
+--/li Fixed. getScrollRange() failed to return range for horizontal non-window controls.
+--/li Fixed. setDefaultProcessing() would crash if calling the OS failed. Thanks to C. Bouzy.
+--/li Fixed. setMousePointer() no longer crashes when called on a control that has menus/popups
+--/li Fixed. validId() no longer crashes on sequences
+--/li Fixed. getNameId() now returns valid control ids only. Thanks to M. Lewis
+--/li Fixed. getLVItemText() no longer returns an spurious extra "" text.
+--/li Fixed. List boxes and combo boxes fire w32HGotFocus and w32HDropDown properly
+--/li Enhanced. getCount() also works for menus
+--/li Enhanced. UpDown controls fire w32HChange event on click
+--/li Enhanced. getControlInfo(id,CONTROLINFO_alias) returns the internal class for a control
+--/li Enhanced. getRect() now returns the rectangle a menu (item) occupies
+--/li Enhanced. getRect() returns {0,0,0,0} for menus no item of which is selected.
+--/li Restored. getControlInfo(id,CONTROLINFO_type) again returns the external class for a control
+--/li New. isDropped() tells whther a menu, or combo dropped down
+--/li Changed. The library requires Euphoria v3.1.1 or later to run. This had been true since v70.3.
+--/b<V0.70.4  15/March/2008 Christian Cuvier <oedoc@free.fr>>
+--/li Fixed. EditText cotrols that were disabled, then enabled again still had a disabled appearance.
+--/li Fixed. At creation time, the edit field of a ComboBox shows the same hint as the combo itself.
+--/li Fixed. getFindText() and getReplaceText() work more like one might expect (thanks to R. Stowasser)
+--/li Fixed. w32fetch() didn't return arrays of strings properly
+--/li Fixed. Removing a handler or notification wouldn't work properly.
+--/li Fixed. Inconsistent font defaults, whether the w32Defaults environment variable is not set or has a bad format.
+--/li Fixed. w32HKeyUp was returning the shift state after the key is released, not before.
+--/li Fixed. set/restoreMousePointer() no longer need a mouse event to be effective.
+--/li Fixed. Not releasing keys in the reverse order could cause wrong shift sate to be reported.
+--/li Fixed. If a menu item accelerator was clashing with a menu bar accelerator, the latter wouldn't work
+--/li Fixed. isVisible() would report folded menu(items) as visible.
+--/li Fixed. getMenuState() wasn't working on menus
+--/li Fixed. Wrong conversion factor in printRichText[Pages]()
+--/li Fixed. getData() no longer returns text for Bitmaps.
+--/li Fixed. removeMenu() no longer crashes under some circumstances
+--/li Fixed. showMessage() no longer crashes if the only ancestor window is the desktop
+--/li Fixed. getLVItemText() was not always finding the right number of subitems
+--/li Fixed. newPrinter() now doesn't crash when no default printer is installed
+--/li Fixed. setPrintJobProperty() now can set margins under Win 2k and later
+--/li Enhanced. set/restoreMousePointer() now try to be smarter about repeated shape change notifications.   
+--/li Enhanced. Color names may have any whitespace around them.
+--/li Enhanced. Tool tip texts more than 80 character long are properly displayed (thanks to T. Škoda & R. Stowasser)
+--/li Enhanced. page setup checks the locale for margins/paper size measurement units if flags are ambiguous
+--/li Enhanced. w32manage_mem() can take a sequence of addresses
+--/li Enhanced. w32acquire_mem(mem_set,{{count,type}}) now supported
+--/li Enhanced. Windows Vista now reports as WIN_VISTA
+--/li Enhanced. getData() now falls back on getScrollPos() for trackers
+--/li Enhanced. Character CTypes now extend to 16-bit encoded characters
+--/li Enhanced. all w32*CType() routines now take the same sort of pChar argument.
+--/li Enhanced. option for w32TextToNumber() to swap dot and comma; setDecimalMark() sets the decimal separator
+--/li Enhanced. setIcon() and setWindowBackColor() now work on statusbar controls.
+--/li Enhanced. Standard hand mouse pointer now available as HandPointer or "HAND".
+--/li New. w32rectangle_delta(r1,r2) computes the difference and intersection of two rectangles.
+--/li New. changeMousePointer() now simply alters the mouse pointer shape, without saving it.
+--/li New. indexToLine() and charToIndex() convert between {line,column} and index for characters in an edit control
+--/li New. w32extract_formats() returns information about (possibly badly formed) printf() format specifiers in a string.
+--/li New. controlStyle() adjusts and retrieve selected style flags for a control.
+--/li New. setFRData() gets and possibly sets data relative to a Find/Replace dialog box.
+--/li New. setFRMsgStrings() retrieves and sets the strings on Find/Replce dialog boxes..
+--/li New. getFRText() calls either getFindText() or getReplaceText() and possibly sets a callback procedure.
+--/li New. adjustCreateFont(changes) enables to only change some attributes of the font setCreateFont() sets.
+--/li New. w32Sleep(milliseconds) enables you to relinquish control to other processes for a while.
+--/li New. SIZEOF_Long=4 and SIZEOF_Word=2 defined
+--/li New. w32bounds(data,flags,startpoint) returns index/value/both of a minimum or maximum in a sequence
+--/li New. w32addToCType() and w32removeFromCType() for easier management of character sets
+--/li New. w32join() reverses w32split()
+--/li New. queryDevice() returns properties for the screen or a printer, like sizes or aspect ratios
+--/li New. w32average(data,weight) sums data up, sums weight up and returns the ratio.
+--/li New. mixColors(colors,weight,output_triple) returns a RGB color which is the saturated weighted average of colors using weights.
+--/li New. newColor(name,value) defines a new color, associating suplied color name and color value.
+--/li New. newEvent(name,triggers,rid) defines a new event, its trigger messages and associated handlers
+--/li New. setStartWithSize() avoids systematically setting the first field of a structure to its size
+--/li New. isFieldOf() tests whether a field definition belongs to a given structure type
+--/li New. getOpenFileNameEx() extends getOpenFileName() by enabling to specify any extra option.
+--/li Exposed. createWindow() is now documented (use when creating custom controls)
+--/li Exposed. replaceObject() selects a GDI object into a device context and tracks it.
+--/li Exposed. getTransparentColor() returns the color used to denote transparency in bitmaps.
+--/li Changed. The library no longer uses global undocumented symbols which may interfere with applications.
+--/li Changed. w32def_series.ew removed; w32constants.ew spun off w32structures.ew and is now a standalone file; w32resources.ew spun w32xpm.ew off
+--/li Changed. win32lib will no longer run under versions of Euphoria prior to 3.0.
+--/li Changed. To perform a backward search in a RichEdit control, you no longer need to invert the range passed to the function.
+--/li Changed. Some long constant lists have been moved from the code to win32_constants.htm.
+--/li Removed. The CONTROLINFO_Style and CONTROLINFO_StyleEx commands were documented, but not implemented.
+
+--/b<V0.70.3  22/December/2007 Christian Cuvier <oedoc@free.fr>>
+--/li Fixed. RE font sizes now properly recognised in non win32ib applications. Thanks to Bob Thomson.
+--/li Fixed. w32realise() was allocating too much memory under some circumstances.
+--/li Fixed. getOpt() is no longer confused by [gRoup], or by [group] and [group_2].
+--/li Restored. newPrinter()
+--/li Enhanced. When no valid printer is available, no crash takes place, and the condition is reported.
+--/li New. w32unpack_dword(dword) returns {low word,high word}
+--/b<V0.70.2e 14/December/2007 Christian Cuvier <oedoc@free.fr>>
+--/li Fixed. Some earlier fixes had been lost.
+--/li Fixed. getRichText() now works properly on the new RichEdit controls.
+--/li Enhanced. getFontMetric() now correctly returns outline metric fields
+--/li New. NEWTEXTMETRIC structure defined
+--/li Removed. getFontMetric2() (undocumented)
+--/li Removed. The ntmxxx fields in the definition for the TEXTMETRIC structure
+--/b<V0.70.2d 12/December/2007 Christian Cuvier <oedoc@free.fr>>
+--/li Fixed. Font sizes for non RichEdit controls are back to normal
+--/li Fixed. Bad indirect call in inner_fetch()
+--/li Fixed. Type mismatch in newPrinter()
+--/li Fixed. A couple flaws in getDefaultPrinterName()
+--/li New. getFontMetric2() is able to return outline text metrics as well as standard (undocumented yet)
+--/li New. Win32libVersionEx now returns complete version (with revision letter)
+--/li New. Field indexes for the Win32libVersion[Ex] sequence have named values, like Win32libVersionMajor
+--/b<V0.70.2c 28/November/2007 Christian Cuvier <oedoc@free.fr>>
+--/li Fixed. setFont() would set RichEdit font bigger than expected
+--/li Fixed. pasting to a RichEdit control with text larger than 32767 characters would cause a machine exception
+--/li Fixed. getSelectedText() was in trouble on RichEdits with text larger than 32767 characters
+--/li Fixed. getSystemTime() was crashing due to an error in structure layout
+--/li Fixed. Under some circumstances, the Shift or Control keys appeard to be jammed.
+--/li Enhanced. New properties for setPrintJobProperty(): mrgins, paper source,size, collate copies
+--/li Enhanced. Win32LibVersion now also returns the minor revision as well
+--/li Enhanced. 16-bit Unicode chracters can be passed in keyboard messages, using the VK_PACKET key code
+--/li New. getDefaultPrinter() prepares current printer for printing
+--/li New. getSelectionFont() returns address of font structure for selected text in RichEdit control
+--/li New. getFontDialogEx() like getFontDialog(), but with more control over how and what to display
+--/li New. newPrinter(name,flags) attempts to change printer, and optionally transfers current print options to it.
+--
+--/b<V0.70.2 13/September/2007 Derek Parnell>
+--/li Removed. Removed the onXXX interface support.
+--
+--/b<V0.70.1 11/September/2006 CChris <oedoc@free.fr>>
+--/li Fixed. The Alt key was not reported in the shifts when combined with a non printable key.
+--/li Fixed. getMenuPosn() did not return a correct value for items spawning a submenu.
+--/li Fixed. getClientRect() had incorrect results for windows with vertical toolbars.
+--/li Fixed. When creating a form, any text or caption that happened to convert to a number was converted.
+--/li Fixed. Invisible controls on a TabItem or belonging to a control set became visible on selecting the item/showing the control set.
+--/li Fixed. addItem() with multiple selection lists now works.
+--/li Fixed. showMessage() displayed the message in the main window instead of creating a status bar in the requested window.
+--/li fixed. If showMessage() targeted a control, its parent window wasn't queried for a status bar.
+--/li Fixed. getRecent() crashed for forms when no form had been created.
+--/li Fixed. getId() returned 0 for Menu/Popup controls.
+--/li Fixed. insertLVItem() did not set lParam.
+--/li Fixed. subClassControl() was not recording type handles properly for some controls
+--/li Fixed. getLastMsg() could return obsolete messages if too many had been processed at the same time at some point.
+--/li Fixed. Creating a RichEdit v3.0 control would cause an error 461 (thanks to D.Parnell/Sacha Zsindel)
+--/li Fixed. w32lookup crashed when the search sequence was too long. Returns 0 instead.
+--/li Fixed. Destroying a ListView could change the properties of other created after it.
+--/li Fixed. New text or images for TreeView controls could be forgotten by Windows.
+--/li Fixed. setLVItem() and insertLVItem() did not correct the image argument to 0-based.
+--/li Fixed. Anti-recursion device in fDoPaint() now works, and can be toggled
+--/li Fixed. RichEdit v4.1 controls are properly supported now
+--/li Fixed. Event handlers declared inside forms are now automatically registered, hence now work.
+--/li Fixed. Erasing items from an already empty container would crash.
+--/li Fixed. setCheck() could crash on TreeViews.
+--/li Fixed. toolbars would not resize properly with their parent windows.
+--/li Fixed. Various rare conditions which would have caused a machine level exception (thanks to Sascha Zindel)
+--/li Fixed. w32store()ing a sequence of Word would crash.
+--/li Fixed, loadLVinfo() was not producing unique item ids,
+--/li Fixed. getTVIndex() wouldn't work right on TreeViews woth more than one level. Thanls C. K. Lester
+--/li Fixed. getClientRect() was not considering the visibility of the statusbar when present.
+--/li Fixed. doEvents() properly reports attempts to close the window. Thanks to L. Miller and M. Lewis
+--
+--/li Enhanced. The Windows keys are now reported as shifts in keyboard and mouse event data sequences.
+--/li Enhanced. The data sequence for the w32HMouseTrap event also report keyboard shifts (last element).
+--/li Enhanced. The data sequence for the w32HKeyPress event now reports the released state of a key
+--/li Enhanced. w32HChange is now fired on menus when the selected item changes.
+--/li Enhanced. w32HChange is fired on TabControls when the selection changes.
+--/li Enhanced. w32HDropDown and w32HCloseUp fire on menus when they drop down/roll up.
+--/li Enhanced. w32TextToNumber() now allows a trailing currency sign.
+--/li Enhanced. A window may now have several toolbars.
+--/li Enhanced. create() now enables to create a Window of the same class as an existing one.
+--/li Enhanced. menu items and tab items may now be inserted anywhere inside their parent at creation time.
+--/li Enhanced. menu items may specify check matks and bitmap at creation time.
+--/li Enhanced. setImageList() now valid for more controls.
+--/li Enhanced. When creating an icon, a {filename,index} pair is allowed as caption.
+--/li Enhanced. registerNotification() now allows to create, modify, enable/disable or remove an event forarding
+--/li Enhanced. subclassed controls are no longer destroyed and are handled more nicely overall
+--/li Enhanced. Now most routines that set and get a parameter can just get it without setting it.
+--/li Enhanced. setNotifyHandler can remove a handler using a negative routine_id.
+--/li Enhanced. findChildren() now returns a handle list for subclassed controls
+--/li Enhanced. Each ListView now has an override flag for default insertion point, managed by setLVInsert().
+--/li Enhanced. Now validId() checks for valid {TV_id,TV_item_id} pairs.
+--/li Enhanced. Variable length strings are now allowed inside structures
+--/li Enhanced. w32HDragAndDrop has a third parameter when controls are dragged, so that
+--              both source and destination know about it. Thanks to Sascha Zindel.
+--/li Enhanced. sequences of fields are allowed in w32fetch/w32store()
+--/li Enhanced, Memory arrays may now have dynamic length, either given as a (the contents of)
+--              a field of the same structure or a terminating sequence of bytes
+--/li Enhanced. The asBuffer and usBuffer field type allow to define consecutive buffer address and length.
+--              w32fetch/store a string from them (special syntax enables to access the raw fields).
+--/li Enhanced. Now you can w32fetch/store() slices of arrays.
+--/li Enhanced. returnValue() can now be used in a w32HAfterEvent handler to alter the value Windows will receive.
+--/li Enahnced. getLastMessage() now also returns time stamps for messages
+--/li Enhanced. getDC() now may also retrieve the full window DC so as to paint on the nonclient area.
+--/li Enhanced. getFontDialog(id) now starts with setting associated to id. Thanks to Pete Stoner.
+--/li Enhanced. If multitasking is supported, the event loop and doEvents() yield. Tahnks to J. Temple.
+--/li Enahnced. The w32HKeyboard event is triggered when keyboard keys are about to be released.
+--
+--/li New. w32VOID, an universal junkyard.
+--/li New. Controls receiving the WM_GETDLGCODE message may override the keyboard input type defined by their class.
+--/li New. Event handlers now have a state and may be enabled/disabled.
+--/li New. enableHandler() now enables or disables a handler and returns its previous state.
+--/li New. setBackground() enables to use bitmaps or hatch patterns as well as solid colors as background color.
+--/li New. setMenuItemBitmaps() sets displayed bitmap and check marks, returning the three handles.
+--/li New. getLEDs() returns the state of the three standard keyboard LEDs.
+--/li New. getNotificationData() returns {user data} of an event forwarding.
+--/li New. setNotificationState() spossibly sets the state of an event forwarding and returns its current state.
+--/li New. The w32GetValue constant enables most functions that set and return something to just return the value.
+--/li New. fillRectangle() fills a rectangle with an arbitrary brush.
+--/li New. inMenuBar(id) returns w32True if menu belongs to a menu bar.
+--/li New. getMenuBar(window,returnHandle) returns id or handle of the window menu bar
+--/li New. setLVImage() gets or sets the background image of a ListView control.
+--/li New. setTooltipTimings() set various time constants for tooltips managed by a control.
+--/li New. setPaintPolicy() controls whether recursion is allowed inside a w32HPaint event processing chain.
+--/li New. Routines to handle {line,column} pairs in edit controls
+--/li New. w32peek2(), w32poke_words() and w32peek_string16() adapt peek() and w32peek_string() to UTF-16 encoded strings.
+--/li New. attachMenuHandle() links a menu known by handle with a control.
+--/li New. Handler chains now can protect top or bottom handler.
+--/li New. w32round() performs rounding operations, several modes supported.
+--/li New. getTVChildern() and deleteTVChildren() (thanks to S. Zsindel)
+--/li New. w32copy() copies a structure to another place
+--/li New. w32index() and w32index_by() return the index of a sequence of items (using a field)
+--/li New. w32ordered_find() performs a binary search in an ordered sequence.
+--/li New. w32define_this_struct() returns a structure identifier which can be used in w32allot()
+--/li New. indexToId() and idToIndex() now allow to convert an item position to an item identifier and back.
+--/li New. getFontPointSize() returns the logical soze of the font a control uses.
+--/li New. Nested fields inside structures can be accessed by concatenation of the intervening field.
+--/li New. Structures now may have fields of the Align, AlignRel or ByteFill type, which force some memory
+--           aligment of the field immediately following it.
+--/li New. Rect, Point, asBuffer and usBuffer native types for w32allot().
+--/li New. getDefaultPrinterName() retrieves the name of the default printer.
+--/li New. setPrintJobProperty() controls initial values in the print and page setup dialog boxes.
+--/li New. checkPrinter() will pop a page setup dialog if no printer is selected, and optionally release current printer.
+--/li New. getClipboard() and setClipboard() enable interaction with the clipboard
+--
+--/li Changed. The library no longer uses user properties to store transient control properties
+--/li Changed. getToday() now returns the day of week in 3rd position, formerly 4th.
+--/li Changed. registerControl() (now documented): the create routine returns the control type, and no longer the control family.
+--/li Changed. subClassControl() now returns the id associated with the handle if there was any (undocumented: returned 0)
+--/li Changed. w32support.e is now only a wrapper file for w32memory.ew and w32utils.e
+--
+--/li Deprecated. Most struct_* and fetch_* functions. Use w32to_memory(), w32set_memory() and w32from_memory() instead.
+--/li Deprecated. w32ElemAddr(); use w32address rather.
+--/li Deprecated. Compound structure field identifiers like TVINSERTITEMSTUCY_itemImage. Replace
+--                with a sequence of nested fields.
+--/li Deprecated. Text buffer lengths in defined structures. Replaced using the asBuffer new field type.
+--                Use w32buffer_address() and w32buffer_length() to retrieve the parts.
+--
+--/li Removed. (undocumented) quitWindow()
+--
+--/b<V0.60.6 19/September/2004>
+--/li Fixed. When setHandler() is called internally by the library, it no longer
+-- disables onXXX support. Note however that setHandler() when called by your
+-- application will still turn off onXXX support.
+--/li Fixed. WS_EX_TOPMOST is a valid flag for the addStyle routine.
+--/li Fixed. clientToClient() now works.
+--/li Fixed. createMouseTrap() now works for controls whose parent is not the
+-- window (eg. Group).
+--/li Fixed. Toolbar resizing no longer 'flashes' its child controls when the
+-- window is being resized.
+--/li Fixed. getRandInt() no longer returns values outside the requested range.
+--/li Fixed. findParentWindow() now works for controls that are children of a
+-- child Window.
+--
+--/b<V0.60.5 5/September/2004>
+--/li Fixed. /i "thanks to C K Lester" /drawLines() was crashing when a rectangle was specified.
+--/li Fixed. /i "thanks to C K Lester" The makedoc program that generates documentation has mishandling
+-- some "<" and ">" characters.
+--/li Fixed. /i "thanks to Brian Broker". Disabled Scrollbars would not render correctly when using XP manifests.
+--/li Fixed. /i "thanks to Matt Lewis". TreeViews would not render correctly when /b not using XP manifests.
+--/li Fixed. /i "thanks to Andy Drummond". Under some circumstances, such as long running jobs, the library would
+-- crash in eventLoop() with bitwise operations of integers greater than 2^32.
+--/li Fixed. /i "thanks to Brian Broker". /clearWindow() was using the wrong color on Pixmaps if
+-- /setPenBrushColor() had been also used for the Pixmap.
+--/li Changed. /i "thanks to C K Lester". the /w32HChange event is invoked when ListBox and ComboBoxes
+-- items are added or deleted.
+--/li Changed. The include file "w32start.ew" no longer automatically finds event handler routines. It
+-- now only finds ones that have been explictly registered with win32lib via the new /registerRoutine
+-- procedure. This has been changed so that BIND can now find more routines that are not being used.
+--/li New. A system to create Add-On components, such as new control types. This is undocumented so far
+-- because I haven't worked out all the details.  This can potentially reduce the
+-- run-time size of win32lib.
+--/li New. A new control, /GroupAdv, is available. This is the test of a new add-on control
+--system.
+--/li New. /w32routine_id() is used to look up a registered routine name and return its real routine_id
+-- value.
+--/li New. /registerRoutine() is used to register a specific routine in win32lib so that it can be
+-- found by /w32routine_id().
+--
+--/b<V0.60.4 23/August/2004>
+--/li Fixed. /i "thanks to Martin Stachon" /newUIObj can now handle "CAPTION=" to explicitly set a blank caption.
+--/li Fixed. Some resources were not being removed from internal tables after win32lib had stopped tracking them.
+--/li Fixed. The documentation for /openDialog() now details the method to set initial focus.
+--/li Fixed. The default background colors for controls are now compatible with Windows XP manifests.
+--/li Added. /deleteLVColumn() is used to remove a column (sub-item) from a ListView.
+--/li Enhanced. /i "thanks to Hongyanto Setio". drawLines() can now accept an initial 2-element point.
+--
+--/b<V0.60.3 13/August/2004>
+--/li Fixed. /i "thanks to Martin Stachon" /extractIcon() no longer fails with uninitialized variable.
+--/li Fixed. /i "thanks to Christian Cuvier". The ability to set focus on Window controls that have a
+-- parent window but are not WS_CHILD controls is now fixed.
+--/li Fixed. Calling setCheck(Screen, . . .) no longer causes an infinite loop under Windows 2000.
+--/li New /setToday() and /getToday() routines for the MonthCalendar control.
+--/li Changed. /i "thanks to cklester" /copyBitmapToFile() no longer creates 4-color bitmaps. Only 2, 16, and 256 colors are supported.
+--/li Changed. /i "thanks to Tommy Carlier" /colorValue() now supports negative strings such as -"red". This
+-- is to handle the ambiguous "red", a 3-element sequence, being passed as a parameter.
+--
+--/b<V0.60.2 08/August/2004>
+--/li Fixed. /isScreenPointIn() only worked for controls in the main window.
+--/li Fixed. The inner eventLoop() routine didn't cooperate well with OpenGL
+-- applications.
+--/li Fixed. WM_WHEELMOUSE events are no longer prevented from being seen by parent
+-- controls.
+--/li Fixed. /i "Thanks to Craig Welch". The setListHScroll() now works with empty lists.
+--/li Fixed. Child windows are now added to the tabbing order if they have WS_TABSTOP flag.
+--/li Fixed. /setEnable() can now disable a Window control.
+--/li Fixed. /isChecked now correctly works with treeview controls.
+--/li Fixed. /setWinMsgHandler() now works with the Screen control ID.
+--/li Enhanced. /setCtlSize() can now take w32SameSize as one of the new dimension.
+--/li Enhanced. /w32trim() will now strip off enclosing quotes after trimming off spaces.
+-- values. The will leave the corresponding dimension unchanged.
+--/li Enhanced. A number of routines that take a color value parameter, can now
+-- express that in various formats. see /colorValue for details.
+--/li Enhanced. /extractIcon() can now extract either the small or large icon images.
+--/li Enhanced. FGCOLOR is now supported in the /newUIObj routine.
+--/li Enhanced. CAPTION in /newUIObj now supports automatic lookup of symbolic captions from
+-- an external file.
+--/li Enhanced. /setCtlSize() can now use the w32SameSize value to resize one dimension only.
+--/li Enhanced. If the handler for w32HMouseTrap returns any value, the mouse event is not
+-- passed on to the underlying control.
+--/li New. The includes file "rttext.e" and "options.e" are now used by win32lib. This introduces
+--/li /UseText(), /FormatMsg(), /setUserLanguage() and /getOpt(). These are used to lookup
+-- text equivalents for application defined 'symbolic' text. This can be used to implement /i ".INI"
+-- file lookups and run-time text replacements depending on the user's spoken language.
+--/li New. /w32findKeyEx() is used to locate items in nested sequences.
+--/li New. /w32replaceItem() is used to replace all occurances of a sequence element with another.
+--/li New. /setMainWindow() is used to change which window is the primary one.
+--/li New. /colorValue() is used to convert various color representations into a 24-bit value.
+--/li New. /getIdFromDC() is used to find the control id given the device context.
+--/li New. /split_rgb() is used to break a 24-bit color value into a 3-element sequence
+-- Red/Green/Blue values.
+--/li New. /floodFill() is used to fill an area with a single color.
+--/li New. /printRichText() is used to print formatted text from a Rich Edit control.
+--/li New. /setEventLoop() is used to supply a replacement for the inbuilt message handler.
+--/li Changed. The /textToNumber routine no longer ignores embedded commas.
+--
+--/b<V0.60.1 2/July/2004>
+--/li Fixed /i "Thanks to Matt Lewis": Fixed the default font from 'Verdana' to 'MS Sans Serif'
+--/li Fixed /i "Thanks to Matt Lewis": Fixed the documentation for setting the /w32Defaults environment symbol.
+--/li Fixed /i "Thanks to Elliott S. de Andrade": The "size=()", "width=()", and "height=()" formats
+-- in a form definition no longer crash the library.
+--/li Fixed /i "Thanks to Elliott S. de Andrade": When adding or removing style flags from controls, sometimes
+--the visualization wouldn't update.
+--/li Fixed /i "Thanks to Elliott S. de Andrade": A null string passed as a file name to w32FileOpen() caused
+-- the application to crash.
+--/li Fixed: loadBitmapFromFile() did not report the filename in its error message
+-- when the file could not be found.
+--/li Fixed /i "thanks to Andrew Hall": isChecked() now correctly returns the
+--Checked state of a Treeview control.
+--/li Fixed: If a form definition string did not begin with a valid control type
+-- name, it would assume the first element was equivalent to "caption=17". Now it
+-- assumes that the control type is a LText control.
+--/li Fixed /i "thanks to William Heimbigner": An invalid Event name passed to newUIObj() or createForm()
+-- would crash the application.
+--/li Fixed /i "thanks to Greg Haberek": When a control definition with a one-character caption was presented to
+-- newUIObj(), the character's ASCII value was converted to a string and used as the caption instead.
+--/li Fixed /i "thanks to Elliott S. de Andrade": Dragging the slider on a trackbar now works.
+--/li Enhanced: extractIcon() can now get both Large and Small versions of an icon.
+--    /li Enhanced /MenuItem controls with a blank caption are now taken be a menu spacer control.
+--/li New /i "thanks to Tommy Carlier": removeHandler() can remove specific, previously established handlers. It is
+-- the reverse of /setHandler().
+--/li New: A new control type /MenuSpacer is now available. This is just a shorthand for a MenuItem with a caption
+-- of "-". It causes a line to appear in the menu.
+--
+--/b<V0.60 30/June/2004>
+--/li Fixed /i "by Josef Jindra" The resource leaks have been plugged.
+--/li Fixed /i "by Jonas Temple." isChecked() and setCheck() now work for TreeView controls.
+--/li Fixed. setIndex(lv,0) now deselects all ListView items.
+--/li Fixed. /i "thanks to Juan Herguijuela". the getPointerRelPos() no longer crashes when
+-- an invalid control id is supplied.
+--/li Fixed. /i "thanks to Juan Herguijuela". The correct mouse position is now
+-- returned in a w32HMouse event when a user right clicks on a List-View's
+-- header bar.
+--/li Fixed. findTrackedObject() now checks the entire Tag value rather than
+-- just the first element.
+--/li Fixed. /i "by Roland Stowasser". setText() now works for MenuItems.
+--/li Fixed. The resource leakage due to setting fonts has been fixed.
+-- You are now only likely to have problems if you have hundreds of simultaneous
+-- but different fonts in use. This will be addressed in a future release.
+--/li Fixed. setMousePointer() now ensures that the new shape is seen immediately
+-- rather than when the routine that called setMousePointer returns to Windows.
+--/li Fixed /i "by Mario Steele". popup() now works for submenus.
+--/li Fixed /i "by Martin Stachon" getPointerRelPos() now works with child windows.
+--/li Fixed. /i "by Cesidio Cianfarani" setText() now correctly works with sub-Menus.
+--/li Fixed. Child windows now cooperate better with the drawing of other sibling controls.
+--/li Fixed. /i "by Dan Moyer" Documentation for getSystemInfo, and the FileOpen
+-- dialogs has been corrected.
+--/li Fixed. Trackbars and Scrollbars with negative values now report the correct
+-- position when using the thumb control.
+--/li Fixed. findParentWindow() now works when the 'child' control is a Window.
+--/li Fixed. The 'beeping' sound when use the Alt-<char> combination has been
+-- removed.
+--/li Fixed. /i"thanks to Aku Saya." getId() now always returns an integer value.
+--/li Fixed. /i"thanks to Tone Skoda" The NMLISTVIEW structure is now correctly defined.
+--/li Fixed. Opening a window no longer resets the default colors and font.
+--/li Fixed. /setTextColor() now works with edit boxes, list boxes, and labels.
+--/li Fixed. /setWindowBackColor() now works with scrollbars.
+--/li Fixed. Applications now respond correctly to desktop scheme changes.
+--/li Fixed /i "by Martin Stachon". w32store() now works with RAM addresses above 2**31.
+--/li Fixed /i "by Elliott S. de Andrade". Controls are now greyed out when disabled.
+--/li Fixed. /i "by Tommy Carlier". setCtlPosition() now correctly moves the control
+-- rather than resize it as well.
+--/li Fixed. STATIC controls (labels, bitmaps...) that have SS_NOTIFY flag now
+-- receive mouse events.
+--/li Enhanced. setIndex(lv, w32SelectAll) now selects all listview items.
+--/li Enhanced. getText() for CheckBox, Radio now return "1" (checked) or "0"
+-- (not checked). The TriCheckBox returns "1", "0", and "2" (undetermined).
+--/li Enhanced. setText() can now be used for CheckBox, TriCheckBox, and Radio
+-- controls. "0" or "" to uncheck it, "2" for undetermined TriCheckBox, and anything
+-- else to check it.
+--/li Enhanced. setMousePointer() and restoreMousePointer() can now be used to
+-- set/restore a control and all its children controls.
+--/li Enhanced. /i "by Tommy Carlier" rgb() has been made to run 25% faster.
+--/li Enhanced. /i "by Tommy Carlier" copyBitmapToFile() has been made to run 560% faster.
+--/li Enhanced. setBackColor() now clears a pixmap to the specified color.
+--/li Enhanced. Can now run in old Windows versions such as Win95. But you still
+-- can't use control types you don't have in your windows system.
+--/li Enhanced. /showWindow() now supports full screen mode.
+--/li New.  getWinVersion() returns version information of the Windows system you are
+-- running with. A global constant WINDOWS_VERSION also has this in it.
+--/li New. /centerControl() centers a control with respect to another nominated one.
+--/li New. /i "by Tommy Carlier" copyToTrueColorBitmap() creates 24-bit color Windows .BMP file
+--/li New. /setIDName() used to give a name to a control.
+--/li New. /getIDName() used to retrieve the name given to a control.
+--/li New. /getNameID() used to retrienve a controlID value given it's name.
+--/li New. /newUIObj() used to define a User Interface Object (a.k.a a Control).
+--/li New. /getCaption() used to return a control's caption text.
+--/li New. /getData() used to return a control's data value.
+--/li New. /getValues() used to get the data from many controls in one call.
+--/li New. /createForm() used to define a window and all the control in it, using a simple
+-- UI definition scripting language.
+--/li New. /loadForm() used to get a form's definition from a file at runtime. This can then
+--be used by /createForm().
+--/li New. A new /i include file /b"w32start.ew" that provides an easy way to use the /createForm abilities.
+--/li New. A new concept of /MouseTraps have been introduced. These are sub-regions
+-- of a window that react to mouse events.
+--/li New. /getWheelScrollLines() to fetch the number of lines that the user wants the
+-- mouse wheel to scroll by.
+--/li New. /getUserName() to return the id of the logged-in user.
+--/li Changed. /getText() will now return a control's caption if it has one, otherwise its data value.
+--/li Changed. When a RETURN key is pressed in an EditText field, focus is automatically moved
+--to the next control in the window. This can be overridden by having a handler for w32HKeyPress
+--and calling returnValue() when a VK_RETURN key is used.
+--/li Changed /i"suggested by Andy Serpa". The library no longer uses routine names
+-- that have a high probablity of clashing with other people's naming conventions.
+-- Subsequently, many global routines that are not specific to Windows programming
+-- have been renamed. The old names are to found in tk_maths.e, tk_misc.e,
+-- tk_mem.e, ctypes.e, types.e that are now available through the RDS contributions page.
+--
+--/b<V0.59.01 8/Jun/2003>
+--/li New. When creating a control, you can add the w32AUTOCLOSE
+-- flag to cause the control to close its parent window when clicked.
+--/li New. Beep() to sound various beeps.
+--/li New. getClassName() to return the Windows Class name for a control
+--/li New. makeFront() to set the given window to the front of others.
+--/li New. findWindow() to search for a specific window running in the system.
+--/li Enhanced. the UserProperty routines are now faster if you use
+--integer Property ID values.
+--/li Enhanced. addStyle and removeStyle also support the new w32AUTOCLOSE
+-- feature.
+--/li Fixed. /i "by Cesidio Cianfarani" setText() now correctly works with
+-- Menu and MenuItem controls.
+--/li Fixed. setIndex() now works with multiple selection lists.
+--/li Fixed. getPrinter() and getPrinterChoice() no longer fail to
+--initialize the printer.
+--/li Changed. Removed dependance on the clib.e library. This was causing too
+-- many namespace clashes.
+--
+--/b<V0.59 1/Jun/2003>
+--/li Changed. When adding a button to a FlatToolbar, the caption used to be
+-- ignored if the 'y' value in the /createEx() call was zero. This is no
+-- longer then case.
+--/li Changed. The initial setting is that label captions will /b not
+-- be used to determine hotkeys for following controls.
+--/li New. /skipF10() will set whether or not the F10 key can set focus
+-- to the menubar (which is standard Windows behaviour)
+--/li New. The set of C-String API routines in now available from w32Kernel.ew
+--/li New. /getFileInfo() can be used to get various properties of a file.
+--/li New. /Current_Directory() used to get the current directory name.
+--/li New. /Set_Directory() used to set a new current directory.
+--/li New. /setAutoFocusLabels() is now required to be called to turn on & off
+-- the ability to use label captions as hotkeys for subsequently defined
+-- input controls.
+--/li New. /getFullPathName() is used to get the complete path for a file and
+-- its full (long) file name.
+--/li Enhanced /i "thanks to Aku Saya" addIcon() now only returns zero if
+-- its parameter is zero.
+--/li Enhanced. /getText() when used on a List or SortedList, returns the
+-- currently selected item's text.
+--
+--/b<V0.58.09 25/May/2003>
+--/li Fixed. /i "thanks to Judith" getText() now works correctly with TreeView controls.
+--/li Enhanced. /i "thanks to Aku Sayu." /getClientRect() will now also return
+-- the width and height.
+--/li Enhanced. /i "thanks to Aku Sayu." The control defined after a label control
+-- will now get its hot key set based on the label's caption.
+--/li Enhanced. /i "thanks to Tony Steward" loadLVInfo() now permits icons to be load
+-- along with text.
+--/li Enhanced. setLVItem() and addLVItem() now permit numbers
+-- as well as text to be placed in ListView columns.
+--/li New. getColumnHeadings() is used to get the current listview column headings
+--/li New. setLVStyle() is used to set the extended listview styles.
+--
+--/b<V0.58.08 15/May/2003>
+--/li Fixed. The SimpleCombo now really is a simple combo. Before it was identical
+-- to the DropDownList. It now shows the edit box above a list. The list does
+-- not drop down - it is always visible.
+--/li Fixed. /getText() now works correctly when specifying which part of a
+-- multi-part statusbar is being requested.
+--/li Fixed /i "by Brian Broker". setIcon() is now recognising the inbuilt Windows icons.
+--/li Fixed. /i "thanks to Judith" setText() can now change the text of a submenu.
+--/li Fixed. /i "thanks to Brian Broker." When tabbing into a Radio Button, it no longer causes a w32HClick event
+--/li Fixed. /i "thanks to Pete Lomax." The facility to dynamically change the tooltip window size is now working correctly.
+-- to be generated for the control receiving focus. This is now consistant for
+--/li Fixed. /i "by Martin Stachon." setWindowScrollRange() now shows the new scroll
+-- button positions immediately, rather than the next window repaint event.
+--/li Fixed. /i "thanks to Martin Stachon." getClientRect() now work correctly
+-- when a toolbar is present.
+--/li Fixed. /i "by Pete Lomax." The documentation for create() now lists all the control types.
+-- all type controls.
+--/li Fixed. /i "by Robert Belleville". putStream() and getStream() now permits alternate
+-- representations of COM objects in RTF streams.
+--/li Fixed. /i "by Robert Belleville". struct_PARAFORMAT() now correctly sets
+-- the Right_indentation and Offset fields.
+--/li Changed. The /getText() function for StatusBar now returns just a simple
+-- string. It used to return both the string and the part number, but this is
+-- redundant ('cos you have to specify the part you want anyhow).
+--/li New. getActiveWindow() returns the ID of the application's active window.
+--/li New. setTabStops() is used to set the controls which can get focus during tabbing.
+--/li New. setCheck() and isChecked() now support ListViews.
+-- Thanks to /i "Jonas Temple"
+--/li Enhanced. When setText() is used on a MleText control, all single LineFeed
+-- characters are replaced by CarriageReturn-LineFeed combination.
+--/li Enhanced. setText() can now be used to change a TabItem's label.
+--/li Enhanced. /i "by Elliott Sales de Andrade". setScrollRange() can now support values larger than 16-bits.
+--
+--/b<V0.58.06 22/Apr/2003>
+--/li Fixed. Resource leakage.
+--
+--/b<V0.58.05 6/Apr/2003>
+--/li Fixed. Setting the ListView column widths and justification now works
+-- when using the createEx() routine.
+--/li Enhanced. defineUSerProperty(), setUserProperty() and resetUserProperty()
+-- now all work with a list of controls too.
+--
+--/b<V0.58.04 21/Mar/2003>
+--/li Fixed /i"by Andy Serpa". getLVChecked() now checks the correct row.
+--/li Fixed /i"by Jonas Temple". getPrintChoice() now sets the printer DC when user
+-- supplied flags are submitted.
+--
+--/b<V0.58.03 9/Mar/2003>
+--/li Fixed. The setText() and getText() routines now work for top level menus.
+--
+--/b<V0.58.01 22/Feb/2003>
+--/li Fixed. Now moves to the correct control when a top-level window regains
+-- focus.
+--/li Fixed. /i"by Roland Stowasser".The constant LVM_GETHOITEM was corrected to LVM_GETHOTITEM
+--
+--/b<V0.58.00 01/Jan/2003>
+--/li Fixed. When a window regains focus, the control that had focus
+-- also regains focus.
+--/li Fixed. When creating controls, the dimensions can now handle
+-- non-integers.
+--/li Fixed. RichEdit controls can now use /getSelectedText() without crashing.
+--/li Fixed. expandTV() no longer causes images to flicker.
+--/li Fixed. When the first control in a window was a TabControl, then
+-- controls in its TabItems no longer 'bleed' through.
+--/li Fixed. The /address() function no longer causes a memory exception.
+--/li Fixed. Calling /invokeHandler for the Screen control no longer
+-- invokes the handler code twice.
+--/li Enhanced. The keyword 'Center' can now be used for the 'x' and/or
+-- 'y' dimension when creating controls.
+--/li Enhanced. When Win32lib has to force a crash, the true message is now
+-- displayed instead of the 'divide by zero' message.
+--/li Enhanced. It is now possible to specify the control that gets focus
+-- when opening a window, including the window in WinMain().
+--/li Enhanced. /i"by Wolfgang Fritz". The /validId() routine has been made
+--to run twice as fast.
+--/li Enhanced. /setIndex() can now be used on TreeView controls.
+--/li Enhancement. When a MonthCalendar date or date range is explicitly clicked
+-- then the w32HChange event now receives two dates.
+--/li New. /setEndAction() is now available. This allows the coder to choose
+-- what happens when the main window is closed.
+--/li New. A new event, /w32HIdle, can be handled. This is invoked while the
+--the application is idle.
+--/li New. setWinMsgHandler() allows access to Windows messages before any
+-- standard Win32lib processing.
+--/li Changed. The first call to setHandler turns off the onXXX[] event interface.
+--This should see a performance boost for applications using setHandler.
+--
+--/b<V0.57.11 01/Sep/2002>
+--/li Fixed. /i"by Martin Stachon". Some button clicks produced a double w32HClick events.
+--/li Fixed. /i"by Martin Stachon". The drawText routine failed with a type-check message
+--/li Fixed. /i"by Martin Stachon". Edit controls did not display an I-Beam mouse pointer.
+--/li Fixed. Minor documentation errors.
+--/li Fixed. /setScrollRange() now accepts negative values in the parameters.
+--/li Enhanced. /i"by Jordah Furguson" /setScrollRange() can now uses large values (+ve and -ve).
+--/li Enhanced, /i"by Jordah Furguson" Rebars now use ID field rather than lParam
+-- for identifaction. This has sped up /addToBand() a little.
+--/li Enhanced. When a rebar changes sizes, the w32HResize event is sent to the Screen
+-- control. This can be used to reposition other controls relative to the Rebar.
+--/li Enhanced. /setMousePointer() nows also accepts a file name (.CUR or .ANI file).
+--/li Enhanced. /setDragPointer() now supports different shapes for dragging depending
+-- on whether the Shift, Control or Alt keys are pressed or not.
+--/li Added. Two new events can be handled. w32HDropDown and w32HCloseUp. These are not
+-- supported by the onXXX interface.
+--/li Added. /setReadOnly() used to set the read-only status of edit controls.
+--/li Added. /setStyle() used to change the style flags of a control.
+--/li Added. /autoSelect() used to allow/disallow text to be selected when the edit
+-- field gets focus.
+--/li Added. /classAutoFocus() used to set the default auto-select behaviour for
+-- edit-type controls.
+--/li Added. /getKeyState() used to find the depressed state of a specific key.
+--
+--/b<V0.57.10 01/July/2002>
+--/li Fixed. /i"by Dan Moyer", /setScrollRange now correctly works with Windows.
+--/li Fixed. store() and fetch() now correctly support unsigned integers.
+--/li Fixed /i"by Martin Stachon" the mouse shape is now more stable.
+--/li Fixed. Occasionally, when a window was opened, its controls were not drawn quite right. This
+-- has been fixed by forcing a repaint of the window when it is opened.
+--/li Fixed. The w32HScroll event now fires for Trackbar controls.
+--/li Fixed. A resource leak when releasing a DC has been removed.
+--/li Fixed. /i"by Virtual B" /findItem() now works for ListView controls.
+--/li Enhanced. BUTTON type controls can now handle w32HMouse events.
+--/li Enhanced. allot(), store() and fetch() now directly support arrays.
+--/li Enhanced. The routine that deal with scrolling now all support horizontal scrollbars for Windows.
+--/li Enhanced. The /w32HScroll (and onScroll) event are now also triggered when the user stops scrolling.
+--/li Enhanced. The /w32HScroll event handler (but not onScroll) now receive an extra parameter that
+-- indicates the type of scroll event that triggered the handler.
+--/li Enhanced. When creating a Bitmap control, you can now specify the filename in the caption.
+--/li Enhanced. allot() now supports Single and Double floating point data types.
+--/li Enhanced. Frequently sent Windows messages are now handled faster. This is determined
+-- heuristically as the application runs.
+--/li Emhanced. /setFont() now allows setting the font of multiple controls in one call.
+--/li Changed. /drawText() now returns a sequence rather than an atom.
+--/li Changed. The internal names WINDOW, BUTTON, COMBO, EDIT, LISTBOX, SCROLLBAR,
+-- STATIC, MENU, POPUP, MENUITEM, PIXMAP, COMMON_CONTROL have been made global.
+--/li Changed. The setMousePointer() routine now saves the old pointer before setting the new one.
+--/li Added. restoreMousePointer() used to restore the mouse shape that was in use prior to the previous
+-- setMousePointer() call.
+--/li Added. setDragPointer() used to set the default mouse shape when dragging.
+--/li Added. signed_word() and unpack_sWord() used to get 16-bit signed integersfrom atoms.
+--
+--/b<V0.57.9 24/June/2002>
+--/li Fixed. The tooltip text now displays for buttons on a FlatToolBar
+--/li Fixed. Controls were wrongly being positioned if a toolbar was on the form.
+--/li Fixed by /i"Roland Stowasser". setRect, setPen, and couple of other routines
+-- sometimes incorrectly positioned controls and the mouse if there was a toolbar
+-- present.
+--/li Fixed. If /setHandler() was used for drag & drop, the mouse pointer was not
+-- changing when it moved over a target control.
+--/li Fixed. /drawLines() is now using the pen settings again.
+--/li Enhanced. When you use /setEnable on a ToolBar or FlatToolBar, all its buttons are also effected.
+--/li Enhanced. /create now allows you to add tooltip text.
+--/li Enhanced. When you /create a Menu, if you have a "!" in the text, it denotes a /b Command style
+--rather than the normal /b Popup style.
+--/li Enhanced. /getId(), /setFocus(), /setText(), and /getText() now all support TreeView items.
+--/li Added /subClassControl() is used to handle Windows generated controls.
+--
+--/b<V0.57.8 17/June/2002>
+--/li Added. /i "by Euman", /loadLVAttr is used to load bulk data into a listview.
+--/li Added. /i "inspired by Euman", /setNotifyHandler is used to set the handler for a WM_NOTIFY message.
+--/li Added. /i "by Jordah Ferguson", /setMenuRadio used to define a 'radio' set of menu items.
+--/li Added. /i "by Tone Skoda", /expandTV used to expand and collapse treeview controls.
+--/li Fixed. /i "by Martin Stachon", The resource leak while using graphics routines has been removed.
+--/li Fixed. /i "by Mike (vulcan)" /getClientRect() now takes into consideration whether
+-- or not a toolbar and statusbar are visible.
+--/li Fixed. /i "by Thomas Parslow", the internal routine to release resources now
+-- uses an atom rather than integer. This enables better WinNT/2000/XP support.
+--/li Fixed. /i "by Wolfgang Fritz". The /isChecked routine now only returns True or False.
+--/li Fixed. /i "by Andy Drummond", the /deleteObject routine was only deleting explicitly
+-- tracked objects. It now deletes any object passed to it.
+--/li Enhanced. /i "by Tone Skoda", /getHandle can now be used to get the handle of a
+-- treeview item.
+--
+--/b<V0.57.7 03/June/2002>
+--/li Enhanced. setHint() now supports dynamic tool tip text.
+--/li Fixed /i "by Tone Skoda", When the main window is closed, the application
+-- will always end now.
+--/li Fixed. A number of small memory leaks have been fixed.
+--/li Added. /getTextHeight() and /getTextWidth()
+--/li Added. /assignFont() has been documented now.
+--
+--/b<V0.57.6 19/May/2002>
+--/li Fixed /i "by Wolfgang Fritz". Using relative widths for panel sizes in a Statusbar
+-- no longer crashes with non-integer values.
+--/li Enhanced /i "by Mario Steele" wPuts() and DrawText() can also supply
+-- the text as a RAM address rather than a sequence.
+--/li Enhanced. /setHandler() can now add routines to form a chain to execute when
+-- an event is triggered.
+--/li Added. tk_mem:zStringLength() function returns the length of a zero-delimited
+-- string given its address.
+--/li Added. /invokeHandler() function to trigger a win32lib event.
+--/li Added. /getReturnValue() function to get the value that will be returned to Windows.
+--/li Added. /onXXX() function to turn on/off the support for onXXX[] syntax. Turning
+-- this is off results in faster event handling.
+--/li Added. /selectDirectory() function. Uses a dialog to allow user to select a directory.
+--/li Added. /getHandler(). Returns the routines set up for event handling.
+--
+--/b<V0.57.5 12/May/2002>
+--/li Fixed /i "by Dan Moyer". Corrected some documentation errors.
+--/li Fixed. Removed the resource leaks caused by routines not running
+-- inside an Paint event handler.
+--/li Fixed /i "by Thomas Parslow". /putStream() doesn't crash at end of data now.
+--/li Fixed /i "by Thomas Parslow". /getPointerPos() now works when the mouse is
+-- to the left or above the window.
+--/li Fixed. A tabControl is now repainted to clear any wPuts() or drawing
+-- objects prior to making the newly selected TabItem visible.
+--/li Fixed. Tooltips now recognise '\r\n' to break lines.
+--/li Fixed /i "by Roland Stowasser". Corrected the spelling of LVIS_STATEIMAGEMASK
+--/li Fixed /i "by Roland Stowasser". Corrected the spelling of /addXpm()
+--/li Added. /setHintWidth() function is now availble to set the maximum
+-- width of a tooltip window.
+--/li Added /i "by Dan Moyer". New predefined color 'SkyBlue'
+--/li Added /i "by Matt Lewis". Listview controls now trigger an onClick event.
+--/li Added /i "by Matt Lewis". getLVChecked() and getLVAllChecked()
+--/li Changed. The library now uses Logical font resolution by default.
+--/li Changed. The function /convPctToPixels() is now a global one.
+--/li Changed. insertListViewItems has been renamed to insertLVItem
+--/li Changed. insertListViewColumn has been renamed to insertLVColumn
+--
+--/b<V0.57.4 24/March/2002>
+--/li Fixed /i "by Matt Lewis". Delete All functions for ListView and
+-- TreeView now work.
+--/li Fixed /i"by Martin Stachon". Put back 'include compat01.ew'
+--/li Fixed /i"by Irv Mullins". Now handles clicking into an "empty"
+-- treeview without crashing.
+--/li Fixed. addItem() now works with empty text strings.
+--/li Fixed. /i"by Judith Evans and Martin Stachon". /removeTVItem()
+-- now correctly resets the 'has children' flag so that subsequent
+-- /addTVItem() calls use the correct graphics.
+--/li Fixed /i"by Martin Stachon". No longer crashes when using
+-- getRect() on a closed window.
+--/li Fixed. The demo program, 'generic.exw', now saves the text
+-- correctly.
+--/li Fixed. The /setSelectedText() routine now works when the length
+-- of the selected text is zero.
+--/li Fixed /i"by Brian Broker". /limitText() now works.
+--/li Fixed /i"by Thomas Parslow". GDI resource leak using /wPuts and
+-- /queryFont removed.
+--/li Fixed /i"by Brian Broker". /getText() nows returns the newly
+--/li Fixed /i"by Martin Stachon". /replaceObject() was not handling
+-- tagged resources.
+--/li Fixed /i"Bernie Ryan". calling the Windows API "xGetScrollInfo" now
+-- works.
+--/li Fixed /i /addIcon() can now be called before any ListView, TreeView,
+-- ComboBoxEx, or FlatToolBar has been created.
+--/li Fixed The Destroy event is now triggered before the control is destroyed.
+--/li Fixed The Destroy event, when triggered for the main window, no longer
+-- crashes.
+--/li Enhanced. The Win32LibVersion constant now has a 4th entry; the
+-- date of the version.
+--/li Enhanced. The getControlInfo() function now supports a new info
+-- type - CONTROLINFO_classinfo. This returns a sequence containing the
+-- data used by the control when created - such as Name of control type and
+-- default background color.
+--/li Enhanced. setText() no longer generates a warning message for
+-- controls that do not support setting the text.
+--/li Enhanced. setText() now supports atoms, integers, formatting mask,
+-- as well as straight text.
+--/li Enhanced. MleText controls no longer have a Horizontal scroll bar.
+-- This means that they are now automatically in word-wrap mode.
+--/li Enhanced. The Mouse event now responds to Mouse Wheel movements.
+--/li Enhanced /i"by Guillermo Bonvehi". shellExecute can now use NULL
+-- for the 'verb' parameter.
+--/li Enhanced. shellExecute() can now supply the style flags as a
+-- sequence of individual flag values.
+--/li Enhanced /i"by Thomas Parslow". The bitBlt routine can now handle
+-- the source and destination being the same bitmap.
+--/li Enhanced. getText() and setText() now work with MenuItems.
+--/li Enhanced. Added Minimized and Maximized keywords that can be
+-- used in OpenWindow, ShowWindow, and WinMain routines.
+--/li Enhanced. The sendMessage(), w32Func() and w32Proc() routines
+-- can now take string arguments. These are automatically converted to
+-- lzpstr 'C' data items for you. The memory is acquired and released
+-- automatically.
+--/li Enhanced. destroy() can now be used to remove a TabItem from a
+-- TabControl
+--/li Enhanced. setFont() for RichEdit controls now allows you to
+-- specify that the change affects the entire text or just the insertion
+-- point (the default).
+--/li Enhanced. wPuts() can now specify a X,Y position to move to before
+-- displaying text.
+--/li Enhanced. wPuts() can now accept numbers as the second parameter.
+--/li Enhanced. When creating a StatusBar control, you can now specify the
+-- panels in the statusbar.
+--/li Enhanced /i"by Brian Broker". /addTabs() can now add tabstops to a
+-- list box.
+--/li Enhanced /destroy() now works on all control types and releases
+-- child control resoures as well.
+--/li Enhanced. /getOpenFileName() now supports selecting multiple files.
+--/li Added. There is a new routine makeMenu() which is a
+-- shorthand way of creating an entire menu structure for a window.
+--/li Added. A new routine setSubFields() allows you to create
+-- sub-fields in the status bar. setText(), getText() and setHint() now
+-- support these sub-fields.
+--/li Added. A new set of routines are available that implements
+-- user defined properties for controls. These routines are
+-- defineUserProperty(), setUserProperty(), resetUserProperty(), and
+-- getUserProperty().
+--/li Added. /drawLines() routine allows a multiple disjoint line
+-- segments of varying colors to be rendered in one call. This
+-- is faster than calling setPenColor()/drawLine() multiple times.
+--/li Added. setTVText() used to change the text of a TreeView item.
+--/li Added. collapseItem() used to hide a TreeView item's children.
+--/li Added. toggleItem() used to hide or show a TreeView's children.
+--/li Added. setTVImages() used to change the TreeView item's images.
+--/li Added. getFocus() returns the id of the control that has focus.
+--/li Added. EzCreateFont() is now a global function.
+--/li Added. assignFont() updates the font in a control's Device Context
+--/li Added. /i "by Brian Broker". insertText() and appendText().
+--/li Added. /findItem() to locate an item in a List or Combo type of control.
+--/li Added. /getLastMsg() returns the latest windows message.
+--/li Added. /setLVAttr() is used to set special sorting requirements for
+-- ListView controls, including user-defined routines.
+--/li Changed. expandItem() only takes one parameter now. It no
+-- longer needs the id of the TreeView control.
+--/li Changed. When creating a TabItem, the new TabItem gets focus.
+--/li Changed. SIZENESWPointer has been renamed to SizeNESWPointer to
+-- conform to the naming convention of the other standard Pointer Shape
+-- names.
+--/li Changed. uFindReplaceMsg has been renamed w32FindReplaceMsg to
+-- conform with the naming convention used with other global constants.
+--/li Changed. insertListViewItem() now returns a sequence {index, itemid}
+--/li Changed /i"Brian Broker". The application's default icon is now set
+-- to the same as Euphoria's.
+--/li Removed /i"by Martin Stachon". Removed obsolete Windows 3.1
+-- identifiers.
+--/li Removed. The struct_LVDISPINFO() routine was removed because it
+-- wasn't used internally and has very little use to anyone.
+--
+--/b<V0.55.5 & V0.55.6> were alpha/beta versions.
+--
+--/b<V0.55.4>
+--/li Fixed. invokeHandler()
+--/li Fixed /i"by Martin Stachon". Cursor constants declarations.
+--/li Fixed. getLVItemText() validates its parameters
+--
+--/b<V0.55.3>
+--/li Fixed /i"by Martin Stachon".  w32HBreak/w32HPause event calls
+-- now work
+--/li Enhanced. Windows now recieve DoubleClick
+-- (CS_DBLCLKS added to vWindowClassStyle)
+--/li Fixed. getSelf() works for onOpen (added pushSelf(id) to WinMain())
+--/li Fixed /i"by Jess Harpur". msgMessage in MSG definition changed
+-- to UInt
+--/li Fixed. limitText()
+--/li Fixed. getStreamCallback()
+--/li Fixed. onChange[] for MonthCalendar
+--
+--/b<V0.55.2>
+--/li Enhanced /i"by Martin Stachon". getFocus() function added - gets
+-- id of control which has focus.
+--/li Enhanced /i"by Martin Stachon".  onChange[] event for ListViews
+-- added
+--/li Fixed /i"by Martin Stachon".  createEx() for ToolBar buttons
+-- when using captions
+--/li Enhanced /i"by Martin Stachon".  removed CS_HREDRAW, CS_VREDRAW
+-- from vWindowClassStyle - windows don't flicker.
+--/li Fixed /i"by Martin Stachon".  crash with pause/break key.
+--/li Fixed /i"by Martin Stachon".  getIndex() for ListViews
+--/li Fixed /i"by Martin Stachon".  isScreenPointIn()
+--/li Fixed default button
+--/li Fixed context menu with right-click
+--/li Fixed tooltips for PushButton in FlatToolBar
+--
+--/b<V0.55.1 26/Dec/2000>
+--/li Fixed. Group controls now are visible in Windows.
+--/li Enhanced. A new onActivate event is available. It occurs after a
+--window is open and is passed no parameters.
+--/li Fixed. The CBN_SELCHANGE event now invokes an onChange handler
+-- rather than an onClick handler.
+--
+--/b<V0.54.6 23/Nov/2000>
+--/li Fixed /i"by Dan Moyer" /n
+--The documentation from "findchildren" onwards is now in the correct
+-- font.
+--/li Fixed. /i"by Travis Beaty" /n
+--Using /setIndex() for controls that don't support this function no longer
+-- crashes.
+--/li Fixed. /i"by Travis Beaty" /n
+--The documentation for /findChildren() has been corrected.
+--
+--/b<V0.54.5 21/Nov/2000>
+--/li Fixed. /i"by Matt Lewis" /n
+-- The TAB order is now set correctly when subclassing a combobox.
+--/li Fixed.
+-- The TAB key is now correctly handled which avoids a BEEP on some
+-- controls.
+--/li Added.
+-- /setTabCodes(). It is now possible to specify which key(s) are to act
+--as TAB keys.
+--/li Added.
+-- /setTabEnabled(). It is now possible to specify whether a control
+--reacts to a TAB key or not.
+--li Fixed. /i"by Gwen" /n
+--/getPointerPosn() now longer crashes.
+--/li Enhanced.
+--The /create() and /createEx() functions can now optionally replace the
+--default style flags instead of combine with them. This is done by
+-- suppling the replacement flags as a sequence of flags rather than an
+-- atom.
+--
+--/b<V0.54.4 10/Nov/2000>
+--/li Fixed. /i"by Davi Figueiredo" /n
+--The /setClientRect() now correctly handles windows with Toolbars.
+--/li Fixed. /i"by Davi Figueiredo" /n
+--The documentation for openDialog() is now much improved.
+--
+--/b<V0.54.3 8/Nov/2000>
+--/li Fixed. /i"by Dan Moyer" /n
+--  If a window is opened as either Modal or Dialog, the library ensures
+-- that the window cannot be minimized.
+--/li Added. isMinimized(), isMaximized()
+-- These functions let the application know if a window is minimized
+-- or maximized (or not).
+--/li Fixed.
+--The routine /removeStyle() now works plus it can remove extended
+-- styles as well.
+--/li Fixed. The "subclassing" error 460 has been resolved.
+--/li Fixed.
+-- Converting a number to a 16-bit signed integer now correctly handles
+-- negative values and values between 32000 and 32767.
+--/li Added.
+-- /addStyle() can be used to add styles to existing control styles.
+--/li Added.
+-- /getWindowInfo() is used to get various information about a window.
+--/li Changed.
+-- The library no longer uses Euphoria's memory management routines.
+--
+--/b<V0.54.2 5/Nov/2000>
+--/li Fixed. /i"by Davi Figueiredo" /n
+--       The routines to set the scroll position now provide the correct
+--       control id for getSelf() calls from Scroll handlers.
+--
+--/b<V0.54.1 4/Nov/2000>
+--/li Fixed. /i"by Davi Figueiredo" /n
+--       The routine dropFiles() now has the correct number of parameters.
+--
+--/b<V0.54>
+--/li Fixed. Can now use /setHint() an a top-level window.
+--/li Fixed. No longer triggers an /onScroll event if the scroll position hasn't actually changed.
+--/li Fixed. Now handles setting focus after a control has been destroyed.
+--/li Fixed. The freeing of string memory has been made reenterant.
+--/li Fixed. /getMultIndices() and /getMultItems() now cope with no items selected.
+--/li Fixed. No longer crashes when a TVN_DELETEITEM event occurs for treeview controls.
+--/li Fixed. The use of Modal windows no longer crashes the Application.
+--/li Enhanced. /warnErr() now allows the user can now opt to ignore repeated warnings.
+--/li Enhanced window scrollbars. Standard scroll bars on windows windows now trigger onScroll events
+--/li Enhanced. /create(), /createEx(), /setClientSize(), /setCtlSize(), /setRect(), and /setPenPosition()
+--        In addition to the current method, you can now supply dimensions
+--        relative to the control's parent in terms of percentages, plus
+--        optional pixel offset. You can even align things to the edges of
+--        the parent. Optionally you can specify minimum and maximum
+--        sizes.
+--/li Enhanced.
+--        Extra validation is being done to ensure that Window Handles are
+--        being used with the correct control ID.
+--/li Enhanced
+--       The event handlers onXXX can now be set for the Screen ID. This
+--       will capture all events of the given type for all controls in
+--       the application.  For example /onKeyDown[Screen] will be fired
+--       for all KeyDown events on all controls.
+--/li Enhanced
+--       /getTextExtent() now takes either a single text string or
+--       multiple strings. It returns the maximum, minimum and total
+--       pixels for width and height. This change will not effect
+--       existing code.
+--/li Added  /getCharExtent()
+--       This returns the average width and height for a text character
+--       in a given control.
+--/li Added /getVScrollPos(), /getHScrollPos(), /setVScrollPos(), /setHScrollPos()
+--       These get and set the Vertical and Horizontal positions of
+--       scrollbars that are attached to windows via the WS_HVSCROLL
+--/li Added /classDefaults()
+--       This allows you to set the default styles for each control.
+--/li Added /setClientRect()
+--       This resizes your window so that the client area is a specified.
+--/li Added /doEvents()
+--       This allows Windows to check for message events during event
+--       handling.
+--/li Added /acquire_mem(), /release_mem(), /new_memset(), and /manage_mem()
+--       These are the new memory management routines that are used in
+--       win32lib. The use of free(), allocate() and allocate_string()
+--       is discouraged inside win32lib.ew. Please use the new routines
+--       instead.
+--/li Added /getPosition()
+--       This returns a sequence containing the pixel position of the
+--       top lefthand corner of the control
+--/li Added /copyFile(), /deleteFile(), /moveFile(), /createDirectory(),
+--      /getTmpPath(), /getTempFile()
+--      These are wrappers for the Windows file/directory commands.
+--/li Added /openDialog()
+--      This simulates a dialog-type window. It opens the specified
+--      window and directs all events to that window until its closed.
+--/li Added /showChars()
+--      This function sets an internal flag that causes /wPrint() to
+--      show displayable characters in readable form. The initial setting
+--      is to show such characters like Euphoria's print() function.
+--/li Added eucompress.exw
+--       This is a Windows program that compresses any euphoria source
+--       code by removing unrequired spaces, empty lines and comments.
+--/li Changed
+--       setPosition() has been renamed to /setPenPosition()
+--/li Changed
+--       moveWindow() has been renamed to /setRect()
+--/li Changed
+--       getExtent() has been renamed /getCtlSize()
+--/li Changed
+--       getSize() has been renamed to /getRect()
+--/li Changed
+--       setSize() has been renamed to /setCtlSize()
+--/li Changed
+--       The routines renamed above are actually still defined in
+--       a compatability file "compat01.ew" which will not be distributed
+--       when version 1.00 is released. This file is automatically
+--       included in the library for now, but from v1.00 onwards will be
+--       distributed but not included inside win32lib.ew
+--/li Changed
+--       The distribution now comes with a number of toolkit files.
+--         tk_mem.e (memory management)
+--         tk_maths.e (Mathematical functions)
+--         tk_misc.e (Miscellaneous)
+--       These can be used with any Eu project.
+--       These files are "included" by win32lib.ew
+--       An additional file, tk_fileio.e, is also distributed but it is
+--       not used by win32lib.
+--/li Changed.
+--       /onClick events now fired for all non-static controls that don't
+--       capture mouse events. For example, the StatusBar.
+--/li Changed
+--       Now uses the DoubleClick time interval for the maximum mouse
+--       click time tolerence.
+--/li Changed
+--       For those routines that deal with positioning controls etc, the
+--       X and Y (left and top) coordinates are relative to the parent's
+--       client area, not the parent's borders.
+--       This may break some code that currently manually adjusts these
+--       values to account for Toolbar and StatusBar controls. These sort
+--       of adjustments are now done automatically.
+--/li Removed.
+--       The routines free_strings(), allot_string(), and
+--       allocate_struct() have been removed.
+--
+--/b<V0.53>
+--/li Reorganised WndProc and SubProc routines to improve maintenance and speed.
+--/li Removed CBS_DISABLENOSCROLL from ComboBox styles /i" by Wolfgang Fritz"
+--/li Removed CBS_SIMPLE from SortedComboBox styles /i" by Wolfgang Fritz"
+--/li fix bug that destroyed the window_range whenever a control was created /i" by Davi Figueiredo"
+--/li fix bug that allowed an apps windows to be closed while a modal window was active /i" by Davi Figueiredo"
+--/li fix bug in which extended flags were only being used if supplied by the caller /i" by Davi Figueiredo"
+--/li added test for "is Destroyed" when activating contols in a /tabitem. /i" by Renzo Beggia"
+--/li fixed /getSelf() bug in which the wrong ID was returned after a subsequent /sendmessage(). /i" by Matt Lewis"
+--/li changed /onClick to fire on left button up (inside same area and < 0.5 secs) rather than on left button down. /i" by Derek Parnell"
+--/li hotkey activation on buttons, now checks for /onClick() handler. /i" by Derek Parnell"
+--/li Fixed bug. User can no longer set focus to a control that is invisible or disabled. /i " by Derek Parnell"
+--/li /onKeyPress can now (optionally) return an alternative key or -1 to ignore the key.
+--/li added /getHandles(), /findParent(), /findParentWindow(), and /findChildren()
+--/li added /registerHotKey()
+--/li add changed cursor during a Drag & Drop operation. /i " by Matt Lewis"
+--/li fixed bug which prevented hotkeys being used for tabitems.
+--/li fix bug. The wrong parameter was being used to set a Progress Bar's range. /i " by Wolfgang Fritz"
+--/li added some error checking for invalid Style flags etc.. when creating a control.
+--/li documented /validId(), /getSelf(), /getHandle()
+--/li The following routines where hidden: ILAddIcon(), ILAdd(), ILAddMasked()
+--/li Documented (briefly) many ListView and TreeView functions.
+--/li renamed getParent() to /getTVParent()
+--/li enhanced /setWarning() to treat all "warning" messages as abort messages.
+--/li /warnErr() now supports user defined clean up routines like /abortErr() does.
+--/li Fixed bug. /setFont(..., Bold) now sets a true bold character. /i " by Travis Beaty"
+--/li added /setFontWeight() to set how dark 'bold' really is.
+--
+--/b<V0.52a>
+--/li fixed getText() for RichText controls /i" by David Cuny"
+--/li restored scrollbars to RichText controls /i" by David Cuny"
+--
+--/b<V0.52>
+--/li added  /i" by Thomas Parslow"
+--/li    /GetPointerPosn()
+--/li    /SetPointerPosn()
+--/li    /ClickPointerLeft()
+--/li    /DragPointerTo()
+--/li    removeNth()
+--/li    ltrim() as they are no longer used.
+--/li added /LimitText() /i" by Derek Parnell"
+--/li fixed bug in putting a "stream" of text in to a /RichEdit control /i" by Matt Lewis"
+--/li allow /onEvent handlers to return a ZERO return code. /i" by Derek Parnell"
+--/li fixed CreateDC bug in /getPageSetup(). Was not selecting the correct printer device nor modes.
+-- /i" by Wolgang Fritz"
+--/li fixed memory allocation bug in /getText() [for RichEdit controls] and /getRichText(). /i" by Derek Parnell"
+--/li enabled /getRichText() to get all the text in a control. /i" by Derek Parnell"
+--/li enabled /onClose handler to return a value. A non-zero return means to abort the close request. /i" by Derek Parnell"
+--/li fixed bug in /wmScroll() when the hWnd was not one of the apps handles.
+--/li /getText() and /setText() now supports multipart /StatusBars. /i " by Derek Parnell"
+--/li added support for user-defined clean up routines. See new /attachCleanUp() and /detachCleanUp(), and updated /abortErr(). /i " by Derek Parnell"
+--
+--/b<V0.51>
+--/li enabled DefaultFont to be set by user. /i" by Wolfgang Fritz"
+--
+--/b<V0.50c>
+--/li removed CBS_DROPDOWNLIST from ComboBox controls
+--
+--/b<V0.50b>
+--/li Fixed drag & drop flag when creating a window
+--/li fixed bug in applying extended flags when creating controls.
+--
+--/b<V0.50a>
+--/li added support for destroying controls.
+--/li Don't try to get the handle to a destroyed control.
+--
+--/b<V0.50>
+--/li added support for extended flags in controls
+--/li added /i"by Matt Lewis"
+--<ul>
+--/li    xPageSetupDlg
+--/li    ImageList_Create
+--/li    ImageList_AddIcon
+--/li    ImageList_GetImageCount
+--/li    ImageList_DragMove
+--/li    ImageList_BeginDrag
+--/li    ImageList_EndDrag
+--/li    ImageList_DrawEx
+--/li    ImageList_Add
+--/li    ImageList_AddMasked
+--/li    ImageList_SetBkColor
+--/li    CopyImage
+--/li    xGetDIBits
+--/li    GetLastError
+--/li    FindTextA
+--/li    ReplaceTextA
+--/li    CommDlgExtendedError
+--/li    RegisterWindowMessage
+--/li    FINDMSGSTRING
+--/li    uFindReplaceMsg
+--/li    xInitCommonControlsEx
+--/li    ChildWindowFromPoint
+--/li    ChildWindowFromPointEx
+--/li    getSystemMetrics()
+--</ul>
+--/li Support for ListBoxes, ProgressBar controls /i" by Matt Lewis"
+--/li added /getSelectedText(), /setSelectedtext()
+--
+--/b<V0.47l>
+--/li set default window back color
+--/li set mainWindow when creating first window (so getFontExtent() will work)
+--
+--/b<V0.46l>
+--/li Added Default key processing for PushButtons
+--
+--/b<V0.46h>
+--/li added hotkey support via /registerHotkey()
+--/li /isVisible() and isEnabled() now always returns True for TabItem controls
+--
+--/b<V0.45r>
+--/li added window text align status
+--/li system font ANSI_VAR_FONT instead of SYSTEM_FONT
+--/li Align text in wPuts()
+--/li added getFontMetric()
+--
+--/b<V0.45q>
+--/li Abort if queryFont() called before a window has been created.
+--/li added instance() to registerClass()
+--
+--/b<V0.45p>
+--/li Set default font when creating a pixmap, and controls
+--/li Pass instance handle when creating controls
+--/li added test for "is TabItem" when activating controls inside a /tabitem
+--
+--/b<V0.45o>
+--/li added range check to isStockResource()
+--/li When deleting objects, only release if it if it belongs to the supplied handle
+--/li Abort if an invalid id was passed to getHandle()
+--/li Allow NULL owner to be passed.
+--/li fixex bug: insertItem() now allows for Windows zero-based indexing.
+--
+--/b<V0.45m>
+--/li added  xChooseFont
+--/li defined DWord and Ptr as aliases for Long
+--/li CHOOSEFONT structure
+--/li only handles WM_COMMAND events if receiver is direct parent of control
+--
+--/b<V0.45l>
+--/li use COLOR_BTNFACE as default window color
+--/li Separated the WndProc and SubProc routines.
+--/li added NullBrushID
+--/li changed isStockResource() logic
+--/li When deleting objects, ignore a null handle
+--/li prevent the tracking of NULL resources
+--/li Release printer resource before freeing printer.
+--/li fix resource leak with tooltips
+--/li Pass parent's handle when creating a control
+--
+--/b<V0.45j>
+--/li added PenWidth
+--
+--/b<V0.45k>
+--/li added
+--<ul>
+--/li    xColorDlg
+--/li    xDragQueryFile
+--</ul>
+--/li COLORDLG structure
+--/li Added drag-n-drop support to ListBox, EditText, MLEdit, Window controls.
+--/li added onDragAndDrop and onEvent handlers
+--/li added destroyed window tracking
+--
+--/b<V0.45j>
+--/li Error Handling, /setWarning()
+--
+--/b<V0.45i>
+--/li Default Window Color
+--/li added /HTrackBar, /VTrackBar, /TabControl, /TabItem controls
+--
+--/b<V0.45g>
+--/li added window group tracking
+--/li Tabitem support
+--/li improved the tabbing between controls
+--
+--/b<V0.45f>
+--/li added some low-level internal routines: pack_word(), abs()
+--/li defined UInt and Lpsz
+--/li TC_ITEM structure
+--/li NMHDR structure
+--/li added window range tracking and window tab item tracking
+--/li added support for WM_NOTIFY messages
+--/li fixed bug. Now releases string memory when creating new controls.
+--
+--/b<V0.45e>
+--/li Extended styles /i" by Matt Lewis"
+--/li added 3D-look to ComboBox controls
+--
+--/b<V0.45b>
+--/li add getClientSize()
+--
+--/b<V0.45>
+--/li added POPUP window class
+--/li added /getClientPoint()
+--
+--/b<V0.44h>
+--/li added window hotkey tracking
+--
+--/b<V0.44b>
+--/li added
+--<ul>
+--/li    xGetSystemMetrics
+--/li    xShellExecute
+--</ul>
+--/li added window cursor tracking
+--/li set the custom mouse pointer shape on mouse events
+--
+--/b<V0.43d>
+--/li added paintDC stack
+--
+--/b<V0.43b>
+--/li Track printer resource
+--
+--/b<V0.43>
+--/li added
+--<ul>
+--/li    xPrintDlg
+--/li    xStartDoc
+--/li    xStartPage
+--/li    xEndPage
+--/li    xEndDoc
+--/li    xAbortDoc
+--</ul>
+--/li PRINTDLG structure
+--/li DOCINFO structure
+--/li Created pseudo-class Printer_ and made this and Screen_ hidden
+--/li In listBox, replaced ES_AUTOSCROLL with WS_VSCROLL
+--/li added printer support
+--/li Hide EzCreateFont(), createWindow() from the user
+--/li set default font info for controls
+--/li  added /queryFont()
+--/li Fix bug. The /clear() function now /b clears a control rather than /b cut it.
+--
+--/b<V0.42e>
+--/li ensure /getSelf() returns the correct id for child controls.
+--
+--/b<V0.42>
+--/li added
+--<ul>
+--/li    removeNth(),
+--/li    ltrim() for XPM support
+--</ul>
+--/li restored WS_VSCROLL attribute to ComboBox
+--/li transparency color support
+--/li passes 4 parameters instead of 3 to onMouse handler
+--/li added shift flags to key up/down/char handlers
+--/li /getRect() now returns 4 parameters.
+--
+--/b<V0.41a>
+--/li Register each window as a new class.
+--
+--/b<V0.41>
+--/li Defined standard color constants
+--/li  added
+--<ul>
+--/li    xMapWindowPoints
+--/li    xGetCursorPos
+--/li    xGetActiveWindow
+--</ul>
+--/li MSG structure
+--/li added ToogleButton, TogglePicture controls
+--/li Created pseudo-class Screen_
+--/li Track current self and return values
+--/li added tooltips
+--/li Ignore empty strings in wPuts()
+--/li font information saved for all controls and windows
+--/li added /getFontSize(), /setTextAlign(), /getClientRect()
+--/li Only apply user flags for non-picture controls when creating a new control
+--/li allow user to return a value from /onEvent()
+--/li added onLostFocus() handler.
+--/li added onTimer handler
+--
+--/b<V0.40>
+--/li  added these definitions
+--<ul>
+--/li    comctl32
+--/li    kernel32
+--/li    shell32
+--/li    xInitCommonControls
+--/li    True
+--/li    False
+--</ul>
+--/li added ToolBar, StatusBar, PictureButton controls
+--/li resize "contained" widget during a RESIZE message.
+--
+--/b<V0.31>
+--/li   made findKey() global
+--/li Support for private Windows messages
+--/li run /onClose action before hiding window
+--/li added /getNumber()
+--
+--/b<V0.30>
+--/li removed stockResource
+--/li added isStockResource()
+--</ul>
+
+

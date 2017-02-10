@@ -1,0 +1,1062 @@
+--IDE_ProjectView.ew
+--Judith Evans 3-2001
+
+--A lot of this code was lifted straight out of Derek Parnell's treeview demo
+
+sequence EuIncFiles
+EuIncFiles = {}
+
+object d
+d = getenv("EUINC")
+
+integer at
+at = 0
+
+    if sequence(d) then
+        --parse for ; between file names
+        while length(d) do
+            at = find(';', d)
+            if at then
+                EuIncFiles &= {d[1..at-1]}
+                d = d[at+1..length(d)]
+            else
+                if length(d) then
+                    EuIncFiles &= {d}
+                end if
+                exit
+            end if
+        end while
+    end if
+
+sequence size
+size = getClientRect(ProjectWindow)
+
+global integer cameFromEditor
+cameFromEditor = w32False
+
+global integer TVCX, TVCY
+
+TVCY = size[4]
+TVCX = size[3]
+
+--global integer TV
+global constant
+    TV = createEx(TreeView,
+                  "Treeview",
+                  ProjectWindow,
+                  0,
+                  20,
+                  TVCX,
+                  TVCY-20,
+                  w32or_all({TVS_HASLINES, TVS_LINESATROOT, TVS_HASBUTTONS,
+                             TVS_SHOWSELALWAYS}),
+                  0)
+
+global constant
+--these are for ListView Explorer
+icon01 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon01.ico")),
+icon02 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon02.ico")),
+icon03 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon03.ico")),
+icon04 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon04.ico")),
+icon05 = addIcon(extractIcon(the_current_dir & "\\Resources\\icon05.ico")),
+icon06 = addIcon(extractIcon(the_current_dir & "\\Resources\\shuttle.ico"))
+--constant
+--these are for TreeView
+--closefolder = addIcon( extractIcon( the_current_dir & "\\Resources\\clsdfold.ico" ) ),
+--openfolder  = addIcon( extractIcon( the_current_dir & "\\Resources\\openfold.ico" ) )
+
+atom current
+current = 0
+
+global sequence itemtext, itemparent
+itemtext = {}
+itemparent = {}
+
+global sequence theTreeForm, theTreeModules, theTreeClassModules
+    theTreeForm = {}
+    theTreeModules = {}
+    theTreeClassModules = {}
+
+integer ok
+
+global integer cameFromProjectView
+cameFromProjectView = w32False
+
+global sequence projectViewTitle
+projectViewTitle = {}
+
+global integer ignoreChange
+ignoreChange = w32False
+
+sequence fileNameAndPath
+fileNameAndPath = {}
+
+------------------------------------------------------------------------------
+integer TVErase
+TVErase = w32True
+
+sequence windowFolder
+global sequence windowsList
+
+global sequence isModule
+isModule = ""
+global integer isModuleRoutine
+isModuleRoutine = w32False
+
+------------------------------------------------------------------------------
+procedure TV_onChange(integer Self, integer Event, sequence Params)
+
+integer mouseX, mouseY, at
+
+object isOk, euDir
+
+sequence text,
+            whatGroup,
+            fileNamePath, fileNameWithoutPath
+
+    mouseX = 0
+    mouseY = 0
+
+    if TVErase then
+        return
+    end if
+
+    if ignoreChange then
+        return
+    end if
+
+    windows[selectedWindow] = controls
+
+    current = getIndex(TV)
+
+    whatGroup = {}
+
+    --allow user to have a control named Form and access it from Project Tree
+                                                        --"Modules","Class Modules"
+    if find(getTVText(current), {IDEText[968][1],IDEText[969][1]}) then
+        return
+    end if
+    if current=1                                        --"Form"
+    and equal(getTVText(current), IDEText[976]) then
+        return
+    end if
+
+    for i=1 to length(theTreeForm) do
+        if equal(getTVText(current), theTreeForm[i][1]) then
+            whatGroup = IDEText[967][1]--"Form"
+            exit
+        end if
+    end for
+    if equal(whatGroup, IDEText[967][1]) then --"Form"
+    elsif find(getTVText(current), theTreeModules) then
+        whatGroup = IDEText[968][1] --"Modules"
+    elsif find(getTVText(current), theTreeClassModules) then
+        whatGroup = IDEText[969][1]  --"Class Modules"
+    else
+        return
+    end if
+
+    if equal(whatGroup, IDEText[967][1]) then --"Form"
+        if length(getTVText(getTVParent(current))) then
+            --if form is Window Class then switch WinList and windowFolder to
+            --that window
+            for i=1 to length(windowsList) do
+                if equal(getTVText(getTVParent(current)),windowsList[i])
+                or equal(getTVText(current), windowsList[i]) then
+                    if not equal(windowsList[i], getItem(WinList,getIndex(WinList))) then
+                        --switch to that window in winList
+                        for j=1 to getCount(WinList) do
+                            if equal(getItem(WinList, j), windowsList[i]) then
+                                setIndex(WinList, j)
+                                ok = invokeHandler(WinList,w32HChange,{})
+                                exit
+                            end if
+                        end for
+                    end if
+                    --change windowFolder to this window
+                    for j=1 to length(windows) do
+                        if equal(windows[j][1][Name], getTVText(getTVParent(current)))
+                        or equal(windows[j][1][Name], getTVText(current)) then
+                            if equal(windows[j][1][Name], controls[TheWindow][Name]) then
+                                windowFolder = controls
+                            else
+                                windowFolder = windows[j]
+                            end if
+                            exit
+                        end if
+                    end for
+                    exit
+                end if
+            end for
+        end if
+
+        for i=1 to length(controls) do
+            if equal(controls[i][Name], getTVText(current)) then
+                if find(controls[i][Class], {"Menu","MenuItem","SubMenu","Sub2menu",
+                                             "Sub3menu","SubmenuItem","Sub2menuItem",
+                                             "Sub3menuItem"}) then
+                    cameFromProjectView = w32True
+                    projectViewTitle = controls[i][Title]
+                    -- open menu editor
+                    ok = invokeHandler(MenuMenuEditor, w32HClick,{})
+                    return
+                elsif find(controls[i][Class], {"Popup","PopupItem","Subpopup","Sub2popup",
+                                                "Sub3popup","SubpopupItem","Sub2popupItem",
+                                                "Sub3popupItem"}) then
+                    cameFromProjectView = w32True
+                    projectViewTitle = controls[i][Title]
+                    -- open popup editor
+                    ok = invokeHandler(MenuPopupEditor, w32HClick,{})
+                    return
+                elsif equal(controls[i][Class], "Timer") then
+                    cameFromProjectView = w32True
+                    projectViewTitle = controls[i][Name]
+                    -- open timer editor
+                    ok = invokeHandler(MenuTimerEditor,w32HClick,{})
+                    return
+                else
+                    for j=1 to getCount(PropertyTitleBar) do
+                        if equal(getItem(PropertyTitleBar,j), getTVText(current)) then
+                            setIndex(PropertyTitleBar, j)
+                            ok = invokeHandler(PropertyTitleBar,w32HChange,{})
+                            return
+                        end if
+                    end for
+                end if
+                exit
+            end if
+        end for
+
+    elsif equal(getTVText(getTVParent(current)), IDEText[969][1]) then --"Class Modules"
+
+        --save any code in editor
+        if CodeWinOpen then
+            --update last code before switching
+            call_proc(onChangeCodeFromProject_id,{})
+        end if
+
+        --open the editor for the control-event pair
+        text = getTVText(current)
+
+        --reverse text for test. Needed because Menu has "_" in name.
+        text = reverse(text)
+        at = find('_', text)
+        if at then
+            eventNode = text[1..at-1]
+            text = text[at+1..length(text)]
+            eventNode = reverse(eventNode)
+            if equal(eventNode,"(Control General)") then
+                eventNode = "(General)"
+            end if
+            text = reverse(text)
+            --is control in current window?
+            for k=1 to length(controls) do
+                if equal(text, controls[k][Name]) then
+                    at = w32findKey(eventNode, Events)
+                    if at then
+                        showEvent = at
+                        showCol = 1
+                        showScroll = 1
+                    end if
+                    selectedControl = k
+                    ok = invokeHandler(PopUpDesign_CodeEditor,w32HClick,{})
+                    return
+                end if
+            end for
+
+            for k=1 to length(windows) do
+                windowFolder = windows[k]
+                for m=1 to length(windowFolder) do
+                    if equal(windowFolder[m][Name],text) then
+                        call_proc(PickWindowId,{k})
+                        selectedControl = m
+                        if equal(windowFolder[m][Class], "TabItem") then
+                            --set the tabItemCombo to this tabitem parent
+                            for n=1 to getCount(TheTabItemCombo) do
+                                if equal(getItem(TheTabItemCombo, n),
+                                         windowFolder[m][ControlParent]) then
+                                    setIndex(TheTabItemCombo, n)
+                                    ok = invokeHandler(TheTabItemCombo,w32HChange,{})
+                                end if
+                            end for
+                        end if
+                        if equal(windowFolder[m][Class], "TabControl") then
+                            --set the tabItemCombo to the first tabitem
+                            setIndex(TheTabItemCombo, 1)
+                            ok = invokeHandler(TheTabItemCombo,w32HChange,{})
+                        end if
+
+                        at = w32findKey(eventNode, Events)
+                        if at then
+                            showEvent = at
+                            showCol = 1
+                            showScroll = 1
+                        end if
+
+                        ok = invokeHandler(PopUpDesign_CodeEditor,w32HClick,{})
+                        exit
+                    end if
+                end for
+            end for
+        end if
+
+    elsif equal(getTVText(getTVParent(current)), IDEText[968][1]) then  --"Modules"
+
+        -- save data in editor
+        if CodeWinOpen then
+            --update last code before switching
+            call_proc(onChangeCodeFromProject_id,{})
+        end if
+
+        isModule = ""
+
+        --open the editor for the module
+        isModule = getTVText(current)
+        --can editor find it?
+
+        --pick up the path from includeModules
+        isOk = w32False
+        for i=1 to length(includeModules) do
+            at = match(isModule, includeModules[i][1])
+            if at then
+                fileNamePath = includeModules[i][3]
+                fileNameWithoutPath = isModule
+                if length(fileNamePath) then
+                    isModule = fileNamePath & "\\" & isModule
+                else
+                    isModule = current_dir() & "\\" & isModule
+                end if
+
+                isOk = dir(isModule)
+                if atom(isOk) then
+                else
+                    isOk = w32True
+                end if
+                exit
+            end if
+        end for
+
+        if not isOk then
+            if atom(isOk) then
+                --maybe file is in project dir?
+                isOk = chdir(projectDir)
+                isOk = dir(isModule)
+            else
+                isModule = projectDir & "\\" & isModule
+            end if
+
+            --might be an old PRJ file module
+            --check the current directory
+            isOk = dir(isModule)
+            if atom(isOk) then
+                --maybe file is in IDE dir?
+                isOk = chdir(the_current_dir)
+                isOk = dir(isModule)
+            else
+                isModule = current_dir() & "\\" & isModule
+            end if
+
+            if atom(isOk) then
+                --check EuInc files
+                for i=1 to length(EuIncFiles) do
+                    isOk = chdir(EuIncFiles[i])
+                    isOk = dir(isModule)
+                    if sequence(isOk) then
+                        isModule = EuIncFiles[i] & "\\" & isModule
+                        exit
+                    end if
+                end for
+            end if
+
+            if atom(isOk) then
+                --maybe file is an EU include file?
+                euDir = whereEu
+                isOk = chdir(euDir & "\\include")
+                isOk = dir(isModule)
+                isModule = euDir & "\\include\\" & isModule
+            end if
+
+            if atom(isOk) then
+                --well I give up!
+                ok = displayErrorMessage(151,{isModule})
+                isModule = ""
+                return
+            end if
+        end if
+
+        cameFromProjectView = w32True
+        ok = invokeHandler(PopUpDesign_CodeEditor,w32HClick,{})
+    end if
+
+end procedure
+setHandler(TV, w32HChange, routine_id("TV_onChange"))
+--------------------------------------------------------------------------------
+procedure TV_onKeys(integer Self, integer Event, sequence Params)
+    returnValue(1)
+end procedure
+setHandler(TV, {w32HKeyPress,w32HKeyDown}, routine_id("TV_onKeys"))
+------------------------------------------------------------------------------
+--from Derek Parnell
+global function setItem(sequence text, integer parent)
+integer incr, idx
+--Sascha Zindel gave me the solution of using -1 to ignore icons
+    idx = addTVItem(TV, -1, -1, text, parent)
+    if length(itemtext)<idx then
+        incr = idx-length(itemtext)
+        itemtext &= repeat({}, incr)
+        itemparent &= repeat(0, incr)
+    end if
+
+    itemtext[idx] = text
+    itemparent[idx] = parent
+    return idx
+end function
+------------------------------------------------------------------------------
+--build initial tree
+ok = setItem(IDEText[967][1], 0) --"Form"
+ok = setItem(IDEText[968][1], 0) --"Modules"
+ok = setItem(IDEText[969][1], 0) --"Class Modules"
+------------------------------------------------------------------------------
+--from Derek
+sequence addAgainSeq
+addAgainSeq = {}
+--------------------------------------------------------------------------------
+global procedure addTreeViewNode(sequence parent, sequence child)
+integer added, idx, got, idx2
+sequence t1, t2
+
+    t1 = parent
+    if length(t1)=0 then
+        return
+    end if
+
+    t2 = child
+
+    added = 0
+    -- Trying to add a child item.
+    if length(t2)>0 then
+        -- Look for the parent text.
+        idx = find(t1, itemtext)
+        if idx then
+            --if parent is "Form" then see if there is another entry for "Form" and use it
+            if equal(t1,IDEText[967][1]) then  --"Form"                                                     
+                idx2 = find(t1, itemtext[2..length(itemtext)])
+                if idx2 then
+                    idx = idx2+1
+                end if
+            end if
+            -- Now attach the child item if it is new                     
+            got = find(t2, itemtext)
+            if got then
+                --allow addition of control named "Form" otherwise if child already in TV, skip
+                if not equal(t2,IDEText[967][1])  then --"Form"                                                                                           
+                    return
+                end if
+            end if
+            ok = setItem(t2, idx)
+            added = 1
+        end if
+    end if
+
+    -- If no parent found, then add it to the tree
+    if added=0 then
+        --if can't find parent then add to sequence to check again; it could be that child
+        --got ahead of parent......
+        addAgainSeq &= {{parent,child}}
+    end if
+
+end procedure
+------------------------------------------------------------------------------
+global procedure addTreeViewNodeWin(sequence parent, sequence child)
+--like addTreeViewNode except for Window; needed this because if had a control Form
+--the new window added under it instead of under node 1
+integer added, idx, got
+sequence t1, t2
+
+    t1 = parent
+    if length(t1)=0 then
+        return
+    end if
+
+    t2 = child
+
+    added = 0
+    -- Trying to add a child item.
+    if length(t2)>0 then
+        -- Look for the parent text.
+        idx = find(t1, itemtext)
+        if idx then
+            -- Now attach the child item.
+            --Judith check not already there
+            got = find(t2, itemtext)
+            if got then
+                --allow addition of control named "Form"
+                if not equal(t2,IDEText[967][1])  then --"Form"                                                                           
+                    return
+                end if
+            end if
+            ok = setItem(t2, idx)
+            added = 1
+        end if
+    end if
+
+    -- If no parent found, then add it to the tree
+    if added=0 then
+        ok = setItem(t1, 0)
+        if length(t2)!=0 then
+            -- Now attach the child (if any)
+            ok = setItem(t2, ok)
+        end if
+    end if
+
+end procedure
+------------------------------------------------------------------------------
+--from Derek
+procedure findChildIndex(integer i)
+integer idx
+    idx = find(i, itemparent)
+    while idx do
+        itemtext[idx] = {}
+        itemparent[idx] = 0
+        findChildIndex(idx)
+        idx = find(i, itemparent)
+    end while
+end procedure
+--------------------------------------------------------------------------------
+global procedure deleteTreeViewNode(sequence parent, sequence child)
+sequence t1, t2
+integer idx, parentidx, x, matched
+object ok
+
+
+    t1 = parent
+    t2 = child
+
+    -- If parent specified, make sure that child belongs to it.
+    if length(t1)!=0 then
+        -- Scan for parent.
+        parentidx = find(t1, itemtext)
+    else
+        -- Any parent will do.
+        parentidx = -1
+    end if
+
+    matched = w32False
+    for i=1 to length(itemtext) do
+        -- Look for item to delete
+        if equal(itemtext[i], t2) then
+            matched = w32True
+            -- Do parental check.
+            if parentidx= -1 or itemparent[i]=parentidx then
+                if parentidx= -1 then
+                    --double check that itemtext[itemparent[i]]exists
+                    x = itemparent[i]
+                    if not x
+                    or not length(itemtext[x]) then
+                        exit
+                    end if
+                end if
+                ignoreChange = w32True  --skip onchange event
+                ok = deleteItem(TV, i)
+                ignoreChange = w32False
+                itemtext[i] = {}
+                itemparent[i] = 0
+                -- reset any children data
+                idx = find(i, itemparent)
+                while idx do
+                    itemtext[idx] = {}
+                    itemparent[idx] = 0
+                    findChildIndex(idx)
+                    idx = find(i, itemparent)
+                end while
+                exit
+            end if
+        end if
+    end for
+end procedure
+-------------------------------------------------------------------------------
+global procedure deleteTreeViewNodeAndCode(sequence parent, sequence child)
+sequence t1, t2, wasText, testtext
+integer idx, parentidx, x, matched, index
+object ok
+
+
+    t1 = parent
+    t2 = child
+
+    -- If parent specified, make sure that child belongs to it.
+    if length(t1)!=0 then
+        -- Scan for parent.
+        parentidx = find(t1, itemtext)
+    else
+        -- Any parent will do.
+        parentidx = -1
+    end if
+
+    matched = w32False
+    for i=1 to length(itemtext) do
+        -- Look for item to delete        
+        if equal(itemtext[i], t2) then
+            matched = w32True
+            -- Do parental check.
+            if parentidx= -1 or itemparent[i]=parentidx then
+                if parentidx= -1 then
+                    --double check that itemtext[itemparent[i]]exists
+                    x = itemparent[i]
+                    if not x
+                    or not length(itemtext[x]) then
+                        exit
+                    end if
+                end if
+                ignoreChange = w32True
+                ok = deleteItem(TV, i)
+                ignoreChange = w32False
+                itemtext[i] = {}
+                itemparent[i] = 0
+                -- reset any children data
+                idx = find(i, itemparent)
+                while idx do
+                    itemtext[idx] = {}
+                    itemparent[idx] = 0
+                    findChildIndex(idx)
+                    idx = find(i, itemparent)
+                end while
+                exit
+            end if
+            if matched then exit end if
+        end if
+    end for
+    --now look for code    
+    for i=1 to length(itemtext) do
+        index = match(t2, itemtext[i])
+        if equal(getTVText(getTVParent(index)), IDEText[969][1]) then    --"Class Modules"       
+            if index=1 then
+                wasText = itemtext[i]
+                itemtext[i] = itemtext[i][length(t1)+1..length(itemtext[i])]
+                testtext = t2
+                for j=1 to length(itemtext[i]) do
+                    testtext = append(testtext, itemtext[i][j])
+                end for
+                ignoreChange = w32True
+                ok = deleteItem(TV, i)
+                ignoreChange = w32False
+                itemtext[i] = {}
+                itemparent[i] = 0
+            end if
+        end if
+    end for
+
+end procedure
+-----------------------------------------------------------------------------------------------
+global procedure changeTreeViewText(sequence oldText, sequence newText)
+sequence t1, testtext, wasText
+integer idx, index, stopat
+
+    t1 = oldText
+
+    if length(t1) then
+        -- Scan for index
+        idx = find(t1, itemtext)
+        if idx then
+            itemtext[idx] = newText
+            setTVText(idx, newText)
+            for i=1 to length(theTreeForm) do
+                if equal(oldText, theTreeForm[i][1]) then
+                    theTreeForm[i][1] = newText
+                    --keep going there may be multiples     
+                end if
+            end for
+
+            --now look for code
+            for i=1 to length(itemtext) do
+                index = match(t1, itemtext[i])
+                --make sure we are in class modules not in the form.
+                --when t1 is a single character we could find it twice if we do
+                --not check for class modules
+                if equal(getTVText(getTVParent(i)), IDEText[969][1]) then    --"Class Modules"
+                    --find where last underscore is in class module name
+                    stopat = 0
+                    for j=length(itemtext[i]) to 1 by -1 do
+                        if '_'=itemtext[i][j] then
+                            stopat = j
+                            exit
+                        end if
+                    end for
+                    if equal(t1,itemtext[i][1..stopat-1]) then
+                        testtext = newText & itemtext[i][stopat..length(itemtext[i])]
+                        wasText = itemtext[i]
+                        itemtext[i] = testtext
+                        setTVText(i, testtext)
+                        if length(testtext) then
+                            for j=1 to length(theTreeClassModules) do
+                                if equal(wasText, theTreeClassModules[j]) then
+                                    theTreeClassModules[j] = testtext
+                                end if
+                            end for
+                        end if
+                    end if
+                end if
+            end for
+
+            repaintWindow(TV)
+        end if
+    end if
+
+end procedure
+---------------------------------------------------------------------------------
+global procedure addClassModuleToProjectView(sequence control, integer event)
+sequence text, class_ModuleName
+integer textCnt, idx
+
+    class_ModuleName = ""
+    text = control[Code][event]
+    --find out if user added code
+    textCnt = w32False
+    for i=1 to length(text) do
+        if match("procedure", text[i])=1
+        or match("end procedure", text[i])=1
+        or match("setHandler", text[i])=1
+        or match("onClick", text[i])=1 then
+                    --ignore
+        else
+            textCnt = w32True
+            exit
+        end if
+    end for
+
+    if event!=General
+    and event!=Intro
+    and event!=Final then
+        class_ModuleName =
+                control[Name]         -- control name
+                & "_"                 -- underscore
+                & Events[event][1]    -- event name
+    else
+        if event=General then
+            if equal(control[Class], "Window") then
+                class_ModuleName =
+                                control[Name]
+                                & "_"
+                                & "(General)"
+            else
+                class_ModuleName =
+                                control[Name]
+                                & "_"
+                                & "(Control General)"
+            end if
+        elsif event=Intro then
+            class_ModuleName =
+                        control[Name]
+                        & "_"
+                        & "(Intro)"
+        elsif event=Final then
+            class_ModuleName =
+                        control[Name]
+                        & "_"
+                        & "(Final)"
+        end if
+    end if
+
+    if length(class_ModuleName) then
+--                if length(text) then
+        if textCnt then
+            --add to class modules sequence
+            theTreeClassModules &= {class_ModuleName}
+            addTreeViewNode(IDEText[969][1],class_ModuleName)--"Class Modules"
+            idx = find(class_ModuleName, itemtext)
+            if idx then
+                TVErase = w32True
+                setFocus({TV,idx})
+                TVErase = w32False
+            end if
+        else
+            deleteTreeViewNode("", class_ModuleName)
+            TVErase = w32True
+            setFocus({TV,1})
+            TVErase = w32False
+        end if
+    end if
+
+end procedure
+------------------------------------------------------------------------------
+global procedure buildProjectFolders()
+
+sequence parent, text,
+            class_ModuleName
+sequence data, treedata
+integer at,menuCreatedYet,popupCreatedYet,timerCreatedYet
+
+    menuCreatedYet = w32False
+    popupCreatedYet = w32False
+    timerCreatedYet = w32False
+
+    eraseItems(TV)
+    itemparent = {}
+    itemtext = {}
+
+
+    --build initial tree
+    ok = setItem(IDEText[967][1], 0)      --"Form"
+    ok = setItem(IDEText[968][1], 0)      --"Modules"
+    ok = setItem(IDEText[969][1], 0)      --"Class Modules"
+
+    TVErase = w32True
+    treedata = {"",""}
+
+    class_ModuleName = {}
+
+    windowsList = {}
+
+    fileNameAndPath = {}
+    data = {"",""}
+
+    while w32True do
+        at = w32False
+        if length(theTreeForm) then
+            for i=1 to length(theTreeForm) do
+                if equal(theTreeForm[i][2], "Window") then
+                    deleteTreeViewNode("", theTreeForm[i][1])
+                    theTreeForm = theTreeForm[1..i-1] & theTreeForm[i+1..length(theTreeForm)]
+                    at = w32True
+                    exit
+                end if
+            end for
+        end if
+        if not at then
+            exit
+        end if
+    end while
+
+    if length(theTreeModules) then
+        for i=1 to length(theTreeModules) do
+            deleteTreeViewNode("", theTreeModules[i])
+        end for
+    end if
+
+    if length(theTreeClassModules) then
+        for i=1 to length(theTreeClassModules) do
+            deleteTreeViewNode("", theTreeClassModules[i])
+        end for
+    end if
+
+    theTreeForm = {}
+    theTreeModules = {}
+    theTreeClassModules = {}
+
+
+    for i=1 to length(includeModules) do
+
+        --add to array of file name and path for use when selecting a node
+        includeModules[i][1] = reverse(includeModules[i][1])
+        at = match("\\", includeModules[i][1])
+        if at then
+            data[1] = includeModules[i][1][1..at-1]
+            data[2] = includeModules[i][1][at+1..length(includeModules[i][1])]
+        else
+            data[1] = includeModules[i][1]
+            data[2] = {}
+        end if
+        data[1] = reverse(data[1])
+        data[2] = reverse(data[2])
+        fileNameAndPath &= {data}
+        --add to modules sequence
+        theTreeModules &= {data[1]}
+        addTreeViewNode(IDEText[968][1],data[1]) --"Modules"
+
+        includeModules[i][1] = reverse(includeModules[i][1])
+    end for
+
+    --read window1 and its controls then window2 etc.
+    windowFolder = {}
+    addAgainSeq = {}
+    --update the current window
+    -- save controls to window
+    if selectedWindow then
+        windows[selectedWindow] = controls
+    end if
+
+    for i=1 to length(windows) do
+        windowFolder = windows[i]
+        windowsList &= {windowFolder[1][Name]}
+        menuCreatedYet = w32False
+        popupCreatedYet = w32False
+        timerCreatedYet = w32False
+
+        for j=1 to length(windowFolder) do
+            if equal(windowFolder[j][Class], "Window") then
+                if not length(windowFolder[j][Name]) then
+                    addTreeViewNodeWin(IDEText[967][1], " ") --"Form"
+                    treedata = {" ","Window"}
+                    theTreeForm &= {treedata}
+                else
+                    --add to forms sequence
+                    treedata[1] = windowFolder[j][Name]
+                    treedata[2] = windowFolder[j][Class]
+                    theTreeForm &= {treedata}
+                    addTreeViewNodeWin(IDEText[967][1],windowFolder[j][Name])  --"Form"
+                end if
+            elsif length(windowFolder[j][ControlParent])
+               or length(windowFolder[j][SeqParentName])
+               or j!=1 then
+
+                --control has a parent
+                parent = windowFolder[j][ControlParent]
+                if length(windowFolder[j][SeqParentName]) then
+                    parent = windowFolder[j][SeqParentName]
+                end if
+
+                if j!=1
+                and not length(parent) then
+                    --if control did not have a preassigned parent then
+                    --use 'Window' unless Menu, Popup or Timer
+                    parent = windowFolder[1][Name]
+                end if
+
+                if equal(windowFolder[j][Class],"Menu") then
+                    parent = "The Menus:" & windowFolder[1][Name]
+                end if
+
+                if equal(windowFolder[j][Class],"Popup") then
+                    parent = "The Popups:" & windowFolder[1][Name]
+                end if
+
+                if equal(windowFolder[j][Class],"Timer") then
+                    parent = "The Timers:" & windowFolder[1][Name]
+                end if
+
+                if not length(windowFolder[j][Name]) then
+                    addTreeViewNode(parent," ")
+                    treedata[1] = " "
+                    treedata[2] = windowFolder[j][Class]
+                    theTreeForm &= {treedata}
+                else
+                    --add to forms sequence
+                    if equal(windowFolder[j][Class], "Menu")
+                    and not menuCreatedYet then
+                        menuCreatedYet = w32True
+                        --add to forms sequence
+                        treedata[1] = "The Menus:" & windowFolder[1][Name]
+                        treedata[2] = "Menu"
+                        theTreeForm &= {treedata}
+                        addTreeViewNode(windowFolder[1][Name],"The Menus:" & windowFolder[1][Name])
+                    end if
+                    if equal(windowFolder[j][Class], "Popup")
+                    and not popupCreatedYet then
+                        popupCreatedYet = w32True
+                        --add to forms sequence
+                        treedata[1] = "The Popups:" & windowFolder[1][Name]
+                        treedata[2] = "Popup"
+                        theTreeForm &= {treedata}
+                        addTreeViewNode(windowFolder[1][Name],"The Popups:" & windowFolder[1][Name])
+                    end if
+                    if equal(windowFolder[j][Class], "Timer")
+                    and not popupCreatedYet then
+                        popupCreatedYet = w32True
+                        --add to forms sequence
+                        treedata[1] = "The Timers:" & windowFolder[1][Name]
+                        treedata[2] = "Timer"
+                        theTreeForm &= {treedata}
+                        addTreeViewNode(windowFolder[1][Name],"The Timers:" & windowFolder[1][Name])
+                    end if
+                    treedata[1] = windowFolder[j][Name]
+                    treedata[2] = windowFolder[j][Class]
+                    theTreeForm &= {treedata}
+                    addTreeViewNode(parent,windowFolder[j][Name])
+                end if
+            else
+                if not length(windowFolder[j][Name]) then
+                    treedata[1] = " "
+                    treedata[2] = windowFolder[j][Class]
+                    theTreeForm &= {treedata}
+                    addTreeViewNode(IDEText[967][1]," ")  --"Form"
+                else
+                    treedata[1] = windowFolder[j][Name]
+                    treedata[2] = windowFolder[j][Class]
+                    theTreeForm &= {treedata}
+                    addTreeViewNode(IDEText[967][1],windowFolder[j][Name])  --"Form"
+                end if
+            end if
+
+            --now find event code
+            -- generate code associated with a control
+
+            -- examine each to see if code is associated
+            for event=1 to length(windowFolder[j][Code]) do
+
+                -- code?
+                text = windowFolder[j][Code][event]
+                if length(text) then
+
+                    if event!=General
+                    and event!=Intro
+                    and event!=Final then
+                        if length(text) then
+                            class_ModuleName =
+                                windowFolder[j][Name]         -- control name
+                                & "_"                         -- underscore
+                                & Events[event][1]            -- event name
+                        end if
+                    else
+                        if event=General then
+                            if equal(windowFolder[j][Class], "Window") then
+                                class_ModuleName =
+                                windowFolder[j][Name]
+                                & "_"
+                                & "(General)"
+                            else
+                                class_ModuleName =
+                                        windowFolder[j][Name]
+                                        & "_"
+                                        & "(Control General)"
+                            end if
+                        elsif event=Intro then
+                            class_ModuleName =
+                                windowFolder[j][Name]
+                                & "_"
+                                & "(Intro)"
+                        elsif event=Final then
+                            class_ModuleName =
+                                windowFolder[j][Name]
+                                & "_"
+                                & "(Final)"
+                        end if
+                    end if
+
+                    if length(class_ModuleName) then
+                        --add to class modules sequence
+                        theTreeClassModules &= {class_ModuleName}
+                        addTreeViewNode(IDEText[969][1] ,class_ModuleName) --"Class Modules"
+                    end if
+
+                end if
+            end for
+
+        end for
+
+    end for
+    if length(addAgainSeq) then
+        for x=1 to length(addAgainSeq) do
+            addTreeViewNode(addAgainSeq[x][1],addAgainSeq[x][2])
+        end for
+    end if
+    TVErase = w32False
+    toggleItem(1)
+
+end procedure
+-------------------------------------------------------------------------------
+procedure open_Project(integer Self, integer Event, sequence Params)
+    buildProjectFolders()
+end procedure
+setHandler(ProjectWindow, w32HOpen, routine_id("open_Project"))
+--------------------------------------------------------------------------------
+global procedure findCurrentNode(sequence what)
+integer idx
+
+    idx = find(what, itemtext)
+    if idx then
+        TVErase = w32True
+        setFocus({TV,idx})
+        TVErase = w32False
+    end if
+end procedure
+

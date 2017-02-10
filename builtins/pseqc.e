@@ -45,6 +45,20 @@ integer l = length(src)
     return src[l-size+1..l]
 end function
 
+global function pad_head(sequence target, integer size, object ch=' ')
+    if size<=length(target) then
+        return target
+    end if
+    return repeat(ch, size-length(target)) & target
+end function
+
+global function pad_tail(sequence target, integer size, object ch=' ')
+    if size<=length(target) then
+        return target
+    end if
+    return target & repeat(ch, size-length(target))
+end function
+
 global function remove(sequence src, integer start, integer stop=start)
     src[start..stop] = ""
 --  src = src[1..start-1] & src[stop+1..length(src)]

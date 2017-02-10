@@ -1689,11 +1689,8 @@ procedure loadBase()
         while 1 do
             col += 1
             Ch = text[col]
-            if Ch<'0' or Ch>'9' then
-                if Ch!='_' then exit end if
-            else
-                base = base*10 + Ch-'0'
-            end if
+            if Ch<'0' or Ch>'9' then exit end if
+            base = base*10 + Ch-'0'
         end while
 --      if not find(base,bases) then
         if base<2 or base>36 then
@@ -2411,10 +2408,10 @@ sequence name
 --                  thisflag = 1    -- DEV (PE==1 && X64==0)
                     thisflag = PE
                 elsif ttidx=T_LINUX
-                   or ttidx=T_FREEBSD
-                   or ttidx=T_SUNOS
-                   or ttidx=T_OPENBSD
-                   or ttidx=T_OSX
+--                 or ttidx=T_FREEBSD
+--                 or ttidx=T_SUNOS
+--                 or ttidx=T_OPENBSD
+--                 or ttidx=T_OSX
                    or ttidx=T_UNIX then
 --                  thisflag = 0    -- DEV (PE==0?)
                     thisflag = not PE
@@ -2438,6 +2435,10 @@ sequence name
                    or ttidx=T_DATA_EXECUTE
                    or ttidx=T_UCSTYPE_DEBUG
                    or ttidx=T_EU4_1
+                   or ttidx=T_OSX
+                   or ttidx=T_FREEBSD
+                   or ttidx=T_SUNOS
+                   or ttidx=T_OPENBSD
                    or ttidx=T_CRASH then
                     thisflag = 0
                 elsif ttidx=T_BITS32 then
@@ -2445,6 +2446,8 @@ sequence name
                     thisflag = not X64
                 elsif ttidx=T_BITS64 then
                     thisflag = X64
+                elsif ttidx=T_PHIX then
+                    thisflag = 1
                 else
                     Aborpp("unrecognised")
                 end if

@@ -414,7 +414,15 @@ atom dwError
                         int3
                   @@:
                 [ELF64]
-                    pop al
+                    mov rax,[hThread]
+                    call :%pLoadMint
+                    mov rsi,ebx                         -- *retval [NULL]
+                    mov rdi,eax                         -- thread
+                    call "libpthread.so.0","pthread_join"
+                    test rax,rax
+                    jz @f
+                        int3
+                  @@:
                 []
                   }
         end if
@@ -441,9 +449,11 @@ global procedure exit_thread(integer ecode)
             sub rsp,8*5                         -- minimum 4 param shadow space, and align
             call "kernel32.dll","ExitThread"    -- ExitThread(0)
         [ELF64]
-            xor rbx,rbx 
-            mov rax,60                          -- sys_exit
-            syscall
+--          xor rbx,rbx 
+--          mov rax,60                          -- sys_exit
+--          syscall
+            xor rdi,rdi
+            call "libpthread.so.0","pthread_exit"
         []
            }
 end procedure
@@ -485,7 +495,19 @@ atom pExitCode, dwExitCode
                 lea edi,[dwExitCode]
                 call :%pStoreMint
             [ELF64]
-                pop al
+                mov eax,[hThread]
+                call :%pLoadMint
+                push ebx
+                mov rsi,esp                         -- *retval
+                mov rdi,rax                         -- thread
+                call "libpthread.so.0","pthread_join"
+                test rax,rax
+                jz @f
+                    int3
+              @@:
+                pop rax
+                lea rdi,[dwExitCode]
+                call :%pStoreMint
             []
               }
             if and_bits(dwExitCode,0o177)=0 then

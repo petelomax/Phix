@@ -14,7 +14,7 @@
          </td>
          <td>
           <font face = "Arial, Helvetica">
-             sequence s = int_to_bytes(atom a)
+             sequence s = int_to_bytes(atom a, integer size = 4)
           </font>
          </td>
         </tr>
@@ -22,8 +22,9 @@
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>  Convert an integer into a sequence of 4 bytes. These bytes are in
-             the order expected on the 386+, i.e. least-significant byte first.
+         <td>
+            Convert an integer into a sequence of bytes. These bytes are in
+            the order expected on the 386+, i.e. least-significant byte first.
          </td>
         </tr>
         <tr>
@@ -31,21 +32,30 @@
           <b>Comments:</b>
          </td>
          <td>
-            You might use this routine prior to poking the 4 bytes into
+            You might use this routine prior to poking the bytes into
             memory for use by a machine language program.
           <br>
           <br>
-            The integer can be negative. Negative byte-values will be
-            returned, but after poking them into memory you will have
-            the correct (twos complement) representation for the 386+.
+            The integer can be negative. The individual byte-values returned are
+            unsigned (0..255), but after poking them into memory you will have
+            the correct (twos complement) representation, and will yield the same
+            (signed) value if passed to <a href="bytes_to_int.htm">bytes_to_int</a>().
           <br>
           <br>
-            This function will correctly convert integer values up to 32-bits. For
-             larger values, only the low-order 32-bits are converted. The
-             integer type only allows values up to 31-bits, so declare your variables as
-           <font color="#030303">
-            <b>atom</b>
-           </font> if you need a larger range.
+           The size may be 1, 2, 4, or 8, ie the number of bytes.
+          <br>
+          <br>
+            For values which exceed the specified size, the lower size*8 bits are 
+            stored and any higher bits discarded. Values which exceed the Phix definition
+            of integer (ie 31 or 63 bits) but still fit in the specified size (32 or 64 
+            bits) will work fine, but obviously any variable used to store the result from 
+            <a href="bytes_to_int.htm">bytes_to_int</a>() will need to be declared as atom.
+          <br>
+          <br>
+            Note however that 32-bit Phix cannot hold a 64-bit integer with full accuracy,
+            even in a variable declared as atom, since atoms on 32-bit have a maximum
+            precision of 53 bits, however there is no attempt to issue any kind of compiler
+            or runtime error or warning that low-bits might get dropped.
          </td>
         </tr>
         <tr>
@@ -70,11 +80,11 @@ s = int_to_bytes(999)
          <td>
 <!--eucode>
 s = int_to_bytes(-999)
--- s is {-231, -4, -1, -1}
+-- s is {25,252,255,255}
 </eucode-->
 <pre>
 <font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> int_to_bytes</font><font color="#0000FF">(-</font><font color="#000000">999</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- s is {-231, -4, -1, -1}</i></font>
+</font><font color="#000080"><i>-- s is {25,252,255,255}</i></font>
 </pre>
          </td>
         </tr>

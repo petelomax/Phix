@@ -1,0 +1,357 @@
+---- ide_initlist.ew
+-- manage initial values for Lists and Combos
+global atom InitialWindow       InitialWindow = -1
+atom InitialText1,InitialValueData,InitialDelete,InitialMoveUp,InitialMoveDown
+atom InitialList,InitialOk,InitialCancel,InitialThisControl,InitialChg,InitialText2,InitialAdd
+--------------------------------------------------------------------------------
+integer ok
+
+sequence menu        -- the list values
+
+integer is_changed
+is_changed=w32False    --flag w32True when any changes have been made and check this
+                    --if user close editor without saving
+
+----------------------------------------------------------------------------- 
+procedure updateInitialList( integer index )
+ 
+    sequence text 
+ 
+    -- erase the list 
+    eraseItems( InitialList )
+ 
+    for i = 1 to length( menu ) do 
+     
+        -- build the text
+        text = menu[i]
+
+        -- add to list
+        addItem( InitialList, text )
+
+    end for
+
+    -- set list item      
+    if index then 
+       setIndex( InitialList, index )
+    end if 
+     
+end procedure  
+-----------------------------------------------------------------------
+procedure savetheInitial( )
+
+    controls[selectedControl][InitialVal]={}
+
+    for i=1 to length( menu ) do
+        controls[selectedControl][InitialVal]&={menu [i]}       
+    end for
+
+    --reset flag for subsequent changes
+    is_changed = w32False
+
+    IDE_Changed=w32True
+
+end procedure                       
+--------------------------------------------------------------------------------
+procedure InitialWindow_Close ()
+
+    if is_changed then
+        ok = displayErrorMessage(123,{})
+        if ok=IDCANCEL then
+           showWindow(InitialWindow, SW_RESTORE)
+           returnValue(-1)
+           return 
+        elsif ok = IDYES then
+            savetheInitial()
+            call_proc( updateProperties_id,{} )
+        end if
+    end if 
+
+    if validId(InitialWindow) then
+        destroy(InitialWindow)
+    end if
+    InitialWindow = -1
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialWindow_Open (integer self, integer event, sequence params)
+    
+    is_changed = w32False
+
+    --build the combo
+    eraseItems(InitialThisControl)
+    for i=1 to length(controls) do
+        if find(controls[i][Class], {"List","DropDownList","SortedList","Combo",
+                    "SortedCombo","SimpleCombo","ComboBoxEx"}) then
+            addItem(InitialThisControl, controls[i][Name])    
+        end if
+    end for
+
+    menu={}
+    if find(controls[selectedControl][Class],{"List","DropDownList","SortedList",
+                "Combo","SortedCombo","SimpleCombo","ComboBoxEx"})then
+        for i=1 to length( controls[selectedControl][InitialVal]) do
+            menu&={controls[selectedControl][InitialVal][i]}
+        end for
+
+        for i=1 to getCount(InitialThisControl) do
+            if equal(controls[selectedControl][Name], 
+                    getItem( InitialThisControl,i ))then
+                setIndex( InitialThisControl, i )
+                exit
+            end if
+        end for
+    end if
+        
+    setText( InitialValueData, "" )
+    if getCount(InitialThisControl) then
+        setEnable(InitialValueData, w32True)
+        setEnable(InitialAdd, w32True)
+    else
+        setEnable(InitialValueData, w32False)
+        setEnable(InitialAdd, w32False)
+    end if
+
+    -- update the list
+    updateInitialList( 0 )
+
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialWindow_Resize (integer self, integer event, sequence params)
+    -- adjust size of List
+
+    sequence sizeEW, sizeEL   
+    integer heightEL
+
+    sizeEW   = getRect(InitialWindow)
+    sizeEL   = getRect(InitialList)
+    heightEL = sizeEW[4] - sizeEW[2] - 180 - 125 + floor(sizeEW[4] / 13)   
+    if heightEL < 145 then heightEL = 145 end if
+
+    setRect(InitialList ,12, 180,params[2]-22, heightEL, w32True)
+   
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialValueData_KeyPress (integer self, integer event, sequence params)
+    if params[1]=13 then
+        if length(getText(InitialValueData)) then
+            addItem( InitialList,getText(InitialValueData))
+            menu&={getText(InitialValueData)}
+            setText( InitialValueData,"")
+        end if
+        -- update the list
+        updateInitialList(getCount(InitialList))
+        is_changed=w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialDelete_Click (integer self, integer event, sequence params)
+    integer index
+
+    -- is there an item selected?
+    index = getIndex( InitialList )
+    if index > 0 then
+        ok=deleteItem( InitialList, index )
+        menu=menu[1..index-1] & menu[index+1..length(menu)]
+        -- update the list
+        updateInitialList( index-1 )
+        is_changed=w32True
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialMoveUp_Click (integer self, integer event, sequence params)
+    -- move a item up
+    sequence s
+    integer index
+
+    -- is there an item selected?
+    index = getIndex( InitialList )
+    if index > 1 then
+
+        -- swap
+        s = menu[index-1]
+        menu[index-1] = menu[index]
+        menu[index] = s
+
+        is_changed=w32True
+
+        -- update the list
+        updateInitialList( index-1 )
+        
+    end if
+    
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialMoveUp_KeyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then InitialMoveUp_Click (InitialMoveUp, w32HClick, {} ) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialMoveDown_Click (integer self, integer event, sequence params)
+    -- move a item down
+    sequence s
+    integer index
+ 
+    -- is there an item selected? 
+    index = getIndex( InitialList )
+    if index > 0
+    and index < length( menu ) then 
+ 
+        -- swap 
+        s = menu[index+1] 
+        menu[index+1] = menu[index] 
+        menu[index] = s
+
+        is_changed=w32True
+ 
+        -- update the list 
+        updateInitialList( index+1 )
+ 
+    end if
+         
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialMoveDown_KeyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then InitialMoveDown_Click (InitialMoveDown, w32HClick, {} ) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialList_Change (integer self, integer event, sequence params)
+
+    integer index 
+
+    index = getIndex( InitialList )
+
+    setText(InitialValueData, getItem(InitialList, index) )	
+
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialOk_Click (integer self, integer event, sequence params)
+    
+    if is_changed then
+        savetheInitial()
+        call_proc( updateProperties_id,{} )
+    end if
+
+    -- close the window 
+    closeWindow( InitialWindow )
+    InitialWindow_Close ()
+    
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialOk_KeyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then InitialOk_Click (InitialOk, w32HClick, {} ) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialCancel_Click (integer self, integer event, sequence params)
+    -- close the window
+    closeWindow(InitialWindow)
+    InitialWindow_Close ()
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialCancel_KeyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then InitialCancel_Click (InitialCancel, w32HClick, {} ) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialThisControl_Change (integer self, integer event, sequence params)
+    --ask to save prior list selection, if any changes had been made?
+    if is_changed then
+        ok = displayErrorMessage(124,{})
+        if ok=IDCANCEL then
+           return 
+        elsif ok = IDYES then
+            savetheInitial()
+        end if
+    end if
+     
+    --empty listbox and reset switches
+    is_changed=w32False
+
+    --change selectedControl
+    for i=1 to length(controls) do
+        if equal( controls[i][Name], getItem(InitialThisControl,
+                    getIndex(InitialThisControl)) ) then
+            selectedControl=i
+            exit
+        end if            
+    end for
+
+    menu={}
+    for i=1 to length( controls[selectedControl][InitialVal]) do
+        menu&={controls[selectedControl][InitialVal][i]}
+    end for
+    
+    setText(InitialValueData,"")
+
+    -- update the list
+    updateInitialList( 0 )
+    
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialChg_Click (integer self, integer event, sequence params)
+    integer index
+
+    -- is there an item selected?
+    index = getIndex( InitialList )
+    if index > 0 
+    and length(getText(InitialValueData)) then
+        menu[index]=getText(InitialValueData)	--took off brackets around getText(...)
+        -- update the list
+        updateInitialList( index )
+        is_changed=w32True						--added
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure InitialAdd_Click (integer self, integer event, sequence params)
+    if length(getText(InitialValueData)) then
+        addItem( InitialList,getText(InitialValueData))
+           menu&={getText(InitialValueData)}
+        setText( InitialValueData,"")
+    end if
+    -- update the list
+    updateInitialList(getCount(InitialList))
+    is_changed=w32True
+end procedure
+--------------------------------------------------------------------------------
+global procedure createInitialWindow()
+if InitialWindow = -1 then
+                                    --"Initial Values"
+    InitialWindow = createEx( Window, IDEText[405][1], Form, Default, Default, 480, 370, {WS_THICKFRAME+WS_DLGFRAME}, 0 )
+                                  --"Values for "
+    InitialText1 = createEx( RText, IDEText[406][1], InitialWindow, 4, 4, 80, 24, 0, 0 )
+    InitialValueData = createEx( EditText, "", InitialWindow, 48, 72, 292, 24, 0, 0 )
+                                        --"Delete"
+    InitialDelete = createEx( PushButton, IDEText[407][1], InitialWindow, 200, 136, 115, 28, 0, 0 )
+                                        --"Move Up"
+    InitialMoveUp = createEx( PushButton, IDEText[408][1], InitialWindow, 348, 104, 115, 28, 0, 0 )
+                                          --"Move Down"
+    InitialMoveDown = createEx( PushButton, IDEText[409][1], InitialWindow, 348, 136, 115, 28, 0, 0 )
+    InitialList = createEx( List, "", InitialWindow, 12, 180, 448, 144, w32or_all({LBS_NOINTEGRALHEIGHT}), 0 )
+                                    --"OK"
+    InitialOk = createEx( PushButton, IDEText[410][1], InitialWindow, 376, 4, 88, 30, 0, 0 )
+                                        --"Cancel"
+    InitialCancel = createEx( PushButton, IDEText[411][1], InitialWindow, 376, 36, 88, 30, 0, 0 )
+    InitialThisControl = createEx( SortedCombo, "", InitialWindow, 84, 4, 212, 6*20, 0, 0 )
+                                     --"Change"
+    InitialChg = createEx( PushButton, IDEText[412][1], InitialWindow, 48, 136, 115, 28, 0, 0 )
+                                  --"Value:"
+    InitialText2 = createEx( RText, IDEText[413][1], InitialWindow, 0, 72, 44, 16, 0, 0 )
+                                     --"Add"
+    InitialAdd = createEx( PushButton, IDEText[414][1], InitialWindow, 48, 104, 115, 28, 0, 0 )
+
+    setHandler(InitialWindow, w32HOpen, routine_id("InitialWindow_Open"))
+    setHandler(InitialWindow, w32HResize, routine_id("InitialWindow_Resize"))
+    setHandler(InitialValueData, w32HKeyPress, routine_id("InitialValueData_KeyPress"))
+    setHandler(InitialDelete, w32HClick, routine_id("InitialDelete_Click"))
+    setHandler(InitialMoveUp, w32HClick, routine_id("InitialMoveUp_Click"))
+    setHandler(InitialMoveUp, w32HKeyPress, routine_id("InitialMoveUp_KeyPress"))
+    setHandler(InitialMoveDown, w32HClick, routine_id("InitialMoveDown_Click"))
+    setHandler(InitialMoveDown, w32HKeyPress, routine_id("InitialMoveDown_KeyPress"))
+    setHandler(InitialList, w32HChange, routine_id("InitialList_Change"))
+    setHandler(InitialOk, w32HClick, routine_id("InitialOk_Click"))
+    setHandler(InitialOk, w32HKeyPress, routine_id("InitialOk_KeyPress"))
+    setHandler(InitialCancel, w32HClick, routine_id("InitialCancel_Click"))
+    setHandler(InitialCancel, w32HKeyPress, routine_id("InitialCancel_KeyPress"))
+    setHandler(InitialThisControl, w32HChange, routine_id("InitialThisControl_Change"))
+    setHandler(InitialChg, w32HClick, routine_id("InitialChg_Click"))
+    setHandler(InitialAdd, w32HClick, routine_id("InitialAdd_Click"))
+
+end if
+end procedure
+­127.40

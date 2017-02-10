@@ -7,7 +7,7 @@
 
 #ilASM{ jmp :%opRetf
 
---DEV: (make it one error code)
+--DEV: (make it one error code) [*these are probably better as hll anyway?]
     ::e2803atsmbausq
         int3
 

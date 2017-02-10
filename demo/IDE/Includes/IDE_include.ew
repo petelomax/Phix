@@ -1,0 +1,632 @@
+---- ide_include.ew
+-- reorder included files list prior to MenuRun for win32lib ide
+
+integer cfgDefaultMIS           cfgDefaultMIS = 48
+
+integer ok
+global integer IncludeWindow   IncludeWindow = -1
+integer IncludeText1,IncludeText3,IncludeText4,IncludeText5
+integer RelPathPopup,DelPathItem,RelPathItem
+integer IncludeAppendText,IncludeMoveUp,IncludeMoveDown,IncludeAdd,IncludeDelete
+integer IncludeList,IncludeOk,IncludeCancel,IncludePath,BrowseDef,IncludeCheckBox
+--------------------------------------------------------------------------------
+
+integer is_changed, madeDelete
+is_changed = w32False    --flag w32True when any changes have been made and check this
+                    --if user close editor without saving
+madeDelete = w32False
+
+sequence orderModules
+orderModules = {}
+
+----------------------------------------------------------------------------- 
+procedure updateReorderList(integer index)
+
+sequence text, data, path
+integer at
+
+-- erase the list 
+    eraseItems(IncludeList)
+
+    for i=1 to length(orderModules) do
+
+        -- build the text
+        text = orderModules[i][1]
+        path = {}
+        data = reverse(text)
+        at = match("\\", data)
+
+        if at then
+            text = data[1..at-1]
+            path = data[at+1..length(data)]
+            text = reverse(text)
+            path = reverse(path)
+        end if
+
+        -- add to list
+        addItem(IncludeList, text)
+
+    end for
+
+    if index then
+        setIndex(IncludeList, index)
+        setText(IncludeAppendText, orderModules[index][2])
+        setText(IncludePath, path)
+        setCheck(IncludeCheckBox, orderModules[index][4])
+    else
+        setText(IncludeAppendText,"")
+        setText(IncludePath,"")
+        setCheck(IncludeCheckBox, w32False)
+    end if
+
+end procedure
+----------------------------------------------------------------------------
+procedure Include_Change(integer self, integer event, sequence params)
+
+integer index, at
+sequence data, text, path
+
+    index = getIndex(IncludeList)
+
+    if not index then
+        return
+    end if
+
+    setEnable(RelPathPopup,w32True)
+    setEnable(IncludePath, w32True)
+    setEnable(BrowseDef, w32True)
+    setEnable(IncludeAppendText, w32True)
+    setEnable(IncludeCheckBox, w32True)
+
+    setText(IncludeAppendText, orderModules[index][2])
+
+    data = reverse(orderModules[index][1])
+
+    path = {}
+
+    at = match("\\", data)
+    if at then
+        text = data[1..at-1]
+        path = data[at+1..length(data)]
+        text = reverse(text)
+        path = reverse(path)
+    end if
+
+    setText(IncludePath, path)
+    setCheck(IncludeCheckBox, orderModules[index][4])
+
+end procedure
+-----------------------------------------------------------------------------
+procedure savetheIncludeReorder()
+sequence text, data, which, path
+integer at
+
+    -- save changes
+    --save the new tab order in the menu sequence
+    includeModules = orderModules
+
+    if getCount(CodeModules) then
+        which = getItem(CodeModules,getIndex(CodeModules))
+    else
+        which = {}
+    end if
+    eraseItems(CodeModules)
+    eraseItems(PathModules)
+
+    for i=1 to length(includeModules) do
+        text = orderModules[i][1]
+        path = orderModules[i][3]
+        data = reverse(text)
+        at = match("\\", data)
+        if at then
+            text = data[1..at-1]
+            text = reverse(text)
+
+            deleteTreeViewNode("", text)
+            addTreeViewNode(IDEText[968][1],text)  --"Modules"
+            theTreeModules &= {text}
+
+            addItem(CodeModules, text)
+            addItem(PathModules, path)
+        else
+            deleteTreeViewNode("", text)
+            addTreeViewNode(IDEText[968][1],text)    --"Modules"
+            theTreeModules &= {text}
+            addItem(CodeModules, text)
+            addItem(PathModules, path)
+        end if
+
+        --save to include file in all projects if checked and, if not, and is in
+        --save list, remove it
+        settingsBuffer[cfgDefaultMIS] = {}
+        if orderModules[i][4] then
+            if match(orderModules[i][3], orderModules[i][1]) then
+                --filename has path already
+                settingsBuffer[cfgDefaultMIS] &= {orderModules[i][1]}
+            else
+                settingsBuffer[cfgDefaultMIS] &= {orderModules[i][3] & "\\" & orderModules[i][1]}
+            end if
+        end if
+
+    end for
+    if getCount(CodeModules) then
+        setEnable(CodeModules, w32True)
+    end if
+    setIndex(CodeModules, getCount(CodeModules))
+    if length(which) then
+        for i=1 to getCount(CodeModules) do
+            if equal(which, getItem(CodeModules, i)) then
+                setIndex(CodeModules, i)
+                exit
+            end if
+        end for
+    end if
+
+    --reset flag for subsequent changes
+    is_changed = w32False
+
+    IDE_Changed = w32True
+
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeWindow_Close()
+
+    if is_changed then
+        ok = displayErrorMessage(122,{})
+        if ok=IDCANCEL then
+            showWindow(IncludeWindow, SW_RESTORE)
+            returnValue(-1)
+            return
+        elsif ok=IDYES then
+            savetheIncludeReorder()
+        end if
+    end if
+
+    if validId(IncludeWindow) then
+        destroy(IncludeWindow)
+    end if
+    IncludeWindow = -1
+
+
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeWindow_Open(integer self, integer event, sequence params)
+
+    is_changed = w32False
+
+    orderModules = includeModules
+
+    -- update the list
+    updateReorderList(0)
+
+end procedure
+-------------------------------------------------------------------------------
+procedure IncludeWindow_Resize(integer self, integer event, sequence params)
+-- adjust size of List
+
+sequence sizeEW, sizeEL, sizeAP, sizeIP, sizeBT
+integer heightEL
+
+    sizeEW   = getRect(IncludeWindow)
+    sizeEL   = getRect(IncludeList)
+    sizeAP   = getRect(IncludeAppendText)
+    sizeIP   = getRect(IncludePath)
+    sizeBT   = getRect(BrowseDef)
+
+    heightEL = sizeEW[4]-sizeEW[2]-180-155+floor(sizeEW[4]/13)
+    if heightEL<125 then heightEL = 125 end if
+
+    setRect(IncludeList, 16, 260, params[2]-22, heightEL, w32True)
+
+    setRect(IncludeAppendText, sizeAP[1], sizeAP[2],
+            sizeEW[3]-sizeEW[1]-20-sizeAP[1], sizeAP[4]-sizeAP[2], w32True)
+
+    setRect(IncludePath, sizeIP[1], sizeIP[2],
+            sizeEW[3]-sizeEW[1]-25-sizeIP[1]-(sizeBT[3]-sizeBT[1]), sizeIP[4]-sizeIP[2], w32True)
+
+    sizeIP = getRect(IncludePath)
+    setRect(BrowseDef, sizeIP[3]+5,sizeBT[2],sizeBT[3]-sizeBT[1],sizeBT[4]-sizeBT[2], w32True)
+    setRect(IncludeText1,0,10,params[2]-10,39,w32True)
+
+    setText(IncludeText1,IDEText[633][1])
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeMoveUp_Click(integer self, integer event, sequence params)
+-- move a item up
+sequence s
+integer index
+
+-- is there an item selected?
+    index = getIndex(IncludeList)
+    if index>1 then
+
+        -- swap
+        s = orderModules[index-1]
+        orderModules[index-1] = orderModules[index]
+        orderModules[index] = s
+
+        is_changed = w32True
+
+        -- update the list
+        updateReorderList(index-1)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeMoveUp_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then IncludeMoveUp_Click(IncludeMoveUp, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeMoveDown_Click(integer self, integer event, sequence params)
+-- move a item down
+sequence s
+integer index
+
+-- is there an item selected? 
+    index = getIndex(IncludeList)
+    if index>0
+    and index<length(orderModules) then
+
+        -- swap 
+        s = orderModules[index+1]
+        orderModules[index+1] = orderModules[index]
+        orderModules[index] = s
+
+        is_changed = w32True
+
+        -- update the list
+        updateReorderList(index+1)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeMoveDown_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then IncludeMoveDown_Click(IncludeMoveDown, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+function getThePath(sequence text)
+sequence path, data
+integer at
+
+    path = {}
+    data = reverse(text)
+    at = match("\\", data)
+
+    if at then
+        text = data[1..at-1]
+        path = data[at+1..length(data)]
+        text = reverse(text)
+        path = reverse(path)
+    end if
+
+    return path
+
+end function
+--------------------------------------------------------------------------------
+procedure IncludeDelete_Click(integer self, integer event, sequence params)
+-- delete selected menu item
+
+integer index, ignore
+sequence path
+
+    index = getIndex(IncludeList)
+    if index then
+        --remove from ProjectView
+        deleteTreeViewNode(IDEText[968][1],getItem(IncludeList,index))--"Modules"
+
+        -- remove from sequence
+        orderModules = orderModules[1..index-1]
+                       & orderModules[index+1..length(orderModules)]
+
+        -- remove from list
+        ignore = deleteItem(IncludeList, index)
+
+        is_changed = w32True
+
+        setFocus(IncludeList)
+
+        if length(orderModules)=0 then
+            setIndex(IncludeList, length(orderModules))
+            setText(IncludePath,"")
+            setText(IncludeAppendText,"")
+        elsif index=1 then
+            setIndex(IncludeList, index)
+            setText(IncludeAppendText,orderModules[index][2])
+            path = getThePath(orderModules[index][1])
+            setText(IncludePath, path)
+        else
+            setIndex(IncludeList, index-1)
+            setText(IncludeAppendText,orderModules[index-1][2])
+            path = getThePath(orderModules[index-1][1])
+            setText(IncludePath, path)
+        end if
+
+        if not getCount(IncludeList) then
+            setEnable(RelPathPopup,w32False)
+            setEnable(IncludePath, w32False)
+            setEnable(BrowseDef, w32False)
+            setEnable(IncludeAppendText, w32False)
+            setEnable(IncludeCheckBox, w32False)
+        end if
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeOk_Click(integer self, integer event, sequence params)
+
+    savetheIncludeReorder()
+
+    -- close the window 
+    IncludeWindow_Close()
+
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeOk_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then IncludeOk_Click(IncludeOk, w32HClick,{}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeCancel_Click(integer self, integer event, sequence params)
+
+    is_changed = w32False
+    -- close the window
+    IncludeWindow_Close()
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludeCancel_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then IncludeCancel_Click(IncludeCancel, w32HClick,{}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure change_appendText(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(IncludeList)
+
+    if index then
+        if not equal(orderModules[index][2],
+                     getText(IncludeAppendText)) then
+            orderModules[index][2] = getText(IncludeAppendText)
+            is_changed = w32True
+        end if
+    end if
+
+end procedure
+------------------------------------------------------------------------------
+procedure click_Default(integer self, integer event, sequence params)
+integer index
+
+    index = getIndex(IncludeList)
+
+    if index then
+        if orderModules[index][4]!=isChecked(IncludeCheckBox) then
+            orderModules[index][4] = isChecked(IncludeCheckBox)
+            is_changed = w32True
+        end if
+    end if
+end procedure
+-------------------------------------------------------------------------------
+procedure click_AddModule(integer self, integer event, sequence params)
+-- add a module to the project
+
+sequence fName, includeModulesData,currentdirectory, path
+
+integer addIt, ok, at
+
+    currentdirectory = current_dir()
+
+    includeModulesData = {"","","",0}
+
+    -- get the file name
+    fName = getOpenFileName(Form,                   -- parent window
+                            "",                       -- no default name
+                            {"Dialog Flags", {OFN_ALLOWMULTISELECT},
+                             "All Files", "*.*"})     -- everything else
+
+    if length(fName) then
+        --if one file selected, the first param will be path and file name.
+        if not sequence(fName[1]) then
+            readModuleFile(fName)
+            --make sure not already loaded
+            addIt = w32True
+            for i=1 to length(includeModules) do
+                if equal(fName, includeModules[i][1]) then
+                    addIt = w32False
+                    exit
+                end if
+            end for
+            if addIt then
+                IDE_Changed = w32True
+                includeModulesData[1] = fName
+                includeModulesData[2] = ""
+                path = reverse(fName)
+                at = match("\\",path)
+                if at then
+                    path = path[at+1..length(path)]
+                else
+                    path = {} --should not happen!
+                end if
+                path = reverse(path)
+                includeModulesData[3] = path
+                includeModulesData[4] = 0
+
+                orderModules &= {includeModulesData}
+
+                is_changed = w32True
+
+                -- update the list
+                updateReorderList(0)
+            end if
+            ok = chdir(currentdirectory)
+            return
+        end if
+
+        --if more than one file selected, the first param will be path and then
+        --the rest are the file names.
+        for j=2 to length(fName) do
+            fName[j] = fName[1]&"\\"&fName[j]
+            --read and grab global routine names for keyword colorization
+            readModuleFile(fName[j])
+
+            --make sure not already loaded
+            addIt = w32True
+            for i=1 to length(includeModules) do
+                if equal(fName[j], includeModules[i][1]) then
+                    addIt = w32False
+                    exit
+                end if
+            end for
+            if addIt then
+                IDE_Changed = w32True
+                includeModulesData[1] = fName[j]
+                includeModulesData[2] = ""
+                path = reverse(fName[j])
+                at = match("\\",path)
+                if at then
+                    path = path[at+1..length(path)]
+                else
+                    path = {} --should not happen!
+                end if
+                path = reverse(path)
+                includeModulesData[3] = path
+                includeModulesData[4] = 0
+
+                orderModules &= {includeModulesData}
+            end if
+        end for
+
+        is_changed = w32True
+
+        -- update the list
+        updateReorderList(0)
+
+    end if
+    ok = chdir(currentdirectory)
+end procedure
+--------------------------------------------------------------------------------
+procedure BrowseDef_onClick(integer self, integer event, sequence params)
+sequence folders
+
+    folders = selectDirectory("Get a Dir", {BIF_USENEWUI,BIF_VALIDATE},
+                              routine_id("callback"), 0)
+
+    if length(folders) then
+        setText(IncludePath, folders)
+        --update the module array
+        orderModules[getIndex(IncludeList)][1] = folders&"\\"&getItem(IncludeList,getIndex(IncludeList))
+        orderModules[getIndex(IncludeList)][3] = folders
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure IncludePath_onMouse(integer self, integer event, sequence params)
+sequence Mpos
+integer index, x,y
+
+    --selected index?
+    index = getIndex(IncludeList)
+    if not index then return end if
+
+    Mpos = getPointerRelPos(IncludeWindow)
+    x = Mpos[1]
+    y = Mpos[2]
+
+    if params[1]=RightDown then
+        popup(RelPathPopup, x, y)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure DelPathItem_onClick(integer self, integer event, sequence params)
+    setText(IncludePath,"")
+        --update the module array
+    orderModules[getIndex(IncludeList)][1] = "" & getItem(IncludeList,getIndex(IncludeList))
+end procedure
+--------------------------------------------------------------------------------
+procedure RelPathItem_onClick(integer self, integer event, sequence params)
+sequence folder
+integer at
+
+    folder = getText(IncludePath)
+    if length(folder) then
+        at = find('\\', folder)
+        if at then
+            folder = folder[at+1..length(folder)]
+            setText(IncludePath, folder)
+          --update the module array
+            orderModules[getIndex(IncludeList)][1] = folder&"\\"&getItem(IncludeList,getIndex(IncludeList))
+        end if
+    end if
+
+end procedure
+------------------------------------------------------------------------------------
+global procedure createIncludeWindow()
+    if IncludeWindow= -1 then
+                                       --"Manage Include Statements"
+        IncludeWindow = createEx(Window, IDEText[634][1], Form, Default, Default,
+                                 480, 438, {WS_DLGFRAME+WS_THICKFRAME}, 0)
+        RelPathPopup = createEx(Popup, "", IncludeWindow, 0, 0, 0, 0, 0, 0)
+                                         --"Set Path relative"
+        RelPathItem  = createEx(MenuItem, IDEText[636][1], RelPathPopup, 0, 0, 0, 0, 0, 0)
+                                         --"Delete Path"
+        DelPathItem  = createEx(MenuItem, IDEText[637][1], RelPathPopup, 0, 0, 0, 0, 0, 0)
+        IncludeText1 = createEx(LText,"",IncludeWindow, 4, 8, 462, 39, 0, 0)
+                                       --"Module Path:"
+        IncludeText3 = createEx(RText, IDEText[638][1], IncludeWindow, 0, 50, 160, 20, 0, 0)
+        IncludePath = createEx(EditText, "", IncludeWindow, 165, 50, 195, 20, w32or_all({ES_READONLY}), 0)
+        BrowseDef = createEx(PushButton, "...", IncludeWindow, 370, 50, 20, 20, 0, 0)
+                                      --"Append text to include statement:"
+        IncludeText4 = createEx(RText, IDEText[639][1], IncludeWindow, 0, 98, 160, 40, 0, 0)
+        IncludeAppendText = createEx(EditText,"", IncludeWindow, 165, 114, 300, 20, 0, 0)
+                                      --"Right-click in path above for more options"    
+        IncludeText5 = createEx(LText,IDEText[1171][1],IncludeWindow,164, 72, 304, 24, 0, 0)
+                                          --"Include this file with all projects"
+        IncludeCheckBox = createEx(CheckBox, IDEText[961][1], IncludeWindow, 52, 144, 316, 20, 0, 0)
+                                             --"Move Up"
+        IncludeMoveUp = createEx(PushButton, IDEText[640][1],
+                                 IncludeWindow, 52, 176, 115, 28, 0, 0)
+                                              --"Move Down"
+        IncludeMoveDown = createEx(PushButton, IDEText[641][1],
+                                   IncludeWindow, 52, 216,115, 28, 0, 0)
+                                         --"Add"
+        IncludeAdd = createEx(PushButton, IDEText[642][1],
+                              IncludeWindow, 208, 176, 100, 28, 0, 0)
+                                            --"Delete"
+        IncludeDelete = createEx(PushButton, IDEText[643][1],
+                                 IncludeWindow, 208, 216, 100, 28, 0, 0)
+                                        --"OK"
+        IncludeOk = createEx(PushButton, IDEText[644][1], IncludeWindow, 352, 176, 88, 30, 0, 0)
+                                            --"Cancel"
+        IncludeCancel = createEx(PushButton, IDEText[645][1], IncludeWindow,
+                                 352, 216, 88, 30, 0, 0)
+        IncludeList = createEx(List, "", IncludeWindow, 16, 260, 450, 125, w32or_all({LBS_NOINTEGRALHEIGHT}), 0)
+
+        setText(IncludeText1,IDEText[633][1])
+
+        setEnable(RelPathPopup,w32False)
+        setEnable(IncludePath, w32False)
+        setEnable(BrowseDef, w32False)
+        setEnable(IncludeAppendText, w32False)
+        setEnable(IncludeCheckBox, w32False)
+
+        setHandler(IncludeList, w32HChange, routine_id("Include_Change"))
+        setHandler(IncludeWindow, w32HOpen, routine_id("IncludeWindow_Open"))
+        setHandler(IncludeWindow, w32HResize, routine_id("IncludeWindow_Resize"))
+        setHandler(IncludeMoveUp, w32HClick, routine_id("IncludeMoveUp_Click"))
+        setHandler(IncludeMoveUp, w32HKeyPress, routine_id("IncludeMoveUp_KeyPress"))
+        setHandler(IncludeMoveDown, w32HClick, routine_id("IncludeMoveDown_Click"))
+        setHandler(IncludeMoveDown, w32HKeyPress, routine_id("IncludeMoveDown_KeyPress"))
+        setHandler(IncludeDelete, w32HClick, routine_id("IncludeDelete_Click"))
+        setHandler(IncludeOk, w32HClick, routine_id("IncludeOk_Click"))
+        setHandler(IncludeOk, w32HKeyPress, routine_id("IncludeOk_KeyPress"))
+        setHandler(IncludeCancel, w32HClick, routine_id("IncludeCancel_Click"))
+        setHandler(IncludeCancel, w32HKeyPress, routine_id("IncludeCancel_KeyPress"))
+        setHandler(IncludeAppendText, w32HChange, routine_id("change_appendText"))
+        setHandler(IncludeAdd, w32HClick, routine_id("click_AddModule"))
+        setHandler(BrowseDef, w32HClick, routine_id("BrowseDef_onClick"))
+        setHandler(IncludePath, w32HMouse, routine_id("IncludePath_onMouse"))
+        setHandler(DelPathItem, w32HClick, routine_id("DelPathItem_onClick"))
+        setHandler(RelPathItem, w32HClick, routine_id("RelPathItem_onClick"))
+        setHandler(IncludeCheckBox, w32HClick, routine_id("click_Default"))
+    end if
+end procedure
+

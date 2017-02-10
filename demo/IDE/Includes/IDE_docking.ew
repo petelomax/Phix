@@ -1,0 +1,77 @@
+--IDE_docking.ew by Martin Stachon
+--  Causes pop-up Windows to stay active...
+--  Original concept from Catch22 Productions
+
+sequence DockWindows
+object VOID
+--------------------------------------------------------------------------------
+function dockMsgHandler(integer pSource, atom hWnd, atom iMsg, atom wParam, atom lParam)
+integer fKeepActive, fSyncOthers
+	fKeepActive = wParam
+	fSyncOthers = w32True
+
+	-- UNDOCUMENTED FEATURE:
+	-- If the other window being activated/deactivated
+	-- (i.e. NOT this one) is one of our popups, then go (or stay) active.
+	if find(getId(lParam), DockWindows) then
+		fKeepActive = w32True
+		fSyncOthers = w32False
+	end if
+
+	-- If this message was sent by the synchronise-loop (below)
+	-- then exit normally. If we don't do this, there will be an infinite loop!
+	if find(lParam, {-1, #FFFFFFFF}) then
+		return {w32Func(xDefWindowProc, {hWnd, WM_NCACTIVATE, fKeepActive, 0})}
+	end if
+	
+	-- This window is about to change (inactive/active).
+	-- Sync all other popups to the same state
+	if fSyncOthers then
+		for i = 1 to length(DockWindows) do
+			-- DO NOT send this message to ourselves!!!!
+			if not(find(getHandle(DockWindows[i]), {hWnd, lParam})) then
+				VOID = sendMessage(DockWindows[i], WM_NCACTIVATE, fKeepActive, -1)
+			end if
+		end for
+	end if
+
+	return {w32Func(xDefWindowProc, {hWnd, WM_NCACTIVATE, fKeepActive, lParam})}
+end function
+--------------------------------------------------------------------------------
+procedure destroyHandler(integer self, integer event, sequence params)
+	event = find(self, DockWindows)
+	if event then	--test for event 07-14-05	
+		DockWindows = DockWindows[1..event - 1] & DockWindows[event + 1..length(DockWindows)]
+	end if
+end procedure
+--------------------------------------------------------------------------------
+function enableHandler(integer pSource, atom hWnd, atom wMsg, atom wParam, atom lParam)
+	-- Synchronise all toolwindows to the same state.
+	for i = 1 to length(DockWindows) do
+		if DockWindows[i] != getId(hWnd) then
+			setEnable(DockWindows[i], wParam)
+		end if
+	end for
+
+	-- just do the default
+    return 0
+end function
+--------------------------------------------------------------------------------
+global function createDockBar(sequence pCaption, atom pOwner,
+	object pLeft, object pTop, object pWidth, object pHeight,
+	object styleFlags, object exFlags)
+	integer dockWnd
+	
+	dockWnd = createEx(Window, pCaption, pOwner, pLeft, pTop, pWidth, pHeight, styleFlags, exFlags)
+
+	DockWindows &= dockWnd
+	setWinMsgHandler(dockWnd, WM_NCACTIVATE, routine_id("dockMsgHandler"))
+	setHandler(dockWnd, w32HDestroy, routine_id("destroyHandler"))
+
+	return dockWnd
+end function
+--------------------------------------------------------------------------------
+DockWindows = {Controls}
+setWinMsgHandler(DockWindows, WM_NCACTIVATE, routine_id("dockMsgHandler"))
+setHandler(DockWindows, w32HDestroy, routine_id("destroyHandler"))
+setWinMsgHandler(Controls, WM_ENABLE, routine_id("enableHandler"))

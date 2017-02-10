@@ -1,0 +1,1798 @@
+-- ide_popup.ew
+-- popup editor editor for win32lib ide
+
+--changes by Judith
+--revisions by Roland Stowasser
+-- added subpopups
+-- added some error trapping
+-- PopupEditWindow can be resized to adjust the popups list
+-- right click in PopupEditList calls code editor - Item must be highlighted
+--      Judith fixed right click to work if item not highlighted
+
+integer ok
+object VOID
+
+global integer PopupEditWindow PopupEditWindow = -1
+integer Static21,Static11,PopupEditTitle,PopupEditName,PopupEditChecked,PopupEditEnabled
+integer PopupEditLocal,PopupEditAddpopup,PopupEditAddItem,PopupEditMoveUp,PopupEditMoveDown
+integer PopupEditDelete,PopupEditList,PopupEditOk,PopupEditCancel,MPopupEditAdd
+integer PopupEditAddSubpopup,PopupEditAddSubItem,MPopupEditAddSub2popup,MPopupEditAddSub2Item
+integer MPopupEditAddSub3popup,MPopupEditAddSub3Item,MPopupEditMove,MPopupEditMoveUp,MPopupEditMoveDown
+integer MPopupEditDelete,MPopupEditCode,MPopupEditCodeEditor,LText401,PopupEditDeleteSubs,MPopupEditDeleteSubs
+
+sequence popups        -- list of menus
+sequence savePopup    -- popup to save after editing
+sequence deleteList  -- list of deleted popups
+
+--added by Roland
+integer fault        -- count mistakes
+integer counter2     -- count the menus / menuitems
+sequence tmpName     -- to compare the menu names
+object  is_num       -- checks the last 2 positions of name
+integer msg
+--Roland
+
+integer Sw
+Sw = w32False
+
+integer is_changed
+is_changed = w32False    --flag w32True when any changes have been made and check this
+                    --if user close editor without saving
+
+sequence name       --name of control in Code Editor when Popup Editor opened
+
+-----------------------------------------------------------------------------
+procedure updatePopupEditList(integer index)
+
+sequence text, comparetext
+integer cnt, YOrder
+    -- erase the list 
+    eraseItems(PopupEditList)
+
+    -- rebuild the list               
+    counter2 = 0    -- popup / popupItems
+    fault = 0
+
+    --use Y to order popups
+    YOrder = 0
+    for i=1 to length(popups) do
+
+        YOrder += 1
+        popups[i][Y] = YOrder
+
+        -- build the text 
+        text = popups[i][Title]
+
+
+        -- add ... if popup item
+        if equal(popups[i][Class], "PopupItem")then
+            text = "<<< " & text
+
+        --additions by Roland
+        elsif equal(popups[i][Class], "Subpopup") then
+            text = "+++ " & text
+        elsif equal(popups[i][Class], "SubpopupItem")then
+            text = "<<< <<< " & text
+        elsif equal(popups[i][Class], "Sub2popup") then
+            text = "+++ +++ " & text
+        elsif equal(popups[i][Class], "Sub2popupItem") then
+            text = "<<< <<< <<< " & text
+        elsif equal(popups[i][Class], "Sub3popup") then
+            text = "+++ +++ +++ " & text
+        elsif equal(popups[i][Class], "Sub3popupItem") then
+            text = "<<< <<< <<< <<< " & text
+        end if
+       --end Roland
+
+        --win32lib version .55 will not load zero length text to list
+        if not length(text) then
+            text = " "
+        end if
+
+        --additions by Roland
+        -- retract number if in name
+        tmpName = popups[i][Name]
+        if length(tmpName)>1 then
+            tmpName = tmpName[length(tmpName)-1..length(tmpName)]
+        end if
+        is_num =  value(tmpName)
+        if is_num[1]=GET_SUCCESS then
+            if is_num[2]>counter2 then
+                counter2 = is_num[2]
+            end if
+        end if
+
+        -- warnings  
+        if i=1 and not equal(popups[i][Class], "Popup") then
+            text &= "          << ==== " & IDEText[426][1]  --must be Popup !"
+            fault += 1
+        end if
+        if i=2 and not equal(popups[i][Class], "PopupItem") then
+            text &= "       << ==== " & IDEText[427][1] --must be PopupItem !"
+            fault += 1
+        end if
+
+        if i<length(popups) then
+            if equal(popups[i][Class],"Subpopup")
+            or equal(popups[i][Class],"SubpopupItem") then
+                if equal(popups[i+1][Class],"Sub2popupItem")
+                or equal(popups[i+1][Class],"Sub3popupItem")
+                or equal(popups[i+1][Class],"Sub3popup") then
+                    text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                    fault += 1
+                end if
+            end if
+            if equal(popups[i][Class],"Sub2popup")
+            or equal(popups[i][Class],"Sub2popupItem") then
+                if equal(popups[i+1][Class],"Sub3popupItem") then
+                    text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                    fault += 1
+                end if
+            end if
+            if equal(popups[i][Class], "Popup") or equal(popups[i][Class], "PopupItem") then
+                if equal(popups[i+1][Class],"Sub2popup")
+                or equal(popups[i+1][Class],"SubpopupItem")
+                or equal(popups[i+1][Class],"Sub2popupItem")
+                or equal(popups[i+1][Class],"Sub3popup")
+                or equal(popups[i+1][Class],"Sub3popupItem") then
+                    text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                    fault += 1
+                end if
+            end if
+            --check that first position of Name is alpha
+            comparetext = popups[i][Name]
+            if (comparetext[1]>='a' and comparetext[1]<='z')
+            or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                                --is ok
+            else
+                text &= "          << ==== " & IDEText[1174][1]  --first char must be alpha
+                fault += 1
+            end if
+
+        end if
+
+        if i=length(popups) then
+            if equal(popups[length(popups)][Class], "Popup") then
+                text &=  "          << ==== " & IDEText[428][1] --needs items !"
+                fault += 1
+            end if
+        end if
+        --end Roland
+
+        --check that name is unique not only within Popups but other controls
+        cnt = 0
+        for j=1 to length(controls) do
+            if equal(controls[j][Name], popups[i][Name])
+            and not equal(controls[j][Class], popups[i][Class]) then
+                cnt += 1
+            end if
+        end for
+
+        if cnt then
+            text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+            fault += 1
+        end if
+
+        cnt = 0
+        for j=1 to  length(popups) do
+            if equal(popups[j][Name], popups[i][Name])
+            and j!=i then
+                cnt += 1
+            end if
+        end for
+
+        if cnt then
+            text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+            fault += 1
+        end if
+
+        -- add to list 
+        addItem(PopupEditList, text)
+
+    end for
+
+    -- set list item      
+    if index then
+        setIndex(PopupEditList, index)
+    end if
+
+end procedure
+-----------------------------------------------------------------------------
+procedure choosepopupEditItem(integer index)
+
+    -- copy values to fields 
+    if index then
+        setText(PopupEditName, popups[index][Name])
+        setText(PopupEditTitle, popups[index][Title])
+        setCheck(PopupEditChecked, popups[index][Checked])
+        setCheck(PopupEditEnabled, popups[index][Enabled])
+        setCheck(PopupEditLocal, popups[index][Local])
+    else
+        setText(PopupEditName, "")
+        setText(PopupEditTitle, "")
+        setCheck(PopupEditChecked, w32False)
+        setCheck(PopupEditEnabled, w32False)
+        setCheck(PopupEditLocal, w32False)
+    end if
+
+    -- set list item 
+    setIndex(PopupEditList, index)
+
+end procedure
+-----------------------------------------------------------------------------
+procedure addpopupWidget(sequence class)
+
+-- create a new popup
+integer index
+sequence new
+
+    --Roland additions
+    index = getIndex(PopupEditList)
+
+    if index=0 and not equal(class,"Popup") then
+        return
+    elsif  equal(class,"SubpopupItem") or equal(class, "Sub2popup") then
+        if not equal(popups[index][Class],"Subpopup")
+        and not equal(popups[index][Class],"Sub2popup")
+        and not equal(popups[index][Class],"SubpopupItem")
+        and not equal(popups[index][Class],"Sub2popupItem") then
+            msg = displayErrorMessage(134,{})
+            return
+        end if
+    elsif equal(class,"Sub2popupItem") or equal(class, "Sub3popup") then
+        if not equal(popups[index][Class],"Sub2popup")
+        and not equal(popups[index][Class],"Sub3popup")
+        and not equal(popups[index][Class],"Sub2popupItem")
+        and not equal(popups[index][Class],"Sub3popupItem") then
+            msg = displayErrorMessage(135,{})
+            return
+        end if
+    elsif equal(class,"Sub3popupItem")
+      and not equal(popups[index][Class],"Sub3popup")
+      and not equal(popups[index][Class],"Sub3popupItem") then
+        msg = displayErrorMessage(136,{})
+        return
+    end if
+    --end Roland
+
+    new = repeat(0, ControlSize)
+
+    -- increment counter 
+    counter += 1         -- Id
+    counter2 += 1        -- number of popup / item
+
+    -- values
+    new[AWindow] = 2
+    new[Id]         = counter
+    new[Class]      = class
+    new[Checked]    = w32False
+    new[Enabled]    = w32True
+    new[ControlParent] = {}
+    new[ParentClass] = {}
+    new[StyleType] = {}
+    new[Visible] = w32True
+    new[EnableC] = w32True
+    new[Buddy] = ""
+    new[IcoFile] = {}
+    new[TwoIcoFile] = ""
+    new[TriIcoFile] = ""
+    new[BitmapFile] = {}
+    new[FontName] = ""
+    new[HintFontName] = ""
+    new[HintText] = ""
+--    new[HintFontAttrib]=""
+--    new[FontAttrib]=""
+    new[ExStyle] = "0"
+    new[XPM] = ""
+    new[XPMmember] = ""
+    new[XpmObject] = {}
+    new[XpmDisableObject] = {}
+    new[InitialVal] = {}
+    new[SetEvent] = ""
+    new[SetControl] = ""
+    new[KillEvent] = ""
+    new[KillControl] = ""
+    new[SubClass] = ""
+    new[CCWinStyle] = ""
+    new[WidthTitle] = {}
+    new[ExtExStyle] = {}
+    new[SelectWidth] = {}
+    new[SystemBkColor] = {}
+    new[OutX] = {}
+    new[OutY] = {}
+    new[OutCX] = {}
+    new[OutCY] = {}
+    new[ControlComment] = {}
+    new[DEFIndex] = {}
+    new[SysTrayIcon] = {}
+    new[SysTrayHint] = {}
+    new[SysTrayText] = {}
+    new[IndexParent] = {}
+    new[Parent] = {}
+    new[SeqParentName] = {}
+    new[SeqParentClass] = {}
+    new[SeqChildName] = {}
+    new[GridFormat] = {}
+    new[GridDataArrayName] = {}
+    new[GridColListValues] = {}
+    new[WinOpenAtCtrl] = {}
+    new[ControlLayer] = layerNumber
+    new[ClassDefaults] = {}
+    new[ValueEdit] = {}
+    new[OrigTitle] = {}
+    new[ControlPartners] = {}
+    new[FontVarName] = {}
+    new[FontVarPts] = {}
+    new[FontVarItalic] = {}
+    new[FontVarBold] = {}
+    new[FontVarUnderline] = {}
+    new[FontVarStrikeout] = {}
+    new[HintFontVarName] = {}
+    new[HintFontVarPts] = {}
+    new[HintFontVarItalic] = {}
+    new[HintFontVarBold] = {}
+    new[HintFontVarUnderline] = {}
+    new[HintFontVarStrikeout] = {}
+    new[FontVarColor] = {}
+    new[HintVarText] = {}
+    new[GenFromName] = {}
+
+    if isChecked(ClickLocal) then
+        new[Local] = w32True
+    else
+        new[Local] = w32False
+    end if
+
+    new[Code]       = repeat({}, length(Events))
+
+    --changes by Roland
+    if equal(new[Class], "Popup") then
+        new[Name]   = sprintf("Popup_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Popup %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"PopupItem") then
+        new[Name]   = sprintf("PopupItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Popup Item%d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class], "Subpopup") then
+        new[Name]   = sprintf("Level2popup_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level2popup %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"SubpopupItem") then
+        new[Name]   = sprintf("Level2popupItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level2popup Item%d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class], "Sub2popup") then
+        new[Name]   = sprintf("Level3popup_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level3popup %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"Sub2popupItem") then
+        new[Name]   = sprintf("Level3popupItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level3popup Item%d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class], "Sub3popup") then
+        new[Name]   = sprintf("Level4popup_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level4popup %d", counter2+100*selectedWindow)
+
+    elsif equal(new[Class],"Sub3popupItem") then
+        new[Name]   = sprintf("Level4popupItem_%d", counter2+100*selectedWindow)
+        new[Title]  = sprintf("Level4popup Item%d", counter2+100*selectedWindow)
+    else
+        msg = displayErrorMessage(137,{})
+    end if
+    --end Roland
+
+    --add to sequence for colorization
+    controlNameKeywords &= {new[Name]}
+
+    -- where in the popup?
+    index = getIndex(PopupEditList)
+    if index=0 then
+        popups &= {new}
+        index = length(popups)
+
+    elsif index=length(popups) then
+        -- insert after current item 
+        index += 1
+        popups &= {new}
+
+    else
+        -- insert after current item 
+        popups = popups[1..index]
+                 & {new}
+                 & popups[index+1..length(popups)]
+        index += 1
+    end if
+
+    is_changed = w32True
+
+    -- update the list 
+    updatePopupEditList(index)
+
+    -- update the list            
+    choosepopupEditItem(index)
+
+end procedure
+----------------------------------------------------------------------------- 
+sequence lastPopupName, lastSubpopupName, lastSub2popupName, lastSub3popupName
+procedure savethepopup()
+sequence treedata, codeName, extent
+integer startAt, controlnamelength
+
+    treedata = {"",""}
+
+    -- save changes  
+
+    -- all ok? 
+    if fault>0
+    and length(popups) then
+        msg = displayErrorMessage(138,{})
+        return
+    end if
+
+    for i=1 to length(popups) do
+        if equal(popups[i][Class], "Popup") then
+        --save the name for following popupitems
+            lastPopupName = popups[i][Name]
+            popups[i][SeqParentName] = {}
+        end if
+
+        if equal(popups[i][Class], "Subpopup") then
+            --save the name for following subpopupitems
+            lastSubpopupName = popups[i][Name]
+        end if
+
+        if equal(popups[i][Class], "Sub2popup") then
+            --save the name for following sub2popupitems
+            lastSub2popupName = popups[i][Name]
+        end if
+
+        if equal(popups[i][Class], "Sub3popup") then
+            --save the name for following sub2popupitems
+            lastSub3popupName = popups[i][Name]
+        end if
+
+        if equal(popups[i][Class], "PopupItem")
+        or equal(popups[i][Class], "Subpopup") then
+            --use the last popup name
+            popups[i][SeqParentName] = lastPopupName
+        end if
+
+        if equal(popups[i][Class], "SubpopupItem")
+        or equal(popups[i][Class], "Sub2popup") then
+            --use the last Subpopup name
+            popups[i][SeqParentName] = lastSubpopupName
+        end if
+
+        if equal(popups[i][Class], "Sub2popupItem")
+        or equal(popups[i][Class], "Sub3popup") then
+            --use the last Sub2popup name
+            popups[i][SeqParentName] = lastSub2popupName
+        end if
+
+        if equal(popups[i][Class], "Sub3popupItem") then
+            --use the last Sub3popup name
+            popups[i][SeqParentName] = lastSub3popupName
+        end if
+    end for
+
+    -- create list without the popups
+    savePopup = {}
+    for i=1 to length(controls) do
+        if equal(controls[i][Class], "Popup")
+        or equal(controls[i][Class], "PopupItem")
+        or equal(controls[i][Class], "Subpopup")
+        or equal(controls[i][Class], "SubpopupItem")
+        or equal(controls[i][Class], "Sub2popup")
+        or equal(controls[i][Class], "Sub2popupItem")
+        or equal(controls[i][Class], "Sub3popup")
+        or equal(controls[i][Class], "Sub3popupItem") then
+            -- don't add  
+        else
+            -- add to list  
+            savePopup &= {controls[i]}
+        end if
+    end for
+
+    -- add popups to the list
+    if length(popups) then
+        savePopup &= popups
+        savePopup = sort(savePopup)
+        controls = savePopup
+    else
+        deleteTreeViewNodeAndCode("","The Popups:" & controls[1][Name])
+    end if
+
+    if is_changed then
+
+        eraseItems(CodeControls)
+        controlnamelength = 0
+        for i=1 to length(savePopup) do
+            addItem(CodeControls, savePopup[i][Name])
+            if length(savePopup[i][Name])>controlnamelength then
+                controlnamelength = length(savePopup[i][Name])
+            end if
+        end for
+        extent = getTextExtent(CodeControls, "M")
+        controlnamelength *= extent[1]
+        VOID = sendMessage(CodeControls, LB_SETHORIZONTALEXTENT, controlnamelength, 0)
+
+        for i=1 to getCount(CodeControls) do
+            if equal(name, getItem(CodeControls, i)) then
+                setIndex(CodeControls, i)
+                editorSelectedControl = i
+                exit
+            end if
+        end for
+
+        --backup controls
+        windows[selectedWindow] = controls
+        backupControls = windows
+        backupSelectedWindow = selectedWindow
+        backupLayerTabItemSeq = layerTabItemSeq
+        backupLayerCaptionSeq = layerCaptionSeq
+        setEnable(MenuControlUndo, w32True)
+        setVisible(ToolUndo, w32True)
+        setVisible(ToolUndoD, w32False)
+
+        IDE_Changed = w32True
+
+        --find the first popup in controls
+        startAt = 0
+        for i=length(controls) to 1 by -1 do
+            if equal(controls[i][Class], "Popup") then
+                startAt = i
+            end if
+        end for
+
+        if startAt then
+            for i=startAt to startAt+length(popups)-1 do
+                if i=startAt then
+                    --add popups to project tree
+                    addTreeViewNode(controls[1][Name],"The Popups:" & controls[1][Name])
+                end if
+                if equal(controls[i][Class], "Popup") then
+                    controls[i][SeqParentName] = "The Popups:" & controls[1][Name]
+                end if
+                deleteTreeViewNodeAndCode("",controls[i][Name])
+                addTreeViewNode(controls[i][SeqParentName],
+                                controls[i][Name])
+                treedata[1] = controls[i][Name]
+                treedata[2] = controls[i][Class]
+                theTreeForm &= {treedata}
+                for j=1 to length(controls[i][Code]) do
+                    if length(controls[i][Code][j]) then
+                        codeName = controls[i][Name] & "_" & Events[j][1]
+                        addTreeViewNode("Class Modules", codeName)
+                        theTreeClassModules &= {codeName}
+                    end if
+                end for
+            end for
+        end if
+
+        for i=1 to length(deleteList) do
+            deleteTreeViewNodeAndCode("", deleteList[i])
+        end for
+    end if
+
+    --reset flag for subsequent changes
+    is_changed = w32False
+
+    if not length(popups) then
+        selectedControl = TheWindow
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditWindow_Close()
+
+--additions by Roland
+integer ok
+    if is_changed then
+        ok = displayErrorMessage(139,{})
+        if ok=IDCANCEL then
+            showWindow(PopupEditWindow, SW_RESTORE)
+            returnValue(-1)
+            return
+        elsif ok=IDYES then
+            savethepopup()
+            if fault>0
+            and length(popups) then
+                showWindow(PopupEditWindow, SW_RESTORE)
+                returnValue(-1)
+                return
+            end if
+        end if
+    end if
+    --end Roland
+
+    -- set the save popup
+    controls = savePopup
+
+    if length(popups) then
+        setEnable(PopUpDesign_PopUp, w32True)
+    else
+        setEnable(PopUpDesign_PopUp, w32False)
+    end if
+
+    PopupEditWindow = -1
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditWindow_Open(integer self, integer event, sequence params)
+
+    -- open the popup edit window
+
+    name = getItem(CodeControls,getIndex(CodeControls))
+
+    --Roland
+    is_changed = w32False
+
+    deleteList = {}
+
+    setText(PopupEditName, "")
+    setText(PopupEditTitle, "")
+    setCheck(PopupEditChecked, w32False)
+    setCheck(PopupEditEnabled, w32False)
+    setCheck(PopupEditLocal, w32False)
+
+    --added by Roland
+    setText(PopupEditWindow,IDEText[415][1] & controls[TheWindow][Name])    --"Popup Editor"
+
+
+    -- save a copy of the controls
+    savePopup = controls
+
+    -- copy all the popup controls to the popup array
+    popups = {}
+    for i=1 to length(controls) do
+        if equal(controls[i][Class], "Popup")
+        or equal(controls[i][Class], "PopupItem")
+
+        --added by Roland
+        or equal(controls[i][Class], "Subpopup")
+        or equal(controls[i][Class], "SubpopupItem")
+        or equal(controls[i][Class], "Sub2popup")
+        or equal(controls[i][Class], "Sub2popupItem")
+        or equal(controls[i][Class], "Sub3popup")
+        or equal(controls[i][Class], "Sub3popupItem") then
+        --end Roland
+
+            -- append to the popup
+            popups &= {controls[i]}
+        end if
+    end for
+
+    -- update the list
+    updatePopupEditList(0)
+
+    --if came from project view update with that entry
+    if cameFromProjectView then
+        cameFromProjectView = w32False
+        -- set list item
+        for i=1 to getCount(PopupEditList) do
+            if length(projectViewTitle) then
+                if match(projectViewTitle, getItem(PopupEditList, i)) then
+                    setIndex(PopupEditList, i)
+                    ok = invokeHandler(PopupEditList, w32HChange,{})
+                    exit
+                end if
+            else
+                ok = displayErrorMessage(237,{IDEText[429][1]})  --"Popup Editor"
+                exit
+            end if
+        end for
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditWindow_Paint(integer self, integer event, sequence params)
+
+    if length(popups)=0 then
+        setFocus(PopupEditList)
+        setIndex(PopupEditList, length(popups))
+        setFocus(PopupEditName)
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditWindow_Resize(integer self, integer event, sequence params)
+-- adjust size of PopupEditList
+-- constants must be adapted if changing the design of PopupEditWindow
+
+sequence sizeEW, sizeEL
+integer heightEL
+
+    sizeEW   = getRect(PopupEditWindow)
+    sizeEL   = getRect(PopupEditList)
+    heightEL = sizeEW[4]-sizeEW[2]-180-125+floor(sizeEW[4]/13)
+    if heightEL<125 then heightEL = 125 end if
+
+    setRect(PopupEditList, 12, 180, params[2]-172, heightEL, w32True)
+    setRect(PopupEditMoveUp,params[2]-150, 212, 115,28, w32True)
+    setRect(PopupEditMoveDown,params[2]-150, 240, 115,28, w32True)
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditTitle_Change(integer self, integer event, sequence params)
+
+-- update the title
+integer index, ok, cnt
+sequence text
+
+    index = getIndex(PopupEditList)
+    if index then
+
+        fault = 0
+
+        -- update the data
+        popups[index][Title] = getText(PopupEditTitle)
+
+        -- update the list
+        for i=1 to length(popups) do
+
+            -- build the text 
+            text = popups[i][Title]
+
+
+            -- add ... if popup item
+            if equal(popups[i][Class], "PopupItem")then
+                text = "<<< " & text
+
+            --additions by Roland
+            elsif equal(popups[i][Class], "Subpopup") then
+                text = "+++ " & text
+            elsif equal(popups[i][Class], "SubpopupItem")then
+                text = "<<< <<< " & text
+            elsif equal(popups[i][Class], "Sub2popup") then
+                text = "+++ +++ " & text
+            elsif equal(popups[i][Class], "Sub2popupItem") then
+                text = "<<< <<< <<< " & text
+            elsif equal(popups[i][Class], "Sub3popup") then
+                text = "+++ +++ +++ " & text
+            elsif equal(popups[i][Class], "Sub3popupItem") then
+                text = "<<< <<< <<< <<< " & text
+            end if
+       --end Roland
+
+            --win32lib version .55 will not load zero length text to list
+            if not length(text) then
+                text = " "
+            end if
+
+            -- warnings  
+            if i=1 and not equal(popups[i][Class], "Popup") then
+                text &= "          << ==== " & IDEText[426][1]  --must be Popup !"
+                fault += 1
+            end if
+            if i=2 and not equal(popups[i][Class], "PopupItem") then
+                text &= "       << ==== " & IDEText[427][1] --must be PopupItem !"
+                fault += 1
+            end if
+
+            if i<length(popups) then
+                if equal(popups[i][Class],"Subpopup")
+                or equal(popups[i][Class],"SubpopupItem") then
+                    if equal(popups[i+1][Class],"Sub2popupItem")
+                    or equal(popups[i+1][Class],"Sub3popupItem")
+                    or equal(popups[i+1][Class],"Sub3popup") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(popups[i][Class],"Sub2popup")
+                or equal(popups[i][Class],"Sub2popupItem") then
+                    if equal(popups[i+1][Class],"Sub3popupItem") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(popups[i][Class], "Popup") or equal(popups[i][Class], "PopupItem") then
+                    if equal(popups[i+1][Class],"Sub2popup")
+                    or equal(popups[i+1][Class],"SubpopupItem")
+                    or equal(popups[i+1][Class],"Sub2popupItem")
+                    or equal(popups[i+1][Class],"Sub3popup")
+                    or equal(popups[i+1][Class],"Sub3popupItem") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+
+            end if
+
+            if i=length(popups) then
+                if equal(popups[length(popups)][Class], "Popup") then
+                    text &=  "          << ==== " & IDEText[428][1] --needs Items !"
+                    fault += 1
+                end if
+            end if
+            --end Roland
+
+            --check that name is unique not only within Popups but other controls
+            cnt = 0
+            for j=1 to length(controls) do
+                if equal(controls[j][Name], popups[i][Name])
+                and not equal(controls[j][Class], popups[i][Class]) then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            cnt = 0
+            for j=1 to  length(popups) do
+                if equal(popups[j][Name], popups[i][Name])
+                and j!=i then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            ok = deleteItem(PopupEditList, i)
+            ok = insertItem(PopupEditList,text,i)
+        end for
+
+    end if
+    setIndex(PopupEditList,index)
+end procedure
+--------------------------------------------------------------------------------
+procedure keyPress_PopupEditTitle(integer self, integer event, sequence params)
+integer shift
+
+    shift = params[2]
+    if params[1]=13 then
+        if and_bits(shift, ShiftMask) then
+            addpopupWidget("Popup")
+        else
+            addpopupWidget("PopupItem")
+        end if
+        return
+    end if
+
+    is_changed = w32True
+end procedure
+--------------------------------------------------------------------------------
+integer canChangeIt         canChangeIt = w32False
+
+procedure PopupEditName_Change(integer self, integer event, sequence params)
+
+-- update the name
+integer index, at, changedText, ok, cnt
+sequence origName, text, comparetext
+
+    if self or event or sequence(params) then end if
+
+    index = getIndex(PopupEditList)
+    if index then
+
+        fault = 0
+
+        --save original Name
+        origName = popups[index][Name]
+
+        -- update the data
+        if length(getText(PopupEditName)) then
+            popups[index][Name] = getText(PopupEditName)
+        end if
+
+        -- update the list
+        for i=1 to length(popups) do
+
+            -- build the text 
+            text = popups[i][Title]
+
+
+            -- add ... if popup item
+            if equal(popups[i][Class], "PopupItem")then
+                text = "<<< " & text
+            elsif equal(popups[i][Class], "Subpopup") then
+                text = "+++ " & text
+            elsif equal(popups[i][Class], "SubpopupItem")then
+                text = "<<< <<< " & text
+            elsif equal(popups[i][Class], "Sub2popup") then
+                text = "+++ +++ " & text
+            elsif equal(popups[i][Class], "Sub2popupItem") then
+                text = "<<< <<< <<< " & text
+            elsif equal(popups[i][Class], "Sub3popup") then
+                text = "+++ +++ +++ " & text
+            elsif equal(popups[i][Class], "Sub3popupItem") then
+                text = "<<< <<< <<< <<< " & text
+            end if
+
+            --win32lib version .55 will not load zero length text to list
+            if not length(text) then
+                text = " "
+            end if
+
+            -- warnings  
+            if i=1 and not equal(popups[i][Class], "Popup") then
+                text &= "          << ==== " & IDEText[426][1]  --must be Popup !"
+                fault += 1
+            end if
+            if i=2 and not equal(popups[i][Class], "PopupItem") then
+                text &= "       << ==== " & IDEText[427][1] --must be PopupItem !"
+                fault += 1
+            end if
+
+            --check that first position of Name is alpha
+            comparetext = popups[i][Name]
+            if (comparetext[1]>='a' and comparetext[1]<='z')
+            or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                        --is ok
+            else
+                text &= "          << ==== " & IDEText[1174][1]  --first char must be alpha
+                fault += 1
+            end if
+
+            if i<length(popups) then
+                if equal(popups[i][Class],"Subpopup")
+                or equal(popups[i][Class],"SubpopupItem") then
+                    if equal(popups[i+1][Class],"Sub2popupItem")
+                    or equal(popups[i+1][Class],"Sub3popupItem")
+                    or equal(popups[i+1][Class],"Sub3popup") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(popups[i][Class],"Sub2popup")
+                or equal(popups[i][Class],"Sub2popupItem") then
+                    if equal(popups[i+1][Class],"Sub3popupItem") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+                if equal(popups[i][Class], "Popup") or equal(popups[i][Class], "PopupItem") then
+                    if equal(popups[i+1][Class],"Sub2popup")
+                    or equal(popups[i+1][Class],"SubpopupItem")
+                    or equal(popups[i+1][Class],"Sub2popupItem")
+                    or equal(popups[i+1][Class],"Sub3popup")
+                    or equal(popups[i+1][Class],"Sub3popupItem") then
+                        text &= "          << ==== " & IDEText[402][1]  --will crash !"
+                        fault += 1
+                    end if
+                end if
+
+            end if
+
+            if i=length(popups) then
+                if equal(popups[length(popups)][Class], "Popup") then
+                    text &=  "          << ==== " & IDEText[428][1]   --needs Items !"
+                    fault += 1
+                end if
+            end if
+
+
+            --check that name is unique not only within Popups but other controls
+            cnt = 0
+            for j=1 to length(controls) do
+                if equal(controls[j][Name], popups[i][Name])
+                and not equal(controls[j][Class], popups[i][Class]) then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            cnt = 0
+            for j=1 to  length(popups) do
+                if equal(popups[j][Name], popups[i][Name])
+                and j!=i then
+                    cnt += 1
+                end if
+            end for
+
+            if cnt then
+                text &= "          << ==== " & IDEText[403][1]  --Name is not unique"
+                fault += 1
+            end if
+
+            ok = deleteItem(PopupEditList,i)
+            ok = insertItem(PopupEditList,text,i)
+        end for
+        setIndex(PopupEditList,index)
+
+        if canChangeIt then
+            comparetext = popups[index][Name]
+            if (comparetext[1]>='a' and comparetext[1]<='z')
+            or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                --is ok continue checking
+                comparetext = origName
+                if (comparetext[1]>='a' and comparetext[1]<='z')
+                or (comparetext[1]>='A' and comparetext[1]<='Z') then
+                                        --is ok
+                else
+                    canChangeIt = w32False
+                end if
+            else
+                canChangeIt = w32False
+            end if
+        end if
+
+        if canChangeIt then
+            if not equal(origName, popups[index][Name]) then
+                canChangeIt = w32False
+                CodeWinState = SW_NORMAL
+                if CodeWinOpen then
+                    --save editor state for reopen
+                    if isMaximized(CodeWin) then
+                        CodeWinState = SW_MAXIMIZE
+                    elsif isMinimized(CodeWin) then
+                        CodeWinState = SW_MINIMIZE
+                    end if
+
+                    if not length(isModule) then
+                        setIndex(CodeControls,selectedControl)
+                        ok = invokeHandler(CodeControls,w32HClick,{})
+                        showWindow(CodeWin,SW_HIDE)
+                    end if
+                end if
+
+                flushControls()     --save changes in controls to windows seq
+                savePopup = controls
+
+                for i=1 to length(windows) do
+                    for j=1 to length(windows[i]) do
+                        if equal(windows[i][j][Name], origName) then
+                            windows[i][j][Name] = popups[index][Name]
+                        end if
+                        if length(windows[i][j][Code]) then
+                            for k=1 to length(windows[i][j][Code]) do
+                                for m=1 to length(windows[i][j][Code][k]) do
+                                    text = windows[i][j][Code][k][m]
+                                    comparetext = text
+                                    at = 1
+                                    while at do
+                                        --find old name somewhere in line of code
+                                        changedText = w32False
+                                        at = match(origName, comparetext)
+                                        if at then
+                                            --look at prior and next character for uniqueness of name
+                                            if at>1 then
+                                                if not((text[at-1]>='a' and text[at-1]<='z') or
+                                                       (text[at-1]>='A' and text[at-1]<='Z') or
+                                                       (text[at-1]>='0' and text[at-1]<='9')) then
+                                                    if at+length(origName)-1<length(text) then
+                                                        if not((text[at+length(origName)]>='a' and text[at+length(origName)]<='z') or
+                                                               (text[at+length(origName)]>='A' and text[at+length(origName)]<='Z') or
+                                                               (text[at+length(origName)]>='0' and text[at+length(origName)]<='9')) then
+                                                            if not textInQuotes(text,at,length(origName)) then
+                                                                --ok to convert
+                                                                text = text[1..at-1] & popups[index][Name]
+                                                                       & text[at+length(origName)..length(text)]
+                                                                windows[i][j][Code][k][m] = text
+                                                                changedText = w32True
+                                                            end if
+                                                        end if
+                                                    else
+                                                        --ok to convert
+                                                        text = text[1..at-1] & popups[index][Name]
+                                                               & text[at+length(origName)..length(text)]
+                                                        windows[i][j][Code][k][m] = text
+                                                        changedText = w32True
+                                                    end if
+                                                end if
+                                            else
+                                                if at+length(origName)-1<length(text) then
+                                                    if not((text[at+length(origName)]>='a' and text[at+length(origName)]<='z') or
+                                                           (text[at+length(origName)]>='A' and text[at+length(origName)]<='Z') or
+                                                           (text[at+length(origName)]>='0' and text[at+length(origName)]<='9'))
+                                                    and not textInQuotes(text,at,length(origName)) then
+                                                        --ok to convert
+                                                        text = text[1..at-1] & popups[index][Name]
+                                                               & text[at+length(origName)..length(text)]
+                                                        windows[i][j][Code][k][m] = text
+                                                        changedText = w32True
+                                                    end if
+                                                else
+                                                    --ok to convert
+                                                    text = text[1..at-1] & popups[index][Name]
+                                                           & text[at+length(origName)..length(text)]
+                                                    windows[i][j][Code][k][m] = text
+                                                    changedText = w32True
+                                                end if
+                                            end if
+                                            --remove matches from comparetext so don't keep hitting them in while loop
+                                            if changedText then
+                                                comparetext = comparetext[1..at-1] & repeat(' ',length(popups[index][Name]))
+                                                              & comparetext[at+length(origName)..length(comparetext)]
+                                            else
+                                                comparetext = comparetext[1..at-1] & repeat(' ',length(origName))
+                                                              & comparetext[at+length(origName)..length(comparetext)]
+                                            end if
+                                        else
+                                        end if
+                                    end while
+                                end for
+                            end for
+                        end if
+                    end for
+                    if i=selectedWindow then
+                        controls = windows[i]
+                        for j=1 to length(windows[i]) do
+                            if equal(windows[i][j][Class], "Popup")
+                            or equal(windows[i][j][Class], "PopupItem")
+                            or equal(windows[i][j][Class], "Subpopup")
+                            or equal(windows[i][j][Class], "SubpopupItem")
+                            or equal(windows[i][j][Class], "Sub2popup")
+                            or equal(windows[i][j][Class], "Sub2popupItem")
+                            or equal(windows[i][j][Class], "Sub3popup")
+                            or equal(windows[i][j][Class], "Sub3popupItem") then
+                                for k=1 to length(popups) do
+                                    if equal(windows[i][j][Name], popups[k][Name])
+                                    and equal(windows[i][j][Title], popups[k][Title]) then
+                                        popups[k] = windows[i][j]
+                                        selectedControl = j
+                                        exit
+                                    end if
+                                end for
+                            else
+                                for k=1 to length(savePopup) do
+                                    if equal(windows[i][j][Name],savePopup[k][Name]) then
+                                        savePopup[k] = windows[i][j]
+                                        exit
+                                    end if
+                                end for
+                            end if
+                        end for
+                    end if
+                    deleteTreeViewNodeAndCode("",origName)
+                end for
+
+                if CodeWinOpen
+                and not length(isModule) then
+                    setIndex(CodeControls,selectedControl)
+                    ok = invokeHandler(CodeControls,w32HClick,{})
+                    showWindow(CodeWin, CodeWinState)
+                end if
+            end if
+        end if
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure keyDown_PopupEditName(integer self, integer event, sequence params)
+integer index, shift
+
+    index = getIndex(PopupEditList)
+    shift = params[2]
+
+    if params[1]=VK_TAB
+    or params[1]=VK_RETURN then
+        if index
+        and not equal(popups[index][Name], getText(PopupEditName)) then
+            canChangeIt = w32True
+            PopupEditName_Change(0,0,{})
+        elsif params[1]=VK_RETURN then
+            if and_bits(shift, ShiftMask) then
+                addpopupWidget("popup")
+            else
+                addpopupWidget("popupItem")
+            end if
+            setFocus(PopupEditTitle)
+            return
+        end if
+    end if
+    is_changed = w32True
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditChecked_Click(integer self, integer event, sequence params)
+-- update the checked flag
+integer index
+
+    index = getIndex(PopupEditList)
+    if index then
+        -- update the data
+        popups[index][Checked] = isChecked(PopupEditChecked)
+
+        is_changed = w32True
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditEnabled_Click(integer self, integer event, sequence params)
+-- update the enabled flag
+integer index
+
+    index = getIndex(PopupEditList)
+    if index then
+        -- update the data
+        popups[index][Enabled] = isChecked(PopupEditEnabled)
+
+        is_changed = w32True
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditLocal_Click(integer self, integer event, sequence params)
+-- update the enabled flag
+integer index
+
+    index = getIndex(PopupEditList)
+    if index then
+        -- update the data
+        popups[index][Local] = isChecked(PopupEditLocal)
+
+        is_changed = w32True
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditAddpopup_Click(integer self, integer event, sequence params)
+    -- add a popup to the popup list
+    addpopupWidget("Popup")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditAddpopup_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditAddpopup_Click(PopupEditAddpopup, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditAddItem_Click(integer self, integer event, sequence params)
+    -- add a popup item to the popup list
+    addpopupWidget("PopupItem")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditAddItem_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditAddItem_Click(PopupEditAddItem, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditAddSubpopup_Click(integer self, integer event, sequence params)
+    -- add a subpopup to the popup list
+    addpopupWidget("Subpopup")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditAddSubItem_Click(integer self, integer event, sequence params)
+    -- add a Subpopup item to the popup list
+    addpopupWidget("SubpopupItem")
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditMoveUp_Click(integer self, integer event, sequence params)
+-- move a popup item up
+sequence s
+integer index
+
+    -- is there an item selected?
+    index = getIndex(PopupEditList)
+    if index>1 then
+
+        -- swap
+        s = popups[index-1]
+        popups[index-1] = popups[index]
+        popups[index] = s
+
+        is_changed = w32True
+
+        -- update the list
+        updatePopupEditList(index-1)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditMoveUp_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditMoveUp_Click(PopupEditMoveUp, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditMoveDown_Click(integer self, integer event, sequence params)
+-- move a popup item down
+sequence s
+integer index
+
+-- is there an item selected? 
+    index = getIndex(PopupEditList)
+    if index>0
+    and index<length(popups) then
+
+        -- swap 
+        s = popups[index+1]
+        popups[index+1] = popups[index]
+        popups[index] = s
+
+        is_changed = w32True
+
+        -- update the list 
+        updatePopupEditList(index+1)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditMoveDown_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditMoveDown_Click(PopupEditMoveDown, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditDelete_Click(integer self, integer event, sequence params)
+-- delete selected popup item
+
+integer index, ignore
+
+    index = getIndex(PopupEditList)
+
+    if index then
+        if index+1<=length(popups) then
+            if find(popups[index][Class], {"Popup","Subpopup","Sub2popup","Sub3popup"})
+            and not equal(popups[index+1][Class], popups[index][Class]) then
+                ok = displayErrorMessage(246,{})
+                return
+            end if
+        end if
+        --remove from treeview
+        deleteList &= {popups[index][Name]}
+
+        -- remove from sequence
+        popups = popups[1..index-1] & popups[index+1..length(popups)]
+
+        -- remove from list
+        ignore = deleteItem(PopupEditList, index)
+
+        is_changed = w32True
+
+        --Added by Roland
+        setFocus(PopupEditList)
+        if length(popups)=0 then
+            setIndex(PopupEditList, length(popups))
+            choosepopupEditItem(length(popups))
+            counter2 = 0
+        elsif index=1 then
+            setIndex(PopupEditList, index)
+            choosepopupEditItem(index)
+        else
+            setIndex(PopupEditList, index-1)
+            choosepopupEditItem(index-1)
+        end if
+        setFocus(PopupEditName)
+        --end Roland
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditDelete_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditDelete_Click(PopupEditDelete, w32HClick, {}) end if
+end procedure
+---------------------------------------------------------------------------------------
+procedure PopupEditDeleteSubs_Click(integer self, integer event, sequence params)
+    -- delete selected menu item and subs
+
+sequence saveClass
+integer index, ignore, okToDelete
+    index = getIndex(PopupEditList)
+
+    if index then
+    --remove from treeview
+        deleteList &= {popups[index][Name]}
+        --save class of deleted item
+        saveClass = popups[index][Class]
+        -- remove from sequence
+        popups = popups[1..index-1] & popups[index+1..length(popups)]
+
+        -- remove from list
+        ignore = deleteItem(PopupEditList, index)
+
+        while w32True do
+            if index>length(popups) then
+                exit
+            end if
+            okToDelete = w32False
+            if equal(saveClass,"Popup") then
+                if not equal(popups[index][Class],"Popup") then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"PopupItem") then
+                if not find(popups[index][Class],{"Popup","PopupItem"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Subpopup") then
+                if not find(popups[index][Class],{"Popup","PopupItem","Subpopup"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"SubpopupItem") then
+                if not find(popups[index][Class],{"Popup","PopupItem","Subpopup","SubpopupItem"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub2popup") then
+                if not find(popups[index][Class],{"Popup","PopupItem","Subpopup","SubpopupItem","Sub2popup"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub2popupItem") then
+                if not find(popups[index][Class],{"Popup","PopupItem","Subpopup","SubpopupItem","Sub2popup",
+                                                  "Sub2popupItem"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub3popup") then
+                if not find(popups[index][Class],{"Popup","PopupItem","Subpopup","SubpopupItem","Sub2popup",
+                                                  "Sub2popupItem","Sub3popup"}) then
+                    okToDelete = w32True
+                end if
+            elsif equal(saveClass,"Sub3popupItem") then
+                if not find(popups[index][Class],{"Popup","PopupItem","Subpopup","SubpopupItem","Sub2popup",
+                                                  "Sub2popupItem","Sub3popup","Sub2popupItem"}) then
+                    okToDelete = w32True
+                end if
+            else
+                exit
+            end if
+
+            if okToDelete then
+                deleteList &= {popups[index][Name]}
+                -- remove from sequence
+                popups = popups[1..index-1] & popups[index+1..length(popups)]
+
+                -- remove from list
+                ignore = deleteItem(PopupEditList, index)
+
+                if not length(popups)
+                or index>length(popups) then
+                    index -= 1
+                    exit
+                end if
+            else
+                exit
+            end if
+
+        end while
+
+        is_changed = w32True
+
+        --Added by Roland
+        setFocus(PopupEditList)
+        if length(popups)=0 then
+            setIndex(PopupEditList, length(popups))
+            choosepopupEditItem(length(popups))
+            counter2 = 0
+        elsif index=1 then
+            setIndex(PopupEditList, index)
+            choosepopupEditItem(index)
+        else
+            setIndex(PopupEditList, index-1)
+            choosepopupEditItem(index-1)
+        end if
+
+        setFocus(PopupEditName)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditDeleteSubs_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditDeleteSubs_Click(PopupEditDeleteSubs, w32HClick,{}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditList_Change(integer self, integer event, sequence params)
+-- delete selected popup item
+
+integer index
+
+    index = getIndex(PopupEditList)
+    if index then
+        choosepopupEditItem(index)
+    else
+        setText(PopupEditName, "")
+        setText(PopupEditTitle, "")
+        setCheck(PopupEditChecked, w32False)
+        setCheck(PopupEditEnabled, w32False)
+        setCheck(PopupEditLocal, w32False)
+
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--judith
+constant LB_GETITEMHEIGHT = #01A1,
+LB_GETTOPINDEX = #018E
+
+--Roland
+procedure PopupEditList_Mouse(integer self, integer event, sequence params)
+-- right click calls CodeEditor
+
+integer index, state
+atom flag,height,topindex,indexoffset
+
+    if params[1]=RightDown
+    or params[1]=LeftDoubleClick then
+
+        state = Normal
+
+        --judith to find index when right click
+        if params[1]=RightDown
+        and not Sw then
+            height = sendMessage(PopupEditList,LB_GETITEMHEIGHT,0,0)
+            topindex = sendMessage(PopupEditList,LB_GETTOPINDEX,0,0)
+            indexoffset = floor(params[3]/height)
+            index = indexoffset+topindex
+
+            flag = sendMessage(PopupEditList,LB_SETCURSEL,index,0)
+            index += 1
+            if index>getCount(PopupEditList) then
+                index = 0
+            end if
+        end if
+        --judith to use left doubleclick
+        if params[1]=LeftDoubleClick
+        or Sw then
+            index = getIndex(PopupEditList)
+        end if
+        Sw = w32False
+
+        if index=0 then
+            msg = displayErrorMessage(140,{})
+            returnValue(-1)
+            return
+        end if
+
+        --dont go to code editor without asking
+        if is_changed then
+            msg = displayErrorMessage(141,{})
+            if msg=IDNO then
+                return
+            end if
+        end if
+
+        state = SW_NORMAL
+        if CodeWinOpen then
+            if isMaximized(CodeWin) then
+                state = SW_MAXIMIZE
+            elsif isMinimized(CodeWin) then
+                state = SW_MINIMIZE
+            end if
+        end if
+
+        -- save changes  
+        savethepopup()
+
+        if fault>0
+        and length(popups) then
+            returnValue(-1)
+            return
+        end if
+
+        controls = savePopup
+
+        selectedControl = w32findKeyAny(popups[index][Id], controls, Id)
+        if equal(controls[selectedControl][Class],"Popup")
+        or equal(controls[selectedControl][Class],"Subpopup")
+        or equal(controls[selectedControl][Class],"Sub2popup")
+        or equal(controls[selectedControl][Class],"Sub3popup") then
+            msg = displayErrorMessage(142,{})
+            returnValue(-1)
+            return
+        end if
+
+        closeWindow(PopupEditWindow)
+        PopupEditWindow_Close()
+
+        cameFromPopupEditor = w32True
+
+        if not CodeWinOpen then
+            showWindow(CodeWin, state)
+            CodeWinOpen = w32True
+        end if
+
+        setIndex(CodeControls,selectedControl)
+        ok = invokeHandler(CodeControls,w32HClick,{})
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure PopupEditOk_Click(integer self, integer event, sequence params)
+
+    --Roland
+    savethepopup()
+    if fault>0
+    and length(popups) then
+        return
+    end if
+    --end Roland
+
+    -- close the window 
+    closeWindow(PopupEditWindow)
+    PopupEditWindow_Close()
+
+    if CodeWinOpen then
+        ok = w32Func(xSetForegroundWindow, {getHandle(CodeWin)})
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditOk_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditOk_Click(PopupEditOk, w32HClick, {}) end if
+end procedure
+-------------------------------------------------------------------------------
+procedure PopupEditCancel_Click(integer self, integer event, sequence params)
+    -- close the window
+    closeWindow(PopupEditWindow)
+    PopupEditWindow_Close()
+
+    if CodeWinOpen then
+        ok = w32Func(xSetForegroundWindow, {getHandle(CodeWin)})
+    end if
+
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure PopupEditCancel_KeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then PopupEditCancel_Click(PopupEditCancel, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MPopupEditAddSub2popup_Click(integer self, integer event, sequence params)
+    -- add a Subsubpopup to the popup list
+    addpopupWidget("Sub2popup")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MPopupEditAddSub2Item_Click(integer self, integer event, sequence params)
+    -- add a Subsubpopup item to the popup list
+    addpopupWidget("Sub2popupItem")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MPopupEditAddSub3popup_Click(integer self, integer event, sequence params)
+    -- add a Subsubsubpopup to the popup list
+    addpopupWidget("Sub3popup")
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MPopupEditAddSub3Item_Click(integer self, integer event, sequence params)
+    -- add a Subsubsubpopup item to the popup list
+    addpopupWidget("Sub3popupItem")
+end procedure
+--------------------------------------------------------------------------------
+--Rolan
+procedure MPopupEditMoveUp_Click(integer self, integer event, sequence params)
+    PopupEditMoveUp_Click(PopupEditMoveUp, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MPopupEditMoveDown_Click(integer self, integer event, sequence params)
+    PopupEditMoveDown_Click(PopupEditMoveDown, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MPopupEditDelete_Click(integer self, integer event, sequence params)
+    PopupEditDelete_Click(PopupEditDelete, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+procedure MPopupEditDeleteSubs_Click(integer self, integer event, sequence params)
+    PopupEditDeleteSubs_Click(PopupEditDeleteSubs, w32HClick, {})
+end procedure
+--------------------------------------------------------------------------------
+--Roland
+procedure MPopupEditCodeEditor_Click(integer self, integer event, sequence params)
+-- like mouse in PopupEditList
+    --judith
+    Sw = w32True
+
+    PopupEditList_Mouse(PopupEditList, w32HMouse, {RightDown,0,0,0})
+end procedure
+--------------------------------------------------------------------------------
+procedure lostFocus_PopupEditName(integer self, integer event, sequence params)
+    canChangeIt = w32True
+    PopupEditName_Change(0,0,{})
+end procedure
+--------------------------------------------------------------------------------
+global procedure createPopupEditWindow()
+    if PopupEditWindow= -1 then
+                                      --"Popup Editor -"
+        PopupEditWindow = createEx(Window, IDEText[415][1], Form, Default, Default, 645, 370, {WS_THICKFRAME+WS_DLGFRAME}, 0)
+                              --"Caption:"
+        Static21 = createEx(LText, IDEText[375][1], PopupEditWindow, 12, 20, 60, 20, 0, 0)
+                              --"Name:"
+        Static11 = createEx(LText, IDEText[376][1], PopupEditWindow, 12, 48, 48, 20, 0, 0)
+        PopupEditTitle = createEx(EditText, "", PopupEditWindow, 72, 16, 288, 24, 0, 0)
+        PopupEditName = createEx(EditText, "", PopupEditWindow, 72, 48, 288, 24, 0, 0)
+                                         --"Checked"
+        PopupEditChecked = createEx(CheckBox, IDEText[377][1], PopupEditWindow, 16, 100, 77, 20, 0, 0)
+                                         --"Enabled"
+        PopupEditEnabled = createEx(CheckBox, IDEText[378][1], PopupEditWindow, 16, 120, 72, 20, 0, 0)
+                                          --"Local"
+        PopupEditLocal = createEx(CheckBox, IDEText[379][1],    PopupEditWindow, 16, 140, 72, 20, 0, 0)
+                                            --"Add Popup"
+        PopupEditAddpopup = createEx(PushButton, IDEText[416][1], PopupEditWindow, 96, 100, 247, 28, 0, 0)
+                                           --"Add Popup Item"
+        PopupEditAddItem = createEx(PushButton, IDEText[417][1], PopupEditWindow,   96, 132, 247, 28, 0, 0)
+                                           --"Move Up"
+        PopupEditMoveUp = createEx(PushButton, IDEText[382][1], PopupEditWindow, 488, 212, 115, 28, 0, 0)
+                                            --"Move Down"
+        PopupEditMoveDown = createEx(PushButton, IDEText[383][1], PopupEditWindow, 488, 240, 115, 28, 0, 0)
+                                          --"Delete"
+        PopupEditDelete = createEx(PushButton, IDEText[384][1], PopupEditWindow, 372, 100, 228, 28, 0, 0)
+                                                                                        --"Delete And Subs"
+        PopupEditDeleteSubs = createEx(PushButton, IDEText[1025][1], PopupEditWindow, 372, 132, 228, 28, 0, 0)
+        PopupEditList = createEx(List, "", PopupEditWindow, 12, 180, 450, 125, w32or_all({LBS_NOINTEGRALHEIGHT}), 0)
+                                      --"OK"
+        PopupEditOk = createEx(PushButton, IDEText[385][1], PopupEditWindow, 512, 12, 88, 30, 0, 0)
+                                          --"Cancel"
+        PopupEditCancel = createEx(PushButton, IDEText[386][1], PopupEditWindow, 512, 48, 88, 30, 0, 0)
+                                  --"&Add SubPopup/SubPopup Items"
+        MPopupEditAdd = createEx(Menu, IDEText[418][1], PopupEditWindow, 0, 0, 0, 0, 0, 0)
+                                               --"&Level 2 Sub Popup"
+        PopupEditAddSubpopup =   createEx(MenuItem, IDEText[419][1], MPopupEditAdd, 0, 0, 0, 0, 0, 0)
+                                              --"L&evel 2 Sub Popup Item"
+        PopupEditAddSubItem =   createEx(MenuItem, IDEText[420][1], MPopupEditAdd, 0, 0, 0, 0, 0, 0)
+                                               --"Le&vel 3 Sub Popup"
+        MPopupEditAddSub2popup = createEx(MenuItem, IDEText[421][1], MPopupEditAdd, 0, 0, 0, 0, 0, 0)
+                                               --"Lev&el 3 Sub Popup Item"
+        MPopupEditAddSub2Item = createEx(MenuItem, IDEText[422][1], MPopupEditAdd, 0, 0, 0, 0, 0, 0)
+                                               --"Leve&l 4 Sub Popup"
+        MPopupEditAddSub3popup = createEx(MenuItem, IDEText[423][1], MPopupEditAdd, 0, 0, 0, 0, 0, 0)
+                                              --"Level 4 Sub Popup &Item"
+        MPopupEditAddSub3Item = createEx(MenuItem, IDEText[424][1], MPopupEditAdd, 0, 0, 0, 0, 0, 0)
+                                   --"&Move"
+        MPopupEditMove = createEx(Menu, IDEText[394][1], PopupEditWindow, 0, 0, 0, 0, 0, 0)
+                                         --"Move &Up"
+        MPopupEditMoveUp = createEx(MenuItem, IDEText[395][1], MPopupEditMove, 0, 0, 0, 0, 0, 0)
+                                           --"Move &Down"
+        MPopupEditMoveDown = createEx(MenuItem, IDEText[396][1], MPopupEditMove, 0, 0, 0, 0, 0, 0)
+                                         --"D&elete"
+        MPopupEditDelete = createEx(MenuItem, IDEText[397][1], MPopupEditMove, 0, 0, 0, 0, 0, 0)
+                                             --"Delete &Subs"
+        MPopupEditDeleteSubs = createEx(MenuItem, IDEText[1026][1], MPopupEditMove, 0, 0, 0, 0, 0, 0)
+                                      --"&Code"
+        MPopupEditCode = createEx(Menu, IDEText[398][1], PopupEditWindow, 0, 0, 0, 0, 0, 0)
+                                             --"&Code Editor"
+        MPopupEditCodeEditor = createEx(MenuItem, IDEText[399][1], MPopupEditCode, 0, 0, 0, 0, 0, 0)
+                              --"Popups"
+        LText401 = createEx(LText, IDEText[425][1], PopupEditWindow, 16, 160, 448, 20, 0, 0)
+
+        setHandler(PopupEditWindow, w32HOpen, routine_id("PopupEditWindow_Open"))
+        setHandler(PopupEditWindow, w32HPaint, routine_id("PopupEditWindow_Paint"))
+        setHandler(PopupEditWindow, w32HResize, routine_id("PopupEditWindow_Resize"))
+        setHandler(PopupEditTitle, w32HChange, routine_id("PopupEditTitle_Change"))
+        setHandler(PopupEditTitle, w32HKeyPress, routine_id("keyPress_PopupEditTitle"))
+        setHandler(PopupEditName, w32HKeyDown, routine_id("keyDown_PopupEditName"))
+        setHandler(PopupEditName, w32HLostFocus, routine_id("lostFocus_PopupEditName"))
+        setHandler(PopupEditChecked, w32HClick, routine_id("PopupEditChecked_Click"))
+        setHandler(PopupEditEnabled, w32HClick, routine_id("PopupEditEnabled_Click"))
+        setHandler(PopupEditLocal, w32HClick, routine_id("PopupEditLocal_Click"))
+        setHandler(PopupEditAddpopup, w32HClick, routine_id("PopupEditAddpopup_Click"))
+        setHandler(PopupEditAddpopup, w32HKeyPress, routine_id("PopupEditAddpopup_KeyPress"))
+        setHandler(PopupEditAddItem, w32HClick, routine_id("PopupEditAddItem_Click"))
+        setHandler(PopupEditAddItem, w32HKeyPress, routine_id("PopupEditAddItem_KeyPress"))
+        setHandler(PopupEditAddSubpopup, w32HClick, routine_id("PopupEditAddSubpopup_Click"))
+        setHandler(PopupEditAddSubItem, w32HClick, routine_id("PopupEditAddSubItem_Click"))
+        setHandler(PopupEditMoveUp, w32HClick, routine_id("PopupEditMoveUp_Click"))
+        setHandler(PopupEditMoveUp, w32HKeyPress, routine_id("PopupEditMoveUp_KeyPress"))
+        setHandler(PopupEditMoveDown, w32HClick, routine_id("PopupEditMoveDown_Click"))
+        setHandler(PopupEditMoveDown, w32HKeyPress, routine_id("PopupEditMoveDown_KeyPress"))
+        setHandler(PopupEditDelete, w32HClick, routine_id("PopupEditDelete_Click"))
+        setHandler(PopupEditDeleteSubs, w32HClick, routine_id("PopupEditDeleteSubs_Click"))
+        setHandler(PopupEditDelete, w32HKeyPress, routine_id("PopupEditDelete_KeyPress"))
+        setHandler(PopupEditDeleteSubs, w32HKeyPress, routine_id("PopupEditDeleteSubs_KeyPress"))
+        setHandler(PopupEditList, w32HChange, routine_id("PopupEditList_Change"))
+        setHandler(PopupEditList, w32HMouse, routine_id("PopupEditList_Mouse"))
+        setHandler(PopupEditOk, w32HClick, routine_id("PopupEditOk_Click"))
+        setHandler(PopupEditOk, w32HKeyPress, routine_id("PopupEditOk_KeyPress"))
+        setHandler(PopupEditCancel, w32HClick, routine_id("PopupEditCancel_Click"))
+        setHandler(PopupEditCancel, w32HKeyPress, routine_id("PopupEditCancel_KeyPress"))
+        setHandler(MPopupEditAddSub2popup, w32HClick, routine_id("MPopupEditAddSub2popup_Click"))
+        setHandler(MPopupEditAddSub2Item, w32HClick, routine_id("MPopupEditAddSub2Item_Click"))
+        setHandler(MPopupEditAddSub3popup, w32HClick, routine_id("MPopupEditAddSub3popup_Click"))
+        setHandler(MPopupEditAddSub3Item, w32HClick, routine_id("MPopupEditAddSub3Item_Click"))
+        setHandler(MPopupEditMoveUp, w32HClick, routine_id("MPopupEditMoveUp_Click"))
+        setHandler(MPopupEditMoveDown, w32HClick, routine_id("MPopupEditMoveDown_Click"))
+        setHandler(MPopupEditDelete, w32HClick, routine_id("MPopupEditDelete_Click"))
+        setHandler(MPopupEditDeleteSubs, w32HClick, routine_id("MPopupEditDeleteSubs_Click"))
+        setHandler(MPopupEditCodeEditor, w32HClick, routine_id("MPopupEditCodeEditor_Click"))
+
+        setFont(PopupEditList, "Courier New", 8, Normal)
+
+    end if
+end procedure
+

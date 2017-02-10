@@ -1,0 +1,509 @@
+-- NEW! 0.42
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+
+integer xpmErrFlag          -- on error, sets code
+
+global constant
+    XPM_OK          = 0,    -- no error
+    XPM_ERR_FILE    = -1,   -- file related error
+    XPM_ERR_COLORS  = -2,   -- too many colors in bitmap
+    XPM_ERR_HEADER  = -3,   -- error in XPM header
+    XPM_ERR_COLOR   = -4    -- couldn't translate color code
+
+constant XPM_CODES =
+    " .+@#$%&*=-;>,')!~{]^/(_:<[}|1234567890" &
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+------------------------------------------------------------------------------
+--/topic XPM
+--/func createXpm( filename, euphoria bitmap )
+--/desc Creates an XPM file from a Euphoria bitmap.
+--/ret (INTEGER) Status code.
+-- Status codes:
+--
+-- /li /b XPM_OK. File created successfully
+-- /li /b XPM_ERR_FILE: File related error
+-- /li /b XPM_ERR_COLORS: Too many colors in bitmap
+
+
+global function createXpm( sequence outFile, sequence euBmp )
+
+    -- create an XPM file from a euphoria bitmap
+    integer
+    handle,     -- out file handle
+    index,      -- convenience counter
+    colors,     -- count of colors used in XPM
+    charsWide,  -- chars wide of encoding
+    at          -- index
+    sequence
+    bmp,        -- bitmap portion of data
+    pal,        -- pal portion of data
+    code,       -- reassignment of codes to palette indexes
+    encode      -- encoding of color codes
+
+    -- get values
+    pal = euBmp[1]
+    bmp = euBmp[2]
+
+    -- build a set of 'used' flags for the palette
+    code = repeat( 0, length( pal ) )
+
+    -- scan through the bitmap, and
+    colors = 0
+    for i = 1 to length( bmp ) do
+    for j = 1 to length( bmp[i] )  do
+
+        -- get palette index
+        index = bmp[i][j]+1
+
+        -- already assigned an index?
+        if not code[ index ] then
+
+	    -- increment index count
+	    colors = colors + 1
+
+	    -- assign an index
+	    code[ index ] = colors
+
+        end if
+    end for
+    end for
+
+    -- need 1 or 2 byte codes?
+    if colors > length( XPM_CODES ) then
+
+    -- need to construct 2 byte codes
+    charsWide = 2
+
+    -- initialize sequence
+    encode = repeat( 0, colors )
+
+    -- index
+    at = 1
+
+    for i = 1 to length( XPM_CODES ) do
+        for j = 2 to length( XPM_CODES ) do
+
+	    -- build a two byte code
+	    encode[at] = XPM_CODES[i] & XPM_CODES[j]
+
+	    -- increment
+	    at += 1
+
+	    -- filled?
+	    if at > colors then
+	        -- leave inner loop
+	        exit
+	    end if
+
+        end for
+
+        -- filled?
+        if at > colors then
+	    -- leave outer loop
+	    exit
+        end if
+
+    end for
+
+    else
+
+    -- 1 byte coding
+    charsWide = 1
+
+    -- list of codes is subset of
+    encode = XPM_CODES[1..colors]
+
+    end if
+
+    -- open the file
+    handle = w32FileOpen( outFile, "w" )
+    if handle = -1 then
+    -- error opening file
+    return XPM_ERR_FILE
+    end if
+
+    -- header
+    puts( handle, "/* XPM */\n" )
+    puts( handle, "static char * xpm[] = {\n" )
+
+    -- values: width, height, colors, code width
+    printf( handle, "\"%d %d %d %d\",\n",
+    {length(bmp[1]), length(bmp), colors, charsWide} )
+
+    -- the color tuples
+    for i = 1 to length( code ) do
+    -- color used?
+    if code[i] then
+        -- create an entry
+        printf( handle, "\"%s        c #%02x%02x%02x\",\n",
+	    {encode[code[i]]} & pal[i] )
+    end if
+
+    end for
+
+    -- build the xpm data
+    for i = 1 to length( bmp ) do
+    -- "
+    puts( handle, "\"" )
+    for j = 1 to length( bmp[i] ) do
+
+        -- get palette index
+        index = bmp[i][j]+1
+
+        -- write the code out
+        puts( handle, encode[ code[index] ] )
+
+    end for
+
+    -- end of line
+    if i = length( bmp ) then
+        -- "};
+        puts( handle, "\"};\n" )
+    else
+        -- ",
+        puts( handle, "\",\n" )
+    end if
+
+    end for
+
+    -- close the file
+    close( handle )
+
+    -- return success
+    return XPM_OK
+
+end function
+
+
+------------------------------------------------------------------------------
+--/topic XPM
+--/func createXpmFromBmpFile( filename, euphoria bitmap )
+--/desc Creates an XPM file from a bitmap file.
+--/ret (INTEGER) Status code.
+-- Status codes:
+--
+-- /li /b XPM_OK. File created successfully
+-- /li /b XPM_ERR_FILE: File related error
+-- /li /b XPM_ERR_COLORS: Too many colors in bitmap
+
+-- NEW! 0.43 renamed
+global function createXpmFromBmpFile( sequence inFile, sequence outFile )
+
+    -- create an XPM file from a bitmap file
+    object bmp
+
+    -- read the bitmap in
+    bmp = read_bitmap( inFile )
+    if integer( bmp ) then
+    -- file error
+    return XPM_ERR_FILE
+    end if
+
+    -- convert to xpm
+    return createXpm( outFile, bmp )
+
+end function
+
+
+------------------------------------------------------------------------------
+function convertToWords( sequence s )
+    -- convert s into space delimited words
+    sequence word, words
+
+    words = {}
+    word = ""
+    s = s & " "
+    for i = 1 to length( s ) do
+    if s[i] = ' ' then
+        if length( word ) then
+	    words = append( words, word )
+	    word = ""
+        end if
+    else
+        word = word & s[i]
+    end if
+    end for
+
+    return words
+
+end function
+
+
+-- NEW! 0.42
+------------------------------------------------------------------------------
+function xpmConvertToNumber( sequence s )
+
+    -- convert a string to a number
+    -- this should only return positive numbers,
+    -- -1 indicates error
+
+    s = value( s )
+    if s[1] != GET_SUCCESS then
+    -- flag error
+    xpmErrFlag = 1
+    end if
+
+    return s[2]
+
+end function
+
+------------------------------------------------------------------------------
+function xpmConvertToRGB( sequence s )
+
+    -- convert a color code string into an {r,g,b} tuple
+    integer r,g,b
+
+    if s[1] = '#' then
+    -- hex tuple: #rrggbb
+
+    -- upper case
+    s = upper( s )
+
+    r = xpmConvertToNumber( s[1..3] )
+    g = xpmConvertToNumber( "#" & s[4..5] )
+    b = xpmConvertToNumber( "#" & s[6..7] )
+
+    -- return tuple
+    return {r,g,b}
+
+    elsif equal( s, "None" ) then
+
+    -- set color to clear
+    return split_rgb(getTransparentColor())
+
+    end if
+
+    -- unable to convert color
+    xpmErrFlag = 1
+
+    return {0,0,0}
+
+end function
+
+
+-- NEW! 0.42 added for XPM support
+-- NEW! 0.43 renamed
+------------------------------------------------------------------------------
+--/topic XPM
+--/func xpmToEuBmp( xpm )
+--/desc Convert XPM data into a standard Euphoria bitmap.
+--/ret A Euphoria bitmap in a sequence. On failure, an integer error code.
+-- The error codes are:
+--
+-- /li /b XPM_ERR_COLORS: Too many colors in bitmap
+-- /li /b XPM_ERR_HEADER: Error in XPM header
+-- /li /b XPM_ERR_COLOR: Couldn't translate color code
+
+
+global function xpmToEuBmp( sequence xpm )
+
+
+    integer
+    line,           -- current line in file
+    at,             -- used to find positions in strings
+    bitsWide,       -- width of the xpm
+    bitsTall,       -- height of the xpm
+    colors,         -- colors in the xpm
+    codeWide        -- width of the color code
+
+    sequence
+    colorCode,      -- text of color code
+    colorRGB,       -- palette of tuples
+    bits            -- bits of image
+
+    object
+    data            -- generic bucket
+
+
+    -- clear error flag
+    xpmErrFlag = 0
+
+    -- extract the values: "<wide> <tall> <colors> <bytes per color>"
+    data = convertToWords( xpm[1] )
+    bitsWide = xpmConvertToNumber( data[1] )
+    bitsTall = xpmConvertToNumber( data[2] )
+    colors   = xpmConvertToNumber( data[3] )
+    codeWide = xpmConvertToNumber( data[4] )
+
+    -- error?
+    if xpmErrFlag then
+    -- error in header
+    return XPM_ERR_HEADER
+    end if
+
+    -- create a palatte and data
+    colorCode  = repeat( "", colors )
+    colorRGB   = repeat( {}, colors )
+
+    -- start of data
+    line = 2
+
+    -- read the color data
+    for i = 1 to colors do
+
+    -- extract the color code
+    colorCode[i] = xpm[line][1..codeWide]
+
+    -- get a line
+    data = xpm[line]
+
+    -- seek to the color
+    data = data[3..length(data)]
+    at = match( "c ", data )
+    if at = 0 then
+        -- badly formed color definition
+        return XPM_ERR_COLOR
+    end if
+
+    -- extract the color code
+    data = data[at+2..length(data)]
+
+    -- convert to an {r,g,b} code
+    colorRGB[i] = xpmConvertToRGB( data )
+
+    -- increment line
+    line += 1
+
+    end for
+
+    -- check condition
+    if xpmErrFlag then
+    -- error in call to colorRGB
+    return XPM_ERR_COLOR
+    end if
+
+    -- create data area
+    bits = repeat( repeat( 0, bitsWide ), bitsTall )
+
+    -- convert the text into indexes
+    for i = 1 to bitsTall do
+
+    -- get a line
+    data = xpm[line]
+
+    -- convert to w32lookup
+    at = 0
+
+    for j = 1 to length( data ) by codeWide do
+
+        -- move 1 pixel at a time
+        at += 1
+
+        -- find the position, subtract to make base zero
+        bits[i][at] = find( data[j..j+codeWide-1], colorCode ) - 1
+
+    end for
+
+    -- read the next line
+    line += 1
+
+    end for
+
+    return { colorRGB, bits }
+
+end function
+registerRoutine("xpmToEuBmp",routine_id("xpmToEuBmp"))
+
+------------------------------------------------------------------------------
+global function readXpm( sequence fName )
+
+    -- read a file into a sequence
+    -- removes line feeds
+
+    integer handle, at
+    sequence file
+    object data
+
+    file = {}
+
+    -- open the file
+    handle = w32FileOpen( fName, "r" )
+    if handle = -1 then
+    -- error opening file
+        return XPM_ERR_FILE
+    end if
+
+    -- check header
+    data = gets( handle )
+    if not match( "/* XPM */", data ) then
+        return XPM_ERR_HEADER
+    end if
+
+    -- read to eof
+    while 1 do
+
+        -- read a line
+        data = gets( handle )
+
+        -- eof?
+        if integer( data ) then
+            exit
+        end if
+
+        -- remove line feed, if any
+        if data[length(data)] = '\n' then
+            data = data[1..length(data)-1]
+        end if
+
+        -- blank line?
+        if length( data ) = 0 then
+            -- ignore
+
+        -- not quoted?
+        elsif data[1] != '"' then
+            -- ignore
+
+        else
+
+            -- first quote
+            at = find( '"', data )
+            data = data[at+1..length(data)]
+
+            -- last quote
+            at = find( '"', data )
+            data = data[1..at-1]
+
+            -- add to file
+            file = append( file, data )
+
+        end if
+
+    end while
+
+    -- close the file
+    close( handle )
+
+    -- reads an XPM from disk, returns bitmap
+    return xpmToEuBmp( file )
+
+end function
+
+-----------------------------------------------------------------------------
+------------------------------------------------------------------------------
+--/topic XPM
+--/func xpmToPixmap( xpm )
+--/desc Create a /Pixmap from XPM data.
+--
+--/ret The id of a Pixmap control containing the image.
+global function xpmToPixmap( sequence xpm )
+
+    -- convert xpm to bmp, and then to dib
+    atom pixmap
+    sequence bmp
+
+-- NEW! 0.43 function renamed
+    -- convert xpm to bmp using the TransRGB for the transparent color
+    bmp = xpmToEuBmp( xpm )
+
+    -- create an empty pixmap
+    pixmap = createEx(Pixmap, "", 0, 0, 0, 0, 0, 0, 0 )
+
+    -- create a dib, and assign it to the pixmap
+    setPixmap(pixmap, createDIB( bmp ))
+
+    return pixmap
+
+end function
+

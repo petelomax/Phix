@@ -207,14 +207,17 @@ constant
     ERROR_ACCESS_DENIED = 5,
     ERROR_INVALID_PARAMETER = 87,
     ERROR_MORE_DATA = 234,
-    RRF_RT_REG_SZ = #00000002,
-    RRF_RT_REG_EXPAND_SZ = #00000004,
-    RRF_NOEXPAND = #10000000,
+    REG_SZ = 1,
+    REG_EXPAND_SZ = 2,
+--  RRF_RT_REG_SZ = #00000002,
+--  RRF_RT_REG_EXPAND_SZ = #00000004,
+--  RRF_NOEXPAND = #10000000,
     WM_SETTINGCHANGE = 26
 
 atom advapi32,
      RegOpenKeyExA,
-     RegGetValueA,
+--   RegGetValueA,
+     RegQueryValueExA,
      RegCloseKey,
      kernel32,  
      xMultiByteToWideChar,
@@ -303,12 +306,13 @@ end procedure
 --  return data
 --end function
 
-function KeyValue2(string key, atom key_id, string SubKey, object Value, integer RRF_TYPE)
+function KeyValue2(string key, atom key_id, string SubKey, object Value)--, integer RRF_TYPE)
 integer res
 integer data_len
 atom lpData
 --atom lpSubKey = allocate_StringZ(SubKey)
 object data
+--object data2 --DEV
     if platform()!=WINDERS then ?9/0 end if
     data = 0
     -- first just get size
@@ -316,46 +320,102 @@ object data
 --  if string(Value) then
 --      Value = allocate_StringZ(Value)
 --  end if
-    res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,NULL,lpcbData})
-    if res=0 then
-        -- then get actual data
-        data_len = peek4u(lpcbData)
---if 0 then -- replaced 5/8/15
---      lpData = allocate(data_len)
-----        res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
---      res = c_func(RegGetValueA,{key_id,lpSubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
---else
-        while 1 do
-            lpData = allocate(data_len)
-            res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
-            if res!=ERROR_MORE_DATA then exit end if
-            free(lpData)
-            data_len += 100
-            poke4(lpcbData,data_len)
-        end while
+--if RegGetValueA!=-1 then
+--  res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,NULL,lpcbData})
+--  if res=0 then
+--      -- then get actual data
+--      data_len = peek4u(lpcbData)
+----if 0 then -- replaced 5/8/15
+----        lpData = allocate(data_len)
+------      res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
+----        res = c_func(RegGetValueA,{key_id,lpSubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
+----else
+--      while 1 do
+--          lpData = allocate(data_len)
+--          res = c_func(RegGetValueA,{key_id,SubKey,Value,RRF_TYPE,NULL,lpData,lpcbData})
+--          if res!=ERROR_MORE_DATA then exit end if
+--          free(lpData)
+--          data_len += 100
+--          poke4(lpcbData,data_len)
+--      end while
+----end if
+--      if res!=0 then ?9/0 end if
+--      data_len = peek4u(lpcbData)
+----    key = "HKEY_CURRENT_USER\\" 
+----    key_id = #80000001
+----    SubKey = "Environment" 
+----    Value = 39807340 
+----    RRF_TYPE = 2 
+----    res = 234
+----    data_len = 36
+----    lpData = 34655248 
+----    data = 0 
+--      -- (not really sure why RegGetValueA says we need 6 bytes for "text\0",
+--      --  but it does, however, it is easy enough to skip any extra nulls.)
+--      while 1 do
+--          data_len -= 1
+--          if peek(lpData+data_len-1)!=0 then exit end if
+--      end while
+--      data = peek({lpData,data_len})
+--      free(lpData)
+--  elsif res!=ERROR_FILE_NOT_FOUND then
+--      erm(res,key&SubKey)
+--  end if
 --end if
-        if res!=0 then ?9/0 end if
-        data_len = peek4u(lpcbData)
---  key = "HKEY_CURRENT_USER\\" 
---  key_id = #80000001
---  SubKey = "Environment" 
---  Value = 39807340 
---  RRF_TYPE = 2 
---  res = 234
---  data_len = 36
---  lpData = 34655248 
---  data = 0 
-        -- (not really sure why RegGetValueA says we need 6 bytes for "text\0",
-        --  but it does, however, it is easy enough to skip any extra nulls.)
-        while 1 do
-            data_len -= 1
-            if peek(lpData+data_len-1)!=0 then exit end if
-        end while
-        data = peek({lpData,data_len})
-        free(lpData)
+--/!*
+--from edita\pFreg.ew:
+--global function regIconInfo(string subkey)
+--
+-- Get default icon info from registry.
+-- Called once with eg ".bat", to return "batfile", then with (eg)
+--  "batfile\\DefaultIcon" to return "C:\Windows\System\shell32.dll,-153".
+--
+--atom key_id
+--object data2
+--integer DataLen
+--atom lpData
+
+--  data2 = 0
+    res = c_func(RegOpenKeyExA,{key_id,SubKey,0,KEY_READ,phkResult})
+    if res=0 then
+        atom key_id2 = peek4u(phkResult)
+        -- first just get size of buffer required:
+        if c_func(RegQueryValueExA,{key_id2,Value,0,lpType,0,lpcbData})=0
+        and find(peek4u(lpType),{REG_SZ,REG_EXPAND_SZ}) then
+            data_len = peek4u(lpcbData)
+            lpData = allocate(data_len)
+            -- then get actual data:
+            while 1 do
+                lpData = allocate(data_len)
+                res = c_func(RegQueryValueExA,{key_id2,Value,0,lpType,lpData,lpcbData})
+                if res!=ERROR_MORE_DATA then exit end if
+                free(lpData)
+                data_len += 100
+                poke4(lpcbData,data_len)
+            end while
+            if res=0 then
+                data_len = peek4u(lpcbData)
+                while 1 do
+                    data_len -= 1
+                    if peek(lpData+data_len-1)!=0 then exit end if
+                end while
+                data = peek({lpData,data_len})
+            end if
+            free(lpData)
+        end if
+        {} = c_func(RegCloseKey,{key_id2})
     elsif res!=ERROR_FILE_NOT_FOUND then
         erm(res,key&SubKey)
     end if
+--if data!=data2 then
+--  ?{data=data2,data,data2}
+--  ?{key, key_id, SubKey, Value, RRF_TYPE}
+----/*
+----*/
+--end if
+--  return data2    -- -1 on failure
+--end function
+--*!/
     return data
 end function
 
@@ -678,7 +738,8 @@ Ihandln wasFocus
         EditWithEdita = "\""&EditWithEdita&"\" \""&Edita&"\" \"%1\""
     end if
 
-    HKLMPath = KeyValue2(HKLM,HKEY_LOCAL_MACHINE,PHKLM,"Path",RRF_RT_REG_EXPAND_SZ+RRF_NOEXPAND)
+    HKLMPath = KeyValue2(HKLM,HKEY_LOCAL_MACHINE,PHKLM,"Path")--,RRF_RT_REG_EXPAND_SZ+RRF_NOEXPAND)
+--?HKLMPath
     pathmode = 0
     lPaths = repeat("",3)
 --> firsttime = length(getText(cbPath))!=0
@@ -688,7 +749,7 @@ Ihandln wasFocus
         lPaths[1] = "error reading "&HKLM&PHKLM&"\\Path"
         c = BrightRed
     else
-        HKCUPath = KeyValue2(HKCU,HKEY_CURRENT_USER,PHKCU,"Path",RRF_RT_REG_SZ)
+        HKCUPath = KeyValue2(HKCU,HKEY_CURRENT_USER,PHKCU,"Path")--,RRF_RT_REG_SZ)
         if not string(HKCUPath) then HKCUPath="" end if
         if match("Phix",HKLMPath)=0 then
             if match("Phix",HKCUPath)=0 then
@@ -889,7 +950,7 @@ Ihandln wasFocus
     for i=1 to length(EXTS) do
         actual[i][5] = EXTS[i] -- (debug aid, otherwise not used)
         subkey = "."&EXTS[i]
-        subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL, RRF_RT_REG_SZ)
+        subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL)--, RRF_RT_REG_SZ)
         if string(subname) then -- and find(subname,knownTypes)?
             k = find(subname,subkeys)
             if k=0 then
@@ -898,7 +959,7 @@ Ihandln wasFocus
             end if
             subkeyidx[i] = k
         end if
-        subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT, subkey, PerceivedType, RRF_RT_REG_SZ)
+        subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT, subkey, PerceivedType)--, RRF_RT_REG_SZ)
         if subname="text" then
             actual[i][PT] = 1
         end if
@@ -910,7 +971,7 @@ Ihandln wasFocus
 --      res = c_func(RegOpenKeyExA,{HKEY_CLASSES_ROOT,allocate_StringZ(subkey),0,KEY_READ,phkResult})
         if res=0 then
             key_id = peek4u(phkResult)
-            subname = KeyValue2(HKCR&subkey,key_id,DefaultIcon,NULL,RRF_RT_REG_SZ)
+            subname = KeyValue2(HKCR&subkey,key_id,DefaultIcon,NULL)--,RRF_RT_REG_SZ)
             if string(subname) then
                 for j=1 to length(subkeyidx) do
 --                  if EXTS[j][1]='e'
@@ -931,7 +992,7 @@ Ihandln wasFocus
                 else -- dix=RUN
                     verb = "open"
                 end if
-                subname = KeyValue2(HKCR&subkey,key_id,"shell\\"&verb&"\\command",NULL,RRF_RT_REG_SZ)
+                subname = KeyValue2(HKCR&subkey,key_id,"shell\\"&verb&"\\command",NULL)--,RRF_RT_REG_SZ)
                 if string(subname) then
                     for j=1 to length(subkeyidx) do
 --                      if EXTS[j][1]='e'
@@ -1445,14 +1506,25 @@ procedure Setup()
                  C_LONG,    --  REGSAM  samDesired (KEY_ALL_ACCESS)
                  C_LONG},   --  PHKEY  phkResult
                 C_LONG)     -- LONG 0=success, else error code.
-            RegGetValueA = link_c_func(advapi32,"RegGetValueA",
-                {C_LONG,    --  _In_        HKEY hkey
-                 C_PTR,     --  _In_opt_    LPCTSTR lpSubKey,
-                 C_PTR,     --  _In_opt_    LPCTSTR lpValue,
-                 C_INT,     --  _In_opt_    DWORD dwFlags,
-                 C_PTR,     --  _Out_opt_   LPDWORD pdwType,
-                 C_PTR,     --  _Out_opt_   PVOID pvData,
-                 C_PTR},    --  _Inout_opt_ LPDWORD pcbData
+-- not XP:
+--          RegGetValueA = link_c_func(advapi32,"RegGetValueA",
+--          RegGetValueA = define_c_func(advapi32,"RegGetValueA",
+--              {C_LONG,    --  _In_        HKEY hkey
+--               C_PTR,     --  _In_opt_    LPCTSTR lpSubKey,
+--               C_PTR,     --  _In_opt_    LPCTSTR lpValue,
+--               C_INT,     --  _In_opt_    DWORD dwFlags,
+--               C_PTR,     --  _Out_opt_   LPDWORD pdwType,
+--               C_PTR,     --  _Out_opt_   PVOID pvData,
+--               C_PTR},    --  _Inout_opt_ LPDWORD pcbData
+--              C_LONG)     -- LONG 0=success, else error code.
+--PL 28/12/16 for XP:
+            RegQueryValueExA = link_c_func(advapi32,"RegQueryValueExA",
+                {C_LONG,    --  _In_        HKEY hKey,
+                 C_PTR,     --  _In_opt_    LPCTSTR lpValueName,
+                 C_PTR,     --  _Reserved_  LPDWORD lpReserved,
+                 C_PTR,     --  _Out_opt_   LPDWORD lpType,
+                 C_PTR,     --  _Out_opt_   LPBYTE lpData,
+                 C_PTR},    --  _Inout_opt_ LPDWORD lpcbData
                 C_LONG)     -- LONG 0=success, else error code.
             RegCloseKey = link_c_func(advapi32,"RegCloseKey",
                 {C_LONG},   --  HKEY  hKey
@@ -1603,7 +1675,7 @@ string line
         end if
     end if
 
-    HKLMPath = KeyValue2(HKLM,HKEY_LOCAL_MACHINE,PHKLM,"Path",RRF_RT_REG_EXPAND_SZ+RRF_NOEXPAND)
+    HKLMPath = KeyValue2(HKLM,HKEY_LOCAL_MACHINE,PHKLM,"Path")--,RRF_RT_REG_EXPAND_SZ+RRF_NOEXPAND)
     if flag=CREATE and pathmode!=0 then
 -->     if isChecked(rbMachine) then
         if IupGetInt(rmach,"VALUE") then
@@ -1640,7 +1712,7 @@ string line
     line &= "\n\n"
     putw(fn,line)
 
-    HKCUPath = KeyValue2(HKCU,HKEY_CURRENT_USER,PHKCU,"Path",RRF_RT_REG_SZ)
+    HKCUPath = KeyValue2(HKCU,HKEY_CURRENT_USER,PHKCU,"Path")--,RRF_RT_REG_SZ)
     if flag=CREATE and pathmode!=0 then
 -->     if isChecked(rbUser) then
         if IupGetInt(ruser,"VALUE") then
@@ -1664,7 +1736,7 @@ string line
             if flag=CREATE then
                 subname = knownSubkeys[amap[i]]
             else
-                subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL,RRF_RT_REG_SZ)
+                subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL)--,RRF_RT_REG_SZ)
             end if
             if string(subname) then
                 putw(fn,sprintf("@=\"%s\"\n",{subname}))
@@ -1680,7 +1752,7 @@ string line
             end if
 --          subname = desired[ewmap[i]][PT]
         else
-            subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT, subkey, PerceivedType,RRF_RT_REG_SZ)
+            subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT, subkey, PerceivedType)--,RRF_RT_REG_SZ)
         end if
         if string(subname) then
             putw(fn,sprintf("\"PerceivedType\"=\"%s\"\n",{subname}))
@@ -1699,7 +1771,7 @@ string line
                 desiredi = desired[ksmap[i]]
                 subname = knownDescs[i]
             else
-                subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL,RRF_RT_REG_SZ)
+                subname = KeyValue2(HKCR,HKEY_CLASSES_ROOT,subkey, NULL)--,RRF_RT_REG_SZ)
             end if
             if string(subname) then
                 putw(fn,sprintf("@=\"%s\"\n\n",{subname}))
@@ -1710,7 +1782,7 @@ string line
                 subname = desiredi[ICON]
             else
                 key_id = peek4u(phkResult)
-                subname = KeyValue2(HKCR&subkey,key_id,DefaultIcon,NULL,RRF_RT_REG_SZ)
+                subname = KeyValue2(HKCR&subkey,key_id,DefaultIcon,NULL)--,RRF_RT_REG_SZ)
             end if
             if string(subname) then
                 putw(fn,sprintf("[HKEY_CLASSES_ROOT\\%s\\%s]\n",{subkey,DefaultIcon}))
@@ -1737,7 +1809,7 @@ string line
                         subname = desiredi[dix]
                     end if
                 else
-                    subname = KeyValue2(HKCR&subkey,key_id,"shell\\"&verb&"\\command",NULL,RRF_RT_REG_SZ)
+                    subname = KeyValue2(HKCR&subkey,key_id,"shell\\"&verb&"\\command",NULL)--,RRF_RT_REG_SZ)
                 end if
                 if string(subname) and length(subname)>0 then
                     if not shelldone then
@@ -1793,7 +1865,7 @@ procedure edit(string filename)
 string fmt, cmd
 object d
 
---DEV platform()=WINDERS??
+--DEV platform()=WINDERS?? join_path??
 --  filename = basedir&"demo\\arwendemo\\pgui\\"&filename
     filename = basedir&"demo\\pGUI\\pdemo\\"&filename
     d = dir(filename)

@@ -1,0 +1,4023 @@
+include series.e
+without trace
+
+global constant
+    -- used in alignControls()
+    w32LeftEdge   = 'L',
+    w32Leftmost   = 'l',
+    w32TopEdge    = 'T',
+    w32Topmost    = 't',
+    w32RightEdge  = 'R',
+    w32Rightmost  = 'r',
+    w32BottomEdge = 'B',
+    w32Bottommost = 'b',
+    -- used in distributeControls()
+    w32VertCentre = 'V',
+    w32HorzCentre = 'H',
+    w32VertGap    = 'v',
+    w32HorzGap    = 'h',
+    -- used in sizeControls()
+    w32Widest     = 'W',
+    w32Narrowest  = 'N',
+    w32Tallest    = 'T',
+    w32Shortest   = 'S',
+    w32Width      = 'w',
+    w32Height     = 'h',
+    -- Request Codes
+    w32Request_RtnId = 'r'
+
+--/topic Constants
+--/const kMainMsg
+--/desc Used by the notify and raw message handlers. See /setNotifyHandler
+
+--/topic Constants
+--/const kReturnNow
+--/desc Used by the notify and raw message handlers. See /setNotifyHandler
+
+--/topic Constants
+--/const kSubclassedMsg
+--/desc Used by the notify and raw message handlers. See /setNotifyHandler
+
+--/topic Constants
+--/const kProcessMsg
+--/desc Used by the notify and raw message handlers. See /setNotifyHandler
+
+
+--/topic Constants
+--/const w32PB_ICON
+--/desc Used when creating a /PictureButton and /ToggleButton.
+
+--/topic Constants
+--/const w32PB_BITMAP
+--/desc Used when creating a /PictureButton and /ToggleButton.
+
+--/topic Constants
+--/const w32KH_SetFocus
+--/desc Used as a return value by w32HKeyDown handlers to indicate that the focus needs to be changed.
+
+--/topic Constants
+--/const w32LV_StartSorting
+--/desc Used by /ListView controls that have a custom sorting routine.
+
+--/topic Constants
+--/const w32LV_EndSorting
+--/desc Used by /ListView controls that have a custom sorting routine.
+
+-- Some magic numbers.
+global constant
+    kMainMsg = -2761,
+    kReturnNow = kMainMsg,
+    kSubclassedMsg = -9987,
+    kWinDefProc = kSubclassedMsg,
+
+    w32PB_ICON = {-1,"icon"},
+    w32PB_BITMAP = {-1,"bitmap"},
+
+    w32KH_SetFocus = {-1, "setfocus"},
+
+    w32LV_StartSorting = 0,
+    w32LV_EndSorting = 1
+
+-- Font Weights
+global constant
+    FW_DONTCARE = 0,
+    FW_THIN    = 100,
+    FW_EXTRALIGHT = 200,
+    FW_ULTRALIGHT = 200,
+    FW_LIGHT = 300,
+    FW_NORMAL = 400,
+    FW_REGULAR = 400,
+    FW_MEDIUM = 500,
+    FW_SEMIBOLD = 600,
+    FW_DEMIBOLD = 600,
+    FW_BOLD = 700,
+    FW_EXTRABOLD = 800,
+    FW_ULTRABOLD = 800,
+    FW_HEAVY = 900,
+    FW_BLACK = 900
+
+global constant
+    w32Color_SCROLLBAR             = -1,
+    w32Color_BACKGROUND            = -2,
+    w32Color_DESKTOP               = w32Color_BACKGROUND,
+    w32Color_ACTIVECAPTION         = -3,
+    w32Color_INACTIVECAPTION       = -4,
+    w32Color_MENU                  = -5,
+    w32Color_WINDOW                = -6,
+    w32Color_WINDOWFRAME           = -7,
+    w32Color_MENUTEXT              = -8,
+    w32Color_WINDOWTEXT            = -9,
+    w32Color_CAPTIONTEXT           = -10,
+    w32Color_ACTIVEBORDER          = -11,
+    w32Color_INACTIVEBORDER        = -12,
+    w32Color_APPWORKSPACE          = -13,
+    w32Color_HIGHLIGHT             = -14,
+    w32Color_HIGHLIGHTTEXT         = -15,
+    w32Color_BTNFACE               = -16,
+    w32Color_3DFACE                = w32Color_BTNFACE,
+    w32Color_BTNSHADOW             = -17,
+    w32Color_3DSHADOW              = w32Color_BTNSHADOW,
+    w32Color_GRAYTEXT              = -18,
+    w32Color_BTNTEXT               = -19,
+    w32Color_INACTIVECAPTIONTEXT   = -20,
+    w32Color_BTNHIGHLIGHT          = -21,
+    w32Color_3DHILIGHT             = w32Color_BTNHIGHLIGHT,
+    w32Color_3DDKSHADOW            = -22,
+    w32Color_3DLIGHT               = -23,
+    w32Color_INFOTEXT              = -24,
+    w32Color_TOOLTIPTEXT           = w32Color_INFOTEXT,
+    w32Color_INFOBK                = -25,
+    w32Color_TOOLTIPBK             = w32Color_INFOBK,
+    w32Color_HOTLIGHT              = -27,
+    w32Color_GRADIENTACTIVECAPTION = -28,
+    w32Color_GRADIENTINACTIVECAPTION = -29,
+    w32Color_MENUHILIGHT           = -30,
+    w32Color_MENUBAR               = -31
+
+global constant
+    -- font attributes
+    w32FontName        = 1,
+    w32FontSize        = 2,
+    w32FontAttrib      = 3,
+    w32FontColor       = 4
+    
+    -- Windows versions
+global constant
+    WIN_3_1     = 1,
+    WIN_95      = 2,
+    WIN_95_OSR2 = 2.5,
+    WIN_98      = 3,
+    WIN_98SE    = 3.5,
+    WIN_ME      = 4,
+    WIN_NT_3_51 = 5,
+    WIN_NT_4    = 6,
+    WIN_2000    = 7,
+    WIN_XP      = 8,
+    WIN_VISTA   = 9,
+    WIN_UNKNOWN = 0
+
+global constant
+       DLGC_WANTARROWS =#0001,
+       DLGC_WANTTAB =#0002,
+       DLGC_WANTALLKEYS =#0004,
+       DLGC_WANTCHARS =#0008,
+       DLGC_WANTENTER  =#0010,
+       DLGC_RADIOBUTTON =#0040,
+       DLGC_HASSETSEL =#0080,
+       DLGC_DEFPUSHBUTTON =#0100,
+       DLGC_UNDEFPUSHBUTTON =#0200,
+       DLGC_3STATE  =#0800,
+       DLGC_STATIC =#1000,
+       DLGC_BUTTON =#2000
+
+-- Moved initialization of common controls to procedure.  Also had to
+-- move location in order to use structures.
+global constant
+    ICC_LISTVIEW_CLASSES = #1, --// listview, hader
+    ICC_TREEVIEW_CLASSES = #2, --// treeview, tooltips
+    ICC_BAR_CLASSES      = #4, --// toolbar, statusbar, trackbar, tooltips
+    ICC_TAB_CLASSES      = #8, --// tab, tooltips
+    ICC_UPDOWN_CLASS     = #10, --// updown
+    ICC_PROGRESS_CLASS   = #20, --// proress
+    ICC_HOTKEY_CLASS     = #40, --// hotkey
+    ICC_ANIMATE_CLASS    = #80, --// animate
+    ICC_WIN95_CLASSES    = #FF,
+    ICC_DATE_CLASSES     = #100, -- month picker, date picker, time picker, updown
+    ICC_USEREX_CLASSES   = #200, -- comboex
+    ICC_COOL_CLASSES     = #400, -- rebar (coolbar) control
+    ICC_INTERNET_CLASSES = #800,
+    ICC_PAGESCROLLER_CLASS = #1000,   -- page scroller
+    ICC_NATIVEFNTCTL_CLASS = #2000,
+
+    -- Private Window Messages Start Here:
+    WM_USER = #400,
+
+-- drawText() cnstants
+    DT_TOP                  = #00000000,
+    DT_LEFT                 = #00000000,
+    DT_CENTER               = #00000001,
+    DT_RIGHT                = #00000002,
+    DT_VCENTER              = #00000004,
+    DT_BOTTOM               = #00000008,
+    DT_WORDBREAK            = #00000010,
+    DT_SINGLELINE           = #00000020,
+    DT_EXPANDTABS           = #00000040,
+    DT_TABSTOP              = #00000080,
+    DT_NOCLIP               = #00000100,
+    DT_EXTERNALLEADING      = #00000200,
+    DT_CALCRECT             = #00000400,
+    DT_NOPREFIX             = #00000800,
+    DT_INTERNAL             = #00001000,
+    DT_EDITCONTROL          = #00002000,
+    DT_PATH_ELLIPSIS        = #00004000,
+    DT_END_ELLIPSIS         = #00008000,
+    DT_MODIFYSTRING         = #00010000,
+    DT_RTLREADING           = #00020000,
+    DT_WORD_ELLIPSIS        = #00040000,
+    DT_NOFULLWIDTHCHARBREAK = #00080000,
+    DT_HIDEPREFIX           = #00100000,
+    DT_PREFIXONLY           = #00200000,
+
+
+    -- biCompression field values:
+		BI_JPEG = 4,
+		BI_PNG = 5,
+		BI_RGB = 0,
+		BI_RLE4 = 2,
+		BI_RLE8 = 1,
+		BI_bitfields = 3,
+
+--
+-- Flags in dmFields determine what has/has not been initialised
+    DM_ORIENTATION      = #00001,
+    DM_PAPERSIZE        = #00002,
+    DM_PAPERLENGTH      = #00004,
+    DM_PAPERWIDTH       = #00008,
+    DM_SCALE            = #00010,
+    DM_COPIES           = #00100,
+    DM_DEFAULTSOURCE    = #00200,
+    DM_PRINTQUALITY     = #00400,
+    DM_COLOR            = #00800,
+    DM_DUPLEX           = #01000,
+    DM_YRESOLUTION      = #02000,
+    DM_TTOPTION         = #04000,
+    DM_COLLATE          = #08000,
+    DM_FORMNAME         = #10000,
+    DM_SPECVERSION      = #00400,
+--
+---- paper orientation
+--
+    DMORIENT_PORTRAIT   = 1,
+    DMORIENT_LANDSCAPE  = 2,
+---- paper standard sizes
+ DMPAPER_LETTER                  =  1, -- Letter 8 1/2 x 11 in
+ DMPAPER_FIRST                   =  DMPAPER_LETTER,
+ DMPAPER_LETTERSMALL             =  2  ,--Letter Small 8 1/2 x 11 in
+ DMPAPER_TABLOID                 =  3  ,--Tabloid 11 x 17 in
+ DMPAPER_LEDGER                  =  4  ,--Ledger 17 x 11 in                 
+ DMPAPER_LEGAL                   =  5  ,--Legal 8 1/2 x 14 in               
+ DMPAPER_STATEMENT               =  6  ,--Statement 5 1/2 x 8 1/2 in        
+ DMPAPER_EXECUTIVE               =  7  ,--Executive 7 1/4 x 10 1/2 in       
+ DMPAPER_A3                      =  8  ,--A3 297 x 420 mm                   
+ DMPAPER_A4                      =  9  ,--A4 210 x 297 mm                   
+ DMPAPER_A4SMALL                 = 10  ,--A4 Small 210 x 297 mm             
+ DMPAPER_A5                      = 11  ,--A5 148 x 210 mm                   
+ DMPAPER_B4                      = 12  ,--B4 (JIS) 250 x 354                
+ DMPAPER_B5                      = 13  ,--B5 (JIS) 182 x 257 mm             
+ DMPAPER_FOLIO                   = 14  ,--Folio 8 1/2 x 13 in               
+ DMPAPER_QUARTO                  = 15  ,--Quarto 215 x 275 mm               
+ DMPAPER_10X14                   = 16  ,--10x14 in                          
+ DMPAPER_11X17                   = 17  ,--11x17 in                          
+ DMPAPER_NOTE                    = 18  ,--Note 8 1/2 x 11 in                
+ DMPAPER_ENV_9                   = 19  ,--Envelope #9 3 7/8 x 8 7/8         
+ DMPAPER_ENV_10                  = 20  ,--Envelope #10 4 1/8 x 9 1/2        
+ DMPAPER_ENV_11                  = 21  ,--Envelope #11 4 1/2 x 10 3/8       
+ DMPAPER_ENV_12                  = 22  ,--Envelope #12 4 \276 x 11          
+ DMPAPER_ENV_14                  = 23  ,--Envelope #14 5 x 11 1/2           
+ DMPAPER_CSHEET                  = 24  ,--C size sheet                      
+ DMPAPER_DSHEET                  = 25  ,--D size sheet                      
+ DMPAPER_ESHEET                  = 26  ,--E size sheet                      
+ DMPAPER_ENV_DL                  = 27  ,--Envelope DL 110 x 220mm           
+ DMPAPER_ENV_C5                  = 28  ,--Envelope C5 162 x 229 mm          
+ DMPAPER_ENV_C3                  = 29  ,--Envelope C3  324 x 458 mm         
+ DMPAPER_ENV_C4                  = 30  ,--Envelope C4  229 x 324 mm         
+ DMPAPER_ENV_C6                  = 31  ,--Envelope C6  114 x 162 mm         
+ DMPAPER_ENV_C65                 = 32  ,--Envelope C65 114 x 229 mm         
+ DMPAPER_ENV_B4                  = 33  ,--Envelope B4  250 x 353 mm         
+ DMPAPER_ENV_B5                  = 34  ,--Envelope B5  176 x 250 mm         
+ DMPAPER_ENV_B6                  = 35  ,--Envelope B6  176 x 125 mm         
+ DMPAPER_ENV_ITALY               = 36  ,--Envelope 110 x 230 mm             
+ DMPAPER_ENV_MONARCH             = 37  ,--Envelope Monarch 3.875 x 7.5 in   
+ DMPAPER_ENV_PERSONAL            = 38  ,--6 3/4 Envelope 3 5/8 x 6 1/2 in   
+ DMPAPER_FANFOLD_US              = 39  ,--US Std Fanfold 14 7/8 x 11 in     
+ DMPAPER_FANFOLD_STD_GERMAN      = 40  ,--German Std Fanfold 8 1/2 x 12 in  
+ DMPAPER_FANFOLD_LGL_GERMAN      = 41  ,--German Legal Fanfold 8 1/2 x 13 in
+ DMPAPER_ISO_B4                  = 42  ,--B4 (ISO) 250 x 353 mm             
+ DMPAPER_JAPANESE_POSTCARD       = 43  ,--Japanese Postcard 100 x 148 mm    
+ DMPAPER_9X11                    = 44  ,--9 x 11 in                         
+ DMPAPER_10X11                   = 45  ,--10 x 11 in                        
+ DMPAPER_15X11                   = 46  ,--15 x 11 in                        
+ DMPAPER_ENV_INVITE              = 47  ,--Envelope Invite 220 x 220 mm      
+ DMPAPER_RESERVED_48             = 48  ,--RESERVED--DO NOT USE              
+ DMPAPER_RESERVED_49             = 49  ,--RESERVED--DO NOT USE              
+ DMPAPER_LETTER_EXTRA            = 50  ,--Letter Extra 9 \275 x 12 in       
+ DMPAPER_LEGAL_EXTRA             = 51  ,--Legal Extra 9 \275 x 15 in        
+ DMPAPER_TABLOID_EXTRA           = 52  ,--Tabloid Extra 11.69 x 18 in       
+ DMPAPER_A4_EXTRA                = 53  ,--A4 Extra 9.27 x 12.69 in
+ DMPAPER_LETTER_TRANSVERSE       = 54  ,--Letter Transverse 8 \275 x 11 in  
+ DMPAPER_A4_TRANSVERSE           = 55  ,--A4 Transverse 210 x 297 mm
+ DMPAPER_LETTER_EXTRA_TRANSVERSE = 56  ,--etter Extra Transverse 9\275 x 12 in
+ DMPAPER_A_PLUS                  = 57  ,--SuperA/SuperA/A4 227 x 356 mm
+ DMPAPER_B_PLUS                  = 58  ,--SuperB/SuperB/A3 305 x 487 mm
+ DMPAPER_LETTER_PLUS             = 59  ,--Letter Plus 8.5 x 12.69 in
+ DMPAPER_A4_PLUS                 = 60  ,--A4 Plus 210 x 330 mm
+ DMPAPER_A5_TRANSVERSE           = 61  ,--A5 Transverse 148 x 210 mm
+ DMPAPER_B5_TRANSVERSE           = 62  ,--B5 (JIS) Transverse 182 x 257 mm
+ DMPAPER_A3_EXTRA                = 63  ,--A3 Extra 322 x 445 mm
+ DMPAPER_A5_EXTRA                = 64  ,--A5 Extra 174 x 235 mm
+ DMPAPER_B5_EXTRA                = 65  ,--B5 (ISO) Extra 201 x 276 mm
+ DMPAPER_A2                      = 66  ,--A2 420 x 594 mm
+ DMPAPER_A3_TRANSVERSE           = 67  ,--A3 Transverse 297 x 420 mm
+ DMPAPER_A3_EXTRA_TRANSVERSE     = 68  ,--A3 Extra Transverse 322 x 445 mm
+-- the following values are supported under Win2K and up
+ DMPAPER_DBL_JAPANESE_POSTCARD   = 69  ,--apanese Double Postcard 200 x 148 mm
+ DMPAPER_A6                      = 70  ,--A6 105 x 148 mm
+ DMPAPER_JENV_KAKU2              = 71  ,--Japanese Envelope Kaku #2
+ DMPAPER_JENV_KAKU3              = 72  ,--Japanese Envelope Kaku #3
+ DMPAPER_JENV_CHOU3              = 73  ,--Japanese Envelope Chou #3
+ DMPAPER_JENV_CHOU4              = 74  ,--Japanese Envelope Chou #4
+ DMPAPER_LETTER_ROTATED          = 75  ,--Letter Rotated 11 x 8 1/2 11 in
+ DMPAPER_A3_ROTATED              = 76  ,--A3 Rotated 420 x 297 mm
+ DMPAPER_A4_ROTATED              = 77  ,--A4 Rotated 297 x 210 mm
+ DMPAPER_A5_ROTATED              = 78  ,--A5 Rotated 210 x 148 mm
+ DMPAPER_B4_JIS_ROTATED          = 79  ,--B4 (JIS) Rotated 364 x 257 mm
+ DMPAPER_B5_JIS_ROTATED          = 80  ,--B5 (JIS) Rotated 257 x 182 mm
+ DMPAPER_JAPANESE_POSTCARD_ROTATED=81  ,--apanese Postcard Rotated 148 x 100 mm
+ DMPAPER_DBL_JAPANESE_POSTCARD_ROTATED
+                                 = 82  ,--ouble Japanese Postcard Rotated 148 x 200 mm
+ DMPAPER_A6_ROTATED              = 83  ,--A6 Rotated 148 x 105 mm
+ DMPAPER_JENV_KAKU2_ROTATED      = 84  ,--Japanese Envelope Kaku #2 Rotated
+ DMPAPER_JENV_KAKU3_ROTATED      = 85  ,--Japanese Envelope Kaku #3 Rotated
+ DMPAPER_JENV_CHOU3_ROTATED      = 86  ,--Japanese Envelope Chou #3 Rotated
+ DMPAPER_JENV_CHOU4_ROTATED      = 87  ,--Japanese Envelope Chou #4 Rotated
+ DMPAPER_B6_JIS                  = 88  ,--B6 (JIS) 128 x 182 mm
+ DMPAPER_B6_JIS_ROTATED          = 89  ,--B6 (JIS) Rotated 182 x 128 mm
+ DMPAPER_12X11                   = 90  ,--12 x 11 in
+ DMPAPER_JENV_YOU4               = 91  ,--Japanese Envelope You #4
+ DMPAPER_JENV_YOU4_ROTATED       = 92  ,--Japanese Envelope You #4 Rotated
+ DMPAPER_P16K                    = 93  ,--PRC 16K 146 x 215 mm
+ DMPAPER_P32K                    = 94  ,--PRC 32K 97 x 151 mm
+ DMPAPER_P32KBIG                 = 95  ,--PRC 32K(Big) 97 x 151 mm        
+ DMPAPER_PENV_1                  = 96  ,--PRC Envelope #1 102 x 165 mm    
+ DMPAPER_PENV_2                  = 97  ,--PRC Envelope #2 102 x 176 mm    
+ DMPAPER_PENV_3                  = 98  ,--PRC Envelope #3 125 x 176 mm    
+ DMPAPER_PENV_4                  = 99  ,--PRC Envelope #4 110 x 208 mm    
+ DMPAPER_PENV_5                  = 100 ,--PRC Envelope #5 110 x 220 mm    
+ DMPAPER_PENV_6                  = 101 ,--PRC Envelope #6 120 x 230 mm    
+ DMPAPER_PENV_7                  = 102 ,--PRC Envelope #7 160 x 230 mm    
+ DMPAPER_PENV_8                  = 103 ,--PRC Envelope #8 120 x 309 mm    
+ DMPAPER_PENV_9                  = 104 ,--PRC Envelope #9 229 x 324 mm    
+ DMPAPER_PENV_10                 = 105 ,--PRC Envelope #10 324 x 458 mm   
+ DMPAPER_P16K_ROTATED            = 106 ,--PRC 16K Rotated                 
+ DMPAPER_P32K_ROTATED            = 107 ,--PRC 32K Rotated                 
+ DMPAPER_P32KBIG_ROTATED         = 108 ,--PRC 32K(Big) Rotated
+ DMPAPER_PENV_1_ROTATED          = 109 ,--PRC Envelope #1 Rotated 165 x 102 mm
+ DMPAPER_PENV_2_ROTATED          = 110 ,--PRC Envelope #2 Rotated 176 x 102 mm
+ DMPAPER_PENV_3_ROTATED          = 111 ,--PRC Envelope #3 Rotated 176 x 125 mm
+ DMPAPER_PENV_4_ROTATED          = 112 ,--PRC Envelope #4 Rotated 208 x 110 mm
+ DMPAPER_PENV_5_ROTATED          = 113 ,--PRC Envelope #5 Rotated 220 x 110 mm
+ DMPAPER_PENV_6_ROTATED          = 114 ,--PRC Envelope #6 Rotated 230 x 120 mm
+ DMPAPER_PENV_7_ROTATED          = 115 ,--PRC Envelope #7 Rotated 230 x 160 mm
+ DMPAPER_PENV_8_ROTATED          = 116 ,--PRC Envelope #8 Rotated 309 x 120 mm
+ DMPAPER_PENV_9_ROTATED          = 117 ,--PRC Envelope #9 Rotated 324 x 229 mm
+ DMPAPER_PENV_10_ROTATED         = 118 ,--PRC Envelope #10 Rotated 458 x 324 mm
+ DMPAPER_USER                    = 256, -- device specific paper sizes start here.
+----
+-- paper source - the names are assumed to be self explanatory
+DMBIN_UPPER         = 1,
+DMBIN_ONLYONE       = DMBIN_UPPER,
+DMBIN_FIRST         = DMBIN_UPPER,
+DMBIN_LOWER         = 2,
+DMBIN_MIDDLE        = 3,
+DMBIN_MANUAL        = 4,
+DMBIN_ENVELOPE      = 5,
+DMBIN_ENVMANUAL     = 6,
+DMBIN_AUTO          = 7,
+DMBIN_TRACTOR       = 8,
+DMBIN_SMALLFMT      = 9,
+DMBIN_LARGEFMT      = 10,
+DMBIN_LARGECAPACITY = 11,
+DMBIN_CASSETTE      = 14,
+DMBIN_FORMSOURCE    = 15,
+DMBIN_LAST          = DMBIN_FORMSOURCE,
+
+
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+--  Device Parameters for xGetDeviceCaps() and queryDevice()
+    DRIVERVERSION = 0,      --  Device driver version
+    TECHNOLOGY = 2,         --  Device classification
+    HORZSIZE = 4,           --  Horizontal size in millimeters
+    VERTSIZE = 6,           --  Vertical size in millimeters
+    HORZRES = 8,            --  Horizontal width in pixels
+    VERTRES = 10,           --  Vertical width in pixels
+    BITSPIXEL = 12,         --  Number of bits per pixel
+    PLANES = 14,            --  Number of planes
+    NUMBRUSHES = 16,        --  Number of brushes the device has
+    NUMPENS = 18,           --  Number of pens the device has
+    NUMMARKERS = 20,        --  Number of markers the device has
+    NUMFONTS = 22,          --  Number of fonts the device has
+    NUMCOLORS = 24,         --  Number of colors the device supports
+    PDEVICESIZE = 26,       --  Size required for device descriptor
+    CURVECAPS = 28,         --  Curve capabilities
+    LINECAPS = 30,          --  Line capabilities
+    POLYGONALCAPS = 32,     --  Polygonal capabilities
+    TEXTCAPS = 34,          --  Text capabilities
+    CLIPCAPS = 36,          --  Clipping capabilities
+    RASTERCAPS = 38,        --  Bitblt capabilities
+    ASPECTX = 40,           --  Length of the X leg
+    ASPECTY = 42,           --  Length of the Y leg
+    ASPECTXY = 44,          --  Length of the hypotenuse
+
+    LOGPIXELSX = 88,        --  Logical pixels/inch in X
+    LOGPIXELSY = 90,        --  Logical pixels/inch in Y
+
+    SIZEPALETTE = 104,      --  Number of entries in physical palette
+    NUMRESERVED = 106,      --  Number of reserved entries in palette
+    COLORRES = 108,         --  Actual color resolution
+
+--  Printing related DeviceCaps. These replace the appropriate Escapes
+    PHYSICALWIDTH = 110, --  Physical Width in device units
+    PHYSICALHEIGHT = 111, --  Physical Height in device units
+    PHYSICALOFFSETX = 112, --  Physical Printable Area x margin
+    PHYSICALOFFSETY = 113, --  Physical Printable Area y margin
+    SCALINGFACTORX = 114, --  Scaling factor x
+    SCALINGFACTORY = 115  --  Scaling factor y
+
+-----------------------------------------------------------------------------
+
+global constant
+    OUT_DEFAULT_PRECIS    =      0,
+    OUT_STRING_PRECIS     =      1,
+    OUT_CHARACTER_PRECIS  =      2,
+    OUT_STROKE_PRECIS     =      3,
+    OUT_TT_PRECIS         =      4,
+    OUT_DEVICE_PRECIS     =      5,
+    OUT_RASTER_PRECIS     =      6,
+    OUT_TT_ONLY_PRECIS    =      7,
+    OUT_OUTLINE_PRECIS    =      8,
+    OUT_SCREEN_OUTLINE_PRECIS =  9,
+    OUT_PS_ONLY_PRECIS      =    10,
+
+    CLIP_DEFAULT_PRECIS   =  0,
+    CLIP_CHARACTER_PRECIS =  1,
+    CLIP_STROKE_PRECIS    =  2,
+    CLIP_MASK             =  15,
+    CLIP_LH_ANGLES        =  #10000,
+    CLIP_TT_ALWAYS        =  #20000,
+    CLIP_EMBEDDED         =  #80000,
+
+    DEFAULT_QUALITY       =  0,
+    DRAFT_QUALITY         =  1,
+    PROOF_QUALITY         =  2,
+    NONANTIALIASED_QUALITY = 3,
+    ANTIALIASED_QUALITY    = 4,
+
+    DEFAULT_PITCH          = 0,
+    FIXED_PITCH            = 1,
+    VARIABLE_PITCH         = 2,
+    MONO_FONT              = 8,
+
+    ANSI_CHARSET           = 0,
+    DEFAULT_CHARSET        = 1,
+    SYMBOL_CHARSET         = 2,
+    SHIFTJIS_CHARSET       = 128,
+    HANGEUL_CHARSET        = 129,
+    HANGUL_CHARSET         = 129,
+    GB2312_CHARSET         = 134,
+    CHINESEBIG5_CHARSET    = 136,
+    OEM_CHARSET            = 255,
+    JOHAB_CHARSET          = 130,
+    HEBREW_CHARSET         = 177,
+    ARABIC_CHARSET         = 178,
+    GREEK_CHARSET          = 161,
+    TURKISH_CHARSET        = 162,
+    VIETNAMESE_CHARSET     = 163,
+    THAI_CHARSET           = 222,
+    EASTEUROPE_CHARSET     = 238,
+    RUSSIAN_CHARSET        = 204,
+
+    MAC_CHARSET            = 77,
+    BALTIC_CHARSET         = 186,
+
+    FS_LATIN1              = #00000001,
+    FS_LATIN2              = #00000002,
+    FS_CYRILLIC            = #00000004,
+    FS_GREEK               = #00000008,
+    FS_TURKISH             = #00000010,
+    FS_HEBREW              = #00000020,
+    FS_ARABIC              = #00000040,
+    FS_BALTIC              = #00000080,
+    FS_VIETNAMESE          = #00000100,
+    FS_THAI                = #00010000,
+    FS_JISJAPAN            = #00020000,
+    FS_CHINESESIMP         = #00040000,
+    FS_WANSUNG             = #00080000,
+    FS_CHINESETRAD         = #00100000,
+    FS_JOHAB               = #00200000,
+    FS_SYMBOL              = #80000000,
+
+    -- Font Families
+    FF_DONTCARE       =  #00000, --  /* Don't care or don't know. */
+    FF_ROMAN          =  #10000, -- /* Variable stroke width, serifed. */
+                                 --       /* Times Roman, Century Schoolbook, etc. */
+    FF_SWISS          =  #20000, -- /* Variable stroke width, sans-serifed. */
+                                 --       /* Helvetica, Swiss, etc. */
+    FF_MODERN         =  #30000, -- /* Constant stroke width, serifed or sans-serifed. */
+                                 --       /* Pica, Elite, Courier, etc. */
+    FF_SCRIPT         =  #40000, -- /* Cursive, etc. */
+    FF_DECORATIVE     =  #50000, -- /* Old English, etc. */
+
+-- Class styles
+    CS_VREDRAW = #1,
+    CS_HREDRAW = #2,
+    CS_KEYCVTWINDOW = #4,
+    CS_DBLCLKS = #8,
+    CS_OWNDC = #20,
+    CS_CLASSDC = #40,
+    CS_PARENTDC = #80,
+    CS_NOKEYCVT = #100,
+    CS_NOCLOSE = #200,
+    CS_SAVEBITS = #800,
+    CS_BYTEALIGNCLIENT = #1000,
+    CS_BYTEALIGNWINDOW = #2000,
+    CS_PUBLICCLASS = #4000,
+
+-- ShowWindow() Commands
+    SW_HIDE = 0,
+    SW_SHOWNORMAL = 1,
+    SW_NORMAL = 1,
+    SW_SHOWMINIMIZED = 2,
+    SW_SHOWMAXIMIZED = 3,
+    SW_MAXIMIZE = 3,
+    SW_SHOWNOACTIVATE = 4,
+    SW_SHOW = 5,
+    SW_MINIMIZE = 6,
+    SW_SHOWMINNOACTIVE = 7,
+    SW_SHOWNA = 8,
+    SW_RESTORE = 9,
+    SW_SHOWDEFAULT = 10,
+    SW_MAX = 10,
+    w32FullScreen = "fullscreen",
+
+-- PeekMessage options
+    PM_NOREMOVE =  0,
+    PM_REMOVE   =  1,
+    PM_NOYIELD  =  2,
+
+-- Window Messages
+    WM_NULL     = #0,
+    WM_CREATE   = #1,
+    WM_DESTROY  = #2,
+    WM_MOVE     = #3,
+    WM_SIZE     = #5,
+
+    WM_ACTIVATE = #6,
+--
+--  WM_ACTIVATE state values
+
+    WA_INACTIVE = 0,
+    WA_ACTIVE = 1,
+    WA_CLICKACTIVE = 2,
+
+    WM_SETFOCUS         = #7,
+    WM_KILLFOCUS        = #8,
+    WM_ENABLE           = #A,
+    WM_SETREDRAW        = #B,
+    WM_SETTEXT          = #C,
+    WM_GETTEXT          = #D,
+    WM_GETTEXTLENGTH    = #E,
+    WM_PAINT            = #F,
+    WM_CLOSE            = #10,
+    WM_QUERYENDSESSION  = #11,
+    WM_QUIT             = #12,
+    WM_QUERYOPEN        = #13,
+    WM_ERASEBKGND       = #14,
+    WM_SYSCOLORCHANGE   = #15,
+    WM_ENDSESSION       = #16,
+    WM_SHOWWINDOW       = #18,
+    WM_WININICHANGE     = #1A,
+    WM_DEVMODECHANGE    = #1B,
+    WM_ACTIVATEAPP      = #1C,
+    WM_FONTCHANGE       = #1D,
+    WM_TIMECHANGE       = #1E,
+    WM_CANCELMODE       = #1F,
+    WM_SETCURSOR        = #20,
+    WM_MOUSEACTIVATE    = #21,
+    WM_CHILDACTIVATE    = #22,
+    WM_QUEUESYNC        = #23,
+    WM_GETMINMAXINFO    = #24,
+    -- setting fonts in controls
+    WM_SETFONT          = #30,
+    WM_GETFONT          = #31,
+
+    WM_NOTIFY           = #4E,
+    WM_SETICON          = #80,
+    -- non-client messages
+    WM_NCCREATE         = #81,
+    WM_NCDESTROY        = #82,
+    WM_NCCALCSIZE       = #83,
+    WM_NCHITTEST        = #84,
+    WM_NCPAINT          = #85,
+    WM_NCACTIVATE       = #86,
+    WM_GETDLGCODE       = #87,
+    WM_SYNCPAINT        = #88,
+    WM_NCMOUSEMOVE      = #A0,
+    WM_NCLBUTTONDOWN    = #A1,
+    WM_NCLBUTTONUP      = #A2,
+    WM_NCLBUTTONDBLCLK  = #A3,
+    WM_NCRBUTTONDOWN    = #A4,
+    WM_NCRBUTTONUP      = #A5,
+    WM_NCRBUTTONDBLCLK  = #A6,
+    WM_NCMBUTTONDOWN    = #A7,
+    WM_NCMBUTTONUP      = #A8,
+    WM_NCMBUTTONDBLCLK  = #A9,
+    WM_NCXBUTTONDOWN    = #AB,
+    WM_NCXBUTTONUP      = #AC,
+    WM_NCXBUTTONDBLCLK  = #AD,
+
+    WM_SYSTIMER         = #118,  -- 280
+
+    WM_PARENTNOTIFY     = #210,
+    WM_DROPFILES        = #233,
+
+-- MDI messages
+
+    WM_MDICREATE        = #220,
+    WM_MDIDESTROY       = #221,
+    WM_MDIACTIVATE      = #222,
+    WM_MDIRESTORE       = #223,
+    WM_MDINEXT          = #224,
+    WM_MDIMAXIMIZE      = #225,
+    WM_MDITILE          = #226,
+    WM_MDICASCADE       = #227,
+    WM_MDIICONARANGE    = #228,
+    WM_MDIGETACTIVE     = #229,
+    WM_MDISETMENU       = #230,
+    WM_ENTERSIZEMOVE    = #231,
+    WM_EXITSIZEMOVE     = #232,
+    WM_MDIREFRSHMENU    = #234,
+    -- mouse events
+    WM_MOUSEMOVE        = #200, -- mouse moved
+    WM_LBUTTONDOWN      = #201, -- (513) mouse button down
+    WM_LBUTTONUP        = #202, -- left button released
+    WM_LBUTTONDBLCLK    = #203, -- (515) mouse button double clicked
+    WM_RBUTTONDOWN      = #204, -- right button down
+    WM_RBUTTONUP        = #205, -- right button released
+    WM_RBUTTONDBLCLK    = #206, -- mouse right button double clicked
+    WM_MBUTTONDOWN      = #207, -- middle button down
+    WM_MBUTTONUP        = #208, -- middle button released
+    WM_MBUTTONDBLCLK    = #209, -- middle button double click
+    WM_MOUSEWHEEL       = #20A, -- mouse wheel moved
+    WM_XBUTTONDOWN      = #20B,
+    WM_XBUTTONUP        = #20C,
+    WM_XBUTTONDBLCLK    = #20D,
+
+    NM_FIRST      = #0,
+    NM_OUTOFMEMORY    =     (NM_FIRST-1),
+    NM_CLICK          =     (NM_FIRST-2),    -- uses NMCLICK struct
+    NM_DBLCLK         =     (NM_FIRST-3),
+    NM_RETURN         =     (NM_FIRST-4),
+    NM_RCLICK         =     (NM_FIRST-5),    -- uses NMCLICK struct
+    NM_RDBLCLK        =     (NM_FIRST-6),
+    NM_SETFOCUS       =     (NM_FIRST-7),
+    NM_KILLFOCUS      =     (NM_FIRST-8),
+    NM_CUSTOMDRAW     =     (NM_FIRST-12),
+    NM_HOVER          =     (NM_FIRST-13),
+    NM_NCHITTEST      =     (NM_FIRST-14),   -- uses NMMOUSE struct
+    NM_KEYDOWN        =     (NM_FIRST-15),   -- uses NMKEY struct
+    NM_RELEASEDCAPTURE=     (NM_FIRST-16),
+    NM_SETCURSOR      =     (NM_FIRST-17),   -- uses NMMOUSE struct
+    NM_CHAR           =     (NM_FIRST-18),   -- uses NMCHAR struct
+    NM_TOOLTIPSCREATED=     (NM_FIRST-19),   -- notify of when the tooltips window is create
+    NM_LDOWN          =     (NM_FIRST-20),
+    NM_RDOWN          =     (NM_FIRST-21),
+
+    SND_SYNC        = #00000000, -- play synchronously (default)
+    SND_ASYNC       = #00000001,
+    SND_NODEFAULT   = #00000002, -- silence (!default) if sound not found
+    SND_MEMORY      = #00000004, -- pszSound points to a memory file
+    SND_LOOP        = #00000008, -- loop the sound until next sndPlaySound
+    SND_NOSTOP      = #00000010, -- don't start if anything is currently playing
+    SND_PURGE       = #00000040,  -- purge non-static events for task
+    SND_APPLICATION = #00000080,-- look for application specific association
+    SND_NOWAIT      = #00002000,-- don't wait if the driver is busy
+    SND_ALIAS       = #00010000,-- name is a registry alias
+    SND_FILENAME    = #00020000,
+    SND_RESOURCE    = #00040004,-- name is resource name or atom
+    SND_ALIAS_ID    = #00110000,-- alias is a predefined ID
+
+    SND_ALIAS_SYSTEMASTERISK        = 'S' + 256 * '*',
+    SND_ALIAS_SYSTEMQUESTION        = 'S' + 256 * '?',
+    SND_ALIAS_SYSTEMHAND            = 'S' + 256 * 'H',
+    SND_ALIAS_SYSTEMEXIT            = 'S' + 256 * 'E',
+    SND_ALIAS_SYSTEMSTART           = 'S' + 256 * 'S',
+    SND_ALIAS_SYSTEMWELCOME         = 'S' + 256 * 'W',
+    SND_ALIAS_SYSTEMEXCLAMATION     = 'S' + 256 * '!',
+    SND_ALIAS_SYSTEMDEFAULT         = 'S' + 256 * 'D',
+
+
+-- Window Styles
+    WS_OVERLAPPED   = #0,
+    WS_POPUP        = #80000000,
+    WS_CHILD        = #40000000,
+    WS_MINIMIZE     = #20000000,
+    WS_VISIBLE      = #10000000,
+    WS_DISABLED     = #08000000,
+    WS_CLIPPINGCHILD= #44000000,
+    WS_CLIPSIBLINGS = #04000000,
+    WS_CLIPCHILDREN = #02000000,
+    WS_MAXIMIZE     = #01000000,
+    WS_CAPTION      = #00C00000,      --  WS_BORDER Or WS_DLGFRAME
+    WS_BORDER       = #00800000,      -- creates border on window
+    WS_DLGFRAME     = #00400000,
+    WS_HSCROLL      = #00100000,    -- horizontal scroll bar
+    WS_VSCROLL      = #00200000,    -- vertical scroll bar
+    WS_SYSMENU      = #00080000,
+    WS_THICKFRAME   = #00040000,
+    WS_GROUP        = #00020000,
+    WS_TABSTOP      = #00010000,   -- use tab stop
+    WS_SCROLLBARS   = #00300000,    -- set both vertical and horizontal scrollbars
+    WS_MINIMIZEBOX  = #00020000,
+    WS_MAXIMIZEBOX  = #00010000,
+
+    WS_NO_RESIZE = {WS_CAPTION,WS_SYSMENU}, --> Win32lib special.
+    WS_TILED = WS_OVERLAPPED,
+    WS_ICONIC = WS_MINIMIZE,
+    WS_SIZEBOX = WS_THICKFRAME,
+    WS_OVERLAPPEDWINDOW = w32or_all({  WS_BORDER,
+	    	        WS_DLGFRAME,
+	    	        WS_SYSMENU,
+	    	        WS_THICKFRAME,
+	    	        WS_MINIMIZEBOX,
+	    	        WS_MAXIMIZEBOX}),
+
+
+    WS_TILEDWINDOW = WS_OVERLAPPEDWINDOW,
+
+--   Common Window Styles
+    WS_POPUPWINDOW = w32or_all({WS_POPUP, WS_BORDER, WS_SYSMENU}),
+    WS_CHILDWINDOW = WS_CHILD,
+
+-- Extended styles
+    WS_EX_ACCEPTFILES     = #00000010,
+    WS_EX_APPWINDOW       = #00040000,
+    WS_EX_CLIENTEDGE      = #00000200,
+    WS_EX_CONTEXTHELP     = #00000400,
+    WS_EX_CONTROLPARENT   = #00010000,
+    WS_EX_DLGMODALFRAME   = #00000001,
+    WS_EX_LEFT            = #00000000,
+    WS_EX_LEFTSCROLLBAR   = #00004000,
+    WS_EX_LTRREADING      = #00000000,
+    WS_EX_MDICHILD        = #00000040, --64,
+    WS_EX_NOPARENTNOTIFY  = #00000004,
+    WS_EX_OVERLAPPEDWINDOW =#00000300,
+    WS_EX_PALETTEWINDOW   = #00000188,
+    WS_EX_RIGHT           = #00001000,
+    WS_EX_RIGHTSCROLLBAR  = #00000000,
+    WS_EX_RTLREADING      = #00002000,
+    WS_EX_STATICEDGE      = #00020000,
+    WS_EX_TOOLWINDOW      = #00000080, --128,
+    WS_EX_TOPMOST         = #00000008,
+    WS_EX_TRANSPARENT     = #00000020, --32,
+    WS_EX_WINDOWEDGE      = #00000100,
+    WS_EX_LAYERED         = #00080000,
+    WS_EX_NOINHERITLAYOUT = #00100000, -- Disable inheritence of mirroring by children
+    WS_EX_LAYOUTRTL       = #00400000, --Right to left mirroring
+    WS_EX_NOACTIVATE      = #08000000,
+
+    BS_3STATE           = #0005,       -- tri-state button
+    w32AUTOCLOSE        = 0&"autoclose", -- generates code to close the main window.
+    BS_AUTO3STATE       = #0006,       -- tri-state button, windows toggles
+    BS_AUTOCHECKBOX     = #0003,       -- checkbox, windows toggles
+    BS_AUTORADIOBUTTON  = #0009,       -- radio button, windows toggles
+    BS_BITMAP           = #0080,
+    BS_BOTTOM           = #0800,
+    BS_CENTER           = #0300,
+    BS_CHECKBOX         = #0002,       -- checkbox
+    BS_DEFPUSHBUTTON    = #0001,       -- default pushbutton (heavy border)
+    BS_GROUPBOX         = #0007,       -- group box
+    BS_ICON             = #0040,
+    BS_LEFT             = #0100,
+    BS_LEFTTEXT         = #020,
+    BS_MULTILINE        = #2000,
+    BS_NOTIFY           = #4000,
+    BS_OWNERDRAW        = #000B,       -- owner drawn
+    BS_PUSHBUTTON       = #0000,       -- pushbutton
+    BS_PUSHLIKE         = #1000,
+    BS_RADIOBUTTON      = #0004,       -- radio button
+    BS_RIGHT            = #0200,
+    BS_RIGHTBUTTON      = #0020,
+    BS_TEXT             = #0000,
+    BS_TOP              = #0400,
+    BS_USERBUTTON       = #0008,
+    BS_VCENTER          = #0C00,
+
+    ES_LEFT             = #00000000,        -- left justified text
+    ES_CENTER           = #00000001,        -- centered text
+    ES_RIGHT            = #00000002,        -- right justified text
+    ES_MULTILINE        = #00000004,        -- multiline edit
+    ES_UPPERCASE        = #00000008,
+    ES_LOWERCASE        = #00000010,
+    ES_PASSWORD         = #00000020,
+    ES_AUTOVSCROLL      = #00000040,        -- automatic vertical scroll
+    ES_AUTOHSCROLL      = #00000080,        -- automatic horizontal scroll
+    ES_AUTOSCROLL       = #000000C0,        -- both vertical and horizontal auto scroll
+    ES_NOHIDESEL        = #00000100,
+    --ES_DISABLENOSCROLL  = #00000200,     -- disable, rather than hide, unwanted scrollbars
+    ES_OEMCONVERT       = #00000400,
+    ES_READONLY         = #00000800,
+    ES_WANTRETURN       = #00001000,
+    ES_NUMBER           = #00002000,
+    ES_NUMERIC          = ES_NUMBER,
+    ES_SAVESEL          = #00008000,
+    ES_SUNKEN           = #00004000,
+    ES_DISABLENOSCROLL  = #00002000,
+
+
+    LBS_NOTIFY            = #0001,-- notify parent on click or double click
+    LBS_SORT              = #0002,-- sort strings in box alphabetically
+    LBS_NOREDRAW          = #0004,
+    LBS_MULTIPLESEL       = #0008,
+    LBS_OWNERDRAWFIXED    = #0010,
+    LBS_OWNERDRAWVARIABLE = #0020,
+    LBS_HASSTRINGS        = #0040,
+    LBS_USETABSTOPS       = #0080,
+    LBS_NOINTEGRALHEIGHT  = #0100,
+    LBS_MULTICOLUMN       = #0200,
+    LBS_WANTKEYBOARDINPUT = #0400,
+    LBS_EXTENDEDSEL       = #0800,
+    LBS_DISABLENOSCROLL   = #1000,
+    LBS_NODATA            = #2000,
+    LBS_NOSEL             = #4000,
+    LBS_STANDARD    = w32or_all( { LBS_NOTIFY, LBS_SORT, WS_VSCROLL, WS_BORDER} ),
+
+    LB_ADDSTRING        = #180,     -- list box: add string
+    LB_INSERTSTRING     = #181,     -- list box: insert string
+    LB_DELETESTRING     = #182,     -- list box: delete string
+    LB_SELITEMRANGEEX   = #183,
+    LB_RESETCONTENT     = #184,     -- list box: reset list
+    LB_GETTEXT          = #189,     -- list box: get text
+    LB_GETTEXTLEN       = #18A,     -- list box: get length of text
+    LB_GETCOUNT         = #18B,     -- list box: get length of list
+    LB_GETCURSEL        = #188,     -- list box: get index of selected item
+    LB_SETSEL           = #185,     -- list box: set index of multiple selected item
+    LB_SETCURSEL        = #186,     -- list box: set index of selected item
+    LB_GETSELCOUNT      = #190,
+    LB_GETSELITEMS      = #191,
+    LB_SETTABSTOPS      = #192,
+    LB_SELITEMRANGE     = #19B,
+    LB_SETHORIZONTALEXTENT = 404,
+
+    LB_OKAY             = 0,
+    LB_ERR              = -1,
+    LB_ERRSPACE         = -2,
+
+    GW_HWNDFIRST        = 0,
+    GW_HWNDLAST         = 1,
+    GW_HWNDNEXT         = 2,
+    GW_HWNDPREV         = 3,
+    GW_OWNER            = 4,
+    GW_CHILD            = 5,
+    GW_ENABLEDPOPUP     = 6,
+
+    CB_OKAY             = 0,
+    CB_ERR              = -1,
+    CB_ERRSPACE         = -2,
+    CB_GETEDITSEL       = #140,
+    CB_LIMITTEXT        = #141,
+    CB_SETEDITSEL       = #142,
+    CB_ADDSTRING        = #143,     -- combo box: add string
+    CB_DELETESTRING     = #144,     -- combo box: delete string
+    CB_DIR              = #145,
+    CB_GETCOUNT         = #146,     -- combo box: get list count
+    CB_GETCURSEL        = #147,     -- combo box: return index of current item
+    CB_GETLBTEXT        = #148,     -- combo box: get text
+    CB_GETLBTEXTLEN     = #149,     -- combo box: get text length
+    CB_INSERTSTRING     = #14A,     -- combo box: insert string
+    CB_RESETCONTENT     = #14B,     -- combo box: erase list
+    CB_FINDSTRING       = #14C,
+    CB_SELECTSTRING     = #14D,
+    CB_SETCURSEL        = #14E,     -- combo box: set index
+    CB_SHOWDROPDOWN     = #14F,     -- combo box: open/close the 'list' part
+    CB_GETITEMDATA      = #150,
+    CB_SETITEMDATA      = #151,
+    CB_GETDROPPEDCONTROLRECT =  #152,
+    CB_SETITEMHEIGHT    = #153,
+    CB_GETITEMHEIGHT    = #154,
+    CB_SETEXTENDEDUI    = #155,
+    CB_GETEXTENDEDUI    = #156,
+    CB_GETDROPPEDSTATE  = #157,
+    CB_FINDSTRINGEXACT  = #158,
+    CB_SETLOCALE        = #159,
+    CB_GETLOCALE        = #15A,
+    CB_GETTOPINDEX      = #15B,
+    CB_SETTOPINDEX      = #15C,
+    CB_GETHORIZONTALEXTENT = #15D,
+    CB_SETHORIZONTALEXTENT = #15E,
+    CB_GETDROPPEDWIDTH  = #15F,
+    CB_SETDROPPEDWIDTH  = #160,
+    CB_INITSTORAGE      = #161,
+    CB_MULTIPLEADDSTRING = #163,
+
+
+-- Button Control Messages
+    BM_CLICK        = 245,
+    BM_GETCHECK     = 240,
+    BM_GETIMAGE     = 246,
+    BM_GETSTATE     = 242,
+    BM_SETCHECK     = 241,
+    BM_SETIMAGE     = 247,
+    BM_SETSTATE     = 243,
+    BM_SETSTYLE     = 244,
+
+    BST_UNCHECKED      = #0000,
+    BST_CHECKED        = #0001,
+    BST_INDETERMINATE  = #0002,
+    BST_PUSHED         = #0004,
+    BST_FOCUS          = #0008
+
+global constant
+    CF_BITMAP     =  2,
+    CF_DIB =  8,
+    CF_PALETTE    =  9,
+    CF_ENHMETAFILE =  14,
+    CF_METAFILEPICT = 3,
+    CF_OEMTEXT      = 7,
+    CF_TEXT = 1,
+    CF_UNICODETEXT  = 13,
+    CF_DIF  = 5,
+    CF_DSPBITMAP    = 130,
+    CF_DSPENHMETAFILE       = 142,
+    CF_DSPMETAFILEPICT      = 131,
+    CF_DSPTEXT      = 129,
+    CF_GDIOBJFIRST  = 768,
+    CF_GDIOBJLAST   = 1023,
+    CF_HDROP        = 15,
+    CF_LOCALE       = 16,
+    CF_OWNERDISPLAY = 128,
+    CF_PENDATA      = 10,
+    CF_PRIVATEFIRST = 512,
+    CF_PRIVATELAST  = 767,
+    CF_RIFF = 11,
+    CF_SYLK = 4,
+    CF_WAVE = 12,
+    CF_TIFF = 6
+
+global constant
+    -- Trackbar Styles
+    TBS_HORZ            = 0,
+    TBS_VERT            = 2,
+    TBS_AUTOTICKS       = 1,
+    TBS_NOTICKS         = 16,
+    TBS_TOP             = 4,
+    TBS_BOTTOM          = 0,
+    TBS_LEFT            = 4,
+    TBS_RIGHT           = 0,
+    TBS_BOTH            = 8,
+    TBS_ENABLESELRANGE  = 32,
+    TBS_FIXEDLENGTH     = 64,
+    TBS_NOTHUMB         = 128,
+    TB_BOTTOM           = 7,
+    TB_ENDTRACK         = 8,
+    TB_LINEDOWN         = 1,
+    TB_LINEUP           = 0,
+    TB_PAGEDOWN         = 3,
+    TB_PAGEUP           = 2,
+    TB_THUMBPOSITION    = 4,
+    TB_THUMBTRACK       = 5,
+    TB_TOP              = 6,
+-- Track bar control
+    TBM_CLEARSEL        = 1043,
+    TBM_CLEARTICS       = 1033,
+    TBM_GETCHANNELRECT  = 1050,
+    TBM_GETLINESIZE     = 1048,
+    TBM_GETNUMTICS      = 1040,
+    TBM_GETPAGESIZE     = 1046,
+    TBM_GETPOS          = 1024,
+    TBM_GETPTICS        = 1038,
+    TBM_GETRANGEMAX     = 1026,
+    TBM_GETRANGEMIN     = 1025,
+    TBM_GETSELEND       = 1042,
+    TBM_GETSELSTART     = 1041,
+    TBM_GETTHUMBLENGTH  = 1052,
+    TBM_GETTHUMBRECT    = 1049,
+    TBM_GETTIC          = 1027,
+    TBM_GETTICPOS       = 1039,
+    TBM_SETLINESIZE     = 1047,
+    TBM_SETPAGESIZE     = 1045,
+    TBM_SETPOS          = 1029,
+    TBM_SETRANGE        = 1030,
+    TBM_SETRANGEMAX     = 1032,
+    TBM_SETRANGEMIN     = 1031,
+    TBM_SETSEL          = 1034,
+    TBM_SETSELEND       = 1036,
+    TBM_SETSELSTART     = 1035,
+    TBM_SETTHUMBLENGTH  = 1051,
+    TBM_SETTIC          = 1028,
+    TBM_SETTICFREQ      = 1044,
+
+-- Tab control
+    TCM_ADJUSTRECT      = 4904,
+    TCM_DELETEALLITEMS  = 4873,
+    TCM_DELETEITEM      = 4872,
+    TCM_GETCURFOCUS     = 4911,
+    TCM_GETCURSEL       = 4875,
+    TCM_GETIMAGELIST    = 4866,
+    TCM_GETITEMW        = 4924,
+    TCM_INSERTITEMW     = 4926,
+    TCM_SETITEMW        = 4925,
+    TCM_GETITEMA        = 4869,
+    TCM_INSERTITEMA     = 4871,
+    TCM_SETITEMA        = 4870,
+    TCM_GETITEM         = TCM_GETITEMA,
+    TCM_INSERTITEM      = TCM_INSERTITEMA,
+    TCM_SETITEM         = TCM_SETITEMA,
+    TCM_GETITEMCOUNT    = 4868,
+    TCM_GETITEMRECT     = 4874,
+    TCM_GETROWCOUNT     = 4908,
+    TCM_GETTOOLTIPS     = 4909,
+    TCM_HITTEST         = 4877,
+    TCM_REMOVEIMAGE     = 4906,
+    TCM_SETCURFOCUS     = 4912,
+    TCM_SETCURSEL       = 4876,
+    TCM_SETIMAGELIST    = 4867,
+    TCM_SETITEMEXTRA    = 4878,
+    TCM_SETITEMSIZE     = 4905,
+    TCM_SETPADDING      = 4907,
+    TCM_SETTOOLTIPS     = 4910,
+
+    -- Tab control notifications
+    TCN_KEYDOWN         = -550,
+    TCN_SELCHANGE       = -551,
+    TCN_SELCHANGING     = -552,
+
+
+    -- TC_ITEM structure
+    TCIF_TEXT           = 1,            -- display text on tabs
+    TCIF_IMAGE          = 2,            -- display images on tabs
+    TCIF_PARAM          = 8,
+    TCIF_RTLREADING     = 4,
+
+    -- progress bar styles
+    PBS_SMOOTH          = 1,
+    PBS_VERTICAL        = 4,
+    -- progress bar messages
+    PBM_SETRANGE    = WM_USER + 1,      -- set min/max
+    PBM_SETPOS      = WM_USER + 2,      -- set position
+    PBM_DELTAPOS    = WM_USER + 3,      -- change by requested increment
+    PBM_SETSTEP     = WM_USER + 4,      -- set step size
+    PBM_STEPIT      = WM_USER + 5,      -- step ahead by 1 step
+    PBM_SETRANGE32  = WM_USER + 6,      -- range is double length word
+    PBM_GETRANGE    = WM_USER + 7,      -- get range
+    PBM_GETPOS      = WM_USER + 8,      -- get position
+
+    -- key commands
+    WM_KEYDOWN      = #100,         -- key pressed
+    WM_KEYUP        = #101,
+    WM_CHAR         = #102,
+
+    -- system key commands
+    WM_SYSCHAR      = 262,
+    WM_SYSDEADCHAR  = 263,
+    WM_SYSKEYDOWN   = 260,
+    WM_SYSKEYUP     = 261,
+
+
+
+    GWL_WndProc     = -4,           -- GetWindowLong: ptr to function
+
+-- Menu flags for Add/Check/EnableMenuItem()
+    MF_INSERT = #0,
+    MF_CHANGE = #80,
+    MF_APPEND = #100,
+    MF_DELETE = #200,
+    MF_REMOVE = #1000,
+
+    MF_BYCOMMAND = #0,              -- specifies parameter type
+    MF_BYPOSITION = #400,           -- specifies parameter type
+
+    MF_SEPARATOR = #800,            -- menu format: seperator
+
+    MF_ENABLED = #0,                -- menu format: enabled
+    MF_GRAYED = #1,                 -- menu format: grayed
+    MF_DISABLED = #2,               -- menu format: disabled
+
+    MF_UNCHECKED = #0,              -- menu format: unchecked
+    MF_CHECKED = #8,                -- menu format: checked
+    MF_USECHECKBITMAPS = #200,      -- menu format: use check bitmaps
+
+    MF_STRING = #0,                 -- menu format: display string
+    MF_BITMAP = #4,                 -- menu format: display bitmap
+    MF_OWNERDRAW = #100,            -- menu format: owner drawn
+
+    MF_POPUP = #10,                 -- menu format: popup style
+    MF_MENUBARBREAK = #20,          -- menu format: menu bar break style
+    MF_MENUBREAK = #40,             -- menu format: menu break style
+
+    MF_UNHILITE = #0,
+    MF_HILITE = #80,
+
+    MF_SYSMENU = #2000,
+    MF_HELP = #4000,
+    MF_MOUSESELECT = #8000,
+    MF_DEFAULT     =   #00001000,
+
+    MF_RIGHTJUSTIFY =  #00004000,
+
+    MFS_GRAYED      =   #00000003,
+    MFS_DISABLED    =   MFS_GRAYED,
+    MFS_CHECKED     =   MF_CHECKED,
+    MFS_HILITE      =   MF_HILITE,
+    MFS_ENABLED     =   MF_ENABLED,
+    MFS_UNCHECKED   =   MF_UNCHECKED,
+    MFS_UNHILITE    =   MF_UNHILITE,
+    MFS_DEFAULT     =   MF_DEFAULT,
+
+    MFT_STRING        = MF_STRING,
+    MFT_BITMAP        = MF_BITMAP,
+    MFT_MENUBARBREAK  = MF_MENUBARBREAK,
+    MFT_MENUBREAK     = MF_MENUBREAK,
+    MFT_OWNERDRAW     = MF_OWNERDRAW,
+    MFT_RADIOCHECK    = #00000200,
+    MFT_SEPARATOR     = MF_SEPARATOR,
+    MFT_RIGHTORDER    = #00002000,
+    MFT_RIGHTJUSTIFY  = MF_RIGHTJUSTIFY,
+
+    -- NOTIFICATIONS (events)
+
+    -- Button Control Notification Codes
+    BN_CLICKED          = 0,
+    BN_DBLCLK           = 5,
+    BN_DISABLE          = 4,
+    BN_DOUBLECLICKED    = 5,
+    BN_HILITE           = 2,
+    BN_KILLFOCUS        = 7,
+    BN_PAINT            = 1,
+    BN_PUSHED           = 2,
+    BN_SETFOCUS         = 6,
+    BN_UNHILITE         = 3,
+    BN_UNPUSHED         = 3,
+
+    -- Edit Control Notification Codes
+    EN_SETFOCUS     = #100,         -- get focus
+    EN_KILLFOCUS    = #200,         -- lose focus
+    EN_CHANGE       = #300,         -- change
+    EN_UPDATE       = #400,         -- update
+    EN_ERRSPACE     = #500,         -- out of memory
+    EN_MAXTEXT      = #501,         -- more than allotted text
+    EN_HSCROLL      = #601,         -- horizontal scroll
+    EN_VSCROLL      = #602,         -- vertical scroll
+
+    -- List Box Control Notification Codes
+    LBN_ERRSPACE    = -2,     -- out of space
+    LBN_SELCHANGE   = 1,        -- change selection
+    LBN_DBLCLK      = 2,        -- double click
+    LBN_SELCANCEL   = 3,        -- cancel selection
+    LBN_SETFOCUS    = 4,        -- focus
+    LBN_KILLFOCUS   = 5,        -- lose focus
+
+    -- Combo Box Control Notification Codes
+    CBN_ERRSPACE        = -1, -- out of space
+    CBN_SELCHANGE       = 1,    -- change selection
+    CBN_DBLCLK          = 2,    -- double click
+    CBN_SETFOCUS        = 3,    -- set focus
+    CBN_KILLFOCUS       = 4,    -- lose focus
+    CBN_EDITCHANGE      = 5,    -- change data
+    CBN_EDITUPDATE      = 6,    -- update data
+    CBN_DROPDOWN        = 7,    -- dropdown
+    CBN_CLOSEUP         = 8,    -- close dropdown
+    CBN_SELENDOK        = 9,
+    CBN_SELENDCANCEL    = 10,
+
+    CBS_AUTOHSCROLL         = 64,
+    CBS_DISABLENOSCROLL     = #800,
+    CBS_DROPDOWN            = 2,
+    CBS_DROPDOWNLIST        = 3,
+    CBS_HASSTRINGS          = 512,
+    CBS_LOWERCASE           = #4000,
+    CBS_NOINTEGRALHEIGHT    = #400,
+    CBS_OEMCONVERT          = 128,
+    CBS_OWNERDRAWFIXED      = 16,
+    CBS_OWNERDRAWVARIABLE   = 32,
+    CBS_SIMPLE              = 1,
+    CBS_SORT                = 256,
+    CBS_UPPERCASE           = #2000,
+
+
+
+    WM_COMMAND      = #0111,        -- window message command
+    WM_MENUSELECT   = #011F,        -- menu item selected
+
+
+    -- edit commands
+    WM_CUT = #300,
+    WM_COPY = #301,
+    WM_PASTE = #302,
+    WM_CLEAR = #303,
+    WM_UNDO = #304,
+
+    -- Edit Control Messages
+    EM_GETSEL = #B0,        -- 2 long pointers
+    EM_SETSEL = #B1,        -- pass start and end
+--    EM_GETRECT = #B2,
+--    EM_SETRECT = #B3,
+--    EM_SETRECTNP = #B4,
+    EM_SCROLL = #B5,
+    EM_LINESCROLL = #B6,
+    EM_SCROLLCARET = #B7,
+    EM_GETMODIFY = #B8,
+    EM_SETMODIFY = #B9,
+    EM_GETLINECOUNT = #BA,
+    EM_LINEINDEX = #BB,
+    EM_SETHANDLE = #BC,
+    EM_GETHANDLE = #BD,
+    EM_GETTHUMB = #BE,
+    EM_LINELENGTH = #C1,
+    EM_REPLACESEL = #C2,
+    EM_GETLINE = #C4,
+    EM_LIMITTEXT = #C5,
+    EM_CANUNDO = #C6,
+    EM_UNDO = #C7,
+    EM_FMTLINES = #C8,
+    EM_LINEFROMCHAR = #C9,
+    EM_SETTABSTOPS = #CB,
+    EM_SETPASSWORDCHAR = #CC,
+    EM_EMPTYUNDOBUFFER = #CD,
+    EM_GETFIRSTVISIBLELINE = #CE,
+    EM_SETREADONLY = #CF,
+    EM_SETWORDBREAKPROC = #D0,
+    EM_GETWORDBREAKPROC = #D1,
+    EM_GETPASSWORDCHAR = #D2,
+    EM_CHARFROMPOS     = #D7,
+    EM_POSFROMCHAR     = #D8,
+
+    EM_GETSELTEXT = 1086,
+    EM_SETCHARFORMAT = 1092,
+    EM_GETCHARFORMAT = 1082,
+    EM_SETTARGETDEVICE = 1096,
+    EM_SETTEXTMODE = 1113,
+    EM_GETTEXTMODE = 1114,
+    EM_GETTEXTEX  = WM_USER + 94,
+    EM_GETTEXTLENGTHEX =        WM_USER + 95,
+
+    TM_PLAINTEXT                        = 1,
+    TM_RICHTEXT                                = 2,
+    TM_SINGLELEVELUNDO                = 4,
+    TM_MULTILEVELUNDO                = 8,
+    TM_SINGLECODEPAGE                = 16,
+    TM_MULTICODEPAGE                = 32,
+
+    SCF_WORD = 2,
+    SCF_SELECTION = 1,
+    SCF_ALL = 4,
+
+
+
+-- Status Window
+    SBT_OWNERDRAW           = #1000,
+    SBT_NOBORDERS           = #0100,
+    SBT_POPOUT              = #0200,
+    SBT_RTLREADING          = #0400,
+    SBT_TOOLTIPS            = #0800,
+
+    SB_GETBORDERS           = 1031,
+    SB_GETPARTS             = 1030,
+    SB_GETRECT              = 1034,
+    SB_GETTEXTW             = 1037,
+    SB_GETTEXTLENGTHW       = 1036,
+    SB_SETTEXTW             = 1035,
+    SB_GETTEXTA             = 1026,
+    SB_GETTEXTLENGTHA       = 1027,
+    SB_SETTEXTA             = 1025,
+    SB_GETTEXT              = SB_GETTEXTA,
+    SB_GETTEXTLENGTH        = SB_GETTEXTLENGTHA,
+    SB_SETTEXT              = SB_SETTEXTA,
+    SB_SETMINHEIGHT         = 1032,
+    SB_SETPARTS             = 1028,
+    SB_SIMPLE               = 1033,
+    SB_SETICON              = WM_USER + 15,
+    SB_SETTIPTEXT           = WM_USER + 16,
+    SB_SETBKCOLOR           = #2001,
+
+    --  Graphics Modes (used by EZ_FONT)
+    GM_ADVANCED = 2,
+
+    -- Background Modes
+    TRANSPARENT     = 1,        -- background is not touched
+    OPAQUE          = 2,        -- background filled before drawing
+
+    --  xform stuff
+    MWT_IDENTITY    = 1,
+    CW_USEDEFAULT   = #80000000,
+
+    -- icons and pointers
+    ICON_SMALL      = 0,
+    ICON_BIG        = 1,
+
+    IDC_ARROW       = 32512,
+    IDC_IBEAM       = 32513,
+    IDC_WAIT        = 32514,
+    IDC_CROSS       = 32515,
+    IDC_UPARROW     = 32516,
+    IDC_ICON        = 32641,
+    IDC_SIZENWSE    = 32642,
+    IDC_SIZENESW    = 32643,
+    IDC_SIZEWE      = 32644,
+    IDC_SIZENS      = 32645,
+    IDC_SIZEALL     = 32646,
+    IDC_SIZE        = IDC_SIZEALL, -- 32640 is obsolete
+    IDC_NO          = 32648,
+    IDC_HAND        = 32649,
+    IDC_APPSTARTING = 32650,
+    IDC_HELP        = 32651,
+    IDI_APPLICATION = 32512,
+    IDI_ERROR       = 32513,
+    IDI_HAND        = IDI_ERROR,
+    IDI_QUESTION    = 32514,
+    IDI_EXCLAMATION = 32515,
+    IDI_WARNING     = IDI_EXCLAMATION,
+    IDI_ASTERISK    = 32516,
+    IDI_INFORMATION = IDI_ASTERISK,
+    IDI_WINLOGO     = 32517,
+    WinIcons        = {IDI_APPLICATION, IDI_ERROR, IDI_QUESTION,
+                       IDI_WARNING, IDI_ASTERISK, IDI_WINLOGO},
+
+    -- Win32Lib's versions
+    ArrowPointer        = IDC_ARROW,
+    IBeamPointer        = IDC_IBEAM,
+    WaitPointer         = IDC_WAIT,
+    CrossPointer        = IDC_CROSS,
+    UpArrowPointer      = IDC_UPARROW,
+    SizeNWSEPointer     = IDC_SIZENWSE,
+    SizeNESWPointer     = IDC_SIZENESW,
+    SizeWEPointer       = IDC_SIZEWE,
+    SizeNSPointer       = IDC_SIZENS,
+    SizeAllPointer      = IDC_SIZEALL,
+    NoPointer           = IDC_NO,
+    AppStartingPointer  = IDC_APPSTARTING,
+    HelpPointer         = IDC_HELP,
+    ApplicationIcon     = IDI_APPLICATION,
+    HandIcon            = IDI_HAND,
+    QuestionIcon        = IDI_QUESTION,
+    ExclamationIcon     = IDI_EXCLAMATION,
+    AsteriskIcon        = IDI_ASTERISK,
+    WinLogoIcon         = IDI_WINLOGO,
+    SizePointer         = IDC_SIZEALL,
+    IconPointer         = IDC_ICON,
+    HandPointer         = IDC_HAND
+
+global constant
+-- GetSystemMetrics
+    SM_CYMIN            = 29,
+    SM_CXMIN            = 28,
+    SM_ARRANGE          = 56,
+    SM_CLEANBOOT        = 67,
+    -- The right value for SM_CEMETRICS for NT 3.5 is 75.  For Windows 95
+   -- and NT 4.0, it is 76.  The meaning is undocumented, anyhow.
+    SM_CMETRICS         = 76,
+    SM_CMOUSEBUTTONS    = 43,
+    SM_CXBORDER         = 5,
+    SM_CYBORDER         = 6,
+    SM_CXCURSOR         = 13,
+    SM_CYCURSOR         = 14,
+    SM_CXDLGFRAME       = 7,
+    SM_CYDLGFRAME       = 8,
+    SM_CXDOUBLECLK      = 36,
+    SM_CYDOUBLECLK      = 37,
+    SM_CXDRAG           = 68,
+    SM_CYDRAG           = 69,
+    SM_CXEDGE           = 45,
+    SM_CYEDGE           = 46,
+    SM_CXFIXEDFRAME     = 7,
+    SM_CYFIXEDFRAME     = 8,
+    SM_CXFRAME          = 32,
+    SM_CYFRAME          = 33,
+    SM_CXFULLSCREEN     = 16,
+    SM_CYFULLSCREEN     = 17,
+    SM_CXHSCROLL        = 21,
+    SM_CYHSCROLL        = 3,
+    SM_CXHTHUMB         = 10,
+    SM_CXICON           = 11,
+    SM_CYICON           = 12,
+    SM_CXICONSPACING    = 38,
+    SM_CYICONSPACING    = 39,
+    SM_CXMAXIMIZED      = 61,
+    SM_CYMAXIMIZED      = 62,
+    SM_CXMAXTRACK       = 59,
+    SM_CYMAXTRACK       = 60,
+    SM_CXMENUCHECK      = 71,
+    SM_CYMENUCHECK      = 72,
+    SM_CXMENUSIZE       = 54,
+    SM_CYMENUSIZE       = 55,
+    SM_CXMINIMIZED      = 57,
+    SM_CYMINIMIZED      = 58,
+    SM_CXMINSPACING     = 47,
+    SM_CYMINSPACING     = 48,
+    SM_CXMINTRACK       = 34,
+    SM_CYMINTRACK       = 35,
+    SM_CXSCREEN         = 0,
+    SM_CYSCREEN         = 1,
+    SM_CXSIZE           = 30,
+    SM_CYSIZE           = 31,
+    SM_CXSIZEFRAME      = 32,
+    SM_CYSIZEFRAME      = 33,
+    SM_CXSMICON         = 49,
+    SM_CYSMICON         = 50,
+    SM_CXSMSIZE         = 52,
+    SM_CYSMSIZE         = 53,
+    SM_CXVSCROLL        = 2,
+    SM_CYVSCROLL        = 20,
+    SM_CYVTHUMB         = 9,
+    SM_CYCAPTION        = 4,
+    SM_CYKANJIWINDOW    = 18,
+    SM_CYMENU           = 15,
+    SM_CYSMCAPTION      = 51,
+    SM_DBCSENABLED      = 42,
+    SM_DEBUG            = 22,
+    SM_MENUDROPALIGNMENT= 40,
+    SM_MIDEASTENABLED   = 74,
+    SM_MOUSEPRESENT     = 19,
+    SM_MOUSEWHEELPRESENT= 75,
+    SM_NETWORK          = 63,
+    SM_PENWINDOWS       = 41,
+    SM_RESERVED1        = 24,
+    SM_RESERVED2        = 25,
+    SM_RESERVED3        = 26,
+    SM_RESERVED4        = 27,
+    SM_SECURE           = 44,
+    SM_SHOWSOUNDS       = 70,
+    SM_SLOWMACHINE      = 73,
+    SM_SWAPBUTTON       = 23,
+    ARW_BOTTOMLEFT      = 0,
+    ARW_BOTTOMRIGHT     = #1,
+    ARW_HIDE            = #8,
+    ARW_TOPLEFT         = #2,
+    ARW_TOPRIGHT        = #3,
+    ARW_DOWN            = #4,
+    ARW_LEFT            = 0,
+    ARW_RIGHT           = 0,
+    ARW_UP              = #4,
+
+
+--  Scroll bar messages
+    SBM_SETPOS = #E0, -- not in win3.1
+    SBM_GETPOS = #E1, -- not in win3.1
+    SBM_SETRANGE = #E2, -- not in win3.1
+    SBM_SETRANGEREDRAW = #E6, -- not in win3.1
+    SBM_GETRANGE = #E3, -- not in win3.1
+    SBM_ENABLE_ARROWS = #E4, -- not in win3.1
+
+-- Scroll Bar Styles
+    SBS_HORZ = #0,
+    SBS_VERT = #1,
+    SBS_TOPALIGN = #2,
+    SBS_LEFTALIGN = #2,
+    SBS_BOTTOMALIGN = #4,
+    SBS_RIGHTALIGN = #4,
+    SBS_SIZEBOXTOPLEFTALIGN = #2,
+    SBS_SIZEBOXBOTTOMRIGHTALIGN = #4,
+    SBS_SIZEBOX = #8,
+
+    -- scroll bar events
+    WM_HSCROLL = #114,
+    WM_VSCROLL = #115,
+
+-- Scroll Bar Constants
+    SB_HORZ = 0,
+    SB_VERT = 1,
+    SB_CTL = 2,
+    SB_BOTH = 3,
+
+-- Scroll Bar Commands
+    SB_UserDefined = -1,
+    SB_LINEUP = 0,
+    SB_LINELEFT = 0,
+    SB_LINEDOWN = 1,
+    SB_LINERIGHT = 1,
+    SB_PAGEUP = 2,
+    SB_PAGELEFT = 2,
+    SB_PAGEDOWN = 3,
+    SB_PAGERIGHT = 3,
+    SB_THUMBPOSITION = 4,
+    SB_THUMBTRACK = 5,
+    SB_TOP = 6,
+    SB_LEFT = 6,
+    SB_BOTTOM = 7,
+    SB_RIGHT = 7,
+    SB_ENDSCROLL = 8,
+
+-- scroll bar information flags
+    SIF_DISABLENOSCROLL = #8,
+    SIF_PAGE = #2,
+    SIF_POS = #4,
+    SIF_RANGE = #1,
+    SIF_TRACKPOS = #10,
+    SIF_ALL = w32or_all({SIF_RANGE,SIF_PAGE,SIF_POS,SIF_TRACKPOS}),
+
+-- Color hooks - control about to be drawn
+    WM_CTLCOLORMSGBOX = #132,
+    WM_CTLCOLOREDIT = #133,
+    WM_CTLCOLORLISTBOX = #134,
+    WM_CTLCOLORBTN = #135,
+    WM_CTLCOLORDLG = #136,
+    WM_CTLCOLORSCROLLBAR = #137,
+    WM_CTLCOLORSTATIC = #138,
+
+
+-- MessageBox() Flags
+--  these are found in Euphoria's MESSAGE.E file
+--    MB_OK = #0,
+--    MB_OKCANCEL = #1,
+--    MB_ABORTRETRYIGNORE = #2,
+--    MB_YESNOCANCEL = #3,
+--    MB_YESNO = #4,
+--    MB_RETRYCANCEL = #5,
+--    MB_ICONHAND = #10,
+--    MB_ICONQUESTION = #20,
+--    MB_ICONEXCLAMATION = #30,
+--    MB_ICONASTERISK = #40,
+--    MB_ICONINFORMATION = MB_ICONASTERISK,
+--    MB_ICONSTOP = MB_ICONHAND,
+--    MB_DEFBUTTON1 = #0,
+--    MB_DEFBUTTON2 = #100,
+--    MB_DEFBUTTON3 = #200,
+--    MB_APPLMODAL = #0,
+--    MB_SYSTEMMODAL = #1000,
+--    MB_TASKMODAL = #2000,
+
+-- timer
+    WM_TIMER = #113,
+
+--  Ternary raster operations
+    SRCCOPY = #CC0020, -- (DWORD) dest = source
+    SRCPAINT = #EE0086,        -- (DWORD) dest = source OR dest
+    SRCAND = #8800C6,  -- (DWORD) dest = source AND dest
+    SRCINVERT = #660046,       -- (DWORD) dest = source XOR dest
+    SRCERASE = #440328,        -- (DWORD) dest = source AND (NOT dest )
+    NOTSRCCOPY = #330008,      -- (DWORD) dest = (NOT source)
+    NOTSRCERASE = #1100A6,     -- (DWORD) dest = (NOT src) AND (NOT dest)
+    MERGECOPY = #C000CA,       -- (DWORD) dest = (source AND pattern)
+    MERGEPAINT = #BB0226,      -- (DWORD) dest = (NOT source) OR dest
+    PATCOPY = #F00021, -- (DWORD) dest = pattern
+    PATPAINT = #FB0A09,        -- (DWORD) dest = DPSnoo
+    PATINVERT = #5A0049,       -- (DWORD) dest = pattern XOR dest
+    DSTINVERT = #550009,       -- (DWORD) dest = (NOT dest)
+    BLACKNESS = #42, -- (DWORD) dest = BLACK
+    WHITENESS = #FF0062,       -- (DWORD) dest = WHITE
+
+--  Ternary raster operations
+    SrcCopy     = SRCCOPY,
+    SrcPaint    = SRCPAINT,
+    SrcAnd      = SRCAND,
+    SrcInvert   = SRCINVERT,
+    SrcErase    = SRCERASE,
+    NotSrcCopy  = NOTSRCCOPY,
+    NotSrcErase = NOTSRCERASE,
+    MergeCopy   = MERGECOPY,
+    MergePaint  = MERGEPAINT,
+    PatCopy     = PATCOPY,
+    PatPaint    = PATPAINT,
+    PatInvert   = PATINVERT,
+    DstInvert   = DSTINVERT,
+    Blackness   = BLACKNESS,
+    Whiteness   = WHITENESS,
+
+-- Binary raster ops
+    R2_BLACK = 1,           -- Pixel is always 0.
+    R2_NOTMERGEPEN = 2,     -- Pixel is the inverse of the R2_MERGEPEN color.
+    R2_MASKNOTPEN = 3,      -- combination common screen and inverse of pen.
+    R2_NOTCOPYPEN = 4,      -- Pixel is the inverse of the pen color.
+    R2_MASKPENNOT = 5,      -- combination common to pen and inverse of screen.
+    R2_NOT = 6,             -- Pixel is the inverse of the screen color.
+    R2_XORPEN = 7,          -- Pixel is the inverse of the R2_XORPEN color.
+    R2_NOTMASKPEN = 8,      -- Pixel is the inverse of the R2_MASKPEN color.
+    R2_MASKPEN = 9,         -- combination common to pen and the screen.
+    R2_NOTXORPEN = 10,      -- combination of colors in pen and screen, but not in both.
+    R2_NOP = 11,            -- Pixel remains unchanged.
+    R2_MERGENOTPEN = 12,    -- combination of screen and inverse of pen.
+    R2_COPYPEN = 13,        -- Pixel is the pen color.
+    R2_MERGEPENNOT = 14,    -- combination of pen color and inverse of screen color.
+    R2_MERGEPEN = 15,       -- combination of pen color and the screen color.
+    R2_WHITE = 16,          -- Pixel is always 1.
+    R2_LAST = 16,
+
+
+    GDI_ERROR = #FFFF,
+    HGDI_ERROR = #FFFF,
+
+-- error with color
+    CLR_INVALID = #0000FFFF,
+    CLR_DEFAULT = #FF000000,
+    CLR_NONE    = #FFFFFFFF,
+
+
+-- Global Memory Flags
+    GMEM_FIXED = #0,
+    GMEM_MOVEABLE = #2,
+    GMEM_NOCOMPACT = #10,
+    GMEM_NODISCARD = #20,
+    GMEM_ZEROINIT = #40,
+    GMEM_MODIFY = #80,
+    GMEM_DISCARDABLE = #100,
+    GMEM_NOT_BANKED = #1000,
+    GMEM_SHARE = #2000,
+    GMEM_DDESHARE = #2000,
+    GMEM_NOTIFY = #4000,
+    GMEM_LOWER = GMEM_NOT_BANKED,
+    GMEM_VALID_FLAGS = #7F72,
+    GMEM_INVALID_HANDLE = #8000,
+    GMEM_CLIPBOARD = w32or_all({GMEM_MOVEABLE,GMEM_DDESHARE}),
+
+    GHND = w32or_all({GMEM_MOVEABLE, GMEM_ZEROINIT}),
+    GPTR = w32or_all({GMEM_FIXED, GMEM_ZEROINIT}),
+
+
+-- PRINTDLG structure
+    PD_ALLPAGES                     = 0,
+    PD_COLLATE                      = 16,
+    PD_DISABLEPRINTTOFILE           = 524288,
+    PD_ENABLEPRINTHOOK              = 4096,
+    PD_ENABLEPRINTTEMPLATE          = 16384,
+    PD_ENABLEPRINTTEMPLATEHANDLE    = 65536,
+    PD_ENABLESETUPHOOK              = 8192,
+    PD_ENABLESETUPTEMPLATE          = 32768,
+    PD_ENABLESETUPTEMPLATEHANDLE    = 131072,
+    PD_HIDEPRINTTOFILE              = 1048576,
+    PD_NOPAGENUMS                   = 8,
+    PD_NOSELECTION                  = 4,
+    PD_NOWARNING                    = 128,
+    PD_PAGENUMS                     = 2,
+    PD_PRINTSETUP                   = 64,
+    PD_PRINTTOFILE                  = 32,
+    PD_RETURNDC                     = 256,
+    PD_RETURNDEFAULT                = 1024,
+    PD_RETURNIC                     = 512,
+    PD_SELECTION                    = 1,
+    PD_SHOWHELP                     = 2048,
+    PD_USEDEVMODECOPIES             = 262144,
+    PD_USEDEVMODECOPIESANDCOLLATE   = 262144,
+
+
+-- DIB color table identifiers
+    DIB_RGB_COLORS = 0,         --  color table in RGBs
+    DIB_PAL_COLORS = 1,         --  color table in palette indices
+    DIB_PAL_INDICES = 2,        --  No color table indices into surf palette
+    DIB_PAL_PHYSINDICES = 2,    --  No color table indices into surf palette
+    DIB_PAL_LOGINDICES = 4,     --  No color table indices into DC palette
+
+
+-- Loading Bitmaps
+    LR_LOADFROMFILE = 16,
+    IMAGE_BITMAP = 0,
+    IMAGE_ICON = 1,
+
+    LR_COPYDELETEORG = 8,
+    LR_COPYRETURNORG = 4,
+    LR_MONOCHROME = 1,
+    LR_CREATEDIBSECTION = 8192,
+    LR_DEFAULTSIZE = 64,
+
+    SS_LEFT             = #00000000,
+    SS_CENTER           = #00000001,
+    SS_RIGHT            = #00000002,
+    SS_ICON             = #00000003,
+    SS_BLACKRECT        = #00000004,
+    SS_GRAYRECT         = #00000005,
+    SS_WHITERECT        = #00000006,
+    SS_BLACKFRAME       = #00000007,
+    SS_GRAYFRAME        = #00000008,
+    SS_WHITEFRAME       = #00000009,
+    SS_USERITEM         = #0000000A,
+    SS_SIMPLE           = #0000000B,
+    SS_LEFTNOWORDWRAP   = #0000000C,
+    SS_OWNERDRAW        = #0000000D,
+    SS_BITMAP           = #0000000E,
+    SS_ENHMETAFILE      = #0000000F,
+    SS_ETCHEDHORZ       = #00000010,
+    SS_ETCHEDVERT       = #00000011,
+    SS_ETCHEDFRAME      = #00000012,
+    SS_TYPEMASK         = #0000001F,
+    SS_NOPREFIX         = #00000080,
+    SS_NOTIFY           = #00000100,
+    SS_CENTERIMAGE      = #00000200,
+    SS_RIGHTJUST        = #00000400,
+    SS_REALSIZEIMAGE    = #00000800,
+    SS_SUNKEN           = #00001000,
+    SS_ENDELLIPSIS      = #00004000,
+    SS_PATHELLIPSIS     = #00008000,
+    SS_WORDELLIPSIS     = #0000C000,
+    SS_ELLIPSISMASK     = #0000C000,
+
+
+
+    STM_SETICON         = #0170,
+    STM_GETICON         = #0171,
+    STM_SETIMAGE        = #0172,
+    STM_GETIMAGE        = #0173,
+
+    STN_CLICKED         = 0,
+    STN_DBLCLK          = 1,
+    STN_ENABLE          = 2,
+    STN_DISABLE         = 3,
+
+
+-- Class field offsets for GetClassLong() and GetClassWord()
+    GCL_MENUNAME = (-8),
+    GCL_HBRBACKGROUND = (-10),      -- background brush
+    GCL_HCURSOR = (-12),
+    GCL_HICON = (-14),
+    GCL_HMODULE = (-16),
+    GCL_CBWNDEXTRA = (-18),
+    GCL_CBCLSEXTRA = (-20),
+    GCL_WNDPROC = (-24),
+    GCL_STYLE = (-26),
+    GCW_ATOM = (-32),
+
+-- System Colors
+    COLOR_SCROLLBAR             = 0,
+    COLOR_BACKGROUND            = 1,
+    COLOR_DESKTOP               = COLOR_BACKGROUND,
+    COLOR_ACTIVECAPTION         = 2,
+    COLOR_INACTIVECAPTION       = 3,
+    COLOR_MENU                  = 4,
+    COLOR_WINDOW                = 5,
+    COLOR_WINDOWFRAME           = 6,
+    COLOR_MENUTEXT              = 7,
+    COLOR_WINDOWTEXT            = 8,
+    COLOR_CAPTIONTEXT           = 9,
+    COLOR_ACTIVEBORDER          = 10,
+    COLOR_INACTIVEBORDER        = 11,
+    COLOR_APPWORKSPACE          = 12,
+    COLOR_HIGHLIGHT             = 13,
+    COLOR_HIGHLIGHTTEXT         = 14,
+    COLOR_BTNFACE               = 15,
+    COLOR_3DFACE                = COLOR_BTNFACE,
+    COLOR_BTNSHADOW             = 16,
+    COLOR_3DSHADOW              = COLOR_BTNSHADOW,
+    COLOR_GRAYTEXT              = 17,
+    COLOR_BTNTEXT               = 18,
+    COLOR_INACTIVECAPTIONTEXT   = 19,
+    COLOR_BTNHIGHLIGHT          = 20,
+    COLOR_3DHILIGHT             = COLOR_BTNHIGHLIGHT,
+    COLOR_3DDKSHADOW            = 21,
+    COLOR_3DLIGHT               = 22,
+    COLOR_INFOTEXT              = 23,
+    COLOR_TOOLTIPTEXT           = COLOR_INFOTEXT,
+    COLOR_INFOBK                = 24,
+    COLOR_TOOLTIPBK             = COLOR_INFOBK,
+    -- not used                 = 25,
+    COLOR_HOTLIGHT              = 26,
+    COLOR_GRADIENTACTIVECAPTION = 27,
+    COLOR_GRADIENTINACTIVECAPTION = 28,
+    COLOR_MENUHILIGHT           = 29,
+    COLOR_MENUBAR               = 30
+
+
+global constant
+-- Key State Masks for Mouse Messages
+    MK_LBUTTON = #01,   -- left button is pressed
+    MK_RBUTTON = #02,   -- right button is pressed
+    MK_SHIFT   = #04,   -- shift key is held down
+    MK_CONTROL = #08,   -- control key is held down
+    MK_MBUTTON = #10,   -- middle button is pressed
+
+-- constants for CreateDIBitmap
+    CBM_CREATEDIB = #2, -- create DIB bitmap
+    CBM_INIT = #4,      --  initialize bitmap
+
+    CC_ENABLEHOOK = 16,
+    CC_ENABLETEMPLATE = 32,
+    CC_ENABLETEMPLATEHANDLE = 64,
+    CC_FULLOPEN = 2,
+    CC_PREVENTFULLOPEN = 4,
+    CC_RGBINIT = 1,
+    CC_SHOWHELP = 8,
+    CC_SOLIDCOLOR = 128,
+
+    CF_SCREENFONTS  = 1,            -- get screen fonts
+    CF_PRINTERFONTS = 2,            -- get printer fonts
+    CF_BOTH         = CF_SCREENFONTS + CF_PRINTERFONTS,
+    CF_SHOWHELP     = 4,
+    CF_ENABLEHOOK   = 8,
+    CF_ENABLETEMPLATE = #10,
+    CF_ENABLETEMPLATEHANDLE = #20,
+    CF_INITTOLOGFONTSTRUCT = #40,
+    CF_USESTYLE     = #80,
+    CF_EFFECTS      = #100,
+    CF_APPLY        = #200,
+    CF_ANSIONLY     = #400,
+    CF_SCRIPTSONLY  = CF_ANSIONLY,
+    CF_NOVECTORFONTS = #800,
+    CF_NOOEMFONTS   = CF_NOVECTORFONTS,
+    CF_NOSIMULATIONS = #1000,
+    CF_LIMITSIZE     = #2000,
+    CF_FIXEDPITCHONLY = #4000,
+    CF_WYSIWYG        = #8000, -- must also have CF_SCREENFONTS, CF_PRINTERFONTS and CF_SCALABLEONLY
+    CF_FORCEFONTEXIST = #10000,
+    CF_SCALABLEONLY   = #20000,
+    CF_TTONLY       = #40000,
+    CF_NOFACESEL    = #80000,
+    CF_NOSTYLESEL   = #100000,
+    CF_NOSIZESEL    = #200000,
+    CF_SELECTSCRIPT = #400000,
+    CF_NOSCRIPTSEL  = #800000,
+    CF_NOVERTFONTS  = #1000000,
+
+
+-- constants for onResize
+    -- WM_SIZE message wParam values
+    SIZE_RESTORED   = 0,
+    SIZE_MINIMIZED  = 1,
+    SIZE_MAXIMIZED  = 2,
+    SIZE_MAXSHOW    = 3,
+    SIZE_MAXHIDE    = 4,
+
+    -- Obsolete constant names
+    SIZENORMAL      = SIZE_RESTORED,
+    SIZEICONIC      = SIZE_MINIMIZED,
+    SIZEFULLSCREEN  = SIZE_MAXIMIZED,
+    SIZEZOOMSHOW    = SIZE_MAXSHOW,
+    SIZEZOOMHIDE    = SIZE_MAXHIDE
+
+
+-----------------------------------------------------------------------------
+-- Win32 Wrappers for mouse flags
+
+global constant
+-- Visual Basics Names for the buttons:
+    LEFT_BUTTON     = MK_LBUTTON,
+    RIGHT_BUTTON    = MK_RBUTTON,
+    MIDDLE_BUTTON   = MK_MBUTTON,
+    SHIFT_MASK      = MK_SHIFT,
+    CTRL_MASK       = MK_CONTROL,
+
+-- Win32Lib names for mouse events
+    MOUSE_MOVE          = WM_MOUSEMOVE,
+    LEFT_DOWN           = WM_LBUTTONDOWN,
+    RIGHT_DOWN          = WM_RBUTTONDOWN,
+    LEFT_UP             = WM_LBUTTONUP,
+    RIGHT_UP            = WM_RBUTTONUP,
+    LEFT_DOUBLECLICK    = WM_LBUTTONDBLCLK,
+    RIGHT_DOUBLECLICK   = WM_RBUTTONDBLCLK,
+    WHEEL_MOVE          = WM_MOUSEWHEEL,
+
+    MouseMove           = MOUSE_MOVE,
+    LeftDown            = LEFT_DOWN,
+    RightDown           = RIGHT_DOWN,
+    LeftUp              = LEFT_UP,
+    RightUp             = RIGHT_UP,
+    LeftDoubleClick     = LEFT_DOUBLECLICK,
+    RightDoubleClick    = RIGHT_DOUBLECLICK,
+    WheelMove           = WM_MOUSEWHEEL,
+
+
+-----------------------------------------------------------------------------
+-- Window field offsets for GetWindowLong() and GetWindowWord()
+    GWL_WNDPROC         = -4,
+    GWL_HINSTANCE       = -6,
+    GWL_HWNDPARENT      = -8,
+    GWL_STYLE           = -16,
+    GWL_EXSTYLE         = -20,
+    GWL_USERDATA        = -21,
+    GWL_ID              = -12,
+
+-----------------------------------------------------------------------------
+    TA_TOP          = 0,
+    TA_LEFT         = 0,
+    TA_NOUPDATECP   = 0,
+    TA_UPDATECP     = 1,
+    TA_RIGHT        = 2,
+    TA_CENTER       = 6,
+    VTA_CENTER      = 6,
+    TA_BOTTOM       = 8,
+    TA_BASELINE     = 24,
+    VTA_BASELINE    = 24,
+    TA_RTLREADING   = 256,
+
+    AlignTop        = TA_TOP,
+    AlignBottom     = TA_BOTTOM,
+    AlignBaseline   = TA_BASELINE,
+    AlignCenter     = TA_CENTER,
+    AlignLeft       = TA_LEFT,
+    AlignRight      = TA_RIGHT,
+
+
+    CCM_FIRST               = #2000,
+    CCM_SETCOLORSCHEME      = (CCM_FIRST + 2),
+    CCM_GETCOLORSCHEME      = (CCM_FIRST + 3),
+    CCM_GETDROPTARGET       = (CCM_FIRST + 4),
+    CCM_SETUNICODEFORMAT    = (CCM_FIRST + 5),
+    CCM_GETUNICODEFORMAT    = (CCM_FIRST + 6),
+    CCM_SETBKCOLOR          = (CCM_FIRST + 1),
+
+    LVS_ICON                =  #0,
+    LVS_REPORT              =  #1,
+    LVS_SMALLICON           =  #2,
+    LVS_LIST                =  #3,
+    LVS_TYPEMASK            =  #3,
+    LVS_SINGLESEL           =  #4,
+    LVS_SHOWSELALWAYS       =  #8,
+    LVS_SORTASCENDING       =  #10,
+    LVS_SORTDESCENDING      =  #20,
+    LVS_SHAREIMAGELISTS     =  #40,
+    LVS_NOLABELWRAP         =  #80,
+    LVS_AUTOARRANGE         =  #100,
+    LVS_EDITLABELS          =  #200,
+    LVS_OWNERDATA           =  #1000,
+    LVS_NOSCROLL            =  #2000,
+    LVS_TYPESTYLEMASK       =  #FC00,
+    LVS_ALIGNTOP            =  #0,
+    LVS_ALIGNLEFT           =  #800,
+    LVS_ALIGNMASK           =  #C00,
+    LVS_OWNERDRAWFIXED      =  #400,
+    LVS_NOCOLUMNHEADER      =  #4000,
+    LVS_NOSORTHEADER        =  #8000,
+
+    LVA_DEFAULT             = 0,
+    LVA_ALIGNLEFT           = 1,
+    LVA_ALIGNTOP            = 2,
+    LVA_SNAPTOGRID          = 5,
+
+    LVS_EX_GRIDLINES        = 1,
+    LVS_EX_SUBITEMIMAGES    = 2,
+    LVS_EX_CHECKBOXES       = 4,
+    LVS_EX_TRACKSELECT      = 8,
+    LVS_EX_HEADERDRAGDROP   = #10,
+    LVS_EX_FULLROWSELECT    = #20,
+    LVS_EX_ONECLICKACTIVATE = #40,
+    LVS_EX_TWOCLICKACTIVATE = #80,
+    LVS_EX_FLATSB           = #100,
+    LVS_EX_REGIONAL         = #200,
+    LVS_EX_NFOTIP           = #400,
+    LVS_EX_UNDERLINEHOT     = #800,
+    LVS_EX_UNDERLINECOLD    = #1000,
+    LVS_EX_MULTIWORKAREAS   = #2000,
+
+    LVM_FIRST               =  #1000,
+    LVM_GETBKCOLOR          =  (LVM_FIRST + 0),
+    LVM_SETBKCOLOR          =  (LVM_FIRST + 1),
+    LVM_GETIMAGELIST        =  (LVM_FIRST + 2),
+    LVM_SETIMAGELIST        =  (LVM_FIRST + 3),
+    LVM_GETITEMCOUNT        =  (LVM_FIRST + 4),
+    LVM_GETITEMA            =  (LVM_FIRST + 5),
+    LVM_GETITEM             =  LVM_GETITEMA,
+    LVM_SETITEMA            =  (LVM_FIRST + 6),
+    LVM_SETITEM             =  LVM_SETITEMA,
+    LVM_INSERTITEMA         =  (LVM_FIRST + 7),
+    LVM_INSERTITEM          =  LVM_INSERTITEMA,
+    LVM_DELETEITEM          =  (LVM_FIRST + 8),
+    LVM_DELETEALLITEMS      =  (LVM_FIRST + 9),
+    LVM_GETCALLBACKMASK     =  (LVM_FIRST + 10),
+    LVM_SETCALLBACKMASK     =  (LVM_FIRST + 11),
+    LVM_GETNEXTITEM         =  (LVM_FIRST + 12),
+    LVM_FINDITEM            =  (LVM_FIRST + 13),
+    LVM_GETITEMRECT         =  (LVM_FIRST + 14),
+    LVM_SETITEMPOSITION     =  (LVM_FIRST + 15),
+    LVM_GETITEMPOSITION     =  (LVM_FIRST + 16),
+    LVM_GETSTRINGWIDTH      =  (LVM_FIRST + 17),
+    LVM_HITTEST             =  (LVM_FIRST + 18),
+    LVM_ENSUREVISIBLE       =  (LVM_FIRST + 19),
+    LVM_SCROLL              =  (LVM_FIRST + 20),
+    LVM_REDRAWITEMS         =  (LVM_FIRST + 21),
+    LVM_ARRANGE             =  (LVM_FIRST + 22),
+    LVM_EDITLABEL           =  (LVM_FIRST + 23),
+    LVM_GETEDITCONTROL      =  (LVM_FIRST + 24),
+    LVM_GETCOLUMN           =  (LVM_FIRST + 25),
+    LVM_INSERTCOLUMNA       =  (LVM_FIRST + 27),
+    LVM_INSERTCOLUMN        =  LVM_INSERTCOLUMNA,
+    LVM_DELETECOLUMN        =  (LVM_FIRST + 28),
+    LVM_SETCOLUMN           =  4122,
+    LVM_GETCOLUMNWIDTH      =  (LVM_FIRST + 29),
+    LVM_SETCOLUMNWIDTH      =  (LVM_FIRST + 30),
+    LVM_GETHEADER           =  (LVM_FIRST + 31),
+    LVM_CREATEDRAGIMAGE     =  (LVM_FIRST + 33),
+    LVM_GETVIEWRECT         =  (LVM_FIRST + 34),
+    LVM_GETTEXTCOLOR        =  (LVM_FIRST + 35),
+    LVM_SETTEXTCOLOR        =  (LVM_FIRST + 36),
+    LVM_GETTEXTBKCOLOR      =  (LVM_FIRST + 37),
+    LVM_SETTEXTBKCOLOR      =  (LVM_FIRST + 38),
+    LVM_GETTOPINDEX         =  (LVM_FIRST + 39),
+    LVM_GETCOUNTPERPAGE     =  (LVM_FIRST + 40),
+    LVM_GETORIGIN           =  (LVM_FIRST + 41),
+    LVM_UPDATE              =  (LVM_FIRST + 42),
+    LVM_SETITEMSTATE        =  (LVM_FIRST + 43),
+    LVM_GETITEMSTATE        =  (LVM_FIRST + 44),
+    LVM_GETITEMTEXTA        =  (LVM_FIRST + 45),
+    LVM_GETITEMTEXT         =  LVM_GETITEMTEXTA,
+    LVM_SETITEMTEXTA        =  (LVM_FIRST + 46),
+    LVM_SETITEMTEXT         =  LVM_SETITEMTEXTA,
+    LVM_SETITEMCOUNT        =  (LVM_FIRST + 47),
+    LVM_SORTITEMS           =  (LVM_FIRST + 48),
+    LVM_SETITEMPOSITION32   =  (LVM_FIRST + 49),
+    LVM_GETSELECTEDCOUNT    =  (LVM_FIRST + 50),
+    LVM_GETITEMSPACING      =  (LVM_FIRST + 51),
+    LVM_GETISEARCHSTRINGA   =  (LVM_FIRST + 52),
+    LVM_GETISEARCHSTRING    =  LVM_GETISEARCHSTRINGA,
+    LVM_SETICONSPACING      =  (LVM_FIRST + 53),
+    LVM_SETEXTENDEDLISTVIEWSTYLE =  (LVM_FIRST + 54),
+    LVM_GETEXTENDEDLISTVIEWSTYLE =  (LVM_FIRST + 55),
+    LVM_GETSUBITEMRECT      =  (LVM_FIRST + 56),
+    LVM_SUBITEMHITTEST      =  (LVM_FIRST + 57),
+    LVM_SETCOLUMNORDERARRAY =  (LVM_FIRST + 58),
+    LVM_GETCOLUMNORDERARRAY =  (LVM_FIRST + 59),
+    LVM_SETHOTITEM          =  (LVM_FIRST + 60),
+    LVM_GETHOTITEM          =  (LVM_FIRST + 61),
+    LVM_SETHOTCURSOR        =  (LVM_FIRST + 62),
+    LVM_GETHOTCURSOR        =  (LVM_FIRST + 63),
+    LVM_APPROXIMATEVIEWRECT =  (LVM_FIRST + 64),
+    LV_MAX_WORKAREAS        =  16,
+    LVM_SETWORKAREAS        =  (LVM_FIRST + 65),
+    LVM_GETSELECTIONMARK    =  (LVM_FIRST + 66),
+    LVM_SETSELECTIONMARK    =  (LVM_FIRST + 67),
+    LVM_SETBKIMAGE          =  (LVM_FIRST + 68),
+    LVM_GETBKIMAGE          =  (LVM_FIRST + 69),
+    LVM_GETWORKAREAS        =  (LVM_FIRST + 70),
+    LVM_SETHOVERTIME        =  (LVM_FIRST + 71),
+    LVM_GETHOVERTIME        =  (LVM_FIRST + 72),
+    LVM_GETNUMBEROFWORKAREAS=  (LVM_FIRST + 73),
+    LVM_SETTOOLTIPS         =  (LVM_FIRST + 74),
+    LVM_GETTOOLTIPS         =  (LVM_FIRST + 78),
+
+    LVSCW_AUTOSIZE              = -1,
+    LVSCW_AUTOSIZE_USEHEADER    = -2,
+
+    LVFINDINFO_flags        = w32allot( Long ),
+    LVFINDINFO_psz          = w32allot( Lpsz ),
+    LVFINDINFO_lParam       = w32allot( Long ),
+    LVFINDINFO_ptX          = w32allot( Long ),
+    LVFINDINFO_ptY          = w32allot( Long ),
+    LVFINDINFO_vkDirection  = w32allot( Long ),
+    SIZEOF_LVFINDINFO       = w32allotted_size(),
+    ID_LVFINDINFO     = {{w32CurrentStructure()}},
+
+    LVFI_PARAM              =  #1,
+    LVFI_STRING             =  #2,
+    LVFI_PARTIAL            =  #8,
+    LVFI_WRAP               =  #20,
+    LVFI_NEARESTXY          =  #40,
+
+    LVNI_ALL                = 0,
+    LVNI_FOCUSED            = 1,
+    LVNI_SELECTED           = 2,
+    LVNI_CUT                = 4,
+    LVNI_DROPHILITED        = 8,
+
+    LVNI_ABOVE              = #100,
+    LVNI_BELOW              = #200,
+    LVNI_TOLEFT             = #400,
+    LVNI_TORIGHT            = #800,
+
+    LVIF_TEXT               = 1,
+    LVIF_IMAGE              = 2,
+    LVIF_PARAM              = 4,
+    LVIF_STATE              = 8,
+    LVIF_INDENT             = #10,
+    LVIF_NORECOMPUTE        = #800,
+    LVIF_DI_SETITEM         = #1000,
+
+    LVCFMT_LEFT              = 0,
+    LVCFMT_RIGHT             = 1,
+    LVCFMT_CENTER            = 2,
+    LVCFMT_JUSTIFYMASK       = 3,
+
+    LVCF_FMT                 = #1,
+    LVCF_WIDTH               = #2,
+    LVCF_TEXT                = #4,
+    LVCF_SUBITEM             = #8,
+    LVCF_IMAGE               = #10,
+    LVCF_ORDER               = #20,
+
+-- states
+    LVIS_FOCUSED            = #0001,
+    LVIS_SELECTED           = #0002,
+    LVIS_CUT                = #0004,
+    LVIS_DROPHILITED        = #0008,
+    LVIS_ACTIVATING         = #0020,
+    LVIS_OVERLAYMASK        = #0F00,
+    LVIS_STATEIMAGEMASK     = #F000,
+    LV_IS_CHECKED           = #2000,
+
+    LVIR_BOUNDS             = 0,
+    LVIR_ICON               = 1,
+    LVIR_LABEL              = 2,
+    LVIR_SELECTBOUNDS       = 3,
+
+    LVHT_NOWHERE            = 1,
+    LVHT_ONITEMICON         = 2,
+    LVHT_ONITEMLABEL        = 4,
+    LVHT_ONITEMSTATEICON    = 8,
+    LVHT_ONITEM             = w32or_all({LVHT_ONITEMICON, LVHT_ONITEMLABEL,
+	    	          LVHT_ONITEMSTATEICON}),
+
+    LVHT_ABOVE              = 8,
+    LVHT_BELOW              = #10,
+    LVHT_TORIGHT            = #20,
+    LVHT_TOLEFT             = #40,
+
+    LVSIL_NORMAL            = 0,
+    LVSIL_SMALL             = 1,
+    LVSIL_STATE             = 2,
+
+    LVN_BEGINDRAG = -109,
+    LVN_BEGINRDRAG = -111,
+    LVN_COLUMNCLICK = -108,
+    LVN_DELETEALLITEMS = -104,
+    LVN_DELETEITEM = -103,
+    LVN_BEGINLABELEDITW = -175,
+    LVN_ENDLABELEDITW = -176,
+    LVN_GETDISPINFOW = -177,
+    LVN_SETDISPINFOW = -178,
+    LVN_BEGINLABELEDITA = -105,
+    LVN_ENDLABELEDITA = -106,
+    LVN_GETDISPINFOA = -150,
+    LVN_SETDISPINFOA = -151,
+    LVN_INSERTITEM = -102,
+    LVN_ITEMCHANGED = -101,
+    LVN_ITEMCHANGING = -100,
+    LVN_KEYDOWN = -155,
+    LVN_GETDISPINFO = -150,
+    LVN_SETDISPINFO = -151,
+    LVN_ITEMACTIVATE = -114,
+
+    LVN_FIRST               = -100,
+    LVN_LAST                = (LVN_FIRST + 99),
+
+    HDM_GETITEMCOUNT        =  #1200,
+
+
+-- ImageLists
+    ILC_MASK                =1,
+    ILC_COLOR               =0,
+    ILC_COLORDDB            =#FE,
+    ILC_COLOR4              =0,
+    ILC_COLOR8              =8,
+    ILC_COLOR16             =#10,
+    ILC_COLOR24             =#18,
+    ILC_COLOR32             =#20,
+
+    LPSTR_TEXTCALLBACKA = (-1),
+    LPSTR_TEXTCALLBACK  = (-1),
+
+-- Treeview:
+    TVS_HASBUTTONS           = 1,
+    TVS_HASLINES            = 2,
+    TVS_LINESATROOT         = 4,
+    TVS_EDITLABELS          = 8,
+    TVS_DISABLEDRAGDROP     = #10,
+    TVS_SHOWSELALWAYS       = #20,
+    TVS_RTLREADING          = #40,
+    TVS_NOTOOLTIPS          = #80,
+    TVS_CHECKBOXES          = #100,
+    TVS_TRACKSELECT         = #200,
+    TVS_SINGLEEXPAND        = #400,
+    TVS_INFOTIP             = #800,
+    TVS_FULLROWSELECT       = #1000,
+    TVS_NOSCROLL            = #2000,
+    TVS_NONEVENHEIGHT       = #4000,
+
+    TVSIL_NORMAL            = 0,
+    TVSIL_STATE             = 2,
+
+    TVIF_TEXT               = 1,
+    TVIF_IMAGE              = 2,
+    TVIF_PARAM              = 4,
+    TVIF_STATE              = 8,
+    TVIF_HANDLE             = #10,
+    TVIF_SELECTEDIMAGE      = #20,
+    TVIF_CHILDREN           = #40,
+    TVIF_INTEGRAL           = #80,
+
+    TVIS_DESELECTED_MASK    = #1000,
+    TVIS_SELECTED           = #0002,
+    TVIS_SELECTED_MASK      = #2000,
+    TVIS_CUT                = #0004,
+    TVIS_CUT_MASK           = #4000,
+    TVIS_DROPHILITED        = #0008,
+    TVIS_DROPHILITED_MASK   = #8000,
+    TVIS_BOLD               = #0010,
+    TVIS_EXPANDED           = #0020,
+    TVIS_EXPANDEDONCE       = #0040,
+    TVIS_EXPANDPARTIAL      = #0080,
+    TVIS_OVERLAYMASK        = #0F00,
+    TVIS_STATEIMAGEMASK     = #F000,
+    TVIS_USERMASK           = #F000,
+
+    TVI_ROOT                = #FFFF0000,
+    TVI_FIRST               = #FFFF0001,
+    TVI_LAST                = #FFFF0002,
+    TVI_SORT                = #FFFF0003,
+
+    TV_FIRST                = #1100,
+    TVM_INSERTITEMA         = (TV_FIRST + 0),
+    TVM_INSERTITEM          = TVM_INSERTITEMA,
+    TVM_DELETEITEM          = (TV_FIRST + 1),
+    TVM_EXPAND              = (TV_FIRST + 2),
+    TVM_GETITEMRECT         = (TV_FIRST + 4),
+    TVM_GETCOUNT            = (TV_FIRST + 5),
+    TVM_GETINDENT           = (TV_FIRST + 6),
+    TVM_SETINDENT           = (TV_FIRST + 7),
+    TVM_GETIMAGELIST        = (TV_FIRST + 8),
+    TVM_SETIMAGELIST        = (TV_FIRST + 9),
+    TVM_GETNEXTITEM         = (TV_FIRST + 10),
+    TVM_SELECTITEM          = (TV_FIRST + 11),
+    TVM_GETITEMA            = (TV_FIRST + 12),
+    TVM_GETITEM             = TVM_GETITEMA,
+    TVM_SETITEMA            = (TV_FIRST + 13),
+    TVM_SETITEM             = TVM_SETITEMA,
+    TVM_EDITLABELA          = (TV_FIRST + 14),
+    TVM_EDITLABEL           = TVM_EDITLABELA,
+    TVM_GETEDITCONTROL      = (TV_FIRST + 15),
+    TVM_GETVISIBECOUNT      = (TV_FIRST + 16),
+    TVM_HITTEST             = (TV_FIRST + 17),
+    TVM_CREATEDRAGIMAGE     = (TV_FIRST + 18),
+    TVM_SORTCHILDREN        = (TV_FIRST + 19),
+    TVM_ENSUREVISIBLE       = (TV_FIRST + 20),
+    TVM_SORTCHILDRENCB      = (TV_FIRST + 21),
+    TVM_ENDEDITLABELNOW     = (TV_FIRST + 22),
+    TVM_GETISEARCHSTRINGA   = (TV_FIRST + 23),
+    TVM_GETISEARCHSTRING    = TVM_GETISEARCHSTRINGA,
+    TVM_SETTOOLTIPS         = (TV_FIRST + 24),
+    TVM_GETTOOLTIPS         = (TV_FIRST + 25),
+    TVM_SETINSERTMARK       = (TV_FIRST + 26),
+    TVM_SETITEMHEIGHT       = (TV_FIRST + 27),
+    TVM_GETITEMHEIGHT       = (TV_FIRST + 28),
+    TVM_SETBKCOLOR          = (TV_FIRST + 29),
+    TVM_SETTEXTCOLOR        = (TV_FIRST + 30),
+    TVM_GETBKCOLOR          = (TV_FIRST + 31),
+    TVM_GETTEXTCOLOR        = (TV_FIRST + 32),
+    TVM_SETSCROLLTIME       = (TV_FIRST + 33),
+    TVM_GETSCROLLTIME       = (TV_FIRST + 34),
+    TVM_SETINSERTMARKCOLOR  = (TV_FIRST + 37),
+    TVM_GETINSERTMARKCOLOR  = (TV_FIRST + 38),
+
+
+    TVGN_ROOT               = 0,
+    TVGN_NEXT               = 1,
+    TVGN_PREVIOUS           = 2,
+    TVGN_PARENT             = 3,
+    TVGN_CHILD              = 4,
+    TVGN_FIRSTVISIBLE       = 5,
+    TVGN_NEXTVISIBLE        = 6,
+    TVGN_PREVIOUSVISIBLE    = 7,
+    TVGN_DROPHILITE         = 8,
+    TVGN_CARET              = 9,
+    TVGN_LASTVISIBLE        = #A,
+
+    TVE_COLLAPSE            = 1,
+    TVE_EXPAND              = 2,
+    TVE_TOGGLE              = 3,
+    TVE_EXPANDPARTIAL       = #4000,
+    TVE_COLLAPSERESET       = #8000,
+
+    TVHT_NOWHERE            = 1,
+    TVHT_ONITEMICON         = 2,
+    TVHT_ONITEMLABEL        = 4,
+    TVHT_ONITEMINDENT       = #8,
+    TVHT_ONITEMBUTTON       = #10,
+    TVHT_ONITEMRIGHT        = #20,
+    TVHT_ONITEMSTATEICON    = #40,
+    TVHT_ONITEM             = w32or_all( {TVHT_ONITEMICON, TVHT_ONITEMLABEL,
+	    	        TVHT_ONITEMSTATEICON}),
+
+    TVHT_ABOVE              = #100,
+    TVHT_BELOW              = #200,
+    TVHT_TORIGHT            = #400,
+    TVHT_TOLEFT             = #800,
+
+    TVN_KEYDOWN = -412,
+    TVN_BEGINDRAGW = -456,
+    TVN_BEGINLABELEDITW = -459,
+    TVN_BEGINRDRAGW = -457,
+    TVN_DELETEITEMW = -458,
+    TVN_ENDLABELEDITW = -460,
+    TVN_GETDISPINFOW = -452,
+    TVN_ITEMEXPANDEDW = -455,
+    TVN_ITEMEXPANDINGW = -454,
+    TVN_SELCHANGEDW = -451,
+    TVN_SELCHANGINGW = -450,
+    TVN_SETDISPINFOW = -453,
+    TVN_BEGINDRAG = -407,
+    TVN_BEGINLABELEDIT = -410,
+    TVN_BEGINRDRAG = -408,
+    TVN_DELETEITEM = -409,
+    TVN_ENDLABELEDIT = -411,
+    TVN_GETDISPINFO = -403,
+    TVN_ITEMEXPANDED = -406,
+    TVN_ITEMEXPANDING = -405,
+    TVN_SELCHANGED = -402,
+    TVN_SELCHANGING = -401,
+    TVN_SETDISPINFO = -404,
+    onTVSelect  = TVN_SELCHANGEDW,
+    CBEN_ENDEDIT = -805,
+
+
+    MCM_FIRST           = #1000,
+    MCM_GETCURSEL       = (MCM_FIRST + 1),
+    MCM_SETCURSEL       = (MCM_FIRST + 2),
+    MCM_GETMAXSELCOUNT  = (MCM_FIRST + 3),
+    MCM_SETMAXSELCOUNT  = (MCM_FIRST + 4),
+    MCM_GETSELRANGE     = (MCM_FIRST + 5),
+    MCM_SETSELRANGE     = (MCM_FIRST + 6),
+    MCM_GETMONTHRANGE   = (MCM_FIRST + 7),
+    MCM_SETDAYSTATE     = (MCM_FIRST + 8),
+    MCM_GETMINREQRECT   = (MCM_FIRST + 9),
+    MCM_SETCOLOR        = (MCM_FIRST +10),
+    MCM_GETCOLOR        = (MCM_FIRST + 11),
+    MCM_SETTODAY        = (MCM_FIRST + 12),
+    MCM_GETTODAY        = (MCM_FIRST + 13),
+    MCM_HITTEST         = (MCM_FIRST + 14),
+    MCM_SETFIRSTDAYOFWEEK = (MCM_FIRST + 15),
+    MCM_GETFIRSTDAYOFWEEK = (MCM_FIRST + 16),
+    MCM_GETRANGE        = (MCM_FIRST + 17),
+    MCM_SETRANGE        = (MCM_FIRST+ 18),
+    MCM_GETMONTHDELTA   = (MCM_FIRST + 19),
+    MCM_SETMONTHDELTA   = (MCM_FIRST + 20),
+    MCM_GETMAXTODAYWIDTH = (MCM_FIRST + 21),
+
+    MCN_FIRST           = -750,
+    MCN_LAST            = -759,
+    MCN_SELCHANGE       = (MCN_FIRST + 1),
+    MCN_GETDAYSTATE     = (MCN_FIRST + 3),
+    MCN_SELECT          = (MCN_FIRST + 4),
+
+    MCS_DAYSTATE        = #1,
+    MCS_MULTISELECT     = #2,
+    MCS_WEEKNUMBERS     = #4,
+    MCS_NOTODAYCIRCLE   = #8,
+    MCS_NOTODAY         = #10,
+
+    GMR_VISIBLE     = 0,
+    GMR_DAYSTATE    = 1,
+
+    MCHT_TITLE                      = #10000,
+    MCHT_CALENDAR                   = #20000,
+    MCHT_TODAYLINK                  = #30000,
+    MCHT_NEXT                       = #1000000,
+    MCHT_PREV                       = #2000000,
+    MCHT_NOWHERE                    = #0,
+    MCHT_TITLEBK                    = (MCHT_TITLE),
+    MCHT_TITLEMONTH                 = or_bits( MCHT_TITLE , 1),
+    MCHT_TITLEYEAR                  = or_bits( MCHT_TITLE, 2),
+    MCHT_TITLEBTNNEXT               = w32or_all({ MCHT_TITLE, MCHT_NEXT, 3}),
+    MCHT_TITLEBTNPREV               = w32or_all({ MCHT_TITLE, MCHT_PREV,  0}),
+    MCHT_CALENDARBK                 = (MCHT_CALENDAR),
+    MCHT_CALENDARDATE                = or_bits( MCHT_CALENDAR , 1),
+    MCHT_CALENDARDATENEXT           = or_bits( MCHT_CALENDARDATE, MCHT_NEXT ),
+    MCHT_CALENDARDATEPREV           = or_bits( MCHT_CALENDARDATE ,MCHT_PREV ),
+    MCHT_CALENDARDAY                = or_bits( MCHT_CALENDAR , 2 ),
+    MCHT_CALENDARWEEKNuM            = or_bits( MCHT_CALENDAR , 3),
+
+    MCSC_BACKGROUND   = 0,
+    MCSC_TEXT         = 1,
+    MCSC_TITLEBK      = 2,
+    MCSC_TITLETEXT    = 3,
+    MCSC_MONTHBK      = 4,
+    MCSC_TRAILINGTEXT = 5,
+
+    ShortMonths                     = 1,
+    LongMonths                      = 2,
+    Months                          = {
+	    	        {
+	    	    	"Jan",
+	    	    	"Feb",
+	    	    	"Mar",
+	    	    	"Apr",
+	    	    	"May",
+	    	    	"Jun",
+	    	    	"Jul",
+	    	    	"Aug",
+	    	    	"Sep",
+	    	    	"Oct",
+	    	    	"Nov",
+	    	    	"Dec"
+	    	        },
+	    	          {
+	    	    	"January",
+	    	    	"February",
+	    	    	"March",
+	    	    	"April",
+	    	    	"May",
+	    	    	"June",
+	    	    	"July",
+	    	    	"August",
+	    	    	"September",
+	    	    	"October",
+	    	    	"November",
+	    	    	"December"
+	    	        }},
+    Days        = { "Sunday",
+	    	    	"Monday",
+	    	    	"Tuesday",
+	    	    	"Wednesday",
+	    	    	"Thursday",
+	    	    	"Friday",
+	    	    	"Saturday" },
+
+    CFM_BOLD = 1,
+    CFM_COLOR = 1073741824,
+    CFM_FACE = 536870912,
+    CFM_ITALIC = 2,
+    CFM_OFFSET = 268435456,
+    CFM_PROTECTED = 16,
+    CFM_SIZE =  #80000000,
+    CFM_STRIKEOUT = 8,
+    CFM_UNDERLINE = 4,
+
+    CFM_ALL = w32or_all( {
+    CFM_BOLD,
+    CFM_COLOR,
+    CFM_FACE,
+    CFM_ITALIC,
+    CFM_OFFSET,
+    CFM_PROTECTED,
+    CFM_SIZE,
+    CFM_STRIKEOUT,
+    CFM_UNDERLINE }),
+
+    CFE_AUTOCOLOR = 1073741824,
+    CFE_BOLD = 1,
+    CFE_ITALIC = 2,
+    CFE_STRIKEOUT = 8,
+    CFE_UNDERLINE = 4,
+    CFE_PROTECTED = 16,
+
+    EM_DISPLAYBAND  = 1075,
+    EM_EXGETSEL = 1076,
+    EM_EXLIMITTEXT = 1077,
+    EM_EXLINEFROMCHAR = 1078,
+    EM_EXSETSEL = 1079,
+    EM_FINDTEXT = 1080,
+    EM_FORMATRANGE = 1081,
+    EM_GETPARAFORMAT = 1085,
+    EM_SETPARAFORMAT = 1095,
+    EM_STREAMIN = 1097,
+    EM_STREAMOUT = 1098,
+    EM_GETTEXTRANGE = 1099,
+    EM_FINDTEXTEX = 1103,
+
+    FR_DIALOGTERM             =    #40,
+    FR_DOWN                   =    #01,
+    FR_ENABLEHOOK             =   #100,
+    FR_ENABLETEMPLATE         =   #200,
+    FR_ENABLETEMPLATEHANDLE   =  #2000,
+    FR_FINDNEXT               =    #08,
+    FR_HIDEUPDOWN             =  #4000,
+    FR_HIDEMATCHCASE          =  #8000,
+    FR_HIDEWHOLEWORD          = #10000,
+    FR_MATCHCASE              =    #04,
+    FR_NOMATCHCASE            =   #800,
+    FR_NOUPDOWN               =   #400,
+    FR_NOWHOLEWORD            =  #1000,
+    FR_REPLACE                =    #10,
+    FR_REPLACEALL             =    #20,
+    FR_SHOWHELP               =    #80,
+    FR_WHOLEWORD              =    #02,
+
+    SF_TEXT = 1,
+    SF_RTF = 2,
+    SF_RTFNOOBJS = 3,
+    SF_TEXTIZED = 4,
+    SFF_SELECTION = #8000,
+    SFF_PLAINRTF = #4000,
+    StreamText = SF_TEXT,
+    StreamRTF = SF_RTF,
+    StreamRich = SF_RTF,
+    StreamSelection = SFF_SELECTION,
+    StreamMask = #C007, -- Used force other bits off.
+
+    PFM_ALIGNMENT = 8,
+    PFM_NUMBERING = 32,
+    PFM_OFFSET = 4,
+    PFM_OFFSETINDENT =  #80000000,
+    PFM_RIGHTINDENT = 2,
+    PFM_STARTINDENT = 1,
+    PFM_TABSTOPS = 16,
+    PFN_BULLET = 1,
+
+    PFA_LEFT = 1,
+    PFA_RIGHT = 2,
+    PFA_CENTER = 3,
+
+    UDS_ALIGNLEFT = 8,
+    UDS_ALIGNRIGHT = 4,
+    UDS_ARROWKEYS = 32,
+    UDS_AUTOBUDDY = 16,
+    UDS_HORZ = 64,
+    UDS_NOTHOUSANDS = 128,
+    UDS_SETBUDDYINT = 2,
+    UDS_WRAP = 1,
+
+    UD_MAXVAL = 32767,
+    UD_MINVAL = -32767,
+
+    UDM_GETACCEL = 1132,
+    UDM_GETBASE = 1134,
+    UDM_GETBUDDY = 1130,
+    UDM_GETPOS = 1128,
+    UDM_GETRANGE = 1126,
+    UDM_SETACCEL = 1131,
+    UDM_SETBASE = 1133,
+    UDM_SETBUDDY = 1129,
+    UDM_SETPOS = 1127,
+    UDM_SETRANGE = 1125,
+    UDM_SETRANGE32 = 1135,
+    UDM_GETRANGE32 = 1136,
+
+    UDN_DELTAPOS = -722,
+
+    RB_INSERTBANDA  =(WM_USER +  1),
+    RB_DELETEBAND   =(WM_USER +  2),
+    RB_GETBARINFO   =(WM_USER +  3),
+    RB_SETBARINFO   =(WM_USER +  4),
+    RB_SETBANDINFOA = (WM_USER +  6),
+    RB_SETPARENT    =(WM_USER +  7),
+    RB_HITTEST      =(WM_USER +  8),
+    RB_GETRECT      =(WM_USER +  9),
+    RB_INSERTBANDW  =(WM_USER +  10),
+    RB_SETBANDINFOW =(WM_USER +  11),
+    RB_GETBANDCOUNT =(WM_USER +  12),
+    RB_GETROWCOUNT  =(WM_USER +  13),
+    RB_GETROWHEIGHT =(WM_USER +  14),
+    RB_IDTOINDEX    =(WM_USER +  16),
+    RB_GETTOOLTIPS  =(WM_USER +  17),
+    RB_SETTOOLTIPS  =(WM_USER +  18),
+    RB_SETBKCOLOR   =(WM_USER +  19),
+    RB_GETBKCOLOR   =(WM_USER +  20),
+    RB_SETTEXTCOLOR =(WM_USER +  21),
+    RB_GETTEXTCOLOR =(WM_USER +  22),
+    RB_SIZETORECT   =(WM_USER +  23),
+    RB_SETCOLORSCHEME=   CCM_SETCOLORSCHEME,
+    RB_GETCOLORSCHEME=   CCM_GETCOLORSCHEME,
+    RB_INSERTBAND   = RB_INSERTBANDA,
+    RB_SETBANDINFO  = RB_SETBANDINFOA,
+    RB_BEGINDRAG    =(WM_USER + 24),
+    RB_ENDDRAG      =(WM_USER + 25),
+    RB_DRAGMOVE     =(WM_USER + 26),
+    RB_GETBARHEIGHT =(WM_USER + 27),
+    RB_GETBANDINFOW =(WM_USER + 28),
+    RB_GETBANDINFOA =(WM_USER + 29),
+    RB_GETBANDINFO  = RB_GETBANDINFOA,
+    RB_MINIMIZEBAND =(WM_USER + 30),
+    RB_MAXIMIZEBAND =(WM_USER + 31),
+    RB_GETDROPTARGET= (CCM_GETDROPTARGET),
+    RB_GETBANDBORDERS= (WM_USER + 34),
+    RB_SHOWBAND     =(WM_USER + 35),
+    RB_SETPALETTE   =(WM_USER + 37),
+    RB_GETPALETTE   =(WM_USER + 38),
+    RB_MOVEBAND     =(WM_USER + 39),
+
+
+    RBS_TOOLTIPS        = #0100,
+    RBS_VARHEIGHT       = #0200,
+    RBS_BANDBORDERS     = #0400,
+    RBS_FIXEDORDER      = #0800,
+    RBS_REGISTERDROP    = #1000,
+    RBS_AUTOSIZE        = #2000,
+    RBS_VERTICALGRIPPER = #4000,
+    RBS_DBLCLKTOGGLE    = #8000,
+
+
+    RBBS_BREAK          = #00000001,
+    RBBS_FIXEDSIZE      = #00000002,
+    RBBS_CHILDEDGE      = #00000004,
+    RBBS_HIDDEN         = #00000008,
+    RBBS_NOVERT         = #00000010,
+    RBBS_FIXEDBMP       = #00000020,
+    RBBS_VARIABLEHEIGHT = #00000040,
+    RBBS_GRIPPERALWAYS  = #00000080,
+    RBBS_NOGRIPPER      = #00000100,
+
+    RBBIM_STYLE         = #00000001,
+    RBBIM_COLORS        = #00000002,
+    RBBIM_TEXT          = #00000004,
+    RBBIM_IMAGE         = #00000008,
+    RBBIM_CHILD         = #00000010,
+    RBBIM_CHILDSIZE     = #00000020,
+    RBBIM_SIZE          = #00000040,
+    RBBIM_BACKGROUND    = #00000080,
+    RBBIM_ID            = #00000100,
+    RBBIM_IDEALSIZE     = #00000200,
+    RBBIM_LPARAM        = #00000400,
+    RBBIM_HEADERSIZE    = #00000800,
+
+    RBN_HEIGHTCHANGE    = -831,
+
+    TTS_ALWAYSTIP           = #01,
+    TTS_NOPREFIX            = #02,
+    TTS_NOANIMATE           = #10,
+    TTS_NOFADE              = #20,
+    TTS_BALLOON             = #40,
+
+    TTF_IDISHWND            = #0001,
+    TTF_CENTERTIP           = #0002,
+    TTF_RTLREADING          = #0004,
+    TTF_SUBCLASS            = #0010,
+    TTF_TRACK               = #0020,
+    TTF_ABSOLUTE            = #0080,
+    TTF_TRANSPARENT         = #0100,
+    TTF_DI_SETITEM          = #8000,
+
+    TTDT_AUTOMATIC          = 0,
+    TTDT_RESHOW             = 1,
+    TTDT_AUTOPOP            = 2,
+    TTDT_INITIAL            = 3,
+
+    TTM_ACTIVATE            = (WM_USER + 1),
+    TTM_SETDELAYTIME        = (WM_USER + 3),
+    TTM_ADDTOOL             = (WM_USER + 4),
+    TTM_ADDTOOLW            = (WM_USER + 50),
+    TTM_DELTOOL             = (WM_USER + 5),
+    TTM_DELTOOLW            = (WM_USER + 51),
+    TTM_NEWTOOLRECT         = (WM_USER + 6),
+    TTM_NEWTOOLRECTW        = (WM_USER + 52),
+    TTM_RELAYEVENT          = (WM_USER + 7),
+    TTM_GETTOOLINFO         = (WM_USER + 8),
+    TTM_SETTOOLINFO         = (WM_USER + 9),
+    TTM_HITTEST             = (WM_USER +10),
+    TTM_GETTEXT             = (WM_USER +11),
+    TTM_UPDATETIPTEXT       = (WM_USER +12),
+    TTM_GETTOOLCOUNT        = (WM_USER +13),
+    TTM_ENUMTOOLS           = (WM_USER +14),
+    TTM_GETCURRENTTOOL      = (WM_USER + 15),
+    TTM_WINDOWFROMPOINT     = (WM_USER + 16),
+    TTM_TRACKACTIVATE       = (WM_USER + 17),
+    TTM_TRACKPOSITION       = (WM_USER + 18),
+    TTM_SETTIPBKCOLOR       = (WM_USER + 19),
+    TTM_SETTIPTEXTCOLOR     = (WM_USER + 20),
+    TTM_GETDELAYTIME        = (WM_USER + 21),
+    TTM_GETTIPBKCOLOR       = (WM_USER + 22),
+    TTM_GETTIPTEXTCOLOR     = (WM_USER + 23),
+    TTM_SETMAXTIPWIDTH      = (WM_USER + 24),
+    TTM_GETMAXTIPWIDTH      = (WM_USER + 25),
+    TTM_SETMARGIN           = (WM_USER + 26),
+    TTM_GETMARGIN           = (WM_USER + 27),
+    TTM_POP                 = (WM_USER + 28),
+    TTM_UPDATE              = (WM_USER + 29),
+
+    TTN_FIRST               = -520,
+    TTN_GETDISPINFO         = (TTN_FIRST - 0),
+    TTN_GETDISPINFOW        = (TTN_FIRST - 10),
+    TTN_SHOW                = (TTN_FIRST - 1),
+    TTN_POP                 = (TTN_FIRST - 2),
+    TTN_NEEDTEXT            = TTN_GETDISPINFO,
+
+    WH_CALLWNDPROC = 4,
+    WH_CALLWNDPROCRET = 12,
+    WH_CBT = 5,
+    WH_DEBUG = 9,
+    WH_GETMESSAGE = 3,
+    WH_JOURNALPLAYBACK = 1,
+    WH_JOURNALRECORD = 0,
+    WH_KEYBOARD = 2,
+    WH_MOUSE = 7,
+    WH_MSGFILTER = -1,
+    WH_SHELL = 10,
+    WH_SYSMSGFILTER = 6,
+    WH_MIN = -1,
+    WH_FOREGROUNDIDLE = 11,
+
+    WM_PSD_ENVSTAMPRECT = 1029,
+    WM_PSD_FULLPAGERECT = 1025,
+    WM_PSD_GREEKTEXTRECT = 1028,
+    WM_PSD_MARGINRECT = 1027,
+    WM_PSD_MINMARGINRECT = 1026,
+    WM_PSD_PAGESETUPDLG = 1024,
+    WM_PSD_YAFULLPAGERECT = 1030,
+
+    PSD_DEFAULTMINMARGINS = 0,
+    PSD_DISABLEMARGINS = 16,
+    PSD_DISABLEORIENTATION = 256,
+    PSD_DISABLEPAGEPAINTING = 524288,
+    PSD_DISABLEPAPER = 512,
+    PSD_DISABLEPRINTER = 32,
+    PSD_ENABLEPAGEPAINTHOOK = 262144,
+    PSD_ENABLEPAGESETUPHOOK = 8192,
+    PSD_ENABLEPAGESETUPTEMPLATE = 32768,
+    PSD_ENABLEPAGESETUPTEMPLATEHANDLE = 131072,
+    PSD_INHUNDREDTHSOFMILLIMETERS = 8,
+    PSD_INTHOUSANDTHSOFINCHES = 4,
+    PSD_INWININIINTLMEASURE = 0,
+    PSD_MARGINS = 2,
+    PSD_MINMARGINS = 1,
+    PSD_NOWARNING = 128,
+    PSD_RETURNDEFAULT = 1024,
+    PSD_SHOWHELP = 2048,
+
+    TBSTATE_CHECKED         = #01,
+    TBSTATE_PRESSED         = #02,
+    TBSTATE_ENABLED         = #04,
+    TBSTATE_HIDDEN          = #08,
+    TBSTATE_INDETERMINATE   = #10,
+    TBSTATE_WRAP            = #20,
+    TBSTATE_ELLIPSES        = #40,
+    TBSTATE_MARKED          = #80,
+
+    TBSTYLE_BUTTON          = #0000,
+    TBSTYLE_SEP             = #0001,
+    TBSTYLE_CHECK           = #0002,
+    TBSTYLE_GROUP           = #0004,
+    TBSTYLE_CHECKGROUP      = w32or_all({TBSTYLE_GROUP ,TBSTYLE_CHECK}),
+    TBSTYLE_DROPDOWN        = #0008,
+    TBSTYLE_AUTOSIZE        = #0010,
+    TBSTYLE_NOPREFIX        = #0020,
+
+    TBSTYLE_TOOLTIPS        = #0100,
+    TBSTYLE_WRAPABLE        = #0200,
+    TBSTYLE_ALTDRAG         = #0400,
+    TBSTYLE_FLAT            = #0800,
+    TBSTYLE_LIST            = #1000,
+    TBSTYLE_CUSTOMERASE     = #2000,
+    TBSTYLE_REGISTERDROP    = #4000,
+    TBSTYLE_TRANSPARENT     = #8000,
+    TBSTYLE_EX_DRAWDDARROWS = #0001,
+
+    TBIMHT_AFTER                = 1,
+    TBIMHT_BACKGROUND           = 2,
+
+    TBIF_IMAGE              = #00000001,
+    TBIF_TEXT               = #00000002,
+    TBIF_STATE              = #00000004,
+    TBIF_STYLE              = #00000008,
+    TBIF_LPARAM             = #00000010,
+    TBIF_COMMAND            = #00000020,
+    TBIF_SIZE               = #00000040,
+
+    TBDDRET_DEFAULT         = 0,
+    TBDDRET_NODEFAULT       = 1,
+    TBDDRET_TREATPRESSED    = 2,
+
+
+    TB_ENABLEBUTTON         = (WM_USER + 1),
+    TB_CHECKBUTTON          = (WM_USER + 2),
+    TB_PRESSBUTTON          = (WM_USER + 3),
+    TB_HIDEBUTTON           = (WM_USER + 4),
+    TB_INDETERMINATE        = (WM_USER + 5),
+    TB_MARKBUTTON           = (WM_USER + 6),
+    TB_ISBUTTONENABLED      = (WM_USER + 9),
+    TB_ISBUTTONCHECKED      = (WM_USER + 10),
+    TB_ISBUTTONPRESSED      = (WM_USER + 11),
+    TB_ISBUTTONHIDDEN       = (WM_USER + 12),
+    TB_ISBUTTONINDETERMINATE= (WM_USER + 13),
+    TB_ISBUTTONHIGHLIGHTED  = (WM_USER + 14),
+    TB_SETSTATE             = (WM_USER + 17),
+    TB_GETSTATE             = (WM_USER + 18),
+    TB_ADDBITMAP            = (WM_USER + 19),
+    TB_ADDBUTTONS           = (WM_USER + 20),
+    TB_INSERTBUTTON         = (WM_USER + 21),
+    TB_DELETEBUTTON         = (WM_USER + 22),
+    TB_GETBUTTON            = (WM_USER + 23),
+    TB_BUTTONCOUNT          = (WM_USER + 24),
+    TB_COMMANDTOINDEX       = (WM_USER + 25),
+    TB_SAVERESTORE          = (WM_USER + 26),
+    TB_CUSTOMIZE            = (WM_USER + 27),
+    TB_ADDSTRING            = (WM_USER + 28),
+    TB_GETITEMRECT          = (WM_USER + 29),
+    TB_BUTTONSTRUCTSIZE     = (WM_USER + 30),
+    TB_SETBUTTONSIZE        = (WM_USER + 31),
+    TB_SETBITMAPSIZE        = (WM_USER + 32),
+    TB_AUTOSIZE             = (WM_USER + 33),
+    TB_GETTOOLTIPS          = (WM_USER + 35),
+    TB_SETTOOLTIPS          = (WM_USER + 36),
+    TB_SETPARENT            = (WM_USER + 37),
+    TB_SETROWS              = (WM_USER + 39),
+    TB_GETROWS              = (WM_USER + 40),
+    TB_SETCMDID             = (WM_USER + 42),
+    TB_CHANGEBITMAP         = (WM_USER + 43),
+    TB_GETBITMAP            = (WM_USER + 44),
+    TB_GETBUTTONTEXT        = (WM_USER + 45),
+    TB_REPLACEBITMAP        = (WM_USER + 46),
+    TB_SETINDENT            = (WM_USER + 47),
+    TB_SETIMAGELIST         = (WM_USER + 48),
+    TB_GETIMAGELIST         = (WM_USER + 49),
+    TB_LOADIMAGES           = (WM_USER + 50),
+    TB_GETRECT              = (WM_USER + 51),
+    TB_SETHOTIMAGELIST      = (WM_USER + 52),
+    TB_GETHOTIMAGELIST      = (WM_USER + 53),
+    TB_SETDISABLEDIMAGELIST = (WM_USER + 54),
+    TB_GETDISABLEDIMAGELIST = (WM_USER + 55),
+    TB_SETSTYLE             = (WM_USER + 56),
+    TB_GETSTYLE             = (WM_USER + 57),
+    TB_GETBUTTONSIZE        = (WM_USER + 58),
+    TB_SETBUTTONWIDTH       = (WM_USER + 59),
+    TB_SETMAXTEXTROWS       = (WM_USER + 60),
+    TB_GETTEXTROWS          = (WM_USER + 61),
+    TB_GETOBJECT            = (WM_USER + 62),
+    TB_GETBUTTONINFO        = (WM_USER + 65),
+    TB_SETBUTTONINFO        = (WM_USER + 66),
+    TB_GETHOTITEM           = (WM_USER + 71),
+    TB_SETHOTITEM           = (WM_USER + 72),
+    TB_SETANCHORHIGHLIGHT   = (WM_USER + 73),
+    TB_GETANCHORHIGHLIGHT   = (WM_USER + 74),
+    TB_MAPACCELERATOR       = (WM_USER + 78),
+
+    TBN_FIRST = -700,
+    TBN_BEGINADJUST = -703,
+    TBN_BEGINDRAG = -701,
+    TBN_CUSTHELP = -709,
+    TBN_ENDADJUST = -704,
+    TBN_ENDDRAG = -702,
+    TBN_GETBUTTONINFOW = -720,
+    TBN_GETBUTTONINFO = -700,
+    TBN_QUERYDELETE = -707,
+    TBN_QUERYINSERT = -706,
+    TBN_RESET = -705,
+    TBN_TOOLBARCHANGE = -708,
+    TBN_LAST = -720,
+
+
+    CBEIF_TEXT              = #00000001,
+    CBEIF_IMAGE             = #00000002,
+    CBEIF_SELECTEDIMAGE     = #00000004,
+    CBEIF_OVERLAY           = #00000008,
+    CBEIF_INDENT            = #00000010,
+    CBEIF_LPARAM            = #00000020,
+    CBEIF_DI_SETITEM        = #10000000,
+
+    CBEM_INSERTITEM         = (WM_USER + 1),
+    CBEM_SETIMAGELIST       = (WM_USER + 2),
+    CBEM_GETIMAGELIST       = (WM_USER + 3),
+    CBEM_GETITEM            = (WM_USER + 4),
+    CBEM_SETITEM            = (WM_USER + 5),
+    CBEM_DELETEITEM         = CB_DELETESTRING,
+    CBEM_GETCOMBOCONTROL    = (WM_USER + 6),
+    CBEM_GETEDITCONTROL     = (WM_USER + 7),
+    CBEM_SETEXSTYLE         = (WM_USER + 8),
+    CBEM_SETEXTENDEDSTYLE   = (WM_USER + 14),
+    CBEM_GETEXSTYLE         = (WM_USER + 9),
+    CBEM_GETEXTENDEDSTYLE   = (WM_USER + 9),
+    CBEM_HASEDITCHANGED     = (WM_USER + 10),
+    CBEM_INSERTITEMW        = (WM_USER + 11),
+    CBEM_SETITEMW           = (WM_USER + 12),
+    CBEM_GETITEMW           = (WM_USER + 13),
+    CBES_EX_NOEDITIMAGE          = #00000001,
+    CBES_EX_NOEDITIMAGEINDENT    = #00000002,
+    CBES_EX_PATHWORDBREAKPROC    = #00000004,
+    CBES_EX_NOSIZELIMIT          = #00000008,
+    CBES_EX_CASESENSITIVE        = #00000010,
+
+
+-------------------------------------------------
+    GTL_DEFAULT           = 0,
+    GTL_USECRLF           = 1,
+    GTL_PRECISE           = 2,
+    GTL_CLOSE             = 4,
+    GTL_NUMCHARS          = 8,
+    GTL_NUMBYTES          = 16,
+
+-------------------------------------------------
+    LVBKIF_SOURCE_NONE          = #0,
+    LVBKIF_SOURCE_HBITMAP       = #1,
+    LVBKIF_SOURCE_URL           = #2,
+    LVBKIF_STYLE_NORMAL         = #0,
+    LVBKIF_STYLE_TILE           = #10,
+    LVBKIF_FLAG_TILEOFFSET      = #100,
+    LVBKIF_FLAG_ALPHABLEND      = #200, -- not sure, couldn't find a reference
+    LVBKIF_TYPE_WATERMARK       = #10000000,
+
+    MIIM_STATE       = #00000001,
+    MIIM_ID          = #00000002,
+    MIIM_SUBMENU     = #00000004,
+    MIIM_CHECKMARKS  = #00000008,
+    MIIM_TYPE        = #00000010,
+    MIIM_DATA        = #00000020,
+    MIIM_STRING      = #00000040,
+    MIIM_BITMAP      = #00000080,
+    MIIM_FTYPE       = #00000100,
+
+    GT_DEFAULT           = 0,
+    GT_USECRLF           = 1,
+    GT_SELECTION         = 2,
+
+    CP_ACP               = 0, -- Use ANSI codepage
+    CP_UNICODE           = 1200, -- Use Unicode codepage
+
+    SWP_NOSIZE          = #0001,
+    SWP_NOMOVE          = #0002,
+    SWP_NOZORDER        = #0004,
+    SWP_NOREDRAW        = #0008,
+    SWP_NOACTIVATE      = #0010,
+    SWP_FRAMECHANGED    = #0020,
+    SWP_SHOWWINDOW      = #0040,
+    SWP_HIDEWINDOW      = #0080,
+    SWP_NOCOPYBITS      = #0100,
+    SWP_NOOWNERZORDER   = #0200,
+    SWP_NOSENDCHANGING  = #0400,
+    SWP_DRAWFRAME       = SWP_FRAMECHANGED,
+    SWP_NOREPOSITION    = SWP_NOOWNERZORDER,
+    SWP_DEFERERASE      = #2000,
+    SWP_ASYNCWINDOWPOS  = #4000,
+    SWP_UPDATECACHE     = SWP_NOSIZE+SWP_NOMOVE+SWP_NOZORDER+SWP_FRAMECHANGED,
+    HWND_TOP            = 0,
+    HWND_BOTTOM         = 1,
+    HWND_TOPMOST        = -1,
+    HWND_NOTOPMOST      = -2,
+
+-----------------------------------------------------------------------------
+-- common control styles
+    CCS_ADJUSTABLE      = #20,
+    CCS_BOTTOM          = #3,
+    CCS_NODIVIDER       = #40,
+    CCS_NOMOVEY         = #2,
+    CCS_NOPARENTALIGN   = #8,
+    CCS_NORESIZE        = #4,
+    CCS_TOP             = #1,
+    CCS_VERT            = #80,
+    CCS_LEFT            = CCS_VERT + CCS_TOP,
+    CCS_RIGHT           = CCS_VERT + CCS_BOTTOM,
+    ANIMATE_CLASSA      = "SysAnimate32",
+    HOTKEY_CLASSA       = "msctls_hotkey32",
+    PROGRESS_CLASSA     = "msctls_progress32",
+    STATUSCLASSNAMEA    = "msctls_statusbar32",
+    TOOLBARCLASSNAMEA   = "ToolbarWindow32",
+    TOOLTIPS_CLASSA     = "tooltips_class32",
+    TRACKBAR_CLASSA     = "msctls_trackbar32",
+    UPDOWN_CLASSA       = "msctls_updown32",
+    WC_HEADERA          = "SysHeader32",
+    WC_LISTVIEWA        = "SysListView32",
+    WC_LISTVIEW         = WC_LISTVIEWA,
+    WC_TABCONTROLA      = "SysTabControl32",
+    WC_TREEVIEWA        = "SysTreeView32",
+    MONTHCAL_CLASS      = "SysMonthCal32",
+    REBARCLASSNAME      = "ReBarWindow32",
+    ANIMATE_CLASS       = "SysAnimate32",
+    DATETIMEPICK_CLASS  = "SysDateTimePick32",
+    WC_PAGESCROLLER     = "SysPager",
+    WC_NATIVEFONTCTL    = "NativeFontCtl",
+    WC_COMBOBOXEX       = "ComboBoxEx32",
+
+-----------------------------------------------------------------------------
+-- attributes for EZ_FONTS
+    Normal          = 0,
+    Bold            = 1,
+    Italic          = 2,
+    Underline       = 4,
+    Strikeout       = 8,
+
+-----------------------------------------------------------------------------
+-- attributes for showWindow
+--  Normal          = 0,
+    Modal           = -1
+
+global constant
+    Minimize        = SW_SHOWMINIMIZED,
+    Maximize        = SW_SHOWMAXIMIZED,
+    Minimized       = SW_SHOWMINIMIZED,
+    Maximized       = SW_SHOWMAXIMIZED,
+
+-----------------------------------------------------------------------------
+-- attributes for shift keys
+    NoShift         = #00,
+    ShiftMask       = #01,           -- shift key is held down
+    ControlMask     = #02,           -- control key is held down
+    AltMask         = #04,           -- alt key is held down
+    WinMask         = #08,           -- win key is held down
+    KeyMask         = #0F,
+    LeftBtnMask     = #10,           -- Left Button down
+    RightBtnMask    = #20,           -- Right Button Down
+    MiddleBtnMask   = #40,           -- Middle Button down
+    BtnMask         = #F0
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+-- Classes of Windows: Base Classes
+-----------------------------------------------------------------------------
+global constant
+    WINDOW          = 0,    -- window
+    BUTTON          = 1,    -- button
+    COMBO           = 2,    -- combo box
+    EDIT            = 3,    -- edit
+    LISTBOX         = 4,    -- list box
+    SCROLLBAR       = 5,    -- scroll bar
+    STATIC          = 6,    -- static
+    MENU            = 7,    -- menu
+    POPUP           = 8,    -- popup menu
+    MENUITEM        = 9,    -- menu item
+    PIXMAP          = 10,   -- pixmap,
+    COMMON_CONTROL  = 11   -- common controls,
+
+
+-----------------------------------------------------------------------------
+-- Classes of Windows: Used for internal identification of window type
+-----------------------------------------------------------------------------
+
+constant Classes = next_number(0)
+global constant
+    Window          = next_number(Classes),
+
+    PushButton      = next_number(Classes),
+    CommandButton   = PushButton,
+    Button          = PushButton,
+
+    DefPushButton   = next_number(Classes),
+    DefButton       = DefPushButton,
+
+    CancelButton    = next_number(Classes),
+
+    CheckBox        = next_number(Classes),
+
+    TriCheckBox     = next_number(Classes),
+
+    Radio           = next_number(Classes),
+    RadioButton     = Radio,
+
+    Group           = next_number(Classes),
+    GroupBox        = Group,
+
+    List            = next_number(Classes),
+    ListBox         = List,
+
+    SortedList      = next_number(Classes),
+
+    Combo           = next_number(Classes),
+    ComboBox        = Combo,
+
+    SortedCombo     = next_number(Classes),
+
+    SimpleCombo     = next_number(Classes),
+
+    DropDownList    = next_number(Classes),
+
+    EditText        = next_number(Classes),
+    EditBox         = EditText,
+    TextBox         = EditText,
+    SleText         = EditText,
+
+    MleText         = next_number(Classes),
+
+    LText           = next_number(Classes),
+    Label           = LText,
+
+    RText           = next_number(Classes),
+
+    CText           = next_number(Classes),
+
+    HScroll         = next_number(Classes),
+
+    VScroll         = next_number(Classes),
+
+    Icon            = next_number(Classes),
+
+    Bitmap          = next_number(Classes),
+
+    Menu            = next_number(Classes),
+
+    Popup           = next_number(Classes),
+
+    MenuItem        = next_number(Classes),
+
+    MenuSpacer      = next_number(Classes),
+
+    Pixmap          = next_number(Classes),
+
+    ToolBar         = next_number(Classes),
+
+    StatusBar       = next_number(Classes),
+
+    PictureButton   = next_number(Classes),
+
+    ToggleButton    = next_number(Classes),
+
+    TogglePicture   = next_number(Classes),
+
+    HTrackBar       = next_number(Classes),
+
+    VTrackBar       = next_number(Classes),
+
+    TabControl      = next_number(Classes),
+
+    TabItem         = next_number(Classes),
+
+    ProgressBar     = next_number(Classes),
+
+    ListView        = next_number(Classes),
+
+    ImageList       = next_number(Classes),
+
+    TreeView        = next_number(Classes),
+
+    RichEdit        = next_number(Classes),
+
+    MonthCalendar   = next_number(Classes),
+
+    UpDown          = next_number(Classes),
+
+    ReBar           = next_number(Classes),
+
+    ReBarBand       = next_number(Classes),
+
+    ToolTip         = next_number(Classes),
+
+    FlatToolBar     = next_number(Classes),
+
+    SepButton       = next_number(Classes),
+
+    ComboBoxEx      = next_number(Classes)
+
+
+-- win32lib class attribute flags.
+global constant
+    w32Clickable  = #0001,  -- Can allow mouseup detection to fire onClick handler
+    w32NoConv     = #0002,  -- Must not allow relative dimension conversions
+    w32PictCtrl   = #0004,  -- Controls that pass bitmaps in the flags
+    w32CtrlTab    = #0008,  -- CTRL-tabkey must be used to move tabstops
+    w32AutoSelect = #0010,  -- Control's data gets selected when it gets focus
+    w32AutoCancel = #0020,  -- Control has auto hotkey set to ESCAPE
+    w32NoRenderDisabled = #0040, -- Control is not shown with different BG when disabled.
+    w32UseSubProc = #0080,  -- If using default BG, use the subclassed proc rather than the default proc.
+    w32OwnerId    = #0100,  -- Supplies owner's id in createEx() API call
+    w32Virtual    = #0200,  -- This is a virtual control. The effective parent is really the grandparent.
+    w32Toolbar    = #0400,  -- This acts as a toolbar on top of client area
+    w32Statusbar  = #0800,  -- This acts as a statusbar on bottom of client area
+    w32HasChildren= #1000   -- This type of control can have children
+
+global function w32NumClasses()
+    return current_number(Classes)
+end function
+
+global function w32NewClass()
+    return next_number(Classes)
+end function
+
+-- special win32lib BG color values
+global constant
+    w32BGTransparent = {},  -- Takes on the parent's BG color.
+    w32WinDefColor   = {{}} -- Use Windows default Color
+
+--/topic Constants
+--/const kLVSortRtn
+--/desc Used by /setLVAttr
+
+global constant
+    kLVColTypes = 1,
+    kLVSortSeq = 2,
+    kLVSortCol = 3,
+    kLVSortRtn = 4
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HMouse
+--/desc Event triggered when a mouse action takes place.
+-- /i parms = { integer event, integer x, integer y, integer shift, integer wheelmove } /n
+--
+-- The /i event parameter will be one of the following values:
+--
+-- /li /b MouseMove: the mouse was moved
+-- /li /b LeftDown: the left mouse button was pressed
+-- /li /b RightDown: the right mouse button was pressed
+-- /li /b LeftUp: the left mouse button was released
+-- /li /b RightUp: the right mouse button was released
+-- /li /b LeftDoubleClick: the left mouse button was double clicked
+-- /li /b RightDoubleClick: the right mouse button was double clicked
+-- /li /b WheelMove: The mouse wheel has moved.
+--
+-- The /i x and /i y parameters specify where the mouse is located.
+-- If the mouse has been /i grabbed (see /captureMouse), the values
+-- of /i x and /i y can be negative if the mouse is outside the
+-- client area.
+--
+-- The /i shift parameter has bits set indicating the if the keyboard
+-- shift, control, and alt keys are pressed, and which mouse button was
+-- pressed. /n
+--The masks are:
+--
+-- /li /b ShiftMask --> Left and/or Right Shift key down
+-- /li /b ControlMask --> Left and/or Right Control key down
+-- /li /b AltMask --> Left and/or Right Alt key down
+-- /li /b WinMask --> Left and/or Right Windows key down
+-- /li /b KeyMask --> Any of the Shift/Control/Alt keys down.
+-- /li /b LeftBtnMask --> Left mouse button down.
+-- /li /b RightBtnMask --> Right mouse button down.
+-- /li /b MiddleBtnMask --> Middle mouse down.
+-- /li /b BtnMask --> Any mouse button down.
+--
+--
+--
+-- /code
+--      -- Is one of the shift keys is held down?
+--      if and_bits( shift, ShiftMask ) then
+--          . . .
+--      end if
+--      -- Check for the combination Ctrl and Right Mouse.
+--      if and_bits( shift, ControlMask+RightBtnMask ) then
+--          . . .
+--      end if
+-- /endcode
+--
+-- /b NOTE /i "/b wheelmove is not supported for the onXXX interface, only the"
+-- /i "setHandler interface is supported." /n
+-- The /i WheelMove parameter describes the direction and size of the mouse wheel
+-- movement. A value /b greater than 0 means that the wheel moved 'up' or away
+-- from the user, and a value /b less than zero means the wheel moved 'down'
+-- or towards the user. And of course, a value of /b 0 means that
+-- it didn't move at all. /n
+-- The speed, or size, of the movement is the absolute value of this parameter. You
+-- can use this in conjunction with /getWheelScrollLines() to work out how the
+-- mouse wheel movement should effect your application.
+--
+--Example: /n
+--/code
+--   TopLine += parms[5] * getWheelScrollLines()
+--   RefreshDisplay()
+--/endcode
+--
+-- /b "Special Note:" If you call returnValue(0) inside your mouse handler
+-- routine, this has the effect of causing the control that received
+-- the mouse event to ignore it. This is only needed in rare circumstances
+-- where your processing of the mouse event interferes with the control's
+-- normal processing. For example, if you trap a Right Down event to
+-- cause a popup menu to show, sometimes you also need to tell the
+-- underlying control to ignore the button down event 'cos you used it.
+
+
+--/topic Events
+--/const w32HMouseTrap
+--/desc Event triggered when a mouse action takes place inside a defined /MouseTrap for a control.
+-- /i parms = { integer event, integer x, integer y, integer z, sequence traps, integer id, integer shift } /n
+--
+-- The /i event parameter will be one of the following values:
+--
+-- /li /b MouseMove: the mouse was moved
+-- /li /b LeftDown: the left mouse button was pressed
+-- /li /b RightDown: the right mouse button was pressed
+-- /li /b LeftUp: the left mouse button was released
+-- /li /b RightUp: the right mouse button was released
+-- /li /b LeftDoubleClick: the left mouse button was double clicked
+-- /li /b RightDoubleClick: the right mouse button was double clicked
+-- /li /b WheelMove: The mouse wheel has moved.
+--
+-- The /i x and /i y parameters specify where the mouse is located.
+-- If the mouse has been /i grabbed (see /captureMouse), the values
+-- of /i x and /i y can be negative if the mouse is outside the
+-- client area.
+--
+-- The /i z parameter only applies to WheelMouse events and is the amount and direction
+-- that the wheel moved. Positive values mean it move away from the user (up), and negative
+-- values mean that it moved towards the user (down).
+--
+-- The /i traps parameter is a list of one or more mousetrap areas that are
+-- under the mouse pointer. Each mousetrap is a sequence of 8 elements: /n
+--/li integer: /b zorder, the higher numbers are further in the background. The
+-- initial value is zero when a mousetrap is created.
+--/li integer: /b left, the leftmost position of the mousetrap area
+--/li integer: /b top, the topmost position of the mousetrap area
+--/li integer: /b right, the rightmost position of the mousetrap area
+--/li integer: /b bottom, the bottommost position of the mousetrap area
+--/li integer: /b id, the id of this mousetrap area.
+--/li object: /b userdata, the data set by calling /setTagMouseTrap(). This is
+--never used by win32lib and is intended for use by the user for anything.
+--/li sequence: /b filters, a list of zero or more mouse event codes that are used
+--to filter in this mousetrap. Initially this set to {WM_LBUTTONDOWN} when
+--then mousetrap is created. It can be changed by calling /filterMouseTrap().
+--
+--The /i id parameter is the control id that received the mouse event.
+--
+-- The /i shift parameter is the same as for the /w32HKeydown event.
+--
+-- /b Note: This event is only invoked for MouseTraps that are enabled. When
+-- a mousetrap is created it is automatically enabled, but this can be changed
+-- by calling /enableMouseTrap().
+--
+-- /code
+--      sequence mt
+--      mt = {}
+--      mt &= /createMouseTrap(vWin, {10,10,30,30})
+--      mt &= /createMouseTrap(vWin, {30,10,50,30})
+--      mt &= /createMouseTrap(vWin, {10,30,30,50})
+--      mt &= /createMouseTrap(vWin, {30,30,50,50})
+--      /filterMouseTrap(vWin, mt[2], {WheelMove})
+--      /filterMouseTrap(vWin, mt[4], {WheelMove})
+--
+--      procedure MouseTrap_MyWindow(integer self, integer event, sequence parms)
+--          sequence lMsg
+--
+--          lMsg = sprintf("event=%d x=%d y=%d", parms[1..3])
+--          for i = 1 to length(parms[4]) do
+--              lMsg &= sprintf("(depth=%d left=%d top=%d right=%d bottom=%d id=%d) ", parms[4][i])
+--          end for
+--          showMessage(lMsg)
+--          -- Only interested in the top mousetrap area...
+--          if parms[4][1][6] = mt[2] then
+--              -- Wheel moved inside mousetrap #2
+--          elsif parms[4][1][6] = mt[1] then
+--              -- Left Button down inside mousetrap #1
+--          end if
+--      end procedure
+--      setHandler(vWin, w32HMouseTrap, routine_id("MouseTrap_BasicWindow"))
+--
+-- /endcode
+--
+--If the hander for the w32HMouseTrap event returns any value, by calling /returnValue(),
+-- the mouse event is not passed through to the underlying control.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HClick
+--/desc Invoked when the left mouse button is 'clicked' or a Button control is used.
+--/i parms = {  }
+--
+--This event is triggered when a /PushButton, /CheckBox or /TabItem is clicked,
+--or by a MenuItem selection.
+--
+-- It is /b not the same as a Mousedown event. For a /i click to happen, the left
+-- mouse down and up events must be in the same control, be no more than 2 pixels
+-- from each other, and the up event must be within a double-click period
+-- of the down event.
+--
+-- The use of accelerator keys, generates a mouse click event.
+
+
+
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HPause
+--/desc Invoked whenever the Pause key is pressed.
+-- /i parms = {integer keyCode, integer shift}
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HBreak
+--/desc Invoked whenever the Ctrl-Break key is pressed.
+-- /i parms = {integer keyCode, integer shift}
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HIdle
+--/desc Invoked whenever the application is not processing Windows messages.
+-- /i parms = {integer Counter, atom MsgAddr}
+--
+-- Your application will only start getting these events once you have
+-- called /setIdle(w32True).
+--
+-- The /i Counter starts at 1 for each time the handler is invoked after
+-- the Windows Message Queue becomes empty again. That is, this handler
+-- will be invoked repeatedly, while there are no messages to be processed.
+-- You can tell when you application becomes idle when the /i Counter value
+-- is 1. Values higher than 1 indicate that the application is /b still idle.
+-- When the application becomes active again, the handler is called with a
+-- /i Counter value of -1 and the /i MsgAddr contains the message that
+-- 'woke up' the application.
+--
+-- When the value of /i Counter is greater than -1, the /i MsgAddr is the
+-- address of the Msg structure that contains the last Windows
+-- message before becoming idle. When the /i Counter is -1, this contains
+-- the message that is about to be processed.
+--
+-- If your handler routine calls /returnValue, passing any value, this
+-- will immediately wake up your application and cause it to process the
+-- information contained in the structure pointer to by /i MsgAddr. This
+-- means that you are expected to place into this structure, valid data
+-- to simulate a Windows event.
+--
+-- /b Note: This event is not supported by the onXXX[] interface.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HKeyPress
+--/desc "Printable" key is pressed.
+-- /i parms = { integer keyCode, integer shift,integer released}
+--
+-- The /i keyCode is ANSII value of the key. Only "visible" keys are
+-- reported with this function. To trap "special" keys (such as the
+-- cursor keys), use /w32KeyDown or w32HKeyboard.
+-- The third parameter is 1 when the key is released and 0 else.
+--
+--For example:
+--
+--/code
+--      -- is it the letter 'a'?
+--      if keyCode = 'a' then
+--          -- it's the letter a
+--      end if
+--/endcode
+--
+-- The /i shift parameter has bits set indicating the if the shift,
+-- control, and alt keys are pressed. The masks for each key are:
+--
+-- /li /b ShiftMask
+-- /li /b ControlMask
+-- /li /b AltMask
+--
+-- For example, to see if the control key is held down, you could write:
+--
+-- /code
+--      -- control key held down?
+--      if and_bits( shift, ControlMask ) then
+--          -- control key is held down
+--      end if
+-- /endcode
+--
+-- If you want to to Windows to ignore the key, set the return value to -1.
+--
+-- /code
+--      if find(keyCode,"0123456789") then
+--          returnValue(-1) -- ignore digits.
+--      end if
+-- /endcode
+--
+-- If you want to to Windows to use a different key, set the return value to the new key.
+--
+-- /code
+--     -- collect characters into the password, but don't show them.
+--     PassWord &= keyCode
+--     returnValue('-') -- return a dash for each character entered.
+-- /endcode
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HKeyUp
+--/desc Key is released.
+-- /i parms = {integer keyCode, integer shift}
+--
+-- The parameter sequence is the same as for /w32HKeyDown.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HKeyDown
+--/desc Key is pressed.
+-- /i parms = {integer keyCode, integer shift}
+--
+-- The /i keyCode is "raw" value of the key. The primary purpose
+-- of onKeyDown is to trap "special" keys not reported by /onKeyPress.
+--
+-- The /i shift parameter has bits set indicating if the shift,
+-- control, alt or Windows keys are pressed. The masks for each key are:
+--
+-- /li /b ShiftMask
+-- /li /b ControlMask
+-- /li /b AltMask
+-- /li /b WinMask
+--
+-- For example, to see if the Shift+Backspace key was pressed, you could
+-- write:
+--
+-- /code
+--      -- shift+backspace?
+--      if  and_bits( shift, ControlMask )
+--      and keyCode = VK_BACK then
+--          -- shift+backspace held
+--      end if
+-- /endcode
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HResize
+--/desc A /Window has been resized.
+-- /i parms = { integer style, integer x, integer y, integer delta_x,integer delta_y}
+--
+-- The /i style is one of the following:
+--
+-- /li /b SIZE_RESTORED: Window was restored
+-- /li /b SIZE_MINIMIZED: Window was minimized
+-- /li /b SIZE_MAXIMIZED: Window was maximized
+--
+-- The /i x and /i y parameters are the new size of the id, not counting title bars and borders. /n
+--
+-- If your handler returns a value via /returnValue() then the
+-- control is forced to be repainted. If it returns a zero (0) then the control's
+-- background is not erased before repainting otherwise it is erased first.
+
+
+--/topic Events
+--/const w32HNotify
+--/desc A control is forwarding a notification event.
+-- /i parms = { integer sender, integer event, object userdata, sequence parms }
+--
+--A control gets this event when the /i sender control has just processed an
+-- event of type /i event with parameters /i parms. This only happens
+-- to controls that have told the /i sender that they want to be notified via the
+-- /registerNotification() routine. The /i userdata is the same as that passed
+-- in the /registerNotification() routine.
+--
+-- An example of using this facility could be if you wish a control to be notified whenever
+-- its parent is resized. Or when a specific control gets focus.
+--
+--/b Note: This event is not supported by the onXXX interface.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HChange
+--/desc Selection or Value in a control is changed.
+-- The contents of /i parms varies with the type of control. /b Note that they are
+-- only available when using the /setHandler() interface.
+--
+-- For the List and Combo family of controls the parms are ... /n
+-- { Event qualifier (integer), Index of affected item (integer) } /n
+--
+-- For /ListView the parms are ...
+--<ul>
+--/li   Row Index,
+--/li   Column Index,
+--/li   New State Flags,
+--/li   Changed Flags,
+--/li   Mouse's X location,
+--/li   Mouse's Y location,
+--/li   lParam (user data) field
+--</ul>
+--
+-- For /MonthCalendar the parms are ...
+-- if the event is invoked by a date change cuased by pressing one of the
+-- prev/next buttons or by paging up/down etc, then the parms are an empty
+-- sequence. /n
+-- If the event is invoked by an explicit date or date range being clicked then
+-- the parms returns two dates. /n
+--<ul>
+--/li   Earliest Date,
+--/li   Latest Date
+--</ul>
+--
+-- /b Note, for /Combo box controls, this is triggered when either the edit box area
+-- has been changed by the user, or when the list item selection is about to change.
+-- If the user is editing the edit box area then /getText will return the current
+-- value of the edit box, but if this event was triggered due to the user selecting
+-- a new item, /getText will return the previously selected item and you must
+-- use /getItem(id, 0) to retrieve the new selection value.
+--
+-- To determine the new value of the control, use the appropriate
+-- function - /getText, /isChecked, /getIndex etc.
+--
+-- For Menu and Popup controls, w32HChange is triggered whenever an item is selected.
+-- The data sequence is {id of item, state of item} then.
+--
+-- For UpDown controls, w32HChange is triggered whenever an arrow is clicked.
+-- The data sequence is {current position, amount of change} then. If the change is accepted, the new
+-- positions depends on the control's range, and on whether it has the UDS_WRAP syle.
+--
+-- For TabControls, the w32HChange event is fired when an attempt to change the currently selected item is made. The associated data is {new item index,old item index}.
+-- If the handler sets the return value, that returned value must be an integer
+-- specifying which is the index of the tab to change to. A value of -1 just aborts the change.
+--
+-- For ComboBoxEx controls, the parameters are: {CHG_SEL,reason}, where /i reason explains why the edit operation ended.
+-- This enables ou to monitor semection changes as wel. The reason codes are:
+--/li CBENF_KILLFOCUS: control lost focus
+--/li CBENF_RETURN: the Enter key was hit to complete the edit operation
+--/li CBENF_ESCAPE: the Escape key as hit to cancel the edit operation
+--/li CBENF_DROPDOWN: the dropdown button was pressed.
+-- If the handler sets the return value, the change will be rejected, and accepted otherwise.
+
+
+--/topic Events
+--/const w32HDataChange
+--/desc Value in a List or a Combo's list has changed.
+--/i parms is { eventqual, index }
+--<ul>
+--/li   Event qualifier (integer)
+--<ul>
+--/li w32CHG_Add = Item added
+--/li w32CHG_Chg = Item changed
+--/li w32CHG_Del = Item deleted
+--</ul>
+--/li   Index of affected item (integer)
+--</ul>
+-- /b Note this event is only available when using the /setHandler() interface.
+
+--/topic Events
+--/const w32HDropDown
+--/desc The dropdown portion of a combobox is about to be displayed, or the menu is about to be displayed..
+-- /i parms = {}  /n
+-- This can be used to dynamically load the values into a combobox/menu.
+
+
+--/topic Events
+--/const w32HCloseUp
+--/desc The dropdown portion of a combobox has just been closed, or the menu was just closed.
+-- /i parms = {}  /n
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HGotFocus
+--/desc A /control (or /Window) receives focus.
+-- /i parms = {}
+--
+-- /i Focus means that keyboard events are directed to that control.
+-- Static controls (such as /LText) cannot get focus.
+--
+-- When a Win32Lib window gets focus, it will give focus back to the
+-- last control in the window that had focus. If there are no controls in
+-- the window that can receive focus, the focus will remain with the
+-- window.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HLostFocus
+--/desc A /Window or /control loses focus.
+-- /i parms = {focusControl} /n
+-- /i focusControl is the id of the control that had the focus. This is normally the
+-- same as the /i self parameter but in the case where /i self is a parent Window
+-- /i focusControl is the control within that window that had focus.
+--
+-- /b Note: That /i focusControl parameter is not supported with the onXXX interface.
+--
+-- /i Focus means that keyboard events are directed to that control. See
+-- /w32HGotFocus.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HScroll
+--/desc Triggered when scrollbar value has changed, and when user has stopped scrolling.
+-- /i parms = { integer position, integer ScrollType, integer WhichBar }
+--
+-- /i position indicates the new value of a scrollbar or trackbar.
+--
+-- /i ScrollType is one of <a href="..\win32_constants.htm#scroll Bar Commands">these values</a>. /n
+
+-- /i WhichBar is one of... /n
+--<ul>
+--/li SB_HORZ
+--/li SB_VERT
+--</ul>
+-- and only applies to the /Window control type.
+--
+-- /b Note: However, the /i ScrollType and /i WhichBar are only available
+-- when using the setHandler() interface.
+--
+-- This event is only triggered for ... /n
+--<ul>
+--/li Windows with scrollbars
+--/li VScroll
+--/li HScroll
+--/li VTrackBar
+--/li HTrackBar
+--/li ProgressBar
+--</ul>
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HOpen
+--/desc A /Window is opened.
+-- /i parms = {}
+--
+-- This is typically triggered by /WinMain, or /openWindow,
+-- before the window is visible by the user.
+--
+-- Typically, code that is run at this point does some sort of
+-- initialization.
+--
+-- This event is only triggered for a /Window.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HActivate
+--/desc Occurs for Windows only and after the window is opened.
+--/i parms = {}
+--
+-- This is typically triggered by /WinMain, or /openWindow. It differs from
+-- w32HOpen in that it is triggered /b after a window is opened but before
+-- control is returned to your application.
+--
+-- Typically, code that is run at this point does a setFocus or other
+--initialization..
+--
+-- This event is only triggered for a /Window.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HClose
+--/desc A /Window is closed.
+--/i parms = {}
+--
+-- This typically occurs via /closeWindow, although the user can select
+-- the /i close control on the window as well.
+--
+-- Closing a window does not actually destroy it (unless it is the
+-- main window; the window is merely hidden. Refer to /closeWindow for
+-- more details.
+--
+-- If the handler chain sets the return value using /returnValue() with a non-zero parameter,
+-- win32lib aborts the Close operation, as if it hadn't been invoked. In this
+-- way it is possible to do a conditional close.
+--
+-- This event is only triggered for a /Window.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HDestroy
+--/desc The control is about to be destroyed.
+-- /i parms = {}
+--
+-- This is triggered when /destroy() has been called and before the control
+-- is actually destroyed. It is designed for the application to perform any
+-- cleaning up that might be required.
+--
+-- If the event handler return -1, then the control is not destroyed. This
+-- enables the application to prevent a control from being destroyed.
+--
+-- /b Note, when the main window is closed, the /destroy routine is called
+-- automatically as well.
+--
+--/code
+--  procedure onDestroy_MsgWnd(integer self, integer event, sequence parms)
+--     -- Don't allow it to go until the messages have been
+--     -- acknowledged by the operator.
+--     if vMsgAcknowledged = w32False then
+--        returnValue(-1)
+--     end if
+--  end procedure
+--  setHandler(MsgWnd, w32HDestroy, routine_id("onDestroy_MsgWnd"))
+--
+--/endcode
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HTimer
+--/desc A timer is triggered.
+-- /i parms = {atom TimerID}
+--
+-- Timers are clocks that are maintained by Windows, and they trigger these
+-- events at a user-specified interval, measured in milliseconds.
+--
+-- They are created and removed with the calls:
+--
+-- /li /setTimer( window, TimerID, milliseconds )
+-- /li /killTimer( window, TimerID )
+--
+-- A timer is not treated as an actual control. Rather, the event is sent
+-- to the window that the timer is associated with.
+--
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HPaint
+--/desc A portion or all of a /Window needs to be redrawn.
+-- /i parms = {atom x1, atom y1, atom  x2, atom  y2}
+--
+-- The parameters indicate the portion of the window that needs
+-- to be updated.
+--
+-- Not only does {x1,y1,x2,y2} define the area that needs to be redrawn,
+-- Windows restricts your application to only being able to draw in those
+-- areas! If your application tries to write outside this rectangle on an
+-- paint event, nothing will be drawn there.
+--
+-- Since Windows expects you application to be able to redraw any part
+-- of the application's window when responding to an paint event, this
+-- means that the paint routine must know how to render any part of the
+-- window.
+--
+-- For programs without any graphics and text drawn on the window, there
+-- is no problem - since there are no graphics, there is nothing to update.
+--
+-- If the application is fairly lightweight (such as a tic-tac-toe game),
+-- you simply choose to ignore the parameters passed to your paint handler,
+-- and redraw the entire window with each paint event.
+--
+-- If there is sufficient graphics to make the task of repainting the
+-- window complex, the best approach is probably to do double-buffering
+-- with a /Pixmap.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HDragAndDrop
+--/desc Something has been dragged onto the control or window.
+-- /i parms = { integer id, sequence data }
+--
+-- This is triggered by the user dragging and dropping a file or a /ListView
+-- or /TreeView item onto a control or window. /n
+--
+-- If /i id is zero, then windows is dropping one or more files onto the
+-- control or window.  In this case, the handler is called multiple times: /n
+-- In the first call, /i data contains one integer. This is the number of
+-- files about to be passed to your handler routine. /n
+-- Then your handler routine is called once per file being passed, /i data being
+-- the named of the passed file. If it returns a
+-- nonzero value, the dropping stops with this file./n
+-- The final call to the handler is when /i data is an empty sequence. This
+-- signifies that no more files will be passed.
+--
+-- For example, the following code adds the name of the files to TheList.
+--
+--/code
+--      integer vFileCount
+--      procedure dropped( integer self, integer event, sequence parms )
+--          if parms[1] = 0 then
+--              if length(parms[2]) = 1 then
+--                  -- Opening call, the file count.
+--                  /setEnable(actionButton, w32False)
+--                  eraseItems(TheList)
+--                  vFileCount = parms[2]
+--
+--              elsif length(parms[2]) = 0 then
+--                  -- Final call.
+--                  /setEnable(actionButton, w32True)
+--
+--              else
+--                  -- add the file name to the list
+--                  /addItem( TheList, parms[2] )
+--              end if
+--          end if
+--      end procedure
+--      setHandler(TheList, w32HDragAndDrop, routine_id("dropped"))
+--/endcode
+--
+-- If /i id is not zero, then it is the Win32Lib id of the control from
+-- which items have been dragged.  The second parameter is a sequence of the
+-- item id's. Since both the source and the destination are notified,
+-- there is a third parameter, 1 for the destination and 0 for the source.
+
+-----------------------------------------------------------------------------
+--/topic Events
+--/const w32HEvent
+--/desc An event (any type) has occured.
+-- /i parms = { atom winmsg, atom wParam, atom lParam }
+--
+-- Before the events are processed by any of the trap routines or
+-- default Windows routines, the w32HEvent is triggered.
+--
+-- If you want to skip the default Windows processing of the /i winmsg,
+-- pass a value to the /returnValue() routine.
+
+--/topic Events
+--/const w32HAfterEvent
+--/desc Occurs after normal Windows processing of an event (any type).
+-- /i parms = { atom winmsg, atom wParam, atom lParam, atom lWinReturn }
+--
+-- After the message is processed by the Windows, Win32lib, and any event
+-- handlers, this is triggered.
+
+--/topic Events
+--/const w32HKeyboard
+--/desc Occurs when keys are held down and about to be released.
+-- /i params = {virtual_codes,extended_flags,scan_codes,repeat_count,shifts} where:
+--/li virtual_codes is the list of virtual key codes for keys held
+--/li extended_flags is a sequence of 1's and 0's. A key has 1 if it is extended (right shift, grey key,...)
+--/li scan_codes is the corresponding list of keyboard scan codes;
+--/li repeat_counts is the sequence of repeat counts for the keys
+--
+-- /b Note: this event is not supported by the onXXX[] routines.
+
+global constant
+    w32CHG_Add = next_number("w32HChange"),
+    w32CHG_Chg = next_number("w32HChange"),
+    w32CHG_Del = next_number("w32HChange"),
+    w32CHG_Sel = next_number("w32HChange")
+
+global constant
+-- open file name common dialog
+    OFN_READONLY = #1,
+    OFN_OVERWRITEPROMPT = #2,
+    OFN_HIDEREADONLY = #4,
+    OFN_NOCHANGEDIR = #8,
+    OFN_SHOWHELP = #10,
+    OFN_ENABLEHOOK = #20,
+    OFN_ENABLETEMPLATE = #40,
+    OFN_ENABLETEMPLATEHANDLE = #80,
+    OFN_NOVALIDATE = #100,
+    OFN_ALLOWMULTISELECT = #200,
+    OFN_EXTENSIONDIFFERENT = #400,
+    OFN_PATHMUSTEXIST = #800,
+    OFN_FILEMUSTEXIST = #1000,
+    OFN_CREATEPROMPT = #2000,
+    OFN_SHAREAWARE = #4000,
+    OFN_NOREADONLYRETURN = #8000,
+    OFN_NOTESTFILECREATE = #10000,
+    OFN_NONETWORKBUTTON = #20000,
+    OFN_NOLONGNAMES = #40000,                      --  force no long names for 4.x modules
+    OFN_EXPLORER = #80000,                         --  new look commdlg
+    OFN_NODEREFERENCELINKS = #100000,
+    OFN_LONGNAMES = #200000,                       --  force long names for 3.x modules
+
+    OFN_SHAREFALLTHROUGH = 2,
+    OFN_SHARENOWARN = 1,
+    OFN_SHAREWARN = 0,
+
+    FILE_ATTRIBUTE_READONLY             = #00000001,
+    FILE_ATTRIBUTE_HIDDEN               = #00000002,
+    FILE_ATTRIBUTE_SYSTEM               = #00000004,
+    FILE_ATTRIBUTE_DIRECTORY            = #00000010,
+    FILE_ATTRIBUTE_ARCHIVE              = #00000020,
+    FILE_ATTRIBUTE_DEVICE               = #00000040,
+    FILE_ATTRIBUTE_NORMAL               = #00000080,
+    FILE_ATTRIBUTE_TEMPORARY            = #00000100,
+    FILE_ATTRIBUTE_SPARSE_FILE          = #00000200,
+    FILE_ATTRIBUTE_REPARSE_POINT        = #00000400,
+    FILE_ATTRIBUTE_COMPRESSED           = #00000800,
+    FILE_ATTRIBUTE_OFFLINE              = #00001000,
+    FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  = #00002000,
+    FILE_ATTRIBUTE_ENCRYPTED            = #00004000
+
+
+global constant
+-----------------------------------------------------------------------------
+    -- Flags for BrowseForFolder
+    BIF_RETURNONLYFSDIRS   = #0001, -- For finding a folder to start document searching
+    BIF_DONTGOBELOWDOMAIN  = #0002, -- For starting the Find Computer
+    BIF_STATUSTEXT         = #0004, -- Top of the dialog has 2 lines of text for BROWSEINFO.lpszTitle and one line if
+                                    -- this flag is set.  Passing the message BFFM_SETSTATUSTEXTA to the hwnd can set the
+                                    -- rest of the text.  This is not used with BIF_USENEWUI and BROWSEINFO.lpszTitle gets
+                                    -- all three lines of text.
+    BIF_RETURNFSANCESTORS  = #0008,
+    BIF_EDITBOX            = #0010, -- Add an editbox to the dialog
+    BIF_VALIDATE           = #0020, -- insist on valid result (or CANCEL)
+
+    BIF_NEWDIALOGSTYLE     = #0040, -- Use the new dialog layout with the ability to resize
+                                    -- Caller needs to call OleInitialize() before using this API
+
+    BIF_USENEWUI           = #0050, -- (BIF_NEWDIALOGSTYLE | BIF_EDITBOX)
+
+    BIF_BROWSEINCLUDEURLS  = #0080, -- Allow URLs to be displayed or entered. (Requires BIF_USENEWUI)
+
+    BIF_BROWSEFORCOMPUTER  = #1000, -- Browsing for Computers.
+    BIF_BROWSEFORPRINTER   = #2000, -- Browsing for Printers
+    BIF_BROWSEINCLUDEFILES = #4000, -- Browsing for Everything
+    BIF_SHAREABLE          = #8000, -- sharable resources displayed (remote shares, requires BIF_USENEWUI)
+
+    -- Messages FROM BrowseForFolder
+    BFFM_INITIALIZED       = 1,
+    BFFM_SELCHANGED        = 2,
+    BFFM_VALIDATEFAILEDA   = 3,   -- lParam:szPath ret:1(cont),0(EndDialog)
+    BFFM_VALIDATEFAILEDW   = 4,   -- lParam:wzPath ret:1(cont),0(EndDialog)
+
+    -- Message TO BrowseForFolder
+    BFFM_SETSTATUSTEXTA    = (WM_USER + 100),
+    BFFM_ENABLEOK          = (WM_USER + 101),
+    BFFM_SETSELECTIONA     = (WM_USER + 102),
+    BFFM_SETSELECTIONW     = (WM_USER + 103),
+    BFFM_SETSTATUSTEXTW    = (WM_USER + 104),
+    BFFM_SETSTATUSTEXT     = BFFM_SETSTATUSTEXTA,
+    BFFM_SETSELECTION      = BFFM_SETSELECTIONA,
+    BFFM_VALIDATEFAILED    = BFFM_VALIDATEFAILEDA
+
+global constant
+    SFGAO_CANCOPY          = #00000001,     -- objects can be copied
+    SFGAO_CANMOVE          = #00000002,     -- objects can be moved
+    SFGAO_CANLINK          = #00000004,     -- objects can be linked
+    SFGAO_CANRENAME        = #00000010,     -- Objects can be renamed
+    SFGAO_CANDELETE        = #00000020,     -- Objects can be deleted
+    SFGAO_HASPROPSHEET     = #00000040,     -- Objects have property sheets
+    SFGAO_DROPTARGET       = #00000100,     -- Objects are drop target
+    SFGAO_CAPABILITYMASK   = #00000177,
+    SFGAO_LINK             = #00010000,     -- Shortcut (link)
+    SFGAO_SHARE            = #00020000,     -- shared
+    SFGAO_READONLY         = #00040000,     -- read-only
+    SFGAO_GHOSTED          = #00080000,     -- ghosted icon
+    SFGAO_HIDDEN           = #00080000,     -- hidden object
+    SFGAO_DISPLAYATTRMASK  = #000F0000,
+    SFGAO_FILESYSANCESTOR  = #10000000,     -- It contains file system folder
+    SFGAO_FOLDER           = #20000000,     -- a folder.
+    SFGAO_FILESYSTEM       = #40000000,     -- is a file system thing (file/folder/root)
+    SFGAO_HASSUBFOLDER     = #80000000,     -- Expandable in the map pane
+    SFGAO_CONTENTSMASK     = #80000000,
+    SFGAO_VALIDATE         = #01000000,     -- invalidate cached information
+    SFGAO_REMOVABLE        = #02000000,     -- is this removeable media?
+    SFGAO_COMPRESSED       = #04000000,     -- Object is compressed (use alt color)
+    SFGAO_BROWSABLE        = #08000000,     -- is in-place browsable
+    SFGAO_NONENUMERATED    = #00100000,     -- is a non-enumerated object
+    SFGAO_NEWCONTENT       = #00200000,     -- should show bold in explorer tree
+    SFGAO_CANMONIKER       = #00400000      -- can create monikers for its objects
+
+global constant
+     SHGFI_LARGEICON         = #000000000, -- get large icon
+     SHGFI_SMALLICON         = #000000001, -- get small icon
+     SHGFI_OPENICON          = #000000002, -- get open icon
+     SHGFI_SHELLICONSIZE     = #000000004, -- get shell size icon
+     SHGFI_PIDL              = #000000008, -- pszPath is a pidl
+     SHGFI_USEFILEATTRIBUTES = #000000010, -- use passed dwFileAttribute
+     SHGFI_ADDOVERLAYS       = #000000020, -- apply the appropriate overlays
+     SHGFI_OVERLAYINDEX      = #000000040, -- Get the index of the overlay
+     SHGFI_ICON              = #000000100, -- get icon
+     SHGFI_DISPLAYNAME       = #000000200, -- get display name
+     SHGFI_TYPENAME          = #000000400, -- get type name
+     SHGFI_ATTRIBUTES        = #000000800, -- get attributes
+     SHGFI_ICONLOCATION      = #000001000, -- get icon location
+     SHGFI_EXETYPE           = #000002000, -- return exe type
+     SHGFI_SYSICONINDEX      = #000004000, -- get system icon index
+     SHGFI_LINKOVERLAY       = #000008000, -- put a link overlay on icon
+     SHGFI_SELECTED          = #000010000, -- show icon in selected state
+     SHGFI_ATTR_SPECIFIED    = #000020000  -- get only specified attributes
+
+-----------------------------------------------------------------------------
+-- ShellExecute error codes
+global constant SE_ERR_FNF             = 2,       -- file not found
+                SE_ERR_PNF             = 3,       -- path not found
+                SE_ERR_ACCESSDENIED    = 5,       -- access denied
+                SE_ERR_OOM             = 8,       -- out of memory
+                SE_ERR_SHARE           = 26,
+                SE_ERR_ASSOCINCOMPLETE = 27,
+                SE_ERR_DDETIMEOUT      = 28,
+                SE_ERR_DDEFAIL         = 29,
+                SE_ERR_DDEBUSY         = 30,
+                SE_ERR_NOASSOC         = 31,
+                SE_ERR_DLLNOTFOUND     = 32
+
+global constant
+-- default printer
+    PRINTER_ENUM_DEFAULT   = 1,
+    PRINTER_ENUM_LOCAL     = 2 
+
+-- setPrintJobProperty() constants
+global constant
+    JP_FromPage           =1,
+    JP_ToPage             =2,
+    JP_MinPage            =3,
+    JP_MaxPage            =4,
+    JP_Copies             =5,
+    JP_PrintFlags         =6,
+    JP_Orientation        =7,
+    JP_SetupFlags         =8,
+    JP_PaperSize          =9,
+    JP_PaperBin           =10,
+    JP_Collate            =11,
+    JP_Margins            =12
+
+global constant
+    -- pen attributes
+    PenColor        = 1,
+    PenStyle        = 2,
+    PenROP2         = 3,
+    PenBkMode       = 4,
+    PenWidth        = 5,
+    PenBkColor      = 6,
+    PenBrushColor   = 7
+
+

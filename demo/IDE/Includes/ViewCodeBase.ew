@@ -1,0 +1,364 @@
+include Includes\nlsEU.ew
+
+--------------------------------------------------------------------------------
+--  Window WinCodeBase
+--move WinCodeBase createEx to Code.ew so can close when CodeWin minimizes
+--                                      --"View Code Base"
+--global constant WinCodeBase = createEx( Window,IDEText[1002][1] , CodeWin, Default, Default, 597, 367, 0, WS_EX_TOOLWINDOW )
+                                         --"&File"
+constant CodeBaseFileMenu = createEx(Menu,IDEText[1003][1] , WinCodeBase, 0, 0, 0, 0, 0, 0)
+                                               --"&Exit"
+constant CodeBaseExitMenu = createEx(MenuItem, IDEText[1004][1], CodeBaseFileMenu, 0, 0, 0, 0, 0, 0)
+                                           --"&Edit"
+constant CodeBaseEditMenu = createEx(Menu, IDEText[1005][1], WinCodeBase, 0, 0, 0, 0, 0, 0)
+                                                --"&Copy"
+constant CodeBaseCopyMenu = createEx(MenuItem, IDEText[1006][1], CodeBaseEditMenu, 0, 0, 0, 0, 0, 0)
+                                             --"Select &All"
+constant CodeBaseSelMenu = createEx(MenuItem,IDEText[1007][1] , CodeBaseEditMenu, 0, 0, 0, 0, 0, 0)
+                                             --"&Search"
+constant CodeBaseSearchMenu = createEx(Menu, IDEText[1008][1], WinCodeBase, 0, 5, 0, 0, 0, 0)
+                                               --"&Find"
+constant CodeBaseFindMenu = createEx(MenuItem,IDEText[1009][1] , CodeBaseSearchMenu, 0, 6, 0, 0, 0, 0)
+constant CodeBaseRichEdit = createEx(RichEdit, "", WinCodeBase, 8, 8, 572, 288, w32or_all({ES_NOHIDESEL}), 0)
+constant CodeBasePopup = create(Popup, "", WinCodeBase,0, 0, 0, 0, 0)
+                                        --"Copy"
+constant CodeBaseCopy = create(MenuItem,IDEText[1010][1] , CodeBasePopup,0, 0, 0, 0, 0)
+                                          --"Select All"
+constant CodeBaseSelAll = create(MenuItem,IDEText[1011][1] , CodeBasePopup,0, 0, 0, 0, 0)
+-- find dialog window
+                                              --"Find"
+constant CodeBaseFindWin     = createEx(Window,IDEText[1012][1] , NULL, 0, 0, 1, 1, {WS_POPUP,WS_CAPTION,WS_DLGFRAME,WS_CLIPSIBLINGS}, 0)
+                                               --"Find What:"
+constant CodeBaseFindW_Lbl   = createEx(LText, IDEText[512][1], CodeBaseFindWin, 12, 4, 100, 32, 0, 0)
+constant CodeBaseFindW_Ed    = createEx(EditText, "", CodeBaseFindWin, 121, 7, 200, 24, 0, 0)
+                                                --"  Whole Word"
+constant CodeBaseFindHW      = createEx(CheckBox,IDEText[514][1], CodeBaseFindWin, 10, 63, 191, 20, 0, 0)
+                                                 --"  Case Sensitive"
+constant CodeBaseFindMC      = createEx(CheckBox,IDEText[515][1], CodeBaseFindWin, 10, 90, 191, 20, 0, 0)
+                                              --"Up"
+constant CodeBaseFind_RU     = createEx(Radio, IDEText[517][1], CodeBaseFindWin, 212, 64, 100, 20, 0, 0)
+                                               --"Down"
+constant CodeBaseFind_RD     = createEx(Radio, IDEText[518][1], CodeBaseFindWin, 212, 90, 100, 20, 0, 0)
+                                               --"Find Next"
+constant CodeBaseFindN       = createEx(Button, IDEText[519][1], CodeBaseFindWin, 327, 8, 90, 23, 0, 0)
+                                               --"Cancel"
+constant CodeBaseFindC       = createEx(Button, IDEText[510][1], CodeBaseFindWin, 327, 86, 90, 23, 0, 0)
+
+--------------------------------------------------------------------------------
+setCheck(CodeBaseFind_RD, w32True)
+setEnable(CodeBaseFindN, w32False)
+
+integer frompoint               frompoint = 0
+integer topoint                 topoint = -1
+sequence buffer                 buffer = {}
+integer translateCodeBase_id
+--------------------------------------------------------------------------------
+procedure WinCodeBase_onResize(integer self, integer event, sequence params)
+sequence rect
+
+    rect = getClientRect(WinCodeBase)
+    --resize RichEdit control to fit
+    setRect(CodeBaseRichEdit, rect[1], rect[2], rect[3], rect[4], w32True)
+end procedure
+setHandler(WinCodeBase,w32HResize,routine_id("WinCodeBase_onResize"))
+--------------------------------------------------------------------------------
+procedure CopyCode(sequence ctrl)
+
+-- generate code associated with a control
+sequence text
+integer hasData
+
+    for events=1 to length(ctrl[Code]) do
+        if events!=Intro
+        and events!=Final
+        and events!=Begin then
+            -- code?
+            text = ctrl[Code][events]
+            if length(text) then
+                if events!=General then
+                    hasData = w32False
+                    for i=1 to length(text) do
+                        if match("end procedure", text[i]) then
+                            exit
+                        end if
+                        if match("procedure", text[i]) then
+                        --ignore
+                        elsif length(text[i]) then
+                            hasData = w32True
+                            exit
+                        end if
+                    end for
+
+                    if hasData then
+                        -- line break
+                        buffer &= repeat('-', 80) & '\n'
+
+                        -- output the code
+                        for i=1 to length(text) do
+                            buffer &= text[i] & '\n'
+                        end for
+                    end if
+                else
+                    --it is General
+                    -- line break
+                    buffer &= repeat('-', 80) & '\n'
+
+                    -- output the code
+                    for i=1 to length(text) do
+                        buffer &= text[i] & '\n'
+                    end for
+                end if
+            end if
+        end if
+    end for
+end procedure
+-------------------------------------------------------------------------------
+procedure WinCodeBase_onOpen(integer self, integer event, sequence params)
+sequence ctrls
+object text
+
+    if translateNow then
+        call_proc(translateCodeBase_id,{})
+    end if
+
+    Change_Code(0,0,{})
+    flushControls()
+
+    buffer = {}
+
+    --put in Begin event if present
+    for i=1 to length(windows) do
+        if length(windows[i][1][Code][Begin]) then
+            text = windows[i][1][Code][Begin]
+            buffer &= repeat('-', 80) & '\n'
+            for j=1 to length(text) do
+                buffer &= text[j] & '\n'
+            end for
+        end if
+    end for
+
+    --put in Intro event if present
+    for i=1 to length(windows) do
+        if length(windows[i][1][Code][Intro]) then
+            text = windows[i][1][Code][Intro]
+            buffer &= repeat('-', 80) & '\n'
+            for j=1 to length(text) do
+                buffer &= text[j] & '\n'
+            end for
+        end if
+    end for
+
+    -- generate code
+    for i=1 to length(windows) do
+        -- get controls for window
+        ctrls = windows[i]
+        -- generate code for each control
+        for j=1 to length(ctrls) do
+            CopyCode(ctrls[j])
+        end for
+    end for
+
+    --write final code
+    for i=1 to length(windows) do
+        -- write the Final event if exists
+        if length(windows[i][1][Code][Final]) then
+            text = windows[i][1][Code][Final]
+            buffer &= repeat('-', 80) & '\n'
+            for j=1 to length(text) do
+                buffer &= text[j] & '\n'
+            end for
+        end if
+    end for
+
+    putStream(CodeBaseRichEdit, StreamText, buffer)
+    setIndex(CodeBaseRichEdit,1)
+end procedure
+setHandler(WinCodeBase, w32HOpen, routine_id("WinCodeBase_onOpen"))
+--------------------------------------------------------------------------------
+procedure CodeBaseExitMenu_onClick(integer self, integer event, sequence params)
+    closeWindow(WinCodeBase)
+end procedure
+setHandler(CodeBaseExitMenu, w32HClick, routine_id("CodeBaseExitMenu_onClick"))
+--------------------------------------------------------------------------------
+procedure CodeBaseCopyMenu_onClick(integer self, integer event, sequence params)
+    copy(CodeBaseRichEdit)
+end procedure
+setHandler(CodeBaseCopyMenu, w32HClick, routine_id("CodeBaseCopyMenu_onClick"))
+--------------------------------------------------------------------------------
+procedure CodeBaseSelMenu_onClick(integer self, integer event, sequence params)
+    setIndex(CodeBaseRichEdit, {1, 0})
+end procedure
+setHandler(CodeBaseSelMenu, w32HClick, routine_id("CodeBaseSelMenu_onClick"))
+-----------------------------------------------------------------------------
+procedure CodeBaseFindMenu_onClick(integer self, integer event, sequence params)
+sequence Rect
+--open find dialog
+    Rect = getClientRect(Screen)
+    setRect(CodeBaseFindWin, Rect[3]/2-219, Rect[4]/2-80, 438, 160, w32True)
+    moveZOrder(CodeBaseFindWin,  HWND_TOPMOST)
+
+    openWindow(CodeBaseFindWin, Normal)
+    setFocus(CodeBaseFindW_Ed)
+
+end procedure
+setHandler(CodeBaseFindMenu, w32HClick, routine_id("CodeBaseFindMenu_onClick"))
+------------------------------------------------------------------------------
+function FindNext(sequence direction)
+atom fnd
+integer CodefindDown,CodefindMatchCase,CodefindWholeWord
+sequence findWhat
+-- CW addition 23 Sep 2006
+sequence findWhat2
+-- end CW addition
+
+    CodefindDown = 0
+    CodefindMatchCase = 0
+    CodefindWholeWord = 0
+
+    findWhat = getText(CodeBaseFindW_Ed)
+    if isChecked(CodeBaseFindMC) then
+        CodefindMatchCase = findMatchCase
+    else
+        findWhat = nlsLower(findWhat)
+    end if
+
+    -- CW addition 23 Sep 2006
+    -- If running on WinXP SR1 or later, Rich Edit 4.1 classs, using Msftedit.dll, expects strings in Unicode
+    if equal(WC_RICHEDIT,"RICHEDIT50W") then -- Change search string to 'pseudo Unicode'
+        findWhat2 = findWhat
+        findWhat = {}
+        for i=1 to length(findWhat2) do
+            findWhat = findWhat & findWhat2[i] & #00
+        end for
+    end if
+    -- end CW addition
+
+    if equal(direction,"up") then
+        topoint = 0
+    else
+        CodefindDown = findDown
+        topoint = -1
+    end if
+
+    if isChecked(CodeBaseFindHW) then
+        CodefindWholeWord = findWholeWord
+    end if
+
+    fnd = findText(CodeBaseRichEdit, findWhat, {frompoint,topoint},
+                   CodefindDown+CodefindMatchCase+CodefindWholeWord)
+    if fnd then
+        frompoint = fnd
+        -- CW modification 23 Sep 2006
+        if equal(WC_RICHEDIT,"RICHEDIT50W") then
+            setIndex(CodeBaseRichEdit,{frompoint,frompoint+length(findWhat2)})
+        else
+            setIndex(CodeBaseRichEdit,{frompoint,frompoint+length(findWhat)})
+        end if
+        -- end CW modification
+    end if
+
+    return fnd
+
+end function
+------------------------------------------------------------------------------
+procedure onClick_CodeBaseFindC(integer self, integer event, sequence params)
+    closeWindow(CodeBaseFindWin)
+end procedure
+setHandler(CodeBaseFindC, w32HClick, routine_id("onClick_CodeBaseFindC"))
+---------------------------------------------------------------------------------
+procedure onKeyDown_CodeBaseFindC(integer self, integer event, sequence params)
+    if params[1]=VK_RETURN then
+        closeWindow(CodeBaseFindWin)
+    end if
+end procedure
+setHandler(CodeBaseFindC, w32HKeyDown, routine_id("onKeyDown_CodeBaseFindC"))
+----------------------------------------------------------------------------------
+global procedure onClick_CodeBaseFindN(integer self, integer event, sequence params)
+integer Found
+sequence findWhat
+
+    if isChecked(CodeBaseFind_RD) then
+        Found = FindNext("down")
+    else
+        Found = FindNext("up")
+    end if
+
+    if not Found then
+        findWhat = getText(CodeBaseFindW_Ed)
+        ok = displayErrorMessage(192,{findWhat})
+    end if
+end procedure
+setHandler(CodeBaseFindN, w32HClick, routine_id("onClick_CodeBaseFindN"))
+----------------------------------------------------------------------------------
+procedure onKeyDown_CodeBaseFindN(integer self, integer event, sequence params)
+    if params[1]=VK_RETURN
+    or params[1]=VK_F3 then
+        onClick_CodeBaseFindN(self, w32HClick, {})
+    end if
+end procedure
+setHandler(CodeBaseFindN, w32HKeyDown, routine_id("onKeyDown_CodeBaseFindN"))
+--------------------------------------------------------------------------------
+procedure onKeyDown_CodeBaseFindW_Ed(integer self, integer event, sequence params)
+integer Void
+    if params[1]=13
+    or params[1]=VK_F3 then
+        Void = invokeHandler(CodeBaseFindN, w32HClick, {})
+    end if
+end procedure
+setHandler(CodeBaseFindW_Ed, w32HKeyDown, routine_id("onKeyDown_CodeBaseFindW_Ed"))
+------------------------------------------------------------------------------------
+procedure onKeyUp_Find(integer self, integer event, sequence params)
+    if length(getText(CodeBaseFindW_Ed)) then
+        setEnable(CodeBaseFindN, w32True)
+    else
+        setEnable(CodeBaseFindN, w32False)
+    end if
+end procedure
+setHandler(CodeBaseFindW_Ed, w32HKeyUp, routine_id("onKeyUp_Find"))
+------------------------------------------------------------------------------
+procedure CodeBaseRichEdit_onMouse(integer self, integer event, sequence params)
+    if params[1]=RightDown then
+        popup(CodeBasePopup, params[2], params[3])
+    end if
+end procedure
+setHandler(CodeBaseRichEdit, w32HMouse,routine_id("CodeBaseRichEdit_onMouse"))
+-------------------------------------------------------------------------------
+procedure CodeBasePopup_onClick(integer self, integer event, sequence params)
+    if self=CodeBaseCopy then
+        copy(CodeBaseRichEdit)
+    elsif self=CodeBaseSelAll then
+        setIndex(CodeBaseRichEdit, {1, 0})
+    end if
+end procedure
+setHandler({CodeBaseSelAll,CodeBaseCopy},w32HClick,routine_id("CodeBasePopup_onClick"))
+--------------------------------------------------------------------------------
+procedure CodeBaseMenuItemInCodeWin_onClick(integer self, integer event, sequence params)
+    if isModuleRoutine then
+        return
+    end if
+    openWindow(WinCodeBase,Normal)
+end procedure
+setHandler(CodeBaseMenuItemInCodeWin,w32HClick,routine_id("CodeBaseMenuItemInCodeWin_onClick"))
+------------------------------------------------------------------------------------
+global procedure translateCodeBase()
+    setText(WinCodeBase,IDEText[1002][1])
+    setText(CodeBaseFileMenu,IDEText[1003][1])
+    setText(CodeBaseExitMenu, IDEText[1004][1])
+    setText(CodeBaseEditMenu, IDEText[1005][1])
+    setText(CodeBaseCopyMenu, IDEText[1006][1])
+    setText(CodeBaseSelMenu,IDEText[1007][1])
+    setText(CodeBaseSearchMenu, IDEText[1008][1])
+    setText(CodeBaseFindMenu,IDEText[1009][1])
+    setText(CodeBaseCopy,IDEText[1010][1])
+    setText(CodeBaseSelAll,IDEText[1011][1])
+    setText(CodeBaseFindWin,IDEText[1012][1])
+    setText(CodeBaseFindW_Lbl, IDEText[512][1])
+    setText(CodeBaseFindHW,IDEText[514][1])
+    setText(CodeBaseFindMC,IDEText[515][1])
+    setText(CodeBaseFind_RU, IDEText[517][1])
+    setText(CodeBaseFind_RD, IDEText[518][1])
+    setText(CodeBaseFindN, IDEText[519][1])
+    setText(CodeBaseFindC, IDEText[510][1])
+end procedure
+translateCodeBase_id = routine_id("translateCodeBase")
+

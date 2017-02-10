@@ -1,0 +1,721 @@
+--prtRoutines.ew
+--Judith Evans 10-2000
+--04-05-2003: converted for setHandler and use by IDE
+
+--this library allows printing in a font (selected by user or determined by
+--author) in 1 up, 2 up, 4 up (optional select) on default or select printer
+--in portrait or landscape mode (selected by user or determined by author.)
+--Print routines are provided or author may roll his own.
+
+--  recommended font point size is:
+--    4 up       6, courier New  user can not modify  79X52 panel  (portrait)
+--    2 up       6, courier New  user can not modify  79X106 panel (portrait)
+--               7,??                                             (landscape)
+--    1 up      12, courier New  user can modify      80X58 page   (portrait)
+--                                                   101X44 page  (landscape) 
+--    1 up       default         user can modify      85X61 page   (portrait)
+--                                                   101X44 page  (landscape)
+
+--pass a buffer to routine of lines to print
+
+--lines determined to be longer than the characters/line will wrap to a new
+--line (at last space) and be indented by 4 spaces.
+
+
+without warning
+integer ok
+
+---------------------------------------------------------------------------
+integer PagesWindow,label1,label2,gr1,rb1,rb2,rb4,gr2,rbDown,rbAcross,gr3,
+    rbPortrait,rbLandscape,GoButton,CancelButton,labelFontName,labelFontPts,
+    theFontName,theFontPts,buttonBrowse
+global integer prter
+
+    PagesWindow = -1
+
+atom prt32_DC
+
+global integer
+    prt32_orientation, --supplied in mainline by coder
+    prt32_up,
+    prt32_order,
+    prt32_cancel
+
+prt32_DC = 0
+prt32_up = 0
+prt32_order = 0
+prt32_cancel = w32True
+prt32_orientation = 0 --portrait=1, landscape=2 when =0 then programer doesn't want to show Portrait 
+                                        --or Landscape option and will set himself.
+
+--global constant  --may set prt32_orientation to one of these values  
+--    DM_PORTRAIT   =1,
+--    DM_LANDSCAPE  =2    
+sequence FontDefaults
+sequence prtFont
+    prtFont = {"",0,0,Black}
+----------------------------------------------------------------------------    
+--       printing using win32lib.ew print dialog 
+----------------------------------------------------------------------------
+
+---------------------------------------------------------------------------
+--                 Logical Pages to Physical Pages UP
+
+----------------------------------------------------------------------------
+-- NOTE!!  Portrait is the default print mode.
+--         If author knows what mode will be presented to the user, then use
+--         prt32_orientation=2 if landscape. This will prevent user from 
+--         changing in this routine.
+--         However, nothing prevents the user from changing when print
+--         dialog is shown.
+----------------------------------------------------------------------------
+--       can select 1, 2 or 4 UP logical pages per physical page.
+--       returns the number Up selected in global integer prt32_up.
+--       if this routine NOT called, 1 UP is default
+----------------------------------------------------------------------------
+--       this function is called only if user has option to select
+--       how many Up.
+----------------------------------------------------------------------------
+--       Selecting 2 or 4 UP may change the font selection if one had been
+--       made. Compare characters per line in textmetrics for selected font
+--       and courier New 6 or 10 point.
+----------------------------------------------------------------------------
+procedure onPaintPages(integer self, integer event, sequence params)
+
+    if prt32_up=2 then
+        if prt32_orientation=1 then
+            drawRectangle(PagesWindow,0,155,17,505,407)
+            drawLine(PagesWindow,330,17,330,407)
+            setPenPos(PagesWindow,165,27)
+            wPuts(PagesWindow,"1")
+            setPenPos(PagesWindow,340,27)
+            wPuts(PagesWindow,"2")
+        else
+            drawRectangle(PagesWindow,0,155,77,505,347)
+            drawLine(PagesWindow,330,77,330,347)
+            setPenPos(PagesWindow,165,87)
+            wPuts(PagesWindow,"1")
+            setPenPos(PagesWindow,340, 87)
+            wPuts(PagesWindow,"2")
+        end if
+    elsif prt32_up=4 then
+        if prt32_orientation=1 then
+            drawRectangle(PagesWindow,0,155,17,505,407)
+            drawLine(PagesWindow,330,17,330,407)
+            drawLine(PagesWindow,155,212,505,212)
+            setPenPos(PagesWindow,165,27)
+            if isChecked(rbAcross) then
+                wPuts(PagesWindow,"1")
+                setPenPos(PagesWindow,340,27)
+                wPuts(PagesWindow,"2")
+                setPenPos(PagesWindow,165,222)
+                wPuts(PagesWindow,"3")
+                setPenPos(PagesWindow,340,222)
+                wPuts(PagesWindow,"4")
+            else
+                wPuts(PagesWindow,"1")
+                setPenPos(PagesWindow,340,27)
+                wPuts(PagesWindow,"3")
+                setPenPos(PagesWindow,165,222)
+                wPuts(PagesWindow,"2")
+                setPenPos(PagesWindow,340,222)
+                wPuts(PagesWindow,"4")
+            end if
+        else
+            drawRectangle(PagesWindow,0,155,77,505,347)
+            drawLine(PagesWindow,330,77,330,347)
+            drawLine(PagesWindow,155,212,505,212)
+            setPenPos(PagesWindow,165,87)
+            if isChecked(rbAcross) then
+                wPuts(PagesWindow,"1")
+                setPenPos(PagesWindow,340, 87)
+                wPuts(PagesWindow,"2")
+                setPenPos(PagesWindow,165,222)
+                wPuts(PagesWindow,"3")
+                setPenPos(PagesWindow,340,222)
+                wPuts(PagesWindow,"4")
+            else
+                wPuts(PagesWindow,"1")
+                setPenPos(PagesWindow,340, 87)
+                wPuts(PagesWindow,"3")
+                setPenPos(PagesWindow,165,222)
+                wPuts(PagesWindow,"2")
+                setPenPos(PagesWindow,340,222)
+                wPuts(PagesWindow,"4")
+            end if
+        end if
+    else
+        if prt32_orientation=1 then
+            drawRectangle(PagesWindow,0,155,17,505,407)
+            setPenPos(PagesWindow,165,27)
+            wPuts(PagesWindow,"1")
+        else
+            drawRectangle(PagesWindow,0,155,77,505,347)
+            setPenPos(PagesWindow,165,87)
+            wPuts(PagesWindow,"1")
+        end if
+    end if
+
+end procedure
+
+procedure Clickedrb1(integer self, integer event, sequence params)
+    prt32_up = 1
+    setVisible(rbDown,0)
+    setVisible(rbAcross,0)
+    if prt32_order=1 then   --order is down
+        setCheck(rbDown,1)
+    else
+        setCheck(rbAcross,1)
+    end if
+    if prt32_orientation=1 then   --orientation is Portrait
+        setCheck(rbPortrait,1)
+    else
+        setCheck(rbLandscape,1)
+    end if
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure Clickedrb2(integer self, integer event, sequence params)
+    prt32_up = 2
+    setVisible(rbDown,0)
+    setVisible(rbAcross,0)
+    if prt32_order=1 then   --order is down
+        setCheck(rbDown,1)
+    else
+        setCheck(rbAcross,1)
+    end if
+    if prt32_orientation=1 then   --orientation is Portrait
+        setCheck(rbPortrait,1)
+    else
+        setCheck(rbLandscape,1)
+    end if
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure Clickedrb4(integer self, integer event, sequence params)
+    prt32_up = 4
+    setVisible(rbDown,1)
+    setVisible(rbAcross,1)
+    if prt32_order=1 then   --order is down
+        setCheck(rbDown,1)
+    else
+        setCheck(rbAcross,1)
+    end if
+    if prt32_orientation=1 then   --orientation is Portrait
+        setCheck(rbPortrait,1)
+    else
+        setCheck(rbLandscape,1)
+    end if
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure ClickedDown(integer self, integer event, sequence params)
+    prt32_order = 1
+    if prt32_up=2 then
+        setCheck(rb2,1)
+    elsif prt32_up=4 then
+        setCheck(rb4,1)
+    else
+        setCheck(rb1,1)
+    end if
+    if prt32_orientation=1 then   --orientation is Portrait
+        setCheck(rbPortrait,1)
+    else
+        setCheck(rbLandscape,1)
+    end if
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure ClickedAcross(integer self, integer event, sequence params)
+    prt32_order = 2
+    if prt32_up=2 then
+        setCheck(rb2,1)
+    elsif prt32_up=4 then
+        setCheck(rb4,1)
+    else
+        setCheck(rb1,1)
+    end if
+    if prt32_orientation=1 then   --orientation is Portrait
+        setCheck(rbPortrait,1)
+    else
+        setCheck(rbLandscape,1)
+    end if
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure ClickedPortrait(integer self, integer event, sequence params)
+    prt32_orientation = 1
+    if prt32_up=2 then
+        setCheck(rb2,1)
+    elsif prt32_up=4 then
+        setCheck(rb4,1)
+    else
+        setCheck(rb1,1)
+    end if
+    if prt32_order=1 then   --order is down
+        setCheck(rbDown,1)
+    else
+        setCheck(rbAcross,1)
+    end if
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure ClickedLandscape(integer self, integer event, sequence params)
+    prt32_orientation = 2
+    if prt32_up=2 then
+        setCheck(rb2,1)
+    elsif prt32_up=4 then
+        setCheck(rb4,1)
+    else
+        setCheck(rb1,1)
+    end if
+    if prt32_order=1 then   --order is down
+        setCheck(rbDown,1)
+    else
+        setCheck(rbAcross,1)
+    end if
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure onOpenPages(integer self, integer event, sequence params)
+--if orientation is coder determined, dont let user change it now
+    if not prt32_orientation then
+        setVisible(rbPortrait,0)
+        setVisible(rbLandscape,0)
+    else
+        if prt32_orientation=1 then
+            setCheck(rbPortrait,1)
+        elsif prt32_orientation=2 then
+            setCheck(rbLandscape,1)
+        end if
+    end if
+    prt32_up = 1
+    prt32_order = 2
+    setCheck(rb1,1)
+    setCheck(rbAcross,1)
+    setVisible(rbDown,0)
+    setVisible(rbAcross,0)
+
+    repaintWindow(PagesWindow)
+end procedure
+
+procedure onClick_Exit(integer self, integer event, sequence params)
+    prt32_cancel = w32False
+    if validId(PagesWindow) then
+        destroy(PagesWindow)
+    end if
+    PagesWindow = -1
+end procedure
+
+procedure onClick_Cancel(integer self, integer event, sequence params)
+    if validId(PagesWindow) then
+        destroy(PagesWindow)
+    end if
+    PagesWindow = -1
+end procedure
+
+procedure onClosePages(integer self, integer event, sequence params)
+    PagesWindow = -1
+end procedure
+
+--------------------------------------------------------------------------------
+procedure buttonBrowse_click(integer self, integer event, sequence params)
+object font
+
+    font = getFontDialog(PagesWindow)
+    if not sequence(font) then
+        return
+    end if
+    setText(theFontName,font[1])
+    setText(theFontPts, sprint(font[2]))
+    --set in defaults
+    prtFont[1] = font[1]
+    prtFont[2] = font[2]
+end procedure
+--------------------------------------------------------------------------------
+procedure GetDefaults()
+object lDefaults
+
+-- Hardcoded defaults.
+    FontDefaults    = {"ms sans serif", 8, 0, Black}
+
+    FontDefaults = setCreateFont("Times New Roman", 10, Normal, 0)
+    lDefaults = setCreateFont(FontDefaults[1],FontDefaults[2],FontDefaults[3],FontDefaults[4])
+end procedure
+
+global procedure selectPagesUp(integer parent)
+    if PagesWindow= -1 then
+
+        PagesWindow =
+                    --"Print page format"
+    createEx(Window, IDEText[550][1], parent, Default, Default, 534, 590, {WS_DLGFRAME+WS_THICKFRAME}, 0)
+        label1 =
+                   --"Pick one from"
+    createEx(LText, IDEText[551][1], PagesWindow, 26, 17, 100, 17, 0, 0)
+        label2 =
+                   --"each group"
+    createEx(LText, IDEText[552][1], PagesWindow, 26, 30, 100, 23, 0, 0)
+        gr1 =
+                  --"Layout"
+    createEx(Group, IDEText[553][1], PagesWindow, 26, 61, 100, 129, 0, 0)
+        rb1 =
+                      --"Up"
+    createEx(Radio, "1" & IDEText[554][1], gr1, 21, 36, 66, 18, 0, 0)
+        rb2 =
+    createEx(Radio, "2" & IDEText[554][1], gr1, 21, 65, 54, 13, 0, 0)
+        rb4 =
+    createEx(Radio, "4" & IDEText[554][1], gr1, 21, 90, 54, 17, 0, 0)
+        gr2 =
+                  --"Print Order"
+    createEx(Group, IDEText[555][1], PagesWindow, 30, 229, 92, 87, 0, 0)
+        rbDown =
+                  --"Down"
+    createEx(Radio, IDEText[556][1], gr2, 11, 29, 67, 24, 0, 0)
+        rbAcross =
+                  --"Across"
+    createEx(Radio, IDEText[557][1], gr2, 11, 52, 67, 28, 0, 0)
+        gr3=
+                   --"Print Orientation"
+    createEx(Group, IDEText[558][1], PagesWindow, 30, 345, 120, 87, 0, 0)
+        rbPortrait =
+                   --"Portrait"
+    createEx(Radio, IDEText[559][1], gr3, 11, 29, 89, 24, 0, 0)
+        rbLandscape =
+                   --"Landscape"
+    createEx(Radio, IDEText[560][1], gr3, 11, 52, 89, 28, 0, 0)
+
+        labelFontName =
+                                        --"Font:    Name"
+        createEx(LText, IDEText[1164][1], PagesWindow, 30, 440, 89, 28, 0, 0)
+
+        theFontName =
+        createEx(EditText, "", PagesWindow, 120, 440, 105, 28, 0, 0)
+
+        labelFontPts =
+                                        --"Font Pts"
+        createEx(LText, IDEText[1165][1], PagesWindow, 230, 440, 58, 40, 0, 0)
+
+        theFontPts =
+        createEx(EditText, "", PagesWindow, 285, 440, 30, 28, 0, 0)
+
+        buttonBrowse =
+        createEx(PushButton, "...", PagesWindow, 320, 440, 30, 28, 0, 0)
+
+        prter =
+                                        --"Use Default Printer"
+        createEx(CheckBox, IDEText[1197][1], PagesWindow, 30,490,140,20,0,0)
+        setCheck(prter, w32False)
+
+        GoButton =
+                       --"Print"
+    createEx(PushButton, IDEText[561][1], PagesWindow, 200,520,120,20,0,0)
+        CancelButton=
+                       --"Cancel"
+    createEx(PushButton, IDEText[562][1], PagesWindow, 340,520,120,20,0,0)
+
+        setHandler(PagesWindow,w32HPaint,routine_id("onPaintPages"))
+        setHandler(rb1,w32HClick,routine_id("Clickedrb1"))
+        setHandler(rb2,w32HClick,routine_id("Clickedrb2"))
+        setHandler(rb4,w32HClick,routine_id("Clickedrb4"))
+        setHandler(rbDown,w32HClick,routine_id("ClickedDown"))
+        setHandler(rbAcross,w32HClick,routine_id("ClickedAcross"))
+        setHandler(rbPortrait,w32HClick,routine_id("ClickedPortrait"))
+        setHandler(rbLandscape,w32HClick,routine_id("ClickedLandscape"))
+        setHandler(PagesWindow,w32HOpen,routine_id("onOpenPages"))
+        setHandler(GoButton,w32HClick,routine_id("onClick_Exit"))
+        setHandler(CancelButton,w32HClick,routine_id("onClick_Cancel"))
+        setHandler(buttonBrowse,w32HClick,routine_id("buttonBrowse_click"))
+        setHandler(PagesWindow,w32HClose,routine_id("onClosePages"))
+    end if
+
+    GetDefaults()
+    setText(theFontName,FontDefaults[1])
+    setText(theFontPts,sprint(FontDefaults[2]))
+    prtFont[1] = FontDefaults[1]
+    prtFont[2] = FontDefaults[2]
+    openDialog(PagesWindow)
+end procedure
+
+-----------------------useful routines -----------------------------------
+global function GetUp()
+    return prt32_up
+end function
+
+global function CheckStatus()
+    return prt32_cancel
+end function
+
+global function GetDirection()
+    return prt32_order
+end function
+
+global function GetOrientation()
+    return prt32_orientation
+end function
+
+global procedure SetOrientation(integer mode)
+    prt32_orientation = mode
+end procedure
+
+----------------------------------------------------------------------------
+--       print an entire "report" at one time at _starting_ coordinates
+--       routine handles StartDoc, PageDoc, EndDoc and DeleteDC procedures.
+--       When other than 1 UP is selected, the starting column will be the
+--       "left" margin for that entire quardrant and adds to column param.
+--       if either row or column are zero, program selects logical starting
+--       line and position. All lines after that refer to this start point
+----------------------------------------------------------------------------
+global procedure Prt_A_Buffer(object prt_data, integer column, integer row, integer tab_conv)
+--print an entire report 
+sequence textinfo,fontsize
+atom line_cnt,whatis,charwidth,charheight,hor,ver
+integer maxlines,maxcolumns,adjmaxcolumns, secondColumn, secondRow, panel,
+        newColumn,newRow,nosplit,at
+sequence prt_data2,data,commentsline
+
+    line_cnt = 0
+    panel = 1
+
+    if not tab_conv then
+        tab_conv = 1
+    end if
+
+    setFont(Printer, prtFont[1], prtFont[2], prtFont[3])
+
+    if atom(prt_data) then
+        prt_data = sprintf("%-d",prt_data)
+    end if
+
+    textinfo = getClientRect(Printer)
+    hor = textinfo[3]
+    ver = textinfo[4]
+
+    fontsize = getFontSize(Printer)
+    charwidth = fontsize[1]
+    charheight = fontsize[2]
+
+    maxlines = floor(ver/charheight)-row
+    maxcolumns = floor(hor/charwidth)
+
+    --now adjust maxlines and maxcolumns for UP requested.
+    -- for 2 up divide the (maxcolumns/2) -1
+    -- for 4 up divide the (maxcolumns/2) -1 AND
+    --                     (maxrows/2) -1 
+    -- this gives us our panel sizes.
+
+    if prt32_up then
+        --check the order
+        if prt32_order then
+        else
+            prt32_order = 2     --default is across (only used in 4 up)
+        end if
+    else
+        prt32_up = 1                --default 1 up
+        prt32_order = 2
+    end if
+
+    if prt32_up=1 then
+        secondColumn = column
+        secondRow = row
+    else
+        maxcolumns = floor((maxcolumns/2)-1)
+        if prt32_up=4 then
+            maxlines = floor((maxlines/2)-1)
+        end if
+        secondColumn = maxcolumns+2+column
+        secondRow = row
+        if prt32_up=4 then
+            secondRow = maxlines+2+row
+        end if
+    end if
+
+    --be sure prt_buffer index does not exceed printer's line length.
+    --wrap to new EXTRA line if it does.
+
+    prt_data2 = {}
+
+    commentsline = repeat('-',maxcolumns)
+
+    for i=1 to length(prt_data) do
+        --convert tabstop to user determined number of spaces
+        while w32True do
+            at = find(9, prt_data[i])
+            if at then
+                prt_data[i] = prt_data[i][1..at-1] & repeat(' ',tab_conv)
+                              & prt_data[i][at+1..length(prt_data[i])]
+            else
+                exit
+            end if
+        end while
+
+        --test for -- separator between routines
+        if length(prt_data[i])>maxcolumns then
+            if equal(prt_data[i][1..maxcolumns],commentsline) then
+                prt_data[i] = prt_data[i][1..maxcolumns]
+            end if
+        end if
+        while length(prt_data[i])>maxcolumns do
+            nosplit = w32False
+            adjmaxcolumns = maxcolumns
+            data = prt_data[i]
+            if compare(data[maxcolumns],' ')=0 or
+               compare(data[maxcolumns+1],' ')=0 then
+                data = data[1..maxcolumns] -- not in middle of a word
+            else
+                --find the previous space                 
+                while compare(data[adjmaxcolumns],' ')!=0 do
+                    adjmaxcolumns = adjmaxcolumns-1
+                    if adjmaxcolumns<1 then
+                        nosplit = w32True
+                        exit
+                    end if
+                end while
+                if nosplit then
+                    if maxcolumns>length(data) then
+                        adjmaxcolumns = length(data)
+                    else
+                        data = data[1..maxcolumns]
+                        adjmaxcolumns = maxcolumns
+                    end if
+                else
+                    data = data[1..adjmaxcolumns]
+                end if
+            end if
+            prt_data2 = prt_data2 & {data}
+            data = prt_data[i]
+            if adjmaxcolumns+1<length(data) then
+                prt_data[i] = data[adjmaxcolumns+1..length(data)]
+            else
+                prt_data[i] = ""
+                exit
+            end if
+        end while
+
+        if length(prt_data[i]) then
+            data = prt_data[i]
+            prt_data2 = prt_data2 & {data}
+        end if
+    end for
+
+    if length(prt_data2) then   --continue
+    else
+        ok = displayErrorMessage(225,{})
+        return
+    end if
+
+    whatis = startDoc(prt_data2[1])
+    whatis = startPage()
+
+    newColumn = column
+    newRow = row
+
+    for i=1 to length(prt_data2) do
+        if line_cnt>=maxlines then
+
+            panel = panel+1
+            if prt32_up=2 then
+                if panel=2 then
+                    newColumn = secondColumn
+                    newRow = secondRow
+                    line_cnt = 0
+                else
+                    newColumn = column
+                    newRow = row
+                    whatis = endPage()
+                    whatis = startPage()
+                    line_cnt = 0
+                    panel = 1
+                end if
+            elsif prt32_up=4 then
+                if prt32_order=2 then   --across
+                    if panel=2 then
+                        newColumn = secondColumn
+                        newRow = row
+                        line_cnt = 0
+                    elsif panel=3 then
+                        newColumn = column
+                        newRow = secondRow
+                        line_cnt = 0
+                    elsif panel=4 then
+                        newColumn = secondColumn
+                        newRow = secondRow
+                        line_cnt = 0
+                    else
+                        whatis = endPage()
+                        whatis = startPage()
+                        line_cnt = 0
+                        panel = 1
+                        newColumn = column
+                        newRow = row
+                    end if
+                else                    --down
+                    if panel=2 then
+                        newColumn = column
+                        newRow = secondRow
+                        line_cnt = 0
+                    elsif panel=3 then
+                        newColumn = secondColumn
+                        newRow = row
+                        line_cnt = 0
+                    elsif panel=4 then
+                        newColumn = secondColumn
+                        newRow = secondRow
+                        line_cnt = 0
+                    else
+                        whatis = endPage()
+                        whatis = startPage()
+                        line_cnt = 0
+                        panel = 1
+                        newColumn = column
+                        newRow = row
+                    end if
+                end if
+            else
+                whatis = endPage()
+                whatis = startPage()
+                line_cnt = 0
+            end if
+        end if
+        setPenPos(Printer,newColumn*charwidth,(newRow+line_cnt)*charheight)
+        wPuts(Printer,prt_data2[i])
+        line_cnt += 1
+    end for
+
+    whatis = endPage()
+    whatis = endDoc()
+    setDefaultFont(Printer)
+    releasePrinter()
+
+end procedure
+----------------------------------------------------------------------------
+--       this procedure is defaults all the way:
+--       printer dialog
+--       system font
+--       1 Up
+--       prints from buffer
+--       NOTE: this allows existing programs to run w/o conversion
+--             except for the include file name
+-----------------------------------------------------------------------------
+global procedure Start_Printer_Routines(object buffer)
+
+    if atom(buffer) then
+        buffer = sprintf("%-d",buffer)
+    end if
+
+    if not length(buffer) then
+        ok = displayErrorMessage(225,{})
+        return
+    end if
+
+    prt32_up = 1
+
+    Prt_A_Buffer(buffer,0,2,4)    --row 2 arbitrarily chosen for top whitespace
+end procedure
+

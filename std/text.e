@@ -2,13 +2,12 @@
 --
 --namespace text
 
---/**/ **NOT PHIX COMPATIBLE!**
---DEV earein.e does not like this:
---!/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
---!/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
---!/**/ forward global function keyvalues(sequence source, object pair_delim = ";,",
---!/**/                                  object kv_delim = ":=", object quotes =  "\"'`",
---!/**/                                  object whitespace = " \t\n\r", integer haskeys = 1)
+--!/**/ **NOT PHIX COMPATIBLE!**
+--/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
+--/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
+--/**/ forward global function keyvalues(sequence source, object pair_delim = ";,",
+--/**/                               object kv_delim = ":=", object quotes =  "\"'`",
+--/**/                               object whitespace = " \t\n\r", integer haskeys = 1)
 
 --****
 -- == Text Manipulation
@@ -1127,6 +1126,7 @@ end function
 --   [[:escape]]
 --
 
+--/*
 --#withtype t_text
 public function quote(sequence text_in, object quote_pair = {"\"", "\""}, integer esc = -1, t_text sp = "")
     if length(text_in)=0 then
@@ -1203,6 +1203,7 @@ public function quote(sequence text_in, object quote_pair = {"\"", "\""}, intege
     return quote_pair[1] & text_in & quote_pair[2]
 
 end function
+--*/
 
 --**
 -- Removes 'quotation' text from the argument.
@@ -1236,6 +1237,7 @@ end function
 -- -- 's' now contains "The small () man"
 -- </eucode>
 --
+--/*
 public function dequote(object text_in, object quote_pairs = {{"\"", "\""}}, integer esc = -1)
 integer pos
 
@@ -1286,6 +1288,7 @@ integer pos
 
     return text_in
 end function
+--*/
 
 --**
 -- Formats a set of arguments in to a string based on a supplied pattern.
@@ -1691,7 +1694,7 @@ integer bracketed
                         if bwz!=0 and arg_list[argn]=0 then
                             argtext = ""
                         elsif binout=1 then
---/**/?                     argtext = sprintf("%b", arg_list[argn])                                     --/*
+--/**/                      argtext = sprintf("%b", arg_list[argn])                                     --/*
 --/!**!/                    argtext = sq_add(reverse(int_to_bits(arg_list[argn], 32)),'0')              --/!*
                             argtext = stdseq:reverse( convert:int_to_bits(arg_list[argn], 32)) + '0'    --*/
                             for ib=1 to length(argtext) do

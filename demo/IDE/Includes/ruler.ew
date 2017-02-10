@@ -1,0 +1,833 @@
+-- Ruler.ew
+-- A simple Ruler Library
+-- created by Travis W. Beaty
+-- 3BK Software
+without warning
+with trace
+
+constant
+--  VERTICAL = 1,       -- if w32True, tickmarks run vertically
+    HORIZONTAL = 0,     -- if w32True, tickmarks run horizontally
+    METRICS_WIDTH = 1,  -- Width of user's screen in ScreenMetrics
+    METRICS_HEIGHT = 2  -- Height of user's screen in ScreenMetrics
+
+constant
+                               --"Ruler"
+    frmRuler = createEx(Window, IDEText[689][1], 0, Default, Default, 200, 42, 0,
+                        w32or_all({WS_EX_TOPMOST, WS_EX_TOOLWINDOW})),
+    lblRuler = createEx(LText, "", frmRuler, 5, 5, 25, 20, 0, 0),
+    mnupRuler = createEx(Popup, "", frmRuler, 0, 0, 0, 0, 0, 0),
+                                     --"Close"
+    mniRulerClose = createEx(MenuItem, IDEText[690][1], mnupRuler, 0, 0, 0, 0, 0, 0),
+    s0105010859 = createEx(MenuItem, "-", mnupRuler, 0, 0, 0, 0, 0, 0),
+                                    --"Flip"
+    mniRulerFlip = createEx(MenuItem, IDEText[691][1], mnupRuler, 0, 0, 0, 0, 0, 0),
+                                      --"Slide to Zero"
+    mniRulerSlide = createEx(MenuItem, IDEText[692][1], mnupRuler, 0, 0, 0, 0, 0, 0)
+global constant
+                                      --"Change Ruler Scale"
+    mniRulerScale = createEx(MenuItem, IDEText[693][1], mnupRuler, 0, 0, 0, 0, 0, 0)
+constant
+                                       --"Span Across Screen"
+    mniRulerSpanScr = createEx(MenuItem, IDEText[694][1], mnupRuler,
+                               0, 0, 0, 0, 0, 0),
+                                       --"Display Ruler Position"
+    mniRulerGetPos = createEx(MenuItem, IDEText[695][1], mnupRuler,
+                              0, 0, 0, 0, 0, 0),
+    s0106010659 = createEx(MenuItem, "-", mnupRuler, 0, 0, 0, 0, 0, 0),
+                                         --"Minimize"
+    mniRulerMinimize = createEx(MenuItem, IDEText[696][1], mnupRuler, 0, 0, 0, 0, 0, 0)
+
+integer
+    Orientation,            -- is ruler VERTICAL or HORIZONTAL?
+    isFirstOpen,            -- is this the first time ruler's been open this session?
+    isNowSizing,            -- is the ruler currently being sized?
+    isNowMoving,            -- is the ruler being moved?
+    SizingMousePosition,    -- x position of mouse for sizing routine
+    Scale,                  -- Ruler's Scale.
+--  VOID,                   -- "we don't need the function's result" variable.
+    isOpen                  --if not w32True don't minimize it
+atom
+    offset                  -- An offset amount so that the "Visual" length of the
+                            -- ruler matches after an orientation change.
+
+sequence
+    ScreenMetrics,          -- {width, height} of user's screen
+    MovingMousePosition,    -- {x, y} position of mouse.  Used when moving ruler.
+    SizingBox               -- Position and size of the black Sizing Box
+
+
+
+    -- initialization ------------------------------------------------------------------
+
+    if Win32LibVersion[2]<55 then
+        offset = displayErrorMessage(163,{})
+        abort(1)
+    end if
+    removeStyle(frmRuler, WS_OVERLAPPEDWINDOW)
+    setWindowBackColor(frmRuler, Yellow)    -- fits most rulers I've seen, 'cept those 
+                                        --49¢ plastic jobs
+    setWindowBackColor(lblRuler, Yellow)
+    Orientation = HORIZONTAL                -- ruler is horizontal by default
+    Scale = 2                               -- Scale is 2 by default.
+    isFirstOpen = w32True
+    isNowSizing = w32False
+    isNowMoving = w32False
+    ScreenMetrics = getCtlSize(Screen)      -- get the size of the user's screen.
+    offset = ScreenMetrics[METRICS_HEIGHT]/ScreenMetrics[METRICS_WIDTH]
+
+    isOpen = w32False
+
+
+
+
+
+
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+--                             R U L E R   E V E N T S                            --
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+
+
+
+
+
+
+-- Repaint the ruler!
+------------------------------------------------------------------------------------
+procedure Paint_frmRuler(integer self, integer event, sequence params)
+integer left, top, right, bottom
+------------------------------------------------------------------------------------
+
+sequence
+        edges,
+        RulerPos
+
+integer
+        line_length,
+        x,
+        y
+
+    left   = params[1]
+    top    = params[2]
+    right  = params[3]
+    bottom = params[4]
+
+    -- intialize edges sequence.  This will tell the for loop which follows how
+    -- far to extend the tickmarks.
+    edges = {right, bottom}
+
+    -- if we're sizing or moving, don't worry about the repaint ... it'll just slow 
+    -- things down.
+    if isNowSizing or isNowMoving then
+        return
+    end if
+
+    -- Draw our center line.
+    setPenColor(frmRuler, Red)
+    if Orientation=HORIZONTAL then
+        x = floor((right-left)/2)
+        drawLine(frmRuler, x, top, x, bottom)
+    else
+        x = floor((bottom-left)/2)
+        drawLine(frmRuler, left, x, right, x)
+    end if
+
+
+    -- Set the pen color to Back for drawing the tickmarks.
+    setPenColor(frmRuler, Black)
+
+    -- From the left/top edge of the ruler all the way to the right side, we need a
+    -- line per Scale.
+    for i=0 to edges[Orientation+1] by Scale do
+
+        -- If the ruler is horizontal, we want the tickmarks on the bottom.  In 
+        -- this case, i will govern the horizontal movement of the pen across the
+        -- face of the ruler.
+        if Orientation=HORIZONTAL then
+            x = i
+            y = bottom
+
+        -- If the ruler is vertical, then we want the tickmarks on the right.  In
+        -- this case, i will govern the vertical movement of the pen across the 
+        -- face of the ruler.
+        else
+            x = right
+            y = i
+        end if
+
+        -- Here, we figure the size of the tickmark.  For the default Scale of 2,
+        -- the "middle-sized" and smallest tickmarks are never used.
+
+        -- (start switch)
+        if (x=0) or (not remainder(i, 10)) then line_length = 10
+        elsif not remainder(i, 5) then line_length = 8
+        elsif not remainder(i, 2) then line_length = 3
+        else line_length = 1
+        end if -- (end switch)
+
+        -- draw our tickmark ...
+        if Orientation=HORIZONTAL then
+            drawLine(frmRuler, x, (y-line_length), x, y)
+        else
+            drawLine(frmRuler, (x-line_length), y, x, y)
+        end if
+
+        -- go back to the top and draw the next mark, if necessary.
+    end for
+
+    -- If part of the ruler is off the screen, then ideally, we don't want to have 
+    -- the sizing box drawn.  It gets drawn anyway sometimes, and I can't figure out 
+    -- why!!
+    RulerPos = getPosition(frmRuler)
+    if (RulerPos[1]>=0) and (RulerPos[2]>=0) then
+        if Orientation=HORIZONTAL then
+            SizingBox = {right-12, top+2, right-2, top+12}
+        else
+            SizingBox = {left+2, bottom-12, left+12, bottom-2}
+        end if
+        drawRectangle(frmRuler, w32True,
+                      SizingBox[1], SizingBox[2], SizingBox[3], SizingBox[4])
+    end if
+
+end procedure
+
+setHandler(frmRuler, w32HPaint, routine_id("Paint_frmRuler"))
+
+
+----------------------------------
+procedure Click_mniRulerSlide(integer self, integer event, sequence params)
+----------------------------------
+
+sequence
+        RulerSize,
+        RulerPos
+
+    RulerPos = getRect(frmRuler)
+    RulerSize = getCtlSize(frmRuler)
+    if Orientation=HORIZONTAL then
+        setRect(frmRuler, 0, RulerPos[2], RulerSize[1], RulerSize[2], w32True)
+    else
+        setRect(frmRuler, RulerPos[1], 0, RulerSize[1], RulerSize[2], w32True)
+    end if
+    repaintWindow(frmRuler)
+
+end procedure
+
+setHandler(mniRulerSlide, w32HClick, routine_id("Click_mniRulerSlide"))
+
+
+
+-- Turn the ruler to vertical or horizontal.
+-----------------------------------
+procedure Click_mniRulerFlip(integer self, integer event, sequence params)
+-----------------------------------
+
+sequence
+        RulerSize
+
+    -- Flip the orientation.  At this point, our old x-size needs to become the new
+    -- y-size, and vice versa.  So we get the control size and reverse the resulting
+    -- sequence.  Bingo!
+    Orientation = not Orientation
+    RulerSize = reverse(getCtlSize(frmRuler))
+
+    -- Here is where the variable offset comes in.  It is needed due to the fact that
+    -- the screen is not a square, but rather a rectangle.  This means that "1 pixel
+    -- wide" is not the same size vertically as it is horizontally.  Therefore, 
+    -- offset is used to *roughly* equilize the length of the ruler as it changes
+    -- from orientation to orientation.
+    if Orientation=HORIZONTAL then
+        RulerSize[1] = floor(RulerSize[1]/offset)
+    else
+        RulerSize[2] = floor(RulerSize[2]*offset)
+    end if
+    -- Reset the ruler's size.
+    setCtlSize(frmRuler, RulerSize[1], RulerSize[2])
+
+    repaintWindow(frmRuler)   --Judith
+end procedure
+
+setHandler(mniRulerFlip, w32HClick, routine_id("Click_mniRulerFlip"))
+
+
+-- Span the ruler so that it is as long as the screen is wide/high!
+------------------------------------
+procedure Click_mniRulerSpanScr(integer self, integer event, sequence params)
+------------------------------------
+
+sequence
+        RulerPos
+integer
+        SizeX,
+        SizeY,
+        PosX,
+        PosY
+
+    -- First, get the current position of the ruler.  We want to preserve the 
+    -- coordinate perpendicular to the one we're spanning to.
+    RulerPos = getPosition(frmRuler)
+
+    -- Adjust the correct ruler attribute.  It must be zeroed to the left/top of
+    -- screen, then its length must be altered to match the correct ScreenMetric.
+    if Orientation=HORIZONTAL then
+        SizeX = ScreenMetrics[METRICS_WIDTH]
+        SizeY = 42
+        PosX = 0
+        PosY = RulerPos[2]
+    else
+        SizeX = 42
+        SizeY = ScreenMetrics[METRICS_HEIGHT]
+        PosX = RulerPos[1]
+        PosY = 0
+    end if
+    setRect(frmRuler, PosX, PosY, SizeX, SizeY, w32True)
+
+    repaintWindow(frmRuler) --Judith
+
+end procedure
+
+setHandler(mniRulerSpanScr, w32HClick, routine_id("Click_mniRulerSpanScr"))
+
+
+
+-- Return the current location of the ruler in a message box.
+------------------------------------
+procedure Click_mniRulerGetPos(integer self, integer event, sequence params)
+------------------------------------
+
+sequence
+        RulerPos
+
+integer
+        msg
+
+    RulerPos = getPosition(frmRuler)
+    msg = displayErrorMessage(164,{RulerPos[1],RulerPos[2]})
+
+end procedure
+
+setHandler(mniRulerGetPos, w32HClick, routine_id("Click_mniRulerGetPos"))
+
+
+-- Minimize the ruler.
+-------------------------------------
+procedure Click_mniRulerMinimize(integer self, integer event, sequence params)
+-------------------------------------
+
+    showWindow(frmRuler, Minimize)
+
+end procedure
+
+setHandler(mniRulerMinimize, w32HClick, routine_id("Click_mniRulerMinimize"))
+
+
+
+-- React to mouse events.
+------------------------------------------------------------------------------------
+procedure Mouse_frmRuler(integer self, integer event, sequence params)
+integer Event, x, y, Shift
+------------------------------------------------------------------------------------
+
+sequence
+        RulerPos,
+        RulerSize,
+        MouseLoc
+
+integer
+        NewRulerLength
+
+    Event = params[1]
+    x     = params[2]
+    y     = params[3]
+    Shift = params[4]
+
+    -- Did the user mash the right mouse button?  If so, we show the popup menu at
+    -- the mouse's location.
+    if Event=RightDown then
+        popup(mnupRuler, x, y)
+
+    -- Did the user mash down the left button?  
+    elsif Event=LeftDown then
+
+        -- Grab the mouse.
+        captureMouse(frmRuler)
+
+        -- Was the mouse in the sizing box?  If so, we set the ruler up for resizing.
+        if (x>=SizingBox[1]) and (x<=SizingBox[3]) and
+           (y>=SizingBox[2]) and (y<=SizingBox[4]) then
+
+            -- Let the ruler know it's being resized.
+            isNowSizing = w32True
+
+            -- Record the mouse's initial position.  We'll need this so we know
+            -- how longer the ruler's suppposed to be later on.
+            SizingMousePosition = x
+
+        --Otherwise, the user is moving the ruler.
+        else
+            isNowMoving = w32True
+            MovingMousePosition = getPointerPos()
+        end if
+
+    -- Did the user let up on the left mouse button?
+    elsif Event=LeftUp then
+
+        -- Was the ruler being resized or moved?  If so ...
+        if isNowSizing or isNowMoving then
+
+            -- Tell the ruler that the resizing/moving  is done.
+            isNowSizing = w32False
+            isNowMoving = w32False
+
+            -- Let go of that po' widdle ol' mouse, then repaint the window to 
+            -- reset the tickmarks correctly.
+            releaseMouse()
+            repaintWindow(frmRuler)
+        end if
+
+    -- Did the mouse move?  If so, see if we care ...
+    elsif Event=MouseMove then
+
+        -- Is the user resizing the ruler?  If so ...
+        if isNowSizing then
+
+            -- Get the position of the ruler.
+            RulerPos = getPosition(frmRuler)
+
+            -- Get the position of the mouse.
+            MouseLoc = getPointerPos()
+
+            -- If the ruler's left or top edge is off the screen, no resizing!
+            if (RulerPos[1]<0) or (RulerPos[2]<0) then
+                isNowSizing = w32False
+                return
+            end if
+
+            -- Reckon the ruler's new length.  The minimum length is 30.  There is
+            -- no maximum length.
+            NewRulerLength = MouseLoc[Orientation+1]-RulerPos[Orientation+1]
+            if NewRulerLength<30 then
+                NewRulerLength = 30
+            end if
+
+            -- If the ruler is horizontal, then the resize effects its horizontal
+            -- size, otherwise its vertical size is changed.  The height of the ruler 
+            -- remains constant.
+            if Orientation=HORIZONTAL then
+                setCtlSize(frmRuler, NewRulerLength, 42)
+            else
+                setCtlSize(frmRuler, 42, NewRulerLength)
+            end if
+
+        -- Is the user moving it?
+        elsif isNowMoving then
+
+            -- First, we need to get the current position of the ruler, its size,
+            -- and the current position of the mouse.
+            RulerPos = getPosition(frmRuler)
+            MouseLoc = getPointerPos()
+            RulerSize = getCtlSize(frmRuler)
+
+            -- The new position of the window is based on the difference between
+            -- the previous mouse location and the location now.
+            RulerPos = {RulerPos[1]+(MouseLoc[1]-MovingMousePosition[1]),
+                        RulerPos[2]+(MouseLoc[2]-MovingMousePosition[2])}
+            setRect(frmRuler,
+                    RulerPos[1], RulerPos[2], RulerSize[1], RulerSize[2], w32True)
+
+            -- Update MovingMousePosition, or you'll end up with a run-away ruler.
+            MovingMousePosition = MouseLoc
+
+        -- Otherwise, determine where the mouse is in relation to the Scale and 
+        -- display that information in the label.
+        else
+            captureMouse(frmRuler)
+            RulerSize = getCtlSize(frmRuler)
+            MouseLoc = getPointerRelPos(frmRuler)
+            releaseMouse()
+            if (MouseLoc[Orientation+1]>=0) and
+               (MouseLoc[Orientation+1]<=RulerSize[Orientation+1]) then
+                setText(lblRuler, sprintf("%d",  MouseLoc[Orientation+1]))
+            end if
+        end if
+    end if
+
+end procedure
+setHandler(frmRuler, w32HMouse, routine_id("Mouse_frmRuler"))
+
+
+
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+--               H O S T   A P P L I C A T I O N   I N T E R F A C E              --
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+
+-- Allows the host code to set the length of the ruler.  All length values which are
+-- more than 30 are valid.  Anything value less than 30 will result in the ruler's
+-- width being set to 30, with a warning message issued.
+-------------------------------------------
+--procedure setRulerLength(integer x)
+---------------------------------------------
+--
+--  if x<30 then
+--      warnErr("Bad parameter in setRulerLength().\n" &
+--              "30 < parameter")
+--      return
+--  end if
+--  if Orientation=HORIZONTAL then
+--      setCtlSize(frmRuler, x, 42)
+--  else
+--      setCtlSize(frmRuler, 42, x)
+--  end if
+--
+--end procedure
+
+
+
+-- Retrieves the ruler's length and returns it as an integer.
+----------------------------------
+--function getRulerLength()
+------------------------------------
+--
+--object
+--      temp
+--
+--  temp = getCtlSize(frmRuler)
+--  return temp[1]
+--
+--end function
+
+
+
+-- Allows the host app to change the orientation of the ruler.  The parameter is
+-- 0 for horizontal, 1 for vertical.  Any other value results in a nastygram.
+-----------------------------------------------------
+--procedure setRulerOrientation(integer Orient)
+-------------------------------------------------------
+--
+--  if (Orient<0) or (Orient>1) then
+--      warnErr("Bad parameter in setRulerOrientation().\n" &
+--              "parameter = 0 or parameter = 1")
+--      return
+--  else
+--      if Orient=Orientation then
+--          return
+--      else
+--          Click_mniRulerFlip(mniRulerFlip,w32HClick,{})
+--      end if
+--  end if
+--
+--end procedure
+
+
+
+-- Gets the ruler's orientation.  If the ruler is horizontal, it returns 0.  If it
+-- is vertical, it returns 1.
+--------------------------------------
+--function getRulerOrientation()
+----------------------------------------
+--
+--  if Orientation=HORIZONTAL then
+--      return 0
+--  else
+--      return 1
+--  end if
+--
+--end function
+
+
+-- Allows the host code to close the ruler.
+-------------------------------
+procedure closeRuler(integer self, integer event, sequence params)
+-------------------------------
+
+    isOpen = w32False
+
+    closeWindow(frmRuler)
+
+end procedure
+
+setHandler(mniRulerClose, w32HClick, routine_id("closeRuler"))
+
+----------------------------------
+-- translate the ruler popup window
+-----------------------------------
+procedure translateRuler()
+    setText(mniRulerClose, IDEText[690][1])
+    setText(mniRulerFlip, IDEText[691][1])
+    setText(mniRulerSlide, IDEText[692][1])
+    setText(mniRulerScale, IDEText[693][1])
+    setText(mniRulerSpanScr, IDEText[694][1])
+    setText(mniRulerGetPos, IDEText[695][1])
+    setText(mniRulerMinimize, IDEText[696][1])
+end procedure
+
+
+-- Open up the ruler for use.  This is the activator routine for a host app, so that
+-- it can open the ruler's window.
+------------------------------
+global procedure openRuler()
+------------------------------
+
+sequence
+        temp,
+        Position
+
+    if translateNow then
+        translateRuler()
+    end if
+
+    -- if this is the first time the ruler has been opened, we'll need to preset
+    -- the ruler so that it appears centered in the user's screen.
+    if isFirstOpen then
+        temp = getCtlSize(frmRuler)
+        Position = {floor((ScreenMetrics[METRICS_WIDTH]/2)-(temp[1]/2)),
+                    floor((ScreenMetrics[METRICS_HEIGHT]/2)-(temp[2]/2))}
+        isFirstOpen = w32False
+        setRect(frmRuler, Position[1], Position[2], temp[1], temp[2], w32True)
+    end if
+
+
+    isOpen = w32True
+
+    openWindow(frmRuler, Normal)
+
+end procedure
+
+
+
+-- Returns the scale current used by the ruler to the host app.
+--------------------------------
+--function getRulerScale()
+----------------------------------
+--
+--  return Scale
+--
+--end function
+
+
+
+-- Allows the host application to set the scale used for the ruler.  The parameter
+-- must be more than 0 and less than or equal to 10.  If the parameter given is 
+-- invalid, then a warning message is issued.
+--------------------------------------------------
+global procedure setRulerScale(integer new_Scale)
+--------------------------------------------------
+
+    if (new_Scale<1) or (new_Scale>10) then
+        warnErr("Bad parameter given for setRulerScale().\n" &
+                "0 < parameter <= 10")
+        return
+    end if
+    Scale = new_Scale
+    repaintWindow(frmRuler)
+
+end procedure
+
+
+
+-- Allows the host app to move the ruler to a particular location on the screen.
+-- The routine checks to make sure that the parameters are valid, and that the 
+-- ruler will not be moved to a location which is off the edge of the screen.
+---------------------------------------------------------
+--procedure moveRuler(integer new_x, integer new_y)
+-----------------------------------------------------------
+--
+--sequence
+--      RulerSize
+--
+--  if (new_x<0) or (new_y<0) then
+--      warnErr("Bad parameter given for moveRuler().\n" &
+--              "0 <= parameter")
+--      return
+--  elsif (new_x>ScreenMetrics[METRICS_WIDTH]) or
+--  (new_y>ScreenMetrics[METRICS_HEIGHT]) then
+--      warnErr("Bad parameter given for moveRuler().  Parameters indicate " &
+--              "a location which is off the screen.")
+--      return
+--  end if
+--  RulerSize = getCtlSize(frmRuler)
+--  setRect(frmRuler, new_x, new_y, RulerSize[1], RulerSize[2], w32True)
+--
+--  -- This if-statement allows the app to move the ruler where it is supposed to
+--  -- be before opening, thus defeating centering it on the first open.
+--  if isFirstOpen=w32True then
+--      isFirstOpen = w32False
+--  end if
+--
+--end procedure
+
+
+
+-- Cause the ruler to "span" all the way across the screen by taking as its length
+-- either the width or height of the screen, depending on the ruler's orientation.
+-----------------------------------
+--procedure spanRuler()
+-------------------------------------
+--
+--  Click_mniRulerSpanScr(frmRuler,w32HClick,{})
+--
+--end procedure
+
+-- Returns to the host app the position of the ruler in the form
+-- {x position, y position}
+-------------------------------
+--function getRulerPos()
+---------------------------------
+--
+--  return getPosition(frmRuler)
+--
+--end function
+
+
+-- This routine allows the host app to zero the ruler to either left or top of the
+-- screen, depending on the ruler's orientation.
+------------------------------
+--procedure zeroRuler()
+--------------------------------
+--
+--  Click_mniRulerSlide(frmRuler,w32HClick,{})
+--
+--end procedure
+
+
+
+-- Allows the host app to zero the ruler to a particular control or window.  The
+-- main use of this routine will probably be for folks that are debugging GUI code,
+-- and working with alignment and centering problems.  Its parameter is the win32lib
+-- control id.
+--------------------------------------------
+--procedure zeroRulerToCtl(integer id)
+----------------------------------------------
+--
+--sequence
+--      new_location,
+--      id_location
+--
+--object
+--      temp
+--
+--integer
+--      msg
+--
+--  if not validId(id) then
+--      warnErr("Bad parameter for zeroRulerToCtl().  The parameter must be a " &
+--              "valid win32lib id for a control.")
+--      return
+--  end if
+--
+--  -- Compile the information that we need for this maneuver.
+--  new_location = getPosition(frmRuler)
+--  id_location = getPosition(id)
+--  temp = findChildren(findParent(id))
+--
+--  -- Figure out what kind of control we're dealing with.
+--  for i=1 to length(temp) do
+--      if temp[i][1]=id then
+--          temp = temp[i][2]
+--          exit
+--      end if
+--  end for
+--
+--  -- If its a Window, we're okay as is.  However, if it is another type of 
+--  -- control, then we need to get its absolute screen coordinates, so that the
+--  -- ruler will slide to it correctly.
+--  if temp!=Window then
+--      id_location = ClientToScreen(id, id_location[1], id_location[2])
+--  end if
+--
+--  -- Make sure that the control is something that we can zero to.
+--  if (id_location[1]<0) or (id_location[2]<0) then
+--      temp = displayErrorMessage(165,{})
+--      return
+--  end if
+--  if isMinimized(id) or isMinimized(findParent(id)) then
+--      msg = displayErrorMessage(166,{})
+--      return
+--  end if
+--
+--  -- Again, we want to preserve the coordinate which is perpendicular to the 
+--  -- ruler's orientation.  We make the necessary adjustments, then perform the
+--  -- slide.
+--  if Orientation=HORIZONTAL then
+--      new_location[1] = id_location[1]
+--  else
+--      new_location[2] = id_location[2]
+--  end if
+--  moveRuler(new_location[1], new_location[2])
+--
+--end procedure
+
+
+-- This procedure allows the host app to place the ruler flush with the upper-left
+-- hand corner of an object, then make the ruler the same size as the x or y coor-
+-- dinate of the object in question.  For a parameter, it takes a win32lib control
+-- id.
+--------------------------------------
+--procedure mimicCtl(integer id)
+----------------------------------------
+--
+--sequence
+--      RealIdPos,
+--      id_size
+--
+--integer
+--      msg
+--
+--  -- Check to make sure a valid win32lib control has been passed.
+--  if not validId(id) then
+--      warnErr("Bad parameter for mimicCtl()\n\n" &
+--
+--              "Parameter must be a valid win32lib control id.")
+--      return
+--  end if
+--
+--  -- Get the target controls size, so we can size the ruler to it.
+--  id_size = getCtlSize(id)
+--
+--  -- Get the id's position in relation to the screen.
+--  RealIdPos = getPosition(id)
+--  if findParent(id)!=0 then
+--      RealIdPos = ClientToScreen(findParent(id), RealIdPos[1], RealIdPos[2])
+--  end if
+--
+--  -- Make sure we can slide to it.
+--  if isMinimized(id) or isMinimized(findParent(id)) then
+--      msg = displayErrorMessage(167,{})
+--      return
+--  end if
+--  if (RealIdPos[1]<0) or (RealIdPos[2]<0) then
+--      msg = displayErrorMessage(168,{})
+--      return
+--  end if
+--
+--  -- Get the ruler into position then adjust the size.  If the control is less
+--  -- than 30 pixels in the target size, then we stop shortening the ruler at 30.
+--  moveRuler(RealIdPos[1], RealIdPos[2])
+--  for i=1 to 2 do
+--      if RealIdPos[i]<30 then
+--          RealIdPos[i] = 30
+--      end if
+--  end for
+--  if Orientation=HORIZONTAL then
+--      setRulerLength(id_size[1])
+--  else
+--      setRulerLength(id_size[2])
+--  end if
+--
+--end procedure
+
+
+
+--^^New 2/1/2001^^---------------
+global procedure minimizeRuler()
+---------------------------------
+    --added test to minimize ruler only if it was opened
+    if isOpen then
+        Click_mniRulerMinimize(frmRuler,w32HClick,{})
+    end if
+
+end procedure

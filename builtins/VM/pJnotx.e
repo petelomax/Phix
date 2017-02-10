@@ -152,6 +152,7 @@ end procedure -- (for Edita/CtrlQ)
 ----        opJnotxe92b:                    -- exception here mapped to e94vhnbaavecxfeh [DEV merge these!]
 --          cmp rdi,r15
 --          je :e94vhnbaavecx
+--DEV :%pLoadMint
         :!opJnotxe92b                   -- exception here mapped to e94vhnbaavecxfeh
             cmp byte[rbx+rdi*4-1],0x12
             jne :e05sinaa0e10           -- subscript is not an atom [era @ [esp]]

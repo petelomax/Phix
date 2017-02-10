@@ -175,24 +175,27 @@ function dos_interrupt(integer int_num, register_list input_regs)
 end function
 --*/
 
-global function int_to_bytes(atom x)
--- returns value of x as a sequence of 4 bytes 
+global function int_to_bytes(atom x, integer size = 4)
+-- returns value of x as a sequence of bytes 
 -- that you can poke into memory 
 --      {bits 0-7,  (least significant)
 --       bits 8-15,
 --       bits 16-23,
 --       bits 24-31} (most significant)
 -- This is the order of bytes in memory on 386+ machines.
-integer a,b,c,d
-
-    a = remainder(x, #100)
-    x = floor(x/#100)
-    b = remainder(x, #100)
-    x = floor(x/#100)
-    c = remainder(x, #100)
-    x = floor(x/#100)
-    d = remainder(x, #100)
-    return {a,b,c,d}
+--integer a,b,c,d
+--
+--  a = remainder(x, #100)
+--  x = floor(x/#100)
+--  b = remainder(x, #100)
+--  x = floor(x/#100)
+--  c = remainder(x, #100)
+--  x = floor(x/#100)
+--  d = remainder(x, #100)
+--  return {a,b,c,d}
+atom mem = allocate(size,1)
+    pokeN(mem,x,size)
+    return peek({mem,size})
 end function
 
 --17/05/2010 (avoids opCallOnce)
@@ -202,29 +205,19 @@ end function
 --      minit = 0
 --atom mem
 
-global function bytes_to_int(sequence s)
--- converts 4-byte peek() sequence into an integer value
---  if mem=0 then mem = allocate(4) end if
-atom mem
---integer res
-atom res
---  if minit=0 then
-        mem = allocate(4)
---      minit = 1
---  end if
-    if length(s)!=4 then s = s[1..4] end if -- avoid breaking old code[??]
+global function bytes_to_int(sequence s, integer signed=1)
+-- converts a byte sequence such as that returned from peek() into an integer value.
+integer len = length(s)
+atom mem = allocate(len,1)
     poke(mem, s)
---  return peek4u(mem)
-    res = peek4u(mem)
-    free(mem)
-    return res
+    return peekNS(mem,len,signed)
 end function
 
 global function int_to_bits(atom x, integer nbits)
 -- Returns the low-order nbits bits of x as a sequence of 1's and 0's. 
 -- Note that the least significant bits come first. You can use 
--- and/or/not operators on sequences of bits. You can also subscript, 
--- slice, concatenate etc. to manipulate bits.
+-- sq_and/or/not operators on sequences of bits. You can also subscript, 
+-- slice, concatenate and so on to manipulate bits.
 sequence bits
 integer mask
 

@@ -284,7 +284,7 @@ integer tokstart, tokend
     return s[tokstart..tokend]
 end function
 
-global constant S32=1, S64=2
+--<global constant S32=1, S64=2
 
 -- a "long" is 32 bits on Windows64, but 64 bits on Linux64 (!!)
 constant L = iff(platform()=WINDOWS?4:8)
@@ -312,8 +312,9 @@ sequence SizeNames,SizeSigns,Sizes
                                                   {"uint64",    0,{8,8}},
 --                                                {"longdouble",1,{8,8}},       -- ambiguous!!!, see below
 --                                                {"flt80",     1,{10,10}},     -- maybe?
-                                                  {"ptr",       0,{4,8}},       -- (no point having ptr/uptr that I can think of)
-                                                  {"size_t",    0,{4,8}},
+-- made signed 28/12/16 (*2):
+                                                  {"ptr",       1,{4,8}},       -- (no point having ptr/uptr that I can think of)
+                                                  {"size_t",    1,{4,8}},
                                                   $})
 
 
@@ -492,7 +493,7 @@ sequence AltNames,AltSize
                                          {"USHORT",         as_ushort},
                                          {"WCHAR",          as_ushort},
                                          {"BOOL",           as_int},
-                                         {"HFILE",          as_int},
+                                         {"HFILE",          as_int},        -- (obsolete)
                                          {"INT",            as_int},
                                          {"INT32",          as_int},
                                          {"LONG32",         as_int},
@@ -673,7 +674,8 @@ string mname
         if convert_types then       -- (can be set via set_unicode)
             mtype = SizeNames[k]    -- (replaces eg "LONG" with "long")
         end if
-        size = Sizes[k][machine]
+--<     size = Sizes[k][machine]
+        size = Sizes[k][machine/32]
         align = size
         signed = SizeSigns[k]
     end if
@@ -683,9 +685,12 @@ string mname
             mname = stoken()
         end if
         mtype = "ptr"
-        size = Sizes[as_ptr][machine]
+--<     size = Sizes[as_ptr][machine]
+        size = Sizes[as_ptr][machine/32]
         align = size
         substruct = 0
+--28/12/16:
+        signed = 1
     end if
     return {mname,substruct,mtype,size,align,signed}
 end function
@@ -694,7 +699,8 @@ function parse_c_struct(integer struct, integer machine, integer base)
 --
 -- internal routine:
 --  struct is 1 for struct, 0 for union
---  machine is S32 or S64
+--< machine is S32 or S64
+--  machine is 32 or 64
 --  base is 0 from top level, non-zero for nested structs/unions.
 -- returns:
 --  {name,size,align,members,ptrnames}
@@ -843,11 +849,13 @@ sequence res
     return res
 end function
 
-global function define_struct(string struct_str, integer machine=0, integer add=1)
+--<?
+--global function define_struct(string struct_str, integer machine=0, integer add=1)
+global function define_struct(string struct_str, integer machine=machine_bits(), integer add=1)
 --
 -- The struct_str parameter is eg "typedef struct{LONG left; .. } RECT;"
 --  - note that without a "typedef", nothing gets stored permanantly.
--- The machine parameter can be set to S32 or S64, or (left) 0 for auto.
+-- The machine parameter can be set to 32 or 64, for testing purposes.
 -- The add parameter is set to 0 for testing (override/ignore "typedef")
 --
 -- If add is 1 and struct_str contains "typedef", the return value is a
@@ -860,13 +868,14 @@ global function define_struct(string struct_str, integer machine=0, integer add=
 string token
 integer typedef = 0
 sequence res
-    if machine=0 then
-        if machine_bits()=32 then
-            machine = S32
-        else
-            machine = S64
-        end if
-    end if
+--  if machine=0 then
+----<       if machine_bits()=32 then
+----            machine = S32
+----        else
+----            machine = S64
+----        end if
+--      machine = machine_bits()
+--  end if
     s = struct_str
     sidx = 1
     ch = s[1]
@@ -983,7 +992,8 @@ function define_c(object lib, string cdef, integer func, integer machine)
 --  lib can be a string or the non-0 atom result from open_dll().
 --  cdef is usually just copied from MSDN or similar.
 --  func is 0 or 1, from define_cffi_func/define_cffi_proc below.
---  machine can be set to S32 or S64, or (left) 0 for auto.
+--< machine can be set to S32 or S64, or (left) 0 for auto.
+--  machine can be set to 32 or 64.
 --
 -- NOTE: if there are ansi and unicode versions of the routine, you
 --  can edit the C definition to eg MessageBoxA or MessageBoxW, or
@@ -997,13 +1007,14 @@ integer substruct, size, align, signed, return_type, ptype
 integer rid
 
     args = {}
-    if machine=0 then
-        if machine_bits()=32 then
-            machine = S32
-        else
-            machine = S64
-        end if
-    end if
+--  if machine=0 then
+----<       if machine_bits()=32 then
+----            machine = S32
+----        else
+----            machine = S64
+----        end if
+--      machine = machine_bits()
+--  end if
     lib = open_lib(lib)
     s = cdef
     sidx = 1
@@ -1071,11 +1082,13 @@ integer rid
     return rid
 end function
 
-global function define_cffi_func(object lib, string cdef, integer machine=0)
+--<global function define_cffi_func(object lib, string cdef, integer machine=0)
+global function define_cffi_func(object lib, string cdef, integer machine=machine_bits())
     return define_c(lib,cdef,1,machine)
 end function
 
-global function define_cffi_proc(object lib, string cdef, integer machine=0)
+--<global function define_cffi_proc(object lib, string cdef, integer machine=0)
+global function define_cffi_proc(object lib, string cdef, integer machine=machine_bits())
     return define_c(lib,cdef,0,machine)
 end function
 

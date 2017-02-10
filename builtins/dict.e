@@ -46,6 +46,7 @@ procedure check(integer tid)
                 jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
               }
     end if
+    if not initd then dinit() end if
 end procedure
 
 global function new_dict(integer pool_only=0)
@@ -85,7 +86,6 @@ global procedure destroy_dict(integer tid, integer justclear=0)
 --       (equivalently) was the recent subject of a destroy_dict() call.
 --
     check(tid)
-    if not initd then dinit() end if
     if tid=1 or justclear then
         -- just empty the default, but leave it still available
         -- (this also means that new_dict() can never return 1)
@@ -184,7 +184,6 @@ end function
 
 global procedure setd(object key, object data, integer tid=1)
     check(tid)
-    if not initd then dinit() end if
     roots[tid] = insertNode(roots[tid], key, data, tid)
 end procedure
 
@@ -205,7 +204,6 @@ end function
 
 global function getd(object key, integer tid=1)
     check(tid)
-    if not initd then dinit() end if
     return getNode(roots[tid], key, tid)
 end function
 
@@ -221,13 +219,11 @@ end function
 
 global function getd_index(object key, integer tid=1)
     check(tid)
-    if not initd then dinit() end if
     return getKey(roots[tid], key, tid)
 end function
 
 global function getd_by_index(integer node, integer tid=1)
     check(tid)
-    if not initd then dinit() end if
     if node=0 then return 0 end if
     return trees[tid][node+DATA]
 end function
@@ -284,7 +280,6 @@ end function
 
 global procedure deld(object key, integer tid=1)
     check(tid)
-    if not initd then dinit() end if
     roots[tid] = deleteNode(roots[tid],key,tid)
 end procedure
 
@@ -306,15 +301,12 @@ end function
 
 global procedure traverse_dict(integer rid, object user_data=0, integer tid=1)
     check(tid)
-    if not initd then dinit() end if
     if roots[tid]!=0 then
         {} = traverse(roots[tid], rid, user_data, tid)
     end if
 end procedure
 
---DEV doc:
-global function dsize(integer tid=1)
+global function dict_size(integer tid=1)
     check(tid)
-    if not initd then dinit() end if
     return sizes[tid]
 end function

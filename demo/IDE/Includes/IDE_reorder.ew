@@ -1,0 +1,435 @@
+---- ide_reorder.ew
+-- reorder controls prior to MenuRun for win32lib ide
+
+integer ok
+global integer ReorderWindow   ReorderWindow = -1
+integer ReorderText,ReorderThisWindow,ReorderWinLabel
+integer ReorderControlLabel,ReorderMoveUp,ReorderMoveDown,ReorderList,ReorderOk
+integer ReorderCancel
+--------------------------------------------------------------------------------
+sequence menuAll     -- list order for all windows
+sequence menu        -- the list order for a particular window
+
+integer is_changed
+is_changed=w32False    --flag w32True when any changes have been made and check this
+                    --if user close editor without saving
+
+integer thisWindowIndex --the window having its controls ordered
+thisWindowIndex=1
+-----------------------------------------------------------------------------
+procedure updateReorderList( integer index )
+ 
+    sequence text
+
+    -- erase the list 
+    eraseItems( ReorderList )
+ 
+    for i = 1 to length( menu ) do 
+     
+        -- build the text
+        text = menu[i][4]
+
+        -- add to list
+        addItem( ReorderList, text )
+
+    end for
+
+    -- set list item      
+    if index then 
+       setIndex( ReorderList, index )
+       setText( ReorderControlLabel, menu[index][5] )
+    end if 
+     
+end procedure  
+----------------------------------------------------------------------------
+procedure ReorderList_Change (integer self, integer event, sequence params)
+
+    integer index 
+
+    index = getIndex( ReorderList )
+    if index then
+        setText( ReorderControlLabel, menu[index][5] )
+    else 
+        setText( ReorderControlLabel, "" )
+    end if
+
+end procedure
+-----------------------------------------------------------------------------
+global procedure savetheReorder( )
+    integer k
+
+    --update the window sequence
+    menuAll[thisWindowIndex]=menu
+
+    -- save changes in each controls TabOrder
+    for j=1 to length( menuAll ) do
+        menu=menuAll[j]
+        --save the new tab order in the menu sequence
+        for i=1 to length( menu ) do
+            menu[i][1]=i           
+        end for
+        menuAll[j]=menu
+    end for
+
+    --update windows sequence for IDE
+    for i=1 to length( menuAll ) do      --by window
+        menu=menuAll[i]
+        --zero out TabOrder counter as we will re-establish it below
+        counterInWindow=0
+        for j=1 to length( menu ) do     --controls for that window
+            --update each controls TabOrder attribute
+            k=menu[j][3]    --the order of this control in IDE
+            if windows[i][k][TabOrder] != menu[j][1] then
+            	userReorderControls=w32True
+            end if
+            windows[i][k][TabOrder]=menu[j][1]          
+            counterInWindow+=1
+        end for
+        if i=selectedWindow then        
+            controls=windows[i]
+        end if
+    end for 
+
+    --reset flag for subsequent changes
+    is_changed = w32False
+
+    IDE_Changed=w32True
+
+    call_proc( updateProperties_id,{} )
+
+end procedure                       
+savetheReorder_id=routine_id("savetheReorder")
+--------------------------------------------------------------------------------
+procedure ReorderWindow_Close ()
+
+    if is_changed then
+        ok = displayErrorMessage(152,{})
+        if ok=IDCANCEL then 
+           showWindow(ReorderWindow, SW_RESTORE)
+           returnValue(-1)
+           return 
+        elsif ok = IDYES then
+            savetheReorder()
+        end if
+    end if 
+
+    if validId(ReorderWindow) then
+        destroy(ReorderWindow)
+    end if
+    ReorderWindow = -1
+end procedure
+--------------------------------------------------------------------------------
+global procedure ReorderWindow_Open (integer self, integer event, sequence params)
+    
+    sequence ctrls, data, offsetdata, parent,holdControls
+    integer at, foundIt, flag
+
+    data={0,"",0,"","",""}
+
+    is_changed = w32False
+
+    --build the Window drop down
+    eraseItems( ReorderThisWindow )
+
+    -- copy all the controls to the menu array by window name
+    -- control order and control name
+
+    --update windows sequence with working controls sequence
+    flushControls()
+    
+    parent={}
+
+    --do not allow window, menus, popups, toolbar, status bar to be reordered
+    menuAll = {}
+    for i=1 to length( windows ) do
+        addItem( ReorderThisWindow, windows[i][1][Name] )
+        menu={}
+        ctrls=windows[i]
+                
+        for j=1 to length( ctrls ) do
+
+			if ctrls[j][AWindow] > 10 then				                          
+                data[1]=ctrls[j][TabOrder]              
+                data[2]=ctrls[1][Name]       --the window name
+                data[3]=j                    --IDE order in window
+                data[5]=ctrls[j][Title]
+                data[6]=""
+                --have a parent?
+                foundIt=w32False
+                if length( ctrls[j][ControlParent] ) then                
+                    parent=ctrls[j][ControlParent]	                    
+                    
+                    --reassign tab order?
+                    for k=1 to length( ctrls ) do
+                        if equal( ctrls[j][ControlParent], ctrls[k][Name] ) then
+                            if data[1]<ctrls[k][TabOrder] then                            
+                                data[1]=ctrls[k][TabOrder]+.001
+                            end if
+                            exit
+                        end if
+                    end for
+                  
+                    --get the direct parent not the highest parent
+                    --we have to play a game with controls
+    				--findSeqParentName routine uses 'controls' but we are using 'ctrls' so
+    				--save controls here and move ctrls to controls before findSeqParentName
+    				--and at end restore controls from holdControls
+                    if length(ctrls[j][SeqParentName]) then
+                        parent=ctrls[j][SeqParentName]
+						holdControls=controls
+						controls=ctrls                        
+                        flag=findSeqParentName(j)
+                        if flag then
+                            --reassign tab order?
+                            if data[1]<ctrls[flag][TabOrder] then                           
+                                data[1]=ctrls[flag][TabOrder]+.001
+                            end if
+                            if ctrls[j][TableCell] then                                                       	
+                            	--get table cells with its parent
+                                data[1]=ctrls[flag][TabOrder]+ctrls[j][TableCell]/100
+							end if                                
+                        end if
+						controls=holdControls                        
+                    end if
+
+                    data[6]=parent
+
+                    for k=1 to length( menu ) do
+                        if length(parent) then
+                            at = match( parent, menu[k][4] )
+
+                            if at
+                            and length( parent ) =
+                                    length( menu[k][4][at..length( menu[k][4] )] ) then
+                                offsetdata=repeat( '<',at+3 )
+                                data[4]=offsetdata & ctrls[j][Name]
+                                foundIt=w32True
+                                exit
+                            end if
+                        end if
+                    end for
+                    if not foundIt then
+                        data[4]=ctrls[j][Name]
+                    end if
+                else
+                    data[4]=ctrls[j][Name]       --the control's name
+                end if             
+                menu&={data}
+            end if
+        end for
+        --sort by tab order
+        menu=sort(menu)
+        menuAll&={menu}
+    end for
+
+    setIndex( ReorderThisWindow, selectedWindow )
+    setText( ReorderWinLabel, windows[selectedWindow][1][Title] )
+
+    --now build window1 menu
+    menu=menuAll[selectedWindow]
+    thisWindowIndex=selectedWindow
+
+    -- update the list
+    updateReorderList( 0 )
+
+end procedure
+openReorder_id = routine_id("ReorderWindow_Open")
+-------------------------------------------------------------------------------
+procedure change_ThisWindow(integer self, integer event, sequence params)
+
+    --save the new tab order in the menu sequence
+    for i=1 to length( menu ) do
+        menu[i][1]=i
+    end for
+
+    --and update the menu sequence for all the menus
+    menuAll[thisWindowIndex]=menu
+
+    thisWindowIndex=getIndex( ReorderThisWindow )
+    setText( ReorderWinLabel, windows[thisWindowIndex][1][Title] )
+
+    --now build window1 menu
+    menu=menuAll[thisWindowIndex]
+
+    menu=sort( menu )
+
+    updateReorderList(0)
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderWindow_Resize (integer self, integer event, sequence params)
+    -- adjust size of List and text label
+
+    sequence sizeEW, sizeEL   
+    integer heightEL
+
+    sizeEW   = getRect(ReorderWindow)
+    sizeEL   = getRect(ReorderList)
+    heightEL = sizeEW[4] - sizeEW[2] - 180 - 145 + floor(sizeEW[4] / 13)   
+    if heightEL < 145 then heightEL = 145 end if
+
+    setRect(ReorderText,10,10,params[2]-10,93,w32True)
+    setRect(ReorderList,12,180,params[2]-22,heightEL,w32True)
+
+    setText(ReorderText,IDEText[688][1])
+   
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderMoveUp_Click (integer self, integer event, sequence params)
+    -- move a item up
+    sequence s
+    integer index
+
+    -- is there an item selected?
+    index = getIndex( ReorderList )
+    if index > 1 then
+
+        --first test that the prior control is not this control's parent
+        --if it is abort the move with error message.
+        if length( menu[index][6] ) then
+            if match( menu[index][6], menu[index-1][4] ) then
+                --this is an error
+                ok=displayErrorMessage(153,{})
+                return
+            end if
+        end if
+
+
+        -- swap
+        s = menu[index-1]
+        menu[index-1] = menu[index]
+        menu[index] = s
+
+        is_changed=w32True
+
+        -- update the list
+        updateReorderList( index-1 )
+        
+    end if
+    
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderMoveUp_keyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then ReorderMoveUp_Click (ReorderMoveUp, w32HClick,{} ) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderMoveDown_Click (integer self, integer event, sequence params)
+    -- move a item down
+    sequence s, testname
+    integer index, foundIt, at
+ 
+    -- is there an item selected? 
+    index = getIndex( ReorderList )
+    if index > 0
+    and index < length( menu ) then 
+ 
+        --first test that the prior control is not this control's parent
+        --if it is abort the move with error message.
+        testname=menu[index][4]
+        foundIt=w32True
+        while foundIt do
+            foundIt=w32False
+            at=find( '<', testname )
+            if at then
+                testname=testname[1..at-1] & testname[at+1..length( testname ) ]
+                foundIt=w32True
+            end if
+        end while
+
+        if length( testname ) then
+            if match( testname, menu[index+1][6] ) then
+                --this is an error
+                ok=displayErrorMessage(154,{})
+                return
+            end if
+        end if
+
+        -- swap 
+        s = menu[index+1] 
+        menu[index+1] = menu[index] 
+        menu[index] = s
+
+        is_changed=w32True
+ 
+        -- update the list 
+        updateReorderList( index+1 )
+ 
+    end if 
+    
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderMoveDown_keyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then ReorderMoveDown_Click (ReorderMoveDown, w32HClick, {} ) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderOk_Click (integer self, integer event, sequence params)
+    
+    savetheReorder()
+
+    -- close the window 
+    closeWindow( ReorderWindow )
+    ReorderWindow_Close ()
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderOk_keyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then ReorderOk_Click (ReorderOk, w32HClick,{} ) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderCancel_Click (integer self, integer event, sequence params)
+    -- close the window
+    call_proc( updateProperties_id,{} )
+    closeWindow(ReorderWindow)
+    ReorderWindow_Close ()
+end procedure
+--------------------------------------------------------------------------------
+procedure ReorderCancel_keyPress (integer self, integer event, sequence params)
+    if params[1] = 13 then ReorderCancel_Click (ReorderCancel, w32HClick,{} ) end if
+end procedure
+--------------------------------------------------------------------------------
+global procedure createReorderwindow()
+if ReorderWindow = -1 then
+                                     --"Control Order"
+    ReorderWindow = createEx( Window, IDEText[683][1], Form, Default, Default,
+                    540, 370, {WS_DLGFRAME+WS_THICKFRAME}, 0 )
+    ReorderText = createEx( LText,"",ReorderWindow,
+                     10, 10, 520, 93, 0, 0 )
+    ReorderThisWindow = createEx ( DropDownList, "", ReorderWindow, 10, 104,
+                    200, 6*32, 0, 0 )
+    ReorderWinLabel = createEx( LText, "", ReorderWindow, 12, 130,
+                    200, 36, 0, 0 )    --make it deep to hold long titles
+    ReorderControlLabel = createEx (LText, "", ReorderWindow, 12, 160, 200, 20, 0, 0 )
+                                        --"Move Up"
+    ReorderMoveUp = createEx( PushButton, IDEText[684][1],
+                    ReorderWindow, 220, 104, 115, 28, 0, 0 )
+                                           --"Move Down"
+    ReorderMoveDown = createEx( PushButton, IDEText[685][1],
+                    ReorderWindow, 220, 140,115, 28, 0, 0 )
+    ReorderList = createEx( List, "", ReorderWindow, 12, 180, 450,
+                    125, w32or_all({LBS_NOINTEGRALHEIGHT}), 0 )
+                                     --"OK"
+    ReorderOk = createEx( PushButton, IDEText[686][1], ReorderWindow, 376,
+                    104, 88, 30, 0, 0 )
+                                        --"Cancel"
+    ReorderCancel = createEx( PushButton, IDEText[687][1], ReorderWindow,
+                     376, 140, 88, 30, 0, 0 )
+    --"Use this window to establish the order "
+    --                & "of controls by window for the output EX(W) file."
+    --                & " Order is order controls are on Window OR the last reordering by user."
+    --                & " Changing order does not alter the order of controls in Project View."
+    setText(ReorderText,IDEText[688][1])
+
+    setHandler(ReorderList, w32HChange, routine_id("ReorderList_Change"))
+    setHandler(ReorderWindow, w32HOpen, routine_id("ReorderWindow_Open"))
+    setHandler(ReorderThisWindow, w32HChange, routine_id("change_ThisWindow"))
+    setHandler(ReorderWindow, w32HResize, routine_id("ReorderWindow_Resize"))
+    setHandler(ReorderMoveUp, w32HClick, routine_id("ReorderMoveUp_Click"))
+    setHandler(ReorderMoveUp, w32HKeyPress, routine_id("ReorderMoveUp_keyPress"))
+    setHandler(ReorderMoveDown, w32HClick, routine_id("ReorderMoveDown_Click"))
+    setHandler(ReorderMoveDown, w32HKeyPress, routine_id("ReorderMoveDown_keyPress"))
+    setHandler(ReorderOk, w32HClick, routine_id("ReorderOk_Click"))
+    setHandler(ReorderOk, w32HKeyPress, routine_id("ReorderOk_keyPress"))
+    setHandler(ReorderCancel, w32HClick, routine_id("ReorderCancel_Click"))
+    setHandler(ReorderCancel, w32HKeyPress, routine_id("ReorderCancel_keyPress"))
+end if
+end procedure
+­268.40

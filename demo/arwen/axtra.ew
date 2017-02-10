@@ -1437,15 +1437,15 @@ constant xRectangle = link_c_func(gdi32,"Rectangle",{C_POINTER,C_INT,C_INT,C_INT
 constant xRoundRect = link_c_func(gdi32,"RoundRect",{C_POINTER,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},C_INT)
 
 --/*
-BOOL RoundRect(
-  _In_  HDC hdc,
-  _In_  int nLeftRect,
-  _In_  int nTopRect,
-  _In_  int nRightRect,
-  _In_  int nBottomRect,
-  _In_  int nWidth,         -- (try 5,5)
-  _In_  int nHeight
-);
+--  BOOL RoundRect(
+--    _In_  HDC hdc,
+--    _In_  int nLeftRect,
+--    _In_  int nTopRect,
+--    _In_  int nRightRect,
+--    _In_  int nBottomRect,
+--    _In_  int nWidth,         -- (try 5,5)
+--    _In_  int nHeight
+--  );
 --*/
 
 global procedure drawRectangleh(atom hdc, integer filled, integer xLeft, integer yTop, atom xRight, atom yBottom)
@@ -1559,33 +1559,34 @@ object ci
             createPen(hdc, colour)
 
         elsif length(ci) = 5 then
-            {filled,x1,y1,x2,y2} = ci
+--          {filled,x1,y1,x2,y2} = ci
+            filled = ci[1]
 --          setPenBrushColor(integer nBrushColor)
             createBrush(filled, hdc)
 --          createBrush(id, ci[1], hdc)
---          x1 = ci[2]
---          y1 = ci[3]
---          x2 = ci[4]
---          y2 = ci[5]
+            x1 = ci[2]
+            y1 = ci[3]
+            x2 = ci[4]
+            y2 = ci[5]
             void = c_func(xRectangle, {hdc, x1, y1, x2, y2})
 
         elsif length(ci) = 4 then
-            {x1,y1,x2,y2} = ci
---          x1 = ci[1]
---          y1 = ci[2]
---          x2 = ci[3]
---          y2 = ci[4]
+--          {x1,y1,x2,y2} = ci
+            x1 = ci[1]
+            y1 = ci[2]
+            x2 = ci[3]
+            y2 = ci[4]
             void = c_func(xMoveToEx, {hdc, x1, y1, NULL})
             void = c_func(xLineTo, {hdc, x2, y2})
 
         elsif length(ci) = 2 then
-            {x2,y2} = ci
+--          {x2,y2} = ci
 --          if x2 != -987654321 or y2 != -987654321 then
 --              x1 = x2
 --              y1 = y2
 --          end if
---          x2 = ci[1]
---          y2 = ci[2]
+            x2 = ci[1]
+            y2 = ci[2]
 
 --          -- move to the first point
 --          VOID = c_func(xMoveToEx, {hdc, x1, y1, NULL})
@@ -1748,33 +1749,36 @@ atom ppImage, pUINT, ppGraphics
 
 constant GDI_OK = 0
 --       GDI_BUSY = 4
-constant {gdi_code_descs,gdi_status_codes} = columnize({
-                                                        {"Ok",                          0},
-                                                        {"GenericError",                1},
-                                                        {"InvalidParameter",            2},
-                                                        {"OutOfMemory",                 3},
-                                                        {"ObjectBusy",                  4},
-                                                        {"InsufficientBuffer",          5},
-                                                        {"NotImplemented",              6},
-                                                        {"Win32Error",                  7},
-                                                        {"WrongState",                  8},
-                                                        {"Aborted",                     9},
-                                                        {"FileNotFound",                10},
-                                                        {"ValueOverflow",               11},
-                                                        {"AccessDenied",                12},
-                                                        {"UnknownImageFormat",          13},
-                                                        {"FontFamilyNotFound",          14},
-                                                        {"FontStyleNotFound",           15},
-                                                        {"NotTrueTypeFont",             16},
-                                                        {"UnsupportedGdiplusVersion",   17},
-                                                        {"GdiplusNotInitialized",       18},
-                                                        {"PropertyNotFound",            19},
-                                                        {"PropertyNotSupported",        20},
-                                                        {"ProfileNotFound",             21}})
+--constant {gdi_code_descs,gdi_status_codes} = columnize({
+constant gdi_stuff = columnize({
+                                {"Ok",                          0},
+                                {"GenericError",                1},
+                                {"InvalidParameter",            2},
+                                {"OutOfMemory",                 3},
+                                {"ObjectBusy",                  4},
+                                {"InsufficientBuffer",          5},
+                                {"NotImplemented",              6},
+                                {"Win32Error",                  7},
+                                {"WrongState",                  8},
+                                {"Aborted",                     9},
+                                {"FileNotFound",                10},
+                                {"ValueOverflow",               11},
+                                {"AccessDenied",                12},
+                                {"UnknownImageFormat",          13},
+                                {"FontFamilyNotFound",          14},
+                                {"FontStyleNotFound",           15},
+                                {"NotTrueTypeFont",             16},
+                                {"UnsupportedGdiplusVersion",   17},
+                                {"GdiplusNotInitialized",       18},
+                                {"PropertyNotFound",            19},
+                                {"PropertyNotSupported",        20},
+                                {"ProfileNotFound",             21}}),
+         gdi_code_descs = gdi_stuff[1],
+         gdi_status_codes = gdi_stuff[2]
 
 integer status
 procedure gdiwarn(string e)
-    {} = messageBox(e&" error",gdi_code_descs[find(status,gdi_status_codes)],MB_OK)
+    void = messageBox(e&" error",gdi_code_descs[find(status,gdi_status_codes)],MB_OK)
 end procedure
 
 procedure gdierror(string e)

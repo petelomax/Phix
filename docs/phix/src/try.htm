@@ -15,7 +15,7 @@ catch e
 end try 
 </pre>
 
- In addition there will also be a new builtin, throw(atom code). 
+In addition there will also be a new builtin, throw(see below). 
 
 The catch statement traps any exception within the try block or any routines it invokes that 
 is not first caught by another nested try/catch statement. <br>
@@ -23,6 +23,14 @@ Any exceptions that must be re-thrown must be done so manually.<br>
 Unlike other languages there is only one (non-optional) catch clause. <br>
 There are no confusing <i>classes</i> of exceptions, and no implicit
 filtering, and hence no unexpected leaks to the outside world.
+<br>
+<br>
+SUG: try[flag] - if the token immediately following the try keyword is '[', there follows a
+flag (compile-time-constant) that dictates whether the try is active. Actually scratch that,
+try..catch e "if flag then ?9/0 end if" fulfils the same need much simpler. (recommend that)
+The need, fyi, is that live software must be robust whereas developers should be notified of
+failures asap - and there should definately be warnings for "catch <do nothing> end try" - 
+at the very least you should quietly log the event, in >=9/10 cases.
 <br>
 <br>
 The exception variable is declared immediately after the catch keyword and is a sequence.<br>
@@ -118,7 +126,40 @@ A try statement with a finally block is executed by first executing the try bloc
 </pre>
 </small>
         Of course, each individual phrase/clause/statement is perfectly reasonable, however as a whole it is utterly incomprehensible, quite
-        literally almost impossible to remember, and hence extremely difficult to code correctly against. Maybe a flow chart would help. Or not.
+        literally almost impossible to remember, and hence extremely difficult to code correctly against. Much simpler:
+<pre>
+bool rethrow = False
+sequence esave
+try 
+   <block> 
+catch e 
+   ...
+   if <condition> then  -- (optional)
+      rethrow = True
+      esave = e
+   end if
+   ...
+end try 
+the <finally> block (containing another try block if necessary)
+if rethrow then
+   throw(esave)
+end if
+</pre>
+        Note that when another try block exists, whether esave is overwritten is entirely dependent on any condition (if any) explicitly 
+        coded within the secondary catch block, and indeed whether exceptions in the finally block are rethrown or quietly ignored is also 
+        completely your decision (provided that secondary/nested try block exists).
+        <br>
+        <br>
+        Technicalia:<br>
+        A new field is required in every frame on the call stack to contain the address of the exception handler. Obviously NULL means
+        there is no handler, but also the special value 1 means there is one somewhere lower down the stack (so we need to issue fake
+        opRetf until we reach it). opFrame will be responsible for setting that 0/1 on all new frames. I expect most of the support 
+        code will live in builtins\VM\pStack.e, plus FEH.e will also contain a quick test on the new field to decide whether to invoke 
+        ehandler or fehDiag.
+        <br>
+        <br>
+        Every try statement will create a new unnamed local temporary to faciliate the save/restore of the exception handler field, as
+        needed to cope with nested exception handlers.
       </div>
      </stripped>
     </get>

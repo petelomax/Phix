@@ -38,9 +38,10 @@ atom handle
 end function
 
 -- get handles to all dll routines that we need:
-constant user32 = link_c(0,"user32.dll",0,0),
-         gdi32 = link_c(0,"gdi32.dll",0,0),
-         winmm = link_c(0,"winmm.dll",0,0),
+constant
+    user32 = link_c(0,"user32.dll",0,0),
+    gdi32 = link_c(0,"gdi32.dll",0,0),
+    winmm = link_c(0,"winmm.dll",0,0),
     
 
 --/*
@@ -51,33 +52,41 @@ HICON WINAPI LoadIcon(
   _In_      LPCTSTR lpIconName
 );
 --*/           
-         xLoadIcon = link_c(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT),
-         xLoadCursor = link_c(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT),
-         xRegisterClassEx = link_c(user32, "RegisterClassExA", {C_POINTER}, C_INT),
-         xCreateWindow = link_c(user32, "CreateWindowExA", repeat(C_INT,12),C_INT),
-         xShowWindow = link_c(user32, "ShowWindow", {C_INT, C_INT},0),
-         xUpdateWindow = link_c(user32, "UpdateWindow", {C_INT},0),
-         xGetMessage = link_c(user32, "GetMessageA", {C_INT, C_INT, C_INT, C_INT}, C_INT),
-         xTranslateMessage = link_c(user32, "TranslateMessage", {C_INT},0),
-         xDispatchMessage = link_c(user32, "DispatchMessageA", {C_INT},0),
-         xPlaySound = link_c(winmm, "PlaySound", {C_INT, C_INT, C_INT},0),
-         xBeginPaint = link_c(user32, "BeginPaint", {C_INT, C_INT}, C_INT),
-         xGetClientRect = link_c(user32, "GetClientRect", {C_INT, C_INT},0),
-         xDrawText = link_c(user32, "DrawTextA", {C_INT, C_INT, C_INT, C_INT, C_INT},0),
-         xEndPaint = link_c(user32, "EndPaint", {C_INT, C_INT},0),
-         xSendMessage = link_c(user32,"SendMessageA",{C_POINTER,C_UINT,C_INT,C_INT},C_INT),
-         xPostQuitMessage = link_c(user32, "PostQuitMessage", {C_INT},0),
-         xDefWindowProc = link_c(user32, "DefWindowProcA", {C_INT, C_INT, C_INT, C_INT}, C_INT),
-         xSetTimer = link_c(user32, "SetTimer", {C_INT, C_INT, C_INT, C_INT},0),
-         xKillTimer = link_c(user32, "KillTimer", {C_INT, C_INT},0),
-         xGetDC = link_c(user32, "GetDC", {C_INT}, C_INT),
-         xReleaseDC = link_c(user32, "ReleaseDC", {C_INT, C_INT},0),
-         xMoveToEx = link_c(gdi32, "MoveToEx", {C_LONG, C_LONG, C_LONG, C_POINTER}, C_LONG),
-         xLineTo = link_c(gdi32, "LineTo", {C_LONG, C_LONG, C_LONG}, C_LONG),
-         xSelectObject = link_c(gdi32, "SelectObject", {C_LONG, C_LONG}, C_ULONG),
-         xCreatePen = link_c(gdi32, "CreatePen", {C_LONG, C_LONG, C_LONG}, C_LONG),
-         xGetStockObject = link_c(gdi32, "GetStockObject", {C_LONG}, C_LONG),
-         $
+--  xLoadIcon = link_c(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT),
+    xLoadIcon = link_c(user32, "LoadIconA", {C_HANDLE, C_PTR}, C_HANDLE),
+--  xLoadCursor = link_c(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT),
+    xLoadCursor = link_c(user32, "LoadCursorA", {C_HANDLE, C_PTR}, C_HANDLE),
+--  xRegisterClassEx = link_c(user32, "RegisterClassExA", {C_POINTER}, C_INT),
+    xRegisterClassEx = link_c(user32, "RegisterClassExA", {C_POINTER}, C_USHORT),
+--  xCreateWindow = link_c(user32, "CreateWindowExA", repeat(C_INT,12),C_INT),
+    xCreateWindowEx = link_c(user32, "CreateWindowExA",
+                             {C_DWORD,C_PTR,C_PTR,C_DWORD,
+                              C_INT,C_INT,C_INT,C_INT,
+                              C_HANDLE,C_HANDLE,C_HANDLE,C_PTR},
+                             C_HANDLE),
+    xShowWindow = link_c(user32, "ShowWindow", {C_HWND, C_INT},0),
+    xUpdateWindow = link_c(user32, "UpdateWindow", {C_HWND},0),
+    xGetMessage = link_c(user32, "GetMessageA", {C_PTR, C_HWND, C_UINT, C_UINT}, C_BOOL),
+    xTranslateMessage = link_c(user32, "TranslateMessage", {C_PTR},0),
+    xDispatchMessage = link_c(user32, "DispatchMessageA", {C_PTR},0),
+    xPlaySound = link_c(winmm, "PlaySound", {C_PTR, C_HANDLE, C_DWORD},0),
+    xBeginPaint = link_c(user32, "BeginPaint", {C_HWND, C_PTR}, C_HANDLE),
+    xGetClientRect = link_c(user32, "GetClientRect", {C_HWND, C_PTR},C_BOOL),
+    xDrawText = link_c(user32, "DrawTextA", {C_HANDLE, C_PTR, C_INT, C_PTR, C_UINT},0),
+    xEndPaint = link_c(user32, "EndPaint", {C_HWND, C_PTR},0),
+    xPostQuitMessage = link_c(user32, "PostQuitMessage", {C_INT},0),
+    xDefWindowProc = link_c(user32, "DefWindowProcA", {C_HWND, C_UINT, C_PTR, C_PTR}, C_PTR),
+    xSetTimer = link_c(user32, "SetTimer", {C_HWND, C_UINT, C_UINT, C_PTR},C_PTR),
+    xKillTimer = link_c(user32, "KillTimer", {C_HWND, C_PTR},C_BOOL),
+    xGetDC = link_c(user32, "GetDC", {C_HWND}, C_HANDLE),
+    xReleaseDC = link_c(user32, "ReleaseDC", {C_HWND, C_HANDLE},C_INT),
+    xMoveToEx = link_c(gdi32, "MoveToEx", {C_HANDLE, C_INT, C_INT, C_PTR}, C_BOOL),
+    xLineTo = link_c(gdi32, "LineTo", {C_HANDLE, C_INT, C_INT}, C_BOOL),
+    xSelectObject = link_c(gdi32, "SelectObject", {C_HANDLE, C_HANDLE}, C_HANDLE),
+    xCreatePen = link_c(gdi32, "CreatePen", {C_INT, C_INT, C_DWORD}, C_HANDLE),
+    xGetStockObject = link_c(gdi32, "GetStockObject", {C_INT}, C_HANDLE),
+    xSendMessage = link_c(user32,"SendMessageA",{C_HWND,C_UINT,C_PTR,C_PTR},0),
+    $
 
 constant X = 1, Y = 2, Z = 3
 
@@ -582,14 +591,16 @@ constant IDI_APPLICATION = 32512,
                                        WS_THICKFRAME, WS_MINIMIZEBOX, 
                                        WS_MAXIMIZEBOX})
          
-sequence big
-atom pPAINTSTRUCT, pRECT, pWAV
+string big, wav
+atom pPAINTSTRUCT, pRECT
+--, pWAV
 --, big_string
 --  ps = allocate(64)
     pPAINTSTRUCT = allocate_struct(idPAINTSTRUCT)
 --  rect = allocate(16) 
     pRECT = allocate_struct(idRECT) 
-    pWAV = allocate_string("\\Windows\\Media\\notify.wav")
+--  pWAV = allocate_string("\\Windows\\Media\\notify.wav")
+    wav = "\\Windows\\Media\\notify.wav"
     big = "Resize This Window!  "
     for i = 1 to 10 do
         big &= big  -- (ie repeats the above 1024 times, resulting in 22K of text)
@@ -608,34 +619,51 @@ global function WndProc(atom hwnd, atom iMsg, atom wParam, atom lParam)
     
     elsif iMsg = WM_PAINT then
         hdc = c_func(xBeginPaint, {hwnd, pPAINTSTRUCT})
-        c_proc(xGetClientRect, {hwnd, pRECT})
+        if hdc=NULL then
+            puts(1,"BeginPaint failed")
+            abort(1)
+        end if
+        if not c_func(xGetClientRect, {hwnd, pRECT}) then
+            puts(1,"GetClientRect failed")
+            abort(1)
+        end if
 --      c_proc(xDrawText, {hdc, big_string, -1, pRECT, DT_WORDBREAK})
         c_proc(xDrawText, {hdc, big, -1, pRECT, DT_WORDBREAK})
         c_proc(xEndPaint, {hwnd, pPAINTSTRUCT})
-        c_proc(xSetTimer, {hwnd, 1, 10, NULL})
+        if c_func(xSetTimer, {hwnd, 1, 10, NULL})=0 then
+            crash("SetTimer failed")
+        end if
         return 0
         
     elsif iMsg = WM_SIZE then
-        c_proc(xPlaySound, {pWAV,NULL,or_bits(SND_FILENAME, SND_ASYNC)})
+--      c_proc(xPlaySound, {pWAV,NULL,or_bits(SND_FILENAME, SND_ASYNC)})
+        c_proc(xPlaySound, {wav,NULL,or_bits(SND_FILENAME, SND_ASYNC)})
         xpixels = and_bits(lParam, #FFFF)
         ypixels = and_bits(lParam/#10000, #FFFF)
     
     elsif iMsg = WM_TIMER then
         hdc = c_func(xGetDC, {hwnd})
+        if hdc=NULL then
+            crash("GetDC failed")
+        end if
         -- make 5 iterations before giving control back to Windows
         for i = 1 to 5 do
 --      for i = 1 to 1 do -- looks better, but slower
             spin()
         end for
-        c_proc(xReleaseDC, {hwnd, hdc})
+        if c_func(xReleaseDC, {hwnd, hdc})=0 then
+            crash("ReleaseDC failed")
+        end if
         return 0
         
     elsif iMsg = WM_CHAR then
-        {} = c_func(xSendMessage,{hwnd,WM_CLOSE,0,0})
+        c_proc(xSendMessage,{hwnd,WM_CLOSE,0,0})
 
     elsif iMsg = WM_DESTROY then
         c_proc(xPostQuitMessage, {0})
-        c_proc(xKillTimer, {hwnd, 1})
+        if c_func(xKillTimer, {hwnd, 1})=0 then
+            crash("KillTimer failed")
+        end if
         return 0
         
     end if
@@ -645,7 +673,7 @@ end function
 
 procedure WinMain()
 -- main routine 
-atom szAppName, szCaption
+atom szAppName
 atom hwnd
 --atom msg
 atom pMSG
@@ -697,10 +725,9 @@ sequence cwp    -- CreateWindow params
         abort(1)
     end if
     -- CreateWindow parameters
-    szCaption = allocate_string("Phix winwire demo")
     cwp = { 0,                       -- extended style
             szAppName,               -- window class name
-            szCaption,               -- window caption
+            "Phix winwire demo",     -- window caption
             WS_OVERLAPPEDWINDOW,     -- window style
             CW_USE_DEFAULT,          -- initial x position
             CW_USE_DEFAULT,          -- initial y position
@@ -710,7 +737,7 @@ sequence cwp    -- CreateWindow params
             NULL,                    -- window menu handle
             0 ,                      -- hInstance // program instance handle
             NULL }                   -- creation parameters
-    hwnd = c_func(xCreateWindow, cwp)
+    hwnd = c_func(xCreateWindowEx, cwp)
     if hwnd = 0 then
         puts(1, "Couldn't CreateWindow\n")
         abort(1)
@@ -723,13 +750,12 @@ sequence cwp    -- CreateWindow params
         c_proc(xDispatchMessage, {pMSG})
     end while
     free(szAppName)
-    free(szCaption)
     free(pWndclass)
     free(pMSG)
 end procedure
 
 WinMain()
-free(pWAV)
+--free(pWAV)
 --free(big_string)
 free(pPAINTSTRUCT)
 free(pRECT) 

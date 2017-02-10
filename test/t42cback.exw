@@ -51,6 +51,7 @@
 --       to remove the e02atdb0 in cbhandler, and add some code to
 --       c_func to store strings/sequences/floats, but as things 
 --       stand, this rule (3) is quite strictly enforced.)
+--      (Update: it is now e80cbrna instead of e02atdb0, btw)
 --  4) C or asm code can however return whatever it likes, and that
 --      can be specified via define_c_func(). A possible enhancement
 --      is to code a second, optional, parameter to call_back() which
@@ -305,11 +306,10 @@ end if
 
 function allocate_codespace(integer len)
 atom res = allocate(len)
-    if machine_bits()=64 then
---  if 0 then
+    if machine_bits()=64
+    and platform()=WINDOWS then
         #ilASM{
-            [64]
---              mov rdi,[code_space]
+            [PE64]
                 mov rdi,[res]
                 mov r15,h4
                 cmp rdi,r15             -- (allocated memory)
@@ -317,10 +317,10 @@ atom res = allocate(len)
                     -- allocated addrs > #3FFFFFFF_FFFFFFFF get stored as 64-bit float:
                     sub rsp,8
                     fld tbyte[rbx+rdi*4]
-                    fistp qword[esp]
+                    fistp qword[esp]    -- (matches allocate handling, ie signed)
                     pop rdi
               @@:
-                -- Grant execute access (DEV would be better to allocate a single large block)
+                -- Grant execute access (DEV might be better to allocate a single large block)
                 mov rcx,rsp -- put 2 copies of rsp onto the stack...
                 push rsp
                 push rcx
@@ -380,7 +380,7 @@ else
 multiply_code = {
    -- 27/2/16 (arg2 in xmm1)
    -- int argument is at stack offset +8 (and rcx), double is in xmm1
-   #DB, #44, #24, #08,        -- fild  qword [esp+8]
+   #DB, #44, #24, #08,        -- fild qword [esp+8]
    #48, #83, #EC, #08,        -- sub rsp,8
    #F2, #0F, #11, #0C, #24,   -- movsd qword[rsp],xmm1
    #DC, #0C, #24,             -- fmul qword[rsp]

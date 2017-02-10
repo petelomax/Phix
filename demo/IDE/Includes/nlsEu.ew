@@ -1,0 +1,97 @@
+---------------------------------------------------------------------
+-- nlsEu.ew -- National Language Support from Windows for Euphoria --
+---------------------------------------------------------------------
+-- Any problem or some beters send me to < jirinemec@hotmail.com > --
+
+include dll.e
+include machine.e
+
+free_console()
+
+-- constants --------------------------------------------------------
+atom nlsDLLuser32, nlsDLLkernel32,
+     nlsDCFcompare, nlsDCFlower, nlsDCFupper,
+     nlsDCFgetacp, nlsDCFgetoem
+ nlsDLLuser32   = open_dll( "user32.dll" )
+ nlsDLLkernel32 = open_dll( "kernel32.dll" )
+ nlsDCFcompare  = define_c_func( nlsDLLkernel32, "CompareStringA", {C_LONG, C_LONG, C_POINTER, C_INT, C_POINTER, C_LONG}, C_INT)
+ nlsDCFlower    = define_c_func( nlsDLLuser32,   "CharLowerA",     {C_POINTER}, C_LONG)
+ nlsDCFupper    = define_c_func( nlsDLLuser32,   "CharUpperA",     {C_POINTER}, C_LONG)
+ nlsDCFgetacp   = define_c_func( nlsDLLkernel32, "GetACP",         {}, C_UINT)
+ nlsDCFgetoem   = define_c_func( nlsDLLkernel32, "GetOEMCP",       {}, C_UINT)
+
+-- global functions -------------------------------------------------
+
+global function nlsCompare( object o1, object o2, atom sw )
+----------------==========---------------------------------
+--       use system_default_locale setings
+--              sw is any combination from:
+--                             ignore case  NORM_IGNORECASE     = #00000001
+--            ignore nonspacing characters  NORM_IGNORENOSPACE  = #00000002
+--                          ignore symbols  NORM_IGNORESYMBOLS  = #00000004
+--   treat punctuation the same as symbols  SORT_STRINGSORT     = #00001000
+--
+--                    return    -1        0         +1     -2
+--                           o1 < o2   o1 = o2   o1 > o2   error on compare
+--
+sequence s1, s2, ss1, ss2
+atom sa1, sa2
+integer i, l1, l2
+ if atom( o1 ) then s1 = {} & o1 else s1 = o1 end if
+ if atom( o2 ) then s2 = {} & o2 else s2 = o2 end if
+ l1 = length( s1 )
+ l2 = length( s2 )
+ if l1 < l2 then    s1 = s1 & repeat( l2 - l1, 0 )
+ elsif l2 < l1 then s2 = s2 & repeat( l1 - l2, 0 )
+ end if
+ i = 0
+ for k = 1 to length( s1 ) do
+     if atom( s1[k] ) and atom( s2[k] ) then
+        ss1 = {} & s1[k]
+        ss2 = {} & s2[k]
+        sa1 = allocate_string( ss1 )
+        sa2 = allocate_string( ss2 )
+        i = c_func( nlsDCFcompare, { 0, sw, sa1, 1, sa2, 1 } ) - 2
+        free(sa1)
+        free(sa2)
+     else
+        i = nlsCompare( s1[k], s2[k], sw )
+     end if
+     if i != 0 then exit
+     end if
+ end for
+ return i
+end function
+
+global function nlsLower( object o )
+----------------========------------ return object with LowerCase
+object r
+ r = o
+ if atom( o ) then r = c_func( nlsDCFlower, { o } )
+ else for i = 1 to length( o ) do r[i] = nlsLower( o[i] )
+      end for
+ end if
+ return r
+end function
+
+global function nlsUpper( object o )
+----------------========------------ return object with UpperCase
+object r
+ r = o
+ if atom( o ) then r = c_func( nlsDCFupper, { o } )
+ else for i = 1 to length( o ) do
+          r[i] = nlsUpper( o[i] )
+      end for
+ end if
+ return r
+end function
+
+global function nlsGetACP()
+----------------=========-- return number Actual Code Page (Windows)
+ return c_func( nlsDCFgetacp, {} )
+end function
+
+global function nlsGetOEMCP()
+----------------===========-- return number OEM Code Page (DOS)
+ return c_func( nlsDCFgetoem, {} )
+end function

@@ -1,0 +1,97 @@
+--------------------NOTICE-------------------------------*
+-- Software ID: w32Start.ew
+-- Version:     0.70.4a
+-- Copyright:   (c) 2000 David Cuny and friends
+--              All rights reserved.
+-- Licence:
+-- This software is provided 'as-is', without any express or implied warranty.
+-- In no event will the authors be held liable for any damages arising from
+-- the use of this software.
+--
+-- Permission is granted to anyone to use this software for any purpose,
+-- including commercial applications, and to alter it and redistribute it
+-- freely, subject to the following restrictictions:
+-- 1. The origin of this software must not be misrepresented; you must not
+--    claim that you wrote the original software.
+-- 2. If you use this software in a product, acknowedgement in the product's
+--    documenation and binary are required.
+-- 3. Altered source versions, and works substantially derived from the it,
+--    must...
+--   a) be plainly be marked as such,
+--   b) not be misrepresented as the original software,
+--   c) include this notice, unaltered.
+--------------------End of NOTICE------------------------*
+
+
+--/topic Events
+--/incl w32Start (w32start.ew)
+--/desc This is an optional /i include file. It defines a default application callback routine
+-- and uses /startApp() with the application-defined "AppCallback" as the application's
+-- callback routine,  and the application-defined "main" routine as the
+-- application's start up routine.
+
+without warning
+integer vCB_rid
+integer vOk
+
+--/topic Events
+--/proc AppCallback(integer self, integer event, sequence parms)
+--/desc An application specific callback routine used by win32lib.
+--This is an optional routine that if defined, must be a /b global routine
+--in your Win32Lib application. It is used by the /i include file /b "w32start.ew" /n
+--
+--It is called by Win32Lib when the library needs some details from the application.
+--
+--see /setCallback for more details.
+--
+--Example:
+--/code
+--  procedure AppCallback(integer self, integer event, sequence parms)
+--      if event = w32HGetHandler then
+--          -- parms[1] is the standard routine handler name
+--          -- in the form <eventname>_<controlname>
+--          -- eg. Click_PushBtn
+--          -- parms[2] is the event code to be handled
+--          -- eg. w32HClick
+--          -- parms[3] is the control's name
+--          if match("About", parms[3]) then
+--              returnValue(routine_id(parms[1]))
+--          else
+--              -- Non standard naming
+--              returnValue(routine_id("menu_item_selected" ))
+--          end if
+--      end if
+--  end procedure
+--/endcode
+
+
+--/topic Events
+--/func main(sequence pArgs)
+--/desc An optional application routine, called within /w32start.ew just prior to Windows gaining control.
+--/ret INTEGER: 0 if you want the app to start, otherwise anything else will abort.
+--This is an optional routine that you can define in your application. If you
+-- do, it is called by the /i include file /b "w32start.ew" just prior to passing
+-- control to Windows. /n
+--It is passed the output of the command_line() routine. /n
+--If it returns a zero, then the application will start up. Anything else
+-- will cause the application to abort.
+
+
+-- Define my local version of handler callback routine (a vanilla operation).
+global procedure Callback(integer self, integer event, sequence parms)
+    integer p
+
+    if event = w32HGetHandler then       
+        p = w32routine_id(parms[1])
+        if p<0 then
+            p = routine_id(parms[1])
+            registerRoutine(parms[1],p)
+        end if
+        returnValue(w32routine_id(parms[1]))
+    end if
+end procedure
+
+-- I have to use this constant to get around a bug in bindw,
+-- otherwise the local Callback routine is deleted by bindw.
+constant x = routine_id("Callback")
+startApp({routine_id("AppCallback"), x, routine_id("main")})

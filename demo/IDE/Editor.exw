@@ -1,0 +1,2600 @@
+--#withtype seq
+without warning
+include Win32Lib.ew
+include w32support.e
+setWarning(0)
+--syntax wants to know working dir from the_current_dir
+global sequence the_current_dir
+the_current_dir = current_dir()
+
+global integer doingFind    doingFind = False
+
+sequence cmdparams, testParam, subparams
+integer at
+object d
+
+    cmdparams = command_line()
+    if length(cmdparams)>1 then
+        --check the directory of Editor.exw
+        subparams = cmdparams[2]
+        --if start without extension (e.g. from Start/run)
+        subparams = reverse(subparams)
+        at = find('.',subparams)
+        subparams = reverse(subparams)
+        if not at then
+            subparams &= ".exw"
+        end if
+        --get the long name if there is one
+        d = dir(subparams)
+        if not atom(d) then
+            --find the path
+            for i=length(subparams) to 1 by -1 do
+                if subparams[i]='\\' then
+                    subparams = subparams[1..i] & d[1][D_NAME]
+                    exit
+                end if
+            end for
+        end if
+
+        --check the directory of editor.exw
+        testParam = reverse(subparams)
+        at = find('\\', testParam)
+        if at then
+            testParam = testParam[at+1..length(testParam)]
+            the_current_dir = reverse(testParam)
+        end if
+    end if
+--------------------------------------------------------------------------------
+-- global routine to display messages
+--------------------------------------------------------------------------------
+sequence MsgNos         MsgNos = {}
+global sequence IDEText        IDEText = {}
+sequence TheLanguages   TheLanguages = {}
+
+global function displayErrorMessage(integer number, object param)
+integer ok
+    ok = message_box(sprintf(MsgNos[number][1],param),MsgNos[number][2],MsgNos[number][3])
+    return ok
+end function
+
+constant cfgWin32libDocs = 7,
+         cfgHintStatusBar = 13,
+         cfgHintDisabled = 14,
+         cfgNoEditorBackup = 41,
+         cfgLangPref = 45,
+         cfgNoEditorAutoComplete = 47,
+         cfgHideGutter = 51,
+--       cfgAutoSave=56,
+         cfgEditorOpen = 62,
+-- use maxSlots as highest slot number used by Editor
+         maxSlots = 62
+
+sequence Win32libDocs
+Win32libDocs = {}
+
+integer cfg_MenuCodeBackUp          cfg_MenuCodeBackUp = True
+integer cfg_MenuAutoComplete        cfg_MenuAutoComplete = True
+integer cfg_MenuHintsStatus         cfg_MenuHintsStatus = False
+integer cfg_MenuIgnoreHints         cfg_MenuIgnoreHints = True
+integer cfg_HideGutter              cfg_HideGutter = False
+integer cfg_EditorOpen              cfg_EditorOpen = False
+integer cfg_EditorOpenPosX          cfg_EditorOpenPosX = 0
+integer cfg_EditorOpenPosY          cfg_EditorOpenPosY = 0
+integer cfg_EditorOpenSizeCX        cfg_EditorOpenSizeCX = 0
+integer cfg_EditorOpenSizeCY        cfg_EditorOpenSizeCY = 0
+
+---------------------------------------------------------------------------------
+--      establish error messages and Window translations in requested language
+---------------------------------------------------------------------------------
+
+procedure loadLanguagePreference(sequence lang)
+sequence fileName, thedata
+integer handle, ok
+
+    fileName = the_current_dir & "\\Languages\\" & lang & ".lng"
+    handle = open(fileName, "r")
+    if handle= -1 then
+        ok = message_box("Can not open Language file " & fileName,"",16)
+        return
+    end if
+    thedata = get(handle)
+    if thedata[1]!=GET_SUCCESS then
+        ok = message_box("Can not read data from " & fileName,"",16)
+        return
+    end if
+    MsgNos = thedata[2][1]
+    IDEText = thedata[2][2]
+    close(handle)
+end procedure
+
+
+sequence ConfigFile
+integer fn, ok, ignore, haveEnglish
+object line
+
+    --find any languages in IDE\Languages folder
+    haveEnglish = False
+    d = dir(the_current_dir & "\\Languages")
+    if atom(d) then
+        --there are no languages;should have English.lng!
+        ok = message_box("You have removed English.lng form IDE\\Languages and not "
+                         & "replaced with any others. Editor may not continue.","",0)
+        abort(1)
+    else
+        for i=1 to length(d) do
+            at = match(".lng",lower(d[i][D_NAME]))
+            if at then
+                TheLanguages &= {d[i][D_NAME][1..at-1]}
+                if equal(TheLanguages[length(TheLanguages)], "English") then
+                    --in case error in opening/reading cfg file
+                    haveEnglish = True
+                    loadLanguagePreference("English")
+                end if
+            end if
+        end for
+    end if
+
+    ConfigFile = the_current_dir & "\\Files\\IDE.cfg"
+    -- open the file and find language user prefers
+    fn = open(ConfigFile, "r")
+    if fn!= -1 then
+        line = get(fn)
+        if line[1]=GET_FAIL then
+            if haveEnglish then
+                ok = displayErrorMessage(49,{})
+            else
+                ok = message_box("can not read " & ConfigFile
+                                 & " and you do not have English.lng. "
+                                 & "Editor can not continue","",16)
+                abort(1)
+            end if
+        end if
+        line = line[2]
+        close(fn)
+        if length(line)=43 then
+            --conform to IDE v0.16.0
+            line &= {"CopyIndexActive"}
+        end if
+        if length(line)=44 then
+            --conform to IDE v0.17.0
+            line &= {{"LanguagePref","English"}}
+            line &= {{"RegisterStyle",{"LBS_NOINTEGRALHEIGHT","PBS_VERTICAL"}}}
+        end if
+        if length(line)=50 then
+            line &= {""}
+        end if
+        if length(line)=51 then
+            line &= {""}
+        end if
+        if length(line)=55 then
+            line &= {0}
+        end if
+        if length(line)=61 then
+            line = append(line,{0,0,0,0,0})
+        end if
+
+        if length(line)<maxSlots then
+            if haveEnglish then
+                ignore = displayErrorMessage(150,{maxSlots,length(line)})
+            else
+                ignore = message_box("Your IDE.cfg is out of date. "
+                                     & "Editor can not continue. Please run convertIDEcfg.exw.","",16)
+            end if
+            abort(1)
+        end if
+        if length(line[cfgWin32libDocs]) then
+            if equal(line[cfgWin32libDocs][1], "Win32libDocs") then
+                Win32libDocs = line[cfgWin32libDocs][2]
+            end if
+        end if
+        if equal(line[cfgLangPref][1], "LanguagePref") then
+            at = find(line[cfgLangPref][2],TheLanguages)
+            if at then
+                loadLanguagePreference(TheLanguages[at])
+            else
+                ok = displayErrorMessage(223,{the_current_dir & "\\Languages"})
+                if haveEnglish then
+                    line[cfgLangPref][2] = "English"
+                    loadLanguagePreference("English")
+                else
+                    ok = message_box("your prefered language is not found in IDE\\Languages "
+                                     & "and you have removed English.lng. Editor can not continue","",16)
+                    abort(1)
+                end if
+            end if
+        end if
+        if equal(line[cfgNoEditorBackup], "noEditorBackUp") then
+            cfg_MenuCodeBackUp = False
+        end if
+
+        if equal(line[cfgNoEditorAutoComplete], "noEditorAutoComplete") then
+            cfg_MenuAutoComplete = False
+        end if
+        if equal(line[cfgHintStatusBar], "HintStatusBar") then
+            cfg_MenuHintsStatus = True
+        end if
+        if equal(line[cfgHintDisabled], "HintDisabled") then
+            cfg_MenuIgnoreHints = False
+        end if
+        if equal(line[cfgHideGutter], "HideGutter") then
+            cfg_HideGutter = True
+        end if
+        if line[cfgEditorOpen][1]=1 then
+            cfg_EditorOpen = 1
+        elsif line[cfgEditorOpen][1]=2 then
+            cfg_EditorOpen = 2
+            cfg_EditorOpenPosX = line[cfgEditorOpen][2]
+            cfg_EditorOpenPosY = line[cfgEditorOpen][3]
+            cfg_EditorOpenSizeCX = line[cfgEditorOpen][4]
+            cfg_EditorOpenSizeCY = line[cfgEditorOpen][5]
+        else
+            cfg_EditorOpen = 0
+        end if
+
+        close(fn)
+    else
+        ok = message_box("Can not open " & ConfigFile & " Editor can not continue","",16)
+        abort(1)
+    end if
+
+--------------------------------------------------------------------------------------
+object euDir
+euDir = getenv("EUDIR")
+    if atom(euDir) then
+--DEV PL
+--/**/  euDir = "."
+--/*
+        ok=displayErrorMessage(238,{})
+--*/
+    end if
+
+global integer jump_rid jump_rid = -1
+integer VOID
+VOID = setLVInsert(1)       --ListView inserts in order added
+integer titleBar, menuBar
+titleBar                    = getSystemMetrics(SM_CYCAPTION)
+menuBar                     = getSystemMetrics(SM_CYMENU)
+
+global integer closedUp closedUp = False
+global sequence localKeywords   localKeywords = {""}
+global sequence ceKeywords      ceKeywords = {""}
+global sequence controlNameKeywords      controlNameKeywords = {""}
+integer EscLineNumber, EscLineColumn, F1Column
+        EscLineNumber = 0 EscLineColumn = 0 F1Column = 0
+
+include Includes\IDE_Syntax.ew
+include Includes\PrtRoutines.ew
+include Includes\process.ew
+include Includes\ide_hints.e
+
+-- register shell about function
+constant
+synShellAbout   = registerw32Procedure(shell32, "ShellAboutA", {C_POINTER,C_POINTER,C_POINTER,C_POINTER})
+
+-- register controls with win32lib
+global constant
+MainWin     = createEx(Window, IDEText[1][1], NULL, 0.25, 0.25, 0.5, 0.5, or_all({WS_CLIPCHILDREN,WS_CLIPSIBLINGS}),0)
+constant
+Highlight       = Syntax2(MainWin, 0, 0, 1, 1, {WS_CHILD,WS_VISIBLE,WS_CLIPCHILDREN,WS_CLIPSIBLINGS}, WS_EX_CLIENTEDGE),
+rebar           = createEx(ReBar, "", MainWin, 0, 0, 1, 1, #40, 0),
+band            = createEx(ReBarBand, "", rebar, 0, 0, 1, 1, 0, 0),
+toolbar         = createEx(ToolBar, "", rebar, 0, 0, 1, 30, {CCS_TOP,CCS_NORESIZE,WS_CHILD,WS_VISIBLE,WS_CLIPSIBLINGS}, 0),
+ToolPush1       = createEx(PictureButton, "", toolbar, 0, 3, 25, 25, 0, 0),
+ToolPush2       = createEx(PictureButton, "", toolbar, 25, 3, 25, 25, 0, 0),
+ToolPush3       = createEx(PictureButton, "", toolbar, 50, 3, 25, 25, 0, 0),
+ToolPush4       = createEx(PictureButton, "", toolbar, 75, 3, 25, 25, 0, 0),
+ToolPush5       = createEx(PictureButton, "", toolbar, 110, 3, 25, 25, 0, 0),
+ToolPush6       = createEx(PictureButton, "", toolbar, 145, 3, 25, 25, 0, 0),
+ToolPush7       = createEx(PictureButton, "", toolbar, 170, 3, 25, 25, 0, 0),
+ToolPush8       = createEx(PictureButton, "", toolbar, 195, 3, 25, 25, 0, 0),
+ToolPush9       = createEx(PictureButton, "", toolbar, 230, 3, 25, 25, 0, 0),
+ToolPush10      = createEx(PictureButton, "", toolbar, 255, 3, 25, 25, 0, 0),
+Status          = createEx(StatusBar, "", MainWin, 0, 0, 1, 1, 0, 0),
+
+File        = createEx(Menu, IDEText[2][1], MainWin, 0, 0, 0, 0, 0, 0),
+New         = createEx(MenuItem, IDEText[3][1], File, 0, 0, 0, 0, 0, 0),
+Open        = createEx(MenuItem, IDEText[4][1], File, 0, 0, 0, 0, 0, 0),
+Save        = createEx(MenuItem, IDEText[5][1], File, 0, 0, 0, 0, 0, 0),
+SaveAs      = createEx(MenuItem, IDEText[6][1], File, 0, 0, 0, 0, 0, 0),
+Sep1        = createEx(MenuItem, "-", File, 0, 0, 0, 0, 0, 0),
+Print       = createEx(MenuItem, IDEText[7][1], File, 0, 0, 0, 0, 0, 0),
+Sep2        = createEx(MenuItem, "-", File, 0, 0, 0, 0, 0, 0),
+Exit        = createEx(MenuItem, IDEText[8][1], File, 0, 0, 0, 0, 0, 0),
+
+Edit        = createEx(Menu, IDEText[9][1], MainWin, 0, 0, 0, 0, 0, 0),
+Undo        = createEx(MenuItem, IDEText[10][1], Edit, 0, 0, 0, 0, 0, 0),
+Sep3        = createEx(MenuItem, "-", Edit, 0, 0, 0, 0, 0, 0),
+Cut         = createEx(MenuItem, IDEText[11][1], Edit, 0, 0, 0, 0, 0, 0),
+Copy        = createEx(MenuItem, IDEText[12][1], Edit, 0, 0, 0, 0 ,0 ,0),
+Paste       = createEx(MenuItem, IDEText[13][1], Edit, 0, 0, 0, 0, 0, 0),
+Sep4        = createEx(MenuItem, "-", Edit, 0, 0, 0, 0, 0, 0),
+SelectAll   = createEx(MenuItem, IDEText[14][1], Edit, 0, 0, 0, 0, 0, 0),
+Sep5        = createEx(MenuItem, "-", Edit, 0, 0, 0, 0, 0, 0),
+BlockIndent = createEx(MenuItem, IDEText[976][1], Edit, 0, 0, 0, 0, 0, 0),
+BlockUnindent = createEx(MenuItem, IDEText[1017][1], Edit, 0, 0, 0, 0, 0, 0),
+BlockComment = createEx(MenuItem, IDEText[977][1], Edit, 0, 0, 0, 0, 0, 0),
+Search      = createEx(Menu, IDEText[15][1], MainWin, 0, 0, 0, 0, 0, 0),
+Goto        = createEx(MenuItem, IDEText[16][1], Search, 0, 0, 0, 0, 0, 0),
+FindRep     = createEx(MenuItem, IDEText[17][1], Search, 0, 0, 0, 0, 0, 0),
+
+MenuHints           = createEx(Menu, IDEText[18][1], MainWin, 0, 0, 0, 0, 0, 0),
+MenuIgnoreHints     = createEx(MenuItem,IDEText[19][1], MenuHints, 0, 0, 0, 0, 0, 0),
+MenuHintsStatus     = createEx(MenuItem, IDEText[20][1], MenuHints, 0, 0, 0, 0, 0, 0),
+
+MenuRunRun          = createEx(Menu, IDEText[21][1], MainWin, 0, 0, 0, 0, 0, 0),
+MenuRun             = createEx(MenuItem, IDEText[22][1], MenuRunRun, 0, 0, 0, 0, 0, 0),
+
+MenuOpt             = createEx(Menu, IDEText[23][1],MainWin, 0, 0, 0, 0, 0, 0),
+MenuHotKeys         = createEx(MenuItem, IDEText[24][1], MenuOpt, 0, 0, 0, 0, 0, 0),
+MenuEditorOption    = createEx(MenuItem,IDEText[25][1], MenuOpt, 0, 0, 0, 0, 0, 0),
+MenuBackUp          = createEx(MenuItem, IDEText[26][1], MenuOpt, 0, 0, 0, 0, 0, 0),
+MenuAutoComplete    = createEx(MenuItem, IDEText[813][1], MenuOpt, 0, 0, 0, 0, 0, 0),
+MenuHideGutter      = createEx(MenuItem, IDEText[985][1], MenuOpt, 0, 0, 0, 0, 0, 0),
+MenuEditorOpen          = createEx(Menu, IDEText[47][1], MenuOpt, 0, 0, 0, 0, 0, 0),
+MenuEditorOpen1         = createEx(MenuItem, IDEText[74][1], MenuEditorOpen, 0, 0, 0, 0, 0, 0),
+MenuEditorOpen2         = createEx(MenuItem, IDEText[76][1], MenuEditorOpen, 0, 0, 0, 0, 0, 0),
+MenuEditorOpen3         = createEx(MenuItem, IDEText[77][1], MenuEditorOpen, 0, 0, 0, 0, 0, 0),
+LaunchMenu          = createEx(Menu, IDEText[27][1], MainWin, 0, 0, 0, 0, 0, 0),
+RunItem             = createEx(MenuItem, IDEText[28][1], LaunchMenu, 0, 0, 0, 0, 0, 0),
+LaunchSep1          = createEx(MenuItem, "-", LaunchMenu, 0, 0, 0, 0, 0, 0),
+EditLaunchItem      = createEx(MenuItem, IDEText[29][1], LaunchMenu, 0, 0, 0, 0, 0, 0),
+LaunchSep2          = createEx(MenuItem, "-", LaunchMenu, 0, 0, 0, 0, 0, 0),
+
+About               = createEx(Menu, IDEText[30][1], MainWin, 0, 0, 0, 0, 0, 0),
+AboutSyn            = createEx(MenuItem, IDEText[31][1], About, 0, 0, 0, 0, 0, 0),
+
+-- Hint window
+HintWin             = createEx(Window, "", 0, Default, Default, 600, 30, {WS_THICKFRAME+WS_POPUP}, WS_EX_TOPMOST),
+RichHint            = createEx(RichEdit, "", HintWin, 0, 0, 580, 30, ES_READONLY, 0)
+
+    if cfg_EditorOpen=1 then
+        setCheck(MenuEditorOpen1, w32True)
+    elsif cfg_EditorOpen=2 then
+        setCheck(MenuEditorOpen2, w32True)
+    else
+        setCheck(MenuEditorOpen3, w32True)
+    end if
+
+    --set switch in Syntax that says when F1 and add or delete lines prior to the Esc line number to adjust the Esc line number
+    adjustEscLineNumber(w32True)
+
+    --  Window RegisterHotKeyWin
+integer IDEok
+sequence IDElvItems
+sequence IDElvData
+integer IDElvItemNo
+atom lvMask
+integer lvOk
+sequence LVSelected
+integer RegisterHotKeyWin    RegisterHotKeyWin = -1
+integer HotKeyLV
+integer EditAction
+integer ChangeButton
+integer DeleteButton
+integer CreateNewFileButton
+integer OkButton
+integer HotKeySearch
+integer HotKeyFileName
+integer HotKeyMakeDefault
+integer LText2FKey
+integer LTextFKey
+integer EditKey
+object LVDataIndex
+integer index
+integer currentMakeDefault             currentMakeDefault = True
+sequence currentHotKeyFileName         currentHotKeyFileName = {}
+sequence HotKeyText
+HotKeyText = {{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""},{""}}
+
+setCheck(MenuIgnoreHints, cfg_MenuIgnoreHints)
+setCheck(MenuBackUp, cfg_MenuCodeBackUp)
+setCheck(MenuAutoComplete, cfg_MenuAutoComplete)
+setCheck(MenuHintsStatus, cfg_MenuHintsStatus)
+setCheck(MenuHideGutter, cfg_HideGutter)
+synAutoComplete(cfg_MenuAutoComplete)
+synSetCurrentFolder(current_dir())
+synSetLocalCase(True)  --set "Files" to color
+------------------------------------------------------------------
+--                                              TAIL ACCESS                                                             --
+------------------------------------------------------------------
+
+--              19 June 2007            Andy Drummond
+
+--      This routine will read and write a tail-string
+--      from or to a "normal" text file.  This tail string is saved
+--      after the 1A text terminator in the file, with an extra character
+--      just to show that the extra stuff is a tail not just crud.
+--      Not all text viewers/editors detect the 1A terminator; it is a
+--      hangover from DOS days when binary files were an integral number
+--      of sectors. These days the file can be any length and so some
+--      (if not all) editors consider everything they read as valid text.
+--      Euphoria, being nice, stops on the 1A character. It may be that
+--      Windows will stop writing to disk in text mode when the EOT is detected.
+
+constant LF             =       10              -- Line feed
+constant CR             =       13              -- Carriage return - good old ASR33 TTY days!
+constant EOT    =       26              -- End of Text (defined by DOS in olden days)
+constant SOT    =       173             -- Start of Tail (defined by AFD 19 June 2007!)
+
+--      Call this with a null tail and it will return any existing tail string,
+--      Call with a tail string and it will write that string and return True.
+--      Return w32False if it failed for any reason, w32True if a tail has been
+--      written, or the current tail if that has been requested.
+
+function  accessTail(seq filename, seq tail)
+object contents,d
+integer fh, len, eot
+
+    contents = dir(filename)                -- Find out about file
+
+    if not sequence(contents) then
+        if contents= -1 then
+            return w32False                 --> Can't find file entry - odd??
+        end if
+    end if
+
+    len = contents[1][D_SIZE]               -- Get length from dir entry
+
+    fh = open(filename, "rb")               -- Open file to read contents
+
+    if fh= -1 then
+        return w32False                         --> Can't open file - odd??
+    end if
+
+    contents = get_bytes(fh, len)   -- Get contents in one go
+    close(fh)
+
+    eot = find(EOT, contents)               -- Find text EOT character
+
+    if length(tail)=0 then              -- If this is a "get tail" call
+        if eot=0 then
+            return w32False                 --> No EOT? No tail!
+        end if
+
+        if length(contents)<(eot+2) or contents[eot+1]!=SOT then
+            return w32False                 --> No SOT? No tail!
+        end if
+
+        return contents[eot+2..$]       -- Return any tail already there        
+    end if
+
+    if eot=0 then                               -- If file didn't have an EOT on the end ...
+        if contents[$]!=LF then     -- If it didn't end CR-LF then append that
+            contents &= {CR, LF}
+            len += 2
+        end if
+
+        eot = len+1                                     --  then make length as if it had had one
+    end if
+
+    --can't add last cursor position to read only file
+    d = dir(filename)
+    for y=1 to length(d) do
+        if match("r", d[y][D_ATTRIBUTES]) then
+            return w32False
+        end if
+    end for
+
+    fh = open(filename,"wb")                --  Re-open file to write
+                                                                        --      Write original data PLUS SOT and tail
+                                                                        --  (Data-EOT plus EOT & SOT plus tail)
+    puts(fh, contents[1..eot-1] & {EOT,SOT} & tail)
+    close(fh)                                               -- Done!
+    return w32True
+end function
+----------------------------------------------------------------------------------
+--                                Launcher declarations                        
+----------------------------------------------------------------------------------
+global integer LaunchItemId
+
+-- fieldnames of AppFiles, partly IDElvItems
+global constant
+L_AppItem            = 1,
+L_AppItemId          = 2,
+L_AppTitle           = 3,
+L_AppFileName        = 4,
+L_AppHotkey          = 5,
+L_AppStartDir        = 6,
+L_AppArgs                    = 7
+
+global constant AppFields = 7
+
+global object AppFiles
+AppFiles = repeat({{},{},{},{},{},{},{}},10)
+
+integer doingHints      --currently checking for hint param to color
+doingHints  = False
+integer HintCurY,       --location of cursor in hints params in editor
+        HintCurX
+HintCurY    = 0
+HintCurX    = 1
+
+sequence hintLoc        --where hint was last positioned
+hintLoc = {}
+
+integer modifyTheHint_id    --call back
+
+sequence HintWord       --last hint word used
+HintWord = {}
+integer HintIndex       --index of params into Hint
+HintIndex = 0
+sequence HintText       --last hint word text used
+HintText = {}
+sequence hintColors     --standard colors
+sequence colorTable     --parsed hintColors for RichEdit control
+integer positionHint
+positionHint = True
+
+sequence OpenFileName, shortFileName
+OpenFileName = {}
+
+object lastLine, lastCol
+
+--------------------------------------------------
+procedure LaunchItemId_onClick(integer self, integer event, sequence params)
+integer Id, item, what_happens, pos, msg, ok
+sequence argument, text, directory, application
+
+    Id = getSelf()
+
+    for x=1 to 10 do
+        if atom(AppFiles[x][L_AppItemId]) and AppFiles[x][L_AppItemId]=Id then
+            item = x
+            exit
+        end if
+    end for
+    if match("&appd",AppFiles[item][L_AppStartDir]) then
+        directory = reverse(AppFiles[item][L_AppFileName])
+        pos = find('\\', directory)
+        directory = reverse(directory[pos+1..length(directory)])
+    elsif match("&pd",AppFiles[item][L_AppStartDir]) then
+        directory = the_current_dir
+    elsif match("&ide",AppFiles[item][L_AppStartDir]) then
+        directory = the_current_dir
+    else
+        directory = AppFiles[item][L_AppStartDir]
+    end if
+
+    argument = " "
+    application = AppFiles[item][L_AppFileName]
+    if equal(".exw", lower(application[length(application)-3..length(application)])) or
+       equal(".ex",  lower(application[length(application)-2..length(application)])) then
+        argument = application & " "
+        application = "exw.exe"
+    end if
+    if length(AppFiles[item][L_AppArgs]) then
+        if match("&p", AppFiles[item][L_AppArgs]) then
+            --ignore this case won't happen in editor.exw but might in IDE
+        elsif match("&e", AppFiles[item][L_AppArgs]) then
+            -- Open file in editor
+            if length(OpenFileName) then
+                argument &= OpenFileName
+            else
+                ok = displayErrorMessage(214,{})
+                return
+            end if
+        else
+            -- selected file
+            argument &= AppFiles[item][L_AppArgs]
+        end if
+    end if
+
+    what_happens = shellExecuteEx("open",
+    -- with the program to call:
+                                  application ,
+    -- the parameter to pass to Editor to run:
+                                  argument ,
+    -- in this directory:
+                                  directory ,
+    -- and last, the 'show' parameter:
+                                  SW_SHOW, 0)
+
+    if what_happens<33 then
+        if what_happens=2 then
+            text = " Application not found!"
+        elsif what_happens=31 then
+            text = " Application / Document not associated!"
+        else
+            text = "Strange error!"
+        end if
+        msg = displayErrorMessage(207,{sprint(what_happens),text})
+        return
+    end if
+
+end procedure
+
+-------------------------------------------------------------------------------
+global procedure addLauncherMenu()
+integer nr
+
+    --add menu
+    nr = 7
+    for x=1 to 10 do
+        if length(AppFiles[x][L_AppItem]) then
+            nr += 1
+            LaunchItemId = createEx(MenuItem, AppFiles[x][L_AppTitle] &
+                                    '\t' &  AppFiles[x][L_AppHotkey] , LaunchMenu, 0, nr , 0, 0, 0, 0)
+            setHandler(LaunchItemId, w32HClick, routine_id("LaunchItemId_onClick"))
+            AppFiles[x][L_AppItemId] = LaunchItemId
+        end if
+    end for
+end procedure
+
+-------------------------------------------------------------------------------
+global integer launchparent, launchIDEdir
+    launchparent = MainWin
+    launchIDEdir = False
+include Includes\IDE_Launch.ew
+
+------------------------------------------------------------------------------
+-- kill focus rects on toolbar buttons
+procedure KillFocusRects(integer self, integer event, sequence params)
+    if params[1]=WM_SETFOCUS then
+        returnValue(False)
+    end if
+end procedure
+setHandler({ToolPush1,ToolPush2,ToolPush3,ToolPush4,ToolPush5,ToolPush6,ToolPush7,
+            ToolPush6,ToolPush9,ToolPush10}, w32HEvent, routine_id("KillFocusRects"))
+
+----------------------------------------------------------------------------------
+-- menu item support
+procedure onClick_New(integer self, integer event, sequence params)
+integer ok
+    if synGetModified() then
+        ok = displayErrorMessage(30,{})
+
+        if ok=IDYES then
+            if not length(OpenFileName) then
+                ok = invokeHandler(SaveAs, w32HClick,{})
+                if not length(OpenFileName) then
+                    --cancelled saveAs
+                    return
+                end if
+            else
+                ok = invokeHandler(Save, w32HClick,{})
+            end if
+        elsif ok=IDCANCEL then
+            return
+        end if
+    end if
+
+    setFocus(Highlight)
+    establishSyntax()
+    OpenFileName = "noname.ew"
+    synRemoveFilename()
+    setText(MainWin, "Syntax2 Editor v1.0 -- " & OpenFileName)
+    setFocus(Highlight)
+end procedure
+setHandler({New,ToolPush1}, w32HClick, routine_id("onClick_New"))
+
+--------------------------------------------------------------------------------
+-- returns Opened file name to Mainline
+procedure getOpenedFileName(sequence fName)
+integer at
+    OpenFileName = fName
+    shortFileName = reverse(OpenFileName)
+    at = find('\\', shortFileName)
+    if at then
+        shortFileName = shortFileName[1..at-1]
+    end if
+    shortFileName = reverse(shortFileName)
+    setText(MainWin, IDEText[32][1] & shortFileName)
+end procedure
+synOpenFileName_id = routine_id("getOpenedFileName")
+
+--------------------------------------------------------------------------------
+procedure onClick_Open(integer self, integer event, sequence params)
+sequence fileName,fName
+integer ok
+object tail
+    if synGetModified() then
+        ok = displayErrorMessage(30,{})
+
+        if ok=IDYES then
+            if not length(OpenFileName) then
+                ok = invokeHandler(SaveAs, w32HClick,{})
+                if not length(OpenFileName) then
+                    --user cancelled saveAs
+                    return
+                end if
+            else
+                ok = invokeHandler(Save, w32HClick,{})
+            end if
+        elsif ok=IDCANCEL then
+            return
+        end if
+    end if
+
+                                        --"Euphoria Program"                   --"Text File"            --"All Files"
+    fName = getOpenFileName(MainWin, "", {IDEText[488][1],"*.EX;*.EXW;*.E;*.EW",IDEText[522][1],"*.TXT",IDEText[523][1], "*.*"})
+    if not length(fName) then
+        setFocus(Highlight) --otherwise get releaseDC error
+        return
+    end if
+    fileName = fName
+
+    setFocus(Highlight)
+
+    synLoadFile(fileName)
+    if badFile then
+        ok = displayErrorMessage(35,{fileName})
+    else
+        lastLine = {}
+        lastCol = {}
+        --if file has last Modified Line then go there  
+        tail = accessTail(fileName,"")
+        if sequence(tail) then
+            ok = match(".",tail)
+            if ok then
+                lastLine = tail[1..ok-1]
+                lastCol = tail[ok+1..length(tail)]
+            end if
+        end if
+
+        if length(lastLine) then
+            lastLine = value(lastLine)
+            lastLine = lastLine[2]
+            if length(lastCol) then
+                lastCol = value(lastCol)
+                lastCol = lastCol[2]
+            else
+                lastCol = 0
+            end if
+            synMoveCursorAbs(lastCol, lastLine)
+        else
+            lastLine = 1
+            lastCol = 0
+        end if
+    end if
+    setFocus(Highlight)
+end procedure
+setHandler({Open,ToolPush2}, w32HClick, routine_id("onClick_Open"))
+-------------------------------------------------------------------------------
+procedure addLastLineModified()
+sequence tail,lastPos
+
+    --now write file back with control-Z (ascii 26)
+    lastPos = synGetCursorPos()
+    tail = sprint(lastPos[2]) & "." & sprint(lastPos[1])
+    if accessTail(OpenFileName, tail) then
+                --added last line and column to end of file
+    end if
+
+end procedure
+
+---------------------------------------------------------------------------------
+procedure onClick_Save(integer self, integer event, sequence params)
+integer ok
+
+    if not length(OpenFileName) then
+        ok = invokeHandler(SaveAs,w32HClick,{})
+        return
+    end if
+
+    if isChecked(MenuBackUp) then
+        ok = copyFile(OpenFileName, OpenFileName & ".BAK", False)
+    end if
+    setFocus(Highlight)
+    synSetCurrentFolder(current_dir())
+    synSaveCurrentFile()
+    addLastLineModified()
+
+end procedure
+setHandler({Save,ToolPush3},w32HClick, routine_id("onClick_Save"))
+
+---------------------------------------------------------------------------------
+-- returns saveAs file name to Mainline
+procedure getSavedFileName(sequence fName)
+integer at
+
+    if not length(fName) then
+        return
+    end if
+
+    OpenFileName = fName
+    shortFileName = reverse(OpenFileName)
+    at = find('\\', shortFileName)
+    if at then
+        shortFileName = shortFileName[1..at-1]
+    end if
+    shortFileName = reverse(shortFileName)
+    setText(MainWin, IDEText[32][1] & shortFileName)
+end procedure
+synSaveAsFileName_id = routine_id("getSavedFileName")
+
+--------------------------------------------------------------------------------
+procedure onClick_SaveAs(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synSetCurrentFolder(current_dir())
+    synSaveCurrentFileAs()
+    addLastLineModified()
+end procedure
+setHandler({SaveAs,ToolPush4}, w32HClick, routine_id("onClick_SaveAs"))
+
+-------------------------------------------------------------------------------
+procedure onClick_Exit(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    closeWindow(MainWin)
+end procedure
+setHandler(Exit, w32HClick, routine_id("onClick_Exit"))
+
+-------------------------------------------------------------------------------
+procedure onClick_Undo(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synUndoLast()
+end procedure
+setHandler({Undo,ToolPush5}, w32HClick, routine_id("onClick_Undo"))
+
+-------------------------------------------------------------------------------
+procedure onClick_Cut(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synCutText()
+end procedure
+setHandler({Cut,ToolPush6}, w32HClick, routine_id("onClick_Cut"))
+
+-------------------------------------------------------------------------------
+procedure onClick_Copy(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synCopyText()
+end procedure
+setHandler({Copy,ToolPush7}, w32HClick, routine_id("onClick_Copy"))
+
+-------------------------------------------------------------------------------
+procedure onClick_Paste(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synPasteText()
+end procedure
+setHandler({Paste,ToolPush8}, w32HClick, routine_id("onClick_Paste"))
+
+-------------------------------------------------------------------------------
+procedure onClick_Goto(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synShowGotoLine()
+end procedure
+setHandler({Goto,ToolPush9}, w32HClick, routine_id("onClick_Goto"))
+
+------------------------------------------------------------------------------
+procedure onClick_FindRep(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synShowFindRep()
+end procedure
+setHandler({FindRep,ToolPush10}, w32HClick, routine_id("onClick_FindRep"))
+
+------------------------------------------------------------------------------
+procedure onClick_SelectAll(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synSelectAll()
+end procedure
+setHandler(SelectAll, w32HClick, routine_id("onClick_SelectAll"))
+
+------------------------------------------------------------------------------
+procedure editorBlkComment(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synSelectBlkComment()
+end procedure
+setHandler(BlockComment, w32HClick, routine_id("editorBlkComment"))
+
+-------------------------------------------------------------------------------
+procedure editorBlkIndent(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synSelectBlkIndent()
+end procedure
+setHandler(BlockIndent, w32HClick, routine_id("editorBlkIndent"))
+
+-------------------------------------------------------------------------------
+procedure editorBlkUnindent(integer self, integer event, sequence params)
+    setFocus(Highlight)
+    synUnindent()
+end procedure
+setHandler(BlockUnindent, w32HClick, routine_id("editorBlkUnindent"))
+
+-------------------------------------------------------------------------------
+procedure click_RunItem(integer self, integer event, sequence params)
+sequence fName
+
+    fName = getOpenFileName(MainWin, current_dir() & "\\*.exw",
+                            {IDEText[33][1], "*.exw",
+                             IDEText[34][1], "*.*"})
+
+    -- entered a file name?
+    if length(fName)=0 then
+        return
+    end if
+
+    shellExecute("open",fName,SW_SHOW)
+
+end procedure
+setHandler(RunItem, w32HClick, routine_id("click_RunItem"))
+
+------------------------------------------------------------------------------
+-- clean up prior ex.err file prior to Run
+procedure deleteExErr()
+integer ok
+
+-- delete old error file 
+    if sequence(dir("ex.err")) then
+        ok = deleteFile("ex.err")
+    end if
+end procedure
+
+-------------------------------------------------------------------------------
+function instr(integer n, sequence s1, sequence s2)
+
+-- return position of s1 in s2, starting at position n 
+
+integer at
+
+    at = match(s1, s2[n..length(s2)])
+    if at!=0 then
+        return at+n-1
+    else
+        return 0
+    end if
+
+end function
+
+-------------------------------------------------------------------------------
+-- check if there was an ex.err
+function read_error_file()
+
+-- read ex.err, returns: 
+--  { file, message, line, col } 
+--  or -1 if can't read file 
+
+integer handle, eStart, eEnd, errLine, errCol
+sequence text, errFile, errText
+object result
+
+-- try to open the error file 
+    handle = open("ex.err", "r")
+
+    -- does it exist? 
+    if handle= -1 then
+        -- no error file         
+        return -1
+    else
+         -- read first 4 lines 
+        text = {}
+        for i=1 to 4 do
+            text = append(text, gets(handle))
+        end for
+
+        -- close the file 
+        close(handle)
+
+    end if
+
+    -- get the first line, with the error line 
+
+    -- the line number is "...:nnnn " 
+    -- the 3 skips past the colon in the drive 
+    eStart = instr(3, ":", text[1])
+
+    -- check the value 
+    if eStart=0 then
+        -- can't read file; format is bad 
+        return -1
+    end if
+
+    -- file name comes before colon    
+    errFile = text[1][1..eStart-1]
+
+    -- value to left of space following colon...    
+    eEnd = instr(eStart, " ", text[1])
+
+    -- ...or line feed following colon 
+    if eEnd=0 then
+        eEnd = instr(eStart, {10}, text[1])
+    end if
+
+    -- found end? 
+    if eEnd=0 then
+        -- can't read file; format is bad 
+        return -1
+    end if
+
+    -- convert to number 
+    result = value(text[1][eStart+1..eEnd-1])
+    if result[1]!=GET_SUCCESS then
+        -- can't read number, format is bad 
+        return -1
+    else
+        errLine = result[2]
+    end if
+
+    -- second line is error message  
+    errText = text[2][1..length(text[2])-1]
+
+    -- the fourth line points to the position  
+    errCol = find('^', text[4])
+
+    -- return values  
+    return {errFile, errText, errLine, errCol}
+
+end function
+
+------------------------------------------------------------------------------
+function useShellExecute(sequence fName)
+    VOID = shellExecuteEx("open",fName,{},0,SW_SHOWNORMAL,0)
+    return VOID
+end function
+--------------------------------------------------------------------------------
+procedure onClick_MenuRun(integer self, integer event, sequence params)
+integer result, ok
+sequence fName
+object err
+atom hMem, Void
+atom hNewProcess --new process handle
+object newProcessInfo
+sequence exePathName
+
+    hMem = allocate_string(" ")
+    Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,0,hMem})
+    free(hMem)
+
+    -- save it, if it needs saving...
+    if length(OpenFileName) then
+        ok = invokeHandler(Save, w32HClick, {})
+    else
+        ok = invokeHandler(SaveAs, w32HClick, {})
+    end if
+
+    -- was is saved?
+    if length(OpenFileName) then
+
+        -- copy name
+        fName = OpenFileName
+
+        --delete old ex.err
+        deleteExErr()
+
+        --turn off any selected text
+        synTurnOffSelection()
+
+        -- run it; 
+        --if filetype is .exw use ProcessInfo
+        --otherwise use shellExecuteEx("open",....)        
+        if equal(lower(fName[length(fName)-3..length(fName)]),".exw")
+        or equal(lower(fName[length(fName)-2..length(fName)]),".ew")
+        or equal(lower(fName[length(fName)-2..length(fName)]),".ex") then
+            exePathName = euDir & "\\bin\\exw.exe"
+            if equal(lower(fName[length(fName)-2..length(fName)]),".ex") then
+                exePathName = euDir & "\\bin\\ex.exe"
+            end if
+
+            hProjectProcess = 0
+
+            --turn off selected text in editor
+            synTurnOffSelection()
+
+            newProcessInfo = CreateProcessHi(exePathName & " \"" & fName & "\"")
+            if atom(newProcessInfo) then --error                            
+                ok = displayErrorMessage(12,{})
+            else
+                hNewProcess = newProcessInfo[1]
+                hProjectProcess = hNewProcess
+            end if
+
+            CkProgress(hNewProcess)
+        else
+            result = useShellExecute(fName)
+            if result<33 then
+                                --put errText into status Bar
+                hMem = allocate_string("ShellExecuteEx failed")
+                Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,0,hMem})
+                free(hMem)
+            end if
+        end if
+
+        --show run error message if any
+        err = read_error_file()
+
+        if atom(err) then
+            --there was no error                  
+        else
+            --show error in editor
+            -- same file name?
+            if equal(upper(fName), upper(err[1])) then
+                synMoveCursorAbs(err[4], err[3])
+                --put errText into status Bar
+                hMem = allocate_string(err[2])
+                Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,0,hMem})
+                free(hMem)
+                hMem = allocate_string(sprintf("X:%d",{err[4]}))
+                Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,1,hMem})
+                free(hMem)
+                hMem = allocate_string(sprintf("Y:%d",{err[3]}))
+                Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,2,hMem})
+                free(hMem)
+            end if
+        end if
+    end if
+end procedure
+setHandler(MenuRun, w32HClick, routine_id("onClick_MenuRun"))
+
+------------------------------------------------------------------------------
+procedure Click_MenuOptions(integer self, integer event, sequence params)
+    onClick_Options(self, event, params)
+end procedure
+setHandler(MenuEditorOption, w32HClick, routine_id("Click_MenuOptions"))
+
+------------------------------------------------------------------------------
+procedure click_EditLaunchItem(integer self, integer event, sequence params)
+    openWindow(LauncherWin, Normal)
+end procedure
+setHandler(EditLaunchItem, w32HClick, routine_id("click_EditLaunchItem"))
+
+-------------------------------------------------------------------------------
+procedure onKeyDown_Screen(integer self, integer event, sequence params)
+integer ok, index, action
+
+    if params[1]=VK_F5 then
+        ok = invokeHandler(MenuRun, w32HClick,{})
+    end if
+
+    -- hot keys for Launcher
+    -- control key held down?
+    if and_bits(params[2], ControlMask)
+    and not and_bits(params[2],AltMask) then
+       -- control key is held down
+        if params[1]>47 and params[1]<58 then   -- ctrl-0 .. ctrl-9
+            index = iff(params[1]>48, params[1]-48, 10)
+            if atom(AppFiles[index][L_AppItemId]) then
+                LaunchItemId = (AppFiles[index][L_AppItemId])
+             -- call_proc
+                action = invokeHandler(LaunchItemId, w32HClick, {})
+            end if
+        end if
+    end if
+
+    if params[1]=VK_ESCAPE
+    and FindWin=getActiveWindow() then
+        closeWindow(FindWin)
+    end if
+end procedure
+setHandler(Screen, w32HKeyDown, routine_id("onKeyDown_Screen"))
+
+-------------------------------------------------------------------------------
+--contributed by Derek Parnell:
+procedure click_toggle(integer self, integer event, sequence params)
+    setCheck(self, not isChecked(self))
+    if self=MenuAutoComplete then
+        synAutoComplete(isChecked(self))
+    end if
+    if self=MenuHideGutter then
+        hideTheGutter(isChecked(self))
+    end if
+    if self=MenuEditorOpen1 then
+        if isChecked(MenuEditorOpen1) then
+            cfg_EditorOpen = 1
+            setCheck(MenuEditorOpen2, w32False)
+            setCheck(MenuEditorOpen3, w32False)
+        else
+            cfg_EditorOpen = 0
+        end if
+    end if
+    if self=MenuEditorOpen2 then
+        if isChecked(MenuEditorOpen2) then
+            cfg_EditorOpen = 2
+            setCheck(MenuEditorOpen1, w32False)
+            setCheck(MenuEditorOpen3, w32False)
+        else
+            cfg_EditorOpen = 0
+        end if
+    end if
+    if self=MenuEditorOpen3 then
+        cfg_EditorOpen = 0
+        setCheck(MenuEditorOpen1, w32False)
+        setCheck(MenuEditorOpen2, w32False)
+    end if
+end procedure
+setHandler({MenuHintsStatus, MenuIgnoreHints, MenuAutoComplete,MenuBackUp,MenuHideGutter,
+            MenuEditorOpen1, MenuEditorOpen2, MenuEditorOpen3},
+           w32HClick, routine_id("click_toggle"))
+
+--------------------------------------------------------------------------------
+function cleanHotKeyText(sequence newText)
+integer at
+sequence outText, CrLf
+    CrLf = {'\r','\n'}
+
+    outText = {}
+    while length(newText) do
+        at = match(CrLf, newText)
+        if at then
+            outText &= {newText[1..at-1]}
+            newText = newText[at+2..length(newText)]
+        else
+            outText &= {newText}
+            exit
+        end if
+    end while
+    return outText
+end function
+--------------------------------------------------------------------------------
+procedure ChangeButton_onClick(integer self, integer event, sequence params)--params is ()
+sequence newText
+
+    if not length(LVSelected) then
+        return
+    end if
+
+    for i=1 to length(LVSelected) do
+        newText = getText(EditAction)
+        --break down into sequenes of seq based on finding CrLf
+        --then put first one in LV
+        newText = cleanHotKeyText(newText)
+        HotKeyText[index] = newText
+        setLVItemText(HotKeyLV, LVSelected[i], 2, newText[1])
+        exit
+    end for
+end procedure
+---------------------------------------------------------------------------------
+procedure ChangeButton_onKeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then ChangeButton_onClick(ChangeButton, w32HClick, {}) end if
+end procedure
+---------------------------------------------------------------------------------
+procedure DeleteButton_onClick(integer self, integer event, sequence params)--params is ()
+
+    if not length(LVSelected) then
+        return
+    end if
+
+    for i=1 to length(LVSelected) do
+        HotKeyText[index] = {{}}
+        setLVItemText(HotKeyLV, LVSelected[i], 2, {})
+        setText(EditAction,"")
+        exit
+    end for
+    LVSelected = {}
+end procedure
+---------------------------------------------------------------------------------
+procedure DeleteButton_onKeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then DeleteButton_onClick(DeleteButton, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure OkButton_onClick(integer self, integer event, sequence params)--params is ()
+sequence HotKeys, FKey, theText
+integer j
+
+    j = 0
+    FKey = {VK_F2,VK_F3,VK_F4,VK_F7,VK_F8,VK_F9,VK_F10,VK_F11,VK_F2,VK_F3,VK_F4,VK_F7,VK_F8,VK_F9,VK_F10,VK_F11}
+    HotKeys = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+
+    --process the F keys and Data
+    for i=1 to getLVCount(HotKeyLV) do
+        theText = getLVAllText(HotKeyLV, i)
+        if length(theText)>1 then
+            j += 1
+            HotKeys[j] = FKey[i]
+        end if
+    end for
+
+    currentMakeDefault = isChecked(HotKeyMakeDefault)
+
+    --send to editor
+    setUserHotKeys(HotKeys, HotKeyText, currentHotKeyFileName, currentMakeDefault)
+
+    closeWindow(RegisterHotKeyWin)
+    destroy(RegisterHotKeyWin)
+    RegisterHotKeyWin = -1
+end procedure
+-------------------------------------------------------------------------------
+procedure OkButton_onKeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then OkButton_onClick(OkButton, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure CreateNewFileButton_onClick(integer self, integer event, sequence params)--params is ()
+sequence fName
+
+--get savefile name
+    fName = getSaveFileName(MainWin, current_dir(),{})
+
+    if length(fName) then
+        --place into currentFileName
+        setText(HotKeyFileName,fName)
+
+        currentHotKeyFileName = getText(HotKeyFileName)
+        currentMakeDefault = False
+        setCheck(HotKeyMakeDefault, currentMakeDefault)
+    end if
+end procedure
+-------------------------------------------------------------------------------
+procedure CreateNewFileButton_onKeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then CreateNewFileButton_onClick(CreateNewFileButton, w32HClick, {}) end if
+end procedure
+--------------------------------------------------------------------------------
+procedure HotKeySearch_onClick(integer self, integer event, sequence params)--params is ()
+sequence fName
+
+--get openfile name
+    fName = getOpenFileName(MainWin, current_dir(),{})
+
+    if length(fName) then
+        --place into currentFileName
+        setText(HotKeyFileName,fName)
+
+        currentHotKeyFileName = getText(HotKeyFileName)
+        currentMakeDefault = False
+        setCheck(HotKeyMakeDefault, currentMakeDefault)
+
+        --get the data from syntax
+        processHotKeyFileName(currentHotKeyFileName)
+    end if
+end procedure
+-------------------------------------------------------------------------------
+procedure HotKeySearch_onKeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then HotKeySearch_onClick(HotKeySearch, w32HClick, {}) end if
+end procedure
+-------------------------------------------------------------------------------
+procedure HotKeyFileName_onKeyPress(integer self, integer event, sequence params)
+    if params[1]=13 then
+        currentHotKeyFileName = getText(HotKeyFileName)
+        currentMakeDefault = False
+        setCheck(HotKeyMakeDefault, currentMakeDefault)
+        --get the data from syntax
+        processHotKeyFileName(currentHotKeyFileName)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure HotKeyLV_onClick(integer self, integer event, sequence params)
+sequence outText
+
+    outText = {}
+    LVSelected = getLVSelected(HotKeyLV)
+    if length(LVSelected)>0 then
+        setText(EditKey, getLVItemText(HotKeyLV, LVSelected[1],1))
+        LVDataIndex = getIndex(HotKeyLV)
+        if not atom(LVDataIndex) and length(LVDataIndex)=0 then
+            LVDataIndex = {1}
+        end if
+        index = LVDataIndex[1]
+        if length(HotKeyText[index]) then
+            for i=1 to length(HotKeyText[index]) do
+                outText &= HotKeyText[index][i] & 13 & 10
+            end for
+        end if
+        setText(EditAction, outText)
+    else
+        setText(EditKey,"")
+        setText(EditAction, "")
+    end if
+end procedure
+-------------------------------------------------------------------------------
+procedure create_RegisterHotKeyWin()
+    RegisterHotKeyWin = createEx(Window, IDEText[35][1], 0, Default, Default, 400, 430, {WS_DLGFRAME}, 0)
+    LText2FKey = createEx(LText, IDEText[36][1], RegisterHotKeyWin, 4, 0, 148, 20, 0, 0)
+    HotKeyFileName = createEx(EditText, IDEText[37][1], RegisterHotKeyWin, 4, 20, 292, 20, 0, 0)
+    HotKeySearch = createEx(PushButton, IDEText[38][1], RegisterHotKeyWin, 300, 12, 88, 28, 0, 0)
+    HotKeyMakeDefault = createEx(CheckBox, IDEText[39][1], RegisterHotKeyWin, 4, 48, 200, 20, 0, 0)
+    HotKeyLV = createEx(ListView, {IDEText[40][1],IDEText[482][1]}, RegisterHotKeyWin, 4, 84, 388, 124, or_all({LVS_REPORT,LVS_SHOWSELALWAYS,LVS_NOSORTHEADER}), 0)
+    EditAction = createEx(MleText, "", RegisterHotKeyWin, 155, 220, 235, 120, WS_HSCROLL, 0)
+    ChangeButton = createEx(PushButton, IDEText[41][1], RegisterHotKeyWin, 6, 244, 88, 28, 0, 0)
+    DeleteButton = createEx(PushButton, IDEText[42][1], RegisterHotKeyWin, 6, 284, 88, 28, 0, 0)
+    CreateNewFileButton = createEx(PushButton, IDEText[43][1], RegisterHotKeyWin, 52, 350, 112, 28, 0, 0)
+    OkButton = createEx(PushButton, IDEText[44][1], RegisterHotKeyWin, 220, 350, 88, 28, 0, 0)
+    LTextFKey = createEx(LText, IDEText[45][1], RegisterHotKeyWin, 4, 216, 48, 20, 0, 0)
+    EditKey = createEx(LText, "", RegisterHotKeyWin, 52, 216, 100, 20, 0, 0)
+
+    IDEok = setLVInsert(1)
+    lvMask = or_all({LVS_EX_FULLROWSELECT})
+    lvOk = sendMessage(HotKeyLV,LVM_SETEXTENDEDLISTVIEWSTYLE,lvMask,lvMask)
+    lvMask = or_all({LVS_EX_GRIDLINES})
+    lvOk = sendMessage(HotKeyLV,LVM_SETEXTENDEDLISTVIEWSTYLE,lvMask,lvMask)
+    lvOk = sendMessage(HotKeyLV,LVM_SETCOLUMNWIDTH,0,100)
+    lvOk = sendMessage(HotKeyLV,LVM_SETCOLUMNWIDTH,1,400)
+
+    setHandler(ChangeButton, w32HClick, routine_id("ChangeButton_onClick"))
+    setHandler(DeleteButton, w32HClick, routine_id("DeleteButton_onClick"))
+    setHandler(CreateNewFileButton, w32HClick, routine_id("CreateNewFileButton_onClick"))
+    setHandler(OkButton, w32HClick, routine_id("OkButton_onClick"))
+    setHandler(ChangeButton, w32HKeyPress, routine_id("ChangeButton_onKeyPress"))
+    setHandler(DeleteButton, w32HKeyPress, routine_id("DeleteButton_onKeyPress"))
+    setHandler(CreateNewFileButton, w32HKeyPress, routine_id("CreateNewFileButton_onKeyPress"))
+    setHandler(OkButton, w32HKeyPress, routine_id("OkButton_onKeyPress"))
+    setHandler(HotKeyLV, w32HClick, routine_id("HotKeyLV_onClick"))
+    setHandler(HotKeySearch, w32HClick, routine_id("HotKeySearch_onClick"))
+    setHandler(HotKeySearch, w32HKeyPress, routine_id("HotKeySearch_onKeyPress"))
+    setHandler(HotKeyFileName, w32HKeyPress, routine_id("HotKeyFileName_onKeyPress"))
+
+    IDElvItems = {}
+    IDElvData = {}
+    IDElvData = {0,"F2",HotKeyText[1][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F3",HotKeyText[2][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F4",HotKeyText[3][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F7",HotKeyText[4][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F8",HotKeyText[5][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F9",HotKeyText[6][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F10",HotKeyText[7][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F11",HotKeyText[8][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F2",HotKeyText[9][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F3",HotKeyText[10][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F4",HotKeyText[11][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F7",HotKeyText[12][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F8",HotKeyText[13][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F9",HotKeyText[14][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F10",HotKeyText[15][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F11",HotKeyText[16][1]}
+    IDElvItems &= {IDElvData}
+    for i=1 to length(IDElvItems) do
+        IDElvItemNo = addLVItem(HotKeyLV, IDElvItems[i][1], IDElvItems[i][2..length(IDElvItems[i])])
+    end for
+
+    if not length(currentHotKeyFileName) then
+        currentHotKeyFileName = the_current_dir & "\\Files\\IDE_HotKey.dat"
+        currentMakeDefault = True
+    end if
+
+    setText(HotKeyFileName,currentHotKeyFileName)
+    setCheck(HotKeyMakeDefault, currentMakeDefault)
+end procedure
+-------------------------------------------------------------------------------
+procedure Click_MenuHotKeys(integer Self, integer Event, sequence Params)
+    if RegisterHotKeyWin= -1 then
+        create_RegisterHotKeyWin()
+    end if
+    openWindow(RegisterHotKeyWin, Modal)
+end procedure
+setHandler(MenuHotKeys, w32HClick, routine_id("Click_MenuHotKeys"))
+-------------------------------------------------------------------------------
+procedure setHotKeys(sequence hotKeys, sequence hotKeysText, sequence fName)
+    --get HotKeys from syntax when it reads synMain2.ini and hotkeyfile
+    HotKeyText = hotKeysText
+    currentHotKeyFileName = fName
+    if RegisterHotKeyWin= -1 then
+        return
+    end if
+
+    setText(HotKeyFileName,currentHotKeyFileName)
+    setText(EditAction,"")
+
+    eraseItems(HotKeyLV)
+    IDElvItems = {}
+    IDElvData = {}
+    IDElvData = {0,"F2",HotKeyText[1][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F3",HotKeyText[2][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F4",HotKeyText[3][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F7",HotKeyText[4][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F8",HotKeyText[5][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F9",HotKeyText[6][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F10",HotKeyText[7][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"F11",HotKeyText[8][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F2",HotKeyText[9][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F3",HotKeyText[10][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F4",HotKeyText[11][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F7",HotKeyText[12][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F8",HotKeyText[13][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F9",HotKeyText[14][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F10",HotKeyText[15][1]}
+    IDElvItems &= {IDElvData}
+    IDElvData = {0,"Shift+F11",HotKeyText[16][1]}
+    IDElvItems &= {IDElvData}
+    for i=1 to length(IDElvItems) do
+        IDElvItemNo = addLVItem(HotKeyLV, IDElvItems[i][1], IDElvItems[i][2..length(IDElvItems[i])])
+    end for
+
+end procedure
+sendUserHotKey_id = routine_id("setHotKeys")
+-------------------------------------------------------------------------------
+-- bring up shell about dialog box
+procedure onClick_AboutSyn(integer self, integer event, sequence params)
+atom Str1, Str2
+
+    Str1 = allocate_string("Syntax2")
+    Str2 = allocate_string("by Don Phillips (dphillips@kbsi.com)")
+    w32Proc(synShellAbout, {getHandle(Highlight),Str1,Str2,0})
+    free(Str2)
+    free(Str1)
+end procedure
+setHandler(AboutSyn, w32HClick, routine_id("onClick_AboutSyn"))
+
+-------------------------------------------------------------------------------
+-- on resize handle status bar resizing and snytax2 resizing
+procedure onResize_MainWin(integer self, integer event, sequence params)
+integer style, cx, cy
+atom Void
+atom hMem
+sequence Rect, size
+
+    style = params[1]
+    cx = params[2]
+    cy = params[3]
+
+    -- set status bar initial position values
+    Rect = getClientRect(MainWin)
+    hMem = allocate(12)
+    poke4(hMem, {Rect[3]-150,Rect[3]-75,-1})
+    Void = w32Func(xSendMessage, {getHandle(Status),SB_SETPARTS,3,hMem})
+    free(hMem)
+
+    -- resize the control to the main window
+    synSetRect(style, 0, 0, cx, cy-59)
+
+    if style=SIZE_MINIMIZED then
+        doingHints = False
+        closeWindow(HintWin)
+    else
+        --resize the hint to fit window
+        size = getRect(HintWin)
+        Rect = getPosition(MainWin)
+        if length(hintLoc) then
+            setPenPos(HintWin, hintLoc[1],hintLoc[2])
+        else
+            setRect(HintWin,Rect[1]+10,Rect[2]+menuBar+titleBar,cx-10,size[4]-size[2], True)
+        end if
+    end if
+
+end procedure
+setHandler(MainWin, w32HResize, routine_id("onResize_MainWin"))
+
+-------------------------------------------------------------------------------
+-- keep track of current cursor position and display in status bar
+procedure onChange_Highlight(integer self, integer event, sequence params)
+sequence CursorPos, CurrentLineData
+atom Void
+atom hMem
+integer at, commas
+
+
+    CursorPos = synGetCursorPos()
+    hMem = allocate_string(sprintf("X: %d",{CursorPos[1]}))
+    Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,1,hMem})
+    free(hMem)
+    hMem = allocate_string(sprintf("Y: %d",{CursorPos[2]}))
+    Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,2,hMem})
+    free(hMem)
+    if not doingHints then
+        return
+    end if
+
+    --find out about Hints
+    if CursorPos[2]!=HintCurY then
+        --if hints are in status bar then remove
+        if isChecked(MenuHintsStatus) then
+            hMem = allocate_string(" ")
+            Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,0,hMem})
+            free(hMem)
+        else
+            hintLoc = getPosition(HintWin)
+            closeWindow(HintWin)
+        end if
+        --not on same line anymore
+        doingHints = False
+        return
+    elsif CursorPos[1]<HintCurX then
+        --if hints are in status bar then remove
+        if isChecked(MenuHintsStatus) then
+            hMem = allocate_string(" ")
+            Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,0,hMem})
+            free(hMem)
+        else
+            hintLoc = getPosition(HintWin)
+            closeWindow(HintWin)
+        end if
+
+        --moved before Hint
+        doingHints = False
+        return
+    end if
+
+    if isChecked(MenuHintsStatus) then
+        return
+    end if
+
+    --ok parse the data entered for the number of commas
+    --dummy protection
+    if not HintCurX then
+        HintCurX = 1
+    end if
+    CurrentLineData = synGetTextLine(CursorPos[2])
+    CurrentLineData = CurrentLineData[HintCurX..CursorPos[1]]
+    commas = 0
+    at = find(',', CurrentLineData)
+    if not at then
+        commas = 1
+    else
+        commas = 1
+        while at do
+            CurrentLineData = CurrentLineData[at+1..length(CurrentLineData)]
+            commas += 1
+            at = find(',', CurrentLineData)
+        end while
+    end if
+
+    if at=length(CurrentLineData) then
+        call_proc(modifyTheHint_id,{commas})
+    end if
+
+end procedure
+setHandler(Highlight, w32HChange, routine_id("onChange_Highlight"))
+
+----------------------------------------------------------------------------
+integer HelpHtml_id
+
+procedure F1CallBack(object Word)
+    call_proc(HelpHtml_id,{Word})
+end procedure
+
+-----------------------------------------------------------------------------
+procedure displayHint(sequence hint)
+sequence size, size1
+integer hintX, hintY
+
+    setIndex(RichHint,{1,0})
+    putStream(RichHint, StreamRTF, hint)
+
+    size = getPosition(MainWin)
+
+    hintX = size[1]+10
+    hintY = size[2]+menuBar+titleBar
+    --HintLocY is Y position of statement in editor
+
+    size1 = getRect(HintWin)
+
+    if positionHint then
+        if length(hintLoc) then
+            setPenPos(HintWin, hintLoc[1],hintLoc[2])
+        else
+            setRect(HintWin, hintX, hintY, size1[3]-size1[1], size1[4]-size1[2], True)
+        end if
+    end if
+
+    openWindow(HintWin, Normal)
+    setFocus(Highlight)
+
+end procedure
+
+--------------------------------------------------------------------------
+procedure buildTheHint(sequence hintWord, integer index)
+sequence hint, args, pos, hintInStatus
+atom hMem, Void
+integer RGB, iTBlue, iTRed, iTGreen, iPBlue, iPRed, iPGreen
+
+    --get hintcolor from synMain2.ini
+    hintColors = synGetAutoSavable()
+    setWindowBackColor(HintWin, Black)  --shows a Black 'grab handle'
+    Void = w32Func(xSendMessage, {getHandle(RichHint),1091,0,hintColors[3][8]})
+            -- (1091) EM_SETBKGNDCOLOR
+
+    --break down hintcolor into red, green and blue
+    --text color
+    RGB = hintColors[3][9]
+    iTBlue = floor(RGB/65536)
+    iTRed = RGB-(iTBlue*65536)
+    iTGreen = floor(iTRed/256)
+    iTRed = iTRed-(iTGreen*256)
+
+    --param color
+    RGB = hintColors[3][10]
+    iPBlue = floor(RGB/65536)
+    iPRed = RGB-(iPBlue*65536)
+    iPGreen = floor(iPRed/256)
+    iPRed = iPRed-(iPGreen*256)
+
+
+    hint=
+    "{\\rtf1\\ansi\\deff0\\deftab720{\\fonttbl{\\f0\\fswiss MS Sans Serif;}"
+    & "{\\f1\\froman\\fcharset2 Symbol;}{\\f2\\fmodern Courier New;}"
+    & "{\\f3\\fswiss\\fprq2 MS Sans Serif;}"
+    & "{\\f4\\fnil\\fcharset0 Times New Roman;}}"
+
+    colorTable = sprintf("{\\colortbl;\\red%d\\green%d\\blue%d;\\red%d\\green%d\\blue%d;}",
+                         {iTRed, iTGreen, iTBlue, iPRed, iPGreen, iPBlue})
+    hint &= colorTable
+
+            & "\\deflang1033\\pard"
+            & "\\plain\\f4\\fs20\\cf1" --default text color
+
+    hint &= HintStandard[index+2] & " " & hintWord & "("
+    hintInStatus = HintStandard[index+2] & " " & hintWord & "("
+    args = HintStandard[index+1]
+    for i=1 to length(args) do
+        if i=1 then
+            hint &= "\\plain\\f4\\fs20\\cf2"
+           --make it colored
+        else
+            --default color
+            hint &= "\\plain\\f4\\fs20\\cf1"
+        end if
+
+        hint &= args[i] & "\\plain\\f4\\fs20\\cf1" & ","
+        hintInStatus &= args[i] & ","
+    end for
+    hint = hint[1..length(hint)-1]
+    hintInStatus = hintInStatus[1..length(hintInStatus)-1]
+    --default color
+    hint &= "\\plain\\f4\\fs20\\cf1"
+    hint &= ")"
+    hintInStatus &= ")"
+    HintWord = hintWord
+    HintText = hint
+    HintIndex = index
+    --flag want to be looking at hints
+    doingHints = True
+    --store the current cursor pos
+    pos = synGetCursorPos()
+    HintCurY = pos[2]
+    HintCurX = pos[1]
+
+    --where does hint go?
+    positionHint = True
+    if isChecked(MenuHintsStatus) then
+        --put hints only in status bar
+        hMem = allocate_string(hintInStatus)
+        Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,0,hMem})
+        free(hMem)
+    else
+        displayHint(hint)
+    end if
+
+end procedure
+
+--------------------------------------------------------------------------
+procedure modifyTheHint(integer commas)
+sequence hint, args
+
+    hint=
+    "{\\rtf1\\ansi\\deff0\\deftab720{\\fonttbl{\\f0\\fswiss MS Sans Serif;}"
+    & "{\\f1\\froman\\fcharset2 Symbol;}{\\f2\\fmodern Courier New;}"
+    & "{\\f3\\fswiss\\fprq2 MS Sans Serif;}"
+    & "{\\f4\\fnil\\fcharset0 Times New Roman;}}"
+    & colorTable
+    & "\\deflang1033\\pard"
+    & "\\plain\\f4\\fs20\\cf1" --default text color
+
+    hint &= HintStandard[HintIndex+2] & " " & HintStandard[HintIndex] & "("
+
+    args = HintStandard[HintIndex+1]
+
+    for i=1 to length(args) do
+        --build the hint colors
+        --use default text color except when the hint arg is active
+        --then use arg color
+        if commas=i then
+            hint &= "\\plain\\f4\\fs20\\cf2"
+            --make it colored
+        else
+            --default color
+            hint &= "\\plain\\f4\\fs20\\cf1"
+        end if
+        hint &= args[i] & "\\plain\\f4\\fs20\\cf1" & ","
+    end for
+    hint = hint[1..length(hint)-1]
+    hint &= ")"
+
+    positionHint = False
+    displayHint(hint)
+end procedure
+modifyTheHint_id    = routine_id("modifyTheHint")
+
+---------------------------------------------------------------------------
+procedure Resize_Hint(integer Self, integer Event, sequence Params)
+    --resize the RichEdit
+    setRect(RichHint, 0, 0, Params[2]-20, Params[3], True)
+    setFocus(Highlight)
+end procedure
+setHandler(HintWin, w32HResize, routine_id("Resize_Hint"))
+
+----------------------------------------------------------------------------
+procedure Event_Hint(integer Self, integer Event, sequence Params)
+integer HitTest
+
+--Don Phillips: to move the Hint window
+    if Params[1]=#84 then -- WM_NCHITTEST
+        HitTest = w32Func(xDefWindowProc, {getHandle(Self),Params[1],Params[2],Params[3]})
+        if HitTest=1 then -- 1 = HTCLIENT
+            returnValue(2) -- HTCAPTION
+        end if
+        setFocus(Highlight)
+        hintLoc = getPosition(HintWin)
+    end if
+end procedure
+setHandler(HintWin, w32HEvent, routine_id("Event_Hint"))
+
+----------------------------------------------------------------------------
+procedure Event_RichHint(integer Self, integer Event, sequence Params)
+    --suggestion of Don Philips from Topica to hide cursor
+    if Params[1]=WM_SETFOCUS then
+        returnValue(1)
+    end if
+end procedure
+setHandler(RichHint, w32HEvent, routine_id("Event_RichHint"))
+
+----------------------------------------------------------------------------
+-- hint call back
+procedure HintCallBack(object Word)
+integer index
+atom hMem, Void
+
+    index = 0
+    if sequence(Word) then
+    --make sure Word is a valid Hint by looking in HintList
+        for i=1 to length(HintStandard) by 3 do
+            if equal(Word, HintStandard[i]) then
+                index = i
+                exit
+            end if
+        end for
+
+        --save hint word in case user presses Ctrl+Space
+        HintWord = Word
+
+        if index
+        and isChecked(MenuIgnoreHints) then
+            buildTheHint(Word, index)
+        end if
+    else
+        if Word=0 then
+            -- ')' entered
+            doingHints = False
+            hintLoc = getPosition(HintWin)
+            closeWindow(HintWin)
+            if MenuHintsStatus then
+                --remove hints in status bar
+                hMem = allocate_string(" ")
+                Void = w32Func(xSendMessage, {getHandle(Status),SB_SETTEXT,0,hMem})
+                free(hMem)
+            end if
+        elsif Word=2
+          and length(HintWord) then
+            --Ctrl+space
+            for i=1 to length(HintStandard) by 3 do
+                if equal(HintWord, HintStandard[i]) then
+                    index = i
+                    exit
+                end if
+            end for
+            buildTheHint(HintWord, index)
+        end if
+    end if
+end procedure
+--------------------------------------------------------------------------------
+integer matchedWord
+procedure lookForRoutineNames(object Word)
+sequence pos,possibleline,text
+integer foundIt,commentat,wordat,cnt
+
+    matchedWord = w32False
+    pos = synGetCursorPos()
+
+    --save line number for ESC to return to
+    EscLineNumber = pos[2]
+    EscLineColumn = pos[1]
+    --send to Syntax
+    useEscLineNumber(EscLineNumber)
+
+    --make sure user did not F1 on the procedure or function + word
+    possibleline = synGetTextLine(pos[2])
+    foundIt = w32False
+    commentat = match(Word, possibleline)
+
+    if commentat then
+        if length(possibleline)>commentat+length(Word)-1 then
+            --make sure word is whole word or followed by (
+            if possibleline[commentat+length(Word)]=32
+            or possibleline[commentat+length(Word)]='(' then
+                if commentat>1 then
+                    if possibleline[commentat-1]=32 then
+                                                --looks like good routne                                                        
+                    else
+                        commentat = w32False
+                    end if
+                end if
+                --looks like good routine
+            else
+                commentat = w32False
+            end if
+        end if
+    end if
+
+    if commentat then
+        --check not comment and has function or procedure in text                               
+        wordat = match("procedure",possibleline)
+        if wordat then
+            foundIt = w32True
+        else
+            wordat = match("function",possibleline)
+            if wordat then
+                foundIt = w32True
+            end if
+        end if
+        if foundIt
+        and wordat<commentat then
+            return  --do not F1 a line with procedure and function
+        end if
+    end if
+
+    text = synGetAllText()
+    if commentat
+    and not foundIt then
+        --maybe procedure or function is on a prior line
+        cnt = 0
+        --go back 1 active line looking for procedure or function after ignoring
+        --comments
+        --what we have to watch out for is:
+        --procedure what(....)
+        --followed by our routine               
+        for k=pos[2]-1 to 1 by -1 do
+            at = match("--",text[k])
+            if at then
+                text[k] = text[k][1..at-1]
+            end if
+            at = match("global", text[k])
+            if at then
+                text[k] = text[k][1..at-1] & text[k][at+6..length(text[k])]
+            end if
+            text[k] = w32trim(text[k])
+            if length(text[k]) then
+                cnt += 1
+            end if
+            if cnt>1 then
+                --can't find procedure or function so F1 is ok to use
+                exit
+            end if
+            if match("end procedure",text[k]) then
+                                --is ok
+            elsif match("end function",text[k]) then
+                                --is ok                                                 
+            elsif match("procedure",text[k])
+              and length(text[k])<10 then
+                --not ok                                
+                return
+            elsif match("function",text[k])
+              and length(text[k])<9 then
+                --not ok                                
+                return
+            end if
+        end for
+    end if
+
+    --now search for the Word with 'procedure' or 'function'
+    for i=1 to length(text) do
+        possibleline = text[i]
+        commentat = match(Word, possibleline)
+
+        if commentat then
+            F1Column = commentat
+            if length(possibleline)>commentat+length(Word)-1 then
+                --make sure word is whole word or followed by (
+                if possibleline[commentat+length(Word)]=32
+                or possibleline[commentat+length(Word)]='(' then
+                    if commentat>1 then
+                        if possibleline[commentat-1]=32 then
+                                                        --looks like good routne                                                        
+                        else
+                            commentat = w32False
+                        end if
+                    end if
+                    --looks like good routine
+                else
+                    commentat = w32False
+                end if
+            end if
+        end if
+
+        if commentat then
+            --check not comment and has function or procedure in text                               
+            wordat = match("procedure",possibleline)
+            if wordat then
+                foundIt = w32True
+            else
+                wordat = match("function",possibleline)
+                if wordat then
+                    foundIt = w32True
+                end if
+            end if
+            if foundIt
+            and wordat<commentat then
+                synGotoTopLine(i)
+                synMoveCursorAbs(F1Column, i)
+                matchedWord = w32True
+                return
+            end if
+        end if
+    end for
+
+end procedure
+--------------------------------------------------------------------------------
+procedure check_jump_rid()
+    --return to line of code where we hit F1
+    EscLineNumber = getEscLineNumber()
+    synGotoTopLine(EscLineNumber)
+    synMoveCursorAbs(EscLineColumn, EscLineNumber)
+end procedure
+jump_rid = routine_id("check_jump_rid")
+-------------------------------------------------------------------------------
+sequence win32lib, library, builtins, keywords
+win32lib = {}
+library = {}
+builtins = {}
+keywords = {}
+
+function findWinlibLinks(sequence winlibDocs)
+integer handle,at,endat
+object line
+sequence buffer,link,keyword,result,data
+
+    data = {"",""}
+
+    handle = open(winlibDocs,"r")
+    if handle= -1 then
+        return {}
+    end if
+
+    buffer = {}
+    while 1 do
+        line = gets(handle)
+        if atom(line) then
+            exit
+        end if
+        buffer = append(buffer, line)
+    end while
+    close(handle)
+
+    result = {}
+    for i=1 to length(buffer) do
+        buffer[i] = w32trim_left(buffer[i])
+        while True do
+            at = find(' ', buffer[i])
+            if not at then
+                exit
+            end if
+            buffer[i] = buffer[i][1..at-1] & buffer[i][at+1..length(buffer[i])]
+        end while
+        link = {}
+        keyword = {}
+        at = match("<ahref=",buffer[i])
+        if at then
+            buffer[i] = buffer[i][at..length(buffer[i])]
+            endat = match(">",buffer[i])
+            if endat then
+                link = buffer[i][9..endat-2]
+                buffer[i] = buffer[i][endat+1..length(buffer[i])]
+            end if
+        end if
+        if length(link) then
+            at = match("<",buffer[i])
+            if at then
+                keyword = buffer[i][1..at-1]
+            end if
+        end if
+        if length(keyword) then
+            data[1] = keyword
+            data[2] = link
+            result &= {data}
+        end if
+    end for
+
+    if not length(result) then
+        return {}
+    else
+        return result
+    end if
+end function
+
+sequence link link = {}
+procedure helpHtml(object word)
+--Thanks to Dan Moyer and Kat for redirecting html
+sequence helpDocs,goDocs,DummyFirst,DummyLast,data
+integer ok, handle, win32libIndex, libraryIndex, builtinsIndex, keywordsIndex, at
+integer version
+
+    if atom(word) then
+        return
+    end if
+
+    if length(word) then
+        lookForRoutineNames(word)
+        if matchedWord then
+            return
+        end if
+    end if
+
+    --now get the catagories (win32lib, keywords, builtins, library) which
+    --key word might be in
+    data = synGetSavable()
+    win32libIndex = find("Win32lib", data[1])
+    if not win32libIndex then
+        ok = displayErrorMessage(190,{"win32lib"})
+        return
+    end if
+    win32lib = data[2][win32libIndex]
+
+    libraryIndex = find("Library", data[1])
+    if not libraryIndex then
+        ok = displayErrorMessage(190,{"library"})
+        return
+    end if
+    library = data[2][libraryIndex]
+
+    builtinsIndex = find("Builtins", data[1])
+    if not builtinsIndex then
+        ok = displayErrorMessage(190,{"builtins"})
+        return
+    end if
+    builtins = data[2][builtinsIndex]
+
+    keywordsIndex = find("Keywords", data[1])
+    if not keywordsIndex then
+        ok = displayErrorMessage(190,{"keywords"})
+        return
+    end if
+    keywords = data[2][keywordsIndex]
+
+    if length(word) then
+        --if word is on the win32lib list then search users
+        --copy of win32lib_index.html or index.html links
+        --otherwise search RDS Library.html links
+
+        if find(upper(word), upper(win32lib)) then
+            helpDocs = Win32libDocs
+            if not length(helpDocs) then
+                ok = displayErrorMessage(16,{})
+                return
+            end if
+            --which version of win32lib is being used?
+            version = (Win32LibVersion[1]*10000)+(Win32LibVersion[2]*100)+Win32LibVersion[3]
+            if version<5710 then
+                DummyFirst = "<html>\n<head>\n<meta http-equiv=refresh"
+                             & " content=\"0;\nurl=file:///" & helpDocs
+                goDocs = "#" & word
+            elsif version>5804 then
+                if not length(link) then
+                    link = findWinlibLinks(helpDocs)
+                end if
+                goDocs = word
+                for i=1 to length(link) do
+                    if equal(word, link[i][1]) then
+                        goDocs = link[i][2]
+                        exit
+                    end if
+                end for
+                helpDocs = reverse(helpDocs)
+                at = find('\\', helpDocs)
+                if at then
+                    helpDocs = helpDocs[at..length(helpDocs)]
+                end if
+                helpDocs = reverse(helpDocs)
+                DummyFirst = "<html>\n<head>\n<meta http-equiv=refresh"
+                             & " content=\"0;\nurl=file:///" & helpDocs
+            else
+                --remove htm file name
+                helpDocs = reverse(helpDocs)
+                at = find('\\', helpDocs)
+                if at then
+                    helpDocs = helpDocs[at..length(helpDocs)]
+                end if
+                helpDocs = reverse(helpDocs)
+                DummyFirst = "<html>\n<head>\n<meta http-equiv=refresh"
+                             & " content=\"0;\nurl=file:///" & helpDocs
+                goDocs = append("win32lib_", word[1])
+                goDocs &= ".htm#"
+                goDocs &= word
+            end if
+
+        --Roland Stowasser enhancement
+        else
+            helpDocs = euDir
+            helpDocs &= "/html"
+            DummyFirst = "<html>\n<head>\n<meta http-equiv=refresh"
+                         & " content=\"0;\nurl=file:///" & helpDocs --& "/"
+
+            if find(word, keywords) then
+                goDocs = "/refman_2.htm#"
+                if equal(word, "and")
+                or equal(word, "not")
+                or equal(word, "or")
+                or equal(word, "xor") then
+                    goDocs &= "24"    --look at status bar when finding in Refman_htm
+                elsif equal(word, "by")
+                   or equal(word, "for")
+                   or equal(word, "to") then
+                    goDocs &= "for"
+                elsif equal(word, "else")
+                   or equal(word, "elsif")
+                   or equal(word, "if")
+                   or equal(word, "then") then
+                    goDocs &= "if"
+                elsif equal(word, "do")
+                   or equal(word, "end") then
+                    goDocs &= "5"
+                elsif equal(word, "with")
+                   or equal(word, "without") then
+                    goDocs &= "62"
+                elsif equal(word, "constant") then
+                    goDocs &= "415"
+                elsif equal(word, "exit") then
+                    goDocs &= "exit"
+                elsif equal(word, "function") then
+                    goDocs &= "412"
+                elsif equal(word, "global") then
+                    goDocs &= "42"
+                elsif equal(word, "include") then
+                    goDocs &= "61"
+                elsif equal(word, "procedure") then
+                    goDocs &= "411"
+                elsif equal(word, "return") then
+                    goDocs &= "return"
+                elsif equal(word, "type") then
+                    goDocs &= "43"
+                elsif equal(word, "while") then
+                    goDocs &= "while"
+                end if
+            --end Roland enhancement
+
+            elsif find(word, builtins)
+               or find(word, library) then
+
+                if equal(word, "int") then
+                    word = "integer"
+                end if
+                if equal(word, "seq") then
+                    word = "sequence"
+                end if
+
+                if equal(word[1..3],"db_") then
+                    --added by Roland Stowasser
+                    goDocs = "/database.htm#" & word
+                elsif word[1]>='a' and word[1]<='b' then
+                    goDocs = "/lib_a_b.htm#" & word
+                elsif word[1]>='c' and word[1]<='d' then
+                    goDocs = "/lib_c_d.htm#" & word
+                elsif word[1]>='e' and word[1]<='g' then
+                    goDocs = "/lib_e_g.htm#" & word
+                elsif word[1]>='h' and word[1]<='o' then
+                    goDocs = "/lib_h_o.htm#" & word
+                elsif word[1]>='p' and word[1]<='r' then
+                    goDocs = "/lib_p_r.htm#" & word
+                elsif word[1]>='s' and word[1]<='t' then
+                    goDocs = "/lib_s_t.htm#" & word
+                elsif word[1]>='u' and word[1]<='z' then
+                    goDocs = "/lib_u_z.htm#" & word
+                end if
+            else
+                -- general help on language
+                goDocs = "/refman_2.htm"
+            end if
+        end if
+
+        DummyLast  = "\">\n</head>\n</html>"
+
+        handle = open("redirect.htm", "w")
+        puts(handle, DummyFirst & goDocs & DummyLast)
+        close(handle)
+
+        -- EXECUTE THE HTML REDIRECT FILE:
+        shellExecute("open","redirect.htm",SW_SHOWNORMAL)
+
+    end if
+end procedure
+HelpHtml_id = routine_id("helpHtml")
+
+--------------------------------------------------------------------------------
+-- change menus according to availability
+procedure onEvent_MainWin(integer self, integer event, sequence params)
+atom Msg, wParam, lParam
+sequence info
+
+    Msg = params[1]
+    wParam = params[2]
+    lParam = params[3]
+
+    info = getControlInfo(MainWin, {CONTROLINFO_closed})
+    if info[1] then
+        -- MainWin closed
+        return
+    end if
+
+    if Msg=WM_MOVE then
+        --move the hint window along if open
+        info = getControlInfo(HintWin, {CONTROLINFO_closed})
+        if not info[1] then
+            -- HintWin is open so show hint
+            positionHint = True
+            displayHint(HintText)
+        end if
+
+    elsif Msg=#117 then
+        if wParam=getHandle(Edit) then
+            if synCanUndo() then
+                setEnable(Undo, True)
+            else
+                setEnable(Undo, False)
+            end if
+            if synHasSelection() then
+                setEnable(Cut, True)
+                setEnable(Copy, True)
+            else
+                setEnable(Cut, False)
+                setEnable(Copy, False)
+            end if
+
+            if synCanPaste() then
+                setEnable(Paste, True)
+            else
+                setEnable(Paste, False)
+            end if
+        end if
+    end if
+end procedure
+setHandler(MainWin, w32HEvent, routine_id("onEvent_MainWin"))
+
+-------------------------------------------------------------------------------
+procedure onActivate_MainWin(integer self, integer event, sequence Params)
+integer ok
+object tail
+
+    if length(cmdparams)>2 then
+        --params might contain valid filename
+        synLoadFile(cmdparams[3])
+        if badFile then
+            ok = displayErrorMessage(35,{cmdparams[3]})
+        else
+            lastLine = {}
+            lastCol = {}
+            --if file has last Modified Line then go there  
+            tail = accessTail(cmdparams[3],"")
+            if sequence(tail) then
+                ok = match(".",tail)
+                if ok then
+                    lastLine = tail[1..ok-1]
+                    lastCol = tail[ok+1..length(tail)]
+                end if
+            end if
+
+            if length(lastLine) then
+                lastLine = value(lastLine)
+                lastLine = lastLine[2]
+                if length(lastCol) then
+                    lastCol = value(lastCol)
+                    lastCol = lastCol[2]
+                else
+                    lastCol = 0
+                end if
+                synMoveCursorAbs(lastCol, lastLine)
+            else
+                lastLine = 1
+                lastCol = 0
+            end if
+        end if
+    end if
+
+    if cfg_HideGutter then
+        hideTheGutter(cfg_HideGutter)
+    end if
+
+    if cfg_EditorOpen=1 then
+        showWindow(MainWin, SW_MAXIMIZE)
+    elsif cfg_EditorOpen=2 then
+        setCtlPosition(MainWin, cfg_EditorOpenPosX, cfg_EditorOpenPosY)
+        setCtlSize(MainWin, cfg_EditorOpenSizeCX, cfg_EditorOpenSizeCY)
+    end if
+    setFocus(Highlight)
+end procedure
+setHandler(MainWin,w32HActivate,routine_id("onActivate_MainWin"))
+
+-------------------------------------------------------------------------------
+-- initialize it all
+procedure onOpen_MainWin(integer self, integer event, sequence params)
+atom Void
+atom hMem
+sequence Rect
+
+-- set status bar initial position values
+    Rect = getClientRect(MainWin)
+    hMem = allocate(12)
+    poke4(hMem, {Rect[3]-150,Rect[3]-75,-1})
+    Void = w32Func(xSendMessage, {getHandle(Status),SB_SETPARTS,3,hMem})
+    free(hMem)
+
+    -- restore from ini file
+    synRestoreINIFile("Files\\OtherC.ini")
+    establishSyntax()
+    OpenFileName = {}
+
+    -- set bitmaps and tool tips
+    addToBand(toolbar, band)
+    setBitmap(ToolPush1, the_current_dir & "\\Resources\\New.bmp")
+    setHint(ToolPush1, IDEText[46][1])
+    setBitmap(ToolPush2, the_current_dir & "\\Resources\\Open.bmp")
+    setHint(ToolPush2, IDEText[47][1])
+    setBitmap(ToolPush3, the_current_dir & "\\Resources\\Save.bmp")
+    setHint(ToolPush3, IDEText[48][1])
+    setBitmap(ToolPush4, the_current_dir & "\\Resources\\SaveAs.bmp")
+    setHint(ToolPush4, IDEText[49][1])
+    setBitmap(ToolPush5, the_current_dir & "\\Resources\\Undo.bmp")
+    setHint(ToolPush5, IDEText[50][1])
+    setBitmap(ToolPush6, the_current_dir & "\\Resources\\Cut.bmp")
+    setHint(ToolPush6, IDEText[51][1])
+    setBitmap(ToolPush7, the_current_dir & "\\Resources\\Copy.bmp")
+    setHint(ToolPush7, IDEText[52][1])
+    setBitmap(ToolPush8, the_current_dir & "\\Resources\\Paste.bmp")
+    setHint(ToolPush8, IDEText[53][1])
+    setBitmap(ToolPush9, the_current_dir & "\\Resources\\Goto.bmp")
+    setHint(ToolPush9, IDEText[54][1])
+    setBitmap(ToolPush10, the_current_dir & "\\Resources\\FindR.bmp")
+    setHint(ToolPush10, IDEText[55][1])
+    synSetF1CallBack(routine_id("F1CallBack"))
+    synSetHintCallBack(routine_id("HintCallBack"))
+
+    -- Load Launch config file
+    LoadLaunchCfg()
+
+end procedure
+setHandler(MainWin, w32HOpen, routine_id("onOpen_MainWin"))
+-------------------------------------------------------------------------------
+-- save changes back to ini file
+procedure onClose_MainWin(integer self, integer event, sequence params)
+integer ok,index
+sequence data, size
+
+--check for updates?
+    if synGetModified() then
+        ok = displayErrorMessage(30,{})
+        if ok=IDYES then
+            if not length(OpenFileName) then
+                ok = invokeHandler(SaveAs, w32HClick,{})
+                if not length(OpenFileName) then
+                    --user cancelled saveAs
+                    closedUp = False
+                    returnValue(-1)
+                    return
+                end if
+                addLastLineModified()
+            else
+                ok = invokeHandler(Save, w32HClick,{})
+                addLastLineModified()
+            end if
+        elsif ok=IDCANCEL then
+            closedUp = False
+            returnValue(-1)
+            return
+        end if
+    end if
+
+    closedUp = True
+
+    --update IDE's config file
+    ConfigFile = the_current_dir & "\\Files\\IDE.cfg"
+     -- open the file
+    fn = open(ConfigFile, "w")
+    if fn= -1 then
+        -- give message and exit
+        ignore = displayErrorMessage(176,{ConfigFile})
+        return
+    end if
+
+    line[cfgHintDisabled] = {}
+    if not isChecked(MenuIgnoreHints) then
+        line[cfgHintDisabled] = "HintDisabled"
+    end if
+
+    line[cfgHintStatusBar] = {}
+    if isChecked(MenuHintsStatus) then
+        line[cfgHintStatusBar] = "HintStatusBar"
+    end if
+
+    line[cfgNoEditorBackup] = {}
+    if not isChecked(MenuBackUp) then
+        line[cfgNoEditorBackup] = "noEditorBackUp"
+    end if
+
+    line[cfgNoEditorAutoComplete] = {}
+    if not isChecked(MenuAutoComplete) then
+        line[cfgNoEditorAutoComplete] = "noEditorAutoComplete"
+    end if
+
+    line[cfgHideGutter] = {}
+    if isChecked(MenuHideGutter) then
+        line[cfgHideGutter] = "HideGutter"
+    end if
+
+    line[cfgEditorOpen] = {0,0,0,0,0}
+    if isChecked(MenuEditorOpen1) then
+        line[cfgEditorOpen][1] = 1
+    elsif isChecked(MenuEditorOpen2) then
+        line[cfgEditorOpen][1] = 2
+        size = getPosition(MainWin)
+        line[cfgEditorOpen][2] = size[1]
+        line[cfgEditorOpen][3] = size[2]
+        size = getCtlSize(MainWin)
+        line[cfgEditorOpen][4] = size[1]
+        line[cfgEditorOpen][5] = size[2]
+    end if
+
+    print(fn, line)
+    close(fn)
+
+    if validId(HintWin) then
+        closeWindow(HintWin)
+    end if
+
+    --remove editor F1 help redirect.htm if present
+    ok = deleteFile("redirect.htm")
+
+    data = synGetSavable()
+    index = find("Module",data[1])
+    if index then
+        data[2][index] = {}
+        synSetSavableCorrected(data)
+    end if
+
+    synSaveINIFile("Files\\OtherC.ini")
+
+    Close_MainWin(0,0,{})   --this is in syntax
+
+end procedure
+setHandler(MainWin, w32HClose, routine_id("onClose_MainWin"))
+
+------------------------------------------------------------------------------
+procedure click_Print(integer self, integer event, sequence params)
+sequence print_data, result
+object result1
+integer ok
+
+    print_data = synGetAllText()
+
+    SetOrientation(1)   --initially set to Portrait mode
+    selectPagesUp(MainWin)
+    ok = CheckStatus()
+    if ok then
+        return
+    end if
+
+    if prt32_orientation=2 then
+        result1 = setPrintJobProperty(JP_Orientation,DMORIENT_LANDSCAPE)
+    end if
+
+    if isChecked(prter) then
+        getDefaultPrinter()
+        result = "111"
+    else
+        result = getPrinter()
+        if not length(result) then
+            return
+        end if
+    end if
+
+    Prt_A_Buffer(print_data, 0, 0, getTabStop())        --column, row, spaces conv tab
+
+end procedure
+setHandler(Print,w32HClick,routine_id("click_Print"))
+
+procedure onGotFocus_MainWin(integer self, integer event, sequence params)
+    setFocus(Highlight)
+end procedure
+setHandler(MainWin,w32HGotFocus,routine_id("onGotFocus_MainWin"))
+
+-------------------------------------------------------------------------------
+--start event loop
+WinMain(MainWin, Normal)
+

@@ -313,7 +313,7 @@ end procedure
 procedure about_box()
 atom result
     result = c_func(MessageBox, {hMainWnd,
-                                 alloc_string(window_title&"\n\nVersion "&version&"\n\nBy "&author),
+                                 alloc_string(window_title&"\n\nVersion "&weeversion&"\n\nBy "&author),
                                  alloc_string("About "&window_title),
                                  or_all({MB_APPLMODAL, MB_ICONINFORMATION, MB_OK})})
     free_strings()

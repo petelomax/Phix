@@ -44,6 +44,88 @@ find very useful. (As stated elsewhere, if you need access to anthing in the
 closed-source back end, I'll try and migrate it to hll/#ilasm for you.)
 I do however make every effort (+some) to be as precise as possible here.
 
+Version 0.7.2
+=============
+02/01/2017: Fixed one of the rarer and more confusing errors: if b.exw was
+                constant PINF = 1E308*1000
+                include m.e
+            and m.e was:
+                global constant PINF = 1E308*1000,
+                                MINF = - PINF
+            Then we had an error in m.e of PINF not defined! The problem was
+            that DoConstant() was spotting the need to link together on the
+            S_Clink chain, but was doing so using an old copy of symtab[O],
+            from before the addSymEntryAt(), thereby messing up the S_Nlink
+            chain. It now fetches a fresh copy of symtab[O] -- simples.
+03/01/2017: Finally added trace(3). However, it has exposed a glitch in the
+            file i/o routines: a missing line every 106/107 lines, which is
+            approx 7738/7811, suspiciously close to 8192-6*73(=7754) buffer
+            limits in VM/pfileioN.e - which will hopefully be trivial to 
+            fix once better reproduced. [DEV/challenge]
+05/01/2017: Bugfix: Unary minus incorrectly applied to routine_ids, eg:
+                constant r_x = routine_id("x")
+                ?{r_x,-r_x,routine_id("x"),-routine_id("x")}
+            prints say {947,-947,947,-1755}. The problem was Factor() not
+            testing for K_rtn properly, it now does a proper opUminus.
+            [There is also a PushFactor(k,1,T_integer) after resolveRoutineId
+             that I suspect should really set isLiteral to 0, as another way
+             to solve the same problem, but that broke "p -test" badly... At
+             least, I think that is why -r_x works but the longer does not.]
+            Should only have been an issue compiling, not interpreting.
+15/01/2017: Bugfix: fatal error in lineinfo() when trying to update LineTab
+            for "procedure text_mode() end procedure" (no \n). Similar fix
+            to that of 07/12/2015 for a completely empty source file.
+23/01/2017: Bugfix: running IDE.exw crashed in Or_K_ridt() when calling 
+            routine_id("x") mid-procedure x(with >=2 params). At that stage,
+            the S_Slink chain is "backwards" so must be scanned differently.
+
+Version 0.7.1
+=============
+17/11/2016  You can now use platform(), machine_bits(), and machine_word() as
+            parameter defaults (optimised to literal integers in pmain.e/
+            getOneDefault). Also, a switch with no case statements now triggers
+            an error (because pilx86.e cannot cope, and besides it is bit like 
+            having an if/elsif/else/end if with no if, no elsif, and maybe no
+            else). New builtins to_integer() and to_number(). Files are now
+            properly flushed/closed when an app terminates. Several x64 asm
+            fixes (far too many to list, though many were just minor glitches
+            in the list.asm files). Discovered rand() was really pants on x64,
+            rax is now initialised with seed<<32|seed, iyswim. puts1.e was
+            mutely displaying nothing, so it now does an AllocConsole first.
+
+Version 0.7.0
+=============
+30/05/2016  Added bool as a simple alias of integer. It was about time.
+            (one line change to psym.e, plus syntax colour and help link.)
+11/06/2016  BUGFIX: the break statement was only being permitted at the
+            "top level" inside DoSwitch(). Added DoBreak/breakBP/breakMerge
+            modelled after DoExit/exitBP/exitMerge. Took about 30 mins.
+19/06/2016  Added "forward call assumed" warnings to Phix. Initially I was a
+            bit hesitant, but now that it is in place... it's a good thing.
+            Part of me is certain that some people will think it is a crime 
+            against humanity that to get rid of the warnings you have to add 
+            an explicit forward declaration, but... tough. Well, if it really
+            bothers you that much, change FWARN in p.exw to 0 and rebuild.
+            There already was a warning, been there for quite some time now, 
+            when an implicit local got resolved to a global, which has not 
+            caused me any trouble at all, in fact quite the opposite. 
+            (In case you haven't guessed, it is very difficult for me to
+             properly justify any of this beyond a simple gut feeling.)
+            When you get a warning, and it is not something that would just
+            obviously be better off earlier on anyway, simply add an explicit 
+            forward routine definition.
+            The only mention of (explicit) forward declarations in the manual 
+            is in Core/Declarations/Scope. [DEV: updates to manual still rqd]
+23/06/2016: Removed unused parameter warnings for routines which are the target
+            of routine_id (as long as that is known at compile-time). Callbacks
+            for win32lib etc demand a fixed set of parameters which got a bit
+            too much in one of the demos I had a play with. At the same time,
+            constants which are assigned the result of a function with side
+            effects other than E_none or E_other are also exhonorated from 
+            unused warnings, such as constant TextLabel = create(Label,...).
+            [E_other stems, I believe, from the 09/02/2016 bugfix. It replaces
+             E-none in any routine of said that has any #ilASM in it.]
+
 Version 0.6.7
 =============
 15/08/2015  Got the parlour trick ("p p p p p p p p -cp") all working again.
@@ -111,47 +193,6 @@ Version 0.6.7
             up, as parameter types and defaults could equally be missed.
 15/02/2016  BUGFIX: preserved rbx/rbp/rdi/rsi/r12/r13/r14/r15 over callbacks;
             fileopen/pcom now appear to work on 64-bit!! (YAY!)
-30/05/2016  Added bool as a simple alias of integer. It was about time.
-            (one line change to psym.e, plus syntax colour and help link.)
-11/06/2016  BUGFIX: the break statement was only being permitted at the
-            "top level" inside DoSwitch(). Added DoBreak/breakBP/breakMerge
-            modelled after DoExit/exitBP/exitMerge. Took about 30 mins.
-19/06/2016  Added "forward call assumed" warnings to Phix. Initially I was a
-            bit hesitant, but now that it is in place... it's a good thing.
-            Part of me is certain that some people will think it is a crime 
-            against humanity that to get rid of the warnings you have to add 
-            an explicit forward declaration, but... tough. Well, if it really
-            bothers you that much, change FWARN in p.exw to 0 and rebuild.
-            There already was a warning, been there for quite some time now, 
-            when an implicit local got resolved to a global, which has not 
-            caused me any trouble at all, in fact quite the opposite. 
-            (In case you haven't guessed, it is very difficult for me to
-             properly justify any of this beyond a simple gut feeling.)
-            When you get a warning, and it is not something that would just
-            obviously be better off earlier on anyway, simply add an explicit 
-            forward routine definition.
-            The only mention of (explicit) forward declarations in the manual 
-            is in Core/Declarations/Scope. [DEV: updates to manual still rqd]
-23/06/2016: Removed unused parameter warnings for routines which are the target
-            of routine_id (as long as that is known at compile-time). Callbacks
-            for win32lib etc demand a fixed set of parameters which got a bit
-            too much in one of the demos I had a play with. At the same time,
-            constants which are assigned the result of a function with side
-            effects other than E_none or E_other are also exhonorated from 
-            unused warnings, such as constant TextLabel = create(Label,...).
-            [E_other stems, I believe, from the 09/02/2016 bugfix. It replaces
-             E-none in any routine of said that has any #ilASM in it.]
-17/11/2016  You can now use platform(), machine_bits(), and machine_word() as
-            parameter defaults (optimised to literal integers in pmain.e/
-            getOneDefault). Also, a switch with no case statements now triggers
-            an error (because pilx86.e cannot cope, and besides it is bit like 
-            having an if/elsif/else/end if with no if, no elsif, and maybe no
-            else). New builtins to_integer() and to_number(). Files are now
-            properly flushed/closed when an app terminates. Several x64 asm
-            fixes (far too many to list, though many were just minor glitches
-            in the list.asm files). Discovered rand() was really pants on x64,
-            rax is now initialised with seed<<32|seed, iyswim. puts1.e was
-            mutely displaying nothing, so it now does an AllocConsole first.
 
 Version 0.6.6
 =============

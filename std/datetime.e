@@ -14,7 +14,7 @@ namespace datetime
 --include std/machine.e
 --include std/dll.e
 --include std/sequence.e
-include std/get.e
+--include std/get.e
 --include std/error.e
 include std/types.e
 
@@ -1001,7 +1001,9 @@ integer epos
                     epos += 1
                 end while
 
-                got = value(val[spos..epos-1],1, GET_LONG_ANSWER)
+--DEV PL
+--              got = value(val[spos..epos-1],1, GET_LONG_ANSWER)
+                got = value(val[spos..epos-1])
 
                 if got[1]!=GET_SUCCESS then
                     return -1

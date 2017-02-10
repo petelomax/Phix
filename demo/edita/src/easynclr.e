@@ -577,6 +577,9 @@ integer EuSq -- euphoria/phix style single quote handling
 integer allNumbers
 
 integer lc
+--if lineno=1 then
+--  ?text
+--end if
 --trace(1)
 --if chovline!=0 then trace(1) end if
     lt = length(text)
@@ -871,6 +874,16 @@ end if
             abc = ""  -- (signals line comment scan)
             scanForUrls(text)
             syntaxClass = Comments
+--23/12/16:
+        elsif bcomm=0 
+--        and lineno=1  -- relaxed for htmilse code
+          and ch='#'
+          and chidx=marginWidth+1
+          and length(text)>=chidx2
+          and text[chidx2]='!' then
+            chidx2=lt+1
+            syntaxClass = Comments
+            
         elsif ctype=String then
             chidx2 = chidx
             syntaxClass = Strings

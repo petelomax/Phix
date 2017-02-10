@@ -996,7 +996,7 @@ end procedure
             add esp,4
 
         [ELF64]
-pop al  -- calling convention is going to be hopelessly wrong in almost all cases!
+--pop al    -- calling convention is going to be hopelessly wrong in almost all cases!
             -- standard (kernel) calling convention applies: 
             -- syscall number in rax (see docs\lsct64.txt)
             -- first 6 parameters are passed in rdi/rsi/rdx/rcx(or r10 for system calls)/r8/r9 (or xmm0..7).
@@ -1039,9 +1039,13 @@ pop al  -- calling convention is going to be hopelessly wrong in almost all case
 --*/
 --void * malloc (size_t size)
 --untried:
-            push rax
+-- 7/2/17:
+push rdi
+push rsi
+            mov rdi,rax
             call "libc.so.6","malloc"
-            add rsp,8
+pop rsi
+pop rdi
         []
             ret
 
@@ -1077,8 +1081,13 @@ end procedure -- (for Edita/CtrlQ)
 --          pop rsp
             mov rsp,[rsp+8*5]   -- equivalent to the add/pop
         [ELF64]
+-- 7/2/17:
+push rdi
+push rsi
             mov eax,39              -- sys_getpid()
             syscall
+pop rsi
+pop rdi
         []
             ret
     
@@ -1390,12 +1399,17 @@ end procedure -- (for Edita/CtrlQ)
                 test eax,eax
                 jz :futex_locked    -- if [rcx] just got set from 0 to 2, we're done (else (1|2)->2==>wait)
               ::futex_wait
+-- 7/2/17:
+push rdi
+push rsi
                     mov eax,202         -- sys_futex(rdi=u32*uaddr, rsi=int op, rdx=u32 val, r10=struct timespec*utime[==NULL] [,r8=u32*uaddr2,r9=u32 val3])
                     mov rdi,rcx         -- *futex
                     mov rsi,#80         -- FUTEX_WAIT(0) or FUTEX_PRIVATE_FLAG(128)
                     mov edx,2           -- val
                     xor r10,r10         -- no timeout
                     syscall             -- futex_wait(rcx,2)
+pop rsi
+pop rdi
                     mov rcx,[rsp]
                     jmp :xchg2
               ::futex_locked
@@ -1509,12 +1523,17 @@ end procedure -- (for Edita/CtrlQ)
             -- csLock (address of a dword futex) in rcx
             lock sub dword[rcx],1   -- *futex -= 1  (yes, it is still a dword on 64-bit)
             jz @f
+-- 7/2/17:
+push rdi
+push rsi
                 mov [rcx],rbx       -- *futex := 0
                 mov eax,202         -- sys_futex(rdi=u32*uaddr, rsi=int op, rdx=u32 val [,r10=struct timespec*utime,r8=u32*uaddr2,r9=u32 val3])
                 mov rdi,rcx         -- *futex
                 mov rsi,#81         -- FUTEX_WAKE(1) or FUTEX_PRIVATE_FLAG(128)
                 mov edx,1           -- val
                 syscall             -- futex_wake(rcx,1)
+pop rsi
+pop rdi
           @@:
             ret
         []
@@ -3756,6 +3775,7 @@ end procedure -- (for Edita/CtrlQ)
 --*/
     :%pLoadMint -- finish loading a machine-sized (32/64-bit) integer
 ---------------
+--DEV era in edx? error code in ecx?
     [32]
         -- eax:=(int32)eax
         -- All other registers are preserved (ebx:=0).
@@ -3773,6 +3793,7 @@ end procedure -- (for Edita/CtrlQ)
           ::LoadMintFlt
             sub esp,8
             fld qword[ebx+eax*4]
+--DEV try fisttp?
             call :%down53
             fistp qword[esp]
             call :%near53
@@ -3795,8 +3816,26 @@ end procedure -- (for Edita/CtrlQ)
                 jmp :!iDiag
                 int3
           ::LoadMintFlt
-            sub rsp,8
+--removed 17/1/17:
+--          sub rsp,8
             fld tbyte[rbx+rax*4]
+
+--12/01/17:
+            -- if uint>#7FFF... then uint-=#1_0000...
+            push r15            -- #4000_0000_0000_0000
+            fild qword[rsp]
+            fadd st0,st0        -- #8000_0000_0000_0000
+            fld st1
+            fcomp
+            fnstsw ax
+            sahf
+            jb :below80
+                fadd st0,st0    -- #1_0000_0000_0000_0000
+                fsub st1,st0
+          ::below80
+            fstp st0            -- discard
+
+--DEV try fisttp?
             call :%down64
             fistp qword[rsp]
             call :%near64
@@ -4336,7 +4375,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         pop rdi
         push rax
-        fild qword[rsp]
+        fild qword[rsp]     -- (treat as signed)
         add rsp,8
         jmp :%pStoreFlt     -- [rdi]:=st0
     []
@@ -4377,7 +4416,7 @@ end procedure -- (for Edita/CtrlQ)
             sub rsp,8
             fld tbyte[rbx+rax*4]
             call :%down64
-            fistp qword[rsp]
+            fistp qword[rsp] -- (assume ok, matches pAlloc [signed])
             call :%near64
             pop rax
       @@:

@@ -1,0 +1,516 @@
+--printOptions.ew
+
+without warning
+include Includes\PrtRoutines.ew
+
+global integer PrintOptWin
+integer StatusBar35,Group2,PrtAll,PrtCurrentControl,PrtSelectedControls,
+CheckedEventsForCurrent,ButtonOk,ButtonCancel,PrtCurrentModule,
+UpCheckBox,LText30,EventsWin,EventsList,EventsButtonOk,EvnetsButtonCancel,
+ControlsWin,StatusBar36,ControlsList,ControlsButtonOk,Group19,SelectedControlsSelectEvents,
+LText22,SelectControlAllEvents,ControlsButtonCancel,UnSelectCheckBox
+
+PrintOptWin = -1
+--------------------------------------------------------------------------------
+object pickedControl            --the current control or the group of selected controls
+integer whichWindow             --the current index in windows
+pickedControl = 0
+whichWindow = 0
+
+sequence eventsSelectedForPrinting,                     --used when all controls are selected
+         controlsSelectedForPrinting,           --used when selected controls are picked
+         controlsSelectedForPrintingEvents,     --used whe, selected controls are picked; selected events
+         controlsSelectedForPrintingIndexes --actual window and controls index for the selected controls
+eventsSelectedForPrinting = {}                  --format is seq of event name(s)
+controlsSelectedForPrinting = {}                    --format is seq of control Name(s)
+controlsSelectedForPrintingEvents = {}  --format is control Name,seq of event(s)
+controlsSelectedForPrintingIndexes = {}
+
+sequence thewinlist                     --holds window and controls index of controls in ControlsList
+thewinlist = {}
+
+sequence print_data                                             --program; events; whatever selected by user
+print_data = {}
+
+sequence prtDash
+prtDash = repeat('-',80)
+
+--------------------------------------------------------------------------------
+procedure PrintOptWin_onOpen(integer self, integer event, sequence params)
+    setCheck(PrtAll, w32False)
+    setCheck(PrtCurrentControl, w32False)
+    setCheck(CheckedEventsForCurrent, w32False)
+    setCheck(PrtSelectedControls, w32False)
+    setCheck(SelectControlAllEvents, w32True)
+    setCheck(SelectedControlsSelectEvents, w32False)
+    setCheck(UpCheckBox, w32False)
+
+    eventsSelectedForPrinting = {}
+    controlsSelectedForPrinting = {}
+    controlsSelectedForPrintingEvents = {}
+    controlsSelectedForPrintingIndexes = {}
+    thewinlist = {}
+
+    -- save coding data for controls to window
+    if selectedWindow then
+        windows[selectedWindow] = controls
+    end if
+
+    setText(StatusBar35, IDEText[524][1])      --"Ready"
+end procedure
+--------------------------------------------------------------------------------
+procedure PrtAll_onClick(integer self, integer event, sequence params)
+    setCheck(CheckedEventsForCurrent, w32False)
+end procedure
+--------------------------------------------------------------------------------
+procedure PrtCurrentControl_onClick(integer self, integer event, sequence params)
+    setCheck(CheckedEventsForCurrent, w32False)
+    pickedControl = getIndex(CodeControls)
+    whichWindow = selectedWindow
+end procedure
+--------------------------------------------------------------------------------
+procedure CheckedEventsForCurrent_onClick(integer self, integer event, sequence params)
+    if isChecked(CheckedEventsForCurrent) then
+        setCheck(PrtCurrentControl, w32True)
+        setCheck(PrtSelectedControls, w32False)
+        setCheck(PrtCurrentModule, w32False)
+        pickedControl = getIndex(CodeControls)
+        whichWindow = selectedWindow
+        openWindow(EventsWin, Modal)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure PrtSelectedControls_onClick(integer self, integer event, sequence params)
+    setCheck(CheckedEventsForCurrent, w32False)
+    openWindow(ControlsWin, Modal)
+end procedure
+--------------------------------------------------------------------------------
+procedure PrtCurrentModule_onClick(integer self, integer event, sequence params)
+    setCheck(CheckedEventsForCurrent, w32False)
+end procedure
+--------------------------------------------------------------------------------
+procedure preparePrintData(integer prtWindow, integer prtControl, sequence prtEvent)
+    --build print_data sequence of one line per
+    if equal(prtEvent,"all") then
+        for i=1 to length(windows[prtWindow][prtControl][Code]) do
+            --pass all coding events to printer
+            if length(windows[prtWindow][prtControl][Code][i]) then
+                for k=1 to length(windows[prtWindow][prtControl][Code][i]) do
+                    print_data &= {windows[prtWindow][prtControl][Code][i][k]}
+                end for
+                print_data &= {prtDash}
+            end if
+        end for
+    else
+        --translate event name into Events index
+        for i=1 to length(Events) do
+            if equal(prtEvent, Events[i][1]) then
+                for k=1 to length(windows[prtWindow][prtControl][Code][i]) do
+                    print_data &= {windows[prtWindow][prtControl][Code][i][k]}
+                end for
+                print_data &= {prtDash}
+                exit
+            end if
+        end for
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure ButtonOk_onClick(integer self, integer event, sequence params)
+integer ok, handle
+sequence prtEventsList
+sequence result
+object line, result1
+
+    print_data = {}
+
+    --if no selections were made then need to notify user
+    if not isChecked(PrtAll)
+    and not isChecked(PrtCurrentModule)
+    and not length(controlsSelectedForPrinting)
+    and not pickedControl then
+        ok = displayErrorMessage(225,{})
+        return
+    end if
+
+    --take input criteria and build a print sequence
+    --print confirmation message
+    if isChecked(PrtAll) then
+        setText(StatusBar35, IDEText[525][1])   --"Preparing data for printing"
+        --do a tempSave and then read that file?
+        call_proc(writeCode_id,{the_current_dir & "\\IDEprt.exw"})
+
+        --grab the data into print sequence
+        handle = open(the_current_dir & "\\IDEprt.exw","r")
+        if handle= -1 then
+            ok = displayErrorMessage(226,{the_current_dir & "\\prt.exw"})
+            return
+        end if
+        while 1 do
+            line = gets(handle)
+            if atom(line) then
+                exit
+            end if
+            if line[length(line)]='\n' then
+                line = line[1..length(line)-1]
+            end if
+            print_data = append(print_data, line)
+        end while
+        close(handle)
+        ok = deleteFile(the_current_dir & "\\IDEprt.exw")
+
+    elsif isChecked(PrtCurrentModule) then
+        --check what module was last in Code Editor
+        if not getCount(CodeModules) then
+            ok = displayErrorMessage(227,{})
+            return
+        end if
+        setText(StatusBar35, IDEText[525][1])   --"Preparing data for printing"
+        if isModuleRoutine then
+            print_data = synGetAllText()
+        else
+            ok = displayErrorMessage(228,{})
+        end if
+
+    elsif isChecked(PrtCurrentControl) then
+        setText(StatusBar35, IDEText[525][1])   --"Preparing data for printing"
+        --all events for selectedControl
+        preparePrintData(whichWindow, pickedControl, "all")
+
+    elsif isChecked(CheckedEventsForCurrent) then
+        prtEventsList = {}
+        for i=1 to length(eventsSelectedForPrinting) do
+            prtEventsList &= "," & eventsSelectedForPrinting[i]
+        end for
+        --remove beginning comma        prtEventsList=prtEventsList[2..length(prtEventsList)]
+
+        setText(StatusBar35, IDEText[525][1])   --"Preparing data for printing"
+        --all events for selectedControl
+
+        --check selected events for selectedControl
+        for i=1 to length(eventsSelectedForPrinting) do
+            preparePrintData(whichWindow, pickedControl, eventsSelectedForPrinting[i])
+        end for
+
+    elsif isChecked(PrtSelectedControls) then
+        prtEventsList = {}
+        for i=1 to length(controlsSelectedForPrintingEvents) do
+            prtEventsList &= controlsSelectedForPrintingEvents[i][1] & IDEText[526][1]  --" Events: "
+            if not length(controlsSelectedForPrintingEvents[i][2]) then
+                prtEventsList &= IDEText[527][1]    --"All events"
+            end if
+            for j=1 to length(controlsSelectedForPrintingEvents[i][2]) do
+                if j=1 then
+                    prtEventsList &= controlsSelectedForPrintingEvents[i][2][j]
+                else
+                    prtEventsList &= "," & controlsSelectedForPrintingEvents[i][2][j]
+                end if
+            end for
+        end for
+
+        setText(StatusBar35, IDEText[525][1])   --"Preparing data for printing"
+            --all events for selectedControl
+
+
+        --check selected controls - selected events
+        for i=1 to length(controlsSelectedForPrintingEvents) do
+            if length(controlsSelectedForPrintingEvents[i][2]) then
+                for j=1 to length(controlsSelectedForPrintingEvents[i][2]) do
+                    preparePrintData(controlsSelectedForPrintingIndexes[i][1],
+                                     controlsSelectedForPrintingIndexes[i][2],
+                                     controlsSelectedForPrintingEvents[i][2][j])
+                end for
+            else
+                preparePrintData(controlsSelectedForPrintingIndexes[i][1],
+                                 controlsSelectedForPrintingIndexes[i][2], "all")
+            end if
+        end for
+    end if
+
+    if isChecked(UpCheckBox) then
+        SetOrientation(1)       -- set Portrait as default print mode.      
+        selectPagesUp(PrintOptWin)
+        ok = CheckStatus()
+        if ok then
+            if validId(PrintOptWin) then
+                destroy(PrintOptWin)
+            end if
+            PrintOptWin = -1
+            return
+        end if
+    end if
+
+    if prt32_orientation=2 then
+        result1 = setPrintJobProperty(JP_Orientation,DMORIENT_LANDSCAPE)
+    end if
+
+    if isChecked(prter) then
+        getDefaultPrinter()
+        result = "111"
+    else
+        result = getPrinter()
+        if not length(result) then
+            return
+        end if
+    end if
+
+    if not length(result) then
+        if validId(PrintOptWin) then
+            destroy(PrintOptWin)
+        end if
+        PrintOptWin = -1
+        return
+    end if
+
+    if validId(PrintOptWin) then
+        destroy(PrintOptWin)
+    end if
+    PrintOptWin = -1
+
+    Prt_A_Buffer(print_data, 0, 0, getTabStop())        --column, row, tab stop convert spaces
+
+end procedure
+--------------------------------------------------------------------------------
+procedure ButtonCancel_onClick(integer self, integer event, sequence params)
+    if validId(PrintOptWin) then
+        destroy(PrintOptWin)
+    end if
+    PrintOptWin = -1
+end procedure
+--------------------------------------------------------------------------------
+procedure EventsWin_onOpen(integer self, integer event, sequence params)
+    eraseItems(EventsList)
+
+    for i=1 to length(windows[whichWindow][pickedControl][Code]) do
+        if length(windows[whichWindow][pickedControl][Code][i]) then
+            addItem(EventsList, Events[i][1])
+        end if
+    end for
+
+    eventsSelectedForPrinting = {}
+end procedure
+--------------------------------------------------------------------------------
+procedure EventsButtonOk_onClick(integer self, integer event, sequence params)
+integer at
+
+    eventsSelectedForPrinting = getMultItems(EventsList)
+
+    if not length(eventsSelectedForPrinting) then
+        --if there are no selected events then reset option in prior screen
+        if isChecked(PrtCurrentControl) then
+            setCheck(CheckedEventsForCurrent,w32False)
+        elsif isChecked(SelectedControlsSelectEvents) then
+            setCheck(SelectedControlsSelectEvents, w32False)
+            setCheck(SelectControlAllEvents, w32True)
+            --clear controls events entry
+            at = find(getItem(ControlsList,getIndex(ControlsList)),controlsSelectedForPrinting)
+            if at then
+                controlsSelectedForPrintingEvents[at][2] = {}
+            end if
+        end if
+    else
+        --replace any prior selected events with these new ones
+        at = find(getItem(ControlsList,getIndex(ControlsList)),controlsSelectedForPrinting)
+        if at then
+            controlsSelectedForPrintingEvents[at][2] = eventsSelectedForPrinting
+        end if
+    end if
+
+    closeWindow(EventsWin)
+end procedure
+--------------------------------------------------------------------------------
+procedure EvnetsButtonCancel_onClick(integer self, integer event, sequence params)
+integer at
+
+    --clear selected events
+    eventsSelectedForPrinting = {}
+
+    --return to either window3 or window1 whichever came from
+    if isChecked(PrtCurrentControl) then
+        setCheck(CheckedEventsForCurrent,w32False)
+    elsif isChecked(SelectedControlsSelectEvents) then
+        setCheck(SelectedControlsSelectEvents, w32False)
+        setCheck(SelectControlAllEvents, w32True)
+        --clear controls events entry
+        at = find(getItem(ControlsList,getIndex(ControlsList)),controlsSelectedForPrinting)
+        if at then
+            controlsSelectedForPrintingEvents[at][2] = {}
+        end if
+    end if
+
+    closeWindow(EventsWin)
+end procedure
+--------------------------------------------------------------------------------
+procedure ControlsWin_onOpen(integer self, integer event, sequence params)
+    setText(LText22,IDEText[528][1])    --"Control Selected From List"
+    eraseItems(ControlsList)
+    whichWindow = 0
+    pickedControl = 0
+    thewinlist = {}
+    controlsSelectedForPrinting = {}
+    controlsSelectedForPrintingIndexes = {}
+    setCheck(UnSelectCheckBox,w32False)
+
+    for i=1 to length(windows) do
+        for j=1 to length(windows[i]) do
+            if length(windows[i][j][Code]) then
+                for k=1 to length(windows[i][j][Code]) do
+                    if length(windows[i][j][Code][k]) then
+                        addItem(ControlsList, windows[i][j][Name])
+                        thewinlist &= {{i,j}}
+                        exit
+                    end if
+                end for
+            end if
+        end for
+    end for
+
+    setText(StatusBar36, IDEText[529][1])   --"Please make a selection"
+end procedure
+--------------------------------------------------------------------------------
+procedure ControlsList_onClick(integer self, integer event, sequence params)
+integer index
+
+    controlsSelectedForPrinting &= {getItem(ControlsList, getIndex(ControlsList))}
+    controlsSelectedForPrintingEvents &= {{"",""}}
+    index = length(controlsSelectedForPrintingEvents)
+    if index then
+        controlsSelectedForPrintingEvents[index][1] = getItem(ControlsList,getIndex(ControlsList))
+        controlsSelectedForPrintingEvents[index][2] = {}
+    end if
+
+    --get the actual window and controls indexes
+    whichWindow = thewinlist[getIndex(ControlsList)][1]
+    pickedControl = thewinlist[getIndex(ControlsList)][2]
+
+    --and save in sequence for selected controls for printing
+    controlsSelectedForPrintingIndexes &= {thewinlist[getIndex(ControlsList)]}
+
+    setText(StatusBar36, IDEText[530][1])   --"Selected"
+    setText(LText22, getItem(ControlsList, getIndex(ControlsList)))
+    setCheck(SelectControlAllEvents, w32True)
+    setCheck(SelectedControlsSelectEvents, w32False)
+    setCheck(UnSelectCheckBox, w32False)
+
+end procedure
+--------------------------------------------------------------------------------
+procedure SelectedControlsSelectEvents_onClick(integer self, integer event, sequence params)
+    if getIndex(ControlsList) then
+        openWindow(EventsWin, Modal)
+    end if
+end procedure
+--------------------------------------------------------------------------------
+procedure UnSelectCheckBox_onClick(integer self, integer event, sequence params)
+integer at
+
+        --remove from print array
+    at = find(getItem(ControlsList,getIndex(ControlsList)),controlsSelectedForPrinting)
+    if at then
+        thewinlist = thewinlist[1..at-1] & thewinlist[at+1..length(thewinlist)]
+        controlsSelectedForPrintingEvents[at] = {}
+        controlsSelectedForPrinting = controlsSelectedForPrinting[1..at-1]
+                                      & controlsSelectedForPrinting[at+1..length(controlsSelectedForPrinting)]
+        controlsSelectedForPrintingIndexes = controlsSelectedForPrintingIndexes[1..at-1]
+                                             & controlsSelectedForPrintingIndexes[at+1..length(controlsSelectedForPrintingIndexes)]
+    end if
+    --reset radio
+    setCheck(SelectControlAllEvents, w32True)
+    setCheck(SelectedControlsSelectEvents, w32False)
+end procedure
+--------------------------------------------------------------------------------
+procedure ControlsButtonOk_onClick(integer self, integer event, sequence params)
+
+    if not length(controlsSelectedForPrinting) then
+        setCheck(PrtCurrentControl, w32True)
+        setCheck(PrtSelectedControls, w32False)
+    end if
+    closeWindow(ControlsWin)
+end procedure
+--------------------------------------------------------------------------------
+procedure ControlsButtonCancel_onClick(integer self, integer event, sequence params)
+    --clear selected controls
+    controlsSelectedForPrinting = {}
+    controlsSelectedForPrintingEvents = {}
+    controlsSelectedForPrintingIndexes = {}
+    thewinlist = {}
+    --return to first window
+    setCheck(PrtCurrentControl, w32True)
+    setCheck(PrtSelectedControls, w32False)
+    closeWindow(ControlsWin)
+end procedure
+--------------------------------------------------------------------------------
+global procedure createPrintOptWin()
+    if PrintOptWin= -1 then
+                                  --"Code Editor Print Selection"
+        PrintOptWin = createEx(Window, IDEText[531][1], CodeWin, Default, Default, 300, 343, {WS_DLGFRAME}, 0)
+        StatusBar35 = createEx(StatusBar, "", PrintOptWin, 0, 0, 0, 0, 0, 0)
+                             --"Printing Options"
+        Group2 = createEx(Group, IDEText[532][1], PrintOptWin, 8, 12, 278, 192, 0, 0)
+                             --"Print entire program"
+        PrtAll = createEx(Radio, IDEText[533][1], Group2, 16, 20, 256, 20, 0, 0)
+                                        --"Print active control "
+        PrtCurrentControl = createEx(Radio, IDEText[534][1], Group2, 16, 44, 256, 20, 0, 0)
+                                          --"Print selected control(s)"
+        PrtSelectedControls = createEx(Radio, IDEText[535][1], Group2, 16, 88, 256, 20, 0, 0)
+                                                --"Selected events"
+        CheckedEventsForCurrent = createEx(CheckBox, IDEText[536][1], Group2, 32, 64, 148, 20, 0, 0)
+                                    --"OK"
+        ButtonOk = createEx(PushButton, IDEText[537][1], PrintOptWin, 24, 244, 88, 28, 0, 0)
+                                        --"Cancel"
+        ButtonCancel = createEx(PushButton, IDEText[538][1], PrintOptWin, 124, 244, 88, 28, 0, 0)
+                                       --"Print Current Module"
+        PrtCurrentModule = createEx(Radio, IDEText[539][1], Group2, 16, 112, 256, 20, 0, 0)
+                                    --"More Options"
+        UpCheckBox = createEx(CheckBox, IDEText[540][1], Group2, 16, 144, 258, 40, 0, 0)
+        LText30 = createEx(LText, "", PrintOptWin, 4, 188, 236, 48, 0, 0)
+--------------------------------------------------------------------------------
+                                 --"Select Events"
+        EventsWin = createEx(Window, IDEText[541][1], PrintOptWin, 0, 0, 257, 285, {WS_DLGFRAME}, 0) --{WS_EX_TOPMOST} )
+                                --"List of events with coding for control"
+        EventsList = createEx(List, IDEText[542][1], EventsWin, 12, 8, 208, 200, w32or_all({LBS_MULTIPLESEL}), 0)
+                                          --"OK"
+        EventsButtonOk = createEx(PushButton, IDEText[537][1], EventsWin, 20, 220, 88, 28, 0, 0)
+                                              --"Cancel"
+        EvnetsButtonCancel = createEx(PushButton, IDEText[538][1], EventsWin, 124, 220, 88, 28, 0, 0)
+--------------------------------------------------------------------------------
+                                   --"Select Controls"
+        ControlsWin = createEx(Window, IDEText[543][1], PrintOptWin, 290, 0, 276, 385, {WS_DLGFRAME}, 0)
+        StatusBar36 = createEx(StatusBar, "", ControlsWin, 0, 0, 0, 0, 0, 0)
+                                   --"List of controls in project"
+        ControlsList = createEx(List, IDEText[544][1], ControlsWin, 4, 4, 248, 120, 0, 0)
+                                            --"OK"
+        ControlsButtonOk = createEx(PushButton, IDEText[537][1], ControlsWin, 24, 288, 88, 28, 0, 0)
+                              --"For Control:"
+        Group19 = createEx(Group, IDEText[545][1], ControlsWin, 4, 132, 248, 96, 0, 0)
+                                                   --"Selected Events"
+        SelectedControlsSelectEvents = createEx(Radio, IDEText[546][1], Group19, 8, 64, 148, 20, 0, 0)
+                             --"pass thru all selected controls giving name here"
+        LText22 = createEx(LText, IDEText[547][1], Group19, 8, 20, 236, 20, 0, 0)
+                                            --"All Events"
+        SelectControlAllEvents = createEx(Radio, IDEText[548][1], Group19, 8, 40, 148, 20, 0, 0)
+                                               --"Cancel"
+        ControlsButtonCancel = createEx(PushButton, IDEText[538][1], ControlsWin, 136, 288, 88, 28, 0, 0)
+                                          --"DeSelect Control"
+        UnSelectCheckBox = createEx(CheckBox, IDEText[549][1], ControlsWin, 8, 244, 148, 20, 0, 0)
+
+        setHandler(PrintOptWin, w32HOpen, routine_id("PrintOptWin_onOpen"))
+        setHandler(PrtAll, w32HClick, routine_id("PrtAll_onClick"))
+        setHandler(PrtCurrentControl, w32HClick, routine_id("PrtCurrentControl_onClick"))
+        setHandler(CheckedEventsForCurrent, w32HClick, routine_id("CheckedEventsForCurrent_onClick"))
+        setHandler(PrtSelectedControls, w32HClick, routine_id("PrtSelectedControls_onClick"))
+        setHandler(PrtCurrentModule, w32HClick, routine_id("PrtCurrentModule_onClick"))
+        setHandler(ButtonOk, w32HClick, routine_id("ButtonOk_onClick"))
+        setHandler(ButtonCancel, w32HClick, routine_id("ButtonCancel_onClick"))
+        setHandler(EventsWin, w32HOpen, routine_id("EventsWin_onOpen"))
+        setHandler(EventsButtonOk, w32HClick, routine_id("EventsButtonOk_onClick"))
+        setHandler(EvnetsButtonCancel, w32HClick, routine_id("EvnetsButtonCancel_onClick"))
+        setHandler(ControlsWin, w32HOpen, routine_id("ControlsWin_onOpen"))
+        setHandler(ControlsList, w32HClick, routine_id("ControlsList_onClick"))
+        setHandler(SelectedControlsSelectEvents, w32HClick, routine_id("SelectedControlsSelectEvents_onClick"))
+        setHandler(UnSelectCheckBox, w32HClick, routine_id("UnSelectCheckBox_onClick"))
+        setHandler(ControlsButtonOk, w32HClick, routine_id("ControlsButtonOk_onClick"))
+        setHandler(ControlsButtonCancel, w32HClick, routine_id("ControlsButtonCancel_onClick"))
+
+        openWindow(PrintOptWin, Modal)
+    end if
+end procedure
+

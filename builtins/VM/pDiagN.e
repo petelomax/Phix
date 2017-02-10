@@ -174,7 +174,7 @@ constant MAXLINELEN = 129   -- approximate screen/printer width
 --       would fully expect exponential slowdown as things get even bigger.
 --
 --constant MAXLENN = 20000 -- longest string/sequence you will ever really need
-constant MAXLENN = 2000 -- longest string/sequence you will ever really need
+constant MAXLENN = 20000 -- longest string/sequence you will ever really need
 
 -- Note: The following may not honor MAXLENN like it should/used to (which is, if 
 --       anything, a problem in ppp.e rather than here). You may want this if, in 
@@ -1219,6 +1219,7 @@ integer or_ebp          -- from the exception context, or the real ebp (pre-diag
 atom or_esp,            -- from the exception context, or the real esp
      xceptn,            -- exception code or 0
      xcepta,            -- exception address or 0
+     or_eax,            -- from the exception context, but never the real eax
      or_ecx,            -- from the exception context, or the real ecx
      or_era,            -- effective return address (may==xcepta)
      or_edx,            -- from the exception context - not available if xceptn==0!
@@ -1894,10 +1895,27 @@ function addrS(atom a)
 end function
 
 --DEV this may in fact be pointless...
-integer rbldrqd=1   -- (shadow copy of the one in pemit2.e)
+integer rbldrqd = 1 -- (shadow copy of the one in pemit2.e)
 
 --17/4/16:
 include builtins\puts1h.e
+
+object crash_rtn = -1
+
+procedure set_crash_routine(integer rid)
+-- implements crash_routine()
+-- specify the routine id of a function to call in the event
+-- that your program must be shut down due to an error. The
+-- function should accept one parameter (currently always 0)
+-- and return 0 to allow any other crash routines to run.
+    if rid=-1 then
+        crash_rtn = -1
+    elsif crash_rtn=-1 then
+        crash_rtn = {rid}
+    else
+        crash_rtn = append(crash_rtn,rid)
+    end if
+end procedure
 
 --function diag(atom msg_id)
 procedure diag()
@@ -1935,8 +1953,9 @@ integer lineno,         -- linenumber as calculated from return addr/offset & li
         sNTyp           -- copy of sr[S_NTyp]
 integer c               -- scratch var
 atom    returnoffset,   -- era as offset into code block, used in lineno calc
-        TchkRetAddr     -- value of !opTchkRetAddr in pStack.e
-        
+        TchkRetAddr,    -- value of !opTchkRetAddr in pStack.e
+        cb_ret_addr     -- value of !cb_ret in pcfunc.e
+
 sequence msg,           -- error message, from msgs[msg_id] plus any params
          wmsg,          -- work var, used for building msg
 --       s8,            -- copy of symtab[T_callstk], see below
@@ -2066,12 +2085,25 @@ atom gvarptr
             fild qword[esp]
             add esp,8
             call :%pStoreFlt
+            mov eax,:!cb_ret
+            lea edi,[cb_ret_addr]
+            push ebx
+            push eax
+            fild qword[esp]
+            add esp,8
+            call :%pStoreFlt
             lea edi,[symtab]
         [64]
             mov rax,:!opTchkRetAddr
             lea rdi,[TchkRetAddr]
             push rax
 --          mov qword[rsp],:!opTchkRetAddr
+            fild qword[rsp]
+            add rsp,8
+            call :%pStoreFlt
+            mov rax,:!cb_ret
+            lea rdi,[cb_ret_addr]
+            push rax
             fild qword[rsp]
             add rsp,8
             call :%pStoreFlt
@@ -2128,8 +2160,8 @@ atom gvarptr
     if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
         printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
                {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(prev_ebp),addrS(ebp_root)})
-        printf(1,"or_ecx=#%08x, or_edx=#%08x, or_esi=#%08x, or_edi=#%08x\n",
-               {or_ecx,or_edx,or_esi,or_edi})
+        printf(1,"or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
+               {or_eax,or_ecx,or_edx,or_esi,or_edi})
         magicok = "\"@VSB\""
 --DEV wrong on machine_bits()=64... (possibly one for docs) [I think it may be OK now...]
 --      if vsb_magic!=#40565342 then
@@ -2769,7 +2801,8 @@ else
                 end if
             end if
 
-            if lineno=-1 and find(msg_id,{92,30}) then
+--          if lineno=-1 and find(msg_id,{92,30}) then
+            if lineno=-1 and find(msg_id,{92,30}) and length(msg) and length(msg2)=0 then
 --?-1
 --              --
 --              -- If you have opFrame / mov a,b / mov c,d / opCall, where b or d is
@@ -2819,11 +2852,23 @@ else
 --?9997
 --?symtab[T_fileset]
 --?9998
+if 0 then
                 filename = symtab[T_fileset][sr[S_FPno]][1..2]&lineno
 --?filename
                 filename[1] = pathset[filename[1]]
 --?filename
                 put2(sprintf("%s%s:%d",filename))
+else -- new code
+                filename = symtab[T_fileset][sr[S_FPno]][1..2]
+                filename[1] = pathset[filename[1]]
+                if lineno=-1 then
+                    filename = append(filename,sprintf("-1 (era=#%s, from_addr=#%s, ret_addr=#%s)",
+                                                       {addrS(or_era),addrS(from_addr),addrS(ret_addr)}))
+                else
+                    filename = append(filename,sprintf("%d",lineno))
+                end if
+                put2(sprintf("%s%s:%s",filename))
+end if
                 if sr[S_Name]=-1 then
 --              if sr[S_Name]=-1 or sr[S_NTyp]=S_Rsvd then
                     put2("\n")
@@ -2923,13 +2968,19 @@ end if
 --end if
 -- (untried [might cause problems with test after loop, which might go away if moved (back) above??])
             if prev_ebp=0 then exit end if
-            if ret_addr!=0 then
+            if ret_addr!=0 
+--          and ret_addr!=cb_ret_addr then
+            and or_era!=cb_ret_addr-1 then
                 ret_addr -= 1
                 exit
             end if
-if prev_ebp!=0 then
-            put2("(^^^) call_back from Windows/dll/asm\n")
-end if
+--if prev_ebp!=0 then
+--          if platform()=WINDOWS then
+--              put2("(^^^) call_back from Windows/dll/asm\n")
+--          else
+            put2(" (^^^) call_back from OperatingSystem/sharedlib/asm\n")
+--          end if
+--end if
         end while
         if or_ebp=0 then
             if length(msg2) then
@@ -2995,7 +3046,14 @@ puts(1,"\nGlobal & Local Variables\n")
         end if
     end if
     close(-9)
-    if not batchmode then
+    if crash_rtn!=-1 then
+--  if 0 then
+        for i=length(crash_rtn) to 1 by -1 do
+            if call_func(crash_rtn[i],{0})!=0 then exit end if
+        end for
+--  end if
+    elsif not batchmode then
+--  if not batchmode then
 --?batchmode
         puts(1,"Press Enter...")
         if wait_key() then end if
@@ -3013,10 +3071,10 @@ end procedure
 --end function
 
 --/*
-atom diagcb
-    diagcb = call_back(routine_id("diag"))
-#ilASM{lea edi,[diagcb]
-       call %opCrshRtn} -- save [edi]
+--atom diagcb
+--  diagcb = call_back(routine_id("diag"))
+--#ilASM{lea edi,[diagcb]
+--     call %opCrshRtn} -- save [edi]
 --*/
 
 --DEV./SUG:
@@ -3144,7 +3202,7 @@ end procedure -- (for Edita/CtrlQ)
 
 
 --/*
-procedure :%crash_message(:%)
+procedure :%pCrashMsg(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
     :%pCrashMsg
@@ -3269,6 +3327,57 @@ end procedure -- (for Edita/CtrlQ)
 --end procedure
 
 --/*
+procedure :%pCrashRtn(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pCrashRtn
+---------------
+        [32]
+            -- calling convention
+            --  mov eax,[rid]
+            --  call :%pCrashRtn    -- crash_routine(eax)
+--DEV
+--?         push dword[esp]                         -- (leave the ret addr on stack)
+            push eax
+            mov edx,routine_id(set_crash_routine)   -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                          -- mov ecx,imm32 (=symtab[set_crash_routine][S_Ltot])
+            call :%opFrame
+--          call :!diagFrame
+--          add esp,4
+            pop dword[ebp]                          -- rid
+            mov dword[ebp+16],:crashrtnret
+            jmp $_il                                -- jmp code:set_crash_routine
+        [64]
+--?         push qword[rsp]                         -- (leave the ret addr on stack)
+            push rax
+            mov rdx,routine_id(set_crash_routine)   -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                          -- mov ecx,imm32 (=symtab[set_crash_routine][S_Ltot])
+            call :%opFrame
+--          call :!diagFrame
+--          add rsp,8
+            pop qword[rbp]                          -- rid
+            mov qword[rbp+32],:crashrtnret
+            jmp $_il                                -- jmp code:set_crash_routine
+        []
+          ::crashrtnret
+            ret
+
+--global procedure crash_routine(integer rid)
+--procedure set_crash_routine(integer rid)
+---- specify the routine id of a function to call in the event
+---- that your program must be shut down due to an error. The
+---- function should accept one parameter (currently always 0)
+---- and return 0 to allow any other crash routines to run.
+--  if rid=-1 then
+--      crash_rtn = -1
+--  elsif crash_rtn=-1 then
+--      crash_rtn = {rid}
+--  else
+--      crash_rtn = append(crash_rtn,rid)
+--  end if
+--end procedure
+
+--/*
 procedure :!SetBatchMode(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
@@ -3332,6 +3441,9 @@ end procedure -- (for Edita/CtrlQ)
             mov eax,edi         -- (store edi before we trash it!)
             lea edi,[or_edi]
             call :%pStoreMint   -- [or_edi]:=edi, as float if rqd
+            mov eax,[msg_id]
+            lea edi,[or_eax]
+            call :%pStoreMint   -- [or_eax]:=eax (not useful here)
             mov eax,ecx
             lea edi,[or_ecx]
             call :%pStoreMint   -- [or_ecx]:=ecx
@@ -3357,11 +3469,14 @@ end procedure -- (for Edita/CtrlQ)
             lea edi,[xcepta]
             call :%pStoreMint   -- [xcepta]:=0
         [64]
-            and rax,#FF
-            mov [msg_id],rax    -- error code (1..255)
-            mov rax,rdi
+            and rax,#FF         -- error code (1..255)
+            mov [msg_id],rax
+            mov rax,rdi         -- (store rdi before we trash it!)
             lea rdi,[or_edi]
             call :%pStoreMint   -- [or_edi]:=rdi, as float if rqd
+            mov rax,[msg_id]
+            lea rdi,[or_eax]
+            call :%pStoreMint   -- [or_eax]:=rax (not useful here)
             mov rax,rcx
             lea rdi,[or_ecx]
             call :%pStoreMint   -- [or_ecx]:=rcx
@@ -3459,6 +3574,9 @@ end procedure -- (for Edita/CtrlQ)
             call :%pStoreMint
             lea edi,[or_era]    -- (may get replaced)
             call :%pStoreMint
+            mov eax,[esi+176]   -- eax
+            lea edi,[or_eax]
+            call :%pStoreMint
             mov eax,[esi+172]   -- ecx
             lea edi,[or_ecx]
             call :%pStoreMint
@@ -3501,6 +3619,9 @@ end procedure -- (for Edita/CtrlQ)
             lea rdi,[xcepta]
             call :%pStoreMint
             lea rdi,[or_era]    -- (may get replaced)
+            call :%pStoreMint
+            mov rax,[rsi+120]   -- rax
+            lea rdi,[or_eax]
             call :%pStoreMint
             mov rax,[rsi+128]   -- rcx
             lea rdi,[or_ecx]
@@ -3557,6 +3678,9 @@ end procedure -- (for Edita/CtrlQ)
             call :%pStoreMint
             lea edi,[or_era]    -- (may get replaced)
             call :%pStoreMint
+            mov eax,[esi+64]    -- eax
+            lea edi,[or_eax]
+            call :%pStoreMint
             mov eax,[esi+60]    -- ecx
             lea edi,[or_ecx]
             call :%pStoreMint
@@ -3607,6 +3731,9 @@ end procedure -- (for Edita/CtrlQ)
             lea rdi,[or_era]    -- (may get replaced)
             call :%pStoreMint
 
+            mov rax,[rsi+0x90]  -- rax
+            lea rdi,[or_eax]
+            call :%pStoreMint
             mov rax,[rsi+0x98]  -- rcx
             lea rdi,[or_ecx]
             call :%pStoreMint
@@ -4141,7 +4268,6 @@ puts(1,"uh? (pdiagN.e line 3496)\n")
 --
 --constant rtndescs = {"type","function", "procedure"}
 --
---object crash_rtn crash_rtn = -1
 --object crashfile crashfile = -1
 --
 --integer stoploop      -- this is independently tested for in the backend...
@@ -4305,9 +4431,8 @@ puts(1,"uh? (pdiagN.e line 3496)\n")
 --      close(pn)
 --  end if
 --  if crash_rtn!=-1 then
-----DEV setup 2nd p_crash.err file.. [better: use the old asm stubs to screen]
 --      for i=length(crash_rtn) to 1 by -1 do
---          if call_func(crash_rtn[i],{0}) then exit end if
+--          if call_func(crash_rtn[i],{0})!=0 then exit end if
 --      end for
 --  end if
 ----puts(1,"done!\n")
@@ -4318,16 +4443,6 @@ puts(1,"uh? (pdiagN.e line 3496)\n")
 --  return 0
 --end function
 --
-----DEV this needs to be moved to asm?:
---global procedure crash_routine(integer proc)
----- specify the routine id of a Phix procedure to call in the
----- event that Phix must shut down your program due to an error.
---  if crash_rtn=-1 then
---      crash_rtn = {proc}
---  else
---      crash_rtn = append(crash_rtn,proc)
---  end if
---end procedure
 --
 --
 --procedure setup()

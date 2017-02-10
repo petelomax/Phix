@@ -3721,7 +3721,7 @@ include pbinary.e
 
 -- also used by pilasm.e, pmain.e:
 global procedure Or_K_ridt(integer symidx, integer flags)
-integer p, maxparams
+integer p, maxparams, useplus1
     --
     -- Set the "known target of routine_id" flag...
     --
@@ -3733,6 +3733,8 @@ integer p, maxparams
     if symtab[symidx][S_NTyp]<S_Type then ?9/0 end if -- sanity check
     p = symtab[symidx][S_Parm1]
     maxparams = length(symtab[symidx][S_sig]) - 1
+-- 23/1/17 [IDE.exw crash calling routine_id(x) mid-procedure x().]
+    useplus1 = (maxparams>1 and symtab[p][S_Slink]=0)
     while maxparams do
         if DEBUG then
             if symtab[p][S_NTyp]!=S_TVar then ?9/0 end if
@@ -3740,7 +3742,11 @@ integer p, maxparams
             if and_bits(symtab[p][S_State],K_noclr) then ?9/0 end if
         end if
         symtab[p][S_State] = or_bits(symtab[p][S_State],S_used)
-        p = symtab[p][S_Slink]
+        if useplus1 then
+            p += 1
+        else
+            p = symtab[p][S_Slink]
+        end if
         maxparams -= 1
     end while
 end procedure
@@ -3790,6 +3796,7 @@ integer DSvaddr4
 sequence prevsym        -- previous symtab
 sequence optable
 integer relptr
+integer showmapsymtab = 0
 --, wasdsidx
 --integer DSvTC --DEV (isginfo on code)
 --object dbg
@@ -4103,6 +4110,9 @@ end if
     for i=symlimit to 1 by -1 do
         si = symtab[i]
         if sequence(si) then
+--if i=1878 then
+-- ?si
+--end if
             u = si[S_State]
             if and_bits(u,K_rtn) then
                 if bind then
@@ -4232,7 +4242,14 @@ sv = si[S_Name]
 --DEV 15/4/2010. skip temps (see challenge0001)
 if not equal(sv,-1) then
 --?xi
+--?symtab[i]
+    if bind and mapsymtab then
+--      printf(1,"symtab[%d(%d)]\n",{i,symtabmap[i]})
+showmapsymtab = i
+    end if
                                 k = symtab[i][S_FPno]
+--                              string mapi = iff(bind and mapsymtab and 
+--                              printf(1,"xType=0 on symtab[%d(=%s)] (%s in %s)\n",{i,mapi,getname(sv,-2),filenames[k][2]})
                                 printf(1,"xType=0 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
 end if
 --                              xType = rootType(vtype)
@@ -4671,6 +4688,9 @@ if mapsymtab then
 --symtab[i] = 0
             end if
         end for
+        if showmapsymtab then
+            printf(1,"symtab[%d(%d)]\n",{showmapsymtab,symtabmap[showmapsymtab]})
+        end if
 else -- not mapsymtab
 --puts(1,"pemit2.e line 4405 suspect not-mapsymtab handling...\n") [actually should be fine...]
         vmax = 0

@@ -11,6 +11,18 @@ constant onebillion = 1000_000_000
 
 #ilASM{ jmp :%opRetf
 
+::e115atsmba
+    [32]
+        pop edx
+        mov al,115  -- e115atsmba
+        sub edx,1
+    [64]
+        pop rdx
+        mov al,115  -- e115atsmba
+        sub rdx,1
+    []
+        jmp :!iDiag
+        int3
 --/*
 procedure :%opSleep(:%)
 end procedure -- (for Edita/CtrlQ)
@@ -27,14 +39,9 @@ end procedure -- (for Edita/CtrlQ)
             pop eax
             jmp @f
           ::opSleepN
-            fld qword[ebx+eax*4]
             cmp byte[ebx+eax*4-1],0x12
-            je @f
-                pop edx
-                mov al,115  -- e115atsmba
-                sub edx,1
-                jmp :!iDiag
-                int3
+            jne :e115atsmba
+            fld qword[ebx+eax*4]
       @@:
 --SUG:
 --  :%opSleepST0
@@ -53,7 +60,7 @@ end procedure -- (for Edita/CtrlQ)
 --#     Name                        Registers                                                                                                               Definition
 --                                  eax     ebx                     ecx                     edx                     esi                     edi
 --162   sys_nanosleep               0xa2    struct timespec *rqtp   struct timespec *rmtp   -                       -                       -                       kernel/hrtimer.c:1606
---assuem timespec is two dwords: sec and nsec(0..999,999,999)
+--assume timespec is two dwords: sec and nsec(0..999,999,999)
         sub esp,16
         call :%down53
         fist dword[esp]
@@ -79,14 +86,9 @@ end procedure -- (for Edita/CtrlQ)
             pop rax
             jmp @f
           ::opSleepN
-            fld tbyte[rbx+rax*4]
             cmp byte[rbx+rax*4-1],0x12
-            je @f
-                pop rdx
-                mov al,115  -- e115atsmba
-                sub rdx,1
-                jmp :!iDiag
-                int3
+            jne :e115atsmba
+            fld tbyte[rbx+rax*4]
       @@:
     [PE64]
         push 1000
@@ -114,7 +116,7 @@ end procedure -- (for Edita/CtrlQ)
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --35    sys_nanosleep           struct timespec *rqtp   struct timespec *rmtp
---timespec is two qwords: sec and nsec(0..999,999,999)
+--timespec is two qwords: sec and nsec(0..999,999,999)[?]
         sub rsp,32
         call :%down64
 --      fist qword[rsp]     -- (not supported at the hardware level)

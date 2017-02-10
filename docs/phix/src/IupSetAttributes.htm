@@ -22,6 +22,10 @@
             <i>-- or --</i>
             <br>
             Ihandle ih = IupSetAttributesf(Ihandle ih, string attributes, sequence data={})
+            <br>
+            <i>-- or --</i>
+            <br>
+            Ihandle ih = IupSetAtt(nullable_string name, Ihandle ih, sequence attribute_pairs)
           </font>
          </td>
         </tr>
@@ -45,25 +49,32 @@
           <b>Comments:</b>
          </td>
          <td>
-            The function IupSetAttributesf is identical, except that it returns the ih parameter. While in the raw C API this can make it 
-            easier to create dialogs, optional parameters in the pGUI wrapper usually mean there is an easier way, as shown in example 1.
-            (IupSetAttributesf is provided to simplify translating C code, but not recommended when cutting new code.)
+            Most interface elements can be created with an optional inline invocation of IupSetAttributes, which can make code much cleaner 
+            than invoking this function directly (not that doing so is in any way a bad thing), as the examples below show.
             <br>
             <br>
-            Of course there are cases such as a title of "this,that [SIZE=%d]" which are difficult if not impossible to achieve via
-            IupSetAttributes, because of the obvious mis-parsing of commas, spaces, and equal signs. Bear this in mind, especially when 
-            the data originates from file or user input, as a similar potential error might not be so readily apparent. I also understand
-            that quotation marks are parsed, so eg IupSetAttributes(ih,"TITLE=\"Address Book\", SIZE=500x300") works fine, which may or 
-            may not solve the issue with the previous example. However there is no way to include literal quotation marks in a value when 
-            using IupSetAttributes. Any such fields must be set individually using <a href="IupSetAttribute.htm">IupSetAttribute</a>() or 
+            There are cases such as a title of "the string is \"X\" [SIZE=%d]" which are difficult if not impossible to achieve via 
+            IupSetAttributes, because of the obvious mis-parsing of commas, spaces, quotes, and equal signs. Bear this in mind, especially 
+            when the data originates from file or user input, as a similar potential error might not be so readily apparent. 
+            While quotation marks <i>are</i> parsed, so eg IupSetAttributes(ih,"TITLE=\"Address Book\", SIZE=500x300") works fine, there 
+            is however no way to include literal quotation marks in a value when using IupSetAttributes. Any such fields must be set 
+            individually using <a href="IupSetAttribute.htm">IupSetAttribute</a>() or 
             (perhaps better) <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(). 
             If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
             <br>
             <br>
-            There is no wrapper for the C function IupSetAtt: a call such as <br>
+            The function IupSetAttributesf is identical to IupSetAttributes, except that it returns the ih parameter. While in the raw C API 
+            this can make it easier to create dialogs, optional parameters in the pGUI wrapper usually mean there is an even easier way, as 
+            shown in example 1. (IupSetAttributesf is provided to simplify translating C code, but not recommended when cutting new code.)
+            <br>
+            <br>
+            The IupSetAtt function is also provided to simplify translation of calls to the C function IupSetAtt: a call such as <br>
             <code> IupSetAtt(NULL, list, "VALUE", "3", "1", "Brazil", "2", "USA", "3", "Japan", "4", "France", NULL); </code><br>
-            should be translated as shown for example 2 below, or separate calls to <a href="IupSetAttribute.htm">IupSetAttribute</a>()
-            or <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>().
+            should be translated such that the third parameter becomes an even-lengthed list with odd elements being names and even
+            elements being values, and the trailing NULL removed. A non-null name (which cannot be omitted, and should be globally
+            unique) simply triggers a call to <a href="IupSetHandle.htm">IupSetHandle</a>. You could also translate that to an inline
+            call as part of the element creation, as shown in example 2 below, which I personally find much clearer, although it will
+            of course require significantly more editing keystrokes.
          </td>
         </tr>
         <tr>
@@ -84,7 +95,7 @@ Ihandle dialog = IupSetAttributesf(IupDialog(IupSetAttributesf(IupHBox({canvas})
 </font><font color="#008000">                                   "TITLE=Test"</font><font color="#0000FF">)</font>
 </pre>
             <br>
-            Admittedly these could be written more succinctly:
+            Thankfully these can be written much more succinctly:
 <!--eucode>
 Ihandle canvas = IupCanvas("BORDER=NO, RASTERSIZE=100x100")
 Ihandle dialog = IupDialog(IupHBox({canvas},"MARGIN=10x10"),"TITLE=Test")
@@ -111,12 +122,7 @@ Ihandle dialog = IupDialog(IupHBox({canvas},"MARGIN=10x10"),"TITLE=Test")
 Ihandle list = IupList("VALUE=3,1=Brazil,2=USA,3=Japan,4=France")
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#5E005E"> IupSetAttributesf</font><font color="#0000FF">(</font><font color="#5E005E">IupList</font><font color="#800000">(</font><font color="#004600">NULL</font><font color="#800000">)</font><font color="#0000FF">,
-</font><font color="#008000">                                 "VALUE=3,"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                                 "1=Brazil,"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                                 "2=USA,"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                                 "3=Japan,"</font><font color="#0000FF">&amp;
-</font><font color="#008000">                                 "4=France"</font><font color="#0000FF">);</font>
+<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#5E005E"> IupList</font><font color="#0000FF">(</font><font color="#008000">"VALUE=3,1=Brazil,2=USA,3=Japan,4=France"</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

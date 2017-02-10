@@ -749,6 +749,7 @@ integer skipline
 --  if lastline!=emitline then  -- now inlined
     if thisDbg then
         skipline = symtab[currRtn][S_1stl]
+--?{skipline,emitline,ltline,lastline,LineTab,oplnlen}
         skipline = emitline-skipline+1
         ltline += 1
         if skipline!=ltline then
@@ -2119,7 +2120,7 @@ procedure build_state_tables()
 --              ie which reg is last in most recently used order.
 --              Generally, to follow on from the above example, we
 --              are only interested in edi being last/the one to
---              be re-used next. Admittedly this may be a naieve
+--              be re-used next. Admittedly this may be a naive
 --              strategy since edi may in fact be needed but none
 --              of eax/ecx/esi. (improvements welcome)
 --  3. transitions, which for each entry in states is a 4-way
@@ -7271,11 +7272,18 @@ end if
                 if opcode=opRetf then
                     -- 7/12/15: (mt program)
 --                  if lastline=-1 then
-                    if lastline=-1 and currRtn=T_maintls then
+--                  if lastline=-1 and currRtn=T_maintls then
+                    if lastline=-1 then
+                        if currRtn=T_maintls then
 --?symtab[currRtn][S_1stl]
 --                      emitline = -1
     lastline = 0
     emitline = 1
+                        else
+--added 15/1/17 (mt one-line procedure (actually used), eg "procedure text_mode() end procedure" (no \n)):
+    lastline = 0
+    emitline = symtab[currRtn][S_1stl]
+                        end if
                     end if
                     emitHex5jmpG(opRetf)
                     pc += 1
@@ -7831,7 +7839,7 @@ end if
                         schend()
                     end if
                     --DEV if idx already in a register, use that.
-                    --  Naievely, for eg r=s[i+1], we might be tempted to load s/dest before idx to prevent a
+                    --  Naively, for eg r=s[i+1], we might be tempted to load s/dest before idx to prevent a
                     --  memory dependency but better would be transtmpfer/some (new) variant of loadReg, and
                     --  leave idx first for better handling of "we know it is not <no value>" cases, iyswim.
                     -- DEV this may not be worth doing (makes -list output look better tho)
@@ -11787,6 +11795,11 @@ end if -- useAndBits
             getDest()
             slroot = and_bits(slroot,T_atom)
             if slroot=T_integer then
+--05/01/17: (avoid constant propagation of K_rtn values, as we cannot later map them)
+                if and_bits(state1,K_rtn) then
+                    smin = T_const1+1
+                    smax = length(symtab)
+                end if
                 if smin>MININT then
                     nmax = -smin
                 else
@@ -11801,7 +11814,13 @@ end if -- useAndBits
             storeDest()
             -- [edi] = -[esi]
             if not isGscan then
+--05/01/17 removed (and immediately undone):
                 getSrc()
+--05/01/17: (avoid constant propagation of K_rtn values, as we cannot later map them)
+                if and_bits(state1,K_rtn) then
+                    smin = T_const1+1
+                    smax = length(symtab)
+                end if
                 if dtype=T_integer
                 and slroot=T_integer
 --11/11/16:
@@ -11809,6 +11828,7 @@ end if -- useAndBits
                 and smin>MININT
                 and smax<=MAXINT then
                     if smin=smax then
+-->K_rtn
                         smin = -smin
                         if dname=-1 then        -- a temp
                             transtmpfer(smin,-1)
@@ -13086,10 +13106,11 @@ end if
            or opcode=opTrace            -- 139
            or opcode=opProfile          -- 140
            or opcode=opSetRand          -- 135
-           or opcode=opSleep            -- 136
+           or opcode=opSleep then       -- 136
 --         or opcode=opCallA            -- 120
-           or opcode=opCrshMsg
-           or opcode=opCrshFile then
+--         or opcode=opCrshMsg
+--         or opcode=opCrshFile
+--         or opcode=opCrshRtn then
 
 --          if opcode=opCallA then
 --if NOLT=0 or bind or lint then
@@ -13955,7 +13976,14 @@ end if
                     sltype += T_atom
                 end if
             end if
-            if sltype=0 then ?9/0 end if
+--13/12/16 (seems unimportant)
+--          if sltype=0 then ?9/0 end if
+--DEV/temp:
+--if sltype=0 then
+--printf(1,"sltype=0: line 13961 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
+--sltype = T_object
+--end if
+
             slroot = sltype
             storeDest()
             --else
@@ -14066,7 +14094,9 @@ end if
 --           #80000000) as expected/needed.
 
 --          if symtab[src][S_Init] then
-                if isInit then  -- src is initialised atom
+--DEV (12/01/17) inlining disabled on x64, see below
+--              if isInit then  -- src is initialised atom
+                if isInit and X64=0 then    -- src is initialised atom
                     -- (we already know tgt is an integer, since opPeeki was emitted)
                     reg = loadReg(src,CLEAR)                    -- mov reg,[src]
                     if reg=eax then
@@ -14110,6 +14140,26 @@ if X64 then
 --   ?9/0 
 --printf(1,"pilx86.e: check list.asm for fld tbyte, emitline=%d\n",{emitline}) (done)
                     emitHex3l(0o333,0o054,xrm)                  -- fld tbyte[ebx+reg*4]
+--DEV (12/01/17) would need something like the following, so disabled inlining on x64 instead..
+--               (plus, comment below suggests this (opPeeki) is no longer used anyway...)
+--/*
+    mov r15,h4
+
+    -- if uint>#7FFF... then uint-=#1_0000...
+    push r15            -- #4000_0000_0000_0000
+    fild qword[rsp]
+    fadd st0,st0        -- #8000_0000_0000_0000
+    fld st1
+    fcomp
+    fnstsw ax
+    sahf
+    jb @f
+        fadd st0,st0    -- #1_0000_0000_0000_0000
+        fsub st1,st0
+  @@:
+    fstp st0            -- discard
+
+--*/
 else
 --                  emitHex3l(#DD,#04,xrm)                      -- fld qword[ebx+reg*4]
                     emitHex3l(0o335,0o004,xrm)                  -- fld qword[ebx+reg*4]
@@ -14772,13 +14822,15 @@ if X64 then ?9/0 end if
     opTryCS = 237,      -- opTryCS,dest,src
     opLeaveCS = 238,    -- opLeaveCS,src(/T_const0)
 --*/
-        elsif opcode=opCrashMsg then
+        elsif opcode=opCrashMsg
+           or opcode=opCrashRtn then
             if not isGscan then
                 src = s5[pc+1]
 --              getSrc()
                 loadToReg(eax,src)                              -- mov e/rax,[src]
+--DEV??
                 movRegVno(esi,src)                              -- mov e/rsi,src (var no)
-                emitHex5callG(opcode)                           -- call opCrashMsg
+                emitHex5callG(opcode)                           -- call opCrashMsg/opCrashRtn
                 reginfo = 0 -- all regs trashed
             end if
             pc += 2

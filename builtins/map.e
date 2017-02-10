@@ -99,7 +99,7 @@ global procedure remove(map m, object key)
 end procedure
 
 global function size(map m=1)
-    return dsize(m)
+    return dict_size(m)
 end function
 
 sequence res = {}

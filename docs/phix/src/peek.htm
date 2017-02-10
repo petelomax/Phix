@@ -29,12 +29,18 @@
              values starting at address a in memory.
           <br>
           <br>
-            There are in fact 9 further variations of the peek function:
+DEV! I made some silly changes, undid quite a few, started going round in circles, and had to run away and leave all this in a bit of a mess...<br>
+Give me a kick if you need this sorted out, for now be warned there may be some untruths/alarmist nonsense below, but the code itself isn't
+really any better or worse that it has been for the past couple of years, apart from demo/taskwire now runs on 64-bit, but perhaps for the
+wrong reasons. (The most significant doubt remaining is that C_PTR may be wrong on 64-bit.)
+<br>
+<br>
+            There are in fact <s>nine</s> eight further variations of the peek function:
           <br>
           <br>
 <pre>
       peek1s  peek2s  peek4s  peek8s
-      peek1u  peek2u  peek4u  peek8u
+      peek1u  peek2u  peek4u  <font color="#FF0000">peek8u</font>
       peekNS
 </pre>
           <br>
@@ -56,14 +62,14 @@
           <b>Comments:</b>
          </td>
          <td>
-            The peek8s and peek8u routines are not intended for use on 32-bit; for more details
-            see the Technicalia dropdown below.
+            The peek8s/u routines are not intended for use on 32-bit, plus <font color="#FF0000">peek8u</font> has some
+            precision issues; for more details see the Technicalia dropdown below.
           <br>
           <br>
             The 32-bit values returned by peek4s/u() may be too large for the 32-bit Phix
             integer type (31-bits), so you should use
             <b>atom</b>
-            variables, likewise for 64-bit values returned by peek8s/u() on 64-bit Phix.
+            variables, likewise for 64-bit values returned by peek8s() on 64-bit Phix.
           <br>
           <br>
             For similar reasons all variables that hold an address should also be declared as
@@ -133,10 +139,37 @@ s = peek({addr, 4})
           </a>
          </td>
          <td>
+DEV - this is all nonsense!!<br>
+            It is worth a quick look at the internal structure of atoms, as implemented by the physical hardware (ie IEEE 754 binary format), 
+            64/80-bit as used by 32/64-bit Phix:
+            <br>
+            <img src="images/floats.png"/>
+            <br>
+            Now, 32-bit Phix uses 64-bit floats which have 52 bits of precision, hence they can
+            more than easily hold any (32-bit) results from peek4s/u.<br>
+            However, 64-bit Phix uses 80-bit floats which have 63 bits of precision plus a sign:
+            so they can hold any <i>signed</i> 64-bit integer, but <i><b>not</b></i> unsigned.<br>
+            As per the <a href="accuracy.htm#bookshelf">bookshelf analogy</a>, only the <i>even</i> 
+            unsigned values in the range #8000_0000_0000_0000 to #FFFF_FFFF_FFFF_FFFE can be held, 
+            the last odd bit would get dropped (more on this below).<br>
+            On the bright side, you can easily prove that, as long as you are consistent, it does not 
+            matter whether you use signed or unsigned to peek/poke a 32-bit pointer, hence we can say 
+            that peek8s will cope with all 64-bit pointers. You should never really need peek8u anyway. 
+            Also note that peekNS(<i>a</i>,8,0) [<small>as opposed to peekNS(<i>a</i>,8,1)</small>] has
+            the same issue, however prohibiting it outright might spanner <a href="cffi.htm">cffi</a> 
+            unnecessarily, for instance an unsigned 64 bit filesize will be fine until hard disks 
+            exceed 8 <i>million</i> TB - at the time of writing, Seagate has just announced a monster
+            60TB drive, which is a mere 0.00075% of that.
+            <br>
+            <br>
+            To highlight this issue, and encourage the use of peek8s instead, <font color="#FF0000">peek8u</font> is syntax-coloured red.<br>
+            Also, <a href="define_c_func.htm">C_PTR</a> and friends are now signed on 64-bit (but remain unsigned in 32-bit Phix).
+          <br>
+          <br>
             While somewhat flakey versions of peek8s and peek8u now exist in 32-bit Phix
             they are not formally supported; any code that is required to run on both 32 
             and 64 bit should stick to using peek4s/u and below. Atoms in 64-bit Phix use
-            80-bit floats that have a maximum precision of 64 bits, perfect for peek8s/u.
+            80-bit floats that have a maximum precision of 63 bits+sign, perfect for peek8s.
             However, atoms in 32-bit Phix use 64-bit floats that have a maximum precision 
             of 53 bits, hence loss of data is avoided by making these routines return a 
             two-element pair of unsigned dword-sized blocks when necessary, as the
@@ -175,8 +208,8 @@ result = peek8u({addr,2})
         Naturally poke8 would go hopelessly wrong should you pass it a pair of dwords obtained from peek8s/u, that is, 
         when under 32-bit, and obviously poke8(addr,result) would fail over the nested subsequence. Also note that the 
         32-bit version of printf() is not designed to cope well with negative integer/hex values less than -#80000000, 
-        (arguably a bug, but hex values of more than 32 bits on a 32 bit system, one has to ask is it worth fixing?)
-        so if possible use peek8u in preference to peek8s, that is if you must use either in a 32-bit application. 
+        (arguably a bug, but hex values of more than 32 bits on a 32 bit system, one has to ask is it worth fixing?).
+DEV:
         In truth, there are two reasons why peek8s/u exist at all on 32-bit: peek8u is used (lightly and in a 
         non-critical manner) when cross-compiling, ie when a 32-bit Phix is asked, via a format directive, to create a 
         64-bit executable, and secondly so that code such as
