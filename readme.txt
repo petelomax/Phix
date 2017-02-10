@@ -2,14 +2,14 @@
 Phix readme.txt
 ===============
 
-The windows installer (phix.exe) defaults to C:\Program Files\Phix, though you 
-can change that. (Yes, phix.exe is the installer, p.exe and pw.exe are the main
-programs it installs.) Alternatively you can use 7zip, and probably most other
-file compression utilities, to extract the contents of phix.exe to any directory 
-of your choice.
+The windows installer (phix.setup.exe) defaults to C:\Program Files\Phix, though 
+you can change that. Alternatively you can use 7zip, and probably most other file 
+compression utilities, to extract the contents of phix.setup.exe, or equivalently
+phix1.zip and phix2.zip, to any directory of your choice.
 
+**DEV**: this has changed with pdemo.exw and needs rewriting:
 Installation does not modify anything in the system registry, nor does it create 
-any start menu or desktop shortcuts[2], or set the PATH environment variable. 
+any start menu or desktop shortcuts, or set the PATH environment variable. 
 The recommended post-installation setup is to manually associate *.exw files with 
 pw.exe using the "open with" option in Windows Explorer. Personally I never set 
 PATH, EUINC, or EUDIR, though they can be used if you want.
@@ -17,26 +17,10 @@ PATH, EUINC, or EUDIR, though they can be used if you want.
 If using the windows installer, it should create pw.exe automatically for you.
 
 However, you must manually inspect/run ppw.bat if extracting files by hand - it
-is currently just 3 lines and the last line (p -c pgui) is technically optional.
-
-As long as p.exe has not been modified/rebuilt, the resulting new pw.exe file
-file this creates can be considered "original" as well.
+is currently just 3 lines and the last line (p -c pdemo) is technically optional.
 
 If you run "p -c p", to recompile the compiler from the supplied sources, then
 it will create both a new p.exe and a new pw.exe, again automatically for you.
-
-Note that you should not attempt to redistribute p.exe or pw.exe, unless they 
-are unaltered originals, pre "p -cp". If you want to share your modifications
-to the compiler, ship the modified sources, the original p.exe, and instruct 
-them to "p -c p", or better yet use the phixzip.bat method provided, or some
-variation on that[1], which runs ppw.bat as part of installation.
-
-[1] A reasonable approach is to install to Program Files\Phix99 by default,
-so someone can try your mods without clobbering their "real" installation.
-Of course you probably want to modify phix7zip.lst to include the original
-unmodified p.exe that you have carefully save somewhere (or re-extracted
-from phix.exe). [update: I think I now have "original.exe" to cover this.]
-[2] This may change if I ever finish pgui.exw.
 
 Please note the following entries are probably more for my benefit than yours,
 and contain some references to the low level back end which you may not find 
