@@ -196,6 +196,7 @@ end procedure -- (for Edita/CtrlQ)
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --228   sys_clock_gettime       const clockid_t which_clock     struct timespec *tp
+        push rdi
         sub rsp,16
         mov eax,228     -- sys_clock_gettime
         xor rdi,rdi     -- CLOCK_REALTIME
@@ -225,6 +226,7 @@ end procedure -- (for Edita/CtrlQ)
         fild qword[ONETHOUSAND]
         fdivp st1,st0
     [ELF64]
+        pop rdi
         faddp
     []
         jmp :%pStoreFlt

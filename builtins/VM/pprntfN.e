@@ -21,7 +21,7 @@
 --  (which is something prepend, as opposed to append, /always/ does)
 --  which causes a fatal error, eg see 'elsif fmt[i]='s' then'.
 
---/**/without debug -- remove to debug (just keeps ex.err clutter-free)
+--!/**/without debug -- remove to debug (just keeps ex.err clutter-free)
 --!/**/with debug
 --  NB the "without debug" in both pdiag.e and ppp.e overshadow the one
 --      here; use "with debug" and/or "-nodiag" to get a listing.

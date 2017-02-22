@@ -82,9 +82,9 @@ integer res
         [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --80    sys_chdir               const char *filename
-            mov rbx,[newdir]
+            mov rdi,[newdir]
             mov rax,80          -- sys_chdir
-            shl rbx,2
+            shl rdi,2
             syscall
             test rax,rax
             mov rax,rbx

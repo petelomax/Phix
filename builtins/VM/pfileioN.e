@@ -1077,6 +1077,21 @@ integer iThis
 --DEV/SUG: (is it easier to load from [iThis*4+HDNL] than cmp [fhandle],h4 etc?)
 --  poke4(iThis*4+HNDL,handle)
 
+--DEV: (doh)
+--  if openmode='a' then
+--      if fseek(res,-1)!=SEEK_OK then ?9/0 end if
+--or
+--      #ilASM{
+--          [32]
+--              mov esi,[iThis]
+--              mov edx,[ebp+12]
+--              call :%n_seek_esi_end
+--          [64]
+--              mov rsi,[iThis]
+--              mov rdx,[rbp+24]
+--              call :%n_seek_rsi_end
+--            }
+--  end if
 --DEV newsize [PE32]
     #ilASM{
         [32]
@@ -1366,6 +1381,7 @@ integer fmode = 0
         end if
     end if
     if fmode=0 then
+--DEV use fatalN()
 --      iofatal(58,fn)  -- "invalid file number (%d)"
         #ilASM{
             [32]
@@ -1421,8 +1437,12 @@ end procedure -- (for Edita/CtrlQ)
 --*/
             mov eax,[esi+POSL]
             mov ecx,[esi+POSH]
+--16/2/17: (nope)
+--          mov edx,[esi+POSN]
             add eax,edx -- frealposn += fend
+--          add eax,edx -- frealposn += posn
             adc ecx,ebx
+--          mov edx,[esi+FEND]
             mov [esi+POSL],eax
             mov [esi+POSH],ecx
             lea edi,[esi+BUFF]
@@ -1462,6 +1482,10 @@ end procedure -- (for Edita/CtrlQ)
                 jmp :!iDiag
                 int3
           @@:
+--DEV 16/2/17:
+--          if posn!=fend+1 then
+--              call :%n_seek_esi_rpos
+--          end if
             ret
 --/*
 global procedure :%n_flush_rsirdi(:%)
@@ -1481,7 +1505,10 @@ end procedure -- (for Edita/CtrlQ)
 --          jz @f
             jz :flushret
             mov rax,[rsi+RPOS64]
+--16/2/17: (nope)
             add rax,r8 -- frealposn += fend
+--          mov r9,[rsi+POSN64]
+--          add rax,r9 -- frealposn += posn
             mov [rsi+RPOS64],rax
 --          lea rdi,[rsi+BUFF64]
         [PE64]
@@ -1961,6 +1988,7 @@ old procedure poke8(atom addr, atom a)
 end procedure
 --*/
 
+--DEV/SUG: call this directly from within this file, rather than seek() aka :%opSeek.
 --global function seek(integer fn, atom pos)
 function fseek(integer fn, atom pos)
 --
@@ -2102,6 +2130,7 @@ integer iThis
                 xor ebx,ebx         -- (common requirement after int 0x80)
                 cmp eax, -4069 
                 jbe @f
+--DEV stack imbalance...
                     -- return 1
                     mov eax,1
                     jmp :%opRetf
@@ -2153,6 +2182,7 @@ integer iThis
                 syscall
                 cmp rax, -1
                 jne @f
+--DEV stack imbalance...
                     -- return 1
                     mov rax,1
                     jmp :%opRetf
@@ -2175,6 +2205,7 @@ integer iThis
     if and_bits(fmode,F_DIRTY) then
         -- realposn corresponds to the \\start\\ of the buffer,
         -- and we can extend/write beyond fend upto BUFFERSIZE.
+        -- (however, avoid any buffer-gap-posn type nonsense)
         workpos = pos-frealposn+1
         if machine_bits()=32 then
             if workpos>=1 and workpos<=BUFFERSIZE32 and workpos<=fend+1 then
@@ -2221,6 +2252,23 @@ integer iThis
         end if
     end if
 --DEV newsize [PE32,ELF32]
+--DEV sug:
+--/*
+    #ilASM{
+        [32]
+            mov esi,[iThis]
+--          mov ecx,[pos]
+            mov eax,[pos]
+        [64]    
+            mov rsi,[iThis]
+--          mov rdx,[pos]
+            mov rax,[pos]
+        []
+            call :%pLoadMint    -- eax:=(int32)eax; edx:=hi_dword
+...
+            call :%n_seek_esi_eax
+        }
+--*/
     #ilASM{
         [32]
             mov esi,[iThis]
@@ -2326,11 +2374,17 @@ integer iThis
         [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --8     sys_lseek               unsigned int fd         off_t offset                    unsigned int origin
-            mov r12,[iThis]
+--          mov r12,[iThis]
+            mov r12,rsi
+            mov rdi,[rbx+rsi*4+HNDL64]          -- hFile
             mov rax,8                           -- sys_lseek
-            xor rsi,rsi
-            mov rdx,2                           -- SEEK_END
-            mov rdi,[rbx+r12*4+HNDL64]          -- hFile
+--16/2/17 (spotted in passing!)
+--          xor rsi,rsi
+            mov rsi,rdx
+--14/2/17:
+--          mov rdx,2                           -- SEEK_END
+            mov rdx,0                           -- SEEK_SET
+--          mov rdi,[rbx+r12*4+HNDL64]          -- hFile
             syscall
             cmp rax, -1
             jne @f
@@ -2685,11 +2739,13 @@ end function
         [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --0     sys_read                unsigned int fd         char *buf                       size_t count
+push rsi
             mov rax,0               -- sys_read
             mov rdi,[rsi+HNDL64]    -- fd
             lea rsi,[rsi+BUFF64]
             mov rdx,BUFFERSIZE64
             syscall
+pop rsi
             test rax,rax
             jle :retm1
             mov [rsi+FEND64],rax
@@ -2932,7 +2988,8 @@ end procedure -- (for Edita/CtrlQ)
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --0     sys_read                unsigned int fd         char *buf                       size_t count
-        mov rax,0               -- sys_read
+        push rbx
+        mov rax,0           -- sys_read
         mov rdi,[stdin]     -- fd
         mov rsi,rsp         -- buffer (1 byte)
         mov rdx,1
@@ -4100,7 +4157,11 @@ end procedure
         jne @f
             test edi,F_BINARY
             jnz @f
+--DEV ELF32?
                 mov dword[esp],#00000A0D  --(\r\n)
+--DEV this should really jump to string handling...?
+-- (however seek in non-binary mode is deeply suspect anyway)
+-- (moot point if n_flush_esi2 takes care of things)
                 mov ecx,2
       @@:
         --
@@ -4136,7 +4197,7 @@ end procedure
         mov edi,edx
         mov edx,esi
         mov esi,esp
-        rep movsb
+        rep movsb       -- (just one byte, or 2 in the \n -> \r\n case)
         mov edi,[edx+FEND]
         mov [edx+POSN],eax
         sub eax,1
@@ -4216,15 +4277,18 @@ end procedure
                 mov rdx,0                           -- SEEK_SET
                 mov rdi,[r12+HNDL64]                -- hFile
                 syscall
-                cmp rax, -1
-                jne @f
-                    -- return 1
-                    mov rax,1
-                    jmp :%opRetf
-              @@:
-                mov [rbx+r12*4+POSN64],qword 1
-                mov [rbx+r12*4+FEND64],rbx --(0)
-                mov [rbx+r12*4+RPOS64],rax
+--13/2/17 no (and no @@:!!)
+--              cmp rax, -1
+--              jne no@f
+--                  -- return 1
+--                  mov rax,1
+--                  jmp :%opRetf
+--            no@@:
+--18/2/17 (spotted in passing)
+--              mov [rbx+r12*4+POSN64],qword 1
+--              mov [rbx+r12*4+FEND64],rbx --(0)
+--              mov [rbx+r12*4+RPOS64],rax
+                mov rsi,r12
             [64]
                 jmp @f
           ::clearbuff
@@ -4246,6 +4310,7 @@ end procedure
         jne @f
             test rdi,F_BINARY
             jnz @f
+--DEV ELF64?
                 mov qword[rsp],#00000A0D  --(\r\n)
                 mov rcx,2
       @@:
@@ -4275,7 +4340,7 @@ end procedure
       @@:
         mov rdx,rsi
         mov rsi,rsp
-        rep movsb
+        rep movsb       -- (just one byte, or 2 in the \n -> \r\n case)
         mov rdi,[rdx+FEND64]
         mov [rdx+POSN64],rax
         sub rax,1
@@ -4993,7 +5058,9 @@ end procedure -- (for Edita/CtrlQ)
 --1     sys_write               unsigned int fd         const char *buf                 size_t count
         mov rdi,rax     -- fd
         mov rax,1       -- sys_write
-        xchg rcx,rdx    -- buffer<->count
+--      xchg rcx,rdx    -- buffer<->count
+        mov rsi,rdx
+        mov rdx,rcx
         syscall
     []
       @@:
@@ -5714,6 +5781,7 @@ key:
         mov rdx,1               -- count
         syscall
         test rax,rax
+        pop rax
         jg @f
             mov rax,-1
       @@:
@@ -5935,6 +6003,7 @@ end function
         mov rdx,1               -- count
         syscall
         test rax,rax
+        pop rax
         jg @f
             mov rax,-1
       @@:
@@ -6637,6 +6706,10 @@ integer iThis
 --      iofatal(59) -- "wrong file mode for attempted operation"
         fatalN(2,e59wfmfao,fn)
     end if
+--DEV
+    if and_bits(fmode,F_DIRTY) then
+        ?9/0 
+    end if
 
 --DEV e119?
 --  if option<-2 or option>1 then return -1 end if
@@ -6843,7 +6916,9 @@ integer iThis
             mov rdx,[filesize]          -- count
             syscall
             test rax,rax
-            jle :retZ2
+--14/2/17:
+--          jle :retZ2
+            jl :retZ2
           }
 
 --DEV as above.. (why bother?)
@@ -6988,7 +7063,7 @@ constant ModeFlagSet = {{0,         "closed"},
                         {F_BINARY,  "binary"},
                         {F_DIRTY,   "dirty" }}
 
---:%opIOdiag?? (I somehow think this as passed it's use by date)
+--:%opIOdiag?? (I somehow think this has passed it's use by date)
 global procedure fiodiag(integer fn)
 integer fidx
 --atom this

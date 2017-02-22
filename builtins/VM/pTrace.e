@@ -1468,7 +1468,8 @@ integer fileno
         end if
 --?{filenames[fileno][2],line,exptext[fileno][line]}
         string oneline = iff(line>length(exptext[fileno])?"???":trim(exptext[fileno][line],"\r\n"))
-        oneline = sprintf("%s:%d\t%s",{filenames[fileno][2],line,oneline})
+--      oneline = sprintf("%s:%d\t%s",{filenames[fileno][2],line,oneline})
+        oneline = sprintf("%s:%-7d %s",{filenames[fileno][2],line,oneline})
         if length(oneline)>=71 then
             oneline = oneline[1..71]
         else

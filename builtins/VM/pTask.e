@@ -590,6 +590,7 @@ atom t
 
     if current_task=0 then return end if
     #ilASM{
+            e_all
         [32]
             mov eax,ebp
             shr eax,2

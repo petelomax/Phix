@@ -20,7 +20,10 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant phixversion = {0,6,9} -- 0.6.9    -- 25/04/16
 --global constant phixversion = {0,7,0} -- 0.7.0    -- 09/09/16
 --global constant phixversion = {0,7,1} -- 0.7.1    -- 04/12/16
-global constant phixversion = {0,7,2}   -- 0.7.2    -- 10/02/17
+--global constant phixversion = {0,7,2} -- 0.7.2    -- 10/02/17
+--global constant phixversion = {0,7,3} -- 0.7.3    -- 12/02/17 (internal)
+--global constant phixversion = {0,7,4} -- 0.7.4    -- 15/02/17 (internal, misnamed)
+global constant phixversion = {0,7,5}   -- 0.7.5    -- 22/02/17 (internal)
 
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...

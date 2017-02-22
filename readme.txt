@@ -26,6 +26,12 @@ Please note the following entries are probably more for my benefit than yours,
 and contain some references to the low level back end which you may not find 
 very useful. But it is now all open source.
 
+Version 0.7.5
+=============
+22/02/2017: BUGFIX: task_yield() was incorrectly defined as E_other in psym.e,
+            it is now correctly defined as E_all. Correspondingly, the #ilASM
+            in the routine itself was missing an e_all directive.
+
 Version 0.7.2
 =============
 02/01/2017: Fixed one of the rarer and more confusing errors: if b.exw was

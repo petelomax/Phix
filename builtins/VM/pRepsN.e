@@ -36,18 +36,18 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
 #ilASM{ jmp :%opRetf
 
 --DEV FIXME: (and the :!bang labels below)
-    ::e04atsaam4
---          lea esp,[esp+ecx*4-4]
-        [32]
-            mov esi,[esp+ecx*4-4]   -- era
-        [64]
---          mov rsi,[rsp+rcx*8-8]   -- era (DEV untested!)
-            mov rdx,[rsp+rcx*8+8]   -- era (DEV untested!)
-            sub rdx,1
-        []
-            mov al,4
-            jmp :!iDiag
-            int3
+--  ::e04atsaam4
+----            lea esp,[esp+ecx*4-4]
+--      [32]
+--          mov esi,[esp+ecx*4-4]   -- era
+--      [64]
+----            mov rsi,[rsp+rcx*8-8]   -- era (DEV untested!)
+--          mov rdx,[rsp+rcx*8+8]   -- era (DEV untested!)
+--          sub rdx,1
+--      []
+--          mov al,4
+--          jmp :!iDiag
+--          int3
 --  ::e04atsaa4
 --          int3
     ::e04atsaa9
@@ -96,7 +96,14 @@ end procedure -- (for Edita/CtrlQ)
         mov esi,[eax]
         pop edi                 -- next idx (ref)
         cmp esi,h4
-        jl :e04atsaam4          -- attempt to subscript an atom, era @ [esp+ecx*4-4]?
+--      jl :e04atsaam4          -- attempt to subscript an atom, era @ [esp+ecx*4-4]?
+        jg @f
+            mov edx,[esp+ecx*4+4]   -- era
+            mov al,4                -- e04atsaam4
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
         push eax                --[1] ref addr, in case we need to clone...
         mov al,[ebx+esi*4-1]
         sub edi,1               -- decrement edi (:-)
@@ -882,7 +889,14 @@ end procedure -- (for Edita/CtrlQ)
         mov rsi,[rax]
         pop rdi                 -- next idx (ref)
         cmp rsi,r15
-        jl :e04atsaam4          -- attempt to subscript an atom, era @ [esp+ecx*4-4]?
+--      jl :e04atsaam4          -- attempt to subscript an atom, era @ [esp+ecx*4-4]?
+        jg @f
+            mov rdx,[rsp+rcx*8+8]   -- era
+            mov al,4                -- e04atsaam4
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
         push rax                --[1] ref addr, in case we need to clone...
         mov al,[rbx+rsi*4-1]
         sub rdi,1               -- decrement rdi (:-)

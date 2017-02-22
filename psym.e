@@ -463,10 +463,18 @@ global procedure s5thunk(object o)  -- (also used in pemit.e)
 --/**/  -- that actually yields any measureable gain is unknown,
 --/**/  -- but at least we get an error from s5[i]="string" etc.
 --/**/
---/**/  #ilASM{ mov edx,[o]
+--/**/  #ilASM{ 
+--/**/      [32]
+--/**/          mov edx,[o]
 --/**/          mov eax,[s5]
 --/**/          mov [s5],edx
---/**/          mov [o],eax }
+--/**/          mov [o],eax
+--/**/      [64]
+--/**/          mov rdx,[o]
+--/**/          mov rax,[s5]
+--/**/          mov [s5],rdx
+--/**/          mov [o],rax
+--/**/        }
 --/* -- RDS Eu equivalent (but not "type-safe"):
         s5 = o
 --*/
@@ -2878,7 +2886,9 @@ end if
     initialAutoEntry("task_schedule",       S_Proc,"PIO",   "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_suspend",        S_Proc,"PI",    "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_delay",          S_Proc,"PN",    "VM\\pTask.e",0,E_other)
-    initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_other)
+--22/2/17!
+--  initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_other)
+    initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_all)
     initialAutoEntry("task_clock_stop",     S_Proc,"P",     "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_clock_start",    S_Proc,"P",     "VM\\pTask.e",0,E_other)
     initialAutoEntry("traverse_dict",       S_Proc,"PII",   "dict.e",0,E_other)

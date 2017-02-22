@@ -1014,6 +1014,11 @@ opProfout = 171,        -- profile_dump()
 --       "Technical notes")
 --      The largest existing example of #ilASM can currently be found in pfileioN.e. --DEV builtins\VM
 --
+-- I accept that ilasm is a language-within-a-language; a concept I generally find rather
+--  obscene, however it seems a necessary evil, and hopefully one most users will avoid.
+--  Perhaps in time it can be eliminated, but right now I (really) cannot even begin to 
+--  imagine how (especially, in order, pHeap.e, pStack.e, pFEH.e, pDiag.e, ...)
+--
 --DEV old, more things (global labels, etc) need to be explained...
 --      TIP: instructions need no prefix as #ilasm is expecting them, whereas labels 
 --       need a : (or two), and directives/opCodes/etc need a %. However as you can 

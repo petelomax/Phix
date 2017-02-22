@@ -37,6 +37,7 @@
 --  This file was chosen for use in the first steps to getting the optable to work, and
 --  also a key factor in deciding to use :!opCallOnceYeNot instead of :%opRetf/::fin.
 --
+with debug
 
 --/*
 This will not work on RDS Eu/OpenEuphoria!!
@@ -288,6 +289,7 @@ end procedure -- (for Edita/CtrlQ)
 --*/
     :%putsint
 -------------
+        [32]
             -- eax loaded, putscr on stack
             sub esp,16      -- build "[-]nnn\r\n" on the stack
             mov edi,esp
@@ -297,6 +299,17 @@ end procedure -- (for Edita/CtrlQ)
                 mov byte[edi],'-'
                 add edi,1
           @@:
+        [64]
+            -- eax loaded, putscr on stack
+            sub rsp,16      -- build "[-]nnn\r\n" on the stack
+            mov rdi,rsp
+            cmp eax,0
+            jge @f
+                neg eax
+                mov byte[rdi],'-'
+                add rdi,1
+          @@:
+        []
             mov ecx,1000000000  -- repeatedly divided by 10 until it is 1, as we get each digit.
             xor edx,edx         -- edx:=0
             xor esi,esi         -- clear esi, the 'some digits have already been printed' flag.

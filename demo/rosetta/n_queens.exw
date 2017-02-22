@@ -1,0 +1,67 @@
+--
+-- demo\rosetta\n_queens.exw
+-- =========================
+--
+-- Semi-optimal solution, as per https://en.wikipedia.org/wiki/Eight_queens_puzzle#Exercise_in_algorithm_design :
+--  "Because it rejects rook and diagonal attacks even on incomplete boards, it examines only 15,720 possible 
+--   queen placements." (on an 8x8 board), which matches what this achieves. However, "A further improvement, 
+--   which examines only 5,508 possible queen placements, is .." .. a bit beyond me.
+
+sequence co,    -- columns occupied
+                -- (ro is implicit)
+         fd,    -- forward diagonals
+         bd,    -- backward diagonals
+         board
+
+atom count
+atom rc
+
+procedure solve(integer row, integer N, integer show)
+    for col=1 to N do
+        rc += 1
+        if not co[col] then
+            integer fdi = col+row-1,
+                    bdi = row-col+N
+            if not fd[fdi]
+            and not bd[bdi] then
+                board[row][col] = 'Q'
+                co[col] = 1
+                fd[fdi] = 1
+                bd[bdi] = 1
+                if row=N then
+                    if show then
+                        puts(1,join(board,"\n")&"\n")
+                        puts(1,repeat('=',N)&"\n")
+                    end if
+                    count += 1
+                else
+                    solve(row+1,N,show)
+                end if
+                board[row][col] = '.'
+                co[col] = 0
+                fd[fdi] = 0
+                bd[bdi] = 0
+            end if
+        end if
+    end for
+
+end procedure
+
+procedure n_queens(integer N=8, integer show=1)
+--atom t0 = time()
+    co = repeat(0,N)
+    fd = repeat(0,N*2-1)
+    bd = repeat(0,N*2-1)
+    board  = repeat(repeat('.',N),N)
+    count = 0
+    rc = 0
+    solve(1,N,show)
+--?time()-t0
+    printf(1,"%d queens: %d solutions [%d tries]\n",{N,count,rc})
+end procedure
+
+for N=1 to 14 do
+    n_queens(N,N<5)
+end for
+
+{} = wait_key()

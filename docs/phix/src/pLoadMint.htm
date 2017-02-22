@@ -26,7 +26,7 @@
 #ilASM{ 
     [32]
         mov eax,[var]
-        call :%pLoadMint    -- eax:=(int32)eax
+        call :%pLoadMint    -- eax:=(int32)eax, edx:=hi_dword
     [64]
         mov rax,[var]
         call :%pLoadMint    -- rax:=(int64)rax
@@ -37,10 +37,10 @@
 <font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF">{ 
 </font><font color="#800000">    [</font><font color="#000000">32</font><font color="#800000">]
 </font><font color="#000000">        mov eax</font><font color="#0000FF">,</font><font color="#800000">[</font><font color="#000000">var</font><font color="#800000">]
-</font><font color="#7060A8">        call</font><font color="#000000"> :%pLoadMint   </font><font color="#000080"><i> -- eax:=(int32)eax
+</font><font color="#7060A8">        call</font><font color="#0000FF"> :</font><font color="#000000">%pLoadMint   </font><font color="#000080"><i> -- eax:=(int32)eax, edx:=hi_dword
 </i></font><font color="#800000">    [</font><font color="#000000">64</font><font color="#800000">]
 </font><font color="#000000">        mov rax</font><font color="#0000FF">,</font><font color="#800000">[</font><font color="#000000">var</font><font color="#800000">]
-</font><font color="#7060A8">        call</font><font color="#000000"> :%pLoadMint   </font><font color="#000080"><i> -- rax:=(int64)rax
+</font><font color="#7060A8">        call</font><font color="#0000FF"> :</font><font color="#000000">%pLoadMint   </font><font color="#000080"><i> -- rax:=(int64)rax
 </i></font><font color="#800000">    []
 </font><font color="#0000FF">      }</font>
 </pre>
@@ -54,9 +54,37 @@
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>Finish loading a machine-sized (32/64-bit) integer. Values above #3FFFFFFF (#3FFFFFFF_FFFFFFFF on 64-bit) and below
+         <td>
+            Finish loading a machine-sized (32/64-bit) integer. Values above #3FFFFFFF (#3FFFFFFF_FFFFFFFF on 64-bit) and below
             -#40000000 (-#40000000_00000000 on 64-bit) are stored in an atom; this routine checks for a float ref and extracts
-            the full 32/64 bit integer from the stored float into the accumulator.
+            the full 32/64 bit integer from the stored float into the accumulator. On 32-bit (only) edx receives any hi-dword,
+            which of course means -1 for any negative-but-still-dword values. Results when var is a fraction (such as 1.99) or
+            beyond the range of the accumulator (such as 1e23) are undefined/unpredictable/unsupported.
+            <br>
+            <br>
+            Memory addresses can often be stored /4 in an integer, which may prove simpler than using an atom and this routine:
+<!--eucode>
+integer pMem4 = allocate(N)/4
+    ...
+    #ilASM{ mov eax,[pMem4]
+            mov [ebx+eax*4],xxx }
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> pMem4</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000">N</font><font color="#0000FF">)/</font><font color="#000000">4
+</font><font color="#0000FF">    ..</font><font color="#FF0000">.
+</font><font color="#000000">    #</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> mov eax</font><font color="#0000FF">,</font><font color="#800000">[</font><font color="#000000">pMem4</font><font color="#800000">]
+</font><font color="#000000">            mov</font><font color="#800000"> [</font><font color="#000000">ebx</font><font color="#0000FF">+</font><font color="#000000">eax</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">xxx</font><font color="#0000FF"> }</font>
+</pre>
+            <br>
+            <br>
+            Note that 64-bit values must be signed: attempts to store/retrieve values above +#7FFFFFFF_FFFFFFFF will fail. You 
+            could subtract #1_00000000_00000000 to get around that when storing: on retrieval the correct bit-pattern will be 
+            in rax and it is up to you to treat that as signed/unsigned as needed. On 32-bit, atoms are limited to 53 bits of
+            precision, so you may have bigger problems that will go away if you store 64-bit values as pairs of dwords/atoms.
+            All 32-bit values (on 32-bit), signed or not (ie -#40000000..+#FFFFFFFF) are handled, however of course both -1
+            and +#FFFFFFFF will leave the same bit-pattern in eax (in which case inspecting edx may or may not be helpful).
+            The 32-bit code in builtins\VM\pfileioN.e assumes that (unsigned) 53 bit integers are sufficient for file offsets 
+            (being somewhere in the order of 8192TB, far bigger than any currently available hard drive).
          </td>
         </tr>
         <tr>
@@ -64,7 +92,7 @@
           <b>On return:</b>
          </td>
          <td>
-          all registers preserved (ebx/rbx is re-set to 0, r15 is set to h4).
+          all other registers preserved (ebx/rbx is re-set to 0, r15 is set to h4).
          </td>
         </tr>
         <tr>

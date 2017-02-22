@@ -79,7 +79,7 @@ end procedure -- (for Edita/CtrlQ)
         -- mov eax,[p1]     -- range
         -- call :%opRand    -- [edi] = rand(eax)
 --16/12/16
-        call :%pLoadMint -- (eax:=(int32)eax; edi preserved)
+        call :%pLoadMint -- (eax:=(int32)eax; [edx:=hi_dword], edi preserved)
 --/*
         cmp eax,h4  --DEV :%pLoadMint (test this, eg on RDS Eu, rand(0.5) is an error, rand(2.5)==rand(2))
 --      jae :e2801atrmbausq

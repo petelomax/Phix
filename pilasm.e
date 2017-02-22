@@ -3154,7 +3154,8 @@ end if
 if newEmit and X64=1 then
                         if p1size!=8 then ?9/0 end if
 ----    s5 &= #48
-    s5 &= #67   -- (0o147)
+--14/2/17 (over pop qword[rbp], this made it pop qword[ebp])
+--  s5 &= #67   -- (0o147)
 --  printf(1,"pilasm.e line 3627: please check list.asm (tokline=%d) for pop[mem]\n",{tokline})
 else
                         if p1size!=4 then ?9/0 end if   -- use a pop/mov pair, for now... [DEV]

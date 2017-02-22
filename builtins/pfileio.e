@@ -439,7 +439,8 @@ atom fhandle
 --/**/  #ilASM{ mov al,61
 --/**/          xor edi,edi     -- ep1 unused
 --/**/          xor esi,esi     -- ep2 unused
---/**/          call %opRTErn}  -- fatal error
+--!/**/         call %opRTErn}  -- fatal error
+--/**/          int3}           -- fatal error
         ?9/0
     end if
 
@@ -474,7 +475,8 @@ atom fhandle
 --/**/      #ilASM{ mov al,64
 --/**/              xor edi,edi     -- ep1 unused
 --/**/              xor esi,esi     -- ep2 unused
---/**/              call %opRTErn}  -- fatal error
+--!/**/             call %opRTErn}  -- fatal error
+--/**/              int3}           -- fatal error
             ?9/0
         end if
         frealposns[res] = frealposn
@@ -546,7 +548,8 @@ integer fend
 --/**/      #ilASM{ mov al,98
 --/**/              xor edi,edi     -- ep1 unused
 --/**/              xor esi,esi     -- ep2 unused
---/**/              call %opRTErn}  -- fatal error
+--!/**/             call %opRTErn}  -- fatal error
+--/**/              int3}           -- fatal error
             ?9/0
         end if
     end if
@@ -581,7 +584,8 @@ atom fhandle
 --/**/      #ilASM{ mov al,62
 --/**/              mov edi,[fn]
 --/**/              xor esi,esi     -- ep2 unused
---/**/              call %opRTErn}  -- fatal error
+--!/**/             call %opRTErn}  -- fatal error
+--/**/              int3}           -- fatal error
             ?9/0
         elsif and_bits(fmode,F_DIRTY) then
             flushfidx(fidx, fmode-F_DIRTY, fhandle)
@@ -638,7 +642,8 @@ procedure iofatal58(integer fn)
 --/**/  #ilASM{ mov al,58
 --/**/          mov edi,[fn]
 --/**/          xor esi,esi     -- ep2 unused
---/**/          call %opRTErn}  -- fatal error
+--!/**/         call %opRTErn}  -- fatal error
+--/**/          int3}           -- fatal error
         ?9/0
 end procedure
 
@@ -754,7 +759,8 @@ procedure iofatal59()
 --/**/  #ilASM{ mov al,59
 --/**/          xor edi,edi     -- ep1 unused
 --/**/          xor esi,esi     -- ep2 unused
---/**/          call %opRTErn}  -- fatal error
+--!/**/         call %opRTErn}  -- fatal error
+--/**/          int3}           -- fatal error
         ?9/0
 end procedure
 
@@ -1330,7 +1336,8 @@ procedure iofatal65()
 --/**/  #ilASM{ mov al,65
 --/**/          xor edi,edi     -- ep1 unused
 --/**/          xor esi,esi     -- ep2 unused
---/**/          call %opRTErn}  -- fatal error
+--!/**/         call %opRTErn}  -- fatal error
+--/**/          int3}           -- fatal error
         ?9/0
 end procedure
 

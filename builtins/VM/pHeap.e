@@ -1084,8 +1084,10 @@ end procedure -- (for Edita/CtrlQ)
 -- 7/2/17:
 push rdi
 push rsi
+push rcx
             mov eax,39              -- sys_getpid()
             syscall
+pop rcx
 pop rsi
 pop rdi
         []
@@ -1773,7 +1775,10 @@ end procedure -- (for Edita/CtrlQ)
             xor edx,edx
             idiv ecx
             test edx,edx
-            jnz :internalerror
+--          jnz :internalerror
+            jz @f
+                int3
+          @@:
             test eax,1
             mov eax,[esp+8]             -- block ptr
             mov ecx,[esp+16]            -- block size
@@ -1810,7 +1815,10 @@ end procedure -- (for Edita/CtrlQ)
             xor rdx,rdx
             idiv rcx
             test rdx,rdx
-            jnz :internalerror
+--          jnz :internalerror
+            jz @f
+                int3
+          @@:
             test rax,1
             mov rax,[rsp+16]            -- block ptr
             mov rcx,[rsp+32]            -- block size
@@ -2153,12 +2161,12 @@ end procedure -- (for Edita/CtrlQ)
 --              jmp :!iDiag
 --              int3
 --              nop
-      ::internalerror
-        int3
-        nop
-      ::invalidmemoryrequest
-        int3
-        nop
+--    ::internalerror
+--      int3
+--      nop
+--    ::invalidmemoryrequest
+--      int3
+--      nop
 --    ::memoryallocationfailure     -- e77phroom?
 --      int3
 --      nop
@@ -2366,7 +2374,10 @@ sub edx,1
         push esi        -- [1] pTCB/4
         -- figure out the required size
         cmp ecx,#50000000
-        ja :invalidmemoryrequest
+--      ja :invalidmemoryrequest
+        jb @f
+            int3
+      @@:
         add ecx,8       -- add space for pRoot + era
         mov edx,24      -- size
         mov edi,0       -- idx*4
@@ -2387,7 +2398,10 @@ sub edx,1
         mov rdx,#50000000 --00000000
         shl rdx,32
         cmp rcx,rdx
-        ja :invalidmemoryrequest
+--      ja :invalidmemoryrequest
+        jb @f
+            int3
+      @@:
         add rcx,16      -- add space for pRoot + era
         mov rdx,44      -- size
         mov rdi,0       -- idx*8
@@ -3342,7 +3356,10 @@ end procedure -- (for Edita/CtrlQ)
         -- All other registers (except eax) are preserved.
         test ecx,ecx
 --      js e101atasonl                    ; attempt to allocate string of negative length
-        js :invalidmemoryrequest
+--      js :invalidmemoryrequest
+        jns @f
+            int3
+      @@:
         pushad
         add ecx,17                      -- header plus terminating null
         xor ebx,ebx                     -- (save some grief)
@@ -3372,7 +3389,10 @@ end procedure -- (for Edita/CtrlQ)
         -- All other registers (except rax) are preserved. [DEV/ERM/may need yet more push/pop...]
         test rcx,rcx
 --      js e101atasonl                    ; attempt to allocate string of negative length
-        js :invalidmemoryrequest
+--      js :invalidmemoryrequest
+        jns @f
+            int3
+      @@:
 --      pushad
         sub rsp,8                       -- align stack
         xor rbx,rbx                     -- (save some grief)
@@ -3420,7 +3440,10 @@ end procedure -- (for Edita/CtrlQ)
         -- All other registers (except eax) are preserved.
         test ecx,ecx
 --      js e101atasonl                  ; attempt to allocate string of negative length
-        js :invalidmemoryrequest
+--      js :invalidmemoryrequest
+        jns @f
+            int3
+      @@:
         pushad
         xor ebx,ebx                     -- (save some grief)
         lea ecx,[ebx+ecx*4+20]          -- 4 bytes per element plus header
@@ -3448,7 +3471,10 @@ end procedure -- (for Edita/CtrlQ)
         -- All other registers (except rax) are preserved. [DEV/ERM...]
         test rcx,rcx
 --      js e101atasonl                  ; attempt to allocate string of negative length
-        js :invalidmemoryrequest
+--      js :invalidmemoryrequest
+        jns @f
+            int3
+      @@:
 --      pushad
 --28/12/15:
 --      sub rsp,8                       -- align stack
@@ -3777,7 +3803,7 @@ end procedure -- (for Edita/CtrlQ)
 ---------------
 --DEV era in edx? error code in ecx?
     [32]
-        -- eax:=(int32)eax
+        -- eax:=(int32)eax, edx:=hi_dword
         -- All other registers are preserved (ebx:=0).
         xor ebx,ebx         -- (save some grief)
         cmp eax,h4
@@ -3798,6 +3824,7 @@ end procedure -- (for Edita/CtrlQ)
             fistp qword[esp]
             call :%near53
             mov eax,[esp]
+            mov edx,[esp+4]
             add esp,8
       @@:
         ret

@@ -234,6 +234,7 @@ integer k
                     end if
                     profileon = k
                 end if
+--/*
 --added 7/7/16:
                 optset[k] = OptOn
 --DEV (spotted in passing) 28/6/16: I think I messed up for profile/profile_time...
@@ -249,6 +250,11 @@ integer k
             elsif k!=OptWarning then
                 optset[k] = OptOn
             end if
+--*/
+            elsif k=OptWarning then
+                finalOptWarn[fileno] = OptOn
+            end if
+            optset[k] = OptOn
             if k=OptDebug and not OptOn and not fromroutine then
                 clearTLSDebug()
             end if
@@ -292,6 +298,11 @@ if not newEmit then
                 getToken()
                 return
 end if
+            elsif ttidx=T_indirect_incs
+               or ttidx=T_inline then
+                -- (OpenEuphoria only, ignored by Phix)
+                getToken()
+                return
             end if
         end if
     elsif toktype=DIGIT
@@ -10094,6 +10105,7 @@ procedure DoQu()
 --
 -- The '?' shorthand.
 --
+--DEV/SUG allow ?"Name: ",name (and make the quotes optional somehow, "with[out] quotes"?)
 integer t,O
 sequence symtabN
 --trace(1)

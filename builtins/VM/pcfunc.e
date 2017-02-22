@@ -277,8 +277,8 @@ atom addr
     #ilASM{
         [32]
             mov eax,[lib]
+            call :%pLoadMint -- (eax:=(int32)eax [edx:=hi-dword])
             mov edx,[name]
-            call :%pLoadMint -- (eax:=(int32)eax; edx preserved)
             shl edx,2
         [PE32]
             push edx                            -- lpProcName
@@ -324,7 +324,7 @@ atom addr
         [ELF64]
             mov rax,[lib]
             mov rsi,[name]
-            call :%pLoadMint -- (rax:=(int64)rax; rdx preserved)
+            call :%pLoadMint -- (rax:=(int64)rax)
             shl rsi,2                           -- symbol
             mov rdi,rax                         -- handle
             call "libdl.so.2", "dlsym"
