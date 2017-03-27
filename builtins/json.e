@@ -31,7 +31,7 @@
 --                       "false", or "null", with no unnecessary quotes.
 --      For some valid (and invalid) JSON examples, see demo\rosetta\JSON.exw.
 --
---      Attempts to parse an invalid JSON string yield {JSON_INVALID} ({=4}).
+--      Attempts to parse an invalid JSON string yield {JSON_INVALID} ({-4}).
 --      Attempts to convert an invalid JSON object to a JSON string yield 0, 
 --                          possibly with partial results in the output file.
 --
@@ -52,7 +52,7 @@
 --  Otherwise this component should run on both, mainly thanks to the following:
 --
 
---/* OpenEuphoria/RDS Eu compatibility:
+--/* OpenEuphoria compatibility:
 global type string(object s)
 object si
     if not sequence(s) then return 0 end if
@@ -111,7 +111,7 @@ function pj_rec(object fn, object o, integer indent=0, integer addcomma=0)
         fn = pj_print(fn,"\"%s\"",{o})
     else
         integer len = length(o)
-        integer o1 = -4
+        integer o1 = JSON_INVALID
         if len!=0 and integer(o[1]) then
             o1 = o[1]
         end if
@@ -119,7 +119,7 @@ function pj_rec(object fn, object o, integer indent=0, integer addcomma=0)
             -- object
             fn = pj_print(fn,"{\n")
             for i=2 to len do
-                object name = -1
+                object name = JSON_INVALID
                 if sequence(o[i]) and length(o[i])=2 then
                     name = o[i][1]
                 end if

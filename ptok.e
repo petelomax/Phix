@@ -1988,6 +1988,7 @@ global procedure getToken(bool float_valid=false)
 --DEV (use fromsubss or parse_dot_as_symbol?)
 --          elsif Ch>='0' and Ch<='9' then -- ".4" is a number
 --          elsif (not ORAC) and Ch>='0' and Ch<='9' then -- ".4" is a number
+--DEV this may want to be (not ORAC or float_valid)  [spotted in passing, 27/3/17]
             elsif (ORAC and float_valid)
               and Ch>='0' and Ch<='9' then -- ".4" is a number
                 col -= 1
