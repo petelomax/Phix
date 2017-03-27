@@ -1,0 +1,122 @@
+--
+-- demo\rosetta\Clock.exw
+-- ======================
+--
+-- Hmm: can we do some edge smoothing or something on this? [DEV]
+
+include pGUI.e
+
+Ihandle dlg, canvas, hTimer
+cdCanvas cddbuffer, cdcanvas
+
+procedure draw_hand(atom degrees, atom r, baseangle, baselen, cx, cy)
+    atom a = PI-(degrees+90)*PI/180
+    -- tip
+    atom x1 = cos(a)*(r)
+    atom y1 = sin(a)*(r)
+    -- base
+    atom x2 = cos(a+PI-baseangle)*baselen
+    atom y2 = sin(a+PI-baseangle)*baselen
+    atom x3 = cos(a+PI+baseangle)*baselen
+    atom y3 = sin(a+PI+baseangle)*baselen
+    cdCanvasBegin(cddbuffer,CD_FILL)
+    cdCanvasVertex(cddbuffer,cx+x1,cy+y1)
+    cdCanvasVertex(cddbuffer,cx+x2,cy+y2)
+    cdCanvasVertex(cddbuffer,cx+x3,cy+y3)
+    cdCanvasEnd(cddbuffer)
+end procedure
+
+procedure draw_clock(atom cx, cy, d)
+atom w = 2+floor(d/25)
+    cdCanvasFont(cddbuffer, "Helvetica", CD_PLAIN, floor(d/15))
+    cdCanvasLineWidth(cddbuffer, w) 
+    cdCanvasArc(cddbuffer, cx, cy, d, d, 0, 360) 
+    d -= w+8
+    w = 1+floor(d/50)
+    for i=6 to 360 by 6 do
+        integer h = remainder(i,30)=0
+        cdCanvasLineWidth(cddbuffer, floor(w*(1+h)/3)) 
+        atom a = PI-(i+90)*PI/180
+        atom x1 = cos(a)*d/2, x2 = cos(a)*(d/2-w*(2+h)*.66)
+        atom y1 = sin(a)*d/2, y2 = sin(a)*(d/2-w*(2+h)*.66)
+        cdCanvasLine(cddbuffer, cx+x1, cy+y1, cx+x2, cy+y2) 
+        if h then
+            x1 = cos(a)*(d/2-w*4.5)
+            y1 = sin(a)*(d/2-w*4.5)
+            cdCanvasText(cddbuffer,cx+x1,cy+y1,sprintf("%d",{i/30}))
+        end if
+    end for
+    atom {hour,mins,secs,msecs} = date(true)[DT_HOUR..DT_MSEC]
+    if IupGetInt(hTimer,"TIME")<1000 then
+        -- (if showing once a second, always land on exact 
+        --  seconds, else show smooth running second hand.)
+        secs += msecs/1000
+    end if
+    mins += secs/60
+    hour += mins/60
+    atom r = d/2
+    draw_hand(hour*360/12,r-w*9,0.3,d/20,cx,cy)
+    draw_hand(mins*360/60,r-w*2,0.2,d/16,cx,cy)
+    cdCanvasSetForeground(cddbuffer, CD_RED)
+    draw_hand(secs*360/60,r-w*2,0.05,d/16,cx,cy)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+integer r = floor(min(width,height)*0.9)
+integer cx = floor(width/2)
+integer cy = floor(height/2)
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer) 
+    draw_clock(cx,cy,r)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    {} = cdCanvasTextAlignment(cddbuffer, CD_CENTER) 
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen(join_path({"..","pGUI"},1))
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "350x350") -- initial size
+--  IupSetAttribute(canvas, "ANTIALIAS", "1")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    hTimer = IupTimer(Icallback("timer_cb"), 40)    -- smooth secs
+--  hTimer = IupTimer(Icallback("timer_cb"), 1000)  -- tick seconds
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Clock")
+--  IupSetAttribute(dlg, "ANTIALIAS", "1")
+--  IupSetAttribute(NULL, "ANTIALIAS", "1")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

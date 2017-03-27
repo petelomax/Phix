@@ -4861,7 +4861,7 @@ end if
                     src = forwardretarget[find(src+1,forwardingtable)]-1
                     s5[pc+2] = src
                 end if
---if dest=710 then
+--if dest=808 then
 --?{dest,src,isInit,dtype,slroot,sltype,opcode,opMove}
 --  trace(1)
 --end if
@@ -6951,7 +6951,7 @@ end if
 
                             storeMem(dest,eax)                      -- mov [dest],eax
                         end if -- not isGscan
-                    else -- length(-default)
+                    else -- pDefault=T_length, length(-default)
                         -- set dest[src] as 0..MAXLEN, unless [src2] is fixed length
                         dest = src
                         getDest()
@@ -11214,15 +11214,16 @@ end if
     if dest then
                 markConstUseds({dest,src,src2})
                 --calling convention
-                --  lea edi,[p1]        ; addr of target
                 --  mov ecx,[p3]        ; source2 (opUnassigned)
                 --  mov eax,[p2]        ; source (opUnassigned)
-                --  call :%opPow            ; [edi]:=power(eax,ecx)
-                if sched then
-                    sch00n = schoon
-                    schedule(0,0,edibit,pUV,0,0)
-                end if
-                leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
+                --  lea edi,[p1]        ; addr of target
+                --  call :%opPow        ; [edi]:=power(eax,ecx)
+--              if sched then
+--                  sch00n = schoon
+--                  schedule(0,0,edibit,pUV,0,0)
+--              end if
+--21/3/17 (moved below tmpr - may be edi) [above killed off in the process]
+--              leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
 if tmpd then
     if tmpr>=0 then
         if tmpr!=ecx then
@@ -11274,6 +11275,8 @@ end if -- tmpd
                 if sched then
                     schend()
                 end if
+--21/3/17 (moved from above)
+                leamov(edi,dest)                                -- lea edi,[dest]/mov edi,dest (addr result)
                 emitHex5callG(opPow)
 --trace(1)
     end if -- dest!=0

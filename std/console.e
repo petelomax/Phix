@@ -891,7 +891,7 @@ public procedure any_key(sequence prompt="Press Any Key to continue...", integer
         con = 1
     end if
     puts(con, prompt)
-    {} = wait_key()
+    if wait_key() then end if
     puts(con, "\n")
 end procedure
 

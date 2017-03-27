@@ -1,0 +1,1568 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupPlot</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          <font face = "Arial, Helvetica">
+            include pGUI.e
+            <br>
+            <br>
+            Ihandle ih = IupPlot(string attributes="", sequence data={})
+          </font>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a plot of one or more data sets. It inherits from IupCanvas.
+            <br>
+            <br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            <br>
+            <br>
+            This is an additional control that depends on the CD library. It is included in the IupControls library.
+            <br>
+            <br>
+            It completely replaces the old IupPPlot control. This control eliminates all the limitations and issues we have with the PPlot library. <br>
+            But we reused several PPlot source code parts, so we would like to thank the author Pier Philipsen for making it with a with a very flexible BSD License. <br>
+            We also would like to thank Marian Trifon for the first IupPPlot implementation which part was also reused here. See "Differences from IupPPlot" bellow.
+            <br>
+            <br>
+            <h3>Initialization and Usage</h3>
+            The IupPlotOpen function must be called after a IupOpen, so that the control can be used, however this is done automatically by IupPlot. 
+            <br>
+            <br>
+            <h3>Guide</h3>
+            The control can contain more than one plot in a rectangular grid. <br>
+            Each plot will then has an exclusive plot area inside the control. <br>
+            When it is just one plot this area will occupy the whole control area.
+            <br>
+            <br>
+            Each plot can contain 2 axis (X and Y), a title, a legend box, a grid, a dataset area and as many datasets you want. 
+            <br>
+            <br>
+            Each data set is added using the Auxiliary Functions. All other plot parameters are configured by attributes. <br>
+            IupPlot support plots of linear sequential data, as a sequence of 2D samples ([x1,y1],[x2,y2],...) coordinates.
+            <br>
+            <br>
+            If no attribute is set, the default values were selected to best display the plot.
+            <br>
+            <br>
+            When setting attributes the plot is NOT redrawn until the <a href="#REDRAW">REDRAW</a> attribute is set or a redraw event occurs.
+            <br>
+            <br>
+            The dataset area is delimited by a margin. <br>
+            Data is only plotted inside the dataset area. <br>
+            Axis and main title are positioned independent of this margin.
+            <br>
+            <br>
+            The legend box is a list of the dataset names, each one drawn with the same color of the correspondent dataset. <br>
+            The box can be located in one of the four corners of the dataset area.
+            <br>
+            <br>
+            The grid is automatically spaced accordingly the current axis major ticks.
+            <br>
+            <br>
+            The title is always centered in the top of the plot.
+            <br>
+            <br>
+            The axis are always positioned at the left-bottom, except when cross-origin is enabled, then it is positioned 
+            at the origin and zoom and pan will affect its position. Cross-origin will be automatically disable if a logarithm scale is used.
+            <br>
+            <a name=Interaction></a>
+            <br>
+            <h3>Interaction</h3>
+            <h4>Zoom & Pan</h4>
+            Zoom can be done while pressing the Ctrl key and interacting with the control. <br>
+            A single click is with the left mouse button will zoom in by 10%, a single click with the right mouse button will zoom out by 10%. <br>
+            The same result can be obtained by moving the mouse wheel. <br>
+            To zoom in to a region, click with the left mouse button, drag to form a selection rectangle and release the button. <br>
+            In all cases the Ctrl key must be pressed during the interaction.
+            <br>
+            <br>
+            Zoom can be reset by double clicking with the left mouse button or pressing the "." key. <br>
+            Zoom in and out can also be performed using the "+" and "-" keys respectively. 
+            <br>
+            <br>
+            Pan is performed after zoom in and it does not uses the Ctrl key. <br>
+            Simply click with the left mouse button and drag the plot to pan. <br>
+            The mouse wheel will pan in the vertical direction by default, and when Shift is pressed will pan in the horizontal direction. <br>
+            Pan can also be performed using the arrow keys, and with the PgDn/PgUp keys. <br>
+            A single click with the middle mouse button will try to position the origin at that coordinate. 
+            <br>
+            <br>
+            Zoom and Pan operate on <a href="#AXS_XMAX">AXS_XMAX</a>, <a href="#AXS_XMIN">AXS_XMIN</a>, <a href="#AXS_YMAX">AXS_YMAX</a>, 
+            <a href="#AXS_YMIN">AXS_YMIN</a> even if <a href="#AUTOMIN">AXS_?AUTOMIN</a>/<a href="#AUTOMAX">AXS_?AUTOMAX</a> is enabled. <br>
+            The axis may be hidden depending on the selected rectangle. <br>
+            The <a href="#AUTOMIN">AXS_?AUTOMIN</a>/<a href="#AUTOMAX">AXS_?AUTOMAX</a> attributes will be disabled during zoom in, and restored when zoom out completely. <br>
+            The zoom out and pan are limited to the original attribute values when zoom in started.
+            <br>
+            <br>
+            <h3>Cross Hair & TIP</h3>
+            The cross hair cursor is activated and deactivated using the Ctrl+H or Ctrl+V key combinations. <br>
+            When Ctrl+H is used the X coordinate will control the cursor, the Y coordinate will reflect each dataset correspondent value (a Horizontaly controlled cross-hair). <br>
+            When Ctrl+V is used the Y coordinate will control the cursor, the X coordinate will reflect each dataset correspondent value (a Vertically controlled cross-hair).
+            <br>
+            <br>
+            When the cursor is close to a sample, a <a href="iupattr.htm#TIP">TIP</a> will be shown with the dataset name, sample index and coordinate values.
+            <br>
+            <br>
+            <h3>Selection</h3>
+            Selection can be done while pressing the Shift key and interacting with the control. <br>
+            To select all the samples inside a region, click with the left mouse button, drag to form a selection rectangle and release the button (while pressing the Shift key). <br>
+            The new selection will always replace the previous one.
+            <br>
+            <br>
+            To clear the selection just select an empty region or select an area with no samples. Pressing the Esc key will also clear the selection.
+            <br>
+            <br>
+            After selecting samples use the Del key to remove the selected samples, but this will only work if <a href="#READONLY">READONLY</a>=NO.
+            <br>
+            <br>
+            Selection and delete behavior can be controlled using the respective callbacks.
+            <br>
+            <br>
+            <h3>Context Menu</h3>
+            The context menu is shown by a single click with the right mouse button. The default menu contains the following items:
+ <pre>          
+Zoom In  +
+Zoom Out -
+Reset Zoom  .
+-----------
+Show/Hide Legend
+Show/Hide Grid 
+-----------
+Copy As Picture      (copy to clipboard, EMF format)
+Copy As Bitmap
+-----------
+Export to SVG...     (export the plot to a metafile, SVG format)
+Export to EPS...     ( " , EPS format )
+Export to CGM...     ( " , CGM format) 
+Export to EMF...     ( " , EMF format, windows only)
+Export to WMF...     ( " , WMF format, windows only)
+-----------
+Print...
+ </pre>
+            Context menu behavior can be controlled using the respective callbacks.
+            <br>
+            <a name=aux></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Auxiliary Functions:</b>
+         </td>
+         <td>
+            <dl>
+            <dt><b>IupPlotBegin</b>(Ihandle ih, bool strXdata=false)</dt>
+            <dd>Prepares a dataset to receive samples. If strXdata is true then the X axis value is a string.<br><br></dd>
+
+            <dt><b>IupPlotAdd</b>(Ihandle* ih, double x, double y)</dt>
+            <dd>Adds a sample to the dataset. Can only be called if IupPlotBegin was called with strXdata=0.<br><br></dd>
+
+            <dt><b>IupPlotAddSegment</b>(Ihandle ih, atom x, atom y)</dt>
+            <dd>Same as IupPlotAdd, but the sample starts a new segment.<br>
+                In drawing mode where samples are connected by lines this will create an empty space.<br><br></dd>
+
+            <dt><b>IupPlotAddStr</b>(Ihandle ih, string x, atom y)</dt>
+            <dd>Same as IupPlotAdd, but allows to use a string as the X axis value.<br>
+                Can only be called if IupPlotBegin was called with strXdata=1.<br>
+                Strings will be shown only in linear scale, they will not be shown in Logarithm scale.<br><br></dd>
+
+            <dt>integer ds_index = <b>IupPlotEnd</b>(Ihandle ih)</dt>
+            <dd>Adds a 2D dataset to the plot and returns the dataset index.<br>
+                The data set can be empty. Redraw is NOT done until the <a href="#REDRAW">REDRAW</a> attribute is set.<br>
+                Also it will change the current dataset index to the return value.<br>
+                You can only set attributes of a dataset AFTER you added the dataset.<br>
+                Can only be called if IupPlotBegin was called.<br>
+                Whenever you create a dataset all its "DS_*" attributes will be set to the default values.<br><br></dd>
+
+            <dt>integer res = <b>IupPlotLoadData</b>(Ihandle ih, string filename, integer strXdata)</dt>
+            <dd>Creates new datasets from data stored in a file. <br>
+                The file must contains space (' '), tab ('\t') or semicolon (';') separated numeric data in text format. <br>
+                The text can contains line comments starting with '#'. <br>
+                The file can have more than one dataset but the first column will always be the X coordinate of all datasets. <br>
+                If strXdata=1 then the first column is treated as a string. <br>
+                The first line will define the number of datasets. <br>
+                The file must have at least two columns of data. <br>
+                Returns a non zero value is successful, or a zero value if failed. <br>
+                Notice that if it fails during data read, but after the fist line, the datasets were already created and they will not be destroyed when the function returns.<br><br></dd>
+
+            <dt><b>IupPlotInsert</b>(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y)<br>
+                <b>IupPlotInsertSegment</b>(Ihandle ih, integer ds_index, integer sample_index, string x, atom y)<br>
+                <b>IupPlotInsertStr</b>(Ihandle ih, integer ds_index, integer sample_index, string x, double y)</dt>
+            <dd>Inserts a sample in a dataset at the given sample_index. Can be used only after the dataset is added to the plot.<br><br></dd>
+
+            <dt><b>IupPlotInsertSamples</b>(Ihandle ih, integer ds_index, integer sample_index, sequence x, sequence y, integer count)<br>
+                <b>IupPlotInsertStrSamples</b>(Ihandle ih, integer ds_index, integer sample_index, sequence xstrings, sequence y, integer count)</dt>
+            <dd>Inserts an array of samples in a dataset at the given sample_index. Can be used only after the dataset is added to the plot.<br>
+                Note that count can be less than the length of the passed sequences.<br><br></dd>
+
+            <dt><b>IupPlotAddSamples</b>(Ihandle ih, integer ds_index, sequence x, sequence y, integer count)<br>
+                <b>IupPlotAddStrSamples</b>(Ihandle ih, integer ds_index, sequence xstrings, sequence y, integer count)</dt>
+            <dd>Adds an array of samples in a dataset at the end. Can be used only after the dataset is added to the plot. <br><br></dd>
+
+            <dt>atom {x,y} = <b>IupPlotGetSample</b>(Ihandle ih, integer ds_index, integer sample_index)<br>
+                {string x, atom y} = <b>IupPlotGetSampleStr</b>(Ihandle ih, integer ds_index, integer sample_index)</dt>
+            <dd>Returns the sample value in a dataset at the given sample_index. Can be used only after the dataset is added to the plot. <br><br></dd>
+
+            <dt>bool selected = <b>IupPlotGetSampleSelection</b>(Ihandle ih, integer ds_index, integer sample_index)</dt>
+            <dd>Returns the sample selected state in a dataset at the given sample_index. Can be used only after the dataset is added to the plot. <br>
+                By default all samples are not selected. Returns -1 if an error occurred.<br><br></dd>
+
+            <dt><b>IupPlotSetSample</b>(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y)<br>
+                <b>IupPlotSetSampleStr</b>(Ihandle ih, integer ds_index, integer sample_index, string x, atom y)</dt>
+            <dd>Changes the sample value in a dataset at the given sample_index. Can be used only after the dataset is added to the plot. <br><br></dd>
+
+            <dt><b>IupPlotSetSampleSelection</b>(Ihandle ih, integer ds_index, integer sample_index, bool selected)</dt>
+            <dd>Changes the sample selected state in a dataset at the given sample_index. Can be used only after the dataset is added to the plot. <br><br></dd>
+
+            <dt>atom {x,y} = <b>IupPlotTransform</b>(Ihandle ih, atom x, atom y)</dt>
+            <dd>Converts coordinates in plot units to pixels. It should be used inside callbacks only.<br>
+                Y canvas coordinates are in CD bottom to top orientation.<br><br></dd>
+
+            <dt>atom {x,y} = <b>IupPlotTransformTo</b>(Ihandle ih, atom x, atom y)</dt>
+            <dd>Converts coordinates from pixels to plot coordinates. It should be used inside callbacks only.<br>
+                Y canvas coordinates are in CD bottom to top orientation.<br><br></dd>
+
+            <dt>integer {ds_index, sample_index} = <b>IupPlotFindSample</b>(Ihandle ih, atom x, atom y)</dt>
+            <dd>Returns the nearest sample of the nearest dataset within a 5 pixels tolerance neighborhood. <br>
+                Returns a single zero value if unsuccessful, or a pair of indexes as shown. It should be used inside callbacks only. <br>
+                Y canvas coordinates are in CD bottom to top orientation.<br><br></dd>
+
+            <dt><b>IupPlotPaintTo</b>(Ihandle ih, cdCanvas cnv)</dt>
+            <dd>Plots to the given CD canvas instead of the display canvas. <br>
+                The element need neither be be mapped nor inside a dialog for this function to work.<br><br></dd>
+
+<!--
+DEV not present in 3.17...??
+            <dt><b>IupPlotSetFormula</b>(Ihandle ih, integer sample_count, string formula, nullable_string init)</dt>
+            <dd>Creates a new dataset and generate samples using the formula. <br>
+                The formula is executed for each sample within the dataset. <br>
+                Internally uses Lua to parse the formula. <br>
+                init is an optional Lua initialization code that is called only once (can be NULL). <br>
+                The callback "int FORMULAINIT_CB(Ihandle* ih, lua_State *L);" can also be used to initialize the Lua state. <br>
+                All Lua standard libraries are pre-loaded.
+                <br>
+                <br>
+                This function is available in the "iupluaplot" library but it does not requires an active Lua context, because it uses a temporary Lua context.
+                <br>
+                <br>
+                The formula will be encapsulated within an internal Lua function so it will not affect the call of subsequent samples. <br>
+                This internal function receives two parameters "sample_index" and "x" correspondent to the current sample being processed during script execution. <br>
+                "y" will be calculated by the formula. The formula can contain only one valid Lua statement that will be retuned by the internal Lua function. <br>
+                The formula can evaluate to numbers only. The x parameter will vary from FORMULA_MIN and FORMULA_MAX attributes those default values are 0.0 and 1.0. <br>
+                The interval will be divided in sample_count-1 steps.
+                <br>
+                <br>
+                If the attribute FORMULA_PARAMETRIC is set to Yes, then the second attribute is replaced by "t". <br>
+                The interval and the steps are the same BUT the formula must then return 2 numeric parameters: "x, y".
+                <br>
+                <br>
+                The most commonly used tokens are:
+ <pre>
++  (addition) 
+-  (subtraction and negation) 
+*  (multiplication) 
+/  (division) 
+%  (modulo)
+^  (exponentiation)
+== (equal)
+~= (different)
+&lt;  (less than)
+&gt;  (greater than)
+&lt;= (less than or equal)
+&gt;= (greater than or equal)
+and (logical and)
+or  (logical or)
+not (logical not)The Lua Math Functions are loaded also at the global level, so there is no need for the "math." prefix. 
+ </pre>
+                The most commonly used functions are:
+ <pre>
+abs(x)    acos(x)    asin(x)    atan(x)    atan2(y,x)    ceil(x)    cos(x)
+deg(x)    exp(x)     floor(x)   log(x)     min(x,...)    max(x,...) pow(x,y)
+sin(x)    sqrt(x)    tan(x)
+ </pre>
+                Some formula examples: "cos(pi*x)", "x^2", "cos(t), sin(t)"<br><br></dd>
+-->
+            </dl>
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            <h3>Differences from IupPPlot</h3>
+            No STL dependency. All parameters and coordinates are in double floating point precision.
+            <br>
+            <br>
+            Can draw using OpenGL. Internally will use the CD_GL driver so other CD metafile drivers can be used in IupPlotPaintTo.
+            <br>
+            <br>
+            All IupPPlot attributes are supported, except DS_EDIT and EDIT* callbacks. Some attributes were renamed but the old names are also supported.
+            <br>
+            <br>
+            There are several new attributes and callbacks, check the documentation.
+            <br>
+            <br>
+            IMPORTANT: interaction was heavily changed. Zoom, Pan and Selection is now done totally different from IupPPlot. See <a href="#Interaction">Interaction</a> above.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            (All non inheritable, except when noted)
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            ANTIALIAS
+         </td>
+         <td>
+            Enable or disable the anti-aliasing support when available. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CANVAS
+         </td>
+         <td>
+            (read-only) returns the internal CD canvas where the draw operation occurs. Works only after mapped.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            GRAPHICSMODE
+         </td>
+         <td>
+            The internal graphics mode. Can be set only before map. Can be OPENGL, IMAGERGB, NATIVEPLUS or NATIVE. <br>
+            OPENGL will use OpenGL, it is faster for big data sets but text has a slightly slower quality, and has alpha and anti-aliasing support. <br>
+            IMAGERGB is the slowest, has the same text issues as OpenGL, but also has alpha and anti-aliasing support. <br>
+            NATIVE is the system default (GDI in Windows, GDK/Cairo in GTK 2/3, X11 in Motif) it has the best text render, it is fast for regular datasets, 
+            but it does not have anti-aliasing nor alpha (except in GTK 3). <br>
+            NATIVEPLUS uses GDI+ in Windows and Cairo in GTK 2, so it has anti-aliasing and alpha support. Default: NATIVEPLUS. 
+            <br>
+            <a name=READONLY></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            READONLY
+         </td>
+         <td>
+            allow the selected samples to be removed when the Del key is pressed.
+            <br>
+            <a name=REDRAW></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            REDRAW
+         </td>
+         <td>
+            (write-only) redraw all plots and update the display. <br>
+            All other attributes will NOT update the display, so you can set many attributes without visual output. <br>
+            Value can be NULL. <br>
+            If value is "NOFLUSH" rendering is performed internally but display is not updated. <br>
+            If value is "CURRENT" only the current plot defined by "PLOT_CURRENT" will be updated and it will behave as "NOFLUSH". <br>
+            Works only after mapped.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SYNCVIEW
+         </td>
+         <td>
+            when a plot view is changed by interactive zoom or pan, the other plots are zoomed or panned accordingly. 
+            <br>
+            <a name=TIPFORMAT></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TIPFORMAT
+         </td>
+         <td>
+            format of the automatic <a href="iupattr.htm#TIP">TIP</a> when mouse is over a sample. Default: "%s (%s, %s)". <br>
+            First parameter is DS_NAME, then X and Y sample values converted to strings using AXS_XTIPFORMAT and AXS_YTIPFORMAT accordingly.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            VIEWPORTSQUARE
+         </td>
+         <td>
+            force the plot area to be a square.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Color</b>
+         </td>
+         <td>
+            All color attributes are accept an extra component for alpha. The default alpha is always 255 (opaque). 
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            BGCOLOR 
+         </td>
+         <td>
+            (inheritable) The default background color. Default: "255 255 255".<br>
+            When set BACKCOLOR and LEGENDBOXBACKCOLOR of all plots will be reset to the same value.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FGCOLOR
+         </td>
+         <td>
+            (inheritable) The default text and line color. Default: "0 0 0 255".<br>
+            When set, TITLE, AXIS, BOX and LEGENDBOX colors of all plots will be reset to the same value.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            FONT
+         </td>
+         <td>
+            (inheritable) the default font used in all text elements of the plot: title, legend and labels. <br>
+            Use "Plain" or "" to reset "Bold"/"Italic" styles. When set, will not overwrite *FONTSTYLE nor *FONTSIZE attributes.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Menu</b>
+         </td>
+         <td>
+            <br>
+            <a name=MENUCONTEXT></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MENUCONTEXT
+         </td>
+         <td>
+            enable the context menu. Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MENUITEMPROPERTIES
+         </td>
+         <td>
+            enable the properties menu item in the context menu. Can be Yes or No. Default: No.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            SHOWMENUCONTEXT
+         </td>
+         <td>
+            (write-only) show the context menu in the given position. <br>
+            Value has the "x:y" format and is relative to the left-top corner of the screen.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Multiple Plots Management  </b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            PLOT_COUNT
+         </td>
+         <td>
+            defines the number of multiple plots in the same control. Default: 1. <br>
+            The minimum value is 1. If set to a smaller value will automatically remove the remaining plots. <br>
+            If set to a larger value will automatically add new plots at the end. The maximum number of plots is 20.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            PLOT_CURRENT
+         </td>
+         <td>
+            current plot index. Default: 0. When set can use also the TITLE name as value. All plot attributes and callbacks are dependent on this value. 
+            <br>
+            <br>
+            IMPORTANT: When an IupCanvas mouse event occurs, such as BUTTON_CB, WHELL_CB or MOTION_CB, the current plot is set to the plot where the event occurred.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            PLOT_INSERT
+         </td>
+         <td>
+            (write-only) inserts a new plot at the given index. <br>
+            If value is NULL will append after the last plot. <br>
+            Value can also be the TITLE of an existing plot. <br>
+            When a new plot is inserted it becomes the current plot. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            PLOT_NUMCOL
+         </td>
+         <td>
+            defines the number of columns for multiple plot. Default: 1. <br>
+            The plots will fill the space starting at the first line at the top from left to right. <br>
+            If there is not enough plots to fill all columns an empty space will be displayed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            PLOT_REMOVE
+         </td>
+         <td>
+            (write-only) removes a plot given its index. <br>
+            If value is "CURRENT" or NULL the current plot is removed. <br>
+            Value can also be the TITLE of an existing plot. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Background Configuration </b>
+         </td>
+         <td>
+            IMPORTANT: All the following attributes and callbacks are dependent on the PLOT_CURRENT attribute.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            MARGINLEFT,<br> MARGINRIGHT,<br> MARGINTOP,<br> MARGINBOTTOM
+         </td>
+         <td>
+            margin of the dataset area in pixels. <br>
+            If set to AUTO the margins are automatically calculated to fit all visible elements. Default: "AUTO". <br>
+            When consulted return the last calculated margin.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            MARGINLEFTAUTO,<br> MARGINRIGHTAUTO,<br> MARGINTOPAUTO,<br> MARGINBOTTOMAUTO
+         </td>
+         <td>
+            returns if the margin is set to AUTO. <br>
+            When set to NO the margin values will re-use the last calculated margin. Default: "YES".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BACKCOLOR
+         </td>
+         <td>
+            background color of the plot. Default: BGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BACKIMAGE
+         </td>
+         <td>
+            background image name. <br>
+            Use IupSetHandle or IupSetAttributeHandle to associate an image to a name. See also IupImage. <br>
+            The image will be positioned using the BACKIMAGE_*MIN/MAX coordinates in plot scale.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BACKIMAGE_XMIN,<br> BACKIMAGE_XMAX,<br> BACKIMAGE_YMIN,<br> BACKIMAGE_YMAX
+         </td>
+         <td>
+            coordinates in plot scale to position the background image. <br>
+            The anchors in the image are the left-bottom and the top-right corners.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Title Configuration</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            TITLE
+         </td>
+         <td>
+            the title. If NULL will not be displayed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TITLECOLOR
+         </td>
+         <td>
+            title color. Default: FGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TITLEFONTSIZE,<br> TITLEFONTSTYLE
+         </td>
+         <td>
+            the title font size and style. Default: FONT, but size is increased by 6 points. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TITLEPOSAUTO
+         </td>
+         <td>
+            If Yes will position the title at top-center of the plot area, else it will use TITLEPOSXY to position the title. <br>
+            If set to NO it will disable the automatic position but reuse the last calculated position, and it will enable 
+            the interactive change of the title position. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            TITLEPOSXY
+         </td>
+         <td>
+            position of the title in the format "x,y" in pixels inside the plot area relative to the top-left corner of the plot 
+            and anchored at the north-center point of the title bounding box. When set will also set TITLEPOSAUTO to No.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Legend Configuration</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            LEGEND
+         </td>
+         <td>
+            shows or hides the legend box. Can be YES or NO. Default: NO. LEGENDSHOW is also accepted.
+            <br>
+            <br>
+            The Legend text color uses the DS_COLOR attribute of the respective dataset.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDBOX
+         </td>
+         <td>
+            draws a box around the legend area. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDBOXCOLOR
+         </td>
+         <td>
+            box line color. Default: FGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDBOXBACKCOLOR
+         </td>
+         <td>
+            box background color. Default: BGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDBOXLINESTYLE
+         </td>
+         <td>
+            line style of the grid. <br>
+            Can be: "CONTINUOUS", <wbr>"DASHED", <wbr>"DOTTED", <wbr>"DASH_DOT", <wbr>"DASH_DOT_DOT". Default is "CONTINUOUS".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDBOXLINEWIDTH
+         </td>
+         <td>
+            line width of the legend box. Default: 1.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDFONTSIZE,<br> LEGENDFONTSTYLE
+         </td>
+         <td>
+            the legend box text font size and style. Default: FONT.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDPOS
+         </td>
+         <td>
+            legend box position. <br>
+            Can be: "TOPLEFT", <wbr>"TOPRIGHT", <wbr>"BOTTOMLEFT", <wbr>"BOTTOMRIGHT", <wbr>"BOTTOMCENTER" or <wbr>"XY". Default: "TOPRIGHT". <br>
+            The legend box is positioned inside the dataset area, except for BOTTOMCENTER that is displayed 
+            below the dataset area along with the X axis, and for XY that it will be positioned at the LEGENDPOSXY attribute value. <br>
+            If value is set to "XY" then the last calculated position is re-used, and it will enable the interactive change of the legend box position.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            LEGENDPOSXY
+         </td>
+         <td>
+            legend box position in the format "x,y". <br>
+            When set will change LEGENDPOS to "XY". <br>
+            Position is in pixels inside the plot area relative to the top-left corner of the plot and anchored at the top-left corner of the legend box.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Grid Configuration </b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            GRID
+         </td>
+         <td>
+            shows or hides the grid in both or a specific axis at the major ticks. <br>
+            Can be: YES (both), HORIZONTAL, VERTICAL or NO. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            GRIDCOLOR
+         </td>
+         <td>
+            grid color. Default: "200 200 200".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            GRIDLINESTYLE
+         </td>
+         <td>
+            line style of the grid. <br>
+            Can be: "CONTINUOUS", <wbr>"DASHED", <wbr>"DOTTED", <wbr>"DASH_DOT", <wbr>"DASH_DOT_DOT". Default is "CONTINUOUS".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            GRIDLINEWIDTH
+         </td>
+         <td>
+            line width of the box. Default: 1.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            GRIDMINOR,<br> GRIDMINORCOLOR,<br> GRIDLINESTYLE,<br> GRIDLINEWIDTH
+         </td>
+         <td>
+            the same attributes for a grid at the minor ticks, but they are visible only if the major ticks grid are visible too.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Box Configuration</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            BOX
+         </td>
+         <td>
+            draws a bounding box around the dataset area. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BOXCOLOR
+         </td>
+         <td>
+            box line color. Default: FGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BOXLINESTYLE
+         </td>
+         <td>
+            line style of the grid. <br>
+            Can be: <wbr>"CONTINUOUS", <wbr>"DASHED", <wbr>"DOTTED", <wbr>"DASH_DOT", <wbr>"DASH_DOT_DOT". Default is "CONTINUOUS".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            BOXLINEWIDTH
+         </td>
+         <td>
+            line width of the box. Default: 1.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Dataset List Management</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            REMOVE
+         </td>
+         <td>
+            (write-only) removes a dataset given its index or its DS_NAME attribute, "CURRENT" or NULL are also accepted to remove the current dataset.<br>
+            Notice that after removing a dataset the other datasets indices that are greater than the given index will be updated.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CLEAR
+         </td>
+         <td>
+            (write-only) removes all datasets. Value is ignored.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            COUNT
+         </td>
+         <td>
+            (read-only) total number of datasets.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            CURRENT
+         </td>
+         <td>
+            current dataset index. Default is -1. When a dataset is added it becomes the current dataset. The index starts at 0. <br>
+            All "DS_*" attributes are dependent on this value. When set can use also the DS_NAME attribute as value.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Dataset Configuration </b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            DS_NAME
+         </td>
+         <td>
+            name of the current dataset. Default is dynamically generated: "plot 0", <wbr>"plot 1", <wbr>"plot 2", etc. DS_LEGEND is also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_COLOR
+         </td>
+         <td>
+            color of the current dataset. <br>
+            Default is dynamically set from the list <wbr>"255 0 0", <wbr>"0 255 0", <wbr>"0 0 255", <wbr>"0 255 255", <wbr>"255 0 255", <wbr>
+            "255 255 0", <wbr>"128 0 0", <wbr>"0 128 0", <wbr>"0 0 128", <wbr>"0 128 128", <wbr>"128 0 128", <wbr>"128 128 0". <br>
+            If the color is not already being used in an existent dataset then it is used as the new default. <br>
+            If all defaults are in use then black is used "0 0 0".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_COUNT
+         </td>
+         <td>
+            returns the number of samples of the current dataset.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_MODE
+         </td>
+         <td>
+            drawing mode of the current dataset. <br>
+            Can be: "LINE", <wbr>"MARK", <wbr>"MARKLINE", <wbr>"BAR" or <wbr>"AREA". Default: "LINE". <br>
+            When BAR mode is set AXS_XDISCRETE is also set.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_LINESTYLE
+         </td>
+         <td>
+            line style of the current dataset. <br>
+            Can be: <wbr>"CONTINUOUS", <wbr>"DASHED", <wbr>"DOTTED", <wbr>"DASH_DOT", <wbr>"DASH_DOT_DOT". Default is "CONTINUOUS".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_LINEWIDTH
+         </td>
+         <td>
+            line width of the current dataset. Default: 1.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_MARKSTYLE
+         </td>
+         <td>
+            mark style of the current dataset. <br>
+            Can be: <wbr>"PLUS", <wbr>"STAR", <wbr>"CIRCLE", <wbr>"X", <wbr>"BOX", <wbr>"DIAMOND", <wbr>"HOLLOW_CIRCLE", <wbr>"HOLLOW_BOX", <wbr>"HOLLOW_DIAMOND". Default is "X".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_MARKSIZE
+         </td>
+         <td>
+            mark size of the current dataset in pixels. Default: 7.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_REMOVE
+         </td>
+         <td>
+            (write-only) removes a sample from the current dataset given its index.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            DS_USERDATA
+         </td>
+         <td>
+            user data associated with the dataset.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Axis Configuration</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            AXS_SCALEEQUAL
+         </td>
+         <td>
+            force the auto scale to use a single minimum and maximum values for X and Y. <br>
+            It will combine <a href="#AXS_XMAX">AXS_XMAX</a>/<a href="#AXS_XMIN">AXS_XMIN</a> with 
+            <a href="#AXS_YMAX">AXS_YMAX</a>/<a href="#AXS_YMIN">AXS_YMIN</a> to obtain s single minimum and maximum values.<br>
+            Does not require that automatic scaling is enabled.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_X,<br> AXS_Y
+         </td>
+         <td>
+            enable or disable the axis display. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XCOLOR,<br> AXS_YCOLOR
+         </td>
+         <td>
+            axis, ticks and label color. Default: FGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XDISCRETE,<br> AXS_YDISCRETE
+         </td>
+         <td>
+            shift axis position by -0.5 to better display discrete data in BAR mode. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XLINEWIDTH,<br> AXS_YLINEWIDTH
+         </td>
+         <td>
+            line width of the axis and ticks. Default: 1.
+            <br>
+              <a name=AXS_XMAX></a>
+              <a name=AXS_YMAX></a>
+              <a name=AXS_XMIN></a>
+              <a name=AXS_YMIN></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XMAX,<br> AXS_XMIN,<br> AXS_YMAX,<br> AXS_YMIN
+         </td>
+         <td>
+            minimum and maximum displayed values of the respective axis. <br>
+            Automatically calculated values when <a href="#AUTOMIN">AXS_?AUTOMIN</a> or <a href="#AUTOMAX">AXS_?AUTOMAX</a> are enabled. <br>
+            Interactive zoom will change this values during run time.
+            <br>
+              <a name=AUTOMIN></a>
+              <a name=AUTOMAX></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XAUTOMIN,<br> AXS_XAUTOMAX,<br> AXS_YAUTOMIN,<br> AXS_YAUTOMAX
+         </td>
+         <td>
+            configures the automatic scaling of the minimum and maximum display values. <br>
+            Can be YES or NO. Default: YES. They will be disabled during zoom in and restored when zoom out completely.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XREVERSE,<br> AXS_YREVERSE
+         </td>
+         <td>
+            reverse the axis direction. Can be YES or NO. Default: NO. <br>
+            Default is Y oriented bottom to top, and X oriented from left to right.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XCROSSORIGIN,<br> AXS_YCROSSORIGIN
+         </td>
+         <td>
+            allow the axis to cross the origin and to be placed inside the dataset area. Can be YES or NO. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XARROW,<br> AXS_YARROW
+         </td>
+         <td>
+            enable or disable the axis arrow display. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XSCALE,<br> AXS_YSCALE
+         </td>
+         <td>
+            configures the scale of the respective axis. <br>
+            Can be: LIN (linear), LOG10 (base 10), LOG2 (base 2) and LOGN (base e). Default: LIN.
+            <br>
+            <a name=AXS_XTIPFORMAT></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTIPFORMAT,<br> AXS_YTIPFORMAT
+         </td>
+         <td>
+            format to numeric conversion when an automatic tip is shown. See <a href="#TIPFORMAT">TIPFORMAT</a> attribute. Default: "%.2f".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTIPFORMATPRECISION,<br> AXS_YTIPFORMATPRECISION
+         </td>
+         <td>
+            will set the sprintf "precision" field in the <a href="#AXS_XTIPFORMAT">AXS_?TIPFORMAT</a> attributes string if the format "%.<precision>f". <br>
+            It is just a simple form to set and get the precision of the format attribute.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Axis Label Configuration</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            AXS_XLABEL,<br> AXS_YLABEL
+         </td>
+         <td>
+            text label of the respective axis.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XLABELCENTERED,<br> AXS_YLABELCENTERED
+         </td>
+         <td>
+            text label position at center (YES) or at top/right (NO). Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XFONTSIZE,<br> AXS_YFONTSIZE,<br> AXS_XFONTSTYLE,<br> AXS_YFONTSTYLE
+         </td>
+         <td>
+            axis label text font size and style.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Axis Ticks Configuration</b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            AXS_XTICK,<br> AXS_YTICK
+         </td>
+         <td>
+            enable or disable the axis tick display. Can be YES or NO. Default: YES.
+            <br>
+            <a name=AUTOTICK></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKAUTO,<br> AXS_YTICKAUTO
+         </td>
+         <td>
+            configures the automatic tick spacing.<br>
+            Can be YES or NO. Default: YES. AXS_XAUTOTICK and AXS_YAUTOTICK are also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKMAJORSPAN,<br> AXS_YTICKMAJORSPAN
+         </td>
+         <td>
+            The spacing between major ticks in plot units. Default: 1. <br>
+            Automatically calculated when <a href="#AUTOTICK">AUTOTICK</a>=Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKMINORDIVISION,<br> AXS_YTICKMINORDIVISION
+         </td>
+         <td>
+            number of minor ticks intervals between each major tick. Default: 5.  <br>
+            Automatically calculated when <a href="#AUTOTICK">AUTOTICK</a>=Yes. <br>
+            AXS_XTICKDIVISION and AXS_YTICKDIVISION are also accepted.
+            <br>
+            <a name=AUTOTICKSIZE></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKSIZEAUTO,<br> AXS_YTICKSIZEAUTO
+         </td>
+         <td>
+            configures the automatic tick size. Can be YES or NO. Default: YES. <br>
+            AXS_XAUTOTICKSIZE and AXS_XAUTOTICKSIZE are also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKMINORSIZE,<br> AXS_YTICKMINORSIZE
+         </td>
+         <td>
+            size of minor ticks in pixels. Default: 5. <br>
+            Automatically calculated when <a href="#AUTOTICKSIZE">AUTOTICKSIZE</a>=Yes. <br>
+            AXS_XTICKSIZE and AXS_YTICKSIZE are also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKMAJORSIZE,<br> AXS_YTICKMAJORSIZE
+         </td>
+         <td>
+            size of major ticks in pixels. Default is 8. <br>
+            Automatically calculated when <a href="#AUTOTICKSIZE">AUTOTICKSIZE</a>=Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Axis Ticks Number Configuration </b>
+         </td>
+         <td>
+            
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+            AXS_XTICKNUMBER,<br> AXS_YTICKNUMBER
+         </td>
+         <td>
+            enable or disable the axis tick number display. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKROTATENUMBER,<br> AXS_YTICKROTATENUMBER
+         </td>
+         <td>
+            enable the rotation of the axis tick number to the vertical position. Can be YES or NO. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKROTATENUMBERANGLE,<br> AXS_YTICKROTATENUMBERANGLE
+         </td>
+         <td>
+            angle of rotation in degrees. <br>
+            Use values between 90º and 45º for better results. Default: 90.
+            <br>
+            <a name=TICKFORMATAUTO></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKFORMATAUTO,<br> AXS_YTICKFORMATAUTO
+         </td>
+         <td>
+            enable the automatic axis tick number format.<br>
+            For the log scale axis the format is dynamically changed for every major tick. Default: "Yes".
+            <br>
+            <a name=TICKFORMAT></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKFORMAT,<br> AXS_YTICKFORMAT
+         </td>
+         <td>
+            axis tick number C format string.<br>
+            If set will also set <a href="#TICKFORMATAUTO">AXS_?TICKFORMATAUTO</a> to NO. Default: "%.0f". <br>
+            The decimal symbol will follow the DEFAULTDECIMALSYMBOL global attribute definition if any.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKFORMATPRECISION,<br> AXS_YTICKFORMATPRECISION
+         </td>
+         <td>
+            will set the sprintf "precision" field in the <a href="#TICKFORMAT">AXS_?TICKFORMAT</a> attributes string if the format "%.<precision>f".<br>
+            It is just a simple form to set and get the precision of the format attribute.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            AXS_XTICKFONTSIZE,<br> AXS_YTICKFONTSIZE,<br> AXS_XTICKFONTSTYLE,<br> AXS_YTICKFONTSTYLE
+         </td>
+         <td>
+            axis tick number font size and style.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+            also
+         </td>
+         <td>
+            <a href="iupattr.htm#ACTIVE">ACTIVE</a>, 
+            <a href="iupattr.htm#SCREENPOSITION">SCREENPOSITION</a>, 
+            <a href="iupattr.htm#POSITION">POSITION</a>, 
+            <a href="iupattr.htm#MINSIZE">MINSIZE</a>, 
+            <a href="iupattr.htm#MAXSIZE">MAXSIZE</a>,
+            <a href="iupattr.htm#WID">WID</a>,
+            <a href="iupattr.htm#TIP">TIP</a>, 
+            <a href="iupattr.htm#SIZE">SIZE</a>,
+            <a href="iupattr.htm#RASTERSIZE">RASTERSIZE</a>,
+            <a href="iupattr.htm#ZORDER">ZORDER</a>,
+            <a href="iupattr.htm#VISIBLE">VISIBLE</a>: also accepted.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          DELETE_CB
+         </td>
+         <td>
+            Action generated when the Del key is pressed to removed a sample from a dataset. <br>
+            If multiple samples are selected it is called once for each selected sample.
+            <br>
+            <br>
+            function delete_cb(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y)<br>
+            ih: identifier of the element that activated the event.<br>
+            ds_index: index of the dataset<br>
+            sample_index: index of the sample in the dataset<br>
+            x: X coordinate value of the sample<br>
+            y: Y coordinate value of the sample
+            <br>
+            <br>
+            Returns: If IUP_IGNORE then the sample is not deleted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DELETEBEGIN_CB,<br> DELETEEND_CB
+         </td>
+         <td>
+            Actions generated when a delete operation will begin or end. But they are called only if DELETE_CB is also defined.
+            <br>
+            <br>
+            function deletebegin/end_cb(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Returns: If DELETEBEGIN_CB returns IUP_IGNORE the delete operation for all the selected samples are aborted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CLICKSAMPLE_CB
+         </td>
+         <td>
+            Action generated when a sample is clicked. <br>
+            Called when the mouse button is released, with no Ctrl key and IUP_BUTTON3 only when Shift is pressed, to avoid conflict with zoom and context menu situations.
+            <br>
+            <br>
+            function clicksample_cb(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y, integer button)<br>
+            ih: identifier of the element that activated the event.<br>
+            ds_index: index of the dataset<br>
+            sample_index: index of the sample in the dataset<br>
+            x: X coordinate value of the sample<br>
+            y: Y coordinate value of the sample<br>
+            button: identifies the activated mouse button:
+            <ul>
+            <li>IUP_BUTTON1 - left mouse button (button 1)</li>
+            <li>IUP_BUTTON2 - middle mouse button (button 2)</li>
+            <li>IUP_BUTTON3 - right mouse button (button 3)</li>
+            </ul>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          DRAWSAMPLE_CB
+         </td>
+         <td>
+            Action generated when a sample is drawn. <br>
+            When the plot is redraw, it is called for each sample, then it is called again for all selected samples, and this repeats for each data set.
+            <br>
+            <br>
+            function drawsample_cb(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y, bool selected)<br>
+            ih: identifier of the element that activated the event.<br>
+            index: index of the dataset<br>
+            sample_index: index of the sample in the dataset<br>
+            x: X coordinate value of the sample<br>
+            y: Y coordinate value of the sample<br>
+            selected: indicates if the sample is selected.
+            <br>
+            <br>
+            Returns: When called by the second time for a selected sample, if IUP_IGNORE is returned the selection is not dawn.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MENUCONTEXT_CB
+         </td>
+         <td>
+            Action generated after the context menu (right click) is created but before it is displayed, so the application can add or removed items from the menu. <br>
+            Called when the mouse button is pressed, with no Ctrl nor Shift keys. Only called if <a href="#MENUCONTEXT">MENUCONTEXT</a>=Yes.
+            <br>
+            <br>
+            function menu_context_cb(Ihandle ih, Ihandle menu, integer cnv_x, integer cnv_y)<br>
+            ih: identifier of the element that activated the event.<br>
+            menu: identifier of the menu that will be shown to the user.<br>
+            cnv_x, cnv_y: canvas coordinates inside the current plot.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          MENUCONTEXTCLOSE_CB
+         </td>
+         <td>
+            Same as MENUCONTEXT_CB, but called after the context menu is closed. Only called if <a href="#MENUCONTEXT">MENUCONTEXT</a>=Yes.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SELECT_CB
+         </td>
+         <td>
+            Action generated when a sample is selected. <br>
+            If multiple samples are selected it is called once for each new selected sample. <br>
+            It is called only if the selection state of the sample is about to be changed.
+            <br>
+            <br>
+            function select_cb(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y, bool selected)<br>
+            ih: identifier of the element that activated the event.<br>
+            ds_index: index of the dataset<br>
+            sample_index: index of the sample in the dataset<br>
+            x: X coordinate value of the sample<br>
+            y: Y coordinate value of the sample<br>
+            selected: indicates if the sample is to be selected.
+            <br>
+            <br>
+            Returns: If IUP_IGNORE then the sample is not selected.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          SELECTBEGIN_CB,<br> SELECTEND_CB
+         </td>
+         <td>
+            Actions generated when a selection operation will begin or end. <br>
+            But they are called only if SELECT_CB is also defined.
+            <br>
+            <br>
+            function selectbegin/end_cb(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+            <br>
+            <br>
+            Returns: If SELECTBEGIN_CB returns IUP_IGNORE the selection operation is aborted.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PLOTBUTTON_CB
+         </td>
+         <td>
+            similar to BUTTON_CB but coordinates are in plot scale with double precision. <br>
+            It is called before the internal processing, if returns IUP_IGNORE internal processing will not be done. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PLOTMOTION_CB
+         </td>
+         <td>
+            similar to MOTION_CB but coordinates are in plot scale with double precision. <br>
+            It is called before the internal processing, if returns IUP_IGNORE internal processing will not be done. 
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          PREDRAW_CB,<br> POSTDRAW_CB
+         </td>
+         <td>
+            Actions generated before and after the draw operation. <br>
+            Predraw can be used to draw a different background and Postdraw can be used to draw additional information in the plot. <br>
+            Predraw has no restrictions, but Postdraw is clipped to the dataset area. <br>
+            Predraw is called after the background is drawn, and Postdraw is called before the legend and title are drawn (the last drawn elements). <br>
+            To position primitives in plot units, use the IupPlotTransform function.
+            <br>
+            <br>
+            function pre/postdraw_cb(Ihandle ih, cdCanvas cnv)<br>
+            ih: identifier of the element that activated the event.<br>
+            cnv: the internal CD canvas where the draw operation occurs.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          also
+         </td>
+         <td>
+            <a href="callbacks.htm#MAP_CB">MAP_CB</a>,
+            <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a>,
+            <a href="callbacks.htm#DESTROY_CB">DESTROY_CB</a>, 
+            <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, 
+            <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+            <a href="callbacks.htm#K_ANY">K_ANY</a>, 
+            <a href="callbacks.htm#HELP_CB">HELP_CB</a>: All common callbacks are supported.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          Examples
+         </td>
+         <td>
+            The following screenshots are all from demo\pGUI\plot.exw:
+            <br>
+            <br>
+<div align="center">
+  <center>
+  <table border="0" cellpadding="6" cellspacing="0" style="border-collapse: collapse" bordercolor="#111111">
+    <tr>
+      <td><img border="0" src="images/iup_plot0.png"/></td>
+    </tr>
+    <tr>
+      <td><img border="0" src="images/iup_plot1.png"/></td>
+    </tr>
+    <tr>
+      <td><img border="0" src="images/iup_plot2.png"/></td>
+    </tr>
+    <tr>
+      <td><img border="0" src="images/iup_plot3.png"/></td>
+    </tr>
+    <tr>
+      <td><img border="0" src="images/iup_plot4.png"/></td>
+    </tr>
+    <tr>
+      <td><img border="0" src="images/iup_plot5.png"/></td>
+    </tr>
+  </table>
+  </center>
+</div>
+            See demo\pGUI\plot1.exw for a much simpler version (single screen/plot, not unlike the last picture above) to start with.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupCanvas.htm">IupCanvas</a>
+          <!-- IupPPlot, IupMglPlot -->
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

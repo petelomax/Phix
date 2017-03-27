@@ -568,7 +568,7 @@
 --  need to be done in pdiag; we might want to limit the number of items listed, and
 --  common up with existing code therein the conversion of era-1 to file/line, plus
 --  hammering down symtab collecting [S_il] addresses and sorting them into order is
---  definately a job for hll rather than asm. Or we could scan symtab looking for the
+--  definitely a job for hll rather than asm. Or we could scan symtab looking for the
 --  largest [S_il] less than era, starting with symtab[T_maintls]. Or we could mark 
 --  all alloc with a special tag/magic, and simply skip them (optionally) when checking
 --  for memory leaks... Or just have an era of 0 in pAlloc.

@@ -847,6 +847,7 @@ end function
 -- See Also:
 --              [[:arctan]]
 
+--/* not Phix: now in pmaths.e
 public function atan2(atom y, atom x)
     if x > 0 then
         return arctan(y/x)
@@ -864,6 +865,7 @@ public function atan2(atom y, atom x)
         return 0
     end if
 end function
+--*/
 
 --**
 -- Convert an angle measured in radians to an angle measured in degrees

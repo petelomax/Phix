@@ -258,7 +258,7 @@ atom pList
     return pList
 end function
 
-function iup_peek_double(object pDouble)
+global function iup_peek_double(object pDouble)
 sequence doubles
 
     if atom(pDouble) then
@@ -332,6 +332,14 @@ atom res
           }
     return res
 end function
+
+procedure iup_poke_string_pointer_array(atom ptr, sequence strings)
+    for i=1 to length(strings) do
+        string si = strings[i]
+        pokeN(ptr,si,machine_word())
+        ptr += machine_word()
+    end for
+end procedure
 
 --DEV from IUP docs:
 --/*
@@ -3074,8 +3082,11 @@ global function IupToggle(string title, object action=NULL, object func=NULL, se
     return ih
 end function
 
-global function IupTree()
+global function IupTree(sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupTree, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
@@ -3538,7 +3549,9 @@ atom
     ximImageCreateBased,
     ximConvertColorSpace,
     ximImageClone,
-    ximImageDestroy
+    ximImageDestroy,
+    ximImageGetOpenGLData
+
 
 procedure iup_image_init()
     if iupIm=0 then
@@ -3583,6 +3596,7 @@ procedure iup_image_init()
         ximConvertColorSpace        = iup_c_func(hIm, "imConvertColorSpace", {P,P}, I)
         ximImageClone               = iup_c_func(hIm, "imImageClone", {P}, P)
         ximImageDestroy             = iup_c_proc(hIm, "imImageDestroy", {P})
+        ximImageGetOpenGLData       = iup_c_proc(hIm, "imImageGetOpenGLData", {P,P})
     end if
 end procedure
 
@@ -3882,6 +3896,10 @@ global procedure imImageDestroy(imImage image)
     c_proc(ximImageDestroy,{image})
 end procedure
 
+global procedure imImageGetOpenGLData(imImage image, atom pRes)
+    c_proc(ximImageGetOpenGLData,{image,pRes})
+end procedure
+
 global enum --  imDataType { 
   IM_BYTE=0, IM_SHORT, IM_USHORT, IM_INT, 
   IM_FLOAT, IM_DOUBLE, IM_CFLOAT, IM_CDOUBLE 
@@ -3917,6 +3935,11 @@ end function
 global function im_height(imImage image)
     integer height = peek4s(image+4)
     return height
+end function
+
+global function im_depth(imImage image)
+    integer depth = peek4s(image+20)
+    return depth
 end function
 
 global function im_color_space(imImage image)
@@ -3992,7 +4015,7 @@ global function IupMenuItem(string title, object action=NULL, object func=NULL, 
     return ih
 end function
 
-global function IupItem(string title, nullable_string action=NULL, atom func=NULL, string attributes="", sequence data={})
+global function IupItem(string title, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     return IupMenuItem(title, action, func, attributes, data)
 end function
 
@@ -4335,7 +4358,9 @@ global constant
     CD_WHITE        = #FFFFFF,
     CD_BLACK        = #000000,
     CD_DARK_GRAY    = #808080,
+    CD_DARK_GREY    = #808080,
     CD_GRAY         = #C0C0C0,
+    CD_GREY         = #C0C0C0,
     CD_PARCHMENT    = #FFFFE0,
     CD_INDIGO       = #4B0082,
     CD_PURPLE       = #D080D0,
@@ -5482,6 +5507,9 @@ atom pMatrix = NULL
         iup_poke_double(pMatrix, matrix)
     end if
     c_proc(xcdCanvasTransform, {hCdCanvas, pMatrix})
+    if pMatrix!=NULL then
+        free(pMatrix)
+    end if
 end procedure
 
 global function cdCanvasGetTransform(cdCanvas hCdCanvas)
@@ -5929,6 +5957,7 @@ global function canvas_fill_mode(cdCanvas hCdCanvas, atom mode)
 end function
 
 global procedure cdCanvasFont(cdCanvas hCdCanvas, nullable_string font, integer style, integer size)
+    iup_init_cd()
     c_proc(xcdCanvasFont, {hCdCanvas, font, style, size})
 end procedure
 
@@ -6899,7 +6928,7 @@ global procedure wd_canvas_multi_line_vector_text(cdCanvas hCdCanvas, atom x, at
     c_proc(xwdCanvasMultiLineVectorText, {hCdCanvas, x, y, text})
 end procedure
 
--- pplot.e:
+-- pplot.e: (not documented, use IupPlot instead)
 atom
     hIupPPlot = 0,
     xIupPPlotOpen,
@@ -6956,16 +6985,6 @@ global function IupPPlot(sequence attributes={}, sequence data={})
     return ih
 end function
 
---**
--- Begin the PPlot
---
--- Note:
---   The name is changed from the Iup name due to harmonization
---   with the "end" routine. End is a key word in Euphoria, thus
---   IupPPlotEnd cannot be shortened to pplot:end as desired. Thus
---   both begin and end have been changed to IupPPlotBegin and end_plot.
---
-
 global procedure IupPPlotBegin(Ihandle ih, integer str_xdata)
     iup_init_pplot()
     c_proc(xIupPPlotBegin, {ih, str_xdata})
@@ -7007,6 +7026,259 @@ end function
 global procedure paint_to(Ihandle ih, atom cnv)
     c_proc(xIupPPlotPaintTo, {ih, cnv})
 end procedure
+
+-- the new IupPlot:
+
+atom
+    hIupPlot = 0,
+    xIupPlotOpen,
+    xIupPlot,
+    xIupPlotBegin,
+    xIupPlotAdd,
+    xIupPlotAddSegment,
+    xIupPlotAddStr,
+    xIupPlotEnd,
+    xIupPlotLoadData,
+    xIupPlotInsert,
+    xIupPlotInsertSegment,
+    xIupPlotInsertStr,
+    xIupPlotInsertSamples,
+    xIupPlotInsertStrSamples,
+    xIupPlotAddSamples,
+    xIupPlotAddStrSamples,
+    xIupPlotGetSample,
+    xIupPlotGetSampleStr,
+    xIupPlotGetSampleSelection,
+    xIupPlotSetSample,
+    xIupPlotSetSampleStr,
+    xIupPlotSetSampleSelection,
+    xIupPlotTransform,
+    xIupPlotTransformTo,
+    xIupPlotFindSample,
+    xIupPlotPaintTo,
+--  xIupPlotSetFormula
+    $
+
+procedure iup_init_plot()
+    if hIupPlot=0 then
+        hIupPlot = iup_open_dll({
+                                 "iup_plot.dll",
+                                 "libiup_plot.so",
+                                 "libiup_plot.dylib"
+                                })
+
+        xIupPlotOpen                = iup_c_proc(hIupPlot, "IupPlotOpen", {})
+        xIupPlot                    = iup_c_func(hIupPlot, "IupPlot", {},P)
+        xIupPlotBegin               = iup_c_proc(hIupPlot, "IupPlotBegin", {P,I})
+        xIupPlotAdd                 = iup_c_proc(hIupPlot, "IupPlotAdd", {P,D,D})
+        xIupPlotAddSegment          = iup_c_proc(hIupPlot, "IupPlotAddSegment", {P,D,D})
+        xIupPlotAddStr              = iup_c_proc(hIupPlot, "IupPlotAddStr", {P,P,D})
+        xIupPlotEnd                 = iup_c_func(hIupPlot, "IupPlotEnd", {P},I)
+        xIupPlotLoadData            = iup_c_proc(hIupPlot, "IupPlotLoadData", {P,P,I})
+        xIupPlotInsert              = iup_c_proc(hIupPlot, "IupPlotInsert", {P,I,I,D,D})
+        xIupPlotInsertSegment       = iup_c_proc(hIupPlot, "IupPlotInsertSegment", {P,I,I,P,D})
+        xIupPlotInsertStr           = iup_c_proc(hIupPlot, "IupPlotInsertStr", {P,I,I,P,D})
+        xIupPlotInsertSamples       = iup_c_proc(hIupPlot, "IupPlotInsertSamples", {P,I,I,P,P,I})
+        xIupPlotInsertStrSamples    = iup_c_proc(hIupPlot, "IupPlotInsertStrSamples", {P,I,I,P,P,I})
+        xIupPlotAddSamples          = iup_c_proc(hIupPlot, "IupPlotAddSamples", {P,I,P,P,I})
+        xIupPlotAddStrSamples       = iup_c_proc(hIupPlot, "IupPlotAddStrSamples", {P,I,P,P,I})
+        xIupPlotGetSample           = iup_c_proc(hIupPlot, "IupPlotGetSample", {P,I,I,P,P})
+        xIupPlotGetSampleStr        = iup_c_proc(hIupPlot, "IupPlotGetSampleStr", {P,I,I,P,P})
+        xIupPlotGetSampleSelection  = iup_c_func(hIupPlot, "IupPlotGetSampleSelection", {P,I,I},I)
+        xIupPlotSetSample           = iup_c_proc(hIupPlot, "IupPlotSetSample", {P,I,I,D,D})
+        xIupPlotSetSampleStr        = iup_c_proc(hIupPlot, "IupPlotSetSampleStr", {P,I,I,P,D})
+        xIupPlotSetSampleSelection  = iup_c_proc(hIupPlot, "IupPlotSetSampleSelection", {P,I,I,I})
+        xIupPlotTransform           = iup_c_proc(hIupPlot, "IupPlotTransform", {P,D,D,P,P})
+        xIupPlotTransformTo         = iup_c_proc(hIupPlot, "IupPlotTransformTo", {P,D,D,P,P})
+        xIupPlotFindSample          = iup_c_proc(hIupPlot, "IupPlotFindSample", {P,D,D,P,P})
+        xIupPlotPaintTo             = iup_c_proc(hIupPlot, "IupPlotPaintTo", {P,P})
+--link error (using v3.17)
+--      xIupPlotSetFormula          = iup_c_proc(hIupPlot, "IupPlotSetFormula", {P,I,P,P})
+    end if
+end procedure
+
+integer did_plot_open = 0
+
+global procedure IupPlotOpen()
+    did_plot_open = 1
+    iup_init_plot()
+    c_proc(xIupPlotOpen, {})
+end procedure
+
+global function IupPlot(string attributes="", sequence data={})
+    if not did_pplot_open then
+        IupPlotOpen()
+    end if
+    Ihandle ih = c_func(xIupPlot, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global procedure IupPlotBegin(Ihandle ih, bool str_xdata=false)
+    c_proc(xIupPlotBegin, {ih, str_xdata})
+end procedure
+
+global procedure IupPlotAdd(Ihandle ih, atom x, atom y)
+    c_proc(xIupPlotAdd, {ih, x, y})
+end procedure
+
+global procedure IupPlotAddSegment(Ihandle ih, atom x, atom y)
+    c_proc(xIupPlotAddSegment, {ih, x, y})
+end procedure
+
+global procedure IupPlotAddStr(Ihandle ih, string x, atom y)
+    c_proc(xIupPlotAddStr, {ih, x, y})
+end procedure
+
+global function IupPlotEnd(Ihandle ih)
+    integer ds_index = c_func(xIupPlotEnd, {ih})
+    return ds_index
+end function
+
+global function IupPlotLoadData(Ihandle ih, string filename, integer str_xdata)
+    integer res = c_func(xIupPlotLoadData,{ih, filename, str_xdata})
+    return res
+end function
+
+global procedure IupPlotInsert(Ihandle ih, integer index, integer sample_index, atom x, atom y)
+    c_proc(xIupPlotInsert, {ih, index, sample_index, x, y})
+end procedure
+
+global procedure IupPlotInsertSegment(Ihandle ih, integer index, integer sample_index, string x, atom y)
+    c_proc(xIupPlotInsertSegment, {ih, index, sample_index, x, y})
+end procedure
+
+global procedure IupPlotInsertStr(Ihandle ih, integer index, integer sample_index, string x, atom y)
+    c_proc(xIupPlotInsertStr, {ih, index, sample_index, x, y})
+end procedure
+
+--void IupPlotInsertSamples(Ihandle *ih, int ds_index, int sample_index, double* x, double* y, int count); 
+global procedure IupPlotInsertSamples(Ihandle ih, integer index, integer sample_index, sequence x, sequence y, integer count)
+atom pX = allocate(count*8)
+atom pY = allocate(count*8)
+--  if count<length(x) then ?9/0 end if
+--  if length(x)!=length(y) then ?9/0 end if
+    iup_poke_double(pX, x[1..count])
+    iup_poke_double(pY, y[1..count])
+    c_proc(xIupPlotInsertSamples, {ih, index, sample_index, pX, pY, count})
+    free(pX)
+    free(pY)
+end procedure
+
+global procedure IupPlotInsertStrSamples(Ihandle ih, integer index, integer sample_index, sequence xstrings, sequence y, integer count)
+atom pX = allocate(count*machine_word())
+atom pY = allocate(count*8)
+    iup_poke_string_pointer_array(pX, xstrings)
+    iup_poke_double(pY, y)
+    c_proc(xIupPlotInsertStrSamples, {ih, index, sample_index, pX, pY, count})
+    free(pX)
+    free(pY)
+end procedure
+
+global procedure IupPlotAddSamples(Ihandle ih, integer index, sequence x, sequence y, integer count)
+atom pX = allocate(count*8)
+atom pY = allocate(count*8)
+    iup_poke_double(pX, x)
+    iup_poke_double(pY, y)
+    c_proc(xIupPlotAddSamples, {ih, index, pX, pY, count})
+    free(pX)
+    free(pY)
+end procedure
+
+global procedure IupPlotAddStrSamples(Ihandle ih, integer index, sequence xstrings, sequence y, integer count)
+atom pX = allocate(count*machine_word())
+atom pY = allocate(count*8)
+    iup_poke_string_pointer_array(pX, xstrings)
+    iup_poke_double(pY, y)
+    c_proc(xIupPlotAddStrSamples, {ih, index, pX, pY, count})
+    free(pX)
+    free(pY)
+end procedure
+
+--void IupPlotGetSample(Ihandle *ih, int ds_index, int sample_index, double *x, double *y);
+global function IupPlotGetSample(Ihandle ih, integer ds_index, integer sample_index)
+atom pXY = allocate(8*2)
+sequence res
+    c_proc(xIupPlotGetSample, {ih, ds_index, sample_index, pXY, pXY+8})
+    res = iup_peek_double({pXY,2})
+    free(pXY)
+    return res
+end function
+
+--void IupPlotGetSampleStr(Ihandle *ih, int ds_index, int sample_index, const char* *x, double *y);
+global function IupPlotGetSampleStr(Ihandle ih, integer ds_index, integer sample_index)
+atom pX = allocate(8*2)
+atom pY = allocate(8)
+sequence res
+    c_proc(xIupPlotGetSampleStr, {ih, ds_index, sample_index, pX, pY})
+    res = {peek_string(pX),iup_peek_double(pY)}
+    free(pX)
+    free(pY)
+    return res
+end function
+
+--int IupPlotGetSampleSelection(Ihandle *ih, int ds_index, int sample_index);
+global function IupPlotGetSampleSelection(Ihandle ih, integer ds_index, integer sample_index)
+    bool selected = c_func(xIupPlotGetSampleSelection, {ih, ds_index, sample_index})
+    return selected
+end function
+
+--void IupPlotSetSample(Ihandle *ih, int ds_index, int sample_index, double x, double y);
+global procedure IupPlotSetSample(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y)
+    c_proc(xIupPlotSetSample, {ih, ds_index, sample_index, x, y})
+end procedure
+
+--void IupPlotSetSampleStr(Ihandle *ih, int ds_index, int sample_index, const char* x, double y);
+global procedure IupPlotSetSampleStr(Ihandle ih, integer ds_index, integer sample_index, string x, atom y)
+    c_proc(xIupPlotSetSampleStr, {ih, ds_index, sample_index, x, y})
+end procedure
+
+--void IupPlotSetSampleSelection(Ihandle *ih, int ds_index, int sample_index, int selected);
+global procedure IupPlotSetSampleSelection(Ihandle ih, integer ds_index, integer sample_index, bool selected)
+    c_proc(xIupPlotSetSampleSelection, {ih, ds_index, sample_index, selected})
+end procedure
+
+--void IupPlotTransform(Ihandle* ih, double x, double y, double *cnv_x, double *cnv_y); 
+global function IupPlotTransform(Ihandle ih, atom x, atom y)
+atom pXY = allocate(8*2)
+    c_proc(xIupPlotTransform, {ih, x, y, pXY, pXY+8})
+    {x,y} = iup_peek_double({pXY,2})
+    free(pXY)
+    return {x,y}
+end function
+
+--void IupPlotTransformTo(Ihandle* ih, double cnv_x, double cnv_y, double *x, double *y); 
+global function IupPlotTransformTo(Ihandle ih, atom x, atom y)
+atom pXY = allocate(8*2)
+    c_proc(xIupPlotTransformTo, {ih, x, y, pXY, pXY+8})
+    {x,y} = iup_peek_double({pXY,2})
+    free(pXY)
+    return {x,y}
+end function
+
+--int IupPlotFindSample(Ihandle* ih, double cnv_x, double cnv_y, int *ds_index, int *sample_index);
+global function IupPlotFindSample(Ihandle ih, atom x, atom y)
+atom p_ds_index = allocate(machine_word())
+atom p_sample_index = allocate(machine_word())
+    if c_func(xIupPlotFindSample, {ih, x, y, p_ds_index, p_sample_index}) then return 0 end if
+    integer ds_index = peekNS(p_ds_index,machine_word(),0)
+    integer sample_index = peekNS(p_sample_index,machine_word(),0)
+    free(p_ds_index)
+    free(p_sample_index)
+    return {ds_index, sample_index}
+end function
+
+--void IupPlotPaintTo(Ihandle ih, cdCanvas cnv); 
+global procedure IupPlotPaintTo(Ihandle ih, cdCanvas cnv)
+    c_proc(xIupPlotPaintTo, {ih, cnv})
+end procedure
+
+--void IupPlotSetFormula(Ihandle* ih, int sample_count, const char* formula, const char* init); 
+--global procedure IupPlotSetFormula(Ihandle ih, integer sample_count, string formula, nullable_string init)
+--  c_proc(xIupPlotSetFormula, {ih, sample_count, formula, init})
+--end procedure
 
 --
 -- OpenGL Canvas
@@ -8052,85 +8324,6 @@ global function iupKeyCodeToName(atom ch)
     atom pKeyName = c_func(xiupKeyCodeToName,{ch})
     return peek_string(pKeyName)
 end function
-
---DEV not working, not documented: (use the new IupPlot)
---/*
-constant iupPPlot = iup_open_dll({
-                                   "iup_pplot.dll",
-                                   "libiup_pplot.so",
-                                   "libiup_pplot.dylib"
-                                  })
-
-constant
-    xIupPPlotOpen       = iup_c_proc(iupPPlot, "IupPPlotOpen", {}),
-    xIupPPlot           = iup_c_func(iupPPlot, "IupPPlot", {},P),
-    xIupPPlotBegin      = iup_c_proc(iupPPlot, "IupPPlotBegin", {P,I}),
-    xIupPPlotAdd        = iup_c_proc(iupPPlot, "IupPPlotAdd", {P,F,F}),
---  xIupPPlotAddStr     = iup_c_proc(iupPPlot, "IupPPlotAddStr", {P,P,F}),
-    xIupPPlotEnd        = iup_c_proc(iupPPlot, "IupPPlotEnd", {P}),
---  xIupPPlotInsert     = iup_c_proc(iupPPlot, "IupPPlotInsert", {P,I,I,F,F}),
---  xIupPPlotInsertStr  = iup_c_proc(iupPPlot, "IupPPlotInsertStr", {P,I,I,P,F}),
---  xIupPPlotTransform  = iup_c_proc(iupPPlot, "IupPPlotTransform", {P,F,F,P,P}),
---  xIupPPlotPaintTo    = iup_c_proc(iupPPlot, "IupPPlotPaintTo", {P,P}),
-    $
-
-integer did_pplot_open = 0
-
-global function IupPPlot(string attributes="", sequence data={})
-    if did_pplot_open=0 then
-        c_proc(xIupPPlotOpen, {})
-        did_pplot_open = 1
-    end if
-    Ihandle ih = c_func(xIupPPlot, {})
-    if length(attributes) then
-        IupSetAttributes(ih, attributes, data)
-    end if
-    return ih
-end function
-
-global procedure IupPPlotBegin(Ihandle ih, integer str_xdata)
-    c_proc(xIupPPlotBegin, {ih, str_xdata})
-end procedure
-
-global procedure IupPPlotAdd(Ihandle ih, atom x, atom y)
-    c_proc(xIupPPlotAdd, {ih, x, y})
---atom pX = allocate(4), pY = allocate(4)
---  iup_poke_double(pX,x)
---  iup_poke_double(pY,y)
---  c_proc(xIupPPlotAdd, {ih, pX, pY})
-end procedure
-
---global procedure add_str(Ihandle ih, string x, atom y)
---  c_proc(xIupPPlotAddStr, {ih, x, y})
---end procedure
-
-global procedure IupPPlotEnd(Ihandle ih)
-    c_proc(xIupPPlotEnd, {ih})
-end procedure
-
---global procedure insert_plot(Ihandle ih, integer index, integer sample_index, atom x, atom y)
---  c_proc(xIupPPlotInsert, {ih, index, sample_index, x, y})
---end procedure
-
---global procedure insert_str(Ihandle ih, integer index, integer sample_index, string x, atom y)
---  c_proc(xIupPPlotInsertStr, {ih, index, sample_index, x, y})
---end procedure
-
---global function transform_plot(Ihandle ih, atom x, atom y)
---atom pX = allocate(4), 
---   pY = allocate(4)
---  c_proc(xIupPPlotTransform, {ih, x, y, pX, pY})
---  x = iup_peek_double(pX)
---  y = iup_peek_double(pY)
---  free(pX)
---  free(pY)
---  return {x, y}
---end function
-
---global procedure paint_to(Ihandle ih, atom cnv)
---  c_proc(xIupPPlotPaintTo, {ih, cnv})
---end procedure
---*/
 
 
 --dev WIERD ERROR...

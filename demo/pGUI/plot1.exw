@@ -1,0 +1,64 @@
+--
+-- demo/pGUI/plot1.exw
+-- ===================
+--
+--  A simpler example, as plot.exw is a bit overwhelming.
+--  Author: Pete Lomax 24/2/2017
+--
+
+--#withtype Ihandle
+--#withtype Ihandles
+--#withtype cdCanvas
+
+include pGUI.e
+
+constant help_text = """
+Use Ctrl-left-mouse to select a zoom-in area
+Ctrl-left-click zooms in
+Ctrl-right-click zooms out
+Ctrl-mouse-wheel will also zoom in/out
+Standard mouse drag works as expected
+Mouse wheel/pgUp/pgDn/'+'/'-' ditto, with
+shift-mouse wheel operating left/right.
+Double left-click or '.' resets zoom.
+Middle-click repositions the origin.
+Right-click opens up a menu.
+CtrlV/H (de)activate the cross-hairs.
+In short: lotsa hidden functionality."""
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_F1 then IupMessage("plot1",help_text) end if
+    return IUP_CONTINUE
+end function
+
+constant factor = 1e-6
+
+constant WIDTH = 640, HEIGHT = 480
+
+procedure main()
+    IupOpen()
+
+    Ihandle plot = IupPlot("GRID=YES, MARGIN=50")
+    IupSetAttributes(plot, "AXS_XCROSSORIGIN=YES, AXS_YCROSSORIGIN=YES")
+    IupPlotBegin(plot)
+    for i=-100 to 100 by 10 do
+        IupPlotAdd(plot, i, factor*i*i*i+0.2)
+    end for
+    {} = IupPlotEnd(plot)
+
+    Ihandle dlg = IupDialog(plot)
+    IupSetAttributes(dlg, "RASTERSIZE=%dx%d", {WIDTH, HEIGHT})
+    IupSetAttribute(dlg, "TITLE", "resize/press F1")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+    -- (this stops F1 help obsuring the whole screen:)
+--  IupShow(dlg)
+    integer {SX, SY} = IupGetIntInt(NULL, "SCREENSIZE")
+    IupShowXY(dlg, SX/2-WIDTH, SY/2-HEIGHT/1.5)
+
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

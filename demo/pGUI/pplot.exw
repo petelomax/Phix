@@ -1,0 +1,55 @@
+
+-- NB: IupPPlot is deprecated; use IupPlot instead.
+
+--
+--
+-- Copyright (C) 2008-2010 by Jeremy Cowgar <jeremy@cowgar.com>
+--
+-- This file is part of EuIup.
+--
+-- EuIup is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU Lesser General Public License as
+-- published by the Free Software Foundation, either version 3 of
+-- the License, or (at your option) any later version.
+--
+-- EuIup is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU Lesser General Public
+-- License along with EuIup.  If not, see <http://www.gnu.org/licenses/>.
+--
+
+include pGUI.e
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+Ihandle hChart, hDlg
+
+IupOpen()
+
+constant attributes = `DS_MODE=BAR,TITLE="%s",MARGINBOTTOM=%d,MARGINLEFT=%d,AXS_XLABEL=X,AXS_YLABEL=Y,LEGENDSHOW=YES,LEGENDPOS=TOPLEFT`
+
+hChart = IupPPlot(attributes, {"Simple Line", 50, 45 })
+
+IupPPlotBegin(hChart, 0)
+for i = 0 to 40 by 2 do
+--  IupPPlotAdd(hChart, i, rand(100))
+    IupPPlotAdd(hChart, i, i)
+--  IupPPlotAdd(hChart, i, power(i,2)-18*i+90)
+end for
+IupPPlotEnd(hChart)
+IupSetAttributes(hChart, "LEGENDSHOW=YES, GRID=YES, REDRAW=1")
+
+hDlg = IupDialog(hChart)
+IupSetAttributes(hDlg, "SIZE=200x200,TITLE=PPlot")
+IupSetCallback(hDlg, "K_ANY", Icallback("esc_close"))
+IupShow(hDlg)
+
+IupMainLoop()
+IupClose()
+

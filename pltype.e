@@ -180,6 +180,7 @@ end function
 --
 constant diag = 0   -- TIP: get any misbehaving program as small as possible before turning
 --                  --      this on, as it can produce an awful lot of output!
+--                  -- TIP: remove any ?<expr> as well, to get a much smaller listing.
 constant diagmsg = 0    -- just show ltDiagMsg (if diag is 0)
 --constant ltypetoo = 0 -- also show symtab[N][S_ltype] updates --DEV breaks self-host...? (10/3/15)
 
@@ -191,12 +192,21 @@ integer diagfn
                     --                    struggle a bit!!)
                     -- 0 = open ltdiag.txt
 
-    if diag and not diagfn then
-        puts(1,"\nWarning: pltype.e's diag (to ltdiag.txt) is ON...\n\n")
+    if diag then
+--DEV too early... (moved into dprintf)
+--      if dumpil then
+--          -- (without all the ltAdd etc calls from pilx86.e/ilxlate(), the listing
+--          --  is just parse-time stuff, and can be misleading wrt code generation.)
+--          puts(1,"\nWarning: pltype.e's diag does not work well with -dumpil...\n\n")
+--          {} = wait_key()
+--      els
+        if not diagfn then
+            puts(1,"\nWarning: pltype.e's diag (to ltdiag.txt) is ON...\n\n")
+        end if
     end if
 
 integer maxd
-        maxd = 5000 -- maximum number of lines to print to ltdiag.txt
+        maxd = 50000 -- maximum number of lines to print to ltdiag.txt
 
 global constant SET=1,      -- entry from a var=<expr> statement (or a call)
                             -- NB do not use "if and_bits(flag,SET)" (see FTEST)...
@@ -343,6 +353,13 @@ integer lmax
 procedure dprintf(string fmt, object args)
 -- (print diagnostics to screen/file, opening if necessary)
     if diagfn=0 then 
+        if dumpil then
+            -- (without all the ltAdd etc calls from pilx86.e/ilxlate(), the listing
+            --  is just parse-time stuff, and can be misleading wrt code generation.)
+            puts(1,"\nWarning: pltype.e's diag does not work well with -dumpil...\n\n")
+--          {} = wait_key()
+            sleep(4)
+        end if
         diagfn = open(mainpath&"ltdiag.txt","w")
         if diagfn=-1 then
             puts(1,"error opening "&mainpath&"ltdiag.txt\n")
@@ -656,24 +673,28 @@ integer ldx
     --  (btw, we never reuse TEST entries, as they get flipped etc.)
     --
     ldx = symtab[v][S_maxlv]
-    if flag=SET
-    and ldx
-    and (cmax<=0 or ls5i[ldx]>=ctrli[cmax])
-    and lflag[ldx]=SET then
-        if lvno[ldx]!=v then ?9/0 end if
---      if lntyp[ldx]!=ptyp then ?9/0 end if    -- other TEST may intervene!
-        lntyp[ldx] = ntyp
-        ltmin[ldx] = Lmin
-        ltmax[ldx] = Lmax
-        letyp[ldx] = Letyp
-        lslen[ldx] = Lslen
-        if flag!=SET then ?9/0 end if
-        ls5i[ldx] = s5idx   -- pointless??
-    else
+--07/03/2017: (see readme)
+--  if flag=SET
+--  and ldx
+--  and (cmax<=0 or ls5i[ldx]>=ctrli[cmax])
+--  and lflag[ldx]=SET then
+--  if 0 then
+--      if lvno[ldx]!=v then ?9/0 end if
+----        if lntyp[ldx]!=ptyp then ?9/0 end if    -- other TEST may intervene!
+--      lntyp[ldx] = ntyp
+--      ltmin[ldx] = Lmin
+----if ldx=1 and Lmax=6 then ?9/0 end if
+--      ltmax[ldx] = Lmax
+--      letyp[ldx] = Letyp
+--      lslen[ldx] = Lslen
+--      if flag!=SET then ?9/0 end if
+--      ls5i[ldx] = s5idx   -- pointless??
+--  else
         lvno = append(lvno,v)
         lptyp = append(lptyp,ptyp)
         lntyp = append(lntyp,ntyp)
         ltmin = append(ltmin,Lmin)
+--if length(ltmax)=0 and Lmax=6 then ?9/0 end if
         ltmax = append(ltmax,Lmax)
         letyp = append(letyp,Letyp)
         lslen = append(lslen,Lslen)
@@ -688,7 +709,7 @@ integer ldx
         else
             lpldx = append(lpldx,0)
         end if
-    end if
+--  end if
     if diag then
         showdiag()
     end if
@@ -857,6 +878,7 @@ sequence sv     -- copy of symtab[vno]
                             lptyp[ldx] = ntyp
                             lntyp[ldx] = ntyp
                             ltmin[ldx] = ginfo[gMin]
+--if ldx=1 and ginfo[gMax]=6 then ?9/0 end if
                             ltmax[ldx] = ginfo[gMax]
                             letyp[ldx] = ginfo[gEtyp]
                             lslen[ldx] = ginfo[gLen]
@@ -866,6 +888,7 @@ sequence sv     -- copy of symtab[vno]
                             lptyp = append(lptyp,ntyp)
                             lntyp = append(lntyp,ntyp)
                             ltmin = append(ltmin,ginfo[gMin])
+--if length(ltmax)=0 and ginfo[gMax]=6 then ?9/0 end if
                             ltmax = append(ltmax,ginfo[gMax])
                             letyp = append(letyp,ginfo[gEtyp])
                             lslen = append(lslen,ginfo[gLen])
@@ -918,6 +941,7 @@ integer ldx, pldx, v
         lptyp[killdx] = lptyp[lvlen]
         lntyp[killdx] = lntyp[lvlen]
         ltmin[killdx] = ltmin[lvlen]
+--if killdx=1 and ltmax[lvlen]=6 then ?9/0 end if
         ltmax[killdx] = ltmax[lvlen]
         letyp[killdx] = letyp[lvlen]
         lslen[killdx] = lslen[lvlen]
@@ -1021,6 +1045,7 @@ atom Pmin,Pmax
     if Pmin>Lmin then ltmin[tgtldx] = Lmin end if
     Lmax = ltmax[srcldx]
     Pmax = ltmax[tgtldx]
+--if Pmax<Lmax and tgtldx=1 and Lmax=6 then ?9/0 end if
     if Pmax<Lmax then ltmax[tgtldx] = Lmax end if
     Letyp = letyp[srcldx]
     Petyp = letyp[tgtldx]

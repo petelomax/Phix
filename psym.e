@@ -149,6 +149,7 @@ sequence scopeemits,    -- save of emitline (see pemit.e)
 --  restore when EOF of the included file is reached. Likewise scopelines entries
 --  are only meaningful if the corresponding localscope is type File, and are used
 --  to resume processing on the line after the include statement at EOF.
+--NESTEDFUNC no longer true when scopetypes[scopelevel-1]=S_Rtn:
 -- scopetls contains the corresponding toplevel sub.
 
 --  There is very little difference between named and un-named (inline) constants, 
@@ -417,18 +418,25 @@ integer prevscope
             end if
         elsif scope=S_Rtn then
 
+--NESTEDFUNC (needs a stack)
             freetmplistsX = freetmplists        -- save top_level_subs temps
             freetmplists = repeat(0,T_object)   -- create 15 new free list pointers
 
-            if DEBUG then
-                if scope!=S_Rtn then ?9/0 end if
-            end if
+--          if DEBUG then
+--              if scope!=S_Rtn then ?9/0 end if
+--          end if
             --
             -- Start of new routine. Save code for _top_level_sub and set to {},
             -- and add a temp scope to hold params and locals.
             --
+if NESTEDFUNC and scopelevel>1 and scopetypes[scopelevel-1]=S_Rtn then
+            scopetls[scopelevel-1] = currRtn
+            symtab[currRtn][S_il] = s5
+            s5 = {}
+else -- (old code)
             symtab[currtls][S_il] = s5
             s5 = {}
+end if
 --DEV/SUG (28/8/14):   scopelasts[prevscope] = lastline
 -- (if "end procedure" is the very last line, the final file-level opRetf does not get an opLn, so ends up next to some earlier emitted code...)
 
@@ -581,6 +589,7 @@ object sc       -- scratch var, copy of symtab[currtls]
 
             symtab[routineNo][S_il] = s5
 
+--NESTEDFUNC (needs a stack)
             freetmplists = freetmplistsX    -- restore top_level_subs temps
 
         else --st=S_File then
@@ -671,6 +680,20 @@ end if
             end if
 
         end if -- st=S_File
+if NESTEDFUNC and st=S_Rtn and scopetypes[scopelevel]=S_Rtn then
+--      ?9/0
+        -- (as below, just leaving currtls undamaged, and no callonce)
+        integer parentRtn = scopetls[scopelevel]
+        sc = symtab[parentRtn]
+
+        s5thunk(sc[S_il])   -- sets s5
+
+        symtab[parentRtn] = 0 -- kill refcount
+        sc[S_il] = 0        -- kill refcount
+        symtab[parentRtn] = sc
+
+        return parentRtn
+else
         if scopelevel then
             currtls = scopetls[scopelevel]
         end if
@@ -694,6 +717,7 @@ end if
                 end if
             end if -- NOLT
         end if
+end if
     end if
     return currtls
 end function
@@ -1651,6 +1675,10 @@ global procedure syminit()
     initialConstant("FALSE", 0)
     Alias("False", symlimit)
     Alias("false", symlimit)
+    if ORAC then
+        Alias("int",T_integer)
+        Alias("seq",T_sequence)
+    end if
 
     -- from misc.e:
 --  initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
@@ -1740,6 +1768,7 @@ A: It would not be suitable for cross-compilation use.
     initialConstant("DT_MINUTE",        5)
     initialConstant("DT_SECOND",        6)
     initialConstant("DT_DOW",           7)
+    initialConstant("DT_MSEC",          7)
     initialConstant("DT_DOY",           8)
 
 --  -- from get.e:
@@ -2457,6 +2486,7 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("arccos",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
+    initialAutoEntry("atan2",           S_Func,"FNN",   "pmaths.e",0,E_none)
     initialAutoEntry("bytes_to_int",    S_Func,"FPI",   "machine.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("bits_to_int",     S_Func,"FP",    "machine.e",0,E_none)
@@ -2572,7 +2602,8 @@ end if
 --else
 --  initialAutoEntry("command_line",    S_Func,"F",     "pcmdln.e",0,E_none)        T_command_line = symlimit
 --end if
-    initialAutoEntry("date",            S_Func,"F",     "pdate.e",0,E_none)         Z_command_line = 0
+    initialAutoEntry("date",            S_Func,"FI",    "pdate.e",0,E_none)         Z_command_line = 0
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("db_table_list",   S_Func,"F",     "database.e",0,E_none)
     initialAutoEntry("factors",         S_Func,"FNI",   "pfactors.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2629,7 +2660,8 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("split_path",      S_Func,"FPI",   "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("tagset",          S_Func,"FN",    "ptagset.e",0,E_none)
+    initialAutoEntry("tagset",          S_Func,"FIII",  "ptagset.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("tail",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("task_list",       S_Func,"F",     "VM\\pTask.e",0,E_none)
@@ -2709,6 +2741,7 @@ end if
     initialAutoEntry("read_lines",      S_Func,"FO",    "read_lines.e",0,E_none)
     initialAutoEntry("series",          S_Func,"FOOII", "pseries.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("largest",         S_Func,"FPI",   "psmall.e",0,E_none)
     initialAutoEntry("smallest",        S_Func,"FPI",   "psmall.e",0,E_none)
 
     --DEV 23/3 we do /not/ want these 10 auto-converted to sq_xxx()...
@@ -3163,7 +3196,7 @@ sequence msg
                 end if
                 getToken()
                 trapns = fno
-                MatchChar(':')
+                MatchChar(':',float_valid:=false)
                 trapns = 0
             end if
             p = tt[ttidx+EQ]

@@ -131,7 +131,7 @@ string filepath
             --DEV?? %HOME%/phix/phix? ~/phix/phix? /usr/bin/phix/phix?
         end if
 
-        string maybe = "", definately = ""
+        string maybe = "", definitely = ""
         integer mbmb = sequence(mb)
         if mbmb then
             mb = mb[1]
@@ -144,15 +144,15 @@ string filepath
                     if mbi!=0 then
                         maybe = filepath
                         if mbi=mb then
-                            definately = maybe
+                            definitely = maybe
                             exit
                         end if
                     end if
                 end if
             end for
-            if length(definately) then exit end if
+            if length(definitely) then exit end if
         end for
-        filepath = iff(mbmb?definately:maybe)
+        filepath = iff(mbmb?definitely:maybe)
     end if
     if enquote then
         if find(' ',filepath) then

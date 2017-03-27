@@ -96,7 +96,24 @@ integer e14code
             jmp :!iDiag
         int3
     ::e01tcfeaxplusedxoverecxedi
-        int3
+        [32]
+            push esi    -- saved ecx
+            fild dword[esp]
+--          mov [esp],ecx
+            mov [esp],eax
+            fild dword[esp]
+            add esp,4
+            fdivp
+            jmp @b
+        [64]
+            push rsi    -- saved rcx
+            fild qword[rsp]
+            mov [rsp],r8
+            fild qword[rsp]
+--          add esp,4
+            fdivp
+            jmp :e01tcfst0rdi
+        []
     ::e01tcfediMul
         int3
 
@@ -647,10 +664,11 @@ end procedure -- (for Edita/CtrlQ)
         jz :e02atdb0            -- attempt to divide by 0
         cdq                     -- sign extend eax into edx
         idiv ecx
-        mov ecx,eax
+--      mov ecx,eax
+        xchg ecx,eax
         test edx,edx            -- check remainder is zero
         jz opMathiIII
-        jmp :e01tcfeaxplusedxoverecxedi     -- [DEV or do it here...]
+        jmp :e01tcfeaxplusedxoverecxedi
 --      --
 --      -- two integer params but non-integer result
 --      --
@@ -668,6 +686,7 @@ end procedure -- (for Edita/CtrlQ)
 --      jmp :%pStoreFlt
     [64]
         mov rsi,rcx             -- save before we trash it...
+        mov r8,rax
         xchg rax,rcx
         add rsp,8               -- trash return address (opMathIII)
         test rcx,rcx
@@ -677,7 +696,7 @@ end procedure -- (for Edita/CtrlQ)
         mov rcx,rax
         test rdx,rdx            -- check remainder is zero
         jz opMathiIII
-        jmp :e01tcfeaxplusedxoverecxedi     -- [DEV or do it here...]
+        jmp :e01tcfeaxplusedxoverecxedi
     []
 
       ::opDivF

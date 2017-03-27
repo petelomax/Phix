@@ -4,9 +4,18 @@
 --  plc - Phix Layout Constructor (pronounced pluck)
 --  pluck - Phix Layout Constructor Kickstarter (pronounced pluck)
 --  pdle - no!
+--  IupLade.exw -  ugh
+--  IupLaDe.exw -  ugh
+--  ILD.exw -  ugh
+--  IuPlade.exw -  ugh
+--  pGlade.exw -  erm
+--  pGuilade.exw -  erm
 
 include pGUI.e
 with trace
+
+Ihandle hierarchytree,
+        hierarchytreE   -- temp!
 --
 -- I really need to finish the documentation before I can do this... [DONE]
 --/*
@@ -33,6 +42,7 @@ IupMenuItem  - Creates an item of the menu interface element. Aka IupItem.      
 IupSeparator  - Creates the separator interface element. It shows a line between two menu items.                    [plade_sep.png]
 IupSubmenu  - Creates a menu item that, when selected, opens another menu.                                          [plade_submenu.png]
 IupProgressBar  - Creates a progress bar control.                                                                   [plade_progress.png]
+IupPlot  - Creates a plot control.                                                                                  [plade_plot.png]
 IupRadio  - Creates a void container for grouping mutual exclusive toggles.                                         [plade_radio[s].png]
 IupSbox  - Creates a void container that allows its child to be resized.                                            [plade_resize.png]
 IupSplit  - Creates a void container that split its client area in two.                                             [plade_split.png]
@@ -57,12 +67,29 @@ Not supported: IupGetParam - As well as being a significant technical challenge,
 
 None of the IupGL* functions are currently supported. The samples I have might be too complex for this anyway...
 
-I am going to need lots of icons...
+I am going to need lots of icons... [DONE]
 
 note: I chose the chrome logo as it felt the most readily recognisable. 
       I suppose I should really retrieve the system html-file association... (at least on Windows/make a builtin?)
---*/
 
+SUG: learning mode: on parse/exit show suggestions for learnt attributes and values.
+                    allow accept/reject/exclude/ignore:
+                    accepts are added to the drop-downs,
+                    rejects trigger errors if re-encountered,
+                    excludes are quietly ignored "", and
+                    ignores are a one-time only thing.
+    also have a learning mode default, for startup.
+
+AHEM: we need to comprehend handles, especially for menus.  -- DONE/rework (all demos) to use IupSetAttributeHandle(),
+                                                            --                    instead of IupSetHandle(), as below.
+    Further, we need a list of handles used by glade itself, and auto-rename things
+    when we create the dialog, so glade does not fail badly when given itself...
+    (if found in the list of prohibited names, just append an X, should do it:
+        if find(name,prohibited) then name &='X' end if.) [Not if we prohibit/ignore IupSetHandle!]
+--*/
+sequence prohibited = {"mymenu"}
+
+--use iupnames instead??
 constant IupFuncs = {"IupDialog",
                      "IupBackgroundBox",
                      "IupButton",
@@ -70,11 +97,16 @@ constant IupFuncs = {"IupDialog",
                      "IupCanvas",
                      "IupCbox",
                      "IupCells",
+                     "IupClipboard",    -- (not really)
+                     "IupColorDlg",     -- (not really)
+                     "IupConfig",       -- (not really)
                      "IupDatePick",
                      "IupDetachBox",
                      "IupDial",
                      "IupExpander",
                      "IupFill",
+                     "IupFileDlg",      -- (not really)
+                     "IupFontDlg",      -- (not really)
                      "IupFrame",
                      "IupGridBox",
                      "IupHbox",
@@ -86,11 +118,13 @@ constant IupFuncs = {"IupDialog",
                      "IupMatrix",
                      "IupMenu",
                      "IupMenuItem",
+                     "IupMessageDlg",   -- (not really)
                      "IupMultiLine",    -- maybe..
                      "IupScrollBox",
                      "IupSeparator",
                      "IupSubmenu",
                      "IupProgressBar",
+                     "IupPlot",
                      "IupRadio",
                      "IupSbox",
                      "IupSpinBox",
@@ -101,40 +135,60 @@ constant IupFuncs = {"IupDialog",
                      "IupTree",
                      "IupValuator",
                      "IupVbox",
-                     "IupZbox"}
+                     "IupZbox",
+                     "Icallback"}
 
 -- (obviously set only, we don't care about get)
 constant IupProcs = {"IupSetAttribute",
                      "IupSetAttributes",
                      "IupSetAttributeHandle",
-                     "IupSetHandle",
+                     "IupSetAttributeId",
+--                   "IupSetHandle",            -- ignored?? (removed for listview.exw)
                      "IupSetInt",
                      "IupSetCallback",
                      "IupMatSetAttribute",
-                     "IupSetStrAttribute"}
+                     "IupSetStrAttribute",
+                     "IupStoreAttribute",
+                     "IupAppend"}
 
 
 --Searching for: iupdialog
 -- Files scanned 61, Directories scanned 7, Lines 43042
-constant src = "C:\\Program Files (x86)\\Phix\\demo\\edix\\plade.exw"--:165  dlg = IupDialog(canvas)
+--Start with this one:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\fill.exw"--:38 dialog = IupDialog(IupVbox({frame_left,frame_center,frame_right,NULL}))
+--IupAppend:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\edix\\plade.exw"--:165  dlg = IupDialog(canvas)
+--attributes:RASTERSIZE
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\GraphR.exw"--:165   dlg = IupDialog(canvas)
+--MT (good)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\alarm.exw"--:19       IupShow(IupDialog(NULL)) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+-- (as GraphR)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\buffer.exw"--:79   dlg = IupDialog(canvas)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\calendar.exw"--:44 dlg = IupDialog(box)
+--simple:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\cdtest.exw"--:84   hDialog = IupDialog(hIupCanvas)
+--attributes:ACTIVE, RESTORE, DETACH
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\detachbox.exw"--:44     dlg = IupDialog(IupVbox({dbox, lbl, restore_btn, txt}),
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\dialog2.exw"--:24   dialog = IupDialog(vbox,"TITLE=\"Dialog Title\"")
---constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\filedump.exw"--:9983   maindlg = IupDialog(IupVbox({tabs,
---constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\fill.exw"--:38   dialog = IupDialog(IupVbox({frame_left,frame_center,frame_right,NULL}))
+--attributes:ACTIVE, TITLE, ORIGIN, VALUEPOS also: Icallback(cb_exit), IupAppend
+--**menu broken...**
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\filedump.exw"--:9983 maindlg = IupDialog(IupVbox({tabs,
+--unresolved: attrtext, labeltext (may be a good thing)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\frame.exw"--:25       Ihandle dialog = IupDialog(IupFrame(IupVbox({IupLabel(labeltext),
+--IupGLMake: (otherwise ok)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\gears.exw"--:373   dialog = IupDialog(box)
+--IupGL*:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\glcanvas_cube.exw"--:217   dialog = IupDialog(box);
+--(similar to fill.exw)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\hbox.exw"--:43 dialog = IupDialog(IupVbox({fr1,fr2,fr3}),"TITLE=IupHbox")
+--sprintf:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\image.exw"--:111   Ihandle dlg = IupDialog(IupVbox({
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\imgdisp.exw"--:78 hDlg = IupDialog(IupHbox({hImg1Lbl, hImg2Lbl}))
 --IupGL*:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\iup3Dctrls.exw"--:567   dlg = IupDialog(box)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\iup3Dgl.exw"--:147   dialog = IupDialog(canvas, "SIZE=640x480");
+--attribute:MARK,REDRAW,FOCUSCELL,sortc(var),SORTSIGN,TITLE,RASTERWIDTH
+--sprint,sprintf etc:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\listview.exw"--:208       Ihandle dlg = IupDialog(vbox)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\mandelbrot.exw"--:89   hDialog = IupDialog(hIupCanvas)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\matrix.exw"--:71   dlg = IupDialog(mat)
@@ -145,25 +199,36 @@ constant src = "C:\\Program Files (x86)\\Phix\\demo\\edix\\plade.exw"--:165  dlg
 --C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:486   Ihandle dlg = IupDialog(IupVbox({mat}, "MARGIN=10x10"))
 --C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:532   Ihandle dlg = IupDialog(matrix,"TITLE=\"teste\"")
 --C:\Program Files (x86)\Phix\demo\pGUI\matrix.exw:799   dlg = IupDialog(
+--IupSetHandle:[FIXED]
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\menu.exw"--:33   dlg = IupDialog(IupCanvas(),"MENU=mymenu, TITLE=IupMenu, SIZE=200x100")
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\multiline1.exw"--:35   dlg = IupDialog(ml, "TITLE=IupMultiline, SIZE=QUARTERxQUARTER")
+--warning - cb_run,cb_help,tab2 unresolved:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\pdemo.exw"--:202   dlg = IupDialog(vbox)
+--not a chance!
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\plot.exw"
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\plot1.exw"
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\radio.exw"--:38       dialog = IupDialog(IupHbox({IupFill(),frame,IupFill()})) 
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\rot13.exw"--:111 hDialog = IupDialog(hMainBox)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\sample.exw"--:517   dlg = IupDialog(vbox_1);
+--experiments with MENU:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\separator.exw"--:172   dlg = IupDialog(text)
+--significantly reworked, now 0 unresolved! 3 dialogs (goto/find/main):
+--**broken** (ok if last dialog(3) only)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\simple_notepad.exw"--:371   goto_dlg = IupDialog(box);
 --C:\Program Files (x86)\Phix\demo\pGUI\simple_notepad.exw:512   find_dlg = IupDialog(box);
 --C:\Program Files (x86)\Phix\demo\pGUI\simple_notepad.exw:897   dlg = IupDialog(vbox);
---IupGL*
---constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\simple_paint.exw"--:767       dlg = IupDialog(text)
+--IupGL* reworked as per simple_notepad 3 dialogs (text/toolbox/main):
+--**broken**
+constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\simple_paint.exw"--:767     dlg = IupDialog(text)
 --C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:2096   toolbox = IupDialog(vbox)
 --C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:2193   dlg = IupDialog(vbox)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\submenu.exw"--:127   dlg = IupDialog(text)
+--NO (hack of pGUI.e, now gives error)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\t.exw"--:52       xIupDialog              = define_c_func(iup, "IupDialog", {P}, P),
 --C:\Program Files (x86)\Phix\demo\pGUI\t.exw:137 function IupDialog(atom child)
 --C:\Program Files (x86)\Phix\demo\pGUI\t.exw:138 atom result = c_func(xIupDialog, {child})
 --C:\Program Files (x86)\Phix\demo\pGUI\t.exw:206   atom dialog = IupDialog(toolbar)
+--ditto:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\t2.exw"--:76   xIupDialog              = define_c_func(iup, "IupDialog", {P}, P),
 --C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:127 function IupDialog(Ihandln child)
 --C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:128   Ihandle ih = c_func(xIupDialog, {child})
@@ -171,22 +236,64 @@ constant src = "C:\\Program Files (x86)\\Phix\\demo\\edix\\plade.exw"--:165  dlg
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tabs.exw"--:41   dlg = IupDialog(box)
 --NO: (ifdef)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tee.exw"--:1815 atom dialog = IupDialog(vbox)
---C:\Program Files (x86)\Phix\demo\pGUI\teselation.exw:154 dlg = iup.dialog{cnv; title="LuaGL Image Texture Loader"}
+--IupGLCanvas:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\teselation.exw"
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\test.exw"--:37   dlg = IupDialog(vbx)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\text.exw"--:66   dlg = IupDialog(IupVbox({text, pwd}))
+--img1,img2:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\toggle.exw"--:109   dlg = IupDialog(toggles, "TITLE=IupToggle, MARGIN=5x5, GAP=5, RESIZE=NO")
+--IupGLCanvas
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\triangle.exw"--:70   dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
+--IupGLCanvas
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\vol_fog.exw"--:263   dialog = IupDialog(box);
 --IupWebBrowser:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\webbrowser.exw"--:56   hDialog = IupDialog(IupVbox({hToolBar, hWebBrowser}, "MARGIN=5x5,GAP=5"))
 --Split over multiple files... but should be able to do the amend_dlg...
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\pdemo\\demo.ew"--:815      amend_dlg = IupDialog(vbox);
 
+constant srcname = get_file_name(src)
+
 integer fn = open(src,"r")
 sequence text = get_text(fn,GT_LF_STRIPPED)
 close(fn)
 --?text
 --/*
+try2:
+Obviously plade should understand any output it has generated. There should be no need for
+separate "project" files (or the nightmare of trying to merge them). When presented with a
+layout not originally generated by itself, it should offer some explanation - for instance 
+if it says "warning - mymenu not resolved" then you at least have something to search for.
+
+Likewise plade is deliberately targetted at relatively simple static layouts - complicated
+dialogs that are perhaps dynamically generated from a table or file, or rely on dynamically
+visible overlapping elements, and so on, are probably forver destined to be unsupported.
+
+An important goal, for me, is to be able to find a C code snippet, translate it to Phix, and then
+be able to amend the layout, and likewise should someone send me some modified source code. 
+Many similar utilities require a "project" file, and if it gets even slightly out of synch the
+whole thing stops working - and that kind of nonsense is most definitely not part of my plan.
+That said, plade is meant, and probably forever destined, to only support relatively simple static
+layouts - as soon as elements are made dynamically visible (especially when they overlap) or are
+created from tables or files, this will cease to cope. A classic example can be found in this
+source - constant iupnamerids etc below implement a table-driven approach to building the gui, and
+populating other tables as needed, with minimal repetition, and I would consider it a great success
+if glade managed to show a single blank lable/toggle in the "Controls" groupbox, in place of the 40
+or so that appear when it is actually run. For me, the real purpose of glade is to get all the
+containers, fillers, padding, margins, gaps, and what have you, all right and sorted, whereas the
+"checkbox", "label", etc stuff (ie visible elements) is relatively trivial in my opinion.
+It would also be considered acceptable to whip up a temporary layout quickly, and apply whatever
+I had just learnt to the real/dynamic code.
+
+The following limitations are noted:
+1)  Obviously standard dialogs such as IupAlarm and IupFileDlg are ignored.
+2)  IupSetHandle is ignored (and never generated by plade).
+        A specific case is:
+            IupSetHandle("menu",menu)
+            IupSetAttributes(dlg,"MENU=menu")
+        whereas this is fine:
+            IupSetAttributeHandle(dlg,"MENU",menu)
+[DEV add warnings]
+
 Strategy:
 Write new routines, based on rein/wpaint, in such a way they can replace the ones currently in rein.
 Flaws: rein works directly off filetext[currfile], tabs are treated as a single space.
@@ -407,17 +514,45 @@ constant SYMBOL  = 1,
 --
 --#without reformat
 constant FUNC = 20, --DEV
---           TYPE = 1,
---           NAME = 2,
---           LINE = 3,
---           BEGIN = 4,
---           END = 5,
-             ARGS = 6,
-             TARGET = 7,
+             TYPE = 1,
+             NAME = 2,
+             IDX = 3,
+             LINE = 4,
+--           BEGIN = 5,
+--           END = 6,
+--DEV ARGS should probably be like SEQ, with all the (,,) included.
+             ARGS = 7,
+             TARGET = 8,
          PROC = 21,
-         SEQUENCE = -5,
-         UNKNOWN = -1
+         SEQ = -5,
+--       IDENT = -1         -- or use LETTER?
+         IDENT = 10 --LETTER    -- or use LETTER?
+--SUG:   IDECL = 19         -- identifier declaration (if not aod?)
 --#with reformat
+
+--
+-- The parse_data is a list of possibly relevant procedure and function calls, eg
+--   IupSetAttribute() -> {PROC,"IupSetAttribute",idx,line,begin,end,args}, and
+--   button = IupButton() -> {FUNC,"IupButton",idx,line,begin,end,args,target}, 
+--                            where target is {IDENT,"button",0,line,begin,end}.
+-- Each element of parse_data should correspond to a single statement in the source.
+-- Some elements are nested, typically args is a mix of IDENT and FUNC, maybe in a SEQ.
+-- The main (visual) complication is the {idx,line,begin,end} scattered throughout, which
+--  will obviously be required (much later) for any subsequent update/replacement.
+-- Naturally this can get quite big and ugly, and trimming down the source "source code"
+--  as much as possible would be a very sensible step, should you need to debug this.
+--
+global sequence parse_data
+                parse_data = {}
+
+--DEV not sure we really need this...
+--/*
+sequence insertion_points = {}
+
+sequence insertion_point,
+         next_insertion_point
+         next_insertion_point = {1,1}
+--*/
 
 function setCharClass()
 sequence charClass = repeat(ILLEGAL,255)
@@ -504,18 +639,6 @@ integer oline, ocol
     tokstart = ocol
     Abort("missing closing block comment")
 end procedure
-
-global sequence Results
-                Results = {}
-
---DEV not sure we really need this...
---/*
-sequence insertion_points = {}
-
-sequence insertion_point,
-         next_insertion_point
-         next_insertion_point = {1,1}
---*/
 
 procedure SkipSpacesAndComments()
 -- Note: To skip "include", we just increment CurrLine and set col to 1.
@@ -830,7 +953,8 @@ string oneline
         if col+2<=lenTC
         and oneline[col+1]='\"'
         and oneline[col+2]='\"' then
-            -- multiline (""") string. (no point doing trim handling)
+--DEV should be a TQUOTE? (no line/col info)
+            -- multiline (""") string. (no point doing trim handling) [??]
             token = ""
             col += 3
             while 1 do -- until closing """ found
@@ -857,27 +981,27 @@ string oneline
                 end if
                 col += 1
             end while
---29/9/16:
-            nextCh()
-            return
+        else
+            -- normal/traditional DQUOTE
+            while 1 do
+                col += 1
+                if col>lenTC then
+                    Abort("missing \"")
+                    exit
+                end if
+                nxtCh = oneline[col]
+                if nxtCh='\\' then
+                    col += 1
+                elsif nxtCh='\"' then
+                    col += 1
+                    exit
+                end if
+            end while
+            token = oneline[tokstart..col-1]
         end if
-        while 1 do
-            col += 1
-            if col>lenTC then
-                Abort("missing \"")
-                exit
-            end if
-            nxtCh = oneline[col]
-            if nxtCh='\\' then
-                col += 1
-            elsif nxtCh='\"' then
-                col += 1
-                exit
-            end if
-        end while
-        token = oneline[tokstart..col-1]
         nextCh()
     elsif toktype=BKTICK then
+--DEV ditto, not DQUOTE but BKTICK/TQUOTE, no line/col info...
         token = ""
         while 1 do
             col += 1
@@ -1070,7 +1194,9 @@ sequence res = {}
             end if
         else
             res = append(res,Expression())
-            res = append(res,{SYMBOL,token,tokline,tokstart,tokend})
+            -- Aside: this can leave us with a trailing "," instead of "}".
+            res = append(res,{SYMBOL,token,0,tokline,tokstart,tokend})
+            --               {TYPE,   NAME,IDX, LINE,   BEGIN,   END}
 --DEV/SUG:
 --          res = append(res,{SYMBOL,token,tokline,tokstart,tokend,Expression()})
         end if
@@ -1096,13 +1222,16 @@ sequence res = {}
 end function
 
 function Params(integer asiff)
-string procname
+string routinename
 integer namedparams = 0
 sequence res = {}
-    procname = token
-    if find(procname,{"IupSetAttributesf","IupWebBrowser"})
-    or match("IupGL",procname)=1 then
+    routinename = token
+    if find(routinename,{"IupSetAttributesf","IupWebBrowser"})
+--  or match("IupGL",procname)=1 then
+    or 0 then
         Abort("not supported")
+--  elsif match("IupGL",procname)=1 then
+--      printf(1,"Warning - "&procname&" not supported\n")
     end if
     getToken()
     Match("(")
@@ -1126,9 +1255,10 @@ sequence res = {}
             getToken()
         end while
     end if
-    if find(procname,IupProcs) then
-        res = {PROC,procname,tokline,tokstart,tokend,res}
-        Results = append(Results,res)
+    if find(routinename,IupProcs) then
+        res = {PROC,routinename,0,tokline,tokstart,tokend,res}
+        --    {TYPE,     NAME,IDX,   LINE,   BEGIN,  END,ARGS}
+        parse_data = append(parse_data,res)
 --?res
 --      insert_point = 1    -- mark as valid insertion point
 --/*
@@ -1137,6 +1267,9 @@ sequence res = {}
         end if
         insertion_points = append(insertion_points,insertion_point)
 --*/
+    elsif match("IupGL",routinename)=1 
+      and not find(routinename,IupFuncs) then
+        printf(1,"Warning - "&routinename&" not supported\n")
     end if
     Match(")")
     return res
@@ -1193,11 +1326,14 @@ integer k
             if Ch=':' then skip_namespace() end if
         end if
         if Ch='(' then  -- a function, we presume
-            res = {FUNC,token,tokline,tokstart,tokend,0,0}
-            --    {?,  NAME=2,?,      ?,       ?,ARGS=6,TARGET=7}
+            res = {FUNC,token,0,tokline,tokstart,tokend,0,0}
+            --    {TYPE,NAME,IDX,LINE,BEGIN,END,ARGS,TARGET}
             if length(tgtname) then
-                res[TARGET] = {UNKNOWN,tgtname,tgtline,tgtbgn,tgtend}
+                res[TARGET] = {IDENT,tgtname,0,tgtline,tgtbgn,tgtend}
+                --            {TYPE,  NAME,IDX,   LINE, BEGIN,   END}
                 tgtname = ""
+--          else
+--              res = res[1..ARGS]
             end if
             k = find(token,IupFuncs)
 --/*
@@ -1215,7 +1351,7 @@ integer k
 --          if find(res[NAME],IupFuncs) then
 --          if k!=0 then
             if k!=0 and res[TARGET]!=0 then
-                Results = append(Results,res)
+                parse_data = append(parse_data,res)
 --?res
 --/*
 --              insert_point = 1    -- mark as valid insertion point
@@ -1226,29 +1362,37 @@ integer k
 --*/
             end if
         else -- a variable, we presume
-            res = {UNKNOWN,token,tokline,tokstart,tokend}
+            res = {IDENT,token,0,tokline,tokstart,tokend}
+            --    {TYPE,NAME,IDX,   LINE,   BEGIN,   END}
             getToken()
         end if
     elsif toktype=DIGIT then
-        res = {DIGIT,tokint,tokline,tokstart,tokend}
+        res = {DIGIT,tokint,0,tokline,tokstart,tokend}
+        --    {TYPE,value,IDX,   LINE,   BEGIN,   END}
         getToken()
     elsif toktype=FLOAT then
-        res = {FLOAT,tokatm,tokline,tokstart,tokend}
+        res = {FLOAT,tokatm,0,tokline,tokstart,tokend}
+        --    {TYPE,NAME?,IDX,   LINE,   BEGIN,   END}
         getToken()
     elsif toktype=HEXDEC then
-        res = {HEXDEC,tokatm,tokline,tokstart,tokend}
+        res = {HEXDEC,tokatm,0,tokline,tokstart,tokend}
+        --    {TYPE, NAME?,IDX,   LINE,   BEGIN,   END}
         getToken()
     elsif toktype=DQUOTE then
---DEV should we leave the quotes in???
---18/07/2013:
---      res = {DQUOTE,token[2..length(token)-1],tokline,tokstart+1,tokend-1}
-        res = {DQUOTE,token,tokline,tokstart,tokend}
+        -- (remove quotes)
+        token = token[2..length(token)-1]
+        tokstart += 1
+        tokend -= 1
+        res = {DQUOTE,token,0,tokline,tokstart,tokend}
+        --    {TYPE, NAME,IDX,   LINE,   BEGIN,   END}
         getToken()
     elsif toktype=SQUOTE then
-        res = {SQUOTE,tokint,tokline,tokstart,tokend}
+        res = {SQUOTE,tokint,0,tokline,tokstart,tokend}
+        --    {TYPE,  NAME,IDX,   LINE,   BEGIN,   END}
         getToken()
     elsif toktype=SYMBOL and equal(token,"{") then
-        res = {SEQUENCE,token,tokline,tokstart,tokend}
+        res = {SEQ,token,0,tokline,tokstart,tokend}
+        --    {TYPE,   NAME,IDX,   LINE,   BEGIN,   END,ARGS}
         res = append(res,DoSequence(0))
     elsif toktype=SYMBOL and equal(token,"(") then
         getToken()
@@ -1304,11 +1448,19 @@ object res
 end function
 
 function Concat()
-object res
+object res, rhs
     res = Sum()
     while equal(token,"&") do
         Match("&")
-        res = {"&",res,Sum()}
+        rhs = Sum()
+        if length(res)
+        and res[TYPE]=DQUOTE
+        and length(rhs)
+        and rhs[TYPE]=DQUOTE then
+            res = {DQUOTE,res[NAME]&rhs[NAME],0}    -- (no line/col info, but IDX ok)
+        else
+            res = {"&",res,rhs}
+        end if
     end while
     return res
 end function
@@ -1534,6 +1686,9 @@ procedure Locals()
                 DoMultipleAssignment()
                 if Ch!=',' then exit end if
             end if
+--SUG
+--          vardecs = append(vardecs,{IDECL,token,0,tokline,tokstart,tokend,Ch='='})
+--          --                       {TYPE,NAME,IDX,   LINE,   BEGIN,   END,   AOD}
             if Ch='=' then
                 Assignment(False)
                 if toktype!=SYMBOL or token!="," then exit end if
@@ -1554,6 +1709,15 @@ sequence sType, tType, res
     sType = token   -- procedure/function/type
     getToken()
 --?{"DoRoutineDef",token}
+    if sType="procedure" then
+        if find(token,IupProcs) then
+            Abort("invalid (clash with pGUI.e)")
+        end if
+    elsif sType="function" then
+        if find(token,IupFuncs) then
+            Abort("invalid (clash with PGUI.e)")
+        end if
+    end if
     res = {token,tokline,0}
     tType = token   -- type name
     getToken()
@@ -1737,7 +1901,7 @@ object cv1
     elsif sequence(cv1) then
         resolvable = 0
         return 0
-    elsif cv1=UNKNOWN then
+    elsif cv1=IDENT then
         idx = find(constval[2],constnames)
         if idx then
             return constvals[idx]
@@ -1759,7 +1923,7 @@ object cv1
 --  elsif find(cv1,{DQUOTE,SQUOTE,HEXDEC,DIGIT,FLOAT}) then
     elsif find(cv1,{SQUOTE,HEXDEC,DIGIT,FLOAT}) then
         return constval[2]
-    elsif cv1=SEQUENCE then
+    elsif cv1=SEQ then
         res = {}
         for i=1 to length(constval[6]) by 2 do
             res = append(res,Resolve(constval[6][i]))
@@ -1767,7 +1931,7 @@ object cv1
         return res
 --  elsif cv1=SUBSCR then
 --DEV this sort of works, but we can't replace it. Maybe it should be
--- {SUBSCR,{seq},{"["},{idx},{"]"}} like SEQUENCE is.
+-- {SUBSCR,{seq},{"["},{idx},{"]"}} like SEQ is.
 --      if resolvable then
 --          subscr1=Resolve(constval[2])
 --          if resolvable and integer(subscr1) then
@@ -1874,7 +2038,7 @@ end procedure
 -- Part 3. The main control routine.
 --
 
-global procedure Scan()
+global procedure parse_source()
 integer t
 integer fwd = 0
 
@@ -1939,7 +2103,7 @@ integer fwd = 0
         end if
     end while
 --  IupMessage("ReIndent", "???")
-    ?CurrLine
+--  ?CurrLine
 end procedure
 
 -- src/rein.ew
@@ -1952,15 +2116,15 @@ end procedure
 --procedure appendX(sequence entry)
 --integer line, k
 --  line=entry[2]
---  k=length(Results)
---  while k and line<Results[k][2] do
+--  k=length(parse_data)
+--  while k and line<parse_data[k][2] do
 --      k-=1
 --  end while
---  if k=length(Results) then
---      Results=append(Results,entry)
+--  if k=length(parse_data) then
+--      parse_data=append(parse_data,entry)
 --  else
---      Results=Results[1..k]&0&Results[k+1..length(Results)]
---      Results[k+1]=entry
+--      parse_data=parse_data[1..k]&0&parse_data[k+1..length(parse_data)]
+--      parse_data[k+1]=entry
 --  end if
 --end procedure
 
@@ -1986,9 +2150,17 @@ end procedure
 
 --*/
 
-Scan()
-ppOpt({pp_StrFmt,-2})
-pp(Results)
+parse_source()
+ppOpt({pp_StrFmt,-2,pp_Pause,0})
+--ppOpt({pp_StrFmt,-2})
+--DEV (temp)
+--if 01 then
+--  ?"Warning (temp): parse_data[i][END] replaced with idx"
+    for i=1 to length(parse_data) do
+        parse_data[i][IDX] = i
+    end for
+--end if
+pp(parse_data)
 --?insertion_points
 --/*
 {{20, "IupCanvas", 159,14,22, {{-1, "NULL", 159,24,27}}, {-1, "canvas", 159,5,10}},
@@ -2011,172 +2183,185 @@ function nr(string name, integer rid = routine_id(name))
 end function
 --constant ctrls = {
 --constant {{names,rids},attrs,callbacks} = columnize({
-constant {iupnamerids, sigs, icons, attrs, callbacks} = columnize({
-         {nr("IupBackgroundBox"),"H",
+constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
+         {nr("IupBackgroundBox"),'C',"H",
                                  "plade_backgroundbox.png",
                                  {},
+--"BGCOLOR","BORDER","CHILDOFFSET","EXPAND","CANFOCUS(NO)","CLIENTSIZE"
                                  {}},
-         {nr("IupButton")       ,"[T]AFAD",
+         {nr("IupButton")       ,'E',"[T]AFAD",
                                  "plade_button.png",
                                  {"ACTIVE","BGCOLOR","CANFOCUS","EXPAND","FLAT","IMAGE","IMPRESS","NAME","PADDING","SIZE","TIP","VISIBLE"},
                                  {"ACTION"}},
-         {nr("IupCalendar"),     "AFAD",
+         {nr("IupFlatButton"),   'E',"[T]AFAD",
+                                 "plade_flatbutton.png",
+                                 {"ACTIVE","EXPAND"},
+                                 {"ACTION"}},
+         {nr("IupCalendar"),     'E',"AFAD",
                                  "plade_calendar.png",
                                  {"VALUE"},
                                  {"VALUECHANGED_CB"}},
-         {nr("IupCanvas"),       "AFAD",
-                                 "plade_canvas.png",
-                                 {"BGCOLOR","BORDER","BUFFER","DRAWSIZE","EXPAND","MARGIN","RASTERSIZE","SCROLLBAR"},
-                                 {"ACTION","BUTTON_CB","MAP_CB","MOTION_CB","RESIZE_CB","UNMAP_CB"}},
-         {nr("IupCbox"),         "PAD",
-                                 "plade_cbox.png",
-                                 {},
-                                 {}},
-         {nr("IupCells"),        "AD",
-                                 "plade_cells.png",
-                                 {},
-                                 {}},
-         {nr("IupDatePick"),     "",
+         {nr("IupDatePick"),     'E',"",
                                  "plade_date_picker.png",
                                  {"MONTHSHORTNAMES","VALUE","ZEROPRECED"},
                                  {}},
-         {nr("IupDetachBox"),    "H",
+         {nr("IupCanvas"),       'E',"AFAD",
+                                 "plade_canvas.png",
+                                 {"BGCOLOR","BORDER","BUFFER","DRAWSIZE","EXPAND","MARGIN","RASTERSIZE","SCROLLBAR"},
+                                 {"ACTION","BUTTON_CB","MAP_CB","MOTION_CB","RESIZE_CB","UNMAP_CB"}},
+         {nr("IupCbox"),         'C',"PAD",
+                                 "plade_cbox.png",
+                                 {},
+                                 {}},
+         {nr("IupCells"),        'E',"AD",
+                                 "plade_cells.png",
+                                 {},
+                                 {}},
+         {nr("IupDetachBox"),    'C',"H",
                                  "plade_detach.png",
                                  {"DETACH","ORIENTATION","RESTORE"},
                                  {"DETACHED_CB"}},
-         {nr("IupDial"),         "[O]AD",
+         {nr("IupDial"),         'E',"[O]AD",
                                  "plade_dial.png",
                                  {},
                                  {}},
-         {nr("IupDialog"),       "[H]AD",
+         {nr("IupDialog"),       'C',"[H]AD",
                                  "application.png",
                                  {"BACKGROUND","CURSOR","DEFAULTENTER","DEFAULTESC","DIALOGFRAME","GAP","MARGIN","MAXBOX","MENU","MINBOX","MINSIZE",
                                   "PARENTDIALOG","RASTERSIZE","RESIZE","SHRINK","SIZE","TITLE"},
                                  {"CLOSE_CB","COPYDATA_CB","DROPFILES_CB","K_ANY","K_cV","K_cF3","K_F3","K_cG","K_cH","K_cF","K_cS","K_cO","K_cN","RESIZE_CB"}},
-         {nr("IupExpander"),     "H",
+         {nr("IupExpander"),     'C',"H",
                                  "plade_expand.png",
                                  {"BARPOSITION","EXTRABUTTONS","TITLE"},
                                  {"ACTION","EXTRABUTTON_CB","IMAGEEXTRAid","IMAGEEXTRAPRESSid","IMAGEEXTRAHIGHLIGHTid"}},
-         {nr("IupFill"),         "",
+--       {nr("IupFill"),         'C',"",
+         {nr("IupFill"),         'E',"",
                                  "plade_fill.png",
                                  {},
                                  {}},
-         {nr("IupFlatButton"),   "[T]AFAD",
-                                 "plade_flatbutton.png",
-                                 {"ACTIVE","EXPAND"},
-                                 {"ACTION"}},
-         {nr("IupFrame"),        "HAD",
+--       {nr("IupFileDlg"),      'E',"",
+--                               "plade_filedlg.png",   --DEV
+--                               {"ALLOWNEW","DIALOGTYPE","PARENTDIALOG","TITLE"},
+--                               {}},
+         {nr("IupFrame"),        'C',"HAD",
                                  "plade_frame.png",
                                  {"ALIGNMENT","GAP","POSITION","SIZE","TITLE"},
                                  {}},
-         {nr("IupGridBox"),      "[P]AD",
+--       {nr("IupGridBox"),      'E',"[P]AD",
+         {nr("IupGridBox"),      'C',"[P]AD",
                                  "plade_grid.png",
                                  {},
                                  {}},
-         {nr("IupHbox"),         "PAD",
+         {nr("IupHbox"),         'C',"PAD",
                                  "plade_hbox.png",
                                  {"CMARGIN","FLOATING","GAP","MARGIN","NORMALIZESIZE","SIZE","TABTITLE","VISIBLE"},
                                  {}},
---       {nr("IupImage"),        "WHP",
+--       {nr("IupImage"),        'E',"WHP",
 --                               "plade_image.png",
 --                               {},
 --                               {}},
---       {nr("IupItem"),         "TAFAD",
+--       {nr("IupItem"),         'E',"TAFAD",
 --                               "plade_menuitem.png",
 --                               {},
 --                               {}},
-         {nr("IupLabel"),        "[T]AD",
+         {nr("IupLabel"),        'E',"[T]AD",
                                  "plade_label.png",
                                  {"ALIGNMENT","EXPAND","FLOATING","IMAGE","MAXSIZE","NAME","PADDING","SEPARATOR","TITLE","VISIBLE"},
                                  {}},
-         {nr("IupLink"),         "[TT]AFAD",
+         {nr("IupLink"),         'E',"[TT]AFAD",
                                  "plade_link.png",
                                  {},
                                  {}},
-         {nr("IupList"),         "AFAD",
+         {nr("IupList"),         'E',"AFAD",
                                  "plade_list.png",
                                  {"n","DROPDOWN","EDITBOX","TIP","VALUE"},
                                  {}},
-         {nr("IupMatrix"),       "AD",
+         {nr("IupMatrix"),       'E',"AD",
                                  "plade_matrix.png",
                                  {"ALIGNMENT","ALIGNMENTLIN0","BORDER","CURSOR","FGCOLOR2:2","FOCUSCELL","FRAMECOLOR","HEIGHT0","HIDEFOCUS",
                                   "MARKl:c","MARKAREA","MARKED","MARKMODE","NUMCOL","NUMCOL_VISIBLE","NUMLIN","NUMLIN_VISIBLE","ORIGIN",
                                   "RASTERWIDTHn","RESIZEMATRIX","SORTSIGNn","TYPE*:1","WIDTHn","WIDTHDEF"},
                                  {"CLICK_CB","COLRESIZE_CB","ENTERITEM_CB","RELEASE_CB","VALUE_CB"}},
-         {nr("IupMenu"),         "P",
+         {nr("IupMenu"),         'M',"P",
                                  "plade_menu.png",
                                  {},
                                  {"OPEN_CB"}},
-         {nr("IupMenuItem"),     "TAFAD",
+         {nr("IupMenuItem"),     'm',"TAFAD",
                                  "plade_menuitem.png",
                                  {"ACTIVE","AUTOTOGGLE","IMAGE","NAME?","VALUE"},
                                  {"ACTION"}},
-         {nr("IupMultiLine"),    "AFAD",
-                                 "plade_text.png",
-                                 {"EXPAND","FONT","INSERT?","NAME?","SELECTEDTEXT?","SELECTION?","SELECTIONPOS","SIZE","VALUE","VISIBLECOLUMNS"},
-                                 {"ACTION","CARET_CB","DROPFILES_CB","VALUECHANGED_CB"}},
-         {nr("IupSeparator"),    "",
+         {nr("IupSeparator"),    'm',"",
                                  "plade_sep.png",
                                  {},
                                  {}},
-         {nr("IupSubmenu"),      "THAD",
+         {nr("IupSubmenu"),      'M',"THAD",
                                  "plade_submenu.png",
                                  {},
                                  {}},
---       {nr("IupNormalizer"),   "PAD",
+--       {nr("IupNormalizer"),   'C',"PAD",
 --                               "plade_normal.png",
 --                               {},
 --                               {}},
-         {nr("IupProgressBar"),  "",
+         {nr("IupProgressBar"),  'E',"",
                                  "plade_progress.png",
                                  {"VALUE"},
                                  {}},
-         {nr("IupRadio"),        "HAD",
+         {nr("IupPlot"),         'E',"AD",
+                                 "plade_plot.png",
+                                 {"AXS_XCROSSORIGIN","AXS_YCROSSORIGIN","GRID","MARGIN"},
+                                 {}},
+--       {nr("IupRadio"),        'E',"HAD",
+         {nr("IupRadio"),        'C',"HAD",
                                  "plade_radio.png",
                                  {"VALUE"},
                                  {}},
-         {nr("IupSbox"),         "H",
+         {nr("IupToggle"),       'E',"[T]AFAD",
+                                 "plade_check.png",
+                                 {"ACTIVE","FGCOLOR","FONT","IMAGE","IMPRESS","NAME","TIP"},
+                                 {"ACTION"}},
+         {nr("IupSbox"),         'C',"H",
                                  "plade_resize.png",
                                  {},
                                  {}},
-         {nr("IupScrollBox"),    "H",
+         {nr("IupScrollBox"),    'E',"H",
                                  "plade_scroll.png",
                                  {},
                                  {}},
-         {nr("IupSpinBox"),      "H",
+         {nr("IupSpinBox"),      'E',"H",
                                  "plade_spin.png",
                                  {},
                                  {}},
-         {nr("IupSplit"),        "HH",
+         {nr("IupSplit"),        'E',"HH",
                                  "plade_split.png",
                                  {},
                                  {}},
-         {nr("IupTabs"),         "P",
+--       {nr("IupTabs"),         'E',"P",
+         {nr("IupTabs"),         'C',"P",
                                  "plade_tabs.png",
                                  {"RASTERSIZE","TABIMAGEn","TABTITLEn","TABTYPE","SIZE"},
                                  {"TABCHANGE_CB"}},
-         {nr("IupText"),         "AFAD",
+         {nr("IupText"),         'E',"AFAD",
                                  "plade_text.png",
                                  {"EXPAND","FONT","INSERT?","MASK","MULTILINE","READONLY","SELECTEDTEXT?","SELECTION?","SELECTIONPOS",
                                   "SIZE","SCROLLBAR","VALUE","VISIBLECOLUMNS","VISIBLELINES","WORDWRAP"},
                                  {"ACTION","CARET_CB","DROPFILES_CB","K_ANY","VALUECHANGED_CB"}},
-         {nr("IupToggle"),       "[T]AFAD",
-                                 "plade_check.png",
-                                 {"ACTIVE","FGCOLOR","FONT","IMAGE","IMPRESS","NAME","TIP"},
-                                 {"ACTION"}},
-         {nr("IupTree"),         "",
+         {nr("IupMultiLine"),    'E',"AFAD",
+                                 "plade_textm.png",
+                                 {"EXPAND","FONT","INSERT?","NAME?","SELECTEDTEXT?","SELECTION?","SELECTIONPOS","SIZE","VALUE","VISIBLECOLUMNS"},
+                                 {"ACTION","CARET_CB","DROPFILES_CB","VALUECHANGED_CB"}},
+         {nr("IupTree"),         'E',"AD",
                                  "plade_tree.png",
                                  {"ADDLEAFid","ADDBRANCHid","RASTERSIZE","SHOWRENAME","TITLEid"},
                                  {}},
-         {nr("IupValuator"),     "[O]AFAD",
+         {nr("IupValuator"),     'E',"[O]AFAD",
                                  "plade_slider.png",
                                  {},
                                  {}},
-         {nr("IupVbox"),         "PAD",
+         {nr("IupVbox"),         'C',"PAD",
                                  "plade_vbox.png",
                                  {"ALIGNMENT","GAP","MARGIN","POSITION","SHRINK","TABTITLE","TITLE"},
                                  {}},
-         {nr("IupZbox"),         "PAD",
+         {nr("IupZbox"),         'C',"PAD",
                                  "plade_zbox.png",
                                  {},
                                  {}},
@@ -2186,8 +2371,11 @@ constant {iupnamerids, sigs, icons, attrs, callbacks} = columnize({
 --"ACTIVE=YES,NO,Yes"
 --"ALIGNMENT=ACENTER,ALEFT,ATOP,ABOTTOM"
 --"ALIGNMENTLIN0=ALEFT,"
+--"ALLOWNEW=YES,NO"
 --"AUTOTOGGLE=YES,NO"
 --"BACKGROUND=\"240 240 240\""
+--"AXS_XCROSSORIGIN=YES,NO"
+--"AXS_YCROSSORIGIN=YES,NO"
 --"BARPOSITION=TOP,BOTTOM,LEFT,RIGHT"
 --"BGCOLOR="\"128 255 0\""
 --"BORDER=NO,"
@@ -2197,6 +2385,7 @@ constant {iupnamerids, sigs, icons, attrs, callbacks} = columnize({
 --"CURSOR=ARROW"
 --"CURSOR=img_cursor" (via IupSetHandle("img_cursor", img_cursor)
 --"DIALOGFRAME=Yes,YES,NO"
+--"DIALOGTYPE=OPEN,SAVE,DIR"
 --"DROPDOWN=YES,NO"
 --"EDITBOX=YES,NO"
 --"EXPAND=YES,HORIZONTAL,VERTICAL,NO"
@@ -2205,6 +2394,7 @@ constant {iupnamerids, sigs, icons, attrs, callbacks} = columnize({
 --"FLOATING=YES,NO,IGNORE"
 --"FRAMECOLOR=\"220 220 220\""
 --"GAP=5"
+--"GRID=YES,NO"
 --"HEIGHT0=10"
 --"HIDEFOCUS=YES,NO"
 --"ORIENTATION=VERTICAL"
@@ -2277,6 +2467,1167 @@ if 0 then
 end if
 --{} = wait_key()
 
+--!/*
+--40 (all lines processed)
+sequence testr = 
+{{20, "IupFrame", 20,18,25,
+  {{20, "IupHbox", 20,27,33,
+    {{-5, "{", 20,35,35,
+      {{20, "IupButton", 20,36,44, {{2, "\"Ok\"", 20,46,49}}, 0},
+       {1, ",", 20,51,51}, 
+       {20, "IupFill", 20,52,58, {}, 0},
+       {1, "}", 20,61,61}
+      }
+     }
+    },
+    0},
+   {2, "\"TITLE=\\\"Left aligned\\\"\"", 20,64,87}
+  },
+  {-1, "frame_left", 20,5,14}},
+ {20, "IupFrame", 23,20,27,
+  {{20, "IupHbox", 23,29,35,
+    {{-5, "{", 23,37,37,
+      {{20, "IupFill", 23,38,44, {}, 0},
+       {1, ",", 23,47,47},
+       {20, "IupButton", 23,48,56, {{2, "\"Ok\"", 23,58,61}}, 0},
+       {1, ",", 23,63,63},
+       {20, "IupFill", 23,64,70, {}, 0},
+       {1, "}", 23,73,73}
+      }
+     }
+    },
+    0},
+   {2, "\"TITLE=Centered\"", 23,76,91}},
+  {-1, "frame_center", 23,5,16}},
+ {20, "IupFrame", 26,19,26,
+  {{20, "IupHbox", 26,28,34,
+    {{-5, "{", 26,36,36,
+      {{20, "IupFill", 26,37,43, {}, 0},
+       {1, ",", 26,46,46},
+       {20, "IupButton", 26,47,55, {{2, "\"Ok\"", 26,57,60}}, 0},
+       {1, "}", 26,62,62}
+      }
+     }
+    },
+    0},
+   {2, "\"TITLE=\\\"Right aligned\\\"\"", 26,65,89}
+  },
+  {-1, "frame_right", 26,5,15}},
+ {20, "IupDialog", 29,14,22,
+  {{20, "IupVbox", 29,24,30,
+    {{-5, "{", 29,32,32,
+      {{-1, "frame_left", 29,33,42},
+       {1, ",", 29,43,43},
+       {-1, "frame_center", 29,44,55},
+       {1, ",", 29,56,56},
+       {-1, "frame_right", 29,57,67},
+       {1, "}", 29,68,68}
+      }
+     }
+    },
+    0
+   }
+  },
+  {-1, "dialog", 29,5,10}},
+ {21, "IupSetAttributes", 32,55,55,
+  {{-1, "dialog", 32,22,27},
+   {2, "\"SIZE=120, TITLE=IupFill\"", 32,30,54}}},
+ {21, "IupSetCallback", 33,59,59,
+  {{-1, "dialog", 33,20,25},
+   {2, "\"K_ANY\"", 33,28,34},
+   {20, "Icallback", 33,37,45, {{2, "\"esc_close\"", 33,47,57}}, 0}}}}
+if 0 then
+    ?"parse_data:=testr"
+    parse_data = testr
+end if
+
+--2770
+--SUG:
+-- handles = {"mymenu"}
+-- handledx = {3}
+--Warning about IupAppend? (in plade, vbox is subject to an Append, maybe that's where it goes...)
+sequence testr2 = 
+{{21, "IupSetHandle", 2605,43,43,                                                   -- 1
+  {{-1, "image", 2605,30,34}, {-1, "handle", 2605,37,42}}},
+ {20, "IupMenu", 2622,17,23,                                                        -- 2
+  {{-5, "{", 2622,25,25,
+    {{20, "IupMenuItem", 2622,26,36, {{2, "\"&Cancel\"", 2622,38,46}}, 0},
+     {1, ",", 2622,48,48},
+     {20, "IupSeparator", 2624,26,37, {}, 0},
+     {1, ",", 2624,40,40},
+     {20, "IupMenuItem", 2626,26,36,
+      {{2, "\"Save and E&xit\"", 2626,38,53},
+       {20, "Icallback", 2626,56,64, {{2, "\"exit_cb\"", 2626,66,74}}, 0}},
+      0},
+     {1, "}", 2626,77,77}}}},
+  {-1, "file_menu", 2622,5,13}},
+ {21, "IupSetHandle", 2628,68,68,                                                   -- 3
+  {{2, "\"mymenu\"", 2628,18,25},
+   {20, "IupMenu", 2628,28,34,
+    {{-5, "{", 2628,36,36,
+      {{20, "IupSubmenu", 2628,37,46,
+        {{2, "\"File\"", 2628,48,53}, {-1, "file_menu", 2628,56,64}}, 0},
+       {1, "}", 2628,66,66}}}},
+    0}}},
+ {20, "IupVbox", 2630,20,26, {{-5, "{", 2630,28,28, {}}},                           -- 4 c
+  {-1, "vbox", 2630,13,16}},
+ {20, "IupRadio", 2631,21,28, {{-1, "vbox", 2631,30,33}},                           -- 5 c
+  {-1, "radio", 2631,13,17}},
+ {20, "IupLabel", 2636,23,30, {{2, "\"NULL\"", 2636,32,37}},                        -- 6 (only used via IupAppend)
+  {-1, "lbl", 2636,17,19}},
+ {21, "IupSetStrAttribute", 2637,57,57,                                             -- 7
+  {{-1, "lbl", 2637,28,30}, {2, "\"IMAGE\"", 2637,33,39},
+   {20, "get_image", 2637,42,50, {{-1, "icon", 2637,52,55}}, 0}}},
+ {20, "IupToggle", 2638,23,31, {{-1, "iupname", 2638,33,39}},                       -- 8 (only used via IupAppend)
+  {-1, "tgl", 2638,17,19}},
+ {21, "IupAppend", 2670,66,66,
+  {{-1, "vbox", 2670,19,22},
+   {20, "IupHbox", 2670,24,30,
+    {{-5, "{", 2670,32,32,
+      {{-1, "lbl", 2670,33,35}, {1, ",", 2670,36,36},
+       {-1, "tgl", 2670,37,39}, {1, "}", 2670,40,40}}},
+     {2, "\"NORMALSIZE=HORIZONTAL\"", 2670,42,64}}, 0}}},
+ {21, "IupSetAttributeHandle", 2641,52,52,                                          -- 9
+  {{-1, "radio", 2641,35,39}, {2, "\"VALUE\"", 2641,41,47},
+   {-1, "tgl", 2641,49,51}}},
+ {20, "IupFrame", 2645,21,28,                                                       -- 10
+  {{-1, "radio", 2645,30,34},
+   {2, "\"TITLE=Controls, PADDING=5x\"", 2645,36,63}},
+  {-1, "frame", 2645,13,17}},
+ {20, "IupDialog", 2648,11,19,                                                      -- 11
+  {{20, "IupHbox", 2648,21,27,
+    {{-5, "{", 2648,29,29,
+      {{-1, "frame", 2648,30,34},
+       {1, ",", 2648,35,35},
+       {20, "IupFill", 2648,36,42, {}, 0},
+       {1, "}", 2648,45,45}}},
+     {2, "\"MARGIN=5x\"", 2648,47,57}}, 0},
+   {2, "\"MENU=mymenu, SIZE=250x370\"", 2649,21,47}},
+  {-1, "dlg", 2648,5,7}},
+ {21, "IupSetAttribute", 2650,65,65,                                                -- 12
+  {{-1, "dlg", 2650,21,23}, {2, "\"TITLE\"", 2650,26,32},
+   {2, "\"plade - Phix Layout Designer\"", 2650,35,64}}},
+ {21, "IupSetCallback", 2651,56,56,                                                 -- 13
+  {{-1, "dlg", 2651,20,22}, {2, "\"K_ANY\"", 2651,25,31},
+   {20, "Icallback", 2651,34,42, {{2, "\"esc_close\"", 2651,44,54}}, 0}}}}
+if 0 then
+    ?"parse_data:=testr2"
+    parse_data = testr2
+end if
+--"=="
+--/*
+dialogs: {11}
+--       1 2 3  4  5 6 7 8  9 10 11 12 13
+dialog: {0,0,0,11,11,0,0,0,11,11,11,11,11}
+dlevel: {0,0,0, 4, 3,0,0,0, 3, 2, 1, 1, 1}
+names: {"file_menu","vbox","radio","lbl","tgl","frame","dlg"}
+namedx: {2,4,5,6,8,10,11}
+children: {{},{},{},{},{4},{},{},{},{},{5},{10},{},{}}
+--*/
+--"=="
+sequence dialogs = {}
+sequence dialoglines = {}
+sequence names = {},
+         namedx = {}
+
+--sequence clean    --DEV incomplete
+--sequence trees
+sequence children = repeat({},length(parse_data))
+sequence updates = repeat({},length(parse_data))
+sequence dialogN = repeat(0,length(parse_data)) -- DEV to go? (not as useful as I thought? [may yet have use in clash avoidance])
+sequence dlevel = repeat(0,length(parse_data))  -- DEV to go? (not as useful as I thought)
+
+--function mark_dialog(integer d, integer di, sequence ri, integer level)
+procedure mark_dialog(integer d, integer di, sequence ri, integer level)
+integer k, kdx
+string name
+--sequence childrenL = {}
+--?{"mark_dialog",d,di,ri,level}
+    if ri[TYPE]!=FUNC then ?9/0 end if
+    -- ri is {TYPE=FUNC,NAME,LINE,BEGIN,END,ARGS,TARGET}
+    if dialogN[di]!=0
+    and dialogN[di]!=d then
+?"??"
+        dialogN[di]=-1
+--      return 0
+    else
+        dialogN[di] = d
+        dlevel[di] = level
+--?{dialogN,dlevel}
+        sequence args = ri[ARGS]
+        for i=1 to length(args) do
+            sequence argi = args[i]
+--          integer aitype = argi[TYPE]
+            object aitype = argi[TYPE] -- (can be eg "&")
+            if aitype=FUNC then
+                -- argi is {TYPE=FUNC,NAME,LINE,BEGIN,END,ARGS,TARGET}
+--              childrenL = append(childrenL,mark_dialog(d,di,argi,level))
+--              childrenL &= mark_dialog(d,di,argi,level)[2]
+                mark_dialog(d,di,argi,level)
+            elsif aitype=SEQ then
+                -- argi is {TYPE=SEQ,NAME="{",LINE,BEGIN,END,ARGS}
+                --         (where LINE,BEGIN,END locate the source "{")
+                if argi[NAME]!="{" then ?9/0 end if
+                if length(argi)!=ARGS then ?9/0 end if
+                argi = argi[ARGS]
+                -- argi is {[odd,{",",odd}],"}"}
+                -- where "," and "}" are really {TYPE=SYMBOL,NAME=(","|"}"),LINE,BEGIN,END}
+                --  (and odd are as per argii with and_bits(ai,1)=1 below)
+                --  (actually, a trailing "," is also allowed (and no "}"), for ",$" etc.)
+                if and_bits(length(argi),1) then ?9/0 end if
+                for ai=1 to length(argi) do
+                    sequence argii = argi[ai]
+                    name = argii[NAME]
+                    if and_bits(ai,1)=1 then
+                        aitype = argii[TYPE]
+                        if aitype=IDENT then
+                            -- argii is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+                            k = find(name,names)
+if k=0 or not integer(namedx[k]) then
+                            if not find(name,{"NULL"}) then
+--DEV defer to a messagebox:
+--                              puts(1,"warning - "&name&" unresolved\n")
+                                printf(1,"warning - %s unresolved (line %d)\n",{name,argii[LINE]})
+                            end if
+else
+                            kdx = namedx[k]
+--if kdx=50 then ?9/0 end if
+                            children[di] &= kdx
+--                          childrenL = append(childrenL,mark_dialog(d,kdx,parse_data[kdx],level+1))
+                            mark_dialog(d,kdx,parse_data[kdx],level+1)
+end if
+                        elsif aitype=FUNC then
+                            -- argii is {TYPE=FUNC,NAME,LINE,BEGIN,END,ARGS,TARGET}
+--                          childrenL = append(childrenL,mark_dialog(d,di,argii,level))
+--                          childrenL &= mark_dialog(d,di,argii,level)
+                            mark_dialog(d,di,argii,level)
+                        else
+--DEV no/temp/...?
+                            ?9/0
+                        end if
+                    else
+                        if argii[TYPE]!=SYMBOL then ?9/0 end if
+                        -- argii is {TYPE=SYMBOL,NAME=(","|"}"),LINE,BEGIN,END}
+--28/2/17
+--                      if ai<length(argi) then
+--                          if name!="," then ?9/0 end if
+--                      else
+--                          if name!="}" then ?9/0 end if
+--                      end if
+                        if name!="," then
+                            if ai<length(argi) then ?9/0 end if
+                            if name!="}" then ?9/0 end if
+                        end if
+                    end if
+                end for
+            elsif aitype=IDENT then
+                -- argi is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+                name = argi[NAME]
+                k = find(name,names)
+                if k=0 or not integer(namedx[k]) then
+                    if not find(name,{"NULL"}) then
+--DEV defer to a messagebox:
+--                      puts(1,"warning - "&name&" unresolved\n")
+                        printf(1,"warning - %s unresolved (line %d)\n",{name,argi[LINE]})
+                    end if
+                else
+                    kdx = namedx[k]
+--if kdx=50 then ?9/0 end if
+                    children[di] &= kdx
+--                  childrenL = append(childrenL,mark_dialog(d,kdx,parse_data[kdx],level+1))
+                    mark_dialog(d,kdx,parse_data[kdx],level+1)
+                end if
+--          elsif aitype="&" then
+--              -- argi = {TYPE="&",lhs,rhs}
+----DEV we should glue these together ourselves...
+--              if argi[2][TYPE]!=DQUOTE
+--              or argi[3][TYPE]!=DQUOTE then
+--                  ?argi
+--              end if
+            elsif aitype!=DQUOTE then
+                -- (argi!={TYPE=DQUOTE,NAME[,LINE,BEGIN,END]})
+--DEV unknown/error
+                ?argi
+            end if
+        end for
+    end if
+end procedure
+--?{di,childrenL}
+--  return {di,childrenL}
+--end function
+
+procedure anaylse()
+string name
+integer k, kdx, di
+sequence ri, arg1
+    for i=1 to length(parse_data) do
+        ri = parse_data[i]
+        if ri[TYPE]=FUNC then
+            -- ri is {TYPE=FUNC,NAME,LINE,BEGIN,END,ARGS,TARGET}
+            if ri[NAME]="IupDialog" then
+                dialogs = append(dialogs,i)
+                dialoglines = append(dialoglines,ri[LINE])
+            end if
+            if ri[TARGET][TYPE]!=IDENT then ?9/0 end if
+            -- ri[TARGET] is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+            name = ri[TARGET][NAME]
+            k = find(name,names)
+            if k!=0 then
+--              namedx[k] = -1
+                namedx[k] = append(namedx[k],i)
+            else
+                names = append(names,name)
+                namedx = append(namedx,i)
+            end if
+        end if
+    end for
+--  clean = repeat(1,length(dialogs))   --DEV incomplete
+--  dialogN = repeat(0,length(parse_data))
+--  dlevel = repeat(0,length(parse_data))
+--  trees = repeat(0,length(dialogs))
+
+    for i=1 to length(dialogs) do
+        di = dialogs[i]
+--      clean[i] = 
+--      trees[i] = mark_dialog(di,di,parse_data[di],1)
+        mark_dialog(di,di,parse_data[di],1)
+    end for
+    integer rescan = 0
+    for i=1 to length(parse_data) do
+        ri = parse_data[i]
+        if ri[TYPE]=PROC then
+            -- ri is {TYPE=PROC,NAME,LINE,BEGIN,END,ARGS}
+            arg1 = ri[ARGS][1]
+            if length(arg1)>0
+            and arg1[TYPE]=IDENT then
+                -- arg1 is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+                name = arg1[NAME]
+                k = find(name,names)
+                if k=0 or not integer(namedx[k]) then
+                    if not find(name,{"NULL"}) then
+--DEV defer to a messagebox:
+--                      puts(1,"warning - "&name&" unresolved[4]\n")
+                        printf(1,"warning - %s unresolved (line %d)\n",{name,arg1[LINE]})
+                    end if
+                else
+                    kdx = namedx[k]
+                    dialogN[i]=dialogN[kdx]
+                    dlevel[i]=dlevel[kdx]
+--                  updates[i] &= kdx
+--if i=1 then ?9/0 end if
+                    updates[kdx] &= i
+                end if
+--          else
+--              ?9/0
+            end if
+            name = ri[NAME]
+            if name="IupAppend" then
+?"IupAppend"
+                arg1 = ri[ARGS][2]
+                if arg1[TYPE]=IDENT then
+                    -- arg1 is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+                    name = arg1[NAME]
+                    k = find(name,names)
+                    if k!=0 then
+                        kdx = namedx[k]
+                        dialogN[i]=dialogN[kdx]
+                        dlevel[i]=dlevel[kdx]
+-- untried:
+--                      updates[i] &= kdx
+--                      updates[kdx] &= i
+?{kdx,i}
+                    end if
+                elsif arg1[TYPE]=FUNC then
+                    -- arg1 is {TYPE=FUNC,NAME,LINE,BEGIN,END,ARGS,TARGET}
+                    di = dialogN[i]
+if di!=0 then
+                    mark_dialog(di,di,arg1,dlevel[i])
+end if
+                    rescan = 1
+--              else
+--                  ?9/0
+                end if
+--/*                
+ {21, "IupAppend", 2670,66,66,
+  {{-1, "vbox", 2670,19,22},
+   {20, "IupHbox", 2670,24,30,
+    {{-5, "{", 2670,32,32,
+      {{-1, "lbl", 2670,33,35}, {1, ",", 2670,36,36},
+       {-1, "tgl", 2670,37,39}, {1, "}", 2670,40,40}}},
+     {2, "\"NORMALSIZE=HORIZONTAL\"", 2670,42,64}}, 0}}},
+--*/
+--              ?9/0
+            elsif name="IupSetAttributeHandle" then
+                arg1 = ri[ARGS][1]
+--              arg1 = ri[ARGS][3]
+                if arg1[TYPE]=IDENT then
+                    -- arg1 is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+                    name = arg1[NAME]
+                    k = find(name,names)
+                    if k=0 or not integer(namedx[k]) then
+                        if not find(name,{"NULL"}) then
+--DEV defer to a messagebox:
+--                          puts(1,"warning - "&name&" unresolved[4]\n")
+                            printf(1,"warning - %s unresolved (line %d)\n",{name,arg1[LINE]})
+                        end if
+                    else
+                        kdx = namedx[k]
+                        di = kdx
+--?di -- 17
+--                      dialogN[i]=dialogN[kdx]
+--                      dlevel[i]=dlevel[kdx]
+--                      updates[i] &= kdx
+--                      updates[kdx] &= i
+                        arg1 = ri[ARGS][2]
+                        if arg1[TYPE]=DQUOTE then
+                            -- argi={TYPE=DQUOTE,NAME[,LINE,BEGIN,END]}
+                            if arg1[NAME]="MENU" then
+                                arg1 = ri[ARGS][3]
+                                if arg1[TYPE]=IDENT then
+                                    -- arg1 is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+                                    name = arg1[NAME]
+                                    k = find(name,names)
+                                    if k!=0 then
+                                        kdx = namedx[k]
+--16:
+                                        dialogN[kdx]=dialogN[di]
+                                        dlevel[kdx]=dlevel[di]
+--                                      updates[di] &= kdx
+--if kdx=50 then ?9/0 end if
+                                        children[di] &= kdx
+                                        arg1 = parse_data[kdx]
+--?arg1
+                                        if arg1[TYPE]=FUNC then
+                                            -- arg1 is {TYPE=FUNC,NAME,LINE,BEGIN,END,ARGS,TARGET}
+--                                          di = dialogN[kdx]
+--                                          mark_dialog(di,di,arg1,dlevel[di])
+                                            mark_dialog(di,kdx,arg1,dlevel[di])
+                                            rescan = 1
+                                        end if
+                                    end if
+                                end if
+                            end if
+                        end if
+                    end if
+--              else
+--                  ?9/0
+                end if
+--  {{10, "dlg", 177,27,29}, {2, "MENU", 177,32,35}, {10, "menu", 177,38,41}}},
+                
+                
+--/*
+190
+{{20, "IupText", 138,12,18,
+  {{2,
+    "VALUE = \\\"This text is here only to compose\\\", EXPAND = HORIZONTAL",
+    138,21,86}}, {10, "text", 138,5,8}},
+ {20, "IupMenuItem", 144,16,26,
+  {{2, "New", 144,29,31}, {10, "NULL", 144,35,38}},
+  {10, "item_new", 144,5,12}},
+ {20, "IupMenuItem", 145,17,27,
+  {{2, "Open", 145,30,33}, {10, "NULL", 145,37,40}},
+  {10, "item_open", 145,5,13}},
+ {20, "IupMenuItem", 146,18,28,
+  {{2, "Close", 146,31,35}, {10, "NULL", 146,39,42}},
+  {10, "item_close", 146,5,14}},
+ {20, "IupMenuItem", 147,22,32,
+  {{2, "Page Setup", 147,35,44}, {10, "NULL", 147,48,51}},
+  {10, "item_pagesetup", 147,5,18}},
+ {20, "IupMenuItem", 148,18,28,
+  {{2, "Page Setup", 148,31,40}, {10, "NULL", 148,44,47}},
+  {10, "item_print", 148,5,14}},
+ {20, "IupMenuItem", 149,17,27,
+  {{2, "Exit", 149,30,33}, {10, "NULL", 149,37,40}},
+  {10, "item_exit", 149,5,13}},
+ {21, "IupSetCallback", 152,64,64,
+  {{10, "item_new", 152,20,27}, {2, "ACTION", 152,31,36},
+   {20, "Icallback", 152,40,48, {{2, "item_new_cb", 152,51,61}}, 0}}},
+ {21, "IupSetCallback", 153,66,66,
+  {{10, "item_open", 153,20,28}, {2, "ACTION", 153,32,37},
+   {20, "Icallback", 153,41,49, {{2, "item_open_cb", 153,52,63}}, 0}}},
+ {21, "IupSetCallback", 154,68,68,
+  {{10, "item_close", 154,20,29}, {2, "ACTION", 154,33,38},
+   {20, "Icallback", 154,42,50, {{2, "item_close_cb", 154,53,65}}, 0}}},
+ {21, "IupSetCallback", 155,76,76,
+  {{10, "item_pagesetup", 155,20,33}, {2, "ACTION", 155,37,42},
+   {20, "Icallback", 155,46,54, {{2, "item_pagesetup_cb", 155,57,73}}, 0}}},
+ {21, "IupSetCallback", 156,68,68,
+  {{10, "item_print", 156,20,29}, {2, "ACTION", 156,33,38},
+   {20, "Icallback", 156,42,50, {{2, "item_print_cb", 156,53,65}}, 0}}},
+ {21, "IupSetCallback", 157,66,66,
+  {{10, "item_exit", 157,20,28}, {2, "ACTION", 157,32,37},
+   {20, "Icallback", 157,41,49, {{2, "item_exit_cb", 157,52,63}}, 0}}},
+ {20, "IupMenu", 160,17,23,
+  {{-5, "{", 160,25,25,
+    {{10, "item_new", 160,26,33}, {1, ",", 160,34,34},
+     {10, "item_open", 160,36,44}, {1, ",", 160,45,45},
+     {10, "item_close", 160,47,56}, {1, ",", 160,57,57},
+     {20, "IupSeparator", 160,59,70, {}, 0}, {1, ",", 160,73,73},
+     {10, "item_pagesetup", 160,75,88}, {1, ",", 160,89,89},
+     {10, "item_print", 160,91,100}, {1, ",", 160,101,101},
+     {20, "IupSeparator", 160,103,114, {}, 0}, {1, ",", 160,117,117},
+     {10, "item_exit", 160,119,127}, {1, "}", 160,128,128}}}},
+  {10, "menu_file", 160,5,13}},
+ {20, "IupSubmenu", 163,20,29,
+  {{2, "File", 163,32,35}, {10, "menu_file", 163,39,47}},
+  {10, "submenu_file", 163,5,16}},
+ {20, "IupMenu", 166,12,18,
+  {{-5, "{", 166,20,20,
+    {{10, "submenu_file", 166,21,32}, {1, "}", 166,33,33}}}},
+  {10, "menu", 166,5,8}},
+ {20, "IupDialog", 172,11,19, {{10, "text", 172,21,24}},
+  {10, "dlg", 172,5,7}},
+ {21, "IupSetAttributes", 176,82,82,
+  {{10, "dlg", 176,22,24},
+   {2, "TITLE=\\\"IupSeparator Example\\\", SIZE = QUARTERxEIGHTH", 176,28,
+    80}}},
+ {21, "IupSetAttributeHandle", 177,42,42,
+  {{10, "dlg", 177,27,29}, {2, "MENU", 177,32,35}, {10, "menu", 177,38,41}}},
+ {21, "IupSetCallback", 178,56,56,
+  {{10, "dlg", 178,20,22}, {2, "K_ANY", 178,26,30},
+   {20, "Icallback", 178,34,42, {{2, "esc_close", 178,45,53}}, 0}}}}
+"=="
+dialogs: {17}
+dialogN: {17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17}
+dlevel: {2,4,4,4,4,4,4,4,4,4,4,4,4,3,2,1,1,1,1,1}
+names: {"text","item_new","item_open","item_close","item_pagesetup","item_print","item_exit","menu_file","submenu_file","menu","dlg"}
+namedx: {1,2,3,4,5,6,7,14,15,16,17}
+children: {{},{},{},{},{},{},{},{},{},{},{},{},{},{2,3,4,5,6,7},{14},{},{1,15},{},{},{}}
+10410
+{{21, "IupSetAttribute", 1,192,53,53,
+  {{10, "clipboard", 0,192,21,29}, {2, "TEXT", 0,192,32,35},
+   {10, "currentfilename", 0,192,38,52}}},
+ {20, "Icallback", 2,195,24,32, {{2, "copyname_cb", 0,195,35,45}},
+  {10, "cb_copyname", 0,195,10,20}},
+ {20, "Icallback", 3,200,20,28, {{2, "exit_cb", 0,200,31,37}},
+  {10, "cb_exit", 0,200,10,16}},
+ {20, "Icallback", 4,306,21,29, {{2, "value_cb", 0,306,32,39}},
+  {10, "cb_value", 0,306,10,17}},
+ {21, "IupSetAttribute", 5,309,38,38,
+  {{10, "ih", 0,309,21,22}, {2, "MARKED", 0,309,25,30},
+   {10, "NULL", 0,309,34,37}}},
+ {21, "IupMatSetAttribute", 6,310,48,48,
+  {{10, "ih", 0,310,24,25}, {2, "MARK", 0,310,28,31},
+   {10, "lin", 0,310,35,37}, {7,0,0,310,40,40}, {2, "Yes", 0,310,44,46}}},
+ {21, "IupSetStrAttribute", 7,311,49,49,
+  {{10, "ih", 0,311,24,25}, {2, "REDRAW", 0,311,28,33},
+   {2, "L%d", 0,311,38,40},
+   {-5, "{", 0,311,44,44, {{10, "lin", 0,311,45,47}, {1, "}", 0,311,48,48}}}}},
+ {21, "IupSetStrAttribute", 8,312,58,58,
+  {{10, "ih", 0,312,24,25}, {2, "FOCUSCELL", 0,312,28,36},
+   {2, "%d:%d", 0,312,41,45},
+   {-5, "{", 0,312,49,49,
+    {{10, "lin", 0,312,50,52}, {1, ",", 0,312,53,53},
+     {10, "col", 0,312,54,56}, {1, "}", 0,312,57,57}}}}},
+ {20, "Icallback", 9,315,25,33, {{2, "enteritem_cb", 0,315,36,47}},
+  {10, "cb_enteritem", 0,315,10,21}},
+ {21, "IupSetInt", 10,320,41,41,
+  {{10, "matrix", 0,320,19,24}, {2, "WIDTH0", 0,320,28,33},
+   {10, "NULL", 0,320,37,40}}},
+ {20, "Icallback", 11,324,25,33, {{2, "colresize_cb", 0,324,36,47}},
+  {10, "cb_colresize", 0,324,10,21}},
+ {21, "IupSetInt", 12,335,38,38,
+  {{10, "matrix", 0,335,15,20}, {2, "RASTERWIDTH0", 0,335,23,34},
+   {7,0,0,335,37,37}}},
+ {20, "Icallback", 13,344,22,30, {{2, "resize_cb", 0,344,33,41}},
+  {10, "cb_resize", 0,344,10,18}},
+ {20, "IupHbox", 14,382,15,21,
+  {{-5, "{", 0,382,23,23,
+    {{20, "IupFill", 0,382,24,30, {}, 0}, {1, "}", 0,382,33,33}}}},
+  {10, "tab", 0,382,9,11}},
+ {21, "IupSetAttribute", 15,389,46,46,
+  {{10, "tab", 0,389,25,27}, {2, "TABTITLE", 0,389,31,38},
+   {10, "name", 0,389,42,45}}},
+ {21, "IupAppend", 16,390,27,27,
+  {{10, "tabs", 0,390,19,22}, {10, "tab", 0,390,24,26}}},
+ {21, "IupSetAttributeId", 17,1033,57,57,
+  {{10, "tabs", 0,1033,23,26}, {2, "TABIMAGE", 0,1033,29,36},
+   {"-", {10, "tabidx", 0,1033,40,45}, {7,1,0,1033,47,47}},
+   {10, "RedFlag", 0,1033,50,56}}},
+ {21, "IupSetAttributeId", 18,1141,61,61,
+  {{10, "tabs", 0,1141,27,30}, {2, "TABIMAGE", 0,1141,33,40},
+   {"-", {10, "tabidx", 0,1141,44,49}, {7,1,0,1141,51,51}},
+   {10, "RedFlag", 0,1141,54,60}}},
+ {21, "IupSetAttribute", 19,4414,42,42,
+  {{10, "clipboard", 0,4414,21,29}, {2, "TEXT", 0,4414,32,35},
+   {10, "text", 0,4414,38,41}}},
+ {20, "Icallback", 20,4458,21,29, {{2, "graph_cb", 0,4458,32,39}},
+  {10, "cb_graph", 0,4458,10,17}},
+ {21, "IupSetInt", 21,4461,87,87,
+  {{10, "file_graph", 0,4461,15,24}, {2, "ACTIVE", 0,4461,27,32},
+   {"!=",
+    {20, "find", 0,4461,35,38,
+     {{10, "filetype", 0,4461,40,47},
+      {-5, "{", 0,4461,49,49,
+       {{2, "PE executable", 0,4461,51,63}, {1, ",", 0,4461,65,65},
+        {2, "ELF executable", 0,4461,67,80}, {1, "}", 0,4461,82,82}}}}, 0},
+    {7,0,0,4461,86,86}}}},
+ {21, "IupSetInt", 22,9333,38,38,
+  {{10, "matrix", 0,9333,15,20}, {2, "NUMLIN", 0,9333,24,29},
+   {10, "lenrt", 0,9333,33,37}}},
+ {21, "IupSetAttributeId", 23,9384,56,56,
+  {{10, "tabs", 0,9384,31,34}, {2, "TABIMAGE", 0,9384,38,45},
+   {7,1,0,9384,49,49}, {10, "NULL", 0,9384,52,55}}},
+ {21, "IupSetStrAttribute", 24,9493,79,79,
+  {{10, "maindlg", 0,9493,24,30}, {2, "TITLE", 0,9493,33,37},
+   {2, "%s file dump [%s]", 0,9493,41,57},
+   {-5, "{", 0,9493,60,60,
+    {{10, "filetype", 0,9493,61,68}, {1, ",", 0,9493,69,69},
+     {10, "filename", 0,9493,70,77}, {1, "}", 0,9493,78,78}}}}},
+ {20, "IupFileDlg", 25,9542,15,24, {}, {10, "filedlg", 0,9542,5,11}},
+ {21, "IupSetAttribute", 26,9545,50,50,
+  {{10, "filedlg", 0,9545,21,27}, {2, "DIALOGTYPE", 0,9545,31,40},
+   {2, "SAVE", 0,9545,45,48}}},
+ {21, "IupSetAttribute", 27,9546,45,45,
+  {{10, "filedlg", 0,9546,21,27}, {2, "TITLE", 0,9546,31,35},
+   {2, "Save", 0,9546,40,43}}},
+ {20, "Icallback", 28,9607,21,29, {{2, "print_cb", 0,9607,32,39}},
+  {10, "cb_print", 0,9607,10,17}},
+ {20, "Icallback", 29,9628,20,28, {{2, "help_cb", 0,9628,31,37}},
+  {10, "cb_help", 0,9628,10,16}},
+ {20, "IupFileDlg", 30,9730,15,24, {}, {10, "filedlg", 0,9730,5,11}},
+ {21, "IupSetAttribute", 31,9734,45,45,
+  {{10, "filedlg", 0,9734,21,27}, {2, "TITLE", 0,9734,31,35},
+   {2, "Open", 0,9734,40,43}}},
+ {20, "Icallback", 32,9757,20,28, {{2, "open_cb", 0,9757,31,37}},
+  {10, "cb_open", 0,9757,10,16}},
+ {21, "IupSetInt", 33,9809,54,54,
+  {{10, "matrix", 0,9809,35,40}, {2, "ORIGIN", 0,9809,43,48},
+   {"-", {10, "i", 0,9809,51,51}, {7,6,0,9809,53,53}}}},
+ {20, "Icallback", 34,9847,21,29, {{2, "click_cb", 0,9847,32,39}},
+  {10, "cb_click", 0,9847,10,17}},
+ {21, "IupSetInt", 35,9872,52,52,
+  {{10, "matrix", 0,9872,15,20}, {2, "NUMLIN", 0,9872,24,29},
+   {20, "length", 0,9872,33,38, {{}}, 0}}},
+ {21, "IupSetAttribute", 36,9873,52,52,
+  {{10, "matrix", 0,9873,21,26}, {2, "ORIGIN", 0,9873,29,34}, {}}},
+ {21, "IupSetAttribute", 37,9874,55,55,
+  {{10, "matrix", 0,9874,21,26}, {2, "FOCUSCELL", 0,9874,29,37}, {}}},
+ {20, "Icallback", 38,9883,25,33, {{2, "tabchange_cb", 0,9883,36,47}},
+  {10, "cb_tabchange", 0,9883,10,21}},
+ {21, "IupSetInt", 39,9904,44,44,
+  {{10, "tabs", 0,9904,23,26}, {2, "VALUEPOS", 0,9904,29,36},
+   {"-", {10, "pos", 0,9904,39,41}, {7,1,0,9904,43,43}}}},
+ {21, "IupSetInt", 40,9912,44,44,
+  {{10, "tabs", 0,9912,23,26}, {2, "VALUEPOS", 0,9912,29,36},
+   {"+", {10, "pos", 0,9912,39,41}, {7,1,0,9912,43,43}}}},
+ {21, "IupSetInt", 41,9917,36,36,
+  {{10, "matrix", 0,9917,19,24}, {2, "ORIGIN", 0,9917,27,32},
+   {7,0,0,9917,35,35}}},
+ {21, "IupSetInt", 42,9925,42,42,
+  {{10, "matrix", 0,9925,23,28}, {2, "ORIGIN", 0,9925,31,36},
+   {"-", {10, "i", 0,9925,39,39}, {7,6,0,9925,41,41}}}},
+ {20, "Icallback", 43,9931,19,27, {{2, "key_cb", 0,9931,30,35}},
+  {10, "cb_key", 0,9931,10,15}},
+ {20, "IupClipboard", 44,9936,17,28, {}, {10, "clipboard", 0,9936,5,13}},
+ {20, "IupMenuItem", 45,9937,17,27,
+  {{2, "&Open\\tCtrl O", 0,9937,30,42}, {10, "cb_open", 0,9937,45,51}},
+  {10, "file_open", 0,9937,5,13}},
+ {20, "IupMenuItem", 46,9938,18,28,
+  {{2, "&Print\\tCtrl P", 0,9938,31,44}, {10, "cb_print", 0,9938,47,54}},
+  {10, "file_print", 0,9938,5,14}},
+ {20, "IupMenuItem", 47,9939,17,27,
+  {{2, "&Copy filename", 0,9939,30,43}, {10, "cb_copyname", 0,9939,46,56}},
+  {10, "file_copy", 0,9939,5,13}},
+ {20, "IupMenuItem", 48,9940,18,28,
+  {{2, "&Graphic view\\tF9", 0,9940,31,47}, {10, "cb_graph", 0,9940,50,57}},
+  {10, "file_graph", 0,9940,5,14}},
+ {20, "IupMenuItem", 49,9941,17,27,
+  {{2, "E&xit\\t\\tEsc/Alt F4", 0,9941,30,48}, {10, "cb_exit", 0,9941,51,57}},
+  {10, "file_exit", 0,9941,5,13}},
+ {20, "IupMenu", 50,9942,25,31,
+  {{-5, "{", 0,9942,33,33,
+    {{10, "file_open", 0,9942,34,42}, {1, ",", 0,9942,43,43},
+     {10, "file_print", 0,9943,34,43}, {1, ",", 0,9943,44,44},
+     {10, "file_copy", 0,9944,34,42}, {1, ",", 0,9944,43,43},
+     {10, "file_graph", 0,9945,34,43}, {1, ",", 0,9945,44,44},
+     {10, "file_exit", 0,9946,34,42}, {1, "}", 0,9946,43,43}}}},
+  {10, "file_menu", 0,9942,13,21}},
+ {21, "IupSetCallback", 51,9947,72,72,
+  {{10, "file_menu", 0,9947,20,28}, {2, "OPEN_CB", 0,9947,32,38},
+   {20, "Icallback", 0,9947,42,50, {{2, "file_menu_open_cb", 0,9947,53,69}},
+    0}}},
+ {20, "IupMenu", 52,9948,25,31,
+  {{-5, "{", 0,9948,33,33,
+    {{20, "IupMenuItem", 0,9948,34,44,
+      {{2, "&About\\tF1", 0,9948,47,56}, {10, "cb_help", 0,9948,59,65}}, 0},
+     {1, "}", 0,9948,67,67}}}}, {10, "help_menu", 0,9948,13,21}},
+ {20, "IupMenu", 53,9950,20,26,
+  {{-5, "{", 0,9950,28,28,
+    {{20, "IupSubmenu", 0,9950,29,38,
+      {{2, "&File", 0,9950,41,45}, {10, "file_menu", 0,9950,48,56}}, 0},
+     {1, ",", 0,9950,58,58},
+     {20, "IupSubmenu", 0,9951,29,38,
+      {{2, "&Help", 0,9951,41,45}, {10, "help_menu", 0,9951,48,56}}, 0},
+     {1, "}", 0,9951,58,58}}}},
+  {10, "menu", 0,9950,13,16}},
+ {20, "IupTabs", 54,9953,12,18, {}, {10, "tabs", 0,9953,5,8}},
+ {21, "IupSetCallback", 55,9954,54,54,
+  {{10, "tabs", 0,9954,20,23}, {2, "TABCHANGE_CB", 0,9954,27,38},
+   {10, "cb_tabchange", 0,9954,42,53}}},
+ {20, "IupMatrix", 56,9957,14,22, {}, {10, "matrix", 0,9957,5,10}},
+ {21, "IupSetInt", 57,9959,36,36,
+  {{10, "matrix", 0,9959,15,20}, {2, "HEIGHT0", 0,9959,24,30},
+   {7,10,0,9959,34,35}}},
+ {21, "IupSetAttribute", 58,9960,50,50,
+  {{10, "matrix", 0,9960,21,26}, {2, "RESIZEMATRIX", 0,9960,30,41},
+   {2, "YES", 0,9960,46,48}}},
+ {21, "IupSetAttribute", 59,9961,46,46,
+  {{10, "matrix", 0,9961,21,26}, {2, "MARKMODE", 0,9961,30,37},
+   {2, "LIN", 0,9961,42,44}}},
+ {21, "IupSetAttribute", 60,9962,53,53,
+  {{10, "matrix", 0,9962,21,26}, {2, "MARKAREA", 0,9962,30,37},
+   {2, "CONTINUOUS", 0,9962,42,51}}},
+ {21, "IupSetAttribute", 61,9964,47,47,
+  {{10, "matrix", 0,9964,21,26}, {2, "HIDEFOCUS", 0,9964,30,38},
+   {2, "YES", 0,9964,43,45}}},
+ {21, "IupSetAttribute", 62,9965,56,56,
+  {{10, "matrix", 0,9965,21,26}, {2, "FRAMECOLOR", 0,9965,30,39},
+   {2, "220 220 220", 0,9965,44,54}}},
+ {21, "IupSetAttribute", 63,9966,43,43,
+  {{10, "matrix", 0,9966,21,26}, {2, "BORDER", 0,9966,30,35},
+   {2, "NO", 0,9966,40,41}}},
+ {21, "IupSetAttribute", 64,9967,46,46,
+  {{10, "matrix", 0,9967,21,26}, {2, "CURSOR", 0,9967,30,35},
+   {2, "ARROW", 0,9967,40,44}}},
+ {21, "IupSetAttribute", 65,9968,49,49,
+  {{10, "matrix", 0,9968,21,26}, {2, "ALIGNMENT", 0,9968,30,38},
+   {2, "ALEFT", 0,9968,43,47}}},
+ {21, "IupSetAttribute", 66,9969,53,53,
+  {{10, "matrix", 0,9969,21,26}, {2, "ALIGNMENTLIN0", 0,9969,30,42},
+   {2, "ALEFT", 0,9969,47,51}}},
+ {21, "IupSetCallback", 67,9971,53,53,
+  {{10, "matrix", 0,9971,20,25}, {2, "VALUE_CB", 0,9971,29,36},
+   {10, "cb_value", 0,9971,45,52}}},
+ {21, "IupSetCallback", 68,9972,57,57,
+  {{10, "matrix", 0,9972,20,25}, {2, "ENTERITEM_CB", 0,9972,29,40},
+   {10, "cb_enteritem", 0,9972,45,56}}},
+ {21, "IupSetCallback", 69,9973,53,53,
+  {{10, "matrix", 0,9973,20,25}, {2, "CLICK_CB", 0,9973,29,36},
+   {10, "cb_click", 0,9973,45,52}}},
+ {21, "IupSetCallback", 70,9974,57,57,
+  {{10, "matrix", 0,9974,20,25}, {2, "COLRESIZE_CB", 0,9974,29,40},
+   {10, "cb_colresize", 0,9974,45,56}}},
+ {21, "IupSetInt", 71,9978,47,47,
+  {{10, "matrix", 0,9978,15,20}, {2, "NUMCOL", 0,9978,24,29},
+   {20, "length", 0,9978,33,38, {{10, "titles", 0,9978,40,45}}, 0}}},
+ {21, "IupSetInt", 72,9979,55,55,
+  {{10, "matrix", 0,9979,15,20}, {2, "NUMCOL_VISIBLE", 0,9979,24,37},
+   {20, "length", 0,9979,41,46, {{10, "titles", 0,9979,48,53}}, 0}}},
+ {20, "IupHbox", 73,9988,23,29,
+  {{-5, "{", 0,9988,31,31,
+    {{20, "IupFill", 0,9988,32,38, {}, 0}, {1, ",", 0,9988,41,41},
+     {20, "IupButton", 0,9988,42,50,
+      {{2, "close", 0,9988,53,57}, {10, "cb_exit", 0,9988,60,66}}, 0},
+     {1, "}", 0,9988,68,68}}}, {2, "CMARGIN=13x3", 0,9988,71,82}},
+  {10, "buttons", 0,9988,13,19}},
+ {20, "IupDialog", 74,9989,15,23,
+  {{20, "IupVbox", 0,9989,25,31,
+    {{-5, "{", 0,9989,33,33,
+      {{10, "tabs", 0,9989,34,37}, {1, ",", 0,9989,38,38},
+       {10, "matrix", 0,9990,34,39}, {1, ",", 0,9990,40,40},
+       {10, "buttons", 0,9991,34,40}, {1, "}", 0,9991,41,41}}}}, 0},
+   {2, "TITLE=filedump, SHRINK=YES", 0,9992,26,51}},
+  {10, "maindlg", 0,9989,5,11}},
+ {21, "IupSetAttribute", 75,9994,50,50,
+  {{10, "maindlg", 0,9994,21,27}, {2, "MINSIZE", 0,9994,31,37},
+   {2, "862x705", 0,9994,42,48}}},
+ {21, "IupSetAttributeHandle", 76,9995,48,48,
+  {{10, "maindlg", 0,9995,27,33}, {2, "MENU", 0,9995,37,40},
+   {10, "menu", 0,9995,44,47}}},
+ {21, "IupSetAttribute", 77,9997,45,45,
+  {{10, "maindlg", 0,9997,21,27}, {2, "SHRINK", 0,9997,31,36},
+   {2, "YES", 0,9997,41,43}}},
+ {21, "IupSetCallback", 78,9998,51,51,
+  {{10, "maindlg", 0,9998,20,26}, {2, "RESIZE_CB", 0,9998,30,38},
+   {10, "cb_resize", 0,9998,42,50}}},
+ {21, "IupSetCallback", 79,9999,44,44,
+  {{10, "maindlg", 0,9999,20,26}, {2, "K_ANY", 0,9999,30,34},
+   {10, "cb_key", 0,9999,38,43}}},
+ {21, "IupSetInt", 80,10022,32,32,
+  {{10, "tabs", 0,10022,15,18}, {2, "VALUEPOS", 0,10022,21,28},
+   {7,0,0,10022,31,31}}}}
+"=="
+warning - ih unresolved (line 309)
+warning - ih unresolved (line 310)
+warning - ih unresolved (line 311)
+warning - ih unresolved (line 312)
+"IupAppend"
+{14,16}
+warning - filedlg unresolved (line 9545)
+warning - filedlg unresolved (line 9546)
+warning - filedlg unresolved (line 9734)
+dialogs: {74}
+dialoglines: {9989}
+dialogN: {0,74,74,0,0,0,0,0,0,74,0,74,0,0,0,74,74,74,0,74,74,74,74,74,0,0,0,74,74,0,0,74,74,0,74,74,74,0,74,74,74,74,0,0,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74,74}
+          1  2  3 4 5 6 7 8 9 10 1 12 3 4 5 16 17 18 9 20 21 22 23 24 5 6 7 28 29 0 1 32 33 4 35 36 37 8 39 40 41 42 3 4 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80
+             c  c                                       c                    c  c       c                                 c  c  c  c  c
+dlevel: {0,4,4,0,0,0,0,0,0,2,0,2,0,0,0,2,2,2,0,4,3,2,2,1,0,0,0,4,3,0,0,4,2,0,2,2,2,0,2,2,2,2,0,0,3,3,3,3,3,2,2,2,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,2}
+names: {"cb_copyname","cb_exit","cb_value","cb_enteritem","cb_colresize","cb_resize","tab","cb_graph","filedlg","cb_print","cb_help","cb_open","cb_click","cb_tabchange","cb_key","clipboard","file_open","file_print","file_copy","file_graph","file_exit","file_menu","help_menu","menu","tabs","matrix","buttons","maindlg"}
+namedx: {2,            3,        4,         9,             11,            13,         14,   20,        {25,30},  28,        29,       32,       34,        38,            43,      44,        45,         46,           47,         48,          49,         50,         52,         53,    54,    56,      73,       74}
+children: {{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{32},{28},{2},{20},{3},{45,46,47,48,49},{},{29},{50,52},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{3},{54,56,73,53},{},{},{},{},{},{}}
+           1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45   46   47  48   49  50               51 52   53      54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73  74            75 76 77 78 79 80
+                                                                                                                                                                                                                                                                                                 OK
+updates: {{},{},{},{},{},{},{},{},{},{},{},{},{},{15},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{1,19},{},{},{},{21},{},{51},{},{},{},{16,17,18,23,39,40,55,80},{},{10,12,22,33,35,36,37,41,42,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{24,75,76,77,78,79},{},{},{},{},{},{}}
+          1  2  3  4  5  6  7  8  9  10 11 12 13 14   15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44     45 46 47 48   49 50   51 52 53 54                        55 56                                                                           57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74                  75 76 77 78 79 80
+                                                 OK                                                                                          OK              OK      
+cud: "-cc??????u?u??-uuu-cuuuu???cc??cu?uuu?uuuu??ccccccucccucuuuuuuuuuuuuuuuucduuuuuu"
+      12345678901234567890123456789012345678901234567890123456789012345678901234567890
+      0        1         2         3         4         5         6         7         8
+--*/                
+            end if
+        end if
+    end for
+    if rescan then
+        for i=1 to length(parse_data) do
+            if dialogN[i]=0 then
+                ri = parse_data[i]
+                if ri[TYPE]=PROC then
+                    -- ri is {TYPE=PROC,NAME,LINE,BEGIN,END,ARGS}
+                    arg1 = ri[ARGS][1]
+                    if length(arg1)>0
+                    and arg1[TYPE]=IDENT then
+                        -- arg1 is {TYPE=IDENT,NAME,LINE,BEGIN,END}
+                        name = arg1[NAME]
+                        k = find(name,names)
+                        if k!=0 and integer(namedx[k]) then
+                            kdx = namedx[k]
+                            dialogN[i]=dialogN[kdx]
+                            dlevel[i]=dlevel[kdx]
+--                          updates[i] &= kdx
+--if i=1 then ?9/0 end if
+if not find(i,updates[kdx]) then
+                            updates[kdx] &= i
+end if
+                        end if
+                    end if
+                end if
+            end if
+        end for
+    end if
+
+    -- finally, a little helper display:
+    string cud = repeat('?',length(parse_data))
+    for i=1 to length(parse_data) do
+        for j=1 to length(children[i]) do
+            integer c = children[i][j]
+--          cud[c] = 'c'
+--          cud[c] = iff(dialogN[c]=i?'c':'C')
+            cud[c] = iff(dialogN[c]=dialogN[i]?'c':'C')
+        end for
+        for j=1 to length(updates[i]) do
+            integer u = updates[i][j]
+--          cud[u] = 'u'
+--          cud[u] = iff(dialogN[u]=i?'u':iff(dialogN[u]=0?'-':'U'))
+--          cud[u] = iff(dialogN[u]=dialogN[i]?'u':iff(dialogN[u]=0?'-':'U'))
+            cud[u] = iff(dialogN[u]=0?'-':iff(dialogN[u]=dialogN[i]?'u':'U'))
+        end for
+    end for
+    for i=1 to length(dialogs) do
+        integer d = dialogs[i]
+--      cud[d] = 'd'
+        cud[d] = iff(dialogN[d]=d?'d':'D')
+    end for
+
+    puts(1,"dialogs: ")     ?dialogs
+    puts(1,"dialoglines: ") ?dialoglines
+    puts(1,"dialogN: ")     ?dialogN
+    puts(1,"dlevel: ")      ?dlevel
+--  puts(1,"clean: ")       ?clean
+--  puts(1,"trees: ")       ?trees
+    puts(1,"names: ")       ?names
+    puts(1,"namedx: ")      ?namedx
+    puts(1,"children: ")    ?children
+    puts(1,"updates: ")     ?updates
+    puts(1,"cud: ")         ?cud
+--  pp(trees,{pp_Nest,10})
+end procedure
+anaylse()
+
+--sequence handles = repeat(0,length(names))
+sequence handles = repeat(0,length(parse_data))
+
+integer lastbranch, lastnode
+
+forward function create_control(integer i, sequence pdi, integer pid, bool aschild)
+
+bool allargsvalid
+
+with trace
+function resolve_arg(integer adx, sequence arg, integer pid, bool aschild)
+object res
+integer k, kdx
+--, aitype
+string name
+integer newpid
+--?{"resolve_arg",arg}
+    if length(arg)=0
+    or not integer(arg[TYPE]) then
+        allargsvalid = false
+        return "invalid"
+    end if
+    switch arg[TYPE] do
+        case DQUOTE:
+            res = arg[NAME]
+--      case LETTER: --(10)
+        case IDENT: --(10)
+            name = arg[NAME]
+            k = find(name,names)
+            if k=0 or not integer(namedx[k]) then
+                if not find(name,{"NULL"}) then
+--                  ?9/0
+                    allargsvalid = false
+                    return "invalid"
+                end if
+                res = NULL
+            else
+--if k=13 then trace(1) end if
+                kdx = namedx[k]
+--?{"?ra?",parse_data[k]}
+                res = handles[kdx]
+                if res=0 then
+--              if 1 then   -- creates 43 not 13 entries!!
+                    handles[kdx]=-1
+--                  res = create_control(k,parse_data[k],pid,aschild)
+--?k
+--                  res = resolve_arg(parse_data[k],pid,aschild)
+                    res = resolve_arg(kdx,parse_data[kdx],pid,aschild)
+--                  res = resolve_arg(parse_data[k],pid,0)  -- NO
+--                  res = resolve_arg(parse_data[k],lastnode,aschild)   -- NO
+                    handles[kdx] = res
+                end if
+--              if res=NULL then
+--                  allargsvalid = false
+--              end if
+            end if
+        case SEQ:   -- (-5)
+            -- arg is {TYPE=SEQ,NAME="{",LINE,BEGIN,END,ARGS}
+            --         (where LINE,BEGIN,END locate the source "{")
+            res = {}
+            name = arg[NAME]
+            if name!="{" then ?9/0 end if
+            if length(arg)!=ARGS then ?9/0 end if
+            arg = arg[ARGS]
+            -- arg is {[odd,{",",odd}],"}"}
+            -- where "," and "}" are really {TYPE=SYMBOL,NAME=(","|"}"),LINE,BEGIN,END}
+            --  (and odd are as per argi with and_bits(ai,1)=1 below)
+            --  (actually, a trailing "," is also allowed (and no "}"), for ",$" etc.)
+            if and_bits(length(arg),1) then ?9/0 end if
+            for ai=1 to length(arg) do
+                sequence argi = arg[ai]
+--              name = argi[NAME]
+                if and_bits(ai,1)=1 then
+--                  aitype = argi[TYPE]
+--                  if not find(aitype,{IDENT,FUNC}) then ?9/0 end if
+                    if find(argi[TYPE],{IDENT,FUNC}) then
+--                  if aitype=IDENT then
+                        newpid = lastnode+1
+--                      res &= resolve_arg(argi,pid,aschild)
+                        res &= resolve_arg(0,argi,pid,ai=1)
+--                      res &= resolve_arg(argi,pid,0)  -- OK (or the one above???)
+--                      res &= resolve_arg(argi,newpid,aschild)
+--                      res &= resolve_arg(argi,lastnode,aschild)   -- NO
+                        pid = newpid
+--                  elsif aitype=FUNC then
+--                      -- argi is {TYPE=FUNC,NAME,LINE,BEGIN,END,ARGS,TARGET}
+----                        ?9/0
+--                      newpid = lastnode+1
+----                        res &= create_control(0,argi,pid,aschild)
+--                      res &= resolve_arg(argi,pid,aschild)
+----                        res &= resolve_arg(argi,pid,0)  -- NO
+----                        res &= create_control(0,argi,newpid,aschild)
+----                        res &= create_control(0,argi,lastnode,aschild)
+--                      pid = newpid
+--                  else
+--                      ?9/0
+                    end if
+                else
+                    if argi[TYPE]!=SYMBOL then ?9/0 end if
+                    -- argii is {TYPE=SYMBOL,NAME=(","|"}"),LINE,BEGIN,END}
+                    name = argi[NAME]
+                    if name!="," then
+                        if ai<length(arg) then ?9/0 end if
+                        if name!="}" then ?9/0 end if
+                    end if
+                end if
+            end for
+        case DIGIT:
+            -- arg is {TYPE=DIGIT,tokint,LINE,BEGIN,END,ARGS}
+            res = arg[2]
+        case FUNC:
+--          res = create_control(0,arg,pid,aschild)
+            res = create_control(adx,arg,pid,aschild)
+--          res = create_control(0,arg,pid,0)   --NO
+--          res = create_control(0,arg,lastnode,aschild)    -- NO
+        default:
+            ?{"resolve_arg",arg}
+            res = -3
+    end switch
+--?{"<<resolve_arg",arg}
+    return res
+end function
+
+--SUG make pGUI.e/paramormalise global, for use here.
+
+sequence RASTERSIZENULL = {}
+
+--procedure apply_update(Ihandle ih, integer i)
+procedure apply_update(integer ih, integer i)
+    if parse_data[i][TYPE]!=PROC then ?{"9/0p",i,"!=PROC"} end if
+    if length(children[i]) then ?9/0 end if
+    if length(updates[i]) then ?9/0 end if
+    string procname = parse_data[i][NAME]
+--if procname="IupSetCallback" then trace(1) end if
+    integer procdx = find(procname,iupnames)
+    sequence args = parse_data[i][ARGS]
+    allargsvalid = true
+    for k=1 to length(args) do
+        args[k] = resolve_arg(0,args[k],0,false)
+    end for
+    if procname="IupSetAttribute"
+    and args[2]="RASTERSIZE"
+    and args[3]=NULL then
+--      printf(1,"IupSetAttribute(%d,\"RASTERSIZE\",NULL) [deferred]\n",{ih})
+--      RASTERSIZENULL = append(RASTERSIZENULL,{ih,dialogs[i]})
+        RASTERSIZENULL = append(RASTERSIZENULL,{ih,dialogN[i]})
+--      RASTERSIZENULL = append(RASTERSIZENULL,{ih,i})
+    elsif allargsvalid then
+--?{procname,procdx,ih}
+--  call_proc(iuprids[procdx],args)
+--  printf(1,"call_proc(%s[%d],%s)\n",{procname,iuprids[procdx],sprint(args)})
+--  printf(1,"call_proc(%s[%d],%s)[%d]\n",{procname,iuprids[procdx],sprint(args),ih})
+--      printf(1,"call_proc(%s[%d],%s)[%d]\n",{procname,procdx,sprint(args),ih})
+    else
+--      printf(1,"[not] call_proc(%s[%d],%s)[%d]\n",{procname,procdx,sprint(args),ih})
+    end if
+end procedure
+
+integer once = 0
+--procedure create_control(integer i)
+function create_control(integer i, sequence pdi, integer pid, bool aschild)
+--
+-- i is 0 from resolve_arg(ie nested), else from dialogs[] or children[] (an index to parse_data)
+-- pdi is from arg (if nested), else parse_data[i]
+-- pid is -1 for root, else passed through (do we need a separate field??)
+-- aschild is
+--
+atom res
+--integer wasnode = nextnode
+bool bBranch
+string aibl
+integer newpid
+integer newpid2 = pid
+--?{"create_control",i,pdi}
+    if pdi[TYPE]!=FUNC then ?9/0 end if
+    string funcname = pdi[NAME]
+    integer funcdx = find(funcname,iupnames)
+--  if funcdx=0 or find(funcname,{"Icallback","length","get_image","sprintf","buildDummyData"}) then
+    if funcdx=0 then
+        allargsvalid = false
+if once=0 then
+        ?funcname
+    once = 1
+end if
+        res = NULL
+    else
+        bBranch = (find(cem[funcdx],"CM")!=0)
+        string nodename = funcname
+        integer kdx = find(i,namedx)
+        if kdx then
+            nodename &=" ("&names[kdx]&")"
+        elsif find(funcname,{"IupSubMenu","IupSubmenu","IupMenuItem","IupItem"})
+          and pdi[ARGS][1][TYPE]=DQUOTE then
+            nodename &=" ("&pdi[ARGS][1][NAME]&")"
+        end if
+        aibl = iff(aschild?"ADD":"INSERT")&iff(bBranch?"BRANCH":"LEAF")
+--printf(1,"IupSetAttributeId(hierarchytree, \"%s\", %d, \"%s\")  -- [pid=%d,bBranch=%d,aschild=%d,i=%d,kdx=%d]\n",{aibl,lastnode,nodename,pid,bBranch,aschild,i,kdx})
+--      IupSetAttributeId(hierarchytree, aibl, lastnode, nodename);
+--      newpid = iff(kdx?pid:lastnode)
+printf(1,"IupSetAttributeId(hierarchytree, \"%s\", %d, \"%s\")  -- [pid=%d,lastnode=%d,bBranch=%d,aschild=%d,i=%d,kdx=%d]\n",{aibl,pid,nodename, pid,lastnode,bBranch,aschild,i,kdx})
+--if lastnode=5 then ?9/0 end if
+--if pid=9 then ?9/0 end if
+        IupSetAttributeId(hierarchytree, aibl, pid, nodename);
+        string icon = icons[funcdx]
+        lastnode += 1
+if 01 then
+        IupSetAttributeId(hierarchytree, "IMAGE", lastnode, icon)
+        if bBranch then
+            IupSetAttributeId(hierarchytree, "IMAGEEXPANDED", lastnode, icon)
+        end if
+end if
+
+if 0 then
+        if i!=0 then
+            if handles[i]!=0 then ?9/0 end if
+            handles[i] = -1 -- (prevent looping)
+--?{"children[]",i,children[i]}
+--pid = lastnode
+newpid2 = lastnode
+            for j=1 to length(children[i]) do
+                integer cij = children[i][j]
+                newpid = lastnode
+--              handles[cij] = create_control(cij,parse_data[cij],pid,j=1)
+                handles[cij] = create_control(cij,parse_data[cij],newpid2,j=1)
+--              pid = newpid
+                newpid2 = newpid
+            end for
+        end if
+end if
+        if funcdx=0 then
+--          if not find(funcname,{"Icallback"}) then ?9/0 end if
+            ?9/0
+        else
+            sequence args = pdi[ARGS]
+            allargsvalid = true
+--pid = lastnode+1
+            integer childk = iff(find(funcname,{"IupSubMenu","IupSubmenu","IupMenuItem","IupItem"})?2:1)
+            for k=1 to length(args) do
+--trace(1)
+                newpid = lastnode
+--              args[k] = resolve_arg(args[k],pid,k=1)
+                args[k] = resolve_arg(0,args[k],newpid,k=childk)
+--              args[k] = resolve_arg(args[k],newpid,0) -- NO
+--              pid = newpid
+--pid = lastnode+1
+            end for
+--          res = call_func(iuprids[funcdx],args)
+--          if i!=0 then
+--              handles[i] = res
+--          end if
+            res = -2    --DEV fake/temp
+            string lhs = iff(i=0?"res":sprintf("handles[%d]",{i}))
+            if not allargsvalid then lhs = "[not]" & lhs end if
+--          printf(1,"%s = call_func(%s[%d],%s)\n",{lhs,funcname,iuprids[funcdx],sprint(args)})
+        end if
+        if i!=0 then
+            for k=1 to length(updates[i]) do
+                apply_update(handles[i],updates[i][k])
+            end for
+        end if
+    end if
+--?{"<<create_control",i}
+    return res
+end function
+
+--/*
+procedure show_dialog(integer di)
+    IupShow(handles[di])
+    for i=1 to length(RASTERSIZENULL) do
+        if sequence(RASTERSIZENULL[i])
+        and RASTERSIZENULL[i][2]=di then
+            Ihandle ih = RASTERSIZENULL[i][1]
+--          if ih!=NULL then
+            IupSetAttribute(ih,"RASTERSIZE",NULL)
+            RASTERSIZENULL[i] = 0
+        end if
+    end for
+end procedure
+--RASTERSIZENULL = {}
+--*/
+
+
+--{} = wait_key()
+
 --DEV temp:
 function esc_close(Ihandle /*ih*/, atom c)
 -- (I like all my demos to close when escape is keyed)
@@ -2310,6 +3661,8 @@ nullable_string res
                 res = NULL
             else
                 -- store the image handle
+--              if not find(image,prohibited) then ?9/0 end if
+                prohibited = append(prohibited,image)
                 IupSetHandle(image, handle)
                 return image
             end if
@@ -2322,7 +3675,7 @@ nullable_string res
 end function
 
 procedure main()
-Ihandle dlg, file_menu
+Ihandle dlg, file_menu, main_menu
 
 --  IupOpen(join_path({initialcurrentdir,"..","pGUI"},1))
     IupOpen(join_path({"..","pGUI"},1))
@@ -2333,55 +3686,1528 @@ Ihandle dlg, file_menu
 --                       IupMenuItem("&Undo", "ACTIVE=NO"),
                          IupMenuItem("Save and E&xit", Icallback("exit_cb"))})
 
-    IupSetHandle("mymenu", IupMenu({IupSubmenu("File", file_menu)}))
+    main_menu = IupMenu({IupSubmenu("File", file_menu)})
 
---  img = IupLabel(NULL,"IMAGE=???")
---  male = IupToggle("Male",Icallback("action_cb"))
-    Ihandle lDialog = IupLabel("NULL")
-    IupSetStrAttribute(lDialog, "IMAGE", get_image("application.png"))
---  Ihandle tDialog = IupToggle("IupDialog","MARGIN=15x15") -- no help
-    Ihandle tDialog = IupToggle("IupDialog")
---  Ihandle hDialog = IupHbox({lDialog,tDialog})
---  Ihandle hDialog = IupHbox({lDialog,tDialog},"NORMALSIZE=VERTICAL")
-    Ihandle hDialog = IupHbox({lDialog,tDialog},"NORMALSIZE=HORIZONTAL")
+    Ihandle vboxc = IupVbox({})
+    Ihandle radioc = IupRadio(vboxc)
+    Ihandle vboxe = IupVbox({})
+    Ihandle radioe = IupRadio(vboxe)
+    Ihandle vboxm = IupVbox({})
+    Ihandle radiom = IupRadio(vboxm)
+    sequence vboxes = {vboxc,vboxe,vboxm}
+    Ihandle tabs = IupTabs({radioc,radioe,radiom})
+    IupSetAttribute(tabs,"TABTITLE0","Containers")
+    IupSetAttribute(tabs,"TABTITLE1","Elements")
+    IupSetAttribute(tabs,"TABTITLE2","Menus")
+    IupSetAttribute(tabs,"SIZE","120x")
 
-    Ihandle lFill = IupLabel("NULL")
-    IupSetStrAttribute(lFill, "IMAGE", get_image("plade_fill.png"))
-    Ihandle tFill = IupToggle("IupFill")
-    Ihandle hFill = IupHbox({lFill,tFill},"NORMALSIZE=HORIZONTAL")
-
-    Ihandle vbox = IupVbox({hDialog,
-                            hFill})
-
+--DEV containers/elements/warnings tabs?
     for i=1 to length(iupnames) do
         string iupname = iupnames[i]
-        if not find(iupname,{"IupDialog","IupFill"}) then
-            string icon = icons[i]
-            Ihandle lbl = IupLabel("NULL")
-            IupSetStrAttribute(lbl, "IMAGE", get_image(icon))
-            Ihandle tgl = IupToggle(iupname)
-            IupAppend(vbox,IupHbox({lbl,tgl},"NORMALSIZE=HORIZONTAL"))
+        string icon = icons[i]
+        Ihandle lbl = IupLabel("NULL")
+        IupSetStrAttribute(lbl, "IMAGE", get_image(icon))
+        Ihandle tgl = IupToggle(iupname)
+        IupAppend(vboxes[find(upper(cem[i]),"CEM")],IupHbox({lbl,tgl},"NORMALSIZE=HORIZONTAL"))
+        if iupname="IupDialog" then
+            IupSetAttributeHandle(radioc,"VALUE",tgl)
         end if
     end for
 
-    Ihandle frame = IupFrame(IupRadio(vbox),
-                             "TITLE=Controls, PADDING=5x")
+    Ihandle frame = IupFrame(tabs,"TITLE=\"Controls\", PADDING=5x")
+
+--  Ihandle tree = IupTree()--"")
+--  Ihandle tree = IupTree("ADDROOT=NO, DRAGDROPTREE=YES, RASTERSIZE=205x416, EXPAND=HORIZONTAL")
+    hierarchytree = IupTree("ADDROOT=NO, DRAGDROPTREE=YES, RASTERSIZE=225x416, EXPAND=HORIZONTAL")
+    hierarchytreE = IupTree("ADDROOT=NO, DRAGDROPTREE=YES, RASTERSIZE=225x416, EXPAND=HORIZONTAL")
+--  Ihandle tree = IupTree("DRAGDROPTREE=YES, RASTERSIZE=205x416, EXPAND=HORIZONTAL")
+--  Ihandle tframe = IupFrame(IupVbox({IupVbox({tree,IupLabel()}),IupLabel()}),
+--  Ihandle tframe = IupFrame(IupVbox({tree,IupLabel()}),
+    Ihandle tframe = IupFrame(IupVbox({IupHbox({hierarchytree,hierarchytreE}),IupLabel()}),
+--                            "TITLE=Hierarchy, PADDING=5x, RASTERSIZE=150x275, EXPAND=NO")
+                              "TITLE=Hierarchy, PADDING=5x")
 
 --  dlg = IupDialog(frame,"MENU=mymenu, TITLE=plade, SOIZE=200x100, GOAP=5x5")
-    dlg = IupDialog(IupHbox({frame,IupFill()},"MARGIN=5x"),
-                    "MENU=mymenu, SIZE=250x370") 
-    IupSetAttribute(dlg, "TITLE", "plade - Phix Layout Designer")
+--  dlg = IupDialog(IupHbox({frame,IupFill(),tframe,IupFill()},"MARGIN=5x"),
+--  dlg = IupDialog(IupHbox({frame,tframe},"MARGIN=5x"),"SIZE=328x275") 
+    dlg = IupDialog(IupHbox({frame,tframe},"MARGIN=5x"),"SIZE=553x275") 
+    IupSetAttributeHandle(dlg,"MENU",main_menu)
+    IupSetStrAttribute(dlg, "TITLE", "plade - Phix Layout Designer (%s)",{srcname})
     IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
 
+    IupMap(dlg)
+
+--DEV (temp)
+--  IupSetAttribute(tree, "TITLE0",     "Dialogs")
+if 0 then
+--/*
+        int lastfile = -1;
+        IupSetAttribute(blocklist, "DELNODE", "ALL");
+        for (int i = 0; i < count; ++i)
+        {
+            const Tape::Block& blk = file->getBlock(i);
+            if (blk.isFile())
+            {
+                IupSetAttributeId(blocklist, "INSERTBRANCH", lastfile, blk.getName().c_str());
+                lastfile = i;
+            } else {
+                IupSetAttributeId(blocklist, "ADDLEAF", i-1, blk.getName().c_str());
+                if (blk.isControl())
+                    IupSetAttributeId(blocklist, "IMAGE", i, "IMGLEAF");
+            }
+        }
+--*/
+--  IupSetAttribute(tree, "INSERTBRANCH0",  "DLg")
+    IupSetAttributeId(hierarchytree, "INSERTBRANCH", -1, "Dialog1");
+
+--  string PTICK = get_image(icons[find("IupDialog",iupnames)])
+    string PTICK = icons[find("IupDialog",iupnames)]
+    IupSetAttributeId(hierarchytree, "IMAGEEXPANDED", 0, PTICK)
+    IupSetAttributeId(hierarchytree, "IMAGE", 0, PTICK)
+
+    IupSetAttributeId(hierarchytree, "ADDLEAF",0,"Frame")
+    PTICK = icons[find("IupFrame",iupnames)]
+--  IupSetAttributeId(tree, "IMAGEEXPANDED", 0, PTICK)
+    IupSetAttributeId(hierarchytree, "IMAGE", 1, PTICK)
+
+    IupSetAttributeId(hierarchytree, "ADDBRANCH",1, "triangle")
+    PTICK = icons[find("IupList",iupnames)]
+    IupSetAttributeId(hierarchytree, "IMAGEEXPANDED", 2, PTICK)
+    IupSetAttributeId(hierarchytree, "IMAGE", 2, PTICK)
+
+    IupSetAttributeId(hierarchytree, "ADDLEAF",2,   "equilateral")
+--  IupSetAttributeId(hierarchytree, "ADDLEAF",3,   "isoceles")
+    IupSetAttributeId(hierarchytree, "INSERTLEAF",3,    "isoceles")
+    IupSetAttributeId(hierarchytree, "INSERTLEAF",2,    "scalenus")
+
+    IupSetAttribute(hierarchytree, "INSERTBRANCH0", "DLg")
+    PTICK = icons[find("IupDialog",iupnames)]
+    IupSetAttributeId(hierarchytree, "IMAGEEXPANDED", 6, PTICK)
+    IupSetAttributeId(hierarchytree, "IMAGE", 6, PTICK)
+
+elsif 01 then
+?srcname
+    if srcname="fill.exw" then
+--/*
+{{20, "IupFrame", 1,20,18,25,
+  {{20, "IupHbox", 0,20,27,33,
+    {{-5, "{", 0,20,35,35,
+      {{20, "IupButton", 0,20,36,44, {{2, "Ok", 0,20,47,48}}, 0},
+       {1, ",", 0,20,51,51}, {20, "IupFill", 0,20,52,58, {}, 0},
+       {1, "}", 0,20,61,61}}}}, 0},
+   {2, "TITLE=\\\"Left aligned\\\"", 0,20,65,86}},
+  {10, "frame_left", 0,20,5,14}},
+ {20, "IupFrame", 2,23,20,27,
+  {{20, "IupHbox", 0,23,29,35,
+    {{-5, "{", 0,23,37,37,
+      {{20, "IupFill", 0,23,38,44, {}, 0}, {1, ",", 0,23,47,47},
+       {20, "IupButton", 0,23,48,56, {{2, "Ok", 0,23,59,60}}, 0},
+       {1, ",", 0,23,63,63}, {20, "IupFill", 0,23,64,70, {}, 0},
+       {1, "}", 0,23,73,73}}}}, 0}, {2, "TITLE=Centered", 0,23,77,90}},
+  {10, "frame_center", 0,23,5,16}},
+ {20, "IupFrame", 3,26,19,26,
+  {{20, "IupHbox", 0,26,28,34,
+    {{-5, "{", 0,26,36,36,
+      {{20, "IupFill", 0,26,37,43, {}, 0}, {1, ",", 0,26,46,46},
+       {20, "IupButton", 0,26,47,55, {{2, "Ok", 0,26,58,59}}, 0},
+       {1, "}", 0,26,62,62}}}}, 0},
+   {2, "TITLE=\\\"Right aligned\\\"", 0,26,66,88}},
+  {10, "frame_right", 0,26,5,15}},
+ {20, "IupDialog", 4,29,14,22,
+  {{20, "IupVbox", 0,29,24,30,
+    {{-5, "{", 0,29,32,32,
+      {{10, "frame_left", 0,29,33,42}, {1, ",", 0,29,43,43},
+       {10, "frame_center", 0,29,44,55}, {1, ",", 0,29,56,56},
+       {10, "frame_right", 0,29,57,67}, {1, "}", 0,29,68,68}}}}, 0}},
+  {10, "dialog", 0,29,5,10}},
+ {21, "IupSetAttributes", 5,32,55,55,
+  {{10, "dialog", 0,32,22,27}, {2, "SIZE=120, TITLE=IupFill", 0,32,31,53}}},
+ {21, "IupSetCallback", 6,33,59,59,
+  {{10, "dialog", 0,33,20,25}, {2, "K_ANY", 0,33,29,33},
+   {20, "Icallback", 0,33,37,45, {{2, "esc_close", 0,33,48,56}}, 0}}}}
+"=="
+dialogs: {4}
+dialoglines: {29}
+dialogN: {4,4,4,4,4,4}
+dlevel: {2,2,2,1,1,1}
+names: {"frame_left","frame_center","frame_right","dialog"}
+namedx: {1,2,3,4}
+children: {{},{},{},{1,2,3},{},{}}
+updates: {{},{},{},{5,6},{},{}}
+cud: "cccduu"
+--*/
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "IupDialog (dialog) [DESIRED]")
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 0, "IupVbox")
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 1, "IupFrame (frame_left)")
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 2, "IupHbox")
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 3, "IupButton")
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 4, "IupFill")
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 2, "IupFrame (frame_center)")
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 6, "IupHbox")
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 7, "IupFill")
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 8, "IupButton")
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 9, "IupFill")
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 6, "IupFrame (frame_right)")
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 11, "IupHbox")
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 12, "IupFill")
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 13, "IupButton")
+    elsif srcname="rot13.exw" then
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "IupDialog (hDialog) [DESIRED]")  -- [pid=-1,lastnode=-1,bBranch=1,aschild=0,i=9,kdx=5]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 0, "IupVbox (hMainBox)")  -- [pid=0,lastnode=0,bBranch=1,aschild=1,i=8,kdx=4]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 1, "IupLabel")  -- [pid=1,lastnode=1,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 2, "IupText (hText)")  -- [pid=2,lastnode=2,bBranch=0,aschild=0,i=7,kdx=3]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 3, "IupHbox")  -- [pid=3,lastnode=3,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 4, "IupButton")  -- [pid=4,lastnode=4,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 5, "IupButton")  -- [pid=5,lastnode=5,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 6, "IupButton")  -- [pid=6,lastnode=6,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 0, "IupMenu (hMenu)")  -- [pid=0,lastnode=7,bBranch=1,aschild=0,i=6,kdx=2]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 8, "IupSubmenu (File)")  -- [pid=8,lastnode=8,bBranch=1,aschild=1,i=0,kdx=0]
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 9, "IupMenu")    -- [pid=9,lastnode=9,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 9, "IupMenu") -- [pid=9,lastnode=9,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 10, "IupMenuItem (Load File)")  -- [pid=10,lastnode=10,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 11, "IupMenuItem (Rotate)")  -- [pid=11,lastnode=11,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 12, "IupMenuItem (Quit)")  -- [pid=12,lastnode=12,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 9, "IupSubmenu (Help)")  -- [pid=9,lastnode=13,bBranch=1,aschild=0,i=0,kdx=0]
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 14, "IupMenu")  -- [pid=14,lastnode=14,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 14, "IupMenu")  -- [pid=14,lastnode=14,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 15, "IupMenuItem (About Phix)")  -- [pid=15,lastnode=15,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 16, "IupMenuItem (About Iup)")  -- [pid=16,lastnode=16,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 17, "IupMenuItem (About Rot13)")  -- [pid=17,lastnode=17,bBranch=0,aschild=0,i=0,kdx=0]
+    elsif srcname="tabs.exw" then
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "IupDialog (dlg)")  -- [pid=-1,lastnode=-1,bBranch=1,aschild=0,i=16,kdx=8]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 0, "IupHbox (hbox)")  -- [pid=0,lastnode=0,bBranch=1,aschild=1,i=13,kdx=7]
+--IupSetAttributeId(hierarchytreE, "ADDLEAF", 1, "IupTabs (tabs1)")  -- [pid=1,lastnode=1,bBranch=0,aschild=1,i=5,kdx=3]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 1, "IupTabs (tabs1)")  -- [pid=1,lastnode=1,bBranch=0,aschild=1,i=5,kdx=3]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 2, "IupVbox (vboxA)")  -- [pid=2,lastnode=2,bBranch=1,aschild=1,i=1,kdx=1]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 3, "IupLabel")  -- [pid=3,lastnode=3,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 4, "IupButton")  -- [pid=4,lastnode=4,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 3, "IupVbox (vboxB)")  -- [pid=3,lastnode=5,bBranch=1,aschild=0,i=2,kdx=2]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 6, "IupLabel")  -- [pid=6,lastnode=6,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 7, "IupButton")  -- [pid=7,lastnode=7,bBranch=0,aschild=0,i=0,kdx=0]
+--IupSetAttributeId(hierarchytreE, "INSERTLEAF", 2, "IupTabs (tabs2)")  -- [pid=2,lastnode=8,bBranch=0,aschild=0,i=11,kdx=6]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 2, "IupTabs (tabs2)")  -- [pid=2,lastnode=8,bBranch=0,aschild=0,i=11,kdx=6]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 9, "IupVbox (vboxC)")  -- [pid=9,lastnode=9,bBranch=1,aschild=1,i=7,kdx=4]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 10, "IupLabel")  -- [pid=10,lastnode=10,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 11, "IupButton")  -- [pid=11,lastnode=11,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 10, "IupVbox (vboxD)")  -- [pid=10,lastnode=12,bBranch=1,aschild=0,i=8,kdx=5]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 13, "IupLabel")  -- [pid=13,lastnode=13,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 14, "IupButton")  -- [pid=14,lastnode=14,bBranch=0,aschild=0,i=0,kdx=0]
+    elsif srcname="simple_paint.exw" then
+--erm: IupSetAttributeHandle(text_dlg, "PARENTDIALOG", toolbox)
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "IupDialog (text_dlg)")  -- [pid=-1,lastnode=-1,bBranch=1,aschild=0,i=46,kdx=4]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 0, "IupText (text)")  -- [pid=0,lastnode=0,bBranch=0,aschild=1,i=41,kdx=3]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 0, "IupDialog (toolbox)")  -- [pid=0,lastnode=1,bBranch=1,aschild=0,i=215,kdx=57]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 2, "IupVbox (tool_vbox)")  -- [pid=2,lastnode=2,bBranch=1,aschild=1,i=212,kdx=56]
+--IupSetAttributeId(hierarchytreE, "ADDLEAF", 3, "IupRadio")    -- [pid=3,lastnode=3,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 3, "IupRadio")    -- [pid=3,lastnode=3,bBranch=0,aschild=1,i=0,kdx=0] (may already be fixed)
+--IupSetAttributeId(hierarchytreE, "ADDLEAF", 4, "IupGridBox (gbox)")  -- [pid=4,lastnode=4,bBranch=0,aschild=1,i=200,kdx=48]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 4, "IupGridBox (gbox)")  -- [pid=4,lastnode=4,bBranch=0,aschild=1,i=200,kdx=48] (may already be fixed)
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 5, "IupToggle")  -- [pid=5,lastnode=5,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 6, "IupToggle")  -- [pid=6,lastnode=6,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 7, "IupToggle")  -- [pid=7,lastnode=7,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 8, "IupToggle")  -- [pid=8,lastnode=8,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 9, "IupToggle")  -- [pid=9,lastnode=9,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 10, "IupToggle")  -- [pid=10,lastnode=10,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 11, "IupToggle")  -- [pid=11,lastnode=11,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 12, "IupToggle")  -- [pid=12,lastnode=12,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 13, "IupToggle")  -- [pid=13,lastnode=13,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 14, "IupToggle")  -- [pid=14,lastnode=14,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 4, "IupFrame (tool_frame)")  -- [pid=4,lastnode=15,bBranch=1,aschild=0,i=211,kdx=55]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 16, "IupVbox")  -- [pid=16,lastnode=16,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 17, "IupLabel")  -- [pid=17,lastnode=17,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 18, "IupButton (toolcolor_btn)")  -- [pid=18,lastnode=18,bBranch=0,aschild=0,i=205,kdx=49]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 19, "IupLabel")  -- [pid=19,lastnode=19,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 20, "IupText (toolwidth_txt)")  -- [pid=20,lastnode=20,bBranch=0,aschild=0,i=206,kdx=50]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 21, "IupLabel")  -- [pid=21,lastnode=21,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 22, "IupList (toolstyle_lst)")  -- [pid=22,lastnode=22,bBranch=0,aschild=0,i=207,kdx=51]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 23, "IupLabel (filltol_label)")  -- [pid=23,lastnode=23,bBranch=0,aschild=0,i=208,kdx=52]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 24, "IupValuator (filltol_val)")  -- [pid=24,lastnode=24,bBranch=0,aschild=0,i=209,kdx=53]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 25, "IupLabel")  -- [pid=25,lastnode=25,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 26, "IupButton (toolfont_btn)")  -- [pid=26,lastnode=26,bBranch=0,aschild=0,i=210,kdx=54]
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 0, "IupDialog (dlg)")    -- [pid=0,lastnode=27,bBranch=1,aschild=0,i=249,kdx=65]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 2, "IupDialog (dlg)")  -- [pid=0,lastnode=27,bBranch=1,aschild=0,i=249,kdx=65]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 28, "IupVbox (main_vbox)")  -- [pid=28,lastnode=28,bBranch=1,aschild=1,i=248,kdx=64]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 29, "IupHbox (toolbar)")  -- [pid=29,lastnode=29,bBranch=1,aschild=1,i=195,kdx=47]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 30, "IupButton (btn_new)")  -- [pid=30,lastnode=30,bBranch=0,aschild=1,i=159,kdx=41]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 31, "IupButton (btn_open)")  -- [pid=31,lastnode=31,bBranch=0,aschild=0,i=165,kdx=42]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 32, "IupButton (btn_save)")  -- [pid=32,lastnode=32,bBranch=0,aschild=0,i=171,kdx=43]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 33, "IupLabel")  -- [pid=33,lastnode=33,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 34, "IupButton (btn_copy)")  -- [pid=34,lastnode=34,bBranch=0,aschild=0,i=177,kdx=44]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 35, "IupButton (btn_paste)")  -- [pid=35,lastnode=35,bBranch=0,aschild=0,i=183,kdx=45]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 36, "IupLabel")  -- [pid=36,lastnode=36,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 37, "IupButton (btn_zoomgrid)")  -- [pid=37,lastnode=37,bBranch=0,aschild=0,i=189,kdx=46]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 30, "IupCanvas (canvas)")  -- [pid=30,lastnode=38,bBranch=0,aschild=0,i=237,kdx=63]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 39, "IupHbox (statusbar)")  -- [pid=39,lastnode=39,bBranch=1,aschild=0,i=231,kdx=62]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 40, "IupLabel (status_lbl)")  -- [pid=40,lastnode=40,bBranch=0,aschild=1,i=229,kdx=60]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 41, "IupLabel")  -- [pid=41,lastnode=41,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 42, "IupLabel (size_lbl)")  -- [pid=42,lastnode=42,bBranch=0,aschild=0,i=228,kdx=59]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 43, "IupLabel")  -- [pid=43,lastnode=43,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 44, "IupLabel (zoom_lbl)")  -- [pid=44,lastnode=44,bBranch=0,aschild=0,i=227,kdx=58]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 45, "IupButton")  -- [pid=45,lastnode=45,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 46, "IupValuator (zoom_val)")  -- [pid=46,lastnode=46,bBranch=0,aschild=0,i=230,kdx=61]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 47, "IupButton")  -- [pid=47,lastnode=47,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 48, "IupButton")  -- [pid=48,lastnode=48,bBranch=0,aschild=0,i=0,kdx=0]
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 0, "IupMenu (main_menu)")    -- [pid=0,lastnode=49,bBranch=1,aschild=0,i=154,kdx=40]
+--IupSetAttributeId(hierarchytreE, "ADDBRANCH", 28, "IupMenu (main_menu)")  -- [pid=0,lastnode=49,bBranch=1,aschild=0,i=154,kdx=40]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 29, "IupMenu (main_menu)") -- [pid=0,lastnode=49,bBranch=1,aschild=0,i=154,kdx=40]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 50, "IupSubmenu (sub_menu_file)")  -- [pid=50,lastnode=50,bBranch=1,aschild=1,i=149,kdx=35]
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 50, "IupSubmenu (sub_menu_file)")  -- [pid=50,lastnode=50,bBranch=1,aschild=1,i=149,kdx=35]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 51, "IupMenu (file_menu)")  -- [pid=51,lastnode=51,bBranch=1,aschild=1,i=142,kdx=30]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 52, "IupMenuItem (item_new)")  -- [pid=52,lastnode=52,bBranch=0,aschild=1,i=109,kdx=9]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 53, "IupMenuItem (item_open)")  -- [pid=53,lastnode=53,bBranch=0,aschild=0,i=111,kdx=10]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 54, "IupMenuItem (item_save)")  -- [pid=54,lastnode=54,bBranch=0,aschild=0,i=113,kdx=11]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 55, "IupMenuItem (item_saveas)")  -- [pid=55,lastnode=55,bBranch=0,aschild=0,i=115,kdx=12]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 56, "IupMenuItem (item_revert)")  -- [pid=56,lastnode=56,bBranch=0,aschild=0,i=116,kdx=13]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 57, "IupSeparator")  -- [pid=57,lastnode=57,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 58, "IupMenuItem (item_pagesetup)")  -- [pid=58,lastnode=58,bBranch=0,aschild=0,i=117,kdx=14]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 59, "IupMenuItem (item_print)")  -- [pid=59,lastnode=59,bBranch=0,aschild=0,i=118,kdx=15]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 60, "IupSeparator")  -- [pid=60,lastnode=60,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 61, "IupSubmenu (Recent &Files)")  -- [pid=61,lastnode=61,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 62, "IupMenu (recent_menu)")  -- [pid=62,lastnode=62,bBranch=1,aschild=1,i=141,kdx=29]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 62, "IupSeparator")  -- [pid=62,lastnode=63,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 64, "IupMenuItem (item_exit)")  -- [pid=64,lastnode=64,bBranch=0,aschild=0,i=119,kdx=16]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 51, "IupSubmenu (sub_menu_edit)")  -- [pid=51,lastnode=65,bBranch=1,aschild=0,i=150,kdx=36]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 66, "IupMenu (edit_menu)")  -- [pid=66,lastnode=66,bBranch=1,aschild=1,i=143,kdx=31]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 67, "IupMenuItem (item_copy)")  -- [pid=67,lastnode=67,bBranch=0,aschild=1,i=120,kdx=17]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 68, "IupMenuItem (item_paste)")  -- [pid=68,lastnode=68,bBranch=0,aschild=0,i=122,kdx=18]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 66, "IupSubmenu (sub_menu_view)")  -- [pid=66,lastnode=69,bBranch=1,aschild=0,i=151,kdx=37]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 70, "IupMenu (view_menu)")  -- [pid=70,lastnode=70,bBranch=1,aschild=1,i=144,kdx=32]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 71, "IupMenuItem (item_zoomin)")  -- [pid=71,lastnode=71,bBranch=0,aschild=1,i=124,kdx=19]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 72, "IupMenuItem (item_zoomout)")  -- [pid=72,lastnode=72,bBranch=0,aschild=0,i=126,kdx=20]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 73, "IupMenuItem (item_actualsize)")  -- [pid=73,lastnode=73,bBranch=0,aschild=0,i=128,kdx=21]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 74, "IupMenuItem (item_zoomgrid)")  -- [pid=74,lastnode=74,bBranch=0,aschild=0,i=130,kdx=22]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 75, "IupSeparator")  -- [pid=75,lastnode=75,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 76, "IupMenuItem (item_background)")  -- [pid=76,lastnode=76,bBranch=0,aschild=0,i=132,kdx=23]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 77, "IupSeparator")  -- [pid=77,lastnode=77,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 78, "IupMenuItem (item_toolbar)")  -- [pid=78,lastnode=78,bBranch=0,aschild=0,i=133,kdx=24]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 79, "IupMenuItem (item_toolbox)")  -- [pid=79,lastnode=79,bBranch=0,aschild=0,i=135,kdx=25]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 80, "IupMenuItem (item_statusbar)")  -- [pid=80,lastnode=80,bBranch=0,aschild=0,i=137,kdx=26]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 70, "IupSubmenu (sub_menu_image)")  -- [pid=70,lastnode=81,bBranch=1,aschild=0,i=152,kdx=38]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 82, "IupMenu (image_menu)")  -- [pid=82,lastnode=82,bBranch=1,aschild=1,i=145,kdx=33]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 83, "IupMenuItem (&Resize...)")  -- [pid=83,lastnode=83,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 84, "IupMenuItem (&Mirror)")  -- [pid=84,lastnode=84,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 85, "IupMenuItem (&Flip)")  -- [pid=85,lastnode=85,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 86, "IupMenuItem (&Rotate 180¦)")  -- [pid=86,lastnode=86,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 87, "IupMenuItem (&Rotate +90¦ (clock-wise))")  -- [pid=87,lastnode=87,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 88, "IupMenuItem (&Rotate -90¦ (counter-clock))")  -- [pid=88,lastnode=88,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 89, "IupSeparator")  -- [pid=89,lastnode=89,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 90, "IupMenuItem (&Negative)")  -- [pid=90,lastnode=90,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 91, "IupMenuItem (&Brightness and Contrast...)")  -- [pid=91,lastnode=91,bBranch=0,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 82, "IupSubmenu (sub_menu_help)")  -- [pid=82,lastnode=92,bBranch=1,aschild=0,i=153,kdx=39]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 93, "IupMenu (help_menu)")  -- [pid=93,lastnode=93,bBranch=1,aschild=1,i=146,kdx=34]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 94, "IupMenuItem (item_help)")  -- [pid=94,lastnode=94,bBranch=0,aschild=1,i=139,kdx=27]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 95, "IupMenuItem (item_about)")  -- [pid=95,lastnode=95,bBranch=0,aschild=0,i=140,kdx=28]
+    end if
+
+elsif 0 then
+-- what I actually get:
+IupSetAttributeId(hierarchytree, "INSERTBRANCH", -1, "IupDialog (dialog)")  -- [pid=-1,lastnode=-1,bBranch=1,aschild=0,i=4,kdx=4]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 0, "IupVbox")  -- [pid=0,lastnode=0,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 1, "IupFrame")  -- [pid=1,lastnode=1,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 2, "IupHbox")  -- [pid=2,lastnode=2,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 3, "IupButton")  -- [pid=3,lastnode=3,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 4, "IupFill")  -- [pid=4,lastnode=4,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 2, "IupFrame")  -- [pid=2,lastnode=5,bBranch=1,aschild=1,i=0,kdx=0]*
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 6, "IupHbox")  -- [pid=6,lastnode=6,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 7, "IupFill")  -- [pid=7,lastnode=7,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 8, "IupButton")  -- [pid=8,lastnode=8,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 9, "IupFill")  -- [pid=9,lastnode=9,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 6, "IupFrame")  -- [pid=6,lastnode=10,bBranch=1,aschild=1,i=0,kdx=0]*
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 11, "IupHbox")  -- [pid=11,lastnode=11,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 12, "IupFill")  -- [pid=12,lastnode=12,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 13, "IupButton")  -- [pid=13,lastnode=13,bBranch=0,aschild=1,i=0,kdx=0]
+-->>>
+--create_control
+IupSetAttributeId(hierarchytree, "INSERTBRANCH", -1, "IupDialog (dialog)")  -- [pid=-1,lastnode=-1,bBranch=1,aschild=0,i=4,kdx=4]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 0, "IupVbox")  -- [pid=0,lastnode=0,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "INSERTBRANCH", 1, "IupFrame")  -- [pid=1,lastnode=1,bBranch=1,aschild=0,i=0,kdx=0]**
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 2, "IupHbox")  -- [pid=2,lastnode=2,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 3, "IupButton")  -- [pid=3,lastnode=3,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 4, "IupFill")  -- [pid=4,lastnode=4,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "INSERTBRANCH", 2, "IupFrame")  -- [pid=2,lastnode=5,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 6, "IupHbox")  -- [pid=6,lastnode=6,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 7, "IupFill")  -- [pid=7,lastnode=7,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 8, "IupButton")  -- [pid=8,lastnode=8,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 9, "IupFill")  -- [pid=9,lastnode=9,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "INSERTBRANCH", 6, "IupFrame")  -- [pid=6,lastnode=10,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDBRANCH", 11, "IupHbox")  -- [pid=11,lastnode=11,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 12, "IupFill")  -- [pid=12,lastnode=12,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytree, "ADDLEAF", 13, "IupButton")  -- [pid=13,lastnode=13,bBranch=0,aschild=1,i=0,kdx=0]
+
+--/*
+Warning - IupGLMakeCurrent not supported
+Warning - IupGLSwapBuffers not supported
+Warning - IupGLMakeCurrent not supported
+Warning - IupGLMakeCurrent not supported
+Warning - IupGLCanvas not supported
+Warning - IupGLCanvasOpen not supported
+{{20, "IupMessageDlg", 1,313,16,28, {}, {10, "mdlg", 0,313,9,12}},
+ {21, "IupSetStrAttribute", 2,314,49,49,
+  {{10, "mdlg", 0,314,24,27}, {2, "PARENTDIALOG", 0,314,31,42},
+   {10, "dlg", 0,314,46,48}}},
+ {21, "IupSetAttribute", 3,315,76,76,
+  {{10, "mdlg", 0,315,21,24}, {2, "DIALOGTYPE", 0,315,28,37},
+   {20, "iff", 0,315,41,43,
+    {{10, "is_error", 0,315,45,52}, {2, "ERROR", 0,315,57,61},
+     {2, "WARNING", 0,315,67,73}}, 0}}},
+ {21, "IupSetAttribute", 4,316,42,42,
+  {{10, "mdlg", 0,316,21,24}, {2, "BUTTONS", 0,316,28,34},
+   {2, "OK", 0,316,39,40}}},
+ {21, "IupSetStrAttribute", 5,317,74,74,
+  {{10, "mdlg", 0,317,24,27}, {2, "TITLE", 0,317,31,35},
+   {20, "iff", 0,317,39,41,
+    {{10, "is_error", 0,317,43,50}, {2, "Error", 0,317,55,59},
+     {2, "Warning", 0,317,65,71}}, 0}}},
+ {21, "IupSetStrAttribute", 6,318,46,46,
+  {{10, "mdlg", 0,318,24,27}, {2, "VALUE", 0,318,31,35},
+   {10, "message", 0,318,39,45}}},
+ {21, "IupSetStrAttribute", 7,442,77,77,
+  {{10, "zoom_lbl", 0,442,24,31}, {2, "TITLE", 0,442,35,39},
+   {2, "%.0f%%", 0,442,44,49},
+   {-5, "{", 0,442,53,53,
+    {{20, "floor", 0,442,54,58,
+      {{"*", {10, "zoom_factor", 0,442,60,70}, {7,100,0,442,72,74}}}, 0},
+     {1, "}", 0,442,76,76}}}}},
+ {21, "IupSetAttribute", 8,480,43,43,
+  {{10, "canvas", 0,480,21,26}, {2, "DIRTY", 0,480,30,34},
+   {2, "Yes", 0,480,39,41}}},
+ {21, "IupSetInt", 9,481,37,37,
+  {{10, "canvas", 0,481,15,20}, {2, "IMAGE", 0,481,24,28},
+   {10, "image", 0,481,32,36}}},
+ {21, "IupSetStrAttribute", 10,488,96,96,
+  {{10, "size_lbl", 0,488,28,35}, {2, "TITLE", 0,488,39,43},
+   {2, "%d x %d px", 0,488,48,57},
+   {-5, "{", 0,488,61,61,
+    {{20, "im_width", 0,488,62,69, {{10, "image", 0,488,71,75}}, 0},
+     {1, ",", 0,488,77,77},
+     {20, "im_height", 0,488,79,87, {{10, "image", 0,488,89,93}}, 0},
+     {1, "}", 0,488,95,95}}}}},
+ {21, "IupSetStrAttribute", 11,501,56,56,
+  {{10, "canvas", 0,501,28,33}, {2, "FILENAME", 0,501,37,44},
+   {10, "filename", 0,501,48,55}}},
+ {21, "IupSetStrAttribute", 12,503,86,86,
+  {{10, "dlg", 0,503,28,30}, {2, "TITLE", 0,503,34,38},
+   {2, "%s - Simple Paint", 0,503,43,59},
+   {20, "get_file_name", 0,503,63,75, {{10, "filename", 0,503,77,84}}, 0}}},
+ {21, "IupSetAttribute", 13,505,49,49,
+  {{10, "canvas", 0,505,25,30}, {2, "FILENAME", 0,505,34,41},
+   {10, "NULL", 0,505,45,48}}},
+ {21, "IupSetAttribute", 14,507,64,64,
+  {{10, "dlg", 0,507,25,27}, {2, "TITLE", 0,507,31,35},
+   {2, "Untitled - Simple Paint", 0,507,40,62}}},
+ {21, "IupSetAttribute", 15,525,63,63,
+  {{10, "canvas", 0,525,21,26}, {2, "DIRTY", 0,525,30,34},
+   {20, "iff", 0,525,38,40,
+    {{10, "dirty", 0,525,42,46}, {2, "Yes", 0,525,51,53},
+     {2, "No", 0,525,59,60}}, 0}}},
+ {21, "IupSetInt", 16,526,37,37,
+  {{10, "canvas", 0,526,15,20}, {2, "IMAGE", 0,526,24,28},
+   {10, "image", 0,526,32,36}}},
+ {21, "IupSetStrAttribute", 17,529,92,92,
+  {{10, "size_lbl", 0,529,24,31}, {2, "TITLE", 0,529,35,39},
+   {2, "%d x %d px", 0,529,44,53},
+   {-5, "{", 0,529,57,57,
+    {{20, "im_width", 0,529,58,65, {{10, "image", 0,529,67,71}}, 0},
+     {1, ",", 0,529,73,73},
+     {20, "im_height", 0,529,75,83, {{10, "image", 0,529,85,89}}, 0},
+     {1, "}", 0,529,91,91}}}}},
+ {21, "IupSetAttribute", 18,568,46,46,
+  {{10, "canvas", 0,568,25,30}, {2, "DIRTY", 0,568,34,38},
+   {2, "NO", 0,568,43,44}}},
+ {21, "IupSetStrAttribute", 19,596,86,86,
+  {{10, "dlg", 0,596,28,30}, {2, "TITLE", 0,596,34,38},
+   {2, "%s - Simple Paint", 0,596,43,59},
+   {20, "get_file_name", 0,596,63,75, {{10, "filename", 0,596,77,84}}, 0}}},
+ {21, "IupSetStrAttribute", 20,597,56,56,
+  {{10, "canvas", 0,597,28,33}, {2, "FILENAME", 0,597,37,44},
+   {10, "filename", 0,597,48,55}}},
+ {21, "IupSetAttribute", 21,598,46,46,
+  {{10, "canvas", 0,598,25,30}, {2, "DIRTY", 0,598,34,38},
+   {2, "NO", 0,598,43,44}}},
+ {21, "IupSetAttribute", 22,621,51,51,
+  {{10, "toolbar", 0,621,25,31}, {2, "FLOATING", 0,621,35,42},
+   {2, "YES", 0,621,47,49}}},
+ {21, "IupSetAttribute", 23,622,49,49,
+  {{10, "toolbar", 0,622,25,31}, {2, "VISIBLE", 0,622,35,41},
+   {2, "NO", 0,622,46,47}}},
+ {21, "IupSetAttribute", 24,623,53,53,
+  {{10, "item_toolbar", 0,623,25,36}, {2, "VALUE", 0,623,40,44},
+   {2, "OFF", 0,623,49,51}}},
+ {21, "IupSetAttribute", 25,625,50,50,
+  {{10, "toolbar", 0,625,25,31}, {2, "FLOATING", 0,625,35,42},
+   {2, "NO", 0,625,47,48}}},
+ {21, "IupSetAttribute", 26,626,50,50,
+  {{10, "toolbar", 0,626,25,31}, {2, "VISIBLE", 0,626,35,41},
+   {2, "YES", 0,626,46,48}}},
+ {21, "IupSetAttribute", 27,627,52,52,
+  {{10, "item_toolbar", 0,627,25,36}, {2, "VALUE", 0,627,40,44},
+   {2, "ON", 0,627,49,50}}},
+ {21, "IupSetAttribute", 28,634,53,53,
+  {{10, "statusbar", 0,634,25,33}, {2, "FLOATING", 0,634,37,44},
+   {2, "YES", 0,634,49,51}}},
+ {21, "IupSetAttribute", 29,635,51,51,
+  {{10, "statusbar", 0,635,25,33}, {2, "VISIBLE", 0,635,37,43},
+   {2, "NO", 0,635,48,49}}},
+ {21, "IupSetAttribute", 30,636,55,55,
+  {{10, "item_statusbar", 0,636,25,38}, {2, "VALUE", 0,636,42,46},
+   {2, "OFF", 0,636,51,53}}},
+ {21, "IupSetAttribute", 31,638,52,52,
+  {{10, "statusbar", 0,638,25,33}, {2, "FLOATING", 0,638,37,44},
+   {2, "NO", 0,638,49,50}}},
+ {21, "IupSetAttribute", 32,639,52,52,
+  {{10, "statusbar", 0,639,25,33}, {2, "VISIBLE", 0,639,37,43},
+   {2, "YES", 0,639,48,50}}},
+ {21, "IupSetAttribute", 33,640,54,54,
+  {{10, "item_statusbar", 0,640,25,38}, {2, "VALUE", 0,640,42,46},
+   {2, "ON", 0,640,51,52}}},
+ {20, "IupFileDlg", 34,662,19,28, {}, {10, "filedlg", 0,662,9,15}},
+ {21, "IupSetAttribute", 35,664,54,54,
+  {{10, "filedlg", 0,664,25,31}, {2, "DIALOGTYPE", 0,664,35,44},
+   {2, "OPEN", 0,664,49,52}}},
+ {21, "IupSetAttribute", 36,666,54,54,
+  {{10, "filedlg", 0,666,25,31}, {2, "DIALOGTYPE", 0,666,35,44},
+   {2, "SAVE", 0,666,49,52}}},
+ {21, "IupSetStrAttribute", 37,667,80,80,
+  {{10, "filedlg", 0,667,28,34}, {2, "FILE", 0,667,38,41},
+   {20, "IupGetAttribute", 0,667,45,59,
+    {{10, "canvas", 0,667,61,66}, {2, "FILENAME", 0,667,70,77}}, 0}}},
+ {21, "IupSetAttribute", 38,669,101,101,
+  {{10, "filedlg", 0,669,21,27}, {2, "EXTFILTER", 0,669,31,39},
+   {2, "Image Files|*.bmp;*.jpg;*.png;*.tif;*.tga|All Files|*.*|", 0,669,44,
+    99}}},
+ {21, "IupSetStrAttribute", 39,670,47,47,
+  {{10, "filedlg", 0,670,24,30}, {2, "DIRECTORY", 0,670,34,42},
+   {10, "d", 0,670,46,46}}},
+ {21, "IupSetAttributeHandle", 40,671,55,55,
+  {{10, "filedlg", 0,671,27,33}, {2, "PARENTDIALOG", 0,671,37,48},
+   {10, "dlg", 0,671,52,54}}},
+-- {20, "IupText", 41,755,12,18, {}, {10, "text", 0,755,5,8}},
+-- {21, "IupSetAttribute", 42,756,42,42,
+--  {{10, "text", 0,756,21,24}, {2, "EXPAND", 0,756,28,33},
+--   {2, "YES", 0,756,38,40}}},
+-- {21, "IupSetStrAttribute", 43,757,42,42,
+--  {{10, "text", 0,757,24,27}, {2, "VALUE", 0,757,31,35},
+--   {10, "txt", 0,757,39,41}}},
+-- {21, "IupSetStrAttribute", 44,758,42,42,
+--  {{10, "text", 0,758,24,27}, {2, "FONT", 0,758,31,34},
+--   {10, "font", 0,758,38,41}}},
+-- {21, "IupSetAttribute", 45,759,49,49,
+--  {{10, "text", 0,759,21,24}, {2, "VISIBLECOLUMNS", 0,759,28,41},
+--   {2, "20", 0,759,46,47}}},
+-- {20, "IupDialog", 46,761,16,24, {{10, "text", 0,761,26,29}},
+--  {10, "text_dlg", 0,761,5,12}},
+-- {21, "IupSetStrAttribute", 47,763,56,56,
+--  {{10, "text_dlg", 0,763,24,31}, {2, "TITLE", 0,763,35,39},
+--   {2, "Enter Text:", 0,763,44,54}}},
+-- {21, "IupSetAttribute", 48,764,45,45,
+--  {{10, "text_dlg", 0,764,21,28}, {2, "MINBOX", 0,764,32,37},
+--   {2, "NO", 0,764,42,43}}},
+-- {21, "IupSetAttribute", 49,765,45,45,
+--  {{10, "text_dlg", 0,765,21,28}, {2, "MAXBOX", 0,765,32,37},
+--   {2, "NO", 0,765,42,43}}},
+-- {21, "IupSetCallback", 50,766,73,73,
+--  {{10, "text_dlg", 0,766,20,27}, {2, "K_CR", 0,766,31,34},
+--   {20, "Icallback", 0,766,38,46,
+--  {{2, "tool_get_text_enter_cb", 0,766,49,70}}, 0}}},
+ {21, "IupSetAttributeHandle", 51,767,60,60,
+  {{10, "text_dlg", 0,767,27,34}, {2, "PARENTDIALOG", 0,767,38,49},
+   {10, "toolbox", 0,767,53,59}}},
+ {21, "IupSetStrAttribute", 52,772,48,48,
+  {{10, "toolbox", 0,772,24,30}, {2, "TOOLTEXT", 0,772,34,41},
+   {10, "txt", 0,772,45,47}}},
+ {21, "IupSetInt", 53,936,44,44,
+  {{10, "canvas", 0,936,15,20}, {2, "cdCanvas", 0,936,24,31},
+   {10, "cd_canvas", 0,936,35,43}}},
+ {21, "IupSetInt", 54,1037,51,51,
+  {{10, "canvas", 0,1037,31,36}, {2, "START_X", 0,1037,40,46},
+   {10, "x", 0,1037,50,50}}},
+ {21, "IupSetInt", 55,1038,51,51,
+  {{10, "canvas", 0,1038,31,36}, {2, "START_Y", 0,1038,40,46},
+   {10, "y", 0,1038,50,50}}},
+ {21, "IupSetInt", 56,1039,65,65,
+  {{10, "canvas", 0,1039,31,36}, {2, "START_CURSOR_X", 0,1039,40,53},
+   {10, "cursor_x", 0,1039,57,64}}},
+ {21, "IupSetInt", 57,1040,65,65,
+  {{10, "canvas", 0,1040,31,36}, {2, "START_CURSOR_Y", 0,1040,40,53},
+   {10, "cursor_y", 0,1040,57,64}}},
+ {21, "IupSetAttribute", 58,1075,63,63,
+  {{10, "canvas", 0,1075,41,46}, {2, "DIRTY", 0,1075,50,54},
+   {2, "Yes", 0,1075,59,61}}},
+ {21, "IupSetInt", 59,1079,55,55,
+  {{10, "canvas", 0,1079,35,40}, {2, "START_X", 0,1079,44,50},
+   {10, "x", 0,1079,54,54}}},
+ {21, "IupSetInt", 60,1080,55,55,
+  {{10, "canvas", 0,1080,35,40}, {2, "START_Y", 0,1080,44,50},
+   {10, "y", 0,1080,54,54}}},
+ {21, "IupSetAttribute", 61,1094,68,68,
+  {{10, "canvas", 0,1094,45,50}, {2, "OVERLAY", 0,1094,54,60},
+   {10, "NULL", 0,1094,64,67}}},
+ {21, "IupSetAttribute", 62,1095,67,67,
+  {{10, "canvas", 0,1095,45,50}, {2, "DIRTY", 0,1095,54,58},
+   {2, "Yes", 0,1095,63,65}}},
+ {21, "IupSetAttribute", 63,1108,63,63,
+  {{10, "canvas", 0,1108,41,46}, {2, "DIRTY", 0,1108,50,54},
+   {2, "Yes", 0,1108,59,61}}},
+ {21, "IupSetStrAttribute", 64,1163,96,96,
+  {{10, "status_lbl", 0,1163,32,41}, {2, "TITLE", 0,1163,45,49},
+   {2, "(%4d, %4d) = %3d %3d %3d", 0,1163,54,77},
+   {-5, "{", 0,1163,81,81,
+    {{10, "x", 0,1163,82,82}, {1, ",", 0,1163,83,83},
+     {10, "y", 0,1163,85,85}, {1, ",", 0,1163,86,86},
+     {10, "r", 0,1163,88,88}, {1, ",", 0,1163,89,89},
+     {10, "g", 0,1163,91,91}, {1, ",", 0,1163,92,92},
+     {10, "b", 0,1163,94,94}, {1, "}", 0,1163,95,95}}}}},
+ {21, "IupSetInt", 65,1177,65,65,
+  {{10, "canvas", 0,1177,31,36}, {2, "START_CURSOR_X", 0,1177,40,53},
+   {10, "cursor_x", 0,1177,57,64}}},
+ {21, "IupSetInt", 66,1178,65,65,
+  {{10, "canvas", 0,1178,31,36}, {2, "START_CURSOR_Y", 0,1178,40,53},
+   {10, "cursor_y", 0,1178,57,64}}},
+ {21, "IupSetAttribute", 67,1185,59,59,
+  {{10, "canvas", 0,1185,37,42}, {2, "DIRTY", 0,1185,46,50},
+   {2, "Yes", 0,1185,55,57}}},
+ {21, "IupSetInt", 68,1189,51,51,
+  {{10, "canvas", 0,1189,31,36}, {2, "START_X", 0,1189,40,46},
+   {10, "x", 0,1189,50,50}}},
+ {21, "IupSetInt", 69,1190,51,51,
+  {{10, "canvas", 0,1190,31,36}, {2, "START_Y", 0,1190,40,46},
+   {10, "y", 0,1190,50,50}}},
+ {21, "IupSetInt", 70,1192,49,49,
+  {{10, "canvas", 0,1192,31,36}, {2, "END_X", 0,1192,40,44},
+   {10, "x", 0,1192,48,48}}},
+ {21, "IupSetInt", 71,1193,49,49,
+  {{10, "canvas", 0,1193,31,36}, {2, "END_Y", 0,1193,40,44},
+   {10, "y", 0,1193,48,48}}},
+ {21, "IupSetAttribute", 72,1194,61,61,
+  {{10, "canvas", 0,1194,37,42}, {2, "OVERLAY", 0,1194,46,52},
+   {2, "Yes", 0,1194,57,59}}},
+ {21, "IupSetAttribute", 73,1223,63,63,
+  {{10, "item_save", 0,1223,21,29}, {2, "ACTIVE", 0,1223,33,38},
+   {20, "iff", 0,1223,42,44,
+    {{10, "dirty", 0,1223,46,50}, {2, "YES", 0,1223,53,55},
+     {2, "NO", 0,1223,59,60}}, 0}}},
+ {21, "IupSetAttribute", 74,1224,86,86,
+  {{10, "item_revert", 0,1224,21,31}, {2, "ACTIVE", 0,1224,35,40},
+   {20, "iff", 0,1224,44,46,
+    {{"and", {10, "dirty", 0,1224,48,52},
+      {20, "length", 0,1224,58,63, {{10, "filename", 0,1224,65,72}}, 0}},
+     {2, "YES", 0,1224,76,78}, {2, "NO", 0,1224,82,83}}, 0}}},
+ {21, "IupSetAttribute", 75,1233,51,51,
+  {{10, "item_paste", 0,1233,25,34}, {2, "ACTIVE", 0,1233,38,43},
+   {2, "NO", 0,1233,48,49}}},
+ {21, "IupSetAttribute", 76,1235,52,52,
+  {{10, "item_paste", 0,1235,25,34}, {2, "ACTIVE", 0,1235,38,43},
+   {2, "YES", 0,1235,48,50}}},
+ {21, "IupSetInt", 77,1388,71,71,
+  {{10, "clipboard", 0,1388,15,23}, {2, "NATIVEIMAGE", 0,1388,27,37},
+   {20, "IupGetImageNativeHandle", 0,1388,41,63,
+    {{10, "image", 0,1388,65,69}}, 0}}},
+ {20, "IupColorDlg", 78,1408,20,30, {}, {10, "colordlg", 0,1408,9,16}},
+ {21, "IupSetStrAttribute", 79,1410,53,53,
+  {{10, "colordlg", 0,1410,24,31}, {2, "VALUE", 0,1410,35,39},
+   {10, "background", 0,1410,43,52}}},
+ {21, "IupSetAttributeHandle", 80,1414,56,56,
+  {{10, "colordlg", 0,1414,27,34}, {2, "PARENTDIALOG", 0,1414,38,49},
+   {10, "dlg", 0,1414,53,55}}},
+ {21, "IupSetAttribute", 81,1435,54,54,
+  {{10, "item_zoomgrid", 0,1435,25,37}, {2, "VALUE", 0,1435,41,45},
+   {2, "OFF", 0,1435,50,52}}},
+ {21, "IupSetAttribute", 82,1437,53,53,
+  {{10, "item_zoomgrid", 0,1437,25,37}, {2, "VALUE", 0,1437,41,45},
+   {2, "ON", 0,1437,50,51}}},
+ {21, "IupSetAttribute", 83,1461,53,53,
+  {{10, "item_toolbox", 0,1461,25,36}, {2, "VALUE", 0,1461,40,44},
+   {2, "OFF", 0,1461,49,51}}},
+ {21, "IupSetAttribute", 84,1465,52,52,
+  {{10, "item_toolbox", 0,1465,25,36}, {2, "VALUE", 0,1465,40,44},
+   {2, "ON", 0,1465,49,50}}},
+ {21, "IupSetAttribute", 85,1500,49,49,
+  {{10, "item_toolbox", 0,1500,21,32}, {2, "VALUE", 0,1500,36,40},
+   {2, "OFF", 0,1500,45,47}}},
+ {21, "IupSetInt", 86,1511,51,51,
+  {{10, "toolbox", 0,1511,19,25}, {2, "TOOLINDEX", 0,1511,29,37},
+   {10, "tool_index", 0,1511,41,50}}},
+ {21, "IupSetAttribute", 87,1514,54,54,
+  {{10, "canvas", 0,1514,29,34}, {2, "CURSOR", 0,1514,38,43},
+   {2, "ARROW", 0,1514,48,52}}},
+ {21, "IupSetAttribute", 88,1516,54,54,
+  {{10, "canvas", 0,1516,29,34}, {2, "CURSOR", 0,1516,38,43},
+   {2, "CROSS", 0,1516,48,52}}},
+ {20, "Icallback", 89,1524,27,35, {{2, "tool_action_cb", 0,1524,38,51}},
+  {10, "cb_tool_action", 0,1524,10,23}},
+ {20, "IupColorDlg", 90,1528,21,31, {}, {10, "colordlg2", 0,1528,9,17}},
+ {21, "IupSetStrAttribute", 91,1530,49,49,
+  {{10, "colordlg2", 0,1530,24,32}, {2, "VALUE", 0,1530,36,40},
+   {10, "color", 0,1530,44,48}}},
+ {21, "IupSetAttributeHandle", 92,1533,81,81,
+  {{10, "colordlg2", 0,1533,27,35}, {2, "PARENTDIALOG", 0,1533,39,50},
+   {20, "IupGetDialog", 0,1533,54,65, {{10, "toolcolor_btn", 0,1533,67,79}},
+    0}}},
+ {21, "IupSetStrAttribute", 93,1540,59,59,
+  {{10, "toolcolor_btn", 0,1540,28,40}, {2, "BGCOLOR", 0,1540,44,50},
+   {10, "color", 0,1540,54,58}}},
+ {21, "IupSetStrAttribute", 94,1552,51,51,
+  {{10, "toolbox", 0,1552,24,30}, {2, "TOOLWIDTH", 0,1552,34,42},
+   {10, "value", 0,1552,46,50}}},
+ {21, "IupSetStrAttribute", 95,1559,51,51,
+  {{10, "toolbox", 0,1559,24,30}, {2, "TOOLSTYLE", 0,1559,34,42},
+   {10, "value", 0,1559,46,50}}},
+ {20, "IupFontDlg", 96,1564,20,29, {}, {10, "font_dlg", 0,1564,9,16}},
+ {21, "IupSetAttributeHandle", 97,1568,79,79,
+  {{10, "font_dlg", 0,1568,27,34}, {2, "PARENTDIALOG", 0,1568,38,49},
+   {20, "IupGetDialog", 0,1568,53,64, {{10, "toolfont_btn", 0,1568,66,77}},
+    0}}},
+ {21, "IupSetStrAttribute", 98,1569,47,47,
+  {{10, "font_dlg", 0,1569,24,31}, {2, "VALUE", 0,1569,35,39},
+   {10, "font", 0,1569,43,46}}},
+ {21, "IupSetStrAttribute", 99,1576,53,53,
+  {{10, "toolbox", 0,1576,28,34}, {2, "TOOLFONT", 0,1576,38,45},
+   {10, "font", 0,1576,49,52}}},
+ {21, "IupSetStrAttribute", 100,1585,67,67,
+  {{10, "filltol_label", 0,1585,24,36}, {2, "TITLE", 0,1585,40,44},
+   {2, "Tol.: %.0f%%", 0,1585,49,60},
+   {-5, "{", 0,1585,64,64,
+    {{10, "v", 0,1585,65,65}, {1, "}", 0,1585,66,66}}}}},
+ {21, "IupSetInt", 101,1611,31,31,
+  {{10, "dlg", 0,1611,15,17}, {2, "_OLD_X", 0,1611,21,26},
+   {10, "x", 0,1611,30,30}}},
+ {21, "IupSetInt", 102,1612,31,31,
+  {{10, "dlg", 0,1612,15,17}, {2, "_OLD_Y", 0,1612,21,26},
+   {10, "y", 0,1612,30,30}}},
+ {21, "IupSetInt", 103,1744,45,45,
+  {{10, "canvas", 0,1744,19,24}, {2, "IMAGE", 0,1744,28,32},
+   {10, "new_image", 0,1744,36,44}}},
+ {21, "IupSetInt", 104,1749,41,41,
+  {{10, "canvas", 0,1749,19,24}, {2, "IMAGE", 0,1749,28,32},
+   {10, "image", 0,1749,36,40}}},
+ {21, "IupSetInt", 105,1750,49,49,
+  {{10, "canvas", 0,1750,19,24}, {2, "ORIGINAL_IMAGE", 0,1750,28,41},
+   {10, "NULL", 0,1750,45,48}}},
+ {21, "IupSetInt", 106,1751,44,44,
+  {{10, "canvas", 0,1751,19,24}, {2, "NEW_IMAGE", 0,1751,28,36},
+   {10, "NULL", 0,1751,40,43}}},
+ {21, "IupSetInt", 107,1768,46,46,
+  {{10, "canvas", 0,1768,15,20}, {2, "ORIGINAL_IMAGE", 0,1768,24,37},
+   {10, "image", 0,1768,41,45}}},
+ {21, "IupSetInt", 108,1769,45,45,
+  {{10, "canvas", 0,1769,15,20}, {2, "NEW_IMAGE", 0,1769,24,32},
+   {10, "new_image", 0,1769,36,44}}},
+ {20, "IupMenuItem", 109,1798,16,26,
+  {{2, "&New\\tCtrl+N", 0,1798,29,40}, {2, "ACTION", 0,1798,45,50},
+   {20, "Icallback", 0,1798,54,62,
+    {{2, "item_new_action_cb", 0,1798,65,82}}, 0}},
+  {10, "item_new", 0,1798,5,12}},
+ {21, "IupSetAttribute", 110,1799,53,53,
+  {{10, "item_new", 0,1799,21,28}, {2, "IMAGE", 0,1799,32,36},
+   {2, "IUP_FileNew", 0,1799,41,51}}},
+ {20, "IupMenuItem", 111,1801,17,27,
+  {{2, "&Open...\\tCtrl+O", 0,1801,30,45}, {2, "ACTION", 0,1801,50,55},
+   {20, "Icallback", 0,1801,59,67,
+    {{2, "item_open_action_cb", 0,1801,70,88}}, 0}},
+  {10, "item_open", 0,1801,5,13}},
+ {21, "IupSetAttribute", 112,1802,55,55,
+  {{10, "item_open", 0,1802,21,29}, {2, "IMAGE", 0,1802,33,37},
+   {2, "IUP_FileOpen", 0,1802,42,53}}},
+ {20, "IupMenuItem", 113,1804,17,27,
+  {{2, "&Save\\tCtrl+S", 0,1804,30,42}, {2, "ACTION", 0,1804,47,52},
+   {20, "Icallback", 0,1804,56,64,
+    {{2, "item_save_action_cb", 0,1804,67,85}}, 0}},
+  {10, "item_save", 0,1804,5,13}},
+ {21, "IupSetAttribute", 114,1806,55,55,
+  {{10, "item_save", 0,1806,21,29}, {2, "IMAGE", 0,1806,33,37},
+   {2, "IUP_FileSave", 0,1806,42,53}}},
+ {20, "IupMenuItem", 115,1808,19,29,
+  {{2, "Save &As...", 0,1808,32,42}, {2, "ACTION", 0,1808,47,52},
+   {20, "Icallback", 0,1808,56,64,
+    {{2, "item_saveas_action_cb", 0,1808,67,87}}, 0}},
+  {10, "item_saveas", 0,1808,5,15}},
+ {20, "IupMenuItem", 116,1811,19,29,
+  {{2, "&Revert", 0,1811,32,38}, {2, "ACTION", 0,1811,43,48},
+   {20, "Icallback", 0,1811,52,60,
+    {{2, "item_revert_action_cb", 0,1811,63,83}}, 0}},
+  {10, "item_revert", 0,1811,5,15}},
+ {20, "IupMenuItem", 117,1814,22,32,
+  {{2, "Page Set&up...", 0,1814,35,48}, {2, "ACTION", 0,1814,53,58},
+   {20, "Icallback", 0,1814,62,70,
+    {{2, "item_pagesetup_action_cb", 0,1814,73,96}}, 0}},
+  {10, "item_pagesetup", 0,1814,5,18}},
+ {20, "IupMenuItem", 118,1816,18,28,
+  {{2, "&Print...\\tCtrl+P", 0,1816,31,47}, {2, "ACTION", 0,1816,52,57},
+   {20, "Icallback", 0,1816,61,69,
+    {{2, "item_print_action_cb", 0,1816,72,91}}, 0}},
+  {10, "item_print", 0,1816,5,14}},
+ {20, "IupMenuItem", 119,1818,17,27,
+  {{2, "E&xit", 0,1818,30,34}, {2, "ACTION", 0,1818,39,44},
+   {20, "Icallback", 0,1818,48,56,
+    {{2, "item_exit_action_cb", 0,1818,59,77}}, 0}},
+  {10, "item_exit", 0,1818,5,13}},
+ {20, "IupMenuItem", 120,1820,17,27,
+  {{2, "&Copy\\tCtrl+C", 0,1820,30,42}, {2, "ACTION", 0,1820,47,52},
+   {20, "Icallback", 0,1820,56,64,
+    {{2, "item_copy_action_cb", 0,1820,67,85}}, 0}},
+  {10, "item_copy", 0,1820,5,13}},
+ {21, "IupSetAttribute", 121,1822,55,55,
+  {{10, "item_copy", 0,1822,21,29}, {2, "IMAGE", 0,1822,33,37},
+   {2, "IUP_EditCopy", 0,1822,42,53}}},
+ {20, "IupMenuItem", 122,1824,18,28,
+  {{2, "&Paste\\tCtrl+V", 0,1824,31,44}, {2, "ACTION", 0,1824,49,54},
+   {20, "Icallback", 0,1824,58,66,
+    {{2, "item_paste_action_cb", 0,1824,69,88}}, 0}},
+  {10, "item_paste", 0,1824,5,14}},
+ {21, "IupSetAttribute", 123,1826,57,57,
+  {{10, "item_paste", 0,1826,21,30}, {2, "IMAGE", 0,1826,34,38},
+   {2, "IUP_EditPaste", 0,1826,43,55}}},
+ {20, "IupMenuItem", 124,1828,19,29,
+  {{2, "Zoom &In\\tCtrl++", 0,1828,32,47}, {2, "ACTION", 0,1828,52,57},
+   {20, "Icallback", 0,1828,61,69, {{2, "zoomin_action_cb", 0,1828,72,87}},
+    0}}, {10, "item_zoomin", 0,1828,5,15}},
+ {21, "IupSetAttribute", 125,1829,55,55,
+  {{10, "item_zoomin", 0,1829,21,31}, {2, "IMAGE", 0,1829,35,39},
+   {2, "IUP_ZoomIn", 0,1829,44,53}}},
+ {20, "IupMenuItem", 126,1831,20,30,
+  {{2, "Zoom &Out\\tCtrl+-", 0,1831,33,49}, {2, "ACTION", 0,1831,54,59},
+   {20, "Icallback", 0,1831,63,71, {{2, "zoomout_action_cb", 0,1831,74,90}},
+    0}}, {10, "item_zoomout", 0,1831,5,16}},
+ {21, "IupSetAttribute", 127,1832,57,57,
+  {{10, "item_zoomout", 0,1832,21,32}, {2, "IMAGE", 0,1832,36,40},
+   {2, "IUP_ZoomOut", 0,1832,45,55}}},
+ {20, "IupMenuItem", 128,1834,23,33,
+  {{2, "&Actual Size\\tCtrl+0", 0,1834,36,55}, {2, "ACTION", 0,1834,60,65},
+   {20, "Icallback", 0,1834,69,77,
+    {{2, "actualsize_action_cb", 0,1834,80,99}}, 0}},
+  {10, "item_actualsize", 0,1834,5,19}},
+ {21, "IupSetAttribute", 129,1835,67,67,
+  {{10, "item_actualsize", 0,1835,21,35}, {2, "IMAGE", 0,1835,39,43},
+   {2, "IUP_ZoomActualSize", 0,1835,48,65}}},
+ {20, "IupMenuItem", 130,1837,21,31,
+  {{2, "&Zoom Grid", 0,1837,34,43}, {2, "ACTION", 0,1837,48,53},
+   {20, "Icallback", 0,1837,57,65,
+    {{2, "item_zoomgrid_action_cb", 0,1837,68,90}}, 0}},
+  {10, "item_zoomgrid", 0,1837,5,17}},
+ {21, "IupSetAttribute", 131,1839,49,49,
+  {{10, "item_zoomgrid", 0,1839,21,33}, {2, "VALUE", 0,1839,37,41},
+   {2, "ON", 0,1839,46,47}}},
+ {20, "IupMenuItem", 132,1841,23,33,
+  {{2, "&Background...", 0,1841,36,49}, {2, "ACTION", 0,1841,54,59},
+   {20, "Icallback", 0,1841,63,71,
+    {{2, "item_background_action_cb", 0,1841,74,98}}, 0}},
+  {10, "item_background", 0,1841,5,19}},
+ {20, "IupMenuItem", 133,1843,20,30,
+  {{2, "&Toobar", 0,1843,33,39}, {2, "ACTION", 0,1843,44,49},
+   {20, "Icallback", 0,1843,53,61,
+    {{2, "item_toolbar_action_cb", 0,1843,64,85}}, 0}},
+  {10, "item_toolbar", 0,1843,5,16}},
+ {21, "IupSetAttribute", 134,1844,48,48,
+  {{10, "item_toolbar", 0,1844,21,32}, {2, "VALUE", 0,1844,36,40},
+   {2, "ON", 0,1844,45,46}}},
+ {20, "IupMenuItem", 135,1846,20,30,
+  {{2, "&Toobox", 0,1846,33,39}, {2, "ACTION", 0,1846,44,49},
+   {20, "Icallback", 0,1846,53,61,
+    {{2, "item_toolbox_action_cb", 0,1846,64,85}}, 0}},
+  {10, "item_toolbox", 0,1846,5,16}},
+ {21, "IupSetAttribute", 136,1849,48,48,
+  {{10, "item_toolbox", 0,1849,21,32}, {2, "VALUE", 0,1849,36,40},
+   {2, "ON", 0,1849,45,46}}},
+ {20, "IupMenuItem", 137,1851,22,32,
+  {{2, "&Statusbar", 0,1851,35,44}, {2, "ACTION", 0,1851,49,54},
+   {20, "Icallback", 0,1851,58,66,
+    {{2, "item_statusbar_action_cb", 0,1851,69,92}}, 0}},
+  {10, "item_statusbar", 0,1851,5,18}},
+ {21, "IupSetAttribute", 138,1852,50,50,
+  {{10, "item_statusbar", 0,1852,21,34}, {2, "VALUE", 0,1852,38,42},
+   {2, "ON", 0,1852,47,48}}},
+ {20, "IupMenuItem", 139,1854,17,27,
+  {{2, "&Help...", 0,1854,30,37}, {2, "ACTION", 0,1854,42,47},
+   {20, "Icallback", 0,1854,51,59,
+    {{2, "item_help_action_cb", 0,1854,62,80}}, 0}},
+  {10, "item_help", 0,1854,5,13}},
+ {20, "IupMenuItem", 140,1856,18,28,
+  {{2, "&About...", 0,1856,31,39}, {2, "ACTION", 0,1856,44,49},
+   {20, "Icallback", 0,1856,53,61,
+    {{2, "item_about_action_cb", 0,1856,64,83}}, 0}},
+  {10, "item_about", 0,1856,5,14}},
+ {20, "IupMenu", 141,1858,19,25, {{-5, "{", 0,1858,27,27, {}}},
+  {10, "recent_menu", 0,1858,5,15}},
+ {20, "IupMenu", 142,1860,17,23,
+  {{-5, "{", 0,1860,25,25,
+    {{10, "item_new", 0,1861,26,33}, {1, ",", 0,1861,34,34},
+     {10, "item_open", 0,1862,26,34}, {1, ",", 0,1862,35,35},
+     {10, "item_save", 0,1863,26,34}, {1, ",", 0,1863,35,35},
+     {10, "item_saveas", 0,1864,26,36}, {1, ",", 0,1864,37,37},
+     {10, "item_revert", 0,1865,26,36}, {1, ",", 0,1865,37,37},
+     {20, "IupSeparator", 0,1866,26,37, {}, 0}, {1, ",", 0,1866,40,40},
+     {10, "item_pagesetup", 0,1867,26,39}, {1, ",", 0,1867,40,40},
+     {10, "item_print", 0,1868,26,35}, {1, ",", 0,1868,36,36},
+     {20, "IupSeparator", 0,1869,26,37, {}, 0}, {1, ",", 0,1869,40,40},
+     {20, "IupSubmenu", 0,1870,26,35,
+      {{2, "Recent &Files", 0,1870,38,50},
+       {10, "recent_menu", 0,1870,54,64}}, 0}, {1, ",", 0,1870,66,66},
+     {20, "IupSeparator", 0,1871,26,37, {}, 0}, {1, ",", 0,1871,40,40},
+     {10, "item_exit", 0,1872,26,34}, {1, "}", 0,1872,35,35}}}},
+  {10, "file_menu", 0,1860,5,13}},
+ {20, "IupMenu", 143,1873,17,23,
+  {{-5, "{", 0,1873,25,25,
+    {{10, "item_copy", 0,1874,26,34}, {1, ",", 0,1874,35,35},
+     {10, "item_paste", 0,1875,26,35}, {1, "}", 0,1875,36,36}}}},
+  {10, "edit_menu", 0,1873,5,13}},
+ {20, "IupMenu", 144,1876,17,23,
+  {{-5, "{", 0,1876,25,25,
+    {{10, "item_zoomin", 0,1877,26,36}, {1, ",", 0,1877,37,37},
+     {10, "item_zoomout", 0,1878,26,37}, {1, ",", 0,1878,38,38},
+     {10, "item_actualsize", 0,1879,26,40}, {1, ",", 0,1879,41,41},
+     {10, "item_zoomgrid", 0,1880,26,38}, {1, ",", 0,1880,39,39},
+     {20, "IupSeparator", 0,1881,26,37, {}, 0}, {1, ",", 0,1881,40,40},
+     {10, "item_background", 0,1882,26,40}, {1, ",", 0,1882,41,41},
+     {20, "IupSeparator", 0,1883,26,37, {}, 0}, {1, ",", 0,1883,40,40},
+     {10, "item_toolbar", 0,1884,26,37}, {1, ",", 0,1884,38,38},
+     {10, "item_toolbox", 0,1885,26,37}, {1, ",", 0,1885,38,38},
+     {10, "item_statusbar", 0,1886,26,39}, {1, "}", 0,1886,40,40}}}},
+  {10, "view_menu", 0,1876,5,13}},
+ {20, "IupMenu", 145,1887,18,24,
+  {{-5, "{", 0,1887,26,26,
+    {{20, "IupMenuItem", 0,1888,27,37,
+      {{2, "&Resize...", 0,1888,40,49}, {2, "ACTION", 0,1888,54,59},
+       {20, "Icallback", 0,1888,63,71,
+        {{2, "item_resize_action_cb", 0,1888,74,94}}, 0}}, 0},
+     {1, ",", 0,1888,98,98},
+     {20, "IupMenuItem", 0,1889,27,37,
+      {{2, "&Mirror", 0,1889,40,46}, {2, "ACTION", 0,1889,51,56},
+       {20, "Icallback", 0,1889,60,68,
+        {{2, "item_mirror_action_cb", 0,1889,71,91}}, 0}}, 0},
+     {1, ",", 0,1889,95,95},
+     {20, "IupMenuItem", 0,1890,27,37,
+      {{2, "&Flip", 0,1890,40,44}, {2, "ACTION", 0,1890,49,54},
+       {20, "Icallback", 0,1890,58,66,
+        {{2, "item_flip_action_cb", 0,1890,69,87}}, 0}}, 0},
+     {1, ",", 0,1890,91,91},
+     {20, "IupMenuItem", 0,1891,27,37,
+      {{2, {38,82,111,116,97,116,101,32,49,56,48,186}, 0,1891,40,51},
+       {2, "ACTION", 0,1891,56,61},
+       {20, "Icallback", 0,1891,65,73,
+        {{2, "item_rotate180_action_cb", 0,1891,76,99}}, 0}}, 0},
+     {1, ",", 0,1891,103,103},
+     {20, "IupMenuItem", 0,1892,27,37,
+      {{2,
+        {38,82,111,116,97,116,101,32,43,57,48,186,32,40,99,108,111,99,107,
+         45,119,105,115,101,41}, 0,1892,40,64}, {2, "ACTION", 0,1892,69,74},
+       {20, "Icallback", 0,1892,78,86,
+        {{2, "item_rotate90cw_action_cb", 0,1892,89,113}}, 0}}, 0},
+     {1, ",", 0,1892,117,117},
+     {20, "IupMenuItem", 0,1893,27,37,
+      {{2,
+        {38,82,111,116,97,116,101,32,45,57,48,186,32,40,99,111,117,110,116,
+         101,114,45,99,108,111,99,107,41}, 0,1893,40,67},
+       {2, "ACTION", 0,1893,72,77},
+       {20, "Icallback", 0,1893,81,89,
+        {{2, "item_rotate90ccw_action_cb", 0,1893,92,117}}, 0}}, 0},
+     {1, ",", 0,1893,121,121}, {20, "IupSeparator", 0,1894,27,38, {}, 0},
+     {1, ",", 0,1894,41,41},
+     {20, "IupMenuItem", 0,1895,27,37,
+      {{2, "&Negative", 0,1895,40,48}, {2, "ACTION", 0,1895,53,58},
+       {20, "Icallback", 0,1895,62,70,
+        {{2, "item_negative_action_cb", 0,1895,73,95}}, 0}}, 0},
+     {1, ",", 0,1895,99,99},
+     {20, "IupMenuItem", 0,1896,27,37,
+      {{2, "&Brightness and Contrast...", 0,1896,40,66},
+       {2, "ACTION", 0,1896,71,76},
+       {20, "Icallback", 0,1896,80,88,
+        {{2, "item_brightcont_action_cb", 0,1896,91,115}}, 0}}, 0},
+     {1, "}", 0,1896,119,119}}}}, {10, "image_menu", 0,1887,5,14}},
+ {20, "IupMenu", 146,1897,17,23,
+  {{-5, "{", 0,1897,25,25,
+    {{10, "item_help", 0,1898,26,34}, {1, ",", 0,1898,35,35},
+     {10, "item_about", 0,1899,26,35}, {1, "}", 0,1899,36,36}}}},
+  {10, "help_menu", 0,1897,5,13}},
+ {21, "IupSetCallback", 147,1901,72,72,
+  {{10, "file_menu", 0,1901,20,28}, {2, "OPEN_CB", 0,1901,32,38},
+   {20, "Icallback", 0,1901,42,50, {{2, "file_menu_open_cb", 0,1901,53,69}},
+    0}}},
+ {21, "IupSetCallback", 148,1902,72,72,
+  {{10, "edit_menu", 0,1902,20,28}, {2, "OPEN_CB", 0,1902,32,38},
+   {20, "Icallback", 0,1902,42,50, {{2, "edit_menu_open_cb", 0,1902,53,69}},
+    0}}},
+ {20, "IupSubmenu", 149,1904,21,30,
+  {{2, "&File", 0,1904,33,37}, {10, "file_menu", 0,1904,41,49}},
+  {10, "sub_menu_file", 0,1904,5,17}},
+ {20, "IupSubmenu", 150,1905,21,30,
+  {{2, "&Edit", 0,1905,33,37}, {10, "edit_menu", 0,1905,41,49}},
+  {10, "sub_menu_edit", 0,1905,5,17}},
+ {20, "IupSubmenu", 151,1906,21,30,
+  {{2, "&View", 0,1906,33,37}, {10, "view_menu", 0,1906,41,49}},
+  {10, "sub_menu_view", 0,1906,5,17}},
+ {20, "IupSubmenu", 152,1907,22,31,
+  {{2, "&Image", 0,1907,34,39}, {10, "image_menu", 0,1907,43,52}},
+  {10, "sub_menu_image", 0,1907,5,18}},
+ {20, "IupSubmenu", 153,1908,21,30,
+  {{2, "&Help", 0,1908,33,37}, {10, "help_menu", 0,1908,41,49}},
+  {10, "sub_menu_help", 0,1908,5,17}},
+ {20, "IupMenu", 154,1910,17,23,
+  {{-5, "{", 0,1910,25,25,
+    {{10, "sub_menu_file", 0,1910,26,38}, {1, ",", 0,1910,39,39},
+     {10, "sub_menu_edit", 0,1911,26,38}, {1, ",", 0,1911,39,39},
+     {10, "sub_menu_view", 0,1912,26,38}, {1, ",", 0,1912,39,39},
+     {10, "sub_menu_image", 0,1913,26,39}, {1, ",", 0,1913,40,40},
+     {10, "sub_menu_help", 0,1914,26,38}, {1, "}", 0,1914,39,39}}}},
+  {10, "main_menu", 0,1910,5,13}},
+ {21, "IupSetAttribute", 155,1921,54,54,
+  {{10, "item_zoomgrid", 0,1921,25,37}, {2, "VALUE", 0,1921,41,45},
+   {2, "OFF", 0,1921,50,52}}},
+ {21, "IupSetAttribute", 156,1924,53,53,
+  {{10, "item_toolbar", 0,1924,25,36}, {2, "VALUE", 0,1924,40,44},
+   {2, "OFF", 0,1924,49,51}}},
+ {21, "IupSetAttribute", 157,1927,53,53,
+  {{10, "item_toolbox", 0,1927,25,36}, {2, "VALUE", 0,1927,40,44},
+   {2, "OFF", 0,1927,49,51}}},
+ {21, "IupSetAttribute", 158,1930,55,55,
+  {{10, "item_statusbar", 0,1930,25,38}, {2, "VALUE", 0,1930,42,46},
+   {2, "OFF", 0,1930,51,53}}},
+ {20, "IupButton", 159,1939,15,23, {}, {10, "btn_new", 0,1939,5,11}},
+ {21, "IupSetAttribute", 160,1940,52,52,
+  {{10, "btn_new", 0,1940,21,27}, {2, "IMAGE", 0,1940,31,35},
+   {2, "IUP_FileNew", 0,1940,40,50}}},
+ {21, "IupSetAttribute", 161,1941,43,43,
+  {{10, "btn_new", 0,1941,21,27}, {2, "FLAT", 0,1941,31,34},
+   {2, "Yes", 0,1941,39,41}}},
+ {21, "IupSetCallback", 162,1942,70,70,
+  {{10, "btn_new", 0,1942,20,26}, {2, "ACTION", 0,1942,30,35},
+   {20, "Icallback", 0,1942,39,47,
+    {{2, "item_new_action_cb", 0,1942,50,67}}, 0}}},
+ {21, "IupSetAttribute", 163,1943,51,51,
+  {{10, "btn_new", 0,1943,21,27}, {2, "TIP", 0,1943,31,33},
+   {2, "New (Ctrl+N)", 0,1943,38,49}}},
+ {21, "IupSetAttribute", 164,1944,46,46,
+  {{10, "btn_new", 0,1944,21,27}, {2, "CANFOCUS", 0,1944,31,38},
+   {2, "No", 0,1944,43,44}}},
+ {20, "IupButton", 165,1946,16,24, {}, {10, "btn_open", 0,1946,5,12}},
+ {21, "IupSetAttribute", 166,1947,54,54,
+  {{10, "btn_open", 0,1947,21,28}, {2, "IMAGE", 0,1947,32,36},
+   {2, "IUP_FileOpen", 0,1947,41,52}}},
+ {21, "IupSetAttribute", 167,1948,44,44,
+  {{10, "btn_open", 0,1948,21,28}, {2, "FLAT", 0,1948,32,35},
+   {2, "Yes", 0,1948,40,42}}},
+ {21, "IupSetCallback", 168,1949,72,72,
+  {{10, "btn_open", 0,1949,20,27}, {2, "ACTION", 0,1949,31,36},
+   {20, "Icallback", 0,1949,40,48,
+    {{2, "item_open_action_cb", 0,1949,51,69}}, 0}}},
+ {21, "IupSetAttribute", 169,1950,53,53,
+  {{10, "btn_open", 0,1950,21,28}, {2, "TIP", 0,1950,32,34},
+   {2, "Open (Ctrl+O)", 0,1950,39,51}}},
+ {21, "IupSetAttribute", 170,1951,47,47,
+  {{10, "btn_open", 0,1951,21,28}, {2, "CANFOCUS", 0,1951,32,39},
+   {2, "No", 0,1951,44,45}}},
+ {20, "IupButton", 171,1953,16,24, {}, {10, "btn_save", 0,1953,5,12}},
+ {21, "IupSetAttribute", 172,1954,54,54,
+  {{10, "btn_save", 0,1954,21,28}, {2, "IMAGE", 0,1954,32,36},
+   {2, "IUP_FileSave", 0,1954,41,52}}},
+ {21, "IupSetAttribute", 173,1955,44,44,
+  {{10, "btn_save", 0,1955,21,28}, {2, "FLAT", 0,1955,32,35},
+   {2, "Yes", 0,1955,40,42}}},
+ {21, "IupSetCallback", 174,1956,72,72,
+  {{10, "btn_save", 0,1956,20,27}, {2, "ACTION", 0,1956,31,36},
+   {20, "Icallback", 0,1956,40,48,
+    {{2, "item_save_action_cb", 0,1956,51,69}}, 0}}},
+ {21, "IupSetAttribute", 175,1957,53,53,
+  {{10, "btn_save", 0,1957,21,28}, {2, "TIP", 0,1957,32,34},
+   {2, "Save (Ctrl+S)", 0,1957,39,51}}},
+ {21, "IupSetAttribute", 176,1958,47,47,
+  {{10, "btn_save", 0,1958,21,28}, {2, "CANFOCUS", 0,1958,32,39},
+   {2, "No", 0,1958,44,45}}},
+ {20, "IupButton", 177,1960,16,24, {}, {10, "btn_copy", 0,1960,5,12}},
+ {21, "IupSetAttribute", 178,1961,54,54,
+  {{10, "btn_copy", 0,1961,21,28}, {2, "IMAGE", 0,1961,32,36},
+   {2, "IUP_EditCopy", 0,1961,41,52}}},
+ {21, "IupSetAttribute", 179,1962,44,44,
+  {{10, "btn_copy", 0,1962,21,28}, {2, "FLAT", 0,1962,32,35},
+   {2, "Yes", 0,1962,40,42}}},
+ {21, "IupSetCallback", 180,1963,72,72,
+  {{10, "btn_copy", 0,1963,20,27}, {2, "ACTION", 0,1963,31,36},
+   {20, "Icallback", 0,1963,40,48,
+    {{2, "item_copy_action_cb", 0,1963,51,69}}, 0}}},
+ {21, "IupSetAttribute", 181,1964,53,53,
+  {{10, "btn_copy", 0,1964,21,28}, {2, "TIP", 0,1964,32,34},
+   {2, "Copy (Ctrl+C)", 0,1964,39,51}}},
+ {21, "IupSetAttribute", 182,1965,47,47,
+  {{10, "btn_copy", 0,1965,21,28}, {2, "CANFOCUS", 0,1965,32,39},
+   {2, "No", 0,1965,44,45}}},
+ {20, "IupButton", 183,1967,17,25, {}, {10, "btn_paste", 0,1967,5,13}},
+ {21, "IupSetAttribute", 184,1968,56,56,
+  {{10, "btn_paste", 0,1968,21,29}, {2, "IMAGE", 0,1968,33,37},
+   {2, "IUP_EditPaste", 0,1968,42,54}}},
+ {21, "IupSetAttribute", 185,1969,45,45,
+  {{10, "btn_paste", 0,1969,21,29}, {2, "FLAT", 0,1969,33,36},
+   {2, "Yes", 0,1969,41,43}}},
+ {21, "IupSetCallback", 186,1970,74,74,
+  {{10, "btn_paste", 0,1970,20,28}, {2, "ACTION", 0,1970,32,37},
+   {20, "Icallback", 0,1970,41,49,
+    {{2, "item_paste_action_cb", 0,1970,52,71}}, 0}}},
+ {21, "IupSetAttribute", 187,1971,55,55,
+  {{10, "btn_paste", 0,1971,21,29}, {2, "TIP", 0,1971,33,35},
+   {2, "Paste (Ctrl+V)", 0,1971,40,53}}},
+ {21, "IupSetAttribute", 188,1972,48,48,
+  {{10, "btn_paste", 0,1972,21,29}, {2, "CANFOCUS", 0,1972,33,40},
+   {2, "No", 0,1972,45,46}}},
+ {20, "IupButton", 189,1974,20,28, {}, {10, "btn_zoomgrid", 0,1974,5,16}},
+ {21, "IupSetAttribute", 190,1975,59,59,
+  {{10, "btn_zoomgrid", 0,1975,21,32}, {2, "IMAGE", 0,1975,36,40},
+   {2, "PaintZoomGrid", 0,1975,45,57}}},
+ {21, "IupSetAttribute", 191,1976,48,48,
+  {{10, "btn_zoomgrid", 0,1976,21,32}, {2, "FLAT", 0,1976,36,39},
+   {2, "Yes", 0,1976,44,46}}},
+ {21, "IupSetCallback", 192,1977,80,80,
+  {{10, "btn_zoomgrid", 0,1977,20,31}, {2, "ACTION", 0,1977,35,40},
+   {20, "Icallback", 0,1977,44,52,
+    {{2, "item_zoomgrid_action_cb", 0,1977,55,77}}, 0}}},
+ {21, "IupSetAttribute", 193,1978,53,53,
+  {{10, "btn_zoomgrid", 0,1978,21,32}, {2, "TIP", 0,1978,36,38},
+   {2, "Zoom Grid", 0,1978,43,51}}},
+ {21, "IupSetAttribute", 194,1979,48,48,
+  {{10, "btn_paste", 0,1979,21,29}, {2, "CANFOCUS", 0,1979,33,40},
+   {2, "No", 0,1979,45,46}}},
+ {20, "IupHbox", 195,1981,15,21,
+  {{-5, "{", 0,1981,23,23,
+    {{10, "btn_new", 0,1982,24,30}, {1, ",", 0,1982,31,31},
+     {10, "btn_open", 0,1983,24,31}, {1, ",", 0,1983,32,32},
+     {10, "btn_save", 0,1984,24,31}, {1, ",", 0,1984,32,32},
+     {20, "IupLabel", 0,1986,24,31,
+      {{10, "NULL", 0,1986,33,36}, {2, "SEPARATOR=VERTICAL", 0,1986,40,57}},
+      0}, {1, ",", 0,1986,60,60}, {10, "btn_copy", 0,1987,24,31},
+     {1, ",", 0,1987,32,32}, {10, "btn_paste", 0,1988,24,32},
+     {1, ",", 0,1988,33,33},
+     {20, "IupLabel", 0,1990,24,31,
+      {{10, "NULL", 0,1990,33,36}, {2, "SEPARATOR=VERTICAL", 0,1990,40,57}},
+      0}, {1, ",", 0,1990,60,60}, {10, "btn_zoomgrid", 0,1991,24,35},
+     {1, "}", 0,1991,36,36}}}}, {10, "toolbar", 0,1981,5,11}},
+ {21, "IupSetAttribute", 196,1993,45,45,
+  {{10, "toolbar", 0,1993,21,27}, {2, "MARGIN", 0,1993,31,36},
+   {2, "5x5", 0,1993,41,43}}},
+ {21, "IupSetAttribute", 197,1994,40,40,
+  {{10, "toolbar", 0,1994,21,27}, {2, "GAP", 0,1994,31,33},
+   {2, "2", 0,1994,38,38}}},
+ {21, "IupSetAttribute", 198,2000,51,51,
+  {{10, "toolbar", 0,2000,25,31}, {2, "FLOATING", 0,2000,35,42},
+   {2, "YES", 0,2000,47,49}}},
+ {21, "IupSetAttribute", 199,2001,49,49,
+  {{10, "toolbar", 0,2001,25,31}, {2, "VISIBLE", 0,2001,35,41},
+   {2, "NO", 0,2001,46,47}}},
+ {20, "IupGridBox", 200,2019,12,21,
+  {{-5, "{", 0,2019,23,23,
+    {{20, "IupToggle", 0,2020,24,32,
+      {{2, {}, 0,2020,35,34}, {10, "cb_tool_action", 0,2020,38,51},
+       {2,
+        "TOOLINDEX=0, IMAGE=PaintPointer, VALUE=ON, FLAT=Yes, TIP=\\\"Pointer\\\"",
+        0,2020,55,122}}, 0}, {1, ",", 0,2020,125,125},
+     {20, "IupToggle", 0,2021,24,32,
+      {{2, {}, 0,2021,35,34}, {10, "cb_tool_action", 0,2021,38,51},
+       {2,
+        "TOOLINDEX=1, IMAGE=PaintColorPicker, FLAT=Yes, TIP=\\\"Color Picker\\\"",
+        0,2021,55,121}}, 0}, {1, ",", 0,2021,124,124},
+     {20, "IupToggle", 0,2022,24,32,
+      {{2, {}, 0,2022,35,34}, {10, "cb_tool_action", 0,2022,38,51},
+       {2, "TOOLINDEX=2, IMAGE=PaintPencil, FLAT=Yes, TIP=\\\"Pencil\\\"",
+        0,2022,55,110}}, 0}, {1, ",", 0,2022,113,113},
+     {20, "IupToggle", 0,2023,24,32,
+      {{2, {}, 0,2023,35,34}, {10, "cb_tool_action", 0,2023,38,51},
+       {2, "TOOLINDEX=3, IMAGE=PaintLine, FLAT=Yes, TIP=\\\"Line\\\"", 0,
+        2023,55,106}}, 0}, {1, ",", 0,2023,109,109},
+     {20, "IupToggle", 0,2024,24,32,
+      {{2, {}, 0,2024,35,34}, {10, "cb_tool_action", 0,2024,38,51},
+       {2,
+        "TOOLINDEX=4, IMAGE=PaintRect, FLAT=Yes, TIP=\\\"Hollow Rectangle\\\"",
+        0,2024,55,118}}, 0}, {1, ",", 0,2024,121,121},
+     {20, "IupToggle", 0,2025,24,32,
+      {{2, {}, 0,2025,35,34}, {10, "cb_tool_action", 0,2025,38,51},
+       {2,
+        "TOOLINDEX=5, IMAGE=PaintBox, FLAT=Yes, TIP=\\\"Box (Filled Rectangle)\\\"",
+        0,2025,55,123}}, 0}, {1, ",", 0,2025,126,126},
+     {20, "IupToggle", 0,2026,24,32,
+      {{2, {}, 0,2026,35,34}, {10, "cb_tool_action", 0,2026,38,51},
+       {2,
+        "TOOLINDEX=6, IMAGE=PaintEllipse, FLAT=Yes, TIP=\\\"Hollow Ellipse\\\"",
+        0,2026,55,119}}, 0}, {1, ",", 0,2026,122,122},
+     {20, "IupToggle", 0,2027,24,32,
+      {{2, {}, 0,2027,35,34}, {10, "cb_tool_action", 0,2027,38,51},
+       {2,
+        "TOOLINDEX=7, IMAGE=PaintOval, FLAT=Yes, TIP=\\\"Oval (Filled Ellipse)\\\"",
+        0,2027,55,123}}, 0}, {1, ",", 0,2027,126,126},
+     {20, "IupToggle", 0,2028,24,32,
+      {{2, {}, 0,2028,35,34}, {10, "cb_tool_action", 0,2028,38,51},
+       {2, "TOOLINDEX=8, IMAGE=PaintText, FLAT=Yes, TIP=\\\"Text\\\"", 0,
+        2028,55,106}}, 0}, {1, ",", 0,2028,109,109},
+     {20, "IupToggle", 0,2029,24,32,
+      {{2, {}, 0,2029,35,34}, {10, "cb_tool_action", 0,2029,38,51},
+       {2, "TOOLINDEX=9, IMAGE=PaintFill, FLAT=Yes, TIP=\\\"Fill Color\\\"",
+        0,2029,55,112}}, 0}, {1, "}", 0,2029,115,115}}}},
+  {10, "gbox", 0,2019,5,8}},
+ {21, "IupSetAttribute", 201,2030,40,40,
+  {{10, "gbox", 0,2030,21,24}, {2, "GAPCOL", 0,2030,28,33},
+   {2, "2", 0,2030,38,38}}},
+ {21, "IupSetAttribute", 202,2031,40,40,
+  {{10, "gbox", 0,2031,21,24}, {2, "GAPLIN", 0,2031,28,33},
+   {2, "2", 0,2031,38,38}}},
+ {21, "IupSetAttribute", 203,2032,43,43,
+  {{10, "gbox", 0,2032,21,24}, {2, "MARGIN", 0,2032,28,33},
+   {2, "5x10", 0,2032,38,41}}},
+ {21, "IupSetAttribute", 204,2033,40,40,
+  {{10, "gbox", 0,2033,21,24}, {2, "NUMDIV", 0,2033,28,33},
+   {2, "2", 0,2033,38,38}}},
+ {20, "IupButton", 205,2035,21,29,
+  {{10, "NULL", 0,2035,31,34},
+   {20, "Icallback", 0,2035,36,44,
+    {{2, "toolcolor_action_cb", 0,2035,47,65}}, 0},
+   {2, "NAME=COLOR, BGCOLOR=\\\"0 0 0\\\", RASTERSIZE=28x21", 0,2035,71,117}},
+  {10, "toolcolor_btn", 0,2035,5,17}},
+ {20, "IupText", 206,2036,21,27,
+  {{2, "VALUECHANGED_CB", 0,2036,30,44},
+   {20, "Icallback", 0,2036,48,56,
+    {{2, "toolwidth_valuechanged_cb", 0,2036,59,83}}, 0},
+   {2, "SPIN=Yes, SPINMIN=1, RASTERSIZE=48x", 0,2036,89,123}},
+  {10, "toolwidth_txt", 0,2036,5,17}},
+ {20, "IupList", 207,2037,21,27,
+  {{2, "VALUECHANGED_CB", 0,2037,30,44},
+   {20, "Icallback", 0,2037,48,56,
+    {{2, "toolstyle_valuechanged_cb", 0,2037,59,83}}, 0},
+   {2,
+    "DROPDOWN=Yes, VALUE=1, 1=\\\"____\\\", 2=\\\"----\\\", 3=\\\"....\\\", 4=\\\"-.-.\\\", 5=\\\"-..-..\\\"",
+    0,2038,30,112}}, {10, "toolstyle_lst", 0,2037,5,17}},
+ {20, "IupLabel", 208,2039,21,28,
+  {{2, "Tol.: 50%", 0,2039,31,39}, {2, "EXPAND=HORIZONTAL", 0,2039,44,60}},
+  {10, "filltol_label", 0,2039,5,17}},
+ {20, "IupValuator", 209,2040,19,29,
+  {{10, "NULL", 0,2040,31,34}, {2, "VALUECHANGED_CB", 0,2040,38,52},
+   {20, "Icallback", 0,2040,56,64,
+    {{2, "toolfilltol_valuechanged_cb", 0,2040,67,93}}, 0},
+   {2, "RASTERSIZE=60x30, VALUE=50, MAX=100", 0,2040,99,133}},
+  {10, "filltol_val", 0,2040,5,15}},
+ {20, "IupButton", 210,2041,20,28,
+  {{2, "F", 0,2041,31,31},
+   {20, "Icallback", 0,2041,35,43,
+    {{2, "toolfont_action_cb", 0,2041,46,63}}, 0},
+   {2, "NAME=FONT, RASTERSIZE=21x21, FONT=\\\"Times, Bold Italic 11\\\"", 0,
+    2041,69,127}}, {10, "toolfont_btn", 0,2041,5,16}},
+ {20, "IupFrame", 211,2042,18,25,
+  {{20, "IupVbox", 0,2042,27,33,
+    {{-5, "{", 0,2042,35,35,
+      {{20, "IupLabel", 0,2043,37,44,
+        {{2, "Color:", 0,2043,47,52},
+         {2, "EXPAND=HORIZONTAL", 0,2043,57,73}}, 0},
+       {1, ",", 0,2043,76,76}, {10, "toolcolor_btn", 0,2044,37,49},
+       {1, ",", 0,2044,50,50},
+       {20, "IupLabel", 0,2045,37,44,
+        {{2, "Width:", 0,2045,47,52},
+         {2, "EXPAND=HORIZONTAL", 0,2045,57,73}}, 0},
+       {1, ",", 0,2045,76,76}, {10, "toolwidth_txt", 0,2046,37,49},
+       {1, ",", 0,2046,50,50},
+       {20, "IupLabel", 0,2047,37,44,
+        {{2, "Style:", 0,2047,47,52},
+         {2, "EXPAND=HORIZONTAL", 0,2047,57,73}}, 0},
+       {1, ",", 0,2047,76,76}, {10, "toolstyle_lst", 0,2048,37,49},
+       {1, ",", 0,2048,50,50}, {10, "filltol_label", 0,2049,37,49},
+       {1, ",", 0,2049,50,50}, {10, "filltol_val", 0,2050,37,47},
+       {1, ",", 0,2050,48,48},
+       {20, "IupLabel", 0,2051,37,44,
+        {{2, "Font:", 0,2051,47,51}, {2, "EXPAND=HORIZONTAL", 0,2051,56,72}},
+        0}, {1, ",", 0,2051,75,75}, {10, "toolfont_btn", 0,2052,37,48},
+       {1, "}", 0,2053,35,35}}},
+     {2, "MARGIN=3x2, GAP=2, ALIGNMENT=ACENTER", 0,2054,36,71}}, 0}},
+  {10, "tool_frame", 0,2042,5,14}},
+ {20, "IupVbox", 212,2055,17,23,
+  {{-5, "{", 0,2055,25,25,
+    {{20, "IupRadio", 0,2056,26,33, {{10, "gbox", 0,2056,35,38}}, 0},
+     {1, ",", 0,2056,40,40}, {10, "tool_frame", 0,2057,26,35},
+     {1, "}", 0,2058,26,26}}}}, {10, "tool_vbox", 0,2055,5,13}},
+ {21, "IupSetAttribute", 213,2060,48,48,
+  {{10, "tool_vbox", 0,2060,21,29}, {2, "NMARGIN", 0,2060,33,39},
+   {2, "2x2", 0,2060,44,46}}},
+ {21, "IupSetAttribute", 214,2061,54,54,
+  {{10, "tool_vbox", 0,2061,21,29}, {2, "ALIGNMENT", 0,2061,33,41},
+   {2, "ACENTER", 0,2061,46,52}}},
+ {20, "IupDialog", 215,2063,15,23, {{10, "tool_vbox", 0,2063,25,33}},
+  {10, "toolbox", 0,2063,5,11}},
+ {21, "IupSetAttribute", 216,2064,50,50,
+  {{10, "toolbox", 0,2064,21,27}, {2, "DIALOGFRAME", 0,2064,31,41},
+   {2, "Yes", 0,2064,46,48}}},
+ {21, "IupSetAttribute", 217,2065,46,46,
+  {{10, "toolbox", 0,2065,21,27}, {2, "TITLE", 0,2065,31,35},
+   {2, "Tools", 0,2065,40,44}}},
+ {21, "IupSetAttribute", 218,2066,45,45,
+  {{10, "toolbox", 0,2066,21,27}, {2, "FONTSIZE", 0,2066,31,38},
+   {2, "8", 0,2066,43,43}}},
+ {21, "IupSetAttribute", 219,2067,46,46,
+  {{10, "toolbox", 0,2067,21,27}, {2, "TOOLBOX", 0,2067,31,37},
+   {2, "Yes", 0,2067,42,44}}},
+ {21, "IupSetCallback", 220,2068,70,70,
+  {{10, "toolbox", 0,2068,20,26}, {2, "CLOSE_CB", 0,2068,30,37},
+   {20, "Icallback", 0,2068,41,49, {{2, "toolbox_close_cb", 0,2068,52,67}},
+    0}}},
+ {21, "IupSetAttributeHandle", 221,2069,55,55,
+  {{10, "toolbox", 0,2069,27,33}, {2, "PARENTDIALOG", 0,2069,37,48},
+   {10, "dlg", 0,2069,52,54}}},
+ {21, "IupSetAttribute", 222,2072,54,54,
+  {{10, "toolcolor_btn", 0,2072,21,33}, {2, "BGCOLOR", 0,2072,37,43},
+   {2, "0 0 0", 0,2072,48,52}}},
+ {21, "IupSetAttribute", 223,2073,46,46,
+  {{10, "toolbox", 0,2073,21,27}, {2, "TOOLWIDTH", 0,2073,31,39},
+   {2, "1", 0,2073,44,44}}},
+ {21, "IupSetAttribute", 224,2074,46,46,
+  {{10, "toolbox", 0,2074,21,27}, {2, "TOOLSTYLE", 0,2074,31,39},
+   {2, "1", 0,2074,44,44}}},
+ {21, "IupSetAttribute", 225,2075,49,49,
+  {{10, "toolbox", 0,2075,21,27}, {2, "TOOLFILLTOL", 0,2075,31,41},
+   {2, "50", 0,2075,46,47}}},
+ {21, "IupSetStrAttribute", 226,2076,73,73,
+  {{10, "toolbox", 0,2076,24,30}, {2, "TOOLFONT", 0,2076,34,41},
+   {20, "IupGetAttribute", 0,2076,45,59,
+    {{10, "dlg", 0,2076,61,63}, {2, "FONT", 0,2076,67,70}}, 0}}},
+ {20, "IupLabel", 227,2100,16,23,
+  {{2, "100%", 0,2100,26,29},
+   {2, "SIZE=30x, PADDING=10x5, ALIGNMENT=ARIGHT", 0,2100,34,73}},
+  {10, "zoom_lbl", 0,2100,5,12}},
+ {20, "IupLabel", 228,2101,16,23,
+  {{2, "0 x 0", 0,2101,26,30},
+   {2, "SIZE=70x, PADDING=10x5, ALIGNMENT=ACENTER", 0,2101,35,75}},
+  {10, "size_lbl", 0,2101,5,12}},
+ {20, "IupLabel", 229,2102,18,25,
+  {{2, "(0, 0) = 0   0   0", 0,2102,28,45},
+   {2, "EXPAND=HORIZONTAL, PADDING=10x5", 0,2102,50,80}},
+  {10, "status_lbl", 0,2102,5,14}},
+ {20, "IupValuator", 230,2103,16,26,
+  {{10, "NULL", 0,2103,28,31}, {2, "VALUECHANGED_CB", 0,2103,35,49},
+   {20, "Icallback", 0,2103,53,61,
+    {{2, "zoom_valuechanged_cb", 0,2103,64,83}}, 0},
+   {2, "VALUE=0, MIN=-6, MAX=6, RASTERSIZE=150x25", 0,2103,89,129}},
+  {10, "zoom_val", 0,2103,5,12}},
+ {20, "IupHbox", 231,2104,17,23,
+  {{-5, "{", 0,2104,25,25,
+    {{10, "status_lbl", 0,2105,26,35}, {1, ",", 0,2105,36,36},
+     {20, "IupLabel", 0,2106,26,33,
+      {{2, {}, 0,2106,36,35}, {2, "SEPARATOR=VERTICAL", 0,2106,40,57}}, 0},
+     {1, ",", 0,2106,60,60}, {10, "size_lbl", 0,2107,26,33},
+     {1, ",", 0,2107,34,34},
+     {20, "IupLabel", 0,2108,26,33,
+      {{2, {}, 0,2108,36,35}, {2, "SEPARATOR=VERTICAL", 0,2108,40,57}}, 0},
+     {1, ",", 0,2108,60,60}, {10, "zoom_lbl", 0,2109,26,33},
+     {1, ",", 0,2109,34,34},
+     {20, "IupButton", 0,2110,26,34,
+      {{10, "NULL", 0,2110,36,39},
+       {20, "Icallback", 0,2110,42,50,
+        {{2, "zoomout_action_cb", 0,2110,53,69}}, 0},
+       {2, "IMAGE=IUP_ZoomOut, FLAT=Yes, TIP=\\\"Zoom Out (Ctrl+-)\\\"", 0,
+        2110,75,128}}, 0}, {1, ",", 0,2110,131,131},
+     {10, "zoom_val", 0,2111,26,33}, {1, ",", 0,2111,34,34},
+     {20, "IupButton", 0,2112,26,34,
+      {{10, "NULL", 0,2112,36,39},
+       {20, "Icallback", 0,2112,42,50,
+        {{2, "zoomin_action_cb", 0,2112,53,68}}, 0},
+       {2, "IMAGE=IUP_ZoomIn, FLAT=Yes, TIP=\\\"Zoom In (Ctrl++)\\\"", 0,
+        2112,74,125}}, 0}, {1, ",", 0,2112,128,128},
+     {20, "IupButton", 0,2113,26,34,
+      {{10, "NULL", 0,2113,36,39},
+       {20, "Icallback", 0,2113,42,50,
+        {{2, "actualsize_action_cb", 0,2113,53,72}}, 0},
+       {2,
+        "IMAGE=IUP_ZoomActualSize, FLAT=Yes, TIP=\\\"Actual Size (Ctrl+0)\\\"",
+        0,2113,78,141}}, 0}, {1, "}", 0,2113,144,144}}}},
+  {10, "statusbar", 0,2104,5,13}},
+ {21, "IupSetAttribute", 232,2115,51,51,
+  {{10, "statusbar", 0,2115,21,29}, {2, "NAME", 0,2115,33,36},
+   {2, "STATUSBAR", 0,2115,41,49}}},
+ {21, "IupSetAttribute", 233,2116,54,54,
+  {{10, "statusbar", 0,2116,21,29}, {2, "ALIGNMENT", 0,2116,33,41},
+   {2, "ACENTER", 0,2116,46,52}}},
+ {21, "IupSetAttribute", 234,2121,53,53,
+  {{10, "statusbar", 0,2121,25,33}, {2, "FLOATING", 0,2121,37,44},
+   {2, "YES", 0,2121,49,51}}},
+ {21, "IupSetAttribute", 235,2122,51,51,
+  {{10, "statusbar", 0,2122,25,33}, {2, "VISIBLE", 0,2122,37,43},
+   {2, "NO", 0,2122,48,49}}},
+ {21, "IupSetAttribute", 236,2132,51,51,
+  {{10, "canvas", 0,2132,25,30}, {2, "BUFFER", 0,2132,34,39},
+   {2, "DOUBLE", 0,2132,44,49}}},
+ {20, "IupCanvas", 237,2134,18,26, {}, {10, "canvas", 0,2134,9,14}},
+ {21, "IupSetAttribute", 238,2137,47,47,
+  {{10, "canvas", 0,2137,21,26}, {2, "SCROLLBAR", 0,2137,30,38},
+   {2, "Yes", 0,2137,43,45}}},
+ {21, "IupSetAttribute", 239,2138,42,42,
+  {{10, "canvas", 0,2138,21,26}, {2, "DIRTY", 0,2138,30,34},
+   {2, "NO", 0,2138,39,40}}},
+ {21, "IupSetCallback", 240,2139,67,67,
+  {{10, "canvas", 0,2139,20,25}, {2, "ACTION", 0,2139,29,34},
+   {20, "Icallback", 0,2139,38,46, {{2, "canvas_action_cb", 0,2139,49,64}},
+    0}}},
+ {21, "IupSetCallback", 241,2140,69,69,
+  {{10, "canvas", 0,2140,20,25}, {2, "DROPFILES_CB", 0,2140,29,40},
+   {20, "Icallback", 0,2140,44,52, {{2, "dropfiles_cb", 0,2140,55,66}}, 0}}},
+ {21, "IupSetCallback", 242,2141,64,64,
+  {{10, "canvas", 0,2141,20,25}, {2, "MAP_CB", 0,2141,29,34},
+   {20, "Icallback", 0,2141,38,46, {{2, "canvas_map_cb", 0,2141,49,61}}, 0}}},
+ {21, "IupSetCallback", 243,2142,68,68,
+  {{10, "canvas", 0,2142,20,25}, {2, "UNMAP_CB", 0,2142,29,36},
+   {20, "Icallback", 0,2142,40,48, {{2, "canvas_unmap_cb", 0,2142,51,65}},
+    0}}},
+ {21, "IupSetCallback", 244,2143,68,68,
+  {{10, "canvas", 0,2143,20,25}, {2, "WHEEL_CB", 0,2143,29,36},
+   {20, "Icallback", 0,2143,40,48, {{2, "canvas_wheel_cb", 0,2143,51,65}},
+    0}}},
+ {21, "IupSetCallback", 245,2144,70,70,
+  {{10, "canvas", 0,2144,20,25}, {2, "RESIZE_CB", 0,2144,29,37},
+   {20, "Icallback", 0,2144,41,49, {{2, "canvas_resize_cb", 0,2144,52,67}},
+    0}}},
+ {21, "IupSetCallback", 246,2145,70,70,
+  {{10, "canvas", 0,2145,20,25}, {2, "MOTION_CB", 0,2145,29,37},
+   {20, "Icallback", 0,2145,41,49, {{2, "canvas_motion_cb", 0,2145,52,67}},
+    0}}},
+ {21, "IupSetCallback", 247,2146,70,70,
+  {{10, "canvas", 0,2146,20,25}, {2, "BUTTON_CB", 0,2146,29,37},
+   {20, "Icallback", 0,2146,41,49, {{2, "canvas_button_cb", 0,2146,52,67}},
+    0}}},
+ {20, "IupVbox", 248,2150,17,23,
+  {{-5, "{", 0,2150,25,25,
+    {{10, "toolbar", 0,2150,26,32}, {1, ",", 0,2150,33,33},
+     {10, "canvas", 0,2151,26,31}, {1, ",", 0,2151,32,32},
+     {10, "statusbar", 0,2152,26,34}, {1, "}", 0,2152,35,35}}}},
+  {10, "main_vbox", 0,2150,5,13}},
+ {20, "IupDialog", 249,2154,11,19, {{10, "main_vbox", 0,2154,21,29}},
+  {10, "dlg", 0,2154,5,7}},
+ {21, "IupSetAttributeHandle", 250,2156,49,49,
+  {{10, "dlg", 0,2156,27,29}, {2, "MENU", 0,2156,33,36},
+   {10, "main_menu", 0,2156,40,48}}},
+ {21, "IupSetAttribute", 251,2157,45,45,
+  {{10, "dlg", 0,2157,21,23}, {2, "SIZE", 0,2157,27,30},
+   {2, "HALFxHALF", 0,2157,35,43}}},
+ {21, "IupSetCallback", 252,2158,69,69,
+  {{10, "dlg", 0,2158,20,22}, {2, "CLOSE_CB", 0,2158,26,33},
+   {20, "Icallback", 0,2158,37,45,
+    {{2, "item_exit_action_cb", 0,2158,48,66}}, 0}}},
+ {21, "IupSetCallback", 253,2159,66,66,
+  {{10, "dlg", 0,2159,20,22}, {2, "DROPFILES_CB", 0,2159,26,37},
+   {20, "Icallback", 0,2159,41,49, {{2, "dropfiles_cb", 0,2159,52,63}}, 0}}},
+ {21, "IupSetCallback", 254,2160,65,65,
+  {{10, "dlg", 0,2160,20,22}, {2, "MOVE_CB", 0,2160,26,32},
+   {20, "Icallback", 0,2160,36,44, {{2, "main_dlg_move_cb", 0,2160,47,62}},
+    0}}},
+ {21, "IupSetCallback", 255,2162,64,64,
+  {{10, "dlg", 0,2162,20,22}, {2, "K_cN", 0,2162,26,29},
+   {20, "Icallback", 0,2162,33,41,
+    {{2, "item_new_action_cb", 0,2162,44,61}}, 0}}},
+ {21, "IupSetCallback", 256,2163,65,65,
+  {{10, "dlg", 0,2163,20,22}, {2, "K_cO", 0,2163,26,29},
+   {20, "Icallback", 0,2163,33,41,
+    {{2, "item_open_action_cb", 0,2163,44,62}}, 0}}},
+ {21, "IupSetCallback", 257,2164,65,65,
+  {{10, "dlg", 0,2164,20,22}, {2, "K_cS", 0,2164,26,29},
+   {20, "Icallback", 0,2164,33,41,
+    {{2, "item_save_action_cb", 0,2164,44,62}}, 0}}},
+ {21, "IupSetCallback", 258,2165,66,66,
+  {{10, "dlg", 0,2165,20,22}, {2, "K_cV", 0,2165,26,29},
+   {20, "Icallback", 0,2165,33,41,
+    {{2, "item_paste_action_cb", 0,2165,44,63}}, 0}}},
+ {21, "IupSetCallback", 259,2166,65,65,
+  {{10, "dlg", 0,2166,20,22}, {2, "K_cC", 0,2166,26,29},
+   {20, "Icallback", 0,2166,33,41,
+    {{2, "item_copy_action_cb", 0,2166,44,62}}, 0}}},
+ {21, "IupSetCallback", 260,2167,66,66,
+  {{10, "dlg", 0,2167,20,22}, {2, "K_cP", 0,2167,26,29},
+   {20, "Icallback", 0,2167,33,41,
+    {{2, "item_print_action_cb", 0,2167,44,63}}, 0}}},
+ {21, "IupSetCallback", 261,2168,67,67,
+  {{10, "dlg", 0,2168,20,22}, {2, "K_cMinus", 0,2168,26,33},
+   {20, "Icallback", 0,2168,37,45, {{2, "zoomout_action_cb", 0,2168,48,64}},
+    0}}},
+ {21, "IupSetCallback", 262,2169,65,65,
+  {{10, "dlg", 0,2169,20,22}, {2, "K_cPlus", 0,2169,26,32},
+   {20, "Icallback", 0,2169,36,44, {{2, "zoomin_action_cb", 0,2169,47,62}},
+    0}}},
+ {21, "IupSetCallback", 263,2170,66,66,
+  {{10, "dlg", 0,2170,20,22}, {2, "K_cEqual", 0,2170,26,33},
+   {20, "Icallback", 0,2170,37,45, {{2, "zoomin_action_cb", 0,2170,48,63}},
+    0}}},
+ {21, "IupSetCallback", 264,2171,66,66,
+  {{10, "dlg", 0,2171,20,22}, {2, "K_c0", 0,2171,26,29},
+   {20, "Icallback", 0,2171,33,41,
+    {{2, "actualsize_action_cb", 0,2171,44,63}}, 0}}},
+ {20, "IupConfig", 265,2196,14,22, {}, {10, "config", 0,2196,5,10}},
+ {21, "IupSetAttribute", 266,2197,55,55,
+  {{10, "config", 0,2197,21,26}, {2, "APP_NAME", 0,2197,30,37},
+   {2, "simple_paint", 0,2197,42,53}}},
+ {20, "IupClipboard", 267,2200,17,28, {}, {10, "clipboard", 0,2200,5,13}}}
+"=="
+dialogs: {46,215,249}
+dialoglines: {761,2063,2154}
+dialogN: {0,0,0,0,0,0,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,0,0,0,0,0,0,0,46,46,46,46,46,46,46,46,46,46,46,215,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,0,0,0,0,249,249,249,249,249,215,249,249,215,0,0,0,215,215,215,0,0,0,215,215,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,215,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,249,0,0,0}
+dlevel: {0,0,0,0,0,0,4,3,3,4,3,1,3,1,3,3,4,3,1,3,3,3,3,4,3,3,4,3,3,4,3,3,4,0,0,0,0,0,0,0,2,2,2,2,2,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,4,3,3,3,3,3,3,3,3,4,4,4,4,0,0,0,0,4,4,4,4,4,1,3,3,4,0,0,0,4,1,1,0,0,0,1,4,1,1,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,2,2,2,2,2,1,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,3,2,2,2,1,1,1,1,1,1,1,4,1,1,1,1,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0}
+names: {"mdlg","filedlg","text","text_dlg","colordlg","cb_tool_action","colordlg2","font_dlg","item_new","item_open","item_save","item_saveas","item_revert","item_pagesetup","item_print","item_exit","item_copy","item_paste","item_zoomin","item_zoomout","item_actualsize","item_zoomgrid","item_background","item_toolbar","item_toolbox","item_statusbar","item_help","item_about","recent_menu","file_menu","edit_menu","view_menu","image_menu","help_menu","sub_menu_file","sub_menu_edit","sub_menu_view","sub_menu_image","sub_menu_help","main_menu","btn_new","btn_open","btn_save","btn_copy","btn_paste","btn_zoomgrid","toolbar","gbox","toolcolor_btn","toolwidth_txt","toolstyle_lst","filltol_label","filltol_val","toolfont_btn","tool_frame","tool_vbox","toolbox","zoom_lbl","size_lbl","status_lbl","zoom_val","statusbar","canvas","main_vbox","dlg","config","clipboard"}
+namedx: {1,34,41,46,78,89,90,96,109,111,113,115,116,117,118,119,120,122,124,126,128,130,132,133,135,137,139,140,141,142,143,144,145,146,149,150,151,152,153,154,159,165,171,177,183,189,195,200,205,206,207,208,209,210,211,212,215,227,228,229,230,231,237,248,249,265,267}
+cud: "?-----uuuuuuuuuuuuuuuuuuuuuuuuuuu?------cuuuuduuuuuuuuuuuuuuuuuuuuuuuuuuuuuu-?--uuuuuuuuc?--uuu?--uuuuuuuuuucucucuccccccucucucucucuccucucuccccccccuuccccccuuuucuuuuucuuuuucuuuuucuuuuucuuuuucuuuuucuuuucuuuuccccccccuuduuuuuuuuuuucccccuuuuucuuuuuuuuuucduuuuuuuuuuuuuuu?-?"
+"simple_paint.exw"
+"Icallback"
+handles: {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-2,0,0,0,0,-2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-2,0,-2,0,-2,0,-2,-2,-2,-2,-2,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,-2,0,-2,0,-2,0,-2,-2,-2,-2,-2,-2,-2,-2,0,0,-2,-2,-2,-2,-2,-2,0,0,0,0,-2,0,0,0,0,0,-2,0,0,0,0,0,-2,0,0,0,0,0,-2,0,0,0,0,0,-2,0,0,0,0,0,-2,0,0,0,0,0,-2,0,0,0,0,-2,0,0,0,0,-2,-2,-2,-2,-2,-2,-2,-2,0,0,-2,0,0,0,0,0,0,0,0,0,0,0,-2,-2,-2,-2,-2,0,0,0,0,0,-2,0,0,0,0,0,0,0,0,0,0,-2,-2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+
+--*/
+end if
+
+--  IupSetAttributeHandle(tree, "IMAGE0", IupGetHandle("IupDialog"))
+--              IupSetHandle(image, handle)
+--  IupSetStrAttribute(tree, "IMAGEBRANCHCOLLAPSED", get_image("IupDialog"))
+--  IupSetStrAttribute(tree, "IMAGEBRANCHCOLLAPSED", "IupDialog")
+--  IupSetAttributeId(tree, "IMAGEEXPANDED", 0, get_image("IupDialog"))
+--  IupSetAttribute(tree, "IMAGEEXPANDED", get_image("IupDialog"))
+--  string PTICK = get_image(icons[find("IupDialog",iupnames)])
+--  IupSetStrAttribute(tree, "IMAGEBRANCHCOLLAPSED", PTICK)
+--  IupSetStrAttribute(tree, "IMAGEBRANCHEXPANDED", PTICK)
+--  IupSetStrAttribute(tree, "IMAGELEAF", PTICK)
+
+    lastbranch = -1
+    lastnode = -1
+--integer tmp (maybe)
+    for i=1 to length(dialogs) do
+        integer di = dialogs[i]
+--      create_control(di)
+        handles[di] = -1
+--      handles[di] = create_control(di,parse_data[di],-1,false)
+--tmp = lastbranch+1
+        handles[di] = create_control(di,parse_data[di],lastbranch,false)
+--      {handles[di],lastbranch} = create_control(di,parse_data[di])
+--      if i=1 then show_dialog(di) end if
+        lastbranch = 0
+--lastbranch = tmp
+        exit
+    end for
+    puts(1,"handles: ") ?handles
+
 --  IupShow(dlg)
+--  free_console()
+--sleep(1)
     IupShowXY(dlg,IUP_LEFT,IUP_TOP)
+--  IupSetFocus(dlg) --DEV no help...
+--IupFlush()
 
     IupMainLoop()
     IupClose()
 end procedure
-main()
+if 01 then
+    main()
+end if
 
 --/*
+SUG: as we click on tree items, IupSetFocus the matching Controls toggle?
+SUG: "warnings" button, with the red flag of filedump, disabled if none. (opens a popup)
+SUG? Please delete xxx line nnn manually (you can/should leave this open while you do)
+     and/or: error line nnn: each element should be declared on a single line
+    (eg IupHbox({
+                 IupFill(),
+                 IupButton(OK),
+                 IupFill()
+                })
+    not
+       IupHbox({IupFill(),IupButton(OK),IupFill()})
+    Note the same applies for any trailing brackets/braces.
+    [plade could delete the whole IupHbox, but not ...])
+    NO:<< just do it!. (what about static Ihandles that are no longer used?)
+
+Obvious:
+    Make the changes locally, ensure it will still scan. Prior to both Save and Test.
+    Have a Test button which writes to plade_test.exw (warn before overwrite), run, then delete.
+    If it won't scan, write to plade_test.exw, leave, and prompt to that effect.
 --
 -- radio.exw
 --  Creates a dialog for the user to select his/her gender. 

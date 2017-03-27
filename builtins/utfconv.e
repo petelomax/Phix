@@ -82,6 +82,7 @@
 --
 -- [*] #D800..#DFFF are deemed invalid in all forms of UTF.
 --
+include builtins\VM\pMath.e     -- (not strictly necessary)
 
 constant INVALID_UTF8 = #FFFD
 

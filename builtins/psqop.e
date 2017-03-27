@@ -89,8 +89,9 @@ end procedure
 type string(object s)
     if not sequence(s) then return 0 end if
     for i = 1 to length(s) do
-        if not integer(s[i]) then return 0 end if
-        if s[i] < 0 or s[i] > 255 then return 0 end if
+        object si = s[i]
+        if not integer(si) then return 0 end if
+        if si<0 or si>255 then return 0 end if
     end for
     return 1
 end type

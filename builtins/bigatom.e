@@ -2097,7 +2097,9 @@ end function
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
 global function ba_sqrt(object x, integer bRound = 0)
-sequence res, res1 = BA_ZERO
+--23/3/17
+--sequence res, res1 = BA_ZERO
+sequence res, res1 = BA_ZERO, res2 = BA_ZERO
 integer cmp
 integer start,stop
 
@@ -2124,7 +2126,11 @@ integer start,stop
         res  = ba_power({1,1,{1}}, res1)
     end if
 
-    while compare(res, res1) do
+--23/3/17
+--  while compare(res, res1) do
+    while compare(res, res1)
+      and compare(res, res2) do
+        res2 = res1
         res1 = res
         res  = ba_divide(x, res)
         res  = ba_add(res, res1)

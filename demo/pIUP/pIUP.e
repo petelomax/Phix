@@ -141,7 +141,7 @@ end function
 
 constant
          D  = C_DOUBLE, 
---       F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this..
+         F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this..
          I  = C_INT,
          L  = C_LONG,
          P  = C_POINTER, 
@@ -959,7 +959,7 @@ end function
 
 
 --DEV not working, not documented:
---/*
+--!/*
 constant iupPPlot = iup_open_dll({
                                    "iup_pplot.dll",
                                    "libiup_pplot.so",
@@ -1035,7 +1035,7 @@ end procedure
 --global procedure paint_to(Ihandle ih, atom cnv)
 --  c_proc(xIupPPlotPaintTo, {ih, cnv})
 --end procedure
---*/
+--!*/
 
 global function IupHelp(string url)
 -- returns 1 if successful, -1 if failed, -2 if file not found

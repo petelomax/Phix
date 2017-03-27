@@ -1,3 +1,9 @@
+--
+-- teslelation.exw
+-- ===============
+--
+--  Translated (from lua) by Pete Lomax 01/03/2017.
+--
 
 ----------------Opengl teselation sample begin
 --require("iuplua")
@@ -7,75 +13,69 @@
 --require("imlua")
 include pGUI.e
 
-constant filename = 
+include opengl.e
+include glu.e
+
+constant filename =
 --[[C:\LUA\im-3.8.2_Win32_dllw4_lib\im-3.8.2_Examples\im\html\examples\flower.jpg]]
 --"C:\\Program Files (x86)\\Phix\\demo\\EuGTK4.11.10\\demos\\glade\\Jessica-Alba.jpg"
 "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\data\\Jessica-Alba.jpg"
-constant heightfac=sqrt(3)*0.5 -- ratio from height to side in equilateral triangle
+constant heightfac = sqrt(3)*0.5 -- ratio from height to side in equilateral triangle
 --iup.key_open()
 
 object texture = 0
 
+Ihandle dlg
+
 IupOpen()
 Ihandle cnv = IupGLCanvas("BUFFER=DOUBLE, RASTERSIZE=640x480")
 
-function cnv:resize_cb(integer width, height)
-  iup.GLMakeCurrent(self)
-  gl.Viewport(0, 0, width, height)
+function cnv_resize_cb(Ihandle /*cnv*/, integer width, integer height)
+    IupGLMakeCurrent(cnv)
+    glViewport(0, 0, width, height)
 
-  gl.MatrixMode("PROJECTION")   -- Select The Projection Matrix
-  gl.LoadIdentity()             -- Reset The Projection Matrix
+    glMatrixMode(GL_PROJECTION) -- Select The Projection Matrix
+    glLoadIdentity()            -- Reset The Projection Matrix
 
-  if height == 0 then           -- Calculate The Aspect Ratio Of The Window
-    height = 1
-  end if
-  gl.Ortho(0, width, height,0, 0.0, 500);
-  gl.MatrixMode("MODELVIEW")    -- Select The Model View Matrix
-  gl.LoadIdentity()             -- Reset The Model View Matrix
+    if height==0 then           -- Calculate The Aspect Ratio Of The Window
+        height = 1
+    end if
+    glOrtho(0, width, height,0, 0.0, 500);
+    glMatrixMode(GL_MODELVIEW)  -- Select The Model View Matrix
+    glLoadIdentity()            -- Reset The Model View Matrix
+    return IUP_DEFAULT
 end function
+IupSetCallback(cnv, "RESIZE_CB", Icallback("cnv_resize_cb"))
 
 --procedure EQtriang(dummy,wi)
-procedure EQtriang(wi)
- gl.PushMatrix()
- gl.Scale(wi,wi,1)
-  gl.Begin("TRIANGLES")          -- Drawing Using Triangles
- gl.TexCoord(0.5, 1) gl.Vertex(0.5, heightfac, 0)          -- Top
- gl.TexCoord(0, 0) gl.Vertex(0, 0, 0)         -- Bottom Left
- gl.TexCoord(1, 0) gl.Vertex( 1, 0, 0)         -- Bottom Right
- gl.End()        -- Finished Drawing The Triangle
- gl.PopMatrix()
+procedure EQtriang(atom wi)
+    glPushMatrix()
+    glScale({wi,wi,1})
+    glBegin(GL_TRIANGLES)        -- Drawing Using Triangles
+    glTexCoord(0.5, 1) glVertex(0.5, heightfac, 0)  -- Top
+    glTexCoord(0, 0)    glVertex(0, 0, 0)           -- Bottom Left
+    glTexCoord(1, 0)    glVertex(1, 0, 0)           -- Bottom Right
+    glEnd()      -- Finished Drawing The Triangle
+    glPopMatrix()
 end procedure
 
 --function TeselR(fun,wi,lev)
-procedure TeselR(wi,lev)
+procedure TeselR(atom wi, integer lev)
 -- local fu = lev > 0 and TeselR or fun
- local w = wi*(2^lev)
+atom w = wi*power(2,lev)
 
- gl.PushMatrix()
+    glPushMatrix()
 -- fu(fun,wi,lev-1)
     if lev>0 then
         TeselR(wi,lev-1)
     else
         EQtriang(wi)
     end if
- gl.PopMatrix()
+    glPopMatrix()
 
- gl.PushMatrix()
- gl.Translate(1.5*w,heightfac*w,0)
- gl.Rotate(120,0,0,1)
--- fu(fun,wi,lev-1)
-    if lev>0 then
-        TeselR(wi,lev-1)
-    else
-        EQtriang(wi)
-    end if
-
- gl.PopMatrix()
-
- gl.PushMatrix()
- --gl.LoadIdentity()             -- Reset The Current Modelview Matrix
- gl.Translate(1.5*w,heightfac*w,0)
- gl.Rotate(-120,0,0,1)
+    glPushMatrix()
+    glTranslate(1.5*w,heightfac*w,0)
+    glRotate(120,0,0,1)
 -- fu(fun,wi,lev-1)
     if lev>0 then
         TeselR(wi,lev-1)
@@ -83,7 +83,12 @@ procedure TeselR(wi,lev)
         EQtriang(wi)
     end if
 
- gl.Rotate(180,1,0,0)
+    glPopMatrix()
+
+    glPushMatrix()
+ --glLoadIdentity()          -- Reset The Current Modelview Matrix
+    glTranslate(1.5*w,heightfac*w,0)
+    glRotate(-120,0,0,1)
 -- fu(fun,wi,lev-1)
     if lev>0 then
         TeselR(wi,lev-1)
@@ -91,104 +96,159 @@ procedure TeselR(wi,lev)
         EQtriang(wi)
     end if
 
- gl.PopMatrix()
+    glRotate(180,1,0,0)
+-- fu(fun,wi,lev-1)
+    if lev>0 then
+        TeselR(wi,lev-1)
+    else
+        EQtriang(wi)
+    end if
+
+    glPopMatrix()
 
 end procedure
 
-function cnv:action(x, y)
+atom mouseX = 0, mouseY = 0
+
+function cnv_action_cb(Ihandle /*cnv*/, atom x, atom y)
  --local timebegin = os.clock()
  --print((self.DRAWSIZE):match("(%d*)x(%d*)"))
 -- local w,h = (self.DRAWSIZE):match("(%d*)x(%d*)")
 integer {w,h} = IupGetIntInt(cnv, "DRAWSIZE")
-atom endwide = h*2/sqrt(3) + w
+atom endwide = h*2/sqrt(3)+w
 atom cellwide = max(10,mouseX)
- local iters = floor(log(endwide/cellwide)/log(2))
+integer iters = floor(log(endwide/cellwide)/log(2))
  --print(w,h,endwide,iters)
- iup.GLMakeCurrent(self)
- gl.Clear("COLOR_BUFFER_BIT,DEPTH_BUFFER_BIT") -- Clear Screen And Depth Buffer
-
- gl.LoadIdentity()             -- Reset The Current Modelview Matrix
- gl.Translate(-0.5*(endwide -w),0,-40)
- gl.BindTexture("TEXTURE_2D", texture[1])
+    IupGLMakeCurrent(cnv)
+-- glClear("COLOR_BUFFER_BIT,DEPTH_BUFFER_BIT") -- Clear Screen And Depth Buffer
+    glClear(or_bits(GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT))
+    glLoadIdentity()               -- Reset The Current Modelview Matrix
+    glTranslate(-0.5*(endwide-w),0,-40)
+-- glBindTexture(GL_TEXTURE_2D, texture[1])
+    glBindTexture(GL_TEXTURE_2D, texture)
  --TeselR(EQtriang,0)
 
 -- TeselR(EQtriang,cellwide,iters)
- TeselR(cellwide,iters)
+    TeselR(cellwide,iters)
 
- iup.GLSwapBuffers(self)
+    IupGLSwapBuffers(cnv)
  --print("drawtime",os.clock()-timebegin)
+    return IUP_DEFAULT
 end function
+IupSetCallback(cnv, "ACTION", Icallback("cnv_action_cb"))
 
-mouseX,mouseY=0,0
 --nostatus=(" "):rep(10)
-constant nostatus=repeat(' ',10)
-function cnv:motion_cb(x,y,status)
- if status == nostatus then
-  mouseX = x
-  mouseY = y
-  iup.Update(cnv)
- end if
-end function
+constant nostatus = repeat(' ',10)
 
-function cnv:k_any(c)
-  if c == iup.K_q or c == iup.K_ESC then
-    return iup.CLOSE
-  elsif c == iup.K_F1 then
-    if fullscreen then
-      fullscreen = false
-      dlg.fullscreen = "No"
-    else
-      fullscreen = true
-      dlg.fullscreen = "Yes"
+function cnv_motion_cb(Ihandle /*cnv*/, integer x, integer y, atom pStatus)
+    if peek_string(pStatus)==nostatus then
+        mouseX = x
+        mouseY = y
+        IupUpdate(cnv)
     end if
-    iup.SetFocus(cnv)
-  end if
+    return IUP_DEFAULT;
 end function
+IupSetCallback(cnv, "MOTION_CB", Icallback("cnv_motion_cb"))
 
-function LoadImage(fileName)
-  local image = im.FileImageLoadBitmap(fileName)
-  if (not image) then
-    print ("Unnable to open the file: " .. fileName)
+function cnv_k_any(Ihandle /*ih*/, atom c)
+    if c==K_q or c==K_ESC then
+        return IUP_CLOSE
+    elsif c==K_F1 then
+--  if fullscreen then
+--    fullscreen = false
+--    IupSetAttribute(dlg,"FULLSCREEN","NO")
+        IupSetInt(dlg,"FULLSCREEN",not IupGetInt(dlg,"FULLSCREEN"))
+--  else
+--    fullscreen = true
+--    IupSetAttribute(dlg,"FULLSCREEN","YES")
+--  end if
+        IupSetFocus(cnv)
+    end if
+    return IUP_CONTINUE
+end function
+IupSetCallback(cnv, "K_ANY", Icallback("cnv_k_any"))
+
+--/*
+function read_file(string filename)
+atom pError = allocate(machine_word())
+imImage image = imFileImageLoadBitmap(filename, 0, pError)
+integer error = peekNS(pError,machine_word(),1)
+    free(pError)
+    if error!=0 then
+        show_file_error(error)
+    end if
+    return image
+end function
+--*/
+procedure LoadImage(string fileName)
+atom pError = allocate(machine_word())
+imImage image = imFileImageLoadBitmap(fileName,0,pError)
+integer r
+    free(pError)
+    if image=NULL then
+        printf(1,"Unnable to open the file: %d\n",{fileName})
 --  os.exit()
-    abort(0)
-  end if
-  local gldata, glformat = image:GetOpenGLData()
-  gl.PixelStore(gl.UNPACK_ALIGNMENT, 1)
-
-  glu.Build2DMipmaps(image:Depth(), image:Width(), image:Height(), glformat, gl.UNSIGNED_BYTE, gldata)
-
+        abort(0)
+    end if
+--DEV
+--?"imImageGetOpenGLData(image,"
+--?imImageGetOpenGLData(image,
+--  local gldata, glformat = image:GetOpenGLData()
+    atom gldata = allocate(machine_word())
+    atom glformat = allocate(machine_word())
+    imImageGetOpenGLData(image,glformat)
+--  gl.PixelStore(gl.UNPACK_ALIGNMENT, 1)
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+    --  glu.Build2DMipmaps(image:Depth(), image:Width(), image:Height(), glformat, gl.UNSIGNED_BYTE, gldata)
+    poke4(gldata,image)
+--  ?1
+--0 indicates success...
+    r = gluBuild2DMipmaps(GL_TEXTURE_2D, im_depth(image), im_width(image), im_height(image), peek4u(glformat), GL_UNSIGNED_BYTE, image)
+    if r!=0 then ?9/0 end if
   -- gldata will be destroyed when the image object is destroyed
-  image:Destroy()
-end function
+--  image:Destroy()
+    imImageDestroy(image)
+    free(gldata)
+    free(glformat)
+end procedure
 
-function cnv:map_cb()
-  iup.GLMakeCurrent(self)
-  gl.Enable("TEXTURE_2D")            -- Enable Texture Mapping ( NEW )
+constant junk_space = allocate(4*16)
 
-  texture = gl.GenTextures(1)  -- Create The Texture
+function cnv_map_cb(Ihandle /*cnv*/)
+    IupGLMakeCurrent(cnv)
+    glEnable(GL_TEXTURE_2D)          -- Enable Texture Mapping ( NEW )
+
+--  texture = gl.GenTextures(1)  -- Create The Texture
+    glGenTextures(1,junk_space)  -- Create The Texture
+    texture = peek4u(junk_space)
 
   -- Typical Texture Generation Using Data From The Bitmap
-  gl.BindTexture("TEXTURE_2D", texture[1])
-  gl.TexParameter("TEXTURE_2D","TEXTURE_MIN_FILTER","LINEAR")
-  gl.TexParameter("TEXTURE_2D","TEXTURE_MAG_FILTER","LINEAR")
+--  glBindTexture(GL_TEXTURE_2D, texture[1])
+    glBindTexture(GL_TEXTURE_2D, texture)
+--  gl.TexParameter("TEXTURE_2D","TEXTURE_MIN_FILTER","LINEAR")
+--  gl.TexParameter("TEXTURE_2D","TEXTURE_MAG_FILTER","LINEAR")
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
-  LoadImage(fileName)
-end
-
+    LoadImage(filename)
+    return IUP_DEFAULT
+end function
+IupSetCallback(cnv, "MAP_CB", Icallback("cnv_map_cb"))
 --if arg[1] ~= nil then
-if arg[1] != nil then
-  fileName = arg[1]
-else
-  fileName = filename --[[C:\LUA\LuaGLsource\luagl\html\examples\luagl.tga]]
-end
+--if arg[1] != nil then
+--  fileName = arg[1]
+--else
+--string fileName = filename --[[C:\LUA\LuaGLsource\luagl\html\examples\luagl.tga]]
+--end
 
-dlg = iup.dialog{cnv; title="LuaGL Image Texture Loader"}
+dlg = IupDialog(cnv)
+IupSetAttribute(dlg,"TITLE","LuaGL Image Texture Loader")
 
-dlg:show()
-cnv.rastersize = nil -- reset minimum limitation
+IupShow(dlg)
+IupSetAttribute(cnv,"RASTERSIZE",NULL) -- reset minimum limitation
 
-if (not iup.MainLoopLevel or iup.MainLoopLevel()==0) then
-  iup.MainLoop()
-end
+--if (not iup.MainLoopLevel or iup.MainLoopLevel()==0) then
+    IupMainLoop()
+--end
 
 -------------------End sample 

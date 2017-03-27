@@ -67,8 +67,9 @@ end procedure -- (for Edita/CtrlQ)
         push eax                --[1] ref addr, in case we need to clone...
         sub edi,1
         mov edx,[esi-12]        -- length
-        cmp byte[esi-1],0x80
-        jne :RepeStr
+--16/3/17!!
+--      cmp byte[esi-1],0x80
+--      jne :RepeStr
         cmp edi,edx             -- cmp idx,length
         jb @f                   -- unsigned jump, lets 0..len-1 through
             add ecx,1
@@ -76,6 +77,8 @@ end procedure -- (for Edita/CtrlQ)
             call :%fixupIndex   -- idx-1 in edi, len in edx, al set
             sub ecx,1
       @@:
+        cmp byte[esi-1],0x80
+        jne :RepeStr
         --
         -- edi now contains 0-based index to replace, and edx the length
         -- ecx is remaining indexes (including the one in edi)
@@ -234,8 +237,9 @@ end procedure -- (for Edita/CtrlQ)
         sub rdi,1
 --      mov rdx,[rsi-12]    -- length
         mov rdx,[rsi-24]    -- length
-        cmp byte[rsi-1],0x80
-        jne :RepeStr
+--16/3/17!!
+--      cmp byte[rsi-1],0x80
+--      jne :RepeStr
         cmp rdi,rdx         -- cmp idx,length
         jb @f               -- unsigned jump, lets 0..len-1 through
             add rcx,1
@@ -243,6 +247,8 @@ end procedure -- (for Edita/CtrlQ)
             call :%fixupIndex   -- idx-1 in rdi, len in rdx, al set
             sub rcx,1
       @@:
+        cmp byte[rsi-1],0x80
+        jne :RepeStr
         --
         -- rdi now contains 0-based index to replace, and rdx the length
         -- rcx is remaining indexes (including the one in rdi)

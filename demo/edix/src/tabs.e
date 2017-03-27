@@ -44,43 +44,17 @@ global integer showSpecials -- set via eamenus (toggleSpecials)
 
 
 global function ExpandTabs(sequence text)
---global function ExpandTabs(string text)
 -- Replace any tabs with spaces.
 -- NB: text is ansi string or UTF32 dword-sequence, never utf8
 -- Fast (92,000 lines/second or better)
 integer tab
---, c2c = 0
---  if showSpecials then
-----        for i=1 to length(text) do
---      for i=length(text) to 1 by -1 do
---          if text[i]=' ' then
-----                text[i] = #B7
-----                text[i..i] = "\xE2\x80\xA2"
-----                text[i..i] = "\xC2\xB0"
---              text[i..i] = "\xC2\xB7"     -- middle dot
---              c2c += 1
---          end if
---      end for
-----        text = append(text,#B6) -- paragraph mark
---      text &= "\xC2\xB6"  -- paragraph mark
---      while 1 do
---          tab = find(TAB,text)
---          if not tab then exit end if
-----            text = text[1..tab-1]&#BB&
---          text = text[1..tab-1]&#C2&#BB&
---                 repeat(SPACE,isTabWidth-remainder(tab-c2c-1,isTabWidth)-1)&
---                 text[tab+1..length(text)]
---          c2c += 1
---      end while
---  else
-        while 1 do
-            tab = find(TAB,text)
-            if not tab then exit end if
-            text = text[1..tab-1]&
-                   repeat(SPACE,isTabWidth-remainder(tab-1,isTabWidth))&
-                   text[tab+1..length(text)]
-        end while
---  end if
+    while 1 do
+        tab = find(TAB,text)
+        if not tab then exit end if
+        text = text[1..tab-1]&
+               repeat(SPACE,isTabWidth-remainder(tab-1,isTabWidth))&
+               text[tab+1..length(text)]
+    end while
     while 1 do
         tab = find(#0C,text)
         if not tab then exit end if

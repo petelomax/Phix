@@ -235,21 +235,21 @@ integer k
                     profileon = k
                 end if
 --/*
---added 7/7/16:
-                optset[k] = OptOn
---DEV (spotted in passing) 28/6/16: I think I messed up for profile/profile_time...
---          elsif k=OptWarning then
---              finalOptWarn[fileno] = OptOn
---          end if
---          optset[k] = OptOn
-            elsif testall then
-                if k=OptWarning then
-                    finalOptWarn[fileno] = OptOn
-                end if
-                optset[k] = OptOn
-            elsif k!=OptWarning then
-                optset[k] = OptOn
-            end if
+--  --added 7/7/16:
+--                  optset[k] = OptOn
+--  --DEV (spotted in passing) 28/6/16: I think I messed up for profile/profile_time...
+--  --          elsif k=OptWarning then
+--  --              finalOptWarn[fileno] = OptOn
+--  --          end if
+--  --          optset[k] = OptOn
+--              elsif testall then
+--                  if k=OptWarning then
+--                      finalOptWarn[fileno] = OptOn
+--                  end if
+--                  optset[k] = OptOn
+--              elsif k!=OptWarning then
+--                  optset[k] = OptOn
+--              end if
 --*/
             elsif k=OptWarning then
                 finalOptWarn[fileno] = OptOn
@@ -274,7 +274,7 @@ integer k
                     OptOn = not OptOn
                 end if
                 OptConsole = OptOn
-                getToken()
+                getToken(float_valid:=true)
                 if toktype=FLOAT or toktype=DIGIT then
                     -- optional subversion
                     if equal(TokN,3.10) then
@@ -2871,14 +2871,19 @@ end if
 --validate_opstack()
 end procedure
 
-integer rExpr
+--integer rExpr
 forward procedure Expr(integer p, integer toBool)
+forward procedure Factor(integer toBool)
 
 -- second parameter for Expr (or 0 if we want sc/exprBP chains):
 constant asBool=1,          -- return 0/1
          asNegatedBool=-1   -- return 0/-1
 --       asInvertedBool=-9  -- return 1/0       [DEV unused/broken?]
 
+
+global -- for pilasm.e
+integer SideEffects
+        SideEffects = E_none
 
 procedure DoSequence()
 -- Process a sequence
@@ -2889,10 +2894,12 @@ sequence constseq
 sequence symtabN    -- copy of symtab[opstack[opsidx]]
 integer wasMapEndToMinusOne = mapEndToMinusOne
 --sequence isRID --DEV temp
-
+integer VAmask = 0
+integer wasSideEffects = SideEffects
+    SideEffects = 0
     len = 0
     mapEndToMinusOne = -2
-    MatchChar('{')
+    MatchChar('{',float_valid:=true)
     allconst = 1
     etype = 0
     constseq = {}
@@ -2904,12 +2911,19 @@ integer wasMapEndToMinusOne = mapEndToMinusOne
             exit
         end if
         mapEndToMinusOne = 0
-        call_proc(rExpr,{0,asBool})
+--      call_proc(rExpr,{0,asBool})
+        Expr(0, asBool)
+        integer tidx = opstack[opsidx]
+        if not opTopIsOp
+        and tidx!=0
+        and symtab[tidx][S_NTyp]=S_GVar2 then
+            VAmask = or_bits(VAmask,power(2,remainder(tidx,29)))
+        end if
         if allconst then
             if opTopIsOp or opsltrl[opsidx]!=1 then
                 allconst = 0
             elsif emitON then
-                symtabN = symtab[opstack[opsidx]]
+                symtabN = symtab[tidx]
 --isRID = append(isRID,and_bits(symtabN[S_State],K_rtn))
 --8/6/15:
 if and_bits(symtabN[S_State],K_rtn) then
@@ -2948,7 +2962,7 @@ end if
         if opTopIsOp then PopFactor() end if
         if toktype!=',' then exit end if
         mapEndToMinusOne = -2
-        MatchChar(',')
+        MatchChar(',',float_valid:=true)
     end while
     mapEndToMinusOne = wasMapEndToMinusOne
 
@@ -2968,8 +2982,20 @@ end if
         PushFactor(N,1,T_Dsq)   -- yep, this is a literal!
     else
         PushSubOp(opMkSq,MkSqOp,len)
+--      if and_bits(VAmask,wasSideEffects)!=and_bits(VAmask,SideEffects) then
+--if fileno=1 then
+--  printf(1,"VAmask:%08x, SideEffects:%08x\n",{VAmask,SideEffects})
+--end if
+--      if and_bits(VAmask,SideEffects)
+--      and SideEffects!=E_all then
+        if and_bits(VAmask,SideEffects) then
+            if lint 
+            or SideEffects!=E_all then
+                Warn("suspect evaluation order",tokline,tokcol,0)
+            end if
+        end if
     end if
-
+    SideEffects = or_bits(SideEffects,wasSideEffects)
     MatchChar('}')
 end procedure
 
@@ -3229,7 +3255,7 @@ integer state, isForward, wasUsed
 object Default
 
     if toktype='+' then
-        MatchChar('+')
+        MatchChar('+',float_valid:=true)
     end if
     if toktype=LETTER then
         k = find(ttidx,paramNames)
@@ -3254,7 +3280,7 @@ object Default
                 -- with RDS Eu's std\ files.
                 if N=T_length then
                     getToken()
-                    MatchChar('(')
+                    MatchChar('(',float_valid:=true)
                     if toktype=LETTER then
                         k = find(ttidx,paramNames)
                         if k and k<nParams then
@@ -3307,12 +3333,13 @@ object Default
                     MatchChar('(')
 --                  paramDflts[nParams] = {T_command_line}
                     Default = {T_command_line}
+--                  MatchChar(')')
                     MatchChar(')')
 --DEV
 --!/*
                 elsif N=T_routine then
                     getToken()
-                    MatchChar('(')
+                    MatchChar('(',float_valid:=true)
                     if toktype=LETTER then
                         k = find(ttidx,paramNames)
                         if k!=0 and k<nParams then
@@ -3392,13 +3419,13 @@ object Default
             else
 --              paramDflts[nParams] = N
                 Default = N
-                getToken()
+                getToken(float_valid:=true)
             end if
         end if
     elsif toktype=DIGIT then
         if Ch='/' then
             getToken()
-            MatchChar('/')
+            MatchChar('/',float_valid:=true)
             if toktype!=DIGIT or TokN!=0 then
                 Aborp("/0 expected")
             end if
@@ -3410,7 +3437,7 @@ object Default
         end if
         getToken()
     elsif toktype='-' then
-        MatchChar('-')
+        MatchChar('-',float_valid:=true)
         if toktype=DIGIT then
 --          paramDflts[nParams] = addUnnamedConstant(-TokN, T_integer)
             Default = addUnnamedConstant(-TokN, T_integer)
@@ -3643,7 +3670,7 @@ if ttidx!=-1 then
             getToken()
 end if
 -- added 6/4/2012: (may confuse default with named parameter a bit, but it is optional)
-            if toktype=':' and Ch='=' then MatchChar(':') end if
+            if toktype=':' and Ch='=' then MatchChar(':',false) end if
             if toktype='=' 
             or default_found then
                 --
@@ -3663,7 +3690,7 @@ end if
                 --  use
                 --      find(o,s,step:=2)
                 --
-                MatchChar('=')
+                MatchChar('=',float_valid:=true)
                 getOneDefault()     -- sets paramDflts[nParams]
 --DEV major masking rqd!
 --                  Typ += K_oparm
@@ -3748,6 +3775,8 @@ integer SNtyp
                 end if
                 N = addSymEntry(ttidx,0,S_TVar,Typ,0,0)
                 getToken()
+--22/2/17:
+                if toktype=':' and Ch='=' then MatchChar(':',false) end if
                 if toktype='=' then
 --                  onDeclaration = 1
                     onDeclaration = AllowOnDeclaration
@@ -3905,7 +3934,7 @@ end if
         tok_abort_col = tokcol      -- ""
 
         getToken()
-        MatchChar('(')
+        MatchChar('(',float_valid:=true)
         if routineNo=T_routine then -- a call to routine_id()
             -- NB named parameter(!s!) expressly not supported here...
 --trace(1)
@@ -3973,7 +4002,7 @@ end if
                 end if
 -- tryme pt2 of 3:
                 if toktype=':' then
-                    MatchChar(':')
+                    MatchChar(':',float_valid:=false)
                 end if
                 if forward_call then
                     while pidx>length(txids) do
@@ -3993,15 +4022,16 @@ end if
                 getToken()
 --tryme pt3 of 3:
 --              if Ch=':' then
-                if toktype=':' and Ch='=' then MatchChar(':') end if
-                MatchChar('=')
+                if toktype=':' and Ch='=' then MatchChar(':',false) end if
+                MatchChar('=',float_valid:=true)
 --?             sigidx = pidx
             elsif rest_must_be_named then
                 MatchChar(':')  -- trigger an error
 --? else
 --?     
             end if
-            call_proc(rExpr,{0,asBool})
+--          call_proc(rExpr,{0,asBool})
+            Expr(0, asBool)
             if routineNo = T_floor 
             and opTopIsOp
             and opstack[opsidx]=opDiv then
@@ -4095,7 +4125,7 @@ end if
 --          routineNo = wasRoutineNo
 
             if toktype!=',' then exit end if
-            MatchChar(',')
+            MatchChar(',',float_valid:=true)
         end while -- toktype!=')'
 
     end if
@@ -4531,10 +4561,6 @@ constant PROC='P', FUNC='F'
 ,TYPE='T'
 
 global -- for pilasm.e
-integer SideEffects
-        SideEffects = E_none
-
-global -- for pilasm.e
 integer lMask       -- local variables affected by a loop
         lMask = E_none
 
@@ -4805,7 +4831,8 @@ end if
                         and opcode!=opCallProc
                         and opcode!=opUnLock then
                             tidx = symtab[routineNo][S_Name]
-                            ?{routineNo,getBuiltinName(routineNo),getname(tidx,-2)}
+--                          ?{routineNo,getBuiltinName(routineNo),getname(tidx,-2)}
+                            ?routineNo ?{getBuiltinName(routineNo),getname(tidx,-2)}
                             ?9/0
                         end if
                     end if
@@ -5118,7 +5145,7 @@ integer iffvar
     Ichain = -1
 --  MatchString(T_iff)  or T_iif
     getToken()  -- T_iff/T_iif
-    MatchChar('(')
+    MatchChar('(',float_valid:=true)
 
 --  elsevalid = 2
 
@@ -5149,11 +5176,11 @@ integer iffvar
         exprBP = 0
     end if
 
---          MatchString(T_then)
+--  MatchString(T_then)
     if toktype='?' then
-        MatchChar('?')
+        MatchChar('?',float_valid:=true)
     else
-        MatchChar(',')
+        MatchChar(',',float_valid:=true)
     end if
 
     emitElse = emitON
@@ -5221,9 +5248,9 @@ integer iffvar
 --  elsevalid = 0
 --      MatchString(ttidx)
     if toktype=':' then
-        MatchChar(':')
+        MatchChar(':',float_valid:=true)
     else
-        MatchChar(',')
+        MatchChar(',',float_valid:=true)
     end if
 
     emitON = (emitON and emitElse)
@@ -5416,6 +5443,8 @@ sequence wasoptset
 integer savettidx
 
 integer exported = 0
+
+integer wasreturnvar = returnvar    -- (NESTEDFUNC)
 
 --sequence bi
 --object dbg
@@ -5949,7 +5978,11 @@ end if
 
     label_fixup()
 
+if NESTEDFUNC then
+    returnvar = wasreturnvar
+else -- (old code)
     returnvar = -1
+end if
     returnint = 0
 
     if not CheckForFunctionReturn then
@@ -6199,22 +6232,37 @@ end if
 
 end procedure
 
+bool fromsubss = false
 
 --with trace
 --object dbg
 procedure DoSubScripts()
 integer wasMapEndToMinusOne,
         noofsubscripts
+bool wasdot = false,
+     wasfromsubss = fromsubss
 
     wasMapEndToMinusOne=mapEndToMinusOne
     noofsubscripts = 1
     while 1 do
         mapEndToMinusOne = 1
-        MatchChar('[')
-        call_proc(rExpr,{0,asBool})
-        if toktype=ELLIPSE then
-            getToken()
-            call_proc(rExpr,{0,asBool})
+        if ORAC and toktype='.' then
+            MatchChar('.',float_valid:=false)
+            wasdot = true
+            fromsubss = true
+            Factor(0)
+            fromsubss = wasfromsubss
+        else
+            MatchChar('[',float_valid:=true)
+--          call_proc(rExpr,{0,asBool})
+            Expr(0, asBool)
+        end if
+--      call_proc(rExpr,{0,asBool})
+        if toktype=ELLIPSE
+        or (ORAC and not wasdot and toktype=LETTER and ttidx=T_to) then
+            getToken(float_valid:=true)
+--          call_proc(rExpr,{0,asBool})
+            Expr(0, asBool)
             opsidxm1 = opsidx-1
             opsidxm3 = opsidx-3
             if opTopIsOp=BltinOp
@@ -6242,17 +6290,22 @@ integer wasMapEndToMinusOne,
 --DEV as above, replace x[length(x)] with x[-1]?
         mapEndToMinusOne = 0
 -- 13/10/14:
-if toktype=',' then
+--if toktype=',' then
+if toktype=',' and (not ORAC or not wasdot) then    -- (don't allow x.i,j)
 --      MatchChar(',')
 --      getToken()
         toktype = '['
 else
-        MatchChar(']')
-        if toktype!='[' then
-            isSubscript = 1
-            PushSubOp(opSubse,SubscriptOp,noofsubscripts)
-            isSubscript = 0
-            exit
+        if not ORAC or toktype!='.' then
+            if not wasdot then
+                MatchChar(']')
+            end if
+            if toktype!='[' or wasdot then
+                isSubscript = 1
+                PushSubOp(opSubse,SubscriptOp,noofsubscripts)
+                isSubscript = 0
+                exit
+            end if
         end if
 end if
         noofsubscripts += 1
@@ -6563,7 +6616,7 @@ integer tl,tc,N,typ,iMin,iMax,etyp,len,ok
         end if
     else
         if toktype='-' then
-            getToken()
+            getToken(float_valid:=true)
             TokN=-TokN
         end if
         if toktype=DIGIT and integer(TokN) then
@@ -6587,7 +6640,7 @@ integer tl,tc,N,typ,iMin,iMax,etyp,len,ok
         end if
     else
         if toktype='-' then
-            getToken()
+            getToken(float_valid:=true)
             TokN=-TokN
         end if
         if toktype=DIGIT and integer(TokN) then
@@ -6624,7 +6677,7 @@ integer tl,tc,N,typ,iMin,iMax,etyp,len,ok
         end if
     else
         if toktype='-' then
-            getToken()
+            getToken(float_valid:=true)
             TokN = -TokN
         end if
         if toktype=DIGIT and integer(TokN) then
@@ -6965,10 +7018,11 @@ end if
     elsif toktype='-' then
         notumline = tokline
         notumcol = tokcol
-        MatchChar('-')
+        MatchChar('-',float_valid:=true)
         notFdone = 0
 --DEV try Factor(asNegatedBool) instead (NO!)
-        call_proc(rExpr,{7,asNegatedBool})  -- get factor only (negated)
+--      call_proc(rExpr,{7,asNegatedBool})  -- get factor only (negated)
+        Expr(7, asNegatedBool)
         if notFdone then
             -- a compound op was converted to negated bool
             -- eg/ie in -(a and b), the "a and b" expr was  
@@ -7009,13 +7063,14 @@ end if
             end if -- emitON
         end if  -- notFdone
     elsif toktype='(' then
-        getToken()
+        getToken(float_valid:=true)
 --DEV pass our asBool?
 -- 20/06/2011 bugfix... see end of t51 for an example...
 --  (what can I say, all tests pass, notBool makes no sense here, yet obviously I wrote it)
 --  (ah: notBool of 1 rqd for assignments, 0 for conditionals!!)
 --      call_proc(rExpr,{0,0})      -- full,notBool/asIs
-        call_proc(rExpr,{0,toBool})
+--      call_proc(rExpr,{0,toBool})
+        Expr(0, toBool)
         MatchChar(')')
     elsif toktype=FLOAT then
 --      PushFactor(addUnnamedConstant(TokN,T_atom),1,T_atom)
@@ -7024,18 +7079,20 @@ end if
 --      etype = T_atom
         etype = T_N
     elsif toktype='+' then -- (ignore)
-        MatchChar('+')
---DEV tryme:
---      Factor() NO!
---      return
---DEV try Factor(asBool) instead (NO!)
---      call_proc(rExpr,{7,asBool}) -- get factor only,asBool
---6/1/2013. This (now) seems to work fine. No idea what the fuss (NO! *2) was about.. Delete me in 6 mnths.
+        MatchChar('+',float_valid:=true)
         Factor(asBool)
+    elsif toktype='~' and ORAC then
+        -- T_length
+        MatchChar('~',float_valid:=false)
+        Factor(0)
+        PushOp(opLen,BltinOp)
     else
         Aborp("syntax error - an expression is expected here")
     end if
-    if toktype='[' then
+--  if toktype='[' then
+--NO!!! (mistreats q.i.j as q[i[j]], instead of q[i][j]!)
+    if toktype='['
+    or (ORAC and (not fromsubss) and toktype='.') then
 --DEV extend with type b(atom x)... [if rootType(etype)<=[>=]T_atom]
 --DEV allow f()[idx]??
 --24/09:
@@ -7238,7 +7295,8 @@ object sig
                 lhsliteral = (opTopIsOp=0 and 
                               opsltrl[opsidx]=1 and 
                               opstype[opsidx]<=T_atom)
-                getToken()
+--DEV [not]fromsubss??
+                getToken(float_valid:=true)
                 if thisp=5 then -- +-
 --trace(1)
                     Expr(6,asBool)  -- subexpression involving *,/ only
@@ -7361,7 +7419,7 @@ object sig
                         k += 1
                     end if
                     if toktype!='&' then exit end if    -- (never exits on first iteration)
-                    MatchChar('&')
+                    MatchChar('&',float_valid:=true)
                     Expr(5,asBool)  -- subexpression involving */+- but not &/rel/logicops
                 end while
                 if k=1 then
@@ -7400,17 +7458,17 @@ end if
                 relopline = tokline
                 relopcol = tokcol
 
-                getToken()
+                getToken(float_valid:=true)
                 if toktype!='=' then
                     k = find(wastok,"< =  >")   -- one char ops
                     --10/4/2012 Allow <> to mean !=
                     if toktype='>' and k=1 then
-                        MatchChar('>')
+                        MatchChar('>',float_valid:=true)
                         k = 4
                     end if
                 else
                     k = find(wastok," <=!> ")   -- two char ops (<=,==,!=,>=)
-                    MatchChar('=')
+                    MatchChar('=',float_valid:=true)
                 end if
                 if k=0 then Aborp("Unrecognised op") end if
                 Expr(3,asBool)                  -- subexpression involving */+-& only
@@ -7552,7 +7610,7 @@ end if
                     sqline = tokline
                     sqcol = tokcol
                 end if
-                MatchString(LogicTok) -- "and", "or", or "xor"
+                MatchString(LogicTok,float_valid:=true) -- "and", "or", or "xor"
 
                 if toktype=HEXDEC then
                     -- allow #istype/#isinit mid-expression (for testing, doh!)
@@ -7596,7 +7654,7 @@ end if
         BN = makeBool(toBool,wasScBP,wasExprBP,BN)
     end if
 end procedure
-rExpr=routine_id("Expr")
+--rExpr=routine_id("Expr")
 
 --procedure MarkWritten(integer N)
 --integer state
@@ -7707,6 +7765,8 @@ integer rtype
 integer statemod
 integer LHStype
 sequence idii
+bool wasdot = false,
+     wasfromsubss = fromsubss
 --sequence thisName
 --object dbg
 --dbg = symtab[386]
@@ -7737,7 +7797,8 @@ sequence idii
 --  rtype = rootType(Type)
     rtype = Type
     if rtype>T_object then rtype = rootType(rtype) end if
-    if toktype='[' then
+    if toktype='['
+    or (ORAC and toktype='.') then
         if not and_bits(rtype,T_sequence) then
             Aborp("attempt to subscript an atom (assigning to it)")         -- eg/ie int[i]=o
         end if
@@ -7747,10 +7808,19 @@ sequence idii
         wasMapEndToMinusOne=mapEndToMinusOne
         while 1 do
             mapEndToMinusOne = 1
-            MatchChar('[')
-            Expr(0,asBool)
-            if toktype=ELLIPSE then
-                getToken()
+            if ORAC and toktype='.' then
+                MatchChar('.',float_valid:=false)
+                wasdot = true
+                fromsubss = true
+                Factor(0)
+                fromsubss = wasfromsubss
+            else
+                MatchChar('[',float_valid:=true)
+                Expr(0,asBool)
+            end if
+            if toktype=ELLIPSE
+            or (ORAC and not wasdot and toktype=LETTER and ttidx=T_to) then
+                getToken(float_valid:=true)
                 Expr(0,asBool)
 --DEV replace x[..length(x)] with x[..-1] as per DoSubScripts()...?
                 subscript=SliceOp
@@ -7758,14 +7828,19 @@ sequence idii
                 subscript=SubscriptOp
             end if
 --7/2/17:
-if toktype=',' and subscript=SubscriptOp then
+--if toktype=',' and subscript=SubscriptOp then
+if toktype=',' and subscript=SubscriptOp and ((not ORAC) or (not wasdot)) then
     toktype = '['
 else
             mapEndToMinusOne = 0
-            MatchChar(']')
-            mapEndToMinusOne = wasMapEndToMinusOne
-            if subscript=SliceOp then exit end if
-            if toktype!='[' then exit end if
+            if not ORAC or toktype!='.' then
+                if not wasdot then
+                    MatchChar(']')
+                end if
+                mapEndToMinusOne = wasMapEndToMinusOne
+                if subscript=SliceOp then exit end if
+                if toktype!='[' then exit end if
+            end if
 end if
             if rtype=T_string then Aborp("attempt to subscript an atom (char of string)") end if
             noofsubscripts += 1
@@ -7827,8 +7902,8 @@ end if
         end if
     end if
 -- added 6/4/2012 (allow ":=" as well as "=")
-    if toktype=':' and Ch='=' then MatchChar(':') end if
-    MatchChar('=')
+    if toktype=':' and Ch='=' then MatchChar(':',false) end if
+    MatchChar('=',float_valid:=true)
 
 --  if (not CompoundAssignment) and (not subscript) then
 --      MarkWritten(TableEntry)
@@ -8332,6 +8407,7 @@ end if
             tokline = eqline
             tokcol = eqcol
             symtabN = {}    -- Avoid clone/confusion should [S_Init] (etc) be updated
+--NESTEDFUNC... (PopFactor if we have to)
             StoreVar(tidx,Type)
             onDeclaration = 0
             tokline = savetokline
@@ -8403,6 +8479,9 @@ end if
     symtabN = {}    -- (avoids clone in ltAdd)
     if NOLT=0 or bind or lint then
         if emitON then
+--PL 6/3/17(??)
+--          Lmin = MININT
+--          Lmax = MAXINT
             ltAdd(SET,tidx,lprev,ntype,length(s5))
         end if
     end if -- NOLT
@@ -8531,7 +8610,7 @@ integer scode, wasEmit2
 --  LastStatementWasReturn = 0 -- put back in 21/10
 --  LastStatementWasExit = 0
 --trace(1)
-    MatchString(T_if)
+    MatchString(T_if,float_valid:=true)
 
     elsevalid = 2
 
@@ -8867,7 +8946,7 @@ end if
             emitline = tokline-1
         end if
         elsevalid = (ttidx=T_elsif)
-        MatchString(ttidx)
+        MatchString(ttidx)  -- T_else/T_elsif
 
         emitON = (emitON and emitElse)
 ----DEV 14/7: (27/2/09: I think is is handled OK now by jskip)
@@ -8992,7 +9071,7 @@ integer thispt
         loopTop = length(s5)    -- addr link field
     end if
 
-    MatchString(T_while)
+    MatchString(T_while,float_valid:=true)
 
     if exprBP!=0 then ?9/0 end if
     if continueBP!=0 then ?9/0 end if
@@ -9208,8 +9287,8 @@ integer cnTyp
     controlvar = ttidx
     getToken()
 -- added 6/4/2012 (allow ":=" as well as "=")
-    if toktype=':' and Ch='=' then MatchChar(':') end if
-    MatchChar('=')
+    if toktype=':' and Ch='=' then MatchChar(':',false) end if
+    MatchChar('=',float_valid:=true)
     if opsidx!=0 then ?9/0 end if -- leave in (ie outside if DEBUG then)
     Expr(0,asBool)
     flags = 0
@@ -9274,7 +9353,7 @@ integer cnTyp
     ftyp = opstype[1]
     if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
 
-    MatchString(T_to)
+    MatchString(T_to,float_valid:=true)
     Expr(0,asBool)
     if opTopIsOp then
 --      tvar = newTempVar(T_integer,Private)
@@ -9517,7 +9596,7 @@ procedure DoReturn()
     if returnvar=-1 then
         Aborp("return must be inside a procedure or function")
     end if
-    MatchString(T_return)
+    MatchString(T_return,float_valid:=true)
     if returnvar then
         Expr(0,asBool)
 if newEBP then
@@ -9659,7 +9738,7 @@ integer link
     saveBreakBP = breakBP
     breakBP = 0
 
-    MatchString(T_switch)
+    MatchString(T_switch,float_valid:=true)
 
     elsevalid = 2
     elsectrl = -1
@@ -9716,7 +9795,7 @@ integer link
             ctrltyp = 0
         end if
         withsaid = 0
-        MatchString(ttidx)
+        MatchString(ttidx)  -- T_with/T_without
         while 1 do
             if ttidx=T_fallthru
             or ttidx=T_fallthrough then
@@ -9725,7 +9804,7 @@ integer link
                 if ctrltyp then
                     ctrltyp += FALLTHRU
                 end if
-                MatchString(ttidx)
+                MatchString(ttidx)  -- T_fallthru/T_fallthrough
             elsif ttidx=T_jump_table then
                 if and_bits(withsaid,SWTABLE) then Aborp("duplicate") end if
                 withsaid += SWTABLE
@@ -9737,7 +9816,7 @@ integer link
                 Expected("fallthr(u|ough) | jump_table")
             end if
             if toktype!=',' then exit end if
-            MatchChar(',')
+            MatchChar(',',float_valid:=true)
         end while
         if emitON and ctrltyp then
             s5[switchtop-1] = ctrltyp
@@ -9772,7 +9851,7 @@ integer link
            or ttidx=T_default then
             if ttidx=T_case then
                 casefound = 1
-                MatchString(T_case)
+                MatchString(T_case,float_valid:=true)
             end if
             if ttidx=T_else
             or ttidx=T_default then
@@ -9800,7 +9879,7 @@ integer link
                 if not elsevalid then
                     Aborp("duplicate else/default")
                 end if
-                MatchString(ttidx)
+                MatchString(ttidx)  -- T_else/T_default
                 elsevalid = 0
                 if toktype=':' then
                     MatchChar(':')
@@ -9853,7 +9932,7 @@ integer link
                         exprBP = 0
                     end if
                     if toktype=',' then
-                        MatchChar(',')
+                        MatchChar(',',float_valid:=true)
                     else
                         if toktype=':' then
                             MatchChar(':')
@@ -9870,7 +9949,7 @@ integer link
                                 ctrltyp = or_bits(ctrltyp,FALLTHRU)
                                 s5[switchtop-1] = ctrltyp
                             end if
-                            MatchString(ttidx)
+                            MatchString(ttidx)  -- T_fallthru/T_fallthrough
                         else
     --Hmm: case x break; if we haven't emitted any code yet then don't... (just clear opstack?)
     --      ah, no: "case 5 break; else" needs the 5 not to do the else...
@@ -9897,7 +9976,7 @@ integer link
                         --
                         if ttidx!=T_else
                         and ttidx!=T_default then
-                            MatchString(T_case)
+                            MatchString(T_case,float_valid:=true)
                         end if
                         if ttidx=T_else
                         or ttidx=T_default then
@@ -9970,7 +10049,7 @@ if emitON then
                 s5[switchtop-1] = ctrltyp
             end if
 end if
-            MatchString(ttidx)
+            MatchString(ttidx) -- T_fallthru/T_fallthrough
 --          ctrltyp = or_bits(ctrltyp,FALLTHRU)
             ctrltyp = FALLTHRU  -- (set FALLTHRU bit!)
         end if  
@@ -10109,7 +10188,7 @@ procedure DoQu()
 integer t,O
 sequence symtabN
 --trace(1)
-    MatchChar('?')
+    MatchChar('?',float_valid:=true)
     PushFactor(T_const1,1,T_integer)
 --trace(1)
 --fromQU = 1
@@ -10236,11 +10315,13 @@ integer Typ, rootInt
                 --
                 -- Assignment on declaration:
                 --
+--22/2/17:
+                if toktype=':' and Ch='=' then MatchChar(':',false) end if
                 if  toktype='='
                 or (toktype=LETTER and Name=ttidx) then
                     if toktype=LETTER then
                         -- treat integer x x=1 exactly the same as integer x=1.
-                        getToken()
+                        getToken(float_valid:=false)
                     end if
     --              onDeclaration = rootInt     --DEV or no fwd calls outstanding... (see t45aod.exw)
 --                  onDeclaration = (rootInt or no_of_fwd_calls=0)
@@ -10281,10 +10362,12 @@ integer noofsubscripts
 object Type
 integer varno
 integer rtype
+bool wasdot = false,
+     wasfromsubss = fromsubss
 
     VAmask = 0  -- (should already be so)
     mapEndToMinusOne = -2
-    MatchChar('{')
+    MatchChar('{',float_valid:=false)
     while toktype!='}' do
         if mapEndToMinusOne='$' and toktype=DIGIT and TokN=-1 then  
             mapEndToMinusOne = 0
@@ -10335,7 +10418,8 @@ integer rtype
 --               try to store a sequence in it)
             localsubscripts = 0
             noofsubscripts = 0
-            if toktype='[' then
+            if toktype='[' 
+            or (ORAC and toktype='.') then
                 if isDeclaration!=0 then
                     Aborp("illegal")
                 end if
@@ -10345,15 +10429,26 @@ integer rtype
                     Aborp("attempt to subscript an atom (assigning to it)")         -- eg/ie int[i]=o
                 end if
                 if symtab[varno][S_NTyp]=S_GVar2 then
-                    VAmask += power(2,remainder(varno,29))
+--2/3/17:
+--                  VAmask += power(2,remainder(varno,29))
+                    VAmask = or_bits(VAmask,power(2,remainder(varno,29)))
                 end if
                 while 1 do
                     mapEndToMinusOne = 1
-                    MatchChar('[')
-                    noofsubscripts += 1
-                    Expr(0,asBool)
-                    if toktype=ELLIPSE then
-                        getToken()
+                    if ORAC and toktype='.' then
+                        MatchChar('.',float_valid:=false)
+                        wasdot = true
+                        fromsubss = true
+                        Factor(0)
+                        fromsubss = wasfromsubss
+                    else
+                        MatchChar('[',float_valid:=true)
+                        noofsubscripts += 1
+                        Expr(0,asBool)
+                    end if
+                    if toktype=ELLIPSE
+                    or (ORAC and not wasdot and toktype=LETTER and ttidx=T_to) then
+                        getToken(float_valid:=true)
                         Expr(0,asBool)
 --DEV replace x[..length(x)] with x[..-1] as per DoSubScripts()...?
                         localsubscripts=SliceOp
@@ -10363,12 +10458,17 @@ integer rtype
                     end if
                     mapEndToMinusOne = 0
 -- 7/2/17:
-if toktype = ',' then
+--if toktype = ',' then
+if toktype=',' and ((not ORAC) or (not wasdot)) then
     toktype = '['
 else
-                    MatchChar(']')
-                    if localsubscripts=SliceOp then exit end if
-                    if toktype!='[' then exit end if
+                    if not ORAC or toktype!='.' then
+                        if not wasdot then
+                            MatchChar(']',float_valid:=false)
+                        end if
+                        if localsubscripts=SliceOp then exit end if
+                        if toktype!='[' or wasdot then exit end if
+                    end if
 end if
                     if rtype=T_string then Aborp("attempt to subscript an atom (char of string)") end if
 --                  noofsubscripts += 1
@@ -10384,7 +10484,7 @@ end if
         end if
         if toktype='}' then exit end if
         mapEndToMinusOne = -2
-        MatchChar(',')
+        MatchChar(',',float_valid:=false)
 --      if toktype='$' then MatchChar('$') exit end if -- allow ",$}"
         i += 1
     end while
@@ -10398,7 +10498,7 @@ procedure MultipleAssignment(integer isDeclaration, integer Typ)
 -- See tests\t57masgn.exw for examples of what this handles
 --
 sequence assignset
-integer allequal
+bool allequal
 integer tmp, tmpN, tmpI
 sequence ai
 integer varno
@@ -10420,16 +10520,16 @@ integer lprev
 
     assignset = GetMultiAssignSet({},isDeclaration,Typ)
     SpecialHandling('@', SYMBOL)
-    MatchChar('}')
+    MatchChar('}',float_valid:=false)
     SpecialHandling('@', ILLEGAL)
-    allequal = 0
+    allequal = false
     if toktype='@' then
-        allequal = 1
-        MatchChar('@')
+        allequal = true
+        MatchChar('@',float_valid:=false)
     end if
 
-    if toktype=':' and Ch='=' then MatchChar(':') end if
-    MatchChar('=')
+    if toktype=':' and Ch='=' then MatchChar(':',false) end if
+    MatchChar('=',float_valid:=allequal) -- [eg {a,b,c} @= 3.5]
 
     wastokline = tokline
     wastokcol = tokcol
@@ -10732,6 +10832,9 @@ end if
 --4/2/15:
         if NOLT=0 or bind or lint then
             if emitON then
+--PL 6/3/17(??)
+--              Lmin = MININT
+--              Lmax = MAXINT
                 lprev = symtab[varno][S_ltype]
                 ltAdd(SET,varno,lprev,ntype,length(s5))
             end if
@@ -10817,6 +10920,7 @@ end procedure
 --integer Z_format -- T_format until include/code processed
 integer Z_format -- T_format until Statement() processed
 
+--with trace
 procedure Statement()
 --procedure Statement(integer flags)
 --
@@ -10863,6 +10967,7 @@ integer wasZformat -- quick restore for trace()/profile() [only!] (DEV: iff we c
     elsif ttidx=T_return then       DoReturn()
 --  elsif ttidx=T_switch then       DoSwitch(flags)
     elsif ttidx=T_switch then       DoSwitch()
+    elsif NESTEDFUNC and ttidx=T_func then DoRoutineDef(2)
     else
         N = tokno
         if N<=0 then -- forward procedure call?
@@ -10897,6 +11002,9 @@ end if
                 Call(N,Type,PROC,0)
 --end if
             elsif symtab[Type][S_NTyp]=S_Type then
+--if tokline=201 and Ch='.' then trace(1) end if
+--if tokline=200 and fileno=1 then trace(1) end if
+--?tokline
                 getToken()
                 Assignment(N,Type)
 --              Assignment(N,symtab[N][S_ltype])    -- NO NO! 
@@ -11030,13 +11138,13 @@ integer SNtyp
                 SNtyp = symtab[N][S_NTyp]
                 if SNtyp=S_Rsvd then
                     Aborp("illegal use of a reserved word")
-    -- added 6/4/2012: allow eg
-    -- constant integer Main=create(Window...)  -- typechecks if create returns {}.
-    -- also valid, in the name of optionally allowing the programmer to be doubly-explicit:
-    -- constant integer K=1
-    -- constant integer A=1,B=2,C=3, sequence T="T",U="U",V="V"
-    -- Omitting the type, as all legacy code does, is effectively the same as coding
-    -- "constant object", which means "no type check; infer the type as best you can".
+-- added 6/4/2012: allow eg
+-- constant integer Main=create(Window...)  -- typechecks if create returns {}.
+-- also valid, in the name of optionally allowing the programmer to be doubly-explicit:
+-- constant integer K=1
+-- constant integer A=1,B=2,C=3, sequence T="T",U="U",V="V"
+-- Omitting the type, as all legacy code does, is effectively the same as coding
+-- "constant object", which means "no type check; infer the type as best you can".
                 elsif SNtyp=S_Type then
                     skipSpacesAndComments()
                     if Ch!=-1 and chartype=LETTER then
@@ -11062,8 +11170,8 @@ integer SNtyp
                 wastokline = tokline
                 getToken()
         -- added 6/4/2012 (allow ":=" as well as "=")
-                if toktype=':' and Ch='=' then MatchChar(':') end if
-                MatchChar('=')
+                if toktype=':' and Ch='=' then MatchChar(':',false) end if
+                MatchChar('=',float_valid:=true)
                 Expr(0,asBool)
                 if opsltrl[opsidx]!=1 then
         --          N = addSymEntryAt(wasttidx,isGlobal,S_Const,T_object,0,0,wastokcol)
@@ -11483,15 +11591,25 @@ sequence typeset
         getToken()
     end if
     if ttidx=T_by then
-        getToken()
+        --
+        -- Aside: we don't support non-integer step, but it is still
+        --      getToken(float_valid:=true) to reject them properly!
+        --
+        integer sgn = 1
+        getToken(float_valid:=true)
         if toktype='*' then
             mul = 1
-            getToken()
+            getToken(true)
+        elsif toktype='+' then
+            getToken(true)
+        elsif toktype='-' then
+            sgn = -1
+            getToken(true)
         end if
         if toktype!=DIGIT then
             Aborp("a number is expected here")
         end if
-        step = TokN
+        step = sgn*TokN
         getToken()
     end if
     while 1 do
@@ -11517,10 +11635,10 @@ sequence typeset
         getToken()
         N = 0
 -- added 6/4/2012 (allow ":=" as well as "=")
-        if toktype=':' and Ch='=' then MatchChar(':') end if
+        if toktype=':' and Ch='=' then MatchChar(':',false) end if
         if toktype='=' then
             mapEndToMinusOne = -2       
-            MatchChar('=')
+            MatchChar('=',float_valid:=true)
             if mapEndToMinusOne='$' and toktype=DIGIT and TokN=-1 then  -- ...,x=$ case
                 -- (mapEndToMinusOne of '$' used as a flag later on)
 --DEV may need a prev (spotted in passing)
@@ -11636,7 +11754,7 @@ sequence typeset
         end if
         if toktype!=',' then exit end if
         mapEndToMinusOne = -2
-        MatchChar(',')
+        MatchChar(',',float_valid:=false)
     end while
     if typeid!=0 then
 --      typeset = append(typeset,nxt)
@@ -11716,73 +11834,77 @@ end if
         returnint = 0
 
 --/*
-routine 721 (type color() in C:\Program Files (x86)\Phix\e06.exw):
-===========
-   1:  opLn,11,                              --:enum by *2 RED=4, GREEN, BLACK, BLUE, PINK type color(object object) return find(object,{RED, GREEN, BLACK, BLUE, PINK}) end type
-   3:  opFrame,319,                          -- (find)
-   5:  opFrst,725,722,15,1,                  opFrst,dest,src,srctype,pbr
-  10:  opMove,726,723,20744,1,4,             opMove,dest,src,isInit,onDeclaration,ltype
-  16:  opCall,                               opCall
-  17:  opMovbi,720,318,1,                    opMovbi,dest,src,isInit
-  21:  opRetf,
-  22:  opBadRetf,
-
-new:
-routine 721 (type color() in C:\Program Files (x86)\Phix\e06.exw):
-===========
-   1:  opLn,10,                              --:enum type color by *2 RED=4, GREEN, BLACK, BLUE, PINK end type
-   3:  opFrame,319,                          -- (find)
-   5:  opFrst,725,722,0,1,                   opFrst,dest,src,srctype,pbr
-  10:  opMove,726,723,20744,1,4,             opMove,dest,src,isInit,onDeclaration,ltype
-  16:  opCall,                               opCall
-  17:  opMovbi,720,318,1,                    opMovbi,dest,src,isInit
-  21:  opRetf,
-
-
-;    11 enum by *2 RED=4, GREEN, BLACK, BLUE, PINK type color(object object) return find(object,{RED, GREEN, BLACK, BLUE, PINK}) end type
-    mov ecx,7                             ;#0042CE98: 271 07000000               uv 02 00  1   1      
-    mov edx,78                            ;#0042CE9D: 272 4E000000               vu 04 00  1   1      
-    call #0042CC0D (:%opFrame) (find)     ;#0042CEA2: 350 66FDFFFF               v  00 00  1   2      
-    mov edi,[ebp+20] (prevebp)            ;#0042CEA7: 213175 14                  uv 80 20  1   3      
-    mov eax,[edi]                         ;#0042CEAA: 213007                     uv 01 80  1   6 80 *80*
-    mov [ebp] (x),eax                     ;#0042CEAC: 211105 00                  uv 00 21  1   7 01   
-    mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
-    mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
-    add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
-    mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
-    jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
-    jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
-
-new:
-;    10 enum type color by *2 RED=4, GREEN, BLACK, BLUE, PINK end type
-    mov ecx,7                             ;#0042CE98: 271 07000000               uv 02 00  1   1      
-    mov edx,78                            ;#0042CE9D: 272 4E000000               vu 04 00  1   1      
-    call #0042CC0D (:%opFrame) (find)     ;#0042CEA2: 350 66FDFFFF               v  00 00  1   2      
-    mov edi,[ebp+20] (prevebp)            ;#0042CEA7: 213175 14                  uv 80 20  1   3      
-    mov eax,[edi]                         ;#0042CEAA: 213007                     uv 01 80  1   6 80 *80*
-    mov [ebp] (x),eax                     ;#0042CEAC: 211105 00                  uv 00 21  1   7 01   
-    mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
-    mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
-    add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
-    mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
-    jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
-    jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
-
-symtab[922]:{-1,S_TVar,0,(S_set+K_Fres),0,0,integer,{integer,0,MAXLEN,object,-1},(eax)}
-symtab[923]:{color,S_Type,1,(S_used+K_used+K_wdb),0,926,{84'T',15},924,1,1,#0042CE98}
-symtab[924]:{object,S_TVar,1,(S_used+S_set+K_used+K_wdb+K_type),15,0,object,{integer,4,64,object,-1},[esp]}
-symtab[925]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,498/#004027D8,T_Dsq,{4,8,16,32' ',64'@'}}
-
-new:
-symtab[922]:{-1,S_TVar,0,(S_set+K_Fres),0,0,integer,{integer,0,MAXLEN,object,-1},(eax)}
-symtab[923]:{color,S_Type,1,(S_used+K_used+K_wdb),0,926,{84'T',15},924,1,1,#0042CE98}
->symtab[924]:{-1,S_TVar,1,(S_used+S_set+K_used+K_wdb+K_type),0,923,integer,{integer,4,64,object,-1},[esp]}
-symtab[925]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,498/#004027D8,T_Dsq,{4,8,16,32' ',64'@'}}
-
-
+--  routine 721 (type color() in C:\Program Files (x86)\Phix\e06.exw):
+--  ===========
+--     1:  opLn,11,                              --:enum by *2 RED=4, GREEN, BLACK, BLUE, PINK type color(object object) return find(object,{RED, GREEN, BLACK, BLUE, PINK}) end type
+--     3:  opFrame,319,                          -- (find)
+--     5:  opFrst,725,722,15,1,                  opFrst,dest,src,srctype,pbr
+--    10:  opMove,726,723,20744,1,4,             opMove,dest,src,isInit,onDeclaration,ltype
+--    16:  opCall,                               opCall
+--    17:  opMovbi,720,318,1,                    opMovbi,dest,src,isInit
+--    21:  opRetf,
+--    22:  opBadRetf,
+--
+--  new:
+--  routine 721 (type color() in C:\Program Files (x86)\Phix\e06.exw):
+--  ===========
+--     1:  opLn,10,                              --:enum type color by *2 RED=4, GREEN, BLACK, BLUE, PINK end type
+--     3:  opFrame,319,                          -- (find)
+--     5:  opFrst,725,722,0,1,                   opFrst,dest,src,srctype,pbr
+--    10:  opMove,726,723,20744,1,4,             opMove,dest,src,isInit,onDeclaration,ltype
+--    16:  opCall,                               opCall
+--    17:  opMovbi,720,318,1,                    opMovbi,dest,src,isInit
+--    21:  opRetf,
+--
+--
+--  ;    11 enum by *2 RED=4, GREEN, BLACK, BLUE, PINK type color(object object) return find(object,{RED, GREEN, BLACK, BLUE, PINK}) end type
+--      mov ecx,7                             ;#0042CE98: 271 07000000               uv 02 00  1   1      
+--      mov edx,78                            ;#0042CE9D: 272 4E000000               vu 04 00  1   1      
+--      call #0042CC0D (:%opFrame) (find)     ;#0042CEA2: 350 66FDFFFF               v  00 00  1   2      
+--      mov edi,[ebp+20] (prevebp)            ;#0042CEA7: 213175 14                  uv 80 20  1   3      
+--      mov eax,[edi]                         ;#0042CEAA: 213007                     uv 01 80  1   6 80 *80*
+--      mov [ebp] (x),eax                     ;#0042CEAC: 211105 00                  uv 00 21  1   7 01   
+--      mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
+--      mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
+--      add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
+--      mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+--      jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
+--      jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
+--
+--  new:
+--  ;    10 enum type color by *2 RED=4, GREEN, BLACK, BLUE, PINK end type
+--      mov ecx,7                             ;#0042CE98: 271 07000000               uv 02 00  1   1      
+--      mov edx,78                            ;#0042CE9D: 272 4E000000               vu 04 00  1   1      
+--      call #0042CC0D (:%opFrame) (find)     ;#0042CEA2: 350 66FDFFFF               v  00 00  1   2      
+--      mov edi,[ebp+20] (prevebp)            ;#0042CEA7: 213175 14                  uv 80 20  1   3      
+--      mov eax,[edi]                         ;#0042CEAA: 213007                     uv 01 80  1   6 80 *80*
+--      mov [ebp] (x),eax                     ;#0042CEAC: 211105 00                  uv 00 21  1   7 01   
+--      mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
+--      mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
+--      add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
+--      mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+--      jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
+--      jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
+--
+--  symtab[922]:{-1,S_TVar,0,(S_set+K_Fres),0,0,integer,{integer,0,MAXLEN,object,-1},(eax)}
+--  symtab[923]:{color,S_Type,1,(S_used+K_used+K_wdb),0,926,{84'T',15},924,1,1,#0042CE98}
+--  symtab[924]:{object,S_TVar,1,(S_used+S_set+K_used+K_wdb+K_type),15,0,object,{integer,4,64,object,-1},[esp]}
+--  symtab[925]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,498/#004027D8,T_Dsq,{4,8,16,32' ',64'@'}}
+--
+--  new:
+--  symtab[922]:{-1,S_TVar,0,(S_set+K_Fres),0,0,integer,{integer,0,MAXLEN,object,-1},(eax)}
+--  symtab[923]:{color,S_Type,1,(S_used+K_used+K_wdb),0,926,{84'T',15},924,1,1,#0042CE98}
+--  >symtab[924]:{-1,S_TVar,1,(S_used+S_set+K_used+K_wdb+K_type),0,923,integer,{integer,4,64,object,-1},[esp]}
+--  symtab[925]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,498/#004027D8,T_Dsq,{4,8,16,32' ',64'@'}}
+--
+--
 --*/
         MatchString(T_end)
         MatchString(T_type)
+    end if
+--16/3/17:
+    if toktype=';' then
+        getToken()
     end if
 end procedure
 
@@ -11818,7 +11940,7 @@ sequence iconids
         end if
         PE = and_bits(k,1) -- (k=1 or k=3)
     end if
-    MatchString(ttidx)
+    MatchString(ttidx,float_valid:=true)    -- T_PE32,T_ELF32,T_PE64,T_ELF64
     if PE then          -- PE32/PE64
         -- (it matters not what we set these to when interpreting, btw)
         if k=1 then             -- PE32
@@ -11829,7 +11951,7 @@ sequence iconids
         k = find(ttidx,{T_GUI,T_gui,T_CONSOLE,T_console})
         if k then
             OptConsole = (k>=3)
-            MatchString(ttidx)
+            MatchString(ttidx,float_valid:=true) -- T_GUI,T_gui,T_CONSOLE,T_console
         end if
         if toktype=FLOAT or toktype=DIGIT then
             if equal(TokN,3.10) then
@@ -11859,12 +11981,13 @@ sequence iconids
             Aborp("requires -c and -norun command line options (or -dll)")
         end if
         agcheckop(opCbHandler)
-        MatchString(ttidx)
+        MatchString(ttidx)  -- T_DLL/T_SO
         DLL = 1
     else
         DLL = 0
     end if
     if ttidx=T_icons then
+        -- eg icons {"ok.ico",{1,0}}
         MatchString(T_icons)
         MatchChar('{')
         if toktype!=DQUOTE then

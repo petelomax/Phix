@@ -1,0 +1,65 @@
+--
+-- demo\rosetta\knapsack.exw
+-- =========================
+--
+-- For each goodie, fill yer boots, then (except for the last) recursively try with fewer and fewer.
+-- Increase profit and decrease weight/volume to pick largest profit for least weight and space.
+--
+integer attempts = 0
+function knapsack(sequence res, goodies, atom profit, weight, volume, at=1, sequence chosen={})
+    atom {pitem,witem,vitem} = goodies[at][2]
+    integer n = min(floor(weight/witem),floor(volume/vitem))
+    chosen &= n
+    profit += n*pitem   -- increase profit
+    weight -= n*witem   -- decrease weight left
+    volume -= n*vitem   -- decrease space left
+    if at=length(goodies) then
+--?{profit,weight,volume,chosen}
+        attempts += 1
+        if length(res)=0
+        or res<{profit,weight,volume} then
+--      or res[1]<=profit then  -- (gives 0/15/11 at 25kg)
+            res = {profit,weight,volume,chosen}
+        end if
+    else
+        while n>=0 do
+            res = knapsack(res,goodies,profit,weight,volume,at+1,chosen)
+            n -= 1
+            chosen[$] = n
+            profit -= pitem
+            weight += witem
+            volume += vitem
+        end while
+    end if
+    return res
+end function
+ 
+constant goodies = {
+-- item           profit weight volume
+{"ichor",        {1800,   0.2, 0.015}},
+{"panacea",      {3000,   0.3, 0.025}},
+{"shiney shiney",{2500,   2.0, 0.002}}}
+
+sequence res -- {profit,(weight left),(space left),{counts}}
+res = knapsack({},goodies,0,25,0.25)
+integer {p,i,g} = res[4]
+sequence {d,pwv} = columnize(goodies),
+         {?,w,v} = columnize(pwv)
+atom weight = sum(sq_mul(res[4],w)),
+     volume = sum(sq_mul(res[4],v))
+printf(1,"Profit %d: %d %s, %d %s, %d %s\n",
+        {res[1],p,d[1],i,d[2],g,d[3]})
+printf(1," [weight:%g, volume:%g, %d attempts]\n",
+        {weight,volume,attempts})
+
+--/*
+Profit 54500: 9 panacea, 0 ichor, 11 shiney shiney
+ [weight:24.7, volume:0.247, 98 attempts]
+
+-- You get the same result whatever order the goodies are in, but with a different number of attempts, 
+--  gold/ichor/panacea being the highest at 204 (and of course it does not matter should {p,i,g} end
+--  up holding results not actually corresponding to the variable name, but the output logic would
+--  need enhancing to cope with a different number of goodie types).
+--*/
+{} = wait_key()
+

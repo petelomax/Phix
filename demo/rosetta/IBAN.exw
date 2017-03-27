@@ -1,0 +1,150 @@
+--
+-- demo\rosetta\IBAN.exw
+-- =====================
+--
+constant nations = {{"AD",24},  -- Andorra
+                    {"AE",23},  -- United Arab Emirates
+                    {"AL",28},  -- Albania
+                    {"AO",25},  -- Angola
+                    {"AT",20},  -- Austria
+                    {"AZ",28},  -- Azerbaijan
+                    {"BA",20},  -- Bosnia and Herzegovina
+                    {"BE",16},  -- Belgium
+                    {"BF",27},  -- Burkina Faso
+                    {"BG",22},  -- Bulgaria
+                    {"BH",22},  -- Bahrain
+                    {"BI",16},  -- Burundi
+                    {"BJ",28},  -- Benin
+                    {"BR",29},  -- Brazil
+                    {"BY",28},  -- Belarus
+                    {"CG",27},  -- Congo
+                    {"CH",21},  -- Switzerland
+                    {"CI",28},  -- Ivory Coast
+                    {"CM",27},  -- Cameroon
+                    {"CR",22},  -- Costa Rica
+                    {"CV",25},  -- Cape Verde
+                    {"CY",28},  -- Cyprus
+                    {"CZ",24},  -- Czech Republic
+                    {"DE",22},  -- Germany
+                    {"DK",18},  -- Denmark
+                    {"DO",28},  -- Dominican Republic
+                    {"DZ",24},  -- Algeria
+                    {"EG",27},  -- Egypt
+                    {"EE",20},  -- Estonia
+                    {"ES",24},  -- Spain
+                    {"FI",18},  -- Finland
+                    {"FO",18},  -- Faroe Islands
+                    {"FR",27},  -- France
+                    {"GA",27},  -- Gabon
+                    {"GB",22},  -- United Kingdom
+                    {"GE",22},  -- Georgia
+                    {"GI",23},  -- Gibraltar
+                    {"GL",18},  -- Greenland
+                    {"GR",27},  -- Greece
+                    {"GT",28},  -- Guatemala
+                    {"HN",28},  -- Honduras 
+                    {"HR",21},  -- Croatia
+                    {"HU",28},  -- Hungary
+                    {"IE",22},  -- Ireland
+                    {"IL",23},  -- Israel
+                    {"IR",26},  -- Iran
+                    {"IS",26},  -- Iceland
+                    {"IT",27},  -- Italy
+                    {"JO",30},  -- Jordan
+                    {"KM",27},  -- Comoros
+                    {"KW",30},  -- Kuwait
+                    {"KZ",20},  -- Kazakhstan
+                    {"LB",28},  -- Lebanon
+                    {"LI",21},  -- Liechtenstein
+                    {"LT",20},  -- Lithuania
+                    {"LU",20},  -- Luxembourg
+                    {"LV",21},  -- Latvia
+                    {"MA",28},  -- Morocco
+                    {"MC",27},  -- Monaco
+                    {"MD",24},  -- Moldova
+                    {"ME",22},  -- Montenegro
+                    {"MG",27},  -- Madagascar
+                    {"MK",19},  -- Macedonia
+                    {"ML",28},  -- Mali
+                    {"MR",27},  -- Mauritania
+                    {"MT",31},  -- Malta
+                    {"MU",30},  -- Mauritius
+                    {"MZ",25},  -- Mozambique
+                    {"NE",28},  -- Niger
+                    {"NI",32},  -- Nicaragua
+                    {"NL",18},  -- Netherlands
+                    {"NO",15},  -- Norway
+                    {"PK",24},  -- Pakistan
+                    {"PL",28},  -- Poland
+                    {"PS",29},  -- Palestinian territories
+                    {"PT",25},  -- Portugal
+                    {"QA",29},  -- Qatar
+                    {"RO",24},  -- Romania
+                    {"RS",22},  -- Serbia
+                    {"SA",24},  -- Saudi Arabia 
+                    {"SE",24},  -- Sweden
+                    {"SI",19},  -- Slovenia
+                    {"SK",24},  -- Slovakia
+                    {"SM",27},  -- San Marino
+                    {"SN",28},  -- Senegal
+                    {"TD",27},  -- Chad
+                    {"TG",28},  -- Togo
+                    {"TL",23},  -- East Timor
+                    {"TN",24},  -- Tunisia
+                    {"TR",26},  -- Turkey
+                    {"UA",29},  -- Ukraine
+                    {"VG",24},  -- Virgin Islands
+                    {"XK",20}}  -- Kosovo
+
+constant {countries,lengths} = columnize(nations)
+
+with trace
+function iban(string code)
+-- This routine does and should reject codes containing spaces etc.
+-- Use iban_s() below for otherwise.
+    integer country = find(code[1..2],countries)
+    if country!=0
+    and length(code)=lengths[country] then
+        code = code[5..$]&code[1..4]
+        integer c = 0
+        for i=1 to length(code) do
+            integer ch=code[i]
+            if ch>='0' and ch<='9' then
+                c = c*10+ch-'0'
+            elsif ch>='A' and ch<='Z' then
+                c = c*100+ch-55
+            else
+                return false
+            end if
+            c = mod(c,97)
+        end for
+        return c=1
+    end if
+    return false
+end function
+
+function iban_s(string code)
+-- strips any embedded spaces and hyphens before validating.
+    code = substitute_all(code,{" ","-"},{"",""})
+    return iban(code)
+end function
+
+procedure test(string code, bool expected)
+    bool valid = iban_s(code)
+    string state
+    if valid=expected then
+        state = iff(valid?"ok":"invalid (as expected)")
+    else
+        state = iff(valid?"OK!!":"INVALID!!")&" (NOT AS EXPECTED)"
+    end if
+    printf(1,"%-34s :%s\n",{code,state})
+end procedure
+
+--trace(1)
+test("GB82 WEST 1234 5698 7654 32",true)
+test("GB82 TEST 1234 5698 7654 32",false)
+test("GB81 WEST 1234 5698 7654 32",false)
+test("SA03 8000 0000 6080 1016 7519",true)
+test("CH93 0076 2011 6238 5295 7",true)
+
+{} = wait_key()

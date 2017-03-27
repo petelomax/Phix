@@ -29,7 +29,7 @@ SUG: try[flag] - if the token immediately following the try keyword is '[', ther
 flag (compile-time-constant) that dictates whether the try is active. Actually scratch that,
 try..catch e "if flag then ?9/0 end if" fulfils the same need much simpler. (recommend that)
 The need, fyi, is that live software must be robust whereas developers should be notified of
-failures asap - and there should definately be warnings for "catch <do nothing> end try" - 
+failures asap - and there should definitely be warnings for "catch <do nothing> end try" - 
 at the very least you should quietly log the event, in >=9/10 cases.
 <br>
 <br>
@@ -126,7 +126,19 @@ A try statement with a finally block is executed by first executing the try bloc
 </pre>
 </small>
         Of course, each individual phrase/clause/statement is perfectly reasonable, however as a whole it is utterly incomprehensible, quite
-        literally almost impossible to remember, and hence extremely difficult to code correctly against. Much simpler:
+        literally almost impossible to remember, and hence extremely difficult to code correctly against.
+        <br>
+        <br>
+        By adopting a simpler scheme with no finally clause and a single catch clause this becomes:
+<small>
+<pre>
+The catch clause is only entered if an exception occurs during the execution of the try block.
+(There is no special exception handling within the catch block other than any such already in place before and after the try statement.)
+</pre>
+</small>
+        <br>
+        <br>
+        This is one way to mimic a finally block:
 <pre>
 bool rethrow = False
 sequence esave
@@ -160,6 +172,16 @@ end if
         <br>
         Every try statement will create a new unnamed local temporary to faciliate the save/restore of the exception handler field, as
         needed to cope with nested exception handlers.
+        <br>
+        <br>
+<pre>
+        opTry -> atom tmpNN := [ebp+NN];
+                 [ebp+NN] := addr(:catchNN);
+        opCatch -> :catchNN
+                      [ebp+NN] := tmpNN;
+                      e := eax;
+        opEndTry -> [ebp+NN] := tmpNN;
+</pre>
       </div>
      </stripped>
     </get>

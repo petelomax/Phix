@@ -7859,7 +7859,8 @@ end procedure
 --  opName("opFreeCons",opFreeCons,1)
 --global procedure free_console()
 procedure ffree_console()
-    if cinit then
+--?{{{{{cinit}}}}}
+--  if cinit then
 -->     {} = c_func(xFreeConsole,{})
         #ilASM{
             [PE32]
@@ -7892,7 +7893,7 @@ procedure ffree_console()
 --      free(pSMALLRECT)
 --      free(pCHARINFO)
         cinit = 0
-    end if
+--  end if
 end procedure
 
 --  opName("opPosition",opPosition,3)

@@ -2,7 +2,7 @@
 -- psmall.e
 -- ========
 --
---  Phix implementation of smallest().
+--  Phix implementation of smallest() and largest().
 --
 --  Compatibility Note: This differs from the OpenEuphoria version of smallest() in std\stats.e in (at least) three ways:
 --   * The set passed in the first parameter must be a non-empty sequence (compilation or run-time error if passed an atom or {})
@@ -29,6 +29,27 @@ object res, tmp
                 res = i
             end if
         elsif tmp<res then
+            res = tmp
+        end if
+    end for
+    return res
+end function
+
+global function largest(sequence set, integer return_index=0)
+object res, tmp
+    if length(set)=0 then ?9/0 end if
+    if return_index then
+        res = 1
+    else
+        res = set[1]
+    end if
+    for i=2 to length(set) do
+        tmp = set[i]
+        if return_index then
+            if tmp>set[res] then
+                res = i
+            end if
+        elsif tmp>res then
             res = tmp
         end if
     end for

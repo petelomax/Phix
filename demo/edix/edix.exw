@@ -69,6 +69,7 @@ with trace
 -- BUG: opening a recent file entry adds a duplicate tab!!
 -- SUG: cannot open -> offer browse (and default any more in the same dir)
 -- SUG: parameterised run should keep ~ten most recently run, in the config file.
+-- SUG: on paste of utf8 into ansi, offer "save as utf8?" pop-up.
 --/*
 filedlg [DONE, ish]
 listview
@@ -3541,7 +3542,7 @@ function cursorblink_cb(Ihandle /*ih*/)
     cursorc = iff(cursorc=CD_BLACK?ColourTab[HighLine]:CD_BLACK)
     cdCanvasSetForeground(cddbuffer, cursorc)
 --  cdCanvasSetForeground(cddbuffer, CD_GRAY)
-    cdCanvasLine(cddbuffer, cursorx, cursory-charheight*.2, cursorx, cursory+charheight*.8)
+    cdCanvasLine(cddbuffer, cursorx, cursory-charheight*0.2, cursorx, cursory+charheight*0.8)
     cdCanvasFlush(cddbuffer)
     update_toolbar()
     return IUP_DEFAULT
@@ -3948,7 +3949,7 @@ end if
                     IupSetAttribute(cursorblink,"RUN","YES")
                 end if
                 cdCanvasSetForeground(cddbuffer, CD_BLACK)
-                cdCanvasLine(cddbuffer, cursorx, cursory-charheight*.2, cursorx, cursory+charheight*.8)
+                cdCanvasLine(cddbuffer, cursorx, cursory-charheight*0.2, cursorx, cursory+charheight*0.8)
 --              cursorc = CD_BLACK
                 cursorc = CD_GRAY
 --              tipline = line
@@ -5166,52 +5167,14 @@ constant cb_backoff = Icallback("backoff_cb")
 
 include src/run.e as run
 
-function run_cb(atom /*self*/)
---?"run_cb" --DEV
-    run:F5run(0,0)
---      IupAlarm( "Action", "Run", "OK" )
---  if self then end if
---  if skip_next_event() then
---      return IUP_IGNORE
---  end if
---
---  atom pos = IupGetInt(tabs, "VALUEPOS")
---  if pos=IUP_INVALID then
---      -- nothing selected
---      return IUP_IGNORE
---  end if
---
---  atom sci = IupGetChild(tabs, pos)
---  sequence path = IupGetAttribute(sci, "PATH")
---  sequence name = get_file_name(path)
---
---if platform()=WINDOWS then
-----                sequence eui = locate_file( "euiw.exe" )
-----                sequence cmd = build_commandline({getenv("COMSPEC"), "/C", eui, name })
---else
-----                sequence eui = locate_file( "eui" )
-----                sequence cmd = build_commandline({"/usr/bin/x-terminal-emulator", "-e", eui, name })
---end if
---OR:
-----    string cmd = iff(platform()=WINDOWS?getenv("COMSPEC"):"/usr/bin/x-terminal-emulator")
-----    string flags = iff(platform()=WINDOWS?"/C":"-e")
-----    string eui = locate_file(platform()=WINDOWS?"pw.exe":"phix")
-----    string cmd = build_commandline({cmd, flags, eui, name })
---
---  {} = chdir(get_file_path(path))
---  ?9/0
---  --      pipeio:exec( cmd, pipeio:create() )
---
+function run_cb(atom self)
+integer ctrl = IupGetInt(self,"ID"), 
+--      shift = IupGetGlobal("SHIFTKEY")
+        shift = IupGetInt(NULL,"SHIFTKEY")
+    run:F5run(ctrl,shift)
     return IUP_IGNORE
 end function
 constant cb_run = Icallback("run_cb")
-
-function prun_cb(atom /*self*/)
---?"prun_cb" --DEV
-    run:F5run(1,0)
-    return IUP_IGNORE
-end function
-constant cb_prun = Icallback("prun_cb")
 
 function comp_cb(atom /*self*/)
 ?"comp_cb" --DEV
@@ -5622,7 +5585,7 @@ integer {x,y} = IupGetIntInt(tbox, "RASTERSIZE")
 end function
 constant cb_file_panel = Icallback("file_panel_cb")
 
-function menu_item(string text, string image, atom action_cb, integer active=1)
+function menu_item(string text, string image, atom action_cb, integer active=1, integer id=0)
     integer k = rfind('\t',text)
     if k then
         text[k+1..$] = keybd:mapkeytext(text[k+1..$])
@@ -5630,6 +5593,9 @@ function menu_item(string text, string image, atom action_cb, integer active=1)
     Ihandle ih = IupMenuItem(text, action_cb)
     IupSetStrAttribute(ih, "IMAGE", get_image(image))
     IupSetInt(ih, "ACTIVE", active)
+    if id then
+        IupSetInt(ih, "ID", id)
+    end if
     return ih
 end function
 
@@ -5777,7 +5743,7 @@ end function
 function create_tool_menu()
 --DEV shortcut keys from keyboard.e
 toolm_run   = menu_item("Run\tF5",                      "PNG_ToolRun",          cb_run,      1)
-toolm_prun  = menu_item("Parameterised Run\tCtrl F5",   "PNG_ToolParamRun",     cb_prun,     1)
+toolm_prun  = menu_item("Parameterised Run\tCtrl F5",   "PNG_ToolParamRun",     cb_run,      1,1)
 toolm_comp  = menu_item("&Compare",                     "PNG_Compare",          cb_comp,     0)
 toolm_dcmp  = menu_item("&Directory Compare",           "PNG_DirComp",          cb_dcmp,     0)
 toolm_fif   = menu_item("&Find In Files\tCtrl Shift F", "PNG_FindInFiles",      cb_fif,      0)
@@ -6001,7 +5967,7 @@ Ihandle toolb_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
 --/*
 atom toolbar = IupHbox({
                         IupLabel(NULL, "SEPARATOR=VERTICAL"),
-                        toolbar_item("tool_run",  "Run (F5)",  "PNG_ActionRun",  Icallback("run_cb"),  0),
+                        toolbar_item("tool_run",  "Run (F5)",  "PNG_ActionRun",  cb_run,  0),
                         toolbar_item("tool_bind", "Bind (F7)", "PNG_ActionBind", Icallback("bind_cb"), 0),
                         IupLabel(NULL, "SEPARATOR=VERTICAL"),
                         toolbar_item("tool_about", "About (F12)", "PNG_MessageInfo", Icallback("about_cb"))
@@ -6021,7 +5987,7 @@ end function
 --end function
 --constant cb_info = Icallback("info_cb")
 
-Ihandln tmenu = NULL, t_new, t_open, t_save, t_close
+Ihandln tmenu = NULL, t_new, t_open, t_reopen, t_save, t_saveas, t_close
 --t_reopen, 
 
 procedure show_tmenu(integer pos)
@@ -6048,17 +6014,20 @@ Ihandle tab
         --  The Save option is only active when the file actually needs to be
         --  saved, which means only "[untitled]" for any background tabs, in
         --  which case it is effectively a "Save as" operation anyway.
+--DEV BLUFF: (save as should really be here, reopen why not!)
         --  (Edita also had reopen/save as, which have been deemed to be
         --   of no use now that files are always saved on tab switch.)
         t_new    = menu_item("New\t\tCtrl N",           "PNG_FileNew",    cb_new,    1)
         t_open   = menu_item("Open\tCtrl O",            "PNG_FileOpen",   cb_open,   1)
---      t_reopen = menu_item("ReOpen\tCtrl Shift O",    "PNG_FileReOpen", cb_reopen, 1)
+        t_reopen = menu_item("ReOpen\tCtrl Shift O",    "PNG_FileReOpen", cb_reopen, 0)
         t_save   = menu_item("Save\t\tCtrl S",          "PNG_FileSave",   cb_save,   1)
+        t_saveas = menu_item("Save &As..",              "PNG_FileSaveAs", cb_saveas, 1)
         t_close  = menu_item("Close\t\tCtrl F4",        "PNG_FileClose",  cb_close,  1)
         tmenu = IupMenu({t_new,
                          t_open,
---                       t_reopen,  -- (no use anymore, if not currfile)
+                         t_reopen,
                          t_save,
+                         t_saveas,
                          t_close})
     end if
     if pos>=0 then
@@ -6075,11 +6044,14 @@ Ihandle tab
     tabfile = IupGetInt(tab,"FILEIDX")  -- (for New,Open,etc)
     -- (Now that autosaveontabswitch is now permanently on, "save" is only valid
     --  for right clicks on the current tab, and of course if that needs saving.
+--ERM??
     --  However, [untitled] tabs, for which "save" is really "save_as" anyway,
     --  must also have the option enabled even when not the current open tab.)
+    integer unnamed = match(untitled,filenames[tabfile])=1
     integer active = (tabfile=currfile and actionsave[currfile]!=actionptr[currfile])
-    if match(untitled,filenames[tabfile])=1 then active = 1 end if
-    IupSetInt(t_save,"ACTIVE",active)
+    IupSetInt(t_reopen,"ACTIVE",not unnamed and tabfile=currfile)
+    IupSetInt(t_save,"ACTIVE",active or unnamed)
+    IupSetInt(t_saveas,"ACTIVE",tabfile=currfile)
     IupPopup(tmenu, x, y)
     tabfile = 0
 end procedure

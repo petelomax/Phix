@@ -2,6 +2,7 @@
 -- src/rein.ew  -- Source code beautifier / re-indent
 -- ===========
 --
+--DEV: does not handle format directives
 --with trace
 constant use2 = 1   --DEV delete and rename sometime after March 2017
 
@@ -552,6 +553,7 @@ charClass['['] = SYMBOL
 charClass[']'] = SYMBOL
 charClass['{'] = SYMBOL
 charClass['}'] = SYMBOL
+charClass['~'] = SYMBOL
 
 
 procedure nextCh()
@@ -782,8 +784,9 @@ integer inexpression
 
 integer r_completeifdef
 
+bool fromsubss = false
 
-procedure getToken()
+procedure getToken(bool float_valid=false)
 integer nxtCh, lenTC, k, tmpch
 sequence oneline
 --if col>1 and equal(token,"try") then trace(1) end if
@@ -907,7 +910,7 @@ sequence oneline
         end while
         tokend = col-1
         token = oneline[tokstart..tokend]
-        if mapEndToMinusOne=1 and equal(token,"end") then
+        if mapEndToMinusOne=1 and equal(token,"end") and not fromsubss then 
             token = "-1"
             toktype = DIGIT
         elsif not nPreprocess then
@@ -929,7 +932,7 @@ sequence oneline
                     call_proc(r_completeifdef,{})
                     return
                 end if
-                getToken()
+                getToken(float_valid)
             end if
         end if
         nextCh()
@@ -1058,6 +1061,11 @@ sequence oneline
         if nxtCh='.' then
             col += 2
             nextCh()
+        elsif not float_valid then
+            toktype = SYMBOL
+            token = "."
+            col += 1
+            nextCh()
         else
             getFloat()
         end if
@@ -1082,7 +1090,9 @@ sequence oneline
                 if Ch!='_' then exit end if
             end if
         end while
-        if find(Ch,".eE") then
+--      if find(Ch,".eE") then
+        if find(Ch,"eE")
+        or (Ch='.' and float_valid) then
             getFloat()
         else
             nextCh()
@@ -1284,11 +1294,11 @@ procedure Check(sequence text)
     end if
 end procedure
 
-procedure Match(sequence text)
+procedure Match(sequence text, bool float_valid=false)
     if not equal(token,text) then
         Abort(text&xl(" expected"))
     end if
-    getToken()
+    getToken(float_valid)
 end procedure
 
 procedure recover(integer ifdefline, integer ifdefstart)
@@ -1838,7 +1848,9 @@ end procedure
 -- Part 3. The (highly simplified) parser.
 --
 
-integer rExpression
+--integer rExpression
+forward procedure Expression()
+forward procedure Factor()
 
 procedure DoSequence(integer vch)
 -- token=="{" on entry
@@ -1846,6 +1858,7 @@ integer wasNest -- see eg Expression()
 integer wasMapEndToMinusOne
 integer wasinexpression
 --integer nIndent
+sequence wasalso = also     -- (added 19/3/17)
     wasinexpression = inexpression
     inexpression = 1
     wasNest = nest
@@ -1853,7 +1866,7 @@ integer wasinexpression
     nest = ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
     striptrailing = 1
 if 0 then --old code
-    Match("{")
+    Match("{",vch!='@')
 --  if parser_tokno=1 then Indent(0) end if
     while not equal(token,"}") do
 --/*
@@ -1867,11 +1880,12 @@ if 0 then --old code
 --
 --*/
         if parser_tokno=1 then Indent(0) end if
-        call_proc(rExpression,{})
+--      call_proc(rExpression,{})
+        Expression()
         if not equal(token,",") then exit end if
 --1/2/17:
         also &= ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
-        Match(",")
+        Match(",",true)
 --      if parser_tokno=1 then Indent(0) end if
     end while
 else
@@ -1884,10 +1898,11 @@ else
             getToken()
             exit
         end if
-        getToken()
+        getToken(vch!='@')
         if equal(token,"}") then exit end if
         if parser_tokno=1 then Indent(0) end if
-        call_proc(rExpression,{})
+--      call_proc(rExpression,{})
+        Expression()
         if not equal(token,",") then exit end if
 --1/2/17: (DEV/doc see trick with IupButton comma at end of plade.exw)
         also &= ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
@@ -1921,6 +1936,7 @@ end if
         charClass[vch] = SYMBOL
     end if
     Match("}")
+    also = wasalso
 end procedure
 
 procedure Params(integer asiff)
@@ -1930,21 +1946,23 @@ integer namedparams = 0
     getToken()
     stripleading = 1
     striptrailing = 1
-    Match("(")
+    Match("(",true)
     if not equal(token,")") then
         wasinexpression = inexpression
         inexpression = 1
         wasNest = nest
         nest = ExpLength(filetext[currfile][tokline][1..tokstart-1])+inPend()
         while Ch!=-1 do
-            call_proc(rExpression,{})
+--          call_proc(rExpression,{})
+            Expression()
             if asiff then
                 if not find(token,{",","?",":"}) then exit end if
             else
 --<25/1/17> (named and defaulted parameters)
                 if find(token,{":=","="}) then
-                    getToken()
-                    call_proc(rExpression,{})
+                    getToken(true)
+--                  call_proc(rExpression,{})
+                    Expression()
                     namedparams = 1
                 elsif namedparams then
                     Match("=")  -- trigger error
@@ -1954,7 +1972,7 @@ integer namedparams = 0
             end if
 --1/2/17:
             also &= ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
-            getToken()
+            getToken(true)
             if parser_tokno=1 then Indent(0) end if
         end while
         -- if the closing ')' is the first token on its own 
@@ -1973,28 +1991,55 @@ integer namedparams = 0
 end procedure
 
 procedure DoSubScripts2()
-integer wasMapEndToMinusOne
-    wasMapEndToMinusOne = mapEndToMinusOne
+integer wasMapEndToMinusOne = mapEndToMinusOne
+bool wasdot = false,
+     wasfromsubss = fromsubss
+
     mapEndToMinusOne = 1
     while 1 do
         stripleading = 1
         striptrailing = 1
-        Match("[")
-        call_proc(rExpression,{})
-        if toktype=ELLIPSE then
-            stripleading = 1
-            striptrailing = 1
-            getToken()
-            call_proc(rExpression,{})
+        if token="." then
+            Match(".",false)
+            wasdot = true
+            fromsubss = true
+            Factor()
+            fromsubss = wasfromsubss
+        else
+            Match("[",true)
+--          call_proc(rExpression,{})
+            Expression()
+        end if
+        if toktype=ELLIPSE
+        or (toktype=LETTER and token="to") then
+            if toktype=ELLIPSE then
+                stripleading = 1
+                striptrailing = 1
+            end if
+            getToken(true)
+--          call_proc(rExpression,{})
+            Expression()
             stripleading = 1
             exit
         end if
-        if Ch!='[' then exit end if
-        stripleading = 1
-        Match("]")
+--/"*
+        if token="," and not wasdot then    -- (don't allow x.i,j)
+            token = "["
+        elsif token!="." then
+            if Ch!='[' then exit end if
+            stripleading = 1
+            Match("]")
+        end if
+--*"/
+--wasdot>>
+--      if Ch!='[' then exit end if
+--      stripleading = 1
+--      Match("]")
     end while
     mapEndToMinusOne = wasMapEndToMinusOne
-    Match("]")
+    if not wasdot then
+        Match("]")
+    end if
 end procedure
 
 procedure DoSubScripts()
@@ -2005,13 +2050,15 @@ integer wasMapEndToMinusOne
         getToken()
         stripleading = 1
         striptrailing = 1
-        Match("[")
-        call_proc(rExpression,{})
+        Match("[",true)
+--      call_proc(rExpression,{})
+        Expression()
         if toktype=ELLIPSE then
             stripleading = 1
             striptrailing = 1
-            getToken()
-            call_proc(rExpression,{})
+            getToken(true)
+--          call_proc(rExpression,{})
+            Expression()
             stripleading = 1
             Check("]")
             exit
@@ -2043,11 +2090,19 @@ integer wasinexpression
 integer wasindentandor
     wasindentandor = indentandor
     indentandor = 0
-    if toktype=SYMBOL and find(token,{"+","-"}) then
+--if token="~" then ?toktype end if
+    if toktype=SYMBOL and find(token,{"+","-","~"}) then
+--DEV (no help)
+--if token="~" then
+--      wasNest = nest
+--      Match(token,true)
+--      nest = wasNest
+--else
         striptrailing = 1
-        Match(token)
+        Match(token,true)
+--end if
     elsif toktype=LETTER and equal(token,"not") then
-        Match(token)
+        Match(token,true)
     end if
     if toktype=LETTER then
         if not treatColonAsThen then
@@ -2059,6 +2114,8 @@ integer wasindentandor
         else            -- a variable, we presume
 if use2 then
             getToken()
+--?{token,toktype,tokline,"rein.e line 2096"}
+--if tokline=135 then trace(1) end if
 else
             DoSubScripts()
 end if
@@ -2075,8 +2132,9 @@ end if
         nest = ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
 --erm...
 --      striptrailing = 1
-        getToken()
-        call_proc(rExpression,{})
+        getToken(true)
+--      call_proc(rExpression,{})
+        Expression()
 --      stripleading = 1
 --?tokline
 --if tokline=50 then ?1 trace(1) end if
@@ -2096,7 +2154,7 @@ end if
     end if
 --17/12/15: (never worked, there's a getToken at the end of DoSubScripts)
 if use2 then
-    if toktype=SYMBOL and equal(token,"[") then
+    if toktype=SYMBOL and (equal(token,"[") or (not fromsubss and token=".")) then
 --  if Ch='[' then
 --  if toktype=SYMBOL and Ch='[' then
 --trace(1)
@@ -2138,7 +2196,8 @@ integer wasinexpression
             if k=0 then exit end if
         end if
         if parser_tokno=1 then Indent(0) end if
-        Match(token)
+--DEV [not]fromsubss?
+        Match(token,true)
         if parser_tokno=1 then Indent(0) end if
         Factor()
     end while
@@ -2150,7 +2209,7 @@ integer wasinexpression
         end if
     end if
 end procedure
-rExpression = routine_id("Expression")
+--rExpression = routine_id("Expression")
 
 integer rBlock
 
@@ -2165,7 +2224,7 @@ sequence wasalso
     if tokstart>1 or nest or inPend() then
         nest += isTabWidth
     end if
-    Match("if")
+    Match("if",true)
     also = {ExpLength(filetext[currfile][tokline][1..tokstart-1])+inPend()}
     Expression()
     also = {}
@@ -2203,7 +2262,7 @@ integer wasNest
     if tokstart>1 or nest or inPend() then
         nest += isTabWidth
     end if
-    Match("while")
+    Match("while",true)
     indentandor = 1
     Expression()
     indentandor = 0
@@ -2222,7 +2281,7 @@ integer wasNest
     if tokstart>1 or nest or inPend() then
         nest += isTabWidth
     end if
-    Match("switch")
+    Match("switch",true)
     Expression()
     if find(token,{"with","without"}) then
         while Ch!=-1 do
@@ -2239,7 +2298,7 @@ integer wasNest
             getToken()
         else
             if parser_tokno=1 then Indent(0) end if
-            Match("case")
+            Match("case",true)
             if find(token,{"else","default"}) then
                 getToken()
             else
@@ -2249,13 +2308,13 @@ integer wasNest
                     if not equal(token,",") then exit end if
 --1/2/17: (erm)
 --                  also &= ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
-                    getToken()
+                    getToken(true)
                 end while
                 treatColonAsThen = 0
             end if
         end if
         if find(token,{":","then"}) then
-            getToken()
+            getToken(true)
         end if
 --      nest += isTabWidth
         call_proc(rBlock,{})
@@ -2284,20 +2343,24 @@ integer wasNest
     if tokstart>1 or nest or inPend() then
         nest += isTabWidth
     end if
+--?{tokline,also}
     Match("for")
     getToken()
     stripleading = 1
     striptrailing = 1
-    Match("=")
+    Match("=",true)
     Expression()
-    Match("to")
+    Match("to",true)
     Expression()
     if equal(token,"by") then
-        getToken()
+        getToken(true)
         Expression()
     end if
     Match("do")
+--DEV..
+--  nest = wasNest
     call_proc(rBlock,{})
+--?{tokline,also}
     if parser_tokno=1 then Indent(0) end if
     nest = wasNest
     Match("end")
@@ -2324,7 +2387,7 @@ integer wasinexpression
 --  wasalso = also
     if returnexpr=-1 then Abort(xl("return must be inside a procedure or function")) end if
 --  if returnexpr=-1 then ?{"oops",tokline} Abort(xl("return must be inside a procedure or function")) end if
-    Match("return")
+    Match("return",true)
     if returnexpr then
 --      also = {ExpLength(filetext[currfile][tokline][1..tokstart-1])+inPend()}
         wasinexpression = inexpression
@@ -2348,7 +2411,7 @@ integer wasinexpression
 end procedure
 
 procedure DoQu()    -- The '?' shorthand.
-    getToken()
+    getToken(true)
     Expression()
 end procedure
 
@@ -2377,8 +2440,11 @@ end procedure
 procedure Assignment2(bool allowsubscripts)
 integer wasNest
 integer wasinexpression
+--bool wasdot = false,
+--   wasfromsubss = fromsubss
+
     getToken()
-    if toktype=SYMBOL and equal(token,"[") then
+    if toktype=SYMBOL and find(token,{"[","."}) then
         if not allowsubscripts then
             Abort("invalid")
         end if
@@ -2389,7 +2455,7 @@ integer wasinexpression
         return
     end if
     insertspaces = 1
-    getToken()
+    getToken(true)
     wasinexpression = inexpression
     inexpression = 1
     wasNest = nest
@@ -2415,7 +2481,7 @@ integer wasinexpression
         return
     end if
     insertspaces = 1
-    getToken()
+    getToken(true)
     wasinexpression = inexpression
     inexpression = 1
     wasNest = nest
@@ -2440,7 +2506,7 @@ procedure MultiAssignment()
         return
     end if
     charClass['@'] = ILLEGAL
-    getToken()
+    getToken(true)
     Expression()
     -- (added 18/12/2015:)
     if token=";" then
@@ -2498,7 +2564,7 @@ else
             getToken()
 --          if equal(token,"=") then
             if find(token,{"=",":="}) then
-                getToken()
+                getToken(true)
                 Expression()
             end if
             if not equal(token,",") then exit end if
@@ -2734,12 +2800,11 @@ integer wasMapEndToMinusOne
             getToken()
         end if
         if toktype=SYMBOL and equal(token,"{") then
---          DoSequence(0)
             MultiAssignment()
         else
             getToken()          -- constant name
             insertspaces = 1
-            Match("=")
+            Match("=",true)
             if Ch=':' then skip_namespace() end if
             Expression()
         end if
@@ -2788,7 +2853,7 @@ integer wasmapEndToMinusOne, wascursorY, fwd = 0
     errtext = ""
     nWarns = 0
     also = {0}
-    vartypes = {"atom","integer","bool","sequence","string","object","Ihandle","Ihandln","cdCanvas","cdCanvan","nullable_string","imImage"}
+    vartypes = {"atom","integer","int","bool","sequence","seq","string","object","Ihandle","Ihandln","cdCanvas","cdCanvan","nullable_string","imImage"}
     vartypes = append(vartypes,"enum") -- DEV...
     withdefs = {}
     textlen = length(filetext[currfile])

@@ -10,6 +10,7 @@
 --  it, unless you want a namespace.
 --
 without trace
+include VM\pTrig.e  -- (not strictly necessary)
 
 global function abs(atom o)
     if o<0 then
@@ -84,5 +85,27 @@ global function trunc(atom x)
         return -floor(-x)
     end if
     return floor(x)
+end function
+
+--constant HALFPI = PI/2
+
+global function atan2(atom y, atom x)
+    if x>0 then
+        return arctan(y/x)
+    elsif x<0 then
+        if y<0 then
+            return arctan(y/x) - PI
+        else
+            return arctan(y/x) + PI
+        end if
+    elsif y>0 then
+--      return HALFPI
+        return PI/2
+    elsif y<0 then
+--      return -(HALFPI)
+        return -(PI/2)
+    else
+        return 0
+    end if
 end function
 

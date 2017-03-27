@@ -4,6 +4,8 @@
 --
 -- The Phix implementation of date()
 --
+include builtins\VM\pcfunc.e        -- (not strictly necessary)
+
 sequence dot
 --  --   dot={0,31,59,90,120,151,181,212,243,273,304,334}   -- now done in init (forward refs).
 sequence t
@@ -91,7 +93,7 @@ constant
     STwHour             = 8,    --  WORD wHour
     STwMinute           = 10,   --  WORD wMinute
     STwSecond           = 12,   --  WORD wSecond
---  STwMillisecs        = 14,   --  WORD wMilliseconds
+    STwMillisecs        = 14,   --  WORD wMilliseconds
     STsize = 16
 
 --/* (now defined in psym.e):
@@ -103,10 +105,11 @@ global constant
     DT_MINUTE = 5,
     DT_SECOND = 6,
     DT_DOW    = 7,
+(   DT_MSEC   = 7, )
     DT_DOY    = 8
 --*/
 
-global function date()
+global function date(bool bMsecs = false)
 --
 --Return a sequence with the following information:  
 --            {year,  -- 4 digit
@@ -115,14 +118,14 @@ global function date()
 --             hour,  -- 0 to 23
 --           minute,  -- 0 to 59
 --           second,  -- 0 to 59
---  day of the week,  -- Sunday = 1
+--  day of the week,  -- Sunday = 1      (or milliseconds)
 --  day of the year}  -- January 1st = 1
 -- 
 -- Use builtin constants DT_YEAR etc (NB not D_YEAR, that is for dir())
 --
 
 --integer y, m, d, ys1900, dow
-integer year, diy, month, day, hour, mins, secs, dow
+integer year, diy, month, day, hour, mins, secs, dow, msecs
 atom xSystemTime
 sequence res
 
@@ -137,6 +140,7 @@ sequence res
         hour = peek2u(xSystemTime+STwHour)
         mins = peek2u(xSystemTime+STwMinute)
         secs = peek2u(xSystemTime+STwSecond)
+        msecs = peek2u(xSystemTime+STwMillisecs)
         dow = peek2u(xSystemTime+STwDayOfWeek)+1
         free(xSystemTime)
     elsif platform()=LINUX then
@@ -168,6 +172,7 @@ sequence res
                 call :%pStoreFlt    -- (also sets r15 to h4)
             []
               }
+        msecs = 0 --DEV (use sys_clock_gettime as per pTime.e)
         secs = remainder(xSystemTime,60)
         xSystemTime = floor(xSystemTime/60)
         mins = remainder(xSystemTime,60)
@@ -198,7 +203,7 @@ sequence res
            hour,
            mins,
            secs,
-           dow,
+           iff(bMsecs?msecs:dow),
            day_of_year(year,month,day)}
     return res
 end function

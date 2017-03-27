@@ -11,7 +11,7 @@
     {a, b, c, ... }
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">    {</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000"> b</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">, ..</font><font color="#000000">.</font><font color="#0000FF"> }</font>
+<font color="#000000"></font><font color="#0000FF">    {</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000"> b</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">, ..</font><font color="#FF0000">.</font><font color="#0000FF"> }</font>
 </pre>
         is also an operator. It takes n operands, where n is 0 or more, and makes an
         n-element sequence from their values. e.g.
@@ -21,10 +21,83 @@
 <pre>
 <font color="#000000">    x</font><font color="#0000FF"> = {</font><font color="#000000">apple</font><font color="#0000FF">,</font><font color="#000000"> orange</font><font color="#0000FF">*</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> 99</font><font color="#0000FF">/</font><font color="#000000">4</font><font color="#0000FF">+</font><font color="#000000">foobar</font><font color="#0000FF">}</font>
 </pre>
-         The sequence-formation operator is listed at the bottom of the
-        <a href="precedence.htm">precedence chart</a>.
-       <br>
-       <br>
+       <table>
+        <col style="width: 8%"/>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+            The sequence-formation operator is listed at the bottom of the <a href="precedence.htm">precedence chart</a>.
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Note that the formal language definition places no constraint on the order of evaluation of elements. Consider the fragment:
+<!--eucode>
+integer x
+function add1tox() x+=1 return x end function
+    x = 3
+    s = {x,add1tox()}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> x
+</font><font color="#008080">function</font><font color="#000000"> add1tox</font><font color="#0000FF">()</font><font color="#000000"> x</font><font color="#0000FF">+=</font><font color="#000000">1</font><font color="#008080"> return</font><font color="#000000"> x</font><font color="#008080"> end function
+</font><font color="#000000">    x</font><font color="#0000FF"> =</font><font color="#000000"> 3
+    s</font><font color="#0000FF"> = {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">add1tox</font><font color="#800000">()</font><font color="#0000FF">}</font>
+</pre>
+            <br>
+            A compiler implementation(/version) may notice that x is definitely 3 and choose to use (/push) a literal 3 for the first element of s, 
+            or it may just use the content (/address) of x. Hence s could become {3,4} or {4,4}, and that may well depend on non-obvious things, 
+            such as whether there are any outstanding forward calls. With s = {x,add1tox(),x,add1tox()}, the result could be any of {3,4,4,5}, 
+            {3,4,5,5} or {5,4,5,5}, or even {3,5,5,4} or {5,5,5,4}. I believe the current version always yields {5,4,5,5}, but I would not bet 
+            one cent on that. It is ambiguous code, that utterly fails to communicate precise intent, bearing in mind that side effects may be
+            buried deep inside a complex function, not actually intended at all, hence the compiler (and you) should treat such code with 
+            appropriate contempt.
+            <br>
+            <br>
+            You should never attempt to modify the same thing twice in one statement, and likewise you should 
+            <b>never both modify and reference the same thing in the same statement</b>, ever (in <i>any</i> programming language).
+            <br>
+            <br>
+            In some cases the compiler may issue "warning: suspect evaluation order" or similar, but there is certainly no guarantee of that. <br>
+            TIP: you can get rid of that warning by making copies of any file-level variables in local variables beforehand, or moving the
+            function call outside the sequence creation statement, eg/ie
+<!--eucode>
+integer x
+procedure p()
+--  sequence s = {x,add1tox()}      -- --  warning
+    integer lx = x                  -- ++    no
+    sequence s = {lx,add1tox()}     -- ++  warning
+--or--
+    integer newx = add1toc()        -- ++    no
+    sequence s = {x,newx}           -- ++  warning
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> x
+</font><font color="#008080">procedure</font><font color="#000000"> p</font><font color="#0000FF">()
+</font><font color="#000080"><i>--  sequence s = {x,add1tox()}      -- --  warning
+</i></font><font color="#004080">    integer</font><font color="#000000"> lx</font><font color="#0000FF"> =</font><font color="#000000"> x                 </font><font color="#000080"><i> -- ++    no
+</i></font><font color="#004080">    sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">lx</font><font color="#0000FF">,</font><font color="#000000">add1tox</font><font color="#800000">()</font><font color="#0000FF">}    </font><font color="#000080"><i> -- ++  warning
+--or--
+</i></font><font color="#004080">    integer</font><font color="#000000"> newx</font><font color="#0000FF"> =</font><font color="#000000"> add1toc</font><font color="#0000FF">()       </font><font color="#000080"><i> -- ++    no
+</i></font><font color="#004080">    sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">newx</font><font color="#0000FF">}          </font><font color="#000080"><i> -- ++  warning</i></font>
+</pre>
+            <br>
+            The intention of (respectively) creating {3,4} or {4,4} then becomes clear and beyond dispute.
+            <br>
+            <br>
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+        <br>
+        <br>
       </div>
      </stripped>
     </get>

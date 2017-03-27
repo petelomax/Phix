@@ -1250,8 +1250,6 @@ atom opengl32
         end if
     end if
 
---DEV global??
---global 
 constant
 GlAccum                 = validate_proc(opengl32,"glAccum",{GLenum,GLfloat}),
 GlBegin                 = validate_proc(opengl32,"glBegin",{C_UINT}),
@@ -1315,11 +1313,11 @@ GlMaterialfv            = validate_proc(opengl32,"glMaterialfv",{C_INT,C_INT,C_P
 --GlMateriali           = validate_proc(opengl32,"glMateriali",{C_UINT,C_UINT,C_INT}),
 GlMatrixMode            = validate_proc(opengl32,"glMatrixMode",{C_UINT}),
 GlNewList               = validate_proc(opengl32,"glNewList",{C_UINT,C_INT}),
---GlNormal3b                = validate_proc(opengl32,"glNormal3b",{C_CHAR,C_CHAR,C_CHAR}),
+--GlNormal3b            = validate_proc(opengl32,"glNormal3b",{C_CHAR,C_CHAR,C_CHAR}),
 GlNormal3d              = validate_proc(opengl32,"glNormal3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
 GlNormal3f              = validate_proc(opengl32,"glNormal3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
---GlNormal3i                = validate_proc(opengl32,"glNormal3i",{C_INT,C_INT,C_INT}),
---GlNormal3s                = validate_proc(opengl32,"glNormal3s",{C_SHORT,C_SHORT,C_SHORT}),
+--GlNormal3i            = validate_proc(opengl32,"glNormal3i",{C_INT,C_INT,C_INT}),
+--GlNormal3s            = validate_proc(opengl32,"glNormal3s",{C_SHORT,C_SHORT,C_SHORT}),
 GlOrtho                 = validate_proc(opengl32,"glOrtho",repeat(C_DOUBLE,6)),
 GlPixelStorei           = validate_proc(opengl32,"glPixelStorei",{C_INT,C_INT}),
 GlPointSize             = validate_proc(opengl32,"glPointSize",{C_FLOAT}),
@@ -1340,6 +1338,7 @@ GlRectf                 = validate_proc(opengl32,"glRectf",{C_FLOAT,C_FLOAT,C_FL
 --GlRenderMode          = validate_func(opengl32,"glRenderMode",{C_INT},C_INT),
 GlRotated               = validate_proc(opengl32,"glRotated",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
 GlRotatef               = validate_proc(opengl32,"glRotatef",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
+GlScaled                = validate_proc(opengl32,"glScaled",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
 GlScalef                = validate_proc(opengl32,"glScalef",{C_FLOAT,C_FLOAT,C_FLOAT}),
 GlScissor               = validate_proc(opengl32,"glScissor",repeat(C_INT,4)),
 --GlSelectBuffer            = validate_proc(opengl32,"glSelectBuffer",{C_INT,C_POINTER}),
@@ -1356,7 +1355,7 @@ GlShadeModel            = validate_proc(opengl32,"glShadeModel",{C_UINT}),
 --GlTexCoord1sv         = validate_proc(opengl32,"glTexCoord1sv",{C_POINTER}),
 --GlTexCoord2d          = validate_proc(opengl32,"glTexCoord2d",{C_DOUBLE,C_DOUBLE}),
 --GlTexCoord2dv         = validate_proc(opengl32,"glTexCoord2dv",{C_POINTER}),
-GlTexCoord2f            = validate_proc(opengl32,"glTexCoord2f",{C_FLOAT,C_FLOAT}),
+--GlTexCoord2f          = validate_proc(opengl32,"glTexCoord2f",{C_FLOAT,C_FLOAT}),
 --GlTexCoord2fv         = validate_proc(opengl32,"glTexCoord2fv",{C_POINTER}),
 --GlTexCoord2i          = validate_proc(opengl32,"glTexCoord2i",{C_INT,C_INT}),
 --GlTexCoord2iv         = validate_proc(opengl32,"glTexCoord2iv",{C_POINTER}),
@@ -1370,7 +1369,7 @@ GlTexCoord2f            = validate_proc(opengl32,"glTexCoord2f",{C_FLOAT,C_FLOAT
 --GlTexCoord3iv         = validate_proc(opengl32,"glTexCoord3iv",{C_POINTER}),
 --GlTexCoord3s          = validate_proc(opengl32,"glTexCoord3s",{C_SHORT,C_SHORT,C_SHORT}),
 --GlTexCoord3sv         = validate_proc(opengl32,"glTexCoord3sv",{C_POINTER}),
---GlTexCoord4d          = validate_proc(opengl32,"glTexCoord4d",repeat(C_DOUBLE,4)),
+GlTexCoord4d            = validate_proc(opengl32,"glTexCoord4d",repeat(C_DOUBLE,4)),
 --GlTexCoord4dv         = validate_proc(opengl32,"glTexCoord4dv",{C_POINTER}),
 --GlTexCoord4fv         = validate_proc(opengl32,"glTexCoord4fv",{C_POINTER}),
 --GlTexCoord4i          = validate_proc(opengl32,"glTexCoord4i",repeat(C_INT,4)),
@@ -1388,34 +1387,34 @@ GlTexParameteri         = validate_proc(opengl32,"glTexParameteri",{C_INT,C_INT,
 --GlTexParameteriv      = validate_proc(opengl32,"glTexParameteriv",{C_INT,C_INT,C_POINTER}),
 GlTranslated            = validate_proc(opengl32,"glTranslated",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
 GlTranslatef            = validate_proc(opengl32,"glTranslatef",{C_FLOAT,C_FLOAT,C_FLOAT}),
-GlVertex2d              = validate_proc(opengl32,"glVertex2d",{C_DOUBLE,C_DOUBLE}),
+--GlVertex2d            = validate_proc(opengl32,"glVertex2d",{C_DOUBLE,C_DOUBLE}),
 --GlVertex2dv           = validate_proc(opengl32,"glVertex2dv",{C_POINTER}),
-GlVertex2f              = validate_proc(opengl32,"glVertex2f",{C_FLOAT,C_FLOAT}),
+--GlVertex2f            = validate_proc(opengl32,"glVertex2f",{C_FLOAT,C_FLOAT}),
 --GlVertex2fv           = validate_proc(opengl32,"glVertex2fv",{C_POINTER}),
-GlVertex2i              = validate_proc(opengl32,"glVertex2i",{C_INT,C_INT}),
+--GlVertex2i            = validate_proc(opengl32,"glVertex2i",{C_INT,C_INT}),
 --GlVertex2iv           = validate_proc(opengl32,"glVertex2iv",{C_POINTER}),
-GlVertex2s              = validate_proc(opengl32,"glVertex2s",{C_SHORT,C_SHORT}),
+--GlVertex2s            = validate_proc(opengl32,"glVertex2s",{C_SHORT,C_SHORT}),
 --GlVertex2sv           = validate_proc(opengl32,"glVertex2sv",{C_POINTER}),
 GlVertex3d              = validate_proc(opengl32,"glVertex3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
 --GlVertex3dv           = validate_proc(opengl32,"glVertex3dv",{C_POINTER}),
-GlVertex3f              = validate_proc(opengl32,"glVertex3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
+--GlVertex3f            = validate_proc(opengl32,"glVertex3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
 --GlVertex3fv           = validate_proc(opengl32,"glVertex3fv",{C_POINTER}),
-GlVertex3i              = validate_proc(opengl32,"glVertex3i",{C_INT,C_INT,C_INT}),
+--GlVertex3i            = validate_proc(opengl32,"glVertex3i",{C_INT,C_INT,C_INT}),
 --GlVertex3iv           = validate_proc(opengl32,"glVertex3iv",{C_POINTER}),
-GlVertex3s              = validate_proc(opengl32,"glVertex3s",{C_SHORT,C_SHORT,C_SHORT}),
+--GlVertex3s            = validate_proc(opengl32,"glVertex3s",{C_SHORT,C_SHORT,C_SHORT}),
 --GlVertex3sv           = validate_proc(opengl32,"glVertex3sv",{C_POINTER}),
 GlVertex4d              = validate_proc(opengl32,"glVertex4d",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
 --GlVertex4dv           = validate_proc(opengl32,"glVertex4dv",{C_POINTER}),
 --GlVertex4fv           = validate_proc(opengl32,"glVertex4fv",{C_POINTER}),
-GlVertex4f              = validate_proc(opengl32,"glVertex4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
-GlVertex4i              = validate_proc(opengl32,"glVertex4i",{C_INT,C_INT,C_INT,C_INT}),
+--GlVertex4f            = validate_proc(opengl32,"glVertex4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
+--GlVertex4i            = validate_proc(opengl32,"glVertex4i",{C_INT,C_INT,C_INT,C_INT}),
 --GlVertex4iv           = validate_proc(opengl32,"glVertex4iv",{C_POINTER}),
-GlVertex4s              = validate_proc(opengl32,"glVertex4s",{C_SHORT,C_SHORT,C_SHORT,C_SHORT}),
+--GlVertex4s            = validate_proc(opengl32,"glVertex4s",{C_SHORT,C_SHORT,C_SHORT,C_SHORT}),
 --GlVertex4sv           = validate_proc(opengl32,"glVertex4sv",{C_POINTER}),
 GlVertexPointer         = validate_proc(opengl32,"glVertexPointer", {C_INT, C_UINT, C_UINT, C_POINTER}),
 GlViewport              = validate_proc(opengl32,"glViewport",{C_INT,C_INT,C_INT,C_INT}),
 --WglGetProcAddress     = validate_func(opengl32,"wglGetProcAddress", {C_POINTER}, C_POINTER),
-sglGetProcAddress = iff(platform()=WINDOWS?"wglGetProcAddress":"glXGetProcAddress"),
+sglGetProcAddress       = iff(platform()=WINDOWS?"wglGetProcAddress":"glXGetProcAddress"),
 XglGetProcAddress       = validate_func(opengl32,sglGetProcAddress, {C_POINTER}, C_POINTER)
 --WglUseFontOutlines        = validate_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_POINTER},C_INT)
 
@@ -1460,6 +1459,15 @@ procedure gl_pokef32(atom dest,sequence data)
     end for
 end procedure
 
+--/* (not [yet] used):
+procedure gl_pokef64(atom dest,sequence data)
+    for i=1 to length(data) do
+        poke(dest,atom_to_float64(data[i]))
+        dest += 8
+    end for
+end procedure
+--*/
+
 global procedure glAccum(integer op,atom val)
     c_proc(GlAccum,{op,val})
 end procedure
@@ -1468,7 +1476,7 @@ global procedure glBegin(integer what)
     c_proc(GlBegin,{what})
 end procedure
 
-global procedure glBindTexture(integer target,atom tex)
+global procedure glBindTexture(integer target, atom tex)
     c_proc(GlBindTexture,{target,tex})
 end procedure
 
@@ -1815,6 +1823,14 @@ global procedure glRotatef(atom angle, atom x, atom y, atom z)
     c_proc(GlRotatef,{angle,x,y,z})
 end procedure
 
+global procedure glScale(sequence scale)
+    c_proc(GlScaled,scale)
+end procedure
+
+global procedure glScaled(sequence scale)
+    c_proc(GlScaled,scale)
+end procedure
+
 global procedure glScalef(sequence scale)
     c_proc(GlScalef,scale)
 end procedure
@@ -1827,8 +1843,8 @@ global procedure glShadeModel(integer model)
     c_proc(GlShadeModel,{model})
 end procedure
 
-global procedure glTexCoord2f(sequence c)
-    c_proc(GlTexCoord2f,c)
+global procedure glTexCoord(atom s, atom t=0, atom r=0, atom q=1)
+    c_proc(GlTexCoord4d,{s,t,r,q})
 end procedure
 
 global procedure glTexImage2D(integer target, integer level, integer components, integer width, integer height,
@@ -1868,6 +1884,7 @@ global procedure glVertex(atom x, atom y, atom z=0, atom w=1)
     c_proc(GlVertex4d,{x,y,z,w})
 end procedure
 
+--/*
 global procedure glVertex2d(sequence vertex)
     c_proc(GlVertex2d,vertex)
 end procedure
@@ -1883,11 +1900,13 @@ end procedure
 global procedure glVertex2s(sequence vertex)
     c_proc(GlVertex2s,vertex)
 end procedure
+--*/
 
 global procedure glVertex3d(sequence vertex)
     c_proc(GlVertex3d,vertex)
 end procedure
 
+--/*
 global procedure glVertex3f(sequence vertex)
     c_proc(GlVertex3f,vertex)
 end procedure
@@ -1915,11 +1934,11 @@ end procedure
 global procedure glVertex4s(sequence vertex)
     c_proc(GlVertex4s,vertex)
 end procedure
+--*/
 
 --global procedure glVertex3dv(sequence vertex)
 --  c_proc(GlVertex3d,vertex)
 --end procedure
-
 
 global procedure glVertexPointer(integer size, integer ptype, integer stride, atom pointer)
     c_proc(GlVertexPointer, {size, ptype, stride, pointer})

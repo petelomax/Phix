@@ -1,0 +1,102 @@
+--
+-- demo\rosetta\Polyspiral.exw
+-- ===========================
+--
+-- Space toggles the timer, '+' increases speed (up to 100 FPS), '-' decreases speed
+-- 'M' toggles "mod360", which inverts the angle every 360/2PI or so, since sin/cos 
+-- accept arguments in radians not degrees (and mod 2*PI changes nothing), producing 
+-- non-true polyspirals, but quite interesting nevertheless.
+
+include ..\pGUI\pGUI.e
+
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+constant TITLE = "Polyspiral"
+
+atom incr = 0
+bool mod360 = false
+
+procedure Polyspiral(atom x1, y1)
+atom angle = incr
+integer len = 5
+    incr += 0.05
+    if mod360 then
+        incr = mod(incr,360)
+    end if
+    for i=1 to 150 do
+        atom x2 = x1 + cos(angle)*len
+        atom y2 = y1 + sin(angle)*len
+        cdCanvasSetForeground(cddbuffer, i*#200+i*#40+i*#10)
+        cdCanvasLine(cddbuffer, x1, y1, x2, y2)
+        {x1, y1} = {x2, y2}
+        len += 3
+        angle += incr
+        if mod360 then
+            angle = mod(angle,360)
+        end if
+    end for
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    Polyspiral(w/2, h/2)
+    cdCanvasFlush(cddbuffer)
+    integer ms = IupGetInt(timer,"TIME")
+    IupSetStrAttribute(dlg, "TITLE", "%s (timer=%d [%g FPS], angle %3.2f%s)",
+                       {TITLE,ms,1000/ms,incr,iff(mod360?" (mod360)":"")})
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_GRAY)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=' ' then
+        IupSetInt(timer,"RUN",not IupGetInt(timer,"RUN"))
+    elsif find(c,"+-") then
+        -- ('+' increases speed, by decreasing TIME)
+        IupSetInt(timer,"TIME",max(10,IupGetInt(timer,"TIME")-(','-c)*10))
+        IupSetInt(timer,"RUN",0)
+        IupSetInt(timer,"RUN",1)
+    elsif upper(c)='M' then
+        mod360 = not mod360
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen(join_path({"..","pGUI"},1))
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    timer = IupTimer(Icallback("timer_cb"), 20)
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", TITLE)
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

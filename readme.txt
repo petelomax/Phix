@@ -31,6 +31,47 @@ Version 0.7.5
 22/02/2017: BUGFIX: task_yield() was incorrectly defined as E_other in psym.e,
             it is now correctly defined as E_all. Correspondingly, the #ilASM
             in the routine itself was missing an e_all directive.
+07/03/2017: BUGFIX: ltAdd() was reusing a SET entry, causing problems:
+
+                integer froot
+                procedure digital_root()
+                integer root = 0
+                    while 1 do
+                        root += 1
+                        if root<froot then exit end if
+                        root = 0
+                    end while
+                    froot = root
+                end procedure
+
+                froot = 10
+                digital_root()
+
+            The root=0 SET was overwriting the +=1 SET, causing it to think
+            that root must be 0 after the end while. I just rudely deleted 
+            the whole attempt to reuse SET entries... (fingers crossed)
+16/03/2017: BUGFIX: s[i][$] = 'x' completely broken when s[i] was a string.
+            :%opRepe was jumping to :RepeStr /before/ calling :%fixupIndex
+17/03/2017: Renamed the "unicode" library as "utfconv" in the manual, as
+            more logical, and to match the name of the (auto)include file.
+17/03/2017: Bugfix: adjust_timedate() crashed if delta was not a whole number
+            of seconds. Also, timedate_diff() was ignoring milliseconds, and
+            date() now optionally returns milliseconds.
+19/03/2017: Now supports the following Orac idioms:
+                s.i as shorthand for s[i]
+                s.i.j as shorthand for s[i][j]
+                [i to j] as an alternative to [i..j]
+                ~s as shorthand for length(s)
+                int, seq as shorthand for integer, sequence
+            (disable if required by setting constant ORAC in p.exw to 0)
+            Edix\tools\reindent has been updated to support these, but I
+            don't plan to backport that to edita (feel free, just look on
+            bitbucket for a diff around this date to edix\src\rein.e and
+            try to make the equivalent changes to edita\src\earein.e).
+21/07/2017: Bugfix: pilx86/opPow could emit overwrite edi==tmpr; in this
+            particular case res = power(x,length(d)) was effectively the 
+            same as res = power(x,<raw addr of res>), obviously leading 
+            to power overflow errors. (60 second fix)
 
 Version 0.7.2
 =============

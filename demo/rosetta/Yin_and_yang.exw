@@ -1,0 +1,69 @@
+--
+-- demo\rosetta\Yin_and_yang.exw
+-- =============================
+--
+-- Hmm: can we do some edge smoothing or something on this? [DEV]
+
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+procedure yinyang(atom  cx, cy, r)
+    cdCanvasArc(cddbuffer, cx, cy, r, r, 0, 360) 
+    cdCanvasSector(cddbuffer, cx, cy, r, r, 270, 90) 
+    cdCanvasSector(cddbuffer, cx, cy-r/4, r/2-1, r/2-1, 0, 360) 
+    cdCanvasSetForeground(cddbuffer, CD_WHITE)
+    cdCanvasSector(cddbuffer, cx, cy+r/4, r/2-1, r/2-1, 0, 360) 
+    cdCanvasSector(cddbuffer, cx, cy-r/4, r/8, r/8, 0, 360) 
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    cdCanvasSector(cddbuffer, cx, cy+r/4, r/8, r/8, 0, 360) 
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+integer r = min(width,height)-40
+integer cx = floor(width/2)
+integer cy = floor(height/2)
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer) 
+    yinyang(cx-r*.43,cy+r*.43,r/6)
+    yinyang(cx,cy,r)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen(join_path({"..","pGUI"},1))
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "340x340") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Yin and Yang")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

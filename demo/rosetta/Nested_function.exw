@@ -1,0 +1,520 @@
+--
+-- demo\rosetta\Nested_function.exw
+-- ================================
+--
+--  As posted to http://rosettacode.org/wiki/Nested_function
+--
+-- Prior to this task, Phix had no support whatsoever for nested functions.
+-- Instead I have taken the first baby steps and documented them.
+-- If your distribution does not include the following demo, you need a later version.
+-- The source of that demo contains far more detailed information, and any updates.
+-- Also, search the compiler sources for NESTEDFUNC
+
+-- Yes, this is pig-ugly, and incomplete. But it is a good start for anyone that needs 
+-- nested functions, and shows what can be done in just a few (less than six) hours.
+
+-- NB as it stands, the compiler front-end "thinks" that l_counter and sep live in the 
+--  same place. They are properly separate in the runtime/VM, but the front-end will 
+--  happily emit nonsense code if you let it.
+-- If ever finished, also revisit http://rosettacode.org/wiki/Man_or_boy_test#Phix
+
+-- First, write the code we would like to compile/run and note all the errors:
+--/*
+function MakeList(string sep=".  ")
+integer counter = 0
+    function MakeItem()
+        counter += 1
+        return sprintf("%d%s%s",{counter,sep,{"first","second","third"}[counter]})
+    end function
+    sequence res = {}
+    for i=1 to 3 do
+        res = append(res,MakeItem())
+    end for
+    return res
+end function
+
+?MakeList()
+--*/
+
+-- In a matter of seconds it is clear (to me) that Statement() needs to call DoRoutineDef().
+-- I first added global constant NESTEDFUNC = 01 to the top of p.exw, and promised myself
+-- that all related changes would check that flag, allowing me to revert all changes in an
+-- instant, and as a means of quickly locating/reviewing them. Next, back in Statement():
+--      elsif NESTEDFUNC and ttidx=T_func then DoRoutineDef(2)
+-- Understand we're expecting further failures, but press on: p p test:
+--      return res
+--      ^ return must be inside a procedure or function
+-- ok, I know that one: DoRoutineDef() needs to save/restore a flag:
+--      integer wasreturnvar = returnvar    -- (NESTEDFUNC)
+--      ...
+--      if NESTEDFUNC then
+--          returnvar = wasreturnvar
+--      else -- (old code)
+--          returnvar = -1
+--      end if
+-- now it compiles cleanly but crashes, so I ran p -cp then p -d test:
+--  lineinfo() crashes with a divide by 0...
+-- OK, that needs a bit more inside knowledge/analysis, let's try a different tack:
+-- hmm, dropScope probably makes assumptions, let's add:
+--      if NESTEDFUNC and st=S_Rtn and scopetypes[scopelevel]=S_Rtn then ?9/0 end if
+-- good, p p test dies (but p p -test didn't flinch) so we're on the right track.
+-- A further examination of psym.e revealed that increaseScope needs a stack rather
+-- than just freetmplistsX, and symtab[currtls][S_il] = s5 is not enough, and that
+-- scopetls needs to contain parent S_Rtn, and is therefore now misnamed.
+-- OK, made progress there pretty quickly (see psym.e for details) and now we can
+-- run p p -d -nodiag e01 and examine the resulting list.asm. (p p -test still ok)
+-- [NB I didn't do anything about freetmplistsX yet]
+-- (clearly there was no point trying to fix the crash in lineinfo before that lot)
+--/*
+;    38 function MakeList(string sep=".  ")
+    mov edi,[ebp] (sep)                   ;#004110E1: 213175 00                  uv 80 20  1   1      
+    cmp edi,h4                            ;#004110E4: 201377 00000040            uv 00 80  1   2 80   
+    jne #004110FF                         ;#004110EA: 165 13                     v  00 00  1   2      
+    mov edi,[#00402108]                   ;#004110EC: 213075 08214000            uv 80 00  1   3      
+    mov [ebp] (sep),edi                   ;#004110F2: 211175 00                  uv 00 A0  1   4 80   
+    add dword[ebx+edi*4-8],1              ;#004110F5: 203104273 F8 01            u  00 88  3   6    *80*
+    cmp eax,130                           ;#004110FA: 075 82000000               vu 00 01  1   8      
+;    39 integer counter = 0
+    mov [ebp-4] (counter),ebx             ;#004110FF: 211135 FC                  uv 00 28  1   9      
+;    40     function MakeItem()
+;    41         counter += 1
+;    42         return sprintf("%d%s%s",{counter,sep,{"first","second","third"}[counter]})
+;    43     end function
+;    44     sequence res = {}
+    mov esi,[#00402120]                   ;#00411102: 213065 20214000            vu 40 00  1   9      
+    mov [ebp-8] (symtab[135]),esi         ;#00411108: 211165 F8                  uv 00 60  1  10      
+    add dword[ebx+esi*4-8],1              ;#0041110B: 203104263 F8 01            u  00 48  3  12    *40*
+;    45     for i=1 to 3 do
+    mov [ebp-12] (symtab[142]), dword 1   ;#00411110: 307105 F4 01000000         vu 00 20  1  14      
+;    46         res = append(res,MakeItem())
+    mov ecx,2                             ;#00411117: 271 02000000               uv 02 00  1  15      
+    mov edx,136                           ;#0041111C: 272 88000000               vu 04 00  1  15      
+    call :%opFrame (MakeItem)             ;#00411121: 350 C79D0000               v  00 00  1  16      
+    mov [ebp+16] (retaddr),#00411132      ;#00411126: 307105 10 32114100         uv 00 20  1  17      
+    jmp #0041117C (code:MakeItem)         ;#0041112D: 351 4A000000               v  00 00  1  17      
+    push eax                              ;#00411132: 120                        uv 00 01  1  18      
+    mov ecx,[ebp-16] (symtab[143])        ;#00411133: 213115 F0                  vu 02 20  1  18      
+    cmp ecx,h4                            ;#00411136: 201371 00000040            uv 00 02  1  19      
+    jle #0041114C                         ;#0041113C: 176 0E                     v  00 00  1  19      
+    sub dword[ebx+ecx*4-8],1              ;#0041113E: 203154213 F8 01            u  00 0A  3  20      
+    jne #0041114C                         ;#00411143: 165 07                     v  00 00  1  22      
+    mov edx,ecx                           ;#00411145: 213321                     uv 04 02  1  23      
+    call #0041A7DD (:%pDealloc)           ;#00411147: 350 91960000               v  00 00  1  23      
+    pop dword[ebp-16] (symtab[143])       ;#0041114C: 217105 F0                  np 00 20  3  24      
+    lea edx,[ebp-8] (symtab[135])         ;#0041114F: 215125 F8                  uv 04 20  1  27      
+    lea edi,[ebp-8] (symtab[135])         ;#00411152: 215175 F8                  vu 80 20  1  27      
+    lea ecx,[ebp-16] (symtab[143])        ;#00411155: 215115 F0                  uv 02 20  1  28      
+    xor eax,eax                           ;#00411158: 061300                     vu 01 01  1  28      
+    call #00418E35 (:%opApnd)             ;#0041115A: 350 D67C0000               v  00 00  1  29      
+;    47     end for
+    mov eax,[ebp-12] (symtab[142])        ;#0041115F: 213105 F4                  uv 01 20  1  30      
+    mov edx,3                             ;#00411162: 272 03000000               vu 04 00  1  30      
+    add eax,1                             ;#00411167: 203300 01                  uv 01 01  1  31      
+    cmp eax,edx                           ;#0041116A: 073302                     uv 00 05  1  32 01   
+    mov [ebp-12] (symtab[142]),eax        ;#0041116C: 211105 F4                  vu 00 21  1  32      
+    jle #00411117                         ;#0041116F: 176 A6                     v  00 00  1  33      
+;    48     return res
+    mov eax,[ebp-8] (symtab[135])         ;#00411171: 213105 F8                  uv 01 20  1  34      
+    mov [ebp-8] (symtab[135]),ebx         ;#00411174: 211135 F8                  vu 00 28  1  34      
+    jmp #0041AF8E (:%opRetf)              ;#00411177: 351 129E0000               v  00 00  1  35      
+;    49 end function
+--*/
+--Oh dear, and of course, plist.e does not cope with nested functions. Hopefully it is a fairly
+--small tweak, but for now, we have to rely on filedump, and the symtab from that list.asm:
+--/*
+symtab[132]:{MakeList,S_Func,1,(S_used+K_used+K_wdb),0,136,{70'F',8},133,0,8,#004110E1}
+symtab[133]:{sep,S_TVar,1,(S_used+S_set+K_used+K_wdb+K_othr+K_dlft),0,134,string,{string,MININT,MAXINT,integer,3},[esp]}
+symtab[134]:{counter,S_TVar,1,(S_used+S_set+K_used+K_aod+K_wdb),0,135,integer,{atom,MININT,MAXINT,object,-1},[esp-4]}
+symtab[135]:{-1,S_TVar,0,(S_set+K_Fres),0,142,string,{string,MININT,MAXINT,integer,-2},(eax)}
+symtab[136]:{MakeItem,S_Func,1,(S_used+K_used+K_wdb),0,148,F,142,0,2,#0041117C}
+symtab[137]:{-1,S_Const,1,(S_used+S_set+K_noclr+K_lit),0,63/#0040210C,string,"%d%s%s"}
+symtab[138]:{-1,S_Const,1,(S_set+K_noclr+K_lit),0,64/#00402110,string,"first"}
+symtab[139]:{-1,S_Const,1,(S_set+K_noclr+K_lit),0,65/#00402114,string,"second"}
+symtab[140]:{-1,S_Const,1,(S_set+K_noclr+K_lit),0,66/#00402118,string,"third"}
+symtab[141]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,67/#0040211C,T_Dsq,{"first", "second", "third"}}
+symtab[142]:{-1,S_TVar,0,(S_set),0,143,object,{string,MININT,MAXINT,integer,-2},[esp]}
+symtab[143]:{-1,S_TVar,0,(S_set),0,144,T_Dsq,{T_Dsq,MININT,MAXINT,0b1001,3},[esp-4]}
+symtab[144]:{res,S_TVar,1,(S_used+S_set+K_wdb),101,146,sequence,{T_Dsq,MININT,MAXINT,string,-2},[esp-8]}
+symtab[145]:{-1,S_Const,1,(S_used+S_set+K_sqr+K_noclr+K_lit),0,68/#00402120,T_Dsq,{}}
+symtab[146]:{i,S_TVar,1,(S_used+S_set+S_for+K_wdb),0,147,integer,{integer,1,3,object,-1},[esp-12]}
+symtab[147]:{-1,S_TVar,0,(S_set),0,0,string,{string,MININT,MAXINT,integer,-2},[esp-16]}
+
+--MakeList:
+0000F6E1,004110E1:  mov edi,[ebp],-,213175 00,uv 80 20  1  37      
+0000F6E4,004110E4:  cmp edi,h4,-,201377 00000040,uv 00 80  1  38 80   
+0000F6EA,004110EA:  jne #004110FF,-,165 13,v  00 00  1  38      
+0000F6EC,004110EC:  mov edi,[#00402108],-,213075 08214000,uv 80 00  1  39      
+0000F6F2,004110F2:  mov [ebp],edi,-,211175 00,uv 00 A0  1  40 80   
+0000F6F5,004110F5:  add dword[ebx+edi*4-8],1,-,203104273 F8 01,u  00 88  3  42    *80*
+0000F6FA,004110FA:  cmp eax,130,-,075 82000000,vu 00 01  1  44      
+0000F6FF,004110FF:  mov [ebp-4],ebx,-,211135 FC,uv 00 28  1  45      
+0000F702,00411102:  mov esi,[#00402120],-,213065 20214000,vu 40 00  1  45      
+0000F708,00411108:  mov [ebp-8],esi,-,211165 F8,uv 00 60  1  46      
+0000F70B,0041110B:  add dword[ebx+esi*4-8],1,-,203104263 F8 01,u  00 48  3  48    *40*
+0000F710,00411110:  mov [ebp-12], dword 1,-,307105 F4 01000000,vu 00 20  1  50      
+0000F717,00411117:  mov ecx,2,-,271 02000000,uv 02 00  1  51      
+0000F71C,0041111C:  mov edx,136,-,272 88000000,vu 04 00  1  51      
+0000F721,00411121:  call #0041AEED,-,350 C79D0000,v  00 00  1  52      
+0000F726,00411126:  mov [ebp+16] (retaddr),#00411132,-,307105 10 32114100,uv 00 20  1  53      
+0000F72D,0041112D:  jmp #0041117C,-,351 4A000000,v  00 00  1  53      
+0000F732,00411132:  push eax,-,120,uv 00 01  1  54      
+0000F733,00411133:  mov ecx,[ebp-16],-,213115 F0,vu 02 20  1  54      
+0000F736,00411136:  cmp ecx,h4,-,201371 00000040,uv 00 02  1  55      
+0000F73C,0041113C:  jle #0041114C,-,176 0E,v  00 00  1  55      
+0000F73E,0041113E:  sub dword[ebx+ecx*4-8],1,-,203154213 F8 01,u  00 0A  3  56      
+0000F743,00411143:  jne #0041114C,-,165 07,v  00 00  1  58      
+0000F745,00411145:  mov edx,ecx,-,213321,uv 04 02  1  59      
+0000F747,00411147:  call #0041A7DD,-,350 91960000,v  00 00  1  59      
+0000F74C,0041114C:  pop dword[ebp-16],-,217105 F0,np 00 20  3  60      
+0000F74F,0041114F:  lea edx,[ebp-8],-,215125 F8,uv 04 20  1  63      
+0000F752,00411152:  lea edi,[ebp-8],-,215175 F8,vu 80 20  1  63      
+0000F755,00411155:  lea ecx,[ebp-16],-,215115 F0,uv 02 20  1  64      
+0000F758,00411158:  xor eax,eax,-,061300,vu 01 01  1  64      
+0000F75A,0041115A:  call #00418E35,-,350 D67C0000,v  00 00  1  65      
+0000F75F,0041115F:  mov eax,[ebp-12],-,213105 F4,uv 01 20  1  66      
+0000F762,00411162:  mov edx,3,-,272 03000000,vu 04 00  1  66      
+0000F767,00411167:  add eax,1,-,203300 01,uv 01 01  1  67      
+0000F76A,0041116A:  cmp eax,edx,-,073302,uv 00 05  1  68 01   
+0000F76C,0041116C:  mov [ebp-12],eax,-,211105 F4,vu 00 21  1  68      
+0000F76F,0041116F:  jle #00411117,-,176 A6,v  00 00  1  69      
+0000F771,00411171:  mov eax,[ebp-8],-,213105 F8,uv 01 20  1  70      
+0000F774,00411174:  mov [ebp-8],ebx,-,211135 F8,vu 00 28  1  70      
+0000F777,00411177:  jmp #0041AF8E,-,351 129E0000,v  00 00  1  71      
+
+--MakeItem:
+0000F77C,0041117C:* mov edi,[ebp-4],-,213175 FC,uv 80 20  1  72      
+0000F77F,0041117F:  add edi,1,-,203307 01,uv 80 80  1  73 80   
+0000F782,00411182:  mov edx,edi,-,213327,uv 04 80  1  74 80   
+0000F784,00411184:* mov [ebp-4],edi,-,211175 FC,vu 00 A0  1  74      
+0000F787,00411187:  shl edx,1,-,321342,u  04 04  1  75      
+0000F789,00411189:  jno #00411193,-,161 08,v  00 00  1  75      
+0000F78B,0041118B:* lea edi,[ebp-4],-,215175 FC,uv 80 20  1  76      
+0000F78E,0041118E:  call #0041AA4D,-,350 BA980000,v  00 00  1  76      
+0000F793,00411193:* mov edi,[ebp-4],-,213175 FC,uv 80 20  1  77      
+0000F796,00411196:  mov ecx,ebp,-,213315,vu 02 20  1  77      
+0000F798,00411198:  mov esi,[#0040211C],-,213065 1C214000,uv 40 00  1  78      
+0000F79E,0041119E:  mov edx,141,-,272 8D000000,vu 04 00  1  78      
+0000F7A3,004111A3:  call #00419898,-,350 F0860000,v  00 00  1  79      
+0000F7A8,004111A8:  lea eax,[ebp-4],-,215105 FC,uv 01 20  1  80      
+0000F7AB,004111AB:  mov edx,3,-,272 03000000,vu 04 00  1  80      
+0000F7B0,004111B0:  push #004111DD,-,150 DD114100,uv 00 00  1  81      
+0000F7B5,004111B5:* push eax,-,120,vu 00 01  1  81      
+0000F7B6,004111B6:  push dword[ebp],-,377165 00,np 00 20  2  82      
+0000F7B9,004111B9:  mov [ebp],ebx,-,211135 00,uv 00 28  1  84      
+0000F7BC,004111BC:* mov ecx,[ebp],-,213115 00,vu 02 20  1  84      
+0000F7BF,004111BF:  cmp ecx,h4,-,201371 00000040,uv 00 02  1  85      
+0000F7C5,004111C5:  jl #004111D1,-,174 0A,v  00 00  1  85      
+0000F7C7,004111C7:  add dword[ebx+ecx*4-8],1,-,203104213 F8 01,u  00 0A  3  86      
+0000F7CC,004111CC:  cmp eax,133,-,075 85000000,vu 00 01  1  88      
+0000F7D1,004111D1:  push ecx,-,121,uv 00 02  1  89      
+0000F7D2,004111D2:  push dword[ebp-4],-,377165 FC,np 00 20  2  90      
+0000F7D5,004111D5:  mov edi,[ebp-4],-,213175 FC,uv 80 20  1  92      
+0000F7D8,004111D8:  jmp #0041954B,-,351 6E830000,v  00 00  1  92      
+0000F7DD,004111DD:  mov ecx,2,-,271 02000000,uv 02 00  1  93      
+0000F7E2,004111E2:  mov edx,48,-,272 30000000,vu 04 00  1  93      
+0000F7E7,004111E7:  call #0041AEED,-,350 019D0000,v  00 00  1  94      
+0000F7EC,004111EC:  mov eax,[#0040210C],-,241 0C214000,uv 01 00  1  95      
+0000F7F1,004111F1:  mov [ebp],eax,-,211105 00,uv 00 21  1  96 01   
+0000F7F4,004111F4:  add dword[ebx+eax*4-8],1,-,203104203 F8 01,u  00 09  3  98    *01*
+0000F7F9,004111F9:  mov edi,[ebp+20] (prevebp),-,213175 14,vu 80 20  1 100      
+0000F7FC,004111FC:? mov eax,[edi-4],-,213107 FC,uv 01 80  1 103    *80*
+0000F7FF,004111FF:  xor ebx,ebx,-,061333,vu 08 08  1 103      
+0000F801,00411201:  cmp eax,h4,-,075 00000040,uv 00 01  1 104      
+0000F806,00411206:  jl #00411212,-,174 0A,v  00 00  1 104      
+0000F808,00411208:  add dword[ebx+eax*4-8],1,-,203104203 F8 01,u  00 09  3 105      
+0000F80D,0041120D:  cmp eax,143,-,075 8F000000,vu 00 01  1 107      
+0000F812,00411212:  mov [ebp-4],eax,-,211105 FC,uv 00 21  1 108      
+0000F815,00411215:  mov [ebp+16] (retaddr),#00411221,-,307105 10 21124100,vu 00 20  1 108      
+0000F81C,0041121C:  jmp #00411226,-,351 05000000,v  00 00  1 109      
+0000F821,00411221:  jmp #0041AF8E,-,351 689D0000,v  00 00  1 110      
+
+-- Now, let's quickly cobble up something, no matter how horrid, for comparison:
+integer Xcounter
+string Xsep
+
+function MakeItem()
+    Xcounter += 1
+    return sprintf("%d%s%s",{Xcounter,Xsep,{"first","second","third"}[Xcounter]})
+end function
+
+function MakeList(string sep=".  ")
+integer counter = 0
+    sequence res = {}
+    for i=1 to 3 do
+        Xcounter = counter
+        Xsep = sep
+        res = append(res,MakeItem())
+        counter = Xcounter
+    end for
+    return res
+end function
+
+?MakeList()
+
+;    53 integer Xcounter
+;    54 string Xsep
+;    55 
+;    56 function MakeItem()
+;    57     Xcounter += 1
+*   mov edi,[#00402108] (Xcounter)        ;#004111C0: 213075 08214000            uv 80 00  1   1      
+    cmp edi,h4                            ;#004111C6: 201377 00000040            uv 00 80  1   2 80   
+    jne #004111D8                         ;#004111CC: 165 0A                     v  00 00  1   2      
+    mov esi,130                           ;#004111CE: 276 82000000               uv 40 00  1   3      
+    call #0041AA90 (:%pUnassigned)        ;#004111D3: 350 B8980000               v  00 00  1   3      
+    mov edi,#00402108                     ;#004111D8: 277 08214000               uv 80 00  1   4      
+*   mov ecx,[#00402108] (Xcounter)        ;#004111DD: 213015 08214000            vu 02 00  1   4      
+*   mov eax,[#0040201C]                   ;#004111E3: 241 1C204000               uv 01 00  1   5      
+    call #00418957 (:%opAddi)             ;#004111E8: 350 6A770000               v  00 00  1   5      
+;    58     return sprintf("%d%s%s",{Xcounter,Xsep,{"first","second","third"}[Xcounter]})
+*   mov edi,[#00402108] (Xcounter)        ;#004111ED: 213075 08214000            uv 80 00  1   6      
+    mov ecx,ebp                           ;#004111F3: 213315                     vu 02 20  1   6      
+*   mov esi,[#00402120]                   ;#004111F5: 213065 20214000            uv 40 00  1   7      
+    mov edx,139                           ;#004111FB: 272 8B000000               vu 04 00  1   7      
+    call #004198FB (:%pSubse1)            ;#00411200: 350 F6860000               v  00 00  1   8      
+    lea eax,[ebp-4] (symtab[141])         ;#00411205: 215105 FC                  uv 01 20  1   9      
+    mov edx,3                             ;#00411208: 272 03000000               vu 04 00  1   9      
+    push #00411240                        ;#0041120D: 150 40124100               uv 00 00  1  10      
+    push eax                              ;#00411212: 120                        vu 00 01  1  10      
+    push dword[ebp] (symtab[140])         ;#00411213: 377165 00                  np 00 20  2  11      
+    mov [ebp] (symtab[140]),ebx           ;#00411216: 211135 00                  uv 00 28  1  13      
+*   mov ecx,[#0040210C] (Xsep)            ;#00411219: 213015 0C214000            vu 02 00  1  13      
+    cmp ecx,h4                            ;#0041121F: 201371 00000040            uv 00 02  1  14      
+    jl #00411231                          ;#00411225: 174 0A                     v  00 00  1  14      
+    add dword[ebx+ecx*4-8],1              ;#00411227: 203104213 F8 01            u  00 0A  3  15      
+    cmp eax,131                           ;#0041122C: 075 83000000               vu 00 01  1  17      
+    push ecx                              ;#00411231: 121                        uv 00 02  1  18      
+*   push dword[#00402108] (Xcounter)      ;#00411232: 377065 08214000            np 00 00  2  19      
+    mov edi,[ebp-4] (symtab[141])         ;#00411238: 213175 FC                  uv 80 20  1  21      
+    jmp #004195AE (:%pMkSq)               ;#0041123B: 351 6E830000               v  00 00  1  21      
+    mov ecx,2                             ;#00411240: 271 02000000               uv 02 00  1  22      
+    mov edx,48                            ;#00411245: 272 30000000               vu 04 00  1  22      
+    call #0041AF50 (:%opFrame) (sprintf)  ;#0041124A: 350 019D0000               v  00 00  1  23      
+    mov eax,[#00402110]                   ;#0041124F: 241 10214000               uv 01 00  1  24      
+    mov [ebp] (fmt),eax                   ;#00411254: 211105 00                  uv 00 21  1  25 01   
+    add dword[ebx+eax*4-8],1              ;#00411257: 203104203 F8 01            u  00 09  3  27    *01*
+    mov edi,[ebp+20] (prevebp)            ;#0041125C: 213175 14                  vu 80 20  1  29      
+    mov eax,[edi-4]                       ;#0041125F: 213107 FC                  uv 01 80  1  32    *80*
+    xor ebx,ebx                           ;#00411262: 061333                     vu 08 08  1  32      
+    cmp eax,h4                            ;#00411264: 075 00000040               uv 00 01  1  33      
+    jl #00411275                          ;#00411269: 174 0A                     v  00 00  1  33      
+    add dword[ebx+eax*4-8],1              ;#0041126B: 203104203 F8 01            u  00 09  3  34      
+    cmp eax,141                           ;#00411270: 075 8D000000               vu 00 01  1  36      
+    mov [ebp-4] (args),eax                ;#00411275: 211105 FC                  uv 00 21  1  37      
+    mov [ebp+16] (retaddr),#00411284      ;#00411278: 307105 10 84124100         vu 00 20  1  37      
+    jmp #00411289 (code:sprintf)          ;#0041127F: 351 05000000               v  00 00  1  38      
+    jmp #0041AFF1 (:%opRetf)              ;#00411284: 351 689D0000               v  00 00  1  39      
+;    59 end function
+;    60 
+;    61 function MakeList(string sep=".  ")
+    mov edi,[ebp] (sep)                   ;#004110E1: 213175 00                  uv 80 20  1   1      
+    cmp edi,h4                            ;#004110E4: 201377 00000040            uv 00 80  1   2 80   
+    jne #004110FF                         ;#004110EA: 165 13                     v  00 00  1   2      
+    mov edi,[#00402124]                   ;#004110EC: 213075 24214000            uv 80 00  1   3      
+    mov [ebp] (sep),edi                   ;#004110F2: 211175 00                  uv 00 A0  1   4 80   
+    add dword[ebx+edi*4-8],1              ;#004110F5: 203104273 F8 01            u  00 88  3   6    *80*
+    cmp eax,143                           ;#004110FA: 075 8F000000               vu 00 01  1   8      
+;    62 integer counter = 0
+    mov [ebp-4] (counter),ebx             ;#004110FF: 211135 FC                  uv 00 28  1   9      
+;    63     sequence res = {}
+    mov esi,[#00402128]                   ;#00411102: 213065 28214000            vu 40 00  1   9      
+    mov [ebp-8] (res),esi                 ;#00411108: 211165 F8                  uv 00 60  1  10      
+    add dword[ebx+esi*4-8],1              ;#0041110B: 203104263 F8 01            u  00 48  3  12    *40*
+;    64     for i=1 to 3 do
+    mov [ebp-12] (i), dword 1             ;#00411110: 307105 F4 01000000         vu 00 20  1  14      
+;    65         Xcounter = counter
+    mov ecx,[ebp-4] (counter)             ;#00411117: 213115 FC                  uv 02 20  1  15      
+    mov [#00402108] (Xcounter),ecx        ;#0041111A: 211015 08214000            uv 00 02  1  16 02   
+;    66         Xsep = sep
+    mov eax,[ebp] (sep)                   ;#00411120: 213105 00                  vu 01 20  1  16      
+    mov edx,[#0040210C] (Xsep)            ;#00411123: 213025 0C214000            uv 04 00  1  17      
+    cmp eax,h4                            ;#00411129: 075 00000040               vu 00 01  1  17      
+    jl #00411135                          ;#0041112E: 174 05                     v  00 00  1  18      
+    add dword[ebx+eax*4-8],1              ;#00411130: 203104203 F8 01            u  00 09  3  19      
+    mov [#0040210C] (Xsep),eax            ;#00411135: 243 0C214000               vu 00 01  1  21      
+    cmp edx,h4                            ;#0041113A: 201372 00000040            uv 00 04  1  22      
+    jle #0041114E                         ;#00411140: 176 0C                     v  00 00  1  22      
+    sub dword[ebx+edx*4-8],1              ;#00411142: 203154223 F8 01            u  00 0C  3  23      
+    jne #0041114E                         ;#00411147: 165 05                     v  00 00  1  25      
+    call #0041A840 (:%pDealloc)           ;#00411149: 350 F2960000               v  00 00  1  26      
+;    67         res = append(res,MakeItem())
+    mov ecx,2                             ;#0041114E: 271 02000000               uv 02 00  1  27      
+    mov edx,134                           ;#00411153: 272 86000000               vu 04 00  1  27      
+    call :%opFrame (MakeItem)             ;#00411158: 350 F39D0000               v  00 00  1  28      
+    mov [ebp+16] (retaddr),#00411169      ;#0041115D: 307105 10 69114100         uv 00 20  1  29      
+    jmp #004111C0 (code:MakeItem)         ;#00411164: 351 57000000               v  00 00  1  29      
+    push eax                              ;#00411169: 120                        uv 00 01  1  30      
+    mov edi,[ebp-16] (symtab[151])        ;#0041116A: 213175 F0                  vu 80 20  1  30      
+    cmp edi,h4                            ;#0041116D: 201377 00000040            uv 00 80  1  31      
+    jle #00411183                         ;#00411173: 176 0E                     v  00 00  1  31      
+    sub dword[ebx+edi*4-8],1              ;#00411175: 203154273 F8 01            u  00 88  3  32      
+    jne #00411183                         ;#0041117A: 165 07                     v  00 00  1  34      
+    mov edx,edi                           ;#0041117C: 213327                     uv 04 80  1  35      
+    call #0041A840 (:%pDealloc)           ;#0041117E: 350 BD960000               v  00 00  1  35      
+    pop dword[ebp-16] (symtab[151])       ;#00411183: 217105 F0                  np 00 20  3  36      
+    lea edx,[ebp-8] (res)                 ;#00411186: 215125 F8                  uv 04 20  1  39      
+    lea edi,[ebp-8] (res)                 ;#00411189: 215175 F8                  vu 80 20  1  39      
+    lea ecx,[ebp-16] (symtab[151])        ;#0041118C: 215115 F0                  uv 02 20  1  40      
+    xor eax,eax                           ;#0041118F: 061300                     vu 01 01  1  40      
+    call #00418E98 (:%opApnd)             ;#00411191: 350 027D0000               v  00 00  1  41      
+;    68         counter = Xcounter
+    mov esi,[#00402108] (Xcounter)        ;#00411196: 213065 08214000            uv 40 00  1  42      
+    mov [ebp-4] (counter),esi             ;#0041119C: 211165 FC                  uv 00 60  1  43 40   
+;    69     end for
+    mov ecx,[ebp-12] (i)                  ;#0041119F: 213115 F4                  vu 02 20  1  43      
+    mov edx,3                             ;#004111A2: 272 03000000               uv 04 00  1  44      
+    add ecx,1                             ;#004111A7: 203301 01                  vu 02 02  1  44      
+    cmp ecx,edx                           ;#004111AA: 073312                     uv 00 06  1  45      
+    mov [ebp-12] (i),ecx                  ;#004111AC: 211115 F4                  vu 00 22  1  45      
+    jle #00411117                         ;#004111AF: 017216 62FFFFFF            v  00 00  1  46      
+;    70     return res
+    mov eax,[ebp-8] (res)                 ;#004111B5: 213105 F8                  uv 01 20  1  47      
+    mov [ebp-8] (res),ebx                 ;#004111B8: 211135 F8                  vu 00 28  1  47      
+    jmp #0041AFF1 (:%opRetf)              ;#004111BB: 351 319E0000               v  00 00  1  48      
+;    71 end function
+
+Right, that identifies a few things that will need to change. I quickly went over the asm and
+realised it is trippng up over itself using [ebp] from two frames, which is a bit confusing.
+I really ought to go and investigate how other languages implement nested functions. Which did
+not take very long: https://en.wikipedia.org/wiki/Nested_function#Access_of_non_local_objects
+It seems we need an opFrst-like means of accessing non-local variables, that skips down the
+call stack, setting edi to prev_ebp, until it finds the required [edi+8]/[rdi+16] routine.
+Thus counter +=1 needs to become opNLVget tmp,counter,rtnid; tmp+=1; opNLVset,counter,rtnid,tmp.
+It would seem prudent to make a new local tmp on every reference, we have enough work to do on
+opRepe1/opRepe/opConcatN/opConcat/emitHexMov/opReps/opTchk without opAdd et al - and it would
+be sensible to get reads working first, with fatal compilation errors on all writes, for now.
+A fairly obvious place to start might therefore be PushFactor().
+
+At this point I have to draw the line. I was under no illusion I would finish this in a few hours
+and in that sense I have been proved right. One last thing we can do is make our example work,
+with the (ugly) low-level basics (and update pilasm.e to allow routineid not ridState [DONE]):
+
+Summary:
+As it is, the compiler believes that sep and res live in the same frame slot ([ebp]/[rbp]).
+The freetmplistsX issue remains unresolved.
+A fair amout of work in the front end and some new opcodes will be needed.
+Something still needs fixing in plist.e to allow it to dump nested functions.
+Should allow procedures too, but types are almost certainly not worth the effort (trust me).
+I have not tested that MakeItem observes any sensible scope rules.
+Speaking of which, this needs testing, careful testing, thorough testing, and yet more testing.
+
+I would say that the last few hours have not been completely wasted.
+
+Two example uses have just sprung to mind:
+Traversal call-backs can update private rather than file-level results, making them thread-safe.
+All too late now really, but builtins/pprntfN.e obviously deserved and has been broken up into 
+round, sprintf2, useFlatString, and sprintf_, long, long ago, which then caused thread-safety
+issues, which might have been better solved (and reduced the number of parms needed) by making
+them nested sub-routines, probably the first three inside (and private to) the last.
+--*/
+
+#ilASM{ jmp :fin
+    --
+    -- This is, of course, something the compiler should end up doing automatically,
+    -- and this assembly, or something similar, should be hidden away in builtins/VM.
+    --
+  :%opGetnlv        -- [edi] := [esi] from frame edx
+                    -- nb no reference counting (would be rqd)
+    [32]
+        sub esi,ebp         -- --> frame offset
+      @@:
+        mov ecx,[ebp+20]    -- ebp_prev
+        cmp [ecx+8],edx     -- rtn
+        jne @b
+        mov eax,[esi+ecx]
+        mov [edi],eax
+    [64]
+        sub rsi,rbp         -- --> frame offset
+      @@:
+        mov rcx,[rbp+40]    -- rbp_prev
+        cmp [rcx+16],rdx    -- rtn
+        jne @b
+        mov rax,[rsi+rcx]
+        mov [rdi],rax
+    []
+        ret
+
+  :%opSetnlv        -- [edi] in frame edx := [esi] (zeroed)
+    [32]
+        sub edi,ebp         -- --> frame offset
+      @@:
+        mov ecx,[ebp+20]    -- ebp_prev
+        cmp [ecx+8],edx     -- rtn
+        jne @b
+        mov eax,[esi]
+        mov [edi+ecx],eax
+        mov [esi],ebx       -- zero src
+    [64]
+        sub rdi,rbp         -- --> frame offset
+      @@:
+        mov rcx,[rbp+40]    -- rbp_prev
+        cmp [rcx+16],rdx    -- rtn
+        jne @b
+        mov eax,[rsi]
+        mov [rdi+rcx],rax
+        mov [rsi],rbx       -- zero src
+    []
+        ret
+    ::fin
+      }
+
+function MakeList(string sep=".  ")
+integer counter = 0
+    function MakeItem()
+--      -- what we'd really like to see:
+--      counter += 1
+--      return sprintf("%d%s%s",{counter,sep,{"first","second","third"}[counter]})
+        -- bar these locals, some idea of what the compiler should be doing:
+        integer l_counter
+        string l_sep
+        #ilASM{
+            [32]
+                mov edx,routine_id(MakeList)
+                lea esi,[counter]
+                lea edi,[l_counter]
+                call :%opGetnlv
+                lea esi,[sep]
+                lea edi,[l_sep]
+                call :%opGetnlv
+            [64]
+                mov rdx,routine_id(MakeList)
+                lea rsi,[counter]
+                lea rdi,[l_counter]
+                call :%opGetnlv
+                lea rsi,[sep]
+                lea rdi,[l_sep]
+                call :%opGetnlv
+            []
+              }
+        l_counter += 1
+        #ilASM{
+            [32]
+                mov edx,routine_id(MakeList)
+                lea esi,[l_counter]
+                lea edi,[counter]
+                call :%opSetnlv
+            [64]
+                mov rdx,routine_id(MakeList)
+                lea rsi,[l_counter]
+                lea rdi,[counter]
+                call :%opSetnlv
+            []
+              }
+        string res = sprintf("%d%s%s",{l_counter,l_sep,{"first","second","third"}[l_counter]})
+        #ilASM{
+            [32]
+                mov [l_sep],ebx     -- (in lieu of proper refcounting)
+            [64]
+                mov [l_sep],rbx     -- (in lieu of proper refcounting)
+            []
+              }
+        return res              
+    end function
+    sequence res = {}
+    for i=1 to 3 do
+        res = append(res,MakeItem())
+    end for
+    return res
+end function
+
+?MakeList()
+

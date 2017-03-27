@@ -321,7 +321,8 @@ sequence validtd = repeat(0,DT_DSTZ)    -- (say it out loud!)
     validtd[DT_HOUR] = {0,23}
     validtd[DT_MINUTE] = {0,59}
     validtd[DT_SECOND] = {0,59}
-    validtd[DT_DOW] = {0,7}
+--  validtd[DT_DOW] = {0,7}
+    validtd[DT_DOW] = {0,999}   -- accomodate milliseconds
     validtd[DT_DOY] = {0,366}
     -- (the following two entries are updated in override_timezone)
     validtd[DT_TZ] = {0,length(timezones)}
@@ -341,8 +342,10 @@ integer vmin, vmax
             if not integer(si) then return 0 end if
             {vmin,vmax} = validtd[i]
             if vmin<=vmax then
-                if si<vmin then return 0 end if
-                if si>vmax then return 0 end if
+                if si<vmin
+                or si>vmax then
+                    return 0
+                end if
             end if
         end for
         return 1
@@ -697,7 +700,7 @@ end function
 --?timedate_to_julian_day({1500,1,1,0,0,0,0,0})
 --?jd2({1500,1,1,0,0,0,0,0})
 
-function julian_day_to_timedate(integer jd, integer hour, integer mins, integer secs)
+function julian_day_to_timedate(integer jd, integer hour, integer mins, integer secs, integer ms)
 -- convert an integer julian day back to {y,m,d} form, and throw in the passed h,m,s
 integer l = jd+68569
 integer i, j
@@ -711,18 +714,18 @@ integer n = floor((4*l)/146097)
         l = floor(j/11)
         m = j+2-(12*l)
         y = 100*(n-49)+i+l
-    return {y,m,d,hour,mins,secs}
+    return {y,m,d,hour,mins,secs,ms}
 end function
 
 constant day_in_seconds = 24*60*60  -- (=86400)
 
 function timedate_to_seconds(timedate td)
 -- returns an atom
-    return timedate_to_julian_day(td)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]
+    return timedate_to_julian_day(td)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
 end function
 
 function seconds_to_timedate(atom seconds)
-integer days, minutes, hours
+integer days, minutes, hours, milliseconds
 
     days = floor(seconds/day_in_seconds)
     seconds = remainder(seconds, day_in_seconds)
@@ -733,13 +736,16 @@ integer days, minutes, hours
     minutes = floor(seconds/60)
     seconds -= minutes*60
 
-    return julian_day_to_timedate(days, hours, minutes, seconds)
+    milliseconds = floor((seconds-floor(seconds))*1000)
+    seconds = floor(seconds)
+
+    return julian_day_to_timedate(days, hours, minutes, seconds, milliseconds)
 end function
 
 
 global function adjust_timedate(sequence td, atom delta)
 integer y, m, d, dsrule, tz, stz
-    td[1..6] = seconds_to_timedate(timedate_to_seconds(td)+delta)
+    td[1..7] = seconds_to_timedate(timedate_to_seconds(td)+delta)
     delta = 0
     if length(td)=DT_DSTZ then
         dsrule = get_DST_rule(td,DT_DSTZ)
@@ -778,7 +784,7 @@ integer y, m, d, dsrule, tz, stz
         end if
     end if
     if delta!=0 then
-        td[1..6] = seconds_to_timedate(timedate_to_seconds(td)+delta)
+        td[1..7] = seconds_to_timedate(timedate_to_seconds(td)+delta)
     end if
     if length(td)>=DT_DOW then
 --      td[DT_DOW] = day_of_week(td)
@@ -1834,10 +1840,10 @@ end function
 --s = parse_date_string("1996-03-31",{"YYYY-MM-DD"})
 --integer jd = timedate_to_julian_day(s)
 --if jd!=2450174 then ?9/0 end if
---if julian_day_to_timedate(jd,0,0,0)!={1996,3,31,0,0,0} then ?9/0 end if
---if julian_day_to_timedate(0,0,0,0)!={-4713,11,24,0,0,0} then ?9/0 end if
+--if julian_day_to_timedate(jd,0,0,0,0)!={1996,3,31,0,0,0,0} then ?9/0 end if
+--if julian_day_to_timedate(0,0,0,0,0)!={-4713,11,24,0,0,0,0} then ?9/0 end if
 
---constant Gregorian_Reformation = 1752
+--constant Gregorian_Reformation = 1752     (what is 1582?)
 
 --function isLeap(integer year)
 ---- returns integer (0 or 1)

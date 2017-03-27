@@ -1,0 +1,332 @@
+--
+-- demo\rosetta\Compare_sorting_algorithms.exw
+-- ===========================================
+--
+--  Author: Pete Lomax 27/2/2017
+--
+
+--#withtype Ihandle
+--#withtype Ihandles
+--#withtype cdCanvas
+
+include pGUI.e
+
+function bubble_sort(sequence s)
+--object tmp
+integer changed
+    for j=length(s) to 1 by -1 do
+        changed = 0
+        for i=1 to j-1 do
+            if s[i]>s[i+1] then
+                {s[i],s[i+1],changed} = {s[i+1],s[i],1}
+            end if
+        end for
+        if changed=0 then exit end if
+    end for
+    return s
+end function
+
+--sequence ones, sorted, random
+enum ONES, SORTED, RANDOM
+constant T = RANDOM
+sequence test, check
+
+function tr(sequence name, integer rid=routine_id(name))
+    return {name,rid}
+end function
+--DEV x3 is ones, sorted, random
+constant tests = {tr("bubble_sort")&{1000,1000,1000},
+                 }
+sequence results = repeat({}, length(tests))
+--sequence results = repeat({{},{},{}}, length(tests))
+sequence dsdx = repeat(0,length(tests))
+--integer ds_index1, ds_indexs, ds_indexr
+integer ds_index
+atom t0
+
+function idle_action_cb()
+--IupPlotSetSample(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y)
+    return IUP_IGNORE   -- all done, remove callback
+end function
+
+--constant x = {0,1,2,3,4,5,6,7,8,9,10}
+--constant y = {1,6,17,34,57,86,121,162,209,262,321}
+
+IupOpen(join_path({"..","pGUI"},1))
+
+IupSetGlobalFunction("IDLE_ACTION", Icallback("idle_action_cb"))
+--Ihandle plot = IupPlot("GRID=YES, MARGINLEFT=50, MARGINBOTTOM=40, AXS_YSCALE=LOG10")
+Ihandle plot = IupPlot("GRID=YES, MARGINLEFT=50, MARGINBOTTOM=40")
+for i=1 to length(tests) do
+--  integer ds_index = dsdx[i]
+--  if ds_index=0 then
+        IupPlotBegin(plot)
+        ds_index = IupPlotEnd(plot)
+--      ds_index1 = IupPlotEnd(plot)
+--      IupPlotBegin(plot)
+--      ds_indexs = IupPlotEnd(plot)
+--      IupPlotBegin(plot)
+--      ds_indexr = IupPlotEnd(plot)
+--      dsdx[i] = {ds_index1, ds_indexs, ds_indexr}
+        dsdx[i] = ds_index
+--  end if
+end for
+--DEV move this to idle;
+--  select the test  - nah, use statics to control what next.
+--DEV add a radio header to switch... Also a log10 toggle       <<-- and that wants plade!!
+--  for n=4 to 10 do
+--      integer l = power(10,n)
+?"started"
+    for l=1000 to 8000 by 1000 do
+--      ones = repeat(1,l)
+--      sorted = tagset(l)
+--      random = shuffle(sorted)
+        test = iff(T=ONES?repeat(1,l):
+               iff(T=SORTED?tagset(l):
+               iff(T=RANDOM?shuffle(tagset(l)):9/0)))
+        t0 = 0
+        for i=1 to length(tests) do
+--          {ds_index1, ds_indexs, ds_indexr} = dsdx[i]
+            ds_index = dsdx[i]
+            t0 = time()
+--          {} = sort(ones)
+--          {} = sort(test)
+            check = call_func(tests[i][2],{test})
+            t0 = time()-t0
+--          results[i][??] = t0
+            if check!=sort(test) then ?9/0 end if
+            IupPlotInsert(plot, ds_index, i-1, l, t0)
+--          IupPlotInsert(plot, ds_index1, i, l, time()-t0)
+--          t0 = time()
+--          {} = sort(sorted)
+--          IupPlotInsert(plot, ds_indexs, i, l, time()-t0)
+--          t0 = time()
+--          {} = sort(random)
+--          IupPlotInsert(plot, ds_indexr, i, l, time()-t0)
+?t0
+        end for
+    end for
+
+--AXS_XSCALE,
+--AXS_YSCALE    configures the scale of the respective axis. 
+--Can be: LIN (linear), LOG10 (base 10), LOG2 (base 2) and LOGN (base e). Default: LIN. 
+--IupPlotBegin(plot)
+--for i=1 to length(x) do
+--  IupPlotAdd(plot, x[i], y[i])
+--end for
+--integer ds_index = IupPlotEnd(plot)
+--IupPlotInsertSamples(plot,ds_index,0,x,y,length(x))
+Ihandle dlg = IupDialog(plot)
+IupSetAttributes(dlg, "RASTERSIZE=%dx%d", {640, 480})
+IupSetAttribute(dlg, "TITLE", "Compare sorting algorithms")
+IupShow(dlg)
+
+IupMainLoop()
+IupClose()
+
+--{} = wait_key()
+abort(0)
+
+Bubble Sort, Insertion sort, Quicksort, Radix sort, Shell sort
+Heap, Builtin
+[:sort, :radix_sort, :quick_sort, :shell_sort, :insertion_sort, :bubble_sort].each do |m|
+(*not bucket sort)
+
+function bubble_sort(sequence s)
+object tmp
+integer changed
+    for j=length(s) to 1 by -1 do
+        changed = 0
+        for i=1 to j-1 do
+            if s[i]>s[i+1] then
+                {s[i],s[i+1],changed} = {s[i+1],s[i],1}
+            end if
+        end for
+        if changed=0 then exit end if
+    end for
+    return s
+end function
+
+--DEV? (pick the best!)
+function bubble_sort2(sequence x)
+object xi,xni
+integer flip, limit
+
+    flip = length(x)
+    while flip > 0 do
+        limit = flip
+        flip = 0
+        for i = 1 to limit-1 do
+            xi = x[i]
+            xni = x[i+1]
+            if xni<xi then
+                x[i+1] = xi
+                x[i] = xni
+                flip = i
+            end if
+        end for
+    end while
+    return x
+end function
+
+function insertion_sort(sequence s)
+object temp
+integer j
+    for i=2 to length(s) do
+        temp = s[i]
+        j = i-1
+        while j>=1 and s[j]>temp do
+            s[j+1] = s[j]
+            j -= 1
+        end while
+        s[j+1] = temp
+    end for
+    return s
+end function
+
+--DEV ditto
+function insertion_sort2(sequence x)
+object xi
+integer final
+
+    for i = 2 to length(x) do
+        xi = x[i]
+        final = 1
+        for j = i-1 to 1 by -1 do
+            if xi<x[j] then
+                x[j+1] = x[j]
+            else
+                final = j + 1
+                exit
+            end if
+        end for
+        x[final] = xi
+    end for
+    return x
+end function
+
+function quick_sort(sequence x)
+integer n = length(x), last, mid
+object xi, midval
+
+    if n<2 then
+        return x    -- already sorted (trivial case)
+    end if
+ 
+    mid = floor((n+1)/2)
+    midval = x[mid]
+    x[mid] = x[1]
+ 
+    last = 1
+    for i=2 to n do
+        xi = x[i]
+        if xi<midval then
+            last += 1
+            x[i] = x[last]
+            x[last] = xi
+        end if
+    end for
+ 
+    return quick_sort(x[2..last]) & {midval} & quick_sort(x[last+1..n])
+end function
+
+function radixSortn(sequence s, integer n)
+sequence buckets = repeat({},10)
+sequence res = {}
+    for i=1 to length(s) do
+        integer digit = remainder(floor(s[i]/power(10,n-1)),10)+1
+        buckets[digit] = append(buckets[digit],s[i])
+    end for
+    for i=1 to length(buckets) do
+        integer len = length(buckets[i])
+        if len!=0 then
+            if len=1 or n=1 then
+                res &= buckets[i]
+            else
+                res &= radixSortn(buckets[i],n-1)
+            end if
+        end if
+    end for
+    return res
+end function
+ 
+function split_by_sign(sequence s)
+sequence buckets = {{},{}}
+    for i=1 to length(s) do
+        integer si = s[i]
+        if si<0 then
+            buckets[1] = append(buckets[1],-si)
+        else
+            buckets[2] = append(buckets[2],si)
+        end if
+    end for
+    return buckets
+end function
+ 
+function radix_sort(sequence s)
+integer mins = min(s)
+integer passes = max(max(s),abs(mins))
+    passes = floor(log10(passes))+1
+    if mins<0 then
+        sequence buckets = split_by_sign(s)
+        buckets[1] = reverse(sq_uminus(radixSortn(buckets[1],passes)))
+        buckets[2] = radixSortn(buckets[2],passes)
+        s = buckets[1]&buckets[2]
+    else
+        s = radixSortn(s,passes)
+    end if
+    return s
+end function
+
+function shell_sort(sequence s)
+integer gap = floor(length(s)/2), j
+object temp
+    while gap>0 do
+        for i=gap to length(s) do
+            temp = s[i]
+            j = i-gap
+            while j>=1 and temp<=s[j] do
+                s[j+gap] = s[j]
+                j -= gap
+            end while
+            s[j+gap] = temp
+        end for
+        gap = floor(gap/2)
+    end while
+    return s
+end function
+
+--DEV ditto
+function shell_sort2(sequence x)
+integer gap, j, first, last
+object xi, xj
+
+    last = length(x)
+    gap = floor(last/10) + 1
+    while TRUE do
+        first = gap + 1
+        for i = first to last do
+            xi = x[i]
+            j = i - gap
+            while TRUE do
+                xj = x[j]
+                if xi>=xj then
+                    j += gap
+                    exit
+                end if
+                x[j+gap] = xj
+                if j <= gap then
+                    exit
+                end if
+                j -= gap
+            end while
+            x[j] = xi
+        end for
+        if gap = 1 then
+            return x
+        else
+            gap = floor(gap/3.5) + 1
+        end if
+    end while
+end function
+

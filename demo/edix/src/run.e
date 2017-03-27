@@ -331,6 +331,34 @@ global procedure F5run(integer ctrl, integer shift)--, integer alt)
 end procedure
 
 --/*
+--  atom pos = IupGetInt(tabs, "VALUEPOS")
+--  if pos=IUP_INVALID then
+--      -- nothing selected
+--      return IUP_IGNORE
+--  end if
+--
+--  atom sci = IupGetChild(tabs, pos)
+--  sequence path = IupGetAttribute(sci, "PATH")
+--  sequence name = get_file_name(path)
+--
+--if platform()=WINDOWS then
+----                sequence eui = locate_file( "euiw.exe" )
+----                sequence cmd = build_commandline({getenv("COMSPEC"), "/C", eui, name })
+--else
+----                sequence eui = locate_file( "eui" )
+----                sequence cmd = build_commandline({"/usr/bin/x-terminal-emulator", "-e", eui, name })
+--end if
+--OR:
+----    string cmd = iff(platform()=WINDOWS?getenv("COMSPEC"):"/usr/bin/x-terminal-emulator")
+----    string flags = iff(platform()=WINDOWS?"/C":"-e")
+----    string eui = locate_file(platform()=WINDOWS?"pw.exe":"phix")
+----    string cmd = build_commandline({cmd, flags, eui, name })
+--
+--  {} = chdir(get_file_path(path))
+--  ?9/0
+--  --      pipeio:exec( cmd, pipeio:create() )
+--
+
 
 Hi,
 

@@ -9,40 +9,30 @@ include pGUI.e
 --#withtype Ihandle
 --#withtype Ihandln
 
-/********************************** Utilities *****************************************/
+Ihandle dlg, toolbar_hb, multitext, lbl_statusbar, config
+Ihandln find_dlg
+Ihandle find_txt, find_case, replace_txt, replace_lbl, replace_bt
+Ihandle goto_dlg, goto_txt
+Ihandle item_revert, item_save, item_paste, item_cut, item_delete, item_copy, item_find_next,
+        item_toolbar, item_statusbar
+Ihandle clipboard
 
---DEV:
-function get_file_name(sequence path)
-    for i=length(path) to 1 by -1 do
-        if find(path[i],"\\/") then
-            path = path[i+1..$]
-            exit
-        end if
-    end for
-    return path
-end function
+/********************************** Utilities *****************************************/
 
 --/**/include builtins/write_file.e
 --/**/include builtins/read_file.e
 
-procedure new_file(Ihandle ih)
-Ihandle dlg = IupGetDialog(ih);
-Ihandle multitext = IupGetDialogChild(dlg, "MULTITEXT");
-
+procedure new_file()
     IupSetAttribute(dlg, "TITLE", "Untitled - Simple Notepad");
     IupSetAttribute(multitext, "FILENAME", NULL);
     IupSetAttribute(multitext, "DIRTY", "NO");
     IupSetAttribute(multitext, "VALUE", "");
 end procedure
 
-procedure open_file(Ihandle ih, string filename)
+procedure open_file(string filename)
 object str = read_file(filename);
     if sequence(str) then
-        Ihandle dlg = IupGetDialog(ih);
-        Ihandle multitext = IupGetDialogChild(dlg, "MULTITEXT");
-        Ihandle config = IupGetInt(multitext, "CONFIG");
-
-        IupSetAttributes(dlg, "TITLE=%s - Simple Notepad", {get_file_name(filename)});
+        IupSetStrAttribute(dlg, "TITLE", "%s - Simple Notepad", {get_file_name(filename)})
 
         IupSetStrAttribute(multitext, "FILENAME", filename);
         IupSetAttribute(multitext, "DIRTY", "NO");
@@ -52,7 +42,7 @@ object str = read_file(filename);
     end if
 end procedure
 
-procedure save_file(Ihandle multitext)
+procedure save_file()
 string filename = IupGetAttribute(multitext, "FILENAME");
 string str = IupGetAttribute(multitext, "VALUE");
     if write_file(filename, str, TEXT_MODE) then
@@ -60,12 +50,10 @@ string str = IupGetAttribute(multitext, "VALUE");
     end if
 end procedure
 
-procedure saveas_file(Ihandle multitext, string filename)
+procedure saveas_file(string filename)
 string str = IupGetAttribute(multitext, "VALUE");
     if write_file(filename, str, TEXT_MODE) then
-        Ihandle config = IupGetInt(multitext, "CONFIG");
-
-        IupSetAttributes(IupGetDialog(multitext), "TITLE=%s - Simple Notepad", {get_file_name(filename)});
+        IupSetStrAttribute(dlg, "TITLE", "%s - Simple Notepad", {get_file_name(filename)})
         IupSetStrAttribute(multitext, "FILENAME", filename);
         IupSetAttribute(multitext, "DIRTY", "NO");
 
@@ -73,12 +61,11 @@ string str = IupGetAttribute(multitext, "VALUE");
     end if
 end procedure
 
-function save_check(Ihandle ih)
-Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
+function save_check()
     if IupGetInt(multitext, "DIRTY") then
         switch (IupAlarm("Warning", "File not saved! Save it now?", "Yes", "No", "Cancel"))
             case 1:  /* save the changes and continue */
-                save_file(multitext);
+                save_file();
                 break;
             case 2:  /* ignore the changes and continue */
                 break;
@@ -89,6 +76,37 @@ Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
     return 1;
 end function
 
+--  toggle_bar_visibility(item_toolbar, toolbar_hb);
+procedure toggle_toolbar_visibility()
+    if IupGetInt(item_toolbar, "VALUE") then
+        IupSetAttribute(toolbar_hb, "FLOATING", "YES");
+        IupSetAttribute(toolbar_hb, "VISIBLE", "NO");
+        IupSetAttribute(item_toolbar, "VALUE", "OFF");
+    else
+        IupSetAttribute(toolbar_hb, "FLOATING", "NO");
+        IupSetAttribute(toolbar_hb, "VISIBLE", "YES");
+        IupSetAttribute(item_toolbar, "VALUE", "ON");
+    end if
+
+    IupRefresh(toolbar_hb);  /* refresh the dialog layout */
+end procedure
+
+--  toggle_bar_visibility(item_statusbar, lbl_statusbar);
+procedure toggle_statusbar_visibility()
+    if IupGetInt(item_statusbar, "VALUE") then
+        IupSetAttribute(lbl_statusbar, "FLOATING", "YES");
+        IupSetAttribute(lbl_statusbar, "VISIBLE", "NO");
+        IupSetAttribute(item_statusbar, "VALUE", "OFF");
+    else
+        IupSetAttribute(lbl_statusbar, "FLOATING", "NO");
+        IupSetAttribute(lbl_statusbar, "VISIBLE", "YES");
+        IupSetAttribute(item_statusbar, "VALUE", "ON");
+    end if
+
+    IupRefresh(lbl_statusbar);  /* refresh the dialog layout */
+end procedure
+
+--/* -- split for plade:
 procedure toggle_bar_visibility(Ihandle item, Ihandle ih)
     if IupGetInt(item, "VALUE") then
         IupSetAttribute(ih, "FLOATING", "YES");
@@ -102,11 +120,9 @@ procedure toggle_bar_visibility(Ihandle item, Ihandle ih)
 
     IupRefresh(ih);  /* refresh the dialog layout */
 end procedure
+--*/
 
-procedure set_find_replace_visibility(Ihandle find_dlg, integer show_replace)
-Ihandle replace_txt = IupGetDialogChild(find_dlg, "REPLACE_TEXT");
-Ihandle replace_lbl = IupGetDialogChild(find_dlg, "REPLACE_LABEL");
-Ihandle replace_bt = IupGetDialogChild(find_dlg, "REPLACE_BUTTON");
+procedure set_find_replace_visibility(integer show_replace)
 
     if show_replace then
         IupSetAttribute(replace_txt, "VISIBLE", "Yes");
@@ -135,23 +151,19 @@ end procedure
 
 /********************************** Callbacks *****************************************/
 
-
-function dropfiles_cb(Ihandle ih, atom filename)
-    if save_check(ih) then
-        open_file(ih, peek_string(filename));
+function dropfiles_cb(Ihandle /*ih*/, atom filename)
+    if save_check() then
+        open_file(peek_string(filename));
         return IUP_DEFAULT;
     end if
 end function
 
-function multitext_valuechanged_cb(Ihandle multitext)
+function multitext_valuechanged_cb(Ihandle /*multitext*/)
     IupSetAttribute(multitext, "DIRTY", "YES");
     return IUP_DEFAULT;
 end function
 
-function file_menu_open_cb(Ihandle ih)
-Ihandle item_revert = IupGetDialogChild(ih, "ITEM_REVERT");
-Ihandle item_save = IupGetDialogChild(ih, "ITEM_SAVE");
-Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
+function file_menu_open_cb(Ihandle /*ih*/)
 string filename = IupGetAttribute(multitext, "FILENAME");
 integer dirty = IupGetInt(multitext, "DIRTY");
 
@@ -168,16 +180,7 @@ integer dirty = IupGetInt(multitext, "DIRTY");
     return IUP_DEFAULT;
 end function
 
-function edit_menu_open_cb(Ihandle ih)
-Ihandle clipboard = IupClipboard();
-Ihandln find_dlg = IupGetInt(ih, "FIND_DIALOG");
-
-Ihandle item_paste = IupGetDialogChild(ih, "ITEM_PASTE");
-Ihandle item_cut = IupGetDialogChild(ih, "ITEM_CUT");
-Ihandle item_delete = IupGetDialogChild(ih, "ITEM_DELETE");
-Ihandle item_copy = IupGetDialogChild(ih, "ITEM_COPY");
-Ihandle item_find_next = IupGetDialogChild(ih, "ITEM_FINDNEXT");
-Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
+function edit_menu_open_cb(Ihandle /*ih*/)
 
     if not IupGetInt(clipboard, "TEXTAVAILABLE") then
         IupSetAttribute(item_paste, "ACTIVE", "NO");
@@ -196,8 +199,8 @@ Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
     end if
 
     if find_dlg!=0 then
-        Ihandle txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
-        string str_to_find = IupGetAttribute(txt, "VALUE");
+--      Ihandle find_txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
+        string str_to_find = IupGetAttribute(find_txt, "VALUE");
 
         if length(str_to_find)==0 then
             IupSetAttribute(item_find_next, "ACTIVE", "NO");
@@ -208,111 +211,99 @@ Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
         IupSetAttribute(item_find_next, "ACTIVE", "NO");
     end if
 
-    IupDestroy(clipboard);
     return IUP_DEFAULT;
 end function
 
-function config_recent_cb(Ihandle ih)
-    if save_check(ih) then
-        string filename = IupGetAttribute(ih, "TITLE");
-        open_file(ih, filename);
+function config_recent_cb(Ihandle config)
+    if save_check() then
+        string filename = IupGetAttribute(config, "TITLE");
+        open_file(filename);
     end if
     return IUP_DEFAULT;
 end function
 
-function multitext_caret_cb(Ihandle ih, integer line, integer col)
-Ihandle lbl_statusbar = IupGetDialogChild(ih, "STATUSBAR");
+function multitext_caret_cb(Ihandle /*ih*/, integer line, integer col)
     IupSetStrAttribute(lbl_statusbar, "TITLE", "Line %d, Col %d", {line, col});
     return IUP_DEFAULT;
 end function
 
-function item_new_action_cb(Ihandle item_new)
-    if save_check(item_new) then
-        new_file(item_new);
+function item_new_action_cb(Ihandle /*item_new*/)
+    if save_check() then
+        new_file()
     end if
     return IUP_DEFAULT;
 end function
 
-function item_open_action_cb(Ihandle item_open)
-Ihandle filedlg;
-Ihandle config;
-string d
+function item_open_action_cb(Ihandle /*item_open*/)
+    if save_check() then
+        string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
 
-    if save_check(item_open) then
-        config = IupGetInt(item_open, "CONFIG");
-        d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
+        Ihandle fileopendlg = IupFileDlg();
+        IupSetAttribute(fileopendlg, "DIALOGTYPE", "OPEN");
+        IupSetAttribute(fileopendlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
+        IupSetAttributeHandle(fileopendlg, "PARENTDIALOG", dlg);
+        IupSetStrAttribute(fileopendlg, "DIRECTORY", d);
 
-        filedlg = IupFileDlg();
-        IupSetAttribute(filedlg, "DIALOGTYPE", "OPEN");
-        IupSetAttribute(filedlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
-        IupSetAttributeHandle(filedlg, "PARENTDIALOG", IupGetDialog(item_open));
-        IupSetStrAttribute(filedlg, "DIRECTORY", d);
+        IupPopup(fileopendlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
+        if IupGetInt(fileopendlg, "STATUS")!= -1 then
+            string filename = IupGetAttribute(fileopendlg, "VALUE");
+            open_file(filename);
 
-        IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
-        if IupGetInt(filedlg, "STATUS")!= -1 then
-            string filename = IupGetAttribute(filedlg, "VALUE");
-            open_file(item_open, filename);
-
-            d = IupGetAttribute(filedlg, "DIRECTORY");
+            d = IupGetAttribute(fileopendlg, "DIRECTORY");
             IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d);
         end if
 
-        IupDestroy(filedlg);
+        IupDestroy(fileopendlg);
     end if
     return IUP_DEFAULT;
 end function
 
-function item_saveas_action_cb(Ihandle item_saveas)
-Ihandle multitext = IupGetDialogChild(item_saveas, "MULTITEXT");
-Ihandle config = IupGetInt(multitext, "CONFIG");
+function item_saveas_action_cb(Ihandle /*item_saveas*/)
 string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
-Ihandle filedlg = IupFileDlg();
-    IupSetAttribute(filedlg, "DIALOGTYPE", "SAVE");
-    IupSetAttribute(filedlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
-    IupSetAttributeHandle(filedlg, "PARENTDIALOG", IupGetDialog(item_saveas));
-    IupSetStrAttribute(filedlg, "FILE", IupGetAttribute(multitext, "FILENAME"));
-    IupSetStrAttribute(filedlg, "DIRECTORY", d);
+Ihandle filesavedlg = IupFileDlg();
+    IupSetAttribute(filesavedlg, "DIALOGTYPE", "SAVE");
+    IupSetAttribute(filesavedlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
+    IupSetAttributeHandle(filesavedlg, "PARENTDIALOG", dlg);
+    IupSetStrAttribute(filesavedlg, "FILE", IupGetAttribute(multitext, "FILENAME"));
+    IupSetStrAttribute(filesavedlg, "DIRECTORY", d);
 
-    IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
+    IupPopup(filesavedlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
 
-    if IupGetInt(filedlg, "STATUS")!= -1 then
-        string filename = IupGetAttribute(filedlg, "VALUE");
-        saveas_file(multitext, filename);
+    if IupGetInt(filesavedlg, "STATUS")!= -1 then
+        string filename = IupGetAttribute(filesavedlg, "VALUE");
+        saveas_file(filename);
 
-        d = IupGetAttribute(filedlg, "DIRECTORY");
+        d = IupGetAttribute(filesavedlg, "DIRECTORY");
         IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d);
     end if
 
-    IupDestroy(filedlg);
+    IupDestroy(filesavedlg);
     return IUP_DEFAULT;
 end function
 
 function item_save_action_cb(Ihandle item_save)
-Ihandle multitext = IupGetDialogChild(item_save, "MULTITEXT");
 string filename = IupGetAttribute(multitext, "FILENAME");
     if length(filename)=0 then
-        {} = item_saveas_action_cb(item_save);
+        {} = item_saveas_action_cb(item_save)
     else
-        /* test again because it can be called using the hot key */
+        /* test again, because it can be called from the hot key */
+        --( ie: menu may be disabled, but hotkey remains active )
         if IupGetInt(multitext, "DIRTY") then
-            save_file(multitext);
+            save_file()
         end if
     end if
     return IUP_DEFAULT;
 end function
 
-function item_revert_action_cb(Ihandle item_revert)
-Ihandle multitext = IupGetDialogChild(item_revert, "MULTITEXT");
+function item_revert_action_cb(Ihandle /*item_revert*/)
 string filename = IupGetAttribute(multitext, "FILENAME");
-    open_file(item_revert, filename);
+    open_file(filename);
     return IUP_DEFAULT;
 end function
 
-function item_exit_action_cb(Ihandle item_exit)
-Ihandle dlg = IupGetDialog(item_exit);
-Ihandle config = IupGetInt(dlg, "CONFIG");
+function item_exit_action_cb(Ihandle /*item_exit*/)
 
-    if not save_check(item_exit) then
+    if not save_check() then
         return IUP_IGNORE;  /* to abort the CLOSE_CB callback */
     end if
     IupConfigDialogClosed(config, dlg, "MainWindow");
@@ -321,64 +312,60 @@ Ihandle config = IupGetInt(dlg, "CONFIG");
     return IUP_CLOSE;
 end function
 
-function goto_ok_action_cb(Ihandle bt_ok)
-integer line_count = IupGetInt(bt_ok, "TEXT_LINECOUNT");
-Ihandle txt = IupGetDialogChild(bt_ok, "LINE_TEXT");
-integer line = IupGetInt(txt, "VALUE");
---erm:
+function goto_ok_action_cb(Ihandle /*bt_ok*/)
+integer line_count = IupGetInt(multitext, "LINECOUNT");
+integer line = IupGetInt(goto_txt, "VALUE");
+
     if line<1 or line>=line_count then
         IupMessage("Error", "Invalid line number.");
         return IUP_DEFAULT;
     end if
 
-    IupSetAttribute(IupGetDialog(bt_ok), "STATUS", "1");
+    IupSetAttribute(goto_dlg, "STATUS", "1");
     return IUP_CLOSE;
 end function
 
-function goto_cancel_action_cb(Ihandle bt_ok)
-    IupSetAttribute(IupGetDialog(bt_ok), "STATUS", "0");
+function goto_cancel_action_cb(Ihandle /*bt_cancel*/)
+    IupSetAttribute(goto_dlg, "STATUS", "0");
     return IUP_CLOSE;
 end function
 
-function item_goto_action_cb(Ihandle item_goto)
-Ihandle multitext = IupGetDialogChild(item_goto, "MULTITEXT");
-Ihandle goto_dlg, box, bt_ok, bt_cancel, txt, lbl;
+function item_goto_action_cb(Ihandle /*item_goto*/)
+Ihandle goto_box, bt_ok, bt_cancel, goto_lbl;
 integer line_count = IupGetInt(multitext, "LINECOUNT");
 
-    lbl = IupLabel()
-    IupSetStrAttribute(lbl, "TITLE", "Line Number [1-%d]:", {line_count});
-    txt = IupText();
-    IupSetAttribute(txt, "MASK", IUP_MASK_UINT);    /* unsigned integer numbers only */
-    IupSetAttribute(txt, "NAME", "LINE_TEXT");
-    IupSetAttribute(txt, "VISIBLECOLUMNS", "20");
+    goto_lbl = IupLabel()
+    IupSetStrAttribute(goto_lbl, "TITLE", "Line Number [1-%d]:", {line_count});
+    goto_txt = IupText();
+    IupSetAttribute(goto_txt, "MASK", IUP_MASK_UINT);   /* unsigned integer numbers only */
+    IupSetAttribute(goto_txt, "VISIBLECOLUMNS", "20");
     bt_ok = IupButton("OK");
-    IupSetInt(bt_ok, "TEXT_LINECOUNT", line_count);
     IupSetAttribute(bt_ok, "PADDING", "10x2");
     IupSetCallback(bt_ok, "ACTION", Icallback("goto_ok_action_cb"));
     bt_cancel = IupButton("Cancel");
     IupSetCallback(bt_cancel, "ACTION", Icallback("goto_cancel_action_cb"));
     IupSetAttribute(bt_cancel, "PADDING", "10x2");
 
-    box = IupVbox({lbl,
-                   txt,
-                   IupHbox({IupFill(),
-                            bt_ok,
-                            bt_cancel},
-                           "NORMALIZESIZE=HORIZONTAL")});
-    IupSetAttribute(box, "MARGIN", "10x10");
-    IupSetAttribute(box, "GAP", "5");
+    goto_box = IupVbox({goto_lbl,
+                        goto_txt,
+                        IupHbox({IupFill(),
+                                 bt_ok,
+                                 bt_cancel},
+                                "NORMALIZESIZE=HORIZONTAL")});
+    IupSetAttribute(goto_box, "MARGIN", "10x10");
+    IupSetAttribute(goto_box, "GAP", "5");
 
-    goto_dlg = IupDialog(box);
+    goto_dlg = IupDialog(goto_box);
     IupSetAttribute(goto_dlg, "TITLE", "Go To Line");
     IupSetAttribute(goto_dlg, "DIALOGFRAME", "Yes");
     IupSetAttributeHandle(goto_dlg, "DEFAULTENTER", bt_ok);
     IupSetAttributeHandle(goto_dlg, "DEFAULTESC", bt_cancel);
-    IupSetAttributeHandle(goto_dlg, "PARENTDIALOG", IupGetDialog(item_goto));
+    IupSetAttributeHandle(goto_dlg, "PARENTDIALOG", dlg);
 
     IupPopup(goto_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
 
     if IupGetInt(goto_dlg, "STATUS")==1 then
-        integer line = IupGetInt(txt, "VALUE");
+        integer line = IupGetInt(goto_txt, "VALUE");
         integer pos = IupTextConvertLinColToPos(multitext, line, 0);
         IupSetInt(multitext, "CARETPOS", pos);
         IupSetInt(multitext, "SCROLLTOPOS", pos);
@@ -389,19 +376,15 @@ integer line_count = IupGetInt(multitext, "LINECOUNT");
     return IUP_DEFAULT;
 end function
 
-function find_next_action_cb(Ihandle ih)
+function find_next_action_cb(Ihandle /*ih*/)
 /* this callback can be called from the main dialog also */
-Ihandln find_dlg = IupGetInt(ih, "FIND_DIALOG");
     if find_dlg!=NULL then
         string str;
         integer pos;
-        Ihandle multitext = IupGetInt(find_dlg, "MULTITEXT");
         integer find_pos = IupGetInt(multitext, "FIND_POS");
 
-        Ihandle txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
-        string str_to_find = IupGetAttribute(txt, "VALUE");
+        string str_to_find = IupGetAttribute(find_txt, "VALUE");
 
-        Ihandle find_case = IupGetDialogChild(find_dlg, "FIND_CASE");
         integer casesensitive = IupGetInt(find_case, "VALUE");
 
         /* test again, because it can be called from the hot key */
@@ -442,198 +425,150 @@ Ihandln find_dlg = IupGetInt(ih, "FIND_DIALOG");
     return IUP_DEFAULT;
 end function
 
-function find_replace_action_cb(Ihandle bt_replace)
-Ihandle find_dlg = IupGetInt(bt_replace, "FIND_DIALOG");
-Ihandle multitext = IupGetInt(find_dlg, "MULTITEXT");
+function find_replace_action_cb(Ihandle /*replace_bt*/)
 integer find_pos = IupGetInt(multitext, "FIND_POS");
 string selectionpos = IupGetAttribute(multitext, "SELECTIONPOS");
 string find_selection = IupGetAttribute(multitext, "FIND_SELECTION");
 
     if find_pos== -1
     or selectionpos!=find_selection then
-        {} = find_next_action_cb(bt_replace);
+        {} = find_next_action_cb(replace_bt);
     else
-        Ihandle replace_txt = IupGetDialogChild(find_dlg, "REPLACE_TEXT");
         string str_to_replace = IupGetAttribute(replace_txt, "VALUE");
         IupSetAttribute(multitext, "SELECTEDTEXT", str_to_replace);
 
         /* then find next */
-        {} = find_next_action_cb(bt_replace);
+        {} = find_next_action_cb(replace_bt);
     end if
 
     return IUP_DEFAULT;
 end function
 
-function find_close_action_cb(Ihandle bt_close)
-Ihandle find_dlg = IupGetDialog(bt_close);
-Ihandle multitext = IupGetInt(find_dlg, "MULTITEXT");
-Ihandle config = IupGetInt(multitext, "CONFIG");
+function find_close_action_cb(Ihandle /*close_bt*/)
     IupConfigDialogClosed(config, find_dlg, "FindDialog");
     IupHide(find_dlg); /* do not destroy, just hide */
     return IUP_DEFAULT;
 end function
 
-function create_find_dialog(Ihandle multitext)
-Ihandle box, bt_next, bt_close, txt, find_case, find_dlg;
-Ihandle txt_replace, bt_replace;
+procedure create_find_dialog()
+Ihandle find_box, next_bt, close_bt
 
-    txt = IupText();
-    IupSetAttribute(txt, "NAME", "FIND_TEXT");
-    IupSetAttribute(txt, "VISIBLECOLUMNS", "20");
-    txt_replace = IupText();
-    IupSetAttribute(txt_replace, "NAME", "REPLACE_TEXT");
-    IupSetAttribute(txt_replace, "VISIBLECOLUMNS", "20");
+    find_txt = IupText();
+    IupSetAttribute(find_txt, "VISIBLECOLUMNS", "20");
+    replace_txt = IupText();
+    IupSetAttribute(replace_txt, "VISIBLECOLUMNS", "20");
     find_case = IupToggle("Case Sensitive");
-    IupSetAttribute(find_case, "NAME", "FIND_CASE");
-    bt_next = IupButton("Find Next");
-    IupSetAttribute(bt_next, "PADDING", "10x2");
-    IupSetCallback(bt_next, "ACTION", Icallback("find_next_action_cb"));
-    bt_replace = IupButton("Replace");
-    IupSetAttribute(bt_replace, "PADDING", "10x2");
-    IupSetCallback(bt_replace, "ACTION", Icallback("find_replace_action_cb"));
-    IupSetAttribute(bt_replace, "NAME", "REPLACE_BUTTON");
-    bt_close = IupButton("Close");
-    IupSetCallback(bt_close, "ACTION", Icallback("find_close_action_cb"));
-    IupSetAttribute(bt_close, "PADDING", "10x2");
+    next_bt = IupButton("Find Next");
+    IupSetAttribute(next_bt, "PADDING", "10x2");
+    IupSetCallback(next_bt, "ACTION", Icallback("find_next_action_cb"));
+    replace_bt = IupButton("Replace");
+    IupSetAttribute(replace_bt, "PADDING", "10x2");
+    IupSetCallback(replace_bt, "ACTION", Icallback("find_replace_action_cb"));
+    close_bt = IupButton("Close");
+    IupSetCallback(close_bt, "ACTION", Icallback("find_close_action_cb"));
+    IupSetAttribute(close_bt, "PADDING", "10x2");
 
-    box = IupVbox({IupLabel("Find What:"),
-                   txt,
-                   IupLabel("Replace with:", "NAME=REPLACE_LABEL"),
-                   txt_replace,
-                   find_case,
-                   IupHbox({IupFill(),
-                            bt_next,
-                            bt_replace,
-                            bt_close},
-                           "NORMALIZESIZE=HORIZONTAL")});
-    IupSetAttribute(box, "MARGIN", "10x10");
-    IupSetAttribute(box, "GAP", "5");
+    replace_lbl = IupLabel("Replace with:")
+    find_box = IupVbox({IupLabel("Find What:"),
+                        find_txt,
+                        replace_lbl,
+                        replace_txt,
+                        find_case,
+                        IupHbox({IupFill(),
+                                 next_bt,
+                                 replace_bt,
+                                 close_bt},
+                                "NORMALIZESIZE=HORIZONTAL")});
+    IupSetAttribute(find_box, "MARGIN", "10x10");
+    IupSetAttribute(find_box, "GAP", "5");
 
-    find_dlg = IupDialog(box);
+    find_dlg = IupDialog(find_box);
     IupSetAttribute(find_dlg, "TITLE", "Find");
     IupSetAttribute(find_dlg, "DIALOGFRAME", "Yes");
-    IupSetAttributeHandle(find_dlg, "DEFAULTENTER", bt_next);
-    IupSetAttributeHandle(find_dlg, "DEFAULTESC", bt_close);
-    IupSetAttributeHandle(find_dlg, "PARENTDIALOG", IupGetDialog(multitext));
+    IupSetAttributeHandle(find_dlg, "DEFAULTENTER", next_bt);
+    IupSetAttributeHandle(find_dlg, "DEFAULTESC", close_bt);
+    IupSetAttributeHandle(find_dlg, "PARENTDIALOG", dlg);
     IupSetCallback(find_dlg, "CLOSE_CB", Icallback("find_close_action_cb"));
+end procedure
 
-    /* Save the multiline to access it from the callbacks */
-    IupSetInt(find_dlg, "MULTITEXT", multitext);
-
-    /* Save the dialog to reuse it */
-    IupSetInt(find_dlg, "FIND_DIALOG", find_dlg);  /* from itself */
-    IupSetInt(IupGetDialog(multitext), "FIND_DIALOG", find_dlg); /* from the main dialog */
-
-    return find_dlg;
-end function
-
-function item_find_action_cb(Ihandle item_find)
-Ihandln find_dlg = IupGetInt(item_find, "FIND_DIALOG");
-Ihandle multitext = IupGetDialogChild(item_find, "MULTITEXT");
-Ihandle config = IupGetInt(multitext, "CONFIG");
-string str;
+function item_find_action_cb(Ihandle /*item_find*/)
+string str
 
     if find_dlg=NULL then
-        find_dlg = create_find_dialog(multitext);
+        create_find_dialog()
     end if
 
-    set_find_replace_visibility(find_dlg, 0);
+    set_find_replace_visibility(0)
 
     IupConfigDialogShow(config, find_dlg, "FindDialog");
 
     str = IupGetAttribute(multitext, "SELECTEDTEXT");
     if length(str)!=0 then
-        Ihandle txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
-        IupSetStrAttribute(txt, "VALUE", str);
+        IupSetStrAttribute(find_txt, "VALUE", str);
     end if
 
     return IUP_DEFAULT;
 end function
 
-function item_replace_action_cb(Ihandle item_replace)
-Ihandln find_dlg = IupGetInt(item_replace, "FIND_DIALOG");
-Ihandle multitext = IupGetDialogChild(item_replace, "MULTITEXT");
-Ihandle config = IupGetInt(multitext, "CONFIG");
-string str;
+function item_replace_action_cb(Ihandle /*item_replace*/)
+string str
 
     if find_dlg=NULL then
-        find_dlg = create_find_dialog(multitext);
+        create_find_dialog()
     end if
 
-    set_find_replace_visibility(find_dlg, 1);
+    set_find_replace_visibility(1)
 
     IupConfigDialogShow(config, find_dlg, "FindDialog");
 
     str = IupGetAttribute(multitext, "SELECTEDTEXT");
     if length(str)!=0 then
-        Ihandle txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
-        IupSetStrAttribute(txt, "VALUE", str);
+        IupSetStrAttribute(find_txt, "VALUE", str);
     end if
 
     return IUP_IGNORE;  /* replace system processing for the hot key */
 end function
 
 function selection_find_next_action_cb(Ihandle ih)
-Ihandle multitext = IupGetDialogChild(ih, "MULTITEXT");
-
 string str = IupGetAttribute(multitext, "SELECTEDTEXT");
     if length(str)!=0 then
-        Ihandle txt;
-        Ihandln find_dlg = IupGetInt(ih, "FIND_DIALOG");
-
         if find_dlg=NULL then
-            find_dlg = create_find_dialog(multitext);
+            create_find_dialog()
         end if
-
-        txt = IupGetDialogChild(find_dlg, "FIND_TEXT");
-        IupSetStrAttribute(txt, "VALUE", str);
-
+        IupSetStrAttribute(find_txt, "VALUE", str);
         {} = find_next_action_cb(ih);
     end if
-
     return IUP_DEFAULT;
 end function
 
-function item_copy_action_cb(Ihandle item_copy)
-Ihandle multitext = IupGetDialogChild(item_copy, "MULTITEXT");
-Ihandle clipboard = IupClipboard();
+function item_copy_action_cb(Ihandle /*item_copy*/)
     IupSetAttribute(clipboard, "TEXT", IupGetAttribute(multitext, "SELECTEDTEXT"));
-    IupDestroy(clipboard);
     return IUP_DEFAULT;
 end function
 
-function item_paste_action_cb(Ihandle item_paste)
-Ihandle multitext = IupGetDialogChild(item_paste, "MULTITEXT");
-Ihandle clipboard = IupClipboard();
+function item_paste_action_cb(Ihandle /*item_paste*/)
     IupSetAttribute(multitext, "INSERT", IupGetAttribute(clipboard, "TEXT"));
-    IupDestroy(clipboard);
     return IUP_IGNORE;  /* replace system processing for the hot key, to correctly parse line feed */
 end function
 
-function item_cut_action_cb(Ihandle item_cut)
-Ihandle multitext = IupGetDialogChild(item_cut, "MULTITEXT");
-Ihandle clipboard = IupClipboard();
+function item_cut_action_cb(Ihandle /*item_cut*/)
     IupSetAttribute(clipboard, "TEXT", IupGetAttribute(multitext, "SELECTEDTEXT"));
     IupSetAttribute(multitext, "SELECTEDTEXT", "");
-    IupDestroy(clipboard);
     return IUP_DEFAULT;
 end function
 
-function item_delete_action_cb(Ihandle item_delete)
-Ihandle multitext = IupGetDialogChild(item_delete, "MULTITEXT");
+function item_delete_action_cb(Ihandle /*item_delete*/)
     IupSetAttribute(multitext, "SELECTEDTEXT", "");
     return IUP_DEFAULT;
 end function
 
 function item_select_all_action_cb(Ihandle item_select_all)
-Ihandle multitext = IupGetDialogChild(item_select_all, "MULTITEXT");
     IupSetFocus(multitext);
     IupSetAttribute(multitext, "SELECTION", "ALL");
     return IUP_DEFAULT;
 end function
 
 function item_font_action_cb(Ihandle item_font)
-Ihandle multitext = IupGetDialogChild(item_font, "MULTITEXT");
 Ihandle fontdlg = IupFontDlg();
 string font = IupGetAttribute(multitext, "FONT");
     IupSetStrAttribute(fontdlg, "VALUE", font);
@@ -642,7 +577,6 @@ string font = IupGetAttribute(multitext, "FONT");
     IupPopup(fontdlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
 
     if IupGetInt(fontdlg, "STATUS")==1 then
-        Ihandle config = IupGetInt(multitext, "CONFIG");
         font = IupGetAttribute(fontdlg, "VALUE");
         IupSetStrAttribute(multitext, "FONT", font);
 
@@ -653,24 +587,16 @@ string font = IupGetAttribute(multitext, "FONT");
     return IUP_DEFAULT;
 end function
 
-function item_toolbar_action_cb(Ihandle item_toolbar)
-Ihandle multitext = IupGetDialogChild(item_toolbar, "MULTITEXT");
-Ihandle toolbar = IupGetChild(IupGetParent(multitext), 0);
-Ihandle config = IupGetInt(multitext, "CONFIG");
-
-    toggle_bar_visibility(item_toolbar, toolbar);
-
+function item_toolbar_action_cb(Ihandle /*item_toolbar*/)
+--  toggle_bar_visibility(item_toolbar, toolbar_hb);
+    toggle_toolbar_visibility()
     IupConfigSetVariableStr(config, "MainWindow", "Toolbar", IupGetAttribute(item_toolbar, "VALUE"));
     return IUP_DEFAULT;
 end function
 
-function item_statusbar_action_cb(Ihandle item_statusbar)
-Ihandle multitext = IupGetDialogChild(item_statusbar, "MULTITEXT");
-Ihandle statusbar = IupGetBrother(multitext);
-Ihandle config = IupGetInt(multitext, "CONFIG");
-
-    toggle_bar_visibility(item_statusbar, statusbar);
-
+function item_statusbar_action_cb(Ihandle /*item_statusbar*/)
+--  toggle_bar_visibility(item_statusbar, lbl_statusbar);
+    toggle_statusbar_visibility()
     IupConfigSetVariableStr(config, "MainWindow", "Statusbar", IupGetAttribute(item_statusbar, "VALUE"));
     return IUP_DEFAULT;
 end function
@@ -688,29 +614,26 @@ end function
 
 /********************************** Main *****************************************/
 
-
-function create_main_dialog(Ihandle config)
-Ihandle dlg, vbox, multitext, menu;
-Ihandle sub_menu_file, file_menu, item_exit, item_new, item_open, item_save, item_saveas, item_revert;
-Ihandle sub_menu_edit, edit_menu, item_find, item_find_next, item_goto, item_copy, item_paste, item_cut, item_delete, item_select_all;
+procedure create_main_dialog(Ihandle config)
+Ihandle vbox, menu;
+Ihandle sub_menu_file, file_menu, item_exit, item_new, item_open, item_saveas
+Ihandle sub_menu_edit, edit_menu, item_find, item_goto, item_select_all;
 Ihandle btn_cut, btn_copy, btn_paste, btn_find, btn_new, btn_open, btn_save;
 Ihandle sub_menu_format, format_menu, item_font, item_replace;
 Ihandle sub_menu_help, help_menu, item_help, item_about;
-Ihandle sub_menu_view, view_menu, item_toolbar, item_statusbar;
-Ihandle lbl_statusbar, toolbar_hb, recent_menu;
+Ihandle sub_menu_view, view_menu
+Ihandle recent_menu;
 string font;
 
     multitext = IupText();
     IupSetAttribute(multitext, "MULTILINE", "YES");
     IupSetAttribute(multitext, "EXPAND", "YES");
-    IupSetAttribute(multitext, "NAME", "MULTITEXT");
     IupSetAttribute(multitext, "DIRTY", "NO");
     IupSetCallback(multitext, "CARET_CB", Icallback("multitext_caret_cb"));
     IupSetCallback(multitext, "VALUECHANGED_CB", Icallback("multitext_valuechanged_cb"));
     IupSetCallback(multitext, "DROPFILES_CB", Icallback("dropfiles_cb"));
 
     lbl_statusbar = IupLabel("Lin 1, Col 1");
-    IupSetAttribute(lbl_statusbar, "NAME", "STATUSBAR");
     IupSetAttribute(lbl_statusbar, "EXPAND", "HORIZONTAL");
     IupSetAttribute(lbl_statusbar, "PADDING", "10x5");
 
@@ -736,7 +659,6 @@ string font;
     IupSetAttribute(btn_open, "CANFOCUS", "No");
 
     item_save = IupMenuItem("&Save\tCtrl+S");
-    IupSetAttribute(item_save, "NAME", "ITEM_SAVE");
     IupSetAttribute(item_save, "IMAGE", "IUP_FileSave");
     IupSetCallback(item_save, "ACTION", Icallback("item_save_action_cb"));
     btn_save = IupButton()
@@ -747,11 +669,9 @@ string font;
     IupSetAttribute(btn_save, "CANFOCUS", "No");
 
     item_saveas = IupMenuItem("Save &As...");
-    IupSetAttribute(item_saveas, "NAME", "ITEM_SAVEAS");
     IupSetCallback(item_saveas, "ACTION", Icallback("item_saveas_action_cb"));
 
     item_revert = IupMenuItem("&Revert");
-    IupSetAttribute(item_revert, "NAME", "ITEM_REVERT");
     IupSetCallback(item_revert, "ACTION", Icallback("item_revert_action_cb"));
 
     item_exit = IupMenuItem("E&xit");
@@ -768,14 +688,12 @@ string font;
     IupSetAttribute(btn_find, "CANFOCUS", "No");
 
     item_find_next = IupMenuItem("Find &Next\tF3");
-    IupSetAttribute(item_find_next, "NAME", "ITEM_FINDNEXT");
     IupSetCallback(item_find_next, "ACTION", Icallback("find_next_action_cb"));
 
     item_replace = IupMenuItem("&Replace...\tCtrl+H");
     IupSetCallback(item_replace, "ACTION", Icallback("item_replace_action_cb"));
 
     item_cut = IupMenuItem("Cu&t\tCtrl+X");
-    IupSetAttribute(item_cut, "NAME", "ITEM_CUT");
     IupSetAttribute(item_cut, "IMAGE", "IUP_EditCut");
     IupSetCallback(item_cut, "ACTION", Icallback("item_cut_action_cb"));
     btn_cut = IupButton()
@@ -786,7 +704,6 @@ string font;
     IupSetAttribute(btn_cut, "CANFOCUS", "No");
 
     item_copy = IupMenuItem("&Copy\tCtrl+C");
-    IupSetAttribute(item_copy, "NAME", "ITEM_COPY");
     IupSetAttribute(item_copy, "IMAGE", "IUP_EditCopy");
     IupSetCallback(item_copy, "ACTION", Icallback("item_copy_action_cb"));
     btn_copy = IupButton()
@@ -797,7 +714,6 @@ string font;
     IupSetAttribute(btn_copy, "CANFOCUS", "No");
 
     item_paste = IupMenuItem("&Paste\tCtrl+V");
-    IupSetAttribute(item_paste, "NAME", "ITEM_PASTE");
     IupSetAttribute(item_paste, "IMAGE", "IUP_EditPaste");
     IupSetCallback(item_paste, "ACTION", Icallback("item_paste_action_cb"));
     btn_paste = IupButton()
@@ -809,7 +725,6 @@ string font;
 
     item_delete = IupMenuItem("&Delete\tDel");
     IupSetAttribute(item_delete, "IMAGE", "IUP_EditErase");
-    IupSetAttribute(item_delete, "NAME", "ITEM_DELETE");
     IupSetCallback(item_delete, "ACTION", Icallback("item_delete_action_cb"));
 
     item_select_all = IupMenuItem("Select &All\tCtrl+A");
@@ -937,13 +852,8 @@ string font;
         IupSetAttribute(lbl_statusbar, "VISIBLE", "NO");
     end if
 
-    IupSetInt(dlg, "CONFIG", config);
+end procedure
 
-    return dlg;
-end function
-
-Ihandle dlg;
-Ihandle config;
 integer iclerr
 sequence cl
 
@@ -956,19 +866,21 @@ sequence cl
     iclerr = IupConfigLoad(config);
 --  if iclerr!=0 then ?9/0 end if
 
-    dlg = create_main_dialog(config);
+    clipboard = IupClipboard()
+
+    create_main_dialog(config);
 
     /* show the dialog at the last position, with the last size */
     IupConfigDialogShow(config, dlg, "MainWindow");
 
     /* initialize the current file */
-    new_file(dlg);
+    new_file()
 
     /* open a file from the command line (allow file association in Windows) */
     cl = command_line()
     if length(cl)>2 then
         string filename = cl[3]
-        open_file(dlg, filename);
+        open_file(filename);
     end if
 
     IupMainLoop();

@@ -38,6 +38,7 @@ without trace -- ditto, plus important this be off when running trace(3)
 --  05/03/12. made thread-safe (no file-level vars) [DEV multiple returns rqd?]
 
 include builtins\VM\pUnassigned.e   -- :%pRTErn (DEV/temp)
+include builtins\VM\pPower.e
 
 --/* Not required for Phix (string is builtin):
 type string(object o) return sequence(o) end type

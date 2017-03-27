@@ -159,6 +159,17 @@ integer ridState = 0    -- bits:
                         --  (jmp) $_il:             1 -> 5, 3 -> 0
 integer ridLtot, ridN
 
+function ridStateError()
+string errmsg
+    if and_bits(ridState,1)=0 then
+        errmsg = "missing routine_id??" -- (should never happen)
+    elsif and_bits(ridState,2)=0 then
+        errmsg = "missing $_Ltot"
+    elsif and_bits(ridState,4)=0 then
+        errmsg = "missing $_il"
+    end if
+    return errmsg
+end function
 
 global procedure label_fixup()
 --
@@ -987,7 +998,9 @@ integer state
             if N=T_routine then
                 if not and_bits(permitted,P_RID) then
                     Aborp("not permitted")
-                elsif ridState!=0 then
+--NESTEDFUNC:
+--              elsif ridState!=0 then
+                elsif ridState>1 then
                     Aborp("ridState error")
                 end if
                 if Ch!='(' then
@@ -4765,8 +4778,11 @@ end if
     end if
 
     getToken()
-    if ridState!=0 then
-        Aborp("ridState error")
+--NESTEDFUNC:
+--  if ridState!=0 then
+    if ridState>1 then
+--      Aborp("ridState error")     -- DEV better message (see ridState defn.) [elsewhere?]
+        Aborp(ridStateError())
     end if
     MatchChar('}')
 

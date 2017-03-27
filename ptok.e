@@ -1012,8 +1012,9 @@ integer p, minp, maxp
                             -- (ie/eg name=sort but we have hit EOF (as the file is cropped to cursor line/col) before 
                             --  pmain.e/checkforbuiltins() has had a chance to load/parse builtins\psort.e; eaisense
                             --  will try "sort" again but this time with the full text of rootpath\builtins\psort.e)
+                            string bname = call_func(r_getBuiltinName,{symidx})
                             printf(ifn,"Defined in psym.e as an autoinclude; %s not yet resolved, see %sbuiltins"&SLASH&"%s\n",
-                                       {name,rootpath,call_func(r_getBuiltinName,{symidx})})
+                                       {name,rootpath,bname})
                         else
                             sf = filenames[fno]
                             if nTyp<=S_TVar then
@@ -1295,6 +1296,9 @@ string charset, baseset
     charset['a'..'z'] = LETTER
     charset['{'] = BRACES
     charset['}'] = BRACES
+if ORAC then
+    charset['~']  = SYMBOL
+end if
 
 global procedure SpecialHandling(integer char, integer chartype)
     charset[char] = chartype
@@ -1859,7 +1863,23 @@ forward procedure preprocess()
 include builtins\utfconv.e
 
 without trace
-global procedure getToken()
+--global procedure getToken()
+--global procedure getToken(bool parse_dot_as_symbol=false)
+-- A parse_dot_as_symbol of true simply means the next token cannot legally be a
+--  floating point number. It may or may not be a valid dot-subscript.
+--  A default of true would probably be more sensible (long-term)
+--  [DEV ==> bool float_valid=false] (strip defaults, then kill)
+
+global procedure getToken(bool float_valid=false)
+--
+-- A float_valid of true fairly obviously means that a float is valid; by default
+--  any '.' are returned as a separate SYMBOL (for ORAC, ignored if that is 0).
+--  I would expect the odd get_token(false) when simply being explicit, and most
+--  certainly that or () after },),],",',`,and $, otherwise I would only expect a
+--  getToken(true) after most of {,(,[,=,>,+,-,*,/,&,?,..,and,or,xor,and not (but 
+--  not all, esp format directives, routine definitions, multi-assign lhs, enums, 
+--  and #ilASM, #istype, #isinit, and #isginfo).
+--
 --integer savecol
 --integer signed, toklen
 
@@ -1935,7 +1955,7 @@ global procedure getToken()
         end if
         tt_search()
         if ttidx=T_end then
-            if mapEndToMinusOne>0 then
+            if mapEndToMinusOne>0 and not ORAC then
                 mapEndToMinusOne = T_end
                 toktype = DIGIT
                 TokN = -1
@@ -1944,7 +1964,8 @@ global procedure getToken()
             preprocactive = 1
 --          call_proc(r_preprocess,{})
             preprocess()
-            getToken()
+--          getToken()
+            getToken(float_valid)
             preprocactive = 0
         end if
         return
@@ -1964,7 +1985,11 @@ global procedure getToken()
                 toktype = ELLIPSE
                 return
 --          elsif charset[Ch]=DIGIT then -- ".4" is a number
-            elsif Ch>='0' and Ch<='9' then -- ".4" is a number
+--DEV (use fromsubss or parse_dot_as_symbol?)
+--          elsif Ch>='0' and Ch<='9' then -- ".4" is a number
+--          elsif (not ORAC) and Ch>='0' and Ch<='9' then -- ".4" is a number
+            elsif (ORAC and float_valid)
+              and Ch>='0' and Ch<='9' then -- ".4" is a number
                 col -= 1
                 Ch = '.'
                 TokN = 0
@@ -2009,7 +2034,9 @@ global procedure getToken()
             Ch = text[col]
         end while
         cp1 = col+1
-        if Ch='.' then
+--DEV (ORAC/fromsubss)
+--      if Ch='.' then
+        if Ch='.' and (not ORAC or float_valid) then
             ch2 = text[cp1]
         else
             if Ch='\'' and text[cp1]=TokN and text[col+2]='\'' then
@@ -2298,29 +2325,57 @@ end procedure
 --  if toktype=';' then getToken() end if
 --end procedure
 
-global procedure MatchChar(integer x)
+--global procedure MatchChar(integer x)
+--global procedure MatchChar(integer x, bool parse_dot_as_symbol=false)
+-- A parse_dot_as_symbol of true simply means the next token cannot legally be a
+--  floating point number. It may or may not be a valid dot-subscript.
+
+global procedure MatchChar(integer x, bool float_valid=false)
 --
 -- Match a Specific Input Char, typically a symbol eg ')'
 -- NB: This is only ever called when you already know the currrent token will match
 --     It also makes the code a bit more self-documenting
 --
+-- By default float_valid is false ('.' treated as a separate SYMBOL) [for ORAC]
+-- Typically I would expect:
+--      MatchChar('=',true)     -- (ditto +-*/&)
+--      MatchChar('{',true)     -- (except lhs of multi-assign)
+--      MatchChar('(',true)     -- (on calls not definitions)
+--      MatchChar(',',true)     --  "",""
+--      MatchChar('[',true)
+--      MatchChar('.',false)    -- (for ORAC)
+--      MatchChar(')'[,false])
+--      MatchChar('}'[,false])
+--
 --  if not equal(Ch,x) then Expected('\''&x&'\'') end if
     if not equal(toktype,x) then Expected('\''&x&'\'') end if
-    getToken()
+--  getToken()
+    getToken(float_valid)
 end procedure
 
-global procedure MatchString(integer T_ident)
+--global procedure MatchString(integer T_ident)
+--global procedure MatchString(integer T_ident, bool parse_dot_as_symbol=false)
+-- A parse_dot_as_symbol of true simply means the next token cannot legally be a
+--  floating point number. It may or may not be a valid dot-subscript.
+
+global procedure MatchString(integer T_ident, bool float_valid=false)
 --
 -- Match a Specific Input String
 -- NB: This is only ever called when you already know the currrent token will match,
 --     or when it is mandatory, eg as per 'then' in 'if then else end if' 
 --     It also makes the code a bit more self-documenting
 --
---  if not equal(TokStr,x) then Expected('\"'&x&'\"') end if
---11/9/16:
---  if ttidx!=T_ident then Expected('\"'&getname(T_ident,-2)&'\"') end if
-    if toktype!=LETTER or ttidx!=T_ident then Expected('\"'&getname(T_ident,-2)&'\"') end if
-    getToken()
+-- By default float_valid is false ('.' treated as a separate SYMBOL) [for ORAC]
+-- Typically I would expect:
+--  MatchString(T_xxx,true) on T_and, T_or, T_xor, T_if, T_while, T_to, T_return,
+--  T_switch, and T_case, with MatchString(T_xxx[,false]) on all other T_xxx and
+--  some T_if, T_while, and T_return as appropriate.
+--
+    if toktype!=LETTER 
+    or ttidx!=T_ident then
+        Expected('\"'&getname(T_ident,-2)&'\"')
+    end if
+    getToken(float_valid)
 end procedure
 
 global procedure tokinit()
@@ -2562,7 +2617,7 @@ procedure preprocess() -- called from getToken()
 -- Specifically:
 -- ============
 --  WIN32/WINDOWS are assumed to be TRUE/DEFINED,
---  LINUX/FREEBSD/SUNOS/OPENBSD/OSX/UNIX are assumed FALSE/UNDEFINED
+--  LINUX/FREEBSD/SUNOS/OPENBSD/OSX/UNIX are assumed FALSE/UNDEFINED [DEV?]
 --  WIN32_GUI/WIN32_CONSOLE are dependent on with/without console/gui,
 --      and /NOT/ on whether p.exe or pw.exe is running (**NB**). [DEV]
 --  SAFE/DATA_EXECUTE/UCSTYPE_DEBUG/EU4_1/CRASH are assumed FALSE/UNDEFINED.
@@ -2606,6 +2661,16 @@ procedure preprocess() -- called from getToken()
 --  nothing short of a blatent incitement to make packaging blunders.
 --
 -- Anyway, that's my rant for the day.
+--
+-- Actually, one case has cropped up which /is/ useful:
+--
+--      ifdef PHIX then
+--          ...
+--      elsedef
+--          ...
+--      end ifdef
+--
+--  which works out quite well (with absolutely no changes to OE).
 --
 string name
 integer wasline, wascol
