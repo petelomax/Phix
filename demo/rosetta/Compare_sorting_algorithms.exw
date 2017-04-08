@@ -2,8 +2,10 @@
 -- demo\rosetta\Compare_sorting_algorithms.exw
 -- ===========================================
 --
---  Author: Pete Lomax 27/2/2017
+--  Author: Pete Lomax 28/3/2017
 --
+
+constant XQS = 01  -- (set to 1 to exclude quick_sort and shell_sort from ones)
 
 --#withtype Ihandle
 --#withtype Ihandles
@@ -11,144 +13,13 @@
 
 include pGUI.e
 
-function bubble_sort(sequence s)
---object tmp
-integer changed
-    for j=length(s) to 1 by -1 do
-        changed = 0
-        for i=1 to j-1 do
-            if s[i]>s[i+1] then
-                {s[i],s[i+1],changed} = {s[i+1],s[i],1}
-            end if
-        end for
-        if changed=0 then exit end if
-    end for
-    return s
-end function
+Ihandle dlg, tabs, plot
+Ihandles plots
 
---sequence ones, sorted, random
-enum ONES, SORTED, RANDOM
-constant T = RANDOM
-sequence test, check
-
-function tr(sequence name, integer rid=routine_id(name))
-    return {name,rid}
-end function
---DEV x3 is ones, sorted, random
-constant tests = {tr("bubble_sort")&{1000,1000,1000},
-                 }
-sequence results = repeat({}, length(tests))
---sequence results = repeat({{},{},{}}, length(tests))
-sequence dsdx = repeat(0,length(tests))
---integer ds_index1, ds_indexs, ds_indexr
-integer ds_index
-atom t0
-
-function idle_action_cb()
---IupPlotSetSample(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y)
-    return IUP_IGNORE   -- all done, remove callback
-end function
-
---constant x = {0,1,2,3,4,5,6,7,8,9,10}
---constant y = {1,6,17,34,57,86,121,162,209,262,321}
-
-IupOpen(join_path({"..","pGUI"},1))
-
-IupSetGlobalFunction("IDLE_ACTION", Icallback("idle_action_cb"))
---Ihandle plot = IupPlot("GRID=YES, MARGINLEFT=50, MARGINBOTTOM=40, AXS_YSCALE=LOG10")
-Ihandle plot = IupPlot("GRID=YES, MARGINLEFT=50, MARGINBOTTOM=40")
-for i=1 to length(tests) do
---  integer ds_index = dsdx[i]
---  if ds_index=0 then
-        IupPlotBegin(plot)
-        ds_index = IupPlotEnd(plot)
---      ds_index1 = IupPlotEnd(plot)
---      IupPlotBegin(plot)
---      ds_indexs = IupPlotEnd(plot)
---      IupPlotBegin(plot)
---      ds_indexr = IupPlotEnd(plot)
---      dsdx[i] = {ds_index1, ds_indexs, ds_indexr}
-        dsdx[i] = ds_index
---  end if
-end for
---DEV move this to idle;
---  select the test  - nah, use statics to control what next.
---DEV add a radio header to switch... Also a log10 toggle       <<-- and that wants plade!!
---  for n=4 to 10 do
---      integer l = power(10,n)
-?"started"
-    for l=1000 to 8000 by 1000 do
---      ones = repeat(1,l)
---      sorted = tagset(l)
---      random = shuffle(sorted)
-        test = iff(T=ONES?repeat(1,l):
-               iff(T=SORTED?tagset(l):
-               iff(T=RANDOM?shuffle(tagset(l)):9/0)))
-        t0 = 0
-        for i=1 to length(tests) do
---          {ds_index1, ds_indexs, ds_indexr} = dsdx[i]
-            ds_index = dsdx[i]
-            t0 = time()
---          {} = sort(ones)
---          {} = sort(test)
-            check = call_func(tests[i][2],{test})
-            t0 = time()-t0
---          results[i][??] = t0
-            if check!=sort(test) then ?9/0 end if
-            IupPlotInsert(plot, ds_index, i-1, l, t0)
---          IupPlotInsert(plot, ds_index1, i, l, time()-t0)
---          t0 = time()
---          {} = sort(sorted)
---          IupPlotInsert(plot, ds_indexs, i, l, time()-t0)
---          t0 = time()
---          {} = sort(random)
---          IupPlotInsert(plot, ds_indexr, i, l, time()-t0)
-?t0
-        end for
-    end for
-
---AXS_XSCALE,
---AXS_YSCALE    configures the scale of the respective axis. 
---Can be: LIN (linear), LOG10 (base 10), LOG2 (base 2) and LOGN (base e). Default: LIN. 
---IupPlotBegin(plot)
---for i=1 to length(x) do
---  IupPlotAdd(plot, x[i], y[i])
---end for
---integer ds_index = IupPlotEnd(plot)
---IupPlotInsertSamples(plot,ds_index,0,x,y,length(x))
-Ihandle dlg = IupDialog(plot)
-IupSetAttributes(dlg, "RASTERSIZE=%dx%d", {640, 480})
-IupSetAttribute(dlg, "TITLE", "Compare sorting algorithms")
-IupShow(dlg)
-
-IupMainLoop()
-IupClose()
-
---{} = wait_key()
-abort(0)
-
-Bubble Sort, Insertion sort, Quicksort, Radix sort, Shell sort
-Heap, Builtin
-[:sort, :radix_sort, :quick_sort, :shell_sort, :insertion_sort, :bubble_sort].each do |m|
-(*not bucket sort)
-
-function bubble_sort(sequence s)
-object tmp
-integer changed
-    for j=length(s) to 1 by -1 do
-        changed = 0
-        for i=1 to j-1 do
-            if s[i]>s[i+1] then
-                {s[i],s[i+1],changed} = {s[i+1],s[i],1}
-            end if
-        end for
-        if changed=0 then exit end if
-    end for
-    return s
-end function
-
---DEV? (pick the best!)
-function bubble_sort2(sequence x)
+--/*
+-- I have removed these two because they are **so** bad they mess up the graph
+--  - the sizes have to be so low that all the other times are effectively 0.
+function bubble_sort(sequence x)
 object xi,xni
 integer flip, limit
 
@@ -156,7 +27,7 @@ integer flip, limit
     while flip > 0 do
         limit = flip
         flip = 0
-        for i = 1 to limit-1 do
+        for i=1 to limit-1 do
             xi = x[i]
             xni = x[i+1]
             if xni<xi then
@@ -183,28 +54,9 @@ integer j
     end for
     return s
 end function
+--*/
 
---DEV ditto
-function insertion_sort2(sequence x)
-object xi
-integer final
-
-    for i = 2 to length(x) do
-        xi = x[i]
-        final = 1
-        for j = i-1 to 1 by -1 do
-            if xi<x[j] then
-                x[j+1] = x[j]
-            else
-                final = j + 1
-                exit
-            end if
-        end for
-        x[final] = xi
-    end for
-    return x
-end function
-
+--/* -- This turned out to be spectacularly awful on all 1s --
 function quick_sort(sequence x)
 integer n = length(x), last, mid
 object xi, midval
@@ -229,6 +81,82 @@ object xi, midval
  
     return quick_sort(x[2..last]) & {midval} & quick_sort(x[last+1..n])
 end function
+--*/
+
+function quick_sort2(sequence x)
+integer n = length(x), c, mid, midn
+object xi, midval
+sequence left = {}, right = {}
+
+    if n<2 then
+        return x    -- already sorted (trivial case)
+    end if
+ 
+    mid = floor((n+1)/2)
+    midval = x[mid]
+    x[mid] = x[1]
+    midn = 1
+ 
+    for i=2 to n do
+        xi = x[i]
+        c = compare(xi,midval)
+        if c<0 then
+            left &= xi
+        elsif c>0 then
+            right &= xi
+        else
+            midn += 1
+        end if
+    end for
+ 
+    return quick_sort2(left) & repeat(midval,midn) & quick_sort2(right)
+end function
+
+function quick_sort(sequence s)
+sequence qstack
+integer first, last, stackptr, I, J, tmp, pivot
+
+    qstack = repeat(0,floor((length(s)/5)+10))    -- create a stack
+
+    first = 1
+    last = length(s)
+    stackptr = 0
+    while 1 do
+        while first<last do
+            pivot = s[floor(last+first)/2]
+            I = first
+            J = last
+            while 1 do
+                while s[I]<pivot do
+                    I += 1
+                end while
+                while s[J]>pivot do
+                    J -= 1
+                end while
+                if I>J then exit end if
+                if I<J then
+                    tmp = s[I]
+                    s[I] = s[J]
+                    s[J] = tmp
+                end if
+                I += 1
+                J -= 1
+                if I>J then exit end if
+            end while
+            if I<last then
+                qstack[stackptr+1] = I
+                qstack[stackptr+2] = last
+                stackptr += 2
+            end if
+            last = J
+        end while
+        if stackptr=0 then exit end if
+        stackptr -= 2
+        first = qstack[stackptr+1]
+        last = qstack[stackptr+2]
+    end while
+    return s
+end function
 
 function radixSortn(sequence s, integer n)
 sequence buckets = repeat({},10)
@@ -249,7 +177,7 @@ sequence res = {}
     end for
     return res
 end function
- 
+
 function split_by_sign(sequence s)
 sequence buckets = {{},{}}
     for i=1 to length(s) do
@@ -262,7 +190,7 @@ sequence buckets = {{},{}}
     end for
     return buckets
 end function
- 
+
 function radix_sort(sequence s)
 integer mins = min(s)
 integer passes = max(max(s),abs(mins))
@@ -296,18 +224,17 @@ object temp
     return s
 end function
 
---DEV ditto
 function shell_sort2(sequence x)
 integer gap, j, first, last
 object xi, xj
 
     last = length(x)
-    gap = floor(last/10) + 1
+    gap = floor(last/10)+1
     while TRUE do
-        first = gap + 1
-        for i = first to last do
+        first = gap+1
+        for i=first to last do
             xi = x[i]
-            j = i - gap
+            j = i-gap
             while TRUE do
                 xj = x[j]
                 if xi>=xj then
@@ -315,18 +242,222 @@ object xi, xj
                     exit
                 end if
                 x[j+gap] = xj
-                if j <= gap then
+                if j<=gap then
                     exit
                 end if
                 j -= gap
             end while
             x[j] = xi
         end for
-        if gap = 1 then
+        if gap=1 then
             return x
         else
-            gap = floor(gap/3.5) + 1
+            gap = floor(gap/3.5)+1
         end if
     end while
 end function
+
+function siftDown(sequence arr, integer s, integer last)
+integer root = s
+    while root*2<=last do
+        integer child = root*2
+        if child<last and arr[child]<arr[child+1] then
+            child += 1
+        end if
+        if arr[root]>=arr[child] then exit end if
+        object tmp = arr[root]
+        arr[root] = arr[child]
+        arr[child] = tmp
+        root = child
+    end while
+    return arr
+end function
+
+function heapify(sequence arr, integer count)
+integer s = floor(count/2)
+    while s>0 do
+        arr = siftDown(arr,s,count)
+        s -= 1
+    end while
+    return arr
+end function
+
+function heap_sort(sequence arr)
+integer last = length(arr)
+    arr = heapify(arr,last)
+    while last>1 do
+        object tmp = arr[1]
+        arr[1] = arr[last]
+        arr[last] = tmp
+        last -= 1
+        arr = siftDown(arr,1,last)
+    end while
+    return arr
+end function
+
+include builtins/sort.e
+
+enum ONES = 1, SORTED = 2, RANDOM = 3, REVERSE = 4
+
+constant tabtitles = {"ones","sorted","random","reverse"}
+integer tabidx = 3
+
+integer STEP
+
+function tr(sequence name, integer rid=routine_id(name))
+    return {name,rid}
+end function
+
+constant tests = {--tr("bubble_sort"),
+                  --tr("insertion_sort"),
+                  tr("quick_sort"),
+                  tr("quick_sort2"),
+--                tr("qsort"),
+                  tr("radix_sort"),
+                  tr("shell_sort"),
+                  tr("shell_sort2"),
+                  tr("heap_sort"),
+                  tr("sort"),           -- builtin
+                 }
+
+sequence results = repeat(repeat({}, length(tests)),length(tabtitles))
+
+sequence dsdx = repeat(repeat(0,length(tests)),length(tabtitles))
+
+integer ds_index
+
+function idle_action_cb()
+atom best = -1, -- fastest last
+     besti = 0, -- 1..length(tests) 
+     bestt = 0, -- 1..length(tabtitles)
+     len
+sequence todo
+    --
+    -- Search for something to do, active/visible tab first.
+    -- Any result set of length 0 -> just do one.
+    -- Of all result sets<8, pick the lowest [$].
+    --
+    todo = {tabidx}
+    for t=1 to length(tabtitles) do
+        if t!=tabidx then todo &= t end if
+    end for
+
+    for t=1 to length(tabtitles) do
+        integer ti = todo[t]
+        for i=1 to length(results[ti]) do
+            len = length(results[ti][i])
+            if len=0 then
+                best = 0
+                besti = i
+                bestt = ti
+                exit
+            elsif len<8 then
+                if (best=-1) or (best>results[ti][i][$]) then
+                    best = results[ti][i][$]
+                    besti = i
+                    bestt = ti
+                end if
+            end if
+        end for
+        if (t=1) and (besti!=0) then exit end if
+    end for
+    if best>10 then
+        -- cop out if it is getting too slow
+        besti = 0
+    end if
+    if besti!=0 then
+        STEP = iff(not XQS and bestt=ONES?1000:100000)
+        len = (length(results[bestt][besti])+1)*STEP
+        sequence test = iff(bestt=ONES?repeat(1,len):
+                        iff(bestt=SORTED?tagset(len):
+                        iff(bestt=RANDOM?shuffle(tagset(len)):
+                        iff(bestt=REVERSE?reverse(tagset(len)):9/0))))
+        ds_index = dsdx[bestt][besti]
+        atom t0 = time()
+        sequence check = call_func(tests[besti][2],{test})
+        t0 = time()-t0
+--      if check!=sort(test) then ?9/0 end if
+        plot = plots[bestt]
+        IupPlotInsert(plot, ds_index, -1, len, t0)
+        results[bestt][besti] = append(results[bestt][besti],t0)
+        IupSetAttribute(plot,"REDRAW",NULL)
+        sequence progress = {bestt}
+        for i=1 to length(results[bestt]) do
+            progress &= length(results[bestt][i])
+        end for
+        IupSetStrAttribute(dlg,"TITLE","Compare sorting algorithms %s",{sprint(progress)})
+        return IUP_CONTINUE
+    end if
+    IupSetAttribute(dlg,"TITLE","Compare sorting algorithms (all done, idle)")
+    return IUP_IGNORE   -- all done, remove callback
+end function
+constant cb_idle_action = Icallback("idle_action_cb")
+
+function tabchange_cb(Ihandle /*self*/, Ihandle /*new_tab*/)
+    tabidx = IupGetInt(tabs,"VALUEPOS")+1
+    plot = plots[tabidx]
+    return IUP_DEFAULT;
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen(join_path({"..","pGUI"},1))
+
+    plots = {}
+    for i=1 to length(tabtitles) do
+        if XQS then
+--          results[ONES][1] = repeat(0,8)
+            results[ONES][4] = repeat(0,8)
+        end if
+        plot = IupPlot()
+        IupSetAttribute(plot,"MENUITEMPROPERTIES","YES")
+        IupSetAttribute(plot,"TABTITLE",tabtitles[i])
+        IupSetAttribute(plot,"GRID","YES")
+        IupSetAttribute(plot,"MARGINLEFT","50")
+        IupSetAttribute(plot,"MARGINBOTTOM","40")
+        IupSetAttribute(plot,"LEGEND","YES")
+        IupSetAttribute(plot,"LEGENDPOS","TOPLEFT")
+--      IupSetAttribute(plot,"AXS_YSCALE","LOG10")
+--      IupSetAttribute(plot,"AXS_XSCALE","LOG10")
+        for j=1 to length(tests) do
+            IupPlotBegin(plot)
+            dsdx[i][j] = IupPlotEnd(plot)
+            IupSetAttribute(plot,"DS_NAME",tests[j][1])
+        end for
+        plots = append(plots,plot)
+    end for
+    tabs = IupTabs(plots)
+    IupSetCallback(tabs, "TABCHANGE_CB", Icallback("tabchange_cb"))
+    dlg = IupDialog(tabs)
+    IupSetAttributes(dlg, "RASTERSIZE=%dx%d", {640, 480})
+    IupSetAttribute(dlg, "TITLE", "Compare sorting algorithms")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+    IupShow(dlg)
+    IupSetInt(tabs, "VALUEPOS", tabidx-1)
+    IupSetGlobalFunction("IDLE_ACTION", cb_idle_action)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+
+--/*
+Conclusions
+===========
+I knew bubblesort and insertion sort would be bad, but no so bad that you cannot meaningfully plot them against better sorts.
+(logarithmic scale helps, but is still not enough)
+I had no idea that (these particular implementations of) quicksort and shellsort would be so bad on a sequence of all 1s.
+(so bad in fact that I had to cap that test length to 8,000 instead of 800,000 as used for the other tests)
+The builtin sort and shell_sort2 were the clear winners, until I found a non-recursive quicksort that seems quite good.
+IupPlot is brilliant! It is actually quite fun to watch the graphs grow as you get more results in!
+There is a point where you realise you are currently wasting your life fretting over 0.015 seconds...
+
+The ultimate conclusion is, of course, that there are some differences, but as long as you weed out the really bad
+algorithms, and at least in the majority of cases, you will probably never notice whether sorting 800,000 items 
+takes 0.25s or 0.1s - more significant gains are likely to be found elsewhere.
+--*/
 

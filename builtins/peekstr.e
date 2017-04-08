@@ -18,6 +18,22 @@ integer ch
 sequence res
     res = ""
     while 1 do
+--/*
+--BOOL WINAPI IsBadReadPtr(
+--  _In_    const VOID *lp,
+--  _In_    UINT_PTR ucb
+--);
+        integer r9
+        #ilASM{
+            mov eax,[addr]
+            call :%pLoadMint   
+            push 1
+            push eax
+            call "kernel32.dll", "IsBadReadPtr"
+            mov [r9],eax
+              }
+            if r9!=0 then ?9/0 end if
+--*/    
         ch = peek(addr)
         if ch=0 then exit end if
         res &= ch

@@ -49,59 +49,6 @@ procedure check(integer tid)
     if not initd then dinit() end if
 end procedure
 
-global function new_dict(integer pool_only=0)
-    if not initd then dinit() end if
-    integer tid = free_trees
-    if tid!=0 then
-        free_trees = trees[free_trees]
-        trees[tid] = {}
-        roots[tid] = NULL
-        sizes[tid] = 0
-        freelists[tid] = 0
-    elsif pool_only=0 then
-        trees = append(trees,{})
-        roots &= NULL
-        sizes &= 0
-        freelists &= 0
-        tid = length(trees)
-    elsif pool_only>1 then
-        for i=1 to pool_only do
---25/8/16 (spotted in passing!)
---          trees = append(trees,{})
-            trees = append(trees,free_trees)
-            free_trees = length(trees)
-            roots &= NULL
-            sizes &= 0
-            freelists &= 0
-        end for
-    end if
-    return tid
-end function
-
-global procedure destroy_dict(integer tid, integer justclear=0)
---global procedure destroy_dict(dictionary tid, bool justclear=0)
---
--- Note: It is (and should be) perfectly legal to destroy_dict(1) at the very start.
---       In contrast, destroy_dict(5) is fatal when 5 is not a valid dictionary, or
---       (equivalently) was the recent subject of a destroy_dict() call.
---
-    check(tid)
-    if tid=1 or justclear then
-        -- just empty the default, but leave it still available
-        -- (this also means that new_dict() can never return 1)
-        trees[tid] = {}
-        roots[tid] = NULL
-        sizes[tid] = 0
-        freelists[tid] = 0
-    else
-        trees[tid] = free_trees
-        roots[tid] = NULL
-        sizes[tid] = 0
-        free_trees = tid
-        freelists[tid] = 0
-    end if
-end procedure
-
 function newNode(object key, object data, integer tid)
 integer node = freelists[tid]
     if node=0 then
@@ -182,7 +129,7 @@ function insertNode(integer node, object key, object data, integer tid)
     return node
 end function
 
-global procedure setd(object key, object data, integer tid=1)
+global procedure setd(object key, object data, integer tid=1)   -- (aka putd)
     check(tid)
     roots[tid] = insertNode(roots[tid], key, data, tid)
 end procedure
@@ -283,26 +230,59 @@ global procedure deld(object key, integer tid=1)
     roots[tid] = deleteNode(roots[tid],key,tid)
 end procedure
 
-function traverse(integer node, integer rid, object user_data, integer tid)
+function traverse(integer node, integer rid, object user_data, integer tid, bool rev)
 sequence tt = trees[tid]
 object key = tt[node+KEY],
        data = tt[node+DATA]
 integer left = tt[node+LEFT],
         right = tt[node+RIGHT]
+    if rev then
+        {left,right} = {right,left}
+    end if
     if left!=NULL then
-        if traverse(left,rid,user_data,tid)=0 then return 0 end if
+        if traverse(left,rid,user_data,tid,rev)=0 then return 0 end if
     end if
     if call_func(rid,{key,data,user_data})=0 then return 0 end if
     if right!=NULL then
-        if traverse(right,rid,user_data,tid)=0 then return 0 end if
+        if traverse(right,rid,user_data,tid,rev)=0 then return 0 end if
     end if
     return 1
 end function
 
-global procedure traverse_dict(integer rid, object user_data=0, integer tid=1)
+global procedure traverse_dict(integer rid, object user_data=0, integer tid=1, bool rev=false)
     check(tid)
     if roots[tid]!=0 then
-        {} = traverse(roots[tid], rid, user_data, tid)
+        {} = traverse(roots[tid], rid, user_data, tid, rev)
+    end if
+end procedure
+
+function traverse_key(integer node, integer rid, object pkey, object user_data, integer tid, bool rev)
+sequence tt = trees[tid]
+object key = tt[node+KEY],
+       data = tt[node+DATA]
+integer left = tt[node+LEFT],
+        right = tt[node+RIGHT]
+integer c = compare(key,pkey)
+    if rev then
+        {left,right} = {right,left}
+        c = -c
+    end if
+    if left!=NULL and c>0 then
+        if traverse_key(left,rid,pkey,user_data,tid,rev)=0 then return 0 end if
+    end if
+    if c>=0 then
+        if call_func(rid,{key,data,pkey,user_data})=0 then return 0 end if
+    end if
+    if right!=NULL then
+        if traverse_key(right,rid,pkey,user_data,tid,rev)=0 then return 0 end if
+    end if
+    return 1
+end function
+
+global procedure traverse_dict_partial_key(integer rid, object pkey, object user_data=0, integer tid=1, bool rev=false)
+    check(tid)
+    if roots[tid]!=0 then
+        {} = traverse_key(roots[tid], rid, pkey, user_data, tid, rev)
     end if
 end procedure
 
@@ -310,3 +290,62 @@ global function dict_size(integer tid=1)
     check(tid)
     return sizes[tid]
 end function
+
+global function new_dict(sequence kd_pairs = {}, integer pool_only=0)
+    if not initd then dinit() end if
+    integer tid = free_trees
+    if tid!=0 then
+        free_trees = trees[free_trees]
+        trees[tid] = {}
+        roots[tid] = NULL
+        sizes[tid] = 0
+        freelists[tid] = 0
+    elsif pool_only=0 then
+        trees = append(trees,{})
+        roots &= NULL
+        sizes &= 0
+        freelists &= 0
+        tid = length(trees)
+    elsif pool_only>1 then
+        for i=1 to pool_only do
+--25/8/16 (spotted in passing!)
+--          trees = append(trees,{})
+            trees = append(trees,free_trees)
+            free_trees = length(trees)
+            roots &= NULL
+            sizes &= 0
+            freelists &= 0
+        end for
+    end if
+    for i=1 to length(kd_pairs) do
+        if length(kd_pairs[i])!=2 then ?9/0 end if
+        object {key,data} = kd_pairs[i]
+        setd(key,data,tid)
+    end for
+    return tid
+end function
+
+global procedure destroy_dict(integer tid, integer justclear=0)
+--global procedure destroy_dict(dictionary tid, bool justclear=0)
+--
+-- Note: It is (and should be) perfectly legal to destroy_dict(1) at the very start.
+--       In contrast, destroy_dict(5) is fatal when 5 is not a valid dictionary, or
+--       (equivalently) was the recent subject of a destroy_dict() call.
+--
+    check(tid)
+    if tid=1 or justclear then
+        -- just empty the default, but leave it still available
+        -- (this also means that new_dict() can never return 1)
+        trees[tid] = {}
+        roots[tid] = NULL
+        sizes[tid] = 0
+        freelists[tid] = 0
+    else
+        trees[tid] = free_trees
+        roots[tid] = NULL
+        sizes[tid] = 0
+        free_trees = tid
+        freelists[tid] = 0
+    end if
+end procedure
+

@@ -2343,8 +2343,8 @@ if 0 then
     {} = ba_scale(decs)
     ba = ba_sqrt(n)
 --?ba
-    printf(1, "The square root of %d with %d decimals is:\n\t%s\n\n",
-          {n, decs, ba_sprintf("%.100aB", ba)})
+    string s2 = ba_sprintf("%.100aB", ba)
+    printf(1, "The square root of %d with %d decimals is:\n\t%s\n\n",{n, decs, s2})
 --0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
     ba = ba_root(n, 3)
     ba_printf(1, "And the cube root is:\n\t%.100aB\n\n", ba)

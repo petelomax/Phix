@@ -72,6 +72,18 @@ Version 0.7.5
             particular case res = power(x,length(d)) was effectively the 
             same as res = power(x,<raw addr of res>), obviously leading 
             to power overflow errors. (60 second fix)
+29/03/2017: Bugfix: cdx = find(cemi,"CEeMm")-(cemi='m') was invoking find(), leaving 
+            the result in eax, then invoking opSeq to set eax (as cemi=='m'), then 
+            subtracting eax from eax, and therefore always setting cdx to 0.
+            It now invokes saveFunctionResultVars() in pmain.e before trashing eax.
+03/01/2017: Enhanced integer powers. Previously, (on both 32 and 64 bit) it would
+            calculate power(-177..+177,1..4) in eax/rdx. It now uses two ranges:
+            32-bit: +/-181^4, and +/-10^9, and 64-bit: +/-46340^4, and +/-10^17.
+            See builtins/VM/pPower for the precise details.
+            Added a note to phix.chm/core/atom/floats are not exact which explains
+            some of the reasons for needing/wanting to do this (on 64 bit).
+            (Specifically, rc/truncateable primes was broken on 64-bit)
+            This change also fixed several problems in t28prntf.e (on 64 bit).
 
 Version 0.7.2
 =============

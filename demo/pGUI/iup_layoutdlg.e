@@ -67,7 +67,7 @@ include pGUI.e  -- (Ihandle etc)
 
 constant -- (copied from pGUI, rather than made global)
 --       D  = C_DOUBLE, 
---       F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this.. [edited 25/2/16]
+         F  = C_FLOAT,      -- NB: VM/pcfunc.e may not be up to this.. [edited 25/2/16]
          I  = C_INT,
 --       L  = C_LONG,
          P  = C_POINTER, 
@@ -86,17 +86,18 @@ atom xiupAttribGet = NULL,
      xiupDlgListCount,
      xiupDlgListFirst,
      xiupDlgListNext,
-     xiupDrawCreateCanvas,
-     xiupDrawRectangle,
-     xiupDrawLine,
-     xiupDrawSetClipRect,
-     xiupDrawImage,
-     xiupDrawGetSize,
-     xiupDrawText,
-     xiupDrawResetClip,
-     xiupDrawSelectRect,
-     xiupDrawFlush,
-     xiupDrawKillCanvas,
+     xiupdrvDrawCreateCanvas,
+     xiupdrvDrawRectangle,
+     xiupdrvDrawLine,
+     xiupdrvDrawSetClipRect,
+     xiupdrvDrawImage,
+     xiupdrvDrawGetSize,
+     xiupdrvDrawText,
+     xiupdrvDrawResetClip,
+     xiupdrvDrawSelectRect,
+     xiupdrvDrawFlush,
+     xiupdrvDrawKillCanvas,
+     xiupdrvGetScreenDpi,
      xiupRegisterFindClass,
      xiupObjectCheck,
      xiupFocusCanAccept
@@ -189,8 +190,8 @@ Ihandln ih = c_func(xiupDlgListNext,{})
     return ih
 end function
 
-function iupDrawCreateCanvas(Ihandle ih)
-atom dc = c_func(xiupDrawCreateCanvas,{ih})
+function iupdrvDrawCreateCanvas(Ihandle ih)
+atom dc = c_func(xiupdrvDrawCreateCanvas,{ih})
     return dc
 end function
 
@@ -200,54 +201,60 @@ end function
 --  if c_func(x
 --end function
 
-procedure iupDrawRectangle(atom dc, integer x1, x2, y1, y2, r, g, b, style)
-    c_proc(xiupDrawRectangle,{dc, x1, x2, y1, y2, r, g, b, style})
+procedure iupdrvDrawRectangle(atom dc, integer x1, x2, y1, y2, r, g, b, style)
+    c_proc(xiupdrvDrawRectangle,{dc, x1, x2, y1, y2, r, g, b, style})
 end procedure
 
-procedure iupDrawLine(atom dc, integer x1, x2, y1, y2, r, g, b, style)
-    c_proc(xiupDrawLine,{dc, x1, x2, y1, y2, r, g, b, style})
+procedure iupdrvDrawLine(atom dc, integer x1, x2, y1, y2, r, g, b, style)
+    c_proc(xiupdrvDrawLine,{dc, x1, x2, y1, y2, r, g, b, style})
 end procedure
 
-procedure iupDrawSetClipRect(atom dc, integer x1, x2, y1, y2)
-    c_proc(xiupDrawSetClipRect,{dc, x1, x2, y1, y2})
+procedure iupdrvDrawSetClipRect(atom dc, integer x1, x2, y1, y2)
+    c_proc(xiupdrvDrawSetClipRect,{dc, x1, x2, y1, y2})
 end procedure
 
-function iupDrawImage(atom dc, string name, integer make_inactive, x, y)
+--<void iupDrawImage(IdrawCanvas* dc, const char* name, int make_inactive, int x, int y, int *img_w, int *img_h)
+--  function iupdrvDrawImage(atom dc, string name, integer make_inactive, x, y)
+--  integer w,h
+--  atom pMem = allocate(machine_word()*2)
+--      c_proc(xiupdrvDrawImage, {dc,name,make_inactive,x,y,pMem,pMem+machine_word()})
+--      {w,h} = peekNS({pMem,2},machine_word(),1)
+--      free(pMem)
+--      return {w,h}
+--  end function
+-->void iupdrvDrawImage(IdrawCanvas* dc, const char* name, int make_inactive, int x, int y)
+procedure iupdrvDrawImage(atom dc, string name, integer make_inactive, x, y)
+    c_proc(xiupdrvDrawImage, {dc,name,make_inactive,x,y})
+end procedure
+
+function iupdrvDrawGetSize(atom dc)
 integer w,h
 atom pMem = allocate(machine_word()*2)
-    c_proc(xiupDrawImage, {dc,name,make_inactive,x,y,pMem,pMem+machine_word()})
+    c_proc(xiupdrvDrawGetSize, {dc,pMem,pMem+machine_word()})
     {w,h} = peekNS({pMem,2},machine_word(),1)
     free(pMem)
     return {w,h}
 end function
 
-function iupDrawGetSize(atom dc)
-integer w,h
-atom pMem = allocate(machine_word()*2)
-    c_proc(xiupDrawGetSize, {dc,pMem,pMem+machine_word()})
-    {w,h} = peekNS({pMem,2},machine_word(),1)
-    free(pMem)
-    return {w,h}
-end function
-
-procedure iupDrawText(atom dc, string text, integer len, x, y, r, g, b, string font)
-    c_proc(xiupDrawText,{dc, text, len, x, y, r, g, b, font})
+--void iupdrvDrawText(IdrawCanvas* dc, const char* text, int len, int x, int y, unsigned char r, unsigned char g, unsigned char b, const char* font);
+procedure iupdrvDrawText(atom dc, string text, integer len, x, y, r, g, b, string font)
+    c_proc(xiupdrvDrawText,{dc, text, len, x, y, r, g, b, font})
 end procedure
 
-procedure iupDrawResetClip(atom dc)
-    c_proc(xiupDrawResetClip,{dc})
+procedure iupdrvDrawResetClip(atom dc)
+    c_proc(xiupdrvDrawResetClip,{dc})
 end procedure
 
-procedure iupDrawSelectRect(atom dc, integer x, y, w, h)
-    c_proc(xiupDrawSelectRect,{dc, x, y, w, h})
+procedure iupdrvDrawSelectRect(atom dc, integer x, y, w, h)
+    c_proc(xiupdrvDrawSelectRect,{dc, x, y, w, h})
 end procedure
 
-procedure iupDrawFlush(atom dc)
-    c_proc(xiupDrawFlush,{dc})
+procedure iupdrvDrawFlush(atom dc)
+    c_proc(xiupdrvDrawFlush,{dc})
 end procedure
 
-procedure iupDrawKillCanvas(atom dc)
-    c_proc(xiupDrawKillCanvas,{dc})
+procedure iupdrvDrawKillCanvas(atom dc)
+    c_proc(xiupdrvDrawKillCanvas,{dc})
 end procedure
 
 function iupRegisterFindClass(string name)
@@ -305,7 +312,8 @@ constant
 
 function iLayoutGetTitle(Ihandle ih)
 string str = sprintf("[%s]", {IupGetClassName(ih)})
-string title = IupGetAttribute(ih, "TITLE")
+--string title = IupGetAttribute(ih, "TITLE")
+string title = iupAttribGetLocal(ih, "TITLE")
 string name = IupGetName(ih);
   if length(title) then
       str &= sprintf(" %.50s", {title});
@@ -1530,6 +1538,116 @@ integer {r,g,b} = defval
     return {r,g,b}
 end function
 
+--/*
+function iupdrvGetScreenDpi()
+    atom res = c_func(xiupdrvGetScreenDpi,{})
+    return res
+end function
+
+--static Ihandle* iImageGetImageFromName(const char* name)
+function iImageGetImageFromName(string name)
+  Ihandln ih = IupGetHandle(name)
+  if ih!=NULL then
+    integer bpp = IupGetInt(ih, "BPP")
+    string autoscale = iupAttribGet(ih, "AUTOSCALE")
+    if autoscale="" then autoscale = IupGetGlobal("IMAGEAUTOSCALE") end if
+    if autoscale!="" and bpp > 8 and iupAttribGet(ih, "SCALED")="" then
+      atom scale = 0
+      if upper(autoscale)="DPI" then
+        integer dpi = floor(iupdrvGetScreenDpi() + 0.6)
+        integer images_dpi = IupGetInt(NULL, "IMAGESDPI")
+        if images_dpi == 0 then images_dpi = 96 end if
+        if dpi <= 96 then
+          dpi = 96
+        elsif dpi <= 144 then
+          dpi = 144
+        elsif dpi <= 192 then
+          dpi = 192
+        else
+          dpi = 288
+        end if
+        scale = dpi / images_dpi
+      else
+--      iupStrToFloat(autoscale, &scale);
+        scale = to_number(autoscale)
+      end if
+      if scale > 0 and (scale < 0.99 or scale > 1.01) then
+        string hotspot = iupAttribGet(ih, "HOTSPOT");
+
+--      integer new_width = iupRound(scale*ih_currentwidth(ih));
+--      integer new_height = iupRound(scale*ih_currentwidth(ih));
+        integer new_width = round(scale*ih_currentwidth(ih))
+        integer new_height = round(scale*ih_currentwidth(ih))
+
+--      iupImageResize(ih, new_width, new_height);
+        ?9/0
+--      iupAttribSet(ih, "SCALED", "1");
+        IupSetAttribute(ih, "SCALED", "1")
+
+        if hotspot!="" then
+--        integer x = 0, y = 0;
+--        iupStrToIntInt(hotspot, &x, &y, ':');
+          integer {x,y} = IupGetIniInt(id,"HOTSPOT")
+
+--        x = iupRound(scale*x);
+--        y = iupRound(scale*y);
+          x = round(scale*x);
+          y = round(scale*y);
+
+--        iupAttribSetStrf(ih, "HOTSPOT", "%d:%d", x, y);
+          IupSetStrAttribute(ih, "HOTSPOT", "%d:%d", {x, y})
+        end if
+      end if
+    end if
+  end if
+
+  return ih;
+end function
+
+--void iupImageGetInfo(const char* name, int *w, int *h, int *bpp)
+function iupImageGetInfo(string name)--, int *w, int *h, int *bpp)
+  void* handle;
+  Ihandln ih
+
+--  if (!name)
+--  return;
+  if name="" then return {0,0,0} end if
+
+  ih = iImageGetImageFromName(name)
+  if ih=NULL then
+    const char* native_name = NULL;
+
+    /* Check in the system resources. */
+>   handle = iupdrvImageLoad(name, IUPIMAGE_IMAGE);
+    if (handle)
+    {
+      iupdrvImageGetInfo(handle, w, h, bpp);
+      return;
+    }
+
+    /* Check in the stock images. */
+    iImageStockGet(name, &ih, &native_name);
+    if (native_name) 
+    {
+>     handle = iupdrvImageLoad(native_name, IUPIMAGE_IMAGE);
+      if (handle) 
+      {
+--      iupdrvImageGetInfo(handle, w, h, bpp);
+--      return;
+        return iupdrvImageGetInfo(handle)
+      }
+    }
+
+    if ih=NULL then return {0,0,0} end if
+  end if
+
+--  if (w) *w = ih->currentwidth;
+--  if (h) *h = ih->currentheight;
+--  if (bpp) *bpp = IupGetInt(ih, "BPP");
+    return {ih->currentwidth, ih->currentheight, IupGetInt(ih, "BPP")}
+end function
+--*/
+
 procedure iLayoutDrawElement(IdrawCanvas dc, Ihandle ih, integer marked, integer native_parent_x, integer native_parent_y)
 integer x, y, w, h
 string bgcolor
@@ -1552,38 +1670,38 @@ integer
   if w<=0 then w=1 end if
   if h<=0 then h=1 end if
 
-  bgcolor = iupAttribGetLocal(ih, "BGCOLOR");
+  bgcolor = IupGetAttribute(ih, "BGCOLOR");
   if bgcolor!="" and ih_iclass_nativetype(ih)!=IUP_TYPEVOID then
 --  r = br, g = bg, b = bb;
     {r,g,b} = iupStrToRGB(bgcolor,{br,bg,bb})
-    iupDrawRectangle(dc, x, y, x+w-1, y+h-1, r, g, b, IUP_DRAW_FILL);
+    iupdrvDrawRectangle(dc, x, y, x+w-1, y+h-1, r, g, b, IUP_DRAW_FILL);
   end if
 
   if ih_iclass_nativetype(ih)==IUP_TYPEVOID then
-    iupDrawRectangle(dc, x, y, x+w-1, y+h-1, fvr, fvg, fvb, IUP_DRAW_STROKE_DASH);
+    iupdrvDrawRectangle(dc, x, y, x+w-1, y+h-1, fvr, fvg, fvb, IUP_DRAW_STROKE_DASH);
   else
-    iupDrawRectangle(dc, x, y, x+w-1, y+h-1, fr, fg, fb, IUP_DRAW_STROKE);
+    iupdrvDrawRectangle(dc, x, y, x+w-1, y+h-1, fr, fg, fb, IUP_DRAW_STROKE);
   end if
 
-  iupDrawSetClipRect(dc, x, y, x+w-1, y+h-1);
+  iupdrvDrawSetClipRect(dc, x, y, x+w-1, y+h-1);
 
   if ih_iclass_childtype(ih)==IUP_CHILDNONE then
     integer {pw, ph} = IupGetIntInt(ih_parent(ih), "CLIENTSIZE")
 
     if ih_currentwidth(ih) == pw and ih_currentwidth(ih) == ih_naturalwidth(ih) then
-      iupDrawLine(dc, x+1, y+1, x+w-2, y+1, fmr, fmg, fmb, IUP_DRAW_STROKE);
-      iupDrawLine(dc, x+1, y+h-2, x+w-2, y+h-2, fmr, fmg, fmb, IUP_DRAW_STROKE);
+      iupdrvDrawLine(dc, x+1, y+1, x+w-2, y+1, fmr, fmg, fmb, IUP_DRAW_STROKE);
+      iupdrvDrawLine(dc, x+1, y+h-2, x+w-2, y+h-2, fmr, fmg, fmb, IUP_DRAW_STROKE);
     end if
 
     if ih_currentheight(ih) == ph and ih_currentheight(ih) == ih_naturalheight(ih) then
-      iupDrawLine(dc, x+1, y+1, x+1, y+h-2, fmr, fmg, fmb, IUP_DRAW_STROKE);
-      iupDrawLine(dc, x+w-2, y+1, x+w-2, y+h-2, fmr, fmg, fmb, IUP_DRAW_STROKE);
+      iupdrvDrawLine(dc, x+1, y+1, x+1, y+h-2, fmr, fmg, fmb, IUP_DRAW_STROKE);
+      iupdrvDrawLine(dc, x+w-2, y+1, x+w-2, y+h-2, fmr, fmg, fmb, IUP_DRAW_STROKE);
     end if
   elsif ih_iclass_nativetype(ih)!=IUP_TYPEVOID then
     /* if ih is a Tabs, position the title accordingly */
     if IupClassMatch(ih, "tabs") then
       /* TABORIENTATION is ignored */
-      string tabtype = iupAttribGetLocal(ih, "TABTYPE");
+      string tabtype = IupGetAttribute(ih, "TABTYPE");
       if upper(tabtype)="BOTTOM" then
         integer {cw,ch} = IupGetIntInt(ih, "CLIENTSIZE")
         y += ch;  /* position after the client area */
@@ -1598,9 +1716,9 @@ integer
   if ih_iclass_nativetype(ih)!=IUP_TYPEVOID then
     string title, image
 
-    image = iupAttribGetLocal(ih, "IMAGE0");  /* Tree root node title */
+    image = IupGetAttribute(ih, "IMAGE0");  /* Tree root node title */
     if image="" then
-      image = iupAttribGetLocal(ih, "TABIMAGE0");  /* Tabs first tab image */
+      image = IupGetAttribute(ih, "TABIMAGE0");  /* Tabs first tab image */
     end if
     if image!="" then
       /* returns the image of the active tab */
@@ -1608,12 +1726,16 @@ integer
       image = IupGetAttributeId(ih, "TABIMAGE", pos);
     end if
     if image="" then
-      image = iupAttribGetLocal(ih, "IMAGE");
+      image = IupGetAttribute(ih, "IMAGE");
     end if
     if image!="" then
-      integer {img_w, img_h} = iupDrawImage(dc, image, 0, x+1, y+1)
+--?9/0
+--<   iupImageGetInfo(image, &img_w, &img_h, NULL);
+      integer {img_w, img_h} = IupDrawGetImageInfo(image)
+-->!      integer {img_w, img_h} = iupdrvDrawImage(dc, image, 0, x+1, y+1)
+      iupdrvDrawImage(dc, image, 0, x+1, y+1)
 
-      string pos = iupAttribGetLocal(ih, "IMAGEPOSITION");  /* used only for buttons */
+      string pos = IupGetAttribute(ih, "IMAGEPOSITION");    /* used only for buttons */
       if pos!=""
       and find(upper(pos),{"BOTTOM","TOP"}) then
         y += img_h;
@@ -1622,13 +1744,13 @@ integer
       end if
     end if
 
-    title = iupAttribGetLocal(ih, "0:0");  /* Matrix title cell */
+    title = IupGetAttribute(ih, "0:0");  /* Matrix title cell */
     if title="" then 
-      title = iupAttribGetLocal(ih, "1");  /* List first item */
+      title = IupGetAttribute(ih, "1");  /* List first item */
       if title="" then
-        title = iupAttribGetLocal(ih, "TITLE0");    /* Tree root node title */
+        title = IupGetAttribute(ih, "TITLE0");  /* Tree root node title */
         if title="" then
-          title = iupAttribGetLocal(ih, "TABTITLE0");  /* Tabs first tab title */
+          title = IupGetAttribute(ih, "TABTITLE0");  /* Tabs first tab title */
           if title!="" then
             /* returns the title of the active tab */
             integer pos = IupGetInt(ih, "VALUEPOS");
@@ -1648,8 +1770,8 @@ integer
         len += 1
       end for
 --    r = fr, g = fg, b = fb;
-      {r,g,b} = iupStrToRGB(iupAttribGetLocal(ih, "FGCOLOR"), {fr,fg,fb})
-      iupDrawText(dc, title, len, x+1, y+1, r, g, b, IupGetAttribute(ih, "FONT"));
+      {r,g,b} = iupStrToRGB(IupGetAttribute(ih, "FGCOLOR"), {fr,fg,fb})
+      iupdrvDrawText(dc, title, len, x+1, y+1, r, g, b, IupGetAttribute(ih, "FONT"));
     end if
 
     if ih_iclass_childtype(ih)==IUP_CHILDNONE 
@@ -1659,32 +1781,32 @@ integer
         atom vmax = IupGetDouble(ih, "MAX");
         atom val = IupGetDouble(ih, "VALUE");
 --      r = fr, g = fg, b = fb;
-        {r,g,b} = iupStrToRGB(iupAttribGetLocal(ih, "FGCOLOR"), {fr,fg,fb})
-        if upper(iupAttribGetLocal(ih, "ORIENTATION"))="VERTICAL" then
+        {r,g,b} = iupStrToRGB(IupGetAttribute(ih, "FGCOLOR"), {fr,fg,fb})
+        if upper(IupGetAttribute(ih, "ORIENTATION"))="VERTICAL" then
           integer ph = floor(((vmax-val)*(h-5))/(vmax-vmin))
-          iupDrawRectangle(dc, x+2, y+2, x+w-3, y+ph, r, g, b, IUP_DRAW_FILL);
+          iupdrvDrawRectangle(dc, x+2, y+2, x+w-3, y+ph, r, g, b, IUP_DRAW_FILL);
         else
           integer pw = floor(((val-vmin)*(w-5))/(vmax-vmin))
-          iupDrawRectangle(dc, x+2, y+2, x+pw, y+h-3, r, g, b, IUP_DRAW_FILL);
+          iupdrvDrawRectangle(dc, x+2, y+2, x+pw, y+h-3, r, g, b, IUP_DRAW_FILL);
         end if
       elsif IupClassMatch(ih, "val") then
         atom vmin = IupGetDouble(ih, "MIN");
         atom vmax = IupGetDouble(ih, "MAX");
         atom val = IupGetDouble(ih, "VALUE");
 --      r = fr, g = fg, b = fb;
-        {r,g,b} = iupStrToRGB(iupAttribGetLocal(ih, "FGCOLOR"), {fr,fg,fb})
-        if upper(iupAttribGetLocal(ih, "ORIENTATION"))="VERTICAL" then
+        {r,g,b} = iupStrToRGB(IupGetAttribute(ih, "FGCOLOR"), {fr,fg,fb})
+        if upper(IupGetAttribute(ih, "ORIENTATION"))="VERTICAL" then
           integer ph = floor(((vmax-val)*(h-5))/(vmax-vmin))
-          iupDrawRectangle(dc, x+2, y+ph-1, x+w-3, y+ph+1, r, g, b, IUP_DRAW_FILL);
+          iupdrvDrawRectangle(dc, x+2, y+ph-1, x+w-3, y+ph+1, r, g, b, IUP_DRAW_FILL);
         else
           integer pw = floor(((val-vmin)*(w-5))/(vmax-vmin))
-          iupDrawRectangle(dc, x+pw-1, y+2, x+pw+1, y+h-3, r, g, b, IUP_DRAW_FILL);
+          iupdrvDrawRectangle(dc, x+pw-1, y+2, x+pw+1, y+h-3, r, g, b, IUP_DRAW_FILL);
         end if
       end if
     end if
   end if
 
-  iupDrawResetClip(dc);
+  iupdrvDrawResetClip(dc);
 
   if marked then
     x = ih_x(ih)+native_parent_x
@@ -1694,7 +1816,7 @@ integer
     if w<=0 then w=1 end if
     if h<=0 then h=1 end if
 
-    iupDrawSelectRect(dc, x, y, w, h);
+    iupdrvDrawSelectRect(dc, x, y, x+w, y+h);
   end if
 end procedure
 
@@ -1749,12 +1871,12 @@ integer dx, dy
 end procedure
 
 procedure iLayoutDrawDialog(integer showhidden, IdrawCanvas dc, Ihandln mark)
-integer {w, h} = iupDrawGetSize(dc)
-  iupDrawRectangle(dc, 0, 0, w-1, h-1, 255, 255, 255, IUP_DRAW_FILL);
+integer {w, h} = iupdrvDrawGetSize(dc)
+  iupdrvDrawRectangle(dc, 0, 0, w-1, h-1, 255, 255, 255, IUP_DRAW_FILL);
 
   /* draw the dialog */
   {w, h} = IupGetIntInt(layoutdlg_dialog, "CLIENTSIZE")
-  iupDrawRectangle(dc, 0, 0, w-1, h-1, 0, 0, 0, IUP_DRAW_STROKE);
+  iupdrvDrawRectangle(dc, 0, 0, w-1, h-1, 0, 0, 0, IUP_DRAW_STROKE);
 
   if ih_firstchild(layoutdlg_dialog)!=NULL then
     integer shownotmapped = (ih_handle(layoutdlg_dialog)==NULL) /* only show not mapped if dialog is also not mapped */
@@ -1766,11 +1888,11 @@ end procedure
 
 function iLayoutCanvas_CB(Ihandle canvas)
   Ihandle dlg = IupGetDialog(canvas);
-  IdrawCanvas dc = iupDrawCreateCanvas(canvas);
+  IdrawCanvas dc = iupdrvDrawCreateCanvas(canvas);
   integer showhidden = IupGetInt(dlg, "SHOWHIDDEN");
   iLayoutDrawDialog(showhidden, dc, layoutdlg_mark);
-  iupDrawFlush(dc);
-  iupDrawKillCanvas(dc);
+  iupdrvDrawFlush(dc);
+  iupdrvDrawKillCanvas(dc);
   return IUP_DEFAULT;
 end function
 
@@ -1920,7 +2042,7 @@ function iLayoutPropertiesSetColor_CB(Ihandle colorbut)
   Ihandle color_dlg = IupColorDlg();
   IupSetAttributeHandle(color_dlg, "PARENTDIALOG", IupGetDialog(colorbut));
   IupSetAttribute(color_dlg, "TITLE", "Choose Color");
-  IupStoreAttribute(color_dlg, "VALUE", iupAttribGetLocal(colorbut, "BGCOLOR"));
+  IupStoreAttribute(color_dlg, "VALUE", IupGetAttribute(colorbut, "BGCOLOR"));
 
   IupPopup(color_dlg, IUP_CENTER, IUP_CENTER);
 
@@ -2017,7 +2139,7 @@ function iLayoutPropertiesList1_CB(Ihandle list1, atom pName, integer /*item*/, 
     nullable_string def_value;
     integer flags;
     Ihandle elem = layoutdlg_propelem
-    string val = iupAttribGetLocal(elem, name);
+    string val = IupGetAttribute(elem, name);
     Ihandle txt1 = IupGetDialogChild(list1, "VALUE1A");
     Ihandle lbl2 = IupGetDialogChild(list1, "VALUE1B");
     Ihandle lbl3 = IupGetDialogChild(list1, "VALUE1C");
@@ -2175,7 +2297,7 @@ function iLayoutPropertiesTabChangePos_CB(Ihandle ih, integer new_pos, integer /
   /* In GTK the TIP appears for all children */
   /* TODO: move this code to iupgtk_tabs.c */
   if upper(IupGetGlobal("DRIVER"))="GTK" then
-    string tabtype = iupAttribGetLocal(ih, "TABTYPE");
+    string tabtype = IupGetAttribute(ih, "TABTYPE");
     integer x = 0
     integer y = 0
     integer w = ih_currentwidth(ih)
@@ -2209,7 +2331,7 @@ function iLayoutPropertiesCreateDialog(Ihandle parent)
 
   closebtn = IupButton("Close", NULL);
 --  if string(padding) then
-    IupSetAttribute(closebtn,"PADDING" ,padding);
+    IupSetStrAttribute(closebtn, "PADDING", padding);
 --  end if
   IupSetCallback(closebtn, "ACTION", Icallback("iLayoutPropertiesClose_CB"));
 
@@ -2221,7 +2343,7 @@ function iLayoutPropertiesCreateDialog(Ihandle parent)
 
   set = IupButton("Set", NULL);
   IupSetCallback(set, "ACTION", Icallback("iLayoutPropertiesSet_CB"));
-  IupSetAttribute(set, "PADDING", padding);
+  IupSetStrAttribute(set, "PADDING", padding);
   IupSetAttribute(set, "NAME", "SETBUT");
 
   showidlist = IupList(NULL);
@@ -2789,7 +2911,7 @@ function iLayoutTreeDragDrop_CB(Ihandle tree, integer drag_id, integer drop_id, 
   Ihandle dlg = IupGetDialog(tree);
   Ihandle drag_elem = IupTreeGetUserId(tree, drag_id);
   Ihandle drop_elem = IupTreeGetUserId(tree, drop_id);
---  integer error;
+  integer error;
 
   /* no support for copy */
   if iscontrol then
@@ -2814,28 +2936,35 @@ function iLayoutTreeDragDrop_CB(Ihandle tree, integer drag_id, integer drop_id, 
       end if
     end if
 
+    if drop_elem==ih_parent(drag_elem) and ref_child==drag_elem then
+       /* dropped at the same place, just ignore it */
+       return IUP_IGNORE;
+    end if
+
     /* If the drop node is a branch and it is expanded, */
     /* add as first child */
---  error = 
---DEV doc
-    IupReparent(drag_elem, drop_elem, ref_child);  /* add before the reference */
+    error = IupReparent(drag_elem, drop_elem, ref_child);  /* add before the reference */
   else
     if ih_parent(drop_elem)=NULL then
       IupMessage("Error", "Can NOT drop here as brother.");
       return IUP_IGNORE;
     end if
 
+    if ih_parent(drop_elem)=ih_parent(drag_elem) and ih_brother(drop_elem)=drag_elem then
+      /* dropped at the same place, just ignore it */
+      return IUP_IGNORE;
+    end if
+
     /* If the branch is not expanded or the drop node is a leaf, */
     /* add as brother after reference */
     /* ih_brother(drop_elem) can be NULL here */
---  error = 
-    IupReparent(drag_elem, ih_parent(drop_elem), ih_brother(drop_elem));    
+    error = IupReparent(drag_elem, ih_parent(drop_elem), ih_brother(drop_elem));    
   end if
 
---  if error == IUP_ERROR then
---  IupMessage("Error", "Drop failed. Invalid operation for this node.");
---  return IUP_IGNORE;
---  end if
+    if error == IUP_ERROR then
+        IupMessage("Error", "Drop failed. Invalid operation for this node.");
+        return IUP_IGNORE;
+    end if
 
   layoutdlg_changed = 1;
 
@@ -2944,17 +3073,19 @@ Ihandle tree, canvas, dlg, menu, status, splitter;
      xiupDlgListCount               = iup_c_func(iup, "iupDlgListCount", {}, I)
      xiupDlgListFirst               = iup_c_func(iup, "iupDlgListFirst", {}, P)
      xiupDlgListNext                = iup_c_func(iup, "iupDlgListNext", {}, P)
-     xiupDrawCreateCanvas           = iup_c_func(iup, "iupDrawCreateCanvas", {P}, P)
-     xiupDrawRectangle              = iup_c_proc(iup, "iupDrawRectangle", {P,I,I,I,I,I,I,I,I})
-     xiupDrawLine                   = iup_c_proc(iup, "iupDrawLine", {P,I,I,I,I,I,I,I,I})
-     xiupDrawSetClipRect            = iup_c_proc(iup, "iupDrawSetClipRect", {P,I,I,I,I})
-     xiupDrawImage                  = iup_c_proc(iup, "iupDrawImage", {P,P,I,I,I,P,P})
-     xiupDrawGetSize                = iup_c_proc(iup, "iupDrawGetSize", {P,P,P})
-     xiupDrawText                   = iup_c_proc(iup, "iupDrawText", {P,P,I,I,I,I,I,I,P})
-     xiupDrawResetClip              = iup_c_proc(iup, "iupDrawResetClip", {P})
-     xiupDrawSelectRect             = iup_c_proc(iup, "iupDrawSelectRect", {P,I,I,I,I})
-     xiupDrawFlush                  = iup_c_proc(iup, "iupDrawFlush", {P})
-     xiupDrawKillCanvas             = iup_c_proc(iup, "iupDrawKillCanvas", {P})
+     xiupdrvDrawCreateCanvas        = iup_c_func(iup, "iupdrvDrawCreateCanvas", {P}, P)
+     xiupdrvDrawRectangle           = iup_c_proc(iup, "iupdrvDrawRectangle", {P,I,I,I,I,I,I,I,I})
+     xiupdrvDrawLine                = iup_c_proc(iup, "iupdrvDrawLine", {P,I,I,I,I,I,I,I,I})
+     xiupdrvDrawSetClipRect         = iup_c_proc(iup, "iupdrvDrawSetClipRect", {P,I,I,I,I})
+--   xiupdrvDrawImage               = iup_c_proc(iup, "iupdrvDrawImage", {P,P,I,I,I,P,P})
+     xiupdrvDrawImage               = iup_c_proc(iup, "iupdrvDrawImage", {P,P,I,I,I})
+     xiupdrvDrawGetSize             = iup_c_proc(iup, "iupdrvDrawGetSize", {P,P,P})
+     xiupdrvDrawText                = iup_c_proc(iup, "iupdrvDrawText", {P,P,I,I,I,I,I,I,P})
+     xiupdrvDrawResetClip           = iup_c_proc(iup, "iupdrvDrawResetClip", {P})
+     xiupdrvDrawSelectRect          = iup_c_proc(iup, "iupdrvDrawSelectRect", {P,I,I,I,I})
+     xiupdrvDrawFlush               = iup_c_proc(iup, "iupdrvDrawFlush", {P})
+     xiupdrvDrawKillCanvas          = iup_c_proc(iup, "iupdrvDrawKillCanvas", {P})
+     xiupdrvGetScreenDpi            = iup_c_func(iup, "iupdrvGetScreenDpi", {}, F)
      xiupRegisterFindClass          = iup_c_func(iup, "iupRegisterFindClass", {P}, P)
      xiupObjectCheck                = iup_c_func(iup, "iupObjectCheck", {P}, I)
      xiupFocusCanAccept             = iup_c_func(iup, "iupFocusCanAccept", {P}, I)
@@ -2979,6 +3110,8 @@ Ihandle tree, canvas, dlg, menu, status, splitter;
   layoutdlg_tree = tree;
   IupSetAttribute(tree, "RASTERSIZE", NULL);
   IupSetAttribute(tree, "SHOWDRAGDROP", "Yes");
+--PL:
+  IupSetAttribute(tree, "DROPEQUALDRAG", "YES");
   IupSetCallback(tree, "SELECTION_CB", Icallback("iLayoutTreeSelection_CB"));
   IupSetCallback(tree, "EXECUTELEAF_CB", Icallback("iLayoutTreeExecuteLeaf_CB"));
   IupSetCallback(tree, "RIGHTCLICK_CB", Icallback("iLayoutTreeRightClick_CB"));

@@ -1,0 +1,153 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">traverse_dict_partial_key</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          traverse_dict_partial_key(integer rid, object pkey, object user_data=0, integer tid=1, bool rev=false)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Perform an in-order traversal of the dictionary, starting from the first key greater than or equal to
+            pkey (less than or equal if rev is true), invoking the specified routine for each {key,data} pairing.
+            <br>
+            <br>
+            rid: routine_id of a function that accepts four parameters, called for each entry.<br>
+            pkey: a partial key that determines where it starts (but not where it ends).<br>
+            user_data: any additional data that might be required by rid.<br>
+            tid: a result from new_dict, or if omitted it uses the one common dictionary.<br>
+            rev: if true, the traversal is made from the highest key to the lowest key.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The specified routine should be a function that accepts four parameters: key, data, pkey, and user_data, and 
+            should return 1 to continue the traversal, or 0 to terminate it.
+            <br>
+            <br>
+            The same rid would not normally be passed to both traverse_dict_partial_key and traverse_dict, since they need 
+            to accept a different number of parameters, however that is possible if the fourth parameter is optional (has a 
+            default) and some other means is used to determine whether it received ..,user_data) or ..,pkey,user_data), 
+            such as that in the first example below.
+            <br>
+            <br>
+            Note: it is the responsibility of the specified routine to check key against pkey; the first key yielded may 
+            be way past the pkey asked for, and traversal will continue to the end (or start if rev is true) unless said 
+            routine returns 0, which terminates the traversal immediately.
+            <br>
+            <br>
+            Internally, at the start, this routine avoids processing entire sub-trees that are less than pkey and therefore 
+            cannot possibly be relevant, but does not limit any processing of larger keys/nodes/sub-trees unless explicitly
+            told to stop. If rev is true, you could say more than pkey, but it must be stressed that pkey is only partial in 
+            the sense of what it skips at the start, not what it lets through.
+            <br>
+            <br>
+            The ordering is case-sensitive. If a case-insensitive ordering is required, the key values as passed to
+            <a href="setd.htm">setd</a>() [etc] should be passed through either <a href="upper.htm">upper</a>() or 
+            <a href="lower.htm">lower</a>() and if needs be a copy of the original case included somewhere in data.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+function visitor(object key, object data, object pkey, object user_data=-2)
+    if user_data!=-2 and not my_idea_of_a_partial_match(key,pkey) then
+        return 0
+    end if
+    ?{key,data}
+    return 1
+end function
+
+setd("key","data")
+setd("key2","data2")
+
+traverse_dict_partial_key(routine_id("visitor"),"key1")
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> visitor</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> key</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> data</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> pkey</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> user_data</font><font color="#0000FF">=-</font><font color="#000000">2</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> user_data</font><font color="#0000FF">!=-</font><font color="#000000">2</font><font color="#008080"> and not</font><font color="#000000"> my_idea_of_a_partial_match</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">pkey</font><font color="#0000FF">)</font><font color="#008080"> then
+        return</font><font color="#000000"> 0
+</font><font color="#008080">    end if
+</font><font color="#0000FF">    ?{</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">}
+</font><font color="#008080">    return</font><font color="#000000"> 1
+</font><font color="#008080">end function
+
+</font><font color="#5E005E">setd</font><font color="#0000FF">(</font><font color="#008000">"key"</font><font color="#0000FF">,</font><font color="#008000">"data"</font><font color="#0000FF">)
+</font><font color="#5E005E">setd</font><font color="#0000FF">(</font><font color="#008000">"key2"</font><font color="#0000FF">,</font><font color="#008000">"data2"</font><font color="#0000FF">)
+
+</font><font color="#5E005E">traverse_dict_partial_key</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"visitor"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"key1"</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            visitor will be called with "key2" (and everything after that). The -2 default was chosen on the assumption that no call to traverse_dict_partial_key passes that
+            as the third parameter, and that way rule out any plain traverse_dict calls (that use the same visitor, but do not expect any "partial key mismatch early out",
+            and in which case user_data ends up in pkey and no fourth parameter is supplied).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+integer next_unused_key
+function pvisitor(integer key, object /*data*/, object /*pkey*/, object /*user_data*/)
+    next_unused_key = key+1
+    return 0    -- (always cease traversal immediately)
+end function
+
+next_unused_key = 1 -- default if pvisitor not called (dict empty)
+traverse_dict_partial_key(routine_id("pvisitor"),999999999,true)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> next_unused_key
+</font><font color="#008080">function</font><font color="#000000"> pvisitor</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> key</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000080"><i> /*data*/</i></font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000080"><i> /*pkey*/</i></font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000080"><i> /*user_data*/</i></font><font color="#0000FF">)
+</font><font color="#000000">    next_unused_key</font><font color="#0000FF"> =</font><font color="#000000"> key</font><font color="#0000FF">+</font><font color="#000000">1
+</font><font color="#008080">    return</font><font color="#000000"> 0   </font><font color="#000080"><i> -- (always cease traversal immediately)
+</i></font><font color="#008080">end function
+
+</font><font color="#000000">next_unused_key</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#000080"><i> -- default if pvisitor not called (dict empty)
+</i></font><font color="#5E005E">traverse_dict_partial_key</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"pvisitor"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">999999999</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="setd.htm">setd</a>,
+          <a href="upper.htm">upper</a>,
+          <a href="lower.htm">lower</a>,
+          <a href="routine_id.htm">routine_id</a>,
+          <a href="traverse_dict.htm">traverse_dict</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1105,6 +1105,7 @@ if not newEmit then ?9/0 end if
 if suppressopRetf then
     if opcode=opRetf then
         puts(1,"pilx86.e line 1054 (opRetf)\n")
+--?9/0
     end if
 end if
     if q86>1 then
@@ -7801,18 +7802,19 @@ end if
                             end if
                             sibLoad743(dl,by4,reg,idx,smin2)                -- mov dl,[base+reg*4+smin2]
                             tmpd = 0
-                            if dname=-1 then        -- a temp
-                                transtmpfer(0,edx)
-                                -- (sch00nOK)
-                            end if
-                            if dest then
+--3/4/17: (over switch s[idx] do)
+--                          if dname=-1 then        -- a temp
+--                              transtmpfer(0,edx)
+--                              -- (sch00nOK)
+--                          end if
+--                          if dest then
                                 storeReg(edx,dest,1,0)                      -- mov [dest],edx
 --12/10
-                                if dname!=-1 then
+--                              if dname!=-1 then
                                     transtmpfer(0,edx)
-                                end if
+--                              end if
                                 dest = 0    -- flag code as inlined
-                            end if
+--                          end if
                         end if
                     end if
                 end if
@@ -7890,11 +7892,12 @@ end if
 --                  if opcode!=opSubse1 then
                     if opcode!=opSubse1 
                     and opcode!=opSubse1i then
-                        if dname=-1 then
-                            transtmpfer(0,eax)
-                            -- (never need sch00n when dname=-1, btw)
-                        end if
-                        if dest then
+--3/4/17 (over switch s[idx] do)
+--                      if dname=-1 then
+--                          transtmpfer(0,eax)
+--                          -- (never need sch00n when dname=-1, btw)
+--                      end if
+--                      if dest then
                             if sched then
                                 if opcode=opSubse1i then
                                     -- needed for [esp]+1 error handling:
@@ -7903,13 +7906,13 @@ end if
                             end if
                             storeReg(eax,dest,1,0)                  -- mov [dest],eax
 --12/10
-                            if dname!=-1 then
+--                          if dname!=-1 then
                                 transtmpfer(0,eax)
-                            end if
+--                          end if
                             if sched then
                                 sch00n = 0  -- (just the above line)
                             end if
-                        end if
+--                      end if
 --9/4/15:
 --                  elsif dtype=T_integer then
                     elsif vroot=T_integer then  -- result is integer

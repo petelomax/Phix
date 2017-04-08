@@ -448,6 +448,7 @@ integer fn
 end function
 
 --DEV not yet documented/autoincluded
+-- See also GetTempFileName() and http://rosettacode.org/wiki/Secure_temporary_file
 --**
 -- Returns a file name that can be used as a temporary file.
 --
@@ -589,7 +590,11 @@ global enum
 
         --**
         -- The HTTP query string
-        URL_QUERY_STRING
+        URL_QUERY_STRING,
+
+        --**
+        -- The #name part
+        URL_FRAGMENT
 
 --DEV not yet documented/autoincluded
 --**
@@ -638,11 +643,20 @@ object host_name = 0,
        path = 0,
        user_name = 0,
        password = 0,
-       query_string = 0
+       query_string = 0,
+       fragment = 0
 integer port = 0
 integer all_done = 0
 integer qs_start = 0
-integer pos = find(':', url)
+integer pos
+
+    pos = find('#',url)
+    if pos!=0 then
+        fragment = url[pos+1..$]
+        url = url[1..pos-1]
+    end if
+
+    pos = find(':', url)
 
     if pos=0 then
         return 0
@@ -748,7 +762,7 @@ integer pos = find(':', url)
         end if
     end if
 
-    return {protocol, host_name, port, path, user_name, password, query_string}
+    return {protocol, host_name, port, path, user_name, password, query_string, fragment}
 end function
 
 --DEV not yet documented/autoincluded

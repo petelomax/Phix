@@ -521,6 +521,8 @@ integer fno
 --          agfdone[fno] = 0
             agfdone[fno] = done
 if done=0 then
+-- added 31/3/17:
+--if suppressopRetf then ?9/0 end if
 -- added 30/8/14:
             builtinsReferenced = 1
 end if
@@ -1336,6 +1338,7 @@ integer state, fno
 --puts(1,"getBuiltin() ")
     fno = find(0,agfdone)
     if fno!=0 then
+--?9/0
         -- Note: VM\pStack.e may be required for #ilASM{ call :%opRetf } or [hll] abort(0);
         --       in which case getBuiltin() may return "VM\pStack.e" twice, no big deal.
         --       Feel free to check binftab, scan down symtab, and reset builtinsReferenced
@@ -2426,16 +2429,16 @@ end if
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("message_box",     S_Func,"FSSIN", "msgbox.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
-    initialAutoEntry("new_dict",        S_Func,"FI",    "dict.e",0,E_other)
+    initialAutoEntry("new_dict",        S_Func,"FPI",   "dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 0
-if newEmit then
-    initialAutoEntry("routine_id",      S_Func,"FP",    "VM\\prtnidN.e",0,E_none)   T_routine = symlimit
-else
-    initialAutoEntry("platform",        S_Func,"F",     "platform.e",0,E_none)
     initialAutoEntry("remove_directory",S_Func,"FSI",   "pfile.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("rename_file",     S_Func,"FSSI",  "pfile.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
+if newEmit then
+    initialAutoEntry("routine_id",      S_Func,"FP",    "VM\\prtnidN.e",0,E_none)   T_routine = symlimit
+else
+    initialAutoEntry("platform",        S_Func,"F",     "platform.e",0,E_none)
     initialAutoEntry("routine_id",      S_Func,"FP",    "prtnid.e",0,E_none)        T_routine = symlimit
 end if
 if newEmit then
@@ -2924,7 +2927,9 @@ end if
     initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_all)
     initialAutoEntry("task_clock_stop",     S_Proc,"P",     "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_clock_start",    S_Proc,"P",     "VM\\pTask.e",0,E_other)
-    initialAutoEntry("traverse_dict",       S_Proc,"PII",   "dict.e",0,E_other)
+    initialAutoEntry("traverse_dict",       S_Proc,"PIOII", "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("traverse_dict_partial_key",S_Proc,"PIOOII","dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
 
 --DEV document*2

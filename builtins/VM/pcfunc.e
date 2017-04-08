@@ -776,6 +776,10 @@ integer convention
             fatalN(2,e16cbchop) -- call_backs cannot have optional parameters
         end if
 --SUG: should we check the return type for non-atom as well? (warning)
+--DEV.. (as per cbhand.e, couple of fix suggestions in there, before the push r9)
+if platform()=LINUX then
+    if noofparams>6 then ?9/0 end if
+end if
 
 --DEV Needs DEP handling. [test]
         r = allocate(16)    -- STDCALL needs 13 bytes, CDECL 11 (round up to 4 dwords):
@@ -1031,15 +1035,23 @@ integer esp4
     leave_cs(tcs)
 
     --20/8/15: (ensure shadow space and align)
+--DEV and platform()=WINDOWS??
     if machine_bits()=64 then
         --DEV actually, this should be more like pHeap.e/pGetMem... (nah, this shd be fine...)
         la = length(args)
-        if la<5 then
-            args &= repeat(0,5-la)
-            argdefs &= repeat(#01000004,5-la)
-        elsif remainder(la,2)!=1 then
-            args &= 0
-            argdefs &= #01000004    -- (C_INT)
+        if platform()=WINDOWS then
+            if la<5 then
+                args &= repeat(0,5-la)
+                argdefs &= repeat(#01000004,5-la)
+            elsif remainder(la,2)!=1 then
+                args &= 0
+                argdefs &= #01000004    -- (C_INT)
+            end if
+        else -- LINUX
+            if la<6 then
+                args &= repeat(0,6-la)
+                argdefs &= repeat(#01000004,6-la)
+            end if
         end if
         #ilASM{
             [PE64]
@@ -1083,6 +1095,7 @@ integer esp4
         argi = args[i]
         argdefi = argdefs[i]
         if integer(argi) then
+--DEV inline this
             if find(argdefi,{
                              #01000001,     -- C_CHAR
                              #02000001,     -- C_UCHAR
@@ -1302,6 +1315,7 @@ end if
                 ?9/0
             end if
         elsif atom(argi) then
+--DEV inline this
             if find(argdefi,{
                              #01000004,     -- C_INT
                              #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
@@ -1528,6 +1542,7 @@ end if
         elsif string(argi) then
 --      elsif string(argi) and argdefi!=C_WIDEPTR then
             if DEBUG then
+--DEV inline, proper error
                 if not find(argdefi,{
                                      #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
                                     }) then ?9/0 end if
@@ -1546,6 +1561,7 @@ end if
                 }
         else
             if DEBUG then
+--DEV inline, proper error
                 if not find(argdefi,{
                                      #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
 --                                   #12000004      -- C_WIDEPTR [DEV]
@@ -1578,6 +1594,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
     {return_type,addr,esp4} = c_common(rid,args,FUNC)
 
 --(DEV: delete once all types are handled)
+--DEV inline, proper error[?]
     if not find(return_type,{
 --                           C_CHAR,        -- #01000001
                              C_UCHAR,       -- #02000001
@@ -1716,14 +1733,25 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
 
                 mov rax,[addr]
                 call :%pLoadMint
---[PE64]    
+            [PE64]  
                 -- (xmm0..3 are set in c_common; one or more of
                 --  these may actually be garbage, but no matter.)
+                -- first 4 parameters are passed in rcx/rdx/r8/r9 (or xmm0..3),
                 mov rcx,[rsp]
                 mov rdx,[rsp+8]
                 mov r8,[rsp+16]
                 mov r9,[rsp+24]
---[ELF64]?
+            [ELF64]
+                -- first 6 parameters are passed in rdi/rsi/rdx/rcx(or r10 for system calls)/r8/r9 (or xmm0..7).
+                mov rdi,[rsp]
+                mov rsi,[rsp+8]
+                mov rdx,[rsp+16]
+                mov rcx,[rsp+24]
+                mov r8,[rsp+32]
+                mov r9,[rsp+40]
+                sub rsp,48
+            [64]
+
                 call rax
 
                 mov rcx,[esp4]
@@ -1934,14 +1962,24 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
             mov rax,[addr]
             call :%pLoadMint
 --push rbp
---[PE64]
+        [PE64]
             -- (xmm0..3 are set in c_common; one or more of
             --  these may actually be garbage, but no matter.)
             mov rcx,[rsp]
             mov rdx,[rsp+8]
             mov r8,[rsp+16]
             mov r9,[rsp+24]
---[ELF64]
+        [ELF64]
+            -- first 6 parameters are passed in rdi/rsi/rdx/rcx(or r10 for system calls)/r8/r9 (or xmm0..7).
+            mov rdi,[rsp]
+            mov rsi,[rsp+8]
+            mov rdx,[rsp+16]
+            mov rcx,[rsp+24]
+            mov r8,[rsp+32]
+            mov r9,[rsp+40]
+            sub rsp,48
+        [64]
+
             call rax
 --pop rbp
             mov rcx,[esp4]

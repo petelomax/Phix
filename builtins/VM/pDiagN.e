@@ -8,6 +8,8 @@ constant diagdiag = 01  -- show progress messages for debugging this source.
                         --  (0=none, 1=all, 2=almost all, ... N=last only.)
 constant show_bad_era = 01
 
+constant show_low_level_diagnostics = 01
+
 -- Technical note:
 --  This should be coded as defensively as possible, rather than relying on
 --  itself to give meaningful messages about errors in itself. In other words,
@@ -2157,19 +2159,20 @@ atom gvarptr
     end if
 
 --  if not batchmode then --DEV
-    if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
-        printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
-               {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(prev_ebp),addrS(ebp_root)})
-        printf(1,"or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
-               {or_eax,or_ecx,or_edx,or_esi,or_edi})
-        magicok = "\"@VSB\""
+    if show_low_level_diagnostics then
+        if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
+            printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
+                   {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(prev_ebp),addrS(ebp_root)})
+            printf(1,"or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
+                   {or_eax,or_ecx,or_edx,or_esi,or_edi})
+            magicok = "\"@VSB\""
 --DEV wrong on machine_bits()=64... (possibly one for docs) [I think it may be OK now...]
---      if vsb_magic!=#40565342 then
-        if (vsb_magic-#40565342) then
-            magicok = "**BAD MAGIC**"
-        end if
-        printf(1,"vsb_prev=#%s, vsb_next=#%s, vsb_magic=%s (%s)\n",
-               {addrS(vsb_prev),addrS(vsb_next),addrS(vsb_magic),magicok})
+--          if vsb_magic!=#40565342 then
+            if (vsb_magic-#40565342) then
+                magicok = "**BAD MAGIC**"
+            end if
+            printf(1,"vsb_prev=#%s, vsb_next=#%s, vsb_magic=%s (%s)\n",
+                   {addrS(vsb_prev),addrS(vsb_next),addrS(vsb_magic),magicok})
 --  end if
 --
 --  if not batchmode then
@@ -2181,6 +2184,7 @@ atom gvarptr
 --      printf(1,"\ndiag(%d[%s]) called...\n",{msg_id,msg})
 --      lines += 1
 --end if
+        end if
     end if
 --puts(1,"d2a\n")
     abortcode = 1
@@ -4165,7 +4169,8 @@ end procedure -- (for Edita/CtrlQ)
         call :%NoCleanup
           }
 --puts(1,"uh0?\n")
-    if diagdiag>0 then
+    if diagdiag>0 
+    and show_low_level_diagnostics then
         if xceptn=0 then
 --DEV Equivalent changes should probably be applied elsewhere (in this particular case 
 --      heap corruption meant it crashed in printf before it could display anything).

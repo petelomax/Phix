@@ -5,7 +5,7 @@ echo Create phix.exe Windows Installer for phix.
 echo ===========================================
 echo  (please remember to change the version!)
 echo.
-set v=0.7.4
+set v=0.7.5
 pause
 echo on
 

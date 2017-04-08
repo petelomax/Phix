@@ -2134,6 +2134,12 @@ end if
 
     elsif opTopIsOp=BranchOp then   -- branch, I mean relational...
 
+        --added 29/3/17
+        if newEBP then
+            -- save eax if rqd
+            saveFunctionResultVars(opsidx,INTSTOO)
+        end if
+
         scode = cmpcheck(scode)
 --      scode = Scde[scode]
 
@@ -12276,6 +12282,7 @@ if newEmit then
                 if not nodiag then
                     includeFile("VM\\pDiagN.e",0,1)
                 else
+--?"Stack"
                     includeFile("VM\\pStack.e",0,1)
                 end if
 else

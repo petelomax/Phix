@@ -180,6 +180,20 @@ end procedure -- (for Edita/CtrlQ)
                 mov [rsp+24+64],rdx
                 mov [rsp+32+64],r8
                 mov [rsp+40+64],r9
+            [ELF64]
+                -- first 6 parameters are passed in rdi/rsi/rdx/rcx/r8/r9 (or xmm0..7).
+                -- DEV limit lnx to 6 params in callbacks...
+                -- maybe: mov rbx,[rsp+???]; push rbx
+                --        mov rbx,[rsp+???]; push rbx (as many lines as needed)
+                --              (would ??? stay the same on each line?)
+                -- or: bump rdi in ::nextparam after 6?? [lea r9(say),[rsp+48+16?]..cmp rdi,r9; addeq rdi,32?]
+                push r9
+                push r8
+                push rcx
+                push rdx
+                push rsi
+                push rdi
+
             [64]
 
                 push rax                -- routine number
@@ -209,7 +223,11 @@ end procedure -- (for Edita/CtrlQ)
                 mov r15,h4
                 test rcx,rcx
                 jz :zeroparams
+            [PE64]
                     lea rsi,[rsp+32+64] -- params (on stack)
+            [ELF64]
+                    lea rsi,[rsp+16]
+            [64]
                 ::paramloop
                     lodsq               --  rax:=[rsi], rsi+=8
                     cmp rax,r15
@@ -278,6 +296,9 @@ end procedure -- (for Edita/CtrlQ)
                   @@:
                     pop rax
             ::retint
+            [ELF64]
+                add rsp,48
+            [64]
                 pop r15
                 pop r14
                 pop r13

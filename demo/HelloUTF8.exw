@@ -24,6 +24,7 @@ integer initX = 0
 
 constant CP_UTF8 = 65001
 
+--printf(1,"x x x £\n")
 procedure Xinit()
 atom user32, kernel32
     user32 = open_dll("user32.dll")
@@ -222,6 +223,148 @@ end function
 string rtest = unicode_reverse(ctest)
 puts(1,rtest)
 
+function poker(string hand)
+    hand = substitute(hand,"10","t")
+    sequence cards = split(hand,no_empty:=1)
+    if length(cards)!=5 then return "invalid hand" end if
+    sequence ranks = repeat(0,13),
+             suits = repeat(0,4)
+    integer jokers = 0
+    for i=1 to length(cards) do
+        sequence ci = utf8_to_utf32(cards[i])
+        if ci="joker" then
+            jokers += 1
+            if jokers>2 then return "invalid hand" end if
+        else
+            if length(ci)!=2 then return "invalid hand" end if
+            integer rank = find(lower(ci[1]),"23456789tjqka")
+            integer suit = find(ci[2],utf8_to_utf32("♥♣♦♠"))
+            if rank=0 or suit=0 then return "invalid hand" end if
+            ranks[rank] += 1
+            suits[suit] += 1
+        end if
+    end for
+    integer straight = match({1,1,1,1,1},ranks) 
+    if not straight then 
+        straight = sort(ranks)[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
+    end if
+    integer _flush = (max(suits)+jokers = 5)
+    integer _pairs = max(ranks)+jokers
+    integer pair = find(2,ranks)
+    integer full_house = _pairs=3 and pair and (jokers=0 or find(2,ranks,pair+1))
+    integer two_pair = find(2,ranks,pair+1)
+    integer high_card = rfind(1,sq_ne(ranks,0))+1
+    if jokers and _pairs=jokers+1 then
+        straight = 1
+        integer k = find(1,ranks), j = jokers
+        for l=k to min(k+5-j,13) do
+            if ranks[l]=0 then
+                if j=0 then
+                    straight = 0
+                    exit
+                end if
+                j -= 1
+            end if
+        end for
+        if straight and j then
+            high_card = min(high_card+j,14)
+        end if
+    elsif straight and ranks[1]!=0 then 
+        high_card = find(0,ranks)
+    end if
+    if _pairs=5             then return {10,"five of a kind", find(5-jokers,ranks)+1} end if
+    if straight and _flush  then return {9,"straight flush", high_card} end if
+    if _pairs=4             then return {8,"four of a kind", find(4-jokers,ranks)+1} end if
+    if full_house           then return {7,"full house", find(3-jokers,ranks)+1} end if
+    if _flush               then return {6,"flush", high_card} end if
+    if straight             then return {5,"straight", high_card} end if
+    if _pairs=3             then return {4,"three of a kind", find(3-jokers,ranks)+1} end if
+    if pair and two_pair    then return {3,"two pair", two_pair+1} end if
+    if pair                 then return {2,"one pair", pair+1} end if
+    if jokers               then return {2,"one pair", high_card} end if
+                                 return {1,"high card",high_card}
+end function
+
+sequence hands = {{0,"2♥ 2♦ 2♣ k♣ q♦"},     -- three-of-a-kind (4)
+                  {0,"2♥ 5♥ 7♦ 8♣ 9♠"},     -- high-card (1)
+                  {0,"a♥ 2♦ 3♣ 4♣ 5♦"},     -- straight (5)
+                  {0,"2♥ 3♥ 2♦ 3♣ 3♦"},     -- full-house (7)
+                  {0,"2♥ 7♥ 2♦ 3♣ 3♦"},     -- two-pair (3)
+                  {0,"2♥ 7♥ 7♦ 7♣ 7♠"},     -- four-of-a-kind (8)
+                  {0,"10♥ j♥ q♥ k♥ a♥"},    -- straight-flush (9)
+                  {0,"4♥ 4♠ k♠ 5♦ 10♠"},    -- one-pair (2)
+                  {0,"q♣ 10♣ 7♣ 6♣ 4♣"},    -- flush (6)
+                  {0,"joker  2♦  2♠  k♠  q♦"},  -- three-of-a-kind (4)
+                  {0,"joker  5♥  7♦  8♠  9♦"},  -- straight (5)
+                  {0,"joker  2♦  3♠  4♠  5♠"},  -- straight (5)
+                  {0,"joker  3♥  2♦  3♠  3♦"},  -- four-of-a-kind (8)
+                  {0,"joker  7♥  2♦  3♠  3♦"},  -- three-of-a-kind (4)
+                  {0,"joker  7♥  7♦  7♠  7♣"},  -- five-of-a-kind (10)
+                  {0,"joker  j♥  q♥  k♥  A♥"},  -- straight-flush (9)
+                  {0,"joker  4♣  k♣  5♦ 10♠"},  -- one-pair (2)
+                  {0,"joker  k♣  7♣  6♣  4♣"},  -- flush (6)
+                  {0,"joker  2♦  joker  4♠  5♠"},   -- straight (5)
+                  {0,"joker  Q♦  joker  A♠ 10♠"},   -- straight (5)
+                  {0,"joker  Q♦  joker  A♦ 10♦"},   -- straight-flush (9)
+                  {0,"joker  2♦  2♠  joker  q♦"}}   -- four-of-a-kind (8)
+
+--/*
+
+2H 2D 2C kC qD: three-of-a-kind
+2H 5H 7D 8C 9S: high-card
+aH 2D 3C 4C 5D: straight
+2H 3H 2D 3C 3D: full-house
+2H 7H 2D 3C 3D: two-pair
+2H 7H 7D 7C 7S: four-of-a-kind 
+10H jH qH kH aH: straight-flush
+4H 4S kS 5D 10S: one-pair
+qC 10C 7C 6C 4C: flush
+
+2♥ 2♦ 2♣ k♣ q♦: three-of-a-kind
+2♥ 5♥ 7♦ 8♣ 9♠: high-card
+a♥ 2♦ 3♣ 4♣ 5♦: straight
+2♥ 3♥ 2♦ 3♣ 3♦: full-house
+2♥ 7♥ 2♦ 3♣ 3♦: two-pair
+2♥ 7♥ 7♦ 7♣ 7♠: four-of-a-kind 
+10♥ j♥ q♥ k♥ a♥: straight-flush
+4♥ 4♠ k♠ 5♦ 10♠: one-pair
+q♣ 10♣ 7♣ 6♣ 4♣: flush
+
+joker  2D  2S  kS  qD: three-of-a-kind
+joker  5H  7D  8S  9D: straight
+joker  2D  3S  4S  5S: straight
+joker  3H  2D  3S  3D: four-of-a-kind
+joker  7H  2D  3S  3D: three-of-a-kind
+joker  7H  7D  7S  7C: five-of-a-kind
+joker  jH  qH  kH  AH: straight-flush
+joker  4C  kC  5D 10S: one-pair
+joker  kC  7C  6C  4C: flush
+joker  2D  joker  4S  5S: straight
+joker  QD  joker  AS 10S: straight
+joker  QD  joker  AD 10D: straight-flush
+joker  2D  2S  joker  qD: four-of-a-kind
+
+joker  2♦  2♠  k♠  q♦: three-of-a-kind
+joker  5♥  7♦  8♠  9♦: straight
+joker  2♦  3♠  4♠  5♠: straight
+joker  3♥  2♦  3♠  3♦: four-of-a-kind
+joker  7♥  2♦  3♠  3♦: three-of-a-kind
+joker  7♥  7♦  7♠  7♣: five-of-a-kind
+joker  j♥  q♥  k♥  A♥: straight-flush
+joker  4♣  k♣  5♦ 10♠: one-pair
+joker  k♣  7♣  6♣  4♣: flush
+joker  2♦  joker  4♠  5♠: straight
+joker  Q♦  joker  A♠ 10♠: straight
+joker  Q♦  joker  A♦ 10♦: straight-flush
+joker  2♦  2♠  joker  q♦: four-of-a-kind
+--*/
+
+for i=1 to length(hands) do
+    hands[i][1] = poker(hands[i][2])
+end for
+ppOpt({pp_Ascii,{#20,#FF}})
+pp(reverse(sort(hands)))
+
 
     {} = MessageBoxW(lc&"\n"&uc, "Unicode 水 test", MB_OK)
 --  {} = MessageBoxW("Hello 水 test of MessageBoxW\n"&ctest&" <==> "&rtest, "Unicode 水 test", MB_OK)
@@ -240,3 +383,129 @@ puts(1,rtest)
 --  λ
 {} = c_func(xSetConsoleOutputCP,{prevCP})
 
+
+--/*
+=={{header|Phix}}==
+Woke up this morning with a neat idea for detecting straights, though jokers messed it up a bit.<br>
+Uses an ad-hoc ranking system, not recommended for use in tournaments! Displays hands best-first.<br>
+Note: I have left a copy of this in demo\HelloUTF8.exw to prove it works, but non-ascii on a Windows
+console is not Phix's forte. For an example of using the unicode card characters see [[Playing_cards#Phix]]
+<lang Phix>function poker(string hand)
+function poker(string hand)
+    hand = substitute(hand,"10","t")
+    sequence cards = split(hand,no_empty:=1)
+    if length(cards)!=5 then return "invalid hand1" end if
+    sequence ranks = repeat(0,13),
+             suits = repeat(0,4)
+    integer jokers = 0
+    for i=1 to length(cards) do
+        sequence ci = utf8_to_utf32(cards[i])
+        if ci="joker" then
+            jokers += 1
+            if jokers>2 then return "invalid hand2" end if
+        else
+            if length(ci)!=2 then return "invalid hand3" end if
+            integer rank = find(lower(ci[1]),"23456789tjqka")
+            integer suit = find(ci[2],utf8_to_utf32("♥♣♦♠"))
+--          if rank=0 or suit=0 then return "invalid hand4" end if
+            if rank=0 then ?ci return "invalid hand4" end if
+            if suit=0 then return "invalid hand5" end if
+            ranks[rank] += 1
+            suits[suit] += 1
+        end if
+    end for
+    integer straight = match({1,1,1,1,1},ranks) 
+    if not straight then 
+        straight = sort(ranks)[$]=1 and match({0,0,0,0,0,0,0,0},ranks)
+    end if
+    integer _flush = (max(suits)+jokers = 5)
+    integer _pairs = max(ranks)+jokers
+    integer pair = find(2,ranks)
+    integer full_house = _pairs=3 and pair and (jokers=0 or find(2,ranks,pair+1))
+    integer two_pair = find(2,ranks,pair+1)
+    integer high_card = rfind(1,sq_ne(ranks,0))+1
+    if jokers and _pairs=jokers+1 then
+        straight = 1
+        integer k = find(1,ranks), j = jokers
+        for l=k to min(k+5-j,13) do
+            if ranks[l]=0 then
+                if j=0 then
+                    straight = 0
+                    exit
+                end if
+                j -= 1
+            end if
+        end for
+        if straight and j then
+            high_card = min(high_card+j,14)
+        end if
+    elsif straight and ranks[1]!=0 then 
+        high_card = find(0,ranks)
+    end if
+    if _pairs=5             then return {10,"five of a kind", find(5-jokers,ranks)+1} end if
+    if straight and _flush  then return {9,"straight flush", high_card} end if
+    if _pairs=4             then return {8,"four of a kind", find(4-jokers,ranks)+1} end if
+    if full_house           then return {7,"full house", find(3-jokers,ranks)+1} end if
+    if _flush               then return {6,"flush", high_card} end if
+    if straight             then return {5,"straight", high_card} end if
+    if _pairs=3             then return {4,"three of a kind", find(3-jokers,ranks)+1} end if
+    if pair and two_pair    then return {3,"two pair", two_pair+1} end if
+    if pair                 then return {2,"one pair", pair+1} end if
+    if jokers               then return {2,"one pair", high_card} end if
+                                 return {1,"high card",high_card}
+end function
+
+sequence hands = {{0,"2♥ 2♦ 2♣ k♣ q♦"},
+                  {0,"2♥ 5♥ 7♦ 8♣ 9♠"},
+                  {0,"a♥ 2♦ 3♣ 4♣ 5♦"},
+                  {0,"2♥ 3♥ 2♦ 3♣ 3♦"},
+                  {0,"2♥ 7♥ 2♦ 3♣ 3♦"},
+                  {0,"2♥ 7♥ 7♦ 7♣ 7♠"},
+                  {0,"10♥ j♥ q♥ k♥ a♥"},
+                  {0,"4♥ 4♠ k♠ 5♦ 10♠"},
+                  {0,"q♣ 10♣ 7♣ 6♣ 4♣"},
+                  {0,"joker  2♦  2♠  k♠  q♦"},
+                  {0,"joker  5♥  7♦  8♠  9♦"},
+                  {0,"joker  2♦  3♠  4♠  5♠"},
+                  {0,"joker  3♥  2♦  3♠  3♦"},
+                  {0,"joker  7♥  2♦  3♠  3♦"},
+                  {0,"joker  7♥  7♦  7♠  7♣"},
+                  {0,"joker  j♥  q♥  k♥  A♥"},
+                  {0,"joker  4♣  k♣  5♦ 10♠"},
+                  {0,"joker  k♣  7♣  6♣  4♣"},
+                  {0,"joker  2♦  joker  4♠  5♠"},
+                  {0,"joker  Q♦  joker  A♠ 10♠"},
+                  {0,"joker  Q♦  joker  A♦ 10♦"},
+                  {0,"joker  2♦  2♠  joker  q♦"}}
+
+for i=1 to length(hands) do
+    hands[i][1] = poker(hands[i][2])
+end for
+ppOpt({pp_Ascii,{#20,#FF}})
+pp(reverse(sort(hands)))</lang>
+{{out}}
+<pre>
+{{{10, "five of a kind", 7}, "joker  7♥  7♦  7♠  7♣"},
+ {{9, "straight flush", 14}, "joker  j♥  q♥  k♥  A♥"},
+ {{9, "straight flush", 14}, "joker  Q♦  joker  A♦ 10♦"},
+ {{9, "straight flush", 14}, "10♥ j♥ q♥ k♥ a♥"},
+ {{8, "four of a kind", 7}, "2♥ 7♥ 7♦ 7♣ 7♠"},
+ {{8, "four of a kind", 3}, "joker  3♥  2♦  3♠  3♦"},
+ {{8, "four of a kind", 2}, "joker  2♦  2♠  joker  q♦"},
+ {{7, "full house", 3}, "2♥ 3♥ 2♦ 3♣ 3♦"},
+ {{6, "flush", 13}, "joker  k♣  7♣  6♣  4♣"},
+ {{6, "flush", 12}, "q♣ 10♣ 7♣ 6♣ 4♣"},
+ {{5, "straight", 14}, "joker  Q♦  joker  A♠ 10♠"},
+ {{5, "straight", 9}, "joker  5♥  7♦  8♠  9♦"},
+ {{5, "straight", 6}, "joker  2♦  joker  4♠  5♠"},
+ {{5, "straight", 5}, "joker  2♦  3♠  4♠  5♠"},
+ {{5, "straight", 5}, "a♥ 2♦ 3♣ 4♣ 5♦"},
+ {{4, "three of a kind", 3}, "joker  7♥  2♦  3♠  3♦"},
+ {{4, "three of a kind", 2}, "joker  2♦  2♠  k♠  q♦"},
+ {{4, "three of a kind", 2}, "2♥ 2♦ 2♣ k♣ q♦"},
+ {{3, "two pair", 3}, "2♥ 7♥ 2♦ 3♣ 3♦"},
+ {{2, "one pair", 13}, "joker  4♣  k♣  5♦ 10♠"},
+ {{2, "one pair", 4}, "4♥ 4♠ k♠ 5♦ 10♠"},
+ {{1, "high card", 9}, "2♥ 5♥ 7♦ 8♣ 9♠"}}
+</pre>
+--*/

@@ -1905,6 +1905,7 @@ else
         Expression()
         if not equal(token,",") then exit end if
 --1/2/17: (DEV/doc see trick with IupButton comma at end of plade.exw)
+--[[ ie          {nr("IupButton")       ,'E',"[T]AFAD", -- comma is just before the 'E'... ]]
         also &= ExpLength(filetext[currfile][tokline][1..tokstart])+inPend()
 --?{tokline,also}
 --/*

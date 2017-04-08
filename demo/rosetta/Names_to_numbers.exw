@@ -1,0 +1,77 @@
+--
+-- demo\rosetta\Names_to_numbers.exw
+-- ---------------------------------
+--
+include demo\rosetta\Number_names.exw
+
+constant {tokens,tokvals} = columnize({{"zero",0},{"one",1},{"two",2},{"three",3},{"four",4},{"five",5},{"six",6},
+                                       {"seven",7},{"eight",8},{"nine",9},{"ten",10},
+                                       {"eleven",11},{"twelve",12},{"thirteen",13},{"fourteen",14},{"fifteen",15},
+                                       {"sixteen",16},{"seventeen",17},{"eighteen",18},{"nineteen",19},
+                                       {"twenty",20},{"thirty",30},{"forty",40},{"fifty",50},{"sixty",60},
+                                       {"seventy",70},{"eighty",80},{"ninety",90},{"hundred",100},{"thousand",1e3},
+                                       {"million",1e6},{"billion",1e9},{"trillion",1e12}})
+ 
+function parse(string s)
+sequence words
+integer negmul = 1, hund = 0
+atom total = 0, k
+ 
+    s = substitute(s,",","")
+    s = substitute(s," and "," ")
+    s = substitute(s,"-"," ")
+    words = split(s)
+    if length(words)=0 then return "invalid" end if
+    if words[1]=="minus" then
+        negmul = -1
+        words = words[2..$]
+    end if
+    for i=1 to length(words) do
+        k = find(words[i],tokens)
+        if k=0 then
+            if words[i]!="point" then return "invalid" end if
+            total += hund
+            hund = 0
+            integer tens = 10
+            for j=i+1 to length(words) do
+                k = find(words[j],tokens)
+                if k=0 then return "invalid" end if
+                k = tokvals[k]
+                if k>9 then return "invalid" end if
+                total += k/tens
+                tens *= 10
+            end for
+            exit
+        end if
+        k = tokvals[k]
+        if k<100 then
+            hund += k
+        elsif k=100 then
+            hund *= k
+        else
+            total += hund*k
+            hund = 0
+        end if
+    end for
+    return negmul*(total+hund)  
+end function
+
+procedure main()
+atom si
+    for i=1 to length(Samples) do
+        si = Samples[i]
+        string s = spell(si)
+--      if parse(s)=si then
+        if abs(parse(s)-si)<1e-6 then
+            s = "<==> "&s
+        else
+            s = "???? "&s
+        end if
+        printf(1,"%18s %s\n",{smartp(si),s})
+    end for
+end procedure
+
+main()
+
+{} = wait_key()
+

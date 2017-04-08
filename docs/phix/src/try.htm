@@ -101,7 +101,9 @@ You can however populate a throw() statement with made-up values. If you supply 
 E_NAME, and likewise with E_ADDR/E_LINE. Note the latter may drift over time, just like a puts(1,"This is line 6170\n") might.
 <br>
 <br>
-Gosling:
+The following <i><b>really is</b></i> the <a id="extGJE" style="color#9B5565" 
+href="javascript:ExternalLink('extGJE','https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.2');">official</a> definition 
+of java exception handling:
 <small>
 <pre>
 A try statement with a finally block is executed by first executing the try block. Then there is a choice:
@@ -126,40 +128,49 @@ A try statement with a finally block is executed by first executing the try bloc
 </pre>
 </small>
         Of course, each individual phrase/clause/statement is perfectly reasonable, however as a whole it is utterly incomprehensible, quite
-        literally almost impossible to remember, and hence extremely difficult to code correctly against.
+        literally almost impossible to remember, and hence extremely difficult to code correctly against. Plus the whole checked vs. unchecked 
+        exceptions doobry-mah-jiig goes on top of all of that, albeit that is more at the function declaration level, it still significantly 
+        impacts on what is and is not a permitted catch clause, in java.
         <br>
         <br>
-        By adopting a simpler scheme with no finally clause and a single catch clause this becomes:
+        By adopting a simpler scheme with no finally clause and a single catch clause this might become:
 <small>
 <pre>
 The catch clause is only entered if an exception occurs during the execution of the try block.
-(There is no special exception handling within the catch block other than any such already in place before and after the try statement.)
+There is no special exception handling within the catch block other than any already in place before and after the try statement.
 </pre>
 </small>
+        Which certainly fits inside my little brain a bit more readily. You may also like to compare the <a id="extJNF" style="color#9B5565" 
+        href="javascript:ExternalLink('extJNF','https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.1');">official</a> definition of
+        java exception handling when there is no finally clause, which while certainly simpler than the with finally that immediately follows it, still 
+        strikes me as being deliberately over-egged to make the whole finally concept seem slightly less ridiculous.
         <br>
         <br>
-        This is one way to mimic a finally block:
+        This is one way to mimic a finally block, should you need it:
 <pre>
 bool rethrow = False
-sequence esave
+sequence esave      -- (or sequence e)
 try 
-   <block> 
+   &lt;block&gt;
 catch e 
    ...
-   if <condition> then  -- (optional)
+   if &lt;condition&gt; then    -- (optional)
       rethrow = True
-      esave = e
+      esave = e     -- (or just pre-declare e)
    end if
    ...
 end try 
-the <finally> block (containing another try block if necessary)
+the &lt;finally&gt; block (containing another try block if necessary)
 if rethrow then
-   throw(esave)
+   throw(esave)     -- (or throw(e))
 end if
 </pre>
         Note that when another try block exists, whether esave is overwritten is entirely dependent on any condition (if any) explicitly 
         coded within the secondary catch block, and indeed whether exceptions in the finally block are rethrown or quietly ignored is also 
-        completely your decision (provided that secondary/nested try block exists).
+        completely your decision (provided that a suitable try block exists within the finally block to do that handling).
+        <br>
+        <br>
+        Finally blocks could also be mimiced using nested routines, should they ever be completed (see demo\rosetta\Nested_function.exw).
         <br>
         <br>
         Technicalia:<br>
@@ -168,6 +179,13 @@ end if
         opRetf until we reach it). opFrame will be responsible for setting that 0/1 on all new frames. I expect most of the support 
         code will live in builtins\VM\pStack.e, plus FEH.e will also contain a quick test on the new field to decide whether to invoke 
         ehandler or fehDiag.
+        <br>
+        <br>
+        Looking at the current frame layout, {params/N/rtn/fromaddr/retaddr/prevebp/root}, it strikes me that retaddr is the one that
+        is most critical, hence (perversely) I suggest replicating that past root, then clobbering the original one in the middle to 
+        ensure we catch as many errors as we ever could. Obviously a) the first step is to add a null past root and get that working, 
+        and b) this strategy has two benefits: the clobber of the original can be quickly undone, and we avoid the trap of thinking 
+        we have got the slot done and dusted when the reality is that some edge cases (on vsb boundaries) still corrupt the stack.
         <br>
         <br>
         Every try statement will create a new unnamed local temporary to faciliate the save/restore of the exception handler field, as

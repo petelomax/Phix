@@ -35,6 +35,14 @@
 --      Attempts to convert an invalid JSON object to a JSON string yield 0, 
 --                          possibly with partial results in the output file.
 --
+-- Note this does not enforce json string contents:
+--  \-prefixes are not enforced (esp /)
+--  \uHHHH by pure happy coincidence matches Phix native format, no more.
+--  Unicode as utf8 is considered sufficient; no utf-16 surrogate pair stuff.
+--  Mind you, http://json.org is brutally simplistic, and so is this - but 
+--  real-world use is dealing with poor or buggy implementations at the other
+--  end, and right now any such testing is completely and utterly lacking...
+--
 -- Performance note/disclaimer
 --  No particular effort has been made regarding performance.
 --  I would strongly expect the actual conversion to be almost completely IO bound, 
@@ -43,12 +51,13 @@
 --  straightforward and is deemed outside the responsibility of these routines. 
 --  It would also be fair to say that the trim_res argument is lazily implemented, 
 --  and it might be better not to add any whitespace in the first place, instead
---  to trimming it away at the last moment.
+--  of trimming it away at the last moment.
 --
 -- Compatibility note
 --  OpenEuphoria cannot distinguish between {} and "" and consequently may accept
---  some things (both of those) as valid that Phix does not. Phix will reject {12}
---  as invalid, because it is not a string, whereas OE will treat it as "\x0C".
+--  some things (specifically the first of those) as valid that Phix does not. 
+--  Phix will reject {12} as invalid, because it is not a string, whereas OE will 
+--  treat it as "\x0C".
 --  Otherwise this component should run on both, mainly thanks to the following:
 --
 

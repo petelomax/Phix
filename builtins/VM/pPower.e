@@ -99,12 +99,25 @@ end procedure -- (for Edita/CtrlQ)
       ::notPow0
 
         -- power(-177..177,1..4) can be done using mul to give an integer result...
+--PL 181^4/7^10/10^9
         cmp ecx,4
+        mov edx,-181
+        jbe :testedx
+--      cmp ecx,10
+--      mov edx,-7
+--      jbe :testrdx
+        cmp ecx,9
+        mov edx,-10
         ja :notIntRes
-        cmp eax,-177
+--      cmp eax,-177
+      ::testedx
+        cmp eax,edx
         jl :notIntRes
-        cmp eax,177
+--      cmp eax,177
+        neg edx
+        cmp eax,edx
         jg :notIntRes
+
         mov esi,eax
         mov edx,[edi]
         sub ecx,1
@@ -297,12 +310,25 @@ end procedure -- (for Edita/CtrlQ)
 
 --DEV new valid int range not yet done...
         -- power(-177..177,1..4) can be done using mul to give an integer result...
+--PL: 46340^4/73^10/10^17:
         cmp rcx,4
+        mov rdx,-46340
+        jbe :testrdx
+--      cmp rcx,10
+--      mov rdx,-73
+--      jbe :testrdx
+        cmp rcx,17
+        mov rdx,-10
         ja :notIntRes
-        cmp rax,-177
+--      cmp rax,-177
+      ::testrdx
+        cmp rax,rdx
         jl :notIntRes
-        cmp rax,177
+--      cmp rax,177
+        neg rdx
+        cmp rax,rdx
         jg :notIntRes
+
         mov rsi,rax
         mov rdx,[rdi]
         sub rcx,1
@@ -445,4 +471,90 @@ end procedure -- (for Edita/CtrlQ)
         jmp :opPowCont       
     []
       }
+
+--SUG:
+--/*
+"Matt C." <spam...@crayne.org> wrote in message 
+news:n4ags05qqkh84ivon1s5n8t2go5f2k978j@4ax.com...
+- show quoted text -
+Here is some code which will handle the exponentation x^y where y is a 
+positive integer or zero. Extrapolation to negative integers is easy: take 
+the reciprocal of x if y is negative and then take the absolute value of y. 
+If you need fractional exponents, then Terje's method is probably best.
+
+double exp(double base, unsigned int exp)
+{
+ double acc = 1.0;
+
+ while(exp > 0)
+ {
+  if (exp & 1)
+   acc *= base;
+  base *= base;
+  exp >>= 1;
+ }
+
+ return acc;
+}
+
+This code will not lose any bits of precision except what is inherent in 
+floating-point. A simple assembly translation:
+
+_exp:
+ fld1
+ fld qword [esp+4]
+ mov eax, [esp+12]
+
+ ; st1 = acc
+ ; st0 = base
+ test eax, eax
+ jz .done
+
+.top:
+ shr eax, 1
+ jnc .skip
+ fmul st1, st0
+
+.skip:
+ fmul st0, st0
+ jnz .top
+
+.done:
+ ffreep st0
+ ; st0 = acc
+ ret
+
+If you're after speed, unrolling that should give a significant speed gain. 
+The critical path is going to be 32 FP multiplies which is 160 cycles on a 
+P4. You can cut that to 128 (20% faster) if you use SSE/SSE2 instead. The 
+disadvantage to SSE/SSE2 is limited compatibility.
+
+-Matt
+
+Assuming unpredictable bit patterns in the exponent, a branchless 
+version might be faster:
+
+   mov eax,[exp]                ; Exponent
+   fld1                        ; Accumulator, return value if (exp==0)
+   fld [base]                ; Current power of base
+   test eax,eax                ; exp > 0 ?
+    jz done
+next:
+   fld1                        ; Multiplicator for zero power
+   shr eax,1                ; Sets carry if (exp & 1), zero flag if done
+
+   fcmovc st,st(1)        ; Overwrite 1.0 with base^power if carry
+
+   fmulp st(2),st        ; acc *= (exp & 1)? base : 1.0;
+   fmul st,st                ; base *= base;
+    jnz next
+done:
+   fstp st                ; FPOP to get rid of base power
+   ret
+
+Since the two multiplications are independent, this version could run in 
+just one or two cycles more than the time for a single FMUL, and do so 
+without any lost time due to branches.
+
+--*/
 

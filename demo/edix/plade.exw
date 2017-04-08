@@ -11,6 +11,11 @@
 --  pGlade.exw -  erm
 --  pGuilade.exw -  erm
 
+constant SHOWBRANCHINFO = 0
+constant SHOWCONTROLS = 01
+constant CREATECONTROLS = 01
+constant SHOWDESIRED = 01
+
 include pGUI.e
 with trace
 
@@ -59,6 +64,109 @@ IupDial                                                                         
 IupCells                                                                                                            [plade_cells.png]
 IupCalendar                                                                                                         [plade_calendar.png]
 IupDatePick                                                                                                         [plade_date_picker.png]
+
+Also [DEV] plade_trash.png
+
+OMG:: I am missing a **HUGE** trick here. Just load a gui from source and leave the whole thing on the clipboard!!
+That would allow you to browse for something similar, nick it, tweak it, and put it in a new project!!!!!!!
+An interface to Edix might go more like (on the clipboard, or perhaps ipc shared memory):
+"""
+Original:
+3176,21:IupDialog(vbox)
+<lots more lines>
+Replacement:
+[3176,21:]IupDialog(vbox)
+<lots more lines>
+"""
+And it is up to Edix to sort that mess out!! (the replacement can optionally have line/col indicating origin, but that may not help much)
+
+Instructions:
+pGUI(/IUP) uses abstract layout positioning. The easiest way to think of this is that instead of using explicit x,y co-ordinates,
+if you want a message with two buttons in a row beneath it, you might do something like this:
+    
+<!--eucode>
+include pGUI.e
+
+    IupOpen("demo\\pGUI\\")
+
+    Ihandle text = IupLabel("Hello"),
+            okbtn = IupButton("OK"),
+            cancel = IupButton("Cancel"),
+
+            hbox = IupHbox({okbtn,cancel}),
+            vbox = IupVbox({text,
+                            hbox}),
+
+            dlg = IupDialog(vbox)
+
+    IupShow(dlg)
+
+    IupShow(dlg)
+
+    IupMainLoop()
+    IupClose()
+</eucode-->
+<pre>
+</pre>
+
+Which show the basic idea, but looks pretty ropey, 
+<img>
+until you add some padding:
+
+<!--eucode>
+include pGUI.e
+
+    IupOpen("demo\\pGUI\\")
+
+    Ihandle text = IupLabel("Hello"),
+            okbtn = IupButton("OK"),
+            cancel = IupButton("Cancel"),
+
+            hbox = IupHbox({IupFill(),okbtn,IupFill(),cancel,IupFill()}),
+            vbox = IupVbox({IupFill(),
+                            IupHbox({IupFill(),text,IupFill(),IupFill()}),
+                            IupFill(),
+                            hbox,
+                            IupLabel()}),
+
+            dlg = IupDialog(vbox)
+
+    IupSetAttribute(dlg, "MINSIZE", "180x120")
+    IupSetAttribute(dlg, "SHRINK", "YES")
+
+    IupShow(dlg)
+
+    IupMainLoop()
+    IupClose()
+</eucode-->
+<pre>
+</pre>
+
+<img>
+
+It is in fact the need to add all those IupFill(), the extra IupHbox(), and set various attributes, that is the most
+compelling reason that a program like plade is required, and what it concentrates on. Sure, (over time) there will be
+a way to locate that OK button and edit/insert a template for the code that will be executed when it is clicked, but
+doing so [will close plade and] plant you back in edix, hopefully with such context switches being fast and efficient
+in both directions. For now, though, the focus is on getting the basic appearance right.
+
+When plade starts, you are presented with two trees: on the left is a control palette, listing all the available
+containers and elements, and on the right is a hierarchy tree, which should have an IupDialog as the root node.
+Simply drag nodes from the palette onto the hierarchy (or back to the trash node), or around on the hierarchy,
+and right-click on nodes on the right to set properties. Nearer the center of the screen should be a live display
+reflecting changes as they happen, and you can click directly on that to assist in navigating the hierarchy tree.
+In future, it may be posssible to make dragging items about on the live display automatically modify the abstract 
+hierarchy tree, inserting/removing Hbox/Vbox etc as it sees fit.
+
+Selecting a node in either the control palette or the hierarchy tree updates the corresponding help button, which 
+opens the relevant page in phix.chm. Having two help buttons that do basically the same thing just makes life a
+little bit easier, compared to being forced to locate and select the equivalent node on the other (palette) tree.
+
+Aside: the split between elements and controls is quite arbitrary, as suggested by the matching icon, and was
+       done simply because otherwise the element branch had too many nodes to navigate/visually scan easily.
+
+
+---====---
 
 Not supported: IupGetParam - As well as being a significant technical challenge, it would almost certainly be both physically and
                              intellectually more difficult to modify string fmt and sequence param_data in a GUI than it would be
@@ -138,24 +246,28 @@ constant IupFuncs = {"IupDialog",
                      "IupZbox",
                      "Icallback"}
 
+function nr(string name, integer rid = routine_id(name))
+    return {name,rid}
+end function
+
 -- (obviously set only, we don't care about get)
-constant IupProcs = {"IupSetAttribute",
-                     "IupSetAttributes",
-                     "IupSetAttributeHandle",
-                     "IupSetAttributeId",
---                   "IupSetHandle",            -- ignored?? (removed for listview.exw)
-                     "IupSetInt",
-                     "IupSetCallback",
-                     "IupMatSetAttribute",
-                     "IupSetStrAttribute",
-                     "IupStoreAttribute",
-                     "IupAppend"}
+constant {IupProcs,IupProcIds} = columnize({nr("IupSetAttribute"),
+                                            nr("IupSetAttributes"),
+                                            nr("IupSetAttributeHandle"),
+                                            nr("IupSetAttributeId"),
+--                                          nr("IupSetHandle"),         -- ignored?? (removed for listview.exw)
+                                            nr("IupSetInt"),
+                                            nr("IupSetCallback"),
+                                            nr("IupMatSetAttribute"),
+                                            nr("IupSetStrAttribute"),
+                                            nr("IupStoreAttribute"),
+                                            nr("IupAppend")})
 
 
 --Searching for: iupdialog
 -- Files scanned 61, Directories scanned 7, Lines 43042
 --Start with this one:
---constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\fill.exw"--:38 dialog = IupDialog(IupVbox({frame_left,frame_center,frame_right,NULL}))
+constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\fill.exw"--:38 dialog = IupDialog(IupVbox({frame_left,frame_center,frame_right,NULL}))
 --IupAppend:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\edix\\plade.exw"--:165  dlg = IupDialog(canvas)
 --attributes:RASTERSIZE
@@ -219,7 +331,7 @@ constant IupProcs = {"IupSetAttribute",
 --C:\Program Files (x86)\Phix\demo\pGUI\simple_notepad.exw:897   dlg = IupDialog(vbox);
 --IupGL* reworked as per simple_notepad 3 dialogs (text/toolbox/main):
 --**broken**
-constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\simple_paint.exw"--:767     dlg = IupDialog(text)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\simple_paint.exw"--:767       dlg = IupDialog(text)
 --C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:2096   toolbox = IupDialog(vbox)
 --C:\Program Files (x86)\Phix\demo\pGUI\simple_paint.exw:2193   dlg = IupDialog(vbox)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\submenu.exw"--:127   dlg = IupDialog(text)
@@ -2178,9 +2290,6 @@ Treat specially/ignore: IupSetAttribute(dlg,"RASTERSIZE",NULL)
 Obviously you can have bespoke attributes (eg DIRTY in simple_notepad) - separate tab?
 
 --*/
-function nr(string name, integer rid = routine_id(name))
-    return {name,rid}
-end function
 --constant ctrls = {
 --constant {{names,rids},attrs,callbacks} = columnize({
 constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
@@ -2197,11 +2306,11 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_flatbutton.png",
                                  {"ACTIVE","EXPAND"},
                                  {"ACTION"}},
-         {nr("IupCalendar"),     'E',"AFAD",
+         {nr("IupCalendar"),     'e',"AFAD",
                                  "plade_calendar.png",
                                  {"VALUE"},
                                  {"VALUECHANGED_CB"}},
-         {nr("IupDatePick"),     'E',"",
+         {nr("IupDatePick"),     'e',"",
                                  "plade_date_picker.png",
                                  {"MONTHSHORTNAMES","VALUE","ZEROPRECED"},
                                  {}},
@@ -2213,7 +2322,7 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_cbox.png",
                                  {},
                                  {}},
-         {nr("IupCells"),        'E',"AD",
+         {nr("IupCells"),        'e',"AD",
                                  "plade_cells.png",
                                  {},
                                  {}},
@@ -2221,7 +2330,7 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_detach.png",
                                  {"DETACH","ORIENTATION","RESTORE"},
                                  {"DETACHED_CB"}},
-         {nr("IupDial"),         'E',"[O]AD",
+         {nr("IupDial"),         'e',"[O]AD",
                                  "plade_dial.png",
                                  {},
                                  {}},
@@ -2260,7 +2369,7 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
 --                               "plade_image.png",
 --                               {},
 --                               {}},
---       {nr("IupItem"),         'E',"TAFAD",
+--       {nr("IupItem"),         '?!E',"TAFAD",
 --                               "plade_menuitem.png",
 --                               {},
 --                               {}},
@@ -2268,7 +2377,7 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_label.png",
                                  {"ALIGNMENT","EXPAND","FLOATING","IMAGE","MAXSIZE","NAME","PADDING","SEPARATOR","TITLE","VISIBLE"},
                                  {}},
-         {nr("IupLink"),         'E',"[TT]AFAD",
+         {nr("IupLink"),         'e',"[TT]AFAD",
                                  "plade_link.png",
                                  {},
                                  {}},
@@ -2276,7 +2385,7 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_list.png",
                                  {"n","DROPDOWN","EDITBOX","TIP","VALUE"},
                                  {}},
-         {nr("IupMatrix"),       'E',"AD",
+         {nr("IupMatrix"),       'e',"AD",
                                  "plade_matrix.png",
                                  {"ALIGNMENT","ALIGNMENTLIN0","BORDER","CURSOR","FGCOLOR2:2","FOCUSCELL","FRAMECOLOR","HEIGHT0","HIDEFOCUS",
                                   "MARKl:c","MARKAREA","MARKED","MARKMODE","NUMCOL","NUMCOL_VISIBLE","NUMLIN","NUMLIN_VISIBLE","ORIGIN",
@@ -2306,11 +2415,10 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_progress.png",
                                  {"VALUE"},
                                  {}},
-         {nr("IupPlot"),         'E',"AD",
+         {nr("IupPlot"),         'e',"AD",
                                  "plade_plot.png",
                                  {"AXS_XCROSSORIGIN","AXS_YCROSSORIGIN","GRID","MARGIN"},
                                  {}},
---       {nr("IupRadio"),        'E',"HAD",
          {nr("IupRadio"),        'C',"HAD",
                                  "plade_radio.png",
                                  {"VALUE"},
@@ -2323,19 +2431,18 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_resize.png",
                                  {},
                                  {}},
-         {nr("IupScrollBox"),    'E',"H",
+         {nr("IupScrollBox"),    'C',"H",
                                  "plade_scroll.png",
                                  {},
                                  {}},
-         {nr("IupSpinBox"),      'E',"H",
+         {nr("IupSpinBox"),      'C',"H",
                                  "plade_spin.png",
                                  {},
                                  {}},
-         {nr("IupSplit"),        'E',"HH",
+         {nr("IupSplit"),        'C',"HH",
                                  "plade_split.png",
                                  {},
                                  {}},
---       {nr("IupTabs"),         'E',"P",
          {nr("IupTabs"),         'C',"P",
                                  "plade_tabs.png",
                                  {"RASTERSIZE","TABIMAGEn","TABTITLEn","TABTYPE","SIZE"},
@@ -2455,7 +2562,8 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
 
 --constant {{names,rids},attrs,callbacks} = columnize(ctrls)
 --constant {iuprids,attrs,callbacks} = columnize(ctrls)
-constant {iupnames,iuprids} = columnize(iupnamerids)
+--constant {iupnames,iuprids} = columnize(iupnamerids)
+sequence {iupnames,iuprids} = columnize(iupnamerids)
 ?"=="
 if 0 then
 ?iupnames
@@ -3344,6 +3452,37 @@ end if
 end procedure
 anaylse()
 
+--/!*
+function dequote(string s)
+string res
+integer ch, skip
+    res = ""
+    skip = 0
+    for i=1 to length(s) do
+        ch = s[i]
+        if ch='\\' and skip=0 then
+            skip = 1
+            if not find(s[i+1],"\\\"") then ?9/0 end if -- (more code rqd?)
+        else
+            res &= ch
+            skip = 0
+        end if
+    end for
+    return res
+end function
+--*!/
+
+--/*
+function unquote(string s)
+    if s[1]!='\"' then ?9/0 end if
+    if s[$]!='\"' then ?9/0 end if
+--  s = substitute(s[2..-2],"\\n","\n")
+    s = s[2..-2]
+    s = dequote(s)
+    return s
+end function
+--*/
+
 --sequence handles = repeat(0,length(names))
 sequence handles = repeat(0,length(parse_data))
 
@@ -3368,7 +3507,9 @@ integer newpid
     end if
     switch arg[TYPE] do
         case DQUOTE:
-            res = arg[NAME]
+--          res = arg[NAME]
+--          res = unquote(arg[NAME])
+            res = dequote(arg[NAME])
 --      case LETTER: --(10)
         case IDENT: --(10)
             name = arg[NAME]
@@ -3478,11 +3619,16 @@ procedure apply_update(integer ih, integer i)
     if length(updates[i]) then ?9/0 end if
     string procname = parse_data[i][NAME]
 --if procname="IupSetCallback" then trace(1) end if
-    integer procdx = find(procname,iupnames)
+--  integer procdx = find(procname,iupnames)
+    integer procdx = find(procname,IupProcs)
     sequence args = parse_data[i][ARGS]
     allargsvalid = true
     for k=1 to length(args) do
         args[k] = resolve_arg(0,args[k],0,false)
+        if k=2 and args[2]="PARENTDIALOG" then
+            allargsvalid = false
+            exit
+        end if
     end for
     if procname="IupSetAttribute"
     and args[2]="RASTERSIZE"
@@ -3493,12 +3639,21 @@ procedure apply_update(integer ih, integer i)
 --      RASTERSIZENULL = append(RASTERSIZENULL,{ih,i})
     elsif allargsvalid then
 --?{procname,procdx,ih}
---  call_proc(iuprids[procdx],args)
 --  printf(1,"call_proc(%s[%d],%s)\n",{procname,iuprids[procdx],sprint(args)})
 --  printf(1,"call_proc(%s[%d],%s)[%d]\n",{procname,iuprids[procdx],sprint(args),ih})
+if SHOWCONTROLS then
 --      printf(1,"call_proc(%s[%d],%s)[%d]\n",{procname,procdx,sprint(args),ih})
+        printf(1,"call_proc(%s,%s)\n",{procname,sprint(args)})
+end if
+if CREATECONTROLS then
+--      call_proc(iuprids[procdx],args)
+        call_proc(IupProcIds[procdx],args)
+end if
     else
+if SHOWCONTROLS then
 --      printf(1,"[not] call_proc(%s[%d],%s)[%d]\n",{procname,procdx,sprint(args),ih})
+        printf(1,"[not] call_proc(%s,%s)\n",{procname,sprint(args)})
+end if
     end if
 end procedure
 
@@ -3543,7 +3698,9 @@ end if
 --printf(1,"IupSetAttributeId(hierarchytree, \"%s\", %d, \"%s\")  -- [pid=%d,bBranch=%d,aschild=%d,i=%d,kdx=%d]\n",{aibl,lastnode,nodename,pid,bBranch,aschild,i,kdx})
 --      IupSetAttributeId(hierarchytree, aibl, lastnode, nodename);
 --      newpid = iff(kdx?pid:lastnode)
+if SHOWBRANCHINFO then
 printf(1,"IupSetAttributeId(hierarchytree, \"%s\", %d, \"%s\")  -- [pid=%d,lastnode=%d,bBranch=%d,aschild=%d,i=%d,kdx=%d]\n",{aibl,pid,nodename, pid,lastnode,bBranch,aschild,i,kdx})
+end if
 --if lastnode=5 then ?9/0 end if
 --if pid=9 then ?9/0 end if
         IupSetAttributeId(hierarchytree, aibl, pid, nodename);
@@ -3590,14 +3747,22 @@ end if
 --              pid = newpid
 --pid = lastnode+1
             end for
---          res = call_func(iuprids[funcdx],args)
---          if i!=0 then
---              handles[i] = res
---          end if
-            res = -2    --DEV fake/temp
             string lhs = iff(i=0?"res":sprintf("handles[%d]",{i}))
             if not allargsvalid then lhs = "[not]" & lhs end if
+--DEV we might want to build the dialog from the tree...
+if SHOWCONTROLS then
 --          printf(1,"%s = call_func(%s[%d],%s)\n",{lhs,funcname,iuprids[funcdx],sprint(args)})
+            printf(1,"%s = call_func(%s,%s)\n",{lhs,funcname,sprint(args)})
+end if
+            res = -2    --DEV fake/temp
+            if allargsvalid then
+if CREATECONTROLS then
+                res = call_func(iuprids[funcdx],args)
+end if
+                if i!=0 then
+                    handles[i] = res
+                end if
+            end if
         end if
         if i!=0 then
             for k=1 to length(updates[i]) do
@@ -3627,6 +3792,16 @@ end procedure
 
 
 --{} = wait_key()
+
+Ihandln livedisplay=NULL
+function close_cb()
+    if livedisplay!=NULL then
+        IupHide(livedisplay)
+        IupDestroy(livedisplay)
+        livedisplay = NULL
+    end if
+    return IUP_CLOSE
+end function
 
 --DEV temp:
 function esc_close(Ihandle /*ih*/, atom c)
@@ -3674,6 +3849,13 @@ nullable_string res
     return res
 end function
 
+--DEV/SUG add this to pGUI?
+procedure IupSetAttributeIds(Ihandle ih, sequence names, integer id, atom_string v)
+    for i=1 to length(names) do
+        IupSetAttributeId(ih, names[i], id, v)
+    end for
+end procedure
+
 procedure main()
 Ihandle dlg, file_menu, main_menu
 
@@ -3719,21 +3901,32 @@ Ihandle dlg, file_menu, main_menu
 --  Ihandle tree = IupTree()--"")
 --  Ihandle tree = IupTree("ADDROOT=NO, DRAGDROPTREE=YES, RASTERSIZE=205x416, EXPAND=HORIZONTAL")
     hierarchytree = IupTree("ADDROOT=NO, DRAGDROPTREE=YES, RASTERSIZE=225x416, EXPAND=HORIZONTAL")
-    hierarchytreE = IupTree("ADDROOT=NO, DRAGDROPTREE=YES, RASTERSIZE=225x416, EXPAND=HORIZONTAL")
+--DEV so.. my controls should be a tree!! (with a delete branch)
+    IupSetAttribute(hierarchytree, "SHOWDRAGDROP", "YES");
+
 --  Ihandle tree = IupTree("DRAGDROPTREE=YES, RASTERSIZE=205x416, EXPAND=HORIZONTAL")
 --  Ihandle tframe = IupFrame(IupVbox({IupVbox({tree,IupLabel()}),IupLabel()}),
---  Ihandle tframe = IupFrame(IupVbox({tree,IupLabel()}),
-    Ihandle tframe = IupFrame(IupVbox({IupHbox({hierarchytree,hierarchytreE}),IupLabel()}),
---                            "TITLE=Hierarchy, PADDING=5x, RASTERSIZE=150x275, EXPAND=NO")
-                              "TITLE=Hierarchy, PADDING=5x")
+    Ihandle tframe
+if SHOWDESIRED then
+    hierarchytreE = IupTree("ADDROOT=NO, DRAGDROPTREE=YES, RASTERSIZE=225x416, EXPAND=HORIZONTAL")
+    tframe = IupFrame(IupVbox({IupHbox({hierarchytree,hierarchytreE}),IupLabel()}),
+--                    "TITLE=Hierarchy, PADDING=5x, RASTERSIZE=150x275, EXPAND=NO")
+                      "TITLE=Hierarchy, PADDING=5x")
+else
+    tframe = IupFrame(IupVbox({hierarchytree,IupLabel()}),"TITLE=Hierarchy, PADDING=5x")
+end if
 
 --  dlg = IupDialog(frame,"MENU=mymenu, TITLE=plade, SOIZE=200x100, GOAP=5x5")
 --  dlg = IupDialog(IupHbox({frame,IupFill(),tframe,IupFill()},"MARGIN=5x"),
---  dlg = IupDialog(IupHbox({frame,tframe},"MARGIN=5x"),"SIZE=328x275") 
+if SHOWDESIRED then
     dlg = IupDialog(IupHbox({frame,tframe},"MARGIN=5x"),"SIZE=553x275") 
+else
+    dlg = IupDialog(IupHbox({frame,tframe},"MARGIN=5x"),"SIZE=328x275") 
+end if
     IupSetAttributeHandle(dlg,"MENU",main_menu)
     IupSetStrAttribute(dlg, "TITLE", "plade - Phix Layout Designer (%s)",{srcname})
     IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
+    IupSetCallback(dlg, "CLOSE_CB", Icallback("close_cb"));
 
     IupMap(dlg)
 
@@ -3785,7 +3978,7 @@ if 0 then
     IupSetAttributeId(hierarchytree, "IMAGEEXPANDED", 6, PTICK)
     IupSetAttributeId(hierarchytree, "IMAGE", 6, PTICK)
 
-elsif 01 then
+elsif SHOWDESIRED then
 ?srcname
     if srcname="fill.exw" then
 --/*
@@ -3836,6 +4029,7 @@ children: {{},{},{},{1,2,3},{},{}}
 updates: {{},{},{},{5,6},{},{}}
 cud: "cccduu"
 --*/
+if 0 then
 IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "IupDialog (dialog) [DESIRED]")
 IupSetAttributeId(hierarchytreE, "ADDBRANCH", 0, "IupVbox")
 IupSetAttributeId(hierarchytreE, "ADDBRANCH", 1, "IupFrame (frame_left)")
@@ -3851,6 +4045,42 @@ IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 6, "IupFrame (frame_right)")
 IupSetAttributeId(hierarchytreE, "ADDBRANCH", 11, "IupHbox")
 IupSetAttributeId(hierarchytreE, "ADDLEAF", 12, "IupFill")
 IupSetAttributeId(hierarchytreE, "ADDLEAF", 13, "IupButton")
+else
+IupSetAttribute(hierarchytreE,"ADDEXPANDED","NO")
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "Containers")
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 0, "Elements")
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 1, "Controls")
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 1, "Menus")
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 2, "Trash")
+sequence nid = {0,1,2,3}
+IupSetAttributeIds(hierarchytreE, {"IMAGE","IMAGEEXPANDED"}, nid[1], get_image("plade_containers.png"))
+IupSetAttributeIds(hierarchytreE, {"IMAGE","IMAGEEXPANDED"}, nid[2], get_image("plade_elements.png"))
+--IupSetAttributeIds(hierarchytreE, {"IMAGE","IMAGEEXPANDED"}, nid[3], get_image("plade_elements.png"))
+IupSetAttributeIds(hierarchytreE, {"IMAGE","IMAGEEXPANDED"}, nid[3], get_image("plade_submenu.png"))
+IupSetAttributeId(hierarchytreE, "IMAGE",                    nid[4], get_image("plade_trash0.png"))
+    for i=1 to length(iupnames) do
+        string iupname = iupnames[i]
+        string icon = icons[i]
+--      Ihandle lbl = IupLabel("NULL")
+--      IupSetStrAttribute(lbl, "IMAGE", get_image(icon))
+--      Ihandle tgl = IupToggle(iupname)
+--      integer cemi = cem[i]
+--DEV kill 'e':
+        integer cemi = upper(cem[i])
+--      integer cdx = find(cemi,"CEeMm")-(cemi='m')
+        integer cdx = find(cemi,"CEM")
+        IupSetAttributeId(hierarchytreE, "ADDLEAF", nid[cdx], iupname)
+        for j=cdx to length(nid) do
+            nid[j] += 1
+        end for
+        IupSetAttributeId(hierarchytreE, "IMAGE", nid[cdx], icon)
+--      IupAppend(vboxes[find(upper(cem[i]),"CEM")],IupHbox({lbl,tgl},"NORMALSIZE=HORIZONTAL"))
+--      if iupname="IupDialog" then
+--          IupSetAttributeHandle(radioc,"VALUE",tgl)
+--      end if
+    end for
+end if
+
     elsif srcname="rot13.exw" then
 IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "IupDialog (hDialog) [DESIRED]")  -- [pid=-1,lastnode=-1,bBranch=1,aschild=0,i=9,kdx=5]
 IupSetAttributeId(hierarchytreE, "ADDBRANCH", 0, "IupVbox (hMainBox)")  -- [pid=0,lastnode=0,bBranch=1,aschild=1,i=8,kdx=4]
@@ -3997,6 +4227,30 @@ IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 82, "IupSubmenu (sub_menu_help)
 IupSetAttributeId(hierarchytreE, "ADDBRANCH", 93, "IupMenu (help_menu)")  -- [pid=93,lastnode=93,bBranch=1,aschild=1,i=146,kdx=34]
 IupSetAttributeId(hierarchytreE, "ADDLEAF", 94, "IupMenuItem (item_help)")  -- [pid=94,lastnode=94,bBranch=0,aschild=1,i=139,kdx=27]
 IupSetAttributeId(hierarchytreE, "INSERTLEAF", 95, "IupMenuItem (item_about)")  -- [pid=95,lastnode=95,bBranch=0,aschild=0,i=140,kdx=28]
+    elsif srcname="filedump.exw" then
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", -1, "IupDialog (maindlg)")  -- [pid=-1,lastnode=-1,bBranch=1,aschild=0,i=74,kdx=28]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 0, "IupVbox")  -- [pid=0,lastnode=0,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 1, "IupTabs (tabs)")  -- [pid=1,lastnode=1,bBranch=1,aschild=1,i=54,kdx=25]
+--IupAppend?? (reparent??)
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 0, "IupHbox (tab)")  -- [pid=0,lastnode=2,bBranch=1,aschild=0,i=14,kdx=7]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 2, "IupHbox (tab)")  -- [pid=0,lastnode=2,bBranch=1,aschild=0,i=14,kdx=7]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 3, "IupFill")  -- [pid=3,lastnode=3,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 2, "IupMatrix (matrix)")  -- [pid=2,lastnode=4,bBranch=0,aschild=0,i=56,kdx=26]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 5, "IupHbox (buttons)")  -- [pid=5,lastnode=5,bBranch=1,aschild=0,i=73,kdx=27]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 6, "IupFill")  -- [pid=6,lastnode=6,bBranch=0,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 7, "IupButton")  -- [pid=7,lastnode=7,bBranch=0,aschild=0,i=0,kdx=0]
+--IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 0, "IupMenu (menu)")  -- [pid=0,lastnode=8,bBranch=1,aschild=0,i=53,kdx=24]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 1, "IupMenu (menu)")  -- [pid=0,lastnode=8,bBranch=1,aschild=0,i=53,kdx=24]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 9, "IupSubmenu (&File)")  -- [pid=9,lastnode=9,bBranch=1,aschild=1,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 10, "IupMenu (file_menu)")  -- [pid=10,lastnode=10,bBranch=1,aschild=1,i=50,kdx=22]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 11, "IupMenuItem (file_open)")  -- [pid=11,lastnode=11,bBranch=0,aschild=1,i=45,kdx=17]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 12, "IupMenuItem (file_print)")  -- [pid=12,lastnode=12,bBranch=0,aschild=0,i=46,kdx=18]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 13, "IupMenuItem (file_copy)")  -- [pid=13,lastnode=13,bBranch=0,aschild=0,i=47,kdx=19]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 14, "IupMenuItem (file_graph)")  -- [pid=14,lastnode=14,bBranch=0,aschild=0,i=48,kdx=20]
+IupSetAttributeId(hierarchytreE, "INSERTLEAF", 15, "IupMenuItem (file_exit)")  -- [pid=15,lastnode=15,bBranch=0,aschild=0,i=49,kdx=21]
+IupSetAttributeId(hierarchytreE, "INSERTBRANCH", 10, "IupSubmenu (&Help)")  -- [pid=10,lastnode=16,bBranch=1,aschild=0,i=0,kdx=0]
+IupSetAttributeId(hierarchytreE, "ADDBRANCH", 17, "IupMenu (help_menu)")  -- [pid=17,lastnode=17,bBranch=1,aschild=1,i=52,kdx=23]
+IupSetAttributeId(hierarchytreE, "ADDLEAF", 18, "IupMenuItem (&About\tF1)")  -- [pid=18,lastnode=18,bBranch=0,aschild=1,i=0,kdx=0]
     end if
 
 elsif 0 then
@@ -4194,6 +4448,7 @@ Warning - IupGLCanvasOpen not supported
 -- {21, "IupSetAttribute", 45,759,49,49,
 --  {{10, "text", 0,759,21,24}, {2, "VISIBLECOLUMNS", 0,759,28,41},
 --   {2, "20", 0,759,46,47}}},
+>(1)
 -- {20, "IupDialog", 46,761,16,24, {{10, "text", 0,761,26,29}},
 --  {10, "text_dlg", 0,761,5,12}},
 -- {21, "IupSetStrAttribute", 47,763,56,56,
@@ -5158,21 +5413,34 @@ end if
 
     lastbranch = -1
     lastnode = -1
---integer tmp (maybe)
+--trace(1)
+--integer tmp --(maybe)
     for i=1 to length(dialogs) do
         integer di = dialogs[i]
 --      create_control(di)
         handles[di] = -1
 --      handles[di] = create_control(di,parse_data[di],-1,false)
 --tmp = lastbranch+1
+--tmp = lastnode+1
         handles[di] = create_control(di,parse_data[di],lastbranch,false)
+--      handles[di] = create_control(di,parse_data[di],lastnode,i>1)
 --      {handles[di],lastbranch} = create_control(di,parse_data[di])
 --      if i=1 then show_dialog(di) end if
-        lastbranch = 0
+--      lastbranch = 0
 --lastbranch = tmp
+--lastnode = tmp
         exit
     end for
+if length(dialogs)>1 then
+    puts(1,"warning: >1 dialog selection missing\n")
+end if
     puts(1,"handles: ") ?handles
+
+if CREATECONTROLS then
+--  IupSetAttributeHandle(handles[dialogs[1]], "PARENTDIALOG", dlg)
+    livedisplay = handles[dialogs[1]]
+    IupShow(handles[dialogs[1]])
+end if
 
 --  IupShow(dlg)
 --  free_console()

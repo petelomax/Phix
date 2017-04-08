@@ -1047,7 +1047,7 @@ atom
     xIupFlush,
     xIupRecordInput,
     xIupPlayInput,
-    xIupGetActionName,
+--  xIupGetActionName,
 
     xIupSetAttribute,
      xIupSetAttributeId,
@@ -1233,11 +1233,11 @@ atom
     xIupColorBrowser,
     xIupDial,
     xIupMatrix,
-    xIupMatSetAttribute,
-    xIupMatStoreAttribute,
-    xIupMatGetAttribute,
-    xIupMatGetInt,
-    xIupMatGetFloat,
+--  xIupMatSetAttribute,
+--  xIupMatStoreAttribute,
+--  xIupMatGetAttribute,
+--  xIupMatGetInt,
+--  xIupMatGetFloat,
 
     xIupLoad,
     xIupLoadBuffer,
@@ -1261,33 +1261,67 @@ atom
     xIupTreeSetUserId,
     xIupTreeGetUserId,
     xIupTreeGetId,
-    xIupTreeSetAttributeHandle,
-    xIupTreeSetAttribute,
-    xIupTreeStoreAttribute,
-    xIupTreeGetAttribute,
-    xIupTreeGetInt,
-    xIupTreeGetFloat,
-    xIupMapFont,
-    xIupUnMapFont,
-    xIupParamf,
-    xIupParamBox,
+--  xIupTreeSetAttributeHandle,
+--  xIupTreeSetAttribute,
+--  xIupTreeStoreAttribute,
+--  xIupTreeGetAttribute,
+--  xIupTreeGetInt,
+--  xIupTreeGetFloat,
+--  xIupMapFont,
+--  xIupUnMapFont,
+--  xIupParamf,
+--  xIupParamBox,
     xIupElementPropertiesDialog,
     xiupKeyCodeToName,
 
     $
 
+--DEV/SUG use this: sequence s = include_paths()
+-- Note: pGUI.e must reside in a directory named pGUI; should you require a private copy
+--        either to ensure that updates do not break anything, or you want users to be
+--        able to run from source without installing Phix[??], do not place pGUI.e in
+--        myproject/ but in myproject/pGUI/ along with whatever else you need, such as
+--        and specifically the win32/win64/lnx32/lnx64 subfolders (opengl.e and glu.e 
+--        are the only other things that I can think of).
+
 procedure iup_init1(nullable_string dll_root)
+if 0 then
+string dll_abs -- (dll_root may be a relative path)
     if dll_root=NULL then
-        dll_root = command_line()[2]
+        dll_abs = get_proper_dir(command_line()[2])
+    else
+        dll_abs = get_proper_dir(dll_root)
     end if
-    dll_root = get_proper_dir(dll_root)
 --  dll_path = dll_root&sprintf("\\%s%d\\",{dirs[libidx],machine_bits()})
-    dll_path = dll_root&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+    dll_path = dll_abs&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+    if get_file_type(dll_path)!=FILETYPE_DIRECTORY then
+        if dll_root=NULL then ?9/0 end if
+        dll_abs = get_proper_dir(get_proper_dir(command_line()[2])&dll_root)
+        dll_path = dll_abs&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+        if get_file_type(dll_path)!=FILETYPE_DIRECTORY then ?9/0 end if
+    end if
+else
+    sequence s = include_paths()
+    for i=1 to length(s) do
+        sequence sip = split_path(s[i])
+        if sip[$]="pGUI" then
+--          dll_path = s[i]&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+--          dll_path = join_path({s[i],sprintf("%s%d",{dirs[libidx],machine_bits()})},1)
+            sip = append(sip,sprintf("%s%d",{dirs[libidx],machine_bits()}))
+            dll_path = join_path(sip,1)
+--dll_root = dll_path
+            exit
+        end if
+    end for
+end if
 
 --DEV:
     if platform()=WINDOWS then
         -- Aside: normally I'd expect msvcr120.dll to be loaded from system32/syswow64, 
-        --        but if someone puts copies in pGUI\win32/64, it should be alright.
+        --        but if someone puts copies in pGUI\win32|64, it should be alright.
+        --        You could also try deleting this test and see if it works anyway, but
+        --        don't blame me if that gets you an even more cryptic error message.
+        --        (This all depends on how the pre-built binaries were built, natch.)
         string curr_dir = current_dir()
         if chdir(dll_path)=0 then ?9/0 end if
         if open_dll("msvcr120.dll")=0 then
@@ -1331,7 +1365,7 @@ procedure iup_init1(nullable_string dll_root)
     xIupFlush           = iup_c_proc(iup, "IupFlush", {})
     xIupRecordInput     = iup_c_func(iup, "IupRecordInput", {P,I}, I)
     xIupPlayInput       = iup_c_proc(iup, "IupPlayInput", {P})
-    xIupGetActionName   = iup_c_func(iup, "IupGetActionName", {}, P)
+--  xIupGetActionName   = iup_c_func(iup, "IupGetActionName", {}, P)
 
     xIupSetAttribute                = iup_c_proc(iup, "IupSetAttribute", {P,P,P})
      xIupSetAttributeId             = iup_c_proc(iup, "IupSetAttributeId", {P,P,I,P})
@@ -1519,11 +1553,11 @@ procedure iup_init1(nullable_string dll_root)
     xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)
     xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)
     xIupMatrix              = iup_c_func(iupControls, "IupMatrix", {P},P)
-    xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
-    xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
-    xIupMatGetAttribute     = iup_c_func(iupControls, "IupMatGetAttribute",{P,P,I,I},P)
-    xIupMatGetInt           = iup_c_func(iupControls, "IupMatGetInt",{P,P,I,I},I)
-    xIupMatGetFloat         = iup_c_func(iupControls, "IupMatGetFloat",{P,P,I,I},F)
+--  xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
+--  xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
+--  xIupMatGetAttribute     = iup_c_func(iupControls, "IupMatGetAttribute",{P,P,I,I},P)
+--  xIupMatGetInt           = iup_c_func(iupControls, "IupMatGetInt",{P,P,I,I},I)
+--  xIupMatGetFloat         = iup_c_func(iupControls, "IupMatGetFloat",{P,P,I,I},F)
 
     xIupLoad                          = iup_c_func(iup, "+IupLoad", {P}, P)
     xIupLoadBuffer                    = iup_c_func(iup, "+IupLoadBuffer", {P}, P)
@@ -1547,16 +1581,16 @@ procedure iup_init1(nullable_string dll_root)
     xIupTreeSetUserId                 = iup_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I)
     xIupTreeGetUserId                 = iup_c_func(iup, "+IupTreeGetUserId", {P,I}, P)
     xIupTreeGetId                     = iup_c_func(iup, "+IupTreeGetId", {P,P}, I)
-    xIupTreeSetAttributeHandle        = iup_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P})
-    xIupTreeSetAttribute              = iup_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P})
-    xIupTreeStoreAttribute            = iup_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P})
-    xIupTreeGetAttribute              = iup_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P)
-    xIupTreeGetInt                    = iup_c_func(iup, "+IupTreeGetInt", {P,P,I}, I)
-    xIupTreeGetFloat                  = iup_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F)
-    xIupMapFont                       = iup_c_func(iup, "+IupMapFont", {P}, P)
-    xIupUnMapFont                     = iup_c_func(iup, "+IupUnMapFont", {P}, P)
-    xIupParamf                        = iup_c_func(iup, "+IupParamf", {P}, P)
-    xIupParamBox                      = iup_c_func(iup, "+IupParamBox", {P,P,I}, P)
+--  xIupTreeSetAttributeHandle        = iup_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P})
+--  xIupTreeSetAttribute              = iup_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P})
+--  xIupTreeStoreAttribute            = iup_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P})
+--  xIupTreeGetAttribute              = iup_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P)
+--  xIupTreeGetInt                    = iup_c_func(iup, "+IupTreeGetInt", {P,P,I}, I)
+--  xIupTreeGetFloat                  = iup_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F)
+--  xIupMapFont                       = iup_c_func(iup, "+IupMapFont", {P}, P)
+--  xIupUnMapFont                     = iup_c_func(iup, "+IupUnMapFont", {P}, P)
+--  xIupParamf                        = iup_c_func(iup, "+IupParamf", {P}, P)
+--  xIupParamBox                      = iup_c_func(iup, "+IupParamBox", {P,P,I}, P)
     xIupElementPropertiesDialog       = iup_c_func(iup, "+IupElementPropertiesDialog", {P}, P)
     xiupKeyCodeToName                 = iup_c_func(iup, "iupKeyCodeToName", {I},P)
 
@@ -1700,11 +1734,11 @@ end procedure
 
 /* DEPRECATED callback management. It will be removed in a future version. */
 -- (works only if application used IupSetFunction)
-global function IupGetActionName()
-    atom pName = c_func(xIupGetActionName, {})
-    string name = peek_string(pName)
-    return name
-end function
+--global function IupGetActionName()
+--  atom pName = c_func(xIupGetActionName, {})
+--  string name = peek_string(pName)
+--  return name
+--end function
 
  -- Attributes
 --------------
@@ -2548,10 +2582,10 @@ global procedure IupInsert(Ihandle ih, Ihandln ref_child, Ihandle new_child)
     Ihandle parent = c_func(xIupInsert, {ih,ref_child,new_child})   -- (error if NULL/fail)
 end procedure
 
-global procedure IupReparent(Ihandle child, Ihandle new_parent, Ihandln ref_child)
+global function IupReparent(Ihandle child, Ihandle new_parent, Ihandln ref_child)
 integer err = c_func(xIupReparent, {child, new_parent, ref_child})
-    if err!=IUP_NOERROR then ?9/0 end if
-end procedure
+    return err
+end function
 
 global function IupGetParent(Ihandle ih)
     Ihandln parent = c_func(xIupGetParent, {ih})
@@ -3322,30 +3356,35 @@ global procedure IupMatrixExInit(Ihandle ih)
 end procedure
 
 global procedure IupMatSetAttribute(Ihandle ih, string name, integer lin, integer col, atom_string v)
-    c_proc(xIupMatSetAttribute, {ih, name, lin, col, v})
+--  c_proc(xIupMatSetAttribute, {ih, name, lin, col, v})
+    c_proc(xIupSetAttributeId2, {ih, name, lin, col, v})
 end procedure
 
 global procedure IupMatStoreAttribute(Ihandle ih, string name, integer lin, integer col, string val, sequence data={})
     if length(data) then
         val = sprintf(val, data)
     end if
-    c_proc(xIupMatStoreAttribute, {ih, name, lin, col, val})
+--  c_proc(xIupMatStoreAttribute, {ih, name, lin, col, val})
+    c_proc(xIupSetStrAttributeId2, {ih, name, lin, col, val})
 end procedure
 
 global function IupMatGetAttribute(Ihandle ih, string name, integer lin, integer col)
-    atom pValue = c_func(xIupMatGetAttribute, {ih, name, lin, col})
+--  atom pValue = c_func(xIupMatGetAttribute, {ih, name, lin, col})
+    atom pValue = c_func(xIupGetAttributeId2, {ih, name, lin, col})
     string res = iff(pValue=NULL?"":peek_string(pValue))
     return res
 end function
 
 global function IupMatGetInt(Ihandle ih, string name, integer lin, integer col)
-    integer val = c_func(xIupMatGetInt, {ih, name, lin, col})
+--  integer val = c_func(xIupMatGetInt, {ih, name, lin, col})
+    integer val = c_func(xIupGetIntId2, {ih, name, lin, col})
     return val
 end function
 
 --function IupMatGetFloat(atom ih, object name = NULL, atom lin, atom col)
 global function IupMatGetFloat(Ihandle ih, string name, integer lin, integer col)
-    atom val = c_func(xIupMatGetFloat, {ih, name, lin, col})
+--  atom val = c_func(xIupMatGetFloat, {ih, name, lin, col})
+    atom val = c_func(xIupGetFloatId2, {ih, name, lin, col})
     return val
 end function
 
@@ -3523,6 +3562,7 @@ atom
     xIupImage,
     xIupImageRGB,
     xIupImageRGBA,
+    xIupDrawGetImageInfo,
     xIupLoadImage,
     xIupSaveImage,
     xIupSaveImageAsText,
@@ -3570,6 +3610,7 @@ procedure iup_image_init()
         xIupImage                   = iup_c_func(iup, "IupImage", {I,I,P}, P)
         xIupImageRGB                = iup_c_func(iup, "IupImageRGB", {I,I,P}, P)
         xIupImageRGBA               = iup_c_func(iup, "IupImageRGBA", {I,I,P}, P)
+        xIupDrawGetImageInfo        = iup_c_proc(iup,"IupDrawGetImageInfo",{P,P,P,P})
         xIupLoadImage               = iup_c_func(iupIm, "IupLoadImage", {P}, P)
         xIupSaveImage               = iup_c_func(iupIm, "IupSaveImage", {P,P,P}, I)
         xIupSaveImageAsText         = iup_c_func(iup, "IupSaveImageAsText", {P,P,P,P}, I)
@@ -3631,6 +3672,15 @@ atom pPixels = allocate(length(pixels))
     Ihandle ih = c_func(xIupImageRGBA, {width, height, pPixels})
     free(pPixels)
     return ih
+end function
+
+--void IupDrawGetImageInfo(const char* name, int *w, int *h, int *bpp)
+global function IupDrawGetImageInfo(string name)
+atom p_w = allocate(4, 1),
+     p_h = allocate(4, 1),
+     p_bpp = allocate(4, 1)
+    c_proc(xIupDrawGetImageInfo,{name,p_w,p_h,p_bpp})
+    return {peek4s(p_w),peek4s(p_h),peek4s(p_bpp)}
 end function
 
 global function IupLoadImage(string filename)
@@ -6929,6 +6979,7 @@ global procedure wd_canvas_multi_line_vector_text(cdCanvas hCdCanvas, atom x, at
 end procedure
 
 -- pplot.e: (not documented, use IupPlot instead)
+--/*
 atom
     hIupPPlot = 0,
     xIupPPlotOpen,
@@ -7026,6 +7077,7 @@ end function
 global procedure paint_to(Ihandle ih, atom cnv)
     c_proc(xIupPPlotPaintTo, {ih, cnv})
 end procedure
+--*/
 
 -- the new IupPlot:
 
@@ -7106,7 +7158,7 @@ global procedure IupPlotOpen()
 end procedure
 
 global function IupPlot(string attributes="", sequence data={})
-    if not did_pplot_open then
+    if not did_plot_open then
         IupPlotOpen()
     end if
     Ihandle ih = c_func(xIupPlot, {})
@@ -8112,57 +8164,57 @@ atom result = c_func(xIupTreeGetId, {ih,userid})
 end function
 
 --void IupTreeSetAttributeHandle(Ihandle* ih, const char* name, int id, Ihandle* ih_named);
-global procedure IupTreeSetAttributeHandle(Ihandle ih, string name, integer id, Ihandle ih_named)
-    c_proc(xIupTreeSetAttributeHandle, {ih,name,id,ih_named})
-end procedure
+--global procedure IupTreeSetAttributeHandle(Ihandle ih, string name, integer id, Ihandle ih_named)
+--  c_proc(xIupTreeSetAttributeHandle, {ih,name,id,ih_named})
+--end procedure
 
 /* DEPRECATED IupTree utilities, use Iup*AttributeId functions. It will be removed in a future version.  */
 --void IupTreeSetAttribute(Ihandle* ih, const char* name, int id, const char* v);
-global procedure IupTreeSetAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
-    c_proc(xIupTreeSetAttribute, {ih,name,id,v})
-end procedure
+--global procedure IupTreeSetAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
+--  c_proc(xIupTreeSetAttribute, {ih,name,id,v})
+--end procedure
 
 --void IupTreeStoreAttribute(Ihandle* ih, const char* name, int id, const char* v);
-global procedure IupTreeStoreAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
-    c_proc(xIupTreeStoreAttribute, {ih,name,id,v})
-end procedure
+--global procedure IupTreeStoreAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
+--  c_proc(xIupTreeStoreAttribute, {ih,name,id,v})
+--end procedure
 
 --char* IupTreeGetAttribute(Ihandle* ih, const char* name, int id);
-global function IupTreeGetAttribute(Ihandle ih, string name, integer id)
-    atom ptr = c_func(xIupTreeGetAttribute, {ih,name,id})
-    string str = ""
-    if ptr!=NULL then str = peek_string(ptr) end if
-    return str
-end function
+--global function IupTreeGetAttribute(Ihandle ih, string name, integer id)
+--  atom ptr = c_func(xIupTreeGetAttribute, {ih,name,id})
+--  string str = ""
+--  if ptr!=NULL then str = peek_string(ptr) end if
+--  return str
+--end function
 
 --int IupTreeGetInt(Ihandle* ih, const char* name, int id);
-global function IupTreeGetInt(Ihandle ih, string name, integer id)
-    atom result = c_func(xIupTreeGetInt, {ih,name,id})
-    return result
-end function
+--global function IupTreeGetInt(Ihandle ih, string name, integer id)
+--  atom result = c_func(xIupTreeGetInt, {ih,name,id})
+--  return result
+--end function
 
 --float IupTreeGetFloat(Ihandle* ih, const char* name, int id);
-global function IupTreeGetFloat(Ihandle ih, string name, integer id)
-    atom result = c_func(xIupTreeGetFloat, {ih,name,id})
-    return result
-end function
+--global function IupTreeGetFloat(Ihandle ih, string name, integer id)
+--  atom result = c_func(xIupTreeGetFloat, {ih,name,id})
+--  return result
+--end function
 
 /* DEPRECATED font names. It will be removed in a future version.  */
 --char* IupMapFont(const char *iupfont);
-global function IupMapFont(nullable_string iupfont=NULL)
-    atom ptr = c_func(xIupMapFont, {iupfont})
-    string str = ""
-    if ptr!=NULL then str = peek_string(ptr) end if
-    return str
-end function
+--global function IupMapFont(nullable_string iupfont=NULL)
+--  atom ptr = c_func(xIupMapFont, {iupfont})
+--  string str = ""
+--  if ptr!=NULL then str = peek_string(ptr) end if
+--  return str
+--end function
 
 --char* IupUnMapFont(const char *driverfont);
-global function IupUnMapFont(nullable_string driverfont=NULL)
-    atom ptr = c_func(xIupUnMapFont, {driverfont})
-    string str = ""
-    if ptr!=NULL then str = peek_string(ptr) end if
-    return str
-end function
+--global function IupUnMapFont(nullable_string driverfont=NULL)
+--  atom ptr = c_func(xIupUnMapFont, {driverfont})
+--  string str = ""
+--  if ptr!=NULL then str = peek_string(ptr) end if
+--  return str
+--end function
 
 /************************************************************************/
 /*                      Pre-defined dialogs                           */
@@ -8174,16 +8226,16 @@ global function IupProgressDlg()
 end function
 
 --Ihandle* IupParamf(const char* format);
-global function IupParamf(nullable_string fmt=NULL)
-    Ihandle result = c_func(xIupParamf, {fmt})
-    return result
-end function
+--global function IupParamf(nullable_string fmt=NULL)
+--  Ihandle result = c_func(xIupParamf, {fmt})
+--  return result
+--end function
 
 --Ihandle* IupParamBox(Ihandle* parent, Ihandle** params, int count);
-global function IupParamBox(Ihandle parent, atom params, integer count)
-    Ihandle result = c_func(xIupParamBox, {parent,params,count})
-    return result
-end function
+--global function IupParamBox(Ihandle parent, atom params, integer count)
+--  Ihandle result = c_func(xIupParamBox, {parent,params,count})
+--  return result
+--end function
 
 --Ihandle* IupElementPropertiesDialog(Ihandle* elem);
 global function IupElementPropertiesDialog(Ihandle elem)
@@ -8747,7 +8799,7 @@ iupFontParsePango
 iupFontParseWin
 iupFontParseX
 IupFrame
-IupGetActionName
+IupGetActionName    -- gone!
 IupGetAllAttributes
 IupGetAllClasses
 IupGetAllDialogs
@@ -8845,7 +8897,7 @@ IupLoopStepWait
 IupMainLoop
 IupMainLoopLevel
 IupMap
-IupMapFont
+--IupMapFont    -- gone
 iupMaskCheck
 iupMaskCreate
 iupMaskCreateFloat
@@ -8865,8 +8917,8 @@ IupNormalizerv
 iupObjectCheck
 iupObjectGetParamList
 IupOpen
-IupParamBox
-IupParamf
+--IupParamBox -- deliberately removed.... (unused/untested/undocumented)
+--IupParamf -- gone (or rather IupParm now, but...)
 IupPlayInput
 IupPopup
 IupPreviousField
@@ -9031,18 +9083,18 @@ IupTextConvertPosToLinCol
 IupTimer
 IupToggle
 IupTree
-IupTreeGetAttribute
-IupTreeGetFloat
+--IupTreeGetAttribute   -- gone
+--IupTreeGetFloat   -- gone
 IupTreeGetId
-IupTreeGetInt
+--IupTreeGetInt -- gone
 IupTreeGetUserId
-IupTreeSetAttribute
-IupTreeSetAttributeHandle
+--IupTreeSetAttribute   -- gone
+--IupTreeSetAttributeHandle -- gone
 IupTreeSetfAttribute
 IupTreeSetUserId
-IupTreeStoreAttribute
+--IupTreeStoreAttribute -- gone
 IupUnmap
-IupUnMapFont
+--IupUnMapFont -- gone
 IupUpdate
 IupUpdateChildren
 IupUser
