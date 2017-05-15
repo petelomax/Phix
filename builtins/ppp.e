@@ -319,10 +319,17 @@ sequence escBytes,escChars
 sequence constants
 --constant constants = {-1.295837195871e307,"NOVALUE"}
 
+--constant maxgraphic = iff(platform()=LINUX?#7E:255)
+
 function graphic(object cl)
     if integer(cl)
     and cl>=1
-    and cl<=255
+--  and cl<=255
+--DEV fixme:
+--  and cl<=iff(platform()=LINUX?#7E:255)
+--  and cl<=maxgraphic
+    and ((platform()=LINUX and cl<=#7E) or
+         (platform()=WINDOWS and cl<=255))
     and ascii[cl] then
         return 1
     end if

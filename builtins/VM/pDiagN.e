@@ -1357,15 +1357,15 @@ object res
 --              add rsp,8*5
 --              pop rsp     -- restore, equivalent to rsp += (either #08 or #10)
                 mov rsp,[rsp+8*5]   -- equivalent to add/pop
-            [ELF64]
---              pop al  -- (or we could just skip this entirely)
-            [64]
                 test rax,rax
                 jz :typeaddrok
                     mov [novalue],2 -- invalid ref
                     mov [res],0
                     jmp :done
               ::typeaddrok
+            [ELF64]
+--              pop al  -- (or we could just skip this entirely)
+            [64]
                 mov cl,[rdi]
                 cmp cl,#12
                 je :typebyteok

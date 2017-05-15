@@ -1220,6 +1220,7 @@ global constant T_movd          = 5100  tt_stringF("movd",T_movd)
 global constant T_PHIX          = 5116  tt_stringF("PHIX",T_PHIX)
 global constant T_indirect_incs = 5180  tt_stringF("indirect_includes",T_indirect_incs)
 global constant T_inline        = 5200  tt_stringF("inline",T_inline)
+
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then
 

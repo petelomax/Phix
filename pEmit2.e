@@ -351,7 +351,7 @@ constant --WORD = 2,
 --  end for
 --end procedure
 
-integer fn,
+integer outfn,
 --      fnr,
 --      asmoptions,
 --      vmaxpos
@@ -3711,6 +3711,12 @@ constant PAGE_EXECUTE_READWRITE = #40
 -- round block up to next dwPageSize bytes
 --  bytesize = and_bits(highbits,bytesize+psm1)
 
+--/*
+            mallopt(int param, int value);
+            M_MMAP_THRESHOLD, (>128*1024)
+constant M_MMAP_THRESHOLD = -3
+--*/
+
 function AllocateBlock(integer bytesize)
 -- round block up to next 4096 bytes
     bytesize = and_bits(#3FFFF000,bytesize+#FFF)
@@ -3750,6 +3756,49 @@ integer p, maxparams, useplus1
         maxparams -= 1
     end while
 end procedure
+
+--/*
+constant KB = 1024,
+         MB = KB*KB,
+         GB = KB*MB,
+         --
+         -- the following written so that a single change to sw affects all:
+         --
+         sw = 11,                               -- size width of 11 characters
+         dpsfmt = sprintf("%%%d.2f%%s",sw-2),   -- with decimal places and suffix
+                   -- eg/ie "%9.2f%s"
+         sfmt = sprintf("%%%d.0f%%s",sw-2),     -- no d.p, but still suffix
+                 -- eg/ie "%9.0f%s"
+         bfmt = sprintf("%%%d.0f",sw)           -- no d.p, no suffix (size in bytes)
+                -- eg/ie "%11.0f"
+
+function Size00(atom size, integer factor, sequence suffix)
+-- common code for Size function, to avoid ".00" displaying
+sequence res, params
+    params = {floor(size/factor),suffix}
+    if remainder(size,factor) then
+        res = sprintf(dpsfmt, params)           -- eg 9.2GB
+        if equal(res[sw-4..sw-2],".00") then
+            res = sprintf(sfmt, params)         -- eg   9MB (not "9.00MB" when really 9.00004701MB)
+        end if
+    else
+        res = sprintf(sfmt, params)             -- eg 100KB (that is, when really 100.00000000KB)
+    end if
+    return res
+end function    
+
+function Size(atom size)
+    if size>=GB then
+        return Size00(size,GB,"GB")
+    elsif size>=MB then
+        return Size00(size,MB,"MB")
+    elsif size>=KB then
+        return Size00(size,KB,"KB")
+    end if
+    return sprintf(bfmt, size)                  -- eg     0 (ie absolute size in bytes)
+end function
+
+--*/
 
 --with trace
 global procedure finalfixups2(sequence path, sequence outfile, atom t)
@@ -4752,7 +4801,10 @@ else -- 32
         DSvsize = vmax*4 + 20
 end if
         DSvaddr = AllocateBlock(DSvsize)
---printf(1,"(pemit2.e line 4160) DSvaddr=#%08x, CSvaddr=#%08x\n",{DSvaddr,CSvaddr})
+if platform()=LINUX then
+printf(1,"(pemit2.e line 4805) DSvaddr=#%08x, CSvaddr=#%08x\n",{DSvaddr,CSvaddr})
+--printf(1,"(pemit2.e line 4806) DSvsize=%s, DSvaddr=#%08x, CSvsize=%s, CSvaddr=#%08x\n",{Size(DSvsize),DSvaddr,Size(CSvsize),CSvaddr})
+end if
 --- 26/2/10:
 --      poke4(DSvaddr,#40000000)
 --      mem_copy(DSvaddr+4,DSvaddr,DSvsize-4)
@@ -4842,6 +4894,7 @@ end if
             -- from the .exe, when interpreting we must calculate CSvsize 
             -- first and then allocate() it to obtain CSvaddr.
             svil = symtab[symidx][S_il]
+--DEV TRAMPOLINE??
             symtab[symidx][S_il] = svil+CSvaddr
         end for
 --end if
@@ -5221,8 +5274,8 @@ end if
         outfile = path&outfile
         firsttime = 1   -- (sleep(1) once only)
         while 1 do
-            fn = open(outfile,"wb")
-            if fn!=-1 then exit end if
+            outfn = open(outfile,"wb")
+            if outfn!=-1 then exit end if
             if firsttime then
                 sleep(1)
                 firsttime = 0
@@ -5235,10 +5288,10 @@ end if
 
 --puts(1,"finalfixups2 line 4973\n")
 
---      CreateExecutable(fn, imports, exports, relocations, data_section, code_section)
+--      CreateExecutable(outfn, imports, exports, relocations, data_section, code_section)
 --puts(1,"calling CreateExecutable\n")
---      CreateExecutable(fn, imports, {}, relocations, data_section, code_section)
-        CreateExecutable(fn, imports, exports, relocations, data_section, code_section)
+--      CreateExecutable(outfn, imports, {}, relocations, data_section, code_section)
+        CreateExecutable(outfn, imports, exports, relocations, data_section, code_section)
 --puts(1,"returned from CreateExecutable\n")
 --DEV (for listing)
 --DEV (breaks self-host)

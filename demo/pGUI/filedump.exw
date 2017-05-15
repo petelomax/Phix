@@ -4838,10 +4838,15 @@ integer k
 --1/12/14:
         if p_type=PT_LOAD then
 --      if p_type=PT_LOAD and (e_shoff=0 or e_shnum=0) then
-            if p_flags=PF_R+PF_X then
+            if p_flags=PF_R+PF_X
+            or p_flags=PF_R+PF_W+PF_X then  -- for fdbg
                 sCodeSegments = append(sCodeSegments,i)
-            elsif p_flagss[i]=PF_R+PF_W then
+--?sCodeSegments
+--          elsif p_flagss[i]=PF_R+PF_W then
+            elsif p_flags=PF_R+PF_W then
                 sDataSegments = append(sDataSegments,i)
+else
+    ?{p_flags,"???"}
             end if
         elsif p_type=PT_PHDR then
             res[tabidx][vdx-1][R_NOTES] = "file offset (this tab)"
@@ -8113,6 +8118,7 @@ sequence codesegments
                     -- Phix does not create sections, so we anaylse no further
                 end if
                 sCodeSegments = {}
+--?sCodeSegments
                 sDataSegments = {}
 --added 27/3/16 (otherwise decode_ELF_dynamic_segment() crashes)
             else
@@ -8152,7 +8158,8 @@ sequence codesegments
 --                  if p_type=PT_LOAD then  -- loadable
                     if p_type=PT_LOAD and (e_shoff=0 or e_shnum=0) then
 --DEV and machine = 386?
-                        if p_flagss[i]=PF_R+PF_X then
+                        if p_flagss[i]=PF_R+PF_X
+                        or p_flagss[i]=PF_R+PF_W+PF_X then  -- for fdbg
 --                          decode_ELF_code_segment(i,supported)
                             decode_ELF_code_segment(i,1,supported)  -- (justsettab=1)
                             codesegments = append(codesegments,i)
@@ -10015,7 +10022,8 @@ procedure main()
     --  load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
     --  load_file("C:\\Program Files (x86)\\Phix\\e03") --**PERFECT**
 --      load_file("C:\\Program Files (x86)\\Phix\\phix")
-        load_file("C:\\Program Files (x86)\\Phix\\p64")
+--      load_file("C:\\Program Files (x86)\\Phix\\p64")
+--      load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\singen\\singen") -- hopeless
 --      load_file("C:\\Program Files (x86)\\Phix\\pth")
 --      load_file("C:\\Program Files (x86)\\Phix\\m01")
 --      load_file("C:\\Program Files (x86)\\Phix\\sfx\\test\\cat")
@@ -10023,8 +10031,12 @@ procedure main()
     --  load_file("C:\\Program Files (x86)\\Phix\\demo\\IDE\\IDE.exe")
     --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\OPENGL\\Opengl\\wall.raw")
 --      load_file("C:\\Program Files (x86)\\Phix\\asm\\win32app\\win32_small_apps\\sprites\\spriteDDT.exe")
-    --  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\demo\\iup\\libiupgl.so")
+--      load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\demo\\iup\\libiupgl.so")
+--      load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\5\\cd-5.11_Linux32_64_lib.tar\\cd-5.11_Linux32_64_lib\\libcd.so")
+--      load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share2\\data.edb")
+--      load_file("C:\\Program Files (x86)\\Phix\\demo\\data.edb")
     --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\OPENGL\\OPENGL.EXE")
+--      load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\mfasm\\EXAMPLES\\ARM\\TEST.BIN")
     else
         load_file("/usr/lib/libiup.so")
     end if

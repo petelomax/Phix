@@ -15,22 +15,25 @@ integer key
 
 sequence colour_names, colour_values
 --DEV these are Windows, need Linux ones here too...
-    colour_names = {"BLACK",
-                    "GREEN",
-                    "MAGENTA",
-                    "WHITE",
-                    "GRAY",
-                    "BRIGHT_GREEN",
-                    "BRIGHT_MAGENTA",
-                    "BRIGHT_WHITE",
-                    "BLUE",
-                    "CYAN",
-                    "RED",
-                    "BROWN",
-                    "BRIGHT_BLUE",
-                    "BRIGHT_CYAN",
-                    "BRIGHT_RED",
-                    "YELLOW"}
+-- DOH, the updates need to be in psym/init()...
+--if platform()=WINDOWS then
+                                            -- WIN  LNX?
+    colour_names = {"BLACK",                --  0    0
+                    "GREEN",                --  2    0
+                    "MAGENTA",              --  5    0
+                    "WHITE",                --  7    0
+                    "GRAY",                 --  8    0
+                    "BRIGHT_GREEN",         -- 10    0
+                    "BRIGHT_MAGENTA",       -- 13    0
+                    "BRIGHT_WHITE",         -- 15    0
+                    "BLUE",                 --  1    0
+                    "CYAN",                 --  3    0
+                    "RED",                  --  4    2
+                    "BROWN",                --  6    0
+                    "BRIGHT_BLUE",          --  9    0
+                    "BRIGHT_CYAN",          -- 11    0
+                    "BRIGHT_RED",           -- 12    0
+                    "YELLOW"}               -- 14    0
     colour_values = {BLACK,
                      GREEN,
                      MAGENTA,
@@ -46,13 +49,111 @@ sequence colour_names, colour_values
                      BRIGHT_BLUE,
                      BRIGHT_CYAN,
                      BRIGHT_RED,
-                     YELLOW
-                    }
+                     YELLOW}
+--/*>>>
+-- Not required for Phix (defined in psym.e)
+-- COLOR values -- for characters and pixels
+global constant 
+--   BLACK = 0,  -- in graphics modes this is "transparent"
+     GREEN = 2,
+     MAGENTA = 5,
+     WHITE = 7,
+     GRAY  = 8,
+     BRIGHT_GREEN = 10,
+     BRIGHT_MAGENTA = 13,
+     BRIGHT_WHITE = 15
+global integer 
+     BLUE, CYAN, RED, BROWN, BRIGHT_BLUE, BRIGHT_CYAN, BRIGHT_RED, YELLOW
+    if platform() = LINUX then
+        BLUE  = 4
+        CYAN =  6
+        RED   = 1
+        BROWN = 3
+        BRIGHT_BLUE = 12
+        BRIGHT_CYAN = 14
+        BRIGHT_RED = 9
+        YELLOW = 11
+    else
+        BLUE  = 1
+        CYAN =  3
+        RED   = 4
+        BROWN = 6
+        BRIGHT_BLUE = 9
+        BRIGHT_CYAN = 11
+        BRIGHT_RED = 12
+        YELLOW = 14
+    end if
+psym:
+    -- from graphics.e:
+--  initialConstant("BLACK",            0)
+    initialConstant("GREEN",            2)
+    initialConstant("MAGENTA",          5)
+    initialConstant("WHITE",            7)
+    initialConstant("GRAY",             8)
+    initialConstant("BRIGHT_GREEN",     10)
+    initialConstant("BRIGHT_MAGENTA",   13)
+    initialConstant("BRIGHT_WHITE",     15)
+--  if platform() = LINUX then
+--  initialConstant("BLUE",             4)
+--  initialConstant("CYAN",             6)
+--  initialConstant("RED",              1)
+--  initialConstant("BROWN",            3)
+--  initialConstant("BRIGHT_BLUE",      12)
+--  initialConstant("BRIGHT_CYAN",      14)
+--  initialConstant("BRIGHT_RED",       9)
+--  initialConstant("YELLOW",           11)
+--  else
+    initialConstant("BLUE",             1)
+    initialConstant("CYAN",             3)
+    initialConstant("RED",              4)
+    initialConstant("BROWN",            6)
+    initialConstant("BRIGHT_BLUE",      9)
+    initialConstant("BRIGHT_CYAN",      11)
+    initialConstant("BRIGHT_RED",       12)
+    initialConstant("YELLOW",           14)
+--  end if
+<<<
+elsif platform()=LINUX then
+    colour_names = {"BLACK",
+                    "RED",
+                    "GREEN",
+                    "BROWN",
+                    "BLUE",
+                    "BRIGHT_MAGENTA",
+                    "CYAN",
+                    "WHITE",
+                    "GRAY",
+                    "BRIGHT_RED",
+                    "BRIGHT_GREEN",
+                    "YELLOW",
+                    "BRIGHT_BLUE",
+                    "MAGENTA",
+                    "BRIGHT_CYAN",
+                    "BRIGHT_WHITE"}
+    colour_values = {BLACK,
+                     RED,
+                     GREEN,
+                     BROWN,
+                     BLUE,
+                     BRIGHT_MAGENTA,
+                     CYAN,
+                     WHITE,
+                     GRAY,
+                     BRIGHT_RED,
+                     BRIGHT_GREEN,
+                     YELLOW,
+                     BRIGHT_BLUE,
+                     MAGENTA,
+                     BRIGHT_CYAN,
+                     BRIGHT_WHITE}
+else
+    ?9/0
+end if
+--*/
 
 integer fgrnd, bgrnd
     fgrnd = 0
     bgrnd = 0
-integer c = 1
 
     while 1 do
         text_color(WHITE)
@@ -68,15 +169,17 @@ integer c = 1
         position(7, 1)
         printf(1, "%-10s %-20s %-10s\n", {"", "Name", "Value"})
         printf(1, "%-10s %-20s %-10d\n", {"Fore", colour_names[find(fgrnd,colour_values)], fgrnd})
+--      printf(1, "%-10s %-20s %-10d\n", {"Fore", colour_names[fgrnd+1], fgrnd})
         printf(1, "%-10s %-20s %-10d\n", {"Back", colour_names[find(bgrnd,colour_values)], bgrnd})
+--      printf(1, "%-10s %-20s %-10d\n", {"Back", colour_names[bgrnd+1], bgrnd})
         position(12, 1)
 
         text_color(fgrnd)
         bk_color(bgrnd)
 
-        printf(1, " +---------------------------------------------------+ \n")
-        printf(1, " | This is an example of what it would look like(%d)! | \n",mod(c,10))
-        printf(1, " +---------------------------------------------------+ \n")
+        printf(1, " +-----------------------------------------------+ \n")
+        printf(1, " | This is an example of what it would look like | \n")
+        printf(1, " +-----------------------------------------------+ \n")
 
         key = wait_key()
         if key=27 then exit end if  -- escape
@@ -90,7 +193,6 @@ integer c = 1
             fgrnd += 1
             if fgrnd=16 then fgrnd = 0 end if
         end if
-        c += 1
 
     end while
     text_color(WHITE)

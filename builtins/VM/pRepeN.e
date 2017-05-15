@@ -945,9 +945,10 @@ end procedure -- (for Edita/CtrlQ)
         cmp edi,edx                 -- if idx is -ve/float/oob then longhand
         jb @f
             push eax
+--17/4/16 undone:
 --20/6/16 (spotted in passing, opposite of several others that needed doing)
---          mov al,4+0              -- [era] @ [esp+8] "assigning to"
-            mov al,2+0              -- [era] @ [esp+4] "assigning to"
+            mov al,4+0              -- [era] @ [esp+8] "assigning to"
+--          mov al,2+0              -- [era] @ [esp+4] "assigning to"
             call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
             pop eax
       @@:
@@ -992,9 +993,10 @@ end procedure -- (for Edita/CtrlQ)
         cmp rdi,rdx                 -- if idx is -ve/float/oob then longhand
         jb @f
             push rax
+--17/4/17 undone:
 --20/6/16 (spotted in passing, opposite of several others that needed doing)
---          mov al,4+0              -- [era] @ [esp+8] "assigning to"
-            mov al,2+0              -- [era] @ [esp+4] "assigning to"
+            mov al,4+0              -- [era] @ [esp+8] "assigning to"
+--          mov al,2+0              -- [era] @ [esp+4] "assigning to"
             call :%fixupIndex       -- idx-1 in rdi, len in rdx, not idx addr in rbx, al set
             pop rax
       @@:

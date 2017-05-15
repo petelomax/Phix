@@ -1,0 +1,154 @@
+
+-- for http://rosettacode.org/wiki/Extend_your_language
+
+Next add new keywords. Find the last use of tt_stringF in pttree.e and add them. We do not know the ttidx values yet, so just duplicate the last one(5200)
+
+global constant T_if2       = 5200  tt_stringF("if2",T_if2)
+global constant T_else1     = 5200  tt_stringF("else1",T_else1)
+global constant T_else2     = 5200  tt_stringF("else2",T_else2)
+Then run p p and it will tell you what they should be
+
+if2 should be 5208(not 5200)
+else1 should be 5216(not 5200)
+else2 should be 5224(not 5200)
+Update the values and rebuild the compiler using "p -cp" (approx 10 seconds), then we can add the latter two to the block terminators (in pmain.e):
+
+--constant T_endelseelsif = {T_end,T_else,T_elsif,T_case,T_default,T_fallthru,T_fallthrough}
+constant T_endelseelsif = {T_end,T_else,T_else1,T_else2,T_elsif,T_case,T_default,T_fallthru,T_fallthrough}
+
+Admittedly the next part is non-trivial. Not really worthwhile showing here, the distribution includes the file demo\rosetta\if2.txt which contains a DoIf2() 
+procedure (120 lines) that is modelled on DoSwitch() and would be added to pmain.e
+
+Lastly, that would need to be hooked in, find the DoSwitch call (again in pmain.e) and insert after it:
+
+ elsif ttidx=T_if2 then      DoIf2()
+
+
+constant if2else = {T_else, T_else2, T_else1}
+
+procedure DoIf2()
+--  if2 <c1>,<c2> then      -- tmp=c1*2+c2; if tmp=0b11 then
+--      <block>
+--  else1                   --              elsif tmp=0b10 then
+--      <block>
+--  else2                   --              elsif tmp=0b01 then
+--      <block>
+--  else                    --              else
+--      <block>
+--  end if2                 --              end if
+integer emitElse, wasEmit
+integer switchBP, saveIchain
+integer EndSwitchBP = 0
+integer wasSideEffects
+integer switchtop, ctrlink, ctrltyp
+integer N, etype
+    if opsidx then ?9/0 end if  -- leave in (outside if DEBUG then)
+    if exprBP!=0 then ?9/0 end if
+
+    noofbranches = 4    -- prevent flip
+
+    saveIchain = Ichain
+    Ichain = -1
+
+    MatchString(T_if2,float_valid:=true)
+
+    Expr(0,asBool)
+    PushFactor(addUnnamedConstant(2,T_integer),1,T_integer)
+    PushOp(opMul,MathOp)
+    MatchChar(',',float_valid:=true)
+    Expr(0,asBool)
+    PushOp(opAdd,MathOp)
+
+    PopFactor()
+
+    ctrlink = 0
+    if emitON then
+        apnds5({opCtrl,IF,0,emitline})
+        switchtop = length(s5)-1    -- patched at/pointed to the end if
+        ctrlink = switchtop         -- where to point next elsif/else/endif
+        if NOLT=0 or bind or lint then
+            ltCtrl(switchtop)
+        end if -- NOLT
+        ctrltyp = ELSIF
+    end if
+
+    wasSideEffects = SideEffects
+    SideEffects = E_none
+    wasEmit = emitON
+    emitElse = emitON   -- (minor optimisation [cmp vs opJcc] 18/3/09)
+
+    N = opstack[opsidx]
+    etype = opstype[opsidx]
+--DEV
+--if etype!=T_integer then ?9/0 end if
+
+    MatchString(T_then)
+        
+    switchBP = 0
+    
+    for k=3 to 0 by -1 do   -- 0b11/0b10/0b01/0b00
+        if k!=0 then
+            PushFactor(addUnnamedConstant(k,T_integer),1,T_integer)
+            PushOp(opJeq,BranchOp)
+            switchBP = Branch(Invert,emitElse,ifMerge,switchBP)
+        end if
+
+        Block()
+        if k>0 then
+            apnds5({opJmp,endIfMerge,0,EndSwitchBP})
+            EndSwitchBP = length(s5)
+        end if
+
+        clearIchain(-1)
+        if exprBP!=0 then ?9/0 end if
+        if switchBP then
+            switchBP = backpatch(switchBP,0,ifMerge)
+        end if
+        if switchBP then ?9/0 end if
+
+        if emitON then
+            s5 &= {opCtrl,ctrltyp,ctrlink,emitline}
+            ctrlink = length(s5)-1
+            if NOLT=0 or bind or lint then
+                ltCtrl(ctrlink)
+            end if -- NOLT
+        end if
+
+        if allWhiteToTokcol() then
+            emitline = line-1
+        else
+            emitline = line
+        end if
+        if exprBP!=0 then ?9/0 end if
+        oktoinit = 0
+        if k>0 then
+            MatchString(if2else[k])
+            if k>1 then
+                PushFactor(N,0,etype)
+            else
+                ctrltyp = ELSE
+            end if
+        end if
+    end for
+
+    if switchBP!=0 then ?9/0 end if
+    if EndSwitchBP=0 then ?9/0 end if
+    EndSwitchBP = backpatch(EndSwitchBP,0,endIfMerge)
+    if EndSwitchBP then ?9/0 end if
+
+    if ctrlink then
+        s5 &= {opCtrl,END+IF,ctrlink,emitline}
+        ctrlink = length(s5)-1
+        s5[switchtop] = ctrlink
+        if NOLT=0 or bind or lint then
+            ltCtrl(ctrlink)
+        end if -- NOLT
+    end if
+    MatchString(T_end)
+    MatchString(T_if2)
+    emitON = wasEmit
+    if exprBP!=0 then ?9/0 end if
+    clearIchain(saveIchain)
+    SideEffects = or_bits(SideEffects,wasSideEffects)
+end procedure
+

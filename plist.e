@@ -536,9 +536,9 @@ global integer inFrame = 0
 
 include p2asm.e         -- dissassembler engine
 
-integer fn              -- main xxx.asm output file
+integer listfn          -- main xxx.asm output file
 
-atom base,              -- effective address of cs[1]
+atom base1,             -- effective address of cs[1]
      tIL,               -- effective address of current top_level_sub
      sIL                -- effective address of current subroutine
 
@@ -628,7 +628,7 @@ string fmt = "    %-36s  ;#%08x: %-26s %s\n"
             dres[1][d1pos..d1pos+length(d1word)-1] = tjword
         end if
         d1word = repeat(' ',tjpos-d1pos) 
-        puts(fn,d1word)
+        puts(listfn,d1word)
         d1pos = match(d1word,dres1,d1pos)
         if length(dres1)<=36-length(d1word) then
             fmt = sprintf("    %%-%ds  ;#%%08x: %%-26s %%s\n",36-length(d1word))
@@ -636,7 +636,7 @@ string fmt = "    %-36s  ;#%08x: %-26s %s\n"
             fmt = "    %s  ;#%08x: %-26s %s\n"
         end if
     end if
-    printf(fn,fmt,dres)
+    printf(listfn,fmt,dres)
 end procedure
 
 function is_data(atom v)
@@ -675,9 +675,9 @@ if newEmit then
             machine = 64
         end if
 --printf(1,"disassemble(eaddr=%08x,fromoffset=%08x,tooffset=%08x)\n",{eaddr,fromoffset,tooffset})
-        decodeinit(eaddr+fromoffset, eaddr-base+fromoffset,machine,iff(PE?arch_PE:arch_ELF))
+        decodeinit(eaddr+fromoffset, eaddr-base1+fromoffset,machine,iff(PE?arch_PE:arch_ELF))
 else
-        decodeinit(eaddr+fromoffset, eaddr-base+fromoffset)
+        decodeinit(eaddr+fromoffset, eaddr-base1+fromoffset)
 end if
         newBlock = 0
     end if
@@ -692,7 +692,7 @@ end if
 --DEV always true?
 --              if string(ctrl[1][2]) then
                     dres = ctrl[1][2]
-                    printf(fn,"%s::\n;-%s\n",{dres,repeat('-',length(dres))})
+                    printf(listfn,"%s::\n;-%s\n",{dres,repeat('-',length(dres))})
 --              end if
 --DEV should this be done at the ctrl = sort(ctrl) stage?
 --              while 1 do
@@ -802,10 +802,10 @@ end if
         if ALIGNASM then
             alignasm(dres, tj)
         else
-            printf(fn,"    %-36s  ;#%08x: %-26s %s\n",dres)
+            printf(listfn,"    %-36s  ;#%08x: %-26s %s\n",dres)
         end if
         if terminal then
-            puts(fn,"*** ERROR: decode of this segment aborted ***\n")
+            puts(listfn,"*** ERROR: decode of this segment aborted ***\n")
             puts(1,"*** ERROR: decode of this segment aborted ***\n")
 --          if getc(0) then end if
             addr = last -- suppress message below
@@ -813,11 +813,11 @@ end if
         end if
 --      if addr>=last then exit end if
 ----    printf(1,"%08x %-22s %s\n",{addr,hex,asm})
---flush(fn)
+--flush(listfn)
     end while
     if addr!=last then
 --  if addr>last then   -- no help last time I tried...
-        puts(fn,"*** ERROR: decode of this segment ended at wrong address ***\n")
+        puts(listfn,"*** ERROR: decode of this segment ended at wrong address ***\n")
         puts(1,"*** ERROR: decode of this segment ended at wrong address ***\n")
 --      if getc(0) then end if
     end if
@@ -993,14 +993,14 @@ string file1
     end if
 
     printf(1,"creating listing file %s...",{outfile})
-    fn = open(outfile,"w")
-    if fn=-1 then
+    listfn = open(outfile,"w")
+    if listfn=-1 then
         puts(1,"unable to open file\n")
         if getc(0) then end if
         abort(0)
     end if
 
---  puts(fn,";;\n;; Phix dissassembly listing.  (nb for human readership only; see plist.e)\n")
+--  puts(listfn,";;\n;; Phix dissassembly listing.  (nb for human readership only; see plist.e)\n")
 
     d = date()                                              -- {year,month,day,hour,minute,second,dow,doy}
     d = d[4..6]&{day[d[7]]}&d[3]&d[2]&remainder(d[1],100)   -- {hour,minute,second,dow,day,month,year}
@@ -1012,21 +1012,21 @@ string file1
         options = "-d"
     end if
     d = append(d,options)
-    printf(fn,";;\n;; Phix dissassembly listing.  Generated at %d:%02d:%02d on %s %02d/%02d/%02d.  (%s)\n",d)
-    puts(fn,";;  (NB: Intended for human readership only; see plist.e for details)\n")
+    printf(listfn,";;\n;; Phix dissassembly listing.  Generated at %d:%02d:%02d on %s %02d/%02d/%02d.  (%s)\n",d)
+    puts(listfn,";;  (NB: Intended for human readership only; see plist.e for details)\n")
 
 --if newEmit then
     -- **DO NOT DELETE** The next line can be extremely useful when diagnosing listing file problems.
-    printf(fn,";; ImageBase2=#%08x, BaseOfCode2=#%08x, SizeOfCode2=#%08x, BaseOfData2=#%08x, SizeOfData2=#%08x\n",
+    printf(listfn,";; ImageBase2=#%08x, BaseOfCode2=#%08x, SizeOfCode2=#%08x, BaseOfData2=#%08x, SizeOfData2=#%08x\n",
               {ImageBase2,BaseOfCode2,SizeOfCode2,BaseOfData2,SizeOfData2})
-    printf(fn,";; X64=%d, PE=%d\n",{X64,PE})
+    printf(listfn,";; X64=%d, PE=%d\n",{X64,PE})
 --end if
 
     if listing=-1 then
-        puts(fn,";;  (NB2 Interpreted/\'-d!\' option: using generic non-optimised code.)\n")
+        puts(listfn,";;  (NB2 Interpreted/\'-d!\' option: using generic non-optimised code.)\n")
 if newEmit then -- (DEV make it so that "p -e! test" sends mainpath B/SoC/D to Edita which then updates offsets, if line 8 matches mainpath)
---      puts(fn,";;  (    Run with \'-e!\' to make Edita update this listing with real addresses.)\n")
---      puts(fn,";;  (    *** NB -e! has caused addresses to be updated to match the running copy ***\n")
+--      puts(listfn,";;  (    Run with \'-e!\' to make Edita update this listing with real addresses.)\n")
+--      puts(listfn,";;  (    *** NB -e! has caused addresses to be updated to match the running copy ***\n")
 -- Note that every time you interpret a program it may have different addresses. My guess is lifo queues on each cache level to improve
 --  compatibility of some (naughty) applications that were getting away with referencing memory shortly after releasing it, or at least
 --  that matches my observations. Whatever it is, it has definitely changed between Windows XP and Windows 7. To counter this, after a
@@ -1034,14 +1034,14 @@ if newEmit then -- (DEV make it so that "p -e! test" sends mainpath B/SoC/D to E
 --  the on-screen version. In contrast, compilation and plain -d (without the bang) listing and executable files always use exactly the 
 --  same fixed absolute addresses, unless there are changes to the source files, or possibly some (eg -nodiag) command line options.
 else
-        puts(fn,";;  (    Run with otherwise null-effect \'-e!\' to match this listing.)\n")
+        puts(listfn,";;  (    Run with otherwise null-effect \'-e!\' to match this listing.)\n")
 end if
         --  ( Making the interpreter do all, or even some, of the things that -c (and/or -d) does,
         --    fairly obviously would have a rather noticeable effect on overall performance..!! )
         --  If you are running OllyDbg, you may want to run "p -d! test" under ollydbg first,
         --   then "p -e! test", but my attempts to do so were not always very successful.
     end if
-    puts(fn,";;\n")
+    puts(listfn,";;\n")
 
 -- replace some otherwise confusing opNames:
     if testall then wasopNames = opNames end if
@@ -1073,7 +1073,7 @@ if newEmit then ?9/0 end if
             abort(0)
         end if
         code_section = divm
-        base = ImageBase + VMvaddr - (VMraddr-DVraddr)
+        base1 = ImageBase + VMvaddr - (VMraddr-DVraddr)
         vmap = {}
         ctrl = {}
         VMep[opJlt] = 0
@@ -1093,7 +1093,7 @@ if newEmit then ?9/0 end if
         ctrl = sort(ctrl)
 --?ctrl
         disassemble(ImageBase+VMvaddr,0,VMvsize-1,"")
-        close(fn)
+        close(listfn)
         if testall then opNames = wasopNames end if
         return
     end if -- dumpVM
@@ -1251,10 +1251,10 @@ end if
     end if
 
     cidx = 1
-    base = symtab[T_maintls][S_il]          -- effective address of code_section[1]
+    base1 = symtab[T_maintls][S_il]         -- effective address of code_section[1]
 if newEmit then
     if listing!=-1 then
-        base += BaseOfCode2+ImageBase2
+        base1 += BaseOfCode2+ImageBase2
     end if
 end if
 
@@ -1328,8 +1328,8 @@ end if
 --  cidx -= 1
 --end if
             getSub(i)
-            puts(fn,";"&path&name&":\n")
-            puts(fn,";"&repeat('=',length(path)+length(name))&"=\n")
+            puts(listfn,";"&path&name&":\n")
+            puts(listfn,";"&repeat('=',length(path)+length(name))&"=\n")
             for j=1 to length(etxt) do
                 tj = etxt[j]
                 if tlNo=slNo and j=tlNo then
@@ -1340,7 +1340,7 @@ end if
                     --  but of course the binary is actually miles apart.
                     putafter=1
                 else
-                    printf(fn,"; %5d %s",{j,tj})
+                    printf(listfn,"; %5d %s",{j,tj})
                 end if
                 if j=tlNo then
                     lti = tlt[tltidx]
@@ -1363,7 +1363,7 @@ end if
                         tlNo = -1
                     end if
                     if putafter then
-                        printf(fn,"; %5d %s",{j,tj})
+                        printf(listfn,"; %5d %s",{j,tj})
                         putafter = 0
                     end if
                 end if
@@ -1392,17 +1392,17 @@ end if
             end for
         else
             if doOneInclude then
---              puts(fn,";"&path&name&": - skipped (doOneInclude=1)\n")
+--              puts(listfn,";"&path&name&": - skipped (doOneInclude=1)\n")
 --              ptxt = ";"&path&name&": - skipped (doOneInclude=1)\n"
                 ptxt = "doOneInclude=1"
             else
---              puts(fn,";"&path&name&": - skipped (without debug)\n")
+--              puts(listfn,";"&path&name&": - skipped (without debug)\n")
 --              ptxt = ";"&path&name&": - skipped (without debug)\n"
                 ptxt = "without debug"
             end if
             ptxt = ";"&path&name&": - skipped ("&ptxt&")\n"
-            puts(fn,ptxt)
-            puts(fn,";"&repeat('=',length(ptxt)-1)&"\n")
+            puts(listfn,ptxt)
+            puts(listfn,";"&repeat('=',length(ptxt)-1)&"\n")
             -- skip any routines for file i that managed to get into ctrl:
             for j=cidx+1 to length(ctrl) do
                 if ctrl[j][C_Fno]!=i then
@@ -1412,60 +1412,60 @@ end if
             end for
         end if
 else
---              puts(fn,";"&path&name&": - skipped (no code entries)\n")
+--              puts(listfn,";"&path&name&": - skipped (no code entries)\n")
         ptxt = ";"&path&name&": - skipped (no code entries)\n"
-        puts(fn,ptxt)
-        puts(fn,";"&repeat('=',length(ptxt)-1)&"\n")
+        puts(listfn,ptxt)
+        puts(listfn,";"&repeat('=',length(ptxt)-1)&"\n")
 end if
     end for
     if dumpSymTab then
-        puts(fn,"\n\n; Symtab Dump.\n")
-        puts(fn,    "; ============\n\n")
-        puts(fn,";global constant S_Name  = 1,  -- const/var/rtn name\n")
-        puts(fn,";                S_NTyp  = 2,  -- Const/GVar/TVar/Nspc/Type/Func/Proc\n")
-        puts(fn,";                S_FPno  = 3,  -- File and Path number\n")
-        puts(fn,";                S_State = 4,  -- state flag. S_fwd/S_used/S_set\n")
-        puts(fn,";                S_Nlink = 5,  -- name chain\n")
-        puts(fn,";                S_Slink = 6,  -- scope/secondary chain\n")
-        puts(fn,";                -- constants and variables [S_NTyp<=S_TVar]\n")
-        puts(fn,";                S_vtype = 7,  -- variable type or namespace fileno\n")
-        puts(fn,";                 (plus gInfo,varno/addr/thread idx/value)\n")
+        puts(listfn,"\n\n; Symtab Dump.\n")
+        puts(listfn,    "; ============\n\n")
+        puts(listfn,";global constant S_Name  = 1,  -- const/var/rtn name\n")
+        puts(listfn,";                S_NTyp  = 2,  -- Const/GVar/TVar/Nspc/Type/Func/Proc\n")
+        puts(listfn,";                S_FPno  = 3,  -- File and Path number\n")
+        puts(listfn,";                S_State = 4,  -- state flag. S_fwd/S_used/S_set\n")
+        puts(listfn,";                S_Nlink = 5,  -- name chain\n")
+        puts(listfn,";                S_Slink = 6,  -- scope/secondary chain\n")
+        puts(listfn,";                -- constants and variables [S_NTyp<=S_TVar]\n")
+        puts(listfn,";                S_vtype = 7,  -- variable type or namespace fileno\n")
+        puts(listfn,";                 (plus gInfo,varno/addr/thread idx/value)\n")
 --DEV:++S_gNew etc
-        puts(fn,";                -- routines [S_NTyp>=S_Type]\n")
-        puts(fn,";                S_sig   = 7,  -- routine signature\n")
-        puts(fn,";                S_Parm1 = 8,  -- first parameter. (idx to symtab, follow S_Slink)\n")
-        puts(fn,";                S_ParmN = 9,  -- minimum no of parameters (max is length(S_sig)-1)\n")
-        puts(fn,";                S_Ltot  = 10, -- total no of parameters, locals, and temporary vars\n")
-        puts(fn,";                S_il    = 11, -- intermediate code\n")
+        puts(listfn,";                -- routines [S_NTyp>=S_Type]\n")
+        puts(listfn,";                S_sig   = 7,  -- routine signature\n")
+        puts(listfn,";                S_Parm1 = 8,  -- first parameter. (idx to symtab, follow S_Slink)\n")
+        puts(listfn,";                S_ParmN = 9,  -- minimum no of parameters (max is length(S_sig)-1)\n")
+        puts(listfn,";                S_Ltot  = 10, -- total no of parameters, locals, and temporary vars\n")
+        puts(listfn,";                S_il    = 11, -- intermediate code\n")
         if showlinetable then
-        puts(fn,";                S_ltab  = 12, -- line table\n")
-        puts(fn,";                S_1stl  = 13  -- first line\n")
-        puts(fn,";                S_Efct  = 14, -- side effects\n")
+        puts(listfn,";                S_ltab  = 12, -- line table\n")
+        puts(listfn,";                S_1stl  = 13  -- first line\n")
+        puts(listfn,";                S_Efct  = 14, -- side effects\n")
         end if
 --DEV S_Efct=14
 --DEV if state_as_hex then
---      puts(fn,";\n")
---      puts(fn,";global constant S_used = #000001, -- symtab[i][S_State] values.\n")
---      puts(fn,";                S_set  = #000002, -- used/set are for not used/never assigned a value warnings.\n")
---      puts(fn,";                S_fwd  = #000004, -- routine is not yet defined (explicit \"forward\" or implicit call)\n")
---      puts(fn,";                S_for  = #000008, -- variable in current use as for loop control var (cleared on end for)\n")
---      puts(fn,";                K_used = #000010, -- reserved for compile (aka bind) version of used\n")
---      puts(fn,";                K_sqr  = #000020, -- sequence rebuilt flag when interpreting\n")
---      puts(fn,";                K_aod  = #000040, -- assignment on declaration (avoid warnings/force cleanup)\n")
---      puts(fn,";                K_wdb  = #000100, -- with debug setting\n")
---      puts(fn,";                K_noclr= #000200, -- do not clear on load (ie assignment on declaration occurred)\n")
---      puts(fn,";                                  -- only used for GVars\n")
---      puts(fn,";                K_rtn  = #000400, -- indicates value is a routine_id (for bind)\n")
---      puts(fn,";                K_ran  = #000800, -- set once routine has been called (for tls routines)\n")
---      puts(fn,";                K_gbl  = #001000, -- a true \"global\"\n")
---      puts(fn,";                K_Fres = #002000, -- a function result\n")
---      puts(fn,";                K_lit  = #004000  -- literal flag\n")
---      puts(fn,";                K_type = #008000  -- type() routine parameter\n")
---      puts(fn,";                K_othr = #010000  -- other routine parameter\n")
---      puts(fn,";                K_ridt = #020000  -- known routine_id target\n")
---      puts(fn,";                K_dlft = #040000  -- defaulted param\n")
---      puts(fn,";                K_drid = #080000  -- default routine_id\n")
-        puts(fn,";\n")
+--      puts(listfn,";\n")
+--      puts(listfn,";global constant S_used = #000001, -- symtab[i][S_State] values.\n")
+--      puts(listfn,";                S_set  = #000002, -- used/set are for not used/never assigned a value warnings.\n")
+--      puts(listfn,";                S_fwd  = #000004, -- routine is not yet defined (explicit \"forward\" or implicit call)\n")
+--      puts(listfn,";                S_for  = #000008, -- variable in current use as for loop control var (cleared on end for)\n")
+--      puts(listfn,";                K_used = #000010, -- reserved for compile (aka bind) version of used\n")
+--      puts(listfn,";                K_sqr  = #000020, -- sequence rebuilt flag when interpreting\n")
+--      puts(listfn,";                K_aod  = #000040, -- assignment on declaration (avoid warnings/force cleanup)\n")
+--      puts(listfn,";                K_wdb  = #000100, -- with debug setting\n")
+--      puts(listfn,";                K_noclr= #000200, -- do not clear on load (ie assignment on declaration occurred)\n")
+--      puts(listfn,";                                  -- only used for GVars\n")
+--      puts(listfn,";                K_rtn  = #000400, -- indicates value is a routine_id (for bind)\n")
+--      puts(listfn,";                K_ran  = #000800, -- set once routine has been called (for tls routines)\n")
+--      puts(listfn,";                K_gbl  = #001000, -- a true \"global\"\n")
+--      puts(listfn,";                K_Fres = #002000, -- a function result\n")
+--      puts(listfn,";                K_lit  = #004000  -- literal flag\n")
+--      puts(listfn,";                K_type = #008000  -- type() routine parameter\n")
+--      puts(listfn,";                K_othr = #010000  -- other routine parameter\n")
+--      puts(listfn,";                K_ridt = #020000  -- known routine_id target\n")
+--      puts(listfn,";                K_dlft = #040000  -- defaulted param\n")
+--      puts(listfn,";                K_drid = #080000  -- default routine_id\n")
+        puts(listfn,";\n")
 --    end if
 --      symtab[1][S_Name] = "integer"
         symtab[2][S_Name] = "T_N"   -- a float (but not an integer)
@@ -1512,23 +1512,23 @@ end if
                     end while
                     last0 -= 1
                     if sidx=last0 then
-                        printf(fn,"symtab[%d]:0\n",sidx)
+                        printf(listfn,"symtab[%d]:0\n",sidx)
                     else
-                        printf(fn,"symtab[%d..%d]:0\n",{sidx,last0})
+                        printf(listfn,"symtab[%d..%d]:0\n",{sidx,last0})
                         sidx = last0
                     end if
                 elsif sidx=T_pathset then
                     file1 = sprintf("symtab[%d=filepaths]",{sidx})
                     for i=1 to length(filepaths) do
                         sState = ppf(filepaths[i])
-                        printf(fn,"%s[%d]:%s\n",{file1,i,sState})
+                        printf(listfn,"%s[%d]:%s\n",{file1,i,sState})
                         file1 = "                    "
                     end for
                 elsif sidx=T_fileset then
                     file1 = sprintf("symtab[%d=filenames]",{sidx})
                     for i=1 to length(filenames) do
                         sState = ppf(filenames[i])
-                        printf(fn,"%s[%d]:%s\n",{file1,i,sState})
+                        printf(listfn,"%s[%d]:%s\n",{file1,i,sState})
                         file1 = "                    "
                     end for
                 else
@@ -1543,7 +1543,7 @@ end if
                     else
                         sState = ppf(si)
                     end if
-                    printf(fn,"symtab[%d]:%s\n",{sidx,sState})
+                    printf(listfn,"symtab[%d]:%s\n",{sidx,sState})
                 end if
             elsif sidx=T_optable then
                 vm_names = get_vm_names()
@@ -1574,7 +1574,7 @@ if 0 then
                 end for
                 sState
                  &= "}"
-                printf(fn,"symtab[%d] (T_optable):%s\n",{sidx,sState})
+                printf(listfn,"symtab[%d] (T_optable):%s\n",{sidx,sState})
 --                         123456789012345678901234
 else
                     file1 = sprintf("symtab[%d=optable]",{sidx})
@@ -1584,12 +1584,12 @@ else
                         if bind and sii!=0 then
                             sii += ImageBase2+BaseOfCode2
                         end if
-                        printf(fn,"%s[%d]:#%08x (:%s)\n",{file1,i,sii,vm_names[i]})
+                        printf(listfn,"%s[%d]:#%08x (:%s)\n",{file1,i,sii,vm_names[i]})
                         file1 = "                  "
                     end for
 end if
             else
-                printf(fn,"symtab[%d]:",sidx)
+                printf(listfn,"symtab[%d]:",sidx)
 --              if equal(si[S_Name],-1) then
                 if atom(si[S_Name]) then
                     if not equal(si[S_Name],-1) then
@@ -1793,10 +1793,10 @@ end if
                         -- ('[',']' since TVar value is unlikely to be meaningful, btw)
                     end if
                     si[S_value] = sState
-                    printf(fn,"{%s,%s,%d,%s,%d,%s,%s,%s}\n",si[1..S_value])
+                    printf(listfn,"{%s,%s,%d,%s,%d,%s,%s,%s}\n",si[1..S_value])
 --              elsif siNTyp=S_Nspc then
                 elsif siNTyp<=S_Rsvd then
-                    printf(fn,"{%s,%s,%d,%s,%d,%d,%d}\n",si)
+                    printf(listfn,"{%s,%s,%d,%s,%d,%d,%d}\n",si)
                 else    -- type/function/procedure(inc top_level_subs)
 --21/8/10 (possibly temp?)
 if sequence(si[S_sig]) then
@@ -1844,7 +1844,7 @@ end if
 if showlinetable then
                     ptxt = ppExf(si[S_ltab],{pp_StrFmt,1})
                     si[S_ltab] = ptxt
---                  printf(fn,"{%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,#%08x,%s,%d}\n",si[1..S_1stl])
+--                  printf(listfn,"{%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,#%08x,%s,%d}\n",si[1..S_1stl])
 -- to show [S_Efct]:
                     if equal(si[S_Name],"-1") then          -- S_Efct is meaningless on tls
                         sState = "0"
@@ -1861,9 +1861,9 @@ if showlinetable then
                         end if
                     end if
                     si[S_Efct] = sState
-                    printf(fn,"{%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,#%08x,%s,%d,%s}\n",si[1..S_Efct])
+                    printf(listfn,"{%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,#%08x,%s,%d,%s}\n",si[1..S_Efct])
 else
-                    printf(fn,"{%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,#%08x}\n",si[1..S_il])
+                    printf(listfn,"{%s,%s,%d,%s,%d,%d,%s,%d,%d,%d,#%08x}\n",si[1..S_il])
 end if
                 end if
             end if
@@ -1871,7 +1871,7 @@ end if
 --      end for
         end while
     end if  -- dumpSymTab
-    close(fn)
+    close(listfn)
     puts(1,"\n")
     if testall then opNames = wasopNames end if
 end procedure

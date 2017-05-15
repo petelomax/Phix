@@ -634,11 +634,11 @@
 --  The last entry ([28]) is shown in brackets because it would always fail, since kernel32/HeapAlloc has a 
 --  hard limit of #7FFFFFFF. In practice (no doubt real-world apps would manage quite a bit less) it failed 
 --  at #734CA1F8, equivalent to x(1,934,401,999) and s[483,600,499], as opposed to the values in [27] above. 
---  In adopting this scheme we are accepting an artificial limit of some 83% of the theoretical limit, not
---  that even a half-competent programmer should be thinking that hogging all possible available memory is 
---  the best way to achieve anything. Plus it kinda guarantees ~308MB should usually be available to cover 
+--  In adopting this scheme we are accepting an artificial limit of some 83% (75% of the theoretical limit), 
+--  not that even a half-competent programmer should be thinking that hogging all possible available memory 
+--  is the best way to achieve anything. Plus it kinda guarantees ~308MB should usually be available to cover 
 --  diagnostics and/or any potential differences in available memory between compiled & interpreted apps,
---  at least when it fails when asked for something too big, as opposed to too many of something smaller.
+--  at least should it fail when asked for something too big, as opposed to too many of something smaller.
 --  Quick experiments on RDS Eu 2.4 and OpenEuphoria 4.1 (32-bit) gave (sequence) limits of s[483,164,865] 
 --  and s[468,365,949] respectively, clearly (20%) better than the Phix dword-sequence limit, but a paltry 
 --  30% of the Phix string (/byte/file size) limit.
@@ -842,6 +842,9 @@ integer stdcs = 0       -- for very short one-off inits in \builtins (opEnter/Le
 
 --integer gt1tcb = 0
 
+constant M_MMAP_THRESHOLD = -3
+integer  mmap_threshold = 128*1024  -- linux only, see notes below
+
 --DEV/temp:
 constant memory_corruption = "memory corruption at #"
 constant pGtcb4eq = ", pGtcb*4=#"
@@ -991,7 +994,22 @@ end procedure
             add esp,24
 --*/
 --void * malloc (size_t size)
+            --2/5/17: (not strictly necessary on 32-bit)
+            -- On Linux, by default, memory allocations below 128K are serviced from the heap 
+            -- and above from mmap. However pemit2 needs optable+data_section+code_section to
+            -- all be within a 32-bit offset of each other, which we achieve by forcing every
+            -- allocation to be serviced from the heap. Note that since Phix never actually
+            -- invokes libc/free, there is no advantage to using mmap anyway (as yet).
             push eax
+            cmp eax,[mmap_threshold]
+            jle @f
+                mov [mmap_threshold],eax
+                push eax
+                push M_MMAP_THRESHOLD
+                call "libc.so.6","mallopt"      -- mallopt(int param, int value);
+                add esp,8
+          @@:
+--          push eax -- (done above)
             call "libc.so.6","malloc"
             add esp,4
 
@@ -1042,7 +1060,22 @@ end procedure
 -- 7/2/17:
 push rdi
 push rsi
-            mov rdi,rax
+            --2/5/17:
+            -- On Linux, by default, memory allocations below 128K are serviced from the heap 
+            -- and above from mmap. However pemit2 needs optable+data_section+code_section to
+            -- all be within a 32-bit offset of each other, which we achieve by forcing every
+            -- allocation to be serviced from the heap. Note that since Phix never actually
+            -- invokes libc/free, there is no advantage to using mmap anyway (as yet).
+            push rax
+            cmp rax,[mmap_threshold]
+            jle @f
+                mov [mmap_threshold],rax
+                mov rdi,M_MMAP_THRESHOLD
+                mov rsi,rax
+                call "libc.so.6","mallopt"      -- mallopt(int param, int value);
+          @@:
+            pop rdi
+--          mov rdi,rax
             call "libc.so.6","malloc"
 pop rsi
 pop rdi

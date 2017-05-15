@@ -1,0 +1,97 @@
+--
+-- demo\rosetta\Chaos_game.exw
+-- ===========================
+--
+
+include ..\pGUI\pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+enum TRI,SQ1,SQ2,SQ3,PENT
+
+sequence descs = {"Sierpinsky Triangle",
+                  "Square 1",
+                  "Square 2",
+                  "Square 3",
+                  "Pentagon"}
+
+integer mode = TRI
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    atom {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom {x,y} = {w*0.05,h*0.05}
+    {w,h} = {w*0.9,h*0.9}
+    sequence points = iff(mode<SQ1?{{x,y},{x+w/2,y+h},{x+w,y}}:
+                      iff(mode<PENT?{{x,y},{x,y+h},{x+w,y+h},{x+w,y}}
+                                   :{{x+w/6,y},{x,y+h*2/3},{x+w/2,y+h},{x+w,y+h*2/3},{x+w*5/6,y}}))
+    cdCanvasActivate(cddbuffer)
+    integer last = 0
+    for i=1 to 1000 do
+        integer r = rand(length(points))
+        if mode=TRI or r!=last then
+            atom {nx,ny} = points[r]
+            {x,y} = {(x+nx)/2,(y+ny)/2}
+            cdCanvasPixel(cddbuffer, x, y, CD_GREY)
+            if mode=SQ2
+            or mode=SQ3 then
+                r = mod(r,length(points))+1
+                if mode=SQ3 then
+                    r = mod(r,length(points))+1
+                end if
+            end if
+            last = r
+        end if
+    end for
+    cdCanvasFlush(cddbuffer)
+    IupSetStrAttribute(dlg, "TITLE", "Chaos Game (%s)", {descs[mode]})
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_GRAY)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=' ' then
+        mode += 1
+        if mode>PENT then
+            mode = TRI
+        end if
+        cdCanvasClear(cddbuffer)
+        IupRedraw(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen(join_path({"..","pGUI"},1))
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Chaos Game")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    Ihandle timer = IupTimer(Icallback("timer_cb"), 40)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

@@ -1,0 +1,265 @@
+--
+-- demo/rosetta/Nonogram.exw
+-- -------------------------
+--
+--  Deduction only, no exhaustive search
+
+sequence x, y, grid
+integer unsolved
+
+function count_grid()
+integer res = length(x)*length(y)
+    for i=1 to length(x) do
+        for j=1 to length(y) do
+            res -= grid[i][j]!='?'
+        end for
+    end for
+    return res
+end function
+
+function match_mask(string neat, string mask, integer ms, integer me)
+    for i=ms to me do
+        if mask[i]!='?' then
+            if mask[i]!=neat[i] then return 0 end if
+        end if
+    end for
+    return 1
+end function
+
+function innr(string mask, sequence blocks, integer mi=1, string res="", string neat=mask)
+    if length(blocks)=0 then
+        for i=mi to length(neat) do
+            neat[i] = ' '
+        end for
+        if match_mask(neat,mask,mi,length(mask)) then
+            if length(res)=0 then
+                res = neat
+            else
+                for i=1 to length(neat) do
+                    if neat[i]!=res[i] then
+                        res[i] = '?'
+                    end if
+                end for
+            end if
+        end if
+    else
+        integer b = blocks[1]
+        blocks = blocks[2..$]
+        integer l = (sum(blocks)+length(blocks)-1),
+                e = length(neat)-l-b
+        for i=mi to e do
+            for j=i to i+b-1 do
+                neat[j] = '#'
+            end for
+            if i+b<=length(neat) then
+                neat[i+b] = ' '
+            end if
+            if match_mask(neat,mask,mi,min(i+b,length(mask))) then
+                res = innr(mask,blocks,i+b+1,res,neat)
+            end if
+            neat[i] = ' '
+        end for
+    end if
+    return res
+end function
+
+function inner(string mask, sequence blocks)
+    string res = innr(mask,blocks)
+    return iff(length(res)?res:mask)
+end function
+
+global function vmask(sequence source, integer column)
+string res = repeat(' ',length(source))
+    for i=1 to length(source) do
+        res[i] = source[i][column]
+    end for
+    return res
+end function
+
+function logic()
+integer wasunsolved = unsolved
+    for i=1 to length(x) do
+        grid[i] = inner(grid[i],x[i])
+    end for
+    for j=1 to length(y) do
+        string tmp = inner(vmask(grid,j),y[j])
+        for i=1 to length(tmp) do
+            grid[i][j] = tmp[i]
+        end for
+    end for
+    unsolved = count_grid()
+    return wasunsolved!=unsolved
+end function
+
+sequence tests=split("""
+C BA CB BB F AE F A B
+AB CA AE GA E C D C
+
+F CAC ACAC CN AAA AABB EBB EAA ECCC HCCC
+D D AE CD AE A DA BBB CC AAB BAA AAB DA AAB AAA BAB AAA CD BBA DA
+
+CA BDA ACC BD CCAC CBBAC BBBBB BAABAA ABAD AABB BBH BBBD ABBAAA CCEA AACAAB BCACC ACBH DCH ADBE ADBB DBE ECE DAA DB CC
+BC CAC CBAB BDD CDBDE BEBDF ADCDFA DCCFB DBCFC ABDBA BBF AAF BADB DBF AAAAD BDG CEF CBDB BBB FC
+
+E BCB BEA BH BEK AABAF ABAC BAA BFB OD JH BADCF Q Q R AN AAN EI H G
+E CB BAB AAA AAA AC BB ACC ACCA AGB AIA AJ AJ ACE AH BAF CAG DAG FAH FJ GJ ADK ABK BL CM""",'\n')
+--Alternatively:
+--integer fn = open("nonogram_problems.txt","r")
+--tests = get_text(fn,GT_LF_STRIPPED)
+--close(fn)
+
+function unpack(string s)
+sequence res = split(s)
+    for i=1 to length(res) do
+        string ri = res[i]
+        sequence r = {}
+        for j=1 to length(ri) do
+            r &= ri[j]-'A'+1
+        end for
+        res[i] = r
+    end for
+    return res
+end function
+
+for i=1 to length(tests) by 3 do
+    x = unpack(tests[i])
+    y = unpack(tests[i+1])
+    grid = repeat(repeat('?',length(y)),length(x))
+    unsolved = length(x)*length(y)
+
+    while unsolved do
+        if not logic() then
+            ?"partial"
+            exit
+        end if
+    end while
+
+    puts(1,join(grid,"\n")&"\n")
+end for
+
+{} = wait_key()
+
+-- Not posted to rosettacode:
+--/*
+--bonus (GCHQ puzzle):
+Bonus GCHQ puzzle. Output as C++
+constant preset = {{3,{4,5,13,14,22}},
+                   {8,{7,8,11,15,16,19}},
+                   {16,{7,12,17,21}},
+                   {21,{4,5,10,11,16,21,22}}}
+x = unpack("GCAAG AABBAA ACACAACA ACAAFACA ACAEBACA AABAA "&
+           "GAAAAAG CC ABCAACAAB AACBAA DADBAB AAAAADAC "&
+           "BAAABE CBBFCA AIAABA BABBCA CAAAAEA ABBE GABAAAC "&
+           "AABABBA ACADEA ACACJB ACAAFF AABAAB GBABE")
+y = unpack("GBAAG AABBAA ACACACACA ACAAEACA ACAADACA AAABAA "&
+           "GAAAAAG AAC BABAHBA BBABAAAB AGCBA ABCAAAAA "&
+           "DAABF CCAAACA ABEBB BBAAAAABA ACCBAHA FBA GADAAC "&
+           "AAAAD ACACGA ACAAABAAD ACADCC AABBBFA GACBAA")
+
+--/*
+--no longer needed:
+function pack(sequence s)
+string res = ""
+    for i=1 to length(s) do
+        if i>1 then
+            res &= ' '
+        end if
+        for j=1 to length(s[i]) do
+            res &= s[i][j]+'A'-1
+        end for
+    end for
+    return res
+end function
+?pack(Ngchq)
+?equal(unpack(pack(Ngchq)),Ngchq)
+?pack(Ggchq)
+?equal(unpack(pack(Ggchq)),Ggchq)
+--*/
+
+    grid = repeat(repeat('?',length(y)),length(x))
+    for i=1 to length(preset) do
+        integer line = preset[i][1]
+        sequence pj = preset[i][2]
+        for j=1 to length(pj) do
+            grid[line][pj[j]]='#'
+        end for
+    end for
+    unsolved = count_grid()
+
+    while unsolved do
+        if not logic() then
+    --trace(1)
+    --{} = logic()
+            ?"partial"
+            exit
+        end if
+    end while
+
+    puts(1,join(grid,"\n")&"\n")
+
+--/*
+#######.###...#.#.#######
+#.....#.##.##.....#.....#
+#.###.#.....###.#.#.###.#
+#.###.#.#..######.#.###.#
+#.###.#..#####.##.#.###.#
+#.....#..##.......#.....#
+#######.#.#.#.#.#.#######
+........###...###........
+#.##.###..#.#.###.#..#.##
+#.#......###.##....#...#.
+.####.#.####.##.#....##..
+.#.#...#...#.#.####.#.###
+..##..#.#.#......##.#####
+...###.##.##.######.###.#
+#.#########.#.#..##....#.
+.##.#..##...##.###.....#.
+###.#.#.#..#....#####.#..
+........#...##.##...#####
+#######.#..##...#.#.#.###
+#.....#.##..#..##...##.#.
+#.###.#...####..#####..#.
+#.###.#.###.##########.##
+#.###.#.#..######.######.
+#.....#..##......#.#.##..
+#######.##...#.##...#####
+--*/
+--*/
+
+--/*
+
+"Extra example not solvable by deduction alone:".writeln;
+    "B B A A\nB B A A".solve;
+ 
+    "Extra example where there is no solution:".writeln;
+    "B A A\nA A A".solve;
+
+Extra example not solvable by deduction alone:
+Horizontal runs: [[2], [2], [1], [1]]
+Vertical runs: [[2], [2], [1], [1]]
+Solution may not be unique, doing exhaustive search:
+# # . .
+# # . .
+. . # .
+. . . #
+
+# # . .
+# # . .
+. . . #
+. . # .
+
+. # # .
+# # . .
+# . . .
+. . . #
+
+3 solutions.
+
+Extra example where there is no solution:
+Horizontal runs: [[2], [1], [1]]
+Vertical runs: [[1], [1], [1]]
+Solution may not be unique, doing exhaustive search:
+No solution.
+
+--*/
+

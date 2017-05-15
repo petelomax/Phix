@@ -60,6 +60,7 @@ integer ch, allnum
         ch = filename[i]
         if ch='.' then
             extension = lower(filename[i+1..len])
+--          allnum = false
             if length(extension) then
                 allnum = true
                 for j=length(extension) to 1 by -1 do
@@ -71,7 +72,9 @@ integer ch, allnum
                 end for
                 if not allnum then exit end if
             end if
-            len = i-1
+--          if allnum then
+                len = i-1
+--          end if
         elsif find(ch,"\\/:") then
             exit
         end if

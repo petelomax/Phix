@@ -1,15 +1,13 @@
 --
--- demo\rosetta\Colour_pinstripe.exw
--- =================================
+-- demo\rosetta\Greyscale_bars.exw
+-- ===============================
 --
+-- Resizeable. Use of nx avoids rounding/misalignment errors
 
 --#withtype Ihandle
 --#withtype cdCanvas
 
 include pGUI.e
-
-constant colours = {CD_BLACK, CD_RED, CD_GREEN, CD_MAGENTA, CD_CYAN, CD_YELLOW, CD_WHITE}
---constant colours = {CD_BLACK, CD_WHITE}
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
@@ -17,15 +15,18 @@ cdCanvas cddbuffer, cdcanvas
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     cdCanvasActivate(cddbuffer)
     integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-    for y=1 to 4 do
-        integer x = 0, c = 1, h = floor(height/(5-y))
-        while x<width do
-            cdCanvasSetForeground(cddbuffer, colours[c])
-            cdCanvasBox(cddbuffer, x, x+y, height-h, height)
-            x += y
-            c = iff(c=length(colours)?1:c+1)
-        end while
-        height -= h
+    integer h = ceil(height/4)
+    for row=1 to 4 do
+        integer x = 0, p2 = power(2,row+2), c = floor(255/(p2-1))
+        for n=0 to p2-1 do
+            integer colour = c*n*#010101
+            if and_bits(row,1)=0 then colour = xor_bits(colour,#FFFFFF) end if
+            cdCanvasSetForeground(cddbuffer, colour)
+            integer nx = ceil(width*(n+1)/p2)
+            cdCanvasBox(cddbuffer, x, nx, height-h, height)
+            x = nx
+      end for
+      height -= h
     end for
     cdCanvasFlush(cddbuffer)
     return IUP_DEFAULT
@@ -49,21 +50,21 @@ function esc_close(Ihandle /*ih*/, atom c)
 end function
 
 procedure main()
-    IupOpen(join_path({"..","pGUI"},1))
+    IupOpen()
 
     canvas = IupCanvas(NULL)
-    IupSetAttribute(canvas, "RASTERSIZE", "600x400") -- initial size
+    IupSetAttribute(canvas, "RASTERSIZE", "600x400")
 
-    IupSetCallback(canvas, "MAP_CB",    Icallback("map_cb"))
-    IupSetCallback(canvas, "UNMAP_CB",  Icallback("unmap_cb"))
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("unmap_cb"))
 
     dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", "Colour pinstripe")
+    IupSetAttribute(dlg, "TITLE", "Greyscale bars")
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
 
     IupMap(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
 
     IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
 

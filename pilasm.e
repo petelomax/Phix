@@ -1579,7 +1579,9 @@ integer unrecognised
         emitline = line
         opLnpos = length(s5)+1
         if NOLT=0 or bind or lint then
-            ltCall(E_vars,E_vars,opLnpos)   -- clear all, to be safe
+            if not LTBROKEN then
+                ltCall(E_vars,E_vars,opLnpos)   -- clear all, to be safe
+            end if
         end if -- NOLT
         wasbind = bind
         bind = 1

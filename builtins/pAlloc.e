@@ -34,9 +34,9 @@ atom res
     if size<0 or size!=floor(size) then
         #ilASM{
             [32]
-                mov ecx,1           -- no of frames to pop to obtain an era (>=2)
+                mov ecx,1           -- no of frames to pop to obtain an era
             [64]
-                mov rcx,1           -- no of frames to pop to obtain an era (>=2)
+                mov rcx,1           -- no of frames to pop to obtain an era
             []
                 mov al,37           -- e37atambpi (argument to allocate must be positive integer)
                 jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)

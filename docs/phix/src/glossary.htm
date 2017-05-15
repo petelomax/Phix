@@ -357,11 +357,16 @@
          </td>
          <td>
             The term scope is a general concept used when describing how the compiler resolves references to identifiers. In most cases it
-            is simple and intuitive, involving nothing more than plain old common sense. The scope of an identifier is where, in terms of 
-            which lines of code, it can be referenced. The scope of a variable starts at the point of declaration and ends at the end of 
-            the declaring block, routine, file, or in the case of globals, on the last line of the main file. The scope of a routine is 
-            anywhere in the file it is declared in, or in the case of global routines, anywhere in the entire application. Namespaces and
-            explicit forward declarations can be used to further qualify and clarify matters. See <a href="scope.htm">scope</a>.
+            is simple and intuitive, involving nothing more than plain old common sense. It may be helpful to think of "in scope" as simply
+            meaning "does not cause a compilation error".
+            <br>
+            <br>
+            The scope of an identifier is where, in terms of which lines of code, it can be referenced. <br>
+            The scope of a variable starts at the point of declaration and ends at the end of the declaring block, routine, file, or in the 
+            case of globals, on the last line of the main file. <br>
+            The scope of a routine is anywhere in the file it is declared in, or in the case of global routines, anywhere in the entire 
+            application. <br>
+            Namespaces and explicit forward declarations can be used to further qualify and clarify matters. See <a href="scope.htm">scope</a>.
             <br>
               <a name=sequence></a>
          </td>
@@ -443,6 +448,34 @@
             An <b>outdated</b> internal compiler/back-end term, from before making tvars ebp-relative. Where this is
             still used, it probably just means the gvar table, or quite likely should just be completely ignored.
             <br>
+<!--
+              <a name=trampoline></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            trampoline
+         </td>
+         <td>
+            Internal compiler/back-end term. Particularly on 64-bit Linux, the interpreter (and therefore the runtime VM) 
+            resides in low memory (#08048000-ish) and in my tests (ubuntu 12.04) libc/malloc yields similar addresses for
+            allocations of 80K and below, but virtual/stack addresses (#00007FFAFFFE8000-ish) as soon as you ask for 100K
+            or more. In case you do not know, the only 64-bit literals in 64-bit code are in mov statements, not call etc, 
+            and all offsets are 32-bit. Hence while it is fine to poke code into such memory, it cannot call anything 
+            (already) resident in low memory. However/thankfully 64-bit literals are fine as data or a jump table, so we
+            copy those low addresses into a table of 64-bit addresses (in high memory) and use call [mem64], where the
+            address of the memory argument is safely within a 32-bit offset, even though the actual target is not. There
+            is never a need for a trampoline in an executable file, however it is possible to tweak the settings of the
+            TRAMPOLINE flag in p.exw to debug things, or use that flag to search the compiler sources. Should the data
+            section be more than a 32 bit offset away from the codesection, as allocated in pemit2.e, then interpretation
+            fails with a "trampoline error".... [DEV - allocate together...]
+            The trampoline is actually located via symtab[T_optable], with a fatal error should anything in there not be
+            an integer (31 or 63 bit)...
+            Entries in the optable are invoked via isTram
+            mallopt(int param, int value);
+            M_MMAP_THRESHOLD, (>128*1024)
+            <br>
+-->
               <a name=tvar></a>
          </td>
         </tr>

@@ -3327,6 +3327,8 @@ adc ecx, ebx
                 lea rsi,[rsi+BUFF64]
                 mov rdx,BUFFERSIZE64
                 syscall
+--15/4/17
+                mov rsi,[rsp]
                 test rax,rax
                 jle :exitwhile
                 mov [rsi+FEND64],rax
@@ -3842,6 +3844,8 @@ end procedure -- (for Edita/CtrlQ)
             jg @f
                 mov cl,26 -- (Ctrl Z)
           @@:
+            cmp cl,10
+            je :addlf
         [64]
 --          mov [ch],ecx
 --DEV what if ch='\n'? (test with various redirected files)
@@ -5423,6 +5427,7 @@ read_stdin_termios:
         push rcx
         push rdx
 
+(#36 = 54)
         mov eax, 36h
         mov eax, 54     -- sys_ioctl
         mov ebx, stdin
@@ -5779,7 +5784,7 @@ key:
 --0     sys_read                unsigned int fd         char *buf                       size_t count
 --DEV see [ELF32]
 --(16   sys_ioctl               unsigned int fd         unsigned int cmd                unsigned long arg)
-
+--/*
         push rbx                -- buffer
         mov rax,0               -- sys_read
         mov rdi,[stdin]         -- fd
@@ -5791,6 +5796,63 @@ key:
         jg @f
             mov rax,-1
       @@:
+#       Name                        Registers                                                                                                               Definition
+                                    eax     ebx                     ecx                     edx                     esi                     edi
+54      sys_ioctl                   0x36    unsigned int fd         unsigned int cmd        unsigned long arg       -                       -               fs/ioctl.c:613
+==>
+%rax    System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+16      sys_ioctl               unsigned int fd         unsigned int cmd                unsigned long arg
+--*/
+--/!*
+        xor rax,rax
+      ::xGetOrWait
+        push rax
+        sub rsp,40          -- termios struct (+4 bytes padding)
+        xor rdi,rdi         -- stdin (0)
+        mov rsi,0x5401      -- TCGETS 
+        mov rdx,rsp
+        mov rax,16          -- sys_ioctl 
+        syscall
+        and dword[rsp+12],#FFFFFFF5     -- not(ICANON or ECHO)   ;turn off echo 
+        mov rax,[rsp+40]
+--DEV... broken/may be wrong offsets/still echoes (pretty sure 23 is TIME)
+        mov byte[rsp+22],al             -- VMIN                  ;turn off canonical mode 
+        mov byte[rsp+23],al             -- VTIME     ;we dont want to wait for keystrokes 
+        xor rdi,rdi         -- stdin (0)
+        mov rsi,0x5402      -- TCSETS
+        mov rdx,rsp
+        mov rax,16          -- sys_ioctl 
+        syscall
+        xor rbx,rbx         -- (common requirement after int 0x80)
+
+        push rbx            -- reserve space for buffer (1 byte really)
+        mov rax,0           -- sys_read
+        mov rdi,[stdin]     -- fd
+        mov rsi,rsp         -- buffer
+        mov rdx,1           -- count
+        syscall
+        xor rbx,rbx         -- (common requirement after int 0x80)
+        test rax,rax
+        pop rax
+        jg @f
+            mov rax,-1
+      @@:
+
+        or dword[rsp+12],#0000000A  -- (ICANON or ECHO)  ;turn on echo 
+        mov byte[rsp+22],1          -- VMIN              ;turn on canonical mode 
+--(to mirror OE:[?])
+--      mov byte[rsp+23],1          -- VTIME             ;wait for keystrokes 
+        xor rdi,rdi         -- stdin (0)
+        mov rsi,0x5402      -- TCSETS
+        mov rdx,rsp
+        push rax
+        mov rax,16          -- sys_ioctl 
+        syscall
+        xor rbx,rbx         -- (common requirement after int 0x80)
+        pop rax
+        add rsp,48
+--*!/
+
     [64]
 --      jmp @f
         pop rdi
@@ -6002,6 +6064,7 @@ end function
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --0     sys_read                unsigned int fd         char *buf                       size_t count
+--/*
         push rbx                -- buffer
         mov rax,0               -- sys_read
         mov rdi,[stdin]         -- fd
@@ -6013,6 +6076,9 @@ end function
         jg @f
             mov rax,-1
       @@:
+--*/
+        mov rax,1
+        jmp :xGetOrWait
     [64]
         pop rdi
         mov r15,h4

@@ -1,37 +1,6 @@
---mov_eax_imm32
---       mov_m32_imm32  = {#C7,#05},    -- 0o307 0o005 m32 i32      -- mov [m32],imm32
---       mov_medi_im32  = {#C7,#07},    -- 0o307 0o007 imm32        -- mov [edi],imm32
---       mov_ebpd8_i32  = {#C7,#45},    -- 0o307 0o105 d8 imm32     -- mov [ebp+d8],imm32
---       mov_edid8_i32  = {#C7,#47},    -- 0o307 0o107 d8 imm32     -- mov [edi+d8],imm32
---       mov_ebpd32_i32 = {#C7,#85},    -- 0o307 0o205 d32 imm32    -- mov [ebp+d32],imm32
---       mov_edid32_i32 = {#C7,#87},    -- 0o307 0o207 d32 imm32    -- mov [edi+d32],imm32
---       mov_regimm32   =  #C7,         -- 0o307 0o30r imm32        -- mov reg,imm32
-with trace
-
 --
 -- pilx86.e
 --  (created 14/3/09, from pilxl.e+pgscan.e+pltype.e)
-
---DEV storeconstref
---emitHex5v(mov_eax_imm32   -- DONE
---emitHex5v(mov_ecx_imm32   -- DONE
---emitHex5v(mov_edx_imm32   -- DONE
---emitHex5v(mov_esi_imm32   -- DONE
---emitHex5v(mov_edi_imm32   -- DONE
---emitHex5v(mov_            -- DONE
---emitHex5v(mov_eax_mem32   -- DONE
---emitHex5v(push_imm32,
-
---emitHex6v(mov_ecx_mem32   -- DONE
---emitHex6v(mov_edx_mem32   -- DONE (badly) [but edx cannot go via loadToReg...]
---emitHex6v(mov_edi_mem32   -- DONE
---emitHex6v(mov_esi_mem32   -- DONE
---emitHex6v(push_mem32      -- DONE
---emitHex10sdi              -- DONE (?)
-
--- lots of these added 5/9/14: they all need individual and careful testing...
---DEVBPM backpatch me:
---emitHex6j                 -- DONE
 
 --
 -- implements ilxlate(), the translation of intermediate code into x86 binary.
@@ -2901,6 +2870,7 @@ end if
         sltype = ss[S_ltype]
     end if
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
     if getLocal(src) then
 --15/1/16. We cannot know if optset[OptTypeCheck] is/was on, so we cannot do this...
         slroot = and_bits(rootType(Ltype),rootType(sudt))
@@ -2923,6 +2893,7 @@ end if
 --      ssNTyp1 = ss[S_NTyp]    -- for opMovbi (and not NewBase)
         return
     end if
+ end if
 end if -- NOLT
 --  slroot = and_bits(rootType(sltype),rootType(sudt))
     if sltype>T_object or sudt>T_object then
@@ -3012,6 +2983,7 @@ integer vtype2, vroot2  -- declared type/root
         vroot2 = vtype2
     end if
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
     if getLocal(src2) then
 --??        stype2 = rootType(Ltype)
 --if Ltype>T_object then ?9/0 end if
@@ -3036,6 +3008,7 @@ end if
         ssNTyp2 = ss[S_NTyp]    -- for opMovbi (and not NewBase)
         return
     end if
+ end if
 end if -- NOLT
 --  sltype2 = ss[S_ltype]
 -- 20/9:
@@ -3261,6 +3234,7 @@ integer gtypeonly       -- set to 1 to suppress ltAdd
 procedure storeDest()
 object sdgi
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
  --
  -- This is a reasonable place to trap #isginfo problems, best
  --  for the compiler under "p p -d p" (with doOneInclude=1 in
@@ -3399,6 +3373,7 @@ if dest=710 then
 --  ?sdgi
     sdgi = symtab[dest]
 end if
+ end if
 end if -- NOLT
 end procedure
 
@@ -4311,9 +4286,11 @@ integer waspc, xpc
 --      or nextop=opLogPos then
             if tgt=pc+3 then        -- all interim code skipped
                 if NOLT=0 or bind or lint then
+                 if not LTBROKEN then
                     if pc!=waspc then
                         ltskip(pc,waspc)
                     end if
+                 end if
                 end if -- NOLT
 --DEV tryme:
 --  pc3 = pc+3
@@ -4328,9 +4305,11 @@ integer waspc, xpc
             elsif s5[pc+3]  -- label which has been referenced
                or (s5[pc+4]=opCtrl and and_bits(s5[pc+5],SWITCH)) then
                 if NOLT=0 or bind or lint then
+                 if not LTBROKEN then
                     if pc!=waspc then
                         ltskip(pc,waspc)
                     end if
+                 end if
                 end if -- NOLT
 if 0 then -- 17/11/09 old code:
                 return 0
@@ -4403,9 +4382,12 @@ end if
                 if pc>length(s5) then
                     if tgt!=-1 then ?9/0 end if -- (ie: where's me label gone?)
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
+
 --              if pc!=waspc then
                     ltskip(pc,waspc)
 --              end if
+ end if
 end if -- NOLT
                     return 1 -- remainder of routine skipped
                 end if
@@ -4698,7 +4680,9 @@ object dbg
 
 
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
     ltclear(vi)
+ end if
 end if -- NOLT
 
 if q86 then
@@ -5676,9 +5660,11 @@ end if
             if not callpending then ?9/0 end if
             callpending = 0
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
             if and_bits(gmask,E_vars) then  -- (gmask set by opFrame)
                 ltCall(0,gmask,pc)
             end if
+ end if
 end if -- NOLT
             pc += 1
 
@@ -5878,7 +5864,9 @@ end if
 --
             pc += 2
             if NOLT=0 or bind or lint then
+             if not LTBROKEN then
                 ltCtrl(pc)
+             end if
             end if -- NOLT
             if not isGscan then
                 stmt = s5[pc-1]
@@ -6783,7 +6771,9 @@ end if
             nextop = 0
             if mergeSet then    -- DoWhile/just handled by opLoopTop
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
                 ltFlip(pc)
+ end if
 end if -- NOLT
             end if
             if not isGscan then
@@ -6925,9 +6915,11 @@ end if
                                         -- esi is ebp-N*4 or thereabouts,
                                         -- edi is vsb_root (==[ebp+32])
                             if NOLT=0 or bind or lint then
+                             if not LTBROKEN then
                                 if and_bits(gmask,E_vars) then  -- (gmask set by opFrame)
                                     ltCall(0,gmask,pc)
                                 end if
+                             end if
                             end if -- NOLT
 
                             -- NB should not be calling lineinfo here
@@ -7118,6 +7110,7 @@ end if
                     storeDest()
                 end if
                 if NOLT=0 or bind or lint then
+                 if not LTBROKEN then
                     if pc>pcTchk then
                         Lmin = smin
                         Lmax = smax
@@ -7125,6 +7118,7 @@ end if
                         Lslen = slen
                         ltAdd(SET,src,sltype,sudt,pc)
                     end if
+                 end if
                 end if -- NOLT
                 if not isGscan then
                     symtabN = symtab[src]   -- (must be set before needstypecheck() call)
@@ -7511,6 +7505,7 @@ end if
             end if
 
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
             if opcode=opJne then
 --trace(1)
                 --
@@ -7558,6 +7553,7 @@ if NOLT=0 or bind or lint then
                     end if
                 end if
             end if -- opJne
+ end if
 end if -- NOLT
 
         elsif opcode=opJmp then
@@ -8783,7 +8779,6 @@ end if
                         schedule(rb,0,rb,pU,1,0)
                     end if
                     xrm = #F8+reg -- 0o37r, sar/reg
---DEV where is src2 set?! (spotted in passing) (is opDivf2 actually in use?)
                     src2 -= 1
                     if src2=1 then
                         emitHexx2(0o321,xrm)                        -- sar reg,1
@@ -9035,6 +9030,7 @@ end if
 
             src = s5[pc+4]
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
             src2 = s5[pc+6]     -- lastparam
             if src2 then
                 -- This is an "if udt(src2) then" style op,
@@ -9055,6 +9051,7 @@ if NOLT=0 or bind or lint then
                 --  hence ltAdd(TEST,x,<ptyp>,mytype,pc):
                 --   (obviously we do not modify src/res:mytype here)
             end if
+ end if
 end if  -- NOLT
             if isGscan then
                 pc += 7
@@ -9718,6 +9715,8 @@ end if
             sltype2 = ltype
             getSrc()
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
+
             if not and_bits(state1,K_Fres) then
                 if not invert then
                     sltype2 = xor_bits(sltype2,T_object)
@@ -9732,6 +9731,7 @@ if NOLT=0 or bind or lint then
                     -- (nb do not getSrc() again below)
                 end if
             end if  -- K_Fres
+ end if
 end if -- NOLT
 
             if isGscan then
@@ -10071,7 +10071,10 @@ end if -- NOLT
 --DEV14:
             if callpending then ?9/0 end if -- (shd not be emitted between opFrame & opCall)
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
+
             ltlooptop(pc)
+ end if
 end if -- NOLT (opLoopTop should not actually be emitted?)
 --          pc += 3
             pc += 4
@@ -10501,8 +10504,10 @@ end if
                 if s5[npc]!=opEndFor then ?9/0 end if
                 pc = npc
                 if NOLT=0 or bind or lint then
+                 if not LTBROKEN then
                     ltCtrl(pc+2)
                     ltFlip(pc)
+                 end if
                 end if -- NOLT
                 pc += 3 -- (nb matching one of these in opEndFor)
 -- added 8/6/2012: kill the opLabel if we skipped all the exit(??)
@@ -10519,7 +10524,9 @@ end if
             -- opEndFor,END+LOOP,bpFor
 
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
             ltCtrl(pc+2)
+ end if
 end if -- NOLT
 
 --          if not isGscan then
@@ -10724,7 +10731,9 @@ end if
             end if -- not isGScan
 
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
             ltFlip(pc)
+ end if
 end if -- NOLT
 
 --          pc += 2
@@ -10736,6 +10745,7 @@ end if -- NOLT
 
             k = s5[pc+1]
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
             if k
             and length(s5)>=pc+k+4  -- [needed when opRetf omitted for EvoGen testing]
             and s5[pc+k+4]!=opRetf
@@ -10746,6 +10756,7 @@ if NOLT=0 or bind or lint then
                 -- immediately followed by opLn and another opAsm
                 --  (in latter case ltCall is left to ""     "")
             end if
+ end if
 end if -- NOLT
 
             if isGscan then
@@ -12956,11 +12967,13 @@ if {smin,smax}!={Tsmin,Tsmax} then ?9/0 end if
         elsif opcode=opCallOnce then    -- 13
             routineNo = s5[pc+1]
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
             symk = symtab[routineNo]
             gmask = symk[S_Efct]
             if and_bits(gmask,E_vars) then
                 ltCall(0,gmask,pc)  -- clear rqd gvar info
             end if
+ end if
 end if -- NOLT
             if not isGscan then
                 -- don't opLn/t/p/pt for this:
@@ -13120,7 +13133,9 @@ end if
 
 --          if opcode=opCallA then
 --if NOLT=0 or bind or lint then
+-- if not LTBROKEN then
 --              ltCall(0,E_vars,pc) -- clear all, to be safe
+-- end if
 --end if -- NOLT
 --          end if
 
@@ -15162,7 +15177,9 @@ end if
     --  This is most definitely needed, but not really sure why...
     --  (in theory the ltclear() at the start should be enough)
 if NOLT=0 or bind or lint then
+ if not LTBROKEN then
     ltclear(-vi)
+ end if
 end if -- NOLT
 
 end procedure

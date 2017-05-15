@@ -48,7 +48,7 @@ integer p = 2,
     return lfactors & hfactors
 end function
 
-global function prime_factors(atom n)
+global function prime_factors(atom n, bool duplicates=false)
 sequence pfactors = {}
 integer p = 2, 
         lim = floor(sqrt(n))
@@ -60,13 +60,16 @@ integer p = 2,
             while 1 do
                 n = n/p
                 if remainder(n,p)!=0 then exit end if
+                if duplicates then
+                    pfactors = append(pfactors,p)
+                end if
             end while
             if n<=p then exit end if
             lim = floor(sqrt(n))
         end if
         p += 1
     end while 
-    if n>1 and length(pfactors)!=0 then
+    if n>1 and (length(pfactors)!=0 or duplicates) then
         pfactors = append(pfactors,n)
     end if
     return pfactors

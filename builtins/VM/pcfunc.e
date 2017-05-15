@@ -332,6 +332,7 @@ atom addr
             call :%pStoreMint
         []
           }
+lib += length(name) -- avoids xType=0 messages on lib [DEV, linux only]
     return addr
 end function
 
@@ -848,7 +849,7 @@ end if
                 mov dword[rdi+1],ecx    --          imm32 (routine no)
                 sub rax,rdi
                 mov byte[rdi+5],0o350   -- call (#E8)
---DEV... (we might want to mov ecx,imm64; mov eax,id; call ecx; ret, and/or try jmp ecx...)
+--DEV... (we might want to mov rcx,imm64; mov eax,id; call rcx; ret, and/or try jmp rcx...)
 --       (maybe: mov ecx,:%cbhandler; mov eax,id; call ecx - but that might not work for dlls)
 --              mov dword[rdi+11],rax   --      off32 (:%cbhandler)
 --              mov dword[rdi+11],eax   --      off32 (:%cbhandler)
@@ -1096,17 +1097,24 @@ integer esp4
         argdefi = argdefs[i]
         if integer(argi) then
 --DEV inline this
-            if find(argdefi,{
-                             #01000001,     -- C_CHAR
-                             #02000001,     -- C_UCHAR
-                             #01000002,     -- C_SHORT (a 16 bit signed integer)
-                             #02000002,     -- C_USHORT (a 16 bit signed integer)
-                             #01000004,     -- C_INT
-                             #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
---DEV:
---,#2000008
-,#1000008
-                            }) then
+--          if find(argdefi,{
+--                           #01000001,     -- C_CHAR
+--                           #02000001,     -- C_UCHAR
+--                           #01000002,     -- C_SHORT (a 16 bit signed integer)
+--                           #02000002,     -- C_USHORT (a 16 bit signed integer)
+--                           #01000004,     -- C_INT
+--                           #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+----DEV:
+----,#2000008
+--,#1000008
+--                          }) then
+            if argdefi=#01000001    -- C_CHAR
+            or argdefi=#02000001    -- C_UCHAR
+            or argdefi=#01000002    -- C_SHORT (a 16 bit signed integer)
+            or argdefi=#02000002    -- C_USHORT (a 16 bit signed integer)
+            or argdefi=#01000004    -- C_INT
+            or argdefi=#02000004    -- C_UINT == C_ULONG, C_POINTER, C_PTR
+            or argdefi=#01000008 then
                 #ilASM{
                         [32]
                             mov edx,[argi]
@@ -1316,12 +1324,15 @@ end if
             end if
         elsif atom(argi) then
 --DEV inline this
-            if find(argdefi,{
-                             #01000004,     -- C_INT
-                             #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
---,#02000008
-,#01000008
-                            }) then
+--          if find(argdefi,{
+--                           #01000004,     -- C_INT
+--                           #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+----,#02000008
+--,#01000008
+--                          }) then
+            if argdefi=#01000004            -- C_INT
+            or argdefi=#02000004            -- C_UINT == C_ULONG, C_POINTER, C_PTR
+            or argdefi=#01000008 then
                 #ilASM{
                         [32]
 --                          mov edx,[argi]      --DEV :%pLoadMint
@@ -1543,9 +1554,12 @@ end if
 --      elsif string(argi) and argdefi!=C_WIDEPTR then
             if DEBUG then
 --DEV inline, proper error
-                if not find(argdefi,{
-                                     #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
-                                    }) then ?9/0 end if
+--              if not find(argdefi,{
+--                                   #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+--                                  }) then ?9/0 end if
+                if argdefi!=#02000004 then     -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                    ?9/0
+                end if
             end if
             -- NB recount-agnostic; see WARNING above.
             #ilASM{
@@ -1562,10 +1576,13 @@ end if
         else
             if DEBUG then
 --DEV inline, proper error
-                if not find(argdefi,{
-                                     #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
---                                   #12000004      -- C_WIDEPTR [DEV]
-                                    }) then ?9/0 end if
+--              if not find(argdefi,{
+--                                   #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
+----                                     #12000004      -- C_WIDEPTR [DEV]
+--                                  }) then ?9/0 end if
+                if argdefi!=#02000004 then     -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                    ?9/0
+                end if
             end if
             fatalN(3,e88atcfpmbaos,flag)
         end if
@@ -1591,6 +1608,12 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                     --       and in fact has nothing to do with save/restore of e/rbp,
                     --       at least not in any direct sense.
 
+--DEV (temp, bug in pltype.e???)
+if platform()=LINUX then
+    if "abc"="def" then
+        args = {1,1.2,"str",{}}
+    end if
+end if
     {return_type,addr,esp4} = c_common(rid,args,FUNC)
 
 --(DEV: delete once all types are handled)
@@ -1638,23 +1661,7 @@ integer prev_ebp4   --       whereas this is subtler: maintain the e/rbp for cal
                 mov eax,[addr]
                 call :%pLoadMint
 
---no help:
---[ELF32]
---shr ebp,2
---mov [static_ebp4],ebp
---xor ebp,ebp
-----push eax
-----xor eax,eax
---xor ecx,ecx
---xor edx,edx
---xor esi,esi
---xor edi,edi
---[32]
                 call eax
---[ELF32]
---mov ebp,[static_ebp4]
---shl ebp,2
---[32]
 
                 mov ecx,[esp4]
                 shl ecx,2

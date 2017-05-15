@@ -611,6 +611,7 @@ global procedure ltAdd(integer flag, integer v, integer ptyp, integer ntyp, inte
 --          (and in this latter case pilx86 may set Lmin=Lmax=1)
 --
 integer ldx
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -720,6 +721,7 @@ global function getLocal(integer vno)
 --   sets Ltype,Lmin,Lmax,Letyp,Lslen and returns 1
 integer ldx
 sequence sv
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -811,6 +813,7 @@ integer lv, flag, undo, sNtyp, mask, ptyp, ntyp, rtyp, etyp
 object ginfo
 sequence sv     -- copy of symtab[vno]
 
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1005,7 +1008,7 @@ function or_type(integer t1, integer t2)
     return t1
 end function
 
-procedure merge(integer tgtldx, integer srcldx)
+procedure mergeTypes(integer tgtldx, integer srcldx)
 --
 -- merge the two indicated [SET] entries
 --
@@ -1037,7 +1040,7 @@ atom Pmin,Pmax
         Ntype = Ptype
     end if
 --if diag and ltypetoo then
---  dprintf("merge(1002): symtab[%d][S_ltype] = %d\n",{vno,Ntype})
+--  dprintf("mergeTypes(1002): symtab[%d][S_ltype] = %d\n",{vno,Ntype})
 --end if
     symtab[vno][S_ltype] = Ntype
     Lmin = ltmin[srcldx]
@@ -1162,7 +1165,7 @@ integer vno, flag, ptype, special
                     special = 1             -- ^ remove (UNDONE) later.
 --                  lpldx[ldx] = lpldx[l]
 --                  lpldx[l] = ldx
---                  merge(ldx,l)
+--                  mergeTypes(ldx,l)
                     kill(l)
                 else
                     ptype = lptyp[l]
@@ -1206,6 +1209,7 @@ integer opcode,
 
 sequence optxt
 
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1455,9 +1459,9 @@ integer flag,
                     symtab[vno][S_ltype] = ntyp
 -- 6/12/2011 (test)
 --                  kill(ldx)
-                    merge(prvldx,ldx)   -- (kills ldx)
+                    mergeTypes(prvldx,ldx)  -- (kills ldx)
                 else
-                    merge(prvldx,ldx)   -- (kills ldx)
+                    mergeTypes(prvldx,ldx)  -- (kills ldx)
                 end if
             end if
         elsif how=NEW or how=NORMAL then
@@ -1546,6 +1550,7 @@ global procedure ltCtrl(integer s5idx)
 --
 integer stmt, hingeldx, topldx, topidx, ctnrldx, prev, k, lidx
 
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1713,6 +1718,7 @@ end procedure
 global procedure ltlooptop(integer s5idx)
 integer lmask, gmask
 
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1762,6 +1768,7 @@ global procedure ltskip(integer s5idx, integer waspc)
 --
 integer lidx, endidx, stmt, endstmt, anymod
 
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1844,6 +1851,7 @@ global procedure ltclear(integer rtnidx)
 --   negative numbers indicating an end of routine.)
 integer lvlen, vno, flag
 
+    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1851,7 +1859,11 @@ integer lvlen, vno, flag
     if diag then
         dprintf("ltclear(rtnidx=%d,emitline=%d)\n",{rtnidx,emitline})
     end if
-    if cmax>0 then ?9/0 end if
+--DEV fixme:
+--  if cmax>0 then ?9/0 end if
+    if cmax>0 then
+        puts(1,"cmax>0...\n")
+    end if
     lvlen = length(lvno)
     if lvlen then
         for i=lvlen to 1 by -1 do

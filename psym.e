@@ -714,9 +714,11 @@ else
             emitline = line
             apnds5({opCallOnce,wastls})
             if NOLT or bind or lint then
+             if not LTBROKEN then
                 if and_bits(effects,E_vars) then
                     ltCall(0,effects,length(s5)-1) -- clear rqd gvar info
                 end if
+             end if
             end if -- NOLT
         end if
 end if
@@ -948,7 +950,7 @@ without trace
 
 
 --DEV there's a global of this very value in pglobals.e, btw
-constant Tmap = {T_integer,T_atom,T_string,T_sequence,T_object}
+--<constant Tmap = {T_integer,T_atom,T_string,T_sequence,T_object}
 
 --DEV cleanme (should res be string or dword_sequence, does it matter?; try res=sig(or return sig) and the one-liner)
 function mapsig(sequence sig)
@@ -960,9 +962,11 @@ integer k
     for i=2 to length(sig) do
         k = sig[i]
         k = find(k,"INSPO")
-        k = Tmap[k]
+--<     k = Tmap[k]
+        k = typeINSPO[k]
         res[i] = k
---      res[i] = Tmap[find(sig[i],"INSPO")]
+--<     res[i] = Tmap[find(sig[i],"INSPO")]
+--      res[i] = typeINSPO[find(sig[i],"INSPO")]
     end for
     return res
 end function
@@ -2368,6 +2372,7 @@ end if
     -- note that builtin overrides get a new symtab slot
     IAEType = T_integer
 
+    initialAutoEntry("binary_search",   S_Func,"FOP",   "bsearch.e",0,E_none)
     initialAutoEntry("chdir",           S_Func,"FP",    "pchdir.e",0,E_other)
     initialAutoEntry("check_break",     S_Func,"F",     "pbreak.e",0,E_other)
 --  initialAutoEntry("copy_file",       S_Func,"FSSI",  "pcopyfile.e",0,E_other)
@@ -2644,7 +2649,8 @@ end if
     initialAutoEntry("pad_tail",        S_Func,"FPIO", "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("permute",         S_Func,"FIP",   "permute.e",0,E_none)
-    initialAutoEntry("prime_factors",   S_Func,"FN",    "pfactors.e",0,E_none)
+    initialAutoEntry("prime_factors",   S_Func,"FNI",   "pfactors.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("remove",          S_Func,"FPNN",  "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("remove_all",      S_Func,"FOP",   "premoveall.e",0,E_none)

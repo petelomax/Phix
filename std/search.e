@@ -584,6 +584,9 @@ end function
 -- See Also:
 -- [[:find]], [[:db_find_key]]
 
+-- Phix: defined in builtins/bsearch.e [auto-include]
+--/**/include builtins/bsearch.e
+--/*
 --public function binary_search(object needle, sequence haystack, integer start_point = 1, integer end_point = 0)
 public function binary_search(object needle, sequence haystack)
 integer lo, hi, mid, c  -- works up to 1.07 billion records
@@ -609,6 +612,7 @@ integer lo, hi, mid, c  -- works up to 1.07 billion records
     end if
     return -mid
 end function
+*/
 
 --****
 -- === Matching

@@ -295,13 +295,29 @@ add_code = {
        #03, #44, #24, #08,              -- add eax, [esp+8]
        #C2, #08*(platform()=WIN32), #00 -- ret 8
 }
-else
+--else
+--add_code = {
+--     -- first int argument is at stack offset +8, 2nd int is at +16 
+--     #48, #8B, #44, #24, #08,         -- mov rax, [rsp+8]
+--     #48, #03, #44, #24, #10,         -- add rax, [rsp+16]
+--     #C2, #10*(platform()=WIN32), #00 -- ret 16
+--}
+elsif platform()=WINDOWS then -- (64-bit)
 add_code = {
-       -- first int argument is at stack offset +8, 2nd int is at +16 
-       #48, #8B, #44, #24, #08,         -- mov rax, [rsp+8]
-       #48, #03, #44, #24, #10,         -- add rax, [rsp+16]
-       #C2, #10*(platform()=WIN32), #00 -- ret 16
+       -- first int argument is in rcx, second in rdx
+       #48, #8B, #C1,       -- mov rax, rcx
+       #48, #01, #D0,       -- add rax, rdx
+       #C3                  -- ret
 }
+elsif platform()=LINUX then -- (64 bit)
+add_code = {
+       -- first int argument is in rdi, second in rsi
+       #48, #8B, #C7,       -- mov rax, rdi
+       #48, #01, #F0,       -- add rax, rsi
+       #C3                  -- ret 16
+}
+else
+    ?9/0
 end if
 
 function allocate_codespace(integer len)
@@ -381,17 +397,22 @@ else
 multiply_code = {
    -- 27/2/16 (arg2 in xmm1)
    -- int argument is at stack offset +8 (and rcx), double is in xmm1
-   #DB, #44, #24, #08,        -- fild qword [esp+8]
-   #48, #83, #EC, #08,        -- sub rsp,8
-   #F2, #0F, #11, #0C, #24,   -- movsd qword[rsp],xmm1
-   #DC, #0C, #24,             -- fmul qword[rsp]
+--14/4/17:
+--   #DB, #44, #24, #08,          -- fild qword [rsp+8]
+   -- int argument is in rcx/rdi, double is in xmm1
+   #48, #83, #EC, #08,                          -- sub rsp,8
+   #48, #89, #30*(platform()=LINUX)+#C, #24,    -- mov qword[rsp],rcx/rdi
+   #DF, #2C, #24,                               -- fild qword[rsp]
+   #F2, #0F, #11, #0C, #24,                     -- movsd qword[rsp],xmm1
+   #DC, #0C, #24,                               -- fmul qword[rsp]
 --   #48, #83, #C4, #08,          -- add rsp,8
    -- 15/2/16 (result in xmm0 not st0)
 --   #48, #83, #EC, #08,          -- sub rsp,8
-   #DD, #1C, #24,             -- fstp qword[rsp]
-   #F2, #0F, #10, #04, #24,   -- movsd xmm0,qword[rsp]
-   #48, #83, #C4, #08,        -- add rsp,8
-   #C2, #10 * (platform()=WIN32), #00  -- ret 16 (or 0)
+   #DD, #1C, #24,                               -- fstp qword[rsp]
+   #F2, #0F, #10, #04, #24,                     -- movsd xmm0,qword[rsp]
+   #48, #83, #C4, #08,                          -- add rsp,8
+--   #C2, #10 * (platform()=WIN32), #00  -- ret 16 (or 0)
+   #C3                                          -- ret
     }
 end if
 
