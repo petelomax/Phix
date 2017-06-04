@@ -21,6 +21,7 @@ include builtins\VM\pStack.e    -- :%opGetST, :%opFrame etc
 --include builtins\VM\pUnassigned.e -- :%pRTErn (DEV/temp)
 
 --constant e16cbchop        = 16    -- call_backs cannot have optional parameters
+constant e71cfppe   = 71    -- call_func/proc parameter error
 constant e72iri     = 72    -- invalid routine_id
 --constant e73atodmbs   = 73    -- argument to open_dll must be string
 --constant e74dcfpe     = 74    -- define_c_func/proc parameter error
@@ -105,7 +106,9 @@ constant S_NTyp     = 2,
 
 --constant FUNC = 1, PROC = 0
 
-function call_common(integer rid, sequence params, integer isProc)
+--1/6/17:
+--function call_common(integer rid, sequence params, integer isProc)
+function call_common(object rid, object params, integer isProc)
 -- common code for call_proc/call_func (validate and process args)
 -- isProc is 0 from call_func, 1 from call_proc.
 sequence symtab
@@ -131,9 +134,20 @@ object res
             call :%opGetST                      -- [rdi]:=symtab (see pStack.e)
         []
           }
-    if rid<T_const1
+--1/6/17:
+--  if rid<T_const1
+    if not integer(rid)
+    or rid<T_const1
     or rid>length(symtab) then
-        fatalN(3,e72iri,rid)
+--      fatalN(3,e72iri,rid)
+        fatalN(2,e72iri,rid)
+    end if
+
+--1/6/17:
+    if not sequence(params) then
+--(1/6/17) also applied elsewhere [now that we've (eg) killed off call_func() and invoke call_common() directly from opCallFunc]
+--      fatalN(3,e71cfppe,rid)
+        fatalN(2,e71cfppe,rid)
     end if
 
     si = symtab[rid]
@@ -141,13 +155,15 @@ object res
     sNtyp = si[S_NTyp]
     if sNtyp<S_Type
     or sNtyp>S_Proc then
-        fatalN(3,e72iri,rid)
+--      fatalN(3,e72iri,rid)
+        fatalN(2,e72iri,rid)
     elsif (sNtyp=S_Proc)!=isProc then
         if sNtyp=S_Proc then
---?9/0
-            fatalN(3,e117rdnrav,rid)
+--          fatalN(3,e117rdnrav,rid)
+            fatalN(2,e117rdnrav,rid)
         else
-            fatalN(3,e118rrav,rid)
+--          fatalN(3,e118rrav,rid)
+            fatalN(2,e118rrav,rid)
         end if
     end if
 

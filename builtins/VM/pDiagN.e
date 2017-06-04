@@ -4,11 +4,11 @@
 --
 -- code responsible for writing the ex.err file
 --
-constant diagdiag = 01  -- show progress messages for debugging this source.
+constant diagdiag = 0   -- show progress messages for debugging this source.
                         --  (0=none, 1=all, 2=almost all, ... N=last only.)
 constant show_bad_era = 01
 
-constant show_low_level_diagnostics = 01
+constant show_low_level_diagnostics = 0
 
 -- Technical note:
 --  This should be coded as defensively as possible, rather than relying on
@@ -842,8 +842,10 @@ constant msgs =
     -- Missing or unrecognised format character after a '%',
     --  eg "%", "%3.2", "%q". See also e73atodmbs.
  "insufficient values for (s)printf()\n",                       -- e70ivfpf
- -1,--"argument to getenv() must be string",                    -- e71atgmbs (not actually used/see penv.e)
+-- -1,--"argument to getenv() must be string",                  -- e71atgmbs (not actually used/see penv.e)
     -- See e73atodmbs
+ "call_func/proc parameter error\n",                            -- e71cfppe
+    -- The second argument ("params") is not a sequence.
  "invalid routine_id(%d)\n",                                    -- e72iri(edi)
     -- The first argument to call_proc/func, or call_back (which
     -- can also accept {'+',rtnid} as the first argument) is not

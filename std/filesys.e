@@ -8,8 +8,6 @@
 -- <<LEVELTOC depth=2>>
 namespace filesys
 
---!/**/forward global function split(sequence st, object delim=' ', integer limit=0, integer no_empty = 0)
-
 --/*
 include std/dll.e
 

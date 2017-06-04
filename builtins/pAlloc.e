@@ -81,3 +81,19 @@ atom mem
     return mem
 end function
 
+global function allocate_wstring(sequence s, integer cleanup = 0)
+-- create a WideString (16 bits per char) null-terminated string in memory.
+-- note: calling utf8_to_utf16() or utf32_to_utf16() first may be helpful.
+atom mem
+
+    mem = allocate(length(s)*2+2)
+    if mem then
+        poke2(mem, s)
+        poke2(mem+length(s)*2, 0)
+        if cleanup then
+            mem = delete_routine(mem, r_free)
+        end if
+    end if
+    return mem
+end function
+

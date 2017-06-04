@@ -7,7 +7,7 @@
 --  it, unless you want a namespace.
 --
 
-global function split(sequence source, object delimiter=' ', integer limit=0, integer no_empty=0)
+global function split(sequence source, object delimiter=' ', bool no_empty=0, integer limit=0)
 sequence ret = {}
 integer start
 integer pos
@@ -80,7 +80,7 @@ integer pos
     return ret
 end function
 
-global function split_any(sequence source, object delimiters=", \t|", integer limit=0, integer no_empty=0)
+global function split_any(sequence source, object delimiters=", \t|", bool no_empty=0, integer limit=0)
 sequence ret = {}
 integer start = 1, pos
 --, k

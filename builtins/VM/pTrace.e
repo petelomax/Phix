@@ -234,7 +234,10 @@ atom xKernel32,
 object dScreen
 
     puts(1,"") -- ensure console exists
---puts(1,"pTrace.e not linux\n")
+--DEV
+if platform()!=WINDOWS then
+    puts(1,"pTrace.e not linux\n")
+end if
     xKernel32 = open_dll("kernel32.dll")
     xUser32 = open_dll("user32.dll")
     xGetStdHandle = define_c_func(xKernel32,"GetStdHandle",
@@ -320,6 +323,7 @@ procedure debug_screen(integer on)
     if initD then
         if on then
             if not debugOn then
+--DEV oh bugger me - windows only!!
                 poke4(xCSBI+CSBI_ATTR,-1)
                 if not c_func(xGetConsoleScreenBufferInfo,{stdout,xCSBI}) then
                     puts(1,"oops:debug_screen\n")

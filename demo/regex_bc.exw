@@ -1,0 +1,192 @@
+--
+-- demo\regex_bc.exw
+--
+-- translation of http://www.cs.princeton.edu/courses/archive/spr09/cos333/beautiful.html
+
+--
+--  c   matches any literal character c
+--  .   matches any single character
+--  ^   matches the beginning of the input string
+--  $   matches the end of the input string
+--  *   matches zero or more occurrences of the previous character
+--
+-- NOTE the lack of +?|(){}[] etc.
+--
+
+forward function matchhere(string regexp, string text)
+forward function matchstar(integer c, string regexp, string text)
+
+function re_match(string regexp, string text)
+-- search for regexp anywhere in text
+    if length(regexp) and regexp[1] == '^'then
+        return matchhere(regexp[2..$], text)
+    else
+        -- must look even if string is empty
+        for i=1 to length(text)+1 do
+            if matchhere(regexp,text[i..$]) then
+                return 1
+            end if
+        end for
+    end if
+    return 0
+end function
+
+function matchhere(string regexp, string text)
+-- search for regexp at beginning of text
+    if length(regexp)=0 then
+        return 1
+    elsif length(regexp)>1 and regexp[2] == '*' then
+        return matchstar(regexp[1], regexp[3..$], text)
+    elsif regexp[1] == '$' and length(regexp)=1 then
+        return length(text)=0
+    elsif length(text)!=0 and (regexp[1]=='.' or regexp[1]==text[1]) then
+        return matchhere(regexp[2..$], text[2..$])
+    end if
+    return 0
+end function
+
+function matchstar(integer c, string regexp, string text)
+-- search for c*regexp at beginning of text
+    while 1 do -- a * matches zero or more instances
+        if matchhere(regexp, text) then
+            return 1
+        end if
+        if length(text)=0 then exit end if
+        if c!='.' and c!=text[1] then exit end if
+        text = text[2..$]
+    end while
+    return 0
+end function
+
+procedure test(bool success, string regexp, string text)
+    bool actual = re_match(regexp,text)
+    string ok = iff(success=actual?"ok":"***ERROR***")
+    printf(1,"re_match(`%s`,\"%s\") = %d (%s)\n",{regexp,text,actual,ok})
+end procedure
+
+test(1,"","")
+test(1,"a","a")
+test(1,"aaaa*a*","aaaaaa")
+if 0 then
+    -- NB: this is already >2.5s:
+    atom t0 = time()
+    test(0,"a*a*a*a*a*a*a*a*a*a*a*a*a*aaaaaaaaaaaa", "aaaaaaaaaaa")
+    ?time()-t0
+end if
+test(0, "b", "a");
+test(1, "b", "ab")
+test(1, "aaaa", "aaaa");
+test(0, "bbbb", "aaaa");
+test(1, ".", "a");
+test(0, ".", "");
+test(1, "a..", "axx");
+test(0, "a..", "b..");
+--test(1, "a?b", "ab");
+--test(1, "a?b", "xb")
+--test(1, ".*a?b", "xb");
+--test(0, "a?C", "xb");
+test(1, "a*b", "aaab");
+test(0, "a*b", "aaaa");
+--test(1, "b+", "bb");
+--test(1, "b+", "b");
+--test(0, "b+", "a");
+--test(1, "a|b", " a")
+--test(1, "a|b", "a")
+--test(1, "a|b", "b");
+--test(0, "a|b", "c");
+--test(1, "a|b|c|d|e", "a");
+--test(1, "a|b|c|d|e", "c");
+--test(1, "a|b|c|d|e", "e");
+--test(0, "a|b|c|d|e", "x");
+--test(1, "xx(alpha|beta)xx", "xxalphaxx");
+--test(1, "xx(alpha|beta)xx", "xxbetaxx");
+--test(1, "(a(a(a(a|a)|(a|a)a)a)a|a)", "aaaaaaaaaaaaaaaaa");
+--       | | | ^---^ ^---^ | |   |
+--       | | ^-------------^ |   |
+--       | ^-----------------^   |
+--       ^-----------------------^
+
+test(1, "abcdefg",  "abcdefg"       )
+--test(1, "(a|b)*a",    "ababababab"    )
+--test(1, "(a|b)*a",    "aaaaaaaaba"    )
+--test(1, "(a|b)*a",    "aaaaaabac"     )
+--test(1, "a(b|c)*d",   "abccbcccd"     )
+--test(1, "a(b|c)*d",   "abccbcccde"    )
+
+test(1, "^aa", "aa");
+test(0, "^aa", "baa");
+test(1, "^aa$" , "aa");
+test(0, "^aa$", "baab");
+--test(1, "(aa)*b", "aaab");
+--test(0, "(aa)*b", "aaaa");
+--test(1, "^b+$", "b");
+--test(1, "^b+$", "bbb");
+test(1, "^b*$", "bbb");
+--test(0, "^b+$", "aba");
+--test(1, "(a)|(b)|(c)|(d)|(e)", " a ");
+--test(1, "(a)|(b)|(c)|(d)|(e)", " c ");
+--test(1, "(a)|(b)|(c)|(d)|(e)", " e ");
+--test(0, "(a)|(b)|(c)|(d)|(e)", " x ");
+--test(1, "^xx(alpha)|(beta)xx$", "xxalphaxx");
+--test(1, "^xx(alpha)|(beta)xx$", "xxbetaxx");
+--test(1, "[a-z]", "aaa");
+--test(1, "[a-z]*", "aaa");
+--test(1, "[a-z]+?", "aaa");
+--test(1, "[a-z]+", "aaa");
+--test(1, "^(Error|Warning)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()");
+--test(1, "^(Error|Warning) (.+)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()");
+--test(1, "^(Error|Warning) ([a-z.]*) ([0-9]*)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()");
+--test(1, "^(Error|Warning) (.+) ([0-9]+): (.*)$", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()");
+--test(1, "^(Error|Warning) (.+) ([0-9]+): (.*)$", "Error search.cpp 35: Conversion may lose significant digits in function AskReplace()");
+--test(1, "^([a-z]+ +)*\\(", "blabla bla bla bla (");
+--test(1, "^([a-z]+\\s+)+\\(", "blabla bla bla bla (");
+--test(1, "^([a-z]+\\s*)+\\(", "blabla bla bla bla(");
+--test(1, "^([a-z]+\\s+)+\\(", "blabla bla   bla bla (");
+--test(1, "^([a-z]+\\s*)+\\(", "blabla   bla bla bla(");
+--test(1, "^([a-z]* *)*\\(", "blabla bla bla bla (");
+--test(1, "^([a-z]+ +)+\\(", "blabla bla bla bla (");
+--test(1, "(a)\\n(b)\\r(c)\\t(d)\\0(e)", "a\nb\rc\td\0e")
+--test(1, `(\w*) (\w*)`, "this one here")
+--test(1, `(\d*)\s(\w*)`, "12 dozen")
+--/*
+--test(1, "^[\\x20-\\xFF]+$", "blabla");                    -- not tried [DEV]
+--*/
+--test(0,"(","(")
+--?"got here??"
+
+--test(1,`(\w)`, "Foo") -- true ("F" at 1)
+--test(1,`(\w)$`, "Foo")    -- true ("o" at 3)
+--test(1,`(\w+)$`, "Foo")
+--test(1,`(\d*)$`, "123")
+--test(1,`(\w+)`, "Foo Bar")
+--test(1,`(\w+)$`, "Foo Bar")
+--test(1,"(cat|dog)", "cat")
+--test(0,"cat|dog", "cot")
+--test(1,`(\w+) (\w+)`, "Foo Bar")
+--test(1,`((\w+) (\w+))`, "   Foo Bar")
+--test(1,`(\w+) \w+ (\w+) .*`, "Foo Bar and Grill" )
+--test(1,`((\w+) \w+) (\w+) .*`, "Foo Bar and Grill" )
+--test(1,`proc (\w+).*`, "global proc foo()")
+--test(1,"(([^c])ei)", "peice")
+--test(1,"([^c])ei", "peice")
+--test(1,"([^c]ei)", "peice")
+test(1,"pho", "Euphoria")
+--test(1,"(pho)", "Euphoria")
+test(1,"string$","I am a string")
+test(0,"^You","I am a string")
+--test(1,"( a.*a)","Hi, I am a string")
+--test(1,"( a.*?a)","Hi, I am a string")
+--test(1,"( a..a)","Hi, I am a string")     -- ok
+--test(1,`\sa.*a`,"Hi, I am a string")
+
+--test(1,"(a(aa|b)*ab|b)((ba|a)(aa|b)*ab|bb)*((ba|a)(aa|b)*)*|a(aa|b)*","bbba")
+--/*
+--  (a(aa|b)*ab|b)((ba|a)(aa|b)*ab|bb)*((ba|a)(aa|b)*)*|a(aa|b)*
+--  | ^----^     ||^----^^----^      | |^----^^----^ |   ^----^
+--  ^------------^^------------------^ ^-------------^
+NFA has 60 nodes, DFA has 27 nodes...
+(according to http://hackingoff.com/compilers/regular-expression-to-nfa-dfa )
+--*/
+
+
+{} = wait_key()

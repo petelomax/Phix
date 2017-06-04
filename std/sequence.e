@@ -2190,7 +2190,7 @@ end function
 --
 -- Example 2:
 -- <eucode>
--- result = split("John,Middle,Doe", ",", 2)
+-- result = split("John,Middle,Doe", ",", limit:=2)
 -- -- result is {"John", "Middle,Doe"}
 -- </eucode>
 --
@@ -2198,7 +2198,8 @@ end function
 --     [[:split_any]], [[:breakup]], [[:join]]
 
 --/* Phix: defined in builtins\psplit.e
-public function split(sequence st, object delim=' ', integer limit=0, integer no_empty = 0)
+--public function split(sequence st, object delim=' ', integer limit=0, integer no_empty = 0)   -- Eu40
+public function split(sequence st, object delim=' ', integer no_empty = 0, integer limit=0)     -- Eu41
 sequence ret = {}
 integer start
 integer pos
@@ -2312,7 +2313,8 @@ end function
 --   [[:split]], [[:breakup]], [[:join]]
 
 --/* Phix: defined in buultins\psplit.e
-public function split_any(sequence source, object delim, integer limit=0, integer no_empty=0)
+--public function split_any(sequence source, object delim, integer limit=0, integer no_empty=0)
+public function split_any(sequence source, object delim, bool no_empty=0, integer limit=0)
 sequence ret = {}
 integer start = 1, pos, next_pos, k
 

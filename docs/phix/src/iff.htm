@@ -57,14 +57,48 @@
 </pre>
         vs:
 <!--eucode>
-    extra_space = iff(x<y?l-x*4:l-((x-1)*w+floor(y/w)*4)
+    integer extra_space = iff(x<y?l-x*4:l-((x-1)*w+floor(y/w)*4)
     s = append(s,extra_space)
 </eucode-->
 <pre>
-<font color="#000000">    extra_space</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#000000">x</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#0000FF">:</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#800000">(</font><font color="#800080">(</font><font color="#000000">x</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">w</font><font color="#0000FF">+</font><font color="#7060A8">floor</font><font color="#800080">(</font><font color="#000000">y</font><font color="#0000FF">/</font><font color="#000000">w</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#800000">)
+<font color="#000000"></font><font color="#004080">    integer</font><font color="#000000"> extra_space</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">&lt;</font><font color="#000000">y</font><font color="#0000FF">?</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#000000">x</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#0000FF">:</font><font color="#000000">l</font><font color="#0000FF">-</font><font color="#800000">(</font><font color="#800080">(</font><font color="#000000">x</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">w</font><font color="#0000FF">+</font><font color="#7060A8">floor</font><font color="#800080">(</font><font color="#000000">y</font><font color="#0000FF">/</font><font color="#000000">w</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">4</font><font color="#800000">)
 </font><font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">extra_space</font><font color="#800000">)</font>
 </pre>
-        Such clarifications normally incur no additional penalty whatsoever<sup><small>1</small></sup> over the hidden unnamed temporary variable that the compiler would otherwise use amyway.
+        Such explicit clarifications normally incur no additional penalty whatsoever<sup><small>1</small></sup> over the hidden unnamed temporary variable that the compiler would otherwise use anyway.
+        <br>
+        <br>
+        One more example (from builtins/regex.e)
+<!--eucode>
+    if greedy then
+        code &= {SPLIT, i+3, nil}
+    else
+        code &= {SPLIT, nil, i+3}
+    end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    if</font><font color="#000000"> greedy</font><font color="#008080"> then
+</font><font color="#000000">        code</font><font color="#0000FF"> &amp;= {</font><font color="#000000">SPLIT</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000"> nil</font><font color="#0000FF">}
+</font><font color="#008080">    else
+</font><font color="#000000">        code</font><font color="#0000FF"> &amp;= {</font><font color="#000000">SPLIT</font><font color="#0000FF">,</font><font color="#000000"> nil</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#0000FF">}
+</font><font color="#008080">    end if</font>
+</pre>
+        has a certain clarity that, for me, gets lost in
+<!--eucode>
+    code &= {SPLIT, iff(greedy ? i+3 : nil ), iff(greedy ? nil : i+3 )}
+</eucode-->
+<pre>
+<font color="#000000">    code</font><font color="#0000FF"> &amp;= {</font><font color="#000000">SPLIT</font><font color="#0000FF">,</font><font color="#7060A8"> iff</font><font color="#800000">(</font><font color="#000000">greedy</font><font color="#0000FF"> ?</font><font color="#000000"> i</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#0000FF"> :</font><font color="#000000"> nil</font><font color="#800000"> )</font><font color="#0000FF">,</font><font color="#7060A8"> iff</font><font color="#800000">(</font><font color="#000000">greedy</font><font color="#0000FF"> ?</font><font color="#000000"> nil</font><font color="#0000FF"> :</font><font color="#000000"> i</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#800000"> )</font><font color="#0000FF">}</font>
+</pre>
+        I believe this (one of several possible variations) is somewhat better
+<!--eucode>
+    code &= iff(greedy ? {SPLIT, i+3, nil}
+                       : {SPLIT, nil, i+3} )
+</eucode-->
+<pre>
+<font color="#000000">    code</font><font color="#0000FF"> &amp;=</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">greedy</font><font color="#0000FF"> ?</font><font color="#800000"> {</font><font color="#000000">SPLIT</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000"> nil</font><font color="#800000">}
+</font><font color="#0000FF">                       :</font><font color="#800000"> {</font><font color="#000000">SPLIT</font><font color="#0000FF">,</font><font color="#000000"> nil</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF"> )</font>
+</pre>
+        nevertheless I still prefer the longhand/old school version - but use your own judgement, of course.
         <br>
         <br>
        <table>
@@ -103,8 +137,9 @@
           <br>
           <br>
           <sup><small>1</small></sup>(no additional penalty whatsoever) Admittedly one of the executables would be a few bytes larger (~0.001%), 
-            without doubt entirely justified if it eases the development cost or maintenance burden in any way, but otherwise you would be very 
-            hard pressed indeed to devise an experiment that showed any other measurable difference.
+            because somewhere, for debugging purposes, it contains the name "extra_space" instead of -1, without doubt entirely justified if 
+            it eases the development cost or maintenance burden in any way, but otherwise you would be very hard pressed indeed to devise an 
+            experiment that showed any other measurable difference.
          </td>
         </tr>
        </table>

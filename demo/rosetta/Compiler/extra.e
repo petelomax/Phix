@@ -8,7 +8,7 @@
 -- (in place of the existing get_tok() in parse.e)
 function get_tok()
     string line = trim(gets(input_file))
-    sequence tok = split(line,' ',4,1)
+    sequence tok = split(line,' ',limit:=4,no_empty:=1)
     integer k = find(tok[3],tkNames)
     if k=0 then ?9/0 end if
     tok[3] = k
@@ -21,7 +21,7 @@ end function
 function load_ast()
     string line = trim(gets(input_file))
     -- Each line has at least one token
-    sequence node = split(line,' ',2,1)
+    sequence node = split(line,' ',limit:=2,no_empty:=1)
  
     string node_type = node[1]
  

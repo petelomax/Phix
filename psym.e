@@ -2492,6 +2492,8 @@ end if
 --  initialAutoEntry("allocate_string", S_Func,"FP",    "machine.e",0,E_none)
     initialAutoEntry("allocate_string", S_Func,"FPI",   "pAlloc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("allocate_wstring", S_Func,"FPI",  "pAlloc.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("arccos",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("atan2",           S_Func,"FNN",   "pmaths.e",0,E_none)
@@ -2747,7 +2749,8 @@ else
     initialAutoEntry("peek2u",          S_Func,"FO",    "ppoke2.e",0,E_none)
 end if
 --end if
-    initialAutoEntry("read_lines",      S_Func,"FO",    "read_lines.e",0,E_none)
+--  initialAutoEntry("read_lines",      S_Func,"FO",    "read_lines.e",0,E_none)
+    initialAutoEntry("read_lines",      S_Func,"FO",    "read_lines.e",0,E_other)
     initialAutoEntry("series",          S_Func,"FOOII", "pseries.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("largest",         S_Func,"FPI",   "psmall.e",0,E_none)

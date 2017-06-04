@@ -5899,12 +5899,12 @@ global function canvas_write_mode(cdCanvas hCdCanvas, atom mode)
     return c_func(xcdCanvasWriteMode, {hCdCanvas, mode})
 end function
 
-global procedure cdCanvasSetLineWidth(cdCanvas hCdCanvas, integer width)
+global procedure cdCanvasSetLineWidth(cdCanvas hCdCanvas, atom width)
     if width<1 then ?9/0 end if
     width = c_func(xcdCanvasLineWidth, {hCdCanvas, width})
 end procedure
 
-global procedure cdCanvasLineWidth(cdCanvas hCdCanvas, integer width)
+global procedure cdCanvasLineWidth(cdCanvas hCdCanvas, atom width)
     cdCanvasSetLineWidth(hCdCanvas, width)
 end procedure
 
@@ -6471,7 +6471,8 @@ end procedure
 --  xcdEncodeAlpha  = iup_c_func(hCd, "cdEncodeAlpha", {L,UC},L),
 --  xcdRGB2Map      = iup_c_proc(hCd, "cdRGB2Map", {I,I,P,P,P,P,I,P})
 
-global function cdEncodeColor(integer red, integer green, integer blue)
+--global function cdEncodeColor(integer red, integer green, integer blue)
+global function cdEncodeColor(atom red, atom green, atom blue)
     integer color = c_func(xcdEncodeColor, {red, green, blue})
     return color
 end function
@@ -6503,17 +6504,20 @@ global function alpha(atom color)
 end function
 
 global function red(atom color)
-    color = and_bits(color, #FF0000)
-    return color/power(2, 16)
+    return floor(and_bits(color, #FF0000)/#10000)
 end function
 
 global function green(atom color)
-    color = and_bits(color, #FF00)
-    return color/256
+    return floor(and_bits(color, #FF00)/#100)
 end function
 
 global function blue(atom color)
-    return remainder(color, 256)
+    return remainder(color, #100)
+end function
+
+global function rgb(atom r, atom g, atom b)
+--  return and_bits(r,#FF) + and_bits(g,#FF)*#100 + and_bits(b,#FF)*#10000
+    return and_bits(r,#FF)*#10000 + and_bits(g,#FF)*#100 + and_bits(b,#FF)
 end function
 
 global function rgb_2_map(atom w, atom h, sequence rgb, integer pal_size)

@@ -1,0 +1,258 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">regex syntax</h1>
+      <div id="mainSection">
+        The following elements are supported (better tutorials can easily be found, and reading test\t63regex.exw may help):
+        <br>
+        <br>
+        <table>
+         <tr>
+            <th>Element</th>
+            <th>Meaning</th>
+         </tr>
+         <tr>
+            <td>
+             ^
+            </td>
+            <td>
+              Outside character classes this is an anchor for start of text. eg `^You` matches lines beginning with "You".<br>
+              At the very start of a character class, negates it. eg `[^q]` maches any character except a 'q'.<br>
+              Use `\^` to mean the literal character.
+            </td>
+         </tr>
+            <td>
+             $
+            </td>
+            <td>
+             An anchor for the end of text. eg `string$` matches lines ending with "string". Use `\$` to mean the literal character.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             .
+            </td>
+            <td>
+             Any character, except \n, unless the <a href="regex_options.htm">RE_DOTMATCHESNL</a> option has been set. Use `\.` to mean the literal character.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             \
+            </td>
+            <td>
+             The backslash is the escape character. Adds meaning to letters and removes meaning from symbols. eg `\d\$` matches say "2$"
+             Use `\\` to mean the literal character.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             \b
+            </td>
+            <td>
+             A word boundary. \B is "Not a word boundary".<br>
+             Note that `\b.*\b` can match "as", " as", " as ", "as ", " as if ", etc whereas `\b\w*\b` is more "as"-only.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             \d
+            </td>
+            <td>
+             The digits 0 through 9. \D is the negation of that set (ie not a digit).
+            </td>
+         </tr>
+         <tr>
+            <td>
+             \w
+            </td>
+            <td>
+             The characters a to z, A to Z, 0 to 9, and _ (underscore). \W is the negation of that set.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             \s
+            </td>
+            <td>
+             The white space characters space, tab, newline, and carriage return. \S is the negation of that set.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             \xHH
+            </td>
+            <td>
+             A character as a two-digit hexadecimal. A leading 0 is not optional.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             [ ]
+            </td>
+            <td>
+             Defines a character class. <br>
+             If a ^ immediately follows the opening [ then the class is negated. <br>
+             Matches a single character, unless the closing ] is followed by ?*+{} (see below).<br>
+             Ranges can be specified with - (a hyphen). <br>
+             eg [0-9] is the same as \d, [a-zA-Z0-9_] is the same as \w, and [ \r\n\t] is the same as \s.<br>
+             Use `\]` to include a literal ']', and `\\` to include a literal `\`. `\r\n\t` are also recognised.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             ( )
+            </td>
+            <td>
+             Defines a capture group. The start and end+1 index pairs of each matching group are returned. <br>
+             The entire expression is automatically enclosed in an outer matching group, sometimes called \0.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             \1..9
+            </td>
+            <td>
+             A backreference to a previous capture group. NB disabled by default, see <a href="regex_options.htm">RE_BACKREFERENCES</a>.
+             \0 is also [/may one day be] valid (meaning the entire auto-added outer match) in the third parameter of <a href="gmatch.htm">gmatch</a>(), 
+             which can also use \1 to \9 even when <a href="regex_options.htm">RE_BACKREFERENCES</a> is disabled, since by that stage they are 
+             just references to already captured groups, rather than backreferences that affect behaviour or require any backtracking.<br>
+             Note that, tempting as it may seem, backreferences do not make regular expressions a sensible choice for parsing html.
+            </td>
+         </tr>
+         </tr>
+            <td>
+             ?
+            </td>
+            <td>
+             optional - 0 or 1 occurance of the preceding term.
+             A trailing ? specifies non-greedy (on this, and on *+{} as below)
+            </td>
+         </tr>
+         </tr>
+            <td>
+             *
+            </td>
+            <td>
+             0 or more occurances of the preceding term.
+             A trailing ? specifies non-greedy
+            </td>
+         </tr>
+         </tr>
+            <td>
+             +
+            </td>
+            <td>
+             1 or more occurances of the preceding term.
+             A trailing ? specifies non-greedy
+            </td>
+         </tr>
+         <tr>
+            <td>
+             {n}
+            </td>
+            <td>
+             Exactly n occurances of the preceding term.
+             A trailing ? means non-greedy (but is superfluous in this instance)
+            </td>
+         </tr>
+         <tr>
+            <td>
+             {n,}
+            </td>
+            <td>
+             At least n occurances of the preceding term.
+             A trailing ? specifies non-greedy
+            </td>
+         </tr>
+         <tr>
+            <td>
+             {n,m}
+            </td>
+            <td>
+             At least n and at most m occurances of the preceding term.
+             A trailing ? specifies non-greedy
+            </td>
+         </tr>
+         <tr>
+            <td>
+             |
+            </td>
+            <td>
+             Alternation. eg `a|bc|def` matches "a" or "bc" or "def".
+            </td>
+         </tr>
+        </table>
+        <br>
+        &nbsp;
+        <br>
+        Note that internally I elected to implement ?*+ as {OPT,min,max} with {min,max} being {0,1}, {0,-1}, {1,-1} respectively.
+        It was therefore trivial to make it {OPT,min,max,greedy}, if perhaps a little unwise. Any resemblence to the behaviour of 
+        greedy and non-greedy in pcre is entirely coincidental - partly joking, of course, but I will say this: If there is one
+        and only one unambiguous match then obviously it should agree, but greedy/non-greedy strongly implies ambiguity, and 
+        especially when pitting an entirely different algorithm and a tiny fraction of the number of source code lines against 
+        a well established giant like pcre, all compatibility bets (in ambiguous cases) are off.
+        <br>
+        <a name=PCRECOMPAT></a>
+        <br>
+        <h3>Quick summary</h3>
+        For those of you already familiar with regular expressions, note the following:<br>
+        Does not support lookahead or lookbehind<br>
+        Does not support \Q \E \a (bel) \b (backspace) \c (ctrl) \e (esc) \f (ff) \v (vt)<br>
+        Does not support unicode character ranges, see below.<br>
+        Does not support single-line or multi-line modes. \n attracts no special handling.<br>
+        Does not support atomic grouping<br>
+        Does not support posix character classes (eg [:digit:])<br>
+        Regular expressions should be enclosed in backticks to avoid escaping, eg `\s+` (=="\\s+").<br>
+        Does not support the forwardslashes of other programming languages.
+        <br>
+        <br>
+        Literal unicode is supported via utf8 only, eg "\u20AC" matches a euro sign, but `[\u20AC]`
+        triggers an error. (Note I have been a little crafty with the use of double quotes and backticks there.)
+        The former simply converts the character to a utf-8 byte stream, but character ranges are aways byte-wise, 
+        ultimately #00 to #FF only. Instead of [£$\u20AC] you would have to use (£|$|\u20AC). 
+        Obviously if you use a utf8-enabled editor and can key in the euro sign directly, you would get the same 
+        deal for alternatives but the character range would be treated quite wrongly: just as utf32_to_utf8({#20AC}) 
+        yields {#E2,#82,#AC} then a class would be treated as [\xE2\x82\xAC] (ie as \xE2|\x82|\xAC).
+        <br>
+        <br>
+        It would probably not be difficult to create a new and improved unicode entry point based 
+        on the existing code along these lines:
+<!--eucode>
+    type utf8or32(object s)
+        return sequence(s)  -- string(utf8) or dword_sequence(utf32)
+    end type
+
+    function regex32(utf8or32 pat, utf8or32 src)
+        if string(pat) then pat = utf8_to_utf32(pat) end if
+        if string(src) then src = utf8_to_utf32(src) end if
+        ...
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    type</font><font color="#000000"> utf8or32</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> s</font><font color="#0000FF">)
+</font><font color="#008080">        return</font><font color="#004080"> sequence</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">) </font><font color="#000080"><i> -- string(utf8) or dword_sequence(utf32)
+</i></font><font color="#008080">    end type
+
+    function</font><font color="#000000"> regex32</font><font color="#0000FF">(</font><font color="#000000">utf8or32 pat</font><font color="#0000FF">,</font><font color="#000000"> utf8or32 src</font><font color="#0000FF">)
+</font><font color="#008080">        if</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">pat</font><font color="#0000FF">)</font><font color="#008080"> then</font><font color="#000000"> pat</font><font color="#0000FF"> =</font><font color="#5E005E"> utf8_to_utf32</font><font color="#0000FF">(</font><font color="#000000">pat</font><font color="#0000FF">)</font><font color="#008080"> end if
+        if</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">src</font><font color="#0000FF">)</font><font color="#008080"> then</font><font color="#000000"> src</font><font color="#0000FF"> =</font><font color="#5E005E"> utf8_to_utf32</font><font color="#0000FF">(</font><font color="#000000">src</font><font color="#0000FF">)</font><font color="#008080"> end if
+</font><font color="#0000FF">        ...</font>
+</pre>
+        But obviously I would rather not impose that overhead on everything, or support such.
+<!--    Alternatively search ptok.e for rosetta for some ad-hoc utf8 handling. -->
+        I should also admit that I have never knowingly processed any combining characters in my entire life, 
+        and therefore cannot offer any suggestions on how to handle them. The same applies to 
+        Letter/Mark/Separator/Symbol/Number/Punctuation/Other unicode sets.
+        (I cannot imagine any reason for complicating things by working in utf-16 either.)
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

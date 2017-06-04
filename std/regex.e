@@ -1,7 +1,6 @@
 -- (c) Copyright - See License.txt
---/*
 namespace regex
---*/
+--/**/NOT PHIX
 
 include std/math.e as math
 include std/text.e as text

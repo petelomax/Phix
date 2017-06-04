@@ -1,0 +1,140 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">regex_options</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+          include builtins\regex.e
+          <br>
+          <br>
+          regex_options(integer opts=RE_PIKEVM, integer rErrHand=NULL)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Set regular expression handling options. The default is RE_PIKEVM and nothing else.
+            <br>
+            <br>
+            The following constants are provided:
+<!--eucode>
+global constant RE_PIKEVM           = #001, 
+                RE_RECURSIVE        = #002, 
+                RE_EARLY_EXIT       = #004, 
+                RE_BACKREFERENCES   = #008, 
+                RE_CASEINSENSITIVE  = #010,
+                RE_DOTMATCHESNL     = #020
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">global constant</font><font color="#004600"> RE_PIKEVM          </font><font color="#0000FF"> =</font><font color="#000000"> #001</font><font color="#0000FF">, 
+</font><font color="#004600">                RE_RECURSIVE       </font><font color="#0000FF"> =</font><font color="#000000"> #002</font><font color="#0000FF">, 
+</font><font color="#004600">                RE_EARLY_EXIT      </font><font color="#0000FF"> =</font><font color="#000000"> #004</font><font color="#0000FF">, 
+</font><font color="#004600">                RE_BACKREFERENCES  </font><font color="#0000FF"> =</font><font color="#000000"> #008</font><font color="#0000FF">, 
+</font><font color="#004600">                RE_CASEINSENSITIVE </font><font color="#0000FF"> =</font><font color="#000000"> #010</font><font color="#0000FF">,
+</font><font color="#004600">                RE_DOTMATCHESNL    </font><font color="#0000FF"> =</font><font color="#000000"> #020</font>
+</pre>
+            <br>
+            <br>
+            RE_PIKEVM (the default) and RE_RECURSIVE are the two available (mutually exclusive) run-time engines.<br>
+            (elsewhere in these documents, RE_PIKEVM is "the pikevm" whereas RE_RECURSIVE is "the backtrackingvm")
+            <br>
+            <br>
+            RE_PIKEVM is a fast deterministic approach with (severely) limited support for backreferences but an
+            absolute guarantee that it will not bog down for 100 million+ years (which is surprisingly easy for 
+            RE_RECURSIVE).
+            <br>
+            <br>
+            RE_RECURSIVE is suitable in controlled environments, can sometimes find solutions RE_PIKEVM cannot, and 
+            is usually fast enough.<br>
+            Needless to say, however, exposing RE_RECURSIVE directly to the interweb risks a severe DDOS attack,<br>
+            and the pikevm is almost always preferrable, except when it isn&rsquo;t or gives the wrong results.
+            <br>
+            <br>
+            It is quite probable that you can (theoretically) write a regular expression for any reasonable problem 
+            that works just fine on the pikevm, to match any that works on the backtrackingvm, but I cannot prove that.
+            An example of what I am talking about is given in RE_BACKREFERENCES shortly below.
+            <br>
+            <br>
+            RE_EARLY_EXIT is poorly defined. It only applies to the pikevm. The precise rules it effectively obeys cannot 
+            easily be defined, should there be tied first place for the shortest/leftmost match, and it will quite likely 
+            ride roughshod over any attempts to specify [non-]greedy matching within an ambiguous expression. <br>
+            Some examples of the differences this setting causes can be found in test\t63regex.exw.<br>
+            Of course if you only care whether a given expression matches, not where or what, this option could offer a 
+            significant performance improvement.
+            <br>
+            <br>
+            RE_BACKREFERENCES is disabled by default:
+            The pikevm only supports entirely unambiguous backreferences, and it is up to you to restrict the
+            regular expressions appropriately, should you attempt that particular configuration. <br>
+            For example, given the target string "&lt;1&gt;test1&lt;x1&gt;&lt;2&gt;Test2&lt;y2&gt;sfsaf&lt;3&gt;&lt;4&gt;test4&lt;4&gt;", then<br>
+            `&lt;\s*(\d+)\s*&gt;(.*?)&lt;\s*\1\s*&gt;` on the backtrackingvm will successfully match the &lt;4&gt;, but<br>
+            `&lt;\s*(\d+)\s*&gt;([^&lt;]*?)&lt;\s*\1\s*&gt;` (ie replace .* with [^&lt;]*) is needed on the pikevm.
+            <br>
+            <br>
+            In the ambiguous (1st) case, when you get to the final &lt;4&gt; the \1 and the inner group could be:<br>
+            "&lt;1&gt;" and "test1&lt;x1&gt;&lt;2&gt;Test2&lt;y2&gt;sfsaf&lt;3&gt;&lt;4&gt;test4", or<br>
+            "&lt;2&gt;" and "Test2&lt;y2&gt;sfsaf&lt;3&gt;&lt;4&gt;test4", or<br>
+            "&lt;3&gt;" and "&lt;4&gt;test4", or<br>
+            "&lt;4&gt;" and "test4".<br>
+            and since the pikevm has only one slot to hold a backreference, it will inevitably get it wrong.<br>
+            In contrast, using the unambiguous (2nd) expression, there is no way for &lt;1&gt; to be a valid possibility by 
+            the time you get to the "&lt;4&gt;", and in fact only the last of the four cases would ever be tried there.
+            As an added bonus, the unambiguous expression is guaranteed to be faster, even on the backtrackingvm.
+            <br>
+            <br>
+            RE_CASEINSENSITIVE causes the regular expression to be compiled as upper case and individual character matches
+            to invoke upper on the target characters before comparison. Note that this only applies to comparison between
+            the regular expression and the target, and backreferences are unaffected, so this will not allow a target of 
+            say ABCabc to be matched using them (though of course you can upper(target) beforehand instead).
+            <br>
+            <br>
+            RE_DOTMATCHESNL suppresses the legacy and often unnecessary behaviour that . matches everything but \n. It
+            changes the way an expression is compiled, rather than the way it is matched.
+            <br>
+            <br>
+            The rErrHand parameter, if supplied, should be the routine_id of a procedure that accepts three arguments, such 
+            as procedure Error(string msg, string src, integer idx), which will be invoked instead of displaying an error on
+            the terminal via printf(1,"%s\n%s^%s\n",{src,repeat(' ',idx-1),msg}), when a failure occurs during compilation.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="routine_id.htm">routine_id</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Calling regex_options() with no parmeters is not specifically intended to be helpful,
+            but it will reset everything (except already compiled expressions) to the initial defaults.
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

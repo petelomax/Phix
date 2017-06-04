@@ -1,0 +1,258 @@
+--
+-- demo\regex_dfa.exw
+-- ==================
+--
+--  Parses a regular expression to an NFA and then to a DFA.
+--
+-- This code is in the public domain - feel free to do anything you wish with it.
+--
+-- Originally written (in C) by Eli Bendersky
+-- Translated from C by Pete Lomax
+--
+-- **NB** has *NO* support for: [a-z], +(!!), ^, $, {m,n}, /b, /d, /w, /s, /n, /r, /t, 
+-- case-insensitivity, group capture, greedy/non-greedy handling, and *NO* pikevm....
+
+-- http://hackingoff.com/compilers/regular-expression-to-nfa-dfa
+
+--
+-- The BNF for our simple regexes is:
+--
+-- expr     ::= concat '|' expr
+--          |   concat
+--
+-- concat   ::= rep . concat
+--          |   rep
+--
+-- rep      ::= atm '*'
+--          |   atm '?'
+--          |   atm
+--
+-- atm      ::= chr
+--          |   '(' expr ')'
+--
+-- chr      ::= alphanumeric character
+--
+
+type isalnum(integer ch)
+    return (ch>='0' and ch<='9')
+        or (ch>='A' and ch<='Z')
+        or (ch>='a' and ch<='z')
+end type
+
+string re
+integer next = 1
+integer ch
+
+procedure nextch()
+    if next<=length(re) then
+        ch = re[next]
+        next += 1
+    else
+        ch = '\0'
+    end if
+end procedure
+
+procedure init(string in)
+    re = in
+    next = 1
+    nextch()
+end procedure
+
+function popch()
+    integer cur = ch
+    nextch()
+    return cur
+end function
+
+enum type node_type CHR, STAR, QUESTION, ALTER, CONCAT end type
+
+type char(integer ch)
+    return ch = and_bits(ch,#FF)
+end type
+
+enum TYPE, DATA, LEFT, RIGHT
+
+type parse_node(object pn)
+    return pn=NULL
+        or (sequence(pn)
+        and length(pn)=4 
+        and node_type(pn[TYPE])
+        and char(pn[DATA])
+--      and parse_node(pn[LEFT])
+--      and parse_node(pn[RIGHT]))
+)
+end type
+
+string CSQAC = " *?|."
+
+procedure print_tree(parse_node node, integer offset=0)
+    if node!=NULL then
+        CSQAC[1] = node[DATA]
+        printf(1,"%s%s\n",{repeat(' ',offset),CSQAC[node[TYPE]]})
+        print_tree(node[LEFT], offset + 2)
+        print_tree(node[RIGHT], offset + 2)
+    end if
+end procedure
+
+--
+-- Recursive Descent parser
+--
+
+function chr()
+--
+-- chr   ::= alphanumeric character
+--
+    if isalnum(ch) or ch == '\0' then
+        parse_node res = {CHR,popch(),NULL,NULL}
+        return res
+    end if
+
+    printf(1,"%s\n%s^alphanumeric expected\n",{re,repeat(' ',next-2)})
+    {} = wait_key()
+    abort(0)
+end function
+
+forward function expr()
+
+function atm()
+--
+-- atm      ::= chr
+--          |   '(' expr ')'
+--
+    parse_node atm_node
+    if ch == '(' then
+        nextch()
+        atm_node = expr()
+        if popch() != ')' then
+            printf(1,"%s\n%s^parse error: expected ')'\n",{re,repeat(' ',next-2)})
+        end if
+    else
+        atm_node = chr()
+    end if
+    return atm_node
+end function
+
+
+function rep()
+--
+-- rep  ::= atm '*'
+--      |   atm '?'
+--      |   atm
+--
+    parse_node atm_node = atm()
+    if ch == '*' then
+        nextch()
+        parse_node rep_node = {STAR, 0, atm_node, 0}
+        return rep_node
+    elsif ch == '?' then
+        nextch()
+        parse_node rep_node = {QUESTION, 0, atm_node, 0}
+        return rep_node
+    else
+        return atm_node
+    end if
+end function
+
+function concat()
+--
+-- concat   ::= rep . concat
+--          |   rep
+--
+    parse_node left = rep()
+
+    if not find(ch,")|*?\0") then
+        parse_node right = concat()
+        parse_node concat_node = {CONCAT, 0, left, right}
+        return concat_node
+    else
+        return left
+    end if
+end function
+
+function expr()
+--
+-- expr ::= concat '|' expr
+--      |   concat
+--
+    parse_node left = concat()
+    if ch == '|' then
+        nextch()
+        parse_node right = expr()
+        parse_node expr_node = {ALTER, 0, left, right}
+        return expr_node
+    else
+        return left
+    end if
+end function
+
+include nfa.e
+
+function tree_to_nfa(parse_node tree)
+    if tree=NULL then ?9/0 end if
+
+    switch tree[TYPE] do
+        case CHR:
+            return build_nfa_basic(tree[DATA])
+        case ALTER:
+            return build_nfa_alter(tree_to_nfa(tree[LEFT]), tree_to_nfa(tree[RIGHT]))
+        case CONCAT:
+            return build_nfa_concat(tree_to_nfa(tree[LEFT]), tree_to_nfa(tree[RIGHT]))
+        case STAR:
+            return build_nfa_star(tree_to_nfa(tree[LEFT]))
+        case QUESTION:
+            return build_nfa_alter(tree_to_nfa(tree[LEFT]), build_nfa_basic(EPS))
+        default:
+            ?9/0
+    end switch
+end function
+
+--DEV +^$[] NOT supported!!!
+--  init("a(bb)+a")
+--  init("a(bb)*a")
+--  init("(.*)a(.*)a(.*)b")
+    init("(a*)a(a*)a(a*)b")
+--  init("a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+    parse_node n = expr()
+
+    if ch!='\0' then
+        printf(1,"%s\n%s^unexpected char\n",{re,repeat(' ',next-2)})
+        {} = wait_key()
+        abort(0)
+    end if
+
+    if 01 then
+        printf(1,"Parse tree for \"%s\":\n",{re})
+        print_tree(n)
+    end if
+
+    NFA nfa = tree_to_nfa(n)
+
+    if 01 then
+        show(nfa)
+    end if
+
+include dfa.e
+
+    DFA dfa = subset_construct(nfa)
+    puts(1,"\n")
+    if 01 then
+        DFAshow(dfa)
+    end if
+
+    puts(1,"\n")
+
+    string s = "aab"
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -- REJECT
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -- OK
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -- OK
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -- OK
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -- OK
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -- OK
+--  string s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"  -- OK
+    printf(1,"Result (%s):%s\n",{s,DFA_simulate(dfa,s)})
+
+    {} = wait_key()
+

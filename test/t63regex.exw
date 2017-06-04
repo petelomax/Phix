@@ -1,0 +1,650 @@
+--
+-- test\t63regex.exw
+-- =================
+--
+--  Note that may of these tests are here to alert us should anything change, 
+--  rather than necessarily being definitively correct.
+--
+
+include builtins\regex.e
+
+procedure test(bool success, string re, string s, sequence expected={}, integer show=0)
+    if show then
+        printf(1,"=== %s\n",{re})
+    end if
+    sequence code = regex_compile(re)
+    if length(code)=0 then ?9/0 end if
+--  if length(code)=0 then return end if    -- (for the error handling test)
+    if show then
+        printf(1,"--- bytecode\n")
+        regexp_list(code)
+        printf(1,"--- match %s\n",{s})
+    end if
+    sequence m = regex(code, s)
+    if show then
+        ? m
+    end if
+    if success!=(length(m)!=0) then
+        ?"*** ERROR ***"
+    end if
+    sequence actual = {}
+    for i=1 to length(m) by 2 do
+        actual = append(actual,s[m[i]..m[i+1]-1])
+    end for
+    if show then
+        ?actual
+    end if
+    if actual!=expected then
+        ?"ERROR"
+        ?actual
+        ?expected
+--      ?9/0    
+        {} = wait_key()
+        abort(0)
+    end if
+end procedure
+
+procedure gtest(string re, string target, string rep, string res)
+    string act = gsub(re,target,rep)
+    if act!=res then
+        ?{"gsub error",act,res}
+        {} = wait_key()
+        abort(0)
+    end if
+end procedure
+
+procedure test2(integer pikevm, integer early=0)
+
+    test(1,"a","a",{"a"})
+    if early and pikevm then
+        test(1,"aaaa?a?","aaaaaa",{"aaa"})
+        test(1,"a{3,5}","aaaaaa",{"aaa"})
+        test(1,"a{3,}","aaaaaa",{"aaa"})
+    else
+        test(1,"aaaa?a?","aaaaaa",{"aaaaa"})    -- (manually expanded)
+        test(1,"a{3,5}","aaaaaa",{"aaaaa"})
+        test(1,"a{3,}","aaaaaa",{"aaaaaa"})
+    end if
+    test(1,"a{3}","aaaaaa",{"aaa"})
+?{pikevm,early}
+
+    test(1,"(a)","a",{"a","a"})
+
+    if early and pikevm then
+        test(1,"a(bcdce|bcd)c","abcdcecf",{"abcdc","bcd"})
+        test(1,"a(bcdce|bcd|f)c","abcdcecf",{"abcdc","bcd"})
+        test(1,"a(.*)c","abcdcecf",{"abc","b"})
+    else
+        test(1,"a(bcdce|bcd)c","abcdcecf",{"abcdcec","bcdce"})
+        test(1,"a(bcdce|bcd|f)c","abcdcecf",{"abcdcec","bcdce"})
+        test(1,"a(.*)c","abcdcecf",{"abcdcec","bcdce"})
+    end if
+
+    test(1,"a(.*?)c","abcdcecf",{"abc","b"})
+    if early and pikevm then
+        test(1,"a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+        test(1,"a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+    else
+        test(1,"a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+        test(1,"a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+         {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+    end if
+    if pikevm then  -- 0s on pikevm, >20s on recursive!
+        if early then
+            test(1,"a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+             {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+        else
+            test(1,"a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+             {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+        end if
+    end if
+    test(1,`<(.*)>.*</\1>`, "xx<AB>cd</AB>yy", {"<AB>cd</AB>","AB"})
+    test(1,`<(.*)>.*</\1>`, "<AB>cd</AB>", {"<AB>cd</AB>","AB"})
+
+    test(1,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<1><2>Tes\nt2<2>sfsaf<3><4>test4<4>",{"<1>test1<1>","<1>test1<1>","1","test1","1"})
+
+    if pikevm then -- (broken as per docs)
+        test(0,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<2>sfsaf<3><4>test4<4>",{})
+        test(0,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<2>sfsaf<3><4>test4<4>",{})
+        test(0,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{})
+        test(0,`(<\s*(\d+)\s*>((.|\n)*)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{})
+        test(0,`(<\s*(\d+)\s*>(.*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<y2>sfsaf<3><4>test4<4>",{})
+    else
+        test(1,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<2>sfsaf<3><4>test4<4>",{"<2>Tes\nt2<2>","<2>Tes\nt2<2>","2","Tes\nt2","2"})
+        test(1,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<2>sfsaf<3><4>test4<4>",{"<2>Test2<2>","<2>Test2<2>","2","Test2","2"})
+        test(1,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4","4"})
+        test(1,`(<\s*(\d+)\s*>((.|\n)*)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4","4"})
+        test(1,`(<\s*(\d+)\s*>(.*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4"})
+    end if
+    test(1,`(<\s*(\d+)\s*>([\x00-;=-\xFF]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<2>sfsaf<3><4>test4<4>",{"<2>Tes\nt2<2>","<2>Tes\nt2<2>","2","Tes\nt2"})
+    test(1,`(<\s*(\d+)\s*>([^<]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<2>sfsaf<3><4>test4<4>",{"<2>Tes\nt2<2>","<2>Tes\nt2<2>","2","Tes\nt2"})
+    test(1,`(<\s*(\d+)\s*>([\x00-;=-\xFF]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<2>sfsaf<3><4>test4<4>",{"<2>Test2<2>","<2>Test2<2>","2","Test2"})
+    test(1,`(<\s*(\d+)\s*>([^<]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<2>sfsaf<3><4>test4<4>",{"<2>Test2<2>","<2>Test2<2>","2","Test2"})
+    test(1,`(<\s*(\d+)\s*>([\x00-;=-\xFF]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4"})
+    test(1,`(<\s*(\d+)\s*>([^<]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4"})
+    test(1,`(<\s*(\d+)\s*>([\x00-;=-\xFF]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4"})
+    test(1,`(<\s*(\d+)\s*>([^<]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4"})
+    test(1,`(<\s*(\d+)\s*>([\x00-;=-\xFF]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4"})
+    test(1,`(<\s*(\d+)\s*>([^<]*?)<\s*\2\s*>)`,"<1>test1<x1><2>Test2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","<4>test4<4>","4","test4"})
+    test(1,`<\s*(\d+)\s*>([^<]*?)<\s*\1\s*>`,"<1>test1<x1><2>Test2<y2>sfsaf<3><4>test4<4>",{"<4>test4<4>","4","test4"})
+    test(0,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<1>test1<x1><2>Tes\nt2<y2>sfsaf<3><4>test4<z4>")  -- good (no match)
+
+    test(1,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<12>Some content with \n in it<12>",
+           {"<12>Some content with \n in it<12>","<12>Some content with \n in it<12>","12","Some content with \n in it","t"})
+
+    if pikevm then -- (broken as per docs)
+        test(0,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<12>Some content with \n in it<13>test<13>",{})
+    else
+        test(1,`(<\s*(\d+)\s*>((.|\n)*?)<\s*\2\s*>)`,"<12>Some content with \n in it<13>test<13>",{"<13>test<13>","<13>test<13>","13","test","t"})
+    end if
+
+    test(1,`([abc]+).*\1`,"abc me abc",{"abc me abc","abc"})
+    test(1,`([abc]+).*\1`,"abc me abca",{"abc me abc","abc"})
+
+    if pikevm then -- (broken)
+        test(0,`([abc]+).*\1`,"abc me bca",{})
+        test(0,`([abc]+).*\1`,"abc me cba",{})
+        test(0,`([abc]+).*\1`,"abc me zba",{})
+    else
+        test(1,`([abc]+).*\1`,"abc me bca",{"abc me bca","a"})
+        test(1,`([abc]+).*\1`,"abc me cba",{"abc me cba","a"})
+        test(1,`([abc]+).*\1`,"abc me zba",{"abc me zba","a"})
+    end if
+    test(1,`([abc]+?).*\1`,"abc me abc",{"abc me a","a"})
+    test(1,`([abc]+?).*\1`,"abc me bca",{"abc me bca","a"})
+    test(1,`([abc]+?).*\1`,"abc me cba",{"abc me cba","a"})
+    test(1,`([abc]+?).*\1`,"abc me zba",{"abc me zba","a"})
+
+    test(1,`<([-+*]{2})(.+)\1>`,"<--text-->",{"<--text-->","--","text"})
+    test(1,`<([-+*]{2})(.+)\1>`,"<**text**>",{"<**text**>","**","text"})
+    test(1,`<([-+*]{2})(.+)\1>`,"<++text++>",{"<++text++>","++","text"})
+    test(1,`^((a|b)*?)\1$`,"abaaabaa",{"abaaabaa","abaa","a"})
+    test(1,"a(b|c)c","abcdcecf",{"abc","b"})
+    test(1, "a", "a", {"a"})
+    test(0, "b", "a", {});
+    test(1, "b", "ab", {"b"})
+    test(1, "aaaa", "aaaa", {"aaaa"})
+    test(0, "bbbb", "aaaa", {})
+    test(1, ".", "a", {"a"})
+    test(0, ".", "", {})
+    test(1, "a..", "axx", {"axx"})
+    test(0, "a..", "b..", {})
+    test(1, "a?b", "ab", {"ab"})
+    test(1, "a?b", "xb",{"b"})
+    test(1, ".*a?b", "xb", {"xb"})
+    test(0, "a?C", "xb", {})
+    test(1, "(aa)?b", "aab", {"aab","aa"})
+    test(1, "(aa)?b", "xab", {"b",""})
+    test(0, "(aa)?C", "xxb", {})
+    test(1, "a*b", "aaab", {"aaab"})
+    test(0, "a*b", "aaaa", {})
+    if early and pikevm then
+        test(1, "b+", "bb", {"b"})
+    else
+        test(1, "b+", "bb", {"bb"})
+    end if
+    test(1, "b+", "b", {"b"})
+    test(0, "b+", "a", {})
+    test(1, "a|b", " a", {"a"})
+    test(1, "a|b", "a", {"a"})
+    test(1, "a|b", "b", {"b"})
+    test(0, "a|b", "c", {})
+    test(1, "a|b|c|d|e", "a", {"a"})
+    test(1, "a|b|c|d|e", "c", {"c"})
+    test(1, "a|b|c|d|e", "e", {"e"})
+    test(0, "a|b|c|d|e", "x", {})
+    test(1, "xx(alpha|beta)xx", "xxalphaxx", {"xxalphaxx","alpha"})
+    test(1, "xx(alpha|beta)xx", "xxbetaxx", {"xxbetaxx","beta"})
+    if early and pikevm then
+        test(1, "(a(a(a(a|a)|(a|a)a)a)a|a)", "aaaaaaaaaaaaaaaaa", {"a","a","","","",""})
+    else
+        test(1, "(a(a(a(a|a)|(a|a)a)a)a|a)", "aaaaaaaaaaaaaaaaa", {"aaaaaa","aaaaaa","aaaa","aa","a",""})
+--               | | | ^---^ ^---^ | |   |
+--               | | ^-------------^ |   |
+--               | ^-----------------^   |
+--               ^-----------------------^
+    end if
+
+    test(1, "abcdefg",  "abcdefg",  {"abcdefg"})
+    if early and pikevm then
+        test(1, "(a|b)*a",  "ababababab",   {"a",""})
+        test(1, "(a|b)*a",  "aaaaaaaaba",   {"a",""})
+        test(1, "(a|b)*a",  "aaaaaabac",    {"a",""})
+    else
+        test(1, "(a|b)*a",  "ababababab",   {"ababababa","b"})
+        test(1, "(a|b)*a",  "aaaaaaaaba",   {"aaaaaaaaba","b"})
+        test(1, "(a|b)*a",  "aaaaaabac",    {"aaaaaaba","b"})
+    end if
+    test(1, "a(b|c)*d", "abccbcccd",    {"abccbcccd","c"})
+    test(1, "a(b|c)*d", "abccbcccde",   {"abccbcccd","c"})
+
+    test(1, "^aa", "aa", {"aa"})
+    test(0, "^aa", "baa", {})
+    test(1, "^aa$" , "aa", {"aa"})
+    test(0, "^aa$", "baab", {})
+    test(1, "(aa)*b", "aaab", {"aab","aa"})
+    test(0, "(aa)*b", "aaaa", {})
+    test(1, "^b+$", "b", {"b"})
+    test(1, "^b+$", "bbb", {"bbb"})
+    test(0, "^b+$", "aba", {})
+    test(1, "(a)|(b)|(c)|(d)|(e)", " a ", {"a","a","","","",""})
+    test(1, "(a)|(b)|(c)|(d)|(e)", " c ", {"c","","","c","",""})
+    test(1, "(a)|(b)|(c)|(d)|(e)", " e ", {"e","","","","","e"})
+    test(0, "(a)|(b)|(c)|(d)|(e)", " x ", {})
+
+    -- aside: note that re[1]='^' does not make this anchored, rather
+    --        it is a {SPLIT,{anchored,unanchored}} expression.
+    test(1, "^xx(alpha)|(beta)xx$", "xxalphaxx", {"xxalpha","alpha",""})
+    test(1, "^xx(alpha)|(beta)xx$", "xxbetaxx", {"betaxx","","beta"})
+
+    test(1, "[a-z]", "aaa", {"a"})
+    if early and pikevm then
+        test(1, "[a-z]*", "aaa", {""})
+        test(1, "[a-z]+", "aaa", {"a"})
+    else
+        test(1, "[a-z]*", "aaa", {"aaa"})
+        test(1, "[a-z]+", "aaa", {"aaa"})
+    end if
+    test(1, "[a-z]+?", "aaa", {"a"})
+
+    test(1, "^(Error|Warning)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+            {"Warning","Warning"})
+    if early and pikevm then
+        test(1, "^(Error|Warning) (.+)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+                {"Warning s",
+                 "Warning",
+                 "s"})
+        test(1, "^(Error|Warning) ([a-z.]*) ([0-9]*)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+                {"Warning search.cpp ","Warning","search.cpp",""})
+    else
+        test(1, "^(Error|Warning) (.+)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+                {"Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+                 "Warning",
+                 "search.cpp 35: Conversion may lose significant digits in function AskReplace()"})
+        test(1, "^(Error|Warning) ([a-z.]*) ([0-9]*)", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+                {"Warning search.cpp 35","Warning","search.cpp","35"})
+    end if
+
+    test(1, "^(Error|Warning) (.+) ([0-9]+): (.*)$", "Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+            {"Warning search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+             "Warning",
+             "search.cpp",
+             "35",
+             "Conversion may lose significant digits in function AskReplace()"})
+    test(1, "^(Error|Warning) (.+) ([0-9]+): (.*)$", "Error search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+            {"Error search.cpp 35: Conversion may lose significant digits in function AskReplace()",
+             "Error",
+             "search.cpp",
+             "35",
+             "Conversion may lose significant digits in function AskReplace()"})
+
+    test(1, "^([a-z]+ +)*\\(", "blabla bla bla bla (", {"blabla bla bla bla (","bla "})
+    test(1, "^([a-z]+\\s+)+\\(", "blabla bla bla bla (", {"blabla bla bla bla (","bla "})
+    test(1, "^([a-z]+\\s*)+\\(", "blabla bla bla bla(", {"blabla bla bla bla(","bla"})
+    test(1, "^([a-z]+\\s+)+\\(", "blabla bla   bla bla (", {"blabla bla   bla bla (","bla "})
+    test(1, "^([a-z]+\\s*)+\\(", "blabla   bla bla bla(", {"blabla   bla bla bla(","bla"})
+    if pikevm then -- regex overflow on backtrackingvm
+        test(1, "^([a-z]* *)*\\(", "blabla bla bla bla (", {"blabla bla bla bla (","bla "})
+    end if
+    test(1, "^([a-z]+ +)+\\(", "blabla bla bla bla (", {"blabla bla bla bla (","bla "})
+    test(1, `(a)\n(b)\r(c)\t(d)\0(e)`, "a\nb\rc\td\0e", {"a\nb\rc\td\0e","a","b","c","d","e"})
+    if early and pikevm then
+        test(1, `(\w*) (\w*)`, "this one here", {"this ","this",""})
+        test(1, `(\d*)\s(\w*)`, "12 dozen", {"12 ","12",""})
+    else
+        test(1, `(\w*) (\w*)`, "this one here", {"this one","this","one"})
+        test(1, `(\d*)\s(\w*)`, "12 dozen", {"12 dozen","12","dozen"})
+    end if
+    test(1, `^[\x20-\xFF]+$`, "blabla", {"blabla"})
+    test(1, `^\x20[\x20-\xFF]+$`, " blabla", {" blabla"})
+
+    test(1,`(\w)`, "Foo", {"F","F"})
+    test(1,`(\w)$`, "Fio", {"o","o"})
+    test(1,`(\w+)$`, "Foo", {"Foo","Foo"})
+    test(1,`(\d*)$`, "123", {"123","123"})
+    if early and pikevm then
+        test(1,`(\w+)`, "Foo Bar", {"F","F"})
+    else
+        test(1,`(\w+)`, "Foo Bar", {"Foo","Foo"})
+    end if
+    test(1,`(\w+)$`, "Foo Bar", {"Bar","Bar"})
+    test(1,"(cat|dog)", "cat", {"cat","cat"})
+    test(0,"cat|dog", "cot", {})
+
+    if early and pikevm then
+        test(1,`(\w+) (\w+)`, "Foo Bar", {"Foo B","Foo","B"})
+        test(1,`((\w+) (\w+))`, "   Foo Bar", {"Foo B","Foo B","Foo","B"})
+        test(1,`(\w+) \w+ (\w+) .*`, "Foo Bar and Grill", {"Foo Bar and ","Foo","and"})
+        test(1,`((\w+) \w+) (\w+) .*`, "Foo Bar and Grill", {"Foo Bar and ","Foo Bar","Foo","and"})
+        test(1,`proc (\w+).*`, "global proc foo()", {"proc f","f"})
+    else
+        test(1,`(\w+) (\w+)`, "Foo Bar", {"Foo Bar","Foo","Bar"})
+        test(1,`((\w+) (\w+))`, "   Foo Bar", {"Foo Bar","Foo Bar","Foo","Bar"})
+        test(1,`(\w+) \w+ (\w+) .*`, "Foo Bar and Grill", {"Foo Bar and Grill","Foo","and"})
+        test(1,`((\w+) \w+) (\w+) .*`, "Foo Bar and Grill", {"Foo Bar and Grill","Foo Bar","Foo","and"})
+        test(1,`proc (\w+).*`, "global proc foo()", {"proc foo()","foo"})
+    end if
+    test(1,"(([^c])ei)", "peice", {"pei","pei","p"})
+    test(1,"([^c])ei", "peice", {"pei","p"})
+    test(1,"([^c]ei)", "peice", {"pei","pei"})
+    test(1,"pho", "Euphoria", {"pho"})
+    test(1,"(pho)", "Euphoria", {"pho","pho"})
+    test(1,"string$","I am a string", {"string"})
+    test(0,"^You","I am a string",{})
+    test(1,"( a.*a)","Hi, I am a string", {" am a"," am a"})
+    test(1,"( a.*?a)","Hi, I am a string", {" am a"," am a"})
+    test(1,"( a..a)","Hi, I am a string", {" am a"," am a"})
+    test(1,`\sa.*a`,"Hi, I am a string",{" am a"})
+
+    if early and pikevm then
+        test(1,"(a(aa|b)*ab|b)((ba|a)(aa|b)*ab|bb)*((ba|a)(aa|b)*)*|a(aa|b)*","bbba",{"b","b","","","","","","","",""})
+    else
+        test(1,"(a(aa|b)*ab|b)((ba|a)(aa|b)*ab|bb)*((ba|a)(aa|b)*)*|a(aa|b)*","bbba",{"bbba","b","","bb","","","a","a","",""})
+--              | ^----^     ||^----^^----^      | |^----^^----^ |   ^----^
+--              ^------------^^------------------^ ^-------------^
+    end if
+
+    if early and pikevm then
+        test(1,`\b\w*\b`,"the", {""})
+    else
+        test(1,`\b\w*\b`,"the", {"the"})
+    end if
+    test(1,`\b\w+\b`,"the", {"the"})
+    if early and pikevm then
+        test(1,`\b(\w+)\b.+\b(\w+)\b`,"the longest day",{"the longest","the","longest"})
+    else
+        test(1,`\b(\w+)\b.+\b(\w+)\b`,"the longest day",{"the longest day","the","day"})
+    end if
+    test(1,`\b(\w+)\b.+\b(\w+)\b$`,"the longest day", {"the longest day","the","day"})
+    if early and pikevm then
+        test(1,"([0-9]{1,2})","123",{"1","1"})
+    else
+        test(1,"([0-9]{1,2})","123",{"12","12"})    -- Matches at least 1 but no more than 2 digits (yields "12")
+    end if
+    test(1,"([0-9]{1,2}3)","123", {"123","123"})    -- Matches at least 1 but no more than 2 digits (yields "12")
+    test(1,"([0-9]{1,2})3","123", {"123","12"})     -- Matches at least 1 but no more than 2 digits (yields "12")
+    test(1,"([0-9]{1,2})$","123", {"23","23"})      -- Matches at least 1 but no more than 2 digits (yields "23")
+    test(0,"^([0-9]{1,2})$","123", {})              -- Matches at least 1 but no more than 2 digits (yields false)
+    test(0,"[0-9]{3}","12", {})                     -- Matches 3 digits exactly (yields false)
+    test(1,"[0-9]{3}","123", {"123"})               -- Matches 3 digits exactly
+    test(0,"[0-9]{2,}","1", {})                     -- Matches at least 2 digits (yields false)
+    test(1,"[0-9]{2,}","12", {"12"})                -- Matches at least 2 digits
+    if early and pikevm then
+        test(1,"([0-9]{2,})","123", {"12","12"})    -- Matches at least 2 digits (yields "123")
+    else
+        test(1,"([0-9]{2,})","123", {"123","123"})  -- Matches at least 2 digits (yields "123")
+    end if
+    test(1,"([0-9]{2,})3","123", {"123","12"})      -- Matches at least 2 digits (yields "123")
+    test(1,"([0-9]{2,})$","123", {"123","123"})     -- Matches at least 2 digits (yields "123")
+
+    gtest("[A-Z]","abCDefG","*","ab**ef*")
+    gtest("[A-Z]","abCDefGH","(&)", "ab(C)(D)ef(G)(H)")
+    if early and pikevm then
+        gtest("[A-Z]+","abCDefGH","(&)", "ab(C)(D)ef(G)(H)")
+    else
+        gtest("[A-Z]+","abCDefGH","(&)", "ab(CD)ef(GH)")
+    end if
+
+    string testr = "I love PATTERN matching!"
+    integer first = 1
+    sequence code = regex_compile("([a-zA-Z]+)")
+    string mres = ""
+    while 1 do
+        --DEV broken by "optional" early out...
+        sequence m = regex(code, testr[first..$])
+        if length(m)=0 then exit end if
+--?m
+--      printf(1,"<%s>\n",{testr[first+m[1]-1..first+m[2]-2]})
+        mres &= sprintf("<%s>\n",{testr[first+m[1]-1..first+m[2]-2]})
+        first += m[2]
+    end while
+    if not early then
+        if mres!="<I>\n<love>\n<PATTERN>\n<matching>\n" then
+            ?mres
+            ?9/0
+        end if
+    end if
+    gtest("PATTERN",testr,"pattern","I love pattern matching!")
+    test(1,`\b`,"Hi, I am a string",{""})
+    test(1,`\b `,"Hi, I am a string",{" "})
+
+    gtest(" a.+a","Hi, I am a string","'m now a changed","Hi, I\'m now a changed string")
+    gtest(" am a","Hi, I am a string","'m now a changed","Hi, I\'m now a changed string")
+    gtest(" a[^a]+a","Hi, I am a string","'m now a changed","Hi, I\'m now a changed string")
+    gtest(" a ","I am a string"," another ","I am another string")
+    string x = "m5439'.e5588/#s...-*\''s009989/&a785784g4654677,,.^^\\(((~~e"
+    gtest("[^a-zA-Z]", x, "","message")
+    gtest("[^A-Za-z]", x, "","message")
+    gtest("[^a-z]", x, "","message")
+    gtest(`\d|\W`, x, "","message")
+
+    gtest("((ala)+?)","alaalaalaala","(&) ","(ala) (ala) (ala) (ala) ")
+    if early and pikevm then
+        gtest("((ala)+)", "alaalaalaala","(&) ","(ala) (ala) (ala) (ala) ")
+    else
+        gtest("((ala)+)", "alaalaalaala","(&) ","(alaalaalaala) ")
+    end if
+
+    string x2 = gmatch(`(\w+) changed to (\w+)`,"red changed to green",`\2 <- \1`)
+    if early and pikevm then
+        if x2!="g <- red" then
+            ?{"gmatch error",x2}
+            {} = wait_key()
+            abort(0)
+        end if
+    else
+        if x2!="green <- red" then
+            ?{"gmatch error",x2}
+            {} = wait_key()
+            abort(0)
+        end if
+    end if
+    gtest(`<[^>]+>`,"<b>Howdy</b> <strong>You</strong>","","Howdy You")
+    gtest(`<[^>]+>`,"<b>Howdy</b> <strong>You</strong>","^","^Howdy^ ^You^")
+
+    -- check that `\bis\b` does NOT match the "is" of "island": 
+    test(0,`\bis\bl`, "This island is beautiful.",{})
+    test(1,`\bis\b `, "This island is beautiful.",{"is "})
+
+    test(1,"^", "hello world",{""})
+    test(1,"$", "hello world",{""})
+    test(1,"^", "",{""})
+    test(1,"$", "",{""})
+
+    regex_options()
+    test(1,"[A-Z][a-z]+","and John ran",{"John"})
+    test(1,"([a-z]+) ([A-Z][a-z]+) ([a-z]+)","and John ran",{"and John ran","and","John","ran"})
+    test(1,"[A-Z]+","JOHN",{"JOHN"})
+    test(0,"[A-Z]+","john",{})
+    test(1,"([A-Z][a-z]+) ([A-Z][a-z]+)","John Doe Jane Doe",{"John Doe", "John", "Doe"})
+    test(0,`a[d-f]`,"AE",{})
+    regex_options(RE_CASEINSENSITIVE)
+    test(1,"[A-Z][a-z]+","and John ran",{"and"})
+    test(1,"^[A-Z][a-z]+","and John ran",{"and"})
+    test(1,"[A-Z]+","JOHN",{"JOHN"})
+    test(1,"[A-Z]+","john",{"john"})
+    test(1,`a[d-f]`,"AE",{"AE"})
+    test(1,"[comunicate]+","Communicate",{"Communicate"})
+
+    test(1,"([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})","20121018123010",
+            {"20121018123010","2012","10","18","12","30","10"})
+
+end procedure
+
+regex_options(RE_PIKEVM+RE_BACKREFERENCES)
+test2(1)
+regex_options(RE_RECURSIVE+RE_BACKREFERENCES)
+test2(0)
+regex_options(RE_PIKEVM+RE_BACKREFERENCES+RE_EARLY_EXIT)
+test2(1,1)
+regex_options(RE_RECURSIVE+RE_BACKREFERENCES+RE_EARLY_EXIT)
+test2(0,1)
+regex_options()
+
+--test(0,"(","(")   -- (error handling test, use the return not the ?9/0 in test())
+--?"got here??"
+--test(1,"","")     -- ""
+
+--Metacharacters must always be escaped within character classes (ie/eg `[\]\^]` not `[]^]`) [NOT SO, BOTH THESE WORK:]
+    test(1, `[\]\^]*`, `]^`, {"]^"}, 00)
+    test(1, `[]^]*`, `]^`, {"]^"}, 00)
+    test(1, `[\\x]*`, `\x`, {"\\x"}, 00)
+--  test(1, `[\x]*`, `\x`, {"\\x"}, 01) -- compilation error (correct)
+    test(1, `[x^]*`, `^x`, {"^x"}, 00)
+    test(1, `[x^]*`, `^x`, {"^x"}, 00)
+    test(1, `[-x]*`, `-x`, {"-x"}, 00)
+    test(1, `[x-]*`, `-x`, {"-x"}, 00)
+    test(1, `[x\-]*`, `-x`, {"-x"}, 00)
+    test(1, `[]x]*`, `]x`, {"]x"}, 00)
+    test(1, `[\]x]*`, `]x`, {"]x"}, 00)
+
+    test(1, `[0-9a-fA-F]`, `1`, {"1"}, 00)
+--DEV not supported (should be the same as above)..
+--  test(1, `[\da-fA-F]`, `1`, {"1"}, 01)
+
+
+--untested:
+--  `\b\d+\b` -- match a positive integer number
+--  `[-+]?\b\d+\b` -- match a signed integer number
+--  `[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?` -- match a floating point number.
+
+--/* I have picked off most of the low hanging fruit:
+--(from C:\Program Files (x86)\Phix\demo\misc\eu4164\tests\t_regex.e)
+
+object re = regex:new("(?i)[communicate]+")
+test_true("Caseless via (?i) matches case insensitive", is_match(re, "Communicate"))
+
+sequence s =  `Here is a multiline subject string
+We should get several matches can you guess where?`
+
+re = regex:new("[a-z]+")
+test_equal("find() #3", {{1,3}}, regex:find(re, "the dog is happy", 1))
+test_equal("find() #4", {{5,7}}, regex:find(re, "the dog is happy", 4))
+test_equal("find() #5", {{9,10}}, regex:find(re, "the dog is happy", 8))
+
+re = regex:new("[A-Z]+")
+test_equal("find_all() #1", {{{5,7}}, {{13,14}}},
+        regex:find_all(re, "the DOG ran UP" ))
+
+re = regex:new("\\b")
+test_equal("find_all \\b", {{{1,0}},{{6,5}},{{7,6}},{{12,11}}}, regex:find_all(re, "hello world"))
+
+re = regex:new("[A-Z]+")
+--test_true("is_match() #1", regex:is_match(re, "JOHN"))    [DONE]
+--test_false("is_match() #2", regex:is_match(re, "john"))
+test_true("has_match() #1", regex:has_match(re, "john DOE had a DOG"))
+test_false("has_match() #2", regex:has_match(re, "john doe had a dog"))
+
+re = regex:new("([A-Z][a-z]+) ([A-Z][a-z]+)")
+--test_equal("matches() #1", { "John Doe", "John", "Doe" }, regex:matches(re, "John Doe Jane Doe")) [DONE]
+test_equal("all_matches() #1", { { "John Doe", "John", "Doe" }, { "Jane Doe", "Jane", "Doe" } },
+        regex:all_matches(re, "John Doe Jane Doe"))
+test_equal("all_matches() STRING_OFFSET #1",
+        {
+                {                           -- first match
+                        { "John Doe",  1,  8 }, -- full match data
+                        { "John",      1,  4 }, -- first group
+                        { "Doe",       6,  8 }  -- second group
+                },
+                {                           -- second match
+                        { "Jane Doe", 14, 21 }, -- full match data
+                        { "Jane",     14, 17 }, -- first group
+                        { "Doe",      19, 21 }  -- second group
+                }
+        },
+        regex:all_matches(re, "John Doe and Jane Doe", 1, regex:STRING_OFFSETS))
+test_equal("all_matches() no match #1", ERROR_NOMATCH, regex:all_matches(re, "12"))
+
+re = regex:new(`,\s`)
+test_equal("split() #1", { "euphoria programming", "source code", "reference manual" },
+        regex:split(re, "euphoria programming, source code, reference manual"))
+
+test_equal("split_limit() #1", { "euphoria programming", "source code, reference manual" },
+        regex:split_limit(re, "euphoria programming, source code, reference manual", 1))
+
+re = regex:new("([A-Z][a-z]+) ([A-Z][a-z]+)")
+test_equal("find_replace() #1", "hello Doe, John!", regex:find_replace(re, "hello John Doe!", `\2, \1`))
+test_equal("find_replace() #2", "hello DOE, john!", regex:find_replace(re, "hello John Doe!", `\U\2\e, \L\1\e`))
+test_equal("find_replace() #3", "hello \nDoe, John!", regex:find_replace(re, "hello John Doe!", `\n\2, \1`))
+test_equal("find_replace() #4", "hello John\tDoe!", regex:find_replace(re, "hello John Doe!", `\1\t\2`))
+test_equal("find_replace() #5", "hello Mr. John Doe!", regex:find_replace(re, "hello John Doe!", `Mr. \1 \2`))
+
+re = regex:new("([A-Z][a-z]+) ([A-Z][a-z]+)")
+test_equal("find_replace_limit() #1", "JOHN DOE Jane Doe",
+        regex:find_replace_limit(re, "John Doe Jane Doe", `\U\1 \2\e`, 1))
+
+function myupper(sequence params)
+        return upper(params[1])
+end function
+
+test_equal("find_replace_callback() #1", "JOHN DOE JANE DOE",
+        regex:find_replace_callback(re, "John Doe Jane Doe", routine_id("myupper")))
+test_equal("find_replace_callback() #2", "JOHN DOE Jane Doe",
+        regex:find_replace_callback(re, "John Doe Jane Doe", routine_id("myupper"), 1))
+test_equal("find_replace_callback() #3", "John Doe JANE DOE",
+        regex:find_replace_callback(re, "John Doe Jane Doe", routine_id("myupper"), 0, 9))
+
+test_equal("escape #1", "Payroll is \\$\\*\\*\\*15\\.00", regex:escape("Payroll is $***15.00"))
+
+-- ticket:350 test
+re = re:new(`fixes(\?)? ticket ([0-9]+)`, re:CASELESS)
+test_equal("ticket #350", {
+        { "fixes? ticket 384", "?", "384" }, 
+        { "fixes ticket 999", "", "999" }
+}, re:all_matches(re, "fixes? ticket 384, fixes ticket 999"))
+
+-- ticket:363 test
+regex re_full_name = re:new(`[A-Z][a-z]+ ?([A-Z][a-z]+)?`)
+
+-- Displays the number of captured groups and displays where the first missing group is.
+-- A missing group is a group that doesn't exist.
+-- The first missing group is 0, if there are no missing groups.
+function info(sequence params )
+        integer missing = eu:find(0,params)
+        --return sprintf("group count: %d.  The missing group is at %d.\n", 
+        return {length(params)-1, missing}
+end function
+
+-- Test and display values.
+procedure testfrc(sequence rexp, sequence str)
+        --printf(1, "re:find_replace_callback(%s,%s,...)\n", {rexp,str})
+        --puts(1,re:find_replace_callback(rexp, str, routine_id("info")) )
+        
+end procedure
+
+test_equal("ticket 362 #1",{1,0},re:find_replace_callback(re_full_name, "John Doe", 
+        routine_id("info"))) -- one group and its matched
+test_equal("ticket 362 #2",{0,0},re:find_replace_callback(re_full_name, "Mary ", 
+        routine_id("info"))) -- one group first group not matched.  This group not matched is trncated
+        -- so it as if there are no groups.
+constant data_ext = re:new(`([A-Z][a-z]+)? ?([A-Z][a-z]+)? ([0-9-]+)?`)
+test_equal("ticket 362 #3",{2,0},re:find_replace_callback(data_ext, "Micheal Jackson ",
+        routine_id("info"))) -- Three groups.  phone number, index value 4, is not matched.
+        -- last group is not matched so it is truncated.  Therefore, two groups matching. 
+test_equal("ticket 362 #4",{3,3},re:find_replace_callback(data_ext, "Cher 555-1212",
+        routine_id("info"))) -- Three groups, but last name, index value 3, not matched.
+constant message = "fixes? ticket 348, fixes ticket 999" 
+constant re_ticket = re:new(`fixes(\?)? ticket ([0-9]+)`, re:CASELESS)
+test_equal("ticket 362 #5",{2,0} & ", " & {2,2},re:find_replace_callback(re_ticket, message,
+        routine_id("info")))
+
+test_report()
+--*/
+
+-- 17.89s on pikevm, regexp overflow on backtrackingvm
+--atom t0 = time()
+--string s4m = repeat('a',4000000)
+--test(1,`^a.*a.*a.*a.a`,s4m,0)
+--?time()-t0
+
+?"done"
+{} = wait_key()

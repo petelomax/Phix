@@ -1,0 +1,197 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">regex.e</h1>
+      <div id="mainSection">
+        The file builtins\regex.e (<i>not</i> an autoinclude) provides routines for handling regular expressions.
+        <br>
+        <br>
+        Those seeking full <a href="regex_syntax.htm#PCRECOMPAT">pcre compatibility</a> (or any other library) are, well, advised to use pcre. <img src="images/ksk-smile.png" />
+        <br>
+        <br>
+        These routines implement a fast 
+        <a id="ext932" style="color:#9B5565" href="javascript:ExternalLink('ext932','https://swtch.com/~rsc/regexp/');">
+        pikevm</a>, as well as a (potentially exponentially slower) recursive backtrackingvm.
+        <br>
+        <br>
+        Whilst I might not recommend fiddling about with the innards of (any) regular expression engine, I would rather not prohibit anyone from doing so. <br>
+        Those interested in such matters may also like to peruse demo\regex_dfa.exw and regex_bc.exw (but be warned they currently lack 95% of features).
+        <br>
+        <br>
+        Regular expressions are normally written in `backtick strings`, to avoid standard escape interpretation (eg `\w` rather than "\\w")
+        <br>
+        <br>
+        <table>
+         <col style="width: 5%"/>
+         <tr>
+          <td valign=top>
+           <a href="regex_syntax.htm">
+            <b>regex syntax</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>a table summarising the supported elements
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="regex_options.htm">
+            <b>regex_options</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>set regular expression handling options
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="regex_compile.htm">
+            <b>regex_compile</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>compile a regular expression for repeated use (optional)
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="regex.htm">
+            <b>regex</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>apply a regular expression to a target string
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="gsub.htm">
+            <b>gsub</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>(draft) global substitution routine
+          </td>
+         </tr>
+         <tr>
+          <td valign=top>
+           <a href="gmatch.htm">
+            <b>gmatch</b>
+           </a>
+          </td>
+          <td width=10 align=center valign=top>-</td>
+          <td>(draft) global match routine
+          </td>
+         </tr>
+        </table>
+        <br>
+        &nbsp;
+        <br>
+        builtins\regex.e also declares the global procedure regexp_list, strictly for the benefit of test\t63regex.exw.
+        <br>
+        <br>
+        Long story short: <br>
+        I am no fan of regular expressions, but I get that they have their uses.
+        For instance, antivirus engines and network intrusion systems can hardly be anything other
+        than the highly optimised and simultaneous application of millions of regular expressions 
+        to files and data streams (albeit very carefully crafted ones, using a bespoke engine).
+        <br>
+        <br>
+        Not finding anything adequate in the archives (although pattern.e by dcuny came close), I
+        stumbled across a <a id="ext935" style="color:#9B5565" 
+        href="javascript:ExternalLink('ext935','https://swtch.com/~rsc/regexp/');">series of 
+        articles by Russ Cox</a> and immediately fell in love with the pikevm. 
+        This component is an implementation of that, built for simplicity and ease of experimentation,
+        rather than a head-on competitor to the likes of PCRE. Credit is also due to regexp_pikevm.rb as found 
+        <a id="ext937" style="color:#9B5565" href="javascript:ExternalLink('ext937','https://gist.github.com/search?utf8=?&q=pikevm');">
+        here</a> and I also recommend reading <a id="ext937" style="color:#9B5565" href=
+        "javascript:ExternalLink('ext937','https://www.gamedev.net/resources/_/technical/general-programming/finite-state-machines-and-regular-expressions-r3176');">
+        this gamedev article</a>.
+        Fanboys of regular expressions might want to consider a wrapper around a pcre.dll/so instead, but 
+        for my target audience that means foregoing the ability to tinker.
+        <br>
+        <br>
+        <h3>Caution</h3>
+        <blockquote>
+            “ Some people, when confronted with a problem, think 'I know - I&rsquo;ll use regular expressions.' 
+              Now they have two problems. ”<br>
+             — Jamie Zawinski (flame war on alt.religion.emacs)
+        </blockquote>
+        Sure, there are cases where a regular expression is the best option. However they should 
+        not be adopted as a "weapon of choice" in the same way that newbies past latched onto goto. 
+        Beyond a certain point it becomes faster both to write and to execute longhand code, with 
+        loops/find/match/etc.
+        <br>
+        <br>
+        It should not be lost that you cannot in any real sense debug a regular expression, 
+        other than to throw yet more test cases at it. <br>
+        Long term maintenance quickly becomes much harder as regular expressions grow in length and complexity. <br>
+        In a very real sense, regular expressions are often at their best when thrown away immediately after use.
+<!--        
+You can go more than a little crazy with regular expressions. To match an email address:
+http://www.ex-parrot.com/~pdw/Mail-RFC822-Address.html
+
+Bleatings of the form WAAAAHHHHH - it (perfectly legally) matched "a" but I wanted it to
+match "abc" - WAAAAHHHHH will be quitely ridiculed. If you are stuck, do it in longhand.
+
+DEV:
+                -- "[\da-fA-f]" is equivalent to "[0-9a-fA-F]"
+                -- "\D" is equivalent to [^\d]
+                -- "\W" is equivalent to [^\w]
+                -- "\S" is equivalent to [^\s]
+                -- "." is equivalent to [^\n] (or [^\r\n] on Windows)
+
+`\d\d[- /.]\d\d[- /.]\d\d` is better than `\d\d.\d\d.\d\d' for matching dates
+
+"""(?x)		(?# ?x turns on free spacing mode )
+# Match a 20th or 21st century date in yyyy-mm-dd format
+(19|20)\d\d                 # year (group 1)
+[- /.]                      # separator
+(0[1-9]|1[012])             # month (group 2)
+[- /.]                      # separator
+(0[1-9]|[12][0-9]|3[01])    # day (group 3)
+"""
+
+`q(?=u)` should match qu but not consume the u          (positive lookahead)
+`q(?!u)` should match q[^u] but not consume the [^u]    (negative lookahead)
+`(?<!a)b` matches a b not preceded by an a              (negative lookbehind)
+`(?<=a)b` matches a b preceded by an a                  (positive lookbehind)
+
+untested:
+`\b\d+\b` -- match a positive integer number
+`[-+]?\b\d+\b` -- match a signed integer number
+`[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?` -- match a floating point number.
+-->
+        <br>
+        <br>
+        TIP: <br>
+        HTML <b><i>cannot</i></b> be parsed with regular expressions - you are wasting your time trying. <br>
+        Regular expressions can match regular languages - but HTML is not a regular language. <br>
+        It is a context-free language, which is a language that regular expressions are not fit to parse.
+        <br>
+        <br>
+        Example: `&lt;TAG\b[^&gt;]*&gt;(.*?)&lt;/TAG&gt;` matches the opening and closing pair of a specific HTML tag, however it will not match 
+        nested tags properly, such as “&lt;TAG&gt;one&lt;TAG&gt;two&lt;/TAG&gt;three&lt;/TAG&gt;”. Hence while 
+        `&lt;(\w+)\b[^&gt;]*&gt;.*&lt;\1&gt;` or similar may at first look just dandy for html processing, it really ain&rsquo;t.
+        <br>
+        <br>
+        One last quote:<br>
+        <blockquote>
+        I think regular expressions are overused in scripting languages (like Perl, Python, Ruby, ...) because their C/ASM powered implementation 
+        is usually more optimized than those languages itself, but Go isn&rsquo;t such a language. 
+        Regular expressions are usually quite slow and are often not suited for the problem at all.
+        </blockquote>
+        I hear that. If I want to find all lines with "then" but not "if", regular expressions are no help at all.<br>
+        Here is your new hammer. Now please just remember that not everything is a nail.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

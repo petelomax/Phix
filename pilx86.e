@@ -14863,6 +14863,19 @@ if X64 then ?9/0 end if
             pc += 1
         elsif opcode=opGetText 
            or opcode=opDcvar then
+--30/5/17:
+--DEV and opDcvar??
+            if opcode=opGetText then
+                dest = s5[pc+1]
+                getDest()
+--DEV we might be able to optimise this further:
+-- if src2(aka option) is -2(GT_WHOLE_FILE) then dest is string/int elsif not -2 then dest is T_Dsq/string else as below(?)
+                slroot = T_Dsq+T_string
+                setyp = T_integer+T_string
+                slen = -2
+                sltype = slroot
+                storeDest()
+            end if
             if not isGscan then
                 dest = s5[pc+1]
                 src = s5[pc+2]
