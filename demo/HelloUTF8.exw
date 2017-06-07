@@ -142,14 +142,19 @@ set_struct_field(idCFI,pCFI,"FontWeight",400)
 constant {name_offset} = get_field_details(idCFI,"FaceName")
 --poke2(pCFI+name_offset,"Lucida Console\0")
 poke2(pCFI+name_offset,"Consolas\0")
+--poke2(pCFI+name_offset,"Arial Unicode MS\0")
 
 puts(1,"")  -- force console to exist
 atom hConsole = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
 atom prevCP = c_func(xGetConsoleOutputCP,{})
-?prevCP
-{} = c_func(xSetCurrentConsoleFontEx,{hConsole,FALSE,pCFI})
+printf(1,"prevCP:%d\n",prevCP)
+if c_func(xSetCurrentConsoleFontEx,{hConsole,FALSE,pCFI})=0 then
+    printf(1,"SetCurrentConsoleFontEx failed\n")
+end if
 -- the following is equivalent to running "chcp 65001":
-{} = c_func(xSetConsoleOutputCP,{CP_UTF8})
+if c_func(xSetConsoleOutputCP,{CP_UTF8})=0 then
+    printf(1,"SetConsoleOutputCP failed\n")
+end if
 
 puts(1,"├─│└ ─│ ┄ ┆ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ \n")
 sequence lc = {}, uc = {}
@@ -167,6 +172,9 @@ puts(1,"♣♦♥♠\n")
 --      printf(1,"  \x1B[\x02m♣\x1B[m%c", {--32 - mod(1+c,4) / 2,
 --                      s_suits[mod(c,4)+1], s_nums[floor(c/4)+1]});
 --  end for
+--DEV
+puts(1,"\u25b3\n")  -- nope...
+puts(1,"△\n")   -- nope...
 
 --puts(1,"日本語") -- not covered...
 --中国    -- means China  -- {20013,22269} = {#4E2D,#56FD}

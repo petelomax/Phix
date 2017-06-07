@@ -1,0 +1,951 @@
+--
+-- boidsc.exw
+--
+-- From http://rosettacode.org/wiki/Boids/C
+-- Translated (badly) to Phix by Pete Lomax
+--
+--  BUGGY[DEV] - hangs/loops after a while, especially if you try going full-screen, and/or over-mouse it.
+--               the boids themselves seem intent on reaching Alaska, all somewhat boring.
+--               mouse is a bit brutal, maybe only when shift pressed or something?
+--               also, mountains seem a bit one-sided, and seem to peter out somehow
+--
+-- Sorry about the mess, not only bits of the original C but also most of glcanvas_cube.exw remain...
+--
+
+include pGUI.e
+include opengl.e
+include glu.e
+
+--#withtype Ihandle
+
+--/*
+--typedef GLfloat flt;
+unsigned long long get_msec(void)
+{
+        struct timeval tv;
+        gettimeofday(&tv, 0);
+        return tv.tv_sec * 1000ULL + tv.tv_usec / 1000;
+}
+--*/
+
+constant MIN_MOUNTAIN_RADIUS = 3
+constant MAX_MOUNTAIN_RADIUS = 5
+constant MAX_MOUNTAIN_HEIGHT = 25
+constant IDEAL_HEIGHT = 1 -- how high a boid prefers to stay above ground
+constant IDEAL_DISTANCE = 5 -- how far boids prefer to stay away from each other
+constant MOVE_SPEED = 1e-2
+constant MOUNTAIN_RATIO = 500
+constant N = 100
+
+function get_msec()
+sequence d = date(true)
+    return d[DT_SECOND]*1000+d[DT_MSEC]
+end function
+
+atom update_time
+ 
+-- 3D vector stuff
+--typedef struct { flt x[3]; } vec;
+enum X, Y, Z
+type vec(object o)
+    return sequence(o) and length(o)=3 and atom(o[X]) and atom(o[Y]) and atom(o[Z])
+end type
+ 
+function vscale(vec a, atom r)
+--      a->x[0] *= r;
+--      a->x[1] *= r;
+--      a->x[2] *= r;
+    a = sq_mul(a,r)
+    return a
+end function
+ 
+function vmuladd_to(vec a, vec b, atom r)
+--      a->x[0] += r * b->x[0];
+--      a->x[1] += r * b->x[1];
+--      a->x[2] += r * b->x[2];
+    a = sq_add(a,vscale(b,r))
+    return a
+end function 
+
+function vadd_to(vec a, vec b)
+--      a->x[0] += b->x[0];
+--      a->x[1] += b->x[1];
+--      a->x[2] += b->x[2];
+    a = sq_add(a,b)
+    return a
+end function 
+
+--function vadd(vec a, vec b)
+----        return (vec) {{ a[X] + b[X],
+----                        a[Y] + b[Y],
+----                        a[Z] + b[Z] }};
+--  return sq_add(a,b)
+--end function
+
+function vsub(vec a, vec b)
+--      return (vec) {{ a[X] - b[X],
+--                      a[Y] - b[Y],
+--                      a[Z] - b[Z] }};
+    return sq_sub(a,b)
+end function
+
+function vlen2(vec a)
+--      return a[X]*a[X] + a[Y]*a[Y] + a[Z]*a[Z];
+    return sum(sq_mul(a,a))
+end function
+ 
+--function vdist2(vec a, vec b)
+--  return vlen2(vsub(a, b))
+--end function
+ 
+--inline vec vcross(vec a, vec b) {
+--      return (vec) {{
+--              a[Y]*b[Z] - a[Z]*b[Y],
+--              a[Z]*b[X] - a[X]*b[Z],
+--              a[X]*b[Y] - a[Y]*b[X] }};
+--}
+ 
+function vnormalize(vec a)
+--      flt r = sqrt(a->x[0]*a->x[0] + a->x[1]*a->x[1] + a->x[2]*a->x[2]);
+    atom r = vlen2(a)
+--      if (!r) return;
+    if r!=0 then
+--      r = sqrt(r)
+--      a->x[0] /= r;
+--      a->x[1] /= r;
+--      a->x[2] /= r;
+        a = sq_div(a,sqrt(r))
+    end if
+    return a
+end function
+ 
+--typedef struct {
+--      vec position, heading, newheading;
+--      flt speed;
+--} boid_t;
+enum POSITION, HEADING, NEWHEADING, SPEED
+type boid_t(object o)
+    return sequence(o) 
+       and length(o)=4
+       and vec(o[POSITION])
+       and vec(o[HEADING])
+       and vec(o[NEWHEADING])
+       and atom(o[SPEED])
+end type
+ 
+--boid_t boids[N];
+sequence boids = repeat(0,N)
+ 
+--typedef struct mountain_s mountain_t;
+--struct mountain_s {
+--      int x, y, h;
+--      double r;
+--      mountain_t *next;
+--};
+--DEV sequence instead of MNXT??
+enum MX, MY, MH, MR, MNXT
+type mountain_t(object o)
+    return o=NULL
+       or (sequence(o) and 
+           length(o)=5 and 
+           integer(o[MX]) and
+           integer(o[MY]) and
+           atom(o[MH]) and
+--         atom(o[MR]))
+           atom(o[MR]) and
+           mountain_t(o[MNXT]))
+end type
+
+--typedef struct {
+--      int x[2], y[2]; -- min/max coords of world
+--      flt *ground;
+--      vec *ground_normal;
+--      mountain_t *hills;
+--} world_t;
+enum X0, X1, Y0, Y1, GROUND, GROUND_NORMAL, HILLS
+type world_t(object o)
+    return sequence(o)
+       and length(o)=7
+       and atom(o[X0])
+       and atom(o[X1])
+       and atom(o[Y0])
+       and atom(o[Y1])
+--no, this is a sequence of atom!
+--     and atom(o[GROUND])
+       and sequence(o[GROUND])
+--no, this is a sequence of vec!
+--     and vec(o[GROUND_NORMAL])
+       and sequence(o[GROUND_NORMAL])
+       and mountain_t(o[HILLS])
+end type
+
+--#define WORLD_SIZE 40
+constant WORLD_SIZE = 40
+world_t world = {0,0,0,0,{},{},NULL}
+ 
+--typedef struct {
+--      double pitch, yaw, distance;
+--      vec target;
+--} camera_t;
+enum PITCH, YAW, DISTANCE, TARGET
+type camera_t(object o)
+    return sequence(o)
+       and length(o)=4
+       and atom(o[PITCH])
+       and atom(o[YAW])
+       and atom(o[DISTANCE])
+       and vec(o[TARGET])
+end type
+
+--camera_t camera = { -PI/4, 0, 100, {{0, 0, 0}} };
+camera_t camera = { -PI/4, 0, 100, {0, 0, 0} };
+ 
+function ror(atom a, integer d)
+    return and_bits(#3FFFFFFF,or_bits(a*power(2,d),floor(a/power(2,32-d))))
+end function
+
+function hash_xy(atom x, atom y)
+    atom h = 0x12345678, tmp = x;
+    h += xor_bits(ror(h, 15),ror(tmp, 5))
+    tmp = y;
+    h += xor_bits(ror(h, 15),ror(tmp, 5))
+ 
+    h = xor_bits(h,ror(h, 7))
+    h += ror(h, 23);
+ 
+    h = xor_bits(h,ror(h, 19))
+    h += ror(h, 11);
+ 
+    return and_bits(#3FFFFFFF,h)
+end function
+ 
+function hill_height(mountain_t m, atom x, atom y)
+    x -= m[MX]
+    y -= m[MY]
+if m[MR] = 0 then return m[MH] end if
+    return m[MH] * exp(-(x * x + y * y) / (m[MR] * m[MR]));
+end function
+ 
+--function hill_hight(mountain_t *m, flt x, flt y)
+--{
+--      flt xx = x - m->x, yy = y - m->y;
+--      return m->h * exp(-(xx*xx + yy*yy) / (m->r * m->r));
+--}
+ 
+function ground_height(atom x, atom y)
+    mountain_t p = world[HILLS]
+    atom h = 0;
+    while p!=NULL do
+--      h += hill_hight(p, x, y)
+        h += hill_height(p, x, y)
+        p = p[MNXT]
+    end while
+    return h
+end function
+ 
+function calc_normal(atom x, atom y)
+    vec v = {0,0,0}
+ 
+    mountain_t p = world[HILLS]
+    while p!=NULL do
+if p[MR]!=0 then
+        atom h = hill_height(p, x, y);
+        atom t = 2 / (p[MR] * p[MR]);
+        v[X] += (x - p[MX]) * t * h;
+        v[Y] += (y - p[MY]) * t * h;
+end if
+        p = p[MNXT]
+    end while
+    v[Z] = 1;
+    v = vnormalize(v)
+    return v
+end function
+ 
+procedure make_terrain(atom cx, atom cy)
+    cx = round(cx)
+    cy = round(cy)
+    if (cx * 2 == world[X0] + world[X1] 
+    and cy * 2 == world[Y0] + world[Y1]) then
+        return
+    end if
+
+    world[X0] = cx - WORLD_SIZE;
+    world[X1] = cx + WORLD_SIZE;
+    world[Y0] = cy - WORLD_SIZE;
+    world[Y1] = cy + WORLD_SIZE;
+ 
+    int x, y;
+    int nx = world[X1] - world[X0] + 1;
+    int ny = world[Y1] - world[Y0] + 1;
+ 
+--      while world.hills!=NULL do
+--          mountain_t *p = world.hills->next;
+--          free(world.hills);
+--          world.hills = p;
+--      end while
+    world[HILLS] = NULL
+ 
+    for x=world[X0] to world[X1] do
+        for y=world[Y0] to world[Y1] do
+            atom h = mod(hash_xy(x, y),MOUNTAIN_RATIO), r
+            if h=0 then
+                r = MIN_MOUNTAIN_RADIUS + mod(hash_xy(y, x),100) / 100.0
+                    * (MAX_MOUNTAIN_RADIUS - MIN_MOUNTAIN_RADIUS);
+                h = mod(hash_xy((y + x) / 2, (y - x) / 2),MAX_MOUNTAIN_HEIGHT)
+                mountain_t m = {x,y,r,h,world[HILLS]}
+                world[HILLS] = m;
+            end if
+        end for
+    end for
+ 
+--  if world[GROUND]=NULL then
+    if length(world[GROUND])=0 then
+        world[GROUND] = repeat(0,nx*ny)
+    end if
+--  if world[GROUND_NORMAL]=NULL then
+    if length(world[GROUND_NORMAL])=0 then
+        world[GROUND_NORMAL] = repeat(0,nx*ny)
+    end if
+    for x=1 to nx do
+        int xx = x-1 + world[X0];
+        for y=1 to ny do
+            int yy = y-1 + world[Y0];
+            world[GROUND][(x-1)*ny + y] = ground_height(xx, yy);
+            world[GROUND_NORMAL][(x-1)*ny + y] = calc_normal(xx, yy);
+        end for
+    end for
+end procedure
+ 
+--void boid_think(boid_t *b)
+procedure boid_think(integer bi)
+    boid_t b = boids[bi]
+--  atom g = ground_height(b->position.x[0], b->position.x[1]);
+    atom g = ground_height(b[POSITION][X], b[POSITION][Y])
+ 
+    vec migration_drive = {0,.5,0}
+ 
+    vec height_drive = {0,0,0}
+--  height_drive.x[2] = (IDEAL_HEIGHT + g - b->position.x[2]) * .3;
+    height_drive[Z] = (IDEAL_HEIGHT + g - b[POSITION][Z]) * .3;
+ 
+    -- follow the ground surface normal
+--  vec terrain_drive = calc_normal(b->position.x[0], b->position.x[1]);
+    vec terrain_drive = calc_normal(b[POSITION][X], b[POSITION][Y])
+    --terrain_drive = vnormalize(terrain_drive)
+ 
+    vec crowding_drive = {0,0,0}
+    vec grouping_drive = {0,0,0}
+ 
+    atom total_weight = 0
+    for i=1 to N do
+        if i!=bi then
+            boid_t other = boids[i]
+ 
+            vec diff = vsub(other[POSITION], b[POSITION])
+            atom d2 = vlen2(diff)
+            atom weight = 1/power(d2, 2)
+ 
+            diff = vnormalize(diff)
+            if d2>IDEAL_DISTANCE*IDEAL_DISTANCE then
+                crowding_drive = vmuladd_to(crowding_drive, diff, weight)
+            else
+                crowding_drive = vmuladd_to(crowding_drive, diff, -weight)
+            end if
+             
+            grouping_drive = vmuladd_to(grouping_drive, other[HEADING], weight)
+            total_weight += weight
+        end if
+    end for
+ 
+    grouping_drive = vscale(grouping_drive, 1/total_weight)
+ 
+    --crowding_drive = vnormalize(crowding_drive)
+ 
+    vec newheading = migration_drive
+    newheading = vadd_to(newheading, height_drive)
+    newheading = vadd_to(newheading, terrain_drive)
+    newheading = vadd_to(newheading, crowding_drive)
+    newheading = vadd_to(newheading, grouping_drive)
+    newheading = vscale(newheading, 1/5)
+    newheading = vnormalize(newheading)
+ 
+    atom cx = (world[X0] + world[X1]) / 2.0;
+    atom cy = (world[Y0] + world[Y1]) / 2.0;
+--  newheading.x[0] += (cx - b->position.x[0]) / 400;
+    newheading[X] += (cx - b[POSITION][X]) / 400;
+--  newheading.x[1] += (cy - b->position.x[1]) / 400;
+    newheading[Y] += (cy - b[POSITION][Y]) / 400;
+--  b[NEWHEADING] = newheading
+--  boids[bi] = b
+    boids[bi][NEWHEADING] = newheading
+end procedure
+ 
+procedure run_boids(int msec)
+
+    for i=1 to N do
+        boids[i][POSITION] = vmuladd_to(boids[i][POSITION], boids[i][HEADING], msec * boids[i][SPEED])
+    end for
+
+    vec avg = {0,0,0}
+    for i=1 to N do
+        avg = vadd_to(avg, boids[i][POSITION])
+    end for
+    avg = vscale(avg, 1/N)
+    camera[TARGET] = avg;
+    make_terrain(avg[X], avg[Y]);
+ 
+    for i=1 to N do
+        boid_think(i)
+    end for
+ 
+    for i=1 to N do
+        boids[i][HEADING] = boids[i][NEWHEADING]
+    end for
+end procedure
+ 
+-- windowing stuff
+--int gwin
+integer win_width, win_height;
+--int button_r, button_l;
+ 
+--function resize(int w, int h)
+function resize_cb(Ihandle /*ih*/, integer width, integer height) 
+    win_width = width;
+    win_height = height;
+ 
+    glViewport(0, 0, width, height);
+--  return 0
+    return IUP_DEFAULT;
+end function
+
+procedure set_projection(int w, int h)
+    atom hor, ver;
+    if (w > h) then
+        hor = .05;
+        ver = hor * h / w;
+    else
+        ver = .05;
+        hor = ver * w / h;
+    end if
+ 
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glFrustum(-hor, hor, -ver, ver, .1, 1000);
+end procedure
+ 
+function clamp(atom x, atom minx, atom maxx)
+    if x<minx then x = minx
+    elsif x>maxx then x = maxx
+    end if
+    return x
+end function
+ 
+procedure draw_terrain()
+    int x, y;
+    int nx = world[X1] - world[X0] + 1;
+    int ny = world[Y1] - world[Y0] + 1;
+ 
+    glColor3f({.1, .25, .35});
+ 
+    for x=1 to nx - 1 do
+        int xx = x-1 + world[X0];
+        glBegin(GL_QUAD_STRIP);
+ 
+        for y=1 to ny do
+            int yy = y-1 + world[Y0];
+            glNormal3(world[GROUND_NORMAL][(x-1)*ny + y])
+            glVertex3d({xx, yy, world[GROUND][(x-1)*ny + y]})
+ 
+            glNormal3(world[GROUND_NORMAL][x*ny + y])
+            glVertex3d({xx + 1, yy, world[GROUND][x*ny + y]})
+        end for
+ 
+        glEnd();
+    end for
+end procedure
+ 
+--void draw_boid(boid_t *b)
+procedure draw_boid(integer bi)
+    boid_t b = boids[bi]
+    glColor3f({.6, .3, .3});
+    glPushMatrix()
+ 
+--  glTranslatef(b->position.x[0], b->position.x[1], b->position.x[2]);
+    glTranslatef(b[POSITION][X], b[POSITION][Y], b[POSITION][Z])
+ 
+--  float *x = b->heading.x
+    vec x = b[HEADING]
+--  atom yaw = atan2(x[1], x[0]) / PI * 180 - 90
+    atom yaw = atan2(x[Y], x[X]) / PI * 180 - 90
+    glRotatef(yaw, 0, 0, 1)
+ 
+--  atom rxy = sqrt(x[0] * x[0] + x[1] * x[1])
+    atom rxy = sqrt(x[X] * x[X] + x[Y] * x[Y])
+    atom pitch = atan2(x[Z], rxy) / PI * 180
+    glRotatef(pitch, 1, 0, 0)
+ 
+    glBegin(GL_TRIANGLES)
+    glNormal(-.8, 0, .6)
+    glVertex(0, .5, 0)
+    glVertex(-.5, -.5, 0)
+    glVertex(0, 0, .1)
+ 
+    glNormal(.8, 0, .6)
+    glVertex(0, .5, 0)
+    glVertex(.5, -.5, 0)
+    glVertex(0, 0, .1)
+ 
+    glNormal(-.8, 0, -.6)
+    glVertex(0, .5, 0)
+    glVertex(-.5, -.5, 0)
+    glVertex(0, 0, -.1)
+ 
+    glNormal(.8, 0, -.6)
+    glVertex(0, .5, 0)
+    glVertex(.5, -.5, 0)
+    glVertex(0, 0, -.1)
+ 
+    glNormal(1, -1, 0)
+    glVertex(-.5, -.5, 0)
+    glVertex(0, 0, .1)
+    glVertex(0, 0, -.1)
+ 
+    glNormal(-1, -1, 0)
+    glVertex(.5, -.5, 0)
+    glVertex(0, 0, .1)
+    glVertex(0, 0, -.1)
+ 
+    glEnd()
+ 
+    glPopMatrix()
+end procedure
+ 
+procedure set_lighting()
+    sequence light_ambient = {.3, .3, .3, 1}
+    sequence light_diffuse = {1, 1, 1, 1}
+    sequence light_position = {0, 1, 2, 1}
+ 
+    glEnable(GL_LIGHTING)
+    glLight(GL_LIGHT1, GL_AMBIENT, light_ambient)
+    glLight(GL_LIGHT1, GL_DIFFUSE, light_diffuse)
+    glLight(GL_LIGHT1, GL_POSITION, light_position)
+    glEnable(GL_LIGHT1)
+    glShadeModel(GL_FLAT)
+    glEnable(GL_COLOR_MATERIAL)
+end procedure
+ 
+function render()
+    atom msec = get_msec();
+    if (msec < update_time + 16) then
+--      usleep((update_time + 16 - msec) * 1000);
+        sleep((update_time + 16 - msec) / 1000);
+        return 0
+    end if
+    run_boids(msec - update_time);
+    update_time = msec;
+ 
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+    glEnable(GL_DEPTH_TEST);
+ 
+    set_projection(win_width, win_height);
+ 
+    camera[DISTANCE] = clamp(camera[DISTANCE], 1, 1000);
+    camera[PITCH] = clamp(camera[PITCH], -PI / 2.1, PI / 2.1);
+ 
+    atom rz = camera[DISTANCE] * sin(camera[PITCH])
+    atom rxy = camera[DISTANCE] * cos(camera[PITCH])
+ 
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+ 
+    set_lighting();
+    printf(1,"%.5f %.5f\r", {camera[TARGET][X], camera[TARGET][Y]});
+--  fflush(stdout);
+ 
+    gluLookAt({camera[TARGET][X] - rxy * cos(camera[YAW]),
+               camera[TARGET][Y] - rxy * sin(camera[YAW]),
+               camera[TARGET][Z] - rz},
+              {camera[TARGET][X],
+               camera[TARGET][Y],
+               camera[TARGET][Z]},
+              {0, 0, 1});
+ 
+    draw_terrain();
+ 
+--  int i;
+    for i=1 to N do
+--      draw_boid(boids + i);
+--      draw_boid(boids[i])
+        draw_boid(i)
+    end for
+    glFlush();
+--DEV
+--/*
+g l o b a l p r o cedure glutSwapBuffers()
+    c_proc(GlutSwapBuffers, {})
+e n d p r o cedure
+    if platform()=2 then
+        GlutSwapBuffers = define_c_proc(FGAPI, "_glutSwapBuffers@0", {})
+    elsif platform()=3 then
+        GlutSwapBuffers = define_c_proc(FGAPI, "glutSwapBuffers", {})
+--*/
+--  glutSwapBuffers();
+    return 0
+end function
+
+-- camera movement stuff
+int cursor_x = 0, cursor_y = 0
+ 
+--constant /*GLUT_DOWN = 0,*/ GLUT_UP = 1
+
+--function mousebutton(int button, int state, int x, int y)
+function wheel_cb(Ihandle /*ih*/, atom delta, integer x, integer y, atom /*pStatus*/)
+--  if state!=GLUT_UP then
+        if delta>0 then
+            camera[DISTANCE] /= 2;
+        elsif delta<0 then
+            camera[DISTANCE] *= 2;
+        end if
+ 
+        cursor_x = x
+        cursor_y = y
+--  end if
+--  return 0
+    return IUP_DEFAULT;
+end function
+ 
+--function mousemove(int x, int y)
+function motion_cb(Ihandle /*ih*/, integer x, integer y, atom /*pStatus*/)
+    atom ext = win_width
+    if (ext < win_height) then ext = win_height end if
+ 
+    ext /= 4
+    camera[YAW] -= (x - cursor_x) / ext
+    camera[PITCH] -= (y - cursor_y) / ext
+    cursor_y = y
+    cursor_x = x
+--  return 0
+    return IUP_DEFAULT;
+end function
+ 
+
+--integer pos_x, pos_y;
+--integer move = 0;
+
+--function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
+----?"button-cb"
+--  if pressed then
+--      if but==IUP_BUTTON1 then
+----            pos_x = x;
+----            pos_y = y;
+----            move = 1;
+----        else
+----            move = 0;
+--      end if
+--  end if
+--  return IUP_DEFAULT;
+--end function
+
+
+--constant R = 1, G = 2, B = 3
+--type color3D(object c)
+--  return sequence(c) and length(c)=3 and atom(c[R]) and atom(c[G]) and atom(c[B])
+--end type
+
+--procedure add_color_vertex(color3D c)
+--  glColor3d(c)
+--  glVertex3d(c)
+--end procedure
+
+--procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
+--atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4
+--atom g = (c1[G]+c2[G]+c3[G]+c4[G])/4
+--atom b = (c1[B]+c2[B]+c3[B]+c4[B])/4
+--color3D cm = {r,g,b}
+--
+--  add_color_vertex(cm)
+--  add_color_vertex(c1)
+--  add_color_vertex(c2)
+--
+--  add_color_vertex(cm)
+--  add_color_vertex(c2)
+--  add_color_vertex(c3)
+--
+--  add_color_vertex(cm)
+--  add_color_vertex(c3)
+--  add_color_vertex(c4)
+--
+--  add_color_vertex(cm)
+--  add_color_vertex(c4)
+--  add_color_vertex(c1)
+--end procedure
+
+--DEV earein misses this:
+--constant color3D c3D_black     = {0, 0, 0},
+--               c3D_red     = {1, 0, 0},
+--               c3D_green   = {0, 1, 0},
+--               c3D_blue    = {0, 0, 1},
+--               c3D_cyan    = {0, 1, 1},
+--               c3D_magenta = {1, 0, 1},
+--               c3D_yellow  = {1, 1, 0},
+--               c3D_white   = {1, 1, 1}
+
+--procedure draw_cube()
+--  glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+--
+--  glBegin(GL_TRIANGLES);
+--
+--  draw_cube_face(c3D_black, c3D_blue,  c3D_magenta, c3D_red);
+--  draw_cube_face(c3D_black, c3D_green,     c3D_cyan,    c3D_blue);
+--  draw_cube_face(c3D_black, c3D_red,   c3D_yellow,  c3D_green);
+--  draw_cube_face(c3D_white, c3D_cyan,  c3D_blue,    c3D_magenta);
+--  draw_cube_face(c3D_white, c3D_cyan,  c3D_green,   c3D_yellow);
+--  draw_cube_face(c3D_white, c3D_magenta, c3D_red,   c3D_yellow);
+--
+--  glEnd();
+--end procedure
+
+procedure init()
+    make_terrain(0, 1)
+ 
+    for i=1 to N do
+        atom x = rnd() * 10 - 5;
+        atom y = rnd() * 10 - 5;
+        atom z = (rnd() + .5) * IDEAL_HEIGHT + ground_height(x, y)
+--      boids[i].position = (vec){{x, y, z}};
+        sequence pos = {x, y, z}
+        atom speed = (0.98 + 0.04 * rnd()) * MOVE_SPEED
+if atom(boids[i]) then
+        boids[i] = {pos,{0,0,0},{0,0,0},speed}
+else
+        boids[i][POSITION] = pos
+        boids[i][SPEED] = speed
+end if
+    end for
+
+    update_time = get_msec();
+
+    glClearColor(0.5,0.5,0.5,0.0);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(45, 1, 1, 10);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    gluLookAt({0.5, 0.5, 4.0},  /* position of the observer */
+              {0.5, 0.5, 0.0},  /* reference point          */
+              {0.0, 1.0, 0.0})  /* up                       */
+    glEnable(GL_DEPTH_TEST);
+    glClearDepth(1.0);
+
+    set_lighting();
+end procedure
+
+--procedure unproject(atom x2, atom y2, atom p3)
+--atom mv = allocate(16*8)              -- 16 doubles
+--atom pm = allocate(16*8)              -- 16 doubles
+--atom vp = allocate(4*machine_word())  -- 4 ints
+--
+--  glGetDoublev(GL_MODELVIEW_MATRIX,  mv);
+--  glGetDoublev(GL_PROJECTION_MATRIX, pm);
+--  glGetIntegerv(GL_VIEWPORT, vp);
+--  gluUnProject(x2, y2, 0.0,
+--               mv, pm, vp,
+--               p3, p3+8, p3+16);
+--  free(mv)
+--  free(pm)
+--  free(vp)
+--end procedure
+
+--function peek_double(object pDouble)
+--sequence doubles
+--
+--  if atom(pDouble) then
+--      return float64_to_atom(peek({pDouble,8}))
+--  else
+--      doubles = {}
+--
+--      for i=1 to pDouble[2] do
+--          doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+--      end for
+--
+--      return doubles
+--  end if
+--end function
+
+--function motion_cb(Ihandle /*ih*/, integer /*x*/, integer /*y*/, atom /*pStatus*/)
+--  if move then
+--      atom dif_x, dif_y
+--      atom dx, dy, dz
+--      atom pxyz = allocate(3*8)               -- 3 doubles
+--      atom x1, y1, z1
+--      atom x2, y2, z2
+--      atom angle, norma
+--      integer height = IupGetInt2(ih, "RASTERSIZE")
+--
+--      IupGLMakeCurrent(ih);
+--
+--      dif_x = x-pos_x;
+--      dif_y = y-pos_y;
+--
+--      pos_x = x;
+--      pos_y = y;
+--
+--      angle = sqrt(dif_x*dif_x+dif_y*dif_y);
+--
+--      unproject(pos_x,height-y,pxyz)
+--      {x1,y1,z1} = peek_double({pxyz,3})
+--      unproject(dif_y+pos_x, dif_x+(height-y), pxyz)
+--      {x2,y2,z2} = peek_double({pxyz,3})
+--      dx = x2-x1
+--      dy = y2-y1
+--      dz = z2-z1;
+--      norma = sqrt(dx*dx+dy*dy+dz*dz);
+--      dx /= norma
+--      dy /= norma
+--      dz /= norma
+--
+--      glTranslate(0.5, 0.5, 0.5);
+--      glRotate(angle, dx, dy, dz);
+--      glTranslate(-0.5, -0.5, -0.5);
+--
+--      draw_cube();
+--
+--      IupGLSwapBuffers(ih);
+--      free(pxyz)
+--  end if
+--  return IUP_DEFAULT;
+--end function
+
+
+function action(Ihandle ih)
+    IupGLMakeCurrent(ih);
+
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+
+--  draw_cube();
+    {} = render()
+
+    IupGLSwapBuffers(ih);
+
+    return IUP_DEFAULT;
+end function
+
+Ihandle canvas, timer
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then
+        -- (don't recall this being necessary before, but...)
+        IupSetAttribute(timer,"RUN","NO")
+        return IUP_CLOSE
+    end if
+    return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    return action(canvas)
+end function
+constant cb_timer = Icallback("timer_cb")
+
+procedure main()
+Ihandle dialog, box
+
+puts(1,"")  -- (console before/below window, also ensures we can ctrl-c it)
+    IupOpen();
+    IupGLCanvasOpen();
+
+    box = IupVbox({});
+    IupSetAttribute(box, "MARGIN", "5x5");
+
+    canvas = IupGLCanvas();
+    IupSetCallback(canvas, "ACTION", Icallback("action"));
+--  IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"));
+    IupSetCallback(canvas, "WHEEL_CB", Icallback("wheel_cb"));
+    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"));
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"));
+    IupSetAttribute(canvas, "BUFFER", "DOUBLE");
+    IupSetAttribute(canvas, "BORDER", "NO");
+    IupSetAttribute(canvas, "RASTERSIZE", "400x400");
+    IupAppend(box, canvas);
+
+    dialog = IupDialog(box);
+    IupSetAttribute(dialog, "TITLE", "Boids")
+
+    IupMap(dialog);
+
+    IupGLMakeCurrent(canvas);
+    init();
+--  timer = IupTimer(cb_timer,10)                   -- (~64 fps, 0% CPU)
+    timer = IupTimer(cb_timer,100)
+--  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR));
+--  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER));
+--  printf(1,"Version: %s\n", glGetString(GL_VERSION));
+    IupSetAttribute(canvas, "RASTERSIZE", NULL);
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
+
+    IupMainLoop();
+
+    IupDestroy(dialog);
+
+    IupClose();
+
+end procedure
+main()
+
+--/*
+include pGUI.e
+include opengl.e
+include glu.e
+
+function keydown(integer key, int x, int y)
+    printf(1,"key down: %d (%d %d)\n", {key, x, y});
+    if key == 'q' then
+        abort(0)
+    end if
+    return 0
+end function
+ 
+function keyup(integer key, int x, int y)
+    printf(1,"key up: %d (%d %d)\n", {key, x, y});
+    return 0
+end function
+ 
+>
+constant GLUT_RGB = 0, GLUT_DOUBLE = 2
+
+--void init_gl(int *c, char **v)
+procedure init_gl()
+    update_time = get_msec();
+ 
+--  glutInit(c, v);
+    glutInit()
+    glutInitDisplayMode(or_bits(GLUT_RGB,GLUT_DOUBLE))
+    glutInitWindowSize(600, 400);
+ 
+    gwin = glutCreateWindow("Boids");
+ 
+    glutIgnoreKeyRepeat(1);
+    glutKeyboardFunc(Icallback("keydown"))
+    glutKeyboardUpFunc(Icallback("keyup"))
+    glutReshapeFunc(Icallback("resize"))
+    glutIdleFunc(Icallback("render"))
+    glutMouseFunc(Icallback("mousebutton"))
+    glutMotionFunc(Icallback("mousemove"))
+    set_lighting();
+end procedure
+ 
+--int main(int argc, char **argv)
+procedure main()
+ 
+--  init_gl(&argc, argv);
+    init_gl()
+    glutMainLoop();
+ 
+--  return 0;
+end procedure
+
+main()
+--*/

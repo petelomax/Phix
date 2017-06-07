@@ -1315,7 +1315,7 @@ GlMatrixMode            = validate_proc(opengl32,"glMatrixMode",{C_UINT}),
 GlNewList               = validate_proc(opengl32,"glNewList",{C_UINT,C_INT}),
 --GlNormal3b            = validate_proc(opengl32,"glNormal3b",{C_CHAR,C_CHAR,C_CHAR}),
 GlNormal3d              = validate_proc(opengl32,"glNormal3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
-GlNormal3f              = validate_proc(opengl32,"glNormal3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
+--GlNormal3f            = validate_proc(opengl32,"glNormal3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
 --GlNormal3i            = validate_proc(opengl32,"glNormal3i",{C_INT,C_INT,C_INT}),
 --GlNormal3s            = validate_proc(opengl32,"glNormal3s",{C_SHORT,C_SHORT,C_SHORT}),
 GlOrtho                 = validate_proc(opengl32,"glOrtho",repeat(C_DOUBLE,6)),
@@ -1759,17 +1759,21 @@ global procedure glNormal(atom nx, atom ny, atom nz)
     c_proc(GlNormal3d,{nx,ny,nz})
 end procedure
 
+global procedure glNormal3(sequence s)
+    c_proc(GlNormal3d,s)
+end procedure
+
 --global procedure glNormal3b(sequence normal)
 --  c_proc(GlNormal3b,normal)
 --end procedure
 
-global procedure glNormal3d(atom nx, atom ny, atom nz)
-    c_proc(GlNormal3d,{nx,ny,nz})
-end procedure
+--global procedure glNormal3d(atom nx, atom ny, atom nz)
+--  c_proc(GlNormal3d,{nx,ny,nz})
+--end procedure
 
-global procedure glNormal3f(atom nx, atom ny, atom nz)
-    c_proc(GlNormal3f,{nx,ny,nz})
-end procedure
+--global procedure glNormal3f(atom nx, atom ny, atom nz)
+--  c_proc(GlNormal3f,{nx,ny,nz})
+--end procedure
 
 --global procedure glNormal3i(sequence normal)
 --  c_proc(GlNormal3i,normal)

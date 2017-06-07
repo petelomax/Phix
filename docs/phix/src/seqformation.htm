@@ -54,11 +54,11 @@ function add1tox() x+=1 return x end function
             <br>
             A compiler implementation(/version) may notice that x is definitely 3 and choose to use (/push) a literal 3 for the first element of s, 
             or it may just use the content (/address) of x. Hence s could become {3,4} or {4,4}, and that may well depend on non-obvious things, 
-            such as whether there are any outstanding forward calls. With s = {x,add1tox(),x,add1tox()}, the result could be any of {3,4,4,5}, 
-            {3,4,5,5} or {5,4,5,5}, or even {3,5,5,4} or {5,5,5,4}. I believe the current version always yields {5,4,5,5}, but I would not bet 
-            one cent on that. It is ambiguous code, that utterly fails to communicate precise intent, bearing in mind that side effects may be
-            buried deep inside a complex function, not actually intended at all, hence the compiler (and you) should treat such code with 
-            appropriate contempt.
+            such as whether there are any outstanding forward calls. With s = {x,add1tox(),x,add1tox()}, the result could be any of {3,4,3,5}, 
+            {3,4,4,5}, {3,4,5,5} or {5,4,5,5}, or even {3,5,3,4}, {3,5,5,4} or {5,5,5,4}. I believe the current version always yields {5,4,5,5}, 
+            but I would not bet one cent on that. It is ambiguous code, that utterly fails to communicate precise intent, bearing in mind that 
+            side effects may be buried deep inside a complex function, not actually intended at all, hence the compiler (and you) should treat 
+            such code with appropriate contempt.
             <br>
             <br>
             You should never attempt to modify the same thing twice in one statement, and likewise you should 
@@ -75,8 +75,12 @@ procedure p()
     integer lx = x                  -- ++    no
     sequence s = {lx,add1tox()}     -- ++  warning
 --or--
-    integer newx = add1toc()        -- ++    no
+    integer newx = add1tox()        -- ++    no
     sequence s = {x,newx}           -- ++  warning
+--or--
+    integer oldx = x                -- ++   also
+    integer newx = add1tox()        -- ++    no
+    sequence s = {oldx,newx}        -- ++  warning
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> x
@@ -85,11 +89,15 @@ procedure p()
 </i></font><font color="#004080">    integer</font><font color="#000000"> lx</font><font color="#0000FF"> =</font><font color="#000000"> x                 </font><font color="#000080"><i> -- ++    no
 </i></font><font color="#004080">    sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">lx</font><font color="#0000FF">,</font><font color="#000000">add1tox</font><font color="#800000">()</font><font color="#0000FF">}    </font><font color="#000080"><i> -- ++  warning
 --or--
-</i></font><font color="#004080">    integer</font><font color="#000000"> newx</font><font color="#0000FF"> =</font><font color="#000000"> add1toc</font><font color="#0000FF">()       </font><font color="#000080"><i> -- ++    no
-</i></font><font color="#004080">    sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">newx</font><font color="#0000FF">}          </font><font color="#000080"><i> -- ++  warning</i></font>
+</i></font><font color="#004080">    integer</font><font color="#000000"> newx</font><font color="#0000FF"> =</font><font color="#000000"> add1tox</font><font color="#0000FF">()       </font><font color="#000080"><i> -- ++    no
+</i></font><font color="#004080">    sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">newx</font><font color="#0000FF">}          </font><font color="#000080"><i> -- ++  warning
+--or--
+</i></font><font color="#004080">    integer</font><font color="#000000"> oldx</font><font color="#0000FF"> =</font><font color="#000000"> x               </font><font color="#000080"><i> -- ++   also
+</i></font><font color="#004080">    integer</font><font color="#000000"> newx</font><font color="#0000FF"> =</font><font color="#000000"> add1tox</font><font color="#0000FF">()       </font><font color="#000080"><i> -- ++    no
+</i></font><font color="#004080">    sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000">oldx</font><font color="#0000FF">,</font><font color="#000000">newx</font><font color="#0000FF">}       </font><font color="#000080"><i> -- ++  warning</i></font>
 </pre>
             <br>
-            The intention of (respectively) creating {3,4} or {4,4} then becomes clear and beyond dispute.
+            The intention of creating {3,4} or {4,4} then becomes absolutely clear and beyond any doubt.
             <br>
             <br>
          </td>
