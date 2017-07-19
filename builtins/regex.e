@@ -28,7 +28,7 @@ global procedure regex_options(integer opts=RE_PIKEVM, integer rErrHand=NULL)
     r_ErrorHandler = rErrHand
 end procedure
 
--- slightly faster:
+-- slightly faster (but not by alot):
 --/*
 enum JMP, SPLIT, MATCH, SAVE, BOL, EOL, CHAR, CLASS, WORD_BOUND, BKREF,
      SEQ, REGEX, GROUP, GROUP_END, SPLIT_FIXUP1, SPLIT_FIXUP2, 
@@ -332,7 +332,7 @@ integer n = 0, nib
     return {idx,n}
 end function
 
-function nextch(string src, integer idx)
+function nextch(string src, integer idx, bool allow_class=true)
     idx += 1
     if idx>length(src) then
         Abort("incomplete character class", src, idx)
@@ -344,6 +344,10 @@ function nextch(string src, integer idx)
         idx += 1
         -- (btw: you never actually need to escape any of "(){}$+*?|" )
         if idx>length(src) or not find(src[idx],"\\x[](){}^$+-*?|tnr") then 
+            if allow_class=true
+            and find(lower(src[idx]),"dsw") then
+                return {idx,-1}
+            end if
             Abort("invalid escape", src, idx)
             return {0,'x'}
         end if
@@ -360,13 +364,18 @@ function nextch(string src, integer idx)
     return {idx, ch}
 end function
 
+integer group_number = 0    -- (should only be modified during parsing)
+
 function chr(string src, integer idx)
 --
 -- parse a single (escaped) character
 --
-    sequence res
+sequence res
+integer ch
+bool negated
+
     if idx<=length(src) then
-        integer ch = src[idx]
+        ch = src[idx]
         if ch='.' then
             if and_bits(options,RE_DOTMATCHESNL) then
                 res = {CLASS,0,"\x00\xFF"}
@@ -384,31 +393,45 @@ function chr(string src, integer idx)
             idx += 1
             return {idx, res}
         elsif ch='[' then               -- character class
-            bool negated = false
-            {idx, ch} = nextch(src, idx)
+            negated = false
+            {idx, ch} = nextch(src, idx, true)
             if idx=0 then return {0,{}} end if
             if ch='^' then
                 negated = true
-                {idx, ch} = nextch(src, idx)
+                {idx, ch} = nextch(src, idx, true)
                 if idx=0 then return {0,{}} end if
             end if
             string pairs = ""
             while 1 do
-                pairs &= ch
-                integer ch2
-                {idx, ch2} = nextch(src, idx)
-                if idx=0 then return {0,{}} end if
-                if ch2='-'
-                and (idx>=length(src) or -- (prevent crash)
-                     src[idx+1]!=']') then
-                    {idx, ch} = nextch(src, idx)
-                    pairs &= ch
-                    {idx, ch} = nextch(src, idx)
+                if ch=-1 then
+--trace(1) -- seems OK...
+                    ch = src[idx]
+                    integer k = find(ch,"dswDSW")
+                    if negated!=(k>3) then
+                        Abort("invalid escape (negation mismatch)", src, idx)
+                        return {0,{}}
+                    end if
+                    k -= 3*negated
+                    pairs &= {"09","  \n\n\r\r\t\t","azAZ09__"}[k]
+--                  idx += 1
+                    {idx, ch} = nextch(src, idx, true)
                 else
                     pairs &= ch
-                    ch = ch2
+                    integer ch2
+                    {idx, ch2} = nextch(src, idx, true)
+                    if idx=0 then return {0,{}} end if
+                    if ch2='-'
+                    and (idx>=length(src) or -- (prevent crash)
+                         src[idx+1]!=']') then
+                        {idx, ch} = nextch(src, idx, false)
+                        pairs &= ch
+                        {idx, ch} = nextch(src, idx, true)
+                    else
+                        pairs &= ch -- 'a'->'aa' (range of 1)
+                        ch = ch2
+                    end if
+                    if ch=']' then exit end if
                 end if
-                if ch=']' then exit end if
             end while
             if and_bits(options,RE_CASEINSENSITIVE) then
                 pairs = upper(pairs)
@@ -417,18 +440,21 @@ function chr(string src, integer idx)
             idx += 1
             return {idx,res}
         elsif ch='\\' then
-            {idx,ch} = nextch(src, idx)
+            {idx,ch} = nextch(src, idx, false)
             if idx=0 then return {0,{}} end if
             if ch='d' or ch='D' then
-                res = {CLASS, ch='D', "09"}
+                negated = ch='D'
+                res = {CLASS, negated, "09"}
                 idx += 1
                 return {idx, res}
             elsif ch='s' or ch='S' then
-                res = {CLASS, ch='S', "  \n\n\r\r\t\t"}
+                negated = ch='S'
+                res = {CLASS, negated, "  \n\n\r\r\t\t"}
                 idx += 1
                 return {idx, res}
             elsif ch='w' or ch='W' then
-                res = {CLASS, ch='W', "azAZ09__"}
+                negated = ch='W'
+                res = {CLASS, negated, "azAZ09__"}
                 idx += 1
                 return {idx, res}
             elsif ch>='1' and ch<='9' then
@@ -436,11 +462,17 @@ function chr(string src, integer idx)
                     Abort("not enabled", src, idx)
                     return {0,{}}
                 end if
-                res = {BKREF, ch-'0'}
+                integer capture_group = ch-'0'
+                if capture_group>=group_number then
+                    Abort("no such backreference/capture group", src, idx)
+                    return {0,{}}
+                end if
+                res = {BKREF, capture_group}
                 idx += 1
                 return {idx, res}
             elsif ch='b' or ch='B' then
-                res = {WORD_BOUND, ch='B'}
+                negated = ch='B'
+                res = {WORD_BOUND, negated}
                 idx += 1
                 return {idx, res}
             elsif ch='x' then
@@ -477,17 +509,32 @@ end function
 
 forward function expr(string src, integer idx)
 
-integer group_number = 0    -- (should only be modified during parsing)
-
 function atm(string src, integer idx)
 --
 -- parse a single element or (nested/capture) group
 --
 sequence res
-    if idx<=length(src) and src[idx] == '(' then
+    if idx<=length(src) and src[idx]=='(' then
         idx += 1
-        group_number += 1
-        res = {GROUP,group_number,nil}
+        if idx<=length(src) and src[idx]=='?' then
+            idx += 1
+            integer ch=iff(idx>length(src)?'x':src[idx])
+            if ch!=':' then
+                string msg = iff(ch='>'?"atomic groups not supported":
+                             iff(ch='<'?"lookbehind not supported":
+                             iff(ch='='
+                              or ch='!'?"lookahead not supported":
+                             iff(ch='('?"conditional expressions not supported"
+                                       :"':' expected"))))
+                Abort(msg, src, idx)
+                return {0,{}}
+            end if
+            idx += 1
+            res = {GROUP,-1,nil} -- non-capture
+        else
+            group_number += 1
+            res = {GROUP,group_number,nil}
+        end if
         {idx,res[3]} = expr(src, idx)
         if idx=0 then return {0,{}} end if
         if idx>length(src) or src[idx]!=')' then
@@ -548,6 +595,8 @@ integer ch, optmin, optmax, greedy
             -- {n,} means at least n (max is -1)
             -- {n,m} means at least n and at most m
             -- A trailing ? specifies non-greedy (superfluous for exact)
+            -- The arbitray limit of 1000 should prevent DDOS attacks.
+            --          
             --
             idx += 1
             if idx>length(src) or not isnum(src[idx]) then
@@ -555,6 +604,10 @@ integer ch, optmin, optmax, greedy
                 return {0,{}}
             end if
             {idx,optmin} = number(src,idx)
+            if optmin>1000 then
+                Abort("invalid range", src, idx)
+                return {0,{}}
+            end if
             if idx=0 then return {0,{}} end if
             if idx<=length(src) and src[idx]=',' then
                 idx += 1
@@ -562,7 +615,8 @@ integer ch, optmin, optmax, greedy
                 and isnum(src[idx]) then                -- {n,m}
                     {idx,optmax} = number(src,idx)
                     if idx=0 then return {0,{}} end if
-                    if optmax<optmin then
+                    if optmax<optmin
+                    or optmax>1000 then
                         Abort("invalid range", src, idx)
                         return {0,{}}
                     end if
@@ -660,10 +714,12 @@ global function regex_compile(string src)
     if expr[1]!=SEQ 
     or expr[2][1]!=BOL then
         -- if not anchored, src := ".*?("&src&")" (with RE_DOTMATCHESNL in force)
+        --  (ie prefix the expression with a non-greedy .* and add an outer group)
         expr = {SEQ,{OPT, 0,-1,0, {CLASS, 0, "\x00\xFF"}},
                     {GROUP, 1, expr}}
     else
-        -- if anchored, src := "?("&src&")"
+        -- if anchored, src := "("&src&")"
+        --  (ie just add an outer group)
         expr = {GROUP, 1, expr}
     end if
     expr = {expr}
@@ -687,9 +743,14 @@ global function regex_compile(string src)
                 expr = node[2..$] & expr
 
             case GROUP:
-                code &= {SAVE, node[2]*2-1}
+                integer n2 = node[2]
+                if n2=-1 then
+                    expr = {node[3]} & expr
+                else
+                    code &= {SAVE, n2*2-1}
+                    expr = {node[3], {GROUP_END, n2}} & expr
+                end if
                 n += 1
-                expr = {node[3], {GROUP_END, node[2]}} & expr
             case GROUP_END:
                 code &= {SAVE, node[2]*2}
                 n += 1
@@ -780,8 +841,17 @@ end function
 -- Draft routines
 --
 
-global function gsub(string re, string target, string rep)
-    sequence code = regex_compile(re)
+--global function gsub(string re, string target, string rep)
+global function gsub(sequence re, string target, string rep)
+--  sequence code = regex_compile(re)
+--  sequence m = regex(code,target)
+--  sequence m = regex(re,target)
+sequence code
+    if string(re) then
+        code = regex_compile(re)
+    else
+        code = re
+    end if
     sequence m = regex(code,target)
     if length(m) then
         string res = ""
@@ -805,8 +875,13 @@ global function gsub(string re, string target, string rep)
     return target
 end function
 
-global function gmatch(string re, string target, string res)
-    sequence code = regex_compile(re)
+global function gmatch(sequence re, string target, string res)
+sequence code
+    if string(re) then
+        code = regex_compile(re)
+    else
+        code = re
+    end if
     sequence m = regex(code,target)
     if length(m) then
         for i=1 to length(m)/2-1 do

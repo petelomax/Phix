@@ -114,7 +114,7 @@ string filepath
     if plat=WINDOWS then
         vset = {"pw.exe","p.exe","pw64.exe","p64.exe","pw32.exe","p32.exe","pth.exe"}
     else -- platform()=LINUX
-        vset = {"phix","phix64","phix32","pth"}
+        vset = {"p","phix","phix64","phix32","pth"}
     end if
     filepath = join_path({res,crun})
     if not validexe(crun,vset)
@@ -128,7 +128,7 @@ string filepath
             paths = add_paths(paths,{"C:\\Program Files\\Phix"})
             paths = add_paths(paths,split(getenv("PATH"),';'),"phix")
         else
-            --DEV?? %HOME%/phix/phix? ~/phix/phix? /usr/bin/phix/phix?
+            --DEV?? %HOME%/phix? ~/phix? /usr/bin/phix?
         end if
 
         string maybe = "", definitely = ""

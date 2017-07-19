@@ -47,11 +47,41 @@ atom xFindFirstFile, xFindNextFile, xFindClose,
 sequence attrbits
 sequence attrchar
 
+--Linux:
+constant W = machine_bits()=64
+
 atom libc,
      xopendir,
      xreaddir,
      xclosedir,
      xlocaltime
+
+--constant              --   64  32
+--  DIRENT_INO      = iff(W?  0,  0), -- ino_t 
+--  DIRENT_OFF      = iff(W?  8,  4), -- off_t 
+--  DIRENT_RECLEN   = iff(W? 16,  8), -- unsigned short int 
+--  DIRENT_TYPE     = iff(W? 18, 10), -- unsigned char 
+--  DIRENT_NAME     = iff(W? 19, 11), -- char[256] 
+--  DIRENT_TYPE     = 10, -- unsigned char 
+--  DIRENT_NAME     = 11, -- char[256] 
+--  SIZEOF_DIRENT   = iff(W?280,272) 
+--$
+
+-- now set in initD():
+integer DIRENT_TYPE,
+        DIRENT_NAME
+
+constant DT_DIR = #04   -- (the only DIRENT_TYPE setting we care about)
+
+-- NB: from experimentation, and not tested on 64 bit:
+--                             64  32
+--DEV I thought these would be resolved at compile-time...
+--constant ST_SIZE    = iff(W? 48: 44),
+--       ST_MTIME     = iff(W? 76: 72),
+--       SIZEOFSTAT64 = iff(W?144:104)
+constant ST_SIZE      = 44,
+         ST_MTIME     = 72,
+         SIZEOFSTAT64 = 104
 
 procedure initD()
     if platform()=WINDOWS then
@@ -100,6 +130,13 @@ procedure initD()
         xclosedir   = define_c_func(libc, "closedir", {C_PTR}, C_INT)
         -- (not thread safe, may want to use localtime_r?)
         xlocaltime  = define_c_func(libc, "localtime", {C_PTR}, C_PTR)
+
+        DIRENT_TYPE  = iff(W? 18, 10)
+        DIRENT_NAME  = iff(W? 19, 11)
+--      ST_SIZE      = iff(W? 48: 44)
+--      ST_MTIME     = iff(W? 76: 72)
+--      SIZEOFSTAT64 = iff(W?144:104)
+
         dinit = 1
     end if
 end procedure
@@ -136,32 +173,6 @@ integer b
     end for
     return res
 end function
-
---Linux:
---constant W = machine_bits()=64
- 
-constant                --   64  32
---  DIRENT_INO      = iff(W?  0,  0), -- ino_t 
---  DIRENT_OFF      = iff(W?  8,  4), -- off_t 
---  DIRENT_RECLEN   = iff(W? 16,  8), -- unsigned short int 
---  DIRENT_TYPE     = iff(W? 18, 10), -- unsigned char 
---  DIRENT_NAME     = iff(W? 19, 11), -- char[256] 
-    DIRENT_TYPE     = 10, -- unsigned char 
-    DIRENT_NAME     = 11, -- char[256] 
---  SIZEOF_DIRENT   = iff(W?280,272) 
-$
-
-constant DT_DIR = #04   -- (the only DIRENT_TYPE setting we care about)
-
--- NB: from experimentation, and not tested on 64 bit:
---                             64  32
---DEV I thought these would be resolved at compile-time...
---constant ST_SIZE    = iff(W? 48: 44),
---       ST_MTIME     = iff(W? 76: 72),
---       SIZEOFSTAT64 = iff(W?144:104)
-constant ST_SIZE      = 44,
-         ST_MTIME     = 72,
-         SIZEOFSTAT64 = 104
 
 --/*
 struct tm {

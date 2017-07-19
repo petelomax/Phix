@@ -612,7 +612,7 @@ integer lo, hi, mid, c  -- works up to 1.07 billion records
     end if
     return -mid
 end function
-*/
+--*/
 
 --****
 -- === Matching

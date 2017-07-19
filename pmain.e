@@ -3396,8 +3396,6 @@ object Default
                     getToken()
                     MatchChar(')')
 --!*/
---13/11/16:
---!/*
                 elsif N=T_platform then
                     if PE then
                         Default = T_win32
@@ -3425,7 +3423,6 @@ object Default
                     getToken()
                     MatchChar('(')
                     MatchChar(')')
---!*/
                 else
                     Aborp("unsupported")
                 end if
@@ -4527,6 +4524,12 @@ end if
                 PushFactor(k,1,T_integer)           -- default option to -2
                 actsig &= T_integer
                 sigidx += 1
+            elsif wasRoutineNo=T_throw
+              and sigidx=2 then
+                k = addUnnamedConstant({},T_Dsq)
+                PushFactor(k,1,T_Dsq)               -- default user_data to {}
+                actsig &= T_Dsq
+                sigidx += 1
             end if
         end if
         if sigidx<=minsiglen then
@@ -4569,9 +4572,7 @@ end if
     return actsig
 end function
 
-constant PROC='P', FUNC='F'
---DEV 4/8/14:
-,TYPE='T'
+constant PROC='P', FUNC='F', TYPE='T', PFT = "PFT"
 
 global -- for pilasm.e
 integer lMask       -- local variables affected by a loop
@@ -4769,11 +4770,13 @@ object dbg -- DEV (temp)
                         and opcode!=opEnterCS
                         and opcode!=opLeaveCS
                         and opcode!=opDeleteCS
+                        and opcode!=opCrashFile
                         and opcode!=opCrashMsg
                         and opcode!=opCrashRtn
                         and opcode!=opAbort
                         and opcode!=opWrap
-                        and opcode!=opProfile then
+                        and opcode!=opProfile
+                        and opcode!=opThrow then
                             ?9/0
                         end if
                     end if
@@ -4812,7 +4815,17 @@ end if
                                 apnds5({opcode,p1})
                             end if
                         end if
---                  else -- (not opTrace)
+                    elsif opcode=opThrow then
+                        if not optset[OptDebug] then
+                            Aborp("without debug is in force")
+                        end if
+                        p1 = opstack[1]
+                        if not symtab[p1][S_Init] then
+                            Unassigned(p1)
+                        end if
+                        agcheckop(opThrow)
+                        apnds5({opThrow,p1,0})
+--                  else -- (not opTrace/Throw)
                     elsif opcode!=opProfile or not bind then
 --                      if not integer(opcode) then ?9/0 end if
                         if opcode<1 or opcode>maxVop then ?9/0 end if   -- (added 19/11/14)
@@ -4842,7 +4855,8 @@ end if
                         and opcode!=opPoke8
                         and opcode!=opPosition
                         and opcode!=opCallProc
-                        and opcode!=opUnLock then
+                        and opcode!=opUnLock
+                        and opcode!=opThrow then
                             tidx = symtab[routineNo][S_Name]
 --                          ?{routineNo,getBuiltinName(routineNo),getname(tidx,-2)}
                             ?routineNo ?{getBuiltinName(routineNo),getname(tidx,-2)}
@@ -4858,6 +4872,12 @@ end if
 if newEmit then
                     if not symtab[p1][S_Init] then
                         Unassigned(p1)
+                    end if
+                    if opcode=opThrow then
+                        if not optset[OptDebug] then
+--                          Aborp("without debug is in force")
+                            Abork("without debug is in force",1)
+                        end if
                     end if
                     if not symtab[p2][S_Init] then
                         Unassigned(p2)
@@ -4979,6 +4999,9 @@ end if
                 else
                     PushFactor(addUnnamedConstant(4, T_integer),1,T_integer)
                 end if
+            elsif routineNo=Z_version then
+--              PushFactor(addUnnamedConstant(phixversion, T_Dsq),1,T_Dsq)
+                PushFactor(addUnnamedConstant(phixverstr, T_string),1,T_string)
             else
 dbg = symtab[routineNo]
                 opcode = symtab[routineNo][S_il]
@@ -6165,48 +6188,11 @@ sequence sig
     if toktype=LETTER then
         N = find(ttidx,{T_proc,T_func,T_type})
     end if
-    sig1 = PROC
-    rType = S_Proc
-    if N=2 then
-        sig1 = FUNC
-        rType = S_Func
-    elsif N!=1 then
-        if N=3 then
--- trying again 17/9/15:
---          Aborp("Forward definitions of types are not supported")
---DEV 4/8/14 (tried removing the above, but quickly realised I got fmittd)
-sig1 = TYPE
-rType = S_Type
-            --
-            -- See opTchk/udt: would need to backpatch the final settings 
-            -- of [S_Parm1] & [S_Ltot]?? Not mega-difficult, just not done yet, 
-            -- and not likely to figure in my top 100 to-do any time soon.
-            --
-            -- NB: I speak of *explicit* fwd types, ie whereby "forward type"  
-            -- is followed at some point by an actual definition; as opposed 
-            -- to *implicit* fwd types, whereby "bleh x" is followed at some  
-            -- point by a definition of the "type bleh", which is just insane
-            -- and would totally foul up compilation error handling, eg:
-            --  whiele flag=1 and idx<=ls do
-            --                            ^ illegal use of reserved word.
-            -- IE: if you were mad enough to allow implicit fwd types, it  
-            --  would assume "whiele" is such, set flag to "1 and idx<=ls", 
-            --  then have no idea what the "do" is about.... Not much better
-            --  and unfortunately also likely to be quite common would be:
-            --  whiele flag=1 and idx<=ls do
-            --         ^ duplicate identifier flag
-            --
-            -- In summary implicit fwd types are a really daft idea, whereas
-            --  explicit fwd types are acceptable but not my cup of tea, and 
-            --  as per the above message not currently supported. I should add
-            --  that complex inter-dependent types could still be supported by
-            --  factoring out code/vars into forward procedures and functions,
-            --  except for the daft(?) "type x(y thing)/type y(x thing)".
-            --
-        else
-            Expected("\"procedure\" or \"function\"") 
-        end if
+    if N=0 then
+        Expected("\"procedure\" or \"function\"") 
     end if
+    sig1 = PFT[N]
+    rType = S_Map[N]
     getToken()
     if toktype!=LETTER then
         Aborp("a name is expected here")
@@ -8545,7 +8531,7 @@ r_Assignment = routine_id("Assignment")
 --DEV this is not quite right...
 --constant T_endelseelsif = {T_end,T_else,T_elsif,T_elsedef,T_elsifdef,
 --constant T_endelseelsif = {T_end,T_else,T_elsif,T_case,T_default,T_break}
-constant T_endelseelsif = {T_end,T_else,T_elsif,T_case,T_default,T_fallthru,T_fallthrough}
+constant T_endelseelsif = {T_end,T_else,T_elsif,T_case,T_catch,T_default,T_fallthru,T_fallthrough}
 constant T_endelseelsifbreak = T_endelseelsif&T_break
 --(one possible[spotted in passing]: fallthr(u|ough) missing?) -- (added 14/2/11)
 
@@ -8660,7 +8646,9 @@ integer scode, wasEmit2
         iftop = length(s5)-1    -- patched at/pointed to the end if
         ctrlink = iftop         -- where to point next elsif/else/endif
         if NOLT=0 or bind or lint then
+         if not LTBROKEN then
             ltCtrl(iftop)
+         end if
         end if -- NOLT
     end if
 -- end if
@@ -9008,7 +8996,9 @@ end if
             s5 &= {opCtrl,ctrltyp,ctrlink,emitline}
             ctrlink = length(s5)-1
             if NOLT=0 or bind or lint then
+             if not LTBROKEN then
                 ltCtrl(ctrlink)
+             end if
             end if -- NOLT
         end if
 -- end if
@@ -9050,7 +9040,9 @@ end if
         ctrlink = length(s5)-1
         s5[iftop] = ctrlink
         if NOLT=0 or bind or lint then
+         if not LTBROKEN then
             ltCtrl(ctrlink)
+         end if
         end if -- NOLT
         --DEV tryme:
         -- (if showprogress then puts(1,"msg\n") end if generated the following il:)
@@ -10232,6 +10224,94 @@ end if
 
 end procedure
 
+procedure DoTry()
+--SideEffects??
+integer prev, tlnk, savettidx, E, tryBP
+bool newScope
+--  Compilation issues "Error: without debug in force" messages when appropriate.   --DEV I think I mean throw()
+
+    MatchString(T_try)
+    if emitON then
+        exceptions_in_use = 1
+        prev = newTempVar(T_atom,Shared)
+        apnds5({opTry,prev,0})
+--  opName("opTry",opTry,3)             -- opTry,tmp,tgt
+--  opName("opCatch",opCatch,6)         -- opCatch,mergeSet(0),tgt,link,tlnk,e
+--  opName("opThrow",opThrow,3)         -- opThrow,e,user/0
+        tlnk = length(s5)-2
+    end if
+
+    Block()
+
+    MatchString(T_catch)
+
+--SUG permit catch(e) ? and catch(sequence e) ensures it not predeclared ?
+    if toktype!=LETTER then
+        Aborp("an exception variable name is expected here")
+    end if
+    E = InTable(InVeryTop)
+    if E>0 then
+        -- permit re-use of local variable rather than erroring, 
+        -- but it must be the appropriate type (ie a sequence).
+        integer cnTyp = symtab[E][S_NTyp],
+                vtype = symtab[E][S_vtype]
+        if cnTyp=S_Const or cnTyp>S_TVar then
+            Aborp("already declared as a "&NTdesc[cnTyp])
+        elsif vtype>T_object or not and_bits(vtype,T_Dsq) then
+            -- Note: there is no type checking on a catch clause,
+            --       this prevents the use of user defined types.
+            Aborp("type error (exception variable must be a SEQUENCE)")
+        end if
+        symtab[E][S_State] = or_bits(symtab[E][S_State],S_set)
+        newScope = false
+    else
+        E = InTable(-InAny)
+        if E>0 then
+            if symtab[E][S_NTyp]=S_Rsvd then
+                Aborp("illegal use of a reserved word")
+            end if
+        end if
+        integer cvtype = S_TVar
+        if returnvar=-1 then    -- (top_level try statements need a gvar)
+            cvtype = S_GVar2
+        end if
+        E = addSymEntry(ttidx,false,cvtype,T_Dsq,0,S_set)
+        savettidx = ttidx
+        newScope = true
+    end if
+    if emitON then
+        emitline = line
+        apnds5({opCatch,0,0,0,tlnk,E})
+        tryBP = length(s5)-2
+        if s5[tryBP-3]!=opCatch then ?9/0 end if
+    end if
+    getToken()
+
+    if ttidx=T_end then
+        Warn("empty catch block",tokline,tokcol,0)
+        -- ensure "" is not obscured by a "var is not used":
+        symtab[E][S_State] = or_bits(symtab[E][S_State],S_used)
+    else
+        Block()
+    end if
+
+    if newScope then
+        -- hide non-pre-declared exception variable
+        tt[savettidx+EQ] = symtab[E][S_Nlink]
+        symtab[E][S_Nlink] = -2
+    end if
+
+    if emitON then
+        tryBP = backpatch(tryBP,0,0)
+--erm, PushFactor???
+--      freeTmp(prev)
+    end if
+    MatchString(T_end)
+    MatchString(T_try)
+--??
+--  clearIchain(saveIchain)
+end procedure
+
 --without trace
 --with trace
 integer C_cr
@@ -10415,6 +10495,26 @@ end procedure
 --with trace
 
 function GetMultiAssignSet(sequence subscripts, integer isDeclaration, integer Typ)
+--
+-- subscripts is {} when first called, but not when called recursively. {a,{b,c},d}=rhs
+--  recurses with {2}, to get the desired a=rhs[1]; b=rhs[2][1]; c=rhs[2][2]; d=rhs[3];
+-- isDeclaration is S_TVar from Locals()  - no subtypes allowed,
+--                  S_GVar2 from TopDecls()  - no subtypes allowed,
+--                  0 from Statement()  - subtypes allowed,
+--                  S_Const from DoConstant()  - subtypes iff typ=T_object only.
+-- Typ is 0 from Statement(), concrete (ie fixed) from Locals()/TopDecls(), and
+--  defaulted to T_object if not explicitly stated from DoConstant().
+--
+-- Aside:
+--   By "subtypes" I mean the statement {string name, integer id} = f() is fine,
+--   as is constant {string name, integer id} = f(), whereas something like
+--   integer {string name, integer id} is just nonsense and deserves an error.
+--   However we do permit constant object {string name, integer id} = ... but
+--   only because it is too much trouble to bother with that one odd case, ie
+--   there is no distinction between the MultipleAssignment(S_Const,T_object)
+--   and MultipleAssignment(S_Const,Ntype) when Ntype=T_object calls as they
+--   are currently invoked from DoConstant().)
+--
 sequence res = {} -- <list of vars & subscripts to be assigned>
 integer i = 1
 integer localsubscripts
@@ -10422,8 +10522,11 @@ integer noofsubscripts
 object Type
 integer varno
 integer rtype
+integer wasDeclaration = isDeclaration,
+        wasTyp = Typ
 bool wasdot = false,
-     wasfromsubss = fromsubss
+     wasfromsubss = fromsubss,
+     allowtypes = Typ=0 or (Typ=T_object and isDeclaration=S_Const)
 
     VAmask = 0  -- (should already be so)
     mapEndToMinusOne = -2
@@ -10435,6 +10538,24 @@ bool wasdot = false,
             exit
         end if
         mapEndToMinusOne = 0
+        -- allow eg {string s, integer i} = .... (added 18/6/17)
+        if allowtypes then  
+            skipSpacesAndComments()
+            if toktype=LETTER then
+                tokno = InTable(InAny)
+                if tokno>0 then
+                    Type = symtab[tokno][S_vtype]   -- (==S_sig)
+                    if sequence(Type) and length(Type)=2 and Type[1]='T' then
+                        Typ = tokno
+                        if isDeclaration=0 then
+                            isDeclaration = iff(returnvar=-1?S_GVar2:S_TVar)
+                        end if
+                        getToken()
+                    end if
+                end if
+                tokno = 0   -- (prevents crash in InTable(InAny) below)
+            end if
+        end if
         if toktype='{' then
             res &= GetMultiAssignSet(subscripts&i,isDeclaration,Typ)
             MatchChar('}')
@@ -10547,6 +10668,9 @@ end if
         MatchChar(',',float_valid:=false)
 --      if toktype='$' then MatchChar('$') exit end if -- allow ",$}"
         i += 1
+        -- reset (see docs)
+        isDeclaration = wasDeclaration
+        Typ = wasTyp
     end while
     mapEndToMinusOne = 0
 --  MatchChar('}')
@@ -11031,6 +11155,7 @@ integer wasZformat -- quick restore for trace()/profile() [only!] (DEV: iff we c
     elsif ttidx=T_return then       DoReturn()
 --  elsif ttidx=T_switch then       DoSwitch(flags)
     elsif ttidx=T_switch then       DoSwitch()
+    elsif ttidx=T_try then          DoTry()
     elsif NESTEDFUNC and ttidx=T_func then DoRoutineDef(2)
     else
         N = tokno
@@ -11935,7 +12060,8 @@ end if
 --      mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
 --      mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
 --      add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
---      mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+--X     mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+--      mov [ebp+28] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
 --      jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
 --      jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
 --
@@ -11950,7 +12076,8 @@ end if
 --      mov esi,[#004027D8]                   ;#0042CEAF: 213065 D8274000            vu 40 00  1   7      
 --      mov [ebp-4] (s),esi                   ;#0042CEB5: 211165 FC                  uv 00 60  1   8      
 --      add dword[ebx+esi*4-8],1              ;#0042CEB8: 203104263 F8 01            u  00 48  3  10    *40*
---      mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+--X     mov [ebp+16] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
+--      mov [ebp+28] (retaddr),#0042CEC9      ;#0042CEBD: 307105 10 C9CE4200         vu 00 20  1  12      
 --      jmp #00423960 (code:find)             ;#0042CEC4: 351 976AFFFF               v  00 00  1  13      
 --      jmp #0042CCAE (:%opRetf)              ;#0042CEC9: 351 E0FDFFFF               v  00 00  1  14      
 --
@@ -12007,6 +12134,7 @@ sequence iconids
             Abort("-norun command line option required")
         end if
         PE = and_bits(k,1) -- (k=1 or k=3)
+        symtab[T_SLASH][S_value] = iff(PE?'\\':'/')
     end if
     MatchString(ttidx,float_valid:=true)    -- T_PE32,T_ELF32,T_PE64,T_ELF64
     if PE then          -- PE32/PE64
@@ -12276,6 +12404,8 @@ global procedure Compile()
 --  DLL = 0 -- no! (spanners -dll option)
     exports = {}
     exportaddrs = {}
+--EXCEPT
+    exceptions_in_use = 0
 
 --DEV
 if newEmit then
@@ -12315,7 +12445,9 @@ end if
 --  ltline = 0  -- DEV needed?
 --trace(1)
     Z_format = T_format
-    LTBROKEN = PE=0 and X64=1
+    if SETLTBROKEN then
+        LTBROKEN = PE=0 and X64=1
+    end if
 
 --20/3/15: (hopefully temp!)
     if bind then
@@ -12342,8 +12474,10 @@ end if
                 end while
                 Z_format = 0
                 prevfile = fileno
---              LTBROKEN = platform()=LINUX and machine_bits()=64               
-                LTBROKEN = PE=0 and X64=1
+                if SETLTBROKEN then
+--                  LTBROKEN = platform()=LINUX and machine_bits()=64               
+                    LTBROKEN = PE=0 and X64=1
+                end if
 --DEV newEmit->pdiag2.e? (has invoke SetUnhandledExceptionFilter,finalExceptionHandler etc)
 if newEmit then
                 if not nodiag then

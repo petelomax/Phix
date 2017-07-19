@@ -870,8 +870,7 @@ integer minp    -- min params (for initialSymEntry; DoRoutineDef (and hence init
     return symlimit
 end function
 
-global function addSymEntryAt(integer ttidx, integer asGlobal, integer Stype, object sig, object code, integer state,
-                              integer atcol)
+global function addSymEntryAt(integer ttidx, integer asGlobal, integer Stype, object sig, object code, integer state, integer atcol)
 integer savetokcol, N
     savetokcol = tokcol
     tokcol = atcol
@@ -1723,29 +1722,6 @@ atom pi, inf, nan
     initialConstant("E",2.7182818284590452)
     initialConstant("INVLN10",0.43429448190325182765)
 
---/*
-FAQ.
-Q: Why no global constant SLASH?
-A: It would not be suitable for cross-compilation use.
-    An expression such as iff(platform()=WINDOWS?'\\':'/') is 
-    evaluated once, at compile-time, whether in psym.e or test.exw,
-    however the one in psym.e would stick around a whole lot longer.
-    Suppose we added 
-        initialConstant("SLASH", iff(platform()=WINDOWS?'\\':'/'))
-    to psym.e, all would seem fine until we cross-compiled something.
-    Under format PE|ELF, when compiling find(SLASH,path), then at no
-    point would the compiler re-evaluate platform(). I suppose we
-    could somehow tag SLASH as needing re-evaluation on every use,
-    but the above initialConstant() is not the way to do that...
-    It c/would also break Phix's ability to cross-compile itself.
-    Along similar lines, I claim that "if platform()" is superior to
-    "ifdef WINDOWS", although admittedly I cannot quite formulate
-    that argument as eloquently as I would ideally like (and tend to
-    fall back on "language within a language", which is a sufficient
-    enough reason in my personal view anyway).
-    Note: a similar (but 32/64 bit) argument applies to PI, etc... 
---*/
-
     -- from file.e:
     initialConstant("D_NAME",           1)
     initialConstant("D_ATTRIBUTES",     2)
@@ -1760,12 +1736,24 @@ A: It would not be suitable for cross-compilation use.
     initialConstant("LOCK_EXCLUSIVE",   2)  -- default
     initialConstant("LOCK_WAIT",        4)
     initialConstant("W_BAD_PATH",      -1)
+    -- the following is re-calculated/overwritten in DoFormat():
+    tt_string("SLASH",-2)
+    T_SLASH = addSymEntry(ttidx,1,T_integer,S_Const,0,K_litnoclr)
+    symtab[T_SLASH][S_value] = iff(platform()=WINDOWS?'\\':'/')
 
     -- from pfile.e:
     initialConstant("FILETYPE_UNDEFINED", -1)
     initialConstant("FILETYPE_NOT_FOUND",  0)
     initialConstant("FILETYPE_FILE",       1)
     initialConstant("FILETYPE_DIRECTORY",  2)
+    -- (note that linux only uses DRIVE_FIXED)
+    initialConstant("DRIVE_UNKNOWN",     0) -- The drive type cannot be determined.
+    initialConstant("DRIVE_NO_ROOT_DIR", 1) -- The root path is invalid; for example, there is no volume mounted at the specified path.
+    initialConstant("DRIVE_REMOVABLE",   2) -- The drive has removable media; for example, a floppy drive, thumb drive, or flash card reader.
+    initialConstant("DRIVE_FIXED",       3) -- The drive has fixed media; for example, a hard disk drive or flash drive.
+    initialConstant("DRIVE_REMOTE",      4) -- The drive is a remote (network) drive.
+    initialConstant("DRIVE_CDROM",       5) -- The drive is a CD-ROM drive.
+    initialConstant("DRIVE_RAMDISK",     6) -- The drive is a RAM disk.
 
     -- from pdate.e:
     initialConstant("DT_YEAR",          1)
@@ -1924,6 +1912,22 @@ A: It would not be suitable for cross-compilation use.
     -- for canonical_path (compatibility only)
     initialConstant("CORRECT",2)
 
+    -- from sort.e
+    initialConstant("ASCENDING",-1)
+    initialConstant("NORMAL_ORDER",-1)
+    initialConstant("DESCENDING",+1)
+    initialConstant("REVERSE_ORDER",+1)
+
+    -- from pDiagN.e (throw)
+    initialConstant("E_CODE",1)
+    initialConstant("E_ADDR",2)
+    initialConstant("E_LINE",3)
+    initialConstant("E_RTN", 4)
+    initialConstant("E_NAME",5)
+    initialConstant("E_FILE",6)
+    initialConstant("E_PATH",7)
+    initialConstant("E_USER",8)
+
 --if not newEmit then
 --
 --  -- the following builtins return an integer:
@@ -2054,6 +2058,7 @@ A: It would not be suitable for cross-compilation use.
     initialSymEntry("platform",         S_Func,"F",     opPlatform, E_none)     T_platform = symlimit
     initialSymEntry("machine_bits",     S_Func,"F",     opMachine,  E_none)     T_machine_bits = symlimit
     initialSymEntry("machine_word",     S_Func,"F",     opMachine,  E_none)     T_machine_word = symlimit
+    initialSymEntry("version",          S_Func,"F",     opVersion,  E_none)     Z_version = symlimit
 
 --end if -- newEmit ends
 
@@ -2070,6 +2075,8 @@ if newEmit then
     -- Note: some/most of these have no corresponding symtab entries
     --       (ie/eg 'append' has both an AutoGlabel here and an AutoAsm() below, but '&' [opConcat etc] is AutoGlabel only)
 
+    AutoGlabel(opLoadMint,  "%pLoadMint",   "VM\\pHeap.e")
+    AutoGlabel(opStoreMint, "%pStoreMint",  "VM\\pHeap.e")
     AutoGlabel(opDealloc,   "%pDealloc",    "VM\\pHeap.e")
     AutoGlabel(opInitCS,    "%pInitCS",     "VM\\pHeap.e")
 ----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pHeap.e",0,E_none)
@@ -2322,6 +2329,7 @@ if newEmit then
     AutoAsm("call_proc",        S_Proc,"PIP",   "VM\\pcallfunc.e",  opCallProc, "%opCallProc",  E_all,  0)
     AutoAsm("clear_screen",     S_Proc,"P",     "VM\\pfileioN.e",   opClrScrn,  "%opClrScrn",   E_other,0)
     AutoAsm("close",            S_Proc,"PI",    "VM\\pfileioN.e",   opClose,    "%opClose",     E_other,0)
+    AutoAsm("crash_file",       S_Proc,"PO",    "VM\\pDiagN.e",     opCrashFile,"%pCrashFile",  E_other,0)
     AutoAsm("crash_message",    S_Proc,"PO",    "VM\\pDiagN.e",     opCrashMsg, "%pCrashMsg",   E_other,0)
     AutoAsm("crash_routine",    S_Proc,"PI",    "VM\\pDiagN.e",     opCrashRtn, "%pCrashRtn",   E_other,0)
 --  AutoAsm("delete",           S_Proc,"PO",    "VM\\pDeleteN.e",   opDelete,   "%opDelete",    E_other,0)
@@ -2352,6 +2360,8 @@ if newEmit then
     AutoAsm("text_color",       S_Proc,"PI",    "VM\\pfileioN.e",   opTxtClr,   "%opTxtClr",    E_other,0)
     AutoAsm("set_rand",         S_Proc,"PI",    "VM\\pRand.e",      opSetRand,  "%opSetRand",   E_other,0)
     AutoAsm("sleep",            S_Proc,"PN",    "VM\\pSleep.e",     opSleep,    "%opSleep",     E_other,0)
+    AutoAsm("throw",            S_Proc,"POO",   "VM\\pDiagN.e",     opThrow,    "%pThrow",      E_other,0)      T_throw = symlimit
+    symtab[symlimit][S_ParmN] = 1
     AutoAsm("trace",            S_Proc,"PN",    "VM\\pTrace.e",     opTrace,    "%opTrace",     E_other,0)
     AutoAsm("profile",          S_Proc,"PN",    "VM\\pProfile.e",   opProfile,  "%opProfile",   E_other,0)
 --DEV hide/invoke via :%opProfout/reserved word/document??...
@@ -2620,6 +2630,7 @@ end if
     initialAutoEntry("find_replace",    S_Func,"FOPOI", "findrepl.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
     initialAutoEntry("flatten",         S_Func,"FP",    "pflatten.e",0,E_none)
+    initialAutoEntry("get_logical_drives",S_Func,"FP",  "pfile.e",   0,E_none)
     initialAutoEntry("join",            S_Func,"FPO",   "pflatten.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("join_path",       S_Func,"FPI",   "pflatten.e",0,E_none)
@@ -2663,7 +2674,8 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("scanf",           S_Func,"FSS",   "scanf.e",0,E_none)
     initialAutoEntry("shuffle",         S_Func,"FP",    "shuffle.e",0,E_none)
-    initialAutoEntry("sort",            S_Func,"FP",    "sort.e",0,E_none)
+    initialAutoEntry("sort",            S_Func,"FPI",   "sort.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("splice",          S_Func,"FPOI",  "pseqc.e",0,E_none)
     initialAutoEntry("split",           S_Func,"FPOII", "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2714,6 +2726,8 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("getd_by_index",   S_Func,"FII",   "dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("getd_partial_key",S_Func,"FOII",  "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("getenv",          S_Func,"FS",    "penv.e",0,E_none)
     if newEmit then
         -- ("gets" done as AutoAsm above)
@@ -2753,6 +2767,7 @@ end if
     initialAutoEntry("read_lines",      S_Func,"FO",    "read_lines.e",0,E_other)
     initialAutoEntry("series",          S_Func,"FOOII", "pseries.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("shift_bits",      S_Func,"FOI",   "shift_bits.e",0,E_none)
     initialAutoEntry("largest",         S_Func,"FPI",   "psmall.e",0,E_none)
     initialAutoEntry("smallest",        S_Func,"FPI",   "psmall.e",0,E_none)
 

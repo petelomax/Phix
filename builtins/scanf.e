@@ -397,7 +397,7 @@ end function
 
 
 function scanff(sequence res, string s, integer sidx, sequence fmts, integer fidx)
-object ffi, try
+object ffi, tries
 integer start
 sequence resset = {}
 atom N
@@ -428,17 +428,17 @@ integer goodres
                 sidx = match(ffi,s,sidx)
                 if sidx=0 then exit end if
                 res[$] = s[start..sidx-1]
-                try = scanff(res,s,sidx+length(ffi),fmts,fidx)
-                if length(try) then
-                    resset &= try
+                tries = scanff(res,s,sidx+length(ffi),fmts,fidx)
+                if length(tries) then
+                    resset &= tries
                 end if
                 sidx += 1
             end while
             res = resset
         else
-            try = get_number(s,sidx)
-            if length(try)=0 then return {} end if
-            {N, sidx} = try
+            tries = get_number(s,sidx)
+            if length(tries)=0 then return {} end if
+            {N, sidx} = tries
             if ffi=INTEGER then
                 if not integer(N) then return {} end if
             end if

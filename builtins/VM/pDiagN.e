@@ -269,6 +269,7 @@ end function
 --a) it looks awful (all scrunched up), b) we could perhaps do better in the first place, here,
 --c) we would still want to leave some dword-sequences, in the same way that eaerr.e does.
 --d) we might want a length>40 and >95% of elements are ascii or similar.
+--E) why not just \xHH those in 1..255 we're not sure of?
 --
 
 function cdi(string name, string prev, integer prst, integer prdx, object o, sequence idii)
@@ -790,7 +791,11 @@ constant msgs =
     -- this will likely be very difficult to track down.
  "attempt to raise negative number to non-integer power\n",     -- e54atrnntnip
     -- mathematically, power(-3,-3) is an imaginary number.
- -1,--"first argument to append() must be sequence\n",              -- e55fatambs
+ "unhandled exception\n",                                       -- e55ue
+    -- from throw.e - which contains discussion and code to
+    -- report the error on the throw statement (default) or 
+    -- within the throw() routine itself.
+-- -1,--"first argument to append() must be sequence\n",                -- e55fatambs
     -- You may mean a&b instead of append(a,b)
     -- Note that append("one","two") is {'o','n','e',"two"},
     -- whereas "one"&"two" is "onetwo", although they 
@@ -1076,6 +1081,120 @@ constant
          T_ds4     = 23,    -- compiled = start of data section, same but /4 when interpreted ([T_EBP]!=0)
          T_const1  = 26
 
+function convert_offset(atom era, sequence sr)
+integer lineno = sr[S_1stl]     -- line no of "procedure"/"function"/"type" keyword
+sequence linetab = sr[S_ltab]
+integer lastline = linetab[$]
+atom returnoffset = era-sr[S_il]
+integer thisline, linenxt, skip, base = 0, lti, tmp
+    --
+    -- Convert the offset to a line number.
+    -- A raw line table, as built in pilx86.e, is {skip|offset} where
+    --  skip is <0, meaning -n lines emitted no code, and
+    --  offset is >=0, a start offset of the next code-emitting line.
+    --  There is also a dummy max entry added at the end of ilxlate().
+    --  A line table should never have two (or more) skips in a row.
+    -- When interpreting, we can just use the raw table directly: skip down the
+    --  table until the offset is (b)reached, though we only know that when we 
+    --  hit the next entry, as detailed in the following.
+    --  Example1: a raw linetab of {-2,0,24,36} means offsets 0..23 are S_1st+2,
+    --            24..35 are S_1st+3, and <0 or >=36 are out-of-bounds (so leave 
+    --            lineno as -1). We only know that we should have stopped for an 
+    --            offset of 17 when we hit the 24, and the lineno we want is that 
+    --            before the +1 triggered by the 0 (or whatever line adjustment 
+    --            we made on [2] when we decide to stop on [3]).
+    --  Example2: for a linetab of {-14,#14,-3,#47...} and offset of #22, we only 
+    --            know that #14 (S_1st+14) is the right entry when we hit the #47
+    --            (S_1st+18), so there is a +1 and -(-3) that we must ignore.
+    --            Note that while an exception at offset #47 means S_1st+18, a 
+    --            return address of #47 would be the last call made by S_1st+14;
+    --            hence add -1 when using a return address to report an error.
+    -- When compiled, the linetab is packed: the offsets are converted to deltas
+    --  (so most will be <=127) with #81,#80 used as lead-ins for word,dword to
+    --  hold values that will not fit in a byte, and lastly stored as a "string"
+    --  of binary (#00..#FF) bytes, making it just over 25% of the size, on 32
+    --  bit systems, and just over 12.5% on 64 bit systems (ie worth having).
+    --  A fairly straightforward decode of the next raw value (into lti) is
+    --  followed by the same logic as above, except that when we start with a
+    --  raw table we can test lastline directly, but not when unpacking it.
+    -- Lastly note that [era] is incredibly fiddly to set, especially for
+    --  low-level routines isolated several calls deep from user code. If
+    --  the following yields -1, first suspect [era] rather than this code,
+    --  except for e30ume, in which case suspect that "Address Mapping" in
+    --  :!fehDiag (below) is missing a test/label.
+    --
+    if string(linetab) then -- compiled (deltas packed to string)
+        lineno = -1
+        if returnoffset>=0 then
+            thisline = sr[S_1stl]
+            linenxt = thisline
+            skip = 0
+            base = 0
+            for i=1 to length(linetab) do
+                if skip then
+                    skip -= 1
+                else
+                    lti = linetab[i]
+                    if lti>#7F then
+                        if lti>#81 then
+                            lti = lti-#100
+                        elsif lti=#81 then
+                            lti = linetab[i+1]*#100+linetab[i+2]
+                            if lti>#7FFF then
+                                lti -= #10000   -- (skip < -128)
+                            end if
+                            skip = 2
+                        elsif lti=#80 then
+                            lti = linetab[i+1]*#1000000+linetab[i+2]*#10000+linetab[i+3]*#100+linetab[i+4]
+                            if lti>#7FFFFFFF then
+                                lti -= #100000000 -- (skip < -32,768?? [very rare, if ever])
+                            end if
+                            skip = 4
+                        else
+                            ?9/0    -- (sanity check, should never happen)
+                        end if
+                    end if
+                    if lti<0 then       -- -n lines emitted no code
+                        linenxt -= lti
+                    else                -- start offset of next line
+                        tmp = base
+                        base += lti
+                        lti = tmp
+--                              if returnoffset<=lti then exit end if   -- all done
+                        if returnoffset<lti then
+                            lineno = thisline
+                            exit
+                        end if  -- all done
+                        thisline = linenxt
+                        linenxt += 1
+                    end if
+                end if
+            end for
+        end if
+    else -- interpreted (raw linetab, a dword-sequence, not converted to deltas/packed)
+--      lineno = sr[S_1stl]
+--      lastline = linetab[$]
+        if returnoffset<0 or returnoffset>=lastline then
+            lineno = -1
+        else
+            linenxt = lineno
+            for i=1 to length(linetab) do
+                lti = linetab[i]
+                if lti<0 then       -- -n lines emitted no code
+                    linenxt -= lti
+                else                -- start offset of next line
+--                          if returnoffset<=lti then exit end if   -- all done
+                    if returnoffset<lti then exit end if    -- all done
+                    lineno = linenxt
+                    linenxt += 1
+                end if
+            end for
+        end if
+    end if
+    return lineno
+end function
+
+
 --DEV should this just be a parameter to getVal?
 --integer lc    -- limit counter (set to 500)
 --integer showellipse -- set if lc blown
@@ -1092,6 +1211,200 @@ constant
 --       C_INT},    --  UINT  ucb   // size of block
 --      C_INT)      -- BOOL
 ----#with reformat
+
+procedure die()
+-- a non-catchable fatal error.
+    -- first, kill any exception handler:
+    #ilASM{
+        [32]
+            mov [ebp+16],ebx    -- catch addr
+        [64]
+            mov [rbp+32],rbx    -- catch addr
+          }
+    ?9/0
+end procedure
+
+--now in psym.e:
+--enum E_CODE, -- (atom) hardware and operating system exceptions usually have bit #800000000 set, user exceptions can be any atom value, even 0. 
+--   E_ADDR, -- (atom) a machine address indicating where the exception ocurred.
+--   E_LINE, -- (integer, optional) the source code line matching E_ADDR in E_RTN.
+--   E_RTN,  -- (integer, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.
+--   E_NAME, -- (string|integer, optional) the human-readable name of E_RTN.
+--   E_FILE, -- (string|integer, optional) the source filename containing E_NAME.
+--   E_PATH, -- (string|integer, optional) the directory containing E_FILE.
+--   E_USER  -- (object, optional) user defined/application specific content.
+
+procedure throw(object e, object user_data={})
+--
+-- (invoked via :%pThrow, see below)
+--  This is, of course, just a trigger - the real implementation(/challenge) 
+--  of exception handling lies within the call stack and opTry/opCatch.
+--
+--maybe (untried) [NO!!]
+--  bool pop_diag = sequence(e) and length(e)>=E_PATH and e[E_PATH]=-2
+--  if pop_diag then e[E_PATH]=-1 end if
+    if user_data!={} then
+        if not atom(e) then die() end if
+        e = {e,-1,-1,-1,-1,-1,-1,user_data}
+    elsif atom(e) then
+        e = {e,-1,-1,-1,-1,-1,-1}
+    elsif string(e) then
+        e = {0,-1,-1,-1,-1,-1,-1,e}
+--  elsif not sequence(e)   - (always true)
+    elsif length(e)<E_ADDR
+       or not atom(e[E_CODE])
+       or not atom(e[E_ADDR])
+       or (length(e)>=E_LINE and not integer(e[E_LINE]))
+       or (length(e)>=E_RTN  and not integer(e[E_RTN]))
+       or (length(e)>=E_NAME and not string(e[E_NAME]) and e[E_NAME]!=-1)
+       or (length(e)>=E_FILE and not string(e[E_FILE]) and e[E_FILE]!=-1)
+       or (length(e)>=E_PATH and not string(e[E_PATH]) and e[E_PATH]!=-1) then
+--     or length(e)>E_USER then
+        die()
+    end if
+    while length(e)<E_PATH do e &= -1 end while
+    sequence symtab
+    #ilASM{
+        [32]
+            lea edi,[symtab]
+            call :%opGetST      -- [edi]=symtab (ie our local:=the real symtab)
+        [64]
+            lea rdi,[symtab]
+            call :%opGetST      -- [rdi]=symtab (ie our local:=the real symtab)
+        []
+          }
+--?symtab[T_fileset]
+--?symtab[T_pathset]
+    integer rtn = e[E_RTN]
+    if rtn=-1 then              -- replace with the calling routine number
+        #ilASM{
+            [32]
+                mov eax,[ebp+20]    -- prev_ebp
+                mov eax,[eax+8]     -- calling routine no
+                mov [rtn],eax
+            [64]
+                mov rax,[rbp+40]    -- prev_ebp
+                mov rax,[rax+16]    -- calling routine no
+                mov [rtn],rax
+              }
+--rtn=222
+        e[E_RTN] = rtn
+    end if
+--?rtn
+    if rtn>=1 and rtn<=length(symtab)
+    and sequence(symtab[rtn])
+    and symtab[rtn][S_NTyp]>=S_Type then
+        if e[E_NAME]=-1 then
+            object name = symtab[rtn][S_Name]
+            if not string(name) then
+                name = sprint(name)
+            end if
+            e[E_NAME] = name
+        end if
+--?e[E_NAME]    --"dump_profile"!!
+        if e[E_FILE]=-1 then
+            integer fno = symtab[rtn][S_FPno]
+            if fno=0 then
+                e[E_FILE] = "?? (fno=0)"    -- should not happen!
+            else
+                e[E_FILE] = symtab[T_fileset][fno][2]
+                if e[E_PATH]=-1 then
+                    e[E_PATH] = symtab[T_pathset][symtab[T_fileset][fno][1]]
+                end if
+            end if
+        end if
+    elsif e[E_NAME]=-1 then
+        e[E_NAME] = sprintf("?? (rtn=%d)",rtn)  -- should not happen!
+        rtn = -1  -- (only real addresses in real routines get mapped to a line no)
+    end if
+    if e[E_ADDR]=-1 then -- replace with called from address from the throw() call:
+        atom addr
+        #ilASM{
+            [32]
+                mov eax,[ebp+12]    -- called from (not :throwret below!)
+                lea edi,[addr]
+                call :%pStoreMint   -- [edi]:=eax, as float if rqd
+            [64]
+                mov rax,[rbp+24]
+                lea rdi,[addr]
+                call :%pStoreMint   -- [rdi]:=rax, as float if rqd
+              }
+        e[E_ADDR] = addr
+        if e[E_LINE]=-1 and rtn!=-1 then
+            integer lineno := convert_offset(addr-1,symtab[rtn])
+            e[E_LINE] = lineno
+        end if
+    end if 
+    #ilASM{
+            -- 1) if no exception handler then e55ue
+        [32]
+            cmp [ebp+16],ebx        -- catch addr
+            jne @f
+----DEV even better, use fatalN, then here/calling is +/-1. -- NAH
+                mov al,55           -- e55ue
+--DEV? [NO!!]
+--              cmp [pop_diag],ebx
+--              je not_from_diag
+--                mov ebp,[ebp+20]  -- prev_ebp
+--            ::not_from_diag
+                mov edx,[ebp+12]    -- called from address
+                mov ebp,[ebp+20]    -- prev_ebp
+                sub edx,1
+                jmp :!iDiag
+                int3
+        [64]
+--          mov rcx,[rbp+32]        -- catch addr
+--          cmp rcx,rbx
+            cmp [rbp+32],rbx        -- catch addr
+            jne @f
+                mov al,55           -- e55ue
+--              cmp [pop_diag],rbx
+--              je not_from_diag
+--                mov rbp,[rbp+40]  -- prev_ebp
+--            ::not_from_diag
+                mov rdx,[rbp+24]    -- called from address
+                mov rbp,[rbp+40]    -- prev_ebp
+                sub rdx,1
+                jmp :!iDiag
+                int3
+        []
+          @@:
+--          je :e55ue
+            -- 2) get e into eax (res) and kill the refcount
+        [32]
+            mov eax,[e]
+            mov [e],ebx
+        [64]
+            mov rax,[e]
+            mov [e],rbx
+        []
+            -- 3) while 1 issue fake opRetf (including this routine!)
+          ::fakeRetLoop
+        [32]
+            mov ecx,[ebp+16]        -- catch addr
+            cmp ecx,1
+            jne @f
+                mov dword[ebp+28],:fakeRetLoop  -- replace return address
+                jmp :%opRetf
+        [64]
+            mov rcx,[rbp+32]        -- catch addr
+            cmp rcx,1
+            jne @f
+                mov dword[rbp+56],:fakeRetLoop  -- replace return address
+                jmp :%opRetf
+        []
+      @@:
+            -- 4) jump to error handler (catch clause)
+        [32]
+            jmp ecx
+        [64]
+            jmp rcx
+        []
+--        ::e55ue
+          }
+--  -- done this way to allow reporting in here or on the calling statement
+--  e55ue()
+end procedure
 
 --/*
 function getVal(atom addr)
@@ -1948,15 +2261,15 @@ object  si,             -- copy of symtab[i]
         name,           -- var name or -1 for temporaries we should skip
         o--,o2          -- output vars
 integer lineno,         -- linenumber as calculated from return addr/offset & linetab
-        linenxt,        -- see lineno calculation
-        lti,            -- copy of linetab[i] used in lineno calculation
-        thisline,       -- needed for lineno in packed linetab case
-        skip,           -- needed for packed linetabs
+--      linenxt,        -- see lineno calculation
+--      lti,            -- copy of linetab[i] used in lineno calculation
+--      thisline,       -- needed for lineno in packed linetab case
+--      skip,           -- needed for packed linetabs
         fileno,         -- for grouping symtab entries into files
         fpno,           -- copy of si[S_FPno]
         sNTyp           -- copy of sr[S_NTyp]
 integer c               -- scratch var
-atom    returnoffset,   -- era as offset into code block, used in lineno calc
+atom    --returnoffset, -- era as offset into code block, used in lineno calc
         TchkRetAddr,    -- value of !opTchkRetAddr in pStack.e
         cb_ret_addr     -- value of !cb_ret in pcfunc.e
 
@@ -1964,21 +2277,21 @@ sequence msg,           -- error message, from msgs[msg_id] plus any params
          wmsg,          -- work var, used for building msg
 --       s8,            -- copy of symtab[T_callstk], see below
          sr,            -- copy of symtab[rtn]
-         linetab,       -- copy of symtab[rtn][S_ltab]
+--       linetab,       -- copy of symtab[rtn][S_ltab]
          filename,      -- output var
          pathset,       -- copy of symtab[T_pathset] with mainpath added if .exe
          x6             -- e30->e92 fixup
 
 --atom ep1, ep2         -- error parameters
 
-integer lastline
-integer base = 0, tmp
+--integer lastline
+--integer tmp
 
 integer p
 
 integer N, rtn
 --DEV from_addr is not really used!! (if we can get away without it...)
-atom from_addr, ret_addr, prev_ebp, ebp_root
+atom from_addr, ehand, ret_addr, prev_ebp, ebp_root
 atom vsb_prev, vsb_next, vsb_magic
 string magicok
 integer abortcode
@@ -2044,7 +2357,8 @@ atom gvarptr
                 mov edx,routine_id(rebuild_callback)    -- mov edx,imm32 (sets K_ridt)
                 mov ecx,$_Ltot                          -- mov ecx,imm32 (=symtab[rebuild_callback][S_Ltot])
                 call :%opFrame
-                mov dword[ebp+16],:rbidsret
+X               mov dword[ebp+16],:rbidsret
+                mov dword[ebp+28],:rbidsret
                 jmp $_il                                -- jmp code:rebuild_callback
             [64]
 --              push qword[rsp]                         -- (leave the ret addr on stack)
@@ -2052,7 +2366,8 @@ atom gvarptr
                 mov rdx,routine_id(rebuild_callback)    -- mov edx,imm32 (sets K_ridt)
                 mov rcx,$_Ltot                          -- mov ecx,imm32 (=symtab[rebuild_callback][S_Ltot])
                 call :%opFrame
-                mov qword[rbp+32],:rbidsret
+X               mov qword[rbp+32],:rbidsret
+                mov qword[rbp+56],:rbidsret
                 jmp $_il                                -- jmp code:rebuild_callback
             []
           ::rbidsret    
@@ -2153,18 +2468,21 @@ atom gvarptr
 --  {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+machine_word(),6},machine_word(),0)
 --  {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peekNS({ebp_root,5},machine_word(),0)
     if machine_bits()=32 then
-        {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
+--EXCEPT
+--      {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
+        {N,rtn,from_addr,ehand,prev_ebp,ebp_root,ret_addr} = peek4u({or_ebp*4+4,7})
         {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peek4u({ebp_root,5})
     else -- machine_bits()=64
-        {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
+--      {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
+        {N,rtn,from_addr,ehand,prev_ebp,ebp_root,ret_addr} = peek8u({or_ebp*4+8,7})
         {vsb_prev,vsb_next,symtabptr,gvarptr,vsb_magic} = peek8u({ebp_root,5})
     end if
 
 --  if not batchmode then --DEV
     if show_low_level_diagnostics then
         if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
-            printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
-                   {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(prev_ebp),addrS(ebp_root)})
+            printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
+                   {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)})
             printf(1,"or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
                    {or_eax,or_ecx,or_edx,or_esi,or_edi})
             magicok = "\"@VSB\""
@@ -2314,7 +2632,17 @@ atom gvarptr
         --  followed by a "helper" cmp eax,<varno>; ==> to e92:
 --17/11/16 afaik, we still use cmp eax,imm32, not cmp rax, but I think we got rid of all inc.
 --      if machine_bits()=32 then
+--4/7/17:
+--DEV the rqd test should be do-able - CSvaddr or [ds+?] or symtab[??]... (two valid ranges, when interpreting)
+--      if (or_era>=??? and or_era<=???-5)
+--      or (or_era>=??? and or_era<=???-5) then
+--try
             x6 = peek({or_era,6})
+--catch e
+----  if e[E_CODE]!=#C0000005 then  -- maybe...
+--  ?{"warning: peek failure pDiagN.e line 2639",e,or_era}
+--  x6 = "123456"
+--end try
     --      --  inc dword[ebx+src*4-8]      377104 2s3 F8
             --  add dword[ebx+src*4-8],1    203104 2s3 F8 01
             if x6[1]=0o203
@@ -2347,14 +2675,16 @@ atom gvarptr
 --          end if
 --      end if
         if msg_id=30 then
---          if xceptn=#C0000005-#100000000 then
---              wmsg = "[MEMORY VIOLATION]"
---          elsif xceptn=#C00000FD-#100000000 then
---              wmsg = "[STACK OVERFLOW]"
+            if xceptn=#C0000005
+            or xceptn=#C0000005-#100000000 then
+                wmsg = "[MEMORY VIOLATION]"
+            elsif xceptn=#C00000FD
+               or xceptn=#C00000FD-#100000000 then
+                wmsg = "[STACK OVERFLOW]"
 --#80000003/[EXCEPTION_BREAKPOINT(int3)]
---          else
+            else
                 wmsg = sprintf("#%08x",xceptn)
---          end if
+            end if
             msg = sprintf(msg,{wmsg,xcepta})
         end if
     end if
@@ -2671,6 +3001,29 @@ atom gvarptr
 --?3
 --?msg
 --?4
+
+--EXCEPT
+--(need to get the int3 tests done first!)
+bool error_handler
+    #ilASM{
+        [32]
+            xor eax,eax
+            cmp [ebp+16],ebx
+            setne al
+            mov [error_handler],eax
+        [64]
+            xor rax,rax
+            cmp [rbp+32],rbx
+            setne al
+            mov [error_handler],rax
+          }
+    if error_handler then
+        msg = trim(msg)
+        sr = symtab[rtn]
+        lineno = convert_offset(or_era,sr)
+        throw({msg_id,or_era,lineno,rtn,-1,-1,-1,msg})
+    end if
+
 --  if equal(crashfile,"") then return batchmode end if
     if equal(crashfile,"") then return end if
     if find(crashfile,{"NUL","NULL","/dev/null"}) then
@@ -2685,7 +3038,7 @@ atom gvarptr
     while 1 do
 --?rtn
         if rtn<1 or rtn>length(symtab) then -- See note at top
-            printf(1,"diag.e: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
+            printf(1,"pDiagN.e line 3041: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
 --          exit
 --      end if
             rtype = 0   -- (added 15/4/16, at the time we had the wrong symtab... then again it was a bug in pTrace.e)
@@ -2695,7 +3048,9 @@ else
         sNTyp = sr[S_NTyp]
         if sNTyp>=S_Type
         and (swod or and_bits(sr[S_State],K_wdb)) then -- skip without debug items
-
+--          sequence sr = symtab[rtn]
+            lineno = convert_offset(or_era,sr)
+--/*
             lineno = sr[S_1stl]     -- line no of "procedure"/"function"/"type" keyword
             linetab = sr[S_ltab]
             lastline = linetab[$]
@@ -2806,7 +3161,7 @@ else
                     end for
                 end if
             end if
-
+--*/
 --          if lineno=-1 and find(msg_id,{92,30}) then
             if lineno=-1 and find(msg_id,{92,30}) and length(msg) and length(msg2)=0 then
 --?-1
@@ -2901,14 +3256,14 @@ else
                 tidx = 0    --DEV can we not use [S_Tidx]??
                 while p do
                     if p<1 or p>length(symtab) then
-                        printf(1,"oops, p(%d) out of bounds(1..%d), pdiagN.e line 2049\n",{p,length(symtab)})
+                        printf(1,"oops, p(%d) out of bounds(1..%d), pDiagN.e line 3259\n",{p,length(symtab)})
                         exit
                     end if
                     sp = symtab[p]
 --?{sp}
 --SUG: or si[S_NTyp]!=S_TVar3
                     if atom(sp) then
-                        printf(1,"oops, atom(symtab[%d]), pdiagN.e line 2056\n",p)
+                        printf(1,"oops, atom(symtab[%d]), pDiagN.e line 3266\n",p)
                         exit
                     end if
                     name = sp[S_Name]
@@ -2942,7 +3297,7 @@ end if
             end if  -- lineno!=-1
         else -- K_wdb
             if sNTyp<S_Type then
-                put2(sprintf("diag.e: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
+                put2(sprintf("pDiagN.e line 3300: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
 --          else
 --              put2(sprintf("diag.e: symtab[%d] skipped (no debug)\n",{rtn}))
             end if
@@ -2964,9 +3319,12 @@ end if
 --DEV (untried)
 --          {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+machine_word(),6},machine_word(),0)
             if machine_bits()=32 then
-                {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
+--EXCEPT
+--              {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
+                {N,rtn,from_addr,?,prev_ebp,ebp_root,ret_addr} = peek4u({or_ebp*4+4,7})
             else -- machine_bits()=64
-                {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
+--              {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
+                {N,rtn,from_addr,?,prev_ebp,ebp_root,ret_addr} = peek8u({or_ebp*4+8,7})
             end if
 --if diagdiag then
 --          printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
@@ -2994,7 +3352,7 @@ end if
                 msg2 = ""
             end if
             if rtype=1 then -- skip (lineno=-1)
-                printf(1,"diag.e: oops, lineno=-1/e92/not retD(), era=#%08x\n",or_era)
+                printf(1,"pDiagN.e line 3355: oops, lineno=-1/e92/not retD(), era=#%08x\n",or_era)
             end if
             exit
         end if
@@ -3039,7 +3397,8 @@ puts(1,"\nGlobal & Local Variables\n")
 --          #isginfo{crash_msg,0b1001,0,0,integer,3} -- (verify compiler is working properly)
             if atom(crash_msg) and fn!=-1 then
                 if atom(crashfile) then
-                    puts(1,"--> see "&current_dir()&"\\ex.err\n")
+--                  puts(1,"--> see "&current_dir()&"\\ex.err\n")
+                    printf(1,"--> see %s\n",{join_path({current_dir(),"ex.err"})})
 --              elsif not find(crashfile,{"NUL","/dev/null"}) then
                 else -- (above not necessary, fn would be -1)
                     puts(1,"--> see "&crashfile&"\n")
@@ -3217,14 +3576,12 @@ end procedure -- (for Edita/CtrlQ)
         --  see builtins\pCrash.e for details
         [32]
             -- calling convention
-            --  mov eax,[msg]       -- (should be a string)
-            --  mov esi,msg         -- (var no, if msg can be unassigned)
+            --  mov eax,[msg]       -- (should be a string, opUnassigned)
             --  call :%pCrashMsg    -- (save eax)
             mov edx,[crash_msg]
             cmp eax,h4
             mov [crash_msg],eax
             jl @f
---DEV exception here mapped to ... (or je)
                 add dword[ebx+eax*4-8],1
           @@:
             cmp edx,h4
@@ -3235,15 +3592,13 @@ end procedure -- (for Edita/CtrlQ)
                 call :%pDealloc0
         [64]
             -- calling convention
-            --  mov rax,[cm]
-            --  mov rsi,cm          -- (var no, if cm can be unassigned)
+            --  mov rax,[msg]       -- (opUnassigned)
             --  call :%pCrashMsg    -- (save eax)
             mov r15,h4
             mov rdx,[crash_msg]
             cmp rax,r15
             mov [crash_msg],rax
             jl @f
---DEV exception here mapped to ...
                 add qword[rbx+rax*4-16],1
           @@:
             cmp rdx,r15
@@ -3311,12 +3666,39 @@ end procedure -- (for Edita/CtrlQ)
 ----------------
         [32]
             -- calling convention
-            --  mov eax,[file_path]
-            --  mov esi,file_path   -- (var no, if cm can be unassigned)
+            --  mov eax,[file_path] -- (opUnassigned)
             --  call :%pCrashFile   -- crash_file(eax)
---DEV
+            mov edx,[crashfile]
+            cmp eax,h4
+            mov [crashfile],eax
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp edx,h4
+            jle @f
+                sub dword[ebx+edx*4-8],1
+                jne @f
+                push dword[esp]
+                call :%pDealloc0
+        [64]
+            -- calling convention
+            --  mov rax,[file_path] -- (opUnassigned)
+            --  call :%pCrashFile   -- crash_file(rax)
+            mov r15,h4
+            mov rdx,[crashfile]
+            cmp rax,r15
+            mov [crashfile],rax
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rdx,r15
+            jle @f
+                sub qword[rbx+rdx*4-16],1
+                jne @f
+                push qword[rsp]
+                call :%pDealloc0
         []
-            int3
+          @@:
             ret
 
 --global procedure crash_file(object file_path)
@@ -3351,7 +3733,9 @@ end procedure -- (for Edita/CtrlQ)
 --          call :!diagFrame
 --          add esp,4
             pop dword[ebp]                          -- rid
-            mov dword[ebp+16],:crashrtnret
+--EXCEPT
+--          mov dword[ebp+16],:crashrtnret
+            mov dword[ebp+28],:crashrtnret
             jmp $_il                                -- jmp code:set_crash_routine
         [64]
 --?         push qword[rsp]                         -- (leave the ret addr on stack)
@@ -3362,7 +3746,9 @@ end procedure -- (for Edita/CtrlQ)
 --          call :!diagFrame
 --          add rsp,8
             pop qword[rbp]                          -- rid
-            mov qword[rbp+32],:crashrtnret
+--EXCEPT
+--          mov qword[rbp+32],:crashrtnret
+            mov qword[rbp+56],:crashrtnret
             jmp $_il                                -- jmp code:set_crash_routine
         []
           ::crashrtnret
@@ -3382,6 +3768,144 @@ end procedure -- (for Edita/CtrlQ)
 --      crash_rtn = append(crash_rtn,rid)
 --  end if
 --end procedure
+
+--/*
+procedure :%pThrow(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pThrow
+------------
+        [32]
+            -- calling convention
+            --  mov eax,[e]         -- opUnassigned
+            --  mov ecx,[user_data] -- (or h4)
+            --  call :%pThrow       -- throw(e,user_data)
+            --  int3
+            cmp eax,h4
+            jl @f
+                add dword[ebx+eax*4-8],1
+          @@:
+            cmp ecx,h4
+            jle @f
+                add dword[ebx+ecx*4-8],1
+          @@:
+            push ecx                            -- [1] ref user_data
+            push eax                            -- [2] ref e
+            mov edx,routine_id(throw)           -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[throw][S_Ltot])
+            call :%opFrame
+            mov edx,[esp+8]
+            pop dword[ebp]                      -- [2] e
+            pop dword[ebp-4]                    -- [1] user_data
+--EXCEPT
+--          mov dword[ebp+16],:throwret
+            mov dword[ebp+28],:throwret         -- return address
+            mov dword[ebp+12],edx               -- called from address
+            jmp $_il                            -- jmp code:convert_offset
+          ::throwret
+--          pop edi                             --[1] addr res (an integer)
+--          mov [edi],eax
+        [64]
+            mov r15,h4
+            cmp rax,r15
+            jl @f
+                add qword[rbx+rax*4-16],1
+          @@:
+            cmp rcx,r15
+            jle @f
+                add qword[rbx+rcx*4-16],1
+          @@:
+            push rcx                            -- [1] ref user_data
+            push rax                            -- [2] ref e
+            mov rdx,routine_id(throw)           -- mov edx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[throw][S_Ltot])
+            call :%opFrame
+            mov rdx,[rsp+16]
+            pop qword[rbp]                      -- [2] e
+            pop qword[rbp-8]                    -- [2] user_data
+--EXCEPT
+--          mov qword[rbp+32],:throwret         -- return address
+            mov qword[rbp+56],:throwret         -- return address
+            mov qword[rbp+24],rdx               -- called from address
+            jmp $_il                            -- jmp code:convert_offset
+          ::throwret
+--          pop rdi                             --[1] addr res (an integer)
+--          mov [rdi],rax
+        []
+            ret
+
+--DEV DEAD
+--  --for throw.e: [DEV, needs to be put into the optable]
+--  --/*
+--  procedure :%pConvertOffset(:%)
+--  end procedure -- (for Edita/CtrlQ)
+--  --*/
+--  --/*
+--      :!ConvertOffset
+--  -------------------
+--          [32]
+--              -- calling convention
+--              --  mov eax,[era]
+--              --  mov esi,[sr]
+--              --  lea edi,[lineno]        -- result (integer)
+--              --  call :%pConvertOffset   -- [edi] := convert_offset(eax,ecx)
+--              cmp eax,h4
+--              jl @f
+--                  add dword[ebx+eax*4-8],1
+--            @@:
+--              cmp esi,h4
+--              jl @f
+--                  add dword[ebx+esi*4-8],1
+--            @@:
+--              push dword[esp]                     -- [0] duplicate return address
+--              push edi                            -- [1] addr res
+--              push esi                            -- [2] ref sr
+--              push eax                            -- [3] ref era
+--              mov edx,routine_id(convert_offset)  -- mov edx,imm32 (sets K_ridt)
+--              mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[convert_offset][S_Ltot])
+--              call :%opFrame
+--              mov edx,[esp+12]
+--              pop dword[ebp]                      -- [3] era
+--              pop dword[ebp-4]                    -- [2] sr
+--  --EXCEPT
+--X             mov dword[ebp+16],:coret
+--              mov dword[ebp+28],:coret            -- return address
+--              mov dword[ebp+12],edx               -- called from address
+--              jmp $_il                            -- jmp code:convert_offset
+--            ::coret
+--              pop edi                             --[1] addr res (an integer)
+--              mov [edi],eax
+--          [64]
+--              mov r15,h4
+--              cmp rax,r15
+--              jl @f
+--                  add qword[rbx+rax*4-16],1
+--            @@:
+--              cmp rsi,r15
+--              jl @f
+--                  add qword[rbx+rsi*4-16],1
+--            @@:
+--              push qword[rsp]                     -- [0] duplicate return address
+--              push rdi                            -- [1] addr res
+--              push rsi                            -- [2] ref sr
+--              push rax                            -- [3] ref era
+--              mov rdx,routine_id(convert_offset)  -- mov edx,imm32 (sets K_ridt)
+--              mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[convert_offset][S_Ltot])
+--              call :%opFrame
+--              mov rdx,[rsp+24]
+--              pop qword[rbp]                      -- [3] era
+--              pop qword[rbp-8]                    -- [2] sr
+--  --EXCEPT
+--X             mov qword[rbp+32],:coret            -- return address
+--              mov qword[rbp+56],:coret            -- return address
+--              mov qword[rbp+24],rdx               -- called from address
+--              jmp $_il                            -- jmp code:convert_offset
+--            ::coret
+--              pop rdi                             --[1] addr res (an integer)
+--              mov [rdi],rax
+--          []
+--              ret
+--  --*/
 
 --/*
 procedure :!SetBatchMode(:%)
@@ -3408,7 +3932,8 @@ end procedure -- (for Edita/CtrlQ)
         --  jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
         [32]
           @@:
---          mov edx,[ebp+16]    -- era
+--X         mov edx,[ebp+16]    -- era
+--          mov edx,[ebp+28]    -- era
             mov edx,[ebp+12]    -- called from address
             mov ebp,[ebp+20]    -- (nb no local vars after this!)
             sub ecx,1
@@ -3419,7 +3944,8 @@ end procedure -- (for Edita/CtrlQ)
 --          int3
         [64]
           @@:
---          mov rdx,[rbp+32]    -- era
+--X         mov rdx,[rbp+32]    -- era
+--          mov rdx,[rbp+56]    -- era
             mov rdx,[rbp+24]    -- called from address
             mov rbp,[rbp+40]    -- (nb no local vars after this!)
             sub rcx,1

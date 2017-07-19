@@ -1,0 +1,110 @@
+--
+-- demo\rosetta\wordsearch.exw
+-- ===========================
+--
+string message = "ROSETTACODE"
+sequence words, solution="", placed
+
+constant grid = split("""
+X  0  1  2  3  4  5  6  7  8  9  X
+0                                X
+1                                X
+2                                X
+3                                X
+4                                X
+5                                X
+6                                X
+7                                X
+8                                X
+9                                X
+X  X  X  X  X  X  X  X  X  X  X  X""",'\n')
+
+constant DX = {-1, 0,+1,+1,+1, 0,-1,-1},
+         DY = {-3,-3,-3, 0,+3,+3,+3, 0}
+
+procedure wordsearch(sequence grid, integer rqd, integer left, sequence done)
+    sequence rw = shuffle(tagset(length(words))),
+             rd = shuffle(tagset(8)),
+             rs = shuffle(tagset(100))
+    for i=1 to length(rs) do
+        integer sx = floor((rs[i]-1)/10)+2,
+                sy = remainder(rs[i]-1,10)*3+4
+        for w=1 to length(rw) do
+            string word = words[rw[w]]
+            if not find(word,done[1]) then
+                for d=1 to length(rd) do
+                    integer {dx,dy} = {DX[rd[d]],DY[rd[d]]},
+                            {nx,ny} = {sx,sy},
+                            chcount = length(word)
+                    sequence newgrid = grid
+                    for c=1 to length(word) do
+                        integer ch = grid[nx][ny]
+                        if ch!=' ' then
+                            if ch!=word[c] then
+                                chcount = -1
+                                exit
+                            end if
+                            chcount -= 1
+                        end if
+                        newgrid[nx][ny] = word[c]
+                        nx += dx
+                        ny += dy
+                    end for
+                    if chcount!=-1 then
+                        sequence posinfo = {sx-2,(sy-4)/3,nx-dx-2,(ny-dy-4)/3},
+                                 newdone = {append(done[1],word),append(done[2],posinfo)}
+                        if rqd<=1 and left-chcount=length(message) then
+                            {solution, placed} = {newgrid, newdone}
+                            return
+                        elsif left-chcount>length(message) then
+                            wordsearch(newgrid,rqd-1,left-chcount,newdone)
+                            if length(solution) then return end if
+                        end if
+                    end if
+                end for
+            end if
+        end for
+    end for
+end procedure
+
+function valid_word(string word)
+    if length(word)<3 then return false end if
+    for i=1 to length(word) do
+        integer ch = word[i]
+        if ch<'a'
+        or ch>'z' then
+            return false
+        end if
+    end for
+    return true
+end function
+
+integer fn = open("..\\unixdict.txt","r")
+words = get_text(fn,GT_LF_STRIPPED)
+close(fn)
+for i=length(words) to 1 by -1 do
+    if not valid_word(words[i]) then
+        words[i] = words[$]
+        words = words[1..$-1]
+    end if
+end for
+printf(1,"%d words loaded\n",length(words))
+
+wordsearch(grid,25,100,{{},{}})
+for x=2 to 11 do
+    for y=4 to 31 by 3 do
+        if solution[x][y]=' ' then
+            solution[x][y] = message[1]
+            message = message[2..$]
+        end if
+    end for
+end for
+if length(message) then ?9/0 end if         
+puts(1,substitute(join(solution,'\n'),"X"," "))
+printf(1,"\n%d words\n",length(placed[1]))
+for i=1 to length(placed[1]) do
+    printf(1,"%10s %10s  ",{placed[1][i],sprint(placed[2][i])})
+    if mod(i,3)=0 then puts(1,"\n") end if
+end for
+
+{} = wait_key()

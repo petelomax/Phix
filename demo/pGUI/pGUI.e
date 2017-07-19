@@ -1308,7 +1308,7 @@ else
 --          dll_path = s[i]&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
 --          dll_path = join_path({s[i],sprintf("%s%d",{dirs[libidx],machine_bits()})},1)
             sip = append(sip,sprintf("%s%d",{dirs[libidx],machine_bits()}))
-            dll_path = join_path(sip,1)
+            dll_path = join_path(sip,trailsep:=1)
 --dll_root = dll_path
             exit
         end if
@@ -2664,7 +2664,7 @@ global procedure IupUpdateChildren(Ihandle ih)
     c_proc(xIupUpdateChildren, {ih})
 end procedure
 
-global procedure IupRedraw(Ihandles ih, bool children=0)
+global procedure IupRedraw(Ihandles ih, bool children=true)
     if sequence(ih) then
         for i=1 to length(ih) do
             Ihandle ihi = ih[i]
@@ -5763,6 +5763,42 @@ global procedure cdCanvasSector(cdCanvas hCdCanvas, atom xc, atom yc, atom w, at
     c_proc(xcdCanvasSector, {hCdCanvas, xc, yc, w, h, angle1, angle2})
 end procedure
 
+global procedure cdCanvasRoundedBox(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax, atom width, atom height) 
+    -- first draw the filled rectangle with straight-clipped corners (aka an octagon)
+    cdCanvasBegin(canvas,CD_FILL)
+    cdCanvasVertex(canvas,xmin+width,ymin)
+    cdCanvasVertex(canvas,xmax-width,ymin)
+    cdCanvasVertex(canvas,xmax,ymin+height)
+    cdCanvasVertex(canvas,xmax,ymax-height)
+    cdCanvasVertex(canvas,xmax-width,ymax)
+    cdCanvasVertex(canvas,xmin+width,ymax)
+    cdCanvasVertex(canvas,xmin,ymax-height)
+    cdCanvasVertex(canvas,xmin,ymin+height)
+    cdCanvasEnd(canvas)
+    -- then round/fill in the corners using cdCanvasSector
+--  cdCanvasSector(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2) 
+--  cdCanvasSetForeground(cddbuffer, CD_RED)
+    cdCanvasSector(canvas, xmin+width,ymin+height,width*2,height*2,180,270)
+    cdCanvasSector(canvas, xmax-width,ymin+height,width*2,height*2,270,0)
+    cdCanvasSector(canvas, xmin+width,ymax-height,width*2,height*2,90,180)
+    cdCanvasSector(canvas, xmax-width,ymax-height,width*2,height*2,0,90)
+end procedure
+
+global procedure cdCanvasRoundedRect(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax, atom width, atom height) 
+    -- first draw four edges, not-quite-meeting
+    cdCanvasLine(canvas,xmin+width,ymin,xmax-width,ymin)
+    cdCanvasLine(canvas,xmax,ymin+height,xmax,ymax-height)
+    cdCanvasLine(canvas,xmax-width,ymax,xmin+width,ymax)
+    cdCanvasLine(canvas,xmin,ymax-height,xmin,ymin+height)
+    -- then round/connect the corners using cdCanvasArc
+--  cdCanvasArc(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2) 
+--  cdCanvasSetForeground(cddbuffer, CD_RED)
+    cdCanvasArc(canvas, xmin+width,ymin+height,width*2,height*2,180,270)
+    cdCanvasArc(canvas, xmax-width,ymin+height,width*2,height*2,270,0)
+    cdCanvasArc(canvas, xmin+width,ymax-height,width*2,height*2,90,180)
+    cdCanvasArc(canvas, xmax-width,ymax-height,width*2,height*2,0,90)
+end procedure
+
 global procedure canvas_chord(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
     c_proc(xcdCanvasChord, {hCdCanvas, xc, yc, w, h, a1, a2})
 end procedure
@@ -8150,10 +8186,10 @@ end procedure
 
 /* IupTree utilities */
 --int IupTreeSetUserId(Ihandle* ih, int id, void* userid);
-global function IupTreeSetUserId(atom ih, atom id, atom userid)
-atom result = c_func(xIupTreeSetUserId, {ih,id,userid})
-    return result
-end function
+global procedure IupTreeSetUserId(atom ih, atom id, atom userid)
+    atom result = c_func(xIupTreeSetUserId, {ih,id,userid})
+    if result=0 then ?9/0 end if
+end procedure
 
 --void* IupTreeGetUserId(Ihandle* ih, int id);
 global function IupTreeGetUserId(atom ih, atom id)
@@ -8202,6 +8238,86 @@ end function
 --  atom result = c_func(xIupTreeGetFloat, {ih,name,id})
 --  return result
 --end function
+
+procedure iupTreeSetNodeAttributes(Ihandle tree, integer id, sequence attrs)
+-- (internal routine)
+    for i=1 to length(attrs) by 2 do
+        string name = attrs[i]
+        if not find(name,{"COLOR","STATE","TITLE","TITLEFONT","TOGGLEVALUE","TOGGLEVISIBLE",
+                          "USERDATA","IMAGE","IMAGEEXPANDED","MARKED"}) then
+            ?9/0
+        end if
+        object v = attrs[i+1]
+        if string(v) then
+            IupSetAttributeId(tree, name, id, v)
+        elsif name="USERDATA" and integer(v) then
+            IupTreeSetUserId(tree, id, v)
+        else
+            ?9/0
+        end if
+--?{"IupSetAttributeId",name, id, v}
+    end for
+end procedure
+
+--procedure iupSetTreeNodeAttribute(Ihandle tree, string addlb, integer id, string desc)
+---- (internal routine, purely for debugging purposes)
+---- addlb should be "ADDLEAF" or "ADDBRANCH"
+--  IupSetAttributeId(tree, addlb, id, desc)
+--  ?{"IupSetAttributeId",addlb, id, desc}
+--end procedure
+
+function iupTreeAddNodesRec(Ihandle tree, sequence tree_nodes, integer id)
+-- internal routine, the guts of IupTreeAddNodes, less the initial clear
+string desc
+integer next
+    if string(tree_nodes) then
+        -- leaf (no attributes)
+        desc = tree_nodes
+        IupSetAttributeId(tree, "ADDLEAF", id, desc)
+--      iupSetTreeNodeAttribute(tree, "ADDLEAF", id, desc)
+        next = id+1
+    else
+        sequence children = {}
+        desc = tree_nodes[1]
+        if length(tree_nodes)>3 then
+            ?9/0
+        elsif length(tree_nodes)=1
+           or atom(tree_nodes[$]) then
+            -- also leaf (may have attributes)
+            IupSetAttributeId(tree, "ADDLEAF", id, desc)
+--          iupSetTreeNodeAttribute(tree, "ADDLEAF", id, desc)
+        else -- (length 2 or 3)
+            -- branch
+            IupSetAttributeId(tree, "ADDBRANCH", id, desc)
+--          iupSetTreeNodeAttribute(tree, "ADDBRANCH", id, desc)
+            children = tree_nodes[$]
+        end if
+        id += 1
+        next = id
+        for i=length(children) to 1 by -1 do
+            next = iupTreeAddNodesRec(tree, children[i], id)
+        end for
+        if length(tree_nodes)=3 then
+            iupTreeSetNodeAttributes(tree, id, tree_nodes[2])
+        end if
+    end if
+    return next
+end function
+
+global procedure IupTreeAddNodes(Ihandle tree, sequence tree_nodes, integer id=-1)
+    if id=-1 then
+        IupSetAttributeId(tree,"DELNODE",0,"ALL")
+        {} = iupTreeAddNodesRec(tree, tree_nodes, id)
+    else
+        -- tree_nodes is actually just children
+        sequence children = tree_nodes
+        id = IupTreeGetId(tree, id)
+        if id=-1 then ?9/0 end if
+        for i=length(children) to 1 by -1 do
+            {} = iupTreeAddNodesRec(tree, children[i], id)
+        end for
+    end if
+end procedure
 
 /* DEPRECATED font names. It will be removed in a future version.  */
 --char* IupMapFont(const char *iupfont);

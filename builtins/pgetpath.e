@@ -323,7 +323,7 @@ sequence res
     return res
 end function
 
-global function get_proper_dir(string filepath, integer remove_slash=0)
+global function get_proper_dir(string filepath, bool remove_slash=false)
     filepath = get_proper_path(filepath,0)
     for i=length(filepath) to 1 by -1 do
         if find(filepath[i],"\\/") then

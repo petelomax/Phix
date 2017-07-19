@@ -298,13 +298,17 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(dump_profile)    -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[dump_profile][S_Ltot])
             call :%opFrame
-            mov dword[ebp+16],:pdret
+--EXCEPT
+--          mov dword[ebp+16],:pdret
+            mov dword[ebp+28],:pdret
             jmp $_il                            -- jmp code:dump_profile
         [64]
             mov rdx,routine_id(dump_profile)    -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[dump_profile][S_Ltot])
             call :%opFrame
-            mov qword[rbp+32],:pdret
+--EXCEPT
+--          mov qword[rbp+32],:pdret
+            mov qword[rbp+56],:pdret
             jmp $_il                            -- jmp code:dump_profile
         []
           ::pdret   
@@ -387,7 +391,9 @@ end procedure -- (for Edita/CtrlQ)
                 call :%opFrame
                 pop dword[ebp]                      --[2] fileno
                 pop dword[ebp-4]                    --[1] lineno
-                mov dword[ebp+16],:lnpret
+--EXCEPT
+--              mov dword[ebp+16],:lnpret
+                mov dword[ebp+28],:lnpret
                 jmp $_il                            -- jmp code:profile_count
               ::lnpret  
 --  mov esi,[ebp+24]        -- symtab
@@ -421,7 +427,9 @@ end procedure -- (for Edita/CtrlQ)
                 call :%opFrame
                 pop qword[rbp]                      --[2] fileno
                 pop qword[rbp-8]                    --[1] lineno
-                mov qword[rbp+32],:lnpret
+--EXCEPT
+--              mov qword[rbp+32],:lnpret
+                mov qword[rbp+56],:lnpret
                 jmp $_il                            -- jmp code:profile_count
               ::lnpret  
         []
@@ -455,7 +463,9 @@ end procedure -- (for Edita/CtrlQ)
                 call :%opFrame
                 pop dword[ebp]                      --[2] fileno
                 pop dword[ebp-4]                    --[1] lineno
-                mov dword[ebp+16],:lnptret
+--EXCEPT
+--              mov dword[ebp+16],:lnptret
+                mov dword[ebp+28],:lnptret
                 jmp $_il                            -- jmp code:profile_time
               ::lnptret 
 --/*
@@ -530,7 +540,9 @@ end procedure -- (for Edita/CtrlQ)
                 call :%opFrame
                 pop qword[rbp]                      --[2] fileno
                 pop qword[rbp-8]                    --[1] lineno
-                mov qword[rbp+32],:lnptret
+--EXCEPT
+--              mov qword[rbp+32],:lnptret
+                mov qword[rbp+56],:lnptret
                 jmp $_il                            -- jmp code:profile_time
               ::lnptret 
         []

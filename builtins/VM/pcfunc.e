@@ -144,7 +144,9 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             mov edi,[ep1]
             mov esi,[ep2]
           @@:
-            mov edx,[ebp+16]    -- era
+--EXCEPT
+--X         mov edx,[ebp+16]    -- era
+            mov edx,[ebp+28]    -- era
 --??        mov edx,[ebp+12]    -- called from address (or just use :!fatalN...)
             mov ebp,[ebp+20]    -- (nb no local vars after this!)
             sub ecx,1
@@ -158,7 +160,9 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             mov rdi,[ep1]
             mov rsi,[ep2]
           @@:
-            mov rdx,[rbp+32]    -- era
+--EXCEPT
+--X         mov rdx,[rbp+32]    -- era
+            mov rdx,[rbp+56]    -- era
 --??        mov rdx,[rbp+24]    -- called from address
             mov rbp,[rbp+40]    -- (nb no local vars after this!)
             sub rcx,1
@@ -446,13 +450,17 @@ procedure Tinit()
         mov edx,routine_id(c_cleanup)       -- mov edx,imm32 (sets K_ridt)
         mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[c_cleanup][S_Ltot])
         call :%opFrame
-        mov dword[ebp+16],:cleanupret       -- return address
+--EXCEPT
+--X     mov dword[ebp+16],:cleanupret       -- return address
+        mov dword[ebp+28],:cleanupret       -- return address
         jmp $_il                            -- jmp code:c_cleanup
       [64]
         mov rdx,routine_id(c_cleanup)       -- mov rdx,imm32 (sets K_ridt)
         mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[c_cleanup][S_Ltot])
         call :%opFrame
-        mov qword[rbp+32],:cleanupret       -- return address
+--EXCEPT
+--X     mov qword[rbp+32],:cleanupret       -- return address
+        mov qword[rbp+56],:cleanupret       -- return address
         jmp $_il                            -- jmp code:c_cleanup
       []
       ::cleanupret

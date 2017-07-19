@@ -467,7 +467,7 @@ end procedure
 procedure loadAllDrives()
 --loadDir(NULL,"C:\\Euphoria")
 --loadDir(NULL,"C:")
-atom buffer
+atom buffer, buffer0
 integer buflen
 sequence onedrive
 
@@ -477,7 +477,8 @@ sequence onedrive
     void = sendMessage(TVdirl,TVM_SETIMAGELIST,TVSIL_NORMAL,himl)
 
     buflen = c_func(xGetLogicalDriveStrings,{0,NULL})
-    buffer = allocate(buflen)
+    buffer0 = allocate(buflen)
+    buffer = buffer0
     void = c_func(xGetLogicalDriveStrings,{buflen,buffer})
     while 1 do
         onedrive = peek_string(buffer)
@@ -496,6 +497,8 @@ sequence onedrive
         end if
         buffer += buflen+1  -- skip trailing/separating nulls
     end while
+--17/6/17:
+    free(buffer0)
 end procedure
 
 integer TVinit  -- flag indicating if loadAllDrives() has been called.

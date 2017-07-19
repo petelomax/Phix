@@ -3,35 +3,28 @@
 -- =====================
 --
 -- Author Pete Lomax, October 2015
+--  ported to pGUI July 2017
 --
 --  Faithful desktop gui (windows only) reproduction of https://gabrielecirulli.github.io/2048/
 --  Now I just got figure out how to win...
 --
+include pGUI.e
 
-include ..\arwen\arwen.ew
-include ..\arwen\axtra.ew
+Ihandle canvas, dialog
+cdCanvas cddbuffer, cdcanvas
 
-constant main = create(Window, "2048", 0, 0, 20, 20, 520, 540, 0),
-         mainDC = getPrivateDC(main),
-         viewDC = c_func(xCreateCompatibleDC, {NULL})
-
-constant TA_CENTER = 6
-{} = c_func(xSetTextAlign,{viewDC,TA_CENTER})
-constant hFont40 = createFontForDC(viewDC, "Calibri", 40, Bold)
-constant hFont32 = createFontForDC(viewDC, "Calibri", 32, Bold)
-
-constant tile_colours = {#B4C0CC,   -- blank
-                         #DAE4EE,   -- 2
-                         #C8E0ED,   -- 4
-                         #79B1F2,   -- 8
-                         #6395F5,   -- 16
-                         #5F7CF6,   -- 32
-                         #3B5EF6,   -- 64
-                         #72CFED,   -- 128
-                         #61CCED,   -- 256
-                         #50C8ED,   -- 512
-                         #3FC5ED,   -- 1024
-                         #2EC2ED}   -- 2048
+constant tile_colours = {#CCC0B4,   -- blank
+                         #EEE4DA,   -- 2
+                         #EDE0C8,   -- 4
+                         #F2B179,   -- 8
+                         #F59563,   -- 16
+                         #F67C5F,   -- 32
+                         #F65E3B,   -- 64
+                         #EDCF72,   -- 128
+                         #EDCC61,   -- 256
+                         #EDC850,   -- 512
+                         #EDC53F,   -- 1024
+                         #EDC22E}   -- 2048
 
 -- the 4x4 board.
 --  note that values are [1..12] for [blank,2,4,8,..2048].
@@ -115,7 +108,7 @@ end procedure
 function move(integer key)
 -- a non-zero result means it changed something.
     valid = 0
-    if key=VK_LEFT then
+    if key=K_LEFT then
         for x=1 to 4 do
             prev = 13
             nxt = 1
@@ -123,7 +116,7 @@ function move(integer key)
                 move_x(x,y,+1)
             end for
         end for
-    elsif key=VK_DOWN then
+    elsif key=K_UP then
         for y=1 to 4 do
             prev = 13
             nxt = 4
@@ -131,7 +124,7 @@ function move(integer key)
                 move_y(x,y,-1)
             end for
         end for
-    elsif key=VK_RIGHT then
+    elsif key=K_RIGHT then
         for x=1 to 4 do
             prev = 13
             nxt = 4
@@ -139,7 +132,7 @@ function move(integer key)
                 move_x(x,y,-1)
             end for
         end for
-    elsif key=VK_UP then
+    elsif key=K_DOWN then
         for y=1 to 4 do
             prev = 13
             nxt = 1
@@ -158,7 +151,7 @@ function game_won()
     return 0
 end function
 
-constant valid_keys = {VK_LEFT,VK_DOWN,VK_RIGHT,VK_UP}
+constant valid_keys = {K_LEFT,K_DOWN,K_RIGHT,K_UP}
 
 function no_valid_moves()
 sequence saved_board = board
@@ -171,97 +164,109 @@ sequence saved_board = board
     return 1 -- game over...
 end function
 
-integer dw = 0, dh = 0      -- client area width and height
-atom bmView
-integer vwX = 0, vwY = 0    -- actual size of the view bitmap
-
-integer ox,oy,              -- top right coords
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+integer tx, ty, bxy,
+        ox,oy,              -- top right coords
         os,ts,              -- overall and tile size
         ts2                 -- half tile, for number positioning
+integer {dw,dh} = IupGetIntInt(canvas, "DRAWSIZE")
+    if dw>=dh then
+        ox = floor((dw-dh)/2)
+        oy = 0
+        os = dh
+    else
+        ox = 0
+        oy = floor((dh-dw)/2)
+        os = dw
+    end if
+    ts = floor((os-10)/4-7)
+    ts2 = floor(ts/2+5)-10
 
-function mainHandler(integer id, integer msg, atom wParam, object lParam)
-integer tx, ty, bxy
-string mbmsg
+    if newgame then
+        board = repeat(repeat(1,4),4)
+        add_rand(2)
+        newgame = 0
+    end if
 
-    if msg=WM_SIZE then
-        {{},{},dw,dh} = getClientRect(main)
-        if dw>vwX or dh>vwY then
-            -- we need a bigger bitmap
-            bmView = c_func(xCreateCompatibleBitmap, {mainDC, dw, dh})
-            {} = deleteObject(selectObject(viewDC,bmView))
-            {vwX,vwY} = {dw,dh}
-        end if
-        if dw>=dh then
-            ox = floor((dw-dh)/2)
-            oy = 0
-            os = dh
-        else
-            ox = 0
-            oy = floor((dh-dw)/2)
-            os = dw
-        end if
-        ts = floor((os-10)/4-7)
-        ts2 = floor(ts/2+5)-10
-    elsif msg=WM_PAINT then
-        if newgame then
-            board = repeat(repeat(1,4),4)
-            add_rand(2)
-            newgame = 0
-        end if
-        setPenColor(#EFF8FA)
-        drawRectangleh(viewDC, True, 0, 0, dw, dh)
-        setPenColor(#A0ADBB)
-        drawRoundRecth(viewDC, True, ox+5, oy+5, ox+os-5, oy+os-5, 10, 10)
-        tx = ox+15
-        for y=1 to 4 do
-            ty = oy+15
-            for x=1 to 4 do
-                bxy = board[x][y]
-                setPenColor(tile_colours[bxy])
-                drawRoundRecth(viewDC, True, tx, ty, tx+ts-10, ty+ts-10, 5, 5)
-                if bxy>1 then
-                    setPenColor(iff(bxy<=3?#656E77:#F2F6F9))
-                    {} = selectObject(viewDC,iff(bxy>10?hFont32:hFont40))
-                    wPuts2(viewDC, tx+ts2, ty+ts2-25-iff(bxy<11?7:0), power(2,bxy-1))
-                end if
-                ty += ts+5
-            end for
-            tx += ts+5
+    cdCanvasActivate(cddbuffer)
+    cdCanvasSetBackground(cddbuffer, #FAF8EF)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer, #BBADA0)
+    cdCanvasRoundedBox(cddbuffer, ox+5, ox+os-5, oy+5, oy+os-5, 10, 10)
+
+    tx = ox+15
+    for y=1 to 4 do
+        ty = oy+15
+        for x=1 to 4 do
+            bxy = board[x][y]
+            cdCanvasSetForeground(cddbuffer, tile_colours[bxy])
+            cdCanvasRoundedBox(cddbuffer, tx, tx+ts-10, ty, ty+ts-10, 5, 5)
+            if bxy>1 then
+                cdCanvasSetForeground(cddbuffer, iff(bxy<=3?#776E65:#F9F6F2))
+                cdCanvasFont(cddbuffer, "Calibri", CD_BOLD, iff(bxy>10?32:40))
+                cdCanvasText(cddbuffer, tx+ts2, ty+ts2-25-iff(bxy<11?7:0), sprint(power(2,bxy-1))) 
+            end if
+            ty += ts+5
         end for
-        void = c_func(xBitBlt,{mainDC,0,0,dw,dh,viewDC,0,0,SRCCOPY})
-    elsif msg=WM_CHAR then
-        if wParam=VK_ESCAPE then
-            closeWindow(main)
-            if id or object(lParam) then end if -- suppress warnings
---      elsif wParam='!' then
---          ?9/0
-        end if
-    elsif msg=WM_KEYDOWN then
-        if move(wParam) then
-            mbmsg = ""
+        tx += ts+5
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    {} = cdCanvasTextAlignment(cddbuffer, CD_SOUTH) 
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if find(c,valid_keys) then
+        if move(c) then
+            IupUpdate(canvas)
+            string mbmsg = ""
             if game_won() then
                 mbmsg = "!!!YOU WON!!!\n\nAnother Go?"
             else
                 add_rand(1)
-                repaintWindow(main)
+--              repaintWindow(main)
+                IupUpdate(canvas)
                 if no_valid_moves() then
                     mbmsg = "You Lost.\n\nAnother Go?"
                 end if
             end if
             if length(mbmsg) then
-                if messageBox("Game Over",mbmsg,MB_YESNO)=IDYES then
+                if IupAlarm("Game Over",mbmsg,"Yes","No")=1 then
                     newgame=1
                 else
-                    closeWindow(main)
+                    return IUP_CLOSE
                 end if
             end if
         end if
-    elsif msg=WM_GETMINMAXINFO then
-        poke4(lParam+MINMAXINFO_ptMinTrackSize,{440,450}) 
+        IupUpdate(canvas)
     end if
-    return 0
+    return IUP_CONTINUE
 end function
-setHandler({main},routine_id("mainHandler"))
 
-WinMain(main, SW_NORMAL)
+procedure main()
+
+    IupOpen()
+
+    canvas = IupCanvas("RASTERSIZE=520x540")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    dialog = IupDialog(canvas,"MINSIZE=440x450")
+    IupSetAttribute(dialog,"TITLE","2048");
+    IupSetCallback(dialog, "K_ANY", Icallback("key_cb"));
+
+    IupShow(dialog)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+
+    IupMainLoop()
+    IupClose()
+end procedure
+main()
 

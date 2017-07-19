@@ -1218,8 +1218,11 @@ global constant T_BITS64        = 5064  tt_stringF("BITS64",T_BITS64)
 global constant T_DLLMAIN       = 5092  tt_stringF("DllMain",T_DLLMAIN)
 global constant T_movd          = 5100  tt_stringF("movd",T_movd)
 global constant T_PHIX          = 5116  tt_stringF("PHIX",T_PHIX)
-global constant T_indirect_incs = 5180  tt_stringF("indirect_includes",T_indirect_incs)
-global constant T_inline        = 5200  tt_stringF("inline",T_inline)
+global constant T_indirect_incs = 5180  tt_stringF("indirect_includes",T_indirect_incs) -- (ignored)
+global constant T_inline        = 5200  tt_stringF("inline",T_inline)                   -- (ignored)
+global constant T_try           = 5208  tt_stringF("try",T_try)
+global constant T_catch         = 5224  tt_stringF("catch",T_catch)
+--global constant T_throw       = 5240  tt_stringF("throw",T_throw)     -- does not belong here!
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then

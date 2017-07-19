@@ -5,7 +5,9 @@
 --
 -- implements ilxlate(), the translation of intermediate code into x86 binary.
 --
-constant DBGCALL = 0    -- Phix implements call/return as mov [ebp+16],<return addr>;
+--EXCEPT
+--Xconstant DBGCALL = 0 -- Phix implements call/return as mov [ebp+16],<return addr>;
+constant DBGCALL = 0    -- Phix implements call/return as mov [ebp+28],<return addr>;
                         -- jmp trn_il, to avoid system stack limitations/fiddlies,
                         -- but makes working in OllyDbg etc harder. Setting this to
                         -- 1 replaces the jmp with call;add esp,4 (X32 only).
@@ -273,6 +275,7 @@ constant
 --       mov_mesi_edx   = {#89,#16},    -- 0o211 0o026              -- mov [esi],eax
 --       mov_mem32_edx  = {#89,#15},    -- 0o211 0o025 m32          -- mov [m32],edx
          mov_mem32_ebx  = {#89,#1D},    -- 0o211 0o035 m32          -- mov [m32],ebx
+         mov_ebpi8_eax  = {#89,#45},    -- 0o211 0o105 imm8         -- mov [ebp+imm8],eax
 --       mov_ebpi8_edx  = {#89,#55},    -- 0o211 0o125 imm8         -- mov [ebp+imm8],edx
          mov_ebpi8_ebx  = {#89,#5D},    -- 0o211 0o135 imm8         -- mov [ebp+imm8],ebx(0)
          mov_rbpi8_r14  = {#89,#75},    -- 0o211 0o165 imm8         -- mov [rbp+imm8],r14 (needs a #4C)
@@ -304,6 +307,7 @@ constant
 --       mov_esi_mem32  = {#8B,#35},    -- 0o213 0o065 m32          -- mov esi,[m32]
 --       mov_edi_medx   = {#8B,#3A},    -- 0o213 0o072              -- mov edi,[edx]
 --       mov_edi_mem32  = {#8B,#3D},    -- 0o213 0o075 m32          -- mov edi,[m32]
+         mov_eax_ebpd8  = {#8B,#45},    -- 0o213 0o105 d8           -- mov eax,[ebp+d8]
 --       mov_eax_esid8  = {#8B,#46},    -- 0o213 0o106 d8           -- mov eax,[esi+d8]
 --       mov_eax_edid8  = {#8B,#47},    -- 0o213 0o107 d8           -- mov eax,[edi+d8]
 --       mov_edx_ebpd8  = {#8B,#55},    -- 0o213 0o125 d8           -- mov edx,[ebp+d8]
@@ -326,12 +330,13 @@ constant
          pop_mem32      = {#8F,#05},    -- 0o217 0o005 mem32        -- pop dword[mem32]
          pop_ebpi8      = {#8F,#45},    -- 0o217 0o105 imm8         -- pop dword[ebp+imm8]
          pop_ebpi32     = {#8F,#85},    -- 0o217 0o205 imm32        -- pop dword[ebp+imm32]
+         nop            =  #90,         -- 0o220                    -- cdq (eax-> edx:eax)
          cdq            =  #99,         -- 0o231                    -- cdq (eax-> edx:eax)
          mov_eax_mem32  =  #A1,         -- 0o241 m32                -- mov eax,[m32]
          mov_mem32_eax  =  #A3,         -- 0o243 m32                -- mov [m32],eax
          mov_al_imm8    =  #B0,         -- 0o260 imm8               -- mov al,imm8
          mov_eax_imm32  =  #B8,         -- 0o270 imm32              -- mov eax,imm32
---       mov_ecx_imm32  =  #B9,         -- 0o271 imm32              -- mov ecx,imm32
+         mov_ecx_imm32  =  #B9,         -- 0o271 imm32              -- mov ecx,imm32
          mov_edx_imm32  =  #BA,         -- 0o272 imm32              -- mov edx,imm32
 --       mov_ebx_imm32  =  #BB,         -- 0o273 imm32              -- mov ebx,imm32
 --       mov_esi_imm32  =  #BE,         -- 0o276 imm32              -- mov esi,imm32
@@ -1496,7 +1501,9 @@ sequence a4
          a4 = {isAddr,0,0,0}
 procedure emitHex7a(sequence op2, integer op3, integer offset)
 -- emit an opcode,xrm,disp8,{isAddr,0,0,offset} instruction,
---  ie/eg mov [ebp+16],<return addr>
+--EXCEPT
+--X ie/eg mov [ebp+16],<return addr>
+--  ie/eg mov [ebp+28],<return addr>
 --  if lastline!=emitline then lineinfo() end if    -- should never be needed
     if lastline!=emitline then ?9/0 end if  --  (currently only used by opCall) [DEV?]
     x86 &= op2
@@ -4555,6 +4562,8 @@ constant false=(1=0), true=(1=1)
 
 --integer zzcount = 0
 
+integer ltwarned = 0    --DEV/temp (LTBROKEN)
+
 global procedure ilxlate(integer vi)
 integer p1, p2, p4, pc3, pc6,
         sib, k, res, idx, def,
@@ -5680,9 +5689,19 @@ end if -- NOLT
                 end if
 if X64 then
                 emitHex1(#48)
-                emitHex7a(mov_ebpd8_i32,32,5)                       -- mov [rbp+32],<return addr>
+--EXCEPT
+--  if NEWRETSLOT then
+                emitHex7a(mov_ebpd8_i32,56,5)                       -- mov [rbp+56],<return addr>
+--  else
+--              emitHex7a(mov_ebpd8_i32,32,5)                       -- mov [rbp+32],<return addr>
+--  end if
 else
-                emitHex7a(mov_ebpd8_i32,16,5)                       -- mov [ebp+16],<return addr>
+--EXCEPT
+--  if NEWRETSLOT then
+                emitHex7a(mov_ebpd8_i32,28,5)                       -- mov [ebp+28],<return addr>
+--  else
+--              emitHex7a(mov_ebpd8_i32,16,5)                       -- mov [ebp+16],<return addr>
+--  end if
 end if
 if q86>1 then
 --  ?"9/0 (x86 3861)\n" -- separate chain for isIL??
@@ -6102,17 +6121,23 @@ end if
                                     tlink = pc
                                     exit
                                 end if
-                                if s5[link-5]=endIfMerge then
+--20/6/17 (after two below...)
+--                              if s5[link-5]=endIfMerge then
+                                if find(s5[link-5],{endIfMerge,breakMerge}) then
                                     link -= 4
                                     if s5[link-6]!=opLabel then ?9/0 end if
                                 end if
 --17/6/16. triggered in simple_notepad.exw - I added flags[NO_BREAK] to Block() and it went away, so I undid this change
                                 if s5[link-5]!=ifMerge then ?9/0 end if
+--                              if s5[link-5]!=ifMerge then printf(1,"pilx86.e:6111 s5[link-5](%d)!=ifMerge(%d)\n",{s5[link-5],ifMerge}) end if
 --                              if s5[link-5]!=ifMerge then ?"pilx86.e:6113 if s5[link-5]!=ifMerge" end if
 --25/8/2012: BUG!!!
 --DEV 7/12/10 (else not last)
 --if 0 then
+--20/6/17: (case fallthrough with no default, first got breakMerge not ifMerge above...) [and undone as above]
                                 if s5[link-3]!=npc+3 then
+--                              if s5[link-5]=ifMerge
+--                              and s5[link-3]!=npc+3 then
                                     swecode = 8
                                     switchable = 0
                                     tlink = pc
@@ -6928,9 +6953,13 @@ end if
                             end if
 if X64 then
                             emitHex1(#48)
-                            emitHex7a(mov_ebpd8_i32,32,5)           -- mov [rbp+32],<return addr>
+--EXCEPT
+--                          emitHex7a(mov_ebpd8_i32,32,5)           -- mov [rbp+32],<return addr>
+                            emitHex7a(mov_ebpd8_i32,56,5)           -- mov [rbp+56],<return addr>
 else
-                            emitHex7a(mov_ebpd8_i32,16,5)           -- mov [ebp+16],<return addr>
+--EXCEPT
+--                          emitHex7a(mov_ebpd8_i32,16,5)           -- mov [ebp+16],<return addr>
+                            emitHex7a(mov_ebpd8_i32,28,5)           -- mov [ebp+28],<return addr>
 end if
                             if q86>1 then
 --  ?"9/0 (x86 3861)\n" -- separate chain for isIL??
@@ -6944,6 +6973,8 @@ end if
 
                             storeMem(dest,eax)                      -- mov [dest],eax
                         end if -- not isGscan
+--DEV...
+--                  elsif pDefault=T_current_dir then
                     else -- pDefault=T_length, length(-default)
                         -- set dest[src] as 0..MAXLEN, unless [src2] is fixed length
                         dest = src
@@ -8804,7 +8835,9 @@ end if
                         smax = MAXINT
                         sltype = and_bits(vroot,T_atom)
                     else
-                        if vroot=T_integer and vmin!=MININT and vmax!=MAXINT then
+--DEV 7/7/17...
+--                      if vroot=T_integer and vmin!=MININT and vmax!=MAXINT then
+                        if vroot=T_integer and vmin!=MININT and vmax!=MAXINT and X64=0 then
                             if opcode=opAdd then
                                 opcode = opAddi
                                 s5[waspc] = opAddi
@@ -8850,7 +8883,9 @@ end if
                                     end if
                                 end if
 --DEV not tried yet/do we want to leave this for pilxl?:
-                                if sltype=T_integer then
+--DEV 7/7/17...
+--                              if sltype=T_integer then
+                                if sltype=T_integer and X64=0 then
 --                              and and_bits(dtype,T_atom)=T_integer then
                                     if opcode=opAddi then
                                         s5[waspc] = opAddiii
@@ -10513,8 +10548,12 @@ end if
 -- added 8/6/2012: kill the opLabel if we skipped all the exit(??)
 -- 132:  opEndFor,17,14,                         opEndFor,END+LOOP,bpFor
 -- 135:  opLabel,3,0,84,                         opLabel,exitMerge,0/x86loc,link
-                if s5[pc]=opLabel then
-                    if s5[pc+1]!=exitMerge then ?9/0 end if -- more investigation rqd?
+--DEV 7/6/17: (not entirely sure about this...)
+--              if s5[pc]=opLabel then
+----                    if s5[pc+1]!=exitMerge then ?9/0 end if -- more investigation rqd?
+--                  if s5[pc+1]!=exitMerge then ?{"9/0",pc,s5[pc+1]} end if -- more investigation rqd?
+                if s5[pc]=opLabel
+                and s5[pc+1]=exitMerge then
                     pc += 4             
                 end if
             end if
@@ -11187,7 +11226,12 @@ end if
             if not isGscan then
                 if slroot=T_integer and vroot=T_integer and tii then
                     -- nb: smin/smax now relate to dest, bmin/bmax are saved from src
-                    if smin=smax then
+--DEV (6/7/17) borken on X64...?? (==>mov [god_knows_where],h4 !?!?!?!?)
+--                  if smin=smax then
+                    if smin=smax and X64=0 then
+if X64 then
+    emitHex1(nop)
+end if
                         -- just store dest
                         storeImm(dest,smin)                         -- mov [dest],imm32
                         if reginfo then clearMem(dest) end if
@@ -11195,7 +11239,10 @@ end if
 -- 22/2/14:
                         tmpd = 0
                     elsif bmin=bmax and bmin=2 then
+--DEV 6/7/17... (mebbe just needs the ">29" improved?? - but right now I just need a real quick fix)
+if X64=0 then
                         if smin2<0 or smax2>29 or smin2=smax2 then ?9/0 end if
+end if
                         clearReg(ecx)
                         if tmpd then
                             if tmpr>=0 then
@@ -14559,8 +14606,15 @@ printf(1,"warning: emitHex5call(%d=%s) skipped for newEmit, pilx86.e line 15009\
                         slen = s5[pc+6]
                         if slen<0 and gi[gLen]<0 and gi[1..gEtyp]=symk[1..gEtyp] then
                             Warn(sprintf("gInfo is {%d,%d,%d,%d,%d,%d}",p1&gi),tokline,tokcol,0)
+                        elsif LTBROKEN then
+                            Warn(sprintf("gInfo is {%d,%d,%d,%d,%d,%d} (LTBROKEN=1)",p1&gi),tokline,tokcol,0)
                         else
                             Abort(sprintf("gInfo is {%d,%d,%d,%d,%d,%d}",p1&gi))
+                        end if
+                    elsif LTBROKEN then
+                        if not ltwarned then
+                            Warn("no gInfo for this variable... (LTBROKEN=1)",tokline,tokcol,0)
+                            ltwarned = 1
                         end if
                     else
                         Abort("no gInfo for this variable...")
@@ -14730,7 +14784,8 @@ if X64 then ?9/0 end if
 --          end if
 --          pc += 2
         elsif opcode=opPlatform
-           or opcode=opMachine then
+           or opcode=opMachine
+           or opcode=opVersion then
             ?9/0 -- should have been resolved by pmain.e
         elsif opcode=opAbort then
             if not isGscan then
@@ -14843,15 +14898,16 @@ if X64 then ?9/0 end if
     opTryCS = 237,      -- opTryCS,dest,src
     opLeaveCS = 238,    -- opLeaveCS,src(/T_const0)
 --*/
-        elsif opcode=opCrashMsg
+        elsif opcode=opCrashFile
+           or opcode=opCrashMsg
            or opcode=opCrashRtn then
             if not isGscan then
                 src = s5[pc+1]
 --              getSrc()
                 loadToReg(eax,src)                              -- mov e/rax,[src]
 --DEV??
-                movRegVno(esi,src)                              -- mov e/rsi,src (var no)
-                emitHex5callG(opcode)                           -- call opCrashMsg/opCrashRtn
+--              movRegVno(esi,src)                              -- mov e/rsi,src (var no)
+                emitHex5callG(opcode)                           -- call :%pCrashFile/Msg/Rtn (see pDiagN.e)
                 reginfo = 0 -- all regs trashed
             end if
             pc += 2
@@ -15055,6 +15111,85 @@ if X64 then ?9/0 end if
                 loadToReg(esi,src2)                             -- mov esi,[args]
                 emitHex5callG(opcode)                           -- call opCallProc
                 reginfo = 0
+            end if
+            pc += 3
+        elsif opcode=opTry then
+            -- opTry,tmp,tgt
+            if not isGscan then
+                tvar = s5[pc+1]     -- a temp to hold prev_handler
+                if X64 then
+                    emitHex1(#48)
+                    emitHex3(mov_eax_ebpd8,32)                  -- mov rax,[rbp+32] ; exception handler
+                else
+                    emitHex3(mov_eax_ebpd8,16)                  -- mov eax,[ebp+16] ; exception handler
+                end if
+                leamov(edi,tvar)                                -- lea edi,[tvar]/mov edi,tvar (addr tmp)
+                emitHex5callG(opStoreMint)                      -- call :%pStoreMint
+                if X64 then
+                    emitHex1(#48)
+                    emitHex7a(mov_ebpd8_i32,32,0)               -- mov [rbp+32],<catch addr>
+                else
+                    emitHex7a(mov_ebpd8_i32,16,0)               -- mov [ebp+16],<catch addr>
+                end if
+                backpatch = length(x86)
+                s5[pc+2] = backpatch
+--?? (or just kill eax,edi)
+                reginfo = 0
+            end if
+            pc += 3
+        elsif opcode=opCatch then
+            -- opCatch,mergeSet(0),tgt,link,tlnk,e
+            if not isGscan then
+                dest = s5[pc+5]
+                tlink = s5[pc+4]
+                if s5[tlink]!=opTry then ?{"pilx86 line 15119 not opTry",opTry} end if
+                tvar = s5[tlink+1]
+                loadToReg(eax,tvar)                             -- mov eax,[tvar]
+                emitHex5callG(opLoadMint)                       -- call :%pLoadMint
+                if X64 then
+                    emitHex1(#48)
+                    emitHex3(mov_ebpi8_eax,32)                  -- mov [rbp+32],rax
+                else
+                    emitHex3(mov_ebpi8_eax,16)                  -- mov [ebp+16],eax
+                end if
+                emitHex5j(0)                                    -- jmp :endtry (backpatched later)
+                backpatch = length(x86)
+                s5[pc+2] = backpatch
+                backpatch = s5[tlink+2]
+                x86[backpatch] = length(x86)-backpatch          --::catch
+                reginfo = 0
+                storeReg(eax,dest,1,0)                          -- mov [dest],eax
+                loadToReg(eax,tvar)                             -- mov eax,[tvar]
+                emitHex5callG(opLoadMint)                       -- call :%pLoadMint
+                if X64 then
+                    emitHex1(#48)
+                    emitHex3(mov_ebpi8_eax,32)                  -- mov [rbp+32],rax
+                else
+                    emitHex3(mov_ebpi8_eax,16)                  -- mov [ebp+16],eax
+                end if
+                reginfo = 0
+            end if
+            pc += 6
+        elsif opcode=opThrow then
+            -- opThrow,e,user/0
+            if not isGscan then
+                src = s5[pc+1]
+                src2 = s5[pc+2]
+                loadToReg(eax,src)                              -- mov e/rax,[src]
+--DEV no longer rqd?
+                if src2=0 then
+?9/0
+                    if X64 then
+                        emitHex3l(#4C,mov_reg,0o371)            -- mov rcx,r15 (h4)
+                    else
+                        emitHex5w(mov_ecx_imm32,#40000000)      -- mov ecx,h4
+                    end if
+                else
+                    loadToReg(ecx,src2)                         -- mov e/rcx,[src2]
+                end if
+                emitHex5callG(opThrow)                          -- call :%pThrow (in pDiagN.e)
+                emitHex1(0o314)                                 -- int3
+                reginfo = 0 -- all regs trashed
             end if
             pc += 3
         else
@@ -15475,6 +15610,10 @@ string options
 --  jdesc[opMalloc] = "opMalloc,dest,size\n"
 --  jdesc[opMfree] = "opMfree,addr\n"
 --  jdesc[opXxx] = "res\n"
+    jdesc[opTry] = "opTry,tmp,tgt\n"
+    jdesc[opCatch] = "opCatch,mergeSet(0),tgt,link,tlnk,e\n"
+    jdesc[opThrow] = "opThrow,e,user/0\n"
+
 -- Other descriptions can be added here as needed, or possibly this lot could be moved into pops.e
 --  for use elsewhere. Things like opLn etc are pretty self-evident and not worth adding?
 

@@ -43,10 +43,14 @@
 --      dd N                        [ebp+4] (if N==0 then [ebp] is junk/off-limits)
 --      dd routine being called     [ebp+8] (there is no longer a calling routine)
 --      dd called from addr         [ebp+12]
---      dd return address           [ebp+16] (0 means callback)
+--EXCEPT
+--X     dd return address           [ebp+16] (0 means callback)
+--      dd exception handler        [ebp+16] (0 means none, 1 means lower down)
 --      dd prev_ebp                 [ebp+20] (0 means top-level quit [maybe?])
 --      dd vsb_root                 [ebp+24]
--->?    dd ehand                    [ebp+28] (exception handler/flag) [proposed]
+--EXCEPT
+--X>?   dd ehand                    [ebp+28] (exception handler/flag) [proposed]
+--      dd return address           [ebp+28] (0 means callback)
 --old:
 --      dd symtabptr                [ebp+24] \
 --?     dd threadstack              [ebp+28]  } may be copied/overwritten every frame
@@ -76,10 +80,14 @@
 --      dq N                        [rbp+8] (if N==0 then [rbp] is junk/off-limits)
 --      dq routine being called     [rbp+16] (there is no longer a calling routine)
 --      dq called from addr         [rbp+24]
---      dq return address           [rbp+32] (0 means callback)
+--EXCEPT
+--X     dq return address           [rbp+32] (0 means callback)
+--      dq exception handler        [rbp+32] (0 means none, 1 means lower down)
 --      dq prev_ebp                 [rbp+40] (0 means top-level quit [maybe?])
 --      dq vsb_root                 [rbp+48]
--->?    dq ehand                    [rbp+56] (exception handler/flag) [proposed]
+--EXCEPT
+--X>?   dq ehand                    [rbp+56] (exception handler/flag) [proposed]
+--      dq return address           [rbp+56] (0 means callback)
 --
 
 --without debug
@@ -285,9 +293,12 @@ end procedure -- (for Edita/CtrlQ)
         mov [esi+4],ebx         -- N
         mov dword[esi+8],21     -- routine being called (T_maintls)
         mov [esi+12],ebx        -- called from address (0)  [DEV remove?]
-        mov [esi+16],ebx        -- return address (0)
+--EXCEPT
+--X     mov [esi+16],ebx        -- return address (0)
+        mov [esi+16],ebx        -- exception handler (0)
         mov [esi+20],ebx        -- prev_ebp
         mov [esi+24],eax        -- vsb_root
+        mov [esi+28],ebx        -- return address (0)
         mov ebp,esi
     [64]
         -- first, create a dummy vsb_root (vsb_next,vsb_prev@=0) on the stack
@@ -309,9 +320,12 @@ end procedure -- (for Edita/CtrlQ)
         mov [rsi+8],rbx         -- N
         mov qword[rsi+16],21    -- routine being called
         mov [rsi+24],rbx        -- called from address (0)
-        mov [rsi+32],rbx        -- return address (0)
+--EXCEPT
+--X     mov [rsi+32],rbx        -- return address (0)
+        mov [rsi+32],rbx        -- exception handler (0)
         mov [rsi+40],rbx        -- prev_ebp
         mov [rsi+48],rax        -- vsb_root
+        mov [rsi+56],rbx        -- return address (0)
         mov rbp,rsi
     []
         ret
@@ -334,14 +348,18 @@ end procedure -- (for Edita/CtrlQ)
         mov edx,ebp             -- edx:=ebp
         call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 
-        mov dword[ebp+16],:Exit0    -- return address (0)
+--EXCEPT
+--X     mov dword[ebp+16],:Exit0    -- return address (0)
+        mov dword[ebp+28],:Exit0    -- return address (0)
     [ELF32] -- save esp for command line ... (assumes it is undamaged)  [DEV not interpret?]
         mov eax,esp
         shr eax,2
         mov [pArg],eax
     [64]
         call :%pNewStack
-        mov qword[rbp+32],:Exit0    -- return address (0)
+--EXCEPT
+--X     mov qword[rbp+32],:Exit0    -- return address (0)
+        mov qword[rbp+56],:Exit0    -- return address (0)
     [ELF64]
 --/*
 DEV/In case it is useful, from flatassembler.net:
@@ -363,12 +381,12 @@ qword [...]=0 end of envirnment
         -- and any dll ref relocations (after pNewStack has zeroed e/rbx!):
 
     [32]
-        mov esi,[ds+12]
+        mov esi,[ds+12]     -- relocs
         test esi,esi
         jz :loopend
         mov [ds+12],ebx
     [64]
-        mov rsi,[ds+16]
+        mov rsi,[ds+16]     -- relocs
         test rsi,rsi
         jz :loopend
         mov [ds+16],rbx
@@ -386,7 +404,7 @@ qword [...]=0 end of envirnment
         --  (ie pilx86.e should avoid isConstRef and similar when DLL=1)
         --
     [32]
-        lea edi,[ds+0]
+        lea edi,[ds+0]      -- base (addr sigPhx)
         mov edx,esi
         sub edx,[esi-4]     -- a non-relocated address...
         xor eax,eax
@@ -420,7 +438,7 @@ qword [...]=0 end of envirnment
             jmp looptop
       ::loopend
     [64]
-        lea rdi,[ds+0]
+        lea rdi,[ds+0]      -- base (addr sigPhx)
         mov rdx,rsi
         sub rdx,[rsi-4]     -- a non-relocated address...
         xor rax,rax
@@ -506,9 +524,12 @@ end procedure -- (for Edita/CtrlQ)
         --  N                       [ebp+4] number of parameters and locals (may be 0)
         --  routine being called    [ebp+8] (there is no longer a calling routine)
         --  called from addr        [ebp+12] (see note below)
-        --  return address          [ebp+16] (0 means callback)
+--EXCEPT
+--X     --  return address          [ebp+16] (0 means callback)
+        --  exception handler       [ebp+16] (0 means none, 1 means lower down)
         --  prev_ebp                [ebp+20] (0 means top-level quit)
         --  vsb_root                [ebp+24]
+        --  return address          [ebp+28] (0 means callback)
         --
         --  Obviously, if N [ebp+4] is zero, then [ebp] is magic/vsb_root of previous frame
         --              and should not be read let alone overwritten.
@@ -525,7 +546,9 @@ end procedure -- (for Edita/CtrlQ)
         --          edi is prev_ebp (==[ebp+20])
         --  Note "return address"=="called from" is correct for opCallOnce and opTChk, 
         --       but replaced after all direct calls to :%opFrame from "normal" code,
-        --       via a mov dword[ebp+16],imm32 instruction.
+--EXCEPT
+--X     --       via a mov dword[ebp+16],imm32 instruction.
+        --       via a mov dword[ebp+28],imm32 instruction.
 --      push esi                    -- save called from addr (we ran out of registers!)
 -- ::makeFrameX [DEV killme]
         mov edi,[ebp+24]            -- vsb_root
@@ -539,7 +562,9 @@ je @f
   int3
 @@:
 --  lea esi,[ebp+ecx*4+36]      -- new ebp (provisional!)   
-        lea esi,[ebp+ecx*4+28]      -- new ebp (provisional!)   
+--EXCEPT
+--X     lea esi,[ebp+ecx*4+28]      -- new ebp (provisional!)   
+        lea esi,[ebp+ecx*4+32]      -- new ebp (provisional!)   
 
 -- if (newebp+28)<=(vsb_root+12280) then frame fits OK in current virtual stack block
 -- if [ebp+ecx*4+28+28-12280]<=edi
@@ -547,7 +572,10 @@ je @f
 --DEV I am sure we can simplify this, to say esi<=edi+12224-36, try the following:
 --      lea eax,[ebp+ecx*4-12224]
 --      cmp eax,edi                 -- check space
-        lea eax,[edi+12248] -- (12280-32 = 12248)       (DEV AGI)
+--EXCEPT
+--      lea eax,[edi+12248] -- (12280-32 = 12248)       (DEV AGI)
+--      lea eax,[edi+12244] -- (12280-36 = 12244)       (DEV AGI)
+        lea eax,[edi+12240] -- (12280-36 = 12244)       (DEV AGI)
         cmp esi,eax         -- (if newebp > vsb_root+12280-32 then newVSB)
         jle @f
 --DEV (untried)
@@ -561,11 +589,18 @@ je @f
         xor ebx,ebx
         mov eax,[esp]               -- called from address
         mov [esi+4],ecx             -- N
+cmp [ebp+16],ebx
         mov [esi+8],edx             -- routine being called
+setne bl
         mov [esi+12],eax            -- called from address
-        mov [esi+16],eax            -- return address (see note above)
+--EXCEPT
+--X     mov [esi+16],eax            -- return address (see note above)
+        mov [esi+16],ebx            -- exception handler (0/1)
+--mov edx,[ebp+16]
         mov [esi+20],ebp            -- prev_ebp
+xor ebx,ebx
         mov [esi+24],edi            -- vsb_root
+        mov [esi+28],eax            -- return address (see note above)
 --DEV test:
 lea edx,[edi+12276]
         mov eax,h4
@@ -596,9 +631,12 @@ je @f
         --  N                       [rbp+8] number of parameters and locals (may be 0)
         --  routine being called    [rbp+16] (there is no longer a calling routine)
         --  called from addr        [rbp+24] (see note below)   [DEV remove??]
-        --  return address          [rbp+32] (0 means callback)
+--EXCEPT
+--X     --  return address          [rbp+32] (0 means callback)
+        --  exception handler       [rbp+32] (0 means none, 1 means lower down)
         --  prev_ebp                [rbp+40] (0 means top-level quit)
         --  vsb_root                [rbp+48]
+        --  return address          [rbp+56] (0 means callback)
         --
         --  Obviously, if N [rbp+8] is zero, then [rbp] is magic/vsb_root of previous frame
         --              and should not be read let alone overwritten.
@@ -631,8 +669,10 @@ je @f
   int3
 @@:
 
-        lea rsi,[rbp+rcx*8+56]      -- new ebp (provisional!)  --DEV try this again!
---      lea rsi,[rbx+rcx*4+28]
+--EXCEPT
+--X     lea rsi,[rbp+rcx*8+56]      -- new ebp (provisional!)  --DEV try this again!
+        lea rsi,[rbp+rcx*8+64]      -- new ebp (provisional!)  --DEV try this again!
+
 --      shl rsi,2               --DEV? shl rsi,1??
 --      add rsi,rbp                 -- new ebp (provisional!)
 -- if (newebp+56)<=(vsb_root+9208) then frame fits OK in current virtual stack block
@@ -654,7 +694,10 @@ je @f
 --  lea rax,[rdi+9152]  -- (9208-56 = 9152)
 --      lea rax,[rdi+9152]  -- (9208-56 = 9152)
 --      lea rax,[rdi+11080] -- (11248-56 = 11080!)
-        lea rax,[rdi+11184] -- (11248-64 = 11184)       (DEV AGI)
+--EXCEPT
+--      lea rax,[rdi+11184] -- (11248-64 = 11184)       (DEV AGI)
+--      lea rax,[rdi+11176] -- (11248-72 = 11176)       (DEV AGI)
+        lea rax,[rdi+11168] -- (11248-72 = 11176)       (DEV AGI)
 --      cmp rsi,rax         -- (if newebp > vsb_root+9208-56 then newVSB)
         cmp rsi,rax         -- (if newebp > vsb_root+11248-64 then newVSB)
         jle @f
@@ -676,11 +719,17 @@ je @f
 --  pop eax                     -- called from address
         mov rax,[rsp]               -- called from address
         mov [rsi+8],rcx             -- N
+cmp [rbp+32],rbx
         mov [rsi+16],rdx            -- routine being called
+setne bl
         mov [rsi+24],rax            -- called from address
-        mov [rsi+32],rax            -- return address (see note above)
+--EXCEPT
+--X     mov [rsi+32],rax            -- return address (see note above)
+        mov [rsi+32],rbx            -- exception handler
         mov [rsi+40],rbp            -- prev_ebp
+xor rbx,rbx
         mov [rsi+48],rdi            -- vsb_root
+        mov [rsi+56],rax            -- return address (see note above)
 --DEV test: (removed 6/3/16 - NB callback error handling now relies on rdx being preserved)
 --lea rdx,[rdi+11240]
         mov rax,h4
@@ -725,21 +774,35 @@ end procedure -- (for Edita/CtrlQ)
 --DEV try nop nop
         mov edx,[edx+edi*4-4]       -- symtab[edi]              (AGI unavoidable... unless fixup does it!)
 --DEV try nop nop nop
-        mov eax,[ebx+edx*4+12]      -- symtab[edi][S_State=4]   (AGI unavoidable...)
-        mov ecx,[ebx+edx*4+40]      -- symtab[edi][S_il=11] - execute after makeFrame
-        test eax,#800               -- K_ran
+--6/7/17:
+--      mov eax,[ebx+edx*4+12]      -- symtab[edi][S_State=4]   (AGI unavoidable...)
+--      mov ecx,[ebx+edx*4+40]      -- symtab[edi][S_il=11] - execute after makeFrame
+--      test eax,#800               -- K_ran
+--      jnz :justRetX               -- already called!
+--      pop esi                     -- return address === called from addr
+--      add eax,#800
+--      push ecx                    -- symtab[edi][S_il] - execute after makeFrame
+--      mov [ebx+edx*4+12],eax      -- update symtab[edi][S_State]
+        mov ecx,[ebx+edx*4+12]      -- symtab[edi][S_State=4]   (AGI unavoidable...)
+        mov eax,[ebx+edx*4+40]      -- symtab[edi][S_il=11] - execute after makeFrame
+        test ecx,#800               -- K_ran
         jnz :justRetX               -- already called!
         pop esi                     -- return address === called from addr
-        add eax,#800
-        push ecx                    -- symtab[edi][S_il] - execute after makeFrame
-        mov [ebx+edx*4+12],eax      -- update symtab[edi][S_State]
+        add ecx,#800
+--      push ecx                    -- symtab[edi][S_il] - execute after makeFrame
+        mov [ebx+edx*4+12],ecx      -- update symtab[edi][S_State]
+        call :%pLoadMint    
+        push eax
+--<6/7/17 ends>
         xor ecx,ecx                 -- no of params (0)
         mov edx,edi
         push esi
         call :%opFrame
         pop eax                     -- called from address (was esi)
         mov [esi+12],eax            -- called from address
-        mov [esi+16],eax            -- return address (see note above)
+--EXCEPT
+--X     mov [esi+16],eax            -- return address (see note above)
+        mov [esi+28],eax            -- return address (see note above)
 --      add esp,4
     [64]
         -- routine no passed in rdi, all registers trashed
@@ -749,21 +812,35 @@ end procedure -- (for Edita/CtrlQ)
         mov rdx,[rdx+rdi*8-8]       -- symtab[rdi]              (AGI unavoidable... unless fixup does it!)
 --!     mov rdx,[rdx+r12]
 --DEV try nop nop nop
-        mov rax,[rbx+rdx*4+24]      -- symtab[rdi][S_State=4]   (AGI unavoidable...)
-        mov rcx,[rbx+rdx*4+80]      -- symtab[rdi][S_il=11] - execute after makeFrame
-        test rax,#800               -- K_ran
+--6/7/17:
+--      mov rax,[rbx+rdx*4+24]      -- symtab[rdi][S_State=4]   (AGI unavoidable...)
+--      mov rcx,[rbx+rdx*4+80]      -- symtab[rdi][S_il=11] - execute after makeFrame
+--      test rax,#800               -- K_ran
+--      jnz :justRetX               -- already called!
+--      pop rsi                     -- return address === called from addr
+--      add rax,#800
+--      push rcx                    -- symtab[rdi][S_il] - execute after makeFrame
+--      mov [rbx+rdx*4+24],rax      -- update symtab[rdi][S_State]
+        mov rcx,[rbx+rdx*4+24]      -- symtab[rdi][S_State=4]   (AGI unavoidable...)
+        mov rax,[rbx+rdx*4+80]      -- symtab[rdi][S_il=11] - execute after makeFrame
+        test rcx,#800               -- K_ran
         jnz :justRetX               -- already called!
         pop rsi                     -- return address === called from addr
-        add rax,#800
-        push rcx                    -- symtab[rdi][S_il] - execute after makeFrame
-        mov [rbx+rdx*4+24],rax      -- update symtab[rdi][S_State]
+        add rcx,#800
+--      push rcx                    -- symtab[rdi][S_il] - execute after makeFrame
+        mov [rbx+rdx*4+24],rcx      -- update symtab[rdi][S_State]
+        call :%pLoadMint    
+        push rax
+--<6/7/17 ends>
         xor rcx,rcx                 -- no of params (0)
         mov rdx,rdi
         push rsi
         call :%opFrame
         pop rax                     -- called from address (was rsi)
         mov [rsi+24],rax            -- called from address
-        mov [rsi+32],rax            -- return address (see note above)
+--EXCEPT
+--X     mov [rsi+32],rax            -- return address (see note above)
+        mov [rsi+56],rax            -- return address (see note above)
 --      add rsp,8
     []
       ::justRetX
@@ -803,15 +880,23 @@ end procedure -- (for Edita/CtrlQ)
 --  N                       +4
 --  routine being called    +8 (there is no longer a calling routine)
 --  called from addr        +12 (see note below)
---  return address          +16 (0 means callback)
+--< return address          +16 (0 means callback)
+--  exception handler       +16 (0 means none, 1 means lower down)
 --  prev_ebp                +20
 --! symtab                  +24
 --! threadstack             +28     
 --! vsb_root                +32
 --  vsb_root                +24
+--  return address          +28 (0 means callback)
 
     [32]
-        mov edx,[ebp+16]        -- return address
+--EXCEPT
+--X     mov edx,[ebp+16]        -- return address
+--cmp [ebp+16],ebx
+--je @f
+--  int3
+--@@:
+        mov edx,[ebp+28]        -- return address
         mov ecx,[ebp+4]         -- N
 --      mov e?x,[ebp+20]        -- vsb_root (not needed??)
         test edx,edx
@@ -851,7 +936,13 @@ end procedure -- (for Edita/CtrlQ)
         ret
 
     [64]
-        mov rdx,[rbp+32]        -- return address
+--EXCEPT
+--X     mov rdx,[rbp+32]        -- return address
+--cmp [rbp+32],rbx
+--je @f
+--  int3
+--@@:
+        mov rdx,[rbp+56]        -- return address
         mov rcx,[rbp+8]         -- N
         test rdx,rdx
         jz @f
@@ -896,13 +987,16 @@ end procedure -- (for Edita/CtrlQ)
 --*/
 :%pFreeStack    -- called from pThread.e
 ------------
-::tFreeStack
+--::tFreeStack
     [32]
         -- call :%opRetf until T_maintls
         cmp dword[ebp+8],21     -- T_maintls
         je @f
---          mov dword[ebp+16],:%pFreeStack  -- replace return address (DEV bug in pilasm.e)
-            mov dword[ebp+16],:tFreeStack   -- replace return address
+--X         mov dword[ebp+16],:%pFreeStack  -- replace return address (DEV bug in pilasm.e)
+            mov dword[ebp+28],:%pFreeStack  -- replace return address
+--EXCEPT
+--X         mov dword[ebp+16],:tFreeStack   -- replace return address
+--X         mov dword[ebp+28],:tFreeStack   -- replace return address
             jmp :%opRetf
       @@:
         mov eax,[ebp+24]        -- vsb_root
@@ -919,8 +1013,11 @@ end procedure -- (for Edita/CtrlQ)
         -- call :%opRetf until T_maintls
         cmp qword[rbp+16],21    -- T_maintls
         je @f
---          mov qword[rbp+16],:%pFreeStack  -- replace return address (DEV bug in pilasm.e)
-            mov qword[rbp+32],:tFreeStack   -- replace return address
+--X         mov qword[rbp+32],:%pFreeStack  -- replace return address (DEV bug in pilasm.e)
+            mov qword[rbp+56],:%pFreeStack  -- replace return address
+--EXCEPT
+--X         mov qword[rbp+32],:tFreeStack   -- replace return address
+--X         mov qword[rbp+56],:tFreeStack   -- replace return address
             jmp :%opRetf
       @@:
         mov rax,[rbp+48]        -- vsb_root
@@ -978,7 +1075,9 @@ end procedure -- (for Edita/CtrlQ)
         mov eax,[ebp+24]        -- vsb_root
         cmp [eax],ebx           -- vsb_prev
         je @f
-            mov dword[ebp+16],:trimRetLoop  -- replace return address
+--EXCEPT
+--X         mov dword[ebp+16],:trimRetLoop  -- replace return address
+            mov dword[ebp+28],:trimRetLoop  -- replace return address
             jmp :%opRetf
       @@:
         --
@@ -1039,7 +1138,9 @@ end procedure -- (for Edita/CtrlQ)
         mov rax,[rbp+48]        -- vsb_root
         cmp [rax],rbx           -- vsb_prev
         je @f
-            mov dword[rbp+32],:trimRetLoop  -- replace return address
+--EXCEPT
+--X         mov dword[rbp+32],:trimRetLoop  -- replace return address
+            mov dword[rbp+56],:trimRetLoop  -- replace return address
             jmp :%opRetf
       @@:
         --
@@ -1080,17 +1181,23 @@ end procedure -- (for Edita/CtrlQ)
 --      dd vsb_prev                 [vsb_root]
 --      dd vsb_next                 [vsb_root+4]
 --  A (32-bit) frame is:
---      dd return address           [ebp+16] (0 means callback)
+--EXCEPT
+--X     dd return address           [ebp+16] (0 means callback)
+--      dd exception handler        [ebp+16] (0 means none, 1 means lower down)
 --      dd prev_ebp                 [ebp+20] (0 means top-level quit [maybe?])
 --      dd vsb_root                 [ebp+24]
+--      dd return address           [ebp+28] (0 means callback)
 
 --  A virtual stack block (64-bit) is:
 --      dq vsb_prev                 [vsb_root]
 --      dq vsb_next                 [vsb_root+8]
 --  A (64-bit) frame is:
---      dq return address           [rbp+32] (0 means callback)
+--EXCEPT
+--X     dq return address           [rbp+32] (0 means callback)
+--      dq exception handler        [rbp+32] (0 means nojne, 1 means lower down)
 --      dq prev_ebp                 [rbp+40] (0 means top-level quit [maybe?])
 --      dq vsb_root                 [rbp+48]
+--      dq return address           [rbp+56] (0 means callback)
 ----    puts(1,"Your program has run out of memory, one moment please\n")
 --! mov eax,[ebp+32]                -- vsb_root
 --  --
@@ -1162,11 +1269,13 @@ end procedure -- (for Edita/CtrlQ)
         mov esi,[esp+12]    -- return address (==called from address)
         call :%opFrame      -- leaves ecx=0, ?esi=addr first (was in eax)
         pop eax             -- value to check
---(untried)
-        mov edx,:!opTchkRetAddr  -- return address
+--X     mov edx,:!opTchkRetAddr  -- return address
         mov ecx,[esp+8]     -- real return addr
---      mov dword[ebp+16],:!opTchkRetAddr  -- return address
-        mov dword[ebp+16],edx
+--X     mov dword[ebp+16],:!opTchkRetAddr  -- return address
+        mov dword[ebp+28],:!opTchkRetAddr  -- return address
+--EXCEPT
+--X     mov dword[ebp+16],edx
+--x^    mov dword[ebp+28],edx
         mov dword[ebp+12],ecx
         cmp eax,h4
         jl @f
@@ -1199,15 +1308,14 @@ end procedure -- (for Edita/CtrlQ)
         call :%opFrame      -- leaves ecx=0, ?esi=addr first (was in eax)
         pop rax             -- value to check
         mov rcx,[rsp+16]    -- real return addr
---DEV fudge:
---      mov qword[rbp+32],:opTchkRetAddr  -- return address
---      mov [rbp+32],rbx
-        mov rdx,:!opTchkRetAddr  -- return address
+--X     mov rdx,:!opTchkRetAddr  -- return address
         mov r15,h4
---      mov qword[rbp+32],:!opTchkRetAddr  -- return address
-        mov qword[rbp+32],rdx
+--X     mov qword[rbp+32],:!opTchkRetAddr  -- return address
+        mov qword[rbp+56],:!opTchkRetAddr  -- return address
+--EXCEPT
+--X     mov qword[rbp+32],rdx
+--x^    mov qword[rbp+56],rdx
         mov qword[rbp+24],rcx
---      cmp rax,h4
         cmp rax,r15
         jl @f
           add qword[rbx+rax*4-16],1 -- incref
@@ -1314,7 +1422,9 @@ end procedure -- (for Edita/CtrlQ)
         -- call :%opRetf until T_maintls
         cmp dword[ebp+8],21     -- T_maintls
         je @f
-            mov dword[ebp+16],:FreeStack    -- replace return address
+--EXCEPT
+--X         mov dword[ebp+16],:FreeStack    -- replace return address
+            mov dword[ebp+28],:FreeStack    -- replace return address
             jmp :%opRetf
       @@:
 
@@ -1417,7 +1527,9 @@ end procedure -- (for Edita/CtrlQ)
         -- call :%opRetf until T_maintls
         cmp qword[rbp+16],21    -- T_maintls
         je @f
-            mov qword[rbp+32],:FreeStack    -- replace return address
+--EXCEPT
+--X         mov qword[rbp+32],:FreeStack    -- replace return address
+            mov qword[rbp+56],:FreeStack    -- replace return address
             jmp :%opRetf
       @@:
 

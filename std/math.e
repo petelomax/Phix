@@ -1624,6 +1624,7 @@ end function
 -- See Also:
 --   [[:rotate_bits]]
 
+--/* Now in builtins/shift_bits.e:
 public function shift_bits(object source_number, integer shift_distance)
 integer lSigned
     if sequence(source_number) then
@@ -1655,6 +1656,7 @@ integer lSigned
         
     return and_bits(source_number, 0xFFFFFFFF)
 end function
+--*/
 
 --**
 -- Rotates the bits in the input value by the specified distance.

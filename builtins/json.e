@@ -112,7 +112,7 @@ function not_valid()
     return 0
 end function
 
-function pj_rec(object fn, object o, integer indent=0, integer addcomma=0)
+function pj_rec(object fn, object o, integer indent=0, bool addcomma=false)
 -- (internal) recursive inner for print_json
     if atom(o) then
         fn = pj_print(fn,"%.10g",{o})

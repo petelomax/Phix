@@ -1,6 +1,6 @@
 --
--- base64.e
--- ========
+-- builtins\base64.e
+-- =================
 --   Base 64 Encoding and Decoding
 --
 --   Base64 is used to encode binary data into an ASCII string; this allows
@@ -68,14 +68,14 @@ constant nc3   = {3, 1, 2}  --# 321321321321...
 constant ldrop = {2, 1, 1}  --# to drop len by 4 every 3 output
 
 
-global function encode_base64(sequence in)
+global function encode_base64(sequence in, integer wrap_column = 0)
 --
 -- encodes to base64.
 --
 -- The in parameter should be a string or sequence of bytes, ie no float/string/sequence elements
 -- The result should be broken into lines of no more than 76 characters before transmission.
 --
-integer len, oidx, prev, case4, tmp, inch, outch
+integer len, oidx, prev, case4, tmp, inch
 sequence result
 
     len = length(in)
@@ -92,7 +92,6 @@ sequence result
 
     case4 = 1
     inch  = 1
-    outch = 1
     for i=1 to oidx do
         --#
         --# out[1]=                   in[1]/4
@@ -111,14 +110,27 @@ sequence result
         if erem[case4]>0 then
             tmp += remainder(prev, erem[case4])*emul[case4]
         end if
-        result[outch] = aleph[tmp+1] --# and encode it
+        result[i] = aleph[tmp+1] --# and encode it
         if inch<=len then
             prev = in[inch]
         end if
         inch += next[case4]
         case4 = nc4[case4]
-        outch += 1
     end for
+
+    if wrap_column>0
+    and length(result)>wrap_column then
+        sequence chunks = {}
+        while 1 do
+            if length(result)<=wrap_column then
+                chunks = append(chunks,result)
+                exit
+            end if
+            chunks = append(chunks,result[1..wrap_column])
+            result = result[wrap_column+1..$]
+        end while
+        result = join(chunks, "\r\n")
+    end if
 
     return result
 end function

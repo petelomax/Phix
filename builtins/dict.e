@@ -286,6 +286,23 @@ global procedure traverse_dict_partial_key(integer rid, object pkey, object user
     end if
 end procedure
 
+object gpk  -- NB not thread safe!
+
+function gpk_visitor(object key, object /*data*/, object /*pkey*/, object /*user_data=-2*/)
+    gpk = key
+    return 0    -- stop!
+end function
+constant r_gpkv = routine_id("gpk_visitor")
+
+global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
+    check(tid)
+    gpk = 0
+    if roots[tid]!=0 then
+        {} = traverse_key(roots[tid], r_gpkv, pkey, NULL, tid, rev)
+    end if
+    return gpk
+end function
+
 global function dict_size(integer tid=1)
     check(tid)
     return sizes[tid]
@@ -325,8 +342,8 @@ global function new_dict(sequence kd_pairs = {}, integer pool_only=0)
     return tid
 end function
 
-global procedure destroy_dict(integer tid, integer justclear=0)
---global procedure destroy_dict(dictionary tid, bool justclear=0)
+global procedure destroy_dict(integer tid, bool justclear=false)
+--global procedure destroy_dict(dictionary tid, bool justclear=false)
 --
 -- Note: It is (and should be) perfectly legal to destroy_dict(1) at the very start.
 --       In contrast, destroy_dict(5) is fatal when 5 is not a valid dictionary, or
@@ -339,7 +356,8 @@ global procedure destroy_dict(integer tid, integer justclear=0)
         trees[tid] = {}
         roots[tid] = NULL
         sizes[tid] = 0
-        freelists[tid] = 0
+--      freelists[tid] = 0
+        if freelists[tid]!=0 then ?9/0 end if
     else
         trees[tid] = free_trees
         roots[tid] = NULL

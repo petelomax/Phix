@@ -718,9 +718,9 @@ procedure iLayoutTreeSetNodeColor(Ihandle tree, integer id, Ihandle ih)
 end procedure
 
 procedure iLayoutTreeSetNodeInfo(Ihandle tree, integer id, Ihandle ih)
-  IupSetAttributeId(tree, "TITLE", id, iLayoutGetTitle(ih))
-  iLayoutTreeSetNodeColor(tree, id, ih)
-  {} = IupTreeSetUserId(tree, id, ih)
+    IupSetAttributeId(tree, "TITLE", id, iLayoutGetTitle(ih))
+    iLayoutTreeSetNodeColor(tree, id, ih)
+    IupTreeSetUserId(tree, id, ih)
 end procedure
 
 function iLayoutTreeAddNode(Ihandle tree, integer id, Ihandle ih)

@@ -810,12 +810,19 @@ integer lh, f2, k, b1, b2
             fatal("unknown help file extension")
             return
         end if
+        if helpfile[2]!=':' then
+            helpfile = get_proper_path(initialcurrentdir&helpfile)
+        else
+            helpfile = get_proper_path(helpfile)
+        end if
         f2 = open(helpfile,"r")
+--/*
         if f2=-1 and helpfile[2]!=':' then
 --          helpfile = initialcurrentdir&helpfile
             helpfile = get_proper_path(initialcurrentdir&helpfile)
             f2 = open(helpfile,"r")
         end if
+--*/
         if f2=-1 then
             fatal("cannot open "&helpfile)
             wordlist = 0    -- use atom to signal file not found

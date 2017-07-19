@@ -534,12 +534,12 @@ procedure set_lighting()
     glEnable(GL_COLOR_MATERIAL)
 end procedure
  
-function render()
+procedure render()
     atom msec = get_msec();
     if (msec < update_time + 16) then
 --      usleep((update_time + 16 - msec) * 1000);
         sleep((update_time + 16 - msec) / 1000);
-        return 0
+        return
     end if
     run_boids(msec - update_time);
     update_time = msec;
@@ -590,8 +590,7 @@ e n d p r o cedure
         GlutSwapBuffers = define_c_proc(FGAPI, "glutSwapBuffers", {})
 --*/
 --  glutSwapBuffers();
-    return 0
-end function
+end procedure
 
 -- camera movement stuff
 int cursor_x = 0, cursor_y = 0
@@ -817,29 +816,28 @@ end procedure
 --  return IUP_DEFAULT;
 --end function
 
+Ihandle canvas, timer
 
 function action(Ihandle ih)
+--DEV... (no help)
+if not IupGetInt(timer,"RUN") then return IUP_CLOSE end if
     IupGLMakeCurrent(ih);
-
     glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
-
---  draw_cube();
-    {} = render()
-
+    render()
     IupGLSwapBuffers(ih);
-
     return IUP_DEFAULT;
 end function
 
-Ihandle canvas, timer
+function close_cb(Ihandle /*ih*/)
+    -- (don't recall this being necessary before, but...)
+--  IupSetAttribute(timer,"RUN","NO")
+    IupSetInt(timer,"RUN",0)
+    return IUP_CLOSE
+end function
 
 function esc_close(Ihandle /*ih*/, atom c)
 -- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then
-        -- (don't recall this being necessary before, but...)
-        IupSetAttribute(timer,"RUN","NO")
-        return IUP_CLOSE
-    end if
+    if c=K_ESC then return IUP_CLOSE end if
     return IUP_CONTINUE
 end function
 
@@ -883,6 +881,7 @@ puts(1,"")  -- (console before/below window, also ensures we can ctrl-c it)
 --  printf(1,"Version: %s\n", glGetString(GL_VERSION));
     IupSetAttribute(canvas, "RASTERSIZE", NULL);
     IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+    IupSetCallback(dialog, "CLOSE_CB",  Icallback("close_cb"))
 
     IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
 
@@ -890,6 +889,7 @@ puts(1,"")  -- (console before/below window, also ensures we can ctrl-c it)
 
     IupDestroy(dialog);
 
+?"IupClose"
     IupClose();
 
 end procedure

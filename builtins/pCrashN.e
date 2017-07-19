@@ -15,11 +15,15 @@ global procedure crash(string fmt, object data={})  --, integer nFrames=1)
     crash_message(fmt)
     #ilASM{
         [32]
-            mov edx,[ebp+16]    -- return addr
+--EXCEPT
+--          mov edx,[ebp+16]    -- return addr
+            mov edx,[ebp+28]    -- return addr
             mov ebp,[ebp+20]    -- prev_ebp
             sub edx,1
         [64]
-            mov rdx,[rbp+32]    -- return addr
+--EXCEPT
+--          mov rdx,[rbp+32]    -- return addr
+            mov rdx,[rbp+56]    -- return addr
             mov rbp,[rbp+40]    -- prev_ebp
             sub rdx,1
         []

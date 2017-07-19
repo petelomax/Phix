@@ -536,7 +536,7 @@ sequence args = tasks[current_task][TASK_ARGS]
     -- (note: any code placed here would never be executed)
 end procedure
 
-integer kill_ebp_id = 0     -- (delay till using somthing else)
+integer kill_ebp_id = 0     -- (delay till using something else)
 
 procedure kill_ebp()
 integer ebp4 = tasks[kill_ebp_id][TASK_EBP4]
@@ -556,6 +556,10 @@ integer ebp4 = tasks[kill_ebp_id][TASK_EBP4]
             call :%pFreeStack
             pop rbp
           }
+--18/7/17:
+    tasks[kill_ebp_id] = free_tasks
+    free_tasks = kill_ebp_id
+
     kill_ebp_id = 0
 end procedure
 
@@ -667,6 +671,13 @@ atom t
 
         tasks[current_task][TASK_EBP4] = ebp4
         task_suspend(current_task)  -- (it has finished, unlink it)
+-->
+--18/7/17:
+        tasks[current_task][TASK_STATE] = ST_DEAD
+--NO:!
+--      tasks[current_task] = free_tasks
+--      free_tasks = current_task
+
         if kill_ebp_id!=0 then      -- quickly check for "two in a row"
             -- (can only happen for two new that both die immediately)
             kill_ebp()
@@ -748,7 +759,10 @@ sequence list
     list = {}
     if current_task!=0 then
         for i=1 to length(tasks) do
-            if tasks[i][TASK_STATE]!=ST_DEAD then
+--18/7/17:
+--          if tasks[i][TASK_STATE]!=ST_DEAD then
+            if sequence(tasks[i])
+            and tasks[i][TASK_STATE]!=ST_DEAD then
 --              list = append(list, tasks[i][TASK_TID])
                 list = append(list, i)
             end if

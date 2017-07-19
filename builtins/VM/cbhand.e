@@ -104,14 +104,14 @@ end procedure -- (for Edita/CtrlQ)
                     jnz :paramloop
             ::zeroparams
                 mov esi,[esp+28]        -- restore symtab[rtnid]
---              mov dword[ebp+16],:retaddr
---DEV (not supported in pilasm.e)
+--DEV (not supported in pilasm.e) [it is now!]
 --              mov dword[ebp+16],:!cb_ret
-                mov eax,:!cb_ret
-                mov dword[ebp+16],eax
+                mov dword[ebp+28],:!cb_ret
+--              mov eax,:!cb_ret
+--EXCEPT
+--              mov dword[ebp+16],eax
+--              mov dword[ebp+28],eax
                 jmp dword[ebx+esi*4+40] -- execute first opcode (S_il=11)
---DEV rename as :!cb_ret, and check for in pDiag
---          ::retaddr
             :!cb_ret
                 mov edx,[esp+20]        -- prevebp
 --15/9/16:
@@ -254,13 +254,14 @@ end procedure -- (for Edita/CtrlQ)
             ::zeroparams
                 pop rsi                 --[1] symtab[rtnid]
                 push rdx                --[1] routine No
---              mov qword[rbp+32],:retaddr64
 --DEV as above
 --              mov qword[rbp+32],:!cb_ret
-                mov rax,:!cb_ret
-                mov qword[rbp+32],rax
+                mov qword[rbp+56],:!cb_ret
+--              mov rax,:!cb_ret
+--EXCEPT
+--              mov qword[rbp+32],rax
+--              mov qword[rbp+56],rax
                 jmp dword[rbx+rsi*4+80] -- execute first opcode (S_il=11)
---          ::retaddr64
             :!cb_ret
                 pop rsi                 --[1] routine No
                 pop rdx                 --[0] saved ebp

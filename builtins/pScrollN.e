@@ -9,7 +9,7 @@ constant
     STD_OUTPUT_HANDLE        = -11,
     STD_ERROR_HANDLE         = -12,
 
-    ENABLE_PROCESSED_INPUT   = 1,
+--  ENABLE_PROCESSED_INPUT   = 1,
 
     C_PTR = C_POINTER
 

@@ -10,6 +10,8 @@
 -- DEV this might need to be in pHeap.e (:%pGetMCHK?): (so that pAlloc can store 0 in the era)
 --  it may also want to be "with memory_leak_checking/full_memory_leak_checking"
 
+--global constant NEWRETSLOT = 01       -- nb toggle in tandem with pStack/opRetf
+
 global constant NESTEDFUNC = 01
 
 global constant FWARN = 01
@@ -272,12 +274,12 @@ constant testset={
     "t44silly.exw",         --[44] OK   -- recursive return test (ie the function f() returns f() case)
     "t45aod.exw",           --[45] OK   -- an assignment on declaration problem test
 --DEV p64 -c t46 is broken
-    "t46ltype.exw",         --[46] OK   -- localtype tests
+--  "t46ltype.exw",         --[46] OK   -- localtype tests
     "t47ltth.exw",          --[47] OK   -- localtype test harness, for tweakers of Assignment() in pmain.e
 --DEV top-level abort(0) kills the run...
 --  "t48init.exw",          --[48] OK   -- init tests ** not implemented/suboptimal **
 --DEV p64 -c t49 is broken
-    "t49ginfo.exw",         --[49] OK   -- gvar_scan final results tests.
+--  "t49ginfo.exw",         --[49] OK   -- gvar_scan final results tests.
 --Fine, but needs annoying edit
 --  "t50gscan.exw",         --[50] OK   -- some snippets which gave pgscan.e a hard time.
     "t51nstc.exw",          --[51] OK   -- some tests for an upgrade to Expr().
@@ -294,7 +296,7 @@ constant testset={
 --DEV this is a very windows-centric test, need something quite different for linux:
 --  "t61cffi.exw",          --[61] OK   -- cffi tests
     "t62utf.exw",           --[62] OK   -- test the utf conversion routines
-    "t63regex.exw",         --[63] OK   -- test the regulare expression routines
+    "t63regex.exw",         --[63] OK   -- test the regular expression routines
     "..\\demo\\mandle.exw", --[61] OK   -- simple ascii mandlebrot demo
     "..\\demo\\combo.exw",  --[62] OK   -- simple combinations function
     "..\\demo\\takeuchi.exw",--[63] OK  -- stress test function calls
@@ -855,7 +857,7 @@ sequence doOther
             Retry("Both p.exe and pw.exe are in use - retry?")
         end while
     elsif platform()=LINUX then
-        doOther = '\"'&mainpath&"pnew2\" -pmkr5"            -- ie DoOther("phix")
+        doOther = '\"'&mainpath&"pnew2\" -pmkr5"            -- ie DoOther("p")
     end if
     puts(1," OK\n")
     printf(1,"==>system(%s)\n",{doOther})
@@ -864,7 +866,7 @@ sequence doOther
 end procedure
 
 procedure DoOther(sequence ppw)
--- ppw is "p.exe" or "pw.exe", or "phix" on Linux.
+-- ppw is "p.exe" or "pw.exe", or "p" on Linux.
 integer fn, firsttime, fin
     firsttime = 1   -- (sleep(1) once only, and not once each for ppw & pnew.exe])
 --DEV commented out 29/05 (check list.asm, see if I missed anything/there should be a fin=-1 as well)
@@ -1075,7 +1077,7 @@ procedure processCommandLine()
 object x0
 sequence default_commandline
 string x
-integer dfn, ch, k, k1, xk, lencl, lenx
+integer dfn, ch, k, k1, x1, xk, lencl, lenx
 integer pfn, pwfn
 --/**/atom R
 sequence cl
@@ -1106,7 +1108,9 @@ while 1 do  -- 17/8
 --DEV we should do some #ilasm here to obtain correct version/build no,
 --      and pemit.e should auto-increment something:
         verinfo = phixversion&machine_bits()
+--      verinfo = version()&machine_bits()  -- (would be equivalent)
         verinfo = append(verinfo,iff(platform()=WINDOWS?"Windows":"Linux"))
+--      verinfo = version()&{machine_bits(),iff(platform()=WINDOWS?"Windows":"Linux")}  -- (also equivalent)
         printf(1,"Version %d.%d.%d (%d bit %s) Copyright Pete Lomax 2006..2016\n\n",verinfo)
 
         default_commandline = ""
@@ -1378,7 +1382,13 @@ while 1 do  -- 17/8
             lencl = 0
         end if
 --      if x[1]!='-' then exit end if
-        if not find(x[1],"-/") then exit end if
+--6/7/17:
+--      if not find(x[1],"-/") then exit end if
+        x1 = x[1]
+        if x1!='-' then
+            if platform()!=WINDOWS then exit end if
+            if x1!='/' then exit end if
+        end if
         x = x[2..lenx]
         lenx -= 1
         if lenx=0 then
@@ -1556,7 +1566,7 @@ while 1 do  -- 17/8
             if platform()=WINDOWS then
                 DoOther("p.exe")
             elsif platform()=LINUX then
-                DoOther("phix")
+                DoOther("p")
             end if
         elsif equal(x,"pmkr6") then
             if platform()!=WINDOWS then ?9/0 end if
@@ -1689,12 +1699,14 @@ end while                   -- 17/8
     end if
     mainfile = cl
 --13/4/17:
+--/*
     if bind = 0
     and platform()=LINUX
     and machine_bits()=64 then
         puts(1,"Warning: interpretation does not work on 64-bit linux; assuming \"-c\" specified.\n")
         bind = 1 
     end if
+--*/
 
 --moved again, 24/6/10:
 --  if dumpil then

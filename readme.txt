@@ -84,6 +84,50 @@ Version 0.7.5
             some of the reasons for needing/wanting to do this (on 64 bit).
             (Specifically, rc/truncateable primes was broken on 64-bit)
             This change also fixed several problems in t28prntf.e (on 64 bit).
+07/06/2017: Bugfix: Crash in pilx86.e/opFor2. Change may be suspect.
+            Running an entirely incomplete source along the lines of:
+                for i=1 to length(board) do
+                    if board[i]='1' then
+                        ?i
+                        for j=1 to 0/*[=length(moves)]*/ do
+                            if 0 then
+                            end if
+                        end for
+                    end if
+                end for
+            The above crash occurred. Temporarily changing the ?9/0 to ?"9/0" and 
+            running it caused all 1..50 to be printed, instead of the 14 expected.
+            Changed the offending code, inside the branch clearly commented with
+            "-- (we've deduced loop will iterate 0 times)", from:
+                if s5[pc]=opLabel then
+                    if s5[pc+1]!=exitMerge then ?9/0 end if -- more investigation rqd?
+                    pc += 4             
+                end if
+            to
+                if s5[pc]=opLabel
+                and s5[pc+1]=exitMerge then
+                    pc += 4             
+                end if
+            Hopefully it is just the case that optimising away an entire for loop
+            has never happened in such close proximity to end if(s) before...
+            All tests pass with this change, but it is a "quick fix" that may need
+            to be revisited.
+20/06/2017: You can now also declare variables as part of multiple assignment, eg
+                {string name, integer id} = lookup()
+            As well as being a generally useful enhancement/feature to have, this
+            also brings the language more in line with how I want to document it.
+            Note however sub-types do /NOT/ propagate as you might expect, eg:
+                {a, string b, c} = lookup()
+            will terminate in error if b already exists, or if a /or c/
+            does not already exist. While string {a, b, c} propagates 
+            the type, and declares three new variables of type string, 
+            that does /not/ happen for types inside the {}, except when
+            the type immediately precedes an opening (/nested) '{'.
+            Admittedly this is a simple practical choice/implementation
+            detail (see pmain.e/GetMultiAssignSet()) that it may be
+            possible to improve upon, but there are four use cases for
+            that routine, hence the simplest possible solution won.
+
 
 Version 0.7.2
 =============

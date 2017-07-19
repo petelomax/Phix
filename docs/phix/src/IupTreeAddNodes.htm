@@ -1,0 +1,246 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupTreeAddNodes</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pGUI.e
+           <br>
+           <br>
+            IupTreeAddNodes(Ihandle tree, sequence tree_nodes, integer id=-1)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Populates a tree from a nested sequence of branches and leaves.
+          <br>
+          <br>
+            tree: The result of some previous invocation of <a href="IupTree.htm">IupTree</a>().<br>
+            tree_nodes: a nested collection of nodes (see examples below).<br>
+            id: A unique userid for deferred loading of sub-trees (see below).
+            <br>
+            <br>
+            This routine does not return a value. It will rudely terminate in error should tree_nodes not
+            conform to the required format, or if unique userids cannot be found, etc.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            A tree is represented by a nested collection of nodes (see example below).<br>
+            A node is a string (leaf node) or a sequence of length 2 or 3:<br>
+            <ul>
+            <li>    The first element is a string description.</li>
+            <li>    If length is 3 the second is an even-length set of attribute name/value pairs.</li>
+            <li>    The last element is a sequence of children, or 0 to indicate a leaf node.</li>
+            </ul>
+            Each element of children is either a string to represent a leaf node or a sequence
+            of length 2 or 3 as above. Note that if the top-level node of a (/the entire) tree is a single string, 
+            it represents a single leaf node with no attributes, and no branches.
+            <br>
+            <br>
+            The rules to remember are: <br>
+            if you have attributes on a leaf node, it must have a a third element of 0, and: <br>
+            if a branch has no children it must still have a {} to represent that. <br>
+            Should you see leaf nodes such as "STATE" and "COLLAPSED", or similar attribute names/values, suspect a missing 0 or {}.
+            <br>
+            <br>
+            Every odd element in any even-length set of attributes should be an attribute that 
+            accepts an id, ie one from the "Nodes" or "Images" section of the Attributes table 
+            as shown in the documentation for IupTree. The even elements are strings, except 
+            for "USERDATA" which requires a positive integer, intended to be an index into some
+            application-specific table. Note that setting custom attributes proved problematical
+            and therefore attempts to do so now trigger a fatal error. If someone gets such things
+            working, outside of IupTreeAddNodes, via IupTreeGetId and friends, then I&rsquo;ll
+            take another look.
+            <br>
+            <br>
+            In practice, a node can also be a sequence of length 1, which represents a leaf node
+            in the same way that a plain string does.
+            <br>
+            <br>
+            Performance note: For large trees it would normally be prudent to create all branches
+            collapsed and empty, and populate them when the branch is expanded. If you have seen
+            Windows Explorer take forever to load a single directory (such as the Recycle Bin),
+            imagine what it would be like if it pre-loaded every directory on your entire system
+            before displaying anything. Obvously you might also want to auto-expand the top-level
+            node, and have that auto-populated, and perhaps repeat that down to some target.
+            <br>
+            <br>
+            To defer load, you must specify {"STATE","COLLAPSED","USERDATA",7} where 7 is some
+            unique userid for the branch, and create a "dummy" entry (to get a '+' shown), and
+            lastly invoke IupTreeAddNodes() inside branchopen_cb, specifying said unique userid, 
+            as per demo\pGUI\sample.exw and as reproduced below.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          Example
+         </td>
+         <td>
+            Snippets taken from demo\pGUI\sample.exw:
+<!--eucode>
+-- This shows how to defer-load nodes on expand/demand:
+-- Obviuously would probably be more dynamically set in a real app,
+-- and of course elements can be more than plain-string leaf nodes,
+-- with daisy-chains of unique userids to control things properly.
+-- (7 is plucked out of the air, matches the 7 in tree_nodes below)
+-- (also feel free to use xxx[7]!=0 instead of find(7,toload)!=0..)
+
+sequence {toload,tolkids} = columnize({{7,{"equilateral",
+                                           "isoceles",
+                                           "scalenus"}},
+--                                     {8,{"some",      -- (works just fine, if)
+--                                         "other",     -- (8 uncommented below)
+--                                         "branch"}},
+                                      })
+
+function branchopen_cb(Ihandle tree, integer id)
+    integer userid = IupTreeGetUserId(tree,id),
+            k = find(userid,toload)
+    if k!=0 then -- (deferred load rqd for this node)
+        -- first kill off "dummy" (which ensured a '+'):
+        IupSetAttributeId(tree,"DELNODE",id,"CHILDREN")
+        sequence children = tolkids[k]
+        IupTreeAddNodes(tree, children, userid)
+        -- finally remove load from the to-do lists:
+        toload[k..k] = {}
+        tolkids[k..k] = {}
+    end if
+    return IUP_DEFAULT;
+end function
+
+        sequence tree_nodes = {"Figures",               -- (branch with 5 children)
+--                             {"STATE","COLLAPSED"},   --  (works fine, btw)
+                               {"Other",                -- (leaf)
+--                              {"triangle",            -- (branch with 3 children)
+--                               {"STATE","COLLAPSED"},
+--                               {"equilateral",
+--                                "isoceles",
+--                                "scalenus",
+--                               }},
+                                {"triangle",            -- (branch with 3 children)
+                                 {"STATE","COLLAPSED","USERDATA",7},
+                                 {"dummy"}},            -- (ensures we get a '+')
+                                {"parallelogram",       -- (branch with 2 children)
+                                 {"square",
+                                  {"diamond",
+                                   {"COLOR","92 92 255","TITLEFONT","Courier, 8"},
+                                   0}   -- (nb: this is a leaf, non-optional here)
+                                 }},
+                                "2D",                   -- (leaf)
+--                              {"2D"},                 -- (same)
+--                              {"2D",0},               -- (same)
+--                              {"2D",{},0},            -- (same)
+                                {"3D",{}},              -- (branch, empty)
+--                              {"4D",                  -- (works just fine, if)
+--                                                      -- (8 uncommented above)
+--                               {"STATE","COLLAPSED","USERDATA",8},
+--                               {"dummy"}}             -- (branch, deferred load)
+                               }
+                              }
+        IupSetCallback(tree, "BRANCHOPEN_CB",  Icallback("branchopen_cb"));
+        IupTreeAddNodes(tree, tree_nodes)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- This shows how to defer-load nodes on expand/demand:
+-- Obviuously would probably be more dynamically set in a real app,
+-- and of course elements can be more than plain-string leaf nodes,
+-- with daisy-chains of unique userids to control things properly.
+-- (7 is plucked out of the air, matches the 7 in tree_nodes below)
+-- (also feel free to use xxx[7]!=0 instead of find(7,toload)!=0..)
+
+</i></font><font color="#004080">sequence</font><font color="#0000FF"> {</font><font color="#000000">toload</font><font color="#0000FF">,</font><font color="#000000">tolkids</font><font color="#0000FF">} =</font><font color="#5E005E"> columnize</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#008000">"equilateral"</font><font color="#0000FF">,
+</font><font color="#008000">                                           "isoceles"</font><font color="#0000FF">,
+</font><font color="#008000">                                           "scalenus"</font><font color="#008080">}</font><font color="#800080">}</font><font color="#0000FF">,
+</font><font color="#000080"><i>--                                     {8,{"some",      -- (works just fine, if)
+--                                         "other",     -- (8 uncommented below)
+--                                         "branch"}},
+</i></font><font color="#800000">                                      }</font><font color="#0000FF">)
+
+</font><font color="#008080">function</font><font color="#000000"> branchopen_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> tree</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">)
+</font><font color="#004080">    integer</font><font color="#000000"> userid</font><font color="#0000FF"> =</font><font color="#5E005E"> IupTreeGetUserId</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#000000">id</font><font color="#0000FF">),
+</font><font color="#000000">            k</font><font color="#0000FF"> =</font><font color="#7060A8"> find</font><font color="#0000FF">(</font><font color="#000000">userid</font><font color="#0000FF">,</font><font color="#000000">toload</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> k</font><font color="#0000FF">!=</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000080"><i> -- (deferred load rqd for this node)
+        -- first kill off "dummy" (which ensured a '+'):
+</i></font><font color="#5E005E">        IupSetAttributeId</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#008000">"DELNODE"</font><font color="#0000FF">,</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"CHILDREN"</font><font color="#0000FF">)
+</font><font color="#004080">        sequence</font><font color="#000000"> children</font><font color="#0000FF"> =</font><font color="#000000"> tolkids</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">]
+</font><font color="#5E005E">        IupTreeAddNodes</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">,</font><font color="#000000"> userid</font><font color="#0000FF">)
+</font><font color="#000080"><i>        -- finally remove load from the to-do lists:
+</i></font><font color="#000000">        toload</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">..</font><font color="#000000">k</font><font color="#0000FF">] = {}
+</font><font color="#000000">        tolkids</font><font color="#0000FF">[</font><font color="#000000">k</font><font color="#0000FF">..</font><font color="#000000">k</font><font color="#0000FF">] = {}
+</font><font color="#008080">    end if
+    return</font><font color="#004600"> IUP_DEFAULT</font><font color="#0000FF">;
+</font><font color="#008080">end function
+
+</font><font color="#004080">        sequence</font><font color="#000000"> tree_nodes</font><font color="#0000FF"> = {</font><font color="#008000">"Figures"</font><font color="#0000FF">,              </font><font color="#000080"><i> -- (branch with 5 children)
+--                             {"STATE","COLLAPSED"},   --  (works fine, btw)
+</i></font><font color="#800000">                               {</font><font color="#008000">"Other"</font><font color="#0000FF">,               </font><font color="#000080"><i> -- (leaf)
+--                              {"triangle",            -- (branch with 3 children)
+--                               {"STATE","COLLAPSED"},
+--                               {"equilateral",
+--                                "isoceles",
+--                                "scalenus",
+--                               }},
+</i></font><font color="#800080">                                {</font><font color="#008000">"triangle"</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (branch with 3 children)
+</i></font><font color="#008080">                                 {</font><font color="#008000">"STATE"</font><font color="#0000FF">,</font><font color="#008000">"COLLAPSED"</font><font color="#0000FF">,</font><font color="#008000">"USERDATA"</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#008080">}</font><font color="#0000FF">,
+</font><font color="#008080">                                 {</font><font color="#008000">"dummy"</font><font color="#008080">}</font><font color="#800080">}</font><font color="#0000FF">,           </font><font color="#000080"><i> -- (ensures we get a '+')
+</i></font><font color="#800080">                                {</font><font color="#008000">"parallelogram"</font><font color="#0000FF">,      </font><font color="#000080"><i> -- (branch with 2 children)
+</i></font><font color="#008080">                                 {</font><font color="#008000">"square"</font><font color="#0000FF">,
+</font><font color="#000080">                                  {</font><font color="#008000">"diamond"</font><font color="#0000FF">,
+</font><font color="#008000">                                   {"COLOR"</font><font color="#0000FF">,</font><font color="#008000">"92 92 255"</font><font color="#0000FF">,</font><font color="#008000">"TITLEFONT"</font><font color="#0000FF">,</font><font color="#008000">"Courier, 8"}</font><font color="#0000FF">,
+</font><font color="#000000">                                   0</font><font color="#000080">}  <i> -- (nb: this is a leaf, non-optional here)
+</i></font><font color="#008080">                                 }</font><font color="#800080">}</font><font color="#0000FF">,
+</font><font color="#008000">                                "2D"</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- (leaf)
+--                              {"2D"},                 -- (same)
+--                              {"2D",0},               -- (same)
+--                              {"2D",{},0},            -- (same)
+</i></font><font color="#800080">                                {</font><font color="#008000">"3D"</font><font color="#0000FF">,</font><font color="#008080">{}</font><font color="#800080">}</font><font color="#0000FF">,             </font><font color="#000080"><i> -- (branch, empty)
+--                              {"4D",                  -- (works just fine, if)
+--                                                      -- (8 uncommented above)
+--                               {"STATE","COLLAPSED","USERDATA",8},
+--                               {"dummy"}}             -- (branch, deferred load)
+</i></font><font color="#800000">                               }
+</font><font color="#0000FF">                              }
+</font><font color="#5E005E">        IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#008000"> "BRANCHOPEN_CB"</font><font color="#0000FF">, </font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"branchopen_cb"</font><font color="#800000">)</font><font color="#0000FF">);
+</font><font color="#5E005E">        IupTreeAddNodes</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#000000"> tree_nodes</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            The output does differ slightly, in diamond and 2D, but otherwise should be fairly similar to:
+            <br>
+            <br>
+            <img src="images/iuptree2_addbranch9.png">
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          See also
+         </td>
+         <td>
+            <a href="IupTree.htm">IupTree</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

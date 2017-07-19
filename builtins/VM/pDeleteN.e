@@ -336,7 +336,8 @@ end procedure
 --          call :%opFrame
 --          mov edx,[esp+4]
 --          pop dword[ebp]                      --[1] o
---          mov dword[ebp+16],:delret           -- return address
+--X         mov dword[ebp+16],:delret           -- return address
+--          mov dword[ebp+28],:delret           -- return address
 --          mov dword[ebp+12],edx               -- called from address
 --          jmp $_il                            -- jmp code:delete
 --      [64]
@@ -349,7 +350,8 @@ end procedure
 --          call :%opFrame
 --          mov rdx,[rsp+8]
 --          pop qword[rbp]                      --[1] addr
---          mov qword[rbp+32],:delret           -- return address
+--X         mov qword[rbp+32],:delret           -- return address
+--          mov qword[rbp+56],:delret           -- return address
 --          mov qword[ebp+24],rdx               -- called from address
 --          jmp $_il                            -- jmp code:delete
 --      []
@@ -624,7 +626,9 @@ end procedure -- (for Edita/CtrlQ)
             call :%opFrame
             mov edx,[esp+4]
             pop dword[ebp]                      --[1] o
-            mov dword[ebp+16],:delret           -- return address
+--EXCEPT
+--          mov dword[ebp+16],:delret           -- return address
+            mov dword[ebp+28],:delret           -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:fdelete
         [64]
@@ -643,7 +647,9 @@ end procedure -- (for Edita/CtrlQ)
             call :%opFrame
             mov rdx,[rsp+8]
             pop qword[rbp]                      --[1] addr
-            mov qword[rbp+32],:delret           -- return address
+--EXCEPT
+--          mov qword[rbp+32],:delret           -- return address
+            mov qword[rbp+56],:delret           -- return address
             mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:fdelete
         []

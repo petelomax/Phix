@@ -155,7 +155,9 @@ integer cs = 0
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[start_thread][S_Ltot])
             call :%opFrame
             pop dword[ebp]                      --[1] {rid,params}
-            mov dword[ebp+16],:threadret        -- return address
+--EXCEPT
+--X         mov dword[ebp+16],:threadret        -- return address
+            mov dword[ebp+28],:threadret        -- return address
             jmp $_il                            -- jmp code:start_thread
 
          ::threadret
@@ -197,7 +199,9 @@ integer cs = 0
             call :%opFrame
             mov eax,[esp+4]                     --[1] {rid,params,cs}
             mov [ebp],eax
-            mov dword[ebp+16],:threadret        -- return address
+--EXCEPT
+--X         mov dword[ebp+16],:threadret        -- return address
+            mov dword[ebp+28],:threadret        -- return address
             jmp $_il                            -- jmp code:start_thread
 
          ::threadret
@@ -246,7 +250,9 @@ integer cs = 0
             mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[start_thread][S_Ltot])
             call :%opFrame
             pop qword[rbp]                      --[1] {rid,params}
-            mov qword[rbp+32],:threadret        -- return address
+--EXCEPT
+--X         mov qword[rbp+32],:threadret        -- return address
+            mov qword[rbp+56],:threadret        -- return address
             jmp $_il                            -- jmp code:start_thread
 
          ::threadret
@@ -305,7 +311,9 @@ integer cs = 0
             call :%opFrame
             mov rax,[rsp+8]                     --[1] {rid,params,cs}
             mov [rbp],rax
-            mov qword[rbp+32],:threadret        -- return address
+--EXCEPT
+--X         mov qword[rbp+32],:threadret        -- return address
+            mov qword[rbp+56],:threadret        -- return address
             jmp $_il                            -- jmp code:start_thread
 
          ::threadret
@@ -326,7 +334,7 @@ integer cs = 0
             push rbx                            -- space for thread_id
 --          <rcx already set>                   -- *arg [params]
             mov rdx, :threadproc                -- start_routine
-            mov rsi,ebx                         -- *attr [NULL]
+            mov rsi,rbx                         -- *attr [NULL]
             mov rdi,rsp                         -- *thread
             call "libpthread.so.0","pthread_create"
             xor rbx,rbx
@@ -416,8 +424,8 @@ atom dwError
                 [ELF64]
                     mov rax,[hThread]
                     call :%pLoadMint
-                    mov rsi,ebx                         -- *retval [NULL]
-                    mov rdi,eax                         -- thread
+                    mov rsi,rbx                         -- *retval [NULL]
+                    mov rdi,rax                         -- thread
                     call "libpthread.so.0","pthread_join"
                     test rax,rax
                     jz @f
@@ -495,10 +503,10 @@ atom pExitCode, dwExitCode
                 lea edi,[dwExitCode]
                 call :%pStoreMint
             [ELF64]
-                mov eax,[hThread]
+                mov rax,[hThread]
                 call :%pLoadMint
-                push ebx
-                mov rsi,esp                         -- *retval
+                push rbx
+                mov rsi,rsp                         -- *retval
                 mov rdi,rax                         -- thread
                 call "libpthread.so.0","pthread_join"
                 test rax,rax
@@ -522,7 +530,7 @@ end function
 
 --DEV remaining routines are untested (and undocumented)
 
-global function create_event(object name=0, bool manualreset=0, bool initialstate=0)
+global function create_event(object name=0, bool manualreset=false, bool initialstate=false)
 --
 -- name should be unique and can be used to retrieve an existing event, or NULL.
 --      it must not match an existing semaphore, mutex, or file-mapping object.

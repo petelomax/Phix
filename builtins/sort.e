@@ -6,7 +6,8 @@
 --DEV wrong one for newEmit
 --!/**/include builtins\pcfunc.e
 
-global function sort(sequence x)
+global function sort(sequence x, integer order=ASCENDING)
+--global function sort(sequence x)
 -- Sort a sequence into ascending order. The elements can be atoms or 
 -- sequences. The standard compare() routine is used to compare elements.
 integer gap, j, first, last
@@ -22,7 +23,8 @@ object tempi, tempj
             while 1 do
                 tempj = x[j]
 --              if tempi >= tempj then
-                if compare(tempi, tempj)>=0 then
+--              if compare(tempi, tempj)>=0 then
+                if compare(tempi, tempj)!=order then
                     j += gap
                     exit
                 end if
@@ -42,13 +44,14 @@ object tempi, tempj
     end while
 end function
 
-global function custom_sort(integer custom_compare, sequence x)
+global function custom_sort(integer custom_compare, sequence x)--, object order)
 -- Sort a sequence. A user-supplied comparison function is used 
 -- to compare elements. Note that this sort is not "stable", i.e.
 -- elements that are considered equal might change position relative
 -- to each other.
 integer gap, j, first, last
 object tempi, tempj
+--sequence data = {}
 
     last = length(x)
     gap = floor(last/10)+1

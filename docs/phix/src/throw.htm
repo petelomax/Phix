@@ -1,0 +1,250 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">throw</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+          throw(object e, object user_data={})
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Transfer control immediately to some containing try/catch statement, even if it is several levels lower down the call stack, or 
+            terminate the program if no such handler exists.
+            <br>
+            <br>
+            e: typically an integer or string, but it can also be a complete exception in the re-throw case.<br>
+            user_data: if not {}, then e must be an atom. It can contain anything that you might find helpful in the handler(/logfile, etc).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The throw routine builds an exception and passes it to an appropriate handler.
+            <br>
+            <br>
+            The short version is:
+            <blockquote>
+                An exception is a sequence of run-time diagnostic information, with the offending instruction address converted to a human-readable source file/line number.
+            </blockquote>
+            The long version is:
+            <blockquote>
+                The following constants (automatically defined in psym.e/syminit) can be used to examine the contents of an exception:<br>
+                1   E_CODE (atom) hardware and operating system exceptions usually have bit #800000000 set, user exceptions can be any atom value, even 0. <br>
+                2   E_ADDR (atom) a machine address indicating where the exception ocurred.<br>
+                3   E_RTN (integer, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.<br>
+                4   E_LINE (integer, optional) the source code line matching E_ADDR in E_RTN.<br>
+                5   E_NAME (string|integer, optional) the human-readable name of E_RTN.<br>
+                6   E_FILE (string|integer, optional) the source filename containing E_NAME.<br>
+                7   E_PATH (string|integer, optional) the directory containing E_FILE.<br>
+                8   E_USER (object, optional) user defined/application specific content in e[8..$].
+                <br>
+                <br>
+                if user_data!={} then e must be atom and throw(e,user_data) is equivalent to throw({e,-1,-1,-1,-1,-1,-1,user_data}), modified as below.<br>
+                else if e is an atom, throw(e) is equivalent to throw({e,-1,-1,-1,-1,-1,-1}), modifed as below.<br>
+                else if e is a string, throw(e) is equivalent to throw({0,-1,-1,-1,-1,-1,-1,e}), modified as below.<br>
+                else e must be a sequence containing at least the first two elements, E_CODE and E_ADDR, type safe as above and any user-defined data in e[8..$]. <br>
+                <br>
+                if e[E_ADDR] is -1 it is replaced with the return address from the throw() call. <br>
+                if e[E_RTN] is -1 it is replaced with a routine number from the current call stack. <br>
+                if e[E_LINE] is -1 and e[E_ADDR] was -1, then the (new) value of e[ADDR]-1 is mapped to a line number in e[E_RTN] and stored in e[E_LINE]. <br>
+                if e[E_NAME] is -1 the name is retrieved from the symbol table (the string "-1" for top-level subroutines).<br>
+                Likewise e[E_FILE] and e[E_PATH] of -1 are replaced with the expected strings.
+            </blockquote>
+
+            Traditional fatal runtime errors are mapped as follows (with E_ADDR..E_LINE also pre-populated, and E_NAME..E_PATH -1&rsquo;d as above):
+<!--eucode>
+    throw(1,"type check error, %s is %s")
+    throw(2,"attempt to divide by 0")
+    ...
+    throw(122,"invalid poke size")
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"type check error, %s is %s"</font><font color="#0000FF">)
+</font><font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#0000FF">)
+    ...
+</font><font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">122</font><font color="#0000FF">,</font><font color="#008000">"invalid poke size"</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            See builtins\VM\pDiagN.e for the full/up-to-date list. In the catch clause, e[E_CODE] will be 1..122 and e[E_USER] will be a (post-sprintf) string.
+            <br>
+            <br>
+            Sometimes you may need to re-throw an exception, and let some other containing try statement process it, which is as simple as can be:
+<!--eucode>
+    try
+        ...
+    catch e
+        if <recognised> then
+            <handle it here>
+        else
+            throw(e)
+        end if
+    end try
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    try
+</font><font color="#0000FF">        ...
+</font><font color="#008080">    catch</font><font color="#000000"> e
+</font><font color="#008080">        if</font><font color="#0000FF"> &lt;</font><font color="#000000">recognised</font><font color="#0000FF">&gt;</font><font color="#008080"> then
+</font><font color="#0000FF">            &lt;</font><font color="#000000">handle it here</font><font color="#0000FF">&gt;
+</font><font color="#008080">        else
+</font><font color="#7060A8">            throw</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)
+</font><font color="#008080">        end if
+    end try</font>
+</pre>
+            <br>
+            All details are preserved, which also means that you can make up a completely fake exception, with made-up a routine name, 
+            line, source file, etc. I don&rsquo;t particularly recommend that; while I can imagine cases where you specifically want to 
+            catch "that exception from line 851", it would almost certainly be better to use a unique error code when possible.
+            <br>
+            <br>
+            Compilation may issue "Error: without debug in force" messages, since that option suppresses the tables needed for 
+            machine address-&gt;source code line number mapping.
+            <br>
+            <br>
+            There is no absolute guarantee that the contents of an exception will be meaningful: any of e[E_RTN..E_PATH] may be left as -1,
+            e[E_USER] may or may not exist, and length(e) may be greater than 8. The catch clause should be coded accordingly/defensively.
+<!--
+<br>
+<br>
+Note that for hardware and operating system exceptions, e[E_ADDR] may correspond to a machine instruction emitted for the source code line, 
+or the first byte of the next line, or somewhere deep in the heart of say kernel32.dll, or part of the internal workings of c_func, and 
+therefore (in early versions at least) e[E_LINE] may be quite wrong (-1). Such cases will need to be fixed on an ad hoc basis, either by 
+subtracting 1 from e[E_ADDR] for selected e[E_CODE], emitting a judicious nop instruction, or hunting about in the call stack for the first 
+thing that makes sense. If all such efforts are in vain, the runtime reserves the right to give up and return a two-element sequence. 
+In short, you should not become over-reliant on the optional values e[E_LINE] and e[E_NAME], and do not panic/crash if absent or -1. 
+You can however populate a throw() statement with made-up values. If you supply a made-up E_RTN you are also expected to supply a made-up
+E_NAME, and likewise with E_FILE/E_PATH and E_ADDR/E_LINE. 
+Obviously the latter may drift over time (or be wrong on day 1), just like a puts(1,"This is line 6170\n") might.
+-->
+            <br>
+            <br>
+            Obviously the application will terminate immediately, just like /0, should throw() be invoked when there is no active handler 
+            (try/catch construct) in the current call stack, and likewise in that case the above mapping to throw(1..122) does not occur.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Performance:</b>
+         </td>
+         <td>
+            Exceptions are designed to minimise the impact on code which does <i>/not/</i> use them, and intended for very infrequent events.<br>
+            Should you compare the performance overhead of <code>throw("failure")</code> with <code>return false</code> then unfortunately you 
+            are in for a very big shock.<br>
+            Building detailed run-time diagnostic information and converting a machine address into a human-readable line number, file, and 
+            routine name, is simply not ever going to be comparable to a single <code>"mov eax,ebx"</code>!
+            <br>
+            <br>
+            Should you need to process 10,000 items, but 2 of them trigger an exception, the savings of simplified code (such as not checking
+            for division by zero, whether a file of that name already exists, etc) on 9,998 of them may very well significantly outweigh the 
+            cost of the two exceptions that are triggered.
+            <br>
+            <br>
+            However, the wilful and excessive use of throw() in quite unnecessary situtations will inevitably result in slower programs.<br>
+            That said, any code not being iterated thousands of times is better off being as clear and intuitive as you can make it.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+try
+    integer i = 1/0
+--  throw(2,"attempt to divide by 0") -- equivalent/as triggered via pDiagN.e/diag().
+catch e
+    ?e
+    if length(e)>=E_USER
+    and string(e[E_USER])
+    and string(e[E_FILE])
+    and e[E_LINE]!=-1 then
+        printf(1,"%s (%s line %d)\n",{e[E_USER],e[E_FILE],e[E_LINE]})
+    else
+        ?{"oops... (test.exw line 12)",e}
+    end if
+end try
+Output:
+{2,8249772,2,21,"-1","test.exw","C:\\Program Files (x86)\\Phix\\","attempt to divide by 0"}
+attempt to divide by 0 (test.exw line 2)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">try
+</font><font color="#004080">    integer</font><font color="#000000"> i</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">/</font><font color="#000000">0
+</font><font color="#000080"><i>--  throw(2,"attempt to divide by 0") -- equivalent/as triggered via pDiagN.e/diag().
+</i></font><font color="#008080">catch</font><font color="#000000"> e
+</font><font color="#0000FF">    ?</font><font color="#000000">e
+</font><font color="#008080">    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)&gt;=</font><font color="#004600">E_USER
+</font><font color="#008080">    and</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_USER</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#008080">    and</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_FILE</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#008080">    and</font><font color="#000000"> e</font><font color="#0000FF">[</font><font color="#004600">E_LINE</font><font color="#0000FF">]!=-</font><font color="#000000">1</font><font color="#008080"> then
+</font><font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s (%s line %d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_USER</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_FILE</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_LINE</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">    else
+</font><font color="#0000FF">        ?{</font><font color="#008000">"oops... (test.exw line 12)"</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">}
+</font><font color="#008080">    end if
+end try
+</font><font color="#000000">Output</font><font color="#0000FF">:
+{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">8249772</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#008000">"-1"</font><font color="#0000FF">,</font><font color="#008000">"test.exw"</font><font color="#0000FF">,</font><font color="#008000">"C:\\Program Files (x86)\\Phix\\"</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#0000FF">}
+</font><font color="#000000">attempt</font><font color="#008080"> to</font><font color="#000000"> divide</font><font color="#008080"> by</font><font color="#000000"> 0</font><font color="#0000FF"> (</font><font color="#000000">test</font><font color="#0000FF">.</font><font color="#000000">exw line 2</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            While the above conditions/printf should give you the basic idea of what may be required, be advised that that using 
+            cut-and-paste may cause unforseen problems, since the precise content of an exception can vary quite dramatically.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="try.htm">try/catch</a>,
+          <a href="crash_file.htm">crash_file</a>,
+          <a href="crash_message.htm">crash_message</a>,
+          <a href="crash_routine.htm">crash_routine</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Implemented in builtins\VM\pDiagN.e in order to use the existing code for converting a machine address into a source code line number, etc.<br>
+            Hence any use of throw(), like <a href="crash_file.htm">crash_file</a>, <a href="crash_message.htm">crash_message</a>, and 
+            <a href="crash_routine.htm">crash_routine</a>, makes the (rarely used) command line option -nodiag completely ineffective.
+            <br>
+            <br>
+            You should not need to test e[E_NAME] for "-1" if the try statement is not at top-level, or does not contain any actual failure points itself.
+<!--
+            <br>
+            <br>
+            Minor point: user_data is not checked for being unassigned at runtime, instead the default of {} applies (which is ignored). <br>
+            This is a simple consequence of it being implemented via :%pThrow (in pDiagN.e) which circumvents some of the usual hll checks.-->
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

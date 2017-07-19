@@ -17,7 +17,7 @@ with trace
 --  While both wee and tee are fine, there are several things in the edita codebase
 --  that I simply could not bear to throw away, especially:
 --      * The dynamic syntax colouring and help lookup systems. [1]
---      * Copy/Copy append/prepend are very rarely found in other editors
+--      * Cut/Copy append/prepend are very rarely found in other editors
 --      * Column cut and paste (ditto)
 --      * Control structure traversal via Ctrl [ and Ctrl ]
 --      * Tools/File compare - admittedly I might be a bit biased about that one
@@ -968,8 +968,7 @@ sequence r
 end procedure
 --*/
 
---global 
-procedure setRtnList()
+global procedure setRtnList()
     -- load the ComboDropDownList, rtnList and set the index
     ?"setRtnList" --DEV
 --/*
@@ -1942,6 +1941,8 @@ string name = filenames[currfile]
     IupSetAttribute(dlg,"TITLE","Edix" & " - " & name)
 end procedure
 
+Ihandle toolb_new
+Ihandle toolb_open
 Ihandle toolb_save
 Ihandle toolb_close
 Ihandle toolb_prntp
@@ -1958,6 +1959,7 @@ Ihandle toolb_zoomin
 Ihandle toolb_zoomout
 Ihandle toolb_back
 Ihandle toolb_run
+Ihandle toolb_rtns
 
 --DEV extension handling....
 --sequence runnables = {"ex","exu","exw","exwc","htm","html","bat"}
@@ -2007,10 +2009,10 @@ end procedure
 --       opensize = {} -- also updated by saveFile
 
 --global 
-function saveFile(integer warnBackup=1)
+function saveFile(bool warnBackup=true)
 -- the parameter should be 1, unless there is some special reason
 -- why a backup might not be possible (eg save as, new file)
--- [should be invoked as saveFile(), or saveFile(warnBackup:=0)]
+-- [should be invoked as saveFile(), or saveFile(warnBackup:=false)]
 integer c
 string filename
 object d
@@ -2280,7 +2282,7 @@ procedure savecurr()
         if actionsave[currfile]!=actionptr[currfile]
         and match(untitled,filenames[currfile])!=1 then
 --DEV
---      void = saveFile(1)
+--      void = saveFile(warnBackup:=true)
 --?{"saveFile",currfile}
 --trace(1)
             {} = saveFile()
@@ -2393,7 +2395,7 @@ integer c
     if actionsave[c]!=actionptr[c] then
         --2/6/10:
         changeTo(c)
-        return saveFile(1)
+        return saveFile(warnBackup:=true)
     end if
     return 1
 end function
@@ -4631,7 +4633,7 @@ string filename = ""
                    wasfile = filenames[c]
             filepaths[c] = get_file_path(filename,0)
             filenames[c] = get_file_name(filename)
-            if saveFile(warnBackup:=0) then
+            if saveFile(warnBackup:=false) then
                 Ihandle tab
                 for pos=0 to IupGetInt(tabs,"COUNT")-1 do
                     tab = IupGetChild(tabs, pos)
@@ -4743,7 +4745,7 @@ integer res
                             closeTab()
                             changeTo(i)
                         end if
-                        if saveFile(1) then
+                        if saveFile(warnBackup:=true) then
                             if (encoding=ANSI)!=(unicodefile[currfile]=ANSI) then
                                 -- reload
                                 void = call_func(r_openFile,{-1,1,0})
@@ -4767,7 +4769,7 @@ if sequence(name) then -- added 3/6/14
                             call_proc(rRebuildTabBar,{})
                         end if
 --                  end if
-                    res = saveFile(0)       -- no backup warning
+                    res = saveFile(warnBackup:=false)
                     changeTo(currfile)      -- reset syntax
                     if res and (encoding=ANSI)!=(unicodefile[currfile]=ANSI) then
                         -- reload
@@ -5836,29 +5838,121 @@ Ihandle options_file_extns  = menu_item("File E&xtensions",     "PNG_ExtOpt",   
     return options_menu
 end function
 
-function create_help_menu()
-Ihandle help_context    = menu_item("&Context Help\tF1",    "PNG_Help",         cb_rec6,  0)
-Ihandle help_phix       = menu_item("Phix.chm",             "PNG_HelpPhixCHM",  cb_rec6,  0)
-Ihandle help_msdn       = menu_item("mini.chm",             "PNG_HelpCHM",      cb_rec6,  0)
-Ihandle help_home       = menu_item("Phix Home Page",       "PNG_helpHome",     cb_rec6,  0)
-Ihandle help_manual     = menu_item("manual",               "PNG_HelpPhixCHM",  cb_rec6,  0)
-Ihandle help_licence    = menu_item("licence",              "PNG_HelpPhixCHM",  cb_rec6,  0)
-Ihandle help_forum      = menu_item("OpenEuphoria Forum",   "PNG_UserGroup",    cb_rec6,  0)
-Ihandle help_upgrades   = menu_item("Check for &Upgrades",  "PNG_AppUpgrade",   cb_rec6,  0)
-Ihandle help_about      = menu_item("&About",               "PNG_HelpAbout",    cb_rec6,  0)
+--/*
+--function HelpMenus()
+sequence res
+    res = {}
+    for i=1 to length(helpfiles) do
+        if sequence(menuTxts[i]) then
+            if length(res)=0 then
+                res = {{"-",        M_Help,0,0,0,0}}
+            end if
+            res = append(res,{menuTxts[i],M_Help,-1,0,helpfiles[i],PROC,r_MHelp,{i}})
+        end if
+    end for
+    if length(res) then
+        res = append(res,{"-",      M_Help,0,0,0,0})
+    end if
+    return res
+--end function
 
-Ihandle help_menu = IupMenu({help_context,
-                             IupSeparator(),
-                             help_phix,
-                             help_msdn,
-                             IupSeparator(),
-                             help_home,
-                             help_manual,
-                             help_licence,
-                             help_forum,
-                             help_upgrades,
-                             help_about})
+--procedure MHelp(integer i)
+--14/9/15:
+--  openChm(helpfiles[i],0)
+sequence helpfile
+    helpfile = helpfiles[i]
+    if helpfile[2]!=':' then
+--      helpfile = initialcurrentdir&helpfile
+        helpfile = get_proper_path(initialcurrentdir&helpfile)
+--          f2 = open(helpfile,"r")
+    end if
+    openChm(helpfile,0)
+--end procedure
+constant r_MHelp=routine_id("MHelp")
+
+include src/qj.e
+--*/
+
+constant H_F1 = 101, 
+         H_HOME = 102, 
+         H_MANUAL = 103,
+         H_LICENCE = 104,
+         H_FORUM = 105,
+         H_UPGRADE = 107,
+         H_ABOUT = 108
+
+global function help_cb(Ihandle self)
+integer id = IupGetInt(self,"ID")
+?"help_cb"
+    if id<=100 then
+--DEV eaqj.ew...
+--      openChm(helpfiles[id],0)
+        ?helpfiles[id]
+    elsif id=H_F1 then
+    elsif id=H_HOME then
+    elsif id=H_MANUAL then
+    elsif id=H_LICENCE then
+    elsif id=H_FORUM then
+    elsif id=H_UPGRADE then
+    elsif id=H_ABOUT then
+    else
+        ?9/0
+    end if
+    return IUP_DEFAULT
+end function
+constant cb_help = Icallback("help_cb")
+
+function create_help_menu()
+--trace(3)
+--?helpfiles
+--{"..\\..\\docs\\phix\\phix.chm","help\\mini.chm"}
+Ihandle help_context    = menu_item("&Context Help\tF1",    "PNG_Help",         cb_help,  1, H_F1)
+--Ihandle help_phix     = menu_item("Phix.chm",             "PNG_HelpPhixCHM",  cb_help,  1, 0)
+--Ihandle help_msdn     = menu_item("mini.chm",             "PNG_HelpCHM",      cb_help,  1, 0)
+Ihandle help_home       = menu_item("Phix Home Page",       "PNG_helpHome",     cb_help,  1, H_HOME)
+Ihandle help_manual     = menu_item("manual",               "PNG_HelpPhixCHM",  cb_help,  1, H_MANUAL)
+Ihandle help_licence    = menu_item("licence",              "PNG_HelpPhixCHM",  cb_help,  1, H_LICENCE)
+Ihandle help_forum      = menu_item("OpenEuphoria Forum",   "PNG_UserGroup",    cb_help,  1, H_FORUM)
+Ihandle help_upgrades   = menu_item("Check for &Upgrades",  "PNG_AppUpgrade",   cb_help,  1, H_UPGRADE)
+Ihandle help_about      = menu_item("&About",               "PNG_HelpAbout",    cb_help,  1, H_ABOUT)
+
+Ihandles children = {help_context,
+                     IupSeparator()}
+--Ihandles from_helpfiles = {}
+    for i=1 to length(helpfiles) do
+        string help_name = get_file_name(helpfiles[i])
+--      string help_name = "chm"
+        string help_icon = iff(lower(help_name)="phix.chm"?"PNG_HelpPhixCHM":"PNG_HelpCHM")
+--      string help_icon = "PNG_HelpCHM"
+--      from_helpfiles &= menu_item(help_name,help_icon,cb_help,1,i)
+        children &= menu_item(help_name,help_icon,cb_help,1,i)
+    end for
+    children &= {IupSeparator(),
+--DEV for some reason this is however ok, unlike below...
+                 help_home,
+                 help_manual,
+                 help_licence,
+                 help_forum,
+                 help_upgrades,
+                 help_about}
+
+Ihandle help_menu = IupMenu(children)
+--                          {help_context,
+--                           IupSeparator()}&
+--                           help_phix,
+--                           help_msdn,
+--                          from_helpfiles&
+--                          {IupSeparator(),
+--DEV [HELP!!] any and all of these crash, w/o a proper ex.err
+--                           help_home,
+--                           help_manual,
+--                           help_licence,
+--                           help_forum,
+--                           help_upgrades,
+--                           help_about})
+--})
 --  IupSetCallback(help_menu, "OPEN_CB", Icallback("options_menu_open_cb")); [probably not rqd]
+--trace(0)
     return help_menu
 end function
 
@@ -5904,38 +5998,41 @@ constant actset = {"create",
 
 function create_toolbar()
 --DEV content from ini file?
-Ihandle toolb_new    = toolbar_item(cb_new,             "PNG_FileNew",    "New (Ctrl N)",                   1)
-Ihandle toolb_open   = toolbar_item(cb_open,            "PNG_FileOpen",   "Open (Ctrl O)",                  1)
-        toolb_save   = toolbar_item(cb_save,            "PNG_FileSave",   "Save (Ctrl S)",                  1)
---Ihandle toolb_saveas  = toolbar_item(cb_saveas,       "PNG_FileSaveAs", "Save As",                        1)
-        toolb_close  = toolbar_item(cb_close,           "PNG_FileClose",  "Close (Ctrl F4)",                0)
-        toolb_prntp  = toolbar_item(cb_preview,         "PNG_FilePreview","Print Preview (Ctrl P)",         0)
-        toolb_print  = toolbar_item(cb_print,           "PNG_FilePrint",  "Print (Ctrl Shift P)",           0)
-        toolb_cut    = toolbar_item(cb_cut,             "PNG_EditCut",    "Cut (Ctrl X)",                   1)
-        toolb_copy   = toolbar_item(cb_copy,            "PNG_EditCopy",   "Copy (Ctrl C)",                  1)
-        toolb_paste  = toolbar_item(cb_paste,           "PNG_EditPaste",  "Paste (Ctrl V)",                 1)
-        toolb_undo   = toolbar_item(cb_undo,            "PNG_EditUndo",   "Undo (Ctrl Z)",                  1)
-        toolb_redo   = toolbar_item(cb_redo,            "PNG_EditRedo",   "Redo (Ctrl Y)",                  1)
-        toolb_find   = toolbar_item(fdlg:cb_find,       "PNG_EditFind",   "Find (Ctrl F)",                  0)
-        toolb_fnxt   = toolbar_item(fdlg:cb_findnext,   "PNG_FindNext",   "Find Next (F3)",                 0)
-        toolb_fprv   = toolbar_item(fdlg:cb_findprev,   "PNG_FindPrev",   "Find Prev (Shift F3)",           0)
-        toolb_zoomin  = toolbar_item(cb_zoomin,         "PNG_ZoomIn",     "Zoom In (Ctrl +)",               0)
-        toolb_zoomout = toolbar_item(cb_zoomout,        "PNG_ZoomOut",    "Zoom Out (Ctrl -)",              0)
-        toolb_back   = toolbar_item(cb_backoff,         "PNG_rotate1",    "Background Processing",          0)
-        toolb_run    = toolbar_item(cb_run,             "PNG_ToolRun",    "Run (F5)",                       0)
---  Ihandle toolb_run    = toolbar_item(cb_run,         "IUP_ActionOk",   "Run (F5)",                       0)
+    toolb_new     = toolbar_item(cb_new,            "PNG_FileNew",    "New (Ctrl N)",                   1)
+    toolb_open    = toolbar_item(cb_open,           "PNG_FileOpen",   "Open (Ctrl O)",                  1)
+    toolb_save    = toolbar_item(cb_save,           "PNG_FileSave",   "Save (Ctrl S)",                  1)
+--  toolb_saveas  = toolbar_item(cb_saveas,         "PNG_FileSaveAs", "Save As",                        1)
+    toolb_close   = toolbar_item(cb_close,          "PNG_FileClose",  "Close (Ctrl F4)",                0)
+    toolb_prntp   = toolbar_item(cb_preview,        "PNG_FilePreview","Print Preview (Ctrl P)",         0)
+    toolb_print   = toolbar_item(cb_print,          "PNG_FilePrint",  "Print (Ctrl Shift P)",           0)
+    toolb_cut     = toolbar_item(cb_cut,            "PNG_EditCut",    "Cut (Ctrl X)",                   1)
+    toolb_copy    = toolbar_item(cb_copy,           "PNG_EditCopy",   "Copy (Ctrl C)",                  1)
+    toolb_paste   = toolbar_item(cb_paste,          "PNG_EditPaste",  "Paste (Ctrl V)",                 1)
+    toolb_undo    = toolbar_item(cb_undo,           "PNG_EditUndo",   "Undo (Ctrl Z)",                  1)
+    toolb_redo    = toolbar_item(cb_redo,           "PNG_EditRedo",   "Redo (Ctrl Y)",                  1)
+    toolb_find    = toolbar_item(fdlg:cb_find,      "PNG_EditFind",   "Find (Ctrl F)",                  0)
+    toolb_fnxt    = toolbar_item(fdlg:cb_findnext,  "PNG_FindNext",   "Find Next (F3)",                 0)
+    toolb_fprv    = toolbar_item(fdlg:cb_findprev,  "PNG_FindPrev",   "Find Prev (Shift F3)",           0)
+    toolb_zoomin  = toolbar_item(cb_zoomin,         "PNG_ZoomIn",     "Zoom In (Ctrl +)",               0)
+    toolb_zoomout = toolbar_item(cb_zoomout,        "PNG_ZoomOut",    "Zoom Out (Ctrl -)",              0)
+    toolb_back    = toolbar_item(cb_backoff,        "PNG_rotate1",    "Background Processing",          0)
+    toolb_run     = toolbar_item(cb_run,            "PNG_ToolRun",    "Run (F5)",                       0)
+--  toolb_run     = toolbar_item(cb_run,            "IUP_ActionOk",   "Run (F5)",                       0)
 
 --DEV in windows the control will still get the focus when clicked [the DEV part being that we need some extra code to re-focus]
-Ihandle toolb_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
+    toolb_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
     --DEV this will be more dynamically set:
     if 0 then
         IupSetInt(toolb_rtns, "ACTIVE", 0)
     else
+--      IupSetAttributeId(toolb_rtns, "", length(actset), NULL)
         IupSetInt(toolb_rtns,"VISIBLEITEMS",length(actset)+1)   -- [no idea why it needs the +1]
+--      IupSetInt(toolb_rtns,"VISIBLEITEMS",length(actset))
         for i=1 to length(actset) do
             IupSetAttributeId(toolb_rtns, "", i, actset[i])
         end for
         IupSetInt(toolb_rtns,"VALUE",length(actset))
+--      IupSetInt(toolb_rtns,"SIZE",length(actset))
     end if
 
     Ihandle toolbar = IupHbox({toolb_new,
@@ -7572,10 +7669,13 @@ end function
 
 procedure main()
 
-    IupOpen(join_path({initialcurrentdir,"..","pGUI"},1))
+--  IupOpen(join_path({initialcurrentdir,"..","pGUI"},1))
+    IupOpen()
 
     IupSetGlobal("SINGLEINSTANCE", "Edix") -- (must [partially] match the main window title)
     if IupGetGlobal("SINGLEINSTANCE")="" then
+--DEV/temp[?]:
+?"SINGLEINSTANCE!" sleep(1)
         IupClose()
         return
     end if
@@ -7872,7 +7972,7 @@ procedure main()
         if filepath!="" then
 --/*
             object res = readFile(filepath)
-            if sequence(res) then
+--          if sequence(res) then
                 sequence {text,linelengths} = res
                 string title = get_file_name(filepath)
                 string path = get_file_path(filepath,0)

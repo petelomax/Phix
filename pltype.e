@@ -177,6 +177,30 @@ integer nxt
     return N
 end function
 
+--DEV/SUG: (to simplify debugging)
+--function tt_stringf(string text)
+--  tt_string(text,-2)
+--  return ttidx
+--end function
+--
+--sequence ttidii = {}
+----global 
+--procedure lt_ttidx(object name)
+--integer ttidx = iff(string(name)?tt_stringf(name):name)
+--  ttidii = append(ttidii,ttidx)
+--end procedure
+-- and suppress output that does not match a non-empty ttidii
+-- alternatively, make lt_ttidx non-global and setup immediately:
+--if 0 then
+--  lt_ttidx("some_var")
+--end if
+--
+--function of_interest(integer vdx)
+--  return length(ttidii)=0
+--      or find(symtab[vdx][S_Name],ttidii)!=0
+--end function
+--(suggested/untested calls to of_interest have been pencilled in below)
+
 --
 constant diag = 0   -- TIP: get any misbehaving program as small as possible before turning
 --                  --      this on, as it can produce an awful lot of output!
@@ -479,9 +503,16 @@ sequence desc
     end if
     lv = length(lvno)
 --lv=0
+--  integer header = 0
     if lv then
         dprintf("vno,ptype,ntype,min,max,etyp,len,ilo,pldx,flag\n",0)
         for ldx=1 to lv do
+--          vno = lvno[ldx]
+--          if of_interest(vno) then
+--              if header=0 then
+--                  dprintf("vno,ptype,ntype,min,max,etyp,len,ilo,pldx,flag\n",0)
+--                  header = 1
+--              end if
             flag = lflag[ldx]
             if and_bits(flag,TEST) then
                 if and_bits(flag,FTEST)=FTEST then
@@ -537,6 +568,7 @@ sequence desc
                     {vno,ptyp,eqp,ntyp,eqn,
                      m3(ltmin[ldx]),m3(ltmax[ldx]),letyp[ldx],
                      m3(lslen[ldx]),ls5i[ldx],lpldx[ldx],flags,last})
+--          end if -- of_interest(vno)
         end for
     end if
 end procedure
@@ -617,8 +649,10 @@ integer ldx
     end if
 
     if diag then
+--      if of_interest(v) then
         dprintf("ltAdd(flag=%d,v=%d,ptyp=%d,ntyp=%d,s5idx=%d,emitline=%d)\n",
                 {flag,v,ptyp,ntyp,s5idx,emitline})
+--      end if
     end if
 
     if and_bits(flag,TEST)
@@ -1863,6 +1897,8 @@ integer lvlen, vno, flag
 --  if cmax>0 then ?9/0 end if
     if cmax>0 then
         puts(1,"cmax>0...\n")
+        dprintf("*** cmax>0 ***",{})
+        cmax = 0
     end if
     lvlen = length(lvno)
     if lvlen then

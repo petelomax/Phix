@@ -79,9 +79,12 @@ end procedure -- (for Edita/CtrlQ)
             cmp edi,edx
             jb @f               -- unsigned jump, lets 0..len-1 through
                                 --               (we just decremented edi)
+--17/7/17:
+                add ecx,2
                 mov al,8+4+1        -- [era] is [esp+ecx*4+4], "reading from"
                 call :%fixupIndex   -- idx-1 in edi, len in edx, al set
                 mov al,byte[esi-1]  -- as we just trashed it
+                sub ecx,2
           @@:
             cmp al,0x80
             jne @f
@@ -461,9 +464,12 @@ end procedure -- (for Edita/CtrlQ)
             cmp rdi,rdx
             jb @f               -- unsigned jump, lets 0..len-1 through
                                 --               (we just decremented rdi)
+--17/7/17:
+                add rcx,2
                 mov al,8+4+1        -- [era] is [rsp+rcx*8+8], "reading from"
                 call :%fixupIndex   -- idx-1 in rdi, len in rdx, al set
                 mov al,byte[rsi-1]  -- as we just trashed it
+                sub rcx,2
           @@:
             cmp al,0x80
             jne @f

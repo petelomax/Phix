@@ -20,7 +20,7 @@
             </td>
             <td>
               Outside character classes this is an anchor for start of text. eg `^You` matches lines beginning with "You".<br>
-              At the very start of a character class, negates it. eg `[^q]` maches any character except a 'q'.<br>
+              At the very start of a character class, negates it. eg `[^q]` maches any character except a `q`.<br>
               Use `\^` to mean the literal character.
             </td>
          </tr>
@@ -36,7 +36,15 @@
              .
             </td>
             <td>
-             Any character, except \n, unless the <a href="regex_options.htm">RE_DOTMATCHESNL</a> option has been set. Use `\.` to mean the literal character.
+             Any character, except `\n`, unless the <a href="regex_options.htm">RE_DOTMATCHESNL</a> option has been set. Use `\.` to mean the literal character.
+            </td>
+         </tr>
+         <tr>
+            <td>
+             |
+            </td>
+            <td>
+             Alternation. eg `a|bc|def` matches "a" or "bc" or "def".
             </td>
          </tr>
          <tr>
@@ -62,7 +70,7 @@
              \d
             </td>
             <td>
-             The digits 0 through 9. \D is the negation of that set (ie not a digit).
+             The digits `0` through `9`. \D is the negation of that set (ie not a digit).
             </td>
          </tr>
          <tr>
@@ -70,7 +78,7 @@
              \w
             </td>
             <td>
-             The characters a to z, A to Z, 0 to 9, and _ (underscore). \W is the negation of that set.
+             The characters `a` to `z`, `A` to `Z`, `0` to `9`, and `_` (underscore). \W is the negation of that set (not a word character).
             </td>
          </tr>
          <tr>
@@ -78,7 +86,7 @@
              \s
             </td>
             <td>
-             The white space characters space, tab, newline, and carriage return. \S is the negation of that set.
+             The white space characters space, tab, newline, and carriage return. \S is the negation of that set (not a whitespace character).
             </td>
          </tr>
          <tr>
@@ -86,7 +94,7 @@
              \xHH
             </td>
             <td>
-             A character as a two-digit hexadecimal. A leading 0 is not optional.
+             A character as a two-digit hexadecimal. A leading `0` is <i>not</i> optional.
             </td>
          </tr>
          <tr>
@@ -95,11 +103,11 @@
             </td>
             <td>
              Defines a character class. <br>
-             If a ^ immediately follows the opening [ then the class is negated. <br>
-             Matches a single character, unless the closing ] is followed by ?*+{} (see below).<br>
+             If a `^` immediately follows the opening `[` then the class is negated. <br>
+             Matches a single character, unless the closing `]` is followed by any of `?*+{}` (see below).<br>
              Ranges can be specified with - (a hyphen). <br>
-             eg [0-9] is the same as \d, [a-zA-Z0-9_] is the same as \w, and [ \r\n\t] is the same as \s.<br>
-             Use `\]` to include a literal ']', and `\\` to include a literal `\`. `\r\n\t` are also recognised.
+             eg `[0-9]` is the same as `\d`, `[a-zA-Z0-9_]` is the same as `\w`, and `[ \r\n\t]` is the same as `\s`.<br>
+             Use `\]` to include a literal `]`, and `\\` to include a literal `\`. `\r\n\t` are also recognised.
             </td>
          </tr>
          <tr>
@@ -107,8 +115,18 @@
              ( )
             </td>
             <td>
-             Defines a capture group. The start and end+1 index pairs of each matching group are returned. <br>
+             Defines a capture group. <br>
+             If `?:` immediately follows the opening `(` then the group is non-capturing, otherwise
+             the start and end+1 index pairs of each matching group are returned. <br>
+             An error occurs if there is a `?` immediately after the opening `(` but that is not then followed
+             by a recognised character, currently only ':', specifically not the =|!|&lt;|&gt; of lookahead|lookbehind|atomic groups.<br>
              The entire expression is automatically enclosed in an outer matching group, sometimes called \0.
+            <br>
+            <br>
+             Aside: when processing say `(abc)`, ie matching the string "abc", the (&rsquo;s SAVE stores the index of the `a`, but 
+             the )&rsquo;s SAVE stores the index of the character <i>after</i> the `c`. Saving the caller the effort of subtracting 
+             1 from the even-numbered results would have required splitting the SAVE op into SAVE_OPEN and SAVE_CLOSE, which just 
+             didn&rsquo;t seem worthwhile.
             </td>
          </tr>
          <tr>
@@ -129,7 +147,7 @@
             </td>
             <td>
              optional - 0 or 1 occurance of the preceding term.
-             A trailing ? specifies non-greedy (on this, and on *+{} as below)
+             A trailing ? specifies non-greedy
             </td>
          </tr>
          </tr>
@@ -155,7 +173,7 @@
              {n}
             </td>
             <td>
-             Exactly n occurances of the preceding term.
+             Exactly n (&lt;=1000) occurances of the preceding term. The arbitrary limit of 1000 just seems sensible.<br>
              A trailing ? means non-greedy (but is superfluous in this instance)
             </td>
          </tr>
@@ -164,7 +182,7 @@
              {n,}
             </td>
             <td>
-             At least n occurances of the preceding term.
+             At least n (&lt;=1000) occurances of the preceding term.
              A trailing ? specifies non-greedy
             </td>
          </tr>
@@ -173,41 +191,52 @@
              {n,m}
             </td>
             <td>
-             At least n and at most m occurances of the preceding term.
+             At least n and at most m (n&lt;=m&lt;=1000) occurances of the preceding term.
              A trailing ? specifies non-greedy
-            </td>
-         </tr>
-         <tr>
-            <td>
-             |
-            </td>
-            <td>
-             Alternation. eg `a|bc|def` matches "a" or "bc" or "def".
             </td>
          </tr>
         </table>
         <br>
         &nbsp;
         <br>
-        Note that internally I elected to implement ?*+ as {OPT,min,max} with {min,max} being {0,1}, {0,-1}, {1,-1} respectively.
-        It was therefore trivial to make it {OPT,min,max,greedy}, if perhaps a little unwise. Any resemblence to the behaviour of 
-        greedy and non-greedy in pcre is entirely coincidental - partly joking, of course, but I will say this: If there is one
-        and only one unambiguous match then obviously it should agree, but greedy/non-greedy strongly implies ambiguity, and 
-        especially when pitting an entirely different algorithm and a tiny fraction of the number of source code lines against 
-        a well established giant like pcre, all compatibility bets (in ambiguous cases) are off.
-        <br>
         <a name=PCRECOMPAT></a>
         <br>
-        <h3>Quick summary</h3>
-        For those of you already familiar with regular expressions, note the following:<br>
-        Does not support lookahead or lookbehind<br>
-        Does not support \Q \E \a (bel) \b (backspace) \c (ctrl) \e (esc) \f (ff) \v (vt)<br>
+        <h3>Quick summary of PCRE (in)compatibility</h3>
+        For those of you already familiar with regular expressions, while the above table covers alot of ground, note the following:<br>
+        <small>(Hopefully these are all somewhat lesser features that you don&rsquo;t much use anyway)</small><br>
+        Does not support lookahead or lookbehind.<br>
         Does not support unicode character ranges, see below.<br>
-        Does not support single-line or multi-line modes. \n attracts no special handling.<br>
-        Does not support atomic grouping<br>
-        Does not support posix character classes (eg [:digit:])<br>
-        Regular expressions should be enclosed in backticks to avoid escaping, eg `\s+` (=="\\s+").<br>
-        Does not support the forwardslashes of other programming languages.
+        Does not support posix character classes (such as [:digit:]).<br>
+        Does not support \Q \E \a (bel) \b (backspace) \c (ctrl) \e (esc) \f (ff) \v (vt).<br>
+        Does not support single-line or multi-line modes, ie ^|$ are whole thing, not post|pre \n|\r.<br>
+        Does not support atomic grouping [quite probably impossible on the pikevm, but unnecessary anyway].<br>
+        Does not support possessive quantifiers (whereby a trailing + makes a group atomic, I believe).<br>
+        Does not support named capture groups (only madmen cut and paste bits of regexes anyway!).<br>
+        Does not support inline modifiers (or therefore free-spacing mode along with in-text comments).<br>
+        Does not support subroutines (which are like backreferences but re-use the pattern rather than the match).<br>
+        Does not support conditionals, or branch resets or code capsules or callouts or version checks...<br>
+        Regular expressions should be enclosed in backticks to avoid escaping, eg `\s+` is the same as "\\s+".<br>
+        Backticks should be used instead of the forwardslashes of other programming languages.
+        <br>
+        <br>
+        Quite a scary list, but then again regular expressions <a id="ext573" style="color:#9B5565" 
+        href="javascript:ExternalLink('ext573','http://www.ex-parrot.com/~pdw/Mail-RFC822-Address.html');">     
+        can get very scary</a> without my help. Feel free to try implementing anything from that list that you miss.
+        <br>
+        <br>
+        Note that internally I elected to implement ?*+ as {OPT,min,max} with {min,max} being {0,1}, {0,-1}, {1,-1} respectively,
+        alongside the more obvious {n} as {OPT,n,n}, {n,} as {OPT,n,-1}, and {n,m} as {OPT,n,m}.
+        It was therefore trivial to make it {OPT,min,max,greedy}, if perhaps a little unwise. Any resemblence to the behaviour of 
+        greedy and non-greedy in PCRE is entirely coincidental - partly joking, of course, but I will say this: If there is one
+        and only one unambiguous match then obviously it should agree, but greedy/non-greedy strongly implies ambiguity, and 
+        especially when pitting an entirely different algorithm and a tiny fraction of the number of source code lines against 
+        a well established giant like PCRE, all compatibility bets (in ambiguous cases) are off.
+        <br>
+        <br>
+        So the situation is this: <br>
+        Q: Does it handle PCRE-like expressions, or at least a fairly good subset of them? &nbsp; A: Yes, at least I think so. <br>
+        Q: Does it give exactly the same results in all possible edge cases as PCRE? &nbsp; A: No, that way lies insanity.<br>
+        <small>(Then again even Perl does not always match PCRE perfectly..)</small>
         <br>
         <br>
         Literal unicode is supported via utf8 only, eg "\u20AC" matches a euro sign, but `[\u20AC]`
@@ -220,10 +249,20 @@
         <br>
         <br>
         It would probably not be difficult to create a new and improved unicode entry point based 
-        on the existing code along these lines:
+        on the existing code, perhaps along these lines:
 <!--eucode>
-    type utf8or32(object s)
-        return sequence(s)  -- string(utf8) or dword_sequence(utf32)
+    type utf8or32(object s)  -- string(utf8) or dword_sequence(utf32)
+        if not string(s) then
+            if not sequence(s) then return false end if
+            for i=1 to length(s) do
+                integer codepoint = s[i]
+                if codepoint<0 or codepoint>#10FFFF 
+                or (codepoint>=#D800 and codepoint<=#DFFF) then
+                    return false
+                end if
+            end for
+        end if
+        return true
     end type
 
     function regex32(utf8or32 pat, utf8or32 src)
@@ -232,9 +271,19 @@
         ...
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">    type</font><font color="#000000"> utf8or32</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> s</font><font color="#0000FF">)
-</font><font color="#008080">        return</font><font color="#004080"> sequence</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">) </font><font color="#000080"><i> -- string(utf8) or dword_sequence(utf32)
-</i></font><font color="#008080">    end type
+<font color="#000000"></font><font color="#008080">    type</font><font color="#000000"> utf8or32</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> s</font><font color="#0000FF">) </font><font color="#000080"><i> -- string(utf8) or dword_sequence(utf32)
+</i></font><font color="#008080">        if not</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> then
+            if not</font><font color="#004080"> sequence</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> then return</font><font color="#004600"> false</font><font color="#008080"> end if
+            for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#004080">                integer</font><font color="#000000"> codepoint</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]
+</font><font color="#008080">                if</font><font color="#000000"> codepoint</font><font color="#0000FF">&lt;</font><font color="#000000">0</font><font color="#008080"> or</font><font color="#000000"> codepoint</font><font color="#0000FF">&gt;</font><font color="#000000">#10FFFF 
+</font><font color="#008080">                or</font><font color="#0000FF"> (</font><font color="#000000">codepoint</font><font color="#0000FF">&gt;=</font><font color="#000000">#D800</font><font color="#008080"> and</font><font color="#000000"> codepoint</font><font color="#0000FF">&lt;=</font><font color="#000000">#DFFF</font><font color="#0000FF">)</font><font color="#008080"> then
+                    return</font><font color="#004600"> false
+</font><font color="#008080">                end if
+            end for
+        end if
+        return</font><font color="#004600"> true
+</font><font color="#008080">    end type
 
     function</font><font color="#000000"> regex32</font><font color="#0000FF">(</font><font color="#000000">utf8or32 pat</font><font color="#0000FF">,</font><font color="#000000"> utf8or32 src</font><font color="#0000FF">)
 </font><font color="#008080">        if</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">pat</font><font color="#0000FF">)</font><font color="#008080"> then</font><font color="#000000"> pat</font><font color="#0000FF"> =</font><font color="#5E005E"> utf8_to_utf32</font><font color="#0000FF">(</font><font color="#000000">pat</font><font color="#0000FF">)</font><font color="#008080"> end if
@@ -246,7 +295,7 @@
         I should also admit that I have never knowingly processed any combining characters in my entire life, 
         and therefore cannot offer any suggestions on how to handle them. The same applies to 
         Letter/Mark/Separator/Symbol/Number/Punctuation/Other unicode sets.
-        (I cannot imagine any reason for complicating things by working in utf-16 either.)
+        I cannot imagine any reason for complicating things by working in utf-16 either.
         <br>
         <br>
       </div>

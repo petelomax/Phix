@@ -361,7 +361,7 @@ integer wasfileno
 string msg
 integer wline,wcol
 integer ch
-object version
+object cversion
 --integer dbg
 string thispath2
 
@@ -682,7 +682,7 @@ end if
             end if
             intellisense = 3
         end if
-        version = {0}
+        cversion = {0}
         k = find(lower(file),phixcompat)
         if k then
             k = match("Phix compatible",text)
@@ -694,17 +694,17 @@ end if
                     if ch=')' then exit end if
                     if ch!=' ' then
                         if ch='.' then
-                            version &= 0
+                            cversion &= 0
                         elsif ch<'0' or ch>'9' then
 --                          Abort("invalid version")
                             exit
                         else
-                            version[$] = version[$]*10+ch-'0'
+                            cversion[$] = cversion[$]*10+ch-'0'
                         end if
                     end if
                     k += 1
                 end while
-                if version>phixversion then
+                if cversion>phixversion then
                     tokcol = k
                     tokline = 1
                     for i=1 to k do
@@ -718,7 +718,7 @@ end if
                 k = 0
                 for i=1 to length(vctrl) do
                     if lower(file)=vctrl[i][1] then
-                        if version<vctrl[i][2] then
+                        if cversion<vctrl[i][2] then
                             k = 1
                         end if
                         exit
@@ -1488,6 +1488,8 @@ global function isFLOAT(atom N)
             -- 32 bit compiler -> 64 bit executable (partial range coverage)
 --          return N!=floor(N) or N<-#80000000 or N>+#80000000
             return N!=floor(N) or N<-#FFFFFFFF or N>+#FFFFFFFF
+--7/7/17: (no help)
+--                             or N<MININT     or N>MAXINT
         end if
     else -- machine_bits()=64   -- (runtime)
         if X64=1 then           -- (target)

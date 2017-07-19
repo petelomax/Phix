@@ -11,11 +11,13 @@
 namespace datetime
 --*/
 
---include std/machine.e
---include std/dll.e
---include std/sequence.e
---include std/get.e
---include std/error.e
+--/*
+include std/machine.e
+include std/dll.e
+include std/sequence.e
+include std/get.e
+include std/error.e
+--*/
 include std/types.e
 
 --#without reformat

@@ -372,7 +372,7 @@ end function
 --DEV this should be made a builtin:
 --/* now in pAlloc.e
 global function allocate_string(sequence s)
---global function allocate_string(sequence s, boolean cleanup = 0)
+--global function allocate_string(sequence s, boolean cleanup = false)
 -- create a C-style null-terminated string in memory
 atom mem
 

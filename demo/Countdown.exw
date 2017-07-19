@@ -1,0 +1,114 @@
+-- bit slow... (just something I stumbled upon)
+-- solves the numbers game from countdown.
+
+constant n = 6
+
+enum ADD, SUB, MUL, DIV
+constant ops = "+-*/"
+
+sequence chosen = repeat(0,n)
+sequence expression = repeat(0,n)
+sequence solution = repeat(0,n)
+
+int len;
+int count;
+
+integer target
+
+procedure Countdown(int lev=1)
+--
+-- Recursive search - takes two numbers, performs an op (storing result), checks
+-- for target value, and calls itself. All solutions are stored, to find shortest, 
+-- so that, for example, 100+1 is chosen instead of 100+(75/25)-1-1. 
+-- Optimizations are made to ensure commutative operations are only performed one 
+-- way round, division is only performed when no remainder, and */1 are skipped.
+--
+int sti,stj,ci;
+bool worth_doing;
+
+    count += 1
+    for i=1 to n do
+        if chosen[i]!=0 then
+            for j=1 to n do
+                if i!=j and chosen[j]!=0 then
+                    for operation=ADD to DIV do
+                        worth_doing = false
+                        switch operation with fallthrough do
+                            -- (obvs DIV does all 3 tests, MUL does 2, ADD/SUB just 1)
+                            case DIV:       if mod(chosen[i],chosen[j])!=0  then break end if
+                            case MUL:       if chosen[j]=1                  then break end if
+                            case ADD,SUB:   if chosen[i]<chosen[j]          then break end if
+                                            worth_doing = true
+--crashes without this pre-0.7.6:
+default:
+                        end switch
+                        if worth_doing then
+                            sti = chosen[i];
+                            stj = chosen[j];
+                            ci = sti
+                            switch operation do
+                                case ADD: ci+=stj
+                                case SUB: ci-=stj
+                                case MUL: ci*=stj
+                                case DIV: ci/=stj
+                            end switch
+                            chosen[i] = ci
+                            chosen[j] = 0
+                            /* store operands and operator */
+                            expression[lev] = {sti,ops[operation],stj}
+                                                        
+                            -- check for solution
+                            if ci==target then
+                                if lev<len then
+                                    /* solution is shortest so far - store it */
+                                    len = lev
+                                    solution = expression
+                                end if
+                            else
+                                -- if not at required level, recurse
+                                if lev<5 then
+                                    Countdown(lev+1)
+                                end if
+                            end if
+                            -- undo
+                            chosen[i] = sti
+                            chosen[j] = stj
+                        end if
+                    end for
+                end if
+            end for
+        end if
+    end for
+end procedure
+
+/* interface to recursive routine */
+function Carol(sequence list, int dest)
+string solstr = ""
+integer answer = 0
+    len = n+1
+    count = 0
+    target = dest
+    chosen = list
+
+    Countdown()
+    /* process solution into printable form */
+    if len<n+1 then
+        for i=1 to len do
+            integer {operand1,operator,operand2} = solution[i]
+            switch operator do
+                case '+': answer = operand1+operand2
+                case '-': answer = operand1-operand2
+                case '*': answer = operand1*operand2
+                case '/': answer = operand1/operand2
+            end switch
+            solstr &= sprintf("%d%c%d=%d\n",{operand1,operator,operand2,answer})
+        end for
+    end if
+    return solstr
+end function
+
+--atom t0 = time()
+puts(1,Carol({75,50,25,100,8,2},737))
+--?time()-t0
+
+{} = wait_key()

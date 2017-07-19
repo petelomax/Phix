@@ -94,6 +94,7 @@ constant vm_names = {
 --                                  "%pCrash1",
                                     "%pCrashFile",
                                     "%pCrashRtn",
+                                    "%pThrow",
                                     "!SetBatchMode",
                                     "!fatalN",
                                     "!iDiag",

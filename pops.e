@@ -121,6 +121,10 @@ global constant
 --opTchk2 = 13,
 --opTcFail2 = 14,
     -- 13,14,15,16 spare
+--EXCEPT
+    opTry = 14,
+    opCatch = 15,
+    opThrow = 16,
                                         
     --
     -- opFor,init,ctl,step,limit,tgt/x86loc
@@ -458,8 +462,7 @@ global constant
     opBkClr = 168,      -- bk_color(a)
     opTrace = 169,      -- trace(a)
     opProfile = 170,    -- profile(a)
-    -- 171 spare
-opProfout = 171,        -- profile_dump()
+    opProfout = 171,    -- profile_dump()
 
 -- internals:
 
@@ -516,6 +519,8 @@ opProfout = 171,        -- profile_dump()
 --  maxNVop = 197       -- max non-virtual opcode (checked against VM table in pemit.e)
 --  maxNVop = 0     -- max non-virtual opcode (checked against VM table in pemit.e)
 --$
+    opLoadMint = 179,   -- edx:eax := int64(eax)
+    opStoreMint = 180,  -- [edi] := eax, as float if rqd
 --DEV newEmit...
 -- virtual opcodes (ie no actual code in the VM for these)
 --                  (technically, opMovbi/opMovsi/opMovti/opAddiii/opSubiii/opMuliii/opDiviii
@@ -606,10 +611,10 @@ opProfout = 171,        -- profile_dump()
     opWrap = 244,       -- opWrap,flag
     opScroll = 245,     -- opScroll,amount,top,bottom
     opTextRows = 246,   -- opTextRows,res,lines
-
+    opVersion = 247,    -- implements version() [resolved in pmain.e]
 --??
 --opDcfp = 247,         -- define_c_func/proc
-    maxVop = 246
+    maxVop = 247
 
     opNames = repeat(0,maxVop)
     opSkip = repeat(-20000,maxVop)  -- instruction lengths (mostly)
@@ -635,7 +640,13 @@ opProfout = 171,        -- profile_dump()
     opName("opUnassigned",opUnassigned,2)
 --  opName("opCallOnceYeNot",opCallOnceYeNot,0)
 --  opName("opAllocStr",opAllocStr,2)   -- opAllocStr,res,len (only called from ilASM, so far)
-    opUsed += 4 -- spare
+--  opUsed += 4 -- spare
+--EXCEPT
+    opUsed += 1 -- spare/opCallOnceYeNot?
+    opName("opTry",opTry,3)             -- opTry,tmp,tgt
+    opName("opCatch",opCatch,6)         -- opCatch,mergeSet(0),tgt,link,tlnk,e
+    opName("opThrow",opThrow,3)         -- opThrow,e,user/0
+
 --  opName("opFor",opFor,6)             -- opFor,init,ctl,step,limit,tgt/x86loc (see notes below)
                                         -- (29/12/2011: "end" on the opLoopTop should now be used
                                         --              in place of tgt, since that gets clobbered
@@ -879,7 +890,7 @@ opProfout = 171,        -- profile_dump()
 
     opName("opCall",opCall,1)       -- opCall (routine to call is left on stack by opFrame)
     opName("opFrst",opFrst,5)
-    opName("opJmp",opJmp,4)
+    opName("opJmp",opJmp,4)         -- opJmp,mergeSet,tgt,link\n"
     opName("opJtyp",opJtyp,10)
     opName("opJbits",opJbits,8)
     opName("opJlen",opJlen,8)
@@ -950,6 +961,7 @@ opProfout = 171,        -- profile_dump()
     opName("opWrap",opWrap,2)
     opName("opScroll",opScroll,4)
     opName("opTextRows",opTextRows,3)
+    opName("opVersion",opVersion,0)
 
 
 --DEV move this to the help text, and fill in any gaps

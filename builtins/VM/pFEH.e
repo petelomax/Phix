@@ -117,7 +117,7 @@ integer finit = 0
       ::finalExceptionHandler
         xor ebx,ebx -- important!!
 
-        call :lowlevel              -- (temp)
+--      call :lowlevel              -- (temp)
 
         mov esi,[esp+4]             -- EXCEPTION_POINTERS
         mov edi,[esi]               -- EXCEPTION_RECORD
@@ -127,6 +127,23 @@ integer finit = 0
         mov ebp,[esi+180]           -- or_ebp (restore)
         mov edi,esp                 -- (in case :!fehDiag not called)
         mov esp,[esi+196]           -- or_esp
+
+--EXCEPT
+--      cmp [ebp+16],ebx
+--      je @f
+--          -- exception handler!=NULL:
+--          mov eax,:!iDiag
+--          cmp eax,ebx
+--          je @f                   -- (crash in the -nodiag case)
+--          mov [esi+172],ecx       -- exception code (in or_ecx)
+--          mov [esi+168],edx       -- exception address (in or_edx)
+--          mov [esi+184],::fhthrow -- replace or_eip
+--          mov eax,-1              -- EXCEPTION_CONTINUE_EXECUTION  (0xFFFFFFFF)
+--          ret
+--    ::fhthrow
+--          mov al,30               -- e30ume
+--          jmp :!iDiag
+--    @@:
 
         -- special cases:
         cmp edx,:!blockfound
@@ -273,6 +290,23 @@ integer finit = 0
         mov rsp,[r8+152]            -- DWORD64 context.Rsp (restore)
         mov rsi,r8
 
+--EXCEPT
+--      cmp [rbp+32],rbx
+--      je @f
+--          -- exception handler!=NULL:
+--          mov rax,:!iDiag
+--          cmp rax,rbx
+--          je @f                   -- (crash in the -nodiag case)
+--          mov [r8+128],rcx        -- exception code (in context.Rcx)
+--          mov [r8+136],rdx        -- exception address (in context.Rdx)
+--          mov [r8+248],::fhthrow  -- context.Rip
+--          mov eax,-1              -- EXCEPTION_CONTINUE_EXECUTION  (0xFFFFFFFF)
+--          ret
+--    ::fhthrow
+--          mov al,30               -- e30ume
+--          jmp :!iDiag
+--    @@:
+
         --  rsi is context record (save everything once we get into :!fehDiag)
         --  rdx is exception address
         --  ecx is exception code (DWORD)
@@ -418,6 +452,23 @@ integer finit = 0
 --      mov edi,esp                 -- (in case :!fehDiag not called)
 --      mov esp,[esi+196]           -- or_esp
 --
+
+--EXCEPT
+--      cmp [ebp+16],ebx
+--      je @f
+--          -- exception handler!=NULL:
+--          mov eax,:!iDiag
+--          cmp eax,ebx
+--          je @f                   -- (crash in the -nodiag case)
+--          mov dword[esi+60],11    -- exception code, always SIGSEGV (in ecx)
+--          mov [esi+56],edx        -- exception address (in edx)
+--          mov [esi+76],::fhthrow
+--          ret
+--    ::fhthrow
+--          mov al,30               -- e30ume
+--          jmp :!iDiag
+--    @@:
+
 --      -- special cases:
 --      cmp edx,:!blockfound
 --      jne @f
@@ -538,6 +589,28 @@ integer finit = 0
 --      mov edi,esp                 -- (in case :!fehDiag not called)
 --      mov esp,[esi+196]           -- or_esp
 --
+
+--EXCEPT
+--      cmp [rbp+32],rbx
+--      je @f
+--          -- exception handler!=NULL:
+--          mov rax,:!iDiag
+--          cmp rax,rbx
+--          je @f                       -- (crash in the -nodiag case)
+--          mov qword[rsi+0x98],11      -- exception code, always SIGSEGV (in rcx)
+--          mov [rsi+0x88],rdx          -- exception address (in rdx)
+--          mov [rsi+0xA8],::fhthrow    -- rip
+--          ret
+--    ::fhthrow
+--          mov al,30               -- e30ume
+--          jmp :!iDiag
+--    @@:
+
+--  if [Rbp+32]!=0 then             -- if exception handler!=NULL then
+--      ret
+--    ::fhthrow (or maybe :!fehDiag or similar)
+--  end if
+
 --      -- special cases:
 --      cmp edx,:!blockfound
 --      jne @f

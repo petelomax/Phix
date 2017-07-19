@@ -47,7 +47,7 @@ function value_cb(Ihandle /*self*/, integer l, integer c)
     return NULL
 end function
 
-integer eil = 0
+integer selected_line = 0
 
 function enteritem_cb(Ihandle ih, integer l, integer c)
 --?{"enteritem_cb",l,c}
@@ -55,8 +55,8 @@ function enteritem_cb(Ihandle ih, integer l, integer c)
     IupMatSetAttribute(ih,"MARK", l, 0, "Yes");
     IupSetStrAttribute(ih,"REDRAW", "L%d", {l});
     IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {l,c}); -- [1]
---  eil = tags[l]  -- no!
-    eil = l
+--  selected_line = tags[l]  -- no!
+    selected_line = l
     return IUP_DEFAULT
 end function
 
@@ -180,7 +180,7 @@ string res = "<"
     return res
 end function
 
-integer redrawall = 0
+integer redraw_all = 0
 
 procedure addkey(string ks, string km)
 --?{"addkey",ks,km}
@@ -195,12 +195,12 @@ procedure addkey(string ks, string km)
     k = find(ks,keymaps)
     if k!=0 then
         keymaps[k] = iff(find(standards[k],keymaps)?"*":"")
-        redrawall = 1
+        redraw_all = 1
     end if
     k = find(ks,standards)
     if k!=0 and keymaps[k]="" then
         keymaps[k] = "*"
-        redrawall = 1
+        redraw_all = 1
     end if
 end procedure
 
@@ -217,7 +217,7 @@ procedure removekey(string km)
     k = find(km,standards)
     if k!=0 and keymaps[k]="*" then
         keymaps[k] = ""
-        redrawall = 1
+        redraw_all = 1
     end if
 end procedure
 
@@ -243,20 +243,28 @@ end function
 
 function click_cb(Ihandle /*self*/, integer l, integer c, atom pStatus)
     if c>0 and c<=length(titles) then
-        if l=0 then -- title clicked, so sort that column
+        if l=0 then -- title clicked, so sort that column (cycle through down/up/none)
             if sortcol!=0 and sortcol!=c then
                 IupSetAttributeId(matrix,"SORTSIGN",sortcol,"NO")
             end if
-            sortdir = iff(IupGetAttributeId(matrix,"SORTSIGN",c)="DOWN"?-1:1)
-            IupSetAttributeId(matrix,"SORTSIGN",c,iff(sortdir=-1?"UP":"DOWN"))
-            sortcol = c
-            tags = custom_sort(routine_id("by_column"),tags)
+            string sortsign = IupGetAttributeId(matrix,"SORTSIGN",c)
+            if sortsign="UP" then
+                IupSetAttributeId(matrix,"SORTSIGN",c,"NO")
+                sortdir = 1
+                sortcol = 0
+                tags = sort(tags)
+            else
+                IupSetAttributeId(matrix,"SORTSIGN",c,iff(sortsign="DOWN"?"UP":"DOWN"))
+                sortdir = iff(sortsign="DOWN"?-1:1)
+                sortcol = c
+                tags = custom_sort(routine_id("by_column"),tags)
+            end if
             IupSetAttribute(matrix,"REDRAW","ALL")
-            eil = 0
+            selected_line = 0
         elsif iup_isdouble(pStatus) then
-            redrawall = 0
-            eil = l
-            l = tags[eil]
+            redraw_all = 0
+            selected_line = l
+            l = tags[selected_line]
             string km = keymaps[l]
             string ks = standards[l]
             if km="" then
@@ -272,10 +280,10 @@ function click_cb(Ihandle /*self*/, integer l, integer c, atom pStatus)
                     removekey(km)
                 end if
             end if
-            if redrawall then
+            if redraw_all then
                 IupSetStrAttribute(matrix,"REDRAW", "ALL")
             else
-                IupSetStrAttribute(matrix,"REDRAW", "L%d", {eil})
+                IupSetStrAttribute(matrix,"REDRAW", "L%d", {selected_line})
             end if
         end if
     end if
@@ -416,11 +424,11 @@ function key_cb(Ihandle /*ih*/, atom c)
         --      K_CR = '\r',        -- 13 (0x0D)
         --      plus A-Z, 0-9, etc
         --DEV filter??
-    elsif eil!=0 then
+    elsif selected_line!=0 then
         string ks = keystring(c)
         if match("??",ks)=0 then
-            redrawall = 0
-            integer l = tags[eil]
+            redraw_all = 0
+            integer l = tags[selected_line]
             string km = keymaps[l]
             if ks=standards[l] then
                 if km="" then
@@ -444,10 +452,10 @@ function key_cb(Ihandle /*ih*/, atom c)
                 keymaps[l] = ks
             end if
 --?IupConfigGetVariableStr(config, "KeyMappings", "KEYS")
-            if redrawall then
+            if redraw_all then
                 IupSetStrAttribute(matrix,"REDRAW", "ALL")
             else
-                IupSetStrAttribute(matrix,"REDRAW", "L%d", {eil})
+                IupSetStrAttribute(matrix,"REDRAW", "L%d", {selected_line})
             end if
         end if
     end if

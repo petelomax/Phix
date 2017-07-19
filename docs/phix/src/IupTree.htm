@@ -10,7 +10,7 @@
         <col style="width: 5%"/>
         <tr>
          <td valign=top>
-          <b>Syntax:</b>
+          <b>Definition:</b>
          </td>
          <td>
             include pGUI.e
@@ -116,7 +116,7 @@
             The first node added to an empty tree will always be the focus node.
           <br>
           <br>
-            Branches may be added in IupLua using a Lua Table, see iup.TreeAddNodes.
+            Alternatively, and often much simpler, trees can be populated from a nested sequence, see <a href="IupTreeAddNodes.htm">IupTreeAddNodes</a>().
          </td>
         </tr>
         <tr>
@@ -266,56 +266,55 @@
           Extra Functions
          </td>
          <td>
-            IupTree has functions that allow associating a pointer (or a user defined id) to a node.
-          <br>
-            In order to do that, you provide the id of the node and the pointer (userid); even if the node&rsquo;s id changes later on, the userid will still be associated with the given node.
-          <br>
-            These functions use the USERDATAid attribute.
-          <br>
+            The following functions allow a userid (or a pointer) to be associated to a node, such that even if the node&rsquo;s id changes later on, 
+            (because of insertions/deletions above/below it) the userid will still be associated with the given node. A positive integer index, to
+            some other table, is recommended in Phix, whereas using raw pointers would require additional/careful/tedious memory management.<br>
+            These functions all use the USERDATAid attribute.
           <a name="IupTreeSetUserId"></a>
           <br>
-            atom res = IupTreeSetUserId(Ihandle ih, integer id, atom userid)
+          <br>
+            <b>IupTreeSetUserId</b>(Ihandle ih, integer id, atom userid)
           <br>
             ih: Identifier of the interface element.
           <br>
             id: Node identifier.
           <br>
-            userid: User pointer to be associated with the node. Use NULL to remove the association.
+            userid: User index or pointer to be associated with the node. Use NULL to remove the association.
           <br>
           <br>
-            Returns a non zero value if the node was found.
-          <br>
-          <br>
-            Associates an userid with a given id. If the id of the node is changed, the userid remains the same.
-          <br>
+            Associates a userid with a given id. If the id of the node is changed, the userid remains the same.
+            Terminates in error if the node cannot be found.
           <a name="IupTreeGetUserId"></a>
           <br>
-            atom res IupTreeGetUserId(Ihandle ih, integer id)
+          <br>
+            atom userid = <b>IupTreeGetUserId</b>(Ihandle ih, integer id)
           <br>
             ih: Identifier of the interface element.
           <br>
             id: Node identifier.
           <br>
-            Returns the pointer associated to the node or NULL if none was associated.
+          <br>
+            Returns the index or pointer associated to the node or NULL if none was associated.
           <br>
             IupTreeSetUserId must have been called for the node with the given id.
-          <br>
           <a name="IupTreeGetId"></a>
           <br>
-            integer IupTreeGetId(Ihandle ih, atom userid)
+          <br>
+            integer id = <b>IupTreeGetId</b>(Ihandle ih, atom userid)
           <br>
             ih: Identifier of the interface element.
           <br>
-            userid: Pointer associated to the node.
+            userid: Index or pointer associated to the node.
           <br>
           <br>
-            Returns the id of the node that has the userid on success or -1 (nil) if not found. IupTreeSetUserId must have been called with the same userid.
+            Returns the id of the node that has the userid on success or -1 (nil) if not found. 
+            IupTreeSetUserId must have been called with the same userid.
             <br>
             <br>
             The utility functions <a href="IupSetAttribute.htm#utility">IupSetAttributeId</a>, <a href="IupGetAttribute.htm#utility">IupGetAttributeId</a>, 
             <a href="IupGetAttribute.htm#utility">IupGetIntId</a>, <a href="IupGetAttribute.htm#utility">IupGetFloatId</a>, 
             <a href="IupSetStrAttribute.htm#utility">IupSetIntId</a>, and <a href="IupSetStrAttribute.htm#utility">IupSetFloatId</a>
-            can also be used here. However the C function IupSetfAttributeId is not wrapped by pGUI.
+            can also be used here.
             <br>        
             <br>        
             They work just like the respective traditional set and get functions, but the attribute string is complemented with the id value. For example:
@@ -330,7 +329,8 @@ IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", 
             <br>
             These functions are faster than the traditional functions because they do not need to parse the attribute name string and the application 
             does not need to concatenate the attribute name with the id, although you will probably only notice if you are processing a <i>very</i>
-            large tree.
+            large tree.  Note that the C function IupSetfAttributeId is not wrapped by pGUI, however that functionality is covered by the
+            optional parameters of the first routine just listed, <a href="IupSetAttribute.htm#utility">IupSetAttributeId</a>.
          </td>
         </tr>
         <tr>

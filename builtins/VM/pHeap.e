@@ -1044,20 +1044,26 @@ end procedure
 --  Return register                 1st                     2nd                                                                                                     N/A
 --  Kernel parameter                #NR                     3rd     2nd     1st                     5th     6th     4th                                             N/A
 --*/
---/*
+--/!*
 --void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-            push 0                  -- offset (ignored)
-            push -1                 -- fd (ignored)
-            push #22                -- MAP_ANONYMOUS | MAP_PRIVATE
-            push 7                  -- RWX
-            push rax                -- size
-            push rbx                -- addr (NULL)
+push rdi
+push rsi
+            mov r9,0                -- offset (ignored)
+            mov r8,-1               -- fd (ignored)
+--          mov rcx,#22             -- MAP_ANONYMOUS | MAP_PRIVATE
+            mov rcx,#62             -- MAP_ANONYMOUS | MAP_PRIVATE | MAP_32BIT
+            mov rdx,7               -- RWX
+            mov rsi,rax             -- size
+            mov rdi,rbx             -- addr (NULL)
             call "libc.so.6","mmap"
-            add rsp,48
---*/
+--          add rsp,48
+pop rsi
+pop rdi
+--*!/
 --void * malloc (size_t size)
 --untried:
 -- 7/2/17:
+--/*
 push rdi
 push rsi
             --2/5/17:
@@ -1079,6 +1085,7 @@ push rsi
             call "libc.so.6","malloc"
 pop rsi
 pop rdi
+--*/
         []
             ret
 
@@ -3767,68 +3774,6 @@ end procedure -- (for Edita/CtrlQ)
         ret
 
 --/*
-procedure :%pStoreMint(:%)
-end procedure -- (for Edita/CtrlQ)
---*/
-    :%pStoreMint    -- store a machine-sized (32/64-bit) integer
-----------------
-    [32]
-        -- Store eax in [edi], as integer if possible, else as float.
-        -- Deallocates previous contents of [edi] if required.
-        -- All registers are preserved.
-        pushad
-        mov ecx,eax
-        mov edx,[edi]       -- prev contents
-        xor ebx,ebx         -- (save some grief)
-        shl ecx,1
-        jno @f
-            fild dword[esp+28]      -- (ie the eax from pushad)
-            jmp :StoreFlt64         -- (will dealloc [edi] if rqd)
-      @@:
-        mov [edi],eax
-        cmp edx,h4
-        jle @f
-            sub dword[ebx+edx*4-8],1
-            jne @f
-            push dword[esp+32]
-            call :%pDealloc0
-      @@:
-        popad
-    [64]
-        -- Store rax in [rdi], as integer if possible, else as float.
-        -- Deallocates previous contents of [rdi] if required.
-        -- Preserves rax/rcx/rdx/rsi (see StoreFlt) and rdi.
-        push rdx
-        push rcx
-        push rax
-        push rsi
-        xor rbx,rbx -- (save some grief)
-        mov rcx,rax
-        mov rdx,[rdi]       -- prev contents
-        shl rcx,1
-        jno @f
-            fild qword[rsp+8]   -- (saved rax)
-            jmp :StoreFlt64
-      @@:
-        mov r15,h4
-        mov [rdi],rax
-        cmp rdx,r15
-        jle @f
-            sub qword[rbx+rdx*4-16],1
-            jne @f
-            push rdi
-            push qword[rsp+40]
-            call :%pDealloc0
-            pop rdi
-      @@:
-        pop rsi
-        pop rax
-        pop rcx
-        pop rdx
-    []
-        ret
-
---/*
 procedure :%pLoadMint(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
@@ -3903,6 +3848,68 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         ret
     []
+
+--/*
+procedure :%pStoreMint(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pStoreMint    -- store a machine-sized (32/64-bit) integer
+----------------
+    [32]
+        -- Store eax in [edi], as integer if possible, else as float.
+        -- Deallocates previous contents of [edi] if required.
+        -- All registers are preserved.
+        pushad
+        mov ecx,eax
+        mov edx,[edi]       -- prev contents
+        xor ebx,ebx         -- (save some grief)
+        shl ecx,1
+        jno @f
+            fild dword[esp+28]      -- (ie the eax from pushad)
+            jmp :StoreFlt64         -- (will dealloc [edi] if rqd)
+      @@:
+        mov [edi],eax
+        cmp edx,h4
+        jle @f
+            sub dword[ebx+edx*4-8],1
+            jne @f
+            push dword[esp+32]
+            call :%pDealloc0
+      @@:
+        popad
+    [64]
+        -- Store rax in [rdi], as integer if possible, else as float.
+        -- Deallocates previous contents of [rdi] if required.
+        -- Preserves rax/rcx/rdx/rsi (see StoreFlt) and rdi.
+        push rdx
+        push rcx
+        push rax
+        push rsi
+        xor rbx,rbx -- (save some grief)
+        mov rcx,rax
+        mov rdx,[rdi]       -- prev contents
+        shl rcx,1
+        jno @f
+            fild qword[rsp+8]   -- (saved rax)
+            jmp :StoreFlt64
+      @@:
+        mov r15,h4
+        mov [rdi],rax
+        cmp rdx,r15
+        jle @f
+            sub qword[rbx+rdx*4-16],1
+            jne @f
+            push rdi
+            push qword[rsp+40]
+            call :%pDealloc0
+            pop rdi
+      @@:
+        pop rsi
+        pop rax
+        pop rcx
+        pop rdx
+    []
+        ret
 
 --/*
 procedure :%pDealloc[0](:%)

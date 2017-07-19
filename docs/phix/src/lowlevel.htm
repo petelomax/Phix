@@ -62,6 +62,52 @@
         you are actually debugging.
         <br>
         <br>
+        One trick worth knowing is that, when you have to debug "p test" rather than "p -d test", the 
+        VM itself does not move, hence something like
+<!--eucode>
+include builtins\puts1h.e
+    ...
+    puts1("about to go wrong")
+
+-- or, to avoid the extra opFrame/opRetf:
+
+include builtins\VM\puts1.e
+string msg = "about to go wrong"
+    ...
+    #ilASM{ 
+        [32]
+            mov edi,[msg]
+        [64]
+            mov rdi,[msg]
+        []
+            call :%puts1
+    }
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\puts1h.e
+</font><font color="#0000FF">    ...
+</font><font color="#000000">    puts1</font><font color="#0000FF">(</font><font color="#008000">"about to go wrong"</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- or, to avoid the extra opFrame/opRetf:
+
+</i></font><font color="#008080">include</font><font color="#000000"> builtins\VM\puts1.e
+</font><font color="#004080">string</font><font color="#000000"> msg</font><font color="#0000FF"> =</font><font color="#008000"> "about to go wrong"
+</font><font color="#0000FF">    ...
+</font><font color="#000000">    #</font><font color="#008080">ilASM</font><font color="#0000FF">{ 
+</font><font color="#800000">        [</font><font color="#000000">32</font><font color="#800000">]
+</font><font color="#000000">            mov edi</font><font color="#0000FF">,</font><font color="#800000">[</font><font color="#000000">msg</font><font color="#800000">]
+        [</font><font color="#000000">64</font><font color="#800000">]
+</font><font color="#000000">            mov rdi</font><font color="#0000FF">,</font><font color="#800000">[</font><font color="#000000">msg</font><font color="#800000">]
+        []
+</font><font color="#7060A8">            call</font><font color="#0000FF"> :</font><font color="#000000">%puts1
+</font><font color="#0000FF">    }</font>
+</pre>
+        is likely to be the only/first thing that calls :%puts1 - hence trapping that, or better yet
+        the appropriate final ret in builtins\VM\puts1.e, can be a relatively easy way to get OllyDbg
+        / FDBG / EDB ready to single-step through some code, without all the rigmarole of having to 
+        figure out where the code got itself positioned this time round.
+        <br>
+        <br>
         However the heap can also experience motion, and for that I can only recommend looking at the
         value of pGtcb, which is at least in a static location, found by looking in list.asm when 
         running via "p -d test", or p.asm when running via "p test". If your program allocates multiple 

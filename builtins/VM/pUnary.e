@@ -23,6 +23,11 @@ include VM\pFPU.e   -- :%down53 etc
             jmp @f
         ::e1412sonba
             mov edi,12  -- sq_not_bits
+          [32]
+            add esp,8
+          [64]
+            add rsp,8
+          []
         @@:
             [32]
                 pop edx

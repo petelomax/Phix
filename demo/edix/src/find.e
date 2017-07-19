@@ -160,7 +160,8 @@ procedure create_find_dialog()
     IupSetAttribute(box, "MARGIN", "10x10");
     IupSetAttribute(box, "GAP", "5");
 
-    find_dlg = IupDialog(box)
+    find_dlg = IupDialog(box,"MINSIZE=x170, MAXSIZE=x170")
+
     IupSetAttributeHandle(find_dlg, "DEFAULTENTER", bt_next);
     IupSetAttributeHandle(find_dlg, "DEFAULTESC", bt_close);
     IupSetAttributePtr(find_dlg, "PARENTDIALOG", dlg)

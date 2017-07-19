@@ -121,6 +121,32 @@
         notes below (multiple assignment is designed for comfort and convenience not speed).
        <br>
        <br>
+        As well as the syntax previously shown in <a href="variables.htm">Variables</a> and <a href="constants.htm">Constants</a>,
+        you can also declare variables as part of (/mid-) multiple assignment, eg
+<!--eucode>
+    {string name, integer id} = lookup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">    {</font><font color="#004080">string</font><font color="#000000"> name</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">} =</font><font color="#000000"> lookup</font><font color="#0000FF">()</font>
+</pre>
+        however sub-types do /NOT/ propagate as you might expect, eg:
+<!--eucode>
+    {a, string b, c} = lookup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">    {</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004080"> string</font><font color="#000000"> b</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">} =</font><font color="#000000"> lookup</font><font color="#0000FF">()</font>
+</pre>
+        will terminate in error if b already exists, or if a <i>/or c/</i> does not already exist. 
+        While string {a, b, c} propagates the type, and declares three new variables of type string, 
+        that does <i>/not/</i> happen for types inside the {}, except when the type immediately 
+        precedes an opening/nested '{'. Admittedly this is a simple practical choice/implementation 
+        detail (see pmain.e/GetMultiAssignSet()) that it may be possible to improve upon, but there 
+        are four competing use cases for that routine, hence the simplest solution won (being reset 
+        after every comma). Also, constructs such as string {a, integer b, c} are treated as nonsense 
+        and trigger an error, but obviously you can simply move the "string" inside the {}, in that 
+        particular case twice.
+       <br>
+       <br>
         Use '{}' (or '?') to omit elements
 <!--eucode>
     {a,{},c} = {1,2,3}
@@ -321,7 +347,6 @@ sequence temp
        <br>
        <br>
        <h2>Performance notes</h2>
-       <br>
         Multiple assignment is ideally suited to function results and table entries.
         If you are using {} or & on the rhs (at the top level) of a multiple assigmnent
         statement, then a longhand version will almost certainly be slightly faster, 

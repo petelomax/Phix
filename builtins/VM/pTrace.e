@@ -1263,7 +1263,8 @@ procedure abort_trace()
             mov ecx,2
             mov al,12           -- e12pa
           @@:
---          mov edx,[ebp+16]    -- era
+--X         mov edx,[ebp+16]    -- era
+--          mov edx,[ebp+28]    -- era
             mov edx,[ebp+12]    -- called from address (as set in opLnt below)
             mov ebp,[ebp+20]    -- (nb no local vars after this!)
             sub ecx,1
@@ -1275,7 +1276,8 @@ procedure abort_trace()
             mov rcx,2
             mov al,12           -- e12pa
           @@:
---          mov rdx,[rbp+32]    -- era
+--X         mov rdx,[rbp+32]    -- era
+--          mov rdx,[rbp+56]    -- era
             mov rdx,[rbp+24]    -- called from address (as set in opLnt below)
             mov rbp,[rbp+40]    -- (nb no local vars after this!)
             sub rcx,1
@@ -1772,7 +1774,9 @@ end procedure -- (for Edita/CtrlQ)
                 call :%opFrame
                 mov edx,[esp+4]
                 pop dword[ebp]                  --[1] lineno
-                mov dword[ebp+16],:dbgret
+--EXCEPT
+--X             mov dword[ebp+16],:dbgret
+                mov dword[ebp+28],:dbgret
                 mov dword[ebp+12],edx           -- called from address
                 jmp $_il                        -- jmp code:show_trace
               ::dbgret  
@@ -1803,7 +1807,9 @@ end procedure -- (for Edita/CtrlQ)
                 call :%opFrame
                 mov rdx,[rsp+8]
                 pop qword[rbp]                  --[1] lineno
-                mov qword[rbp+32],:dbgret
+--EXCEPT
+--X             mov qword[rbp+32],:dbgret
+                mov qword[rbp+56],:dbgret
                 mov qword[ebp+24],rdx           -- called from address
                 jmp $_il                        -- jmp code:show_trace
               ::dbgret  
@@ -1830,7 +1836,8 @@ end procedure -- (for Edita/CtrlQ)
                 mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[debug_screen][S_Ltot])
                 call :%opFrame
                 mov dword[ebp],ebx
-                mov dword[ebp+16],:clrdbgret
+X               mov dword[ebp+16],:clrdbgret
+                mov dword[ebp+28],:clrdbgret
                 jmp $_il                            -- jmp code:debug_screen(0)
               ::clrdbgret   
 --*/
@@ -1856,7 +1863,8 @@ end procedure -- (for Edita/CtrlQ)
                 mov ecx,$_Ltot                      -- symtab[debug_screen][S_Ltot]
                 call :%opFrame
                 mov dword[ebp],ebx                  -- parameter 'on':=0
-                mov [ebp+16],:justret
+--X             mov [ebp+16],:justret
+                mov [ebp+28],:justret
                 jmp $_il                            -- (symtab[debug_screen][S_il])
         [64]
             pop rax

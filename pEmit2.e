@@ -415,7 +415,8 @@ end procedure
 --end type
 --dst data_section
 sequence data_section
---/**/ #isginfo{data_section,0b1000,MIN,MAX,integer,-2} -- verify this is a string
+--DEV (7/7/17) broken on lnx64...
+--!/**/ #isginfo{data_section,0b1000,MIN,MAX,integer,-2} -- verify this is a string
 
 function isString(object x)
 -- avoid "probable logic errors" testing that data_section really is a string
@@ -2521,7 +2522,9 @@ if newEmit then
 --          call :%opFrame
             call :!diagFrame
             add esp,4
-            mov dword[ebp+16],:rbidsret
+--EXCEPT
+--          mov dword[ebp+16],:rbidsret
+            mov dword[ebp+28],:rbidsret
             jmp $_il                                -- jmp code:rebuild_callback
         [64]
             push qword[rsp]                         -- (leave the ret addr on stack)
@@ -2533,7 +2536,9 @@ if newEmit then
 --          call :%opFrame
             call :!diagFrame
             add rsp,8
-            mov qword[rbp+32],:rbidsret
+--EXCEPT
+--          mov qword[rbp+32],:rbidsret
+            mov qword[rbp+56],:rbidsret
             jmp $_il                                -- jmp code:rebuild_callback
         []
           ::rbidsret    
@@ -4528,26 +4533,6 @@ end if -- bind/dumpil
 
 --puts(1,"finalfixups2 line 4196\n")
 
---DEV (**17/3/15**) While this fixes the -d issue, it may/will probably still go wrong for trace/debug...[?]
---  ***DOH!!!*** why are we killing entries in the symtab if we're not binding?!!!
-if 0 then -- moved up here 17/3/15:
---if not bind then -- moved up here 17/3/15:
-        if listing or some_unresolved_rtnids then           -- 22/12/2014
---puts(1,"calling relink and reconstructids... (pemit2.e line 4052)\n")
-            relink()
-            tt_traverse(r_ReconstructIds,"",-2)             -- identifiers
---puts(1,"returned from reconstructids... (pemit2.e line 4055)\n")
-        end if
---9/10/10: moved here (to be before blurph, for isConstRef[Count])
-        -- reconstruct any nested sequences
-        while 1 do
-            rescan = 0
---puts(1,"ReconstructSequence scan started\n")
-            tt_traverseQ(r_ReconstructSequence)             -- sequence constants
-            if not rescan then exit end if
-        end while
-end if
-
 --if Z_ridN!=0 then -- still OK...
 --  ?symtab[Z_ridN]
 --end if
@@ -4801,10 +4786,10 @@ else -- 32
         DSvsize = vmax*4 + 20
 end if
         DSvaddr = AllocateBlock(DSvsize)
-if platform()=LINUX then
-printf(1,"(pemit2.e line 4805) DSvaddr=#%08x, CSvaddr=#%08x\n",{DSvaddr,CSvaddr})
+--if platform()=LINUX then
+--printf(1,"(pemit2.e line 4805) DSvaddr=#%08x, CSvaddr=#%08x\n",{DSvaddr,CSvaddr})
 --printf(1,"(pemit2.e line 4806) DSvsize=%s, DSvaddr=#%08x, CSvsize=%s, CSvaddr=#%08x\n",{Size(DSvsize),DSvaddr,Size(CSvsize),CSvaddr})
-end if
+--end if
 --- 26/2/10:
 --      poke4(DSvaddr,#40000000)
 --      mem_copy(DSvaddr+4,DSvaddr,DSvsize-4)
@@ -4886,7 +4871,6 @@ else -- 32
 end if
 --      mem_copy(DSvaddr+4,DSvaddr,DSvsize-4)
 
---if 0 then -- test 27/2/15...
         -- for isIL, we must do them all in one go, before calling blurph()
         for v=1 to length(s5sets) do
             symidx = s5v[v]
@@ -4897,16 +4881,11 @@ end if
 --DEV TRAMPOLINE??
             symtab[symidx][S_il] = svil+CSvaddr
         end for
---end if
---  end if
 
---added 24/3/09:
---  if not bind then
---      if debug then
---      if debug or listing then    -- 19/8/9
---      if debug or listing or some_unresolved_rtnids then  -- 21/09/2013
-if 01 then -- moved above 17/3/15:
-        if listing or some_unresolved_rtnids then           -- 22/12/2014
+--EXCEPT
+        if listing 
+        or some_unresolved_rtnids
+        or exceptions_in_use then
 --puts(1,"calling relink and reconstructids... (pemit2.e line 4336)\n")
             relink()
             tt_traverse(r_ReconstructIds,"",-2)             -- identifiers
@@ -4921,7 +4900,6 @@ if 01 then -- moved above 17/3/15:
 --?rescan
             if not rescan then exit end if
         end while
-end if
 
     end if -- bind/interpret
 
@@ -5209,6 +5187,7 @@ end if
                     end if
                 end if
             end for
+--DEV also when interpreted?...
             slink = symtab[T_maintls][S_Slink]
             while slink!=0 do
                 si = symtab[slink]

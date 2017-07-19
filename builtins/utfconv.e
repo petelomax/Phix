@@ -33,6 +33,10 @@
 --
 -- Likewise the UTF-16 routines have no comprehension of any difference between UTF-16LE
 --  and UTF-16BE: that is down to how the calling application reads/writes or peeks/pokes.
+--  Quite clearly by the time you pass a value/character/unicode point to these routines, 
+--  it should be, well, a value, in the proper and expected endian-ness of the machine 
+--  the program is running on, rather than (say) a sequence of (optionally) byte-swapped 
+--  elements, which could only ever make everything far harder than it needs to be. 
 --
 -- Usage (UTF-8)
 -- =============

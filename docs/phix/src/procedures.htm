@@ -8,28 +8,14 @@
       <div id="mainSection">
          These perform some computation and may have a list of parameters, e.g.
 <!--eucode>
-    procedure plot(integer x, integer y, object char='*')
+    procedure plot(integer x, integer y, integer char='*')
         position(x, y)
-        if sequence(char) then
-            if length(char)>1 then
-                setfont(char[2])
-                -- ... etc
-            end if
-            char = iff(length(char)=0?'?':char[1])
-        end if  
         puts(1, char)
     end procedure
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> plot</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> char</font><font color="#0000FF">=</font><font color="#008000">'*'</font><font color="#0000FF">)
+<font color="#000000"></font><font color="#008080">    procedure</font><font color="#000000"> plot</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> char</font><font color="#0000FF">=</font><font color="#008000">'*'</font><font color="#0000FF">)
 </font><font color="#7060A8">        position</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)
-</font><font color="#008080">        if</font><font color="#004080"> sequence</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)</font><font color="#008080"> then
-            if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">)&gt;</font><font color="#000000">1</font><font color="#008080"> then
-</font><font color="#000000">                setfont</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#800000">[</font><font color="#000000">2</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#000080"><i>                -- ... etc
-</i></font><font color="#008080">            end if
-</font><font color="#000000">            char</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">length</font><font color="#800000">(</font><font color="#000000">char</font><font color="#800000">)</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">?</font><font color="#008000">'?'</font><font color="#0000FF">:</font><font color="#000000">char</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">        end if  
 </font><font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> char</font><font color="#0000FF">)
 </font><font color="#008080">    end procedure</font>
 </pre>
@@ -80,12 +66,24 @@
         Repeated consecutive parameter types may be omitted, for example in (integer a, b, string c, d) the compiler assumes
         b is another integer, and d is another string.
         <br>
+<!--DEV would these be better split off into three sub-pages??-->
         <br>
         <b>Optional parameters</b> can be declared simply by defining a default value, as shown for char (you can use either = or :=, 
         on the routine declaration they are treated identically). In many languages variable-length parameter lists are impossible. 
         In C, you must set up strange mechanisms that are complex enough that the average programmer cannot do it without consulting 
         a manual or a local guru. In Phix the only rule is that all non-optional parameters must be grouped together on the left, and
         obviously any defaults must be legal values for the specified type.
+       <br>
+       <br>
+        Builtins with optional parameters include 
+        <a href="allocate.htm">allocate</a>, 
+        <a href="find.htm">find</a>, 
+        <a href="match.htm">match</a>, 
+        <a href="join.htm">join</a>, 
+        <a href="split.htm">split</a>, 
+        <a href="trim.htm">trim</a>, 
+        <a href="round.htm">round</a>, and
+        <a href="printf.htm">printf</a>.
        <br>
        <br>
         Alternatively, optional parameters can be emulated by specifying a single
@@ -107,50 +105,73 @@
         <a href="join_path.htm">join_path</a>, 
         as well as all the explicit <a href="seqops.htm">sequence operators</a>.
        <br>
+        <a name=namedparams></a>
        <br>
-         <b>Named parameters</b> (handiest when there are quite a few optional parameters)
-         can be used in any order desired using &lt;name&gt;:=&lt;value&gt; syntax:
+        <b>Named parameters</b> can be used in any order desired using &lt;name&gt;:=&lt;value&gt; syntax.<br>
+        Quite possibly the ultimate example of named parameters is the <a href="timedelta.htm">timedelta</a> routine. 
+<!--    secs = timedelta(hours:=7.5)
+        I will single out the third line above (10,20,char:='*') as best illustrating where named parameters really shine:
+        when some of them are optional, and, perhaps more significantly, rarely used.
+        <br>
+        <br>
+ -->
 <!--eucode>
-    plot(10,20)
-    plot(10,20,'*')
-    plot(10,20,char:='*')
-    plot(10,y:=20)
-    plot(y:=20,x:=10)
-    plot(char:='*',x:=10,y:=20)
-    plot(x:=10,y:=20,char:='*')
+    atom secs
+    secs = timedelta(0,0,7,30,0,0,0)
+    secs = timedelta(hours:=7, minutes:=30)
 </eucode-->
 <pre>
-<font color="#000000">    plot</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#0000FF">)
-</font><font color="#000000">    plot</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#0000FF">,</font><font color="#008000">'*'</font><font color="#0000FF">)
-</font><font color="#000000">    plot</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#0000FF">,</font><font color="#000000">char</font><font color="#0000FF">:=</font><font color="#008000">'*'</font><font color="#0000FF">)
-</font><font color="#000000">    plot</font><font color="#0000FF">(</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#0000FF">:=</font><font color="#000000">20</font><font color="#0000FF">)
-</font><font color="#000000">    plot</font><font color="#0000FF">(</font><font color="#000000">y</font><font color="#0000FF">:=</font><font color="#000000">20</font><font color="#0000FF">,</font><font color="#000000">x</font><font color="#0000FF">:=</font><font color="#000000">10</font><font color="#0000FF">)
-</font><font color="#000000">    plot</font><font color="#0000FF">(</font><font color="#000000">char</font><font color="#0000FF">:=</font><font color="#008000">'*'</font><font color="#0000FF">,</font><font color="#000000">x</font><font color="#0000FF">:=</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#0000FF">:=</font><font color="#000000">20</font><font color="#0000FF">)
-</font><font color="#000000">    plot</font><font color="#0000FF">(</font><font color="#000000">x</font><font color="#0000FF">:=</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#0000FF">:=</font><font color="#000000">20</font><font color="#0000FF">,</font><font color="#000000">char</font><font color="#0000FF">:=</font><font color="#008000">'*'</font><font color="#0000FF">)</font>
+<font color="#000000"></font><font color="#004080">    atom</font><font color="#000000"> secs
+    secs</font><font color="#0000FF"> =</font><font color="#5E005E"> timedelta</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">30</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)
+</font><font color="#000000">    secs</font><font color="#0000FF"> =</font><font color="#5E005E"> timedelta</font><font color="#0000FF">(</font><font color="#000000">hours</font><font color="#0000FF">:=</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000"> minutes</font><font color="#0000FF">:=</font><font color="#000000">30</font><font color="#0000FF">)</font>
 </pre>
-        All seven calls achieve exactly the same thing. You can supply the first few 
-        non-optional parameters as normal, and then start using named parameters, or 
-        you can use the names of all of them. Obviously you must supply all the 
-        non-optional parameters, somewhere, and once a name has been specified then 
-        all subsequent parameters must also be named. Quite possibly the ultimate 
-        example of named parameters is the <a href="timedelta.htm">timedelta</a>
-        routine. Another example can be found in Edix:
+        Both calls achieve exactly the same thing, but obviously there is a world of difference in code clarity.
+        <br>
+        <br>
+        You can supply the first few non-optional parameters as normal, and then start using named parameters, or 
+        you can use the names of all of them. Obviously you must supply all the non-optional parameters, somewhere, 
+        but once a name has been specified then all subsequent parameters must also be named.
+        <br>
+        <br>
+        Builtins for which I explicitly recommend the use of named parameters (especially for any uncommon or unusual uses) include 
+        <a href="clear_directory.htm">clear_directory</a>, 
+        <a href="copy_file.htm">copy_file</a>, 
+        <a href="move_file.htm">move_file</a>, 
+        <a href="remove_directory.htm">remove_directory</a>, 
+        <a href="rename_file.htm">rename_file</a>, 
+        <a href="date.htm">date</a>, 
+        <a href="join_path.htm">join_path</a>, 
+        <a href="prime_factors.htm">prime_factors</a>, 
+        <a href="split.htm">split</a>, 
+        <a href="split_any.htm">split_any</a>, and 
+        <a href="split_path.htm">split_path</a>. 
+        <br>
+        <br>
+        Another example can be found in Edix:
 <!--eucode>
-    function saveFile(integer warnBackup=1)
+    function saveFile(bool warnBackup=true)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">    function</font><font color="#000000"> saveFile</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> warnBackup</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#0000FF">)</font>
+<font color="#000000"></font><font color="#008080">    function</font><font color="#000000"> saveFile</font><font color="#0000FF">(</font><font color="#004080">bool</font><font color="#000000"> warnBackup</font><font color="#0000FF">=</font><font color="#004600">true</font><font color="#0000FF">)</font>
 </pre>
         Normal calls, which display a warning if for any reason the backup could not be made, are invoked as 
-        <code>saveFile()</code>, whereas <code>saveFile(warnBackup:=0)</code> is used when performing saveas 
-        or similar, in which case it still tries to make a backup but does not display any warning should it
-        fail. The named parameter makes the slightly unusual invocation much clearer and self-documenting.
+        <code>saveFile()</code>, whereas <code>saveFile(warnBackup:=false)</code> is used when performing saveas 
+        or similar, in which case it still tries to make a backup but does <i>not</i> display any warning should 
+        it fail. The named parameter makes the slightly unusual invocation much clearer and self-documenting.
+       <br>
+       <br>
+        Alternatively, a local variable can be declared (eg bool warnBackup = false) and used as the (positional
+        based) parameter, which will obviously work just as well, both in terms of program functionality and the
+        improved code clarity. Although it requires no specific compiler support, and makes no check that such a
+        parameter actually exists, I might sometimes also describe that mechanism as named parameters.
        <br>
        <br>
         <b>NB</b>: the ":=" signifies the use of named parameters; "=" has an entirely different meaning.
         It is perfectly legitimate, assuming you have local variables x and y, to write plot(x:=x,y:=y), 
         which would be equivalent to the simpler plot(x,y), whereas in the same circumstances the statement 
-        plot(x=x,y=y) would, barring unassigned errors, always be equivalent to plot(1,1), aka plot(TRUE,TRUE).<br>
+        plot(x=x,y=y) would, barring unassigned errors, always be equivalent to plot(1,1), aka plot(TRUE,TRUE).
+        <br>
+        <br>
         Although somewhat obscure, it may be worth understanding the derivation of named parameter syntax: from
         proc(proc:name=value) via proc(:name=value) to the recommended proc(name:=value), with all three forms
         being perfectly legal code, what looks like a normal explict assignment operator is in fact a special

@@ -58,7 +58,6 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             mov edi,[ep1]
             mov esi,[ep2]
           @@:
---          mov edx,[ebp+16]    -- era
             mov edx,[ebp+12]    -- called from address
             mov ebp,[ebp+20]    -- (nb no local vars after this!)
             sub ecx,1
@@ -73,7 +72,6 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             mov rdi,[ep1]
             mov rsi,[ep1]
           @@:
---          mov rdx,[rbp+32]    -- era
             mov rdx,[rbp+24]    -- called from address
             mov rbp,[rbp+40]    -- (nb no local vars after this!)
             sub rcx,1
@@ -227,7 +225,9 @@ object res
 
 --          pop esi                                 -- [1] ([si, ie symtab[rid]])
 --          pop esi                                 -- [1] ([si_il, ie symtab[rid][S_il]])
-            mov dword[ebp+16],:retaddr
+--EXCEPT
+--X         mov dword[ebp+16],:retaddr
+            mov dword[ebp+28],:retaddr
 --          jmp dword[ebx+esi*4+40]                 -- execute first opcode (S_il=11)
 --          jmp esi                                 -- execute first opcode
             ret                                     -- [1] (== jmp symtab[rid][S_il])
@@ -281,7 +281,9 @@ je @f
 
 --          pop esi                                 -- [1] ([si, ie symtab[rid]])
 --          pop esi                                 -- [1] ([si_il, ie symtab[rid][S_il]])
-            mov qword[rbp+32],:retaddr
+--EXCEPT
+--X         mov qword[rbp+32],:retaddr
+            mov qword[rbp+56],:retaddr
 --          jmp dword[ebx+esi*4+40]                 -- execute first opcode (S_il=11)
 --          jmp esi                                 -- execute first opcode
             ret                                     -- [1] (== jmp symtab[rid][S_il])
@@ -349,7 +351,9 @@ end procedure -- (for Edita/CtrlQ)
             pop dword[ebp]                      --[3] rid
             pop dword[ebp-4]                    --[2] args
             mov dword[ebp-8],ebx                -- isProc:=0
-            mov dword[ebp+16],:callfuncret      -- return address
+--EXCEPT
+--X         mov dword[ebp+16],:callfuncret      -- return address
+            mov dword[ebp+28],:callfuncret      -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callfuncret
@@ -387,7 +391,9 @@ end procedure -- (for Edita/CtrlQ)
             pop qword[rbp]                      --[3] rid
             pop qword[rbp-8]                    --[2] args
             mov qword[rbp-16],rbx               -- isProc:=0
-            mov qword[rbp+32],:callfuncret      -- return address
+--EXCEPT
+--X         mov qword[rbp+32],:callfuncret      -- return address
+            mov qword[rbp+56],:callfuncret      -- return address
             mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callfuncret
@@ -416,7 +422,7 @@ end procedure -- (for Edita/CtrlQ)
             --  mov eax,[rid]       -- (opUnassigned)
             --  mov esi,[args]      -- (opUnassigned)
             --  call :%opCallProc   -- call_proc(eax,esi)
-            -- If instead of call this is invoked via push 0; jmp :%opCallProc,
+            -- If, instead of call, this is invoked via push 0; jmp :%opCallProc,
             --  the impossible return is discarded and control passes to opRetf.
             --  This allows pTask.e to keep the system stack balanced.
             cmp eax,h4
@@ -432,20 +438,21 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(call_common)     -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[call_common][S_Ltot])
             call :%opFrame
-            mov edx,[esp+8]
+            mov edx,[esp+8]                     -- return address
             pop dword[ebp]                      --[2] rid
             pop dword[ebp-4]                    --[1] args
             mov eax,:callprocret                -- return address
             test edx,edx
             jnz @f
-                mov edx,[ebp+20]
+                mov edx,[ebp+20]                -- prev_ebp
                 add esp,4
                 mov eax,:%opRetf
-                mov edx,[edx+12]
+                mov edx,[edx+12]                -- called from address
           @@:
             mov dword[ebp-8],1                  -- isProc:=1
---          mov dword[ebp+16],:callprocret      -- return address
-            mov dword[ebp+16],eax               -- return address
+--EXCEPT
+--X         mov dword[ebp+16],eax               -- return address
+            mov dword[ebp+28],eax               -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callprocret
@@ -474,20 +481,21 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(call_common)     -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[call_common][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+16]
+            mov rdx,[rsp+16]                    -- return address
             pop qword[rbp]                      --[2] rid
             pop qword[rbp-8]                    --[1] args
             mov rax,:callprocret                -- return address
             test rdx,rdx
             jnz @f
-                mov rdx,[rbp+40]
+                mov rdx,[rbp+40]                -- prev_ebp
                 add rsp,8
                 mov rax,:%opRetf
-                mov rdx,[rdx+24]
+                mov rdx,[rdx+24]                -- called from address
           @@:
             mov qword[rbp-16],1                 -- isProc:=1
---          mov qword[rbp+32],:callprocret      -- return address
-            mov qword[rbp+32],rax               -- return address
+--EXCEPT
+--X         mov qword[rbp+32],rax               -- return address
+            mov qword[rbp+56],rax               -- return address
             mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:call_common
           ::callprocret

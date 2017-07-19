@@ -11,8 +11,10 @@ include builtins\VM\pHeap.e
 
 global procedure free(object addr)
     if sequence(addr) then
+        if string(addr) then ?9/0 end if
         for i=1 to length(addr) do
-            free(addr[i])
+            atom ai = addr[i]   -- (deliberate typecheck)
+            free(ai)
         end for
     else
         #ilASM{
@@ -29,6 +31,7 @@ global procedure free(object addr)
 end procedure
 constant r_free = routine_id("free")
 
+--DEV size should be integer
 global function allocate(atom size, integer cleanup = 0)
 atom res
     if size<0 or size!=floor(size) then
@@ -46,7 +49,6 @@ atom res
         [32]
             mov ecx,[size]
             lea edi,[res]
---          mov edx,[ebp+16]        -- return address
             mov edx,[ebp+12]        -- called from
         [64]
             mov rcx,[size]

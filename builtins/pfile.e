@@ -7,28 +7,33 @@
 
 --#withtype bool
 
-atom finit = 0, W, SLASH, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, xCreateDirectory, xRemoveDirectory
+atom finit = 0, W, SLASH, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, xCreateDirectory, 
+     xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType
 
 procedure initf()
-    finit = 1
     W = (platform()=WINDOWS)
     SLASH = iff(W?'\\':'/')
 --  atom lib = open_dll(iff(W?"kernel32":""))   -- libc.so? libc.dylib?
     enter_cs()
     atom lib = open_dll(iff(W?"kernel32":"libc.so"))
-    xGetFileAttributes  = iff(W?define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT)
-                               :define_c_func(lib, "access", {C_POINTER, C_INT}, C_INT))
-    xMoveFile           = iff(W?define_c_func(lib, "MoveFileA", {C_POINTER, C_POINTER}, C_BOOL)
-                               :define_c_func(lib, "rename", {C_POINTER, C_POINTER}, C_INT))
-    xDeleteFile         = iff(W?define_c_func(lib, "DeleteFileA", {C_POINTER}, C_BOOL)
-                               :define_c_func(lib, "unlink", {C_POINTER}, C_INT))
-    xCopyFile           = iff(W?define_c_func(lib, "CopyFileA", {C_POINTER, C_POINTER, C_BOOL}, C_BOOL)
-                               :0)              -- (done manually)
-    xCreateDirectory    = iff(W?define_c_func(lib, "CreateDirectoryA", {C_POINTER, C_POINTER}, C_BOOL)
-                               :define_c_func(lib, "mkdir", {C_POINTER, C_INT}, C_INT))
-    xRemoveDirectory    = iff(W?define_c_func(lib, "RemoveDirectoryA", {C_POINTER}, C_BOOL)
-                               :define_c_func(lib, "rmdir", {C_POINTER}, C_INT))
+    xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT)
+                                   :define_c_func(lib, "access", {C_POINTER, C_INT}, C_INT))
+    xMoveFile               = iff(W?define_c_func(lib, "MoveFileA", {C_POINTER, C_POINTER}, C_BOOL)
+                                   :define_c_func(lib, "rename", {C_POINTER, C_POINTER}, C_INT))
+    xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_POINTER}, C_BOOL)
+                                   :define_c_func(lib, "unlink", {C_POINTER}, C_INT))
+    xCopyFile               = iff(W?define_c_func(lib, "CopyFileA", {C_POINTER, C_POINTER, C_BOOL}, C_BOOL)
+                                   :-1)             -- (done manually)
+    xCreateDirectory        = iff(W?define_c_func(lib, "CreateDirectoryA", {C_POINTER, C_POINTER}, C_BOOL)
+                                   :define_c_func(lib, "mkdir", {C_POINTER, C_INT}, C_INT))
+    xRemoveDirectory        = iff(W?define_c_func(lib, "RemoveDirectoryA", {C_POINTER}, C_BOOL)
+                                   :define_c_func(lib, "rmdir", {C_POINTER}, C_INT))
+    xGetLogicalDriveStrings = iff(W?define_c_func(lib, "GetLogicalDriveStringsA", {C_UINT,C_PTR}, C_UINT)
+                                   :-1)             -- (just yield "\")
+    xGetDriveType           = iff(W?define_c_func(lib, "GetDriveTypeA", {C_PTR}, C_UINT)
+                                   :-1)             -- (just yield "\",DRIVE_FIXED)
     leave_cs()
+    finit = 1
 end procedure
 
 global function file_exists(string name)
@@ -136,6 +141,40 @@ object d = dir(filename)
     return iff(atom(d) or length(d)!=1 ? -1 : d[1][D_SIZE])
 end function
 
+--/* Now defined in psym.e:
+global constant DRIVE_UNKNOWN       = 0,    -- The drive type cannot be determined.
+                DRIVE_NO_ROOT_DIR   = 1,    -- The root path is invalid; for example, there is no volume mounted at the specified path.
+                DRIVE_REMOVABLE     = 2,    -- The drive has removable media; for example, a floppy drive, thumb drive, or flash card reader.
+                DRIVE_FIXED         = 3,    -- The drive has fixed media; for example, a hard disk drive or flash drive.
+                DRIVE_REMOTE        = 4,    -- The drive is a remote (network) drive.
+                DRIVE_CDROM         = 5,    -- The drive is a CD-ROM drive.
+                DRIVE_RAMDISK       = 6     -- The drive is a RAM disk.
+--*/ 
+
+global function get_logical_drives()
+--(suggestions for enhancements to this routine are welcome)
+sequence res
+    if platform()=WINDOWS then
+        if not finit then initf() end if
+        res = {}
+        integer buflen = c_func(xGetLogicalDriveStrings,{0,NULL})
+        atom buffer = allocate(buflen), pbuf = buffer
+        {} = c_func(xGetLogicalDriveStrings,{buflen,buffer})
+        while 1 do
+            string onedrive = peek_string(pbuf)
+            buflen = length(onedrive)
+            if buflen=0 then exit end if
+            integer drivetype = c_func(xGetDriveType,{onedrive})
+            res = append(res,{onedrive,drivetype})
+            pbuf += buflen+1  -- skip trailing/separating nulls
+        end while
+        free(buffer)
+    else
+        res = {{"/",DRIVE_FIXED}}
+    end if
+    return res
+end function
+
 global function rename_file(string src, string dest, integer overwrite=0)
     if not finit then initf() end if
     if not overwrite then
@@ -167,7 +206,7 @@ global function copy_file(string src, string dest, integer overwrite=0)
 integer success
     if not finit then initf() end if
 
-    if get_file_type(src)!=FILETYPE_FILE then ?9/0 end if
+    if get_file_type(src)!=FILETYPE_FILE then return false end if
 
     if length(dest)=0 then ?9/0 end if
 
@@ -239,7 +278,7 @@ global function delete_file(string filename)
     return res
 end function
 
-global function create_directory(string name, integer mode=0o700, bool make_parent=1)
+global function create_directory(string name, integer mode=0o700, bool make_parent=true)
 bool ret
     if not finit then initf() end if
 
@@ -277,7 +316,7 @@ bool ret
     return ret
 end function
 
-global function clear_directory(string path, bool recurse=1)
+global function clear_directory(string path, bool recurse=true)
 
     if not finit then initf() end if
 
@@ -343,7 +382,7 @@ global function clear_directory(string path, bool recurse=1)
     return 1
 end function
 
-global function remove_directory(string dir_name, bool force=0)
+global function remove_directory(string dir_name, bool force=false)
 atom ret
 object files
 
@@ -647,11 +686,13 @@ object host_name = 0,
        user_name = 0,
        password = 0,
        query_string = 0,
-       fragment = 0
-integer port = 0
-integer all_done = 0
+       fragment = 0,
+       port = 0
 integer qs_start = 0
 integer pos
+bool authority = false
+--,
+--   all_done = false
 
     pos = find('#',url)
     if pos!=0 then
@@ -675,8 +716,11 @@ integer pos
     end if
     if url[pos]='/' then
         pos += 1
+        authority = true
     end if
-    if url[pos]!='/' then
+    qs_start = find('?', url, pos)
+    if authority 
+    and url[pos]!='/' then
 
         integer at = find('@', url)
         if at then
@@ -694,32 +738,11 @@ integer pos
             pos = at+1
         end if
 
-        qs_start = find('?', url, pos)
         integer first_slash = find('/', url, pos)
         integer port_colon = find(':', url, pos)
 
-        if port_colon!=0 then
-            -- We can easily read the host until the port colon
-            host_name = url[pos..port_colon-1]
-        else
-            -- Gotta go through a bit more complex way of getting the path
-            if first_slash=0 then
-                -- there is no path, thus we must parse to either the query string begin
-                -- or the string end
-                if qs_start=0 then
-                    host_name = url[pos..$]
-                else
-                    host_name = url[pos..qs_start-1]
-                end if
-            else
-                -- Ok, we can read up to the first slash
-                host_name = url[pos..first_slash-1]
-            end if
-        end if
-
-        if port_colon then
-            integer port_end = 0
-
+        integer port_end = 0
+        while port_colon!=0 do
             if first_slash then
                 port_end = first_slash-1
             elsif qs_start then
@@ -727,24 +750,38 @@ integer pos
             else
                 port_end = length(url)
             end if
+            port = scanf(url[port_colon+1..port_end], "%d")
+--          if sequence(port) and length(port)=1 
+            if length(port)=1 
+            and sequence(port[1]) and length(port[1])=1
+            and integer(port[1][1]) then
+                {{port}} = port
+                exit
+            end if
+            port = 0
+            port_colon = find(':', url, port_colon+1)
+        end while
 
---DEV
---          to_integer, scanf
---          port = stdget:defaulted_value(url[port_colon+1..port_end], 0)
-            {{port}} = scanf(url[port_colon+1..port_end], "%d")
-        end if
-
-        -- Increment the position to the next element to parse
-        if first_slash then
-            pos = first_slash
+        integer host_end
+        if port_colon!=0 then
+            host_end = port_colon-1
+        elsif first_slash then
+            host_end = first_slash-1
         elsif qs_start then
-            pos = qs_start
+            host_end = qs_start-1
         else
+            host_end = length(url)
             -- Nothing more to parse
-            all_done = 1
+--          all_done = true
         end if
+        host_name = url[pos..host_end]
+        if port_end then
+            host_end = port_end
+        end if
+        pos = host_end+1
     end if
-    if not all_done then
+--  if not all_done then
+    if pos<=length(url) then
         if qs_start=0 then
             path = url[pos..$]
         else

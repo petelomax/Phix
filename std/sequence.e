@@ -1,8 +1,6 @@
 -- (c) Copyright - See License.txt
 --
---/*
 namespace stdseq
---*/
 
 --****
 -- == Sequence Manipulation
@@ -2314,7 +2312,7 @@ end function
 
 --/* Phix: defined in buultins\psplit.e
 --public function split_any(sequence source, object delim, integer limit=0, integer no_empty=0)
-public function split_any(sequence source, object delim, bool no_empty=0, integer limit=0)
+public function split_any(sequence source, object delim, integer no_empty=0, integer limit=0)
 sequence ret = {}
 integer start = 1, pos, next_pos, k
 

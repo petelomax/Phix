@@ -4,47 +4,92 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">try - TEMP/TEST</h1>
+      <h1 class="title">Try/Catch Statement</h1>
       <div id="mainSection">
-A new construct is to be added to the language: 
+        A try statement allows a program to regain control following a normally fatal runtime error.
+<!--eucode>
+    try 
+       <block> 
+    catch e 
+       <block> 
+    end try 
+</eucode-->
 <pre>
-try 
-   <block> 
-catch e 
-   <block> 
-end try 
+<font color="#000000"></font><font color="#008080">    try 
+</font><font color="#0000FF">       &lt;</font><font color="#000000">block</font><font color="#0000FF">&gt; 
+</font><font color="#008080">    catch</font><font color="#000000"> e 
+</font><font color="#0000FF">       &lt;</font><font color="#000000">block</font><font color="#0000FF">&gt; 
+</font><font color="#008080">    end try </font>
 </pre>
-
-In addition there will also be a new builtin, throw(see below). 
-
-The catch statement traps any exception within the try block or any routines it invokes that 
-is not first caught by another nested try/catch statement. <br>
-Any exceptions that must be re-thrown must be done so manually.<br>
-Unlike other languages there is only one (non-optional) catch clause. <br>
-There are no confusing <i>classes</i> of exceptions, and no implicit
-filtering, and hence no unexpected leaks to the outside world.
-<br>
-<br>
-SUG: try[flag] - if the token immediately following the try keyword is '[', there follows a
-flag (compile-time-constant) that dictates whether the try is active. Actually scratch that,
-try..catch e "if flag then ?9/0 end if" fulfils the same need much simpler. (recommend that)
-The need, fyi, is that live software must be robust whereas developers should be notified of
-failures asap - and there should definitely be warnings for "catch <do nothing> end try" - 
-at the very least you should quietly log the event, in >=9/10 cases.
-<br>
-<br>
-The exception variable is declared immediately after the catch keyword and is a sequence.<br>
-It can be given with any valid identifier as a name, though "e" is usually sufficient.
-<br>
-<br>
-The sequence e always contains at least an exception code and address, but could also hold 
-a routine number/name, and source code line number. The content beyond the first two elements 
-may differ between interpreted and compiled applications, and the catch code block should be 
-written to cope accordingly. 
-<br>
-<br>
-Obviously the application will terminate immediately (just like 9/0) should throw() be invoked 
-when there is no active handler (try/catch construct) in the current call stack.
+        In addition the builtin routine <a href="throw.htm">throw</a>() can be used to transfer control directly to the catch block, 
+        potentially from within several nested routine calls.
+        <br>
+        <br>
+        The catch statement traps an exception within the try block, or any routines it invokes, that is not first caught by another nested try/catch statement.<br>
+        There is no guarantee that all exceptions can be caught: rogue code that corrupts the stack will make it impossible to even look for a suitable handler.<br>
+        Any exceptions that must be re-thrown must be done so manually, and unlike other languages there is only one (non-optional) catch clause. <br>
+        There are no confusing <i>classes</i> of exceptions, and no implicit filtering, and hence no unexpected leaks to the outside world.
+        <br>
+        <br>
+        The exception variable is declared immediately after the catch keyword and is a sequence.
+        It can be given with any valid identifier as a name, though "e" is usually sufficient.<br>
+        Just like the loop variable of a for statement, it can be predeclared and then persists after
+        the end try, otherwise it is automatically declared and drops out of scope on the end try.<br>
+        Note: there is no type checking on a catch clause, since throw() always provides a sequence,
+        hence user defined types (&gt;T_object) are not permitted on predeclared exception variables.<br>
+        For details of the contents of e, see <a href="throw.htm">throw</a>().
+        <br>
+        <h3>Comments</h3>
+        Note that a try/catch statement may interfere with your ability to debug code within the try block.<br>
+<!--        In a very real sense, by coding a try statement you are explicitly saying "I cannot be bothered to debug this any more".<br> -->
+        It can certainly negate the idea of a "fail fast" development methodology, should the program quietly soldier on rather than 
+        immediately alert you to a problem and force you to fix it. <br>
+        Believe it or not, experience has shown me that deliberately making code fragile is actually the best way to make it robust, and
+        certainly slapping in a ?9/0 for any bits not yet done works an absolute treat for me, that is outside of any try handling.<br>
+        The authors of the Go programming language (and certainly neither Rob Pike nor Ken Thompson can be considered amateurs) at first
+        completely omitted exceptions, but eventually added a panic/recover mechanism; clearly they had their reservations, so perhaps 
+        you should too.
+        <br>
+        <br>
+        Compilation issues "Warning: empty catch block" messages when appropriate.<br>
+        A blanket "ignore all" handler in the top-level main loop of an application may sound like an easy way to make your code "robust".
+        However it also risks making you completely blind towards any emerging problems - which can in some cases be perfectly fine - if a
+        "jumping giraffe" game tries to draw the eyeballs off-screen, no-one cares, but a bug in the Phix compiler is quite different.<br>
+        At the very least you should consider something like <code>if DEBUG then ?9/0 end if</code> and in that way your live customers 
+        can experience the trouble-free life you think they deserve, while your development staff are kept honest and immediately informed 
+        of and forced to address any developing issues. Be warned that "trouble-free life" may turn into the classic headbutting a brick 
+        wall experience of no clue as to what is going wrong. Creating a log file of any quietly ignored exceptions may help there.
+        <br>
+        <br>
+        I have three recommendations:
+        <br>
+        <br>
+        First, always try and localise a try statement as much as possible, to cover the least amount of code and solve a very specific
+        problem. Your catch clauses will obviously be much easier to write.
+        <br>
+        <br>
+        Second, use try statements to deal with third-party code that you cannot or would rather not modify, as opposed to permission
+        for your own sloppily-written code.<br>
+        A perfect example of the former: display "unable to play video" rather than let a corrupt file euthanise your entire application.
+        <br>
+        <br>
+        Thirdly, always start a new catch clause as <code>"?e"</code>, then gradually add conditions and filters, with comments, for specific 
+        cases where a "do nothing" response is genuinely the best thing to do.<br>
+        Let everything you have not yet seen show up, including that bug you have just introduced, and the one you will tomorrow.
+        <br>
+        <br>
+<!--
+        <br>
+        <br>
+>>>
+        The sequence e always contains at least an exception code and address, but could also hold 
+        a routine number/name, and source code line number. The content beyond the first two elements 
+        may differ between interpreted and compiled applications, and the catch code block should be 
+        written to cope accordingly. In particular, note that E_USER will only be present when the
+        exception was explicitly triggered via a throw() statement, not when triggered by eg a divide
+        by zero. Exception numbers 1 through 122 can be generated via builtins\VM\pDiag.e (check the
+        constant msgs in that file), in which case e[E_USER] will be the string version of the error
+        code.
 <br>
 <br>
 I concede. Once I thought of it, catch e ... throw(e) is a fairly compelling argument. 
@@ -62,7 +107,9 @@ The following constants (automatically defined in psym.e/syminit) can be used to
 3   E_RTN (integer, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.<br>
 4   E_LINE (integer, optional) the source code line matching E_ADDR in E_RTN.<br>
 5   E_NAME (string|integer, optional) the human-readable name of E_RTN.<br>
-6   E_USER (object, optional) user defined/application specific content in e[6..$].
+6   E_FILE (string|integer, optional) the source filename containing E_NAME.<br>
+7   E_PATH (string|integer, optional) the directory containing E_FILE.<br>
+8   E_USER (object, optional) user defined/application specific content in e[8].
 <br>
 <br>
 Only the first two elements are guaranteed to be present. Further user-defined elements may also be present. 
@@ -76,14 +123,19 @@ throw(object e, object e6={})
  if e6!={} then e must be atom and throw(e,e6) is equivalent to throw({e,-1,-1,-1,-1,e6}), modified as below.
  if e is an atom, throw(e) is equivalent to throw({e,-1,-1,-1,-1}), modifed as below.
  if e is a string, throw(e) is equivalent to throw({0,-1,-1,-1,-1,e}), "" (probably Phix only, and same as throw(0,"string")).
- Otherwise e must be a sequence containing at least the first two elements, E_CODE and E_ADDR, type safe as above and any user-defined data in e[6..$]. 
+ Otherwise e must be a sequence containing at least the first two elements, E_CODE and E_ADDR, type safe as above and any user-defined data in e[8]. 
     if e[E_ADDR] is -1 it is replaced with the return address from the throw() call. 
     if e[E_RTN] is -1 it is replaced with a routine number from the current call stack. 
     if e[E_LINE] is -1 and e[E_ADDR] was -1, then the (new) value of e[ADDR]-1 is mapped to a line number in e[E_RTN] and stored in e[E_LINE]. 
-    if e[E_NAME] is -1 and e[E_RTN] was -1, the name is retrieved from the symbol table.
+    if e[E_NAME] is -1 and e[E_RTN] was -1, the name is retrieved from the symbol table, same deal for E_FILE and E_PATH.
 </pre>
 [DEV], however (in Phix) E_NAME may be a meaningless ttree index when interpreting and a proper string only when compiled. <br>
 [DEV] (see what happens during implementation)
+<!-!-??Note that E_LINE is left as -1 when compiled with the (rarely used) -nodiag option.-!->
+<!-!-[-nodiag finds little use these days, but that may change if I ever get going on an ARM port]-!->
+<br>
+<br>
+[DEV/SUG?] For machine level exceptions, e[E_USER] is a string as per pDiagN.e, eg "fatal exception #C00000005 [MEMORY VIOLATION] at #04080024\n".
 <br>
 <br>
 Performance/benchmarking note: when interpreting, the first exception may take a few seconds to populate the (entire) symbol table with 
@@ -91,88 +143,51 @@ actual identifier names instead of ttree indexes. Deliberately throwing and catc
 a much more sensible/honest/useful result for per-exception handling overhead.
 <br>
 <br>
-Note that for hardware and operating system exceptions, e[E_ADDR] may correspond to a machine instruction emitted for the source code line, 
-or the first byte of the next line, or somewhere deep in the heart of say kernel32.dll, or part of the internal workings of c_func, and 
-therefore (in early versions at least) e[E_LINE] may be quite wrong. Such cases will need to be fixed on an ad hoc basis, either by 
-subtracting 1 from e[E_ADDR] for selected e[E_CODE], emitting a judicious nop instruction, or hunting about in the call stack for the first 
-thing that makes sense. If all such efforts are in vain, the runtime reserves the right to give up and return a two-element sequence. 
-In short, you should not become over-reliant on the optional values e[E_LINE] and e[E_NAME], and do not panic/crash if absent or -1. 
-You can however populate a throw() statement with made-up values. If you supply a made-up E_RTN you are also expected to supply a made-up
-E_NAME, and likewise with E_ADDR/E_LINE. Note the latter may drift over time, just like a puts(1,"This is line 6170\n") might.
+-->
+<!--
 <br>
 <br>
-The following <i><b>really is</b></i> the <a id="extGJE" style="color#9B5565" 
-href="javascript:ExternalLink('extGJE','https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.2');">official</a> definition 
-of java exception handling:
-<small>
-<pre>
-A try statement with a finally block is executed by first executing the try block. Then there is a choice:
-    If execution of the try block completes normally, then the finally block is executed, and then there is a choice:
-        If the finally block completes normally, then the try statement completes normally.
-        If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S.
-    If execution of the try block completes abruptly because of a throw of a value V, then there is a choice:
-        If the run-time type of V is assignment compatible with a catchable exception class of any catch clause of the try statement, then the first (leftmost) such catch clause is selected. 
-        The value V is assigned to the parameter of the selected catch clause, and the Block of that catch clause is executed. Then there is a choice:
-            If the catch block completes normally, then the finally block is executed. Then there is a choice:
-                If the finally block completes normally, then the try statement completes normally.
-                If the finally block completes abruptly for any reason, then the try statement completes abruptly for the same reason.
-            If the catch block completes abruptly for reason R, then the finally block is executed. Then there is a choice:
-                If the finally block completes normally, then the try statement completes abruptly for reason R.
-                If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S (and reason R is discarded).
-        If the run-time type of V is not assignment compatible with a catchable exception class of any catch clause of the try statement, then the finally block is executed. Then there is a choice:
-            If the finally block completes normally, then the try statement completes abruptly because of a throw of the value V.
-            If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S (and the throw of value V is discarded and forgotten).
-    If execution of the try block completes abruptly for any other reason R, then the finally block is executed, and then there is a choice:
-        If the finally block completes normally, then the try statement completes abruptly for reason R.
-        If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S (and reason R is discarded).
-</pre>
-</small>
-        Of course, each individual phrase/clause/statement is perfectly reasonable, however as a whole it is utterly incomprehensible, quite
-        literally almost impossible to remember, and hence extremely difficult to code correctly against. Plus the whole checked vs. unchecked 
-        exceptions doobry-mah-jiig goes on top of all of that, albeit that is more at the function declaration level, it still significantly 
-        impacts on what is and is not a permitted catch clause, in java.
+DEV (from pDiaN.e):
+--      Exceptions are often preferred for performance reasons, for example:
+--  --?     cmp esi,h4  -- (not always necessary)
+--  --?     jl :doInt   --   "    "        "
+--  --?     je :!iDiag  -- (branch misprediction likely!)
+--        :!opXXe94vhnbaavesi
+--          cmp byte[ebx+esi*4-1],#12   -- float
+--          jcc ???     -- (branch misprediction!!)
+--      Catching an exception at :!opXXe94vhnbaavesi (when esi==h4 aka unassigned) is 
+--       obviously faster (by which I mean when no exception/fatal error occurs) than
+--       always performing a conditional jump that is almost never taken, and in many 
+--       cases the test that it would otherwise need can also be omitted. Further, on
+--       some processors with limited branch prediction granularity, having jumps so
+--       close is something that should be avoided if at all possible. However (OTOH)
+--       it may need additional setup (eg var no in some other register) that negates 
+--       any such gains/omissions, in which case direct call may be better. While a
+--       heavily used opcode such as opMove or opJcc can show significant benefits
+--       from even a single clock saving, if it is easier on the lesser used opcodes
+--       to setup regs/era etc, take the hit for maintainability sake and go direct.
+
         <br>
         <br>
-        By adopting a simpler scheme with no finally clause and a single catch clause this might become:
-<small>
-<pre>
-The catch clause is only entered if an exception occurs during the execution of the try block.
-There is no special exception handling within the catch block other than any already in place before and after the try statement.
-</pre>
-</small>
-        Which certainly fits inside my little brain a bit more readily. You may also like to compare the <a id="extJNF" style="color#9B5565" 
-        href="javascript:ExternalLink('extJNF','https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.1');">official</a> definition of
-        java exception handling when there is no finally clause, which while certainly simpler than the with finally that immediately follows it, still 
-        strikes me as being deliberately over-egged to make the whole finally concept seem slightly less ridiculous.
+-->
+<!--
+DEV I no longer care...
+        Uncaught exceptions from throw() are reported inside the routine itself, in contrast to say printf() where the error is normally
+        reported on the calling statement. Two thoughts: firstly, that reporting it on the call would throw away all the updates just done 
+        to e[E_LINE] etc, though admittedly they are pretty well replicated in the normal scheme of error handling, and secondly, that the
+        throw() call is unlikely to be any more helpful - what you probably want to do is walk back down the call stack in your search for
+        a path with missing exception handling, so I may as well force you into walking the stack anyway.
+
+-- Pretty much any run-time error is covered, however there are always going to be some exceptions 
+-- that cannot be caught - for instance passing invalid parameters to throw() terminates abruptly, 
+-- in preference to trying to blunder on with whatever nonsense it got. I might add that it takes 
+-- some quite deliberate stupidity to trigger that one. Equally, handlers are nested so you cannot
+-- guarantee some else won't get their size nine boots in first, or, for that matter, clobber the
+-- internals of the handling mechanism.
+
         <br>
         <br>
-        This is one way to mimic a finally block, should you need it:
-<pre>
-bool rethrow = False
-sequence esave      -- (or sequence e)
-try 
-   &lt;block&gt;
-catch e 
-   ...
-   if &lt;condition&gt; then    -- (optional)
-      rethrow = True
-      esave = e     -- (or just pre-declare e)
-   end if
-   ...
-end try 
-the &lt;finally&gt; block (containing another try block if necessary)
-if rethrow then
-   throw(esave)     -- (or throw(e))
-end if
-</pre>
-        Note that when another try block exists, whether esave is overwritten is entirely dependent on any condition (if any) explicitly 
-        coded within the secondary catch block, and indeed whether exceptions in the finally block are rethrown or quietly ignored is also 
-        completely your decision (provided that a suitable try block exists within the finally block to do that handling).
-        <br>
-        <br>
-        Finally blocks could also be mimiced using nested routines, should they ever be completed (see demo\rosetta\Nested_function.exw).
-        <br>
-        <br>
+DEV (TO GO):<br>
         Technicalia:<br>
         A new field is required in every frame on the call stack to contain the address of the exception handler. Obviously NULL means
         there is no handler, but also the special value 1 means there is one somewhere lower down the stack (so we need to issue fake
@@ -188,18 +203,36 @@ end if
         we have got the slot done and dusted when the reality is that some edge cases (on vsb boundaries) still corrupt the stack.
         <br>
         <br>
-        Every try statement will create a new unnamed local temporary to faciliate the save/restore of the exception handler field, as
-        needed to cope with nested exception handlers.
+        Every try statement will create a new local temporary to faciliate the save/restore of the exception handler field, as needed
+        to cope with nested exception handlers.
         <br>
         <br>
 <pre>
-        opTry -> atom tmpNN := [ebp+NN];
-                 [ebp+NN] := addr(:catchNN);
-        opCatch -> :catchNN
-                      [ebp+NN] := tmpNN;
-                      e := eax;
-        opEndTry -> [ebp+NN] := tmpNN;
+        opTry ->        atom tmp := [ebp+NN];
+                        [ebp+NN] := addr(:catch);
+
+                        <i>&lt;block&gt;</i>
+
+        opCatch ->      [ebp+NN] := tmp;
+                        jmp :endtry
+                    ::catch
+                        [ebp+NN] := tmp;
+                        sequence e := eax;
+
+                        <i>&lt;block&gt;</i>
+
+        opLabel ->  ::endtry
+        
+        opThrow ->      mov eax,[e]             -- (opUnassigned)
+                        mov ecx,[user_data]     -- (or h4)
+                        call :!pThrow           -- (see pDiagN.e)
 </pre>
+        throw() will be implemented mostly in hll, but it will need a hook into pDiag.e (or parts of pDiag.e factored out) to convert
+        addresses into line numbers, etc. Perhaps if throw() is linked in, like routine_id(), interpretation should pre-populate the
+        symtab with real names.
+        <br>
+        <br>
+-->
       </div>
      </stripped>
     </get>

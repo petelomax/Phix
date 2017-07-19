@@ -341,6 +341,37 @@ function esc_close(Ihandle /*ih*/, atom c)
     return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
 end function
 
+-- This shows how to defer-load nodes on expand/demand:
+-- Obviuously would probably be more dynamically set in a real app,
+-- and of course elements can be more than plain-string leaf nodes,
+-- with daisy-chains of unique userids to control things properly.
+-- (7 is plucked out of the air, matches the 7 in tree_nodes below)
+-- (also feel free to use xxx[7]!=0 instead of find(7,toload)!=0..)
+
+sequence {toload,tolkids} = columnize({{7,{"equilateral",
+                                           "isoceles",
+                                           "scalenus"}},
+--                                     {8,{"some",      -- (works just fine, if)
+--                                         "other",     -- (8 uncommented below)
+--                                         "branch"}},
+                                      })
+
+function branchopen_cb(Ihandle tree, integer id)
+--  printf(1,"BRANCHOPEN_CB (%d)\n", {id});
+    integer userid = IupTreeGetUserId(tree,id),
+            k = find(userid,toload)
+    if k!=0 then -- (deferred load rqd for this node)
+        -- first kill off "dummy" (which ensured a '+'):
+        IupSetAttributeId(tree,"DELNODE",id,"CHILDREN")
+        sequence children = tolkids[k]
+        IupTreeAddNodes(tree, children, userid)
+        -- finally remove load from the to-do lists:
+        toload[k..k] = {}
+        tolkids[k..k] = {}
+    end if
+    return IUP_DEFAULT;
+end function
+
 procedure SampleTest()
 Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, dlg, img,
     btn_1, btn_2, btn_3, btn_4, btn_5,
@@ -496,6 +527,8 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, dlg, img,
 
     tree = IupTree();
     IupSetAttribute(tree, "SHOWRENAME", "YES");
+--DEV test..
+--  IupSetAttribute(tree, "ADDROOT", "NO");
     IupSetAttribute(tree,"RASTERSIZE","100x150");
     set_callbacks(tree);
 
@@ -558,13 +591,46 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, dlg, img,
 
     IupMap(dlg);
 
-    IupSetAttribute(tree, "TITLE0",       "Figures");
-    IupSetAttribute(tree, "ADDLEAF0",    "Other");     /* new id=1 */
-    IupSetAttribute(tree, "ADDBRANCH1", "triangle");  /* new id=2 */
-    IupSetAttribute(tree, "ADDLEAF2",   "equilateral");  /* ... */
-    IupSetAttribute(tree, "ADDLEAF3",   "isoceles");
-    IupSetAttribute(tree, "ADDLEAF4",   "scalenus");
-
+    if 0 then
+        IupSetAttribute(tree, "TITLE0",     "Figures");
+        IupSetAttribute(tree, "ADDLEAF0",   "Other");      /* new id=1 */
+        IupSetAttribute(tree, "ADDBRANCH1", "triangle");  /* new id=2 */
+        IupSetAttribute(tree, "ADDLEAF2",   "equilateral");  /* ... */
+        IupSetAttribute(tree, "ADDLEAF3",   "isoceles");
+        IupSetAttribute(tree, "ADDLEAF4",   "scalenus");
+    else
+        sequence tree_nodes = {"Figures",               -- (branch with 5 children)
+--                             {"STATE","COLLAPSED"},   --  (works fine, btw)
+                               {"Other",                -- (leaf)
+--                              {"triangle",            -- (branch with 3 children)
+--                               {"STATE","COLLAPSED"},
+--                               {"equilateral",
+--                                "isoceles",
+--                                "scalenus",
+--                               }},
+                                {"triangle",            -- (branch with 3 children)
+                                 {"STATE","COLLAPSED","USERDATA",7},
+                                 {"dummy"}},            -- (ensures we get a '+')
+                                {"parallelogram",       -- (branch with 2 children)
+                                 {"square",
+                                  {"diamond",
+                                   {"COLOR","92 92 255","TITLEFONT","Courier, 8"},
+                                   0}   -- (nb: this is a leaf, non-optional here)
+                                 }},
+                                "2D",                   -- (leaf)
+--                              {"2D"},                 -- (same)
+--                              {"2D",0},               -- (same)
+--                              {"2D",{},0},            -- (same)
+                                {"3D",{}},              -- (branch, empty)
+--                              {"4D",                  -- (works just fine, if 8 uncommented above)
+--                               {"STATE","COLLAPSED","USERDATA",8},
+--                               {"dummy"}}             -- (branch, deferred load)
+                               }
+                              }
+--      tree_nodes = "one"  -- (as expected, creates a single leaf node)
+        IupSetCallback(tree, "BRANCHOPEN_CB",  Icallback("branchopen_cb"));
+        IupTreeAddNodes(tree, tree_nodes)
+    end if
     IupShow(dlg);
 
 --  IupSetAttribute(dlg,"RASTERSIZE", NULL);

@@ -10,7 +10,7 @@
         <col style="width: 5%"/>
         <tr>
          <td valign=top>
-          <b>Syntax:</b>
+          <b>Definition:</b>
          </td>
          <td>
           integer tid = new_dict(sequence kd_pairs={}, integer pool_only=0)
@@ -59,7 +59,7 @@
         </tr>
         <tr>
          <td valign=top>
-          <b>Example:</b>
+          <b>Example 1:</b>
          </td>
          <td>
 <!--eucode>
@@ -67,6 +67,27 @@ integer tid = new_dict({{1,"one"},{2,"two"}})
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> tid</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"one"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000">"two"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+-- multithreaded applications need to use locking (see Technicalia)
+integer dictcs = init_cs(), tid
+    enter_cs(dictcs)
+    tid = new_dict()
+    leave_cs(dictcs)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- multithreaded applications need to use locking (see Technicalia)
+</i></font><font color="#004080">integer</font><font color="#000000"> dictcs</font><font color="#0000FF"> =</font><font color="#5E005E"> init_cs</font><font color="#0000FF">(),</font><font color="#000000"> tid
+</font><font color="#5E005E">    enter_cs</font><font color="#0000FF">(</font><font color="#000000">dictcs</font><font color="#0000FF">)
+</font><font color="#000000">    tid</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">()
+</font><font color="#5E005E">    leave_cs</font><font color="#0000FF">(</font><font color="#000000">dictcs</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -86,10 +107,9 @@ integer tid = new_dict({{1,"one"},{2,"two"}})
           </a>
          </td>
          <td>
-            Multiple threads concurrently accessing dictionaries will cause corruption unless protected by 
-            <a href="enter_cs.htm">enter_cs</a>(dictcs) and friends. (If your application is not multithreaded, or only one thread 
-            accesses dictionaries, then nothing that follows is of <i>any</i> concern to you, and if I were you, I&rsquo;d get out 
-            while I still can.)
+            Multiple threads concurrently accessing dictionaries will cause corruption unless protected as per Example 2.<br>
+            If your application is not multithreaded, or only one thread accesses dictionaries, then nothing that follows is of 
+            <i>any</i> concern to you, and if I were you, I&rsquo;d get out while I still can.
             <br>
             <br>
             A single critical section protecting all dictionaries is normally sufficient, and in the vast majority of cases there
@@ -99,14 +119,20 @@ integer tid = new_dict({{1,"one"},{2,"two"}})
             <br>
             <br>
             If pool_only is greater than 1, the routine adds the specified number of entries to the freelist and returns 0.
-            Such a call is of course expected to be made before any <a href="create_thread.htm">create_thread</a>() calls, and
-            before any destroy_dict() calls - you should verify the result actually is zero to guard against the latter.
-            Subsequent invocations of new_dict(1) [presumably from within an appropriate critical section] will yield 0 if
-            the pool is exhausted. In that case, the program should unlock, sleep and retry a bit later. If in fact you are
-            trying to shut down, but other threads have died or forgotten to destroy_dict(), it is not entirely unreasonable
-            (after a time) to offer a "create anyway" option - it is not actually very likely, let alone guaranteed to fail. 
-            I only mention this because systems which are multithreaded and require many dictionaries are somewhat more likely 
-            to have complex and critical shutdown requirements, and stand to lose much more data if terminated abruptly.
+            Such a call is of course expected to be made before any <a href="create_thread.htm">create_thread</a>() or other
+            new_dict() calls, and certainly before any <a href="destroy_dict.htm">destroy_dict</a>() calls - you should verify 
+            the result actually is zero to guard against the latter.
+            <br>
+            <br>
+            Subsequent invocations of new_dict(pool_only:=1) [presumably from within an appropriate critical section] will yield 0 
+            if the pool is exhausted. In that case, the program should unlock, sleep and retry a bit later.
+            <br>
+            <br>
+            If in fact you are trying to shut down, but other threads have died or forgotten to destroy_dict(), it is not entirely 
+            unreasonable (after a time) to offer a "create anyway" option - it is not actually very likely, let alone guaranteed 
+            to fail - unless some other thread is beavering away making as many calls to builtins\dict.e routines as it can.<br>
+            I only mention this because systems which are multithreaded and require many dictionaries are somewhat more 
+            likely to have complex and critical shutdown requirements, and stand to lose much more data if terminated abruptly.
             Tip: it costs very little to create a pool of say 500 dicts, and any such overhead would be completely and utterly 
             dwarfed by trying to create 500 threads. Conversely, limiting the pool size may keep memory useage spikes down and
             otherwise help spread out the workload.

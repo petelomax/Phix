@@ -23,8 +23,9 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant phixversion = {0,7,2} -- 0.7.2    -- 10/02/17
 --global constant phixversion = {0,7,3} -- 0.7.3    -- 12/02/17 (internal)
 --global constant phixversion = {0,7,4} -- 0.7.4    -- 15/02/17 (internal, misnamed)
-global constant phixversion = {0,7,5}   -- 0.7.5    -- 22/02/17 (internal)
-
+--global constant phixversion = {0,7,5} -- 0.7.5    -- 22/02/17 (internal)
+global constant phixversion = {0,7,6},  -- 0.7.6    -- 30/06/17
+                phixverstr = sprintf("%d.%d.%d",phixversion)
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...
                             --  0 = old style handling, (DEV remove)
@@ -54,10 +55,11 @@ global constant scramble=0 -- Makes reverse engineering an exe to source much mo
 
 global constant NOLT=0      -- if 1, suppress all pltype.e handling [DEV]
 
+global constant SETLTBROKEN=0
 --DEV temp/fixme (also set twice in pmain.e/compile)
 --DEV minor slipup: should be set (here and) in DoFormat!!
 --global constant LTBROKEN = platform()=LINUX and machine_bits()=64
-global integer LTBROKEN = platform()=LINUX and machine_bits()=64    -- (nb overidden with PE=0 and X64=1)
+global integer LTBROKEN = SETLTBROKEN and platform()=LINUX and machine_bits()=64    -- (nb overidden with PE=0 and X64=1)
 --global integer LTBROKEN = platform()=LINUX and machine_bits()=64  -- (nb overidden with PE=0 and X64=1 in pmain.e/DoFormat())
 
 -- I added this when working on t02, to see just how much could be optimised away...
@@ -640,6 +642,7 @@ global integer T_compare        T_compare = 0       -- map "if compare(a,b)<relo
 global integer T_find           T_find = 0          -- for defaulting 3rd param to 1
 global integer T_match          T_match = 0         -- for defaulting 3rd param to 1
 global integer T_get_text       T_get_text = 0      -- for defaulting 2nd param to -2
+global integer T_throw          T_throw = 0     -- for defaulting 2nd param to {}
 global integer T_equal          T_equal = 0         -- map "if equal(a,b)" to "if a=b"
 global integer T_length         T_length = 0        -- map s[..length(s)] to s[..-1]
 global integer T_floor          T_floor = 0         -- map "floor(a/b)" to opDivf a,b
@@ -655,9 +658,11 @@ global integer T_print          T_print = 0
 --global integer T_dcproc       T_dcproc = 0        -- map define_c_proc(l,n,a) to define_c_func(l,n,a,0)
 global integer T_command_line   T_command_line = 0  -- (for parameter defaulting)
 global integer Z_command_line   Z_command_line = 0  -- (1 iff needs linking for parameter defaulting)
+global integer T_SLASH          T_SLASH = 0
 global integer T_platform       T_platform = 0
 global integer T_machine_bits   T_machine_bits = 0
 global integer T_machine_word   T_machine_word = 0
+global integer Z_version        Z_version = 0       -- (T_version used in format)
 global integer T_min            T_min = 0
 global integer T_minsq          T_minsq = 0
 global integer T_max            T_max = 0
@@ -719,6 +724,8 @@ global sequence aatidx,     -- ttidx of autoasm label names (indexed by opcode)
                 aartypes    -- result types (indexed by opcode)
 
 global integer some_unresolved_rtnids
+--EXCEPT
+global integer exceptions_in_use = 0
 
 global integer line         -- shadowed by tokline
                line = -1

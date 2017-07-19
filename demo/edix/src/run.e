@@ -276,6 +276,7 @@ constant cb_cancel = Icallback("cancel_cb")
 procedure open_rundlg()
 Ihandle run_lbl, buttons, command, box, bt_help, bt_ok, bt_cancel
     if run_dlg=NULL then
+--DEV Run With / Treat as Extension, Always use specified command...
         run_lbl = IupLabel("cmd")
         run_txt = IupList("EXPAND=HORIZONTAL, DROPDOWN=YES, EDITBOX=YES")
         t_comp = IupToggle("compile",cb_compile,"PADDING=10x2")

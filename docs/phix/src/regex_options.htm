@@ -10,7 +10,7 @@
         <col style="width: 5%"/>
         <tr>
          <td valign=top>
-          <b>Syntax:</b>
+          <b>Definition:</b>
          </td>
          <td>
           include builtins\regex.e
@@ -47,7 +47,8 @@ global constant RE_PIKEVM           = #001,
             <br>
             <br>
             RE_PIKEVM (the default) and RE_RECURSIVE are the two available (mutually exclusive) run-time engines.<br>
-            (elsewhere in these documents, RE_PIKEVM is "the pikevm" whereas RE_RECURSIVE is "the backtrackingvm")
+            Elsewhere in these documents, RE_PIKEVM is "the pikevm" whereas RE_RECURSIVE is "the backtrackingvm" or
+            sometimes "the recursivevm".
             <br>
             <br>
             RE_PIKEVM is a fast deterministic approach with (severely) limited support for backreferences but an
@@ -58,7 +59,8 @@ global constant RE_PIKEVM           = #001,
             RE_RECURSIVE is suitable in controlled environments, can sometimes find solutions RE_PIKEVM cannot, and 
             is usually fast enough.<br>
             Needless to say, however, exposing RE_RECURSIVE directly to the interweb risks a severe DDOS attack,<br>
-            and the pikevm is almost always preferrable, except when it isn&rsquo;t or gives the wrong results.
+            and the pikevm is almost always preferrable, except when it isn&rsquo;t or gives the wrong results.<br>
+            Some expressions (see test\t63regex.exw) work fine on the pikevm, but overflow on the backtrackingvm.
             <br>
             <br>
             It is quite probable that you can (theoretically) write a regular expression for any reasonable problem 
@@ -71,32 +73,32 @@ global constant RE_PIKEVM           = #001,
             ride roughshod over any attempts to specify [non-]greedy matching within an ambiguous expression. <br>
             Some examples of the differences this setting causes can be found in test\t63regex.exw.<br>
             Of course if you only care whether a given expression matches, not where or what, this option could offer a 
-            significant performance improvement.
+            significant performance improvement (then again, the pikevm is pretty fast anyway).
             <br>
             <br>
             RE_BACKREFERENCES is disabled by default:
             The pikevm only supports entirely unambiguous backreferences, and it is up to you to restrict the
             regular expressions appropriately, should you attempt that particular configuration. <br>
-            For example, given the target string "&lt;1&gt;test1&lt;x1&gt;&lt;2&gt;Test2&lt;y2&gt;sfsaf&lt;3&gt;&lt;4&gt;test4&lt;4&gt;", then<br>
-            `&lt;\s*(\d+)\s*&gt;(.*?)&lt;\s*\1\s*&gt;` on the backtrackingvm will successfully match the &lt;4&gt;, but<br>
-            `&lt;\s*(\d+)\s*&gt;([^&lt;]*?)&lt;\s*\1\s*&gt;` (ie replace .* with [^&lt;]*) is needed on the pikevm.
+            For example, given the target string "&lt;1&gt;test1&lt;x1&gt;&lt;2&gt;test2&lt;y2&gt;test3&lt;3&gt;&lt;4&gt;test4&lt;4&gt;", then<br>
+            `&lt;(\d+)&gt;(.*?)&lt;\1&gt;` on the backtrackingvm will successfully match the &lt;4&gt;, but<br>
+            `&lt;(\d+)&gt;([^&lt;]*?)&lt;\1&gt;` is needed on the pikevm (ie replace (any char)* with (not '&lt;')*).
             <br>
             <br>
             In the ambiguous (1st) case, when you get to the final &lt;4&gt; the \1 and the inner group could be:<br>
-            "&lt;1&gt;" and "test1&lt;x1&gt;&lt;2&gt;Test2&lt;y2&gt;sfsaf&lt;3&gt;&lt;4&gt;test4", or<br>
-            "&lt;2&gt;" and "Test2&lt;y2&gt;sfsaf&lt;3&gt;&lt;4&gt;test4", or<br>
-            "&lt;3&gt;" and "&lt;4&gt;test4", or<br>
-            "&lt;4&gt;" and "test4".<br>
-            and since the pikevm has only one slot to hold a backreference, it will inevitably get it wrong.<br>
-            In contrast, using the unambiguous (2nd) expression, there is no way for &lt;1&gt; to be a valid possibility by 
-            the time you get to the "&lt;4&gt;", and in fact only the last of the four cases would ever be tried there.
+            "1" and "test1&lt;x1&gt;&lt;2&gt;test2&lt;y2&gt;test3&lt;3&gt;&lt;4&gt;test4", or<br>
+            "2" and "test2&lt;y2&gt;test3&lt;3&gt;&lt;4&gt;test4", or<br>
+            "3" and "&lt;4&gt;test4", or<br>
+            "4" and "test4".<br>
+            and since the pikevm has only one slot to hold a backreference, it will inevitably get it wrong (as shown below).<br>
+            In contrast, using the unambiguous (2nd) expression, there is no way for "1" to be a valid possibility by 
+            the time you get to the final "&lt;4&gt;", instead only that last case would ever be tried there.
             As an added bonus, the unambiguous expression is guaranteed to be faster, even on the backtrackingvm.
             <br>
             <br>
             RE_CASEINSENSITIVE causes the regular expression to be compiled as upper case and individual character matches
             to invoke upper on the target characters before comparison. Note that this only applies to comparison between
             the regular expression and the target, and backreferences are unaffected, so this will not allow a target of 
-            say ABCabc to be matched using them (though of course you can upper(target) beforehand instead).
+            say ABCabc to be matched using backreferences (though of course you can upper(target) beforehand instead).
             <br>
             <br>
             RE_DOTMATCHESNL suppresses the legacy and often unnecessary behaviour that . matches everything but \n. It
@@ -110,10 +112,78 @@ global constant RE_PIKEVM           = #001,
         </tr>
         <tr>
          <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+-- The code(/failure) from RE_BACKREFERENCES above in action
+include builtins\regex.e
+
+constant tgt = "<1>test1<x1><2>test2<y2>test3<3><4>test4<4>",
+         r12 = {`<(\d+)>(.*?)<\1>`, `<(\d+)>([^<]*?)<\1>`}
+
+procedure test(string title, integer options)
+    ?title
+    regex_options(options)
+    for i=1 to length(r12) do
+        sequence res = regex(r12[i],tgt)
+        for j=1 to length(res) by 2 do
+            res = append(res,tgt[res[j]..res[j+1]-1])
+        end for
+        ?res
+    end for
+end procedure
+
+test("pikevm",RE_BACKREFERENCES)
+test("recursivevm",RE_BACKREFERENCES+RE_RECURSIVE)
+
+-- Output:
+--  "pikevm"
+--  {}
+--  {33,44,34,35,36,41,"<4>test4<4>","4","test4"}
+--  "recursivevm"
+--  {33,44,34,35,36,41,"<4>test4<4>","4","test4"}
+--  {33,44,34,35,36,41,"<4>test4<4>","4","test4"}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- The code(/failure) from RE_BACKREFERENCES above in action
+</i></font><font color="#008080">include</font><font color="#000000"> builtins\regex.e
+
+</font><font color="#008080">constant</font><font color="#000000"> tgt</font><font color="#0000FF"> =</font><font color="#008000"> "&lt;1&gt;test1&lt;x1&gt;&lt;2&gt;test2&lt;y2&gt;test3&lt;3&gt;&lt;4&gt;test4&lt;4&gt;"</font><font color="#0000FF">,
+</font><font color="#000000">         r12</font><font color="#0000FF"> = {</font><font color="#008000">`&lt;(\d+)&gt;(.*?)&lt;\1&gt;`</font><font color="#0000FF">,</font><font color="#008000"> `&lt;(\d+)&gt;([^&lt;]*?)&lt;\1&gt;`</font><font color="#0000FF">}
+
+</font><font color="#008080">procedure</font><font color="#000000"> test</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> options</font><font color="#0000FF">)
+    ?</font><font color="#000000">title
+</font><font color="#5E005E">    regex_options</font><font color="#0000FF">(</font><font color="#000000">options</font><font color="#0000FF">)
+</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">r12</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#004080">        sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> regex</font><font color="#0000FF">(</font><font color="#000000">r12</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">tgt</font><font color="#0000FF">)
+</font><font color="#008080">        for</font><font color="#000000"> j</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> by</font><font color="#000000"> 2</font><font color="#008080"> do
+</font><font color="#000000">            res</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">tgt</font><font color="#800000">[</font><font color="#000000">res</font><font color="#800080">[</font><font color="#000000">j</font><font color="#800080">]</font><font color="#0000FF">..</font><font color="#000000">res</font><font color="#800080">[</font><font color="#000000">j</font><font color="#0000FF">+</font><font color="#000000">1</font><font color="#800080">]</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#008080">        end for
+</font><font color="#0000FF">        ?</font><font color="#000000">res
+</font><font color="#008080">    end for
+end procedure
+
+</font><font color="#000000">test</font><font color="#0000FF">(</font><font color="#008000">"pikevm"</font><font color="#0000FF">,</font><font color="#004600">RE_BACKREFERENCES</font><font color="#0000FF">)
+</font><font color="#000000">test</font><font color="#0000FF">(</font><font color="#008000">"recursivevm"</font><font color="#0000FF">,</font><font color="#004600">RE_BACKREFERENCES</font><font color="#0000FF">+</font><font color="#004600">RE_RECURSIVE</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- Output:
+--  "pikevm"
+--  {}
+--  {33,44,34,35,36,41,"&lt;4&gt;test4&lt;4&gt;","4","test4"}
+--  "recursivevm"
+--  {33,44,34,35,36,41,"&lt;4&gt;test4&lt;4&gt;","4","test4"}
+--  {33,44,34,35,36,41,"&lt;4&gt;test4&lt;4&gt;","4","test4"}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
           <b>See Also:</b>
          </td>
          <td>
-          <a href="routine_id.htm">routine_id</a>
+          <a href="routine_id.htm">routine_id</a>,
+          <a href="regex.htm">regex</a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -125,6 +195,7 @@ global constant RE_PIKEVM           = #001,
          <td>
             Calling regex_options() with no parmeters is not specifically intended to be helpful,
             but it will reset everything (except already compiled expressions) to the initial defaults.
+            It is however used for that specific purpose in test\t63regex.exw.
          </td>
         </tr>
        </table>

@@ -34,7 +34,7 @@ function changeImage(img) {
     var elem = document.getElementById("leftNav");
     if (elem.style.display=="none")
     {
-        elem.style.display = "block";
+        elem.style.display = "";
         img.src = img.src.replace("widen", "close");
         img.style.left = "292px";
     }
@@ -49,7 +49,7 @@ function changeImageT(img) {
     var elem = document.getElementById("Technicalia");
     if (elem.style.display=="none")
     {
-        elem.style.display = "block";
+        elem.style.display = "";
         img.src = img.src.replace("open", "close");
     }
     else

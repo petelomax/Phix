@@ -1,0 +1,119 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">comparison with java</h1>
+      <div id="mainSection">
+        The following <i><a id="extGJE" style="color:#9B5565" 
+        href="javascript:ExternalLink('extGJE','https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.2');">
+        really is the official definition</a></i> of <b>java</b> exception handling:
+<small>
+<pre>
+A try statement with a finally block is executed by first executing the try block. Then there is a choice:
+  If execution of the try block completes normally, then the finally block is executed, and then there is a choice:
+    If the finally block completes normally, then the try statement completes normally.
+    If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S.
+  If execution of the try block completes abruptly because of a throw of a value V, then there is a choice:
+    If the run-time type of V is assignment compatible with a catchable exception class of any catch clause of the try statement, then the first (leftmost) such catch clause is selected. 
+      The value V is assigned to the parameter of the selected catch clause, and the block of that catch clause is executed. Then there is a choice:
+        If the catch block completes normally, then the finally block is executed. Then there is a choice:
+          If the finally block completes normally, then the try statement completes normally.
+          If the finally block completes abruptly for any reason, then the try statement completes abruptly for the same reason.
+        If the catch block completes abruptly for reason R, then the finally block is executed. Then there is a choice:
+          If the finally block completes normally, then the try statement completes abruptly for reason R.
+          If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S (and reason R is discarded).
+      If the run-time type of V is not assignment compatible with a catchable exception class of any catch clause of the try statement, then the finally block is executed. Then there is a choice:
+        If the finally block completes normally, then the try statement completes abruptly because of a throw of the value V.
+        If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S (and the throw of value V is discarded and forgotten).
+  If execution of the try block completes abruptly for any other reason R, then the finally block is executed, and then there is a choice:
+    If the finally block completes normally, then the try statement completes abruptly for reason R.
+    If the finally block completes abruptly for reason S, then the try statement completes abruptly for reason S (and reason R is discarded).
+</pre>
+</small>
+        Of course, each individual phrase/clause/statement is perfectly reasonable, however as a whole it is utterly incomprehensible, quite
+        literally almost impossible to remember, and hence extremely difficult to code correctly against. Plus the whole checked vs. unchecked 
+        exceptions doobry-mah-jiig goes on top of all of that, albeit that is more at the function declaration level, it still significantly 
+        impacts on what is and is not a permitted catch clause, in java.
+        <br>
+        <br>
+        By adopting a simpler scheme with no finally clause and a single catch clause this becomes (for Phix):
+<pre>
+  The catch clause is only entered if an exception occurs during the execution of the try block or any routines invoked from within that block.
+  There is no special exception handling within the catch block other than any already in place before and after the try statement.
+  You may however nest try statements to any depth, in either the try or the catch block, or both.
+</pre>
+        Which certainly fits inside my little brain a bit more readily. You may also like to compare the <a id="extJNF" style="color:#9B5565" 
+        href="javascript:ExternalLink('extJNF','https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.1');">official definition</a>
+        of <b>java</b> exception handling when there is no finally clause:
+<small>
+<pre>
+A try statement without a finally block is executed by first executing the try block. Then there is a choice:
+  If execution of the try block completes normally, then no further action is taken and the try statement completes normally.
+  If execution of the try block completes abruptly because of a throw of a value V, then there is a choice:
+    If the run-time type of V is assignment compatible with a catchable exception class of any catch clause of the try statement, then the first (leftmost) such catch clause is selected. 
+      The value V is assigned to the parameter of the selected catch clause, and the block of that catch clause is executed, and then there is a choice:
+        If that block completes normally, then the try statement completes normally.
+        If that block completes abruptly for any reason, then the try statement completes abruptly for the same reason.
+    If the run-time type of V is not assignment compatible with a catchable exception class of any catch clause of the try statement, then 
+      the try statement completes abruptly because of a throw of the value V.
+  If execution of the try block completes abruptly for any other reason, then the try statement completes abruptly for the same reason.
+</pre>
+</small>
+        While certainly simpler than the "with finally" we just saw, it still somehow strikes me as being somehow deliberately over-egged in order 
+        to make the whole finally concept seem slightly less ridiculous (and at least in my opinion, failing badly in that attempt). (FYI, I now
+        understand why the finally clause is useful <i>in java</a>: a try catch e has at least 3 execution paths: {completes normally, assignment
+        compatible with e, not assignment compatible}, and more catch clauses == more paths, so the following boolean would <i>not</i> suffice.)
+        <br>
+        <br>
+        Besides, the only thing that a finally block could ever save (at least in the much simplified Phix approach) is a simple boolean flag:
+<!--eucode>
+    bool rethrow = false
+    sequence e          -- (predeclare, so it outlives the catch clause)
+    try 
+       <try block>
+    catch e 
+       rethrow = true   -- (or any expression)
+    end try 
+
+    <finally block>
+
+    if rethrow then
+       throw(e)
+    end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">    bool</font><font color="#000000"> rethrow</font><font color="#0000FF"> =</font><font color="#004600"> false
+</font><font color="#004080">    sequence</font><font color="#000000"> e         </font><font color="#000080"><i> -- (predeclare, so it outlives the catch clause)
+</i></font><font color="#008080">    try 
+</font><font color="#0000FF">       &lt;</font><font color="#008080">try</font><font color="#000000"> block</font><font color="#0000FF">&gt;
+</font><font color="#008080">    catch</font><font color="#000000"> e 
+       rethrow</font><font color="#0000FF"> =</font><font color="#004600"> true  </font><font color="#000080"><i> -- (or any expression)
+</i></font><font color="#008080">    end try 
+
+</font><font color="#0000FF">    &lt;</font><font color="#000000">finally block</font><font color="#0000FF">&gt;
+
+</font><font color="#008080">    if</font><font color="#000000"> rethrow</font><font color="#008080"> then
+</font><font color="#7060A8">       throw</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)
+</font><font color="#008080">    end if</font>
+</pre>
+        I will concede, however, that a complex (exception-throwing) catch clause or finally block may need a nested try statement or two.<br>
+        Of course you could instead factor out the cleanup code to a secondary routine that can be invoked from several places.<br>
+        Should another try block exist, you might want to give the exception a different name and explicitly choose whether or not to 
+        overwrite e, effectively rethrowing the inner exception (after letting the finally block run) and discarding the outer e.
+        Specifically, all those implicit rules for reasons S/R/V of java are replaced with explicit code fully under your control.
+        <br>
+        <br>
+<!--
+        Finally blocks could perhaps also be implemented using nested routines, should they ever be completed (see demo\rosetta\Nested_function.exw).
+        <br>
+        <br>
+-->
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -11,8 +11,10 @@ public constant
     GET_FAIL = 1,
     GET_NOTHING = -2
 
---include std/io.e
---include std/error.e
+--/*
+include std/io.e
+include std/error.e
+--*/
 
 --****
 -- == Input Routines

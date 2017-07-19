@@ -791,7 +791,7 @@ integer n
     if atom(data_set) then
         data_set = {data_set}
 
-    elsif count(data_set)=0 then
+    elsif count_atoms(data_set)=0 then
         return data_set
     end if
 
@@ -875,12 +875,12 @@ atom lPrev
     if atom(data_set) then
         data_set = {data_set}
 
-    elsif count(data_set)=0 then
+    elsif count_atoms(data_set)=0 then
         return data_set
     end if
 
     if smoothing_factor<0 or smoothing_factor>1 then
-        smoothing_factor = (2/(count(data_set)+1))
+        smoothing_factor = (2/(count_atoms(data_set)+1))
     end if
 
     lPrev = average(data_set)

@@ -2055,7 +2055,11 @@ end if
                 end if
                 p1size = or_bits(p1size,p2size)
                 if p1size=0 then
-                    Aborp("size qualifier rqd")
+                    if find(p2type,{P_LBL,P_GBL}) then
+                        p1size = iff(Z64=1?8:4)
+                    else
+                        Aborp("size qualifier rqd")
+                    end if
                 end if
                 if emitON then
                     if p1type=P_REG then
@@ -2793,6 +2797,25 @@ end if
                             end if
                         elsif p2type=P_VAR then
                             ?9/0 -- sanity check (should never trigger)
+                        elsif p2type=P_GBL then
+                            if (Z64=0 and p1size!=4)
+                            or (Z64=1 and p1size!=8) then
+                                Aborp("invalid operand size")
+                            end if
+                            if op=T_mov then
+                                s5 &= 0o307
+                                emit_xrm_sib(0,scale,idx,base,offset)
+                                lblidx = p2details
+                                s5 &= {isGaddr,0,0,lblidx}
+--                          elsif op=T_cmp then
+-- (untested)
+--                              s5 &= 0o201
+--                              emit_xrm_sib(mod,scale,idx,base,offset)
+--                              lblidx = p2details
+--                              s5 &= {isGaddr,0,0,lblidx}
+                            else
+                                ?9/0
+                            end if
                         else
                             ?9/0 -- sanity check (should never trigger)
                         end if
