@@ -11,15 +11,25 @@ function matchew(string path, string endswith)
     return length(segments) and lower(segments[$])=lower(endswith)
 end function
 
-function add_paths(sequence pathset, sequence paths, string endswith="")
+function add_path(sequence pathset, string path)
+    if length(path)
+    and not find(path,pathset)
+    and get_file_type(path)=FILETYPE_DIRECTORY then
+        pathset = append(pathset,path)
+    end if
+    return pathset
+end function
+
+function add_paths(sequence pathset, sequence paths, sequence endswiths)
     for i=1 to length(paths) do
         string path = paths[i]
-        if length(path)
-        and not find(path,pathset)
-        and matchew(path,endswith)
-        and get_file_type(path)=FILETYPE_DIRECTORY then
-            pathset = append(pathset,path)
-        end if
+        for j=1 to length(endswiths) do
+            string endswith = endswiths[j]
+            if matchew(path,endswith) then
+                pathset = add_path(pathset,path)
+                exit
+            end if
+        end for
     end for
     return pathset
 end function
@@ -34,15 +44,14 @@ function validexe(string s, sequence vset)
     if find(s,vset) then
         return 1
     else
-        string vs1 = vset[1]        -- "pw.exe"/"phix"
-        integer nlen = length(vs1), --     6       4
-                n = 9-nlen          --     3       5
-        if length(s)=nlen+1
+        string vs1 = vset[1]            --      "pw.exe"/"p"
+        integer {nlen, n} = iff(platform()=WINDOWS?{7,3}:{2,2})
+        if length(s)=nlen               --    ?"pw9.exe":"p9"
         and find(s[n],"123456789") then
             -- Feel free to ignore this part
-            -- (I use pw1.exe..pw9.exe when developing phix,
-            --  and phix1..phix9 when doing so on Linux, so
-            --  that any running apps need not be shutdown.)
+            -- (When developing phix, I use pw1.exe..pw9.exe 
+            --  on Windows, and p1..p9 on Linux, so that any
+            --  running applications need not be shutdown.)
             s[n..n] = ""
             if s=vs1 then
                 return 1
@@ -114,7 +123,8 @@ string filepath
     if plat=WINDOWS then
         vset = {"pw.exe","p.exe","pw64.exe","p64.exe","pw32.exe","p32.exe","pth.exe"}
     else -- platform()=LINUX
-        vset = {"p","phix","phix64","phix32","pth"}
+--      vset = {"p","phix","phix64","phix32","pth"}
+        vset = {"p","p32","p64","pth"}
     end if
     filepath = join_path({res,crun})
     if not validexe(crun,vset)
@@ -122,13 +132,14 @@ string filepath
     or ibits(filepath,plat)!=mb then
 
         sequence paths = {res}
-        paths = add_paths(paths,{current_dir()})
+        paths = add_path(paths,current_dir())
         if plat=WINDOWS then
-            paths = add_paths(paths,{"C:\\Program Files (x86)\\Phix"})
-            paths = add_paths(paths,{"C:\\Program Files\\Phix"})
-            paths = add_paths(paths,split(getenv("PATH"),';'),"phix")
+            paths = add_path(paths,"C:\\Program Files (x86)\\Phix")
+            paths = add_path(paths,"C:\\Program Files\\Phix")
+            paths = add_paths(paths,split(getenv("PATH"),';'),{"phix","bin"})
         else
-            --DEV?? %HOME%/phix? ~/phix? /usr/bin/phix?
+            paths = add_path(paths,join_path(getenv("HOME"),"phix"))
+            paths = add_paths(paths,split(getenv("PATH"),':'),{"phix","bin"})
         end if
 
         string maybe = "", definitely = ""

@@ -352,7 +352,8 @@ end procedure
 --OR:
 ----    string cmd = iff(platform()=WINDOWS?getenv("COMSPEC"):"/usr/bin/x-terminal-emulator")
 ----    string flags = iff(platform()=WINDOWS?"/C":"-e")
-----    string eui = locate_file(platform()=WINDOWS?"pw.exe":"phix")
+----    string eui = locate_file(platform()=WINDOWS?"pw.exe":"phix")!
+----    string eui = locate_file(platform()=WINDOWS?"pw.exe":"p")
 ----    string cmd = build_commandline({cmd, flags, eui, name })
 --
 --  {} = chdir(get_file_path(path))

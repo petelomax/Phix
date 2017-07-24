@@ -12,44 +12,6 @@ constant titles = {"Directory", "Name", "Size", "Modified", "Last Run", "Broken"
          C = "ACENTER", L = "ALEFT", R = "ARIGHT",
          talign = { L,           L,      R,      C,          C,          L,        L}
 
-constant htxt = """
-Lists all *.exw files in Phix\demo and any sub-directories with demo in their name.
-
-Press F5 or click on the Run button to launch the selected program.
-
-Right click on an entry for more options.
-Amend(F2) allows the broken/text fields to be altered on the selected record.
-Edit with Edita/x gives better error handling, syntax colouring, search tools, etc.
-Copy Command simply puts what it would run in the clipboard, hold down the shift key for full paths.
-
-Character input (whether focus is on the Filter or not) automatically updates the 
-filter and listview contents. The filter performs a full text search (just the main 
-*.exw file, not files it includes, but the majority of demos should be short single 
-files anyway), so you can enter (eg) IupConfigLoad to quickly locate demos that 
-use that particular function. You can also sort on any column.
-
-When a file is selected it shows the source code, which ideally starts with a helpful summary comment, in the lower half of the screen.
-
-Note: mandle, combo, and takeuchi are used in "p -test" and should not have a final wait_key() or similar.
-
-Using %dbit %s interpreter, crun is %s,
-croot is %s
-"""		
-
-global procedure Help()
-string msg = sprintf(htxt,
-                     {machine_bits(),
-                      iff(platform()=WINDOWS?"Windows":"Linux"),
-                      crun,croot})
-    IupMessage("Demos",msg)
-end procedure
-
-function help_cb(Ihandle /*helpBtn*/)
-    Help()
-    return IUP_DEFAULT
-end function
-global constant cb_help = Icallback("help_cb")
-
 sequence directories
 sequence files
 -- indexes to files:
@@ -165,6 +127,45 @@ object text
         end for
     end if
 end procedure
+
+constant htxt = """
+Lists all *.exw files in Phix\demo and any sub-directories with demo in their name.
+
+Press F5 or click on the Run button to launch the selected program.
+
+Right click on an entry for more options.
+Amend(F2) allows the broken/text fields to be altered on the selected record.
+Edit with Edita/x gives better error handling, syntax colouring, search tools, etc.
+Copy Command simply puts what it would run in the clipboard, hold down the shift key for full paths.
+
+Character input (whether focus is on the Filter or not) automatically updates the 
+filter and listview contents. The filter performs a full text search (just the main 
+*.exw file, not files it includes, but the majority of demos should be short single 
+files anyway), so you can enter (eg) IupConfigLoad to quickly locate demos that 
+use that particular function. You can also sort on any column.
+
+When a file is selected it shows the source code, which ideally starts with a helpful summary comment, in the lower half of the screen.
+
+Note: mandle, combo, and takeuchi are used in "p -test" and should not have a final wait_key() or similar.
+
+Using %dbit %s interpreter, %d files loaded.
+crun is %s,
+croot is %s
+"""		
+
+global procedure Help()
+string msg = sprintf(htxt,
+                     {machine_bits(),
+                      iff(platform()=WINDOWS?"Windows":"Linux"),
+                      length(files), crun,croot})
+    IupMessage("Demos",msg)
+end procedure
+
+function help_cb(Ihandle /*helpBtn*/)
+    Help()
+    return IUP_DEFAULT
+end function
+global constant cb_help = Icallback("help_cb")
 
 function get_file_text(integer i)
 -- i is a real index to files/fulltext (ie it has been tags[]'d)

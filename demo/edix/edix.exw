@@ -575,7 +575,9 @@ object res
     if unicodeflag=UTF8 then
         res = gets(fn)
         if not atom(res) then
-            res = utf8_to_utf32(trim(gets(fn),"\r\n"))
+--23/7/17...
+--          res = utf8_to_utf32(trim(gets(fn),"\r\n"))
+            res = utf8_to_utf32(trim(res,"\r\n"))
             -- (note: res may be string, if pure-ascii, ie all chars<=#7F)
         end if
     else                            -- UTF16 (LE|BE)
@@ -849,7 +851,8 @@ procedure reCalcMaxLen()
     end for
 end procedure
 
-procedure replaceLine(integer idx, string newline)
+--procedure replaceLine(integer idx, string newline)
+procedure replaceLine(integer idx, sequence newline)
 -- maintain the linelengths array as lines are modified.
 -- note that idx is 1-based (unlike CursorY etc)
 integer len, c
@@ -2780,6 +2783,10 @@ integer wasSelON, outTabWidth, p1End, p2Start, p2End
 --          fmt = CF_UNICODETEXT
 --      end if
         clipText = join(clipText,'\n')
+--23/7/17:
+        if not string(clipText) then
+            clipText = utf32_to_utf8(clipText)
+        end if
         if appnd=-1 then
 --          clipText = clipText&getTextFromClipboard(fmt)
             clipText = clipText&IupGetAttribute(clipboard,"TEXT")
@@ -3589,7 +3596,8 @@ integer fidx, line, screenline
 sequence text,
          oneline,
          chunk
-string acrest, txt
+string acrest
+sequence txt
 integer isCY
 integer offset, chunklen
 --, zeroDrawn
@@ -3649,9 +3657,11 @@ integer rebuildbCfwdAtEnd = 0
     --  and, importantly, blank when there was no new VALUEPOS setting.)
     if tab!=NULL and IupGetInt(tab,"VISIBLE") then
         fidx = IupGetInt(tab,"FILEIDX")
---DEV??
+--DEV?? (needed 23/7/17...) [misbehaved...]
 --currfile = fidx
-if currfile!=fidx then ?9/0 end if
+--if currfile!=fidx then ?9/0 end if
+if currfile!=fidx then ?"currfile!=fidx" end if
+currfile = fidx
         text = filetext[fidx]
         line = TopLine+1
 
@@ -3799,8 +3809,12 @@ end if
 --                  cdCanvasSetForeground(cddbuffer, chunk[c+1])
                     txt = oneline[offset+1..offset+chunklen]
 --30/9/16:
-                    if showSpecials then
-                        txt = utf32_to_utf8(txt,1)
+--                  if showSpecials then
+--23/7/17:
+                    if showSpecials or not string(txt) then
+--DEV tcf if #FFFD were involved... [FIXME!! - done, I think...]
+--                      txt = utf32_to_utf8(txt,1)
+                        txt = utf32_to_utf8(txt)
                     end if
 
                     bkColour = chunk[c+2]
@@ -4237,7 +4251,7 @@ C:\Program Files (x86)\Phix\demo\edix\crud.exw:5424         linelengths[lineleng
     end if
 end procedure
 
-function openFile(integer opening, string filepath)
+function openFile(integer opening, string filepath, integer encoding)
     string title = get_file_name(filepath)
 --  string path = filename[1..length(filename)-length(title)]
     string path = get_file_path(filepath,0)
@@ -4252,9 +4266,11 @@ function openFile(integer opening, string filepath)
     object res = readFile(filepath)
     if sequence(res) then
         sequence {text,linelengths} = res
---DEV
---      add_tab(opening, path, title, text, linelengths)--, encoding)
-        add_tab(opening, path, title, text, linelengths, unicodeflag)
+        if encoding=-1 then
+            encoding = unicodeflag
+        end if
+        add_tab(opening, path, title, text, linelengths, encoding)
+--      add_tab(opening, path, title, text, linelengths, unicodeflag)
         return true
     end if
     return false
@@ -4337,7 +4353,8 @@ function open_cb(Ihandle /*item_open*/)
 --  end if
 
 Ihandle filedlg
-integer encoding = ENC_NONE
+--integer encoding = ENC_NONE
+integer encoding = -1
 --ENC_NONE  = 0,
 --ENC_ANSI  = 1,    --DEV should be 0??
 --ENC_UTF8  = 2,
@@ -4455,7 +4472,7 @@ end function
         IupDestroy(filedlg)
     end if
     if length(filename) then
-        {} = openFile(0,filename)--,encoding)
+        {} = openFile(0,filename,encoding)
 --/*
 --      {text,linelengths} = read_file(filename)
         {text,linelengths} = readFile(filename)
@@ -4624,6 +4641,7 @@ string filename = ""
             integer status = IupGetInt(filedlg, "STATUS")
             if status!=-1 then  -- (not cancelled)
                 filename = IupGetAttribute(filedlg, "VALUE")
+                encoding = ANSI
             end if
 
             IupDestroy(filedlg)
@@ -4633,6 +4651,8 @@ string filename = ""
                    wasfile = filenames[c]
             filepaths[c] = get_file_path(filename,0)
             filenames[c] = get_file_name(filename)
+--23/7/17...
+            unicodefile[c] = encoding
             if saveFile(warnBackup:=false) then
                 Ihandle tab
                 for pos=0 to IupGetInt(tabs,"COUNT")-1 do
@@ -5612,7 +5632,7 @@ function config_recent_cb(Ihandle ih)
 --      integer encoding
 --      {text,linelengths} = read_file(filename)
 --?currfile
-    {} = openFile(0,filename)
+    {} = openFile(0,filename,-1)
 --?currfile
 --DEV (copied/factor out??)
 integer c = currfile
@@ -7270,7 +7290,8 @@ procedure backdel(integer base, ctrl, shift, /*alt*/)
                     addAction(DELETEBLOCK,{"",""})
                 end if
             else
-                string oneline = filetext[currfile][CursorY+1]
+--              string oneline = filetext[currfile][CursorY+1]
+                sequence oneline = filetext[currfile][CursorY+1]
                 integer myAction
                 if base=K_BS then
                     CursorX = CursorLeft(oneline,CursorX)
@@ -7379,7 +7400,8 @@ procedure returnkey()
     ensureVisible(CursorY,True) -- unfold (top line too)
     if deleteSelection() then end if
     integer filelen = length(filetext[currfile])
-    string oneline = filetext[currfile][CursorY+1]
+--  string oneline = filetext[currfile][CursorY+1]
+    sequence oneline = filetext[currfile][CursorY+1]
     integer k = MapToByte(oneline,CursorX)
 --  if acNoDrag(k,oneline,VK_RETURN) then -- check for autocompletes
     if acNoDrag(k,oneline,K_CR) then -- check for autocompletes
@@ -7979,7 +8001,7 @@ procedure main()
 --DEV
                 add_tab(1,path, title, text, linelengths)--, encoding)
 --*/
-            if openFile(1,filepath) then
+            if openFile(1,filepath,-1) then
                 sequence cursel = decode11(IupConfigGetVariableStrId(config,"Session","cursel",i))
                 filecursel[$] = cursel
 --?filecursel

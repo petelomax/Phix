@@ -1,0 +1,122 @@
+--
+-- demo\rosetta\Solve15puzzle.exw
+-- ==============================
+--
+constant udlr = {"up", "down", "left", "right"}
+sequence board = tagset(15)&0
+integer pos = 16
+
+integer collected = 0
+sequence lines = repeat("",5) 
+
+procedure print_board(integer last)
+integer k = 2
+    for i=1 to length(board) do
+        string this = iff(i=pos?"   ":sprintf("%3d",{board[i]}))
+        lines[k] &= this
+        if mod(i,4)=0 then k+=1 end if
+    end for
+    collected += 1
+    if collected=6 or last then
+        puts(1,join(lines,"\n")&"\n\n")
+        lines = repeat("",5)
+        collected = 0
+    else
+        for i=2 to 5 do
+            lines[i] &= "      "
+        end for
+    end if
+end procedure
+ 
+function move(integer d)
+integer valid = 0
+integer stick = 0
+    for k=1 to 8 by 2 do
+        if board[k]!=k then exit end if
+        if board[k+1]!=k+1 then exit end if
+        stick = k+1
+    end for
+    integer new_pos = pos+{+4,-4,+1,-1}[d]
+    if new_pos>=1 and new_pos<=16
+    and (mod(pos,4)=mod(new_pos,4) -- same col, or row:
+     or floor((pos-1)/4)=floor((new_pos-1)/4)) then
+        {board[pos],board[new_pos]} = {board[new_pos],0}
+        valid = pos>stick and new_pos>stick
+        pos = new_pos
+    end if
+    return {valid,stick}
+end function
+
+constant posns = {1,2,3,4,5,6,7,8,9,13,10,14,11,12,15}
+
+function score(sequence board)
+integer res = 0, pos, act_pos
+    for i=1 to 15 do
+        pos = posns[i]
+        act_pos = find(pos,board)
+        res += (abs(mod(pos,4)-mod(act_pos,4))+
+                abs(floor((pos-1)/4)-floor((act_pos-1)/4)))*10*pos
+    end for
+    return res
+end function
+
+if 0 then
+    for i=1 to 5555555 do {}=move(rand(4)) end for      -- (25% are likely invalid)
+else
+    board = {15,14, 1, 6,
+              9,11, 4,12,
+              0,10, 7, 3,
+             13, 8, 5, 2}
+    pos = find(0,board)
+end if
+atom t0 = time()
+integer pos0 = pos, s, valid, stick
+sequence board0 = board, boards = {{0,score(board),{},board,pos}}, new_boards, moves
+integer visited = new_dict()
+setd(board,0,visited)
+while 1 do
+    new_boards = {}
+    for i=1 to length(boards) do
+        for c=1 to 4 do
+            {?,?,moves,board,pos} = boards[i]
+            {valid,stick} = move(c)
+            if valid and getd_index(board,visited)=0 then
+                moves &= c
+                s = score(board)
+                if s=0 then exit end if
+                new_boards = append(new_boards,{8-stick,s,moves,board,pos})
+                setd(board,0,visited)
+            end if
+        end for
+        if s=0 then exit end if
+    end for
+    if s=0 then exit end if
+    if length(new_boards)>16384 then
+        boards = sort(new_boards)[1..16384]
+        integer dsv = dict_size(visited)
+        {?,s,{},board,pos} = boards[1]
+        lines[1] = sprintf("thinking... %d boards visited, best score: %d (0=solved):",{dsv,s})
+        print_board(1)
+    else
+        boards = new_boards
+    end if
+end while
+
+pos = pos0
+board = board0
+lines[1] = "solved!!:         "
+print_board(0)
+for i=1 to length(moves) do
+    integer mi = moves[i]
+    string m = udlr[mi]
+    string this = sprintf("move %d, %s:",{i,m})
+    lines[1] &= sprintf("%-18s",{this})
+    moves[i] = upper(m[1])
+    {} = move(mi)
+    print_board(i=length(moves))
+end for
+printf(1,"solved in %d moves (%d boards visited, %s)\n",{length(moves),dict_size(visited),elapsed(time()-t0)})
+printf(1,"moves: %s\n",{moves})
+
+{} = wait_key()
+

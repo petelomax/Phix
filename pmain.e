@@ -5568,6 +5568,7 @@ end if
                 ReLinkAsGlobal(rtnttidx,N)
             end if
         elsif symtab[N][S_NTyp]=S_Rsvd then
+--          if (rType!=FUNC or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
             Aborp("illegal use of a reserved word")
         else
             Duplicate()
@@ -5627,7 +5628,8 @@ else
                     symtab[N][S_State] = state
                 end if
 end if
-            elsif symtab[N][S_NTyp]=S_Rsvd then
+            elsif symtab[N][S_NTyp]=S_Rsvd
+              and (Rtype!=R_Func or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
                 Aborp("illegal use of a reserved word")
             else
                 N = 0   -- define a new one then...
@@ -6206,6 +6208,7 @@ sequence sig
     N = InTable(InAny)
     if N>0 then
         if symtab[N][S_NTyp]=S_Rsvd then
+--      and (rType!=FUNC or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
             Aborp("illegal use of a reserved word")
         end if
     end if
@@ -6970,6 +6973,7 @@ end if
                 etype = T_object
             else
                 if symtab[N][S_NTyp]=S_Rsvd then
+--              and (rType!=FUNC or and_bits(symtab[N][S_State],K_fun)!=K_fun or not sequence(sig)) then
                     Aborp("illegal use of reserved word")
                 end if
 --              etype = symtab[N][S_vtype]

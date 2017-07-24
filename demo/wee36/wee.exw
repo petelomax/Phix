@@ -329,7 +329,7 @@ end ifdef
 
 -- returns a list of interpreters that exist on disk
 global function get_interpreters()
-sequence paths, try, exe, bin, result = {}
+sequence paths, trypath, exe, bin, result = {}
 --integer index
 
     if find(fileext(file_name), {"ew","exw"}) then
@@ -340,19 +340,21 @@ sequence paths, try, exe, bin, result = {}
         bin = {"p", "pw", "ex", "exw"}
     end if
     if platform()=LINUX then
---      bin = append(bin, "exu")
-        bin = append(bin, "phix")
+----        bin = append(bin, "exu")
+--      bin = append(bin, "phix")
+        bin = {"p", "p32", "p64"}
     end if
     paths = parse_eu_cfg(dirname(file_name) & SLASH & "eu.cfg")
     paths &= include_paths(0) -- fallback to running interpreter
     for i=1 to length(paths) do
-        try = paths[i]
-        if try[$]=SLASH then
-            try = try[1..$-1]
-        end if
+        trypath = paths[i]
+--      if trypath[$]=SLASH then
+--          trypath = trypath[1..$-1]
+--      end if
         for j=1 to length(bin) do
---/**/      exe = try & "..\\bin\\"&bin[j]                  --/*
-            exe = try & join_path({"..", "bin", bin[j]})    --*/
+--!/**/     exe = try & "..\\bin\\"&bin[j]                  --/*
+--          exe = try & join_path({"..", "bin", bin[j]})    --*/
+            exe = join_path({trypath,"..", "bin", bin[j]})
             if platform()=WINDOWS then
                 exe &= ".exe"
             end if
@@ -375,7 +377,7 @@ end function
 -- if bin is "eubind" "eushroud" or "euc" then use the same search 
 --   paths as above to locate it
 global function get_eu_bin(sequence bin)
-sequence paths, try, exe
+sequence paths, trypath, exe
 
     if length(bin)=0 then
         if length(interpreter)!=0 then
@@ -390,7 +392,8 @@ sequence paths, try, exe
         end if
         if platform()=LINUX then
 --          bin = append(bin, "exu")
-            bin = append(bin, "phix")
+--          bin = append(bin, "phix")
+            bin = {"p", "p32", "p64"}
         end if
     else
         bin = {bin}
@@ -398,18 +401,19 @@ sequence paths, try, exe
 
     paths = parse_eu_cfg(dirname(file_name) & SLASH & "eu.cfg")
     paths &= include_paths(0) -- fallback to running interpreter
-    try = dirname(interpreter)
-    if length(try) then
-        paths = prepend(paths, try)
+    trypath = dirname(interpreter)
+    if length(trypath) then
+        paths = prepend(paths, trypath)
     end if
     for i=1 to length(paths) do
-        try = paths[i]
-        if try[$]=SLASH then
-            try = try[1..$-1]
-        end if
+        trypath = paths[i]
+--      if try[$]=SLASH then
+--          try = try[1..$-1]
+--      end if
         for j=1 to length(bin) do
---/**/      exe = try & "..\\bin\\"&bin[j]                  --/*
-            exe = try & join_path({"..", "bin", bin[j]})    --*/
+----/**/        exe = try & "..\\bin\\"&bin[j]                  --/*
+--          exe = try & join_path({"..", "bin", bin[j]})    --*/
+            exe = join_path({trypath,"..", "bin", bin[j]})
             if platform()=WINDOWS then
                 exe &= ".exe"
             end if

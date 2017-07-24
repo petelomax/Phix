@@ -1321,9 +1321,11 @@ integer void, fno
     end if
 end procedure
 
-procedure reservedWord(integer ttidx)
+procedure reservedWord(integer ttidx, integer state=0)
+-- (note that state:=or_bits(state,#1103) in addSymEntry,
+--  however "and_bits(si[S_State],K_fun)=K_fun" holds)
 integer N
-    N = addSymEntry(ttidx, 1, S_Rsvd, 0, 0, 0)
+    N = addSymEntry(ttidx, 1, S_Rsvd, 0, 0, state)
 end procedure
 
 constant asmfileio = 1
@@ -1687,7 +1689,7 @@ global procedure syminit()
     end if
 
     -- from misc.e:
---  initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
+    initialConstant("DOS32", 1)                             -- ex.exe (not supported!)
     initialConstant("WINDOWS", 2)   T_win32 = symlimit      -- exw.exe
     Alias("WIN32",symlimit) -- (deprecated, does not mean 32-bit)
     initialConstant("LINUX", 3)     T_linux = symlimit      -- exu      ("")
@@ -3024,7 +3026,7 @@ end if
 --  reservedWord(T_strict)  --??
     reservedWord(T_iff)
     reservedWord(T_iif)
-
+    reservedWord(T_catch,K_fun)
 
     T_Ainc = symlimit
 

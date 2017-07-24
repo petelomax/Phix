@@ -701,15 +701,28 @@ end procedure
 
 --DEV cross-platform builtin rqd:
 procedure Delete(sequence filename)
--- filename is "pnew.exe", "pnew2.exe", or "phix".
+-- filename is "pnew.exe", "pnew2.exe", "pnew", or "pnew2".
 -- not critical should this fail.
-atom fstr
-integer tries
-    if platform()=WINDOWS then
-        if k32=0 then pinit() end if
-        fstr = allocate_string(filename)
-        tries = 0
-        while not c_func(xDeleteFile,{fstr}) do
+--atom fstr
+integer tries = 0
+--  if platform()=WINDOWS then
+--      if k32=0 then pinit() end if
+--      fstr = allocate_string(filename)
+--      while not c_func(xDeleteFile,{fstr}) do
+--          tries += 1
+--          if tries>20 then
+--              puts(1,"(gave up)\n")
+--              exit
+--          end if
+--          puts(1,filename&" in use, retrying..\n")
+--          sleep(tries)    -- 1,2,3...20 total 210 secs (3 mins 30 secs)
+--      end while
+--      free(fstr)
+--  else
+--      ?9/0
+--      system("rm "&filename)
+--      delete_file(filename)
+        while not delete_file(filename) do
             tries += 1
             if tries>20 then
                 puts(1,"(gave up)\n")
@@ -718,11 +731,7 @@ integer tries
             puts(1,filename&" in use, retrying..\n")
             sleep(tries)    -- 1,2,3...20 total 210 secs (3 mins 30 secs)
         end while
-        free(fstr)
-    else
---      ?9/0
-        system("rm "&filename)
-    end if
+--  end if
 end procedure
 
 procedure Retry(sequence msg)
@@ -1031,43 +1040,45 @@ integer ch
 end function
 
 procedure show_cmd_help()
-            puts(1,"\ninterpret: <filename>\n")
---          puts(1,"compile: -c <filename> (aka -compile <filename>)\n")
-            puts(1,"compile: -c <filename>\n\n")
-            puts(1,"also: -d creates a list.asm file,\n")
-            puts(1,"      -nodiag creates a smaller list.asm file,\n")
-            puts(1,"      -norun may be useful in batch jobs,\n")
-            puts(1,"      -test, tnn, b, bt, etc, and of course\n")
-            puts(1,"      -c p, which rebuilds the compiler.\n")
-            puts(1,"      for more details\\options see pth.exw.\n\n")
---          puts(1,"run tests: -test\n")
---          puts(1,"specific test: tnn [as test\\tnn*.exw, provided tnn.exw not found]\n")
---          puts(1,"benchmarks: b [as bench\\bench.exw, provided b.exw not found]\n")
---          puts(1,"last bench: bt [as bench\\benchtst.exw, provided bt.exw not found]\n")
---          puts(1,"dump: -d <filename> (aka -dump, -l, -list, -listing) --> list.asm\n")
---          puts(1,"nodiag: -nodiag <filename> (makes for a smaller -d listing)\n")
---          puts(1,"norun: -norun <filename> (normally used with -c in a batch file)\n")
---          puts(1,"visit website: -www\n\n")
-            puts(1,"Wildcards are allowed, as long as they select a single file, \n")
-            puts(1," with \".exw\" assumed, eg \"demo\\tak*\" runs demo\\takeuchi.exw.\n\n")
---          puts(1," For more details, eg rebuilding the compiler, see pth.exw.\n")
---          puts(1,"Press F7 to list prompt history, up/down to select (kept in p.ini).\n\n")
-            puts(1,"Press F7 to list prompt history, up/down to select.\n\n")
+    puts(1,"\ninterpret: <filename>\n")
+--  puts(1,"compile: -c <filename> (aka -compile <filename>)\n")
+    puts(1,"compile: -c <filename>\n\n")
+    puts(1,"also: -d creates a list.asm file,\n")
+    puts(1,"      -nodiag creates a smaller list.asm file,\n")
+    puts(1,"      -norun may be useful in batch jobs,\n")
+    puts(1,"      -test, tnn, b, bt, etc, and of course\n")
+    puts(1,"      -c p, which rebuilds the compiler.\n")
+    puts(1,"      for more details\\options see pth.exw.\n\n")
+--  puts(1,"run tests: -test\n")
+--  puts(1,"specific test: tnn [as test\\tnn*.exw, provided tnn.exw not found]\n")
+--  puts(1,"benchmarks: b [as bench\\bench.exw, provided b.exw not found]\n")
+--  puts(1,"last bench: bt [as bench\\benchtst.exw, provided bt.exw not found]\n")
+--  puts(1,"dump: -d <filename> (aka -dump, -l, -list, -listing) --> list.asm\n")
+--  puts(1,"nodiag: -nodiag <filename> (makes for a smaller -d listing)\n")
+--  puts(1,"norun: -norun <filename> (normally used with -c in a batch file)\n")
+--  puts(1,"visit website: -www\n\n")
+    puts(1,"Wildcards are allowed, as long as they select a single file, \n")
+    puts(1," with \".exw\" assumed, eg \"demo\\tak*\" runs demo\\takeuchi.exw.\n\n")
+--  puts(1," For more details, eg rebuilding the compiler, see pth.exw.\n")
+--  puts(1,"Press F7 to list prompt history, up/down to select (kept in p.ini).\n\n")
+    puts(1,"Press F7 to list prompt history, up/down to select.\n\n")
 
---          puts(1,"\ninterpret: <filename>\n")
---          puts(1,"compile: -c <filename> (aka -compile <filename>)\n")
---          puts(1,"run tests: -test\n")
---          puts(1,"specific test: tnn [as test\\tnn*.exw, provided tnn.exw not found]\n")
---          puts(1,"benchmarks: b [as bench\\bench.exw, provided b.exw not found]\n")
---          puts(1,"last bench: bt [as bench\\benchtst.exw, provided bt.exw not found]\n")
---          puts(1,"dump: -d <filename> (aka -dump, -l, -list, -listing) --> list.asm\n")
---          puts(1,"nodiag: -nodiag <filename> (makes for a smaller -d listing)\n")
---          puts(1,"norun: -norun <filename> (normally used with -c in a batch file)\n")
---          puts(1,"visit website: -www\n\n")
---          puts(1,"Wildcards are allowed, as long as they select a single file, with \n")
---          puts(1," \".exw\" assumed, eg \"demo\\tak*\" runs demo\\takeuchi.exw.\n")
---          puts(1," For more details, eg rebuilding the compiler, see pth.exw.\n")
---          puts(1,"Press F7 to list prompt history, up/down to select (kept in p.ini).\n\n")
+--  puts(1,"\ninterpret: <filename>\n")
+--  puts(1,"compile: -c <filename> (aka -compile <filename>)\n")
+--  puts(1,"run tests: -test\n")
+--  puts(1,"specific test: tnn [as test\\tnn*.exw, provided tnn.exw not found]\n")
+--  puts(1,"benchmarks: b [as bench\\bench.exw, provided b.exw not found]\n")
+--  puts(1,"last bench: bt [as bench\\benchtst.exw, provided bt.exw not found]\n")
+--  puts(1,"dump: -d <filename> (aka -dump, -l, -list, -listing) --> list.asm\n")
+--  puts(1,"nodiag: -nodiag <filename> (makes for a smaller -d listing)\n")
+--  puts(1,"norun: -norun <filename> (normally used with -c in a batch file)\n")
+--  puts(1,"visit website: -www\n\n")
+--  puts(1,"Wildcards are allowed, as long as they select a single file, with \n")
+--  puts(1," \".exw\" assumed, eg \"demo\\tak*\" runs demo\\takeuchi.exw.\n")
+--  puts(1," For more details, eg rebuilding the compiler, see pth.exw.\n")
+--  puts(1,"Press F7 to list prompt history, up/down to select (kept in p.ini).\n\n")
+    puts(1,"command line is:")
+    ?command_line()
 end procedure
 
 sequence params

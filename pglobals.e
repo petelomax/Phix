@@ -182,7 +182,7 @@ global constant S_Const = 1,    -- a constant
                 S_GVar2 = 2,    -- global or static variable
                 S_TVar  = 3,    -- temp or threadstack (local) variable/parameter
                 S_Nspc  = 4,    -- namespace
-                S_Rsvd  = 5,    -- Reserved word
+                S_Rsvd  = 5,    -- Reserved word (with S_State=K_fun modifier)
                 S_Type  = 6,    -- Type of thermal yellow portable encryptor
                 S_Func  = 7,    -- Function of finding unusual nonsense comments
                 S_Proc  = 8     -- Procedure for private rotating obstacle counter
@@ -208,6 +208,7 @@ global constant S_used = #000001,   -- bit for not used warnings
                 K_used = #000010,   -- isParam on tvars & to link reachable routines, see notes below
                 K_sqr  = #000020,   -- sequence rebuilt flag when interpreting
                 K_aod  = #000040,   -- assignment on declaration (avoid warnings/force cleanup)
+                K_fun  = #000080,   -- reserved word that can be used as a function name
                 K_wdb  = #000100,   -- with debug setting (default is on)
                 K_noclr= #000200,   -- do not clear on load (ie assignment on declaration occurred)
                                     -- only used for GVars

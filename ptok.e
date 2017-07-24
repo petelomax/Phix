@@ -210,15 +210,10 @@ integer semicolon, sm1
     filepaths = {}
     incpath = getenv("EUDIR")
     if not atom(incpath) then
---if usegpp then
         incpath = get_proper_path(incpath&SLASH&"include"&SLASH,"")
---else
---      incpath = incpath&"\\include\\"
---end if
         addPath(incpath)
     end if
     incpath = getenv("EUINC")
---?incpath
     if not atom(incpath) then
         while 1 do
             semicolon = find(';',incpath)
@@ -230,22 +225,15 @@ integer semicolon, sm1
                     incpath[semicolon] = SLASH
                     sm1 = semicolon
                 end if
---if usegpp then
                 addPath(get_proper_path(incpath[1..sm1],""))
---else
---              addPath(incpath[1..sm1])
---end if
             else
                 if incpath[length(incpath)]!=SLASH then
                     incpath &= SLASH
                 end if
---if usegpp then
                 incpath = get_proper_path(incpath,"")
---end if
                 addPath(incpath)
                 exit
             end if
---          if not semicolon then exit end if
             incpath = incpath[semicolon+1..length(incpath)]
             if not length(incpath) then exit end if
         end while

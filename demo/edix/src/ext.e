@@ -56,7 +56,8 @@ function get_interpreter()
         end if
     end if
     -- </hack>
-    if find(file,{"pw.exe","p.exe","phix"}) then
+--  if find(file,{"pw.exe","p.exe","phix"}) then
+    if find(file,{"pw.exe","p.exe","p","p32","p64"}) then
         return res
     end if
     res = get_file_path(res,dropslash:=0)
@@ -79,9 +80,9 @@ function get_interpreter()
             if is_file(file) then return file end if
         end for
     else
-        file = join_path({res,"phix"})
+        file = join_path({res,"p"})
         if is_file(file) then return file end if
-        file = join_path({current_dir(),"phix"})
+        file = join_path({current_dir(),"p"})
         if is_file(file) then return file end if
         --DEV?? %HOME/phix/phix? ~/phix/phix? /usr/bin/phix/phix?
     end if

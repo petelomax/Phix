@@ -253,15 +253,12 @@ global function system_wait(sequence child_process)
 -- or, if you have win32.hlp configured, lookup (press F1 key on):
 --  xCreateProcess, xGetExitCodeProcess, xWaitForSingleObject
 
---/*    -- only needed for RDS Eu
-atom child
---*/
 atom ret, void, hProc
 --atom stdin, stdout, stderr
 --, hThr
 --integer doevents
 atom si, pi, ec
-
+atom child = allocate_string(child_process)
     if platform()=WINDOWS then
         si = allocate(SIZEOF_STARTUPINFO)
         mem_set(si,0,SIZEOF_STARTUPINFO)
@@ -273,9 +270,6 @@ atom si, pi, ec
 
         if not swinit then initsw() end if
 
---/*
-        child = allocate_string(child_process)
---*/
 --DEV clutching at straws here...
 --      mem_set(si,0,SIZEOF_STARTUPINFO)
 --      poke4(si, SIZEOF_STARTUPINFO)       -- cb
@@ -304,8 +298,7 @@ atom si, pi, ec
         -- Start the child process.
         ret = c_func(xCreateProcess,
                      {NULL,     -- No module name (use command line).
---/**/                child_process,                --/*    -- Phix
-                      child,    -- Command line.    --*/    -- RDS Eu
+                      child,    -- Command line.
                       NULL,     -- Process handle not inheritable.
 --instance(),
                       NULL,     -- Thread handle not inheritable.
@@ -342,16 +335,12 @@ atom si, pi, ec
 --          kutime = c_func(xGetLastError,{})
             free(si)
             free(pi)
---/*
             free(child)
---*/
             return -1       -- error
         end if
 --printf(1,"system_wait: ret is %d\n",ret)
 
---/*
         free(child)
---*/
 --      if not Wait then return 0 end if
         ret = 0
 
@@ -400,15 +389,13 @@ atom si, pi, ec
 --      if not Wait then return 0 end if
     elsif platform()=LINUX then
 
-        if not string(child_process) then ?9/0 end if   -- placeholder for more code../!/?
-
         if Wait<=0 then
             #ilASM{
                 [ELF32]
                     call "libc.so.6","fork"
                     test eax,eax
                     jnz :parent_ret0
-                        mov eax,[child_process]
+                        mov eax,[child]
                         shl eax,2
                         push eax
                         call "libc.so.6","system"
@@ -424,7 +411,7 @@ atom si, pi, ec
                     call "libc.so.6","fork"
                     test rax,rax
                     jnz :parent_ret0
-                        mov rdi,[child_process]
+                        mov rdi,[child]
                         shl rdi,2
                         call "libc.so.6","system"
                         mov rdi,rax
@@ -437,11 +424,11 @@ atom si, pi, ec
                 []
                   }
 --          ret = 0     -- (GAH! must fix that compiler bug)
-            sleep(0.4)  -- give libc:system a chance to get going (before we free(child_process))
+            sleep(0.4)  -- give libc:system a chance to get going (before we free(child))
         else
             #ilASM{
                 [ELF32]
-                    mov eax,[child_process]
+                    mov eax,[child]
                     shl eax,2
                     push eax
                     call "libc.so.6","system"
@@ -449,7 +436,7 @@ atom si, pi, ec
                     lea edi,[ret]
                     call :%pStoreMint
                 [ELF64]
-                    mov rdi,[child_process]
+                    mov rdi,[child]
                     shl rdi,2
                     call "libc.so.6","system"
                     lea rdi,[ret]

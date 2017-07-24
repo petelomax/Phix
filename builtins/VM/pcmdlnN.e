@@ -313,6 +313,30 @@ integer pArg4,W,N
         for i=1 to N do
             res = append(res,peek_string(peekNS(pArg4*4+i*W+W,W,0)))
         end for
+        string r1 = res[1]
+--      if not file_exists(r1) then
+        if get_file_type(r1)!=FILETYPE_FILE then
+            sequence s = split(getenv("PATH"),':')
+            for i=1 to length(s) do
+                string sir = join_path({s[i],r1})
+                if get_file_type(sir)=FILETYPE_FILE then
+--                  if r1=res[2] then
+--                      res[2] = sir
+--                  end if
+                    res[1] = sir
+                    exit
+                end if 
+            end for
+        end if
+        if length(res)>=2 then
+            string r2 = res[2]
+            if get_file_type(r2)!=FILETYPE_FILE then
+                string cdr = join_path({current_dir(),r2})
+                if get_file_type(cdr)=FILETYPE_FILE then
+                    res[2] = cdr
+                end if
+            end if
+        end if
     end if
 
     --
