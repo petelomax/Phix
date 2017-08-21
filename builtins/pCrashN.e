@@ -27,7 +27,9 @@ global procedure crash(string fmt, object data={})  --, integer nFrames=1)
             mov rbp,[rbp+40]    -- prev_ebp
             sub rdx,1
         []
-            mov al,0            -- (uses crash_msg anyway)
+--29/7/17
+--          mov al,0            -- (uses crash_msg anyway)
+            mov al,68           -- e68crash
             jmp :!iDiag
             int3
           }

@@ -322,8 +322,6 @@ constant --WORD = 2,
 --DEV *2
 --global 
 --string divm   -- used by p2asm.e if dumpVM=1
---global 
---sequence VMep -- used by p2asm.e
 
 -- verify the compiler is working properly:
 --!/**/ #isginfo{divm,0b0100,MIN,MAX,integer,-2}    -- 0b1000 better?! (see aside in readdivm())
@@ -332,10 +330,8 @@ constant --WORD = 2,
 --!/**/ #isginfo{divm,0b1000,MIN,MAX,integer,-2}    -- Yay! (23/02/10)
 --!/**/ #isginfo{divm,0b1000,MIN,MAX,integer,-1}    -- OK? (24/06/10)
 --!/**/ #isginfo{divm,0b1000,MIN,MAX,integer,-2}    -- Yay! (18/01/12)
---!/**/ #isginfo{VMep,0b0100,MIN,MAX,integer,-2}
 
 --function divmDword(integer i)
----- this routine is used to load VMep (virtual machine entry points table)
 ---- NB: i is 0-based
 --  return divm[i+1]+divm[i+2]*#100+divm[i+3]*#10000+divm[i+4]*#1000000
 --end function
@@ -357,47 +353,10 @@ integer outfn,
 --      vmaxpos
 $
 
---/*
-function firstatom(sequence sets)
-sequence si
-object sij
-    for i=1 to length(sets) do
-        si = sets[i]
-        for j=1 to length(si) do
-            sij = si[j]
-            if atom(sij) then
-                if sij=0 then ?9/0 end if
-                return sij
-            end if
-        end for
-    end for
-    return 0
-end function
---*/
-
 --sequence Names            -- eg {"kernel32.dll",...}
 --sequence HintNames        -- eg {{{#40470,...},{"AllocConsole",...}},{..}}
 --sequence thunkaddrs   -- \ scratch vars, set from HintNames[i],
 --sequence thunknames   -- / where i is eg find("kernel32.dll",Names)
-
---/*
-procedure peek_import_table()
-end procedure
---*/
-
---sequence resource_section
---function read_resource_section(integer fn)
---integer c
---  if seek(fn,RSraddr) then ?9/0 end if
---  resource_section = repeat(0,CSraddr-RSraddr)
---  c = 0
---  for i=1 to length(resource_section) do
---      c = getc(fn)
---      resource_section[i] = c
---  end for
---  if c=-1 then return 0 end if
---  return 1    -- all OK
---end function
 
 
 --constant dorsrc = 0
@@ -539,23 +498,20 @@ procedure setds(atom v, integer sethigh=0)
     end if
 end procedure
 
---7/4/16 values such as #40000000 are now valid for 32-bit p.exe creating 64-bit exe's:
---procedure appenddsDword(integer v)
 procedure appenddsDword(atom v)
+-- (aside: v is an atom mainly for 32-bit p.exe creating 64-bit exe's,
+--         but otherwise should always be integer for 32->32 & 64->64)
 string s
     if isFLOAT(v) then ?9/0 end if
     poke4(m4, v) -- faster than doing divides etc. (idea from database.e)
     s = peek(m44)
     data_section &= s
     if X64 then
---19/12/14: (caught by several values in t26rmdr, eg 500000001 = #001DCD6501 -> #011DCD6501, ->fails, and such bad values seen in filedump)
---      v = floor(v/#10000000)
         v = floor(v/#100000000)
         poke4(m4, v)
         s = peek(m44)
         data_section &= s
     end if
---if not isString(data_section) then ?9/0 end if
 end procedure
 
 procedure appenddsType(integer t)
@@ -589,387 +545,6 @@ sequence x = APIerritem[i]
     tokcol = x[3]
     Abort(msg)
 end procedure
-
---/*
---DEV we probably still need to get some defaults...
--- I'm getting the feeling that LoadLibrary etc is way better...
-procedure peek_import_table()
--- NB: any fixes here probably also apply to read_import_table() below,
---     and possibly also demo\arwendemo\filedump.exw
-integer Base = #00400000
-integer e_lfanew
-integer machine
-integer ImageBase
-integer nSections
-integer address
-integer NumberOfRvaAndSizes
-integer RelativeVirtualAddress2
-integer RVASize2
-integer SH_VirtualSize
-integer SH_VirtualAddr
-integer PointerToRawData
-integer ImportBase
-integer ThunkBase
-integer Name
-integer FirstThunk
-integer thunkaddr
-integer k
-string text
-atom RVA
-integer signed
-integer Hint
-
-    if peek({Base,2})!="MZ" then ?9/0 end if
-    e_lfanew = Base+peek4u(Base+#3C)
-    if peek({e_lfanew,2})!="PE" then ?9/0 end if
-    machine = peek2u(e_lfanew+4)
-    if machine=0x014C then
-        machine = 32
-        ImageBase = peek4u(e_lfanew+#34)
-        NumberOfRvaAndSizes = #74 -- (offset)
-    elsif machine=0x8664 then
-        machine = 64
-        ImageBase = peek4u(e_lfanew+#30)
-        if peek4u(e_lfanew+#34)!=0 then ?9/0 end if
-        NumberOfRvaAndSizes = #84 -- (offset)
-    else
-        ?9/0 -- return fatal("unknown architecture")
-    end if
-    nSections = peek2u(e_lfanew+6)
-    address = e_lfanew+NumberOfRvaAndSizes
-    NumberOfRvaAndSizes = peek4u(address)
-    if NumberOfRvaAndSizes<2 then ?9/0 end if
-    RelativeVirtualAddress2 = peek4u(address+12)
-    RVASize2 = peek4u(address+16)
-    address += NumberOfRvaAndSizes*8+4
-    for i=1 to nSections do
-        SH_VirtualSize = peek4u(address+8)
-        SH_VirtualAddr = peek4u(address+12)
-        if RelativeVirtualAddress2>=SH_VirtualAddr
-        and RelativeVirtualAddress2+RVASize2<=SH_VirtualAddr+SH_VirtualSize then
-            PointerToRawData = peek4u(address+20)
-            exit
-        end if
-        address += 40
-    end for
-
-    address = SH_VirtualAddr+ImageBase
-
-    ImportBase = address-RelativeVirtualAddress2
-    ThunkBase = ImageBase-ImportBase
-
-    --
-    -- Collect any pointers we find, and (hopefully) get through them all later.
-    --
-    Names = {}
-    HintNames = {}
-
-    -- An array of IMAGE_IMPORT_DESCRIPTOR (ends with an an all null one)
-    while 1 do
-        Name = peek4u(address+12)
-        FirstThunk = peek4u(address+16)
-        address += 20   -- sizeofstruct(IMAGE_IMPORT_DESCRIPTOR)
-        if Name=0 and FirstThunk=0 then exit end if
-        Names = append(Names,Name+ImportBase)
-        HintNames = append(HintNames,FirstThunk+ImportBase)
-    end while
-    --
-    -- The IMAGE_IMPORT_DESCRIPTOR above contain pointers (RVAs), so 
-    -- presumably the rest of this section can be written in any order. 
-    -- Try to do things in file address order.
-    --
-    while 1 do
-        k = find(address,Names)
-        if k!=0 then
-            text = peek_string(address)
-            Names[k] = lower(text)
-            address += length(text)+1
-        else
-            k = find(address,HintNames)
-            if k=0 then
-                -- I would prefer to do it in file order, but if  
-                --  things have been written out higgledy-piggledy...
-                address = firstatom({Names,HintNames})
-                if address=0 then exit end if
-            else
-                -- An array of IMAGE_THUNK_DATA32/64 (which does not help much..)
-                -- one d/qword RVA per line, until we hit a null...
-                thunkaddrs = {}
-                thunknames = {}
-                while 1 do
-                    signed = 0
-                    thunkaddr = address+ThunkBase
-                    if machine=32 then
-                        RVA = peek4u(address)
-                        if and_bits(RVA,#80000000) then
-                            signed = 1
-                        end if
-                        address += 4
-                    else
-                        RVA = peek(address+7)
-                        if and_bits(RVA,#80) then
-                            signed = 1
-                        else
-                            RVA = peek4u(address) -- 8 bytes really...
-                            if peek4u(address+4)!=0 then ?9/0 end if
-                        end if
-                        address += 8
-                    end if
-                    if RVA=0 then exit end if
-                    if not signed then
-                        thunkaddrs = append(thunkaddrs,thunkaddr)
-                    end if
-                end while
-                for i=1 to length(thunkaddrs) do
-                    Hint = peek2u(address)
-                    if Hint!=0 then
-                        -- oops (import by ordinal or something?)
-                        thunkaddrs = {-1}
-                        thunknames = {"some error"}
-                        exit
-                    end if
-                    address += 2
-                    text = peek_string(address)
-                    thunknames = append(thunknames,text)
-                    address += length(text)+1
-                end for
---DEV or add to ttree with terminator of -4?
-                HintNames[k] = {thunkaddrs,thunknames}
-            end if
-        end if
-    end while
-end procedure
-
--- I think this is dead...
-procedure read_import_table()
--- NB: any fixes here probably also apply to peek_import_table()
-integer e_lfanew
-integer machine
-integer ImageBase
-integer nSections
-integer address
-integer NumberOfRvaAndSizes
-integer RelativeVirtualAddress2
-integer RVASize2
-integer SH_VirtualSize
-integer SH_VirtualAddr
-integer PointerToRawData
-integer ImportBase
-integer ThunkBase
-integer Name
-integer FirstThunk
-integer thunkaddr
-integer k
-string text
-atom RVA
-integer signed
-
-    e_lfanew = getmzpe(#3C,4)
-    if getmzpe(e_lfanew,4)!=#00004550 then ?9/0 end if
-    machine = getmzpe(e_lfanew+4,2)
-    if machine=0x014C then
-        machine = 32
-        ImageBase = getmzpe(e_lfanew+#34,4)
-        NumberOfRvaAndSizes = #74 -- (offset)
-    elsif machine=0x8664 then
-        machine = 64
-        ImageBase = getmzpe(e_lfanew+#30,8)
-        NumberOfRvaAndSizes = #84 -- (offset)
-    else
-        ?9/0 -- return fatal("unknown architecture")
-    end if
-    nSections = getmzpe(e_lfanew+6,2)
-    address = e_lfanew+NumberOfRvaAndSizes
-    NumberOfRvaAndSizes = getmzpe(address,4)
-    if NumberOfRvaAndSizes<2 then ?9/0 end if
-    RelativeVirtualAddress2 = getmzpe(address+12,4)
-    RVASize2 = getmzpe(address+16,4)
-    address += NumberOfRvaAndSizes*8+4
-
-    for i=1 to nSections do
-        SH_VirtualSize = getmzpe(address+8,4)
-        SH_VirtualAddr = getmzpe(address+12,4)
-        if RelativeVirtualAddress2>=SH_VirtualAddr
-        and RelativeVirtualAddress2+RVASize2<=SH_VirtualAddr+SH_VirtualSize then
-            PointerToRawData = getmzpe(address+20,4)
-            exit
-        end if
-        address += 40
-    end for
-
-    address = PointerToRawData+RelativeVirtualAddress2-SH_VirtualAddr-mzpelen
-    ImportBase = address-RelativeVirtualAddress2
-    ThunkBase = ImageBase-ImportBase
-
-    --
-    -- Collect any pointers we find, and (hopefully) get through them all later.
-    --
-    Names = {}
-    HintNames = {}
-
-    -- An array of IMAGE_IMPORT_DESCRIPTOR (ends with an an all null one)
-    while 1 do
-        Name = divmDword(address+12)
-        FirstThunk = divmDword(address+16)
-        address += 20   -- sizeofstruct(IMAGE_IMPORT_DESCRIPTOR)
-        if Name=0 and FirstThunk=0 then exit end if
-        Names = append(Names,Name+ImportBase)
-        HintNames = append(HintNames,FirstThunk+ImportBase)
-    end while
-
-    --
-    -- The IMAGE_IMPORT_DESCRIPTOR above contain pointers (RVAs), so 
-    -- presumably the rest of this section can be written in any order. 
-    -- Try to do things in file address order.
-    --
-    while 1 do
-        k = find(address,Names)
-        if k!=0 then
-            text = getdivmstring(address)
-            Names[k] = lower(text)
-            address += length(text)+1
-        else
-            k = find(address,HintNames)
-            if k=0 then
-                -- I would prefer to do it in file order, but if  
-                --  things have been written out higgledy-piggledy...
-                address = firstatom({Names,HintNames})
-                if address=0 then exit end if
-            else
-                -- An array of IMAGE_THUNK_DATA32/64 (which does not help much..)
-                -- one d/qword RVA per line, until we hit a null...
-                thunkaddrs = {}
-                thunknames = {}
-                while 1 do
-                    signed = 0
-                    thunkaddr = address+ThunkBase
-                    if machine=32 then
-                        RVA = divmDword(address)
-                        if and_bits(RVA,#80000000) then
-                            signed = 1
-                        end if
-                        address += 4
-                    else
-                        RVA = divmDword(address+4)
-                        if and_bits(RVA,#80000000) then
-                            signed = 1
-                        else
-                            if RVA!=0 then ?9/0 end if
-                            RVA = divmDword(address)
-                        end if
-                        address += 8
-                    end if
-                    if RVA=0 then exit end if
-                    if not signed then
-                        thunkaddrs = append(thunkaddrs,thunkaddr)
-                        thunknames = append(thunknames,getdivmstring(RVA+ImportBase+2))
-                    end if
-                end while
-                HintNames[k] = {thunkaddrs,thunknames}
-            end if
-        end if
-    end while
-end procedure
-
-procedure readAllHeaders()
-string s
-integer k
-integer libidx, nameidx
-atom offset
-
-    if bind then
-        if dorsrc then
-            rsfilename = "pf1.exe"      -- DEV from commandline, full path expansion
-            fnr = open(rsfilename,"rb")
-            if not readmzpe(fnr,0) then
-                printf(1,"Error :%s\n",{mzpeErrMsg})
-                ?9/0
-            end if
-            rsrcRSraddr = RSraddr   -- for checking only [DEV I might mean RSvaddr here!!]
-            rsrcRSvsize = RSvsize
-            rsrcRSrsize = RSrsize
-            rsrcCSvaddr = CSvaddr
-            rsrcCSraddr = CSraddr
-        end if
-        fn = open(cl1,"rb")     -- cl1 is from commandline, ie p.exe with full path expansion
-        if fn=-1 then
-            puts(1,"error opening "&cl1&"\n")
-            ?9/0
-        end if
-        if not readmzpe(fn,0) then
-            printf(1,"Error :%s\n",{mzpeErrMsg})
-            ?9/0
-        end if
-        readdivm()
-        if dorsrc then
-            if rsrcRSraddr!=RSraddr then
-                printf(1,"resource file %s error: section 5 @ #%08x, not #%08x (difference of %d)\n",
-                         {rsfilename,rsrcRSraddr,RSraddr,rsrcRSraddr-RSraddr})
-                ?9/0
-            end if
-            RSvsize = rsrcRSvsize
-            RSrsize = rsrcRSrsize
-            CSvaddr = rsrcCSvaddr
-            CSraddr = rsrcCSraddr
-            RTsize = RSvsize
-            setmzpe(#10C, RTsize,  DWORD)
-            setmzpe(#1F8, RSvsize, DWORD)
-            setmzpe(#200, RSrsize, DWORD)
-            setmzpe(#224, CSvaddr, DWORD)
-            setmzpe(#22C, CSraddr, DWORD)
-            if not read_resource_section(fnr) then ?9/0 end if
-        else
-            if not read_resource_section(fn) then ?9/0 end if
-        end if
-        close(fn)
---      read_import_table()
-    else
-        peek_import_table()
---DEV/SUG I could get this using peek...
---/!*!*!/   #ilASM{ lea edi,[VMep]
---/!*!*!/           lea ecx,[asmoptions]
---/!*!*!/           call %opGetVMep}    -- [edi]=VMep; [ecx]=asmoptions
-        CSvaddr = 0
-        ImageBase = 0
-    end if
-    if listimports then
-        for i=1 to length(Names) do
-            printf(1,"%s:\n",Names[i])
-            thunkaddrs = HintNames[i][1]
-            thunknames = HintNames[i][2]    
-            for j=1 to length(thunkaddrs) do
-                printf(1,"Thunk[%08x] :%s\n",{thunkaddrs[j],thunknames[j]})
-            end for
-        end for
---      if getc(0) then end if
-        abort(0)
-    end if
-    --
-    -- Map any api functions and issue errors for any not found
-    --
-if newEmit then ?9/0 end if -- (replacement now at start of finalfiuxups2)
-    for i=1 to length(APIlibs) do
-        s = APIlibs[i]
-        k = find(s,Names)
-        if k=0 then
-            APIerritem = APIerrlib
-            APIerror(i, "no such library")
-            ?9/0 -- sanity check
-        end if
-        APIlibs[i] = k
-    end for
-    for i=1 to length(APINames) do
-        libidx = APIlibs[APINames[i][1]]
-        nameidx = find(APINames[i][2],HintNames[libidx][2])
-        if nameidx=0 then
-            APIerror(i, "not found in import table")
-            ?9/0 -- sanity check
-        end if
-        offset = HintNames[libidx][1][nameidx]
-        APINames[i] = offset
-    end for
-end procedure
---*/
 
 without trace
 
@@ -1131,14 +706,6 @@ end if
 if next then
     s5[next+2] = prev
 end if
---                      if c=isAddr then
---                          -- special case: isAddr,0,0,offset to #E9,isOpCode,0,0,opRetf:
---                          --   --> replace   ""   " "  ""    with byteified VMep[opRetf].
-----27/3/10 (fouls up error reporting) [DEV could/should still have this as an option]
-----                            sets5Dword(i,VMep[opRetf])
-----                        else
---                          exit
---                      end if
                             -- special case: jmp/jcc,isJmp,0,0,offset to #E9,isOpCode,0,0,opRetf:
                             --      -->      jmp/jcc,isOpCode,0,0,opRetf (nb opRetf only)
                             s5[i] = isOpCode
@@ -1252,20 +819,13 @@ else -- (not q86)
                     c2 += 3
                     if opbyte<isJmp or opbyte>isShortJmp then   -- nb backwd jump may hit an isShortJmp
                         if opbyte=isOpCode and s5[c2]=opRetf then
-                            if c=isAddr then
-                                -- special case: isAddr,0,0,offset to #E9,isOpCode,0,0,opRetf:
-                                --   --> replace   ""   " "  ""    with byteified VMep[opRetf].
-if newEmit then ?9/0 end if -- (replace with isJmpG,0,0,lblidx?) [see also 27/3/10 above]
---                              sets5Dword(i,VMep[opRetf])
-                            else
-                                -- special case: jmp/jcc,isJmp,0,0,offset to #E9,isOpCode,0,0,opRetf:
-                                --      -->      jmp/jcc,isOpCode,0,0,opRetf (nb opRetf only)
+                            -- special case: jmp/jcc,isJmp,0,0,offset to #E9,isOpCode,0,0,opRetf:
+                            --      -->      jmp/jcc,isOpCode,0,0,opRetf (nb opRetf only)
 puts(1,"pemit2.e line 1421 (opRetf)\n")
 ?9/0
 --                  (s5[8]!=isJmpG or s5[11]!=tt[aatidx[opRetf]+EQ])) then
-                                s5[i] = isOpCode
-                                s5[i3] = opRetf
-                            end if
+                            s5[i] = isOpCode
+                            s5[i3] = opRetf
                             i += 5
                             jmpOpRetf = 1   -- no linkup, resume in outer loop
                         end if
@@ -1799,41 +1359,20 @@ end if
 
             vno = s5[cin+3]
             if c=isOpCode then          -- 4 byte relative offset (to VM entry point).
---DEV put back while isApiFn still exists...
---          if c<=isApiFn then          -- isOpCode is 4 byte relative offset (to VM entry point).
---                                      -- isApiFn is 4 byte indirect location
 if newEmit then ?9/0 end if -- (we still might want this, one day...)
---              offset = VMep[vno]
                 offset = 9/0
                 if DEBUG then
                     if offset=0 then puts(1,"\n\nERROR: "&opNames[vno]&" = 0\n") ?9/0 end if
                 end if
---              if c=isOpCode then
---              offset -= CSvaddr+ImageBase+cout+3      -- cout+3 is really (cout-1)+4
---              end if
---/* (code from a prior version:)
---DEV 5/4/2013:
---          if c=isOpCode then          -- 4 byte relative offset (to VM entry point).
---              offset = VMep[vno]
---              if DEBUG then
---                  if offset=0 then puts(1,"\n\nERROR: "&opNames[vno]&" = 0\n") ?9/0 end if
---              end if
---              offset -= CSvaddr+ImageBase+cout+3      -- cout+3 is really (cout-1)+4
---*/
             elsif c=isAPIfn then
-if newEmit then
                 if bind then
                     {libidx,fnidx} = APINames[vno]
                     offset = imports[libidx][3][fnidx]
                     imports[libidx][3][fnidx] = cout-1
---13/9/16:
                     if DLL then
                         relocations[CODE][IMPORTS] = append(relocations[CODE][IMPORTS],cout-1)  -- (dword)
---                      relocations[CODE][DATA] = append(relocations[CODE][DATA],cout-1)    -- (dword)
                     end if
                 else
---                  offset = thunktable+vno*4-4
---9/1/16:
                     if X64 then
                         offset = thunktable+vno*8-8
                         offset -= CSvaddr+cout+3
@@ -1841,29 +1380,17 @@ if newEmit then
                         offset = thunktable+vno*4-4
                     end if
                 end if
-else
-                offset = APINames[vno]
-end if
---?{offset}
             else
---if mapsymtab then -- (DEV possibly NOT!) [but try this first as-is anyway!]
---              vno = symtabmap[vno]
-----                symtabmap[vno] = 1      -- this might be better!! (then again it might be too late!)
---end if
---19/2/15: (tcf, sv is 26, when c=isJmpG)
---if c!=isData then -- 5/10/14 (for EvoGen tests) [triggered ioob[0] for [ds+0], is what actually happened]
---21/1/15: (isIL was utterly spannered, for one!) [more != may yet be rqd]
---if c<isData then
 if c!=isData
 and c!=isJmpG
 and c!=isGaddr then
 --24/4/15:
-                if atom(symtab[vno]) then
+                    if atom(symtab[vno]) then
 printf(1,"pemit2.e line 1817: symtab[%d]=%d\n",{vno,symtab[vno]})
-                    sv = {-1,S_GVar2,0,0,0,-1}
-                else
-                    sv = symtab[vno]
-                end if
+                        sv = {-1,S_GVar2,0,0,0,-1}
+                    else
+                        sv = symtab[vno]
+                    end if
 end if
                 if c=isVar                  -- 4 byte absolute address (eg mov eax,[p1])
                 or c=isVar1                 -- "" with 1 byte imm yet to follow on the instruction
@@ -1891,28 +1418,20 @@ if vno=0 then ?9/0 end if   -- yep, thought so...
                         end if
                         relocations[CODE][DATA] = append(relocations[CODE][DATA],cout-1)    -- (dword)
                     else
---                      offset = DSvaddr+vno*4-4+ImageBase
---DEV +?? ([ds+8] etc) (:%pGetSymPtr)
                         if X64 then
                             offset = DSvaddr+vno*8+24
---                          offset = DSvaddr+vno*8+32
---8/1/16:
                             if c=isVar1 then
                                 offset -= 1
                             elsif c=isVar4 then
                                 offset -= 4
                             end if
---8/1/16:
---                          offset = CSvaddr+cout+3-offset
                             offset -= CSvaddr+cout+3
                         else --32
---                          offset = DSvaddr+vno*4+12
                             offset = DSvaddr+vno*4+16
                         end if
                     end if
                 elsif c=isVno then
                     if bind and mapsymtab then
---                  if bind then
                         vno = symtabmap[vno]
                     end if
                     offset = vno
@@ -1922,7 +1441,6 @@ if vno=0 then ?9/0 end if   -- yep, thought so...
                         relocations[CODE][DATA] = append(relocations[CODE][DATA],cout-1)    -- (dword)
                     else
                         offset += DSvaddr
---9/1/16:
                         if X64 then
                             offset -= CSvaddr+cout+3
                         end if
@@ -2238,42 +1756,48 @@ end if
 end procedure
 
 -- results from flatdump(/DEV:dumpString):
-atom --b_addr,  -- raw address
-     s_addr     -- symbolic address (a "ref" in the range #40000001..#7FFFFFFF,
+atom s_addr     -- symbolic address (a "ref" in the range #40000001..#7FFFFFFF,
                 --  ie a 2-bit-shifted dword-aligned pointer with 0b01 prefix)
 
+--SUG: (tryme!)
+--procedure dumpString(string name, integer refcount)
+--integer l = length(name),
+--      w = iff(X64?8:4),
+--      pad = w-and_bits(l,w-1)
+--  if pad then
+--      name &= repeat('\0',pad)
+--  end if
+--  pad += l+w*4
+--  d_addr += pad
+--  appenddsDword(pad)              -- maxlen (in bytes)
+--  appenddsDword(l)                -- length
+--  appenddsDword(refcount)         -- refcount
+--  appenddsType(#82)
+--  s_addr = length(data_section)
+--  appenddsBytes(name)
+--end procedure
 procedure dumpString(sequence name, integer refcount)
 integer l, l4
---integer x_addr
     l = length(name)
---if newEmit then
     if X64 then
         l4 = and_bits(l+8,#3FFFFFF8)+32
---      s_addr = length(data_section)+#20
     else
         l4 = and_bits(l+4,#3FFFFFFC)+16
---      s_addr = length(data_section)+#10
     end if
---  b_addr = d_addr+16  -- DEV [is this used??]
---else
---  s_addr = floor(d_addr/4)+#40000004
---  l4 = and_bits(l+4,#3FFFFFFC)+16
---  b_addr = d_addr+16  -- DEV [is this used??]
---end if
+--  l4 = and_bits(l+w,#400000000-w)+w*4
     d_addr += l4
     appenddsDword(l4)               -- maxlen (in bytes)
     appenddsDword(l)                -- length
     appenddsDword(refcount)         -- refcount
---if not isString(data_section) then ?9/0 end if
     appenddsType(#82)
     s_addr = length(data_section)
---  data_section &= {0,0,0,#82}             -- type
---if not isString(data_section) then ?9/0 end if
+--  l = w-and_bits(l,w-1)
+--  name &= repeat('\0',l)
     appenddsBytes(name)
---  data_section &= name
---if not isString(data_section) then ?9/0 end if
     if X64 then
         for i=1 to 8-and_bits(l,7) do
+--      for i=1 to w-and_bits(l,w-1) do
+--      for i=1 to l do
             data_section = append(data_section,0)
         end for
     else
@@ -2314,70 +1838,6 @@ end procedure
 --symt flatsym2
 
 sequence flatsym2
-
---DEV old style:
---function DumpId(sequence name, integer node)
---integer slink, refcount, k, l
---sequence si
---
-----    flatsym2 = symtab   --DEV (temp)
---
---  slink = tt[node+EQ]
---if slink then
---if newEmit then
-----    s_addr = d_addr+#80000010
---  if X64 then ?9/0 end if
---  s_addr = length(data_section)+#80000010
-----    b_addr = d_addr+16
---else
---      s_addr = floor(d_addr/4)+#40000004
---      b_addr = d_addr+16
---end if
---  refcount = 0
---  while slink do
---      si = flatsym2[slink]
---      flatsym2[slink] = 0 -- kill refcount
---      if listing then
---          symtab[slink] = 0   -- kill refcount
---          si[S_Name] = name
---          symtab[slink] = si
---      end if
---      si[S_Name] = s_addr
-----        if newEmit then
-----            relocations[DATA][DATA] = append(relocations[DATA][DATA],cout-1)
-----        end if
---      if debug then
---if newEmit then ?9/0 end if
---          if si[S_NTyp]>=S_Type then
---              k = find(slink,s5symn)
---              if k then
---                  -- patch the cmp eax,["myroutine"] debug aid
---if newEmit then
---                  setcsDword(s5sizes[k],s_addr)
---                  relocations[DATA][DATA] = append(relocations[DATA][DATA],s5sizes[k])
---else
---                  setcsDword(s5sizes[k],b_addr)
---end if
---                  l = length(s5symn)
---                  s5sizes[k] = s5sizes[l]
---                  s5symn[k] = s5symn[l]
---                  l -= 1
---                  s5sizes = s5sizes[1..l]
---                  s5symn = s5symn[1..l]
---              end if
---          end if
---      end if
---      flatsym2[slink] = si
---      refcount += 1
---      slink = si[S_Nlink]
---  end while
---  if refcount then -- added 12/4/14
---      dumpString(name, refcount)
---  end if
---end if
---  return 1
---end function
---constant r_DumpId = routine_id("DumpId")
 
 --DEV/SUG: Report "possible conflicts" under -lint. 
 --         if there are any globals (set a flag), 
@@ -2744,51 +2204,22 @@ constant r_DumpAtom = routine_id("DumpAtom")
 
 procedure flatdump(sequence s, integer refcount, integer reloc=0)
 integer l, l20
---atom si
---if newEmit then
---  if X64 then
---      s_addr = length(data_section)+#28
---  else
---      s_addr = length(data_section)+#14
---  end if
-    s_addr = length(data_section)+dsize*5
---else
---  b_addr = d_addr+20
---  s_addr = floor(b_addr/4)+#40000000
---end if
+    s_addr = length(data_section)+dsize*5 -- (+20 or +40)
     l = length(s)
---  if X64 then
---      l20 = l*8+40
---  else
---      l20 = l*4+20
---  end if
-    l20 = (l+5)*dsize
+    l20 = (l+5)*dsize               -- (l*4+20 or l*8+40)
     d_addr += l20
     appenddsDword(0)                -- slack
     appenddsDword(l20)              -- maxlen (in bytes)
     appenddsDword(l)                -- length
     appenddsDword(refcount)         -- refcount
---if not isString(data_section) then ?9/0 end if
     appenddsType(#80)
---  data_section &= {0,0,0,#80}             -- type
---if not isString(data_section) then ?9/0 end if
     for i=1 to l do
---if newEmit then
---      si = s[i]
---      if and_bits(si,#80000000) then
---          relocations[DATA][DATA] = append(relocations[DATA][DATA],length(data_section))
---      end if
---      appenddsDword(si)
---else
         if reloc and s[i]!=0 then
             -- (for the optable)
---?i
             relocations[DATA][CODE] = append(relocations[DATA][CODE],length(data_section))
         end if
         appenddsDword(s[i])
---end if
     end for
---  DSvsize += l20
 end procedure
 
 procedure DumpSequences()
@@ -2821,8 +2252,6 @@ integer l, l20
 integer tidx
 integer sidx
 integer rd = iff(DLL?REFS:DATA)
---temp: [DEV]
---trace(1)
 --puts(1,"DumpSequences()\n")
     if X64 then
         if dsize!=8 then ?9/0 end if
@@ -2830,75 +2259,40 @@ integer rd = iff(DLL?REFS:DATA)
         if dsize!=4 then ?9/0 end if
     end if
     for i=1 to symlimit do
---if i=604 then trace(1) end if
---x     si = symtab[i]
         si = flatsym2[i]
         if sequence(si)
         and si[S_NTyp]<=S_GVar2
         and and_bits(si[S_State],K_noclr+K_lit)=K_noclr+K_lit
         and si[S_vtype]=T_Dsq   --DEV erm?? (test type x(object y).. constant x thing={1,2,3})
---      and si[S_Clink]!=0
---      and si[S_value]=0 then
         and sequence(si[S_value]) then  -- (nb relies on strings already replaced with x_addr+#80000000)
---trace(1)
             x_addr = length(data_section)+5*dsize
             s = si[S_value]
---          slink = si[S_Clink]
---          dsidx = (si[S_Slink]+2)*dsize+9
             slink = i
             si = 0
             refcount = 0
             while slink do
---si = flatsym2[slink]
---si = 0
                 if flatsym2[slink][S_State]!=0 then
---20/1/15: (no matter, does not appear to be used anyway...) [DEV a) why bother and b) why dump S_Value/S_Clink?]
                     flatsym2[slink][S_value] = x_addr+#800000000
---if find(slink,{996,1337}) then
---if slink=996 then
---  printf(1,"pemit2.e line 2643 DumpSequences: flatsym2[%d][S_value]:=%s\n",{slink,sprint(flatsym2[slink][S_value])})
---track996=1
---was996 = flatsym2[slink][S_value]
---end if
---                  flatsym2[slink][S_value] = x_addr+#80000000
---                  dsidx = (flatsym2[slink][S_Slink]+2)*dsize+9
 --DEV..?
                     if flatsym2[slink][S_NTyp]=S_Const then
                         if flatsym2[slink][S_ConstChain] then ?9/0 end if
                     end if
---20/1/15:
                     dsidx = (flatsym2[slink][S_Slink]+2)*dsize+9
---if dsidx-1=TRAP then ?9/0 end if
---                  relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
                     relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
                     setds(x_addr,1)
-
                     refcount += 1
                 end if
                 slink = flatsym2[slink][S_Clink]
             end while
             if refcount then
---              relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
---              setds(x_addr,1)
                 l = length(s)
                 l20 = (l+5)*dsize
                 appenddsDword(0)                -- slack
                 appenddsDword(l20)              -- maxlen (in bytes)
                 appenddsDword(l)                -- length
---              appenddsDword(1)                -- refcount
                 appenddsDword(refcount)         -- refcount
---if not isString(data_section) then ?9/0 end if
                 appenddsType(#80)
---if not isString(data_section) then ?9/0 end if
---DEV/SUG:
---  x_addr = length(data_section)
---?l
---if i=996 then
---  ?s
---end if
                 for j=1 to l do
---DEV...
---trace(1)
                     si = s[j]
 --                  if not integer(si) then
                     if not atom(si) or isFLOAT(si) then
@@ -2906,7 +2300,6 @@ integer rd = iff(DLL?REFS:DATA)
                         --      subsequence => {ttidx},
                         --      string => {-ttidx},
                         --      atom => ttidx+0.5,
---DEV (just curious: any particular reason why ttidx not symtabidx?)
                         --      else integer (as-is)
                         if sequence(si) then
                             tidx = si[1]
@@ -2914,38 +2307,12 @@ integer rd = iff(DLL?REFS:DATA)
                         else
                             tidx = si-0.5
                         end if
---                      si = flatsym2[tt[tidx+EQ]][S_value] -- = x_addr+#800000000
                         sidx = tt[tidx+EQ]
                         si = flatsym2[sidx][S_value] -- = x_addr+#800000000
---printf(1,"pemit2.e line 2886, si=%08x\n",si)
---                      si = flatsym2[tt[tidx+EQ]][S_value]+#10000000 -- = x_addr+#800000000
---                      si = flatsym2[tt[tidx+EQ]][S_value]+#20000000 -- = x_addr+#800000000
---                      si = flatsym2[tt[tidx+EQ]][S_value]+#40000000 -- = x_addr+#800000000
---                      si = flatsym2[tt[tidx+EQ]][S_value]/4+#80000000 -- = x_addr+#800000000
                         dsidx = length(data_section)+1
---if dsidx-1=TRAP then ?9/0 end if
---?dsidx-1
---                      relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
                         relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
                         appenddsDword(0)
---?si
---if and_bits(si,#3FFFFFFF)=0 then ?9/0 end if
---if i=996 then
---if si=0 then
---  printf(1,"flatsym2[%d][S_value]=0 (line 2708 pemit2.e), i=%d, tidx=%d\n",{sidx,i,tidx})
-----elsif find(sidx,{996,1337}) then
-----elsif sidx=996 then
---else
---  printf(1,"pemit2.e line 2711 DumpSequences: flatsym2[%d][S_value]=%s, i=%d, tidx=%d\n",{sidx,sprint(si),i,tidx})
---end if
---end if
---                      setds(x_addr,1)
---                      setds(and_bits(si,#3FFFFFFF),1)
---dsidx=0
---                      appenddsDword(si)
---?data_section[-12..-1]
                         setds(and_bits(si,#3FFFFFFF),1)
---?data_section[-12..-1]
                     else
                         appenddsDword(si)
                     end if
@@ -2962,7 +2329,6 @@ integer l, tidx, k, slink, state
 object si
 sequence sk     -- copy of symtab[k]
 integer skt     -- verify sk[S_vtype], check for rescan
---trace(1)
     slink = tt[node+EQ]
 --printf(1,"ReconstructSequence: slink=%d\n",{slink})
     si = symtab[slink]
@@ -2997,7 +2363,6 @@ integer skt     -- verify sk[S_vtype], check for rescan
                         end if
                     end if
                     s[i] = sk[S_value]
---14/3/15:
                 else
                     tidx = si-0.5
                     k = tt[tidx+EQ]
@@ -3055,8 +2420,6 @@ integer rd = iff(DLL?REFS:DATA)
         if string(si) then
             dumpString(si,1)
             dsidx = x_addr+(i-1)*dsize+1
---if dsidx-1=TRAP then ?9/0 end if
---          relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
             relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
             setds(s_addr,1)
         else
@@ -3086,8 +2449,6 @@ integer rd = iff(DLL?REFS:DATA)
     for i=1 to l do
         dumpPathSet(s[i])
         dsidx = x_addr+1+(i-1)*dsize
---if dsidx-1=TRAP then ?9/0 end if
---      relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
         relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
         setds(s_addr,1)
     end for
@@ -3119,50 +2480,26 @@ constant r_CollectSignatures = routine_id("CollectSignatures")
 
 procedure DumpSignatures()
 integer refcount, slink, k
---, flag
 integer rd = iff(DLL?REFS:DATA)
     for i=1 to length(Signatures) do
         refcount = 0
---      if X64 then ?9/0 end if
---      s_addr = length(data_section)+#80000014
         if X64 then
             s_addr = length(data_section)+#28
         else
             s_addr = length(data_section)+#14
         end if
---20/12/15:
---      flag = 0
-if bind and mapsymtab then
-        for j=2 to length(Signatures[i]) do
---          k = Signatures[i][j]    if k!=0 then Signatures[i][j] = symtabmap[k] flag = 1 end if
---          k = Signatures[i][j]    if k!=0 then Signatures[i][j] = symtabmap[k] end if
-            k = Signatures[i][j]    if k>T_object then Signatures[i][j] = symtabmap[k] end if
---
---              v = symtabmap[v]
---              si[S_value] = v
---erm...
---              if listing then
---                  symtab[i][S_value] = v
---              end if
---
---              k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
---
---                      k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
---
-        end for
-end if
+        if bind and mapsymtab then
+            for j=2 to length(Signatures[i]) do
+                k = Signatures[i][j]
+                if k>T_object then 
+                    Signatures[i][j] = symtabmap[k] 
+                end if
+            end for
+        end if
         slink = SigLinks[i]
         while slink do
---if flag then
-----    ?slink  -- no good...
---end if
---?9/0 -- need to backpatch here!
---          flatsym2[slink][S_sig] = s_addr
---          slink = flatsym2[slink][S_Nlink]
             dsidx = slink
             slink = getdsDword(slink)
---if dsidx-1=TRAP then ?9/0 end if
---          relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
             relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
             setds(s_addr,1)
             refcount += 1
@@ -3177,7 +2514,6 @@ sequence IdLinks
 function CollectIds(sequence s, integer node)
 integer slink, k
     slink = tt[node+EQ]
---  k = 0
     Ids = append(Ids,s)
     IdLinks = append(IdLinks,0)
     k = length(IdLinks)
@@ -3206,16 +2542,12 @@ integer refcount, slink
 integer rd = iff(DLL?REFS:DATA)
     for i=1 to length(Ids) do
         refcount = 0
---      if X64 then ?9/0 end if
---      s_addr = length(data_section)+#80000010
         s_addr = length(data_section)+4*dsize
         slink = IdLinks[i]
         if slink!=0 then
             while slink do
                 dsidx = slink
                 slink = getdsDword(slink)
---if dsidx-1=TRAP then ?9/0 end if
---              relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
                 relocations[DATA][rd] = append(relocations[DATA][rd],dsidx-1)   -- (qword)
                 setds(s_addr,1)
                 refcount += 1
@@ -3341,7 +2673,6 @@ include builtins\VM\optable.e
 --global sequence e2optable
 --with trace
 procedure DumpSymTab()
---integer wrong=0   --DEV temp
 object si
 object lt
 integer siNTyp, lensi
@@ -3349,7 +2680,6 @@ integer siNTyp, lensi
 atom fi
 integer k, ltdsidx
 object v
---object lt0, ltu -- temp
 sequence optable
 --integer l, l20
 integer dsidx0
@@ -3431,31 +2761,16 @@ elsif bind and and_bits(si[S_State],K_rtn) then
                     symtab[i][S_value] = v
                 end if
 end if
---wrong=21
                 lensi = length(si)
---wrong=22
                 if siNTyp=S_TVar then
---wrong=23
                     if lensi>S_Tidx then
---wrong=24
---wassi = si
                         si = si[1..S_Tidx]  -- discard compile-time cruft [S_ErrV]
---wrong=25
                     end if
                 else
---DEV discard S_value and S_Clink, needs S_Tidx moved up, I think...
---wrong=26
                     if lensi>S_Clink then
---if X64 then
---  ?i
---  ?si
---end if
---wrong=27
                         si = si[1..S_Clink] -- discard compile-time cruft [S_ErrV]
---wrong=28
                     end if
                 end if
---wrong=30
                 -- Delete unused entries. Function results depend on    --DEV misplaced comment?!
                 -- the routine entry (i+1), and (may) get deleted in 
                 -- the next iteration, some 55 lines above.
@@ -3483,7 +2798,6 @@ end if
                 flatdump(si,1)
                 flatsym2[i] = s_addr+#80000000
             else -- siNTyp>=S_Nspc
---wrong=35
                 if siNTyp>S_Rsvd then
                     lensi = length(si)
                     if lensi>S_1stl then
@@ -3494,7 +2808,6 @@ end if
 --                      si = si[1..S_Efct]      -- discard compile-time cruft [S_ErrR]
 --                  end if
                 end if
-if newEmit then
                 if siNTyp>=S_Type then
                     dsidx = length(data_section)+1+(S_sig+4)*dsize
 --                  if show_full_symtab 
@@ -3514,8 +2827,6 @@ if newEmit then
                 end if
             k = si[S_Name]
             if k!=-1 then
---DEV: (check with filedump)
---                  if X64 then ?9/0 end if
                 dsidx = length(data_section)+1+(S_Name+4)*dsize
 --if show_full_symtab then
                 if k>length(IdLinks) then
@@ -3529,12 +2840,11 @@ end if
                     IdLinks[k] = dsidx
                 end if
             end if
-end if -- newEmit
 if bind and mapsymtab then
-                k = si[S_Slink]     if k!=0 then si[S_Slink] = symtabmap[k] end if
-                k = si[S_Nlink]     if k!=0 then si[S_Nlink] = symtabmap[k] end if
+                k = si[S_Slink]         if k!=0 then si[S_Slink] = symtabmap[k] end if
+                k = si[S_Nlink]         if k!=0 then si[S_Nlink] = symtabmap[k] end if
                 if siNTyp>=S_Type then
-                    k = si[S_Parm1] if k!=0 then si[S_Parm1] = symtabmap[k] end if
+                    k = si[S_Parm1]     if k!=0 then si[S_Parm1] = symtabmap[k] end if
                 end if
 --/*
  (added untested 24/6/15) [this is >=S_Nspc anyway]
@@ -3543,7 +2853,6 @@ if bind and mapsymtab then
 end if
                 flatdump(si,1)
                 flatsym2[i] = s_addr+#80000000
-if newEmit then
                 if siNTyp>=S_Type then
                     -- Add a relocation for [S_il]. note that [S_il] itself is left as an
                     -- offset to codesection (ie/eg symtab[T_maintls][S_il] is 0), hence
@@ -3551,31 +2860,16 @@ if newEmit then
                     -- We have already calculated ltdsidx(==S_ltab) so (-dsize)==S_il.
 if not bind then ?9/0 end if -- 27/2/15 just see
                     relocations[DATA][CODE] = append(relocations[DATA][CODE],ltdsidx-1-dsize)   -- (qword)
---DEV and do this:
---      -- Signal the symtab entry is "in use"; this is overwritten 
---      --  again (with the backpatch address) in DumpSymTab().
---      flatsym2[slink][S_sig] = s_addr + ???
                     if sequence(lt) then
---if ltdsidx-1=TRAP then ?9/0 end if
---                      relocations[DATA][DATA] = append(relocations[DATA][DATA],ltdsidx-1)     -- (qword)
                         relocations[DATA][rd] = append(relocations[DATA][rd],ltdsidx-1)     -- (qword)
                         dsidx = ltdsidx
---if 1 then -- added 12/1/15:
                         setds(length(data_section)+4*dsize,1)
---                          setds(length(data_section)+5*dsize,1)
                         dumpString(lt,1)
---else
---                          setds(length(data_section)+5*dsize,1)
---                          flatdump(lt,1)
---end if
                     end if
                 end if
-end if
             end if
---wrong=35
         end if
     end for
---wrong=40
 
     -- relocate symtab[T_ds4] (start of data section, when compiled) normally:
     if X64 then
@@ -3812,8 +3106,7 @@ global procedure finalfixups2(sequence path, sequence outfile, atom t)
 --  dump code linked to this stub, along with the symtab.
 -- In interpret mode outfile is not used, code is linked to 
 --  the VM under the compiler and existing symtab in memory.
-integer vmax, k, symidx, u, nTyp, ridlink, nslink, f, lensi
-,vtype
+integer vmax, k, symidx, u, nTyp, ridlink, nslink, f, lensi, vtype
 object sv, svil, xi, line1, si, svname
 sequence s5sets
 atom t0
@@ -3851,8 +3144,6 @@ sequence prevsym        -- previous symtab
 sequence optable
 integer relptr
 integer showmapsymtab = 0
---, wasdsidx
---integer DSvTC --DEV (isginfo on code)
 --object dbg
 
 --if Z_ridN!=0 then -- still OK...
@@ -3861,21 +3152,6 @@ integer showmapsymtab = 0
 --end if
 
 --puts(1,"finalfixups2 started\n")
---DEV we probably still need to get some defaults
---  VMep = {} --DEV (temp)
---  if bind then
---      readAllHeaders()
---  else
-----/**/    #ilASM{ lea edi,[VMep]
-----/**/            lea ecx,[asmoptions]
-----/**/            call_rel32 %opGetVMep } -- [edi]=VMep; [ecx]=asmoptions
---      CSvaddr = 0
---      ImageBase = 0
---  end if
---  readAllHeaders()
--- 16/2 now includes virtual opcodes...
---  if length(VMep)!=length(opNames) then ?9/0 end if
---  if length(VMep)!=maxNVop then ?9/0 end if
 
 --/*
 -- imports should be eg {{"kernel32.dll",{"LocalFree","GetLastError","FormatMessageA"},{#4C,#17,#58}},
@@ -3912,7 +3188,6 @@ integer showmapsymtab = 0
     end for
 --*/
 if bind and mapsymtab then
---if bind then
     symtabmap = repeat(0,length(symtab))
 --  for i=1 to T_maintls do
 --      symtabmap[i] = 1
@@ -3927,8 +3202,6 @@ end if
     for i=1 to length(APIlibs) do
         s = APIlibs[i]
         if not norun or not bind then
---if platform()=LINUX then ?9/0 end if
---          lib = c_func(xLoadLibrary,{s})
             lib = open_dll(s)
             if lib=NULL then
                 APIerritem = APIerrlib
@@ -3941,7 +3214,6 @@ end if
     for i=1 to length(APINames) do
         {libidx,s} = APINames[i]
         if not norun or not bind then
---          thunk = c_func(xGetProcAddress,{APIerrlib[libidx],s})
             thunk = get_proc_address(APIerrlib[libidx],s)
             if thunk=NULL then
                 APIerror(i, "no such function")
@@ -3988,7 +3260,6 @@ end if
 --puts(1,"finalfixups2 line 3718\n")
 
     if listing then
---?9/0 --(CSvaddr not set, for one)
         craddr={}
         cridx={}
 --DEV 11/4/14:
@@ -4001,9 +3272,6 @@ end if
 --  if not LastStatementWasAbort then
 --      Emit1(opRetf)
 --  end if
---27/8/14: (does not help)
---trace(1)
---  s5 = append(s5,opRetf)
 --20/1/15 (opRetf was past last line of file, thus not appearing in the list.asm)
 --  emitline = line
 --22/1/15 (going bananas on a t00, "if ltline>skipline then ?9/0 end if -- major guff" in lineinfo())
@@ -4013,10 +3281,10 @@ end if
 --  if emitline>line then ?9/0 end if   -- sanity check
 --  emitline = tokline
 --puts(1,"warning: opRetf omitted, line 4022 pemit2.e\n")
-if not suppressopRetf then
-    agcheckop(opRetf)
-    apnds5(opRetf)
-end if
+    if not suppressopRetf then
+        agcheckop(opRetf)
+        apnds5(opRetf)
+    end if
 
     symtab[T_maintls][S_il] = s5
 
@@ -4035,20 +3303,14 @@ end if
 --?vmax
     vi = 0
     for v=1 to symlimit do
+--tryme (MARKTYPES)
+--  for v=T_Asm+1 to symlimit do
         sv = symtab[v]
         if sequence(sv) then
             nTyp = sv[S_NTyp]
---          if nTyp<=S_GVar2        -- S_Const and S_Gvar2
---          and not newEmit
---          and not mapsymtab then
---?9/0 -- this can go...
---              sv = 0
---              vmax += 1
---              symtab[v][S_Slink] = vmax
-----            elsif (nTyp=S_Type and v>T_Bin)                             -- user defined types
---          elsif (nTyp=S_Type and v>T_Asm)                             -- user defined types
+--MARKTYPES...
             if (nTyp=S_Type and v>T_Asm)                            -- user defined types
---          or (nTyp>S_Type and and_bits(sv[S_State],K_used) and length(sv[S_il])) -- top level subs
+--          if (MARKTYPES=0 and nTyp=S_Type and v>T_Asm)            -- user defined types
             or (nTyp>S_Type and and_bits(sv[S_State],K_used) and sequence(sv[S_il]) and length(sv[S_il])) -- top level subs
             or (v=T_command_line and Z_command_line) then -- link up T_command_line if rqd
 --DEV if nTyp>SType and sv[S_il] = jmp opRetf then we could kill off the entry, as long as 
@@ -4072,6 +3334,11 @@ end if
                 symtab[v][S_State] = or_bits(symtab[v][S_State],K_used)
                 vi = v
             elsif nTyp>S_Type then
+--          elsif nTyp>S_Type or (MARKTYPES and nTyp=S_Type and v>T_Asm) then
+--this should work, when MARKTYPES=1: (or c/should we T_Asm[+1]..symlimit?? - yes)
+--          elsif nTyp>=S_Type and v>T_Asm then
+--(with new loop:)
+--          elsif nTyp>=S_Type then
                 symtab[v][S_Slink] = -9     -- (not on symtab[T_maintls][S_Slink] chain)
             end if
         end if
@@ -4115,10 +3382,11 @@ end if
     if some_unresolved_rtnids then
         for i=T_Bin+1 to symlimit do
             si = symtab[i]
---DEV 28/7/16:
---          if si[S_NTyp]>S_Type then   -- ie func or proc
             if sequence(si)
+--MARKTYPES
             and si[S_NTyp]>S_Type then  -- ie func or proc
+--          and si[S_NTyp]>=S_Func-MARKTYPES then   -- ie func or proc
+--          and si[S_NTyp]>=S_Type then -- ie type or func or proc
                 u = si[S_State]
 --DEV 20/09/2013 try pulling this tooth then... (solves problem of [indirect] routineid("open_dll") getting -1)
 --              if i>T_Ainc or and_bits(u,S_used) then
@@ -4132,23 +3400,10 @@ end if
 --                  or (not atom(si[S_il]) and f and unresolved_routine_ids[f]) then
                     or (f and unresolved_routine_ids[f]) then
                         if not and_bits(u,K_used) then  -- not top_level_sub
---DEV new routine, AddToSlink(i,K_used+K_ridt), also marks all params etc as "in use"...?
---                          si = 0
---                          AddToSlink(i,K_used+K_ridt)
---DEV had to flip this...
-if 0 then -- old code:
-                            symtab[i] = 0               -- kill refcount
-                            u = or_bits(u,K_used+K_ridt)
-                            si[S_State] = u
-                            si[S_Slink] = symtab[T_maintls][S_Slink]
-                            symtab[i] = si
-                            symtab[T_maintls][S_Slink] = i
-else
                             si = 0
                             Or_K_ridt(i,K_used+K_ridt)
                             symtab[i][S_Slink] = symtab[T_maintls][S_Slink]
                             symtab[T_maintls][S_Slink] = i
-end if
                         end if
                     end if
                 end if
@@ -4164,9 +3419,6 @@ end if
     for i=symlimit to 1 by -1 do
         si = symtab[i]
         if sequence(si) then
---if i=1878 then
--- ?si
---end if
             u = si[S_State]
             if and_bits(u,K_rtn) then
                 if bind then
@@ -4181,10 +3433,10 @@ end if
                 k = si[S_value]     -- the routine number
                 si = symtab[k]
                 u = si[S_State]
---20/12/15:
---              if not and_bits(u,K_used) then
                 if not and_bits(u,K_used) 
                 and si[S_NTyp]>S_Type then
+--              and si[S_NTyp]>=S_Func-MARKTYPES then
+--              and si[S_NTyp]>=S_Type then
 --DEV new routine, AddToSlink(i,K_used), also marks all params etc as "in use"...?
 --                  si = 0
 --                  AddToSlink(i,K_used)
@@ -4216,127 +3468,127 @@ end if
         t0 = time()
     end if
 
-if bind and not dumpil then
-    rescancount = 0
+    if bind and not dumpil then
+        rescancount = 0
 
-    while 1 do  -- while gvar_scan improves matters
-        vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
-        while vi do
-            s5thunk(symtab[vi][S_il]) -- sets s5
-            symtab[vi][S_il] = 0    -- kill refcount
-            gvar_scan(vi)
-            symtab[vi][S_il] = s5
-            vi = symtab[vi][S_Slink]
-        end while
+        while 1 do  -- while gvar_scan improves matters
+            vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+            while vi do
+                s5thunk(symtab[vi][S_il]) -- sets s5
+                symtab[vi][S_il] = 0    -- kill refcount
+                gvar_scan(vi)
+                symtab[vi][S_il] = s5
+                vi = symtab[vi][S_Slink]
+            end while
         
-        -- kill any gvar info gathered for parameters of routines that could be
-        --  invoked via call_proc/call_func/call_back (targets of routine_id),
-        --  since that will not include any values/types/etc from such calls.
-        vi = T_maintls  -- hop down all routines again
-        while vi do
-            u = symtab[vi][S_State]
-            isKridt = and_bits(u,K_ridt)    -- known routine_id target?
+            -- kill any gvar info gathered for parameters of routines that could be
+            --  invoked via call_proc/call_func/call_back (targets of routine_id),
+            --  since that will not include any values/types/etc from such calls.
+            vi = T_maintls  -- hop down all routines again
+            while vi do
+                u = symtab[vi][S_State]
+                isKridt = and_bits(u,K_ridt)    -- known routine_id target?
 --DEV 20/09/2013 no idea why this lot was commented out, put back in:
 --      "" (ah-ha: we are scanning the K_used chain here... no good)
---          if not isKridt then
---              if some_unresolved_rtnids then
---                  if and_bits(u,K_gbl) then
---                      isKridt = 1
---                  else
---                      k = symtab[vi][S_FPno]
---                      if k and unresolved_routine_ids[k] then
+--              if not isKridt then
+--                  if some_unresolved_rtnids then
+--                      if and_bits(u,K_gbl) then
 --                          isKridt = 1
+--                      else
+--                          k = symtab[vi][S_FPno]
+--                          if k and unresolved_routine_ids[k] then
+--                              isKridt = 1
+--                          end if
 --                      end if
 --                  end if
 --              end if
---          end if
 -- (20/09 ends)
-            if isKridt then
-                -- routine is/could be target of routine_id...
-                -- so destroy any gvar info gathered by gvar_scan for the 
-                --  routine parameters (since that will not include any 
-                --  values from call_proc/call_func/call_back)
-                p = symtab[vi][S_Parm1]
-                maxparams = length(symtab[vi][S_sig]) - 1
-                while maxparams do
-                    if DEBUG then
-                        if symtab[p][S_NTyp]!=S_TVar then ?9/0 end if
-                        -- sanity check: K_noclr must NOT be set on any params!
-                        if and_bits(symtab[p][S_State],K_noclr) then ?9/0 end if
-                    end if
-                    symtab[p][S_gNew] = {T_object,MININT,MAXINT,T_object,-2}
-                    p = symtab[p][S_Slink]
-                    maxparams -= 1
-                end while
-            end if
-            vi = symtab[vi][S_Slink]
-        end while
+                if isKridt then
+                    -- routine is/could be target of routine_id...
+                    -- so destroy any gvar info gathered by gvar_scan for the 
+                    --  routine parameters (since that will not include any 
+                    --  values from call_proc/call_func/call_back)
+                    p = symtab[vi][S_Parm1]
+                    maxparams = length(symtab[vi][S_sig]) - 1
+                    while maxparams do
+                        if DEBUG then
+                            if symtab[p][S_NTyp]!=S_TVar then ?9/0 end if
+                            -- sanity check: K_noclr must NOT be set on any params!
+                            if and_bits(symtab[p][S_State],K_noclr) then ?9/0 end if
+                        end if
+                        symtab[p][S_gNew] = {T_object,MININT,MAXINT,T_object,-2}
+                        p = symtab[p][S_Slink]
+                        maxparams -= 1
+                    end while
+                end if
+                vi = symtab[vi][S_Slink]
+            end while
 
-        rescan = 0
-        for i=1 to length(symtab) do
-            si = symtab[i]
-            if sequence(si) then
-                siNTyp = si[S_NTyp]
-                if siNTyp <= S_TVar
-                and (siNTyp!=S_Const or not and_bits(si[S_State],K_lit+K_rtn)) then
-                    xi = si[S_gNew]
-                    if sequence(xi) then
-                        vtype = si[S_vtype]
+            rescan = 0
+            for i=1 to length(symtab) do
+                si = symtab[i]
+                if sequence(si) then
+                    siNTyp = si[S_NTyp]
+                    if siNTyp <= S_TVar
+                    and (siNTyp!=S_Const or not and_bits(si[S_State],K_lit+K_rtn)) then
+                        xi = si[S_gNew]
+                        if sequence(xi) then
+                            vtype = si[S_vtype]
 sv = si[S_Name]
-                        si = si[S_gInfo]
-                        symtab[i][S_gNew] = 0
-                        if not equal(si,xi) then
+                            si = si[S_gInfo]
+                            symtab[i][S_gNew] = 0
+                            if not equal(si,xi) then
 ----DEV 05/01: don't allow MIN/MIN or MAX/MAX...
 --   (makes testing easier: problem is that Min=Max means fixed, but MAX is (eg) +=1 indicator;
 --    ie MAX/MAX would be created by i=#3FFFFFFF i+=1 but Min=Max would mean all refs(/stores)
 --       of i are treated as #3FFFFFFF, and hence no overflow occurs when obviously it should.
 --       Minor downside is of course i=#3FFFFFFF i+=1 leaves i as MIN/MAX, a bit "odd" but ok.)
-                            xType = xi[gType]
-                            if xType=0 then
+                                xType = xi[gType]
+                                if xType=0 then
 --DEV 15/4/2010. skip temps (see challenge0001)
 if not equal(sv,-1) then
 --?xi
 --?symtab[i]
     if bind and mapsymtab then
 --      printf(1,"symtab[%d(%d)]\n",{i,symtabmap[i]})
-showmapsymtab = i
+        showmapsymtab = i
     end if
-                                k = symtab[i][S_FPno]
---                              string mapi = iff(bind and mapsymtab and 
---                              printf(1,"xType=0 on symtab[%d(=%s)] (%s in %s)\n",{i,mapi,getname(sv,-2),filenames[k][2]})
-                                printf(1,"xType=0 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
+                                    k = symtab[i][S_FPno]
+--                                  string mapi = iff(bind and mapsymtab and 
+--                                  printf(1,"xType=0 on symtab[%d(=%s)] (%s in %s)\n",{i,mapi,getname(sv,-2),filenames[k][2]})
+                                    printf(1,"xType=0 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
 end if
---                              xType = rootType(vtype)
-                                if vtype>T_object then vtype = rootType(vtype) end if
---                              xi[gType] = xType
-                                xi[gType] = vtype
-                            end if
-                            if xi[gEtyp]=0 then
--- removed 7/2/14:
---                              if and_bits(xType,T_sequence)
---                              and xi[gLen]!=0 then    -- let p={} (and nowt else) pass by unnoticed.
---                                  printf(1,"xEtyp=0 on symtab[%d]\n",i)
---                                  ?xi
---                              end if
-                                xi[gEtyp] = T_object
-                            end if
-                            xMin = xi[gMin]
-                            xMax = xi[gMax]
-                            if and_bits(xType,T_atom)!=T_integer
---DEV isFLOAT?
-                            or not integer(xMin)
-                            or not integer(xMax)
-                            or xMin>xMax
---                          or (xMin=xMax and (xMin=MININT or xMin=MAXINT)) then
-                            or (xMin=xMax and (xMin=MININT or xMin=MAXINT))
--- SUG: as below (untried)
-                            or rescancount>7 then
-                                xi[gMin] = MININT
-                                xi[gMax] = MAXINT
-                                if and_bits(xType,T_atom)=T_integer then
-                                    xi[gType] = or_bits(xType,T_atom)
+--                                  xType = rootType(vtype)
+                                    if vtype>T_object then vtype = rootType(vtype) end if
+--                                  xi[gType] = xType
+                                    xi[gType] = vtype
                                 end if
-                            end if
+                                if xi[gEtyp]=0 then
+-- removed 7/2/14:
+--                                  if and_bits(xType,T_sequence)
+--                                  and xi[gLen]!=0 then    -- let p={} (and nowt else) pass by unnoticed.
+--                                      printf(1,"xEtyp=0 on symtab[%d]\n",i)
+--                                      ?xi
+--                                  end if
+                                    xi[gEtyp] = T_object
+                                end if
+                                xMin = xi[gMin]
+                                xMax = xi[gMax]
+                                if and_bits(xType,T_atom)!=T_integer
+--DEV isFLOAT?
+                                or not integer(xMin)
+                                or not integer(xMax)
+                                or xMin>xMax
+--                              or (xMin=xMax and (xMin=MININT or xMin=MAXINT)) then
+                                or (xMin=xMax and (xMin=MININT or xMin=MAXINT))
+-- SUG: as below (untried)
+                                or rescancount>7 then
+                                    xi[gMin] = MININT
+                                    xi[gMax] = MAXINT
+                                    if and_bits(xType,T_atom)=T_integer then
+                                        xi[gType] = or_bits(xType,T_atom)
+                                    end if
+                                end if
 
 --No good:
 --                      if sequence(si)         -- rely on best when dealing with circulars
@@ -4344,11 +3596,11 @@ end if
 --                          xi[gMin] = max(xi[gMin],si[gMin])
 --                          xi[gMax] = min(xi[gMax],si[gMax])
 --                      end if
-                            if not equal(si,xi) then
---                          if sequence(si) then
---                              xi[gMin] = min(xi[gMin],si[gMin])
---                              xi[gMax] = max(xi[gMax],si[gMax])
---                          end if
+                                if not equal(si,xi) then
+--                              if sequence(si) then
+--                                  xi[gMin] = min(xi[gMin],si[gMin])
+--                                  xi[gMax] = max(xi[gMax],si[gMax])
+--                              end if
 
 -- If you get problems with this:
 --  1) If it really is an infinite loop, I suspect it really is a problem.
@@ -4369,93 +3621,89 @@ end if
 --  particular printf()'s precision and minfieldwidth were culprits, not
 --  that I've dotted the i's and crossed the t's on that one.
 --9/1/16: (no joy) [18/1/16: yes joy]
---if rescancount>16 then
 if rescancount>20 then
     ?i
     ?xi
     ?si
     ?symtab[i]
     k = symtab[i][S_FPno]
---  printf(1,"rescancount>16 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),iff(k=0?"??k=0":filenames[k][2])})
     printf(1,"rescancount>20 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),iff(k=0?"??k=0":filenames[k][2])})
 --  if getc(0) then end if
 end if
-                                symtab[i][S_gInfo] = xi
-                                rescan = 1
+                                    symtab[i][S_gInfo] = xi
+                                    rescan = 1
+                                end if  -- si!=xi
                             end if  -- si!=xi
-                        end if  -- si!=xi
-                    end if  -- sequence(xi)
-                end if  -- tvar/rt-assigned const
-            end if  -- sequence(si)
-        end for
+                        end if  -- sequence(xi)
+                    end if  -- tvar/rt-assigned const
+                end if  -- sequence(si)
+            end for
 
-        si = 0  -- kill refcount
-        xi = 0  -- ""
-        if not rescan then
-            ltDiagMsg("*** final pass ***\n")   -- (pltype.e diagnostics)
-            exit
-        end if
-        rescancount+=1
---      if rescancount>16 then exit end if      -- RDS/Knuth suggest 7 as a reasonable max
-                                                -- (though technically I suspect Knuth was 
-                                                --  referring to a different problem.)
---      if rescancount>16 then
-        if rescancount>20 then
---          if rescancount>18 then exit end if
-            if rescancount>22 then exit end if
-            puts(1,"\nrescanning...\n")
-        end if
-        ltDiagMsg("*** rescanning ***\n")   -- (pltype.e diagnostics)
-    end while
+            si = 0  -- kill refcount
+            xi = 0  -- ""
+            if not rescan then
+                ltDiagMsg("*** final pass ***\n")   -- (pltype.e diagnostics)
+                exit
+            end if
+            rescancount+=1
+--          if rescancount>16 then exit end if      -- RDS/Knuth suggest 7 as a reasonable max
+                                                    -- (though technically I suspect Knuth was 
+                                                    --  referring to a different problem.)
+            if rescancount>20 then
+                if rescancount>22 then exit end if
+                puts(1,"\nrescanning...\n")
+            end if
+            ltDiagMsg("*** rescanning ***\n")   -- (pltype.e diagnostics)
+        end while
 
-    -- test set is mainly 4; t40,t45 are 3, t21,t36 are 5, t43,t46 are 6.
-    --  win32lib is 7, euex.exw 12(!!), arwen 6, edita 9, and p.exw is 6.
---  printf(1,"gvar_scan: %d iterations\n",rescancount)
+        -- test set is mainly 4; t40,t45 are 3, t21,t36 are 5, t43,t46 are 6.
+        --  win32lib is 7, euex.exw 12(!!), arwen 6, edita 9, and p.exw is 6.
+--      printf(1,"gvar_scan: %d iterations\n",rescancount)
 
-else -- not bind, or dumpil
+    else -- not bind, or dumpil
 
 --puts(1,"finalfixups2 line 4097\n")
 
-    if showfileprogress then
-        rescancount = -1
-    end if
---  if not dumpil then
---      rbldrqd = 1
---  end if
-    if dumpil then
-        relink()
-        tt_traverse(r_ReconstructIds,"",-2)             -- identifiers
-    end if
+        if showfileprogress then
+            rescancount = -1
+        end if
+--      if not dumpil then
+--          rbldrqd = 1
+--      end if
+        if dumpil then
+            relink()
+            tt_traverse(r_ReconstructIds,"",-2)             -- identifiers
+        end if
 
 --puts(1,"finalfixups2 line 4110\n")
 
-    vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
-    while vi do
+        vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+        while vi do
 --?vi
-        s5thunk(symtab[vi][S_il])   -- set s5
-        gvar_scan_nobind(vi)
-        vi = symtab[vi][S_Slink]
-    end while
-    if dumpil then
+            s5thunk(symtab[vi][S_il])   -- set s5
+            gvar_scan_nobind(vi)
+            vi = symtab[vi][S_Slink]
+        end while
+        if dumpil then
 --if 01 then
-        puts(dilfn,"\n\n Opcodes:\n")
-        puts(dilfn," (obviously, s5 appears in trace() as say {210,1,213,...};\n")
-        puts(dilfn,"  and you may need these to map it to {opLn,1,opCtrl,...}.)\n")
-        for i=1 to length(opNames) do
-            opName = opNames[i]
-            if opName=0 then
-                opName = "<spare>"
-            end if
-            printf(dilfn,"%4d:%s\n",{i,opName})
-        end for
+            puts(dilfn,"\n\n Opcodes:\n")
+            puts(dilfn," (obviously, s5 appears in trace() as say {210,1,213,...};\n")
+            puts(dilfn,"  and you may need these to map it to {opLn,1,opCtrl,...}.)\n")
+            for i=1 to length(opNames) do
+                opName = opNames[i]
+                if opName=0 then
+                    opName = "<spare>"
+                end if
+                printf(dilfn,"%4d:%s\n",{i,opName})
+            end for
 --end if
-        Warnings(dilfn)     -- (closes the file)
---      close(dilfn)
-        puts(1,"listing file "&mainpath&"ildump.txt created.\n")
-        abort(0)
-    end if
+            Warnings(dilfn)     -- (closes the file)
+--          close(dilfn)
+            puts(1,"listing file "&mainpath&"ildump.txt created.\n")
+            abort(0)
+        end if
 
-end if -- bind/dumpil
+    end if -- bind/dumpil
 
 --puts(1,"finalfixups2 line 4124\n")
 
@@ -4478,15 +3726,7 @@ end if -- bind/dumpil
         sv = symtab[vi]
         symtab[vi] = 0                              -- kill refcount
         s5thunk(sv[S_il])   -- set s5
---if newEmit then
-        --DEV we want an entry in relocations for this really:
-        -- (or call_func etc could adjust it appropriately)
---printf(1,"symtab[%d][S_il]=%08x\n",{vi,CSvsize})
         sv[S_il] = CSvsize
---      sv[S_il] = CSvsize+ImageBase2+BaseOfCode2   -- ImageBase2 (and BaseOfCode2) not yet assigned!
---else
---      sv[S_il] = CSvaddr+CSvsize+ImageBase        -- NB when interpreting CSvaddr[=allocate(CSvsize)] added later
---end if
         LineTab = {}    -- build a new one!
         ltline = 0
         symtab[vi] = sv
@@ -4545,23 +3785,20 @@ end if -- bind/dumpil
             nTyp = sv[S_NTyp]
             u = sv[S_State]
             if nTyp>S_Type      -- types are not properly marked as used... yet.
+--          if nTyp>=S_Func-MARKTYPES
+--          if nTyp>=S_Type
             and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
 -- 17/3/15:
 if bind or listing then
 
---DEV??
---if listing=-1 and v!=T_maintls then
 --if not show_full_symtab then
---if v=Z_ridN then
---  ?getname(sv[S_Name],-2)
---   ?9/0
---end if
 --DEV (added 12/12/15, factor this out...)
                 node = sv[S_Name]
                 slink = tt[node+EQ]
                 if slink=v then
                     tt[node+EQ] = sv[S_Nlink]
                 else
+--DEV as per/factor out...
                     if nTyp=S_Rsvd then ?9/0 end if     -- sanity check (added 07/01/2012)
                     while slink do
                         snext = symtab[slink][S_Nlink]
@@ -4578,9 +3815,12 @@ if bind or listing then
 --23/4/15:
 --                  if v>T_Bin then
                     if v>T_Asm then
+--MARKTYPES
                         if nTyp=S_Func then
+--                      if nTyp=S_Func or (MARKTYPES and nTyp=S_Type) then
+--                      if nTyp<=S_Func then
 --if not show_full_symtab then
---if v-1=Z_ridN then ?9/0 end if
+--  if v-1=Z_ridN then ?9/0 end if
                             symtab[v-1] = 0 -- ... any return var ...
 --end if
                         end if
@@ -4602,7 +3842,7 @@ if bind or listing then
                             nTyp = sv[S_NTyp]
                             if nTyp!=S_TVar then ?9/0 end if
 --if not show_full_symtab then
---if p=Z_ridN then ?9/0 end if
+--  if p=Z_ridN then ?9/0 end if
                             symtab[p] = 0
 --end if
                             p = sv[S_Slink]
@@ -4618,37 +3858,35 @@ end if -- (17/3/15)
             else
 --if 0 then -- 17/3/15 (done below)
                 -- link up routines and namespaces for faster scan in routine_id
-                if nTyp>=S_Type then
-if 0 then -- 17/3/15 (done below)
-                    if v>T_Bin and atom(sv[S_il]) then
-                        symtab[ridlink][S_Slink] = v
-                        ridlink = v
-                    end if
-end if
-                elsif nTyp=S_Nspc then
-if 0 then -- 17/3/15 (done below)
-                    if nslink=T_nslink then
-                        symtab[T_nslink] = v
-                    else
-                        symtab[nslink][S_Slink] = v
-                    end if
-                    nslink = v
-end if
-                elsif ( nTyp=S_Rsvd or
-                       (nTyp<=S_GVar2 and
-                        not and_bits(u,S_used+S_set+K_Fres+K_lit)))
-                  and integer(sv[S_Name]) -- 6/3/2010 (was d!'ing at the time)
-                  and not equal(sv[S_Name],-1) then
+--              if nTyp>=S_Type then
+--              elsif nTyp=S_Nspc then
+--              elsif ( nTyp=S_Rsvd or
+                if ( nTyp=S_Rsvd or
+                    (nTyp<=S_GVar2 and not and_bits(u,S_used+S_set+K_Fres+K_lit)))
+                and integer(sv[S_Name]) -- 6/3/2010 (was d!'ing at the time)
+                and not equal(sv[S_Name],-1) then
 if bind or listing then -- 17/3/15
                     node = sv[S_Name]
                     slink = tt[node+EQ]
                     if slink=v then
                         tt[node+EQ] = sv[S_Nlink]
                     else
-                        if nTyp=S_Rsvd then ?9/0 end if     -- sanity check (added 07/01/2012)
+--                      if nTyp=S_Rsvd then ?9/0 end if     -- sanity check (added 07/01/2012)
+-- 28/7/17 (catch can now be overidden...)
+--                      if nTyp=S_Rsvd then
+--                          k = symtab[slink][S_FPno]
+--                          printf(1,"9/0 LINE 4696 pEmit2.e (symtab[%d] - %s in %s)",
+--                                      {slink,getname(symtab[slink][S_Name],-2),
+--                                       filenames[k][2]})
+----sv = si[S_Name]
+----symtab[slink]
+----showmapsymtab = slink
+--                      end if
                         while slink do
                             snext = symtab[slink][S_Nlink]
                             if snext=v then
+--28/7/17...
+                                if symtab[slink][S_NTyp]=S_Rsvd then ?9/0 end if    -- sanity check (added 07/01/2012)
                                 symtab[slink][S_Nlink] = sv[S_Nlink]
                                 exit
                             end if
@@ -4657,13 +3895,12 @@ if bind or listing then -- 17/3/15
                     end if
                     nTyp = 999  -- (avoid stuff below! (not strictly necessary))
 --if not show_full_symtab then
---if v=Z_ridN then ?9/0 end if
+--  if v=Z_ridN then ?9/0 end if
                     symtab[v] = 0
 --printf(1,"symtab[%d] unlinked\n",v)
 --end if
 end if
                 end if
---end if -- 17/3/15
             end if
         end if
     end for
@@ -4674,91 +3911,80 @@ end if
 --end if
 
     if bind then
-if mapsymtab then
+        if mapsymtab then
 --DEV remind me, what is this loop for, exactly? (below is my best guess)
-        -- delete unused top-level gvars
-        for i=1 to symlimit do
-            si = symtab[i]
-            if sequence(si) then
-                siNTyp = si[S_NTyp]
---pointless test removed 8/6/15:
---              if siNTyp<=S_TVar then
+            -- delete unused top-level gvars
+            for i=1 to symlimit do
+                si = symtab[i]
+                if sequence(si) then
+                    siNTyp = si[S_NTyp]
                     if siNTyp<=S_GVar2  -- added 8/1/09
                     and not and_bits(si[S_State],S_used+S_set+K_Fres)
                     and not equal(si[S_Name],-1) then
                         symtab[i][S_State] = 0
                     end if
---              end if
-            end if
-        end for
-
-        symtabmax = 0
-        vmax = 0
-        for i=1 to length(symtabmap) do
-            if sequence(symtab[i])
-            and symtab[i][S_State]!=0 then
-                symtabmax += 1
-                symtabmap[i] = symtabmax
-                if symtab[i][S_NTyp]<=S_GVar2 then  -- S_Const and S_Gvar2
-                    vmax += 1
-                    symtab[i][S_Slink] = vmax
---                  symtab[i][S_Tidx] = vmax --NO!
                 end if
+            end for
+
+            symtabmax = 0
+            vmax = 0
+            for i=1 to length(symtabmap) do
+                if sequence(symtab[i])
+                and symtab[i][S_State]!=0 then
+                    symtabmax += 1
+                    symtabmap[i] = symtabmax
+                    if symtab[i][S_NTyp]<=S_GVar2 then  -- S_Const and S_Gvar2
+                        vmax += 1
+                        symtab[i][S_Slink] = vmax
+--                      symtab[i][S_Tidx] = vmax --NO!
+                    end if
 -- 11/9/14:
 ----dev 26/4...
---          elsif i=T_pathset
---             or i=T_fileset
---             or i=T_nslink
---             or i=T_cmdlnflg
---             or i=T_callstk
---             or i=22 then -- T_EBP/spare
-            elsif i<=T_const1 then
---              symtabmap[i] = 16000000 -- (any daft but debuggable value)
-                symtabmap[i] = i
-                symtabmax += 1
-            else
-                symtabmap[i] = 0
+--              elsif i=T_pathset
+--                 or i=T_fileset
+--                 or i=T_nslink
+--                 or i=T_cmdlnflg
+--                 or i=T_callstk
+--                 or i=22 then -- T_EBP/spare
+                elsif i<=T_const1 then
+--                  symtabmap[i] = 16000000 -- (any daft but debuggable value)
+                    symtabmap[i] = i
+                    symtabmax += 1
+                else
+                    symtabmap[i] = 0
 --1/8/14: (caused a crash/hang...)
 --symtab[i] = 0
+                end if
+            end for
+            if showmapsymtab then
+                printf(1,"symtab[%d(%d)]\n",{showmapsymtab,symtabmap[showmapsymtab]})
             end if
-        end for
-        if showmapsymtab then
-            printf(1,"symtab[%d(%d)]\n",{showmapsymtab,symtabmap[showmapsymtab]})
-        end if
-else -- not mapsymtab
+        else -- not mapsymtab
 --puts(1,"pemit2.e line 4405 suspect not-mapsymtab handling...\n") [actually should be fine...]
-        vmax = 0
-        for i=1 to length(symtab) do
-            if sequence(symtab[i])
-            and symtab[i][S_State]!=0
-            and symtab[i][S_NTyp]<=S_GVar2 then -- S_Const and S_Gvar2
-                vmax += 1
-                symtab[i][S_Slink] = vmax
---              symtab[i][S_Tidx] = vmax -- NO!
-            end if
-        end for
-        symtabmax = length(symtab)
-end if
+            vmax = 0
+            for i=1 to length(symtab) do
+                if sequence(symtab[i])
+                and symtab[i][S_State]!=0
+                and symtab[i][S_NTyp]<=S_GVar2 then -- S_Const and S_Gvar2
+                    vmax += 1
+                    symtab[i][S_Slink] = vmax
+--                  symtab[i][S_Tidx] = vmax -- NO!
+                end if
+            end for
+            symtabmax = length(symtab)
+        end if
         maxgvar = vmax --DEV (use maxgvar above?)
 
 --if Z_ridN!=0 then
 --  ?symtab[Z_ridN]
 --end if
 
---if iNNN then
---?symtab[iNNN]
---end if
         relink()
         Ids = {}
         IdLinks = {}
         tt_traverse(r_CollectIds,"",-2)
 
---DEV 11/4/14: (undone 16/4)
---      DSvaddr = 0
---      CSvaddr = 0
---      VMep = {}
     else -- interpret
--- added 3/3/15:
         vmax = 0
         for i=1 to length(symtab) do
             if sequence(symtab[i])
@@ -4770,106 +3996,81 @@ end if
             end if
         end for
         symtabmax = length(symtab)
---?9/0
--- 24/3/2010:
---      CSvaddr = allocate(CSvsize)
         CSvaddr = AllocateBlock(CSvsize)
---      DSvaddr = allocate(DSvsize)
 --DEV:
 -- (DSvsize not assigned/and now not declared)
 --puts(1,"warning: symtabptr[ds+8] not accounted for (pemit2.e line 4162)\n") (:%pGetSymPtr)
-if X64 then
---      DSvsize = vmax*8 + 20
-        DSvsize = vmax*8 + 32
-else -- 32
---      DSvsize = vmax*4 + 12
-        DSvsize = vmax*4 + 20
-end if
+        if X64 then
+            DSvsize = vmax*8 + 32
+        else -- 32
+            DSvsize = vmax*4 + 20
+        end if
         DSvaddr = AllocateBlock(DSvsize)
 --if platform()=LINUX then
---printf(1,"(pemit2.e line 4805) DSvaddr=#%08x, CSvaddr=#%08x\n",{DSvaddr,CSvaddr})
+if 0 then
+printf(1,"(pemit2.e line 4805) DSvaddr=#%08x, CSvaddr=#%08x\n",{DSvaddr,CSvaddr})
 --printf(1,"(pemit2.e line 4806) DSvsize=%s, DSvaddr=#%08x, CSvsize=%s, CSvaddr=#%08x\n",{Size(DSvsize),DSvaddr,Size(CSvsize),CSvaddr})
+end if
 --end if
---- 26/2/10:
---      poke4(DSvaddr,#40000000)
---      mem_copy(DSvaddr+4,DSvaddr,DSvsize-4)
---      poke4(DSvaddr,{0,           -- slack
---                     vmax-5*4,    -- maxlen
---                     vmax-5,      -- length
---                     1,           -- refcount
---                     #80000000,   -- T_Dsq
---                     #40000000})  -- unassigned
-----        mem_copy(DSvaddr+24,DSvaddr+20,DSvsize-24)
---      mem_copy(DSvaddr+24,DSvaddr+20,9/0-24)
---if X64 then ?9/0 end if
---      poke4(DSvaddr,#40000000)        -- unassigned
         poke(DSvaddr,"Phix")            -- sigPhx
         DSvaddr4 = floor(DSvaddr/4)
-if X64 then
-        poke4(DSvaddr+4,0)              -- layout/rand seed (unused) [DEV level?]
---      poke8(DSvaddr+8,{0,             -- symptr
---                       0,             -- relocs
---                       vmax,          -- maxgvar
---               #4000000000000000})    -- unassigned
-        poke4(DSvaddr+8,{0,0,           -- symptr
-                         0,0,           -- relocs
-                         0,vmax,        -- maxgvar
-                         0,#40000000})  -- unassigned
-        #ilASM{
-            [32]
---              pop al (not convinced we really need this) [triggered 17/1/16, p -d! -x64 e03]
---              int3
-                mov eax,[symtab]
-                mov edi,[DSvaddr4]
-                shl eax,2
-                mov [ebx+edi*4+12],eax
-            [64]
-                mov rax,[symtab]
-                mov rdi,[DSvaddr4]
-                shl rax,2
-                mov [rbx+rdi*4+8],rax
-            []
-              }
+        if X64 then
+            poke4(DSvaddr+4,0)              -- layout/rand seed (unused) [DEV level?]
+--          poke8(DSvaddr+8,{0,             -- symptr
+--                           0,             -- relocs
+--                           vmax,          -- maxgvar
+--                   #4000000000000000})    -- unassigned
+            poke4(DSvaddr+8,{0,0,           -- symptr
+                             0,0,           -- relocs
+                             0,vmax,        -- maxgvar
+                             0,#40000000})  -- unassigned
+            #ilASM{
+                [32]
+--                  pop al (not convinced we really need this) [triggered 17/1/16, p -d! -x64 e03]
+--                  int3
+                    mov eax,[symtab]
+                    mov edi,[DSvaddr4]
+                    shl eax,2
+                    mov [ebx+edi*4+12],eax
+                [64]
+                    mov rax,[symtab]
+                    mov rdi,[DSvaddr4]
+                    shl rax,2
+                    mov [rbx+rdi*4+8],rax
+                []
+                  }
 --DEV/SUG: (earlier on somewhere...)
---      #ilASM{
---          [32]
---              mov [X64],ebx
---          [64]
---              mov qword[X64],1
---          []
---            }
-        mem_copy(DSvaddr+40,DSvaddr+32,DSvsize-40)
-else -- 32
-        poke4(DSvaddr+4,{0,             -- layout/rand seed (unused) [DEV level?]
-                         0,             -- symptr
-                         0,             -- relocs
-                         vmax,          -- maxgvar
-                         #40000000})    -- unassigned
-        #ilASM{
-            [32]
-                mov eax,[symtab]
-                mov edi,[DSvaddr4]
-                shl eax,2
-                mov [ebx+edi*4+8],eax
-            [64]
---              pop al
-                int3
---              mov eax,[symtab]
---              mov edi,[DSvaddr4]
---              shl eax,2
---              mov [ebx+edi*4+12],eax
-            []
-              }
---      mem_copy(DSvaddr+20,DSvaddr+16,DSvsize-20)
---?{DSvaddr,DSvsize}
-        mem_copy(DSvaddr+24,DSvaddr+20,DSvsize-24)
---DSvTC = DSvaddr+16+154*4
---printf(1,"%08x,%08x\n",peek4u({DSvTC,2}))
---dbg = peek4u({DSvTC,20})
---dbg = peek4u({DSvaddr,20})
---?dbg
-end if
---      mem_copy(DSvaddr+4,DSvaddr,DSvsize-4)
+--          #ilASM{
+--              [32]
+--                  mov [X64],ebx
+--              [64]
+--                  mov qword[X64],1
+--              []
+--                }
+            mem_copy(DSvaddr+40,DSvaddr+32,DSvsize-40)
+        else -- 32
+            poke4(DSvaddr+4,{0,             -- layout/rand seed (unused) [DEV level?]
+                             0,             -- symptr
+                             0,             -- relocs
+                             vmax,          -- maxgvar
+                             #40000000})    -- unassigned
+            #ilASM{
+                [32]
+                    mov eax,[symtab]
+                    mov edi,[DSvaddr4]
+                    shl eax,2
+                    mov [ebx+edi*4+8],eax
+                [64]
+--                  pop al
+                    int3
+--                  mov eax,[symtab]
+--                  mov edi,[DSvaddr4]
+--                  shl eax,2
+--                  mov [ebx+edi*4+12],eax
+                []
+                  }
+            mem_copy(DSvaddr+24,DSvaddr+20,DSvsize-24)
+        end if
 
         -- for isIL, we must do them all in one go, before calling blurph()
         for v=1 to length(s5sets) do
@@ -4878,7 +4079,6 @@ end if
             -- from the .exe, when interpreting we must calculate CSvsize 
             -- first and then allocate() it to obtain CSvaddr.
             svil = symtab[symidx][S_il]
---DEV TRAMPOLINE??
             symtab[symidx][S_il] = svil+CSvaddr
         end for
 
@@ -4905,19 +4105,9 @@ end if
 
 --puts(1,"finalfixups2 line 4587\n")
 
---5/10/14: (no longer certain what the 24/8 mods were, I suspect they were to
---          ensure the following section in an ELF file was dword-aligned, in
---          which case there may yet be a problem on 64-bit ELF, but anyway, 
---          disassembly w/could carry on into those 000000 and miss the true
---          end of the code section because it finds two-byte instructions,
---          (ie 0000 -> add byte[e/rax],al), whereas one-byte nops won't.)
----- 24/8/14:
---  CSvsize = floor((CSvsize+3)/4)*4
---
---  code_section = repeat(0,CSvsize)
---  code_section = repeat(0,floor((CSvsize+3)/4)*4)
     code_section = repeat('\0',floor((CSvsize+3)/4)*4)
     for i=CSvsize+1 to length(code_section) do
+        -- (1-byte nops ensure disassembly/listing does not overrun section)
         code_section[i] = #90 -- nop
     end for
 
@@ -4974,10 +4164,6 @@ end if
             dsize = QWORD
         end if
         setds(dslen+5*dsize)        -- symptr
---      setds(maxop)
---      for i=1 to maxop do         -- optable[i] [DEV]
---          setds(0)
---      end for
         if DLL then
             relocations[DATA][DATA] = append(relocations[DATA][DATA],dsidx-1)   -- (qword)
             relptr = dsidx
@@ -5015,7 +4201,10 @@ end if
         and sv[S_State]!=0 then
             nTyp = sv[S_NTyp]
             u = sv[S_State]
+--MARKTYPES
             if nTyp>S_Type      -- types are not properly marked as used... yet.
+--          if nTyp>=S_Func-MARKTYPES
+--          if nTyp>=S_Type
             and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
 --if not show_full_symtab then
 if bind or listing then -- 17/3/15
@@ -5025,7 +4214,6 @@ end if
             else
                 -- link up routines and namespaces for faster scan in routine_id
                 if nTyp>=S_Type then
---if 0 then
                     if v>T_Bin and atom(sv[S_il]) then
 -->erm (30/12/14...)
 --                          if bind and mapsymtab and and_bits(u,K_rtn) then
@@ -5034,7 +4222,6 @@ end if
                         symtab[ridlink][S_Slink] = v
                         ridlink = v
                     end if
---end if
                 elsif nTyp=S_Nspc then
                     if nslink=T_nslink then
                         symtab[T_nslink] = v
@@ -5059,12 +4246,7 @@ end if
                         xi = sv[S_value]
                         if not integer(xi)
                         or and_bits(u,K_noclr+K_rtn) then
---29/12/14: (removed prior to testing; this is "not bind")
---                          if bind and mapsymtab and and_bits(u,K_rtn) then
---                              xi = symtabmap[xi]
---                          end if
                             if X64 then
---                              d_addr = floor(DSvaddr/8)+sv[S_Slink]+2
                                 d_addr = floor(DSvaddr/8)+sv[S_Slink]+3
                                 #ilASM{
                                     [32]
@@ -5081,7 +4263,6 @@ end if
                                     []
                                       }
                             else --32
---                              d_addr = floor(DSvaddr/4)+sv[S_Slink]+3
                                 d_addr = floor(DSvaddr/4)+sv[S_Slink]+4
                                 #ilASM{
                                     [32]
@@ -5137,8 +4318,6 @@ end if
 --puts(1,"finalfixups2 line 4858\n")
 
     if bind then
---if newEmit then
---      relink()
 --23/3/16:
         if gexch!=0 then    -- global exception handler (PE64 only)
             glboffset[gexch] += symtab[glblabel[gexch]][S_il]
@@ -5226,22 +4405,13 @@ end if
 --puts(1,"finalfixups2 line 4940\n")
         DumpSymTab()                                -- the symtab itself
 --puts(1,"finalfixups2 line 5112\n")
---else -- not newEmit
---      relink()
---end if
 
         if DLL then
---DEV CODE
---          setds()
--- no!!, erm, yes!!
             relocations[DATA][REFS] = append(relocations[DATA][REFS],length(data_section))
             appenddsDword(length(data_section)+4)
---          wasdsidx = dsidx
             dsidx = relptr
             setds(length(data_section))
---          dsidx = wasdsidx
             dumpDLLrelocs()
---          relocations[DATA][REFS] = {relptr}
         end if
 
         if not isString(data_section) then ?9/0 end if
@@ -5267,9 +4437,7 @@ end if
 
 --puts(1,"finalfixups2 line 4973\n")
 
---      CreateExecutable(outfn, imports, exports, relocations, data_section, code_section)
 --puts(1,"calling CreateExecutable\n")
---      CreateExecutable(outfn, imports, {}, relocations, data_section, code_section)
         CreateExecutable(outfn, imports, exports, relocations, data_section, code_section)
 --puts(1,"returned from CreateExecutable\n")
 --DEV (for listing)
@@ -5280,18 +4448,13 @@ end if
 --puts(1,"finalfixups2 line 4981\n")
 
     else -- not bind
--- 21/4/15:
---if newEmit then -- ([TEMP] - without this :%opGetST gets an undeclared error)
         #ilASM{
             [32]
                 lea edi,[prevsym]
---DEV needed while p & p7 co-exist:
---              call :%opGetST  -- [edi]:=symtab (see pStack.e)
                 call :!opGetST  -- [edi]:=symtab (see pStack.e)
                 add esp,4
             [64]
                 lea rdi,[prevsym]
---              call :%opGetST  -- [rdi]:=symtab (see pStack.e)
                 call :!opGetST  -- [rdi]:=symtab (see pStack.e)
                 add rsp,8
             []
@@ -5317,12 +4480,12 @@ end if
             if c_func(xVirtualProtect,{CSvaddr,CSvsize,PAGE_EXECUTE_READWRITE,pDword})=0 then ?9/0 end if
         end if
         poke(CSvaddr,code_section)
-ImageBase2 = 0
-BaseOfCode2 = CSvaddr
-SizeOfCode2 = CSvsize
-BaseOfData2 = DSvaddr
-SizeOfData2 = DSvsize
-dsize = 4
+        ImageBase2 = 0
+        BaseOfCode2 = CSvaddr
+        SizeOfCode2 = CSvsize
+        BaseOfData2 = DSvaddr
+        SizeOfData2 = DSvsize
+        dsize = 4
 --printf(1,"BaseOfCode2: %08x\n",{BaseOfCode2})
 --printf(1,"BaseOfData2: %08x\n",{BaseOfData2})
 --printf(1,"ImageBase2: %08x\n",{ImageBase2})
@@ -5330,42 +4493,42 @@ dsize = 4
 
 --puts(1,"finalfixups2 line 5028\n")
 
-if listing then
+    if listing then
         for glidx=1 to length(glblname) do
 svname=glblname[glidx]
             offset = glboffset[glidx]
-if offset=0 and and_bits(glblused[glidx],G_bang) then -- (added 28/10/14)
-            glblabel[glidx] = 0
-else
-            k = glblabel[glidx]
-if k=0 then --DEV newEmit/vm/G_optable
-            if bind then ?9/0 end if
-            thunk = offset
-else
-if bind and mapsymtab then
-            symidx = symtabmap[k]
-else
-            symidx = k
-end if
---          sv = symtab[symidx]
-            sv = symtab[k]
+            if offset=0 and and_bits(glblused[glidx],G_bang) then -- (added 28/10/14)
+                glblabel[glidx] = 0
+            else
+                k = glblabel[glidx]
+                if k=0 then --DEV newEmit/vm/G_optable
+                    if bind then ?9/0 end if
+                    thunk = offset
+                else
+                    if bind and mapsymtab then
+                        symidx = symtabmap[k]
+                    else
+                        symidx = k
+                    end if
+--                  sv = symtab[symidx]
+                    sv = symtab[k]
 if atom(sv) then
     puts(1,"pemit2.e line 5589: error resolving "&svname)
     if getc(0) then end if
     ?9/0
 end if --DEV...
-            if bind then
-                thunk = offset+sv[S_il]+ImageBase2+BaseOfCode2
-            else
-                thunk = offset+sv[S_il]
+                    if bind then
+                        thunk = offset+sv[S_il]+ImageBase2+BaseOfCode2
+                    else
+                        thunk = offset+sv[S_il]
+                    end if
+                end if
+                knownAddr = append(knownAddr,thunk)
+                knownNames = append(knownNames,":"&glblname[glidx])
+                glblabel[glidx] = symidx
             end if
-end if
-            knownAddr = append(knownAddr,thunk)
-            knownNames = append(knownNames,":"&glblname[glidx])
-            glblabel[glidx] = symidx
-end if
         end for
---DEV
+
         for v=1 to symlimit do
             sv = symtab[v]
             if sequence(sv) then
@@ -5374,53 +4537,44 @@ end if
                     svname = sv[S_Name]
                     if sequence(svname) and length(svname)>0 then
                         offset = (sv[S_Slink]+2)*dsize+8
---printf(1,"%s: %08x\n",{sv[S_Name],offset+ImageBase2+BaseOfData2})
---if bind then
---                      knownAddr = append(knownAddr,offset+ImageBase2+BaseOfData2)
                         offset += ImageBase2+BaseOfData2
---else
---                      offset += BaseOfData2
---end if
                         knownAddr = append(knownAddr,offset)
                         knownNames = append(knownNames,svname)
---if svname="errorcount" then
---  printf(1,"knownName %s @ knownAddr #%08x (pemit2.e line 4799)\n",{svname,offset})
---end if
                     end if
                 end if
             end if
         end for
-if bind and mapsymtab then
-        for i=T_maintls to length(symtabmap) do
-            symidx = symtabmap[i]
-            if symidx!=0 then
-                si = symtab[i]
-                if sequence(si) then
-                    symtab[i] = 0
-                    siNTyp = si[S_NTyp]
-                    if siNTyp<=S_TVar then
-                        k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
-                    end if
-                    if siNTyp>S_GVar2 then
-                        k = si[S_Slink]     if k!=0 then si[S_Slink] = symtabmap[k] end if
-                        k = si[S_Nlink]     if k!=0 then si[S_Nlink] = symtabmap[k] end if
-                        if siNTyp>=S_Type then
-                            k = si[S_Parm1] if k!=0 then si[S_Parm1] = symtabmap[k] end if
---20/12/15:
-                            for l=2 to length(si[S_sig]) do
-                                k = si[S_sig][l]    if k!=0 then si[S_sig][l] = symtabmap[k] end if
-                            end for
+        if bind and mapsymtab then
+            for i=T_maintls to length(symtabmap) do
+                symidx = symtabmap[i]
+                if symidx!=0 then
+                    si = symtab[i]
+                    if sequence(si) then
+                        symtab[i] = 0
+                        siNTyp = si[S_NTyp]
+                        if siNTyp<=S_TVar then
+                            k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
                         end if
+                        if siNTyp>S_GVar2 then
+                            k = si[S_Slink]     if k!=0 then si[S_Slink] = symtabmap[k] end if
+                            k = si[S_Nlink]     if k!=0 then si[S_Nlink] = symtabmap[k] end if
+                            if siNTyp>=S_Type then
+                                k = si[S_Parm1] if k!=0 then si[S_Parm1] = symtabmap[k] end if
+--20/12/15:
+                              for l=2 to length(si[S_sig]) do
+                                k = si[S_sig][l]    if k!=0 then si[S_sig][l] = symtabmap[k] end if
+                              end for
+                            end if
+                        end if
+                        symtab[symidx] = si
                     end if
-                    symtab[symidx] = si
                 end if
-            end if
-        end for
-        symtab = symtab[1..symtabmax]
-        symlimit = symtabmax
-end if
+            end for
+            symtab = symtab[1..symtabmax]
+            symlimit = symtabmax
+        end if
 
-end if -- listing
+    end if -- listing
 --puts(1,"finalfixups2 ended\n")
 end procedure
 

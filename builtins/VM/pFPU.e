@@ -44,7 +44,8 @@ end procedure -- (for Edita/CtrlQ)
 --*/
 --DEV opCallOnceYeNot
 --#ilASM{ jmp :%opRetf
-#ilASM{ jmp :fin
+--#ilASM{ jmp :fin
+#ilASM{ jmp :!opCallOnceYeNot
 
 --/*
 procedure :>initFPU(:>)
@@ -183,5 +184,5 @@ end procedure -- (for Edita/CtrlQ)
         fldcw word[trunc64]
         ret
 
-    ::fin
+--  ::fin
       }

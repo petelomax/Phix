@@ -1,0 +1,77 @@
+--
+-- demo\rosetta\IQpuzzle.exw
+-- =========================
+--
+--  Twee brute-force string-based solution. 
+--  Backtracks a mere 366 times, whereas starting with the 5th peg missing backtracks 19388 times.
+--
+--!/*
+constant moves = {-11,-9,2,11,9,-2}
+function solve(string board, integer left)
+    if left=1 then return "" end if
+    for i=1 to length(board) do
+        if board[i]='1' then
+            for j=1 to length(moves) do
+                integer mj = moves[j], over = i+mj, tgt = i+2*mj
+                if tgt>=1 and tgt<=length(board) 
+                and board[tgt]='0' and board[over]='1' then
+                    {board[i],board[over],board[tgt]} = "001"
+                    string res = solve(board,left-1)
+                    if length(res)!=4 then return board&res end if
+                    {board[i],board[over],board[tgt]} = "110"
+                end if
+            end for
+        end if
+    end for
+    return "oops"
+end function
+ 
+sequence start = """
+----0----
+---1-1---
+--1-1-1--
+-1-1-1-1-
+1-1-1-1-1
+"""
+puts(1,substitute(join_by(split(start&solve(start,14),'\n'),5,7),"-"," "))
+--!*/
+
+--/*
+--Adapted to the English game:
+constant moves = {-2,15,2,-15}
+function solve(string board, integer left)
+    if left=1 then
+--      return ""   -- (leaves it on the edge)
+        if board[3*15+8]='.' then return "" end if
+        return "oops"
+    end if
+    for i=1 to length(board) do
+        if board[i]='.' then
+            for j=1 to length(moves) do
+                integer mj = moves[j], over = i+mj, tgt = i+2*mj
+                if tgt>=1 and tgt<=length(board) 
+                and board[tgt]='o' and board[over]='.' then
+                    {board[i],board[over],board[tgt]} = "oo."
+                    string res = solve(board,left-1)
+                    if length(res)!=4 then return board&res end if
+                    {board[i],board[over],board[tgt]} = "..o"
+                end if
+            end for
+        end if
+    end for
+    return "oops"
+end function
+ 
+sequence start = """
+-----.-.-.----
+-----.-.-.----
+-.-.-.-.-.-.-.
+-.-.-.-o-.-.-.
+-.-.-.-.-.-.-.
+-----.-.-.----
+-----.-.-.----
+"""
+puts(1,substitute(join_by(split(start&solve(start,32),'\n'),7,8),"-"," "))
+--*/
+
+{} = wait_key()

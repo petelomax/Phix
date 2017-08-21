@@ -5,7 +5,8 @@
 --  Author: Pete Lomax 28/3/2017
 --
 
-constant XQS = 01  -- (set to 1 to exclude quick_sort and shell_sort from ones)
+--constant XQS = 01  -- (set to 1 to exclude quick_sort and shell_sort from ones)
+constant XQS = 01  -- (set to 1 to exclude shell_sort from ones)
 
 --#withtype Ihandle
 --#withtype Ihandles
@@ -91,30 +92,34 @@ sequence left = {}, right = {}
     if n<2 then
         return x    -- already sorted (trivial case)
     end if
- 
+
     mid = floor((n+1)/2)
     midval = x[mid]
     x[mid] = x[1]
     midn = 1
- 
+
     for i=2 to n do
         xi = x[i]
         c = compare(xi,midval)
         if c<0 then
-            left &= xi
+--          left &= xi
+            left = append(left,xi)
         elsif c>0 then
-            right &= xi
+--          right &= xi
+            right = append(right,xi)
         else
             midn += 1
         end if
     end for
- 
+
     return quick_sort2(left) & repeat(midval,midn) & quick_sort2(right)
 end function
 
 function quick_sort(sequence s)
 sequence qstack
-integer first, last, stackptr, I, J, tmp, pivot
+integer first, last, stackptr, I, J
+--object tmp, pivot
+object pivot, si, sj
 
     qstack = repeat(0,floor((length(s)/5)+10))    -- create a stack
 
@@ -127,17 +132,31 @@ integer first, last, stackptr, I, J, tmp, pivot
             I = first
             J = last
             while 1 do
-                while s[I]<pivot do
+--              while s[I]<pivot do
+                while 1 do
+                    si = s[I]
+                    if si>=pivot then exit end if
                     I += 1
                 end while
-                while s[J]>pivot do
+--              while s[J]>pivot do
+                while 1 do
+                    sj = s[J]
+                    if sj<=pivot then exit end if
                     J -= 1
                 end while
                 if I>J then exit end if
                 if I<J then
-                    tmp = s[I]
-                    s[I] = s[J]
-                    s[J] = tmp
+                    -- added 6/8/17:
+--                  if s[I]=s[J] then
+                    if si=sj then
+                        {I,J} = {J+1,I-1}
+                        exit
+                    end if
+--                  tmp = s[I]
+--                  s[I] = s[J]
+--                  s[J] = tmp
+                    s[I] = sj
+                    s[J] = si
                 end if
                 I += 1
                 J -= 1
@@ -192,6 +211,7 @@ sequence buckets = {{},{}}
 end function
 
 function radix_sort(sequence s)
+-- NB this is an integer-only sort
 integer mins = min(s)
 integer passes = max(max(s),abs(mins))
     passes = floor(log10(passes))+1
@@ -224,38 +244,127 @@ object temp
     return s
 end function
 
-function shell_sort2(sequence x)
-integer gap, j, first, last
-object xi, xj
+-- same as standard sort
+--function shell_sort2(sequence x)
+--integer gap, j, first, last
+--object xi, xj
+--
+--  last = length(x)
+--  gap = floor(last/10)+1
+--  while TRUE do
+--      first = gap+1
+--      for i=first to last do
+--          xi = x[i]
+--          j = i-gap
+--          while TRUE do
+--              xj = x[j]
+--              if xi>=xj then
+--                  j += gap
+--                  exit
+--              end if
+--              x[j+gap] = xj
+--              if j<=gap then
+--                  exit
+--              end if
+--              j -= gap
+--          end while
+--          x[j] = xi
+--      end for
+--      if gap=1 then
+--          return x
+--      else
+--          gap = floor(gap/3.5)+1
+--      end if
+--  end while
+--end function
 
-    last = length(x)
-    gap = floor(last/10)+1
-    while TRUE do
-        first = gap+1
-        for i=first to last do
-            xi = x[i]
-            j = i-gap
-            while TRUE do
-                xj = x[j]
-                if xi>=xj then
-                    j += gap
-                    exit
+function insertion_sortXX(sequence x) -- insertion sort on steroids
+object temp
+integer ipos, hi, mid
+
+-- loop along UNsorted list
+    for i=2 to length(x) do
+
+        -- get the first element in the unsorted section
+        temp = x[i]
+
+        ipos = 1 -- start of sorted section
+        hi = i-1 -- end of sorted section
+
+        -- find the insertion point
+
+        -- binary search?
+        if i>15 then
+            while ipos<=hi do -- starts at top of sorted list and go to the bottom
+                mid = floor((ipos+hi)/2)
+--              if compare(temp, x[mid])<0 then
+--              if kompare(temp, x[mid])<0 then
+                if temp<x[mid] then
+                    hi = mid-1
+                else
+                    ipos = mid+1
                 end if
-                x[j+gap] = xj
-                if j<=gap then
-                    exit
-                end if
-                j -= gap
             end while
-            x[j] = xi
-        end for
-        if gap=1 then
-            return x
+
+        -- linear search?
         else
-            gap = floor(gap/3.5)+1
+            while hi do
+--              if compare(temp, x[hi])>=0 then
+--              if kompare(temp, x[hi])>=0 then
+                if temp>=x[hi] then
+                    ipos = hi+1
+                    exit
+                end if
+                hi -= 1
+            end while
+
+        end if
+
+        -- shuffle & insert, but only if needed
+        if ipos<i then
+            x[ipos+1..i] = x[ipos..i-1]
+            x[ipos] = temp
+        end if
+
+    end for
+
+    -- exit
+    return x
+
+end function
+
+function merge_sort(sequence x)
+-- put x into ascending order using a recursive merge sort
+integer n = length(x), midpoint = floor(n/2)
+sequence merged, a, b
+--  if n<=1 then return x end if     -- trivial case
+    -- fast sort for small sequences
+    if n<=100 then
+        return insertion_sortXX(x)
+    end if
+    a = merge_sort(x[1..midpoint])   -- sort first half of x
+    b = merge_sort(x[midpoint+1..n]) -- sort second half of x
+    -- merge the two sorted halves into one
+    merged = {}
+    while length(a)>0 and length(b)>0 do
+        if a[1]<b[1] then
+            merged = append(merged, a[1])
+            a = a[2..$]
+        else
+            merged = append(merged, b[1])
+            b = b[2..$]
         end if
     end while
+--  return merged & a & b   -- merged data plus any leftovers
+    if length(a) then
+        merged &= a
+    end if
+    if length(b) then
+        merged &= b
+    end if
+    return merged
 end function
+
 
 function siftDown(sequence arr, integer s, integer last)
 integer root = s
@@ -295,6 +404,114 @@ integer last = length(arr)
     return arr
 end function
 
+enum SPLIT, MERGE
+
+function pihism_sort(sequence x)
+--
+-- Pete's Iterative Half-In-Situ Merge Sort.
+--
+integer first = 1, mid, last = length(x), adx = 0,
+        op = SPLIT, 
+        qslen = 2*ceil(log(last)/log(2)+1),
+        qdx=0
+sequence qsop = repeat(0,qslen),
+         qsf = repeat(0,qslen),
+         qsm = repeat(0,qslen),
+         qsl = repeat(0,qslen),
+         a = {}
+object ai, xmid
+
+    while 1 do  -- until qstack is empty
+
+        if op=SPLIT then
+            --
+            -- just push further split/merge pairs onto the stack...
+            --
+            while first<last do
+--maybe?: 
+--              if last-first<=100 then 
+--                  x[first..last] = insertion_sortXX(x[first..last]) 
+--                  exit 
+--              end if 
+                mid = floor((first+last)/2)
+                qdx += 1 
+                qsop[qdx] = MERGE
+                qsf[qdx] = first
+                qsm[qdx] = mid
+                qsl[qdx] = last
+                if mid+1<last then
+                    qdx += 1
+                    qsop[qdx] = SPLIT
+                    qsf[qdx] = mid+1
+                    qsl[qdx] = last
+                end if
+                if first=mid then exit end if
+                last = mid
+            end while
+
+        else -- op=MERGE                            
+            --
+            -- first, leave any parts of the first half already in place.
+            --
+            mid += 1
+            xmid = x[mid]
+            while first<mid and x[first]<=xmid do
+--          while first<mid do
+--              ai = x[first]
+--              if ai>xmid then
+--                  x[first] = xmid
+--                  first += 1
+--                  mid += 1
+--                  if mid<=last then
+--                      xmid = x[mid]
+--                  end if
+--                  exit
+--              end if
+                first += 1
+            end while
+            --
+            -- then merge until the first half is empty.
+            -- any remainder of the second half will already be in place.
+            --
+            if first<mid then
+                a = x[first..mid-1]
+                ai = a[1]
+                adx = 1
+----if mid-1>first+1 then
+--              a = x[first+1..mid-1]
+--              adx = 0
+----end if
+----                ai = x[first]
+                while 1 do
+                    if mid>last
+                    or compare(ai,xmid)<=0 then
+                        x[first] = ai
+                        first += 1
+                        adx += 1
+                        if adx>length(a) then exit end if
+                        ai = a[adx]
+                    else
+                        x[first] = xmid
+                        first += 1
+                        mid += 1
+                        if mid<=last then
+                            xmid = x[mid]
+                        end if
+                    end if
+                end while
+            end if
+        end if
+        if qdx=0 then exit end if
+        op = qsop[qdx]
+        first = qsf[qdx]
+        mid = qsm[qdx]
+        last = qsl[qdx]
+        qdx -= 1
+    end while
+    return x
+end function
+
+
 include builtins/sort.e
 
 enum ONES = 1, SORTED = 2, RANDOM = 3, REVERSE = 4
@@ -308,27 +525,62 @@ function tr(sequence name, integer rid=routine_id(name))
     return {name,rid}
 end function
 
-constant tests = {--tr("bubble_sort"),
-                  --tr("insertion_sort"),
-                  tr("quick_sort"),
-                  tr("quick_sort2"),
---                tr("qsort"),
-                  tr("radix_sort"),
-                  tr("shell_sort"),
-                  tr("shell_sort2"),
-                  tr("heap_sort"),
-                  tr("sort"),           -- builtin
-                 }
+--constant tests = {--tr("bubble_sort"),
+constant {testnames,testids} = columnize({--tr("bubble_sort"),
+                                          --tr("insertion_sort"),
+                                          tr("quick_sort"),
+                                          tr("quick_sort2"),
+--                                        tr("qsort"),
+--                                        tr("radix_sort"),
+                                          tr("shell_sort"),
+--                                        tr("shell_sort2"),
+                                          tr("merge_sort"),
+                                          tr("heap_sort"),
+                                          tr("pihism_sort"),
+                                          tr("sort"),           -- builtin
+                                         })
+--DEV/tmp
+{} = routine_id("radix_sort")
 
-sequence results = repeat(repeat({}, length(tests)),length(tabtitles))
+sequence results = repeat(repeat({}, length(testnames)),length(tabtitles))
 
-sequence dsdx = repeat(repeat(0,length(tests)),length(tabtitles))
+sequence dsdx = repeat(repeat(0,length(testnames)),length(tabtitles))
 
 integer ds_index
 
+function tagsetn(integer len, integer bestt)
+sequence res = repeat(0,len)
+    for i=1 to len do
+--      res[i] = {i}
+--      res[i] = {repeat('X',10),iff(i=1?0:res[i-1][3..4]),i*PI,i}
+        if bestt=ONES then
+            res[i] = {1,i}
+        else
+            res[i] = {i,i}
+        end if
+    end for
+    res = tagset(len)&
+          { {2, 6},
+            {1, 2},
+            {1, 1},
+            {2, 7},
+            {2, 8},
+            {1, 3},
+            {1, 4},
+            {2, 9},
+            {1, 5},
+            {2, 10} }
+
+    if bestt=RANDOM then res = shuffle(res)
+    elsif bestt=REVERSE then res = reverse(sort(res))
+    elsif bestt=SORTED then res = sort(res)
+    end if
+    return res
+end function
+
 function idle_action_cb()
 atom best = -1, -- fastest last
-     besti = 0, -- 1..length(tests) 
+     besti = 0, -- 1..length(testnames) 
      bestt = 0, -- 1..length(tabtitles)
      len
 sequence todo
@@ -362,25 +614,151 @@ sequence todo
         if (t=1) and (besti!=0) then exit end if
     end for
     if best>10 then
+--  if best>1000 then
         -- cop out if it is getting too slow
+        ?"cop out"
         besti = 0
     end if
     if besti!=0 then
-        STEP = iff(not XQS and bestt=ONES?1000:100000)
+--      STEP = iff(not XQS and bestt=ONES?1000:100000)
+        STEP = iff(bestt=ONES?iff(not XQS?1000:100000-0):100000)
+--?{"STEP",STEP}
         len = (length(results[bestt][besti])+1)*STEP
-        sequence test = iff(bestt=ONES?repeat(1,len):
-                        iff(bestt=SORTED?tagset(len):
-                        iff(bestt=RANDOM?shuffle(tagset(len)):
-                        iff(bestt=REVERSE?reverse(tagset(len)):9/0))))
+--      sequence test = iff(bestt=ONES?repeat(1,len):
+--                      iff(bestt=SORTED?tagset(len):
+--                      iff(bestt=RANDOM?shuffle(tagset(len)):
+--                      iff(bestt=REVERSE?reverse(tagset(len)):9/0))))
+--      sequence test = iff(bestt=ONES?repeat({1,2,3,4},len):
+--                      iff(bestt=SORTED?tagsetn(len):
+--                      iff(bestt=RANDOM?shuffle(tagsetn(len)):
+--                      iff(bestt=REVERSE?reverse(tagsetn(len)):9/0))))
+        sequence test = tagsetn(len,bestt)
+
         ds_index = dsdx[bestt][besti]
         atom t0 = time()
-        sequence check = call_func(tests[besti][2],{test})
+        sequence check = call_func(testids[besti],{test})
         t0 = time()-t0
 --      if check!=sort(test) then ?9/0 end if
         plot = plots[bestt]
         IupPlotInsert(plot, ds_index, -1, len, t0)
         results[bestt][besti] = append(results[bestt][besti],t0)
         IupSetAttribute(plot,"REDRAW",NULL)
+--bugfix...
+--/*
+        atom ymax = IupGetFloat(plot,"AXS_YMAX")
+        if t0>ymax then
+            IupSetAttribute(plot,"AXS_YAUTOMAX","NO")
+            IupSetFloat(plot,"AXS_YMAX",t0)
+            IupSetAttribute(plot,"REDRAW",NULL)
+        end if
+--*/
+--/*
+if bestt=1 and length(results[bestt][besti])=8 then
+--if bestt=1 then
+    ?{besti,results[bestt][besti]}
+?{{IupGetFloat(plot,"AXS_YMAX"),t0}}
+--/*
+
+{1,{0}}
+{{0,0}}
+{2,{0}}
+{{0,0}}
+{3,{0}}
+{{0,0}}
+{5,{0.016}}
+{{0,0.016}}     -- hmm
+{6,{0.016}}
+{{0,0.016}}
+{7,{0.016}}
+{{0,0.016}}
+{1,{0,0}}
+{{0.1000000015,0}}  -- ???
+{1,{0,0,0}}
+{{0.1000000015,0}}
+{1,{0,0,0,0}}
+{{0.1000000015,0}}
+{1,{0,0,0,0,0}}
+{{0.1000000015,0}}
+{1,{0,0,0,0,0,0}}
+{{0.1000000015,0}}
+{1,{0,0,0,0,0,0,0}}
+{{0.1000000015,0}}
+{1,{0,0,0,0,0,0,0,0}}
+{{0.1000000015,0}}
+{2,{0,0}}
+{{0.1000000015,0}}
+{2,{0,0,0}}
+{{0.1000000015,0}}
+{2,{0,0,0,0.016}}
+{{0.01600000076,0.016}}     -- (that's better!)
+{3,{0,0.016}}
+{{0.01600000076,0.016}}
+{3,{0,0.016,0.032}}
+{{0.03200000152,0.032}}     -- (that's better!)
+{5,{0.016,0.047}}
+{{0.03200000152,0.047}}     -- hmm
+{6,{0.016,0.047}}
+{{0.03200000152,0.047}}     -- hmm
+{2,{0,0,0,0.016,0}}
+{{0.03200000152,0}}
+{2,{0,0,0,0.016,0,0.016}}
+{{0.03200000152,0.016}}
+{2,{0,0,0,0.016,0,0.016,0.016}}
+{{0.03200000152,0.016}}
+{2,{0,0,0,0.016,0,0.016,0.016,0.016}}
+{{0.03200000152,0.016}}
+{7,{0.016,0.047}}
+{{0.03200000152,0.047}}
+{3,{0,0.016,0.032,0.015}}
+{{0.03200000152,0.015}}
+{3,{0,0.016,0.032,0.015,0.031}}
+{{0.03200000152,0.031}}
+{3,{0,0.016,0.032,0.015,0.031,0.031}}
+{{0.03200000152,0.031}}
+{3,{0,0.016,0.032,0.015,0.031,0.031,0.047}}
+{{0.04699999839,0.047}}                             -- bingo!
+{3,{0,0.016,0.032,0.015,0.031,0.031,0.047,0.062}}
+{{0.06199999899,0.062}}                             -- ""
+{5,{0.016,0.047,0.047}}
+{{0.06199999899,0.047}}
+{5,{0.016,0.047,0.047,0.078}}
+{{0.06199999899,0.078}}
+{6,{0.016,0.047,0.062}}
+{{0.06199999899,0.062}}
+{7,{0.016,0.047,0.063}}
+{{0.06199999899,0.063}}
+{6,{0.016,0.047,0.062,0.079}}
+{{0.06199999899,0.079}}
+{7,{0.016,0.047,0.063,0.078}}
+{{0.06199999899,0.078}}
+{5,{0.016,0.047,0.047,0.078,0.093}}
+{{0.06199999899,0.093}}
+{7,{0.016,0.047,0.063,0.078,0.109}}
+{{0.06199999899,0.109}}
+{6,{0.016,0.047,0.062,0.079,0.094}}
+{{0.06199999899,0.094}}
+{5,{0.016,0.047,0.047,0.078,0.093,0.11}}
+{{0.06199999899,0.11}}
+{6,{0.016,0.047,0.062,0.079,0.094,0.109}}
+{{0.06199999899,0.109}}
+{6,{0.016,0.047,0.062,0.079,0.094,0.109,0.125}}
+{{0.06199999899,0.125}}
+{7,{0.016,0.047,0.063,0.078,0.109,0.125}}
+{{0.06199999899,0.125}}
+{5,{0.016,0.047,0.047,0.078,0.093,0.11,0.141}}
+{{0.06199999899,0.141}}
+{6,{0.016,0.047,0.062,0.079,0.094,0.109,0.125,0.14}}
+{{0.06199999899,0.14}}
+{7,{0.016,0.047,0.063,0.078,0.109,0.125,0.156}}
+{{0.06199999899,0.156}}
+{5,{0.016,0.047,0.047,0.078,0.093,0.11,0.141,0.156}}
+{{0.06199999899,0.156}}
+{7,{0.016,0.047,0.063,0.078,0.109,0.125,0.156,0.187}}
+{{0.06199999899,0.187}}
+
+--*/
+end if
+--*/
         sequence progress = {bestt}
         for i=1 to length(results[bestt]) do
             progress &= length(results[bestt][i])
@@ -406,15 +784,20 @@ function esc_close(Ihandle /*ih*/, atom c)
     return IUP_CONTINUE
 end function
 
+--DS_COLOR  color of the current dataset. 
+--Default is dynamically set from the list "255 0 0", "0 255 0", "0 0 255", "0 255 255", "255 0 255", "255 255 0", "128 0 0", "0 128 0", "0 0 128", "0 128 128", "128 0 128", "128 128 0". 
+--So I made a copy of that list:
+--sequence dsc = {"255 0 0", "0 255 0", "0 0 255", "0 255 255", "255 0 255", "255 255 0", "128 0 0", "0 128 0", "0 0 128", "0 128 128", "128 0 128", "128 128 0"}
+-- yellow ("255 255 0") too hard to read on a white background:              (^^^^^^^^^)
+--sequence dsc = {"255 0 0", "0 255 0", "0 0 255", "0 255 255", "255 0 255", "128 0 0", "0 128 0", "0 0 128", "0 128 128", "128 0 128", "128 128 0"}
+-- ditto bright green ("0 255 0",^) and cyan("0 255 255",^):
+sequence dsc = {"255 0 0", "0 0 255", "255 0 255", "128 0 0", "0 128 0", "0 0 128", "0 128 128", "128 0 128", "128 128 0"}
+
 procedure main()
     IupOpen(join_path({"..","pGUI"},1))
 
     plots = {}
     for i=1 to length(tabtitles) do
-        if XQS then
---          results[ONES][1] = repeat(0,8)
-            results[ONES][4] = repeat(0,8)
-        end if
         plot = IupPlot()
         IupSetAttribute(plot,"MENUITEMPROPERTIES","YES")
         IupSetAttribute(plot,"TABTITLE",tabtitles[i])
@@ -425,13 +808,24 @@ procedure main()
         IupSetAttribute(plot,"LEGENDPOS","TOPLEFT")
 --      IupSetAttribute(plot,"AXS_YSCALE","LOG10")
 --      IupSetAttribute(plot,"AXS_XSCALE","LOG10")
-        for j=1 to length(tests) do
+        for j=1 to length(testnames) do
             IupPlotBegin(plot)
             dsdx[i][j] = IupPlotEnd(plot)
-            IupSetAttribute(plot,"DS_NAME",tests[j][1])
+            IupSetAttribute(plot,"DS_NAME",testnames[j])
+            IupSetAttribute(plot,"DS_COLOR",dsc[j])
         end for
         plots = append(plots,plot)
     end for
+    if XQS then
+--      results[ONES][1] = repeat(0,8)
+        integer shell = find("shell_sort",testnames)
+        results[ONES][shell] = repeat(0,8)
+        -- bugfix: IupPlotInsert on sets 5..7 not updating AXS_YMAX when dataset4 is empty
+        plot = plots[ONES]
+--      ds_index = dsdx[ONES][4]
+        ds_index = dsdx[ONES][shell]
+        IupPlotInsert(plot, ds_index, -1, 100000, 0)
+    end if
     tabs = IupTabs(plots)
     IupSetCallback(tabs, "TABCHANGE_CB", Icallback("tabchange_cb"))
     dlg = IupDialog(tabs)

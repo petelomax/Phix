@@ -13,7 +13,8 @@
 
 include builtins\VM\pFPU.e
 
-#ilASM{ jmp :%opRetf
+--#ilASM{ jmp :%opRetf
+#ilASM{ jmp :!opCallOnceYeNot
 
 --DEV FIXME: (and the :!bang labels below)
     ::e05sinaae06

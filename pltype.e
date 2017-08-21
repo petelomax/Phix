@@ -643,7 +643,6 @@ global procedure ltAdd(integer flag, integer v, integer ptyp, integer ntyp, inte
 --          (and in this latter case pilx86 may set Lmin=Lmax=1)
 --
 integer ldx
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -755,7 +754,6 @@ global function getLocal(integer vno)
 --   sets Ltype,Lmin,Lmax,Letyp,Lslen and returns 1
 integer ldx
 sequence sv
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -847,7 +845,6 @@ integer lv, flag, undo, sNtyp, mask, ptyp, ntyp, rtyp, etyp
 object ginfo
 sequence sv     -- copy of symtab[vno]
 
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1243,7 +1240,6 @@ integer opcode,
 
 sequence optxt
 
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1584,7 +1580,6 @@ global procedure ltCtrl(integer s5idx)
 --
 integer stmt, hingeldx, topldx, topidx, ctnrldx, prev, k, lidx
 
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1752,7 +1747,6 @@ end procedure
 global procedure ltlooptop(integer s5idx)
 integer lmask, gmask
 
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1802,7 +1796,6 @@ global procedure ltskip(integer s5idx, integer waspc)
 --
 integer lidx, endidx, stmt, endstmt, anymod
 
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if
@@ -1885,7 +1878,6 @@ global procedure ltclear(integer rtnidx)
 --   negative numbers indicating an end of routine.)
 integer lvlen, vno, flag
 
-    if LTBROKEN then ?9/0 end if
     if NOLT then
         if not bind and not lint then ?9/0 end if
     end if

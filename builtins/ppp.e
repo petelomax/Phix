@@ -280,6 +280,10 @@ end procedure
 --integer dieonceonly
 --      dieonceonly=1
 
+--/*
+constant M_WAIT_KEY = 26
+--*/
+
 procedure sput(object txt)
 --
 -- bundle "puts(1," calls together for output one line at a time.
@@ -304,8 +308,8 @@ integer p
         if ppp_File=1 and ppp_Pause then
             sline += 1+(plen>ppp_Maxlen)
             if sline>=ppp_Pause then
---/**/          if wait_key() then end if           --/*    -- Phix
-                if machine_func(26,0) then end if   --      -- RDS --*/
+--/**/          if wait_key() then end if                   --/*    -- Phix
+                if machine_func(M_WAIT_KEY,0) then end if   --      -- RDS --*/
                 sline = 0
             end if
         end if

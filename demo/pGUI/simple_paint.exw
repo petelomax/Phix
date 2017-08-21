@@ -311,7 +311,8 @@ end function
 
 procedure show_error(string message, integer is_error)
 Ihandle mdlg = IupMessageDlg()
-    IupSetStrAttribute(mdlg, "PARENTDIALOG", dlg)
+--  IupSetStrAttribute(mdlg, "PARENTDIALOG", dlg)
+    IupSetAttributeHandle(mdlg, "PARENTDIALOG", dlg)
     IupSetAttribute(mdlg, "DIALOGTYPE", iff(is_error ? "ERROR" : "WARNING"))
     IupSetAttribute(mdlg, "BUTTONS", "OK")
     IupSetStrAttribute(mdlg, "TITLE", iff(is_error ? "Error" : "Warning"))
@@ -322,13 +323,13 @@ end procedure
 
 procedure show_file_error(integer error)
     switch error do
-        case IM_ERR_OPEN:   show_error("Error Opening File.", 1)
+        case IM_ERR_OPEN:       show_error("Error Opening File.", 1)
         case IM_ERR_MEM:        show_error("Insufficient memory.", 1)
-        case IM_ERR_ACCESS: show_error("Error Accessing File.", 1)
-        case IM_ERR_DATA:   show_error("Image type not Supported.", 1)
-        case IM_ERR_FORMAT: show_error("Invalid Format.", 1)
-        case IM_ERR_COMPRESS: show_error("Invalid or unsupported compression.", 1)
-      default:              show_error("Unknown Error.", 1)
+        case IM_ERR_ACCESS:     show_error("Error Accessing File.", 1)
+        case IM_ERR_DATA:       show_error("Image type not Supported.", 1)
+        case IM_ERR_FORMAT:     show_error("Invalid Format.", 1)
+        case IM_ERR_COMPRESS:   show_error("Invalid or unsupported compression.", 1)
+      default:                  show_error("Unknown Error.", 1)
     end switch
 end procedure
 
@@ -1254,7 +1255,7 @@ function item_new_action_cb(Ihandle /*item_new*/)
         if res[$] then
             {width, height} = res
             imImage image = imImageCreate(width, height, IM_RGB, IM_BYTE)
-            if image!=NULL then
+            if image=NULL then
                 show_file_error(IM_ERR_MEM)
                 return IUP_DEFAULT
             end if

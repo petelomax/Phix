@@ -44,10 +44,11 @@ global function active_ch()
 end function
 
 --/* Not required for Phix (defined in pfileioN.e)
+constant M_WAIT_KEY = 26
 global function wait_key()
 -- Get the next key pressed by the user.
 -- Wait until a key is pressed.
-      return machine_func(26, 0)
+      return machine_func(M_WAIT_KEY, 0)
 end function
 --*/
 

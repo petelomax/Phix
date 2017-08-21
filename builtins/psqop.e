@@ -560,7 +560,10 @@ end function
 global function sq_rand(object a)
     if atom(a) then return rand(a) end if
     for i=1 to length(a) do
-        a[i] = sq_rand(a[i])
+--      a[i] = sq_rand(a[i])
+        object ai = a[i]
+        ai = iff(atom(ai)?rand(ai):sq_rand(ai))
+        a[i] = ai
     end for
     return a
 end function

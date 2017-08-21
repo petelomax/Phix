@@ -4,7 +4,7 @@
 --
 --global integer Z_ridN = 0 -- DEV/temp (pilasm.e/pemit2.e
 
---DEV
+--DEV - time for this one to go...
 --global constant newEmit = 0
 global integer newEmit
                newEmit = 01
@@ -54,13 +54,6 @@ global constant scramble=0 -- Makes reverse engineering an exe to source much mo
                             -- measures also exist in the asm back end.
 
 global constant NOLT=0      -- if 1, suppress all pltype.e handling [DEV]
-
-global constant SETLTBROKEN=0
---DEV temp/fixme (also set twice in pmain.e/compile)
---DEV minor slipup: should be set (here and) in DoFormat!!
---global constant LTBROKEN = platform()=LINUX and machine_bits()=64
-global integer LTBROKEN = SETLTBROKEN and platform()=LINUX and machine_bits()=64    -- (nb overidden with PE=0 and X64=1)
---global integer LTBROKEN = platform()=LINUX and machine_bits()=64  -- (nb overidden with PE=0 and X64=1 in pmain.e/DoFormat())
 
 -- I added this when working on t02, to see just how much could be optimised away...
 global constant reusetmps = 01  -- (0 causes 12.5-25% performance loss as things stand)

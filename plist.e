@@ -1017,8 +1017,15 @@ string file1
 
 --if newEmit then
     -- **DO NOT DELETE** The next line can be extremely useful when diagnosing listing file problems.
-    printf(listfn,";; ImageBase2=#%08x, BaseOfCode2=#%08x, SizeOfCode2=#%08x, BaseOfData2=#%08x, SizeOfData2=#%08x\n",
-              {ImageBase2,BaseOfCode2,SizeOfCode2,BaseOfData2,SizeOfData2})
+--  printf(listfn,";; ImageBase2=#%08x, BaseOfCode2=#%08x, SizeOfCode2=#%08x, BaseOfData2=#%08x, SizeOfData2=#%08x\n",
+--            {ImageBase2,BaseOfCode2,SizeOfCode2,BaseOfData2,SizeOfData2})
+    printf(listfn,";; ImageBase2=#%08x, BaseOfCode2=#%08x (#%08x), SizeOfCode2=#%08x (limit=#%08x),\n"&
+                  ";;                       BaseOfData2=#%08x (#%08x), SizeOfData2=#%08x (limit=#%08x)\n",
+              {ImageBase2,BaseOfCode2,(ImageBase2+BaseOfCode2),SizeOfCode2,(ImageBase2+BaseOfCode2+SizeOfCode2),
+                          BaseOfData2,(ImageBase2+BaseOfData2),SizeOfData2,(ImageBase2+BaseOfData2+SizeOfData2)})
+--;; ImageBase2=#00400000, BaseOfCode2=#00116000, SizeOfCode2=#000FF5B0, BaseOfData2=#00002000, SizeOfData2=#00113EBC
+--;; ImageBase2=#00400000, BaseOfCode2=#00116000 (#0051600), SizeOfCode2=#000FF5B0 (limit=#005???),
+--;;                         BaseOfData2=#00002000 (#0040200), SizeOfData2=#00113EBC (limit=#00513EBC)
     printf(listfn,";; X64=%d, PE=%d\n",{X64,PE})
 --end if
 
@@ -1213,6 +1220,30 @@ end if
     end for
 
     ctrl = sort(ctrl)
+if NESTEDFUNC then
+    if 0 then
+        puts(1,"\n")
+        for i=1 to length(ctrl) do
+--constant C_Fno = 1,   -- file no (idx to filetab, allfiles, etc) (from symtab[i][S_FPno])
+--       C_lNo = 2,     -- first line number (from symtab[i][S_1stl])
+--       C_sti = 3,     -- symtab index
+--       C_wdb = 4      -- modified K_wdb flag
+--          ?ctrl[i]
+            printf(1,"C_Fno:%d, C_lNo:%d, C_sti:%d, C_wdb:%0x\n",ctrl[i])
+            ?symtab[ctrl[i][C_sti]]
+--/*
+C:\Program Files (x86)\Phix>p p -d! e01
+creating listing file C:\Program Files (x86)\Phix\list.asm...
+C_Fno:1, C_lNo:1, C_sti:21, C_wdb:100
+{-1,        8=PROC,1,#900,0,857,{80},0,0,0,14915648,{-20,0,62,74},1,0}
+C_Fno:1, C_lNo:7, C_sti:857, C_wdb:100
+{"MakeList",7=FUNC,1,#111,0,861,{70,8},858,0,8,14915722,{0,51,-5,54,67,74,146,164,175},7,0,181}
+C_Fno:1, C_lNo:9, C_sti:861, C_wdb:100
+{"MakeItem",7=FUNC,1,#111,0,0,{70},866,0,2,14915897,{-1,0,-1,23,107},9,0,243}
+--*/
+        end for
+    end if
+end if
 
 --puts(1,"\n")
 --k = find(">initFEH",glblname)

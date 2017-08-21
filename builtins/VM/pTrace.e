@@ -1294,13 +1294,14 @@ end procedure
 --integer traceon = 0
 integer needclr = 0
 
-string trace3 = join({
-"                                                                       ",
-"                                                                       ",
-"=== THE END ===                                                        ",
-"                                                                       ",
-"                                                                       ",
-"                                                                       ",},"\r\n")
+string trace3
+--string trace3 = join({
+--"                                                                       ",
+--"                                                                       ",
+--"=== THE END ===                                                        ",
+--"                                                                       ",
+--"                                                                       ",
+--"                                                                       ",},"\r\n")
 integer trace3fn = 0, trace3pos
 
 --function debug(atom fileno, atom line, atom trclvl)
@@ -1466,6 +1467,13 @@ integer fileno
         if trace3fn=0 then
             trace3fn = open("ctrace.out","wb")
             trace3pos = 0
+            trace3 = join({
+"                                                                       ",
+"                                                                       ",
+"=== THE END ===                                                        ",
+"                                                                       ",
+"                                                                       ",
+"                                                                       ",},"\r\n")
         else
             trace3pos += 73
             if trace3pos>505*73 then
@@ -1675,6 +1683,7 @@ end procedure
 --#ilASM{ jmp :fin
 --#ilASM{ jmp :!opCallOnceYeNot (probably not)
 #ilASM{ jmp :%opRetf
+--#ilASM{ jmp :!opCallOnceYeNot
 
 -- DEV: these need to be put in the optable... [DONE]
 
@@ -1872,7 +1881,6 @@ X               mov dword[ebp+16],:clrdbgret
           @@:
             ret
 
---    ::fin }
       }
 --*/
 --!*/

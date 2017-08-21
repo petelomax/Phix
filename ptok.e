@@ -151,6 +151,23 @@ end procedure
 --include builtins\peekstr.e
 --include builtins\pgetpath.e
 
+--DEV no longer quite sure what these do. I think the plan was that in eg:
+--      main.e:
+--          include arwen\arwen.ew
+--          include thing.e
+--      arwen\arwen.ew:
+--          include misc_arwen.e (etc)
+-- Then (obviously) it would look for the sub-include misc_arwen.e in the 
+--  "active" path "arwen\" (which it does), but at EOF of arwen.ew, that 
+--  would become "inactive" (no evidence of that I can find) and it would
+--  NOT look for thing.e in "arwen\" (but it DOES). OK, this is a BUG.
+-- (posted on the bugs forum 18/09/2010, asking for volunteers)
+
+sequence activepaths
+global integer alwaysactive         -- used in stripPathInfo() in pemit.e
+               alwaysactive = 0
+
+
 integer lastPath = 0
 procedure addPath(sequence path)
 --  if not usegpp then
@@ -175,24 +192,9 @@ procedure addPath(sequence path)
     if lastPath=0 then
         filepaths = append(filepaths,path)
         lastPath = length(filepaths)
+        activepaths = append(activepaths,1)
     end if
 end procedure
-
---DEV no longer quite sure what these do. I think the plan was that in eg:
---      main.e:
---          include arwen\arwen.ew
---          include thing.e
---      arwen\arwen.ew:
---          include misc_arwen.e (etc)
--- Then (obviously) it would look for the sub-include misc_arwen.e in the 
---  "active" path "arwen\" (which it does), but at EOF of arwen.ew, that 
---  would become "inactive" (no evidence of that I can find) and it would
---  NOT look for thing.e in "arwen\" (but it DOES). OK, this is a BUG.
--- (posted on the bugs forum 18/09/2010, asking for volunteers)
-
-sequence activepaths
-global integer alwaysactive         -- used in stripPathInfo() in pemit.e
-               alwaysactive = 0
 
 --with trace
 
@@ -208,6 +210,7 @@ procedure initFilePathSet()
 object incpath
 integer semicolon, sm1
     filepaths = {}
+    activepaths = {}
     incpath = getenv("EUDIR")
     if not atom(incpath) then
         incpath = get_proper_path(incpath&SLASH&"include"&SLASH,"")
@@ -247,7 +250,7 @@ integer semicolon, sm1
     addPath(rootpath)
     addPath(mainpath)
     alwaysactive = length(filepaths)
-    activepaths = repeat(1,alwaysactive)
+--  activepaths = repeat(1,alwaysactive)
 --printf(1,"initFilePathSet: ")
 --?activepaths
 end procedure
@@ -428,8 +431,10 @@ end if
         thispath = ""
     else
         for i=length(filepaths) to 1 by -1 do
-            if i<=alwaysactive 
+            if i<=alwaysactive
+--26/7/17: (undone before testing, changed activepaths setup instead...)
             or (activepaths[i] and not autoInclude) then
+--          or (i<=length(activepaths) and activepaths[i] and not autoInclude) then
                 thispath = filepaths[i]
                 fn = open(thispath&file,"rb")
                 if fn!=-1 then exit end if
@@ -1403,6 +1408,18 @@ global procedure skipSpacesAndComments()
                 col = cp3
                 SkipBlockComment()
             else
+--26/7/17:
+--/*
+                integer ipstart = 0
+                if Ch='#' 
+                and length(text)>col+16
+                and text[col..col+15]="--#include_paths"
+                and find(text[col+16]," \t") then
+                                    -- 12345678901234567
+                    cp2 += 15 -- (ie col+17)
+                    ipstart = cp2
+                end if
+--*/
 --19/05/2010:
 --              col = cp3
                 col = cp2
@@ -1410,6 +1427,18 @@ global procedure skipSpacesAndComments()
                     col += 1
                     Ch = text[col]
                 end while
+--/*
+                if ipstart!=0 then
+                    string ip = text[ipstart..col-1]
+                    ipstart = match("--",ip)
+                    if ipstart then
+                        ip = ip[1..ipstart-1]
+                    end if
+                    ip = get_proper_path(trim(ip),"")
+--?{"#include_paths",ip}
+                    addPath(ip)
+                end if
+--*/
                 line += 1
                 while Ch<=' ' do
                     col += 1
@@ -1852,7 +1881,7 @@ forward procedure preprocess()
 
 include builtins\utfconv.e
 
-without trace
+--without trace
 --global procedure getToken()
 --global procedure getToken(bool parse_dot_as_symbol=false)
 -- A parse_dot_as_symbol of true simply means the next token cannot legally be a
@@ -1908,11 +1937,34 @@ global procedure getToken(bool float_valid=false)
                 tokline = line
                 Abort("unexpected end block comment")
             else
+--26/7/17:
+--/*
+                integer ipstart = 0
+                if Ch='#' 
+                and length(text)>col+16
+                and text[col..col+15]="--#include_paths"
+                and find(text[col+16]," \t") then
+                    cp2 += 15 -- (ie col+17)
+                    ipstart = cp2
+                end if
+--*/
                 col = cp2
                 while Ch!='\n' do
                     col += 1
                     Ch = text[col]
                 end while
+--/*
+                if ipstart!=0 then
+                    string ip = text[ipstart..col-1]
+                    ipstart = match("--",ip)
+                    if ipstart then
+                        ip = ip[1..ipstart-1]
+                    end if
+                    ip = get_proper_path(trim(ip),"")
+--?{"#include_paths",ip}
+                    addPath(ip)
+                end if
+--*/
                 while Ch<=' ' do
                     if Ch='\n' then
                         line += 1

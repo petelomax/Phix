@@ -35,6 +35,33 @@ sequence res = ""
     return res
 end function
 
+global function join_by(sequence s, integer step, integer n, object step_pad="   ", object n_pad="\n")
+sequence res = {}
+integer nmax = n
+    while length(s)>=step do
+--  while length(s)>step do     -- (needed for auto-widthwise partial<=step)
+        for i=1 to step do
+            for j=1 to n-1 do
+                if (j+1)*step<=length(s) then
+                    integer jdx = i+j*step
+                    s[i] = join({s[i],s[jdx]},step_pad)
+                elsif nmax=n then
+                    nmax = j
+                end if
+            end for
+        end for
+        res = append(res,join(s[1..step],n_pad)&n_pad)
+        n = nmax
+        s = s[step*n+1..$]
+    end while
+    if length(s) then
+        res = append(res,join(s,n_pad)&n_pad)
+        -- auto-widthwise partial<=step:
+--      res = append(res,join(s,iff(length(s)<=step?step_pad:n_pad))&n_pad)
+    end if
+    return join(res,n_pad)
+end function
+
 global function join_path(sequence path_elements, integer trailsep=0)
 integer SLASH = iff(platform()=WINDOWS?'\\':'/')
 string elem, fname = ""

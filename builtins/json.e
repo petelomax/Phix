@@ -214,7 +214,8 @@ atom tokatm
 procedure SkipSpaces()
     while Ch=' ' 
        or Ch='\t' 
-       or Ch='\n' do
+       or Ch='\n'
+       or Ch='\r' do
         col += 1
         if col>textlen then
             Ch = -1

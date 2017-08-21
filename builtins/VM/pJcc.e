@@ -1672,8 +1672,9 @@ end procedure -- (for Edita/CtrlQ)
       ::JccEp2e92
         mov esi,edx
       ::JccEp3e92
+        pop edx
         mov al,92       -- e92vhnbaav(esi)
-        mov edx,[esp]
+--      mov edx,[esp]
         sub edx,1
         jmp :!iDiag
         int3
@@ -1706,8 +1707,9 @@ end procedure -- (for Edita/CtrlQ)
       ::JccEp2e92
         mov rsi,rdx
       ::JccEp3e92
+        pop rdx
         mov al,92       -- e92vhnbaav(esi)
-        mov rdx,[rsp]
+--      mov rdx,[rsp]
         sub rdx,1
         jmp :!iDiag
         int3

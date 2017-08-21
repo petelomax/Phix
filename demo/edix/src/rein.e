@@ -2212,7 +2212,7 @@ integer wasinexpression
 end procedure
 --rExpression = routine_id("Expression")
 
-integer rBlock
+forward procedure Block()
 
 --with trace
 procedure DoIf()    -- Process an if construct
@@ -2231,7 +2231,7 @@ sequence wasalso
     also = {}
     Match("then")
 --trace(1)
-    call_proc(rBlock,{})
+    Block()
     while equal(token,"elsif") do
         if parser_tokno=1 then Indent(0) end if
         Match("elsif")
@@ -2239,12 +2239,12 @@ sequence wasalso
         Expression()
         indentandor = 0
         Match("then")
-        call_proc(rBlock,{})
+        Block()
     end while
     if equal(token,"else") then
         if parser_tokno=1 then Indent(0) end if
         Match("else")
-        call_proc(rBlock,{})
+        Block()
     end if
     if parser_tokno=1 then Indent(0) end if
 --DEV +adjustments for ifdef? (lots of other places too)
@@ -2268,7 +2268,7 @@ integer wasNest
     Expression()
     indentandor = 0
     Match("do")
-    call_proc(rBlock,{})
+    Block()
     if parser_tokno=1 then Indent(0) end if
     nest = wasNest
     Match("end")
@@ -2318,7 +2318,7 @@ integer wasNest
             getToken(true)
         end if
 --      nest += isTabWidth
-        call_proc(rBlock,{})
+        Block()
 --      nest -= isTabWidth
         if find(token,{"fallthru","fallthrough","break"}) then
             getToken()
@@ -2360,7 +2360,7 @@ integer wasNest
     Match("do")
 --DEV..
 --  nest = wasNest
-    call_proc(rBlock,{})
+    Block()
 --?{tokline,also}
     if parser_tokno=1 then Indent(0) end if
     nest = wasNest
@@ -2516,7 +2516,7 @@ procedure MultiAssignment()
 end procedure
 
 --NB keep Statement() in step with this
-constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i"}
+constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","class"}
 
 --with trace
 procedure DoRoutineDef(integer rType, integer fwd)
@@ -2527,6 +2527,7 @@ sequence sType, tType
     getToken()
 --?{"DoRoutineDef",token}
     tType = token   -- type name
+--?{"DoRoutineDef",token,nest}
     getToken()
     stripleading = 1
     striptrailing = 1
@@ -2626,7 +2627,7 @@ end if
     returnexpr = (rType>1)
 --?{2541,returnexpr,tokline}
 --trace(1)
-    call_proc(rBlock,{})
+    Block()
 --  if undoExtraNest then
 --      undoExtraNest = 0
 --      nest -= isTabWidth
@@ -2644,12 +2645,52 @@ end if
 --?{2558,returnexpr,tokline}
 end procedure
 
+forward function TopLevel()
+
+integer in_class = 0
+
+--DEV/sug...
+procedure DoClass() -- Process a class definition
+integer wasNest = nest
+    if in_class then
+        Abort(xl("classes may not be nested"))
+        return
+    end if
+    in_class = 1
+--  if tokstart>1 or nest or inPend() then
+--      nest += isTabWidth
+--  end if
+    Match("class")
+--?{"class",token,nest}
+    if Ch='<' then
+        getToken()
+        Match("<")
+    end if
+    getToken()
+--  Block()
+    while 1 do
+--type?
+--DEV handle property etc specially... prohibit "normal" code?? (NO! ...erm YEP!)
+        if find(token,{"procedure","function","type"}) then
+            nest += isTabWidth
+        end if
+        if not TopLevel() then exit end if
+        nest = wasNest
+        if token="end" then exit end if
+    end while
+    if parser_tokno=1 then Indent(0) end if
+    nest = wasNest
+    Match("end")
+    Match("class")
+    in_class = 0
+end procedure
+
 procedure Statement()
 integer k
     if toktype = LETTER then
         nestAtStatementStart = nest
---constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i"}
---                           1     2      3        4        5       6       7        8       9   10   11
+--constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","class"}
+--                           1     2      3        4        5       6       7        8       9   10   11    12
         k = find(token,ifforwhileetc)
         if k then
 --1/2/17:
@@ -2666,6 +2707,7 @@ integer k
             elsif k=9 then Abort(xl("unexpected"))
             elsif k=10 then DoQu()
             elsif k=11 then DoIlasmEtc()
+            elsif k=12 then DoClass()
             end if
         else
             if parser_tokno=1 then Indent(isTabWidth) end if
@@ -2749,7 +2791,7 @@ end if
         end if
     end while
 end procedure
-rBlock = routine_id("Block")
+--rBlock = routine_id("Block")
 
 procedure TopDecls()
 integer wasMapEndToMinusOne
@@ -2828,14 +2870,96 @@ integer wasMapEndToMinusOne
     end if
 end procedure
 
+function TopLevel()
+integer fwd = 0
+    if toktype=LETTER then
+        nestAtStatementStart = nest
+        integer t = find(token,{"procedure","function","type"})
+        if t then
+            also = {}
+            if parser_tokno=1 then Indent(0) end if
+            DoRoutineDef(t,fwd)
+            fwd = 0
+            also = {0}
+        elsif equal(token,"constant") then
+            also = {ExpLength(filetext[currfile][CurrLine][1..col-1])}
+            if parser_tokno=1 then Indent(0) end if
+            DoConstant()
+--1/2/17:
+--          if not find(0,also) then also = prepend(also,0) end if
+            also = {0}
+        elsif find(token,{"global","public","export","override","forward"}) then
+            if token="forward" then fwd = 1 end if
+--1/2/17:
+--          also = {}
+            if parser_tokno=1 then Indent(0) end if
+            getToken()  -- otherwise ignore it
+        elsif find(token,{"include","with","without","namespace"}) then
+            also = {}
+            if parser_tokno=1 then Indent(0) end if
+            CurrLine += 1
+            lexer_tokno = 1
+            col = 1
+            SkipSpacesAndComments()
+            getToken()
+            also = {0}
+        else
+            if Ch=':' then skip_namespace() end if
+            t = find(token,vartypes)
+            if not t and not equal(token,"?") then
+                if charClass[Ch]=LETTER
+                and not find(token,ifforwhileetc) then
+                    -- word word (not word =, or word[... etc) /must/ be
+                    --  a variable definition (eg boolean t), not code.
+                    WarnType()
+                    vartypes = append(vartypes,token)
+                    t = length(vartypes)
+                end if
+            end if
+            if t then
+                if parser_tokno=1 then Indent(0) end if
+                also = {ExpLength(filetext[currfile][CurrLine][1..col-1])}
+                TopDecls()
+                if not find(0,also) then
+                    also = prepend(also,0)
+                end if
+            else
+                if ifdefstackidx=0
+                and equal(token,"abort") and Ch='(' then
+                    -- stop processing, and warn if remainder of file
+                    -- is other than just blank lines and comments
+                    for j=CurrLine+1 to length(filetext[currfile]) do
+                        sequence aline = filetext[currfile][j]
+                        while length(aline) and find(aline[1]," \t\r\n") do
+                            aline = aline[2..length(aline)]
+                        end while
+                        if length(aline)!=0 and match("--",aline)!=1 then
+                            Warning("no further lines processed",{})
+                            exit
+                        end if
+                    end for
+                    return false    -- (cease)
+                end if
+                Statement()
+            end if
+        end if
+    elsif toktype=SYMBOL and equal(token,"{") then
+        MultiAssignment()
+    else
+        Abort(xl("invalid"))
+        return false    -- (cease)
+    end if
+    return true     -- (continue)
+end function
+
 --
 -- Part 4. The main control routine.
 --
 
 procedure onclick_GO()
-integer t
-sequence aline
-integer wasmapEndToMinusOne, wascursorY, fwd = 0
+--integer t
+--sequence aline
+integer wasmapEndToMinusOne, wascursorY
 
     clearSelection()    -- added 28/8/09
     wascursorY = CursorY
@@ -2875,83 +2999,7 @@ integer wasmapEndToMinusOne, wascursorY, fwd = 0
     SkipSpacesAndComments()
     getToken()
     while Ch!=-1 do
-        if toktype=LETTER then
-            nestAtStatementStart = nest
-            t = find(token,{"procedure","function","type"})
-            if t then
-                also = {}
-                if parser_tokno=1 then Indent(0) end if
-                DoRoutineDef(t,fwd)
-                fwd = 0
-                also = {0}
-            elsif equal(token,"constant") then
-                also = {ExpLength(filetext[currfile][CurrLine][1..col-1])}
-                if parser_tokno=1 then Indent(0) end if
-                DoConstant()
---1/2/17:
---              if not find(0,also) then also = prepend(also,0) end if
-                also = {0}
-            elsif find(token,{"global","public","export","override","forward"}) then
-                if token="forward" then fwd = 1 end if
---1/2/17:
---              also = {}
-                if parser_tokno=1 then Indent(0) end if
-                getToken()  -- otherwise ignore it
-            elsif find(token,{"include","with","without","namespace"}) then
-                also = {}
-                if parser_tokno=1 then Indent(0) end if
-                CurrLine += 1
-                lexer_tokno = 1
-                col = 1
-                SkipSpacesAndComments()
-                getToken()
-                also = {0}
-            else
-                if Ch=':' then skip_namespace() end if
-                t = find(token,vartypes)
-                if not t and not equal(token,"?") then
-                    if charClass[Ch]=LETTER
-                    and not find(token,ifforwhileetc) then
-                        -- word word (not word =, or word[... etc) /must/ be
-                        --  a variable definition (eg boolean t), not code.
-                        WarnType()
-                        vartypes = append(vartypes,token)
-                        t = length(vartypes)
-                    end if
-                end if
-                if t then
-                    if parser_tokno=1 then Indent(0) end if
-                    also = {ExpLength(filetext[currfile][CurrLine][1..col-1])}
-                    TopDecls()
-                    if not find(0,also) then
-                        also = prepend(also,0)
-                    end if
-                else
-                    if ifdefstackidx=0
-                    and equal(token,"abort") and Ch='(' then
-                        -- stop processing, and warn if remainder of file
-                        -- is other than just blank lines and comments
-                        for j=CurrLine+1 to length(filetext[currfile]) do
-                            aline = filetext[currfile][j]
-                            while length(aline) and find(aline[1]," \t\r\n") do
-                                aline = aline[2..length(aline)]
-                            end while
-                            if length(aline)!=0 and match("--",aline)!=1 then
-                                Warning("no further lines processed",{})
-                                exit
-                            end if
-                        end for
-                        exit
-                    end if
-                    Statement()
-                end if
-            end if
-        elsif toktype=SYMBOL and equal(token,"{") then
-            MultiAssignment()
-        else
-            Abort(xl("invalid"))
-            exit
-        end if
+        if not TopLevel() then exit end if
     end while
     CompleteIndents()
     if not equal(ifdefcheck,repeat(0,7)) then

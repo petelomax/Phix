@@ -714,11 +714,9 @@ else
             emitline = line
             apnds5({opCallOnce,wastls})
             if NOLT or bind or lint then
-             if not LTBROKEN then
                 if and_bits(effects,E_vars) then
                     ltCall(0,effects,length(s5)-1) -- clear rqd gvar info
                 end if
-             end if
             end if -- NOLT
         end if
 end if
@@ -1299,6 +1297,7 @@ global sequence sq6         -- sqAble but for opJcc
 
 procedure initialAutoEntry(sequence name, integer Stype, sequence sig, sequence filename, integer opcode, integer sideeffects)
 integer void, fno
+--DEV MARKTYPES/S_Type?
     if Stype=S_Func then
         void = newTempVar(IAEType,FuncRes) -- allocate result var
 --DEV can be S_Init for all IAEType=T_integer?
@@ -2081,11 +2080,6 @@ if newEmit then
     AutoGlabel(opStoreMint, "%pStoreMint",  "VM\\pHeap.e")
     AutoGlabel(opDealloc,   "%pDealloc",    "VM\\pHeap.e")
     AutoGlabel(opInitCS,    "%pInitCS",     "VM\\pHeap.e")
-----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pHeap.e",0,E_none)
---  initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
---  initialAutoEntry("allocate_data",   S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
---  initialAutoEntry("free",                S_Proc,"PN",    "VM\\pHeap.e",0,E_other)
---  initialAutoEntry("free",                S_Proc,"PN",    "VM\\pAlloc.e",0,E_other)
     AutoGlabel(opFrame,     "%opFrame",     "VM\\pStack.e")
     AutoGlabel(opRetf,      "%opRetf",      "VM\\pStack.e")
     AutoGlabel(opCallOnce,  "%opCallOnce",  "VM\\pStack.e")
@@ -2489,19 +2483,10 @@ end if
     IAEType = T_atom
 
     initialAutoEntry("abs",             S_Func,"FN",    "pmaths.e",0,E_none)
---if newEmit then
-----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pHeap.e",0,E_none)
-----DEV
-    initialAutoEntry("allocate",        S_Func,"FNI",   "pAlloc.e",0,E_other)
+    initialAutoEntry("allocate",        S_Func,"FII",   "pAlloc.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
-----    initialAutoEntry("allocate",        S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
-----    initialAutoEntry("allocate_data",   S_Func,"FI",    "VM\\pAlloc.e",0,E_none)
---end if
---DEV 18/3/16:
---  initialAutoEntry("allocate_data",   S_Func,"FII",   "allocate_data.e",0,E_none)
 --DEV doc
     initialAutoEntry("allocate_data",   S_Func,"FII",   "pAlloc.e",0,E_none)
---  initialAutoEntry("allocate_string", S_Func,"FP",    "machine.e",0,E_none)
     initialAutoEntry("allocate_string", S_Func,"FPI",   "pAlloc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("allocate_wstring", S_Func,"FPI",  "pAlloc.e",0,E_none)
@@ -2635,6 +2620,8 @@ end if
     initialAutoEntry("get_logical_drives",S_Func,"FP",  "pfile.e",   0,E_none)
     initialAutoEntry("join",            S_Func,"FPO",   "pflatten.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("join_by",         S_Func,"FPIIOO","pflatten.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 3
     initialAutoEntry("join_path",       S_Func,"FPI",   "pflatten.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
 if newEmit then
@@ -3192,7 +3179,10 @@ sequence msg
             --      else            -- Gvar or routine
             if fatal then   -- added 26/2/09
                 --          if t=S_GVar2 then -- routines are marked used by Call().
+--MARKTYPES
                 if t<=S_Type then -- routines are marked used by Call().
+--              if t<=S_Type-MARKTYPES then -- routines are marked used by Call().
+--              if t<S_Type then -- routines are marked used by Call().
                     u = symtab[r][S_State]
                     if not and_bits(u,S_used) then
                         symtab[r][S_State] = u+S_used
@@ -3287,7 +3277,10 @@ sequence msg
 --30/1/15:
 --              if fatal then   -- added 26/2/09
                 if fatal
+--MARKTYPES
                 and symtab[r][S_NTyp]<=S_Type then -- routines are marked used by Call().
+--              and symtab[r][S_NTyp]<=S_Func-MARKTYPES then -- routines are marked used by Call().
+--              and symtab[r][S_NTyp]<S_Type then -- routines are marked used by Call().
                     u = symtab[r][S_State]
                     if not and_bits(u,S_used) then
                         symtab[r][S_State] = u+S_used

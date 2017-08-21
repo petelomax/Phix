@@ -93,7 +93,7 @@ global constant
         -- call the user defined type routine after assignment has occurred.
         -- Builtin types are inlined/use opTcFail
 
-    opTcFail = 10,  -- error: typecheck (builtin), See also opTchk.
+    opTcFail = 10,      -- error: typecheck (builtin), See also opTchk.
 
     opBadRetf = 11,     -- code should not reach this!
         -- emitted at the end of every function and type as a safety measure
@@ -103,7 +103,7 @@ global constant
         --               have to test, and the test fails! See notes below.
 --DEV to go (only used in <=pfileio4.e)
 --  opAllocStr = 13,
---DEV try removing this...
+
     opCallOnceYeNot = 13,
         -- Used at the start of many builtin\VM sources, albeit in the form 
         --  "jmp :!opCallOnceYeNot". An include inc1.e statement, where inc1.e 
@@ -120,12 +120,7 @@ global constant
         --  clearer, and it triggers should I accidentally add such code.
 --opTchk2 = 13,
 --opTcFail2 = 14,
-    -- 13,14,15,16 spare
---EXCEPT
-    opTry = 14,
-    opCatch = 15,
-    opThrow = 16,
-                                        
+    -- 14,15,16 spare
     --
     -- opFor,init,ctl,step,limit,tgt/x86loc
     -- opFor checks control var/init/limit/step are integer and sets C flag if
@@ -303,7 +298,7 @@ global constant
     opRand = 77,        -- a = rand(b)      -- NB b must be atom (see sq_rand)
 --  opChDir = 78,       -- a = chdir(b)
     -- 78 spare
---DEV broken on newEmit?
+--DEV broken on newEmit? (reorder??)
     opPeeki = 79,       -- a = peek(b) where a is integer
 -->>5)
 -->> put 2 spare here
@@ -420,6 +415,7 @@ global constant
     -- builtins which return an object (to opOres):
 --  opUpper = opCode("opUpper",2),      -- a = upper(b) -- now in pcase.e
 --  opLower = opCode("opLower",2),      -- a = lower(b) -- ""
+--DEV reorder as below...
     opPeek = 142,       -- a = peek(b)      -- (returns integer if b is atom, string if b is sequence)
     opPeek4s = 143,     -- a = peek4s(b)    -- (returns atom if b is atom, sequence if b is sequence)
     opPeek4u = 144,     -- a = peek4u(b)    -- (returns atom if b is atom, sequence if b is sequence)
@@ -521,6 +517,12 @@ global constant
 --$
     opLoadMint = 179,   -- edx:eax := int64(eax)
     opStoreMint = 180,  -- [edi] := eax, as float if rqd
+--EXCEPT
+    opTry = 181,
+    opTryend = 182,
+    opCatch = 183,
+    opThrow = 184,
+
 --DEV newEmit...
 -- virtual opcodes (ie no actual code in the VM for these)
 --                  (technically, opMovbi/opMovsi/opMovti/opAddiii/opSubiii/opMuliii/opDiviii
@@ -530,6 +532,10 @@ global constant
     opCall = 201,
     opFrst = 202,       -- "Frame ReSTore"; used between opFrame and opCall, where all
                         -- local vars must be retrieved from the old stack frame.
+--NESTEDFUNC (DEV/SUG:)
+--                      -- (opFrst is also used in nested functions (one level deep!?)
+--opFstr = 209          -- "Frame Store"; used in nested functions...
+--                      -- (may not be much use for subscripting etc...)
 --<<opJcci? (above 8)
 --
 --  opMov0 = 166,       -- instead of incref, do decref(tgt), tgt=src, src=0.
@@ -587,6 +593,10 @@ global constant
     opPlatform = 225,   -- implements platform() [resolved in pmain.e]
     opMachine = 226,    -- implements machine_bits() [resolved in pmain.e]
     opDiv0 = 227,       -- mapped to :%e02atdb0 in VM\\pDiagN.e (fatal error)
+--DEV reorder...
+--  opPeek = 142,       -- a = peek(b)      -- (returns integer if b is atom, string if b is sequence)
+--  opPeek4s = 143,     -- a = peek4s(b)    -- (returns atom if b is atom, sequence if b is sequence)
+--  opPeek4u = 144,     -- a = peek4u(b)    -- (returns atom if b is atom, sequence if b is sequence)
     opPeek1s = 228,     -- \
     opPeek1u = 229,     -- \\
     opPeek2s = 230,     --   } all done via :%opPeekNx, 
@@ -640,12 +650,7 @@ global constant
     opName("opUnassigned",opUnassigned,2)
 --  opName("opCallOnceYeNot",opCallOnceYeNot,0)
 --  opName("opAllocStr",opAllocStr,2)   -- opAllocStr,res,len (only called from ilASM, so far)
---  opUsed += 4 -- spare
---EXCEPT
-    opUsed += 1 -- spare/opCallOnceYeNot?
-    opName("opTry",opTry,3)             -- opTry,tmp,tgt
-    opName("opCatch",opCatch,6)         -- opCatch,mergeSet(0),tgt,link,tlnk,e
-    opName("opThrow",opThrow,3)         -- opThrow,e,user/0
+    opUsed += 4 -- spare/opCallOnceYeNot?
 
 --  opName("opFor",opFor,6)             -- opFor,init,ctl,step,limit,tgt/x86loc (see notes below)
                                         -- (29/12/2011: "end" on the opLoopTop should now be used
@@ -855,7 +860,16 @@ global constant
 --end if
 --  opName("opPokeRef",opPokeRef,0) -- ??
 --  opName("opGetRaw",opGetRaw,0)   --??
-    opUsed += 22
+    opUsed += 2
+--  opUsed += 20
+--DEV::
+--EXCEPT
+    opName("opTry",opTry,4)             -- opTry,tmp,tgt,esp4
+    opName("opTryend",opTryend,5)       -- opTryend,mergeSet(0),tgt,link,tlnk
+    opName("opCatch",opCatch,3)         -- opCatch,tlnk,e
+    opName("opThrow",opThrow,3)         -- opThrow,e,user
+
+    opUsed += 16
 --  opName("opLicence",opLicence,0) -- (#ilASM only, see pemit.e)
 --  opName("opSetDbg",opSetDbg,0)   --??
 --  opName("opCrshRtn",opCrshRtn,0) --??

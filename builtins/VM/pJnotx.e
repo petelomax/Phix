@@ -9,9 +9,6 @@ include builtins\VM\pFPU.e  -- :%down53 etc
 
 #ilASM{ jmp :%opRetf
 
---DEV FIXME: (and the :!bang labels below)
---  ::e94vhnbaavecx
---      int3
     ::e04atssaa -- attempt to subscript an atom
     [32]
         pop edx
@@ -24,34 +21,18 @@ include builtins\VM\pFPU.e  -- :%down53 etc
     []
         jmp :!iDiag
         int3
-    :!e106ioobr
-        int3
-    ::e05sinaa0e10
+    ::e03tfcmbaa
     [32]
         pop edx
-        mov al,5
+        mov al,3        -- e03tfcmbaa
         sub edx,1
     [64]
         pop rdx
-        mov al,5
+        mov al,3        -- e03tfcmbaa
         sub rdx,1
     []
         jmp :!iDiag
         int3
-    ::e106ioobrp1
-        int3
-    ::e03tfcmbaa
-        [32]
-            pop edx
-            mov al,3        -- e03tfcmbaa
-            sub edx,1
-        [64]
-            pop rdx
-            mov al,3        -- e03tfcmbaa
-            sub rdx,1
-        []
-            jmp :!iDiag
-            int3
 
 --/*
 procedure :%opJnotx(:%)
@@ -77,38 +58,10 @@ end procedure -- (for Edita/CtrlQ)
         jz :e04atssaa
         cmp edi,edx
         jb @f                   -- unsigned jump, lets 0..len-1 through
---DEV use pFixup.e... (it was like this in p.asm too)
-            add edi,1           -- (there was an add edi,-1 above)
-            jl :opJnotxNegativeIdx
-            -- but it might be a float:
---          cmp edi,h4
---          jl :e106ioobr           -- index out of bounds
-----        opJnotxe92b:                    -- exception here mapped to e94vhnbaavecxfeh
---          cmp edi,h4
---          je :e94vhnbaavecx
---DEV :%pLoadMint
-        :!opJnotxe92b                   -- exception here mapped to e94vhnbaavecxfeh
-            cmp byte[ebx+edi*4-1],0x12
-            jne :e05sinaa0e10           -- subscript is not an atom [era @ [esp]]
-            fld qword[ebx+edi*4]
-            call :%down53
-            sub esp,8
-            fistp qword[esp]
-            call :%near53
-            mov edi,[esp]
-            add esp,8
-            cmp edi,0
-            jge :opJnotxNotNegative
-          ::opJnotxNegativeIdx
-                add edi,edx
-                cmp edi,edx
-                jb @f
-                    sub edi,edx
-                    jmp :!e106ioobr
-          ::opJnotxNotNegative
-            sub edi,1
-            cmp edi,edx
-            jae :e106ioobrp1      -- > length or still <=0
+            push eax
+            mov al,4+1              -- [era] @ [esp+8] "reading from"
+            call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
+            pop eax
       @@:
         shl esi,2
         cmp al,0x82
@@ -144,38 +97,10 @@ end procedure -- (for Edita/CtrlQ)
         jz :e04atssaa
         cmp rdi,rdx
         jb @f                   -- unsigned jump, lets 0..len-1 through
-            add rdi,1           -- (there was an add rdi,-1 above)
-            jl :opJnotxNegativeIdx
-            -- but it might be a float:
---          cmp rdi,r15
---          jl :e106ioobr           -- index out of bounds
-----        opJnotxe92b:                    -- exception here mapped to e94vhnbaavecxfeh [DEV merge these!]
---          cmp rdi,r15
---          je :e94vhnbaavecx
---DEV :%pLoadMint
-        :!opJnotxe92b                   -- exception here mapped to e94vhnbaavecxfeh
-            cmp byte[rbx+rdi*4-1],0x12
-            jne :e05sinaa0e10           -- subscript is not an atom [era @ [esp]]
-            fld tbyte[rbx+rdi*4]
---DEV down64? (spotted in passing)
-            call :%down53
-            sub rsp,8
-            fistp qword[rsp]
-            call :%near64
-            mov rdi,[rsp]
-            add rsp,8
-            cmp rdi,0
-            jge :opJnotxNotNegative
-          ::opJnotxNegativeIdx
-                add rdi,rdx
-                cmp rdi,rdx
-                jb @f
-                    sub rdi,rdx
-                    jmp :!e106ioobr
-          ::opJnotxNotNegative
-            sub rdi,1
-            cmp rdi,rdx
-            jae :e106ioobrp1      -- > length or still <=0
+            push rax
+            mov al,4+1              -- [era] @ [rsp+16] "reading from"
+            call :%fixupIndex       -- idx-1 in edi, len in edx, not idx addr in ebx, al set
+            pop rax
       @@:
         shl rsi,2
         cmp al,0x82

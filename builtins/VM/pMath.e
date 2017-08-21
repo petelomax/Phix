@@ -29,24 +29,21 @@ integer e14code
 
 #ilASM{ jmp :%opRetf
 
---DEV FIXME: (and the :!bang labels below)
     ::e14soa
         [32]
             pop edx
             mov al,14               -- e14soa(edi=?)
             mov edi,[e14code]
             sub edx,1
---          mov ecx,edi
             jmp :!iDiag
         [64]
             pop rdx
             mov al,14               -- e14soa(edi=?)
             mov rdi,[e14code]
             sub rdx,1
---          mov rcx,rdi
             jmp :!iDiag
         []
-        int3
+            int3
         [32]
     ::e01tcfst0edi
             add esp,8
@@ -99,7 +96,6 @@ integer e14code
         [32]
             push esi    -- saved ecx
             fild dword[esp]
---          mov [esp],ecx
             mov [esp],eax
             fild dword[esp]
             add esp,4
@@ -110,11 +106,78 @@ integer e14code
             fild qword[rsp]
             mov [rsp],r8
             fild qword[rsp]
---          add esp,4
             fdivp
             jmp :e01tcfst0rdi
+-- courtesy of Thomas Grysztar ( https://board.flatassembler.net/topic.php?p=198279#198279 )
+        ::int128_to_float80
+            -- in: rdx:rax = singed 128-bit integer 
+            -- out: dx:rax = 80-bit float 
+            test rdx,rdx 
+            jns :uint128_to_float80 
+            not rdx     --\ 
+            not rax     -- \  this is just a 
+            add rax,1   -- /  neg rdx:rax 
+            adc rdx,0   --/ 
+            call :uint128_to_float80 
+            or dx,#8000
+            ret
+        ::uint128_to_float80
+            -- in: rdx:rax = unsigned 128-bit integer 
+            -- out: dx:rax = 80-bit float 
+            bsr r8,rdx 
+            jz :low 
+            mov cl,63 
+            sub cl,r8l 
+            shld rdx,rax,cl 
+            mov rax,rdx 
+--          lea rdx,[16383+64+r8] 
+            lea rdx,[r8+16383+64] 
+            ret
+        ::low
+            bsr r8,rax 
+            jz :zero 
+            mov cl,63 
+            sub cl,r8l 
+            shl rax,cl 
+--          lea rdx,[16383+r8] 
+            lea rdx,[r8+16383] 
+            ret
+        ::zero
+            xor eax,eax 
+            xor edx,edx 
+            ret
         []
     ::e01tcfediMul
+        [32]
+            push ecx
+            push eax
+            fild qword[esp]
+            call :%pStoreFlt
+            add esp,12      -- trash flt & return address (opMathIII)
+            mov al,110      -- e110tce(ecx)
+            pop edx
+            mov ecx,edi
+            sub edx,1
+        [64]
+--          -- (unlike 32-bit, we push the original rax/rcx, rather 
+--          --  than try fild the signed 128-bit integer in rcx:rax)
+--          fild qword[rsp]
+--          fild qword[rsp+8]
+--          fmulp
+            mov rdx,rcx
+            call :int128_to_float80
+            push rdx
+            push rax
+            fld tbyte[rsp]
+--          add rsp,16
+            call :%pStoreFlt
+            add rsp,24      -- trash flt & return address (opMathIII)
+            mov al,110      -- e110tce(rcx)
+            pop rdx
+            mov rcx,rdi
+            sub rdx,1
+        []
+            jmp :!iDiag
         int3
 
 --/*
@@ -351,27 +414,13 @@ end procedure -- (for Edita/CtrlQ)
             fnstsw ax
             sahf
             jne :e01tcfst0edi
---          je @f
---              int3
---        @@:
             mov eax,[esp]
             cdq                         -- sign extend eax into edx
             cmp edx,[esp+4]
             jne :e01tcfst0edi
---          je @f
---              call :%pStoreFlt        -- [edi]:=st0
---              mov al,110              -- e01tce(ecx)
---              mov ecx,edi
---              mov edx,[esp+8]         -- era
---              jmp :!iDiag
---              int3
---        @@:
             mov edx,eax
             shl edx,1
             jo :e01tcfst0edi
---          jno @f
---              int3
---        @@:
             fstp st0                    -- discard st0 (31-bit result now in eax)
             mov [edi],eax
             add esp,8
@@ -381,12 +430,8 @@ end procedure -- (for Edita/CtrlQ)
             --
             -- load p2 as float, then consider p3
             --
--- 22/2/15!
---          cmp byte[ebx+eax*4-1],0x12
             cmp byte[ebx+ecx*4-1],0x12
             jne e14soa                  -- sequence op attempted
--- 22/2/15!
---          fld qword[ebx+eax*4]
             fld qword[ebx+ecx*4]
 
             cmp eax,h4
@@ -462,22 +507,10 @@ end procedure -- (for Edita/CtrlQ)
             fnstsw ax
             sahf
             jne :e01tcfst0rdi
---          je @f
---              int3
---        @@:
---30/12/15: (totally commented out!)
---          mov eax,[esp]
             mov rax,[rsp]
---          cdq                         -- sign extend eax into edx
----- (cqo on 64-bit)
---          cmp edx,[esp+4]
---          jne :e01tcfst0edi
             mov rdx,rax
             shl rdx,1
             jo :e01tcfst0rdi
---          jno @f
---              int3
---        @@:
             fstp st0                    -- discard st0 (31-bit result now in eax)
             mov [rdi],rax
             add rsp,8
@@ -956,15 +989,19 @@ end procedure -- (for Edita/CtrlQ)
         mov ecx,edx
         cdq                     -- sign extend eax into edx
         cmp ecx,edx
+        jne e01tcfediMul
         mov ecx,eax
     [64]
+--      push rax
+--      push rcx
         imul rcx
         mov rcx,rdx
         cqo                     -- sign extend rax into rdx
         cmp rcx,rdx
+        jne e01tcfediMul
+--      add rsp,16
         mov rcx,rax
     []
-        jne e01tcfediMul
         ret
 
       ::opMulF

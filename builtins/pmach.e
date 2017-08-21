@@ -363,8 +363,6 @@ object p1, p2, p3
                 call :%opBkClr      -- bk_color(rax)
               }
     elsif a=M_FREE then
---      #ilASM{ lea edi,[x]
---              call %opFree}       -- free([edi])
         alloc:free(x)
     elsif a=M_SET_RAND then
         #ilASM{

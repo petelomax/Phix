@@ -26,7 +26,7 @@
             <br>
             <br>
             e: typically an integer or string, but it can also be a complete exception in the re-throw case.<br>
-            user_data: if not {}, then e must be an atom. It can contain anything that you might find helpful in the handler(/logfile, etc).
+            user_data: if not {} (or 0), then e must be an atom. It can contain anything that you might find helpful in the handler(/logfile, etc).
          </td>
         </tr>
         <tr>
@@ -58,6 +58,8 @@
                 else if e is an atom, throw(e) is equivalent to throw({e,-1,-1,-1,-1,-1,-1}), modifed as below.<br>
                 else if e is a string, throw(e) is equivalent to throw({0,-1,-1,-1,-1,-1,-1,e}), modified as below.<br>
                 else e must be a sequence containing at least the first two elements, E_CODE and E_ADDR, type safe as above and any user-defined data in e[8..$]. <br>
+                <b>NB</b> Failure to meet the type-safety requirements outlined above, eg throw({"junk"}), results in a non-catchable fatal error.
+                <br>
                 <br>
                 if e[E_ADDR] is -1 it is replaced with the return address from the throw() call. <br>
                 if e[E_RTN] is -1 it is replaced with a routine number from the current call stack. <br>
@@ -80,10 +82,13 @@
 </font><font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">122</font><font color="#0000FF">,</font><font color="#008000">"invalid poke size"</font><font color="#0000FF">)</font>
 </pre>
             <br>
-            See builtins\VM\pDiagN.e for the full/up-to-date list. In the catch clause, e[E_CODE] will be 1..122 and e[E_USER] will be a (post-sprintf) string.
+            See builtins\VM\pDiagN.e for the full/up-to-date list. In the catch clause, e[E_CODE] will be 1..122 and e[E_USER] will be a (post-sprintf) string.<br>
+            Obviously 55/"unhandled exception" is not and should not be mapped, and if you get one and then try to write a handler to catch it, you might be slightly 
+            disappointed, though you should be able to catch the error actually thrown (which could technically be a fake 55/"unhandled exception") rather than get 
+            the (real/from pDiagN.e) error 55 being reported on the throw statement (and your application terminated).
             <br>
             <br>
-            Sometimes you may need to re-throw an exception, and let some other containing try statement process it, which is as simple as can be:
+            Sometimes you may need to re-throw an exception, and let some containing catch process it - which is as simple and straightforward as it could possibly ever be:
 <!--eucode>
     try
         ...
@@ -142,20 +147,21 @@ Obviously the latter may drift over time (or be wrong on day 1), just like a put
           <b>Performance:</b>
          </td>
          <td>
-            Exceptions are designed to minimise the impact on code which does <i>/not/</i> use them, and intended for very infrequent events.<br>
+            Exception handling is designed to minimise the impact on code which does <i>/not/</i> trigger it, and is intended for very infrequent events.<br>
             Should you compare the performance overhead of <code>throw("failure")</code> with <code>return false</code> then unfortunately you 
             are in for a very big shock.<br>
             Building detailed run-time diagnostic information and converting a machine address into a human-readable line number, file, and 
-            routine name, is simply not ever going to be comparable to a single <code>"mov eax,ebx"</code>!
+            routine name, is simply always going to take considerably longer than a single <code>"mov eax,ebx"</code> instruction!
             <br>
             <br>
             Should you need to process 10,000 items, but 2 of them trigger an exception, the savings of simplified code (such as not checking
             for division by zero, whether a file of that name already exists, etc) on 9,998 of them may very well significantly outweigh the 
-            cost of the two exceptions that are triggered.
+            cost of the two exceptions that are triggered. It is in that sense, alone, that appropriate use of exceptions can make some programs
+            noticeably faster.
             <br>
             <br>
-            However, the wilful and excessive use of throw() in quite unnecessary situtations will inevitably result in slower programs.<br>
-            That said, any code not being iterated thousands of times is better off being as clear and intuitive as you can make it.
+            However, the wilful and excessive use of throw() in quite unnecessary situtations will almost inevitably result in a slower program.<br>
+            That said, any code not being iterated many thousands of times is better off being as clear and intuitive as you can make it.
          </td>
         </tr>
         <tr>
@@ -214,7 +220,8 @@ end try
           <a href="try.htm">try/catch</a>,
           <a href="crash_file.htm">crash_file</a>,
           <a href="crash_message.htm">crash_message</a>,
-          <a href="crash_routine.htm">crash_routine</a>
+          <a href="crash_routine.htm">crash_routine</a>,
+          <a href="glossary.htm#era">era</a>
          </td>
         </tr>
         <tr id="Technicalia" style="display:none;">
@@ -226,15 +233,28 @@ end try
          <td>
             Implemented in builtins\VM\pDiagN.e in order to use the existing code for converting a machine address into a source code line number, etc.<br>
             Hence any use of throw(), like <a href="crash_file.htm">crash_file</a>, <a href="crash_message.htm">crash_message</a>, and 
-            <a href="crash_routine.htm">crash_routine</a>, makes the (rarely used) command line option -nodiag completely ineffective.
+            <a href="crash_routine.htm">crash_routine</a>, makes the (rarely used) command line option -nodiag completely ineffective.<br>
+            <small>(Said option is normally only used after a bug in the compiler has been painstakingly pared down to the absolute bare minimum.)</small>
+            <br>
+            <br>
+            The system stack is automatically rebalanced when a catch clause is executed, which proved necessary when catching any errors in nested
+            c_func/proc and/or call_back routines.
+            <br>
+            <br>
+            The use of throw() may prevent control returning to the interpreter (as pDiagN.e calls :%NoCleanup) and hence there may be problems trying to
+            add proper testing of try/catch/throw() to "p -test", however test/terror.exw ought to be fine.
             <br>
             <br>
             You should not need to test e[E_NAME] for "-1" if the try statement is not at top-level, or does not contain any actual failure points itself.
-<!--
             <br>
             <br>
-            Minor point: user_data is not checked for being unassigned at runtime, instead the default of {} applies (which is ignored). <br>
-            This is a simple consequence of it being implemented via :%pThrow (in pDiagN.e) which circumvents some of the usual hll checks.-->
+            Minor point: throw(x) is mapped to throw(x,0) in pmain.e, and then to throw(x,<i>&lt;unassigned&gt;</i>) in pilx86.e,
+            which causes the default of {} to apply. <br>
+            Consequently, an explicit throw(x,0) would suffer much the same fate, ie be treated as throw(x,{}).<br>
+            This occurs because of the way it is implemented, via :%pThrow (in pDiagN.e), rather than as a normal hll routine.
+            <br>
+            <br>
+            Likewise, <a href="routine_id.htm">routine_id</a>("throw") yields -1, instead you would have to write a mini-shim.
          </td>
         </tr>
        </table>

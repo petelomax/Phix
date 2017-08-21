@@ -1,0 +1,127 @@
+--
+-- demo\pGUI\aaline.exw
+--
+--  draw anti-aliased lines (iif USE_OPENGL==1)
+--
+--  This program was written in an attempt to figure out precisely what makes opengl
+--  draw anti-aliased lines, and/or how to add such capability to other programs. 
+--  I am still somewhat in the dark, but obviously CD_GL is critical, and I learnt 
+--  that the canvas_resize_cb thing is too. Anyway: it is short, sweet, and works.
+--
+--  This is effectively a cut-down version of demo\rosetta\XiaolinWuLine.exw,
+--  though things actually went the other way round.
+--
+--  I also learnt thet cdCanvasArc draws anti-aliased lines whereas cdCanvasSector
+--  does not; draw the latter ontop of cdCanvasArc and cdCanvasLine for best effect.
+--  Also note that cdCanvasSector draws a chord under opengl but a pie-segment when
+--  not.
+
+include pGUI.e
+
+-- For Edita/Tools/Re-indent source:
+--#withtype Ihandle
+--#withtype Ihandln
+--#withtype cdCanvas
+
+Ihandle dlg, canvas
+cdCanvas cd_canvas
+
+constant USE_OPENGL = 01    -- (if 0, it draws thinner bresenham lines)
+
+function canvas_action_cb(Ihandle canvas)
+--  if USE_OPENGL then
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+--  end if
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
+--  cdCanvasSetBackground(cd_canvas, CD_RED)
+    cdCanvasLine(cd_canvas,0,0,200,200)
+    cdCanvasLine(cd_canvas,w,0,200,200)
+    cdCanvasLine(cd_canvas,0,h,200,200)
+    cdCanvasLine(cd_canvas,w,h,200,200)
+    cdCanvasArc(cd_canvas, 200, 200, 200, 200, 0, 360)
+--  cdCanvasSector(cd_canvas, 200, 200, 200, 200, 0, 360) 
+--  cdCanvasSetForeground(cd_canvas, CD_RED)
+    cdCanvasArc(cd_canvas, 200, 200, 300, 100, 0, 360)
+--  cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+--test (note that, w/o the lines, this has bresenham edges)
+--  cdCanvasBegin(cd_canvas,CD_FILL)
+--  cdCanvasVertex(cd_canvas,w,h)
+--  cdCanvasVertex(cd_canvas,0,h)
+--  cdCanvasVertex(cd_canvas,200,200)
+--  cdCanvasEnd(cd_canvas)
+--/test
+
+    cdCanvasFlush(cd_canvas)
+--  if USE_OPENGL then
+--      IupGLSwapBuffers(canvas)    -- (no diff?)
+--  end if
+    return IUP_DEFAULT
+end function
+
+function canvas_map_cb(Ihandle canvas)
+    if USE_OPENGL then
+--      integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{{canvas_width,canvas_height}} -- {{8,8}}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    else
+        cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
+    end if
+    cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+    cdCanvasSetForeground(cd_canvas, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    if USE_OPENGL then
+        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{canvas_width,canvas_height} -- {638,478}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+        cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    end if
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    IupImageLibOpen()
+--  if USE_OPENGL then
+--      IupGLCanvasOpen()   -- (no diff?)
+--  end if
+    if USE_OPENGL then
+        canvas = IupGLCanvas()
+--      IupSetAttribute(canvas, "BUFFER", "DOUBLE") -- (no diff?)
+    else
+        canvas = IupCanvas()
+    end if
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
+    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    dlg = IupDialog(IupVbox({canvas}))
+    IupSetAttribute(dlg, "TITLE", "Anti-Aliased Lines")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

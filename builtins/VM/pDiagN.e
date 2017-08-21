@@ -756,10 +756,21 @@ constant msgs =
  "arguments to mem_copy() must be atoms\n",                     -- e39atmcmba
  "arguments to mem_set() must be atoms\n",                      -- e40atmsmba
  "first argument to poke() must be atom\n",                     -- e41fatpmba
- "first argument to poke4() must be atom\n",                    -- e42fatp4mba
+--no longer used:
+-- "first argument to poke4() must be atom\n",                  -- e42fatp4mba
+-- -1,
+ "abort(%d)\n",                                                 -- e42a(ecx)
+    -- only invoked when an error hander is present.
+    -- normally abort(n) terminates the application,
+    -- however inside a try block (or with a handler
+    -- detected somewhere higher up in the stack) it 
+    -- is mapped to throw(42,"abort(%d)").
+    -- Note that e87acmbi may be triggered first.
  "argument to peek() must be atom or sequence of two atoms\n",  -- e43atpmbaoso2a
- "argument to peek4s() must be atom or sequence of two atoms\n", -- e44atpmbaoso2a
- "argument to peek4u() must be atom or sequence of two atoms\n", -- e45atpmbaoso2a
+-- "argument to peek4s() must be atom or sequence of two atoms\n", -- e44atpmbaoso2a
+ -1,
+-- "argument to peek4u() must be atom or sequence of two atoms\n", -- e45atpmbaoso2a
+ -1,
  "argument to float32_to_atom() must be sequence of length 4\n", -- e46atf32tambsol4
  "argument to float64_to_atom() must be sequence of length 8\n", -- e47atf64tambsol8
     -- btw, the above messages occur for an unassigned argument, rather
@@ -837,12 +848,14 @@ constant msgs =
     -- or maybe your hard drive has errors.
  "sequence found in character string\n",                        -- e65sfics
     -- second parameter to puts or [s]printf may not
-    -- contain nested sequences. See e55/56/57, or
-    -- try using pp(), ppf(), ?, or [s]print().
+    -- contain nested sequences.
+    -- Try using pp(), ppf(), ?, or [s]print().
  "invalid lock type\n",                                         -- e66ilt
  "byterange must be {} or pair of atoms\n",                     -- e67bre
- -1,--"argument to dir() must be string\n",                     -- e68atcdmbs (not actually used/see pdir.e)
+-- -1,--"argument to dir() must be string\n",                   -- e68atcdmbs (not actually used/see pdir.e)
     -- See e73atodmbs
+ "crash(%s)\n",                                                 -- e68crash
+    -- crash() invoked inside a try block
  "error in format string\n",                                    -- e69eifs (see pprntf.e/badfmt())
     -- Missing or unrecognised format character after a '%',
     --  eg "%", "%3.2", "%q". See also e73atodmbs.
@@ -878,10 +891,10 @@ constant msgs =
  "%c requires an atom value\n",                                 -- e76pcraav
  "program has run out of memory\n",                             -- e77phroom
  "attempt to get_text() >1GB file\n",                           -- e78atgtgt1gbf
-    -- You *can* read very large files line-by-line, or 
-    --  byte-by-byte, or via seeks, but *not* load the 
-    --  whole thing into memory at once (1GB is about
-    --  300 copies of the bible, a lot of text).
+    -- Very large files can (obviously) be read line-by-line, or 
+    --  byte-by-byte, or via seeks, but you may *not* load the 
+    --  whole thing into memory at once (1GB ~=300 bibles).
+    --  get_text() is not really suitable for files >5MB.
  "argument to rand() must be an atom\n",                        -- e79atrmba
  "call_back returned non-atom\n",                               -- e80cbrna(esi)
     -- note this error occurs after the callback has returned,
@@ -914,7 +927,7 @@ constant msgs =
  "variable %s has not been assigned a value\n",                 -- e93vhnbaav(edi) [:%opPpndSA]
     -- or_edi is var address
  "variable %s has not been assigned a value\n",                 -- e94vhnbaav(edx,esi)  [if integer(esi), report as e04atsaa]
-    -- as e92 but or_edx is var no
+    -- or_edx is var no
 --DEV these appear untested:::
  "text_color error [%08x]\n",                                   -- e95tce
  "bk_color error [%08x]\n",                                     -- e96bce
@@ -1240,9 +1253,8 @@ procedure throw(object e, object user_data={})
 --  This is, of course, just a trigger - the real implementation(/challenge) 
 --  of exception handling lies within the call stack and opTry/opCatch.
 --
---maybe (untried) [NO!!]
---  bool pop_diag = sequence(e) and length(e)>=E_PATH and e[E_PATH]=-2
---  if pop_diag then e[E_PATH]=-1 end if
+-- Note: the default of {} is actually provided in pmain.e, see T_throw.
+--
     if user_data!={} then
         if not atom(e) then die() end if
         e = {e,-1,-1,-1,-1,-1,-1,user_data}
@@ -1250,7 +1262,6 @@ procedure throw(object e, object user_data={})
         e = {e,-1,-1,-1,-1,-1,-1}
     elsif string(e) then
         e = {0,-1,-1,-1,-1,-1,-1,e}
---  elsif not sequence(e)   - (always true)
     elsif length(e)<E_ADDR
        or not atom(e[E_CODE])
        or not atom(e[E_ADDR])
@@ -1259,10 +1270,11 @@ procedure throw(object e, object user_data={})
        or (length(e)>=E_NAME and not string(e[E_NAME]) and e[E_NAME]!=-1)
        or (length(e)>=E_FILE and not string(e[E_FILE]) and e[E_FILE]!=-1)
        or (length(e)>=E_PATH and not string(e[E_PATH]) and e[E_PATH]!=-1) then
---     or length(e)>E_USER then
         die()
     end if
+
     while length(e)<E_PATH do e &= -1 end while
+
     sequence symtab
     #ilASM{
         [32]
@@ -1273,8 +1285,7 @@ procedure throw(object e, object user_data={})
             call :%opGetST      -- [rdi]=symtab (ie our local:=the real symtab)
         []
           }
---?symtab[T_fileset]
---?symtab[T_pathset]
+
     integer rtn = e[E_RTN]
     if rtn=-1 then              -- replace with the calling routine number
         #ilASM{
@@ -1287,10 +1298,9 @@ procedure throw(object e, object user_data={})
                 mov rax,[rax+16]    -- calling routine no
                 mov [rtn],rax
               }
---rtn=222
         e[E_RTN] = rtn
     end if
---?rtn
+
     if rtn>=1 and rtn<=length(symtab)
     and sequence(symtab[rtn])
     and symtab[rtn][S_NTyp]>=S_Type then
@@ -1301,11 +1311,10 @@ procedure throw(object e, object user_data={})
             end if
             e[E_NAME] = name
         end if
---?e[E_NAME]    --"dump_profile"!!
         if e[E_FILE]=-1 then
             integer fno = symtab[rtn][S_FPno]
-            if fno=0 then
-                e[E_FILE] = "?? (fno=0)"    -- should not happen!
+            if fno<1 or fno>length(symtab[T_fileset]) then
+                e[E_FILE] = sprintf("?? (fno=%d)",{fno})    -- should not happen!
             else
                 e[E_FILE] = symtab[T_fileset][fno][2]
                 if e[E_PATH]=-1 then
@@ -1340,28 +1349,16 @@ procedure throw(object e, object user_data={})
         [32]
             cmp [ebp+16],ebx        -- catch addr
             jne @f
-----DEV even better, use fatalN, then here/calling is +/-1. -- NAH
                 mov al,55           -- e55ue
---DEV? [NO!!]
---              cmp [pop_diag],ebx
---              je not_from_diag
---                mov ebp,[ebp+20]  -- prev_ebp
---            ::not_from_diag
                 mov edx,[ebp+12]    -- called from address
                 mov ebp,[ebp+20]    -- prev_ebp
                 sub edx,1
                 jmp :!iDiag
                 int3
         [64]
---          mov rcx,[rbp+32]        -- catch addr
---          cmp rcx,rbx
             cmp [rbp+32],rbx        -- catch addr
             jne @f
                 mov al,55           -- e55ue
---              cmp [pop_diag],rbx
---              je not_from_diag
---                mov rbp,[rbp+40]  -- prev_ebp
---            ::not_from_diag
                 mov rdx,[rbp+24]    -- called from address
                 mov rbp,[rbp+40]    -- prev_ebp
                 sub rdx,1
@@ -1369,8 +1366,7 @@ procedure throw(object e, object user_data={})
                 int3
         []
           @@:
---          je :e55ue
-            -- 2) get e into eax (res) and kill the refcount
+
         [32]
             mov eax,[e]
             mov [e],ebx
@@ -1400,10 +1396,7 @@ procedure throw(object e, object user_data={})
         [64]
             jmp rcx
         []
---        ::e55ue
           }
---  -- done this way to allow reporting in here or on the calling statement
---  e55ue()
 end procedure
 
 --/*
@@ -2385,7 +2378,6 @@ X               mov qword[rbp+32],:rbidsret
 --      batchmode = 1
 --      return 0
 --  end if
-    puts(1,"\n")
 --DEV [may no longer be rqd] [set routines should be in here anyway]
 --  crash_msg = ""      -- /necessary/: ensure compiler knows this is string/integer
 --  crash_msg = "abc"       -- /necessary/: ensure compiler knows this is string/integer
@@ -2865,6 +2857,10 @@ X               mov qword[rbp+32],:rbidsret
         msg = sprintf(msg,{or_esi,or_ecx*4,or_ecx*4-or_esi})
     elsif msg_id=88 then        -- e88atcfpmbaos(edi)
         msg = sprintf(msg,{iff(or_esi=1?"fun":"pro")})  -- c_func|c_proc
+    elsif msg_id=68 then        -- e68crash
+        msg = sprintf(msg,{crash_msg})  -- crash(xxxx)
+    elsif msg_id=42 then        -- e42a(ecx)
+        msg = sprintf(msg,{or_ecx})
     end if
 --?2
 --/*
@@ -3003,7 +2999,7 @@ X               mov qword[rbp+32],:rbidsret
 --?4
 
 --EXCEPT
---(need to get the int3 tests done first!)
+--(need to get the int3 tests done first!) [DONE]
 bool error_handler
     #ilASM{
         [32]
@@ -3021,7 +3017,12 @@ bool error_handler
         msg = trim(msg)
         sr = symtab[rtn]
         lineno = convert_offset(or_era,sr)
+        diaglooping -= 1
         throw({msg_id,or_era,lineno,rtn,-1,-1,-1,msg})
+    end if
+
+    if not batchmode then
+        puts(1,"\n")
     end if
 
 --  if equal(crashfile,"") then return batchmode end if
@@ -3360,7 +3361,10 @@ end if
             put2("... called from ")
         end if
     end while
-puts(1,"\nGlobal & Local Variables\n")
+--erm??
+    if not batchmode then
+        puts(1,"\nGlobal & Local Variables\n")
+    end if
     if fn!=-1 then
         puts(fn,"\nGlobal & Local Variables\n")
         fileno = 0
@@ -3774,6 +3778,7 @@ procedure :%pThrow(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
     :%pThrow
+--  :!pThrow
 ------------
         [32]
             -- calling convention
@@ -3794,15 +3799,18 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(throw)           -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[throw][S_Ltot])
             call :%opFrame
-            mov edx,[esp+8]
+--          mov edx,[esp+8]
             pop dword[ebp]                      -- [2] e
             pop dword[ebp-4]                    -- [1] user_data
 --EXCEPT
 --          mov dword[ebp+16],:throwret
-            mov dword[ebp+28],:throwret         -- return address
+--          mov dword[ebp+28],:throwret         -- return address
+            pop edx
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address
+--          pop dword[ebp+12]                   -- called from address
             jmp $_il                            -- jmp code:convert_offset
-          ::throwret
+--        ::throwret
 --          pop edi                             --[1] addr res (an integer)
 --          mov [edi],eax
         [64]
@@ -3820,19 +3828,22 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(throw)           -- mov edx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov ecx,imm32 (=symtab[throw][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+16]
+--          mov rdx,[rsp+16]
             pop qword[rbp]                      -- [2] e
             pop qword[rbp-8]                    -- [2] user_data
 --EXCEPT
 --          mov qword[rbp+32],:throwret         -- return address
-            mov qword[rbp+56],:throwret         -- return address
+--          mov qword[rbp+56],:throwret         -- return address
+            pop rdx
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address
+--          pop qword[rbp+24]                   -- called from address
             jmp $_il                            -- jmp code:convert_offset
-          ::throwret
+--        ::throwret
 --          pop rdi                             --[1] addr res (an integer)
 --          mov [rdi],rax
         []
-            ret
+--          ret
 
 --DEV DEAD
 --  --for throw.e: [DEV, needs to be put into the optable]
@@ -4303,21 +4314,6 @@ end procedure -- (for Edita/CtrlQ)
 --          mov al,2    -- now via :!iDiag
 --          cmp edx,:%e02atdb0
 --          je :alset
-            cmp edx,:!opJnotxe92b
-            jne @f
-              [32]
-                mov eax,[esp+4]
-                lea edi,[or_era]
-                sub eax,1
-              [64]
-                mov rax,[rsp+8]
-                lea rdi,[or_era]
-                sub rax,1
-              []
-                call :%pStoreMint
-                mov al,106      -- e106ioob(edi,edx) or e94vhnbaav(ecx)
-                jmp :setal
-          @@:
             cmp edx,:!Jccp2Intp3Ref
             jne @f
               [32]
@@ -4379,10 +4375,12 @@ end procedure -- (for Edita/CtrlQ)
                 mov eax,[esp+4]
                 lea edi,[or_era]
                 sub eax,1
+                add esp,8
               [64]
                 mov rax,[rsp+8]
                 lea rdi,[or_era]
                 sub rax,1
+                add rsp,16
               []
                 call :%pStoreMint
                 mov al,36           -- e36loaaind
@@ -4392,8 +4390,6 @@ end procedure -- (for Edita/CtrlQ)
             jne @f
               [32]
                 mov ecx,[or_ecx]
---              shl ecx,2
---              add esp,ecx
                 lea esp,[esp+ecx*4+4]
               [64]
                 mov rcx,[or_ecx]
@@ -4433,10 +4429,13 @@ end procedure -- (for Edita/CtrlQ)
                 mov eax,[esp+4]
                 lea edi,[or_era]
                 sub eax,1
+--31/7/17 (*4)
+                add esp,8
               [64]
                 mov rax,[rsp+8]
                 lea rdi,[or_era]
                 sub rax,1
+                add rsp,16
               []
                 call :%pStoreMint
                 mov al,04           -- e04atsaa
@@ -4447,10 +4446,12 @@ end procedure -- (for Edita/CtrlQ)
                 mov eax,[esp+4]
                 lea edi,[or_era]
                 sub eax,1
+                add esp,8
               [64]
                 mov rax,[rsp+8]
                 lea rdi,[or_era]
                 sub rax,1
+                add rsp,16
               []
                 call :%pStoreMint
                 mov al,94           -- e94vhnbaav(edx)

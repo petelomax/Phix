@@ -138,7 +138,7 @@ string filepath
             paths = add_path(paths,"C:\\Program Files\\Phix")
             paths = add_paths(paths,split(getenv("PATH"),';'),{"phix","bin"})
         else
-            paths = add_path(paths,join_path(getenv("HOME"),"phix"))
+            paths = add_path(paths,join_path({getenv("HOME"),"phix"}))
             paths = add_paths(paths,split(getenv("PATH"),':'),{"phix","bin"})
         end if
 

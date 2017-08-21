@@ -108,13 +108,8 @@ integer nocleanup = 0   -- set to 1 if (eg) :!iDiag has been called,
 integer CClean = 0      -- cleanup code for pcfunc.e [DEV togo]
 
 constant oom = "Your program has run out of memory, one moment please\n"
---DEV opCallOnceYeNot
---#ilASM{ jmp :%opRetf
---#ilASM{ jmp :fin
---DEV
-#ilASM{ jmp :!opCallOnceYeNot
---#ilASM{ jmp :fin
 
+#ilASM{ jmp :!opCallOnceYeNot
 
 --
 -- The following two routines are needed for p.exw and pcfunc.e: in the "parlor trick"
@@ -553,14 +548,14 @@ end procedure -- (for Edita/CtrlQ)
 -- ::makeFrameX [DEV killme]
         mov edi,[ebp+24]            -- vsb_root
 --DEV test:
-cmp dword[edi+16],#40565342     -- magic ("@VSB")
-je @f
-  int3
-@@:
-cmp dword[edi+12276],#3C565342  -- magic ("<VSB")
-je @f
-  int3
-@@:
+--cmp dword[edi+16],#40565342   -- magic ("@VSB")
+--je @f
+--  int3
+--@@:
+--cmp dword[edi+12276],#3C565342    -- magic ("<VSB")
+--je @f
+--  int3
+--@@:
 --  lea esi,[ebp+ecx*4+36]      -- new ebp (provisional!)   
 --EXCEPT
 --X     lea esi,[ebp+ecx*4+28]      -- new ebp (provisional!)   
@@ -602,7 +597,7 @@ xor ebx,ebx
         mov [esi+24],edi            -- vsb_root
         mov [esi+28],eax            -- return address (see note above)
 --DEV test:
-lea edx,[edi+12276]
+--lea edx,[edi+12276]
         mov eax,h4
         mov edi,esi
         std
@@ -610,10 +605,10 @@ lea edx,[edi+12276]
         cld
         mov edi,ebp
         mov ebp,esi
-cmp dword[edx],#3C565342
-je @f
-    int3
-@@:
+--cmp dword[edx],#3C565342
+--je @f
+--  int3
+--@@:
     [64]
         -- new style vsb:
         --  vsb_next
@@ -660,14 +655,14 @@ je @f
 -- ::makeFrameX
         mov rdi,[rbp+48]            -- vsb_root
 --DEV test:
-cmp qword[rdi+32],#40565342     -- magic ("@VSB")
-je @f
-  int3
-@@:
-cmp qword[rdi+11240],#3C565342  -- magic ("<VSB")
-je @f
-  int3
-@@:
+--cmp qword[rdi+32],#40565342   -- magic ("@VSB")
+--je @f
+--  int3
+--@@:
+--cmp qword[rdi+11240],#3C565342    -- magic ("<VSB")
+--je @f
+--  int3
+--@@:
 
 --EXCEPT
 --X     lea rsi,[rbp+rcx*8+56]      -- new ebp (provisional!)  --DEV try this again!
@@ -1649,7 +1644,20 @@ end procedure -- (for Edita/CtrlQ)
         mov esi,[ds+8]              -- esi:=raw addr of symtab[1]
         cmp eax,h4
         jl @f
-            int3    -- abort code must be integer [DEV]
+            pop edx
+            mov al,87               -- e87acmbi (abort code must be integer)
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
+        cmp [ebp+16],ebx            -- exception handler
+        je @f
+            mov ecx,eax
+            pop edx
+            mov al,42               -- e42a
+            sub edx,1
+            jmp :!iDiag
+            int3
       @@:
         mov ecx,[nocleanup]
         mov edx,[esi+84]            -- edx:=symtab[T_EBP=22]
@@ -1680,7 +1688,20 @@ end procedure -- (for Edita/CtrlQ)
         mov rsi,[ds+8]              -- rsi:=raw addr of symtab[1]
         cmp rax,r15
         jl @f
-            int3    -- abort code must be integer [DEV]
+            pop rdx
+            mov al,87               -- e87acmbi (abort code must be integer)
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
+        cmp [rbp+32],rbx            -- exception handler
+        je @f
+            mov ecx,rax
+            pop rdx
+            mov al,42               -- e42a
+            sub rdx,1
+            jmp :!iDiag
+            int3
       @@:
         mov rcx,[nocleanup]
         mov rdx,[rsi+168]           -- rdx:=symtab[T_EBP=22]
@@ -1780,7 +1801,6 @@ mov esp,[resp]
 jmp :%opIaborted
 --*/
 
---  ::fin
 }
 
 

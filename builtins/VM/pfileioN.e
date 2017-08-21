@@ -8152,11 +8152,13 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(fflush)          -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp+4]
+--          mov edx,[esp+4]
             pop dword[ebp]                      --[1] fn
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:flushret2        -- return address
-            mov dword[ebp+28],:flushret2        -- return address
+--          mov dword[ebp+28],:flushret2        -- return address
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:fflush
         [64]
@@ -8172,15 +8174,17 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(fflush)          -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+8]
+--          mov rdx,[rsp+8]
             pop qword[rbp]                      --[1] fn
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:flushret2        -- return address
-            mov qword[rbp+56],:flushret2        -- return address
+--          mov qword[rbp+56],:flushret2        -- return address
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:fflush
         []
-          ::flushret2
+--        ::flushret2
             ret
 
     :!opClosem9
@@ -8218,7 +8222,8 @@ end procedure -- (for Edita/CtrlQ)
             pop dword[ebp]                      --[1] fn
 --EXCEPT
 --X         mov dword[ebp+16],:closeret
-            mov dword[ebp+28],:closeret
+--          mov dword[ebp+28],:closeret
+            pop dword[ebp+28]
             jmp $_il                            -- jmp code:fclose
         [64]
             -- calling convention
@@ -8236,11 +8241,12 @@ end procedure -- (for Edita/CtrlQ)
             pop qword[rbp]                      --[1] fn
 --EXCEPT
 --X         mov qword[rbp+32],:closeret
-            mov qword[rbp+56],:closeret
+--          mov qword[rbp+56],:closeret
+            pop qword[rbp+56]
             jmp $_il                            -- jmp code:fclose
         []
-          ::closeret    
-            ret
+--        ::closeret    
+--          ret
 
 --/*
 procedure :%opSeek(:%)
@@ -8548,16 +8554,18 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(flock)           -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp+8]                     -- return address (of the call :%opUnLock)
+--          mov edx,[esp+8]                     -- return address (of the call :%opUnLock)
             pop dword[ebp-8]                    --[2] byte range
             mov dword[ebp-4],UNLOCK             --    lock type
             pop dword[ebp]                      --[1] file number
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:unlockret        -- return address
-            mov dword[ebp+28],:unlockret        -- return address
+--          mov dword[ebp+28],:unlockret        -- return address
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address (for errors)
             jmp $_il                            -- jmp code:flock
-          ::unlockret
+--        ::unlockret
         [64]
             -- calling convention
             --  mov rax,[fn]        -- file number (opUnassigned, integer)
@@ -8578,18 +8586,20 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(flock)           -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+16]                    -- return address (of the call :%opLock)
+--          mov rdx,[rsp+16]                    -- return address (of the call :%opLock)
             pop qword[rbp-16]                   --[2] byte range
             mov qword[rbp-8],UNLOCK             --    lock type
             pop qword[rbp]                      --[1] file number
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:unlockret        -- return address
-            mov qword[rbp+56],:unlockret        -- return address
+--          mov qword[rbp+56],:unlockret        -- return address
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address (for errors)
             jmp $_il                            -- jmp code:flock
-          ::unlockret
+--        ::unlockret
         []
-            ret
+--          ret
 
 --global function get_text(integer fn, integer option=-2) -- = GT_WHOLE_FILE)
 --function fget_text(integer fn, integer option) (option gets a default of -2 in pmain.e)
@@ -8761,14 +8771,16 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(fwrap)           -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp+4]                     -- return address (of the call :%opWrap)
+--          mov edx,[esp+4]                     -- return address (of the call :%opWrap)
             pop dword[ebp]                      --[1] flag
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:wrapret          -- return address
-            mov dword[ebp+28],:wrapret          -- return address
+--          mov dword[ebp+28],:wrapret          -- return address
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fwrap
-          ::wrapret
+--        ::wrapret
         [64]
             -- calling convention
             --  mov rax,[flag]      -- flag (opUnassigned, integer 0|1)
@@ -8783,101 +8795,17 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(fwrap)           -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+8]                     -- return address (of the call :%opWrap)
+--          mov rdx,[rsp+8]                     -- return address (of the call :%opWrap)
             pop qword[rbp]                      --[1] flag
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:wrapret          -- return address
-            mov qword[rbp+56],:wrapret          -- return address
+--          mov qword[rbp+56],:wrapret          -- return address
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fwrap
-          ::wrapret
+--        ::wrapret
         []
-          @@:
-            ret
-
---DEV now builtins/pScrollN.e (not part of the VM)
-----/*
---procedure :%opScroll(:%)
---end procedure -- (for Edita/CtrlQ)
-----*/
---  :%opScroll
-----------------
---      --  The "glue" needed to allow get_text() to be put in the optable.
---      [32]
---          -- calling convention
---          --  mov eax,[amount]    -- +/-lines (opUnassigned, integer)
---          --  mov ecx,[top]       -- topline (opUnassigned, integer)
---          --  mov esi,[bottom]    -- btmline (opUnassigned, integer)
---          --  call :%opScroll     -- scroll(eax,ecx,esi)
---          cmp eax,h4
---          jl @f
-----                add dword[ebx+eax*4-8],1
---              int3
---        @@:
---          cmp ecx,h4
---          jl @f
-----                add dword[ebx+ecx*4-8],1
---              int3
---        @@:
---          cmp esi,h4
---          jl @f
-----                add dword[ebx+esi*4-8],1
---              int3
---        @@:
---          push eax                            --[1] amt
---          push ecx                            --[2] top
---          push esi                            --[3] btm
---          mov edx,routine_id(fscroll)         -- mov edx,imm32 (sets K_ridt)
---          mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
---          call :%opFrame
---          mov edx,[esp+12]                    -- return address (of the call :%opGetText)
---          pop dword[ebp-8]                    --[3] btm
---          pop dword[ebp-4]                    --[2] top
---          pop dword[ebp]                      --[1] amt
---X         mov dword[ebp+16],:scrollret        -- return address
---          mov dword[ebp+28],:scrollret        -- return address
---          mov dword[ebp+12],edx               -- called from address (for errors)
---          jmp $_il                            -- jmp code:fscroll
---        ::scrollret
---      [64]
---          -- calling convention
---          --  mov rax,[amt]       -- +/- lines (opUnassigned, integer)
---          --  mov rcx,[top]       -- top line (opUnassigned, integer)
---          --  mov rsi,[btm]       -- bottom line (opUnassigned, integer)
---          --  call :%opScroll     -- scroll(rax,rcx,rsi)
---          mov r15,h4
---          cmp rax,r15
---          jl @f
-----                add qword[rbx+rax*4-16],1
---              int3
---        @@:
---          cmp rcx,r15
---          jl @f
-----                add qword[rbx+rcx*4-16],1
---              int3
---        @@:
---          cmp rsi,r15
---          jl @f
-----                add qword[rbx+rsi*4-16],1
---              int3
---        @@:
---
---          push rax                            --[1] amt
---          push rcx                            --[2] top
---          push rsi                            --[3] btm
---          mov rdx,routine_id(fscroll)         -- mov rdx,imm32 (sets K_ridt)
---          mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[open][S_Ltot])
---          call :%opFrame
---          mov rdx,[rsp+24]                    -- return address (of the call :%opGetText)
---          pop qword[rbp-16]                   --[3] btm
---          pop qword[rbp-8]                    --[2] top
---          pop qword[rbp]                      --[1] amt
---X         mov qword[rbp+32],:scrollret        -- return address
---          mov qword[rbp+56],:scrollret        -- return address
---          mov qword[rbp+24],rdx               -- called from address (for errors)
---          jmp $_il                            -- jmp code:fscroll
---        ::scrollret
---      []
 --        @@:
 --          ret
 
@@ -8975,15 +8903,17 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(set_console_color)   -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                          -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp+4]                         -- return address (of the call :%opBkClr)
+--          mov edx,[esp+4]                         -- return address (of the call :%opBkClr)
             mov dword[ebp-4],BACKGROUNDCOLOR
             pop dword[ebp]                          --[1] color
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:bkclrret             -- return address
-            mov dword[ebp+28],:bkclrret             -- return address
+--          mov dword[ebp+28],:bkclrret             -- return address
+            mov dword[ebp+28],edx                   -- return address
             mov dword[ebp+12],edx                   -- called from address (for errors)
             jmp $_il                                -- jmp code:set_console_color
-          ::bkclrret
+--        ::bkclrret
         [64]
             -- calling convention
             --  mov rax,[color]     -- color (opUnassigned, integer)
@@ -8998,18 +8928,20 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(set_console_color)   -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                          -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+8]                         -- return address (of the call :%opBkClr)
+--          mov rdx,[rsp+8]                         -- return address (of the call :%opBkClr)
             mov qword[rbp-8],BACKGROUNDCOLOR
             pop qword[rbp]                          --[1] color
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:bkclrret             -- return address
-            mov qword[rbp+56],:bkclrret             -- return address
+--          mov qword[rbp+56],:bkclrret             -- return address
+            mov qword[rbp+56],rdx                   -- return address
             mov qword[rbp+24],rdx                   -- called from address (for errors)
             jmp $_il                                -- jmp code:set_console_color
-          ::bkclrret
+--        ::bkclrret
         []
-          @@:
-            ret
+--        @@:
+--          ret
 
 --/*
 procedure :%opTxtClr(:%)
@@ -9031,15 +8963,17 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(set_console_color)   -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                          -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp+4]                         -- return address (of the call :%opTxtClr)
+--          mov edx,[esp+4]                         -- return address (of the call :%opTxtClr)
             mov dword[ebp-4],TEXTCOLOR
             pop dword[ebp]                          --[1] color
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:txclrret             -- return address
-            mov dword[ebp+28],:txclrret             -- return address
+--          mov dword[ebp+28],:txclrret             -- return address
+            mov dword[ebp+28],edx                   -- return address
             mov dword[ebp+12],edx                   -- called from address (for errors)
             jmp $_il                                -- jmp code:set_console_color
-          ::txclrret
+--        ::txclrret
         [64]
             -- calling convention
             --  mov rax,[color]     -- color (opUnassigned, integer)
@@ -9054,18 +8988,20 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(set_console_color)   -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                          -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+8]                         -- return address (of the call :%opTxtClr)
+--          mov rdx,[rsp+8]                         -- return address (of the call :%opTxtClr)
             mov qword[rbp-8],TEXTCOLOR
             pop qword[rbp]                          --[1] color
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:txclrret             -- return address
-            mov qword[rbp+56],:txclrret             -- return address
+--          mov qword[rbp+56],:txclrret             -- return address
+            mov qword[rbp+56],rdx                   -- return address
             mov qword[rbp+24],rdx                   -- called from address (for errors)
             jmp $_il                                -- jmp code:set_console_color
-          ::txclrret
+--        ::txclrret
         []
-          @@:
-            ret
+--        @@:
+--          ret
 
 --/*
 procedure :%opClrScrn(:%)
@@ -9080,29 +9016,33 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(fclear_screen)   -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp]                       -- return address (of the call :%opClrScrn)
+--          mov edx,[esp]                       -- return address (of the call :%opClrScrn)
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:clsret           -- return address
-            mov dword[ebp+28],:clsret           -- return address
+--          mov dword[ebp+28],:clsret           -- return address
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fclear_screen
-          ::clsret
+--        ::clsret
         [64]
             -- calling convention
             --  call :%opClrScrn -- clear_screen()
             mov rdx,routine_id(fclear_screen)   -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp]                       -- return address (of the call :%opClrScrn)
+--          mov rdx,[rsp]                       -- return address (of the call :%opClrScrn)
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:clsret           -- return address
-            mov qword[rbp+56],:clsret           -- return address
+--          mov qword[rbp+56],:clsret           -- return address
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fclear_screen
-          ::clsret
+--        ::clsret
         []
-          @@:
-            ret
+--        @@:
+--          ret
 
 --/*
 procedure :%opFreeCons(:%)
@@ -9117,29 +9057,33 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(ffree_console)   -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp]                       -- return address (of the call :%opFreeCons)
+--          mov edx,[esp]                       -- return address (of the call :%opFreeCons)
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:fcret            -- return address
-            mov dword[ebp+28],:fcret            -- return address
+--          mov dword[ebp+28],:fcret            -- return address
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address (for errors)
             jmp $_il                            -- jmp code:ffree_console
-          ::fcret
+--        ::fcret
         [64]
             -- calling convention
             --  call :%opFreeCons -- free_console()
             mov rdx,routine_id(ffree_console)   -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp]                       -- return address (of the call :%opFreeCons)
+--          mov rdx,[rsp]                       -- return address (of the call :%opFreeCons)
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:fcret            -- return address
-            mov qword[rbp+56],:fcret            -- return address
+--          mov qword[rbp+56],:fcret            -- return address
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address (for errors)
             jmp $_il                            -- jmp code:ffree_console
-          ::fcret
+--        ::fcret
         []
-          @@:
-            ret
+--        @@:
+--          ret
 
 --/*
 procedure :%opPosition(:%)
@@ -9168,15 +9112,17 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,routine_id(fposition)       -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov edx,[esp+8]                     -- return address (of the call :%opPosition)
+--          mov edx,[esp+8]                     -- return address (of the call :%opPosition)
             pop dword[ebp-4]                    --[2] col
             pop dword[ebp]                      --[1] line
+            pop edx
 --EXCEPT
 --X         mov dword[ebp+16],:posnret          -- return address
-            mov dword[ebp+28],:posnret          -- return address
+--          mov dword[ebp+28],:posnret          -- return address
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fposition
-          ::posnret
+--        ::posnret
         [64]
             -- calling convention
             --  mov rax,[line]      -- line (opUnassigned, integer)
@@ -9198,18 +9144,20 @@ end procedure -- (for Edita/CtrlQ)
             mov rdx,routine_id(fposition)       -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[open][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+16]                    -- return address (of the call :%opPosition)
+--          mov rdx,[rsp+16]                    -- return address (of the call :%opPosition)
             pop qword[rbp-8]                    --[2] col
             pop qword[rbp]                      --[1] line
+            pop rdx
 --EXCEPT
 --X         mov qword[rbp+32],:posnret          -- return address
-            mov qword[rbp+56],:posnret          -- return address
+--          mov qword[rbp+56],:posnret          -- return address
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address (for errors)
             jmp $_il                            -- jmp code:fposition
-          ::posnret
+--        ::posnret
         []
-          @@:
-            ret
+--        @@:
+--          ret
 
           ::fin
       }

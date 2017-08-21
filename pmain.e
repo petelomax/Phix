@@ -2501,8 +2501,6 @@ end if
                     apnds5({opcode,mergeSet,0,backpatch,p2,p3,tii,bothInit})
                     backpatch = length(s5)-4
                     if NOLT=0 or bind or lint then
-                     if not LTBROKEN then
-
                         if t1!=t2   -- (as set by cmpcheck)
                         and opcode=opJne then
                         -- In the body of an if/while p2=p3, p2/p3 is an int if p3/p2 is.
@@ -2575,7 +2573,6 @@ end if
                                 end if
                             end if
                         end if
-                     end if
                     end if -- NOLT
                 end if  -- emitON
             end if
@@ -2645,7 +2642,6 @@ end if
                     apnds5({opJtyp,mergeSet,0,backpatch,0,flippable,t1,p1,invert,ltype})
                     backpatch = length(s5)-6
                     if NOLT=0 or bind or lint then
-                     if not LTBROKEN then
                         --                  if p1 and not and_bits(symtab[p1][S_State],K_Fres) then
                         --31/7/09 removed "p1 and" (on a whim)
                         if not and_bits(symtab[p1][S_State],K_Fres) then
@@ -2657,7 +2653,6 @@ end if
                                 ltAdd(TEST+flippable,p1,ptype,ltype,backpatch-3)
                             end if
                         end if  -- K_Fres
-                     end if
                     end if -- NOLT
                 end if -- emitON
                 freeTmp(-1)
@@ -2782,11 +2777,9 @@ end if
             backpatch = length(s5)-3
 
             if NOLT=0 or bind or lint then
-             if not LTBROKEN then
                 if lastparam then
                     ltAdd(TEST,lastparam,symtab[lastparam][S_ltype],p1+1,backpatch-3)
                 end if
-             end if
             end if -- NOLT
 
         end if -- emitON
@@ -4775,8 +4768,8 @@ object dbg -- DEV (temp)
                         and opcode!=opCrashRtn
                         and opcode!=opAbort
                         and opcode!=opWrap
-                        and opcode!=opProfile
-                        and opcode!=opThrow then
+                        and opcode!=opProfile then
+--                      and opcode!=opThrow then
                             ?9/0
                         end if
                     end if
@@ -4815,16 +4808,17 @@ end if
                                 apnds5({opcode,p1})
                             end if
                         end if
-                    elsif opcode=opThrow then
-                        if not optset[OptDebug] then
-                            Aborp("without debug is in force")
-                        end if
-                        p1 = opstack[1]
-                        if not symtab[p1][S_Init] then
-                            Unassigned(p1)
-                        end if
-                        agcheckop(opThrow)
-                        apnds5({opThrow,p1,0})
+--now done via T_throw, with {}:
+--                  elsif opcode=opThrow then
+--                      if not optset[OptDebug] then
+--                          Aborp("without debug is in force")
+--                      end if
+--                      p1 = opstack[1]
+--                      if not symtab[p1][S_Init] then
+--                          Unassigned(p1)
+--                      end if
+--                      agcheckop(opThrow)
+--                      apnds5({opThrow,p1,0})
 --                  else -- (not opTrace/Throw)
                     elsif opcode!=opProfile or not bind then
 --                      if not integer(opcode) then ?9/0 end if
@@ -4875,7 +4869,6 @@ if newEmit then
                     end if
                     if opcode=opThrow then
                         if not optset[OptDebug] then
---                          Aborp("without debug is in force")
                             Abork("without debug is in force",1)
                         end if
                     end if
@@ -4889,9 +4882,7 @@ end if
 --                  if opcode=opCallProc then
 --?9/0 --DEV
 --                      if NOLT=0 or bind or lint then
---                       if not LTBROKEN then
 --                          ltCall(0,E_vars,length(s5)-2)   -- clear all gvar type info
---                       end if
 --                      end if -- NOLT
 --                  end if
 
@@ -5075,12 +5066,10 @@ dbg = symtab[routineNo]
             symtab[routineNo][S_sig] = rType&signature
         end if
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             if emitON
             and and_bits(thisEffect,E_vars) then
                 ltCall(0,thisEffect,length(s5))
             end if
-         end if
         end if -- NOLT
     end if
     routineNo = wasRoutineNo
@@ -5122,9 +5111,7 @@ integer s5len, bpnext
     s5[bplink] = 0 -- remember to break the chain!
 
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         ltFlip(s5len-3)
-     end if
     end if -- NOLT
 
     return bpmin
@@ -5197,9 +5184,7 @@ integer iffvar
         iftop = length(s5)-1    -- patched at/pointed to the end if
         ctrlink = iftop         -- where to point next elsif/else/endif
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(iftop)
-         end if
         end if -- NOLT
     end if
 
@@ -5311,9 +5296,7 @@ integer iffvar
         s5 &= {opCtrl,ctrltyp,ctrlink,emitline}
         ctrlink = length(s5)-1
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(ctrlink)
-         end if
         end if -- NOLT
     end if
 
@@ -5354,9 +5337,7 @@ integer iffvar
         ctrlink = length(s5)-1
         s5[iftop] = ctrlink
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(ctrlink)
-         end if
         end if -- NOLT
     end if
 
@@ -5520,14 +5501,12 @@ integer wasreturnvar = returnvar    -- (NESTEDFUNC)
 --?rtnttidx
 
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         ltclear(0)  -- (hanging onto file-level localtypes over a 
                 --  routine definition not deemed worthwhile)
                 -- [erm, actually we do hang onto said during
                 --  the gscan phase, just not during parsing]
-    -- (btw we call ltclear again below once currRtn is set)
-    -- (DEV only necessary when pltype diag is on.. minor tho)
-     end if
+        -- (btw we call ltclear again below once currRtn is set)
+        -- (DEV only necessary when pltype diag is on.. minor tho)
     end if -- NOLT
 
     rtntokcol = tokcol
@@ -5761,9 +5740,7 @@ end if
     currRtn = N
 
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
             ltclear(N) -- (see above)
-     end if
     end if -- NOLT
 
     --  optionalParameterExpression=1
@@ -6135,9 +6112,7 @@ end if
     end if
 
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         ltclear(-N)
-     end if
     end if -- NOLT
 
 --if fileno=92 and tokline>=818 then
@@ -6393,7 +6368,6 @@ object dbg
         Aborp("unrecognised")
     end if
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         if emitON then      -- allows eg  if usetdsq then #istype{s,0b0100} else #istype{s,0b1100} end if
             if ltype!=T then
                 b1 = "0000"
@@ -6428,7 +6402,6 @@ object dbg
             end if
             s5 &= {opLchk,N,T,tokline,tokcol,fileno}
         end if -- emitON
-     end if
     end if -- NOLT
     getToken()
     MatchChar('}')
@@ -7211,11 +7184,9 @@ integer djmp, T_const
         emitHexMov(opMovbi,BN,-1)           -- force 0/1 in pilx86.e
 
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             Lmin = 0    -- \ (these are not really of any use   )
             Lmax = 1    -- / (whatsoever, but they don't hurt...)
             ltAdd(SET,BN,T_integer,T_integer,length(s5))
-         end if
         end if -- NOLT
     end if -- emitON
 
@@ -8503,14 +8474,12 @@ end if
     symtab[tidx] = symtabN
     symtabN = {}    -- (avoids clone in ltAdd)
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         if emitON then
 --PL 6/3/17(??)
 --          Lmin = MININT
 --          Lmax = MAXINT
             ltAdd(SET,tidx,lprev,ntype,length(s5))
         end if
-     end if
     end if -- NOLT
     --DEV if we have say:
     --  integer I
@@ -8539,8 +8508,16 @@ constant T_endelseelsif = {T_end,T_else,T_elsif,T_case,T_catch,T_default,T_fallt
 constant T_endelseelsifbreak = T_endelseelsif&T_break
 --(one possible[spotted in passing]: fallthr(u|ough) missing?) -- (added 14/2/11)
 
+-- for DoTry():
+integer in_try = 0      -- exit/break/continue invalid when >=1...
+integer loopage = 0,    -- (used only for setting/comparing against the following)
+        try_loopage     -- ...and loopage==try_loopage (as at last in_try+=1)
+
 procedure DoExit()
     if exitBP=-1 then Aborp("exit statement must be inside a loop") end if
+    if in_try and loopage=try_loopage then
+        Aborp("invalid (circumvents try handler reset)")
+    end if
     MatchString(T_exit)
     if emitON then
         apnds5({opJmp,exitMerge,0,exitBP})
@@ -8561,6 +8538,9 @@ end procedure
 
 procedure DoBreak()
     if breakBP=-1 then Aborp("break statement must be inside a select") end if
+    if in_try and loopage=try_loopage then
+        Aborp("invalid (circumvents try handler reset)")
+    end if
     MatchString(T_break)
     if emitON then
         apnds5({opJmp,breakMerge,0,breakBP})
@@ -8578,6 +8558,9 @@ end procedure
 
 procedure DoContinue()
     if continueBP=-1 then Aborp("continue statement must be inside a loop") end if
+    if in_try and loopage=try_loopage then
+        Aborp("invalid (circumvents try handler reset)")
+    end if
     MatchString(T_continue)
     if emitON then
         apnds5({opJmp,exitMerge,0,continueBP})
@@ -8644,18 +8627,14 @@ integer scode, wasEmit2
 
     ctrlink = 0
 --if NOLT=0 or bind or lint then
--- if not LTBROKEN then
     if emitON then
         apnds5({opCtrl,IF,0,emitline})
         iftop = length(s5)-1    -- patched at/pointed to the end if
         ctrlink = iftop         -- where to point next elsif/else/endif
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(iftop)
-         end if
         end if -- NOLT
     end if
--- end if
 --end if -- NOLT
 
     wasSideEffects = SideEffects
@@ -8786,6 +8765,9 @@ integer scode, wasEmit2
         end if -- not "then end" (or "else end")
 
         if toktype=LETTER and find(ttidx,{T_exit,T_break,T_continue}) and elsevalid then
+            if in_try and loopage=try_loopage then
+                Aborp("invalid (circumvents try handler reset)")
+            end if
             if ttidx=T_exit then
                 if exitBP=-1 then Aborp("exit statement must be inside a loop") end if
                 if opsidx then
@@ -8993,19 +8975,15 @@ end if
             if ifBP then ?9/0 end if
         end if
 --if NOLT=0 or bind or lint then
--- if not LTBROKEN then
         if emitON then
 --DEV 29/3/10... (no gain)
 --          apnds5({opCtrl,ctrltyp,ctrlink,emitline})
             s5 &= {opCtrl,ctrltyp,ctrlink,emitline}
             ctrlink = length(s5)-1
             if NOLT=0 or bind or lint then
-             if not LTBROKEN then
                 ltCtrl(ctrlink)
-             end if
             end if -- NOLT
         end if
--- end if
 --end if -- NOLT
 
 --      emitline = line
@@ -9034,7 +9012,6 @@ end if
     end if
 --  end if -- emitON
 --if NOLT=0 or bind or lint then
--- if not LTBROKEN then
 --DEV8:
 --  if emitON then  -- oops!
     if ctrlink then
@@ -9044,9 +9021,7 @@ end if
         ctrlink = length(s5)-1
         s5[iftop] = ctrlink
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(ctrlink)
-         end if
         end if -- NOLT
         --DEV tryme:
         -- (if showprogress then puts(1,"msg\n") end if generated the following il:)
@@ -9056,7 +9031,6 @@ end if
         --  s5 = s5[1..iftop-3]
         --end if
     end if
--- end if
 --end if -- NOLT
 
     MatchString(T_end)
@@ -9085,6 +9059,7 @@ integer waslMask
 --DEV14:
 integer thispt
 
+    loopage += 1    -- for DoTry()
 --trace(1)
     saveExitBP = exitBP
     exitBP = 0  -- valid, end of chain
@@ -9099,7 +9074,6 @@ integer thispt
 
     if emitON then
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             apnds5({opLoopTop,E_vars,E_vars,0})     -- opLoopTop,lmask,gmask,end
             thispt = length(s5)+1
 --          ltlooptop(thispt-3)
@@ -9107,7 +9081,6 @@ integer thispt
         --??? (untried:)
         --else -- NOLT
         --      thispt = length(s5)+1
-         end if
         end if -- NOLT
         s5 &= {opLabel,0,0,0}   -- opLabel,mergeSet,0/x86loc,link
         loopTop = length(s5)    -- addr link field
@@ -9211,14 +9184,12 @@ integer thispt
         apnds5({opJmp,0,loopTop,0})
         --      s5[loopTop] = length(s5)    -- NO! bckwd jumps should not be linked from opLabel!
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
 --          if s5[loopTop-6]!=opLoopTop then ?9/0 end if
 --          s5[loopTop-5] = lMask
 --          s5[loopTop-4] = SideEffects
             if s5[loopTop-7]!=opLoopTop then ?9/0 end if
             s5[loopTop-6] = lMask
             s5[loopTop-5] = SideEffects
-         end if
         end if -- NOLT
 
     end if -- emitON
@@ -9235,7 +9206,6 @@ integer thispt
     end if
     exitBP = saveExitBP
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         if emitON then
             s5 &= {opCtrl,END+LOOP,thispt-3,emitline}
             -- s5[loopTop??] = length(s5)   --DEV
@@ -9244,13 +9214,13 @@ integer thispt
                 ltCtrl(length(s5)-1)
             end if -- NOLT
         end if
-     end if
     end if -- NOLT
 
     clearIchain(saveIchain)
 
     SideEffects = or_bits(SideEffects,wasSideEffects)
     lMask = or_bits(lMask,waslMask)
+    loopage -= 1
 
 end procedure
 
@@ -9280,6 +9250,7 @@ integer src     -- 13/5/2012
 integer flags
 integer cnTyp
 
+    loopage += 1    -- for DoTry()
     wasSideEffects = SideEffects
     SideEffects = E_none
     waslMask = lMask
@@ -9559,10 +9530,8 @@ integer cnTyp
     continueBP = 0
     if emitON then
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             apnds5({opLoopTop,E_vars,E_vars,0}) -- opLoopTop,lmask,gmask,end
             ltlooptop(length(s5)-3)
-         end if
         end if -- NOLT
         apnds5({opFor2,flags,NI,N,NS,NL,0})
         bpFor = length(s5)
@@ -9605,13 +9574,11 @@ integer cnTyp
         lens5 = length(s5)
         s5[bpFor] = lens5                   -- and opFor to opEndFor
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(lens5)
             if s5[bpFor-10]!=opLoopTop then ?9/0 end if
             s5[bpFor-9] = lMask
             s5[bpFor-8] = SideEffects
             s5[bpFor-7] = lens5
-         end if
         end if -- NOLT
     end if
 
@@ -9631,6 +9598,7 @@ integer cnTyp
 
     SideEffects = or_bits(SideEffects,wasSideEffects)
     lMask = or_bits(lMask,waslMask)
+    loopage -= 1
 end procedure
 
 --with trace
@@ -9646,6 +9614,12 @@ procedure DoReturn()
     if returnvar=-1 then
         Aborp("return must be inside a procedure or function")
     end if
+--Actually, returns are perfectly safe (since frame/handler is discarded anyway)
+--  if in_try and loopage=try_loopage then  -- NO!
+--  if in_try then
+--      Aborp("invalid (circumvents try handler reset)")
+--  end if
+
     MatchString(T_return,float_valid:=true)
     if returnvar then
         Expr(0,asBool)
@@ -9777,6 +9751,7 @@ integer link
 
 --trace(1)
     if opsidx then ?9/0 end if  -- leave in (outside if DEBUG then)
+    loopage += 1    -- for DoTry()
     EndSwitchBP = 0
 
     if exprBP!=0 then ?9/0 end if
@@ -9811,9 +9786,7 @@ integer link
         switchtop = length(s5)-1    -- patched at/pointed to the end if
         ctrlink = switchtop         -- where to point next elsif/else/endif
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(switchtop)
-         end if
         end if -- NOLT
     end if
 
@@ -10140,9 +10113,7 @@ end if
                 elsectrl = ctrlink
             end if
             if NOLT=0 or bind or lint then
-             if not LTBROKEN then
                 ltCtrl(ctrlink)
-             end if
             end if -- NOLT
         end if
 
@@ -10206,9 +10177,7 @@ end if
         ctrlink = length(s5)-1
         s5[switchtop] = ctrlink
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltCtrl(ctrlink)
-         end if
         end if -- NOLT
     end if
 
@@ -10225,46 +10194,53 @@ end if
     clearIchain(saveIchain)
 
     SideEffects = or_bits(SideEffects,wasSideEffects)
+    loopage -= 1
 
 end procedure
 
 procedure DoTry()
 --SideEffects??
-integer prev, tlnk, savettidx, E, tryBP
+integer prev, tlnk, savettidx, E, tryBP, esp4,
+        wasEmit = emitON
 bool newScope
---  Compilation issues "Error: without debug in force" messages when appropriate.   --DEV I think I mean throw()
+integer was_loopage = loopage
+--  opName("opTry",opTry,4)             -- opTry,tmp,tgt,esp4
+--  opName("opTryend",opTryend,5)       -- opTryend,mergeSet(0),tgt,link,tlnk
+--  opName("opCatch",opCatch,3)         -- opCatch,tlnk,e
+--  opName("opThrow",opThrow,3)         -- opThrow,e,user
+
+    in_try += 1
+    try_loopage = loopage
 
     MatchString(T_try)
     if emitON then
         exceptions_in_use = 1
         prev = newTempVar(T_atom,Shared)
-        apnds5({opTry,prev,0})
---  opName("opTry",opTry,3)             -- opTry,tmp,tgt
---  opName("opCatch",opCatch,6)         -- opCatch,mergeSet(0),tgt,link,tlnk,e
---  opName("opThrow",opThrow,3)         -- opThrow,e,user/0
-        tlnk = length(s5)-2
+        esp4 = newTempVar(T_integer,Shared)
+        apnds5({opTry,prev,0,esp4})
+        tlnk = length(s5)-3
     end if
 
     Block()
 
+    emitON = wasEmit
+
     MatchString(T_catch)
 
---SUG permit catch(e) ? and catch(sequence e) ensures it not predeclared ?
     if toktype!=LETTER then
         Aborp("an exception variable name is expected here")
     end if
     E = InTable(InVeryTop)
     if E>0 then
-        -- permit re-use of local variable rather than erroring, 
-        -- but it must be the appropriate type (ie a sequence).
+        -- permit re-use/extend scope of local variable
         integer cnTyp = symtab[E][S_NTyp],
                 vtype = symtab[E][S_vtype]
         if cnTyp=S_Const or cnTyp>S_TVar then
             Aborp("already declared as a "&NTdesc[cnTyp])
         elsif vtype>T_object or not and_bits(vtype,T_Dsq) then
             -- Note: there is no type checking on a catch clause,
-            --       this prevents the use of user defined types.
-            Aborp("type error (exception variable must be a SEQUENCE)")
+            --       hence user defined types are NOT permitted.
+            Aborp("type error (exception variable must be sequence, or object)")
         end if
         symtab[E][S_State] = or_bits(symtab[E][S_State],S_set)
         newScope = false
@@ -10284,12 +10260,21 @@ bool newScope
         newScope = true
     end if
     if emitON then
+        -- put "reset exception handler" on prior/blank line...
+        -- (as long as we haven't already emitted code for it)
+        emitline = line - (lastline<emitline)
+        -- opTryend,mergeSet(0),tgt,link,tlnk
+        apnds5({opTryend,0,0,0,tlnk})
+        -- ... and the actual catch itself on the catch line.
         emitline = line
-        apnds5({opCatch,0,0,0,tlnk,E})
-        tryBP = length(s5)-2
-        if s5[tryBP-3]!=opCatch then ?9/0 end if
+        tryBP = length(s5)-1
+        -- opCatch,tlnk,e
+        apnds5({opCatch,tlnk,E})
     end if
     getToken()
+
+    in_try -= 1
+    try_loopage = was_loopage
 
     if ttidx=T_end then
         Warn("empty catch block",tokline,tokcol,0)
@@ -10308,7 +10293,7 @@ bool newScope
     if emitON then
         tryBP = backpatch(tryBP,0,0)
 --erm, PushFactor???
---      freeTmp(prev)
+--      freeTmp(prev,esp4)
     end if
     MatchString(T_end)
     MatchString(T_try)
@@ -11019,7 +11004,6 @@ end if
         end if
 --4/2/15:
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             if emitON then
 --PL 6/3/17(??)
 --              Lmin = MININT
@@ -11027,7 +11011,6 @@ end if
                 lprev = symtab[varno][S_ltype]
                 ltAdd(SET,varno,lprev,ntype,length(s5))
             end if
-         end if
         end if -- NOLT
     end for
     VAmask = 0
@@ -11081,11 +11064,9 @@ end if
     symtab[tidx] = symtabN
     symtabN = {}    -- (avoids clone in ltAdd)
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         if emitON then
             ltAdd(SET,tidx,lprev,ntype,length(s5))
         end if
-     end if
     end if -- NOLT
     --DEV if we have say:
     --  integer I
@@ -11995,9 +11976,7 @@ sequence typeset
         currRtn = N
 
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltclear(N) -- (see above)
-         end if
         end if -- NOLT
 
         PushFactor(pN,1,T_integer)
@@ -12023,9 +12002,7 @@ end if
 
         currRtn = dropScope(N,S_Rtn)
         if NOLT=0 or bind or lint then
-         if not LTBROKEN then
             ltclear(-N)
-         end if
         end if -- NOLT
         returnvar = -1
         returnint = 0
@@ -12378,9 +12355,7 @@ integer t
     --      Ichain = t
     --  end while
     if NOLT=0 or bind or lint then
-     if not LTBROKEN then
         ltclear(currRtn)
-     end if
     end if -- NOLT
 end procedure
 
@@ -12449,9 +12424,6 @@ end if
 --  ltline = 0  -- DEV needed?
 --trace(1)
     Z_format = T_format
-    if SETLTBROKEN then
-        LTBROKEN = PE=0 and X64=1
-    end if
 
 --20/3/15: (hopefully temp!)
     if bind then
@@ -12478,10 +12450,6 @@ end if
                 end while
                 Z_format = 0
                 prevfile = fileno
-                if SETLTBROKEN then
---                  LTBROKEN = platform()=LINUX and machine_bits()=64               
-                    LTBROKEN = PE=0 and X64=1
-                end if
 --DEV newEmit->pdiag2.e? (has invoke SetUnhandledExceptionFilter,finalExceptionHandler etc)
 if newEmit then
                 if not nodiag then

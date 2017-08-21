@@ -1,0 +1,2291 @@
+namespace dos_rescue
+
+without warning
+
+-- Windows GDI equivalent routines 
+-- for essential DOS graphics, keyboard etc.
+
+--/*
+include std/machine.e
+include std/dll.e
+include std/math.e -- for or_all(), min()
+include std/convert.e -- for bytes_to_int() etc.
+include std/error.e -- for crash()
+include std/text.e -- for sprint()
+include std/os.e -- for instance()
+--*/
+
+constant TRUE = 1, 
+         FALSE = 0
+constant STDIN = 0, 
+         STDOUT = 1
+
+global function LOWORD(atom a)
+    return and_bits(a, #FFFF)
+end function
+
+global function HIWORD(atom a)
+    return floor(a/#10000)
+end function
+
+-- Constants and structures --
+
+constant 
+    CS_VREDRAW = 1,
+    CS_HREDRAW = 2,
+    CS_OWNDC = 32
+
+global constant SW_SHOWNORMAL = 1
+
+constant
+    WS_OVERLAPPED  = #00000000,
+    WS_CAPTION     = #00C00000,
+    WS_SYSMENU     = #00080000,
+    WS_THICKFRAME  = #00040000,
+    WS_MINIMIZEBOX = #00020000,
+    WS_MAXIMIZEBOX = #00010000,
+    WS_MAXIMIZE    = #01000000,
+    WS_VISIBLE     = #10000000,
+    WS_POPUP       = #80000000
+
+constant
+    WS_EX_TOPMOST  = #00000008
+
+constant
+    GWL_STYLE      = -16,
+    GWL_EXSTYLE    = -20
+
+constant
+    IDI_APPLICATION = #7F00,
+    IDC_ARROW = #7F00,
+--  WHITE_BRUSH = 0,
+    BLACK_BRUSH = 4,
+    CW_USEDEFAULT = #80000000
+
+--constant
+--  OEM_FIXED_FONT = 10,
+--  SYSTEM_FONT = 13,
+--  SYSTEM_FIXED_FONT = 16,
+--  $
+
+constant SRCCOPY = #CC0020
+
+constant
+    HWND_TOP = 0,
+--  HWND_TOPMOST = -1,
+    $
+
+-- WNDCLASSEX
+constant
+    -- cbSize              = 0,
+    -- style               = 4,
+    -- lpfnWndProc         = 8,
+    -- cbClsExtra          = 12,
+    -- cbWndExtra          = 16,
+    -- hInstance           = 20,
+    -- hIcon               = 24,
+    -- hCursor             = 28,
+    -- hbrBackground       = 32,
+    -- lpszMenuName        = 36,
+    -- lpszClassName       = 40,
+    -- hIconSm             = 44,
+    SIZE_OF_WNDCLASSEX    = 48
+
+constant SIZE_OF_MESSAGE = 40
+constant MESSAGE = 4
+
+-- DEVMODE
+constant
+--  dmSize = 0,
+--  dmFields = 40,
+--  dmPelsWidth  = 108,
+--  dmPelsHeight = 112,
+    sizeofDEVMODE = 156
+
+--constant
+--  DM_PELSWIDTH  = #00080000,
+--  DM_PELSHEIGHT = #00100000
+
+--constant CDS_FULLSCREEN = #00000004
+
+-- PeekMessage options
+constant
+--  PM_NOREMOVE =  0,
+    PM_REMOVE   =  1,
+--  PM_NOYIELD  =  2,
+    $
+
+constant
+    WM_CREATE    = #0001,
+    WM_DESTROY   = #0002,
+    WM_SIZE      = #0005,
+    WM_SETFOCUS  = #0007,
+    WM_KILLFOCUS = #0008,
+    WM_PAINT     = #000F,
+    WM_CLOSE     = #0010,
+    WM_QUIT      = #0012,
+    WM_KEYDOWN   = #0100,
+    WM_KEYUP     = #0101,
+    WM_CHAR      = #0102,
+    WM_HOTKEY    = #0312
+
+-- WM_SIZE message wParam values
+constant
+--  SIZE_RESTORED       = 0,
+    SIZE_MINIMIZED      = 1,
+--  SIZE_MAXIMIZED      = 2,
+--  SIZE_MAXSHOW        = 3,
+--  SIZE_MAXHIDE        = 4,
+    $
+
+constant
+    MOD_ALT = 1,
+--  MOD_CONTROL = 2,
+--  MOD_SHIFT = 4,
+    $
+
+constant DIB_RGB_COLORS = 0
+
+-- global integer freeze_the_game
+-- freeze_the_game = FALSE
+
+-- PAINTSTRUCT
+constant
+    rcPaint = 8, 
+    sizeofPAINTSTRUCT = 64
+
+-- RECT
+constant
+--  LEFT = 0, 
+--  TOP = 4, 
+--  RIGHT = 8, 
+--  BOTTOM = 12, 
+    sizeofRECT = 16
+
+-- TEXTMETRIC
+constant
+    tmHeight = 0, 
+    tmAveCharWidth = 20, 
+    sizeofTEXTMETRIC = 53
+
+-- BITMAPINFO
+constant
+    bmiHeader = 0, 
+    bmiColors = 40
+
+constant
+    sizeofRGBQUAD = 4,
+    sizeofBITMAPFILEHEADER = 14,
+    sizeofBITMAPCOREHEADER = 12,
+    sizeofBITMAPINFOHEADER = 40,
+--  sizeofBITMAPV4HEADER = 108,
+--  sizeofBITMAPV5HEADER = 124,
+    $
+
+constant BI_RGB = 0
+
+constant OBJ_BITMAP = 7
+
+constant
+    DT_SINGLE_LINE = #00000020,
+    DT_NOPREFIX    = #00000800
+
+constant
+--  TRANSPARENT = 1, 
+    OPAQUE = 2
+
+-- LOGFONT
+constant
+    lfHeight = 0,
+    lfWidth = 4,
+    lfEscapement = 8,
+--  lfOrientation = 12,
+    lfWeight = 16,
+    lfItalic = 20,
+--  lfUnderline = 21,
+--  lfStrikeOut = 22,
+    lfCharSet = 23,
+    lfOutPrecision = 24,
+    lfClipPrecision = 25,
+    lfQuality = 26,
+    lfPitchAndFamily = 27,
+    lfFaceName = 28,
+    sizeofLOGFONT = 60
+
+constant
+    --
+    -- Font weights
+    --
+--  FW_DONTCARE = 0,
+--  FW_THIN = 100,
+--  FW_EXTRALIGHT = 200,
+--  FW_LIGHT = 300,
+    FW_NORMAL = 400,
+--  FW_MEDIUM = 500,
+--  FW_SEMIBOLD = 600,
+--  FW_BOLD = 700,
+--  FW_EXTRABOLD = 800,
+--  FW_HEAVY = 900,
+    --
+    -- Font charsets
+    --
+    OEM_CHARSET = -1, -- 255
+--  ANSI_CHARSET = 0,
+--  DEFAULT_CHARSET = 1,
+    --
+    -- Font out precisions and clip precisions
+    --
+    OUT_DEFAULT_PRECIS = 0,
+--  OUT_STRING_PRECIS = 1,
+--  OUT_CHARACTER_PRECIS = 2,
+--  OUT_STROKE_PRECIS = 3,
+--  OUT_TT_PRECIS = 4,
+--  OUT_DEVICE_PRECIS = 5,
+--  OUT_RASTER_PRECIS = 6,
+--  OUT_TT_ONLY_PRECIS = 7,
+--  OUT_OUTLINE_PRECIS = 8,
+    CLIP_DEFAULT_PRECIS = 0,
+    --
+    -- Font quality
+    --
+--  DEFAULT_QUALITY = 0,
+--  DRAFT_QUALITY = 1,
+    PROOF_QUALITY = 2,
+--  NONANTIALIASED_QUALITY = 4,
+--  ANTIALIASED_QUALITY = 4,
+    --
+    -- Font pitch and family
+    --
+--  DEFAULT_PITCH = 0,
+    FIXED_PITCH = 1,
+--  VARIABLE_PITCH = 2,
+--  FF_DECORATIVE = 80,
+    FF_DONTCARE = 0,
+--  FF_MODERN = 48,
+--  FF_ROMAN = 16,
+--  FF_SCRIPT = 64,
+--  FF_SWISS = 32,
+    $
+
+-- System metrics constants
+constant
+    SM_CXSCREEN = 0,
+    SM_CYSCREEN = 1
+
+constant
+    paintstruct = allocate(sizeofPAINTSTRUCT),
+    rect = allocate(sizeofRECT),
+    textmetric = allocate(sizeofTEXTMETRIC),
+    bitmapinfo = allocate(sizeofBITMAPINFOHEADER+sizeofRGBQUAD*256),
+    logfont = allocate(sizeofLOGFONT)
+
+-- WinAPI imports --
+
+procedure not_found(sequence name)
+    crash("Couldn't find " & name & '\n')
+end procedure
+
+function link_c_func(atom dll, sequence name, sequence args, atom result)
+-- dynamically link a C routine as a Euphoria function
+integer handle
+
+    handle = define_c_func(dll, name, args, result)
+    if handle= -1 then
+        not_found(name)
+    else
+        return handle
+    end if
+end function
+
+function link_c_proc(atom dll, sequence name, sequence args)
+-- dynamically link a C routine as a Euphoria procedure
+integer handle
+
+    handle = define_c_proc(dll, name, args)
+    if handle= -1 then
+        not_found(name)
+    else
+        return handle
+    end if
+end function
+
+-- get handles to all dll routines that we need
+-- open the .DLL files
+constant user32 = open_dll("user32.dll")
+    if user32=NULL then
+        not_found("user32.dll")
+    end if
+
+constant kernel32 = open_dll("kernel32.dll")
+    if kernel32=NULL then
+        not_found("kernel32.dll")
+    end if
+
+constant gdi32 = open_dll("gdi32.dll")
+    if gdi32=NULL then
+        not_found("gdi32.dll")
+    end if
+
+constant winmm = open_dll("winmm.dll")
+    if winmm=NULL then
+        not_found("winmm.dll")
+    end if
+
+-- link the C routines
+global constant
+    Sleep = link_c_proc(kernel32, "Sleep", {C_INT}),
+    Beep = link_c_proc(kernel32, "Beep", {C_LONG,C_LONG}),
+    GlobalAddAtom =  link_c_func(kernel32,"GlobalAddAtomA",{C_POINTER},C_INT),
+
+    LoadIcon = link_c_func(user32, "LoadIconA", {C_POINTER, C_INT}, C_INT),
+    LoadCursor = link_c_func(user32, "LoadCursorA", {C_POINTER, C_INT}, C_INT),
+    GetStockObject = link_c_func(gdi32, "GetStockObject", {C_INT}, C_INT),
+    RegisterClassEx = link_c_func(user32, "RegisterClassExA", {C_POINTER}, C_INT),
+    CreateWindow = link_c_func(user32, "CreateWindowExA",
+                               {C_INT, C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_INT},
+                               C_INT),
+    ShowWindow = link_c_proc(user32, "ShowWindow", {C_INT, C_INT}),
+    UpdateWindow = link_c_proc(user32, "UpdateWindow", {C_INT}),
+    PeekMessage = link_c_func(user32, "PeekMessageA",
+                              {C_INT, C_INT, C_INT, C_INT, C_INT}, C_INT),
+    TranslateMessage = link_c_proc(user32, "TranslateMessage", {C_INT}),
+    DispatchMessage = link_c_proc(user32, "DispatchMessageA", {C_INT}),
+    DestroyWindow = link_c_proc(user32, "DestroyWindow", {C_INT}),
+    InvalidateRect = link_c_proc(user32, "InvalidateRect", {C_LONG, C_LONG, C_LONG}),
+    BeginPaint = link_c_func(user32, "BeginPaint", {C_INT, C_INT}, C_INT),
+    GetClientRect = link_c_proc(user32, "GetClientRect", {C_INT, C_INT}),
+    GetWindowRect = link_c_proc(user32, "GetWindowRect", {C_INT, C_INT}),
+    DrawText = link_c_proc(user32, "DrawTextA",
+                           {C_INT, C_INT, C_INT, C_POINTER, C_INT}),
+    EndPaint = link_c_proc(user32, "EndPaint", {C_INT, C_INT}),
+    PostQuitMessage = link_c_proc(user32, "PostQuitMessage", {C_INT}),
+    DefWindowProc = link_c_func(user32, "DefWindowProcA",
+                                {C_INT, C_INT, C_INT, C_INT}, C_INT),
+    GetDC = link_c_func(user32, "GetDC", {C_INT}, C_INT),
+    ReleaseDC = link_c_proc(user32, "ReleaseDC", {C_INT, C_INT}),
+    SetWindowPos = link_c_proc(user32, "SetWindowPos", {C_LONG, C_LONG,
+                                                        C_LONG, C_LONG, C_LONG, C_LONG, C_LONG}),
+    SetWindowText = link_c_proc(user32, "SetWindowTextA", {C_LONG, C_LONG}),
+    FillRect = link_c_proc(user32, "FillRect", {C_LONG, C_LONG, C_LONG}),
+    CreateCaret = link_c_proc(user32, "CreateCaret", {C_LONG, C_LONG, C_LONG, C_LONG}),
+    SetCaretPos = link_c_proc(user32, "SetCaretPos", {C_LONG, C_LONG}),
+    ShowCaret = link_c_proc(user32, "ShowCaret", {C_LONG}),
+    HideCaret = link_c_proc(user32, "HideCaret", {C_LONG}),
+    DestroyCaret = link_c_proc(user32, "DestroyCaret", {}),
+    CharToOemBuff = link_c_proc(user32, "CharToOemBuffA", {C_LONG, C_LONG, C_LONG}),
+    ScreenToClient = link_c_proc(user32, "ScreenToClient", {C_LONG, C_POINTER}),
+    SetCapture = link_c_proc(user32, "SetCapture", {C_LONG}),
+    ReleaseCapture = link_c_proc(user32, "ReleaseCapture", {}),
+    RegisterHotKey = link_c_proc(user32,"RegisterHotKey",{C_UINT, C_INT, C_UINT, C_UINT}),
+    SetWindowLong = link_c_proc(user32, "SetWindowLongA",{C_UINT,C_INT,C_LONG}),
+    GetWindowLong = link_c_func(user32, "GetWindowLongA",{C_UINT,C_INT},C_LONG),
+    AdjustWindowRect = link_c_proc(user32, "AdjustWindowRect",{C_POINTER,C_LONG,C_LONG}),
+    GetSystemMetrics = link_c_func(user32, "GetSystemMetrics", {C_INT}, C_INT),
+    MoveWindow = link_c_proc(user32, "MoveWindow", {C_LONG, C_INT, C_INT, C_INT, C_INT, C_LONG}),
+    ChangeDisplaySettings = link_c_func(user32, "ChangeDisplaySettingsA", {C_POINTER, C_ULONG}, C_INT),
+
+    MoveToEx = link_c_proc(gdi32, "MoveToEx", {C_LONG, C_LONG, C_LONG, C_POINTER}),
+    LineTo = link_c_proc(gdi32, "LineTo", {C_LONG, C_LONG, C_LONG}),
+    Ellipse = link_c_proc(gdi32, "Ellipse", {C_LONG, C_LONG, C_LONG, C_LONG, C_LONG}),
+    SelectObject = link_c_proc(gdi32, "SelectObject", {C_LONG, C_LONG}),
+    GetCurrentObject = link_c_func(gdi32, "GetCurrentObject", {C_LONG, C_LONG},C_LONG),
+    SetTextColor = link_c_proc(gdi32, "SetTextColor", {C_LONG, C_LONG}),
+    SetBkColor = link_c_proc(gdi32, "SetBkColor", {C_LONG, C_LONG}),
+    SetBkMode = link_c_proc(gdi32, "SetBkMode", {C_LONG, C_LONG}),
+    CreatePen = link_c_func(gdi32, "CreatePen", {C_LONG, C_LONG, C_LONG},
+                            C_LONG),
+    Polygon = link_c_proc(gdi32, "Polygon", {C_LONG, C_LONG, C_LONG}),
+    Polyline = link_c_proc(gdi32, "Polyline", {C_LONG, C_LONG, C_LONG}),
+    CreateSolidBrush = link_c_func(gdi32, "CreateSolidBrush", {C_LONG}, C_LONG),
+    DeleteObject = link_c_proc(gdi32, "DeleteObject", {C_LONG}),
+    GetTextMetrics = link_c_proc(gdi32, "GetTextMetricsA", {C_LONG, C_LONG}),
+    CreateCompatibleDC = link_c_func(gdi32, "CreateCompatibleDC", {C_LONG}, C_LONG),
+    CreateDIBSection = link_c_func(gdi32, "CreateDIBSection",
+                                   {C_LONG, C_LONG, C_LONG, C_LONG, C_LONG, C_LONG}, C_LONG),
+    SetDIBColorTable = link_c_proc(gdi32, "SetDIBColorTable", {C_LONG, C_LONG, C_LONG, C_LONG}),
+    BitBlt = link_c_proc(gdi32, "BitBlt",repeat(C_LONG,9)),
+    StretchBlt = link_c_proc(gdi32, "StretchBlt",repeat(C_LONG,11)),
+    DeleteDC = link_c_proc(gdi32, "DeleteDC", {C_LONG}),
+    CreateFontIndirect = link_c_func(gdi32, "CreateFontIndirectA",{C_POINTER},C_LONG),
+
+    PlaySound = link_c_proc(winmm,"PlaySound",{C_POINTER,C_UINT,C_UINT})
+
+-- Difinitions of the video modes --
+
+-- Packed palettes in #BBGGRR format
+constant
+p2   = {#000000, #FFFFFF},
+p4   = {#000000, #FFFF55, #FF55FF, #FFFFFF},
+p4g  = {#000000, #AAAAAA, #555555, #FFFFFF},
+p16  = {#000000, #AA0000, #00AA00, #AAAA00, #0000AA, #AA00AA, #0055AA, #AAAAAA,
+        #555555, #FF5555, #55FF55, #FFFF55, #5555FF, #FF55FF, #55FFFF, #FFFFFF},
+p32  = {#000000, #AA0000, #00AA00, #AAAA00, #0000AA, #AA00AA, #0055AA, #AAAAAA,
+        #555555, #FF5555, #55FF55, #FFFF55, #5555FF, #FF55FF, #55FFFF, #FFFFFF,
+        #000000, #AA5500, #00FF00, #AAFF00, #0055AA, #AA55AA, #00FFAA, #AAFFAA,
+        #555500, #FF5500, #55FF00, #FFFF00, #5555AA, #FF55AA, #55FFAA, #FFFFAA},
+p32g = {#000000, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA,
+        #000000, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF,
+        #000000, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA, #AAAAAA,
+        #000000, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF},
+p256 = {#000000, #AA0000, #00AA00, #AAAA00, #0000AA, #AA00AA, #0055AA, #AAAAAA,
+        #555555, #FF5555, #55FF55, #FFFF55, #5555FF, #FF55FF, #55FFFF, #FFFFFF,
+        #000000, #141414, #202020, #2C2C2C, #383838, #444444, #505050, #616161,
+        #717171, #818181, #919191, #A1A1A1, #B6B6B6, #CACACA, #E2E2E2, #FFFFFF,
+        #FF0000, #FF0040, #FF007D, #FF00BE, #FF00FF, #BE00FF, #7D00FF, #4000FF,
+        #0000FF, #0040FF, #007DFF, #00BEFF, #00FFFF, #00FFBE, #00FF7D, #00FF40,
+        #00FF00, #40FF00, #7DFF00, #BEFF00, #FFFF00, #FFBE00, #FF7D00, #FF4000,
+        #FF7D7D, #FF7D9D, #FF7DBE, #FF7DDE, #FF7DFF, #DE7DFF, #BE7DFF, #9D7DFF,
+        #7D7DFF, #7D9DFF, #7DBEFF, #7DDEFF, #7DFFFF, #7DFFDE, #7DFFBE, #7DFF9D,
+        #7DFF7D, #9DFF7D, #BEFF7D, #DEFF7D, #FFFF7D, #FFDE7D, #FFBE7D, #FF9D7D,
+        #FFB6B6, #FFB6C6, #FFB6DA, #FFB6EA, #FFB6FF, #EAB6FF, #DAB6FF, #C6B6FF,
+        #B6B6FF, #B6C6FF, #B6DAFF, #B6EAFF, #B6FFFF, #B6FFEA, #B6FFDA, #B6FFC6,
+        #B6FFB6, #C6FFB6, #DAFFB6, #EAFFB6, #FFFFB6, #FFEAB6, #FFDAB6, #FFC6B6,
+        #710000, #71001C, #710038, #710055, #710071, #550071, #380071, #1C0071,
+        #000071, #001C71, #003871, #005571, #007171, #007155, #007138, #00711C,
+        #007100, #1C7100, #387100, #557100, #717100, #715500, #713800, #711C00,
+        #713838, #713844, #713855, #713861, #713871, #613871, #553871, #443871,
+        #383871, #384471, #385571, #386171, #387171, #387161, #387155, #387144,
+        #387138, #447138, #557138, #617138, #717138, #716138, #715538, #714438,
+        #715050, #715059, #715061, #715069, #715071, #695071, #615071, #595071,
+        #505071, #505971, #506171, #506971, #507171, #507169, #507161, #507159,
+        #507150, #597150, #617150, #697150, #717150, #716950, #716150, #715950,
+        #400000, #400010, #400020, #400030, #400040, #300040, #200040, #100040,
+        #000040, #001040, #002040, #003040, #004040, #004030, #004020, #004010,
+        #004000, #104000, #204000, #304000, #404000, #403000, #402000, #401000,
+        #402020, #402028, #402030, #402038, #402040, #382040, #302040, #282040,
+        #202040, #202840, #203040, #203840, #204040, #204038, #204030, #204028,
+        #204020, #284020, #304020, #384020, #404020, #403820, #403020, #402820,
+        #402C2C, #402C30, #402C34, #402C3C, #402C40, #3C2C40, #342C40, #302C40,
+        #2C2C40, #2C3040, #2C3440, #2C3C40, #2C4040, #2C403C, #2C4034, #2C4030,
+        #2C402C, #30402C, #34402C, #3C402C, #40402C, #403C2C, #40342C, #40302C,
+        #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF, #FFFFFF}
+
+
+global constant VC_COLOR = 1,
+                VC_MODE  = 2,
+                VC_LINES = 3,
+                VC_COLUMNS = 4,
+                VC_XPIXELS = 5,
+                VC_YPIXELS = 6,
+                VC_NCOLORS = 7,
+                VC_PAGES = 8
+
+constant VC_COLOR_MAP = 9
+
+sequence video_modes
+video_modes = repeat(0,262)
+video_modes[0+1] = {1,  0, 25,  40,    0,   0,  32, 8, p32}
+video_modes[1+1] = {1,  1, 25,  40,    0,   0,  32, 8, p32}
+video_modes[2+1] = {1,  2, 25,  80,    0,   0,  32, 8, p32}
+video_modes[3+1] = {1,  3, 25,  80,    0,   0,  32, 8, p32}
+video_modes[4+1] = {1,  4, 25,  40,  320, 200,   4, 1, p4}
+video_modes[5+1] = {1,  5, 25,  40,  320, 200,   4, 1, p4}
+video_modes[6+1] = {1,  6, 25,  80,  640, 200,   2, 1, p2}
+video_modes[7+1] = {1,  7, 25,  80,    0,   0,  32, 8, p32g}
+video_modes[13+1] = {1,  13, 25,    40,  320, 200,  16, 8, p16}
+video_modes[14+1] = {1,  14, 25,    80,  640, 200,  16, 4, p16}
+video_modes[15+1] = {1,  15, 25,    80,  640, 350,   4, 2, p4g}
+video_modes[16+1] = {1,  16, 25,    80,  640, 350,  16, 2, p16}
+video_modes[17+1] = {1,  17, 30,    80,  640, 480,   2, 1, p2}
+video_modes[18+1] = {1,  18, 30,    80,  640, 480,  16, 1, p16}
+video_modes[19+1] = {1,  19, 25,    40,  320, 200, 256, 1, p256}
+video_modes[256+1] = {1, 256, 25,   80,  640, 400, 256, 1, p256}
+video_modes[257+1] = {1, 257, 30,   80,  640, 480, 256, 1, p256}
+video_modes[258+1] = {1, 258, 40, 100,  800, 600,   16, 1, p16}
+video_modes[259+1] = {1, 259, 40, 100,  800, 600, 256, 1, p256}
+video_modes[260+1] = {1, 260, 50, 128, 1024, 768,   16, 1, p16}
+video_modes[261+1] = {1, 261, 50, 128, 1024, 768, 256, 1, p256}
+
+-- global constant
+    -- T40x25x32     = 1,
+    -- T80x25x32     = 3,
+    -- G320x200x4    = 4,
+    -- G640x200x2    = 6,
+    -- G320x200x16   = 13,
+    -- G640x200x16   = 14,
+    -- G640x350x4    = 15,
+    -- G640x350x16   = 16,
+    -- G640x480x2    = 17,
+    -- G640x480x16   = 18,
+    -- G320x200x256  = 19,
+    -- G640x400x256  = 256,
+    -- G640x480x256  = 257,
+    -- G800x600x16   = 258,
+    -- G800x600x256  = 259,
+    -- G1024x768x16  = 260,
+    -- G1024x768x256 = 261
+
+integer video_mode
+--video_mode = 3
+
+sequence vc
+integer lines, columns
+
+global function video_config()
+    return vc[1..VC_PAGES]
+end function
+
+-- Definitions of palettes and palette routines --
+
+-- COLOR values -- for characters and pixels
+global constant
+    BLACK           = 0,  -- in graphics modes this is "transparent"
+    BLUE            = 1,
+    GREEN           = 2,
+    CYAN            = 3,
+    RED             = 4,
+    MAGENTA         = 5,
+    BROWN           = 6,
+    WHITE           = 7,
+    GRAY            = 8,
+    BRIGHT_BLUE     = 9,
+    BRIGHT_GREEN    = 10,
+    BRIGHT_CYAN     = 11,
+    BRIGHT_RED      = 12,
+    BRIGHT_MAGENTA  = 13,
+    YELLOW          = 14,
+    BRIGHT_WHITE    = 15,
+    BLINKING        = 16  -- add to color to get blinking text -- not implemented
+
+-- Converts {R,G,B} to #BBGGRR
+function pack_color(sequence s)
+    return s[1]+#100*s[2]+#10000*s[3]
+end function
+
+-- Reverses color byte order
+function reverse_color(object colors)
+    if atom(colors) then
+        colors = and_bits(colors,#FF)*#10000+and_bits(colors,#FF00)+
+                 floor(and_bits(colors,#FF0000)/#10000)
+    else
+        for i=1 to length(colors) do
+            colors[i] = and_bits(colors[i],#FF)*#10000+
+                        and_bits(colors[i],#FF00)+
+                        floor(and_bits(colors[i],#FF0000)/#10000)
+        end for
+    end if
+    return colors
+end function
+
+integer repaint
+        repaint = FALSE
+integer color_mask
+atom hdcWindow = NULL, 
+     hdcActive = NULL, 
+     hdcDisplay
+
+sequence color_map
+sequence brushes = {},
+         pens
+constant PS_SOLID = 0
+
+constant NULL_BRUSH = 5
+constant null_brush = c_func(GetStockObject, {NULL_BRUSH})
+
+procedure set_dib_color_table(atom hdc, integer start_index, integer n, object colors)
+    poke4(bitmapinfo+bmiColors, colors)
+    c_proc(SetDIBColorTable,{hdc, start_index, n, bitmapinfo+bmiColors})
+end procedure
+
+global function palette(integer color_index, sequence new_color_triple)
+sequence old_color
+    if color_index<0 or color_index>=length(color_map) then
+        return -1
+    else
+        old_color = sq_floor_div(sq_and_bits(color_map[color_index+1],{#FF,#FF00,#FF0000}),{#4,#400,#40000})
+        new_color_triple = sq_floor(new_color_triple)
+        color_map[color_index+1] = pack_color(sq_floor_div(sq_mul(new_color_triple,255),63))
+        c_proc(DeleteObject,{brushes[color_index+1]})
+        c_proc(DeleteObject,{pens[color_index+1]})
+        brushes[color_index+1] = c_func(CreateSolidBrush, {color_map[color_index+1]})
+        pens[color_index+1] = c_func(CreatePen, {PS_SOLID, 1, color_map[color_index+1]})
+
+        set_dib_color_table(hdcActive,color_index,1,reverse_color(color_map[color_index+1]))
+        repaint = TRUE
+        return old_color
+    end if
+end function
+
+global procedure all_palette(sequence s)
+integer n
+    if length(s)>=length(color_map) then
+        n = length(color_map)
+    else
+        n = length(s)
+    end if
+    s = sq_floor(s)
+    for i=1 to n do
+        color_map[i] = pack_color(sq_floor_div(sq_mul(s[i],255),63))
+        c_proc(DeleteObject,{brushes[i]})
+        c_proc(DeleteObject,{pens[i]})
+        brushes[i] = c_func(CreateSolidBrush, {color_map[i]})
+        pens[i] = c_func(CreatePen, {PS_SOLID, 1, color_map[i]})
+    end for
+
+    set_dib_color_table(hdcActive,0,n,reverse_color(color_map))
+    repaint = TRUE
+end procedure
+
+global function get_all_palette()
+sequence s
+    s = color_map
+    for i=1 to length(s) do
+        s[i] = sq_floor_div(sq_and_bits(s[i],{#FF,#FF00,#FF0000}),{#4,#400,#40000})
+    end for
+    return s
+end function
+
+-- Video page routines --
+
+integer pages, active_page, display_page
+sequence text_pages = {},
+         bitmap_pages = {},
+         memory_pages = {}
+atom hOldActiveBitmap, hOldDisplayBitmap
+
+function blank_line(integer bcolor, integer tcolor)
+sequence row
+    row = {}
+    for i=1 to columns do
+        row &= {' ', bcolor*#10+tcolor}
+    end for
+    return row
+end function
+
+global function get_active_page()
+    return active_page-1
+end function
+
+global function get_display_page()
+    return display_page-1
+end function
+
+global procedure set_display_page(integer i)
+    if i>=0 and i<pages then
+        display_page = i+1
+        if display_page!=active_page then
+            c_proc(SelectObject,{hdcDisplay,bitmap_pages[display_page]})
+        end if
+        repaint = TRUE
+    end if
+end procedure
+
+global procedure set_active_page(integer i)
+    if i>=0 and i<pages then
+        if display_page=i+1 then
+            c_proc(SelectObject,{hdcDisplay,hOldDisplayBitmap})
+            c_proc(SelectObject,{hdcActive,bitmap_pages[i+1]})
+        elsif display_page=active_page then
+            c_proc(SelectObject,{hdcActive,bitmap_pages[i+1]})
+            c_proc(SelectObject,{hdcDisplay,bitmap_pages[display_page]})
+        end if
+        active_page = i+1
+        repaint = TRUE
+    end if
+end procedure
+
+------------------------------------------------------------------------------
+
+sequence custom_handlers
+
+function default_handler(atom hwnd, atom iMsg, atom wParam, atom lParam, sequence handlers)
+    return c_func(DefWindowProc, {hwnd, iMsg, wParam, lParam})
+end function
+
+custom_handlers = {routine_id("default_handler")}
+
+global procedure add_custom_handler(integer handler)
+    custom_handlers = append(custom_handlers,handler)
+end procedure
+
+integer abort_program
+        abort_program = 0
+
+integer ctrl = 0,
+        shift = 0
+
+sequence key_map
+key_map = repeat(-1,#1000)
+key_map[#14] = 314 -- caps lock
+key_map[#21] = 329 -- page-up
+key_map[#22] = 337 -- page-down
+key_map[#23] = 335 -- end
+key_map[#24] = 327 -- home
+key_map[#25] = 331 -- arrow left
+key_map[#26] = 328 -- arrow up
+key_map[#27] = 333 -- arrow right
+key_map[#28] = 336 -- arrow down
+key_map[#2D] = 338 -- insert
+key_map[#2E] = 339 -- delete
+key_map[#70] = 315 -- F1
+key_map[#71] = 316 -- F2
+key_map[#72] = 317 -- F3
+key_map[#73] = 318 -- F4
+key_map[#74] = 319 -- F5
+key_map[#75] = 320 -- F6
+key_map[#76] = 321 -- F7
+key_map[#77] = 322 -- F8
+key_map[#78] = 323 -- F9
+key_map[#79] = 324 -- F10
+key_map[#7A] = {343, 389} -- F11 {dos, win32}
+key_map[#7B] = {344, 390} -- F12 {dos, win32}
+
+atom screen_size_x, screen_size_y, bytes_per_line
+atom char_height, char_width --, char_extra
+integer pixel_graphics
+
+integer window_ready = FALSE
+
+sequence char_buff
+global sequence key_buff
+
+constant ppvBits = allocate(4)
+
+function create_dib_section(atom hdc, integer width, integer height, sequence color_map)
+    poke4(bitmapinfo+bmiHeader, {
+                                 sizeofBITMAPINFOHEADER, -- dword bcSize
+                                 width, -- dword bcWidth,
+                                 -height, -- dword bcHeight
+                                 1+#10000*8, -- word bcPlanes, word bcBitCount
+                                 BI_RGB, -- dword biCompression
+                                 0, -- dword biSizeImage
+                                 12500, -- dword biXPelsPerMeter
+                                 12500, -- dword biYPelsPerMeter
+                                 length(color_map), -- dword biClrUsed 
+                                 0 -- dword biClrImportant -- all colors are important
+                                })
+
+    poke4(bitmapinfo+bmiColors, color_map)
+
+    return c_func(CreateDIBSection,{hdc, bitmapinfo, DIB_RGB_COLORS, ppvBits, NULL, NULL})
+end function
+
+atom hwnd = NULL
+
+-- Scaling --
+global integer scale = 1 -- 1 disables
+
+procedure update_window_size(sequence screen_size)
+    c_proc(GetClientRect, {hwnd,rect})
+    sequence clientsize = peek4u({rect+8,2})
+    c_proc(GetWindowRect,{hwnd,rect})
+    sequence winsize = peek4u({rect,4})
+--  winsize[3..4] = - winsize[1..2] - clientsize + screen_size*scale
+    winsize[3..4] = sq_add(winsize[3..4],sq_add(sq_sub(sq_uminus(winsize[1..2]),clientsize),sq_mul(screen_size,scale)))
+    c_proc(SetWindowPos, hwnd & 0 & winsize & HWND_TOP)
+end procedure
+
+atom font = 0
+integer default_char_height = 14,
+        default_char_width = 8
+
+constant
+    -- font_name = "Courier New"
+    -- font_name = "Terminal"
+    font_name = "Lucida Console"
+    -- font_name = ""
+
+integer full_screen = 0
+
+procedure init_window(atom hwnd)
+sequence loc_vc = vc
+
+    -- Initialize font
+    if font!=0 then
+        c_proc(DeleteObject,{font})
+    end if
+    if loc_vc[VC_XPIXELS]=0 then
+        poke4(logfont+lfHeight,default_char_height)
+        poke4(logfont+lfWidth,default_char_width)
+    else
+        char_width = floor(loc_vc[VC_XPIXELS]/loc_vc[VC_COLUMNS])
+        char_height = loc_vc[VC_YPIXELS]/loc_vc[VC_LINES]
+        poke4(logfont+lfHeight,char_height)
+        -- if floor(char_height) = 8 then -- some tweaks for the Courier New font
+            -- poke4(logfont+lfWidth,char_width-1)
+        -- else
+            -- poke4(logfont+lfWidth,char_width+1)
+        -- end if
+        poke4(logfont+lfWidth,char_width)
+    end if
+    poke4(logfont+lfEscapement,{0,0}) -- escapement and orientation are ignored
+    poke4(logfont+lfWeight,FW_NORMAL)
+    -- poke4(logfont+lfWeight,FW_SEMIBOLD)
+    poke(logfont+lfItalic,{FALSE,FALSE,FALSE}) -- non italic, not underlined, not strikeout
+    poke(logfont+lfCharSet,OEM_CHARSET)
+    poke(logfont+lfOutPrecision,OUT_DEFAULT_PRECIS)
+    poke(logfont+lfClipPrecision,CLIP_DEFAULT_PRECIS)
+    -- poke(logfont+lfQuality,DEFAULT_QUALITY)
+    poke(logfont+lfQuality,PROOF_QUALITY)
+    -- poke(logfont+lfQuality,ANTIALIASED_QUALITY)
+    poke(logfont+lfPitchAndFamily,or_bits(FIXED_PITCH,FF_DONTCARE))
+    poke(logfont+lfFaceName,font_name&0)
+    font = c_func(CreateFontIndirect,{logfont})
+    hdcWindow = c_func(GetDC,{hwnd})
+    c_proc(SelectObject,{hdcWindow,font})
+    c_proc(GetTextMetrics,{hdcWindow,textmetric})
+    char_height = peek4s(textmetric+tmHeight)
+    char_width = peek4s(textmetric+tmAveCharWidth)
+    c_proc(ReleaseDC,{hwnd,hdcWindow})
+
+    -- Initialize window size
+    if not loc_vc[VC_XPIXELS] then -- 'text' mode
+        loc_vc[VC_XPIXELS] = loc_vc[VC_COLUMNS]*char_width
+        loc_vc[VC_YPIXELS] = loc_vc[VC_LINES]*char_height
+        pixel_graphics = FALSE
+    else -- 'graphics' mode
+        loc_vc[VC_COLUMNS] = floor(loc_vc[VC_XPIXELS]/char_width)
+        loc_vc[VC_LINES] = floor(loc_vc[VC_YPIXELS]/char_height)
+        pixel_graphics = TRUE
+    end if
+    columns = loc_vc[VC_COLUMNS]
+    lines = loc_vc[VC_LINES]
+
+    screen_size_x = loc_vc[VC_XPIXELS]
+    screen_size_y = loc_vc[VC_YPIXELS]
+    if not full_screen then
+        update_window_size(loc_vc[VC_XPIXELS..VC_YPIXELS])
+    end if
+    bytes_per_line = and_bits(screen_size_x+3,-4)
+
+    -- Initialize palette
+    integer ncolors = loc_vc[VC_NCOLORS]
+    color_map = loc_vc[VC_COLOR_MAP]
+    color_mask = ncolors-1
+    sequence s
+    if length(brushes)=0 then
+        s = repeat(0,ncolors)
+        brushes = s
+        pens = s
+    elsif length(brushes)<ncolors then
+        s = repeat(0, ncolors-length(brushes))
+        brushes &= s
+        pens &= s
+    end if
+
+    for i=1 to ncolors do
+        if brushes[i] then
+            c_proc(DeleteObject,{brushes[i]})
+            c_proc(DeleteObject,{pens[i]})
+        end if
+        brushes[i] = c_func(CreateSolidBrush, {color_map[i]})
+        pens[i] = c_func(CreatePen, {PS_SOLID, 1, color_map[i]})
+    end for
+
+    -- Initialize pages
+    pages = loc_vc[VC_PAGES]
+    sequence blank = blank_line(BLACK,WHITE)
+    text_pages = repeat(repeat(blank,lines),pages)
+    active_page = 1
+    display_page = 1
+
+    if hdcActive=NULL then
+        hdcActive = c_func(CreateCompatibleDC,{hdcWindow})
+        hdcDisplay = c_func(CreateCompatibleDC,{hdcWindow})
+        hOldActiveBitmap = c_func(GetCurrentObject,{hdcActive,OBJ_BITMAP})
+        hOldDisplayBitmap = c_func(GetCurrentObject,{hdcDisplay,OBJ_BITMAP})
+    else
+        c_proc(SelectObject,{hdcActive,hOldActiveBitmap})
+        c_proc(SelectObject,{hdcDisplay,hOldDisplayBitmap})
+    end if
+
+    for i=1 to length(bitmap_pages) do
+        c_proc(DeleteObject,{bitmap_pages[i]})
+    end for
+    bitmap_pages = {}
+    memory_pages = {}
+
+    for i=1 to pages do
+        bitmap_pages &= create_dib_section(hdcWindow,
+                                           screen_size_x, screen_size_y, reverse_color(color_map))
+        memory_pages &= peek4u(ppvBits)
+    end for
+
+    c_proc(SelectObject,{hdcActive,bitmap_pages[active_page]})
+    if active_page!=display_page then
+        c_proc(SelectObject,{hdcDisplay,bitmap_pages[display_page]})
+    end if
+
+    -- Select font to the active context
+    c_proc(SelectObject, {hdcActive, font})
+
+    c_proc(SetBkMode, {hdcActive, OPAQUE})
+end procedure
+
+function get_resolution()
+    return c_func(GetSystemMetrics,{SM_CXSCREEN}) & c_func(GetSystemMetrics,{SM_CYSCREEN})
+end function
+
+-- Full screen mode routines
+
+sequence saved_window_pos, saved_window_style
+
+atom dev_mode = allocate(sizeofDEVMODE,1) -- allocate DEVMODE struct initialized with zeros
+
+public
+procedure full_screen_on()
+    if window_ready and not full_screen then
+        saved_window_style = {
+                              c_func(GetWindowLong, {hwnd, GWL_STYLE}),
+                              c_func(GetWindowLong, {hwnd, GWL_EXSTYLE})
+                             }
+
+        c_proc(SetWindowLong, {hwnd, GWL_STYLE, WS_POPUP+WS_VISIBLE}) -- make borderless window
+        c_proc(SetWindowLong, {hwnd, GWL_EXSTYLE, or_bits(saved_window_style[2], WS_EX_TOPMOST)})
+        c_proc(GetWindowRect, {hwnd, rect})
+        saved_window_pos = peek4s({rect,4})
+        saved_window_pos[3..4] = sq_sub(saved_window_pos[3..4],saved_window_pos[1..2])
+        full_screen = 1
+        c_proc(SetWindowPos, hwnd & 0 & {0,0} & get_resolution() & HWND_TOP)
+        -- c_proc(SetWindowPos, hwnd & 0 & {0,0,screen_size_x,screen_size_y} & HWND_TOP )
+        -- poke4(dev_mode+dmFields, or_bits(DM_PELSWIDTH, DM_PELSHEIGHT))
+        -- poke4(dev_mode+dmPelsHeight, screen_size_y)
+        -- poke4(dev_mode+dmPelsWidth, screen_size_x)
+        -- ? c_func(ChangeDisplaySettings, {dev_mode, CDS_FULLSCREEN})
+    end if
+end procedure
+
+public
+procedure full_screen_off()
+    if window_ready and full_screen then
+        -- restore window style and position
+        c_proc(SetWindowLong, {hwnd, GWL_STYLE, saved_window_style[1]})
+        c_proc(SetWindowLong, {hwnd, GWL_EXSTYLE, saved_window_style[2]})
+        full_screen = 0
+        c_proc(SetWindowPos, hwnd & 0 & saved_window_pos & HWND_TOP)
+        -- c_func(ChangeDisplaySettings, {0, 0}) -- restore default graphics mode
+    end if
+end procedure
+
+global procedure set_full_screen(integer on_off)
+    if on_off then
+        full_screen_on()
+    else
+        full_screen_off()
+    end if
+end procedure
+
+procedure toggle_full_screen()
+    set_full_screen(not full_screen)
+end procedure
+
+procedure set_scale(integer x)
+    if x>0 then
+        scale = x
+        -- resize window if needed
+        if not full_screen and not and_bits(c_func(GetWindowLong, {hwnd, GWL_STYLE}), WS_MAXIMIZE) then
+            update_window_size(screen_size_x & screen_size_y)
+        end if
+        -- repaint the window:
+        repaint = 1
+    end if
+end procedure
+
+-- Text caret routines --
+
+-- cursor styles:
+global constant NO_CURSOR               = #2000,
+                UNDERLINE_CURSOR        = #0607,
+                THICK_UNDERLINE_CURSOR  = #0507,
+                HALF_BLOCK_CURSOR       = #0407,
+                BLOCK_CURSOR            = #0007
+
+integer cursor_line, 
+        cursor_column, 
+        cursor_shape = NO_CURSOR,
+        cursor_top, 
+        cursor_bottom
+
+procedure reshape_cursor(integer i)
+    cursor_top = floor(and_bits(i,#700)/#100*(char_height-1)/7+0.5)
+    cursor_bottom = floor(and_bits(i,#7)*(char_height-1)/7+0.5)
+end procedure
+
+procedure set_caret_pos(integer line, integer column)
+    c_proc(SetCaretPos,sq_mul({(column-1)*char_width,(line-1)*char_height+cursor_top},scale))
+end procedure
+
+procedure create_caret(atom hwnd)
+    reshape_cursor(cursor_shape)
+    c_proc(CreateCaret,{hwnd,NULL,char_width*scale,(cursor_bottom-cursor_top+1)*scale})
+    set_caret_pos(cursor_line,cursor_column)
+    c_proc(ShowCaret,{hwnd})
+end procedure
+
+procedure destroy_caret(atom /*hwnd*/)
+    c_proc(DestroyCaret,{})
+end procedure
+
+-- Window proc --
+
+atom buff = allocate(1) -- a buffer for CharToOemBuff function
+
+function WndProc(atom hwnd, atom iMsg, atom wParam, atom lParam)
+-- callback routine to handle Window class
+sequence seqrect
+
+    if iMsg=WM_CREATE then
+
+        char_buff = {}
+        key_buff = {}
+
+        init_window(hwnd)
+
+        if full_screen then
+            full_screen_on()
+        end if
+
+        -- Register Alt+Enter hotkey
+        c_proc(RegisterHotKey, {
+                                hwnd,
+                                c_func(GlobalAddAtom,{allocate_string("AltEnter")}),
+                                MOD_ALT,
+                                13
+                               })
+
+        return 0
+
+    elsif iMsg=WM_PAINT then
+        hdcWindow = c_func(BeginPaint, {hwnd, paintstruct})
+        seqrect = peek4u({paintstruct+rcPaint, 4})
+        if scale<2 then
+            if active_page=display_page then
+                c_proc(BitBlt, hdcWindow & seqrect & hdcActive & seqrect[1..2] & SRCCOPY)
+            else
+                c_proc(BitBlt, hdcWindow & seqrect & hdcDisplay & seqrect[1..2] & SRCCOPY)
+            end if
+        else
+            if active_page=display_page then
+                c_proc(StretchBlt, hdcWindow & seqrect & hdcActive & sq_floor_div(seqrect,scale) & SRCCOPY)
+            else
+                c_proc(StretchBlt, hdcWindow & seqrect & hdcDisplay & sq_floor_div(seqrect,scale) & SRCCOPY)
+            end if
+        end if
+        c_proc(EndPaint, {hwnd, paintstruct})
+        return 0
+    elsif iMsg=WM_SIZE and wParam!=SIZE_MINIMIZED then
+        c_proc(GetClientRect,{hwnd,rect})
+        seqrect = peek4u({rect,4})
+        integer scale = minsq(sq_floor_div(seqrect[3..4],{screen_size_x,screen_size_y}))
+        if scale<=0 then
+            scale = 1
+        end if
+        set_scale(scale)
+        return 0
+    elsif iMsg=WM_KEYDOWN then
+        if wParam=#10 then -- shift down
+            shift = 1
+            return 0
+        elsif wParam=#11 then -- ctrl down
+            ctrl = 1
+            return 0
+        elsif sequence(key_map[wParam]) or key_map[wParam]>=0 then
+            char_buff &= key_map[wParam]
+            return 0
+        else
+            key_buff &= wParam
+            -- ? wParam
+        end if
+
+    elsif iMsg=WM_KEYUP then
+        if wParam=16 then -- shift up
+            shift = 0
+            return 0
+        elsif wParam=17 then -- ctrl up
+            ctrl = 0
+            return 0
+        end if
+
+    elsif iMsg=WM_CHAR then
+        -- record an input character from the keyboard
+        poke(buff,and_bits(#FF,wParam))
+        c_proc(CharToOemBuff,{buff,buff,1}) -- Recode input char to oem codepage
+        wParam = peek(buff)
+        char_buff &= wParam
+        return 0
+
+    elsif iMsg=WM_HOTKEY then
+        toggle_full_screen()
+
+    elsif iMsg=WM_SETFOCUS then
+        if window_ready and cursor_shape!=NO_CURSOR then
+            create_caret(hwnd)
+            return 0
+        end if
+    elsif iMsg=WM_KILLFOCUS then
+        if window_ready and cursor_shape!=NO_CURSOR then
+            destroy_caret(hwnd)
+            return 0
+        end if
+    elsif iMsg=WM_CLOSE then
+        abort_program = 1 -- Abort program when the user closes the window
+        -- do not return 0 --
+
+    elsif iMsg=WM_DESTROY then
+        for i=1 to length(bitmap_pages) do
+            c_proc(DeleteObject,{bitmap_pages[i]})
+        end for
+
+        c_proc(DeleteDC, {hdcActive})
+        c_proc(DeleteDC, {hdcDisplay})
+
+        for i=1 to length(brushes) do
+            c_proc(DeleteObject,{brushes[i]})
+            c_proc(DeleteObject,{pens[i]})
+        end for
+
+        c_proc(PostQuitMessage, {0})
+        window_ready = FALSE
+        if abort_program then
+            abort(0)
+        else
+            return 0
+        end if
+    end if
+
+    return call_func(custom_handlers[$],
+                     {hwnd, iMsg, wParam, lParam, custom_handlers[1..$-1]})
+end function
+
+constant msg = allocate(SIZE_OF_MESSAGE)
+
+constant icon_names = {"exw","euiw","eui"}
+
+function get_icon()
+-- Get icon from the executable
+atom icon_name,icon_handle
+    for n=1 to length(icon_names) do
+        icon_name = allocate_string(icon_names[n])
+        icon_handle = c_func(LoadIcon,{instance(),icon_name})
+        free(icon_name)
+        if icon_handle then
+            return icon_handle
+        end if
+    end for
+    return c_func(LoadIcon, {0, IDI_APPLICATION})
+end function
+
+object AppName = 0
+
+procedure WinMain(integer first_time)
+-- main routine 
+atom szAppName
+atom wndclass
+atom WndProcAddress
+atom class
+atom mq
+
+    if first_time then
+        -- initial window set up
+        if atom(AppName) then
+            AppName = command_line()
+            AppName = AppName[2]
+        end if
+        szAppName = allocate_string(AppName)
+
+        -- get address for callback
+        WndProcAddress = call_back(routine_id("WndProc"))
+
+        wndclass = allocate(SIZE_OF_WNDCLASSEX)
+
+        poke4(wndclass, {
+                         SIZE_OF_WNDCLASSEX, -- cbSize
+                         or_all({CS_HREDRAW, CS_VREDRAW, CS_OWNDC}), -- style
+                         WndProcAddress, -- lpfnWndProc
+                         0, -- cbClsExtra
+                         0, -- cbWndExtra
+                         instance(), -- hInstance
+                         get_icon(), -- hIcon
+                         c_func(LoadCursor, {NULL, IDC_ARROW}), -- hCursor
+                         c_func(GetStockObject, {BLACK_BRUSH}), -- hbrBackground
+                         NULL, -- lpszMenuName
+                         szAppName, -- szAppName
+                         NULL -- hIconSm
+                        })
+
+        class = c_func(RegisterClassEx, {wndclass})
+        if class=0 then
+            crash("Couldn't register window class\n")
+        end if
+
+        hwnd = c_func(CreateWindow, {
+                                     0,                  -- extended style
+                                     szAppName,          -- window class name
+                                     allocate_string(AppName), -- window caption
+                                     or_all({WS_OVERLAPPED,
+                                             WS_MINIMIZEBOX,
+                                             WS_CAPTION,
+                                             WS_SYSMENU,
+                                             WS_MAXIMIZEBOX,
+                                             WS_THICKFRAME
+                                            }), -- window style
+                                     CW_USEDEFAULT,      -- initial x position
+                                     CW_USEDEFAULT,      -- initial y position
+                                     CW_USEDEFAULT,      -- initial x size
+                                     CW_USEDEFAULT,      -- initial y size
+                                     NULL,               -- parent window handle
+                                     NULL,               -- window menu handle
+                                     instance() ,                     -- hInstance // program instance handle
+                                     NULL})              -- creation parameters
+
+        if hwnd=0 then
+            crash("Couldn't CreateWindow\n")
+        end if
+
+        c_proc(ShowWindow, {hwnd, SW_SHOWNORMAL})
+        c_proc(UpdateWindow, {hwnd})
+    end if
+
+    -- initial task - message loop using PeekMessage
+    while TRUE do
+        if c_func(PeekMessage, {msg, NULL, 0, 0, PM_REMOVE}) then
+            -- Windows message is there
+            if peek4u(msg+MESSAGE)=WM_QUIT then
+                exit
+            end if
+            c_proc(TranslateMessage, {msg})
+            c_proc(DispatchMessage, {msg})
+        else
+            -- no messages, let another task run
+            if first_time then
+                -- create task to check message queue
+                mq = task_create(routine_id("WinMain"), {FALSE})
+                -- check the queue every .2 to .3 seconds
+                -- (main program must do a task_yield periodically
+                -- or the window will be frozen)
+                -- task_schedule(mq, {.08, .12}) -- make keyboard very responsive
+                task_schedule(mq, {.01, .05})
+                -- assume hdc has now been set
+                return
+            end if
+
+            if cursor_shape!=NO_CURSOR then
+                set_caret_pos(cursor_line, cursor_column)
+            end if
+
+            if repaint then
+                c_proc(GetClientRect,{hwnd,rect})
+                c_proc(InvalidateRect,{hwnd,rect,FALSE})
+                repaint = FALSE
+            end if
+            task_yield()
+        end if
+    end while
+
+    char_buff &= 27 -- Esc character to terminate the other tasks
+end procedure
+
+global procedure set_title(sequence s)
+atom szTitle
+    if hwnd then
+        szTitle = allocate_string(s)
+        c_proc(SetWindowText,{hwnd,szTitle})
+        free(szTitle)
+    else
+        AppName = s
+    end if
+end procedure
+
+------------------------------------------------------------------------------
+
+integer last_text_color, last_bk_color
+
+procedure clear_region(integer x1, integer y1, integer x2, integer y2)
+    poke4(rect, {x1, y1, x2, y2})
+    c_proc(FillRect, hdcActive & rect & brushes[1+last_bk_color])
+end procedure
+
+global procedure dos_rescue_clear_screen()
+-- override Euphoria built-in
+sequence blank
+    if hwnd then
+        clear_region(0, 0, screen_size_x, screen_size_y)
+        blank = blank_line(last_bk_color,last_text_color)
+        text_pages[active_page] = repeat(blank,lines)
+
+        cursor_column = 1
+        cursor_line = 1
+
+        if cursor_shape!=NO_CURSOR then
+            reshape_cursor(cursor_shape)
+            create_caret(hwnd)
+        end if
+
+        repaint = TRUE
+    else
+        clear_screen()
+    end if
+end procedure
+
+global procedure dos_rescue_text_color(integer color)
+-- was calling routine in graphics.e to set text color
+    last_text_color = color
+end procedure
+
+global procedure dos_rescue_bk_color(integer color)
+-- was calling routine in graphics.e to set background color
+-- text or graphics modes - not really needed
+sequence vc
+    if window_ready then
+        last_bk_color = color
+        vc = video_config()
+        if vc[VC_XPIXELS] then -- graphics_mode
+            dos_rescue_clear_screen()
+        end if
+    end if
+end procedure
+
+global procedure cursor(integer i)
+    if cursor_shape!=NO_CURSOR then
+        destroy_caret(hwnd)
+    end if
+
+    cursor_shape = i
+
+    if hwnd and i!=NO_CURSOR then
+        reshape_cursor(cursor_shape)
+        create_caret(hwnd)
+    end if
+end procedure
+
+global function graphics_mode(integer m)
+    if m= -1 then
+        video_mode = m
+        c_proc(DestroyWindow,{hwnd})
+    elsif sequence(video_modes[m+1]) then
+        video_mode = m
+        vc = video_modes[m+1]
+        if hwnd then
+            init_window(hwnd)
+        else
+            WinMain(TRUE) -- initial setup of hdc
+        end if
+
+        if pixel_graphics then
+            cursor_shape = NO_CURSOR
+            destroy_caret(hwnd)
+        else
+            cursor_shape = THICK_UNDERLINE_CURSOR
+            reshape_cursor(cursor_shape)
+        end if
+
+        last_text_color = WHITE
+        last_bk_color = BLACK
+        dos_rescue_clear_screen()
+        window_ready = TRUE
+    else
+        return -1
+    end if
+    return 0
+end function
+
+global function dos_rescue_text_rows(integer i)
+    vc[VC_LINES] = i
+    init_window(hwnd)
+    return lines
+end function
+
+-- experimental
+global procedure poke_pixel(integer offset, object values)
+    poke(memory_pages[active_page]+offset, values)
+    repaint = TRUE
+end procedure
+
+-- experimental
+global function peek_pixel(object a)
+    if atom(a) then
+        return peek(memory_pages[active_page]+a)
+    else
+        a[1] = memory_pages[active_page]+a[1]
+        return peek(a)
+    end if
+end function
+
+-- Low-level graphics routines --
+
+global procedure pixel(object c, sequence xy)
+atom off
+    if window_ready and atom(xy[1]) and atom(xy[2]) and xy[1]>=0 and xy[1]<screen_size_x and
+    xy[2]>=0 and xy[2]<screen_size_y then
+        c = sq_floor(c)
+        xy = sq_floor(xy)
+        if sequence(c) and length(c)>screen_size_x-xy[1] then
+            c = c[1..screen_size_x-xy[1]]
+        end if
+        c = and_bits(color_mask,c)
+        off = memory_pages[active_page]+xy[1]+xy[2]*bytes_per_line
+        poke(off,c)
+        repaint = TRUE
+    end if
+end procedure
+
+global function get_pixel(sequence xyn)
+atom off
+    if window_ready and xyn[1]>=0 and xyn[1]<screen_size_x and
+    xyn[2]>=0 and xyn[2]<screen_size_y then
+        xyn = sq_floor(xyn)
+        off = memory_pages[active_page]+xyn[1]+xyn[2]*bytes_per_line
+        if length(xyn)=2 then
+            return peek(off)
+        elsif length(xyn)=3 then
+            if xyn[3]+xyn[1]>=screen_size_x then
+                return peek({off,screen_size_x-xyn[1]-1}) & repeat(0,xyn[3]+xyn[1]-screen_size_x)
+            else
+                return peek({off,xyn[3]})
+            end if
+        end if
+    else
+        return -1
+    end if
+end function
+
+global procedure display_image(sequence xy, sequence image)
+atom off
+    if window_ready and xy[1]>=0 and xy[1]<screen_size_x and
+    xy[2]>=0 and xy[2]<screen_size_y then
+        image = sq_and_bits(color_mask,sq_floor(image))
+        xy = sq_floor(xy)
+        off = memory_pages[active_page]+xy[1]+xy[2]*bytes_per_line
+        if length(image)>=screen_size_y-xy[2] then
+            image = image[1..screen_size_y-xy[2]]
+        end if
+        for i=1 to length(image) do
+            if length(image[i])>=screen_size_x-xy[1] then
+                image[i] = image[i][1..screen_size_x-xy[1]-1]
+            end if
+            poke(off,image[i])
+            off += bytes_per_line
+        end for
+        repaint = TRUE
+    end if
+end procedure
+
+global function save_image(sequence xy1, sequence xy2)
+atom off, width
+sequence image
+    image = {}
+    if window_ready and xy1[1]>=0 and xy1[1]<screen_size_x and
+    xy1[2]>=0 and xy1[2]<screen_size_y and
+    xy2[1]>=0 and xy2[1]<screen_size_x and
+    xy2[2]>=0 and xy2[2]<screen_size_y then
+        off = memory_pages[active_page]+xy1[1]+xy1[2]*bytes_per_line
+        width = xy2[1]-xy1[1]+1
+        for i=xy1[2] to xy2[2] do
+            image = append(image, peek({off,width}))
+            off += bytes_per_line
+        end for
+    end if
+    return image
+end function
+
+-- Bitmap file reading/writing --
+
+-- error codes returned by read_bitmap(), save_bitmap() and save_screen()
+global constant BMP_SUCCESS = 0,
+                BMP_OPEN_FAILED = 1,
+                BMP_UNEXPECTED_EOF = 2,
+                BMP_UNSUPPORTED_FORMAT = 3,
+                BMP_INVALID_MODE = 4
+
+function read_palette(integer fn, integer nitems, integer item_size)
+sequence s
+sequence rgb
+    s = {}
+    rgb = {0,0,0}
+    for i=1 to nitems do
+        rgb[3] = getc(fn) -- red
+        rgb[2] = getc(fn) -- green
+        rgb[1] = getc(fn) -- blue
+        if item_size=4 and getc(fn) then
+        end if
+        s = append(s,rgb)
+    end for
+    return s
+end function
+
+--/* Not Phix
+function abs(atom a)
+    if a>=0 then
+        return a
+    else
+        return -a
+    end if
+end function
+--*/
+
+-- Code adopted from the image.e -- <<
+function row_bytes(atom BitCount, atom Width)
+-- number of bytes per row of pixel data
+    return floor(((BitCount*Width)+31)/32)*4
+end function
+
+function unpack(sequence image, integer BitCount, integer Width, integer Height)
+-- unpack the 1-d byte sequence into a 2-d sequence of pixels
+sequence pic_2d, row, bits
+integer bytes, next_byte, byte
+
+    pic_2d = {}
+    bytes = row_bytes(BitCount, Width)
+    next_byte = 1
+    for i=1 to abs(Height) do
+        row = {}
+        if BitCount=1 then
+            for j=1 to bytes do
+                byte = image[next_byte]
+                next_byte += 1
+                bits = repeat(0, 8)
+                for k=8 to 1 by -1 do
+                    bits[k] = and_bits(byte, 1)
+                    byte = floor(byte/2)
+                end for
+                row &= bits
+            end for
+        elsif BitCount=2 then
+            for j=1 to bytes do
+                byte = image[next_byte]
+                next_byte += 1
+                bits = repeat(0, 4)
+                for k=4 to 1 by -1 do
+                    bits[k] = and_bits(byte, 3)
+                    byte = floor(byte/4)
+                end for
+                row &= bits
+            end for
+        elsif BitCount=4 then
+            for j=1 to bytes do
+                byte = image[next_byte]
+                row = append(row, floor(byte/16))
+                row = append(row, and_bits(byte, 15))
+                next_byte += 1
+            end for
+        elsif BitCount=8 then
+            row = image[next_byte..next_byte+bytes-1]
+            next_byte += bytes
+        else
+            exit
+        end if
+        if Height>0 then
+            pic_2d = prepend(pic_2d, row[1..Width])
+        else
+            pic_2d = append(pic_2d, row[1..Width])
+        end if
+    end for
+    return pic_2d
+end function
+-- >>
+
+function get_word(integer fn)
+    return getc(fn)+#100*getc(fn)
+end function
+
+function get_dword(integer fn)
+    return get_word(fn)+#10000*get_word(fn)
+end function
+
+function get_bytes(integer fn, integer n)
+sequence s
+    s = {}
+    for i=1 to n do
+        s &= getc(fn)
+    end for
+    return s
+end function
+
+procedure ignore_bytes(integer fn, integer n)
+integer c
+    for i=1 to n do
+        c = getc(fn)
+    end for
+end procedure
+
+global function read_bitmap(sequence file_name)
+integer fn
+sequence colors, bytes, image
+atom OffBits, SizeHeader, Width, Height, BitCount, NumColors, SizeImage,
+        Compression
+    fn = open(file_name, "rb")
+    if fn= -1 then
+        return BMP_OPEN_FAILED
+    end if
+    -- BITMAPFILEHEADER
+    ignore_bytes(fn,10)
+    OffBits = get_dword(fn)
+
+    SizeHeader = get_dword(fn)
+    if SizeHeader=sizeofBITMAPCOREHEADER then
+        -- BITMAPCOREHEADER
+        Width = get_word(fn) -- word bcWidth
+        Height = get_word(fn)  -- word bcHeight
+        ignore_bytes(fn,2) -- word bcPlanes
+        BitCount = get_word(fn)  -- word bcBitCount
+        NumColors = (OffBits-SizeHeader-sizeofBITMAPFILEHEADER)/3
+        SizeImage = row_bytes(BitCount, Width)*Height
+        colors = read_palette(fn, NumColors, 3)
+        if colors[$][3]= -1 then
+            close(fn)
+            return BMP_UNEXPECTED_EOF
+        end if
+    elsif SizeHeader=sizeofBITMAPINFOHEADER then
+        -- BITMAPINFOHEADER
+        Width = get_dword(fn) -- dword biWidth
+        Height = get_dword(fn) -- dword biHeight
+        ignore_bytes(fn,2) -- word biPlanes
+        BitCount = get_word(fn)  -- word biBitCount
+        Compression = get_dword(fn) -- dword biCompression
+        if Compression!=BI_RGB then
+            close(fn)
+            return BMP_UNSUPPORTED_FORMAT
+        end if
+        SizeImage = get_dword(fn) -- dword biSizeImage
+        ignore_bytes(fn,16) -- dword biXPelsPerMeter, dword biYPelsPerMeter,
+            -- dword biClrUsed, dword biClrImportant
+        NumColors = (OffBits-SizeHeader-sizeofBITMAPFILEHEADER)/4
+        if NumColors<2 or NumColors>256 then
+            close(fn)
+            return BMP_UNSUPPORTED_FORMAT
+        end if
+        colors = read_palette(fn, NumColors, 4)
+    else
+        -- BITMAPV4HEADER or BITMAPV5HEADER
+        close(fn)
+        return BMP_UNSUPPORTED_FORMAT
+    end if
+    if Width<=0 then
+        close(fn)
+        return BMP_UNSUPPORTED_FORMAT
+    end if
+    bytes = get_bytes(fn, row_bytes(BitCount, Width)*abs(Height))
+    close(fn)
+    image = unpack(bytes, BitCount, Width, Height)
+    return {colors, image}
+end function
+
+global function save_bitmap(sequence palette_n_image, sequence file_name)
+integer fn
+sequence color, image
+    fn = open(file_name, "wb")
+    if fn= -1 then
+        return BMP_OPEN_FAILED
+    end if
+
+    color = palette_n_image[1]
+    image = palette_n_image[2]
+
+    -- BITMAPFILEHEADER
+    puts(fn, "BM") -- word bfType
+    puts(fn, repeat(0,8)) -- dword bfSize, word bfReserved1, word bfReserved2
+    puts(fn, int_to_bytes(sizeofBITMAPFILEHEADER+sizeofBITMAPINFOHEADER+
+                          length(color)*sizeofRGBQUAD)) -- dword bfOffBits
+
+    -- BITMAPINFOHEADER
+    puts(fn, int_to_bytes(sizeofBITMAPINFOHEADER)) -- dword biSize
+    puts(fn, int_to_bytes(length(image[1]))) -- dword biWidth
+    puts(fn, int_to_bytes(length(image))) -- dword biHeight
+    puts(fn, 1 & 0) -- word biPlanes
+    puts(fn, 8 & 0) -- word biBitCount
+    puts(fn, int_to_bytes(BI_RGB)) -- dword biCompression
+    puts(fn, repeat(0,4)) -- dword biSizeImage
+    puts(fn, int_to_bytes(12500)) -- dword biXPelsPerMeter
+    puts(fn, int_to_bytes(12500)) -- dword biYPelsPerMeter
+    puts(fn, int_to_bytes(length(color))) -- dword biClrUsed
+    puts(fn, int_to_bytes(length(color))) -- dword biClrImportant
+
+    -- Color table
+    for i=1 to length(color) do
+        -- RGBQUAD
+        puts(fn, color[i][3]) -- byte rgbRed
+        puts(fn, color[i][2]) -- byte rgbGreen
+        puts(fn, color[i][1]) -- byte rgbBlue
+        puts(fn, 0) -- byte rgbReserved
+    end for
+
+    -- Image
+    for i=length(image) to 1 by -1 do
+        puts(fn, image[i])
+    end for
+
+    close(fn)
+
+    return BMP_SUCCESS
+end function
+
+global function save_screen(object r, sequence file_name)
+sequence vc = video_config()
+sequence color, image
+
+    color = sq_floor_div(sq_mul(get_all_palette(),255),63)
+    if atom(r) then
+        image = save_image({0,0},{screen_size_x-1,screen_size_y-1})
+    elsif r[2][1]>=vc[VC_XPIXELS] or r[2][2]>=vc[VC_YPIXELS] then
+        return BMP_INVALID_MODE   -- not a valid argument
+    else
+        image = save_image(r[1],r[2])
+    end if
+
+    return save_bitmap({color,image}, file_name)
+end function
+
+-- High-level graphics routines --
+
+global procedure ellipse(integer color, integer fill, sequence coord1, sequence coord2)
+    if window_ready then
+        coord2 = sq_add(coord2,1)
+        if not color then
+            color = last_bk_color
+        end if
+        color = and_bits(color_mask,color)
+        c_proc(SelectObject, {hdcActive, pens[1+color]})
+        if fill then
+            c_proc(SelectObject, {hdcActive, brushes[1+color]})
+        else
+            c_proc(SelectObject, {hdcActive, null_brush})
+        end if
+        c_proc(Ellipse, hdcActive & coord1 & coord2)
+
+        repaint = TRUE
+    end if
+end procedure
+
+atom points = NULL,
+     npoints = 0
+
+global procedure draw_line(integer color, sequence xyarray)
+    if window_ready and length(xyarray) then
+        if not color then
+            color = last_bk_color
+        end if
+        color = and_bits(color_mask,color)
+        c_proc(SelectObject, {hdcActive, pens[1+color]})
+        xyarray = sq_floor(xyarray)
+        if length(xyarray)=2 then
+            c_proc(MoveToEx, {hdcActive, xyarray[1][1], xyarray[1][2], 0})
+            for n=2 to length(xyarray) do
+                c_proc(LineTo, {hdcActive, xyarray[n][1], xyarray[n][2]})
+            end for
+        else
+            if length(xyarray)>npoints then
+                if points then
+                    free(points)
+                end if
+                points = allocate(length(xyarray)*8)
+                npoints = length(xyarray)
+            end if
+
+            for n=0 to length(xyarray)-1 do
+                poke4(points+n*8,xyarray[n+1])
+            end for
+
+            c_proc(Polyline,{hdcActive, points, length(xyarray)})
+        end if
+        pixel(color,xyarray[$])
+        repaint = TRUE
+    end if
+end procedure
+
+global procedure polygon(integer color, integer fill, sequence xyarray)
+    if window_ready then
+        if not color then
+            color = last_bk_color
+        end if
+        color = and_bits(color_mask,color)
+        if length(xyarray)>npoints then
+            if points then
+                free(points)
+            end if
+            points = allocate(length(xyarray)*8)
+            npoints = length(xyarray)
+        end if
+
+        for n=0 to length(xyarray)-1 do
+            poke4(points+n*8,xyarray[n+1])
+        end for
+
+        c_proc(SelectObject, {hdcActive, pens[1+color]})
+
+        if fill then
+            c_proc(SelectObject, {hdcActive, brushes[1+color]})
+        else
+            c_proc(SelectObject, {hdcActive, null_brush})
+        end if
+
+        c_proc(Polygon,{hdcActive, points, length(xyarray)})
+
+        repaint = TRUE
+    end if
+end procedure
+
+-- Text routines --
+
+atom str = NULL,
+     len = -1
+
+procedure putsxy(sequence pos, sequence s, integer fcolor, integer bcolor)
+    poke4(rect, pos & {pos[1]+length(s)*char_width,pos[2]+char_height})
+
+    c_proc(SetTextColor, {hdcActive, color_map[1+and_bits(color_mask,fcolor)]})
+    c_proc(SetBkColor, {hdcActive, color_map[1+and_bits(color_mask,bcolor)]})
+
+    if len<length(s) then
+        if str then
+            free(str)
+        end if
+        str = allocate_string(s)
+        len = length(s)
+    else
+        poke(str, s & 0)
+    end if
+    c_proc(DrawText, {hdcActive, str, -1, rect, DT_SINGLE_LINE+DT_NOPREFIX})
+    repaint = TRUE
+end procedure
+
+global procedure put_screen_char(integer line, integer column, sequence char_attr)
+sequence pos
+integer tcolor,bcolor
+    if length(char_attr)>0 then
+        if length(char_attr)>(columns-column+1)*2 then
+            char_attr = char_attr[1..(columns-column+1)*2]
+        end if
+
+        pos = (column-1)*char_width & (line-1)*char_height
+        for i=1 to length(char_attr) by 2 do
+            tcolor = and_bits(char_attr[i+1],#F)
+            bcolor = floor(char_attr[i+1]/#10)
+            putsxy(pos,{char_attr[i]},tcolor,bcolor)
+            pos[1] += 8
+        end for
+
+        text_pages[active_page][line][column*2-1..column*2+length(char_attr)-2] = char_attr
+    end if
+end procedure
+
+global function get_screen_char(integer line, integer column)
+    return text_pages[active_page][line][column*2-1..column*2]
+end function
+
+global function save_text_image(sequence top_left, sequence bottom_right)
+sequence image
+    image = {}
+    if top_left[2]<=bottom_right[2] then
+        for i=top_left[1] to bottom_right[1] do
+            image = append(image, text_pages[active_page][i][top_left[2]*2-1..bottom_right[2]*2])
+        end for
+    end if
+    return image
+end function
+
+global procedure display_text_image(sequence xy, sequence text)
+    for i=0 to length(text)-1 do
+        put_screen_char(xy[1]+i,xy[2],text[i+1])
+    end for
+end procedure
+
+procedure clear_lines(integer top, integer bottom)
+    clear_region(0,(top-1)*char_height,screen_size_x,bottom*char_height)
+end procedure
+
+procedure move_rows(integer top, integer bottom, integer rows)
+atom off1, off2
+    off1 = memory_pages[active_page]+top*bytes_per_line
+    off2 = off1-rows*bytes_per_line
+    mem_copy(off2, off1, (bottom-top+1)*bytes_per_line)
+end procedure
+
+global procedure scroll(integer lines, integer top, integer bottom)
+sequence text, blank
+-- sequence rows
+    if lines!=0 then
+        blank = blank_line(last_bk_color,last_text_color)
+        if lines>0 then -- scroll up
+            if lines>=bottom-top+1 then
+                lines = bottom-top+1
+            else
+                move_rows((top+lines-1)*char_height,bottom*char_height-1,lines*char_height)
+            end if
+
+            text = text_pages[active_page][top+lines..bottom]
+            text_pages[active_page][top..bottom-lines] = text
+            text_pages[active_page][bottom-lines+1..bottom] = repeat(blank,lines)
+
+            clear_lines(bottom-lines+1,bottom)
+        else -- scroll down
+            lines = -lines
+            if lines>=bottom-top+1 then
+                lines = bottom-top+1
+            else
+                move_rows((top-1)*char_height,(bottom-lines)*char_height-1,-lines*char_height)
+            end if
+
+            text = text_pages[active_page][top..bottom-lines]
+            text_pages[active_page][top+lines..bottom] = text
+            text_pages[active_page][top..top+lines-1] = repeat(blank,lines)
+
+            clear_lines(top,top+lines-1)
+        end if
+        repaint = TRUE
+    end if
+end procedure
+
+integer wrap_lines
+
+global procedure dos_rescue_wrap(integer i)
+    wrap_lines = i
+end procedure
+
+dos_rescue_wrap(1)
+
+procedure new_line()
+    cursor_column = 1 -- CR
+    cursor_line += 1 -- LF
+end procedure
+
+global procedure dos_rescue_position(integer line, integer column)
+-- override Euphoria built-in
+    if not window_ready then
+        position(line,column)
+    else
+        cursor_line = line
+        cursor_column = column
+
+        if cursor_column>columns and wrap_lines then
+            new_line()
+        end if
+
+        if cursor_line>lines then
+            scroll(cursor_line-lines,1,lines)
+            cursor_line = lines
+        end if
+    end if
+end procedure
+
+global function dos_rescue_get_position()
+    return cursor_line & cursor_column
+end function
+
+-- STDOUT routines --
+
+procedure put(sequence str)
+sequence pos
+integer index
+integer attr
+    if cursor_line>lines then
+        scroll(cursor_line-lines,1,lines)
+        cursor_line = lines
+    end if
+    pos = (cursor_column-1)*char_width & (cursor_line-1)*char_height
+    putsxy(pos,str,last_text_color,last_bk_color)
+
+    attr = last_bk_color*#10+and_bits(#F, last_text_color)
+    index = cursor_column*2-1
+    for i=1 to length(str) do -- I dislike this
+        text_pages[active_page][cursor_line][index] = str[i]
+        text_pages[active_page][cursor_line][index+1] = attr
+        index += 2
+    end for
+
+    cursor_column += length(str)
+end procedure
+
+--function tab_spaces(integer tab_width, integer pos)
+--  return tab_width-remainder(pos,tab_width)
+--end function
+
+-- procedure eu_puts(integer fn, object str)
+    -- puts(fn,str)
+-- end procedure
+
+-- Code adopted from ed.ex {{
+constant tab_width = 8
+
+function tab(integer pos)
+-- compute new column position after a tab
+    return (floor((pos-1)/tab_width)+1)*tab_width+1
+end function
+
+function expand_tabs(sequence s, integer column)
+-- replace tabs by blanks in a line of text
+integer i, tab_pos, ntabs
+    i = 1
+    while 1 do
+        tab_pos = find('\t', s, i)
+        if tab_pos=0 or (not wrap_lines and tab_pos>columns-column) then
+            return s
+        end if
+        i = tab(column+tab_pos-1)
+        ntabs = 1
+        while s[tab_pos+ntabs]='\t' do
+            ntabs += 1
+            i += tab_width
+        end while
+        -- replace consecutive tabs by blanks
+        s = s[1..tab_pos-1] &
+            repeat(' ', i-tab_pos) &
+            s[tab_pos+ntabs..$]
+    end while
+end function
+-- }}
+
+global procedure dos_rescue_puts(integer fn, object str)
+-- override Euphoria built-in
+--  sequence pos
+sequence substr
+integer i,j,len
+    if not window_ready or fn!=STDOUT then
+        puts(fn,str)
+    else
+        if atom(str) then
+            str = {str}
+        elsif length(str)=0 then
+            return
+        end if
+
+        i = 1
+        while i<=length(str) do
+            j = find('\n',str,i)
+            if j=0 then
+                j = length(str)+1
+                substr = str[i..$]
+            else
+                substr = str[i..j-1]
+            end if
+
+            substr = expand_tabs(substr, cursor_column)
+
+            if not wrap_lines then
+                if length(substr)>columns-cursor_column+1 then
+                    substr = substr[1..columns-cursor_column+1]
+                end if
+                put(substr)
+            elsif length(substr)<columns-cursor_column+1 then
+                put(substr)
+            else
+                len = columns-cursor_column+1
+                put(substr[1..len])
+                new_line()
+                substr = substr[len+1..$]
+                while length(substr)>0 do
+                    if length(substr)>=columns then
+                        put(substr[1..columns])
+                        substr = substr[columns+1..$]
+                        new_line()
+                    else
+                        put(substr)
+                        substr = {}
+                    end if
+                end while
+            end if
+
+            if j>length(str) then
+                exit
+            end if
+            new_line()
+            i = j+1
+        end while
+        dos_rescue_position(cursor_line,cursor_column) -- refresh caret position
+    end if
+end procedure
+
+global procedure dos_rescue_printf(integer fn, sequence format, object x)
+-- override Euphoria built-in 
+sequence s
+    if not window_ready or fn!=STDOUT then
+        printf(fn,format,x)
+    else
+        s = sprintf(format, x)
+        dos_rescue_puts(fn,s)
+    end if
+end procedure
+
+global procedure dos_rescue_print(integer fn, object x)
+-- override Euphoria built-in 
+sequence s
+    if not window_ready or fn!=STDOUT then
+        print(fn,x)
+    else
+        s = sprint(x)
+        dos_rescue_puts(fn,s)
+    end if
+end procedure
+
+-- STDIN routines --
+
+integer delay = 1
+
+global procedure set_delay(integer i)
+    delay = i
+end procedure
+
+global function dos_rescue_get_key()
+-- override Euphoria built-in
+-- get next character sent to graphics window
+integer c
+    if not window_ready then
+        return get_key()
+    else
+        task_yield()
+        if length(char_buff)=0 then
+            c_proc(Sleep,{delay})
+            return -1
+        else
+            c = char_buff[1]
+            char_buff = char_buff[2..$]
+            return c
+        end if
+    end if
+end function
+
+global procedure pass_key(object key)
+-- emulate key-press
+    char_buff &= key
+end procedure
+
+sequence getc_buffer = {}
+
+global function dos_rescue_wait_key()
+integer c
+    c = -1
+    while c= -1 do
+        c = dos_rescue_get_key()
+    end while
+    return c
+end function
+
+global function dos_rescue_gets(integer fn)
+-- override Euphoria built-in 
+sequence p
+integer k
+sequence buf
+integer len,size
+
+    if not window_ready or fn!=STDIN then
+        return gets(fn)
+    elsif length(getc_buffer) then
+        buf = getc_buffer
+        getc_buffer = {}
+        return buf
+    else
+        buf = {}
+        len = 0
+        size = 0
+
+        p = dos_rescue_get_position()
+        while 1 do
+            k = dos_rescue_wait_key()
+            if k='\r' then
+                exit
+            elsif (k=8 or k=331) and len>0 then
+                p[2] -= 1
+                dos_rescue_position(p[1],p[2])
+                dos_rescue_puts(1,' ')
+                dos_rescue_position(p[1],p[2])
+                len -= 1
+            elsif k>=' ' and k<256 and p[2]<columns then
+                dos_rescue_puts(1,k)
+                p[2] += 1
+                if len=size then
+                    buf &= k
+                    len += 1
+                    size += 1
+                else
+                    len += 1
+                    buf[len] = k
+                end if
+            end if
+        end while
+
+        if len<size then
+            buf = buf[1..len]
+        end if
+
+        return buf & '\r'
+    end if
+end function
+
+global function dos_rescue_getc(integer fn)
+-- override Euphoria built-in 
+integer c
+    if not window_ready or fn!=STDIN then
+        return getc(fn)
+    elsif length(getc_buffer)=0 then
+        getc_buffer = dos_rescue_gets(fn)
+    end if
+
+    c = getc_buffer[1]
+    getc_buffer = getc_buffer[2..$]
+    return c
+end function
+
+-- Miscellaneous routines --
+
+--global procedure use_vesa(integer code)
+--  -- stub
+--end procedure
+
+-- integer freq, duration
+-- duration = 50
+
+-- global procedure set_sound_duration(integer d)
+    -- duration = d
+-- end procedure
+
+-- global procedure sound(integer f)
+    -- task_yield()
+    -- c_proc(Beep,{f,duration}) -- fixed sound duration
+-- end procedure
+
+constant sizeof_WAVHEADER = 44
+
+constant
+    SND_ASYNC   = #0001,
+    SND_MEMORY  = #0004,
+    SND_LOOP    = #0008
+
+constant
+    RIFF = bytes_to_int("RIFF"),
+    WAVE = bytes_to_int("WAVE"),
+    FMT_ = bytes_to_int("fmt "),
+    DATA = bytes_to_int("data")
+
+constant
+    numSamples = floor(44100/10),
+    size = sizeof_WAVHEADER+numSamples,
+    sound_buff = allocate(size)
+
+poke4(sound_buff, {
+    RIFF,       -- "RIFF" signature
+    size-8,     -- riff chunk size
+    WAVE,       -- "WAVE" signature
+    FMT_,       -- "fmt " signature
+    16,         -- FMT chunk size
+    #10001,     -- PCM, mono
+    44100,      -- samples per second
+    44100,      -- average bytes per second
+    #80001,     -- block align 1, 8 bits per sample
+    DATA,       -- "data" signature
+    numSamples  -- data chunk size
+})
+
+sequence samples = repeat(0,numSamples)
+
+--integer f = 0
+global procedure sound(atom freq)
+atom mult
+    task_yield()
+    if freq>0 and freq<=44100 then
+        mult = 6.28/44100*freq
+        for i=1 to numSamples do
+            samples[i] = floor(127*sin(mult*i)+128) -- sine wave
+        end for
+        poke(sound_buff+sizeof_WAVHEADER,samples)
+        c_proc(PlaySound,{sound_buff,0,SND_ASYNC+SND_LOOP+SND_MEMORY})
+    else
+        c_proc(PlaySound,{0,0,SND_ASYNC})
+    end if
+    c_proc(Sleep,{40})
+end procedure
+
+--global procedure tick_rate(atom rate)
+--  -- stub
+--end procedure
+
+if graphics_mode(3) then
+end if

@@ -31,10 +31,9 @@ global procedure free(object addr)
 end procedure
 constant r_free = routine_id("free")
 
---DEV size should be integer
-global function allocate(atom size, integer cleanup = 0)
+global function allocate(integer size, integer cleanup = 0)
 atom res
-    if size<0 or size!=floor(size) then
+    if size<0 then
         #ilASM{
             [32]
                 mov ecx,1           -- no of frames to pop to obtain an era

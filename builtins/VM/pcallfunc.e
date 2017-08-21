@@ -238,11 +238,11 @@ object res
          ::isFunc
             mov [res],eax                           -- (assumes [res] is still h4 here)
 --DEV (temp, verify it is a valid ebp, or 0:)
-mov eax,[ebp+24]                -- ebp_root
-cmp dword[eax+16],#40565342     -- vsb_magic="@VSB"?
-je @f
-    int3
-@@:
+--mov eax,[ebp+24]              -- ebp_root
+--cmp dword[eax+16],#40565342   -- vsb_magic="@VSB"?
+--je @f
+--  int3
+--@@:
 
         [64]
             mov rcx,[nooflocals]
@@ -441,11 +441,12 @@ end procedure -- (for Edita/CtrlQ)
             mov edx,[esp+8]                     -- return address
             pop dword[ebp]                      --[2] rid
             pop dword[ebp-4]                    --[1] args
-            mov eax,:callprocret                -- return address
+--          mov eax,:callprocret                -- return address
+            pop eax
             test edx,edx
             jnz @f
                 mov edx,[ebp+20]                -- prev_ebp
-                add esp,4
+--              add esp,4
                 mov eax,:%opRetf
                 mov edx,[edx+12]                -- called from address
           @@:
@@ -455,10 +456,10 @@ end procedure -- (for Edita/CtrlQ)
             mov dword[ebp+28],eax               -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:call_common
-          ::callprocret
-            test eax,eax
-            jnz :%e02atdb0
-            ret
+--        ::callprocret
+--          test eax,eax
+--          jnz :%e02atdb0
+--          ret
         [64]
             -- calling convention
             --  mov rax,[rid]       -- (opUnassigned)

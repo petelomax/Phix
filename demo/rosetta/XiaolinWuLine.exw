@@ -4,44 +4,49 @@
 --
 --  Resize the window to show lines at any angle
 --
-constant TITLE = "Xiaolin Wu's line algorithm"
+--  For education/comparision purposes only: see demo\pGUI\aaline.exw
+--  for a much shorter version.
+--  Also note this blends with BACK rather than the actual pixel,
+--  whereas aaline.exw does it properly.
+--
+constant USE_OPENGL = 01
 
-bool bresline = false   -- space toggles, for comparison
+constant TITLE = "Xiaolin Wu's line algorithm"
 
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
-constant BACK = CD_PARCHMENT,
-         LINE = CD_BLUE,
-         rB = red(BACK), gB = green(BACK), bB = blue(BACK),
-         rL = red(LINE), gL = green(LINE), bL = blue(LINE)
+bool wuline = true  -- space toggles, for comparison
+                    -- when false, and with USE_OPENGL, lines are still smooth, 
+                    --  but a bit thicker - and therefore less "ropey".
+                    -- when false, but without USE_OPENGL, it draws bresenham 
+                    --  lines (ie jagged, without any anti-aliasing).
 
-procedure plot(atom x, atom y, atom c, bool steep=false)
+integer BACK = CD_PARCHMENT,
+        LINE = CD_BLUE,
+        rB = red(BACK), gB = green(BACK), bB = blue(BACK),
+        rL = red(LINE), gL = green(LINE), bL = blue(LINE)
+
+procedure plot(atom x, y, c, bool steep=false)
 --  plot the pixel at (x, y) with brightness c (where 0 <= c <= 1)
     if steep then {x,y} = {y,x} end if
     atom C = 1-c
     c = rgb(rL*c+rB*C,gL*c+gB*C,bL*c+bB*C)
---DEV (crashes in pcfunc.e)
---  c = cdEncodeColor(rL*c+rB*C,gL*c+gB*C,bL*c+bB*C)
-    cdCanvasPixel(cddbuffer, x, y, c) 
+    cdCanvasPixel(cddbuffer, x, y, c)
 end procedure
 
-procedure plot2(atom x, atom y, atom f, atom xgap, bool steep)
+procedure plot2(atom x, y, f, xgap, bool steep)
     plot(x,y,(1-f)*xgap,steep)
-    plot(x,y+1,f*xgap,steep)
+    plot(x,y+1,(f)*xgap,steep)
 end procedure
 
 function fpart(atom x)
-    return x - floor(x)     -- fractional part of x
+    return x-floor(x)   -- fractional part of x
 end function
 
-procedure draw_line(atom x0,y0,x1,y1)
-    if bresline then
-        cdCanvasLine(cddbuffer, x0, y0, x1, y1)
-        return
-    end if
+procedure wu_line(atom x0,y0,x1,y1)
     bool steep := abs(y1 - y0) > abs(x1 - x0)
     if steep then
         {x0, y0, x1, y1} = {y0, x0, y1, x1}
@@ -57,7 +62,7 @@ procedure draw_line(atom x0,y0,x1,y1)
     -- handle first endpoint
     atom xend := round(x0),
          yend := y0 + gradient * (xend - x0),
-         xgap := 1-fpart(x0 + 0.5),
+         xgap := 1 - fpart(x0 + 0.5),
          xpxl1 := xend, -- this will be used in the main loop
          ypxl1 := floor(yend)
     plot2(xpxl1, ypxl1, fpart(yend), xgap, steep)
@@ -78,30 +83,153 @@ procedure draw_line(atom x0,y0,x1,y1)
     end for
 end procedure
 
+procedure plot_4_points(integer cx, cy, x, y, atom f, angle1=0, angle2=360, angle=0)
+integer x1 = cx+x, x2 = cx-x,
+        y1 = cy+y, y2 = cy-y
+    if angle<0 or angle>90.01 then ?9/0 end if
+    if      angle >=angle1 and      angle <=angle2 then plot(x1, y1, f) end if  -- top right
+    if (180-angle)>=angle1 and (180-angle)<=angle2 then plot(x2, y1, f) end if  -- top left
+    if (180+angle)>=angle1 and (180+angle)<=angle2 then plot(x2, y2, f) end if  -- btm left
+    if (360-angle)>=angle1 and (360-angle)<=angle2 then plot(x1, y2, f) end if  -- btm right
+end procedure
+
+procedure wu_ellipse(atom cx, cy, w, h, angle1=0, angle2=360)
+--
+-- (draws a circle when w=h) credit:
+-- https://yellowsplash.wordpress.com/2009/10/23/fast-antialiased-circles-and-ellipses-from-xiaolin-wus-concepts/
+--
+    if w<=0 or h<=0 then return end if
+    cx = round(cx)
+    cy = round(cy)
+    w = round(w)
+    h = round(h)
+    angle1 = mod(angle1,360)
+    angle2 = mod(angle2,360)
+
+    -- Match cdCanvasArc/Sector angles:
+    angle1 = atan2((h/2)*sin(angle1*CD_DEG2RAD), (w/2)*cos(angle1*CD_DEG2RAD))*CD_RAD2DEG
+    angle2 = atan2((h/2)*sin(angle2*CD_DEG2RAD), (w/2)*cos(angle2*CD_DEG2RAD))*CD_RAD2DEG
+
+    if angle2<=angle1 then angle2 += 360 end if
+
+    atom a := w/2, asq := a*a, 
+         b := h/2, bsq := b*b,
+         sqab = sqrt(asq+bsq),
+         ffd = round(asq/sqab), -- forty-five-degree coord
+         xj, yj, frc, flr, angle
+
+    -- draw top right, and the 3 mirrors of it in horizontal fashion
+    --  (ie 90 to 45 degrees for a circle)
+
+    for xi=0 to ffd do
+        yj := b*sqrt(1-xi*xi/asq)   -- real y value
+        frc := fpart(yj)
+        flr := floor(yj)
+        angle := iff(xi=0?90:arctan(yj/xi)*CD_RAD2DEG)
+        plot_4_points(cx, cy, xi, flr, 1-frc, angle1, angle2, angle)
+        plot_4_points(cx, cy, xi, flr+1, frc, angle1, angle2, angle)
+    end for
+
+    -- switch from horizontal to vertial mode for the rest, ditto 3
+    -- (ie 45..0 degrees for a circle)
+
+    ffd = round(bsq/sqab)
+    for yi=0 to ffd do
+        xj := a*sqrt(1-yi*yi/bsq)   -- real x value
+        frc := fpart(xj)
+        flr := floor(xj)
+        angle = iff(xj=0?0:arctan(yi/xj)*CD_RAD2DEG)
+        plot_4_points (cx, cy, flr, yi, 1-frc, angle1, angle2, angle)
+        plot_4_points (cx, cy, flr+1, yi, frc, angle1, angle2, angle)
+    end for
+
+end procedure
+
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    if USE_OPENGL then
+        IupGLMakeCurrent(canvas)
+    end if
     integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
-    draw_line(0,0,200,200)
-    draw_line(w,0,200,200)
-    draw_line(0,h,200,200)
-    draw_line(w,h,200,200)
+if wuline then
+    wu_line(0,0,200,200)
+    wu_line(w,0,200,200)
+    wu_line(0,h,200,200)
+    wu_line(w,h,200,200)
+else
+--  cdCanvasLineWidth(cddbuffer,1)  -- (no difference)
+    cdCanvasLine(cddbuffer,0,0,200,200)
+    cdCanvasLine(cddbuffer,w,0,200,200)
+    cdCanvasLine(cddbuffer,0,h,200,200)
+    cdCanvasLine(cddbuffer,w,h,200,200)
+end if
+
+if wuline then
+    wu_ellipse(200,200,200,200)
+--  cdCanvasSector(cddbuffer, 200, 200, 200, 200, 0, 360) 
+    wu_ellipse(200,200,300,100)
+--  wu_ellipse(200,200,300,100,15,85)
+--  cdCanvasArc(cddbuffer, 205, 205, 300, 100, 15, 85) 
+else
+    cdCanvasArc(cddbuffer, 200, 200, 200, 200, 0, 360) 
+--  cdCanvasSector(cddbuffer, 200, 200, 200, 200, 0, 360) 
+    cdCanvasArc(cddbuffer, 200, 200, 300, 100, 0, 360) 
+end if
+--test - it works (much better) if you draw the polygon /after/ the lines!!
+--  cdCanvasBegin(cddbuffer,CD_FILL)
+--  cdCanvasVertex(cddbuffer,w,h)
+--  cdCanvasVertex(cddbuffer,0,h)
+--  cdCanvasVertex(cddbuffer,200,200)
+--  cdCanvasEnd(cddbuffer)
+--/test
     cdCanvasFlush(cddbuffer)
+    if USE_OPENGL then
+        IupGLSwapBuffers(canvas)
+    end if
     return IUP_DEFAULT
 end function
 
 function map_cb(Ihandle ih)
-    cdcanvas = cdCreateCanvas(CD_IUP, ih)
-    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    if USE_OPENGL then
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        IupGLMakeCurrent(canvas)
+        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+        cddbuffer = cdcanvas
+    else
+        cdcanvas = cdCreateCanvas(CD_IUP, ih)
+        cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    end if
     cdCanvasSetBackground(cddbuffer, BACK)
     cdCanvasSetForeground(cddbuffer, LINE)
     return IUP_DEFAULT
 end function
 
+function canvas_resize_cb(Ihandle /*canvas*/)
+    if USE_OPENGL then
+        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+        cdCanvasSetAttribute(cdcanvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure set_title()
+string title = TITLE
+    if USE_OPENGL then
+        title &= iff(wuline?" (wu_line)":" (opengl)")
+    else
+        title &= iff(wuline?" (anti-aliased)":" (bresenham)")
+    end if
+    IupSetStrAttribute(dlg,"TITLE",title)
+end procedure
+
 function esc_close(Ihandle /*ih*/, atom c)
     if c=K_ESC then return IUP_CLOSE end if
     if c=' ' then
-        bresline = not bresline
+        wuline = not wuline
+        set_title()
         IupRedraw(canvas)
     end if
     return IUP_CONTINUE
@@ -109,12 +237,20 @@ end function
 
 procedure main()
     IupOpen()
-    canvas = IupCanvas(NULL)
+    if USE_OPENGL then
+        IupGLCanvasOpen()
+        canvas = IupGLCanvas(NULL)
+        IupSetAttribute(canvas, "BUFFER", "DOUBLE")
+    else
+        canvas = IupCanvas(NULL)
+    end if
+
     IupSetAttribute(canvas, "RASTERSIZE", "640x480")
     IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
     dlg = IupDialog(canvas)
-    IupSetAttribute(dlg, "TITLE", TITLE)
+    set_title()
     IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
     IupShow(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)

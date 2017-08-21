@@ -5,9 +5,9 @@
 --  implements :%opLen
 --
 --  Note that l = length(s) is inlined if s is known to be an assigned sequence (so
---       no need to check for unassigned) and l is an integer (so it does not need 
---       a decref/dealloc), saving the overhead of both the call/return and those
---       mentioned unnecessary checks.
+--       there is no need to check for unassigned) and l is an integer (so it does 
+--       not need a decref/dealloc), saving the overhead of both the call/return,
+--       and those aforementioned unnecessary checks.
 --
 
 #ilASM{ jmp :%opRetf
@@ -20,12 +20,8 @@
         --  mov esi,[p2]    -- source ref
         --  mov edx,p2      -- var no of ref
         --  call :%opLen    -- [edi]=length(eax)
---7/2/16:
---      nop -- (DEV force :%opLen not :!opLene36or92 in list.asm...)
         cmp esi,h4
---      jle :e36loaaind
         jg @f
-            -- I surrender! I give up!! Please don't shoot me!!!
             mov ecx,edx
             jne e36loaaind
             pop edx
@@ -60,11 +56,8 @@
         --  mov rdx,p2      -- var no of ref
         --  call :%opLen    -- [rdi]=length(rax)
         mov r15,h4
---7/2/16:
         cmp rsi,r15
---      jle :e36loaaind
         jg @f
-            -- I surrender! I give up!! Please don't shoot me!!!
             mov rcx,rdx
             jne :e36loaaind
             pop rdx

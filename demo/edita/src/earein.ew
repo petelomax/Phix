@@ -2365,7 +2365,7 @@ procedure MultiAssignment()
 end procedure
 
 --NB keep Statement() in step with this
-constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i"}
+constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","class"}
 
 --with trace
 procedure DoRoutineDef(integer rType, integer fwd)
@@ -2481,12 +2481,31 @@ end if
     end if
 end procedure
 
+procedure DoClass() -- Process a class definition
+integer wasNest
+    wasNest = nest
+    if tokstart>1 or nest or inPend() then
+        nest += isTabWidth
+    end if
+    Match("class")
+    if Ch='<' then
+        getToken()
+        Match("<")
+    end if
+    getToken()
+    call_proc(rBlock,{})
+    if parser_tokno=1 then Indent(0) end if
+    nest = wasNest
+    Match("end")
+    Match("class")
+end procedure
+
 procedure Statement()
 integer k
     if toktype = LETTER then
         nestAtStatementStart = nest
---constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i"}
---                           1     2      3        4        5       6       7        8       9   10   11
+--constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","class"}
+--                           1     2      3        4        5       6       7        8       9   10   11 ,  12
         k = find(token,ifforwhileetc)
         if k then
             also = {}
@@ -2502,6 +2521,7 @@ integer k
             elsif k=9 then Abort(xl("unexpected"))
             elsif k=10 then DoQu()
             elsif k=11 then DoIlasmEtc()
+            elsif k=12 then DoClass()
             end if
         else
             if parser_tokno=1 then Indent(isTabWidth) end if

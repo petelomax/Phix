@@ -2,6 +2,10 @@
 -- demo\rosetta\Solve15puzzle.exw
 -- ==============================
 --
+-- Note/DEV: this is now (probably) broken due to my incessant fiddling.
+-- For a working version see http://rosettacode.org/wiki/15_puzzle_solver#Phix
+--
+
 constant udlr = {"up", "down", "left", "right"}
 sequence board = tagset(15)&0
 integer pos = 16
@@ -60,6 +64,39 @@ integer res = 0, pos, act_pos
     return res
 end function
 
+function manhattan(sequence board)
+integer res = 0
+    for i=1 to length(board) do
+        integer bi = board[i]
+        if bi!=i
+--      and (i!=16 or bi!=0) then
+        and bi!=0 then
+            res += (abs(mod((i+1),4)-mod((bi+1),4))+
+                    abs(floor((i-1)/4)-floor((bi-1)/4)))
+--?{i,bi,res,abs(mod((i+1),4)-mod((bi+1),4)),abs(floor((i-1)/4)-floor((bi-1)/4))}
+        end if
+    end for
+    return res
+end function
+--/*
+
+sequence board0 = { 1, 2, 3, 4,
+                    5, 6, 7, 8,
+                    9,10,11,12,
+                   13,14,15, 0},
+--                 13,14, 0,15},
+         board1 = {15, 2, 3, 4,
+                    5, 6, 7, 8,
+                    9,10,11,12,
+                   13,14, 1, 0},
+$
+?manhattan(board0) -- 0 rqd
+if 01 then
+    ?manhattan(board1) -- 10 rqd
+end if
+--*/
+
+
 if 0 then
     for i=1 to 5555555 do {}=move(rand(4)) end for      -- (25% are likely invalid)
 else
@@ -67,16 +104,78 @@ else
               9,11, 4,12,
               0,10, 7, 3,
              13, 8, 5, 2}
+--  board = {12,15, 6,10,
+--            4, 9, 5, 8,
+--           14,13, 0, 2,
+--            1, 7,11, 3}
     pos = find(0,board)
 end if
 atom t0 = time()
+atom t1 = time()+1
 integer pos0 = pos, s, valid, stick
 sequence board0 = board, boards = {{0,score(board),{},board,pos}}, new_boards, moves
-integer visited = new_dict()
+integer active = new_dict(),
+        visited = new_dict()
+integer scr
+?"one"
+with trace
+if 01 then -- new a* approach
+--trace(1)
+--umm... I think we need to store the (shortest) moves on visited.... and an active flag...
+    moves = {}
+    while 1 do
+        setd(board,0,visited)
+        sequence boardn = board
+        integer posn = pos
+        scr = 1
+        for i=1 to 4 do
+            {valid} = move(i)
+            if valid then
+                integer k = getd_index(board,visited)
+                if k then
+--                  {active,prev_moves} = getd_by_index(k,visited)
+--                  k = 0
+                end if                  
+                if k=0 then
+                    scr = manhattan(board)
+                    if scr=0 then exit end if
+                    scr += length(moves)+1
+--                  integer scr = manhattan(board)+length(moves)+1
+--                  object prev_moves = getd({score,board})
+                    object prev_moves = getd({scr,board},active)
+                    if sequence(prev_moves)
+                    and length(prev_moves)<length(moves) then
+                        -- keep old
+--                      setd({?,board},prev_moves&
+                    else
+                        -- write/overwrite
+                        setd({scr,board},moves&i,active)
+                    end if
+                end if
+            end if
+            if scr=0 then exit end if
+            board = boardn
+            pos = posn
+        end for
+        if scr=0 then exit end if
+--DEV result of 0??
+        sequence key = getd_partial_key({},active)
+        board = key[2]
+        pos = find(0,board)
+        moves = getd(key,active)
+        deld(key,active)
+if time()>t1 then
+    ?key[1]
+    print_board(1)
+    t1 = time()+1
+end if
+    end while
+else -- old code:
 setd(board,0,visited)
 while 1 do
     new_boards = {}
-    for i=1 to length(boards) do
+--  for i=1 to length(boards) do
+    for i=1 to min(100,length(boards)) do
         for c=1 to 4 do
             {?,?,moves,board,pos} = boards[i]
             {valid,stick} = move(c)
@@ -84,6 +183,7 @@ while 1 do
                 moves &= c
                 s = score(board)
                 if s=0 then exit end if
+--object key = getd_partial_key(object pkey, integer tid=1, bool rev=false) 
                 new_boards = append(new_boards,{8-stick,s,moves,board,pos})
                 setd(board,0,visited)
             end if
@@ -97,10 +197,13 @@ while 1 do
         {?,s,{},board,pos} = boards[1]
         lines[1] = sprintf("thinking... %d boards visited, best score: %d (0=solved):",{dsv,s})
         print_board(1)
+    elsif length(boards)>100 then
+        boards = sort(new_boards&boards[101..$])
     else
-        boards = new_boards
+        boards = sort(new_boards)
     end if
 end while
+end if
 
 pos = pos0
 board = board0

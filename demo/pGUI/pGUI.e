@@ -1285,35 +1285,64 @@ atom
 --        are the only other things that I can think of).
 
 procedure iup_init1(nullable_string dll_root)
-if 0 then
-string dll_abs -- (dll_root may be a relative path)
-    if dll_root=NULL then
-        dll_abs = get_proper_dir(command_line()[2])
-    else
-        dll_abs = get_proper_dir(dll_root)
-    end if
---  dll_path = dll_root&sprintf("\\%s%d\\",{dirs[libidx],machine_bits()})
-    dll_path = dll_abs&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
-    if get_file_type(dll_path)!=FILETYPE_DIRECTORY then
-        if dll_root=NULL then ?9/0 end if
-        dll_abs = get_proper_dir(get_proper_dir(command_line()[2])&dll_root)
-        dll_path = dll_abs&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
-        if get_file_type(dll_path)!=FILETYPE_DIRECTORY then ?9/0 end if
-    end if
-else
+--if 0 then
+--string dll_abs -- (dll_root may be a relative path)
+--  if dll_root=NULL then
+--      dll_abs = get_proper_dir(command_line()[2])
+--  else
+--      dll_abs = get_proper_dir(dll_root)
+--  end if
+----    dll_path = dll_root&sprintf("\\%s%d\\",{dirs[libidx],machine_bits()})
+--  dll_path = dll_abs&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+--  if get_file_type(dll_path)!=FILETYPE_DIRECTORY then
+--      if dll_root=NULL then ?9/0 end if
+--      dll_abs = get_proper_dir(get_proper_dir(command_line()[2])&dll_root)
+--      dll_path = dll_abs&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
+--      if get_file_type(dll_path)!=FILETYPE_DIRECTORY then ?9/0 end if
+--  end if
+--else
     sequence s = include_paths()
+    string dll_dir = sprintf("%s%d",{dirs[libidx],machine_bits()})
     for i=1 to length(s) do
         sequence sip = split_path(s[i])
         if sip[$]="pGUI" then
 --          dll_path = s[i]&sprintf("%s%d%s",{dirs[libidx],machine_bits(),SLASH})
 --          dll_path = join_path({s[i],sprintf("%s%d",{dirs[libidx],machine_bits()})},1)
-            sip = append(sip,sprintf("%s%d",{dirs[libidx],machine_bits()}))
+--          sip = append(sip,sprintf("%s%d",{dirs[libidx],machine_bits()}))
+            sip = append(sip,dll_dir)
             dll_path = join_path(sip,trailsep:=1)
 --dll_root = dll_path
-            exit
+            if get_file_type(dll_path)=FILETYPE_DIRECTORY then
+                s = {}
+                exit
+            end if
         end if
     end for
+    if s!={} then
+        -- allow pGUI in the app dir, with a win/lnx,32/64 sub-dir:
+        for i=1 to length(s) do
+            string dll_path = join_path({s[i],dll_dir})
+            if get_file_type(dll_path)=FILETYPE_DIRECTORY then
+                s = {}
+                exit
+            end if
+        end for
+    end if
+    if s!={} then
+        string dll_path = join_path({dll_root,dll_dir})
+        if get_file_type(dll_path)=FILETYPE_DIRECTORY then
+            s = {}
+        end if
+    end if
+    if s!={} then
+if platform()=WINDOWS then  -- DEV (while manually installed on lnx)
+        printf(1,"unable to locate %s directory\n",dll_dir)
+        {} = wait_key()
+        ?9/0
 end if
+    end if
+        
+--end if
 
 --DEV:
     if platform()=WINDOWS then
@@ -4180,6 +4209,7 @@ end type
 --  Canvas Draw Constants
 
 global constant
+--DEV F1 lookup:
     CD_QUERY = -1,
     CD_ERROR = -1,
     CD_OK = 0,
@@ -4391,6 +4421,7 @@ global constant
     --
     -- These are simply for convenience
     --
+--DEV F1 lookup:
     CD_RED          = #FF0000,
     CD_DARK_RED     = #800000,
     CD_ORANGE       = #FFA500,
@@ -5778,10 +5809,10 @@ global procedure cdCanvasRoundedBox(cdCanvas canvas, atom xmin, atom xmax, atom 
     -- then round/fill in the corners using cdCanvasSector
 --  cdCanvasSector(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2) 
 --  cdCanvasSetForeground(cddbuffer, CD_RED)
-    cdCanvasSector(canvas, xmin+width,ymin+height,width*2,height*2,180,270)
-    cdCanvasSector(canvas, xmax-width,ymin+height,width*2,height*2,270,0)
-    cdCanvasSector(canvas, xmin+width,ymax-height,width*2,height*2,90,180)
-    cdCanvasSector(canvas, xmax-width,ymax-height,width*2,height*2,0,90)
+    cdCanvasSector(canvas, xmin+width,ymin+height,width*2,height*2,180,270)     -- btm left
+    cdCanvasSector(canvas, xmax-width,ymin+height,width*2,height*2,270,0)       -- btm right
+    cdCanvasSector(canvas, xmin+width,ymax-height,width*2,height*2,90,180)      -- top left
+    cdCanvasSector(canvas, xmax-width,ymax-height,width*2,height*2,0,90)        -- top right
 end procedure
 
 global procedure cdCanvasRoundedRect(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax, atom width, atom height) 
@@ -5936,7 +5967,8 @@ global function canvas_write_mode(cdCanvas hCdCanvas, atom mode)
 end function
 
 global procedure cdCanvasSetLineWidth(cdCanvas hCdCanvas, atom width)
-    if width<1 then ?9/0 end if
+--  if width<1 then ?9/0 end if
+    if width<1 then width=1 end if -- (it's an int)
     width = c_func(xcdCanvasLineWidth, {hCdCanvas, width})
 end procedure
 
@@ -6507,7 +6539,6 @@ end procedure
 --  xcdEncodeAlpha  = iup_c_func(hCd, "cdEncodeAlpha", {L,UC},L),
 --  xcdRGB2Map      = iup_c_proc(hCd, "cdRGB2Map", {I,I,P,P,P,P,I,P})
 
---global function cdEncodeColor(integer red, integer green, integer blue)
 global function cdEncodeColor(atom red, atom green, atom blue)
     integer color = c_func(xcdEncodeColor, {red, green, blue})
     return color

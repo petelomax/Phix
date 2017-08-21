@@ -25,22 +25,13 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
 #ilASM{ jmp :%opRetf
 
 --DEV FIXME: (and the :!bang labels below, opPeekMLE, opPeeksMLE,)
---  ::e43atpmbaoso2ap
---      pop ecx
+    ::e41fatpmba
+        int3
     ::e43atpmbaoso2a
         int3
---(note: e45 just died)
---  ::e44atpmbaoso2a
---      int3
     ::e110opPeekiSeq
         int3
---  ::e41fatpmba
---      int3
     ::e114stbpmoca
-        int3
---  ::showerror     -- (see also eNNunknown in pApnd.e)
---      int3
-    ::e42fatp4mba
         int3
     ::e39atmcmba
         int3
@@ -49,195 +40,9 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
     ::e23imsl
         int3
     ::e40atmsmba
---tests, all seem fine ;-)
---jmp :%opPeek
---mov eax,:%opPeek
---jmp :!opPeek4ssMLE
---mov eax,:!opPeek4ssMLE
---cmp eax,:!opPeek4ssMLE
---cmp eax,:!unknoiwn
-----cmp eax,:%unknoiwn
         int3
     ::epeeksize
---jmp :%feh1
---mov eax,[ebx]
         int3
-    ::epokesize
-        [32]
-            pop edx
-            mov al,122      -- e122ips
-            sub edx,1
-        [64]
-            pop rdx
-            mov al,122      -- e122ips
-            sub rdx,1
-        []
-            jmp :!iDiag
-            int3
-
---DEV this is an alias for peek1u()
---/*
-procedure :%opPeek(:%)
-end procedure -- (for Edita/CtrlQ)
---*/
---/*
-  :%opPeek
-----------
-    [32]
-        --calling convention
-        --  lea edi,[p1]        -- target addr
-        --  mov esi,[p2]        -- addr or {addr,len} (opUnassigned)
---mov ecx,0
---mov edx,1
---jmp :%opPeekNx
-        xor eax,eax
-        cmp esi,h4
-        jl @f
-            cmp byte[ebx+esi*4-1],0x12
-            jne :PeekSeq
-            sub esp,8
-            fld qword[ebx+esi*4]
-            call :%down53
-            fistp qword[esp]
-            call :%near53
-            mov esi,[esp]
-            add esp,8
-      @@:
-        mov edx,[edi]           -- prev
---    :!opPeekMLE                   -- exception here mapped to e99ipmaespfeh (invalid peek memory address)
-        mov al,[esi]
-        cmp edx,h4
-        mov [edi],eax
-        jle @f
-            sub dword[ebx+edx*4-8],1
-            jz :%pDealloc
-      @@:
-        ret
-
-      ::PeekSeq                 -- peek({addr,len}) case (result is string)
-        -- esi is {addr,len}, edi is tgt addr
-        cmp byte[ebx+esi*4-1],0x80      -- sequence:
-        jnz :e43atpmbaoso2a             -- argument to peek must be atom or sequence of 2 atoms
-        cmp dword[ebx+esi*4-12],2       -- of length 2:
-        jne :e43atpmbaoso2a             -- argument to peek must be atom or sequence of 2 atoms
-        mov ecx,[ebx+esi*4+4]           -- len (ie p2[2])
-        cmp ecx,h4
-        jle @f
-            cmp byte[ebx+ecx*4-1],0x12
-            jne :e43atpmbaoso2a     -- argument to peek must be atom or sequence of 2 atoms
-            sub esp,8
-            fld qword[ebx+ecx*4]
-            call :%down53
-            fistp qword[esp]
-            call :%near53
-            mov ecx,[esp]
-            add esp,8
-      @@:
-        mov esi,[ebx+esi*4]         -- addr (ie p2[1])
-        push edi                    -- save tgt addr
-        cmp esi,h4
-        jle @f
-            cmp byte[ebx+esi*4-1],0x12
-            jne :e43atpmbaoso2ap    -- argument to peek must be atom or sequence of 2 atoms
-            sub esp,8
-            fld qword[ebx+esi*4]
-            call :%down53
-            fistp qword[esp]
-            call :%near53
-            mov esi,[esp]
-            add esp,8
-      @@:
-        -- OK, len in ecx, addr in esi
-        call :%pAllocStr            -- damages eax only
-        lea edi,[ebx+eax*4]
---    :!opPeeksMLE                  -- exception here mapped to e99ipmaespp4feh (invalid peek memory address)
-        rep movsb
-        pop esi
-        mov byte[edi],0
-        mov edx,[esi]
-        mov [esi],eax
-        cmp edx,h4
-        jle @f
-            sub dword[ebx+edx*4-8],1
-            jz :%pDealloc
-      @@:
-        ret
-    [64]
-        --calling convention
-        --  lea rdi,[p1]        -- target addr
-        --  mov rsi,[p2]        -- addr or {addr,len} (opUnassigned)
-        mov r15,h4
-        xor rax,rax
-        cmp rsi,r15
-        jl @f
-            cmp byte[rbx+rsi*4-1],0x12
-            jne :PeekSeq64
-            sub rsp,8
-            fld tbyte[rbx+rsi*4]
-            call :%down64
-            fistp qword[rsp]
-            call :%near64
-            pop rsi
-      @@:
-        mov rdx,[rdi]           -- prev
---    :!opPeekMLE                   -- exception here mapped to e99ipmaespfeh (invalid peek memory address)
-        mov al,[rsi]
-        cmp rdx,r15
-        mov [rdi],rax
-        jle @f
-            sub qword[rbx+rdx*4-16],1
-            jz :%pDealloc
-      @@:
-        ret
-
-      ::PeekSeq64               -- peek({addr,len}) case (result is string)
-        -- rsi is {addr,len}, rdi is tgt addr
-        cmp byte[rbx+rsi*4-1],0x80      -- sequence:
-        jnz :e43atpmbaoso2a             -- argument to peek must be atom or sequence of 2 atoms
-        cmp qword[rbx+rsi*4-24],2       -- of length 2:
-        jne :e43atpmbaoso2a             -- argument to peek must be atom or sequence of 2 atoms
-        mov rcx,[rbx+rsi*4+8]           -- len (ie p2[2])
-        cmp rcx,r15
-        jle @f
-            cmp byte[rbx+rcx*4-1],0x12
-            jne :e43atpmbaoso2a     -- argument to peek must be atom or sequence of 2 atoms
-            sub rsp,8
-            fld tbyte[rbx+rcx*4]
-            call :%down64
-            fistp qword[rsp]
-            call :%near64
-            pop rcx
-      @@:
-        mov rsi,[rbx+rsi*4]         -- addr (ie p2[1])
-        push rdi                    -- save tgt addr
-        cmp rsi,r15
-        jle @f
-            cmp byte[rbx+rsi*4-1],0x12
-            jne :e43atpmbaoso2ap    -- argument to peek must be atom or sequence of 2 atoms
-            sub rsp,8
-            fld tbyte[rbx+rsi*4]
-            call :%down64
-            fistp qword[rsp]
-            call :%near64
-            pop rsi
-      @@:
-        -- OK, len in rcx, addr in rsi
-        call :%pAllocStr            -- damages rax only
-        lea rdi,[rbx+rax*4]
---    :!opPeeksMLE                  -- exception here mapped to e99ipmaespp4feh (invalid peek memory address)
-        rep movsb
-        pop rsi
-        mov byte[rdi],0
-        mov rdx,[rsi]
-        mov [rsi],rax
-        cmp rdx,r15
-        jle @f
-            sub qword[rbx+rdx*4-16],1
-            jz :%pDealloc
-      @@:
-        ret
-    []
---*/
 
 --/*
 procedure :%opPeeki(:%)
@@ -264,7 +69,7 @@ end procedure -- (for Edita/CtrlQ)
             mov esi,[esp]
             add esp,8
       @@:
-      :!opPeekiRIMA             -- exception here mapped to e99ipmaespfeh (invalid peek memory address)
+      :!opPeekiRIMA             -- exception here mapped to e99ipmaespfeh (invalid peek memory address) [DEV]
         mov al,[esi]
         ret
     [64]
@@ -301,227 +106,13 @@ end procedure -- (for Edita/CtrlQ)
   :%opPeek4x
 ------------
     [32]
-        --calling convention
-        --  lea edi,[p1]        -- target addr
-        --  mov esi,[p2]        -- addr or {addr,len} (opUnassigned)
-        --  mov ecx,-1          -- opPeek4s
-        --  mov ecx,0           -- opPeek4u
-        push ecx
-        cmp esi,h4
-        jl @f
-            cmp byte[ebx+esi*4-1],0x12
-            jne :Peek4sSeq
-            fld qword[ebx+esi*4]
-            sub esp,8
-            call :%down53
-            fistp qword[esp]
-            call :%near53
-            mov esi,[esp]
-            add esp,8
-      @@:
-
       :!opPeek4sMLE         -- exception here mapped to e99ipmaespp4feh (invalid peek memory address)
-        mov eax,[esi]
-        cmp dword[esp],0
-        je :opPeek4uAtom
---    ::opPeek4sAtom
-            mov ecx,eax
-            shl ecx,1           -- (this is a better test than cmp h4)
-            jno :Peek4sStore    -- store #C0000000..#3FFFFFFF (-1073741824..1073741823) in eax as short int
 
-            push eax
-            fild dword[esp]
-            add esp,8           -- (discard eax and sign flag)
-            jmp :%pStoreFlt     -- store result (invokes dealloc if needed)
-
-      ::opPeek4uAtom
---          cmp ecx,h4
-            cmp eax,h4
-            jb :Peek4sStore     -- store unsigned 0..#3FFFFFFF (0..1073741823) in eax as short int
-            push ebx
-            push eax
-            fild qword[esp]
-            add esp,12          -- (discard qword and sign flag)
-            jmp :%pStoreFlt     -- store result (invokes dealloc if needed)
-
-      ::Peek4sSeq                       -- peek4x({addr,len}) case
-        push edi                        -- target addr
-        cmp byte[ebx+esi*4-1],0x80      -- sequence
-        jnz :e44atpmbaoso2a             -- argument to peek4 must be atom or sequence of 2 atoms
-        cmp dword[ebx+esi*4-12],2       -- of length 2
-        jne :e44atpmbaoso2a             -- argument to peek4 must be atom or sequence of 2 atoms
-        mov ecx,[ebx+esi*4+4]           -- len (ie p2[2])
-        cmp ecx,h4
-        jl @f
-            cmp byte[ebx+ecx*4-1],0x12
-            jne :e44atpmbaoso2a
-            fld qword[ebx+ecx*4]
-            sub esp,8
-            call :%down53
-            fistp qword[esp]
-            call :%near53
-            mov ecx,[esp]
-            add esp,8
-      @@:
-        mov esi,[ebx+esi*4]             -- addr (ie p2[1])
-        cmp esi,h4
-        jl @f
-            cmp byte[ebx+esi*4-1],0x12
-            jne :e44atpmbaoso2a
-            fld qword[ebx+esi*4]
-            sub esp,8
-            call :%down53
-            fistp qword[esp]
-            call :%near53
-            mov esi,[esp]
-            add esp,8
-      @@:
-        -- OK, len in ecx, and addr in esi
-        --  era in edx???[DEV]
-        call :%pAllocSeq            -- damages eax only
-        test ecx,ecx
-        jz :Peek4sStore
-        lea edi,[ebx+eax*4]
-        push eax
-      ::opPeek4xLoop
       :!opPeek4ssMLE            -- exception here mapped to e99ipmaespp8feh (invalid peek memory address)
-            lodsd               -- mov eax,[esi], esi+=4
-            mov edx,eax
-            stosd               -- store short ints #C0000000 .. #3FFFFFFF (-1073741824..1073741823) direct
-                                -- (mov [edi],eax; edi+=4)
-            cmp dword[esp+8],0
-            je :opPeek4uItem
---        ::opPeek4sItem
-            shl edx,1
-            jno @f
-                mov [edi-4],ebx     -- 0 (for StoreFlt, cleanup mess we just put there)
-                sub edi,4
-                push eax
-                fild dword[esp]
-                add esp,4
-                call :%pStoreFlt    -- all registers preserved
-                lea edi,[edi+4]
-                jmp @f
-          ::opPeek4uItem
-            cmp edx,h4
-            jb @f
-                mov [edi-4],ebx     -- 0 (for StoreFlt, since new AllocSeq contains garbage)
-                sub edi,4
-                push ebx
-                push eax
-                fild qword[esp]
-                add esp,8
-                call :%pStoreFlt
-                lea edi,[edi+4]
-          @@:
-            sub ecx,1
-            jnz :opPeek4xLoop
 
-        pop eax                 -- Newly allocated sequence
-        pop edi                 -- target addr
-
-      ::Peek4sStore
-        mov edx,[edi]
-        add esp,4               -- discard peek4s/u flag
-        mov [edi],eax
-        cmp edx,h4
-        jle @f
-            sub dword[ebx+edx*4-8],1
-            jz :%pDealloc
-      @@:
-        ret
     [64]
-        --calling convention
-        --  lea rdi,[p1]        -- target addr
-        --  mov rsi,[p2]        -- addr or {addr,len} (opUnassigned)
-        --  mov rcx,-1          -- opPeek4s
-        --  mov rcx,0           -- opPeek4u
-        mov r15,h4
-        push rcx
-        cmp rsi,r15
-        jl @f
-            cmp byte[rbx+rsi*4-1],0x12
-            jne :Peek4sSeq64
-            fld tbyte[rbx+rsi*4]
-            sub rsp,8
-            call :%down64
-            fistp qword[rsp]
-            call :%near64
-            pop rsi
-      @@:
-        xor rax,rax
       :!opPeek4sMLE         -- exception here mapped to e99ipmaespp4feh (invalid peek memory address)
-        mov eax,dword[rsi]
-        cmp qword[rsp],0
-        je :Peek4sStore64
-        cdqe                -- (sign extend eax to rax)
-        jmp :Peek4sStore64
-
-      ::Peek4sSeq64                     -- peek4x({addr,len}) case
-        push rdi                        -- target addr
-        cmp byte[rbx+rsi*4-1],0x80      -- sequence
-        jnz :e44atpmbaoso2a             -- argument to peek4 must be atom or sequence of 2 atoms
-        cmp qword[rbx+rsi*4-24],2       -- of length 2
-        jne :e44atpmbaoso2a             -- argument to peek4 must be atom or sequence of 2 atoms
-        mov rcx,[rbx+rsi*4+8]           -- len (ie p2[2])
-        cmp rcx,r15
-        jl @f
-            cmp byte[rbx+rcx*4-1],0x12
-            jne :e44atpmbaoso2a
-            fld tbyte[rbx+rcx*4]
-            sub rsp,8
-            call :%down64
-            fistp qword[rsp]
-            call :%near64
-            pop rcx
-      @@:
-        mov rsi,[rbx+rsi*4]             -- addr (ie p2[1])
-        cmp rsi,r15
-        jl @f
-            cmp byte[rbx+rsi*4-1],0x12
-            jne :e44atpmbaoso2a
-            fld tbyte[rbx+rsi*4]
-            sub rsp,8
-            call :%down64
-            fistp qword[rsp]
-            call :%near64
-            pop rsi
-      @@:
-        -- OK, len in rcx, and addr in rsi
-        --  era in edx???[DEV]
-        call :%pAllocSeq            -- damages rax only
-        test rcx,rcx
-        jz :Peek4sStore64
-        lea rdi,[rbx+rax*4]
-        push rax
-        xor rax,rax
-      ::opPeek4xLoop64
       :!opPeek4ssMLE            -- exception here mapped to e99ipmaespp8feh (invalid peek memory address)
-            lodsd               -- mov eax,[rsi], rsi+=4
-            cmp dword[esp+8],0
-            je :opPeek4uItem64
-                cdqe            -- (sign extend eax to rax)
-          ::opPeek4uItem64
-            stosq               -- (mov [rdi],rax; rdi+=8)
-                                -- (will all be short ints:
-                                --   #FFFFFFFF80000000 .. #000000007FFFFFFF for peek4s, 
-                                --   #0000000000000000 .. #00000000FFFFFFFF for peek4u)
-            sub rcx,1
-            jnz :opPeek4xLoop64
-
-        pop rax                 -- Newly allocated sequence
-        pop rdi                 -- target addr
-
-      ::Peek4sStore64
-        mov rdx,[rdi]
-        add rsp,8               -- discard peek4s/u flag
-        mov [rdi],rax
-        cmp rdx,r15
-        jle @f
-            sub qword[rbx+rdx*4-16],1
-            jz :%pDealloc
-      @@:
-        ret
     []
 --*/
 
@@ -581,7 +172,6 @@ end procedure -- (for Edita/CtrlQ)
             cmp dword[esp],0
             je :opPeekNuAtom
 --        ::opPeekNsAtom
---        ::opPeek4sAtom
                 mov ecx,eax
                 shl ecx,1           -- (this is a better test than cmp h4)
                 jno :opPeekNxStore  -- store #C0000000..#3FFFFFFF (-1073741824..1073741823) in eax as short int
@@ -1130,79 +720,6 @@ end procedure -- (for Edita/CtrlQ)
     []
 
 --/*
-procedure :%opPokeNS(:%DEAD)
-end procedure -- (for Edita/CtrlQ)
---*/
---/*
-  :%opPokeNS    -- (additional safety checks)
------------
-    [32]
-        --calling convention as per opPokeN, plus
-        --  mov esi,[offset]    -- (opUnassigned)
-        cmp edi,h4              -- base
-        jl @f
-            cmp byte[ebx+edi*4-1],0x12
-            jne :e42fatp4mba        -- first argument to poke4 must be atom
-            fld qword[ebx+edi*4]
-            sub esp,8
-            call :%down53
-            fistp qword[esp]
-            call :%near53
-            mov edi,[esp]
-            add esp,8
-      @@:
-        cmp esi,h4              -- offset
-        jl @f
-            cmp byte[ebx+esi*4-1],0x12
---          jne :PokeNSerror
-            fld qword[ebx+eax*4]
-            sub esp,8
---          call :%down53
-            call :%trunc53
-            fistp qword[esp]
-            call :%near53
-            mov esi,[esp]
-            add esp,8
-      @@:
-        push ecx
-        push esi
-        mov esi,[edi-8]             -- pRoot
-        test esi,#01
-        jz :!opPokeNSmagic
-            int3
-      :!opPokeNSmagic
-        cmp dword[esi],#00484253    -- dwMagic ("SBH\0")
-        je @f
-      @@:
---      mov esi,[edi-4]             -- nSize
-        cmp eax,h4                  -- value
-        jl @f
-            cmp byte[ebx+eax*4-1],0x12
-            jne @f
-            push eax
-            push edx
-            mov eax,[ebx+eax*4-12]  -- length
-            xor edx,edx
-            imul ecx
-            mov ecx,eax
-            pop edx
-            pop eax
-      @@:
-        add ecx,[esp]               -- + offset
-        cmp ecx,[edi-4]
---      ja :!opPokeNSfatal
-        jbe @f
-            int3
-      @@:
-        pop esi                     -- offset
-        pop ecx                     -- 1/2/4/8
-        add edi,esi
-        jmp :opPokeNediset
-    [64]
-        pop al
-    []
---*/
---/*
 procedure :%opPokeN(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
@@ -1218,7 +735,7 @@ end procedure -- (for Edita/CtrlQ)
         cmp edi,h4 --DEV :%pLoadMint
         jl @f
             cmp byte[ebx+edi*4-1],0x12
-            jne :e42fatp4mba        -- first argument to poke4 must be atom
+            jne :e41fatpmba     -- first argument to poke must be atom
             fld qword[ebx+edi*4]
             sub esp,8
             call :%down53
@@ -1263,7 +780,14 @@ end procedure -- (for Edita/CtrlQ)
             ret
       @@:
         cmp ecx,8
-        jne :epokesize
+        je @f
+          ::epokesize
+            pop edx
+            mov al,122      -- e122ips
+            sub edx,1
+            jmp :!iDiag
+            int3
+        @@:
             cmp edx,0
             je @f
 --!!eax!! (I think)
@@ -1374,10 +898,9 @@ end procedure -- (for Edita/CtrlQ)
       ::PokeNStr
         -- edi now contains addr, esi raw addr of string(p2), ecx the length
         cmp byte[ebx+eax*4-1],0x82
---      jne :showerror          -- unknown type byte (not 0x12, 0x80, or 0x82)
         je @f
             pop edx
-            mov al,85           -- e85utb
+            mov al,85           -- e85utb - unknown type byte (not 0x12, 0x80, or 0x82)
             sub edx,1
             jmp :!iDiag
             int3
@@ -1429,7 +952,7 @@ end procedure -- (for Edita/CtrlQ)
         jl @f
 --DEV :%pLoadMint
             cmp byte[rbx+rdi*4-1],0x12
-            jne :e42fatp4mba        -- first argument to poke4 must be atom
+            jne :e41fatpmba     -- first argument to poke must be atom
             fld tbyte[rbx+rdi*4]
             sub rsp,8
             call :%down64
@@ -1469,7 +992,14 @@ end procedure -- (for Edita/CtrlQ)
             ret
       @@:
         cmp rcx,8
-        jne :epokesize
+        je @f
+          ::epokesize
+            pop rdx
+            mov al,122      -- e122ips
+            sub rdx,1
+            jmp :!iDiag
+            int3
+        @@:
           :!PokeN8E30               -- exception here mapped to e100ipmafeh
             mov qword[rdi],rax
           @@:
@@ -1536,10 +1066,9 @@ end procedure -- (for Edita/CtrlQ)
       ::PokeNStr64
         -- rdi now contains addr, rsi raw addr of string(p2), rcx the length
         cmp byte[rbx+rax*4-1],0x82
---      jne :showerror          -- unknown type byte (not 0x12, 0x80, or 0x82)
         je @f
             pop rdx
-            mov al,85           -- e85utb
+            mov al,85           -- e85utb - unknown type byte (not 0x12, 0x80, or 0x82)
             sub rdx,1
             jmp :!iDiag
             int3

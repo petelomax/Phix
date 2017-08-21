@@ -4,39 +4,101 @@
 
 include pGUI.e
 
-Ihandle txt, increment, random, hbx, vbx, dlg
+-- For Edita/Tools/Re-indent source:
+--#withtype Ihandle
+--#withtype Ihandln
+--#withtype cdCanvas
 
-function action_cb(Ihandle /*ih*/, integer ch)
-    if not find(ch,"0123456789-") then return IUP_IGNORE end if
-    return IUP_CONTINUE
+Ihandle dlg, canvas
+cdCanvas cd_canvas
+
+constant USE_OPENGL = 01
+
+function canvas_action_cb(Ihandle canvas)
+--  if USE_OPENGL then
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+--  end if
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
+--  cdCanvasSetBackground(cd_canvas, CD_RED)
+    cdCanvasLine(cd_canvas,0,0,200,200)
+    cdCanvasLine(cd_canvas,w,0,200,200)
+    cdCanvasLine(cd_canvas,0,h,200,200)
+    cdCanvasLine(cd_canvas,w,h,200,200)
+    cdCanvasArc(cd_canvas, 200, 200, 200, 200, 0, 360)
+--  cdCanvasSector(cd_canvas, 200, 200, 200, 200, 0, 360) 
+--  cdCanvasSetForeground(cd_canvas, CD_RED)
+    cdCanvasArc(cd_canvas, 200, 200, 300, 100, 0, 360)
+--  cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+    cdCanvasFlush(cd_canvas)
+--  if USE_OPENGL then
+--      IupGLSwapBuffers(canvas)    -- (no diff?)
+--  end if
+    return IUP_DEFAULT
 end function
 
-function increment_cb(Ihandle /*ih*/)
-    integer v = IupGetInt(txt,"VALUE")+1
-    IupSetInt(txt,"VALUE",v)
-    return IUP_CONTINUE
-end function
-
-function random_cb(Ihandle /*ih*/)
-    if IupAlarm("Confirm","Replace wth random value?","Yes","No")=1 then
-        IupSetInt(txt,"VALUE",rand(1000))
+function canvas_map_cb(Ihandle canvas)
+    if USE_OPENGL then
+--      integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{{canvas_width,canvas_height}} -- {{8,8}}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    else
+        cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
     end if
-    return IUP_CONTINUE
+    cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+    cdCanvasSetForeground(cd_canvas, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    if USE_OPENGL then
+        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{canvas_width,canvas_height} -- {638,478}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+        cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    end if
+    return IUP_DEFAULT
 end function
 
 function esc_close(Ihandle /*ih*/, atom c)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
 end function
 
-    IupOpen("../pGUI/")
-    txt = IupText(Icallback("action_cb"),"EXPAND=YES")
-    increment = IupButton("increment",Icallback("increment_cb"))
-    random = IupButton("random",Icallback("random_cb"))
-    hbx = IupHbox({increment,random},"MARGIN=0x10, GAP=20")
-    vbx = IupVbox({txt,hbx},"MARGIN=40x20")
-    dlg = IupDialog(vbx)
-    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+procedure main()
+    IupOpen()
+    IupImageLibOpen()
+--  if USE_OPENGL then
+--      IupGLCanvasOpen()   -- (no diff)
+--  end if
+    if USE_OPENGL then
+        canvas = IupGLCanvas()
+--      IupSetAttribute(canvas, "BUFFER", "DOUBLE") -- (no diff?)
+    else
+        canvas = IupCanvas()
+    end if
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
+    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    dlg = IupDialog(IupVbox({canvas}))
+    IupSetCallback(dlg, "K_ANY",  Icallback("esc_close"))
     IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
     IupMainLoop()
     IupClose()
+end procedure
+
+main()
 

@@ -1579,9 +1579,7 @@ integer unrecognised
         emitline = line
         opLnpos = length(s5)+1
         if NOLT=0 or bind or lint then
-            if not LTBROKEN then
-                ltCall(E_vars,E_vars,opLnpos)   -- clear all, to be safe
-            end if
+            ltCall(E_vars,E_vars,opLnpos)   -- clear all, to be safe
         end if -- NOLT
         wasbind = bind
         bind = 1
@@ -2098,8 +2096,12 @@ if p2type=P_REG then
 --  if (p2details-1)>7 then
     if p2details>8 then
         if Z64!=1 then ?9/0 end if
---      rex = or_bits(rex,#44)
+-- 31/7/17 (over sub cl,r8l)
+if p1size=1 then
+        rex = or_bits(rex,#44)
+else
         rex = or_bits(rex,#41)
+end if
         p2details -= 8
     end if
 elsif p2type=P_MEM then
@@ -2172,10 +2174,30 @@ end if
                                 end if
 -- help me!! (I may have been panicing pointlessly; these are almost certainly equivalent instructions)
 if rex!=0 and rex!=#48 then
-                                if p1size!=8 then ?9/0 end if
+--if rex!=0 and rex!=#48 and rex!=#41 then
+--                              if p1size!=8 then ?9/0 end if
+                                if p1size!=8 and p1size!=1 then ?9/0 end if
+--                              if p1size!=8 then ?"9/0 line 2174 pilasm.e" end if
+if p1size=1 then
+                                xrm = 0o000 + mod*8 -- 0o0m0 (where 0 is instruction modifier)
+                                s5 &= xrm
+                                xrm = 0o300+(p2details-1)*8+reg -- 0o3rm
+else
                                 xrm = 0o003 + mod*8 -- 0o0m3 (where m is instruction modifier)
                                 s5 &= xrm
                                 xrm = 0o300+reg*8+p2details-1   -- 0o3rm
+end if
+--#44 0o050 0o301 sub   cl,r8l 
+--; 132             sub     cl,r8l 
+--                  sub ecx,r8            ;#0044BE17: 41:053310                  uv 02 102  1 185 02   
+--; 132             sub     cl,r8l 
+--                  sub ecx,r8            ;#0044BE17: 41:053310                  uv 02 102  1 185 02   
+--; 132             sub     cl,r8l 
+--                  sub r9l,al            ;#0044BE17: 41:050301                  vu 200 201  1 184      
+--; 132             sub     cl,r8l 
+--                  sub al,r9l            ;#0044BE17: 44:050310                  vu 01 201  1 184      
+--; 130             sub cl,r8l 
+--                  sub cl,r8l            ;#0044BE15: 44:050301                  uv 02 102  1 184 02   
 else
 --                              xrm = 0o001 + mod*8 -- 0o0m1 (where m is instruction modifier)
                                 xrm += mod*8 -- 0o0m1 (where m is instruction modifier)
@@ -3557,7 +3579,8 @@ end if
             elsif ttidx=T_fscale then
                 -- 0o331 0o375              -- fscale
                 if emitON then
-                    s5 &= {0o331,0o375}
+                    s5 &= {0o331,0o375}     -- st0 *= power(2,st1)
+--                  s5 &= {#D9,#FD}
                 end if
             elsif ttidx=T_fsin then
                 -- 0o331 0o376              -- fsin
@@ -4158,10 +4181,10 @@ end if
                         s5 &= 0o245         -- mov dword[esi],[edi]; esi+/-=4; edi+/-=4
                     end if
                 end if
-            elsif ttidx=T_movsq then
+            elsif ttidx=T_movsq then        -- 64-bit move (as per movsb, movsw, movsd)
                 if emitON then
                     s5 &= #48
-                    s5 &= 0o245
+                    s5 &= 0o245             -- qword[edi]:=qword[esi]; esi+=8
                 end if
             elsif ttidx=T_lodsd
                or ttidx=T_lodsw then
@@ -4437,6 +4460,13 @@ end if
 --;     0F  28  r   MOVAPS  xmm     xmm/m128        Move Aligned Packed Single-FP Values
 --; 66  0F  28  r   MOVAPD  xmm     xmm/m128        Move Aligned Packed Double-FP Values    
 
+--/*
+movdqu... (64 bit only?)
+--          elsif ttidx=T_movd then
+0042B9EF     F3:3E:         PREFIX REP:                              ;  Superfluous prefix
+0042B9F1     0F6F0424       MOVQ MM0,QWORD PTR SS:[ESP]
+--*/
+
             elsif ttidx=T_movd then
 --00000000004012FB | 66 0F 6E 05 19 0D 00 00    | movd xmm0,dword ptr ds:[40201C]         |
 --0000000000401303 | B8 00 00 00 00         | mov eax,0                               |
@@ -4515,6 +4545,50 @@ end if
                     else
                         ?9/0
                     end if
+                end if
+            elsif ttidx=T_bsr then
+-->#4C 0o17 0o275 0o302 bsr r8,rdx
+--      0F      BD              r       03+     D 30                            BSR     r16/32/64       r/m16/32/64                                     o..szapc        ....z...        o..s.apc                Bit Scan Reverse
+--; 127             bsr     r8,rdx 
+--                  bsr r10d,rax          ;#0044BE0D: 4C:017275320               np 00 401 71 111      
+--; 127             bsr r8,rdx 
+--                  bsr r8d,rdx           ;#0044BE0D: 4C:017275302               np 00 104 71 111      
+
+                {p1type,p1size,p1details} = get_operand(P_REG)
+                rex = 0
+                if p1size=8 then
+                    if Z64!=1 then ?9/0 end if
+                    rex = #48
+                end if
+                reg = p1details-1
+                if reg>7 then
+                    rex = or_bits(rex,#44)  -- #4C
+--                  rex = or_bits(rex,#41)
+                    reg -= 8
+                end if
+                if p1type!=P_REG then ?9/0 end if -- sanity check
+                if p1size!=4 
+                and p1size!=8 then
+                    Aborp("invalid")
+                end if
+                comma()
+                {p2type,p2size,p2details} = get_operand(P_REG)
+                if p2type=P_REG then
+                    if emitON then
+                        if p2details>8 then
+                            if Z64!=1 then ?9/0 end if
+                            rex = or_bits(rex,#41)
+                            p2details -= 8
+                        end if
+                        if rex then
+                            s5 &= rex
+                        end if
+--                      xrm = 0o300+(p2details-1)*8+reg -- 0o3rm
+                        xrm = 0o300+reg*8+(p2details-1) -- 0o3rm
+                        s5 &= {#0F,#BD,xrm}
+                    end if
+                else
+                    ?9/0    -- placeholder?
                 end if
             elsif ttidx=T_cpuid then
                 if emitON then

@@ -1339,6 +1339,7 @@ end if
 --,#01000008
 --                          }) then
             if argdefi=#01000004            -- C_INT
+            or argdefi=#02000001            -- C_UCHAR
             or argdefi=#02000004            -- C_UINT == C_ULONG, C_POINTER, C_PTR
             or argdefi=#01000008 then
                 #ilASM{

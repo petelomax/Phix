@@ -331,6 +331,7 @@ integer pArg4,W,N
         if length(res)>=2 then
             string r2 = res[2]
             if get_file_type(r2)!=FILETYPE_FILE then
+--DEV initialcurrentdir??
                 string cdr = join_path({current_dir(),r2})
                 if get_file_type(cdr)=FILETYPE_FILE then
                     res[2] = cdr

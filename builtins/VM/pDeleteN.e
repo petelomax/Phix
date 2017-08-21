@@ -562,7 +562,7 @@ end procedure -- (for Edita/CtrlQ)
             --  lea rdi,[res]       -- result location
             --  mov rsi,[o]         -- (opUnassigned)
             --  mov rax,[rid]       -- (opUnassigned)
-            --  call :%opOpenDLL    -- [rdi]:=delete_routine(rsi,rax)
+            --  call :%opDelRtn     -- [rdi]:=delete_routine(rsi,rax)
             mov r15,h4
             cmp rsi,r15
             jge @f
@@ -624,11 +624,13 @@ end procedure -- (for Edita/CtrlQ)
 --          mov edx,routine_id(delete)          -- mov edx,imm32 (sets K_ridt)
             mov ecx,$_Ltot                      -- mov ecx,imm32 (=symtab[fdelete][S_Ltot])
             call :%opFrame
-            mov edx,[esp+4]
+--          mov edx,[esp+4]
             pop dword[ebp]                      --[1] o
+            pop edx
 --EXCEPT
 --          mov dword[ebp+16],:delret           -- return address
-            mov dword[ebp+28],:delret           -- return address
+--          mov dword[ebp+28],:delret           -- return address
+            mov dword[ebp+28],edx               -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:fdelete
         [64]
@@ -645,16 +647,18 @@ end procedure -- (for Edita/CtrlQ)
 --          mov rdx,routine_id(delete)          -- mov rdx,imm32 (sets K_ridt)
             mov rcx,$_Ltot                      -- mov rcx,imm32 (=symtab[fdelete][S_Ltot])
             call :%opFrame
-            mov rdx,[rsp+8]
+--          mov rdx,[rsp+8]
             pop qword[rbp]                      --[1] addr
+            pop rdx
 --EXCEPT
 --          mov qword[rbp+32],:delret           -- return address
-            mov qword[rbp+56],:delret           -- return address
+--          mov qword[rbp+56],:delret           -- return address
+            mov qword[rbp+56],rdx               -- return address
             mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:fdelete
         []
-          ::delret
-            ret
+--        ::delret
+--          ret
 --    ::fin
     }
 --!*/
@@ -677,16 +681,16 @@ object o
           } 
 end procedure
 
-    #ilASM{ jmp:%delfin
---          align 16
-            :%pDelRtn   -- invoked from pHeap.e [DEV to go]
-            [32]
-                push edx
-            [64]
-                push rdx
-          }
-            deletep()
-    #ilASM{ :%delfin }
+--  #ilASM{ jmp:%delfin
+----            align 16
+--          :%pDelRtn   -- invoked from pHeap.e [DEV to go]
+--          [32]
+--              push edx
+--          [64]
+--              push rdx
+--        }
+--          deletep()
+--  #ilASM{ :%delfin }
 --*/
 
 -- Backend entry point. This must be a function so we can call_back() it.
