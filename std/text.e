@@ -3,8 +3,8 @@
 --namespace text
 
 --!/**/ **NOT PHIX COMPATIBLE!**
---/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
---/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
+--!/**/ forward global function trim_tail(sequence source, object what=" \t\r\n", integer ret_index = 0)
+--!/**/ forward global function trim(sequence source, object what=" \t\r\n", integer ret_index = 0)
 --/**/ forward global function keyvalues(sequence source, object pair_delim = ";,",
 --/**/                               object kv_delim = ":=", object quotes =  "\"'`",
 --/**/                               object whitespace = " \t\n\r", integer haskeys = 1)

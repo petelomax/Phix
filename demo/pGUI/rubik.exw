@@ -1,265 +1,309 @@
 --
--- rubik.exw
--- =========
+-- glcanvas_cube.exw
 --
--- Volumetric fog using EXT_fog_coord extension 
--- An OpenGL demo by A.P.Gardner 
+-- From https://sourceforge.net/p/iup/iup/1530/tree/tags/iup_2_7_1/iup2/test/iupgl/glcanvas_cube.c
+-- (simplified version of iup3Dctrls.exw)
+-- Translated to Phix by Pete Lomax
 --
--- Euphoria version by Mic, 2003
--- Phix version by Pete Lomax, 2016. Added: space key toggles the fog on and off,
---  and up/down/left/right keys (albeit the underlying model is far from complete)
---
---#withtype Ihandle
 
 include pGUI.e
 include opengl.e
 include glu.e
-include winbmp.ew
---include tga.e
 
---integer fog_supported -- 0 = not supported,
-                        -- 1 = supported, on
-                        -- 3 = supported, off
+--#withtype Ihandle
 
--- Make room for two texture id:s
-constant texID = allocate(4+4)  -- DEV machine_word()*2?? [or are they dwords?]
+--
+-- define 8 corners equidistant from {0,0,0}:
+--
+--          6-----2
+--      5-----1   3
+--      8-----4  
+--
+-- ie the right face is 1-2-3-4 clockwise, and the left face
+--  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+--
+--enum X, Y, Z
+--constant l = 1--00
+--constant corners = {{+l,+l,+l},
+--                  {+l,+l,-l},
+--                  {+l,-l,-l},
+--                  {+l,-l,+l},
+--                  {-l,+l,+l},
+--                  {-l,+l,-l},
+--                  {-l,-l,-l},
+--                  {-l,-l,+l}}
 
-constant NUM_PANELS = 16
+constant corners = {{0, 0, 0},
+                    {1, 0, 0},
+                    {0, 1, 0},
+                    {0, 0, 1},
+                    {0, 1, 1},
+                    {1, 0, 1},
+                    {1, 1, 0},
+                    {1, 1, 1}}
 
-constant vertices = {
-                     {-15, 10, 0},{-5, 10, 0},{-5, 20, 0},{-15, 20, 0}, -- back wall 
-                     {-5, 10, 0},{5, 10, 0},{5, 20, 0},{-5, 20, 0},
-                     {5, 10, 0},{15, 10, 0},{15, 20, 0},{5, 20, 0},
-                     {-15, 0, 0},{-5, 0, 0},{-5, 10, 0},{-15, 10, 0},
-                     {-5, 0, 0},{5, 0, 0},{5, 10, 0},{-5, 10, 0},
-                     {5, 0, 0},{15, 0, 0},{15, 10, 0},{5, 10, 0},
+--DEV:
+constant CD_RED     = {#FF,#00,#00},
+         CD_YELLOW  = {#FF,#FF,#00},
+         CD_GREEN   = {#00,#FF,#00},
+         CD_BLUE    = {#00,#00,#FF},
+         CD_WHITE   = {#FF,#FF,#FF},
+         CD_ORANGE  = {1,0.5,0}         -- better!
 
-                     {-5, -10, 0},{5, -10, 0},{5, 0, 0},{-5, 0, 0},     -- foggy bit 
-                     {-5, -10, 10},{-5, -10, 0},{-5, 0, 0},{-5, 0, 10},
-                     {-5, -10, 20},{-5, -10, 10},{-5, 0, 10},{-5, 0, 20},
-                     {5, -10, 0},{5, -10, 10},{5, 0, 10},{5, 0, 0},
-                     {5, -10, 10},{5, -10, 20},{5, 0, 20},{5, 0, 10},
-                     {-5, -10, 10},{5, -10, 10},{5, -10, 0},{-5, -10, 0},
+constant faces = {{CD_RED,      2,7,8,6},   -- right
+                  {CD_YELLOW,   3,5,8,7},   -- top/upper
+                  {CD_GREEN,    4,5,8,6},   -- front
+                  {CD_BLUE,     1,2,7,3},   -- back
+                  {CD_WHITE,    1,2,6,4},   -- btm/down
+                  {CD_ORANGE,   1,3,5,4}}   -- left
 
-                     {-15, 0, 10},{-5, 0, 10},{-5, 0, 0},{-15, 0, 0},   -- floor 
-                     {5, 0, 10},{15, 0, 10},{15, 0, 0},{5, 0, 0},
-                     {-15, 0, 20},{-5, 0, 20},{-5, 0, 10},{-15, 0, 10},
-                     {5, 0, 20},{15, 0, 20},{15, 0, 10},{5, 0, 10}
-                    }
+constant R = 1, G = 2, B = 3
+--DEV type corner??
+type color3D(object c)
+    return sequence(c) and length(c)=3 and atom(c[R]) and atom(c[G]) and atom(c[B])
+end type
 
--- Texture references for the panels 
-constant panel_texture = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0}
+procedure add_color_vertex(color3D c)
+    glColor3(c)
+    glVertex3d(c)
+end procedure
 
--- Area references for the panels 
---constant fog_area = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0}
+procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
+atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4
+atom g = (c1[G]+c2[G]+c3[G]+c4[G])/4
+atom b = (c1[B]+c2[B]+c3[B]+c4[B])/4
+color3D cm = {r,g,b}
 
---------------------------------------------------------------------------------------------------------------
+    add_color_vertex(cm)
+    add_color_vertex(c1)
+    add_color_vertex(c2)
 
-procedure makeTextureImage(string filename, integer tex_no)
-sequence image
-integer fmt
+    add_color_vertex(cm)
+    add_color_vertex(c2)
+    add_color_vertex(c3)
 
---  if match(".tga",filename) then
---      image = 0&LoadTGA(filename) -- {0,data,width,height,bpp,colorMode}
---      fmt = GL_BGR_EXT
---  else
-        image = load_bmp(filename)  -- {err/bpp,bmpMem,width,height}
-        fmt = GL_RGB
---  end if
+    add_color_vertex(cm)
+    add_color_vertex(c3)
+    add_color_vertex(c4)
 
-    glBindTexture(GL_TEXTURE_2D, peek4u(texID+tex_no*4))
+    add_color_vertex(cm)
+    add_color_vertex(c4)
+    add_color_vertex(c1)
+end procedure
 
-    -- set up wrap & filter params 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+--DEV earein misses this:
+constant color3D c3D_black   = {0, 0, 0},
+                 c3D_red     = {1, 0, 0},
+                 c3D_green   = {0, 1, 0},
+                 c3D_blue    = {0, 0, 1},
+                 c3D_cyan    = {0, 1, 1},
+                 c3D_magenta = {1, 0, 1},
+                 c3D_yellow  = {1, 1, 0},
+                 c3D_white   = {1, 1, 1}
 
-    atom {{},data,width,height} = image
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, fmt, GL_UNSIGNED_BYTE, data)
+procedure draw_cube()
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
 
-    free(data)
+if 01 then
+    for i=1 to length(faces) do
+        glColor3(faces[i][1])
+        for j=1 to 2 do -- (lines then fill)
+            glBegin({GL_LINE_LOOP,GL_POLYGON}[j])
+            for k=2 to 5 do
+                glVertex3d(corners[faces[i][k]])
+            end for
+            glEnd()
+        end for
+    end for
+else
+
+    glBegin(GL_TRIANGLES);
+
+    draw_cube_face(c3D_black, c3D_blue,    c3D_magenta, c3D_red);
+    draw_cube_face(c3D_black, c3D_green,   c3D_cyan,    c3D_blue);
+    draw_cube_face(c3D_black, c3D_red,     c3D_yellow,  c3D_green);
+    draw_cube_face(c3D_white, c3D_cyan,    c3D_blue,    c3D_magenta);
+    draw_cube_face(c3D_white, c3D_cyan,    c3D_green,   c3D_yellow);
+    draw_cube_face(c3D_white, c3D_magenta, c3D_red,     c3D_yellow);
+
+    glEnd();
+end if
 end procedure
 
 procedure init()
+--DEV doc:
+--  glClearColor(0.5,0.5,0.5,0.0);
+--  CD_PARCHMENT    = #FFFFE0,
+    glClearColor(1,1,0.9,0.0);
 
---  -- Check for the required extension
---  fog_supported = glSupportsExtension("GL_EXT_fog_coord")
---  if fog_supported=1 then
-----        gl_enableExtension("GL_EXT_fog_coord")
---      enable_GL_EXT_fog_coord()
---  end if
-
-    -- Set background colour 
-    glClearColor(0, 0, 0, 0)
-
-    -- Initialize viewing parameters 
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    gluPerspective(50, 1, 0.2, 40)
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
-
-    -- Generate texture IDs 
-    glGenTextures(2, texID)
-
-    -- Load textures 
-    string d = get_proper_dir(command_line()[2])
-    makeTextureImage(d&"data/floor.bmp", 0)
-    makeTextureImage(d&"data/mur043.bmp", 1)
-
-    -- Enable texturing & set texturing function 
-    glEnable(GL_TEXTURE_2D)
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
-
---  if fog_supported=1 then
---      -- Set up fog params 
---      glEnable(GL_FOG)
---      glFogi(GL_FOG_MODE, GL_LINEAR)
---      glFogfv(GL_FOG_COLOR, {0.62, 0.28, 0.0, 1.0})
---      glFogf(GL_FOG_START, 0.0)
---      glFogf(GL_FOG_END, 10.0)
---      glFogi(GL_FOG_COORDINATE_SOURCE_EXT, GL_FOG_COORDINATE_EXT)
---  end if
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+--DEV doc:
+    gluPerspective(45, 1, 1, 10);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+--DEV doc:
+    gluLookAt({0.5, 0.5, 4.0},  /* position of the observer */
+              {0.5, 0.5, 0.0},  /* reference point          */
+              {0.0, 1.0, 0.0})  /* up                       */
+    glEnable(GL_DEPTH_TEST);
+    glClearDepth(1.0);
 end procedure
 
---procedure set_fog_colour(integer p, integer v)
----- set fog colour for the current vertex 
---atom z    -- Distance of vertex from edge of fog volume 
---
---  if fog_supported=1 then
---
---      -- Calculate depth through fog 
---
---      if fog_area[p+1] then
---          z = 0.0-vertices[v+1][2]
---      else
---          z = 0.0
---      end if
---
---      -- set depth for this coord 
---      glFogCoordfEXT(z)
---
---  end if
---end procedure
+procedure unproject(atom x2, atom y2, atom p3)
+atom mv = allocate(16*8)                -- 16 doubles
+atom pm = allocate(16*8)                -- 16 doubles
+atom vp = allocate(4*machine_word())    -- 4 ints
 
-procedure draw_panel(integer ref)
-integer v
-
-    glBindTexture(GL_TEXTURE_2D, peek4u(texID+panel_texture[ref+1]*4))
-
-    v = ref*4
-    glBegin(GL_QUADS)
---  set_fog_colour(ref, v)
-    glTexCoord(0.0, 0.0)
-    glVertex3d(vertices[v+1])
-    v += 1
---  set_fog_colour(ref, v)
-    glTexCoord(1.0, 0.0)
-    glVertex3d(vertices[v+1])
-    v += 1
---  set_fog_colour(ref, v)
-    glTexCoord(1.0, 1.0)
-    glVertex3d(vertices[v+1])
-    v += 1
---  set_fog_colour(ref, v)
-    glTexCoord(0.0, 1.0)
-    glVertex3d(vertices[v+1])
-    glEnd()
-
+    glGetDoublev(GL_MODELVIEW_MATRIX,  mv);
+    glGetDoublev(GL_PROJECTION_MATRIX, pm);
+    glGetIntegerv(GL_VIEWPORT, vp);
+    gluUnProject(x2, y2, 0.0,
+                 mv, pm, vp,
+                 p3, p3+8, p3+16);
+    free(mv)
+    free(pm)
+    free(vp)
 end procedure
 
--- added 30/5/16 PL
-integer tilt = 10
-integer pan = 0
+integer pos_x, pos_y;
+integer move = 0;
 
-procedure display()
+function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
+--?"button-cb"
+    if but==IUP_BUTTON1 then
+        if pressed then
+            pos_x = x;
+            pos_y = y;
+            move = 1;
+        else
+            move = 0;
+        end if
+    end if
+    return IUP_DEFAULT;
+end function
 
-    glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)
+function peek_double(object pDouble)
+sequence doubles
 
-    -- Position viewer 
+    if atom(pDouble) then
+        return float64_to_atom(peek({pDouble,8}))
+    else
+        doubles = {}
 
-    glLoadIdentity()
-    glTranslate(0, -3, -32)
---  glRotate(10, 1, 0, 0)
-    glRotate(tilt, 1, 0, 0)
-    glRotate(pan, 0, 1, 0)
+        for i=1 to pDouble[2] do
+            doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+        end for
 
-    -- Draw the panels 
+        return doubles
+    end if
+end function
 
-    for n=0 to NUM_PANELS-1 do
-        draw_panel(n)
-    end for
+function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
+    if move then
+        atom dif_x, dif_y
+        atom dx, dy, dz
+        atom pxyz = allocate(3*8)               -- 3 doubles
+        atom x1, y1, z1
+        atom x2, y2, z2
+        atom angle, norma
+        integer height = IupGetInt2(ih, "RASTERSIZE")
 
-end procedure
+        IupGLMakeCurrent(ih);
 
-function esc_close(Ihandle ih, atom c)
+        dif_x = x-pos_x;
+        dif_y = y-pos_y;
+
+        pos_x = x;
+        pos_y = y;
+
+        angle = sqrt(dif_x*dif_x+dif_y*dif_y);
+
+        unproject(pos_x,height-y,pxyz)
+        {x1,y1,z1} = peek_double({pxyz,3})
+        unproject(dif_y+pos_x, dif_x+(height-y), pxyz)
+        {x2,y2,z2} = peek_double({pxyz,3})
+        dx = x2-x1
+        dy = y2-y1
+        dz = z2-z1;
+        norma = sqrt(dx*dx+dy*dy+dz*dz);
+        if norma!=0 then    -- bugfix...
+            dx /= norma
+            dy /= norma
+            dz /= norma
+
+            glTranslate(0.5, 0.5, 0.5);
+            glRotate(angle, dx, dy, dz);
+            glTranslate(-0.5, -0.5, -0.5);
+
+            draw_cube();
+
+            IupGLSwapBuffers(ih);
+        end if
+        free(pxyz)
+    end if
+    return IUP_DEFAULT;
+end function
+
+function action(Ihandle ih)
+    IupGLMakeCurrent(ih);
+
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+
+    draw_cube();
+
+    IupGLSwapBuffers(ih);
+
+    return IUP_DEFAULT;
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
 -- (I like all my demos to close when escape is keyed)
     if c=K_ESC then return IUP_CLOSE end if
---  if c=' ' and fog_supported!=0 then
---      fog_supported = xor_bits(fog_supported,2)
---      IupRedraw(ih)
---  elsif c=K_UP then
-    if c=K_UP then
-        tilt += 1
-        IupRedraw(ih)
-    elsif c=K_DOWN then
-        tilt -= 1
-        IupRedraw(ih)
-    elsif c=K_RIGHT then
-        pan -= 1
-        IupRedraw(ih)
-    elsif c=K_LEFT then
-        pan += 1
-        IupRedraw(ih)
-    end if
     return IUP_CONTINUE
 end function
 
-function action_cb(Ihandle ih)
--- called when canvas needs to be redrawn
-    IupGLMakeCurrent(ih)
-    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT))
-    display()
-    IupGLSwapBuffers(ih)
-    return IUP_DEFAULT
-end function
-
 procedure main()
-Ihandle dialog, canvas
+Ihandle dialog, canvas, box;
 
-    IupOpen()
-    IupGLCanvasOpen()
+    IupOpen();
+    IupGLCanvasOpen();
 
-    canvas = IupGLCanvas("ACTION", Icallback("action_cb"))
-    IupSetAttribute(canvas, "BUFFER", "DOUBLE")
-    IupSetAttribute(canvas, "BORDER", "NO")
-    IupSetAttribute(canvas, "RASTERSIZE", "480x432")
+    box = IupVbox({});
+    IupSetAttribute(box, "MARGIN", "5x5");
 
-    dialog = IupDialog(IupVbox({canvas},"MARGIN=5x5"))
-    IupSetAttribute(dialog, "TITLE", "Volumetric fog (space toggles fog)")
+    canvas = IupGLCanvas();
+    IupSetCallback(canvas, "ACTION", Icallback("action"));
+    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"));
+    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"));
+    IupSetAttribute(canvas, "BUFFER", "DOUBLE");
+    IupSetAttribute(canvas, "BORDER", "NO");
+    IupSetAttribute(canvas, "RASTERSIZE", "400x400");
+--unassigned...
+--  cdCanvasSetBackground(canvas,CD_PARCHMENT)
+    IupAppend(box, canvas);
+
+    dialog = IupDialog(box);
+    IupSetAttribute(dialog, "TITLE", "IupGLCanvas Test (drag cube to rotate it)")
+
+    IupMap(dialog);
+
+    IupGLMakeCurrent(canvas);
+    init();
+--  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR));
+--  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER));
+--  printf(1,"Version: %s\n", glGetString(GL_VERSION));
+    IupSetAttribute(canvas, "RASTERSIZE", NULL);
     IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
 
-    IupMap(dialog)
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
 
-    IupGLMakeCurrent(canvas)
-    init()
---  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR))
---  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER))
---  printf(1,"Version: %s\n", glGetString(GL_VERSION))
-    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- (allow resize)
+    IupMainLoop();
 
-    IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
+    IupDestroy(dialog);
 
---  if fog_supported=0 then
---      IupMessage("Error","GL_EXT_fog_coord not supported!")
---  end if
-
-    IupMainLoop()
-
-    IupDestroy(dialog)
-
-    IupClose()
+    IupClose();
 
 end procedure
 main()
+

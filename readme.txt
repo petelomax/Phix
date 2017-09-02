@@ -127,7 +127,8 @@ Version 0.7.5
             detail (see pmain.e/GetMultiAssignSet()) that it may be
             possible to improve upon, but there are four use cases for
             that routine, hence the simplest possible solution won.
-
+02/09/2017  Bugfix: sprintf("%f",-9.999999999) yielded ".0" because round()
+            was not accounting for a leading '-'. (Amazingly, not seen b4)
 
 Version 0.7.2
 =============

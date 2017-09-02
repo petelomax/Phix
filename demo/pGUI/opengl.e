@@ -1264,11 +1264,11 @@ GlClearColor            = validate_proc(opengl32,"glClearColor",{GLclampf,GLclam
 GlClearDepth            = validate_proc(opengl32,"glClearDepth",{C_DOUBLE}),
 --GlColor3b             = validate_proc(opengl32,"glColor3b",{C_CHAR,C_CHAR,C_CHAR}),
 GlColor3d               = validate_proc(opengl32,"glColor3d",{C_DOUBLE,C_DOUBLE,C_DOUBLE}),
-GlColor3f               = validate_proc(opengl32,"glColor3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
+--GlColor3f             = validate_proc(opengl32,"glColor3f",{C_FLOAT,C_FLOAT,C_FLOAT}),
 --GlColor3i             = validate_proc(opengl32,"glColor3i",{C_INT,C_INT,C_INT}),
 --GlColor4b             = validate_proc(opengl32,"glColor4b",{C_CHAR,C_CHAR,C_CHAR,C_CHAR}),
---GlColor4d             = validate_proc(opengl32,"glColor4d",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
-GlColor4f               = validate_proc(opengl32,"glColor4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
+GlColor4d               = validate_proc(opengl32,"glColor4d",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+--GlColor4f             = validate_proc(opengl32,"glColor4f",{C_FLOAT,C_FLOAT,C_FLOAT,C_FLOAT}),
 --GlColor4i             = validate_proc(opengl32,"glColor4i",{C_INT,C_INT,C_INT,C_INT}),
 GlColorPointer          = validate_proc(opengl32,"glColorPointer", {C_INT, C_UINT, C_UINT, C_POINTER}),
 GlCullFace              = validate_proc(opengl32,"glCullFace",{C_INT}),
@@ -1513,20 +1513,25 @@ global procedure glClearDepth(atom a)
 end procedure
 
 global procedure glColor(atom red, atom blue, atom green, atom alpha=1)
-    c_proc(GlColor4f,{red,blue,green,alpha})
+    c_proc(GlColor4d,{red,blue,green,alpha})
 end procedure
 
-global procedure glColor3d(sequence col)
-    c_proc(GlColor3d,col)
+--global procedure glColor3d(sequence col)
+global procedure glColor3(sequence colour)
+    if length(colour)=3 then
+        c_proc(GlColor3d,colour)
+    else
+        c_proc(GlColor4d,colour)
+    end if
 end procedure
 
-global procedure glColor3f(sequence col)
-    c_proc(GlColor3f,col)
-end procedure
+--global procedure glColor3f(sequence col)
+--  c_proc(GlColor3f,col)
+--end procedure
 
-global procedure glColor4f(sequence col)
-    c_proc(GlColor4f,col)
-end procedure
+--global procedure glColor4f(sequence col)
+--  c_proc(GlColor4f,col)
+--end procedure
 
 global procedure glColorPointer(integer size, integer ptype, integer stride, atom pointer)
     c_proc(GlColorPointer, {size, ptype, stride, pointer})

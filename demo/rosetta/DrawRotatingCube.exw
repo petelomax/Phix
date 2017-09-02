@@ -1,0 +1,231 @@
+--
+-- demo\rosetta\DrawRotatingCube.exw
+-- =================================
+--
+-- credits: http://petercollingridge.appspot.com/3D-tutorial/rotating-objects
+--          https://github.com/ssloy/tinyrenderer/wiki/Lesson-4:-Perspective-projection
+--
+include pGUI.e
+
+-- For Edita/Tools/Re-indent source:
+--#withtype Ihandle
+--#withtype cdCanvas
+
+Ihandle canvas
+cdCanvas cd_canvas
+
+constant USE_OPENGL = 01
+
+--
+-- define 8 corners equidistant from {0,0,0}:
+--
+--          6-----2
+--      5-----1   3
+--      8-----4  
+--
+-- ie the right face is 1-2-3-4 clockwise, and the left face
+--  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+--
+enum X, Y, Z
+constant l = 100
+constant corners = {{+l,+l,+l},
+                    {+l,+l,-l},
+                    {+l,-l,-l},
+                    {+l,-l,+l},
+                    {-l,+l,+l},
+                    {-l,+l,-l},
+                    {-l,-l,-l},
+                    {-l,-l,+l}}
+
+constant faces = {{CD_RED,      1,2,3,4},   -- right
+                  {CD_YELLOW,   1,5,6,2},   -- top
+                  {CD_GREEN,    1,4,8,5},   -- front
+                  {CD_BLUE,     2,3,7,6},   -- back
+                  {CD_WHITE,    3,4,8,7},   -- btm
+                  {CD_ORANGE,   5,6,7,8}}   -- left
+
+atom ry=0 -- rotation angle, 0..359, on a timer
+
+constant naxes = {{Y,Z},    -- (rotate about the X-axis)
+                  {X,Z},    -- (rotate about the Y-axis)
+                  {X,Y}}    -- (rotate about the Z-axis)
+
+function rotate(sequence points, atom angle, integer axis)
+--
+-- rotate points by the specified angle about the given axis
+--
+    atom radians = angle*CD_DEG2RAD,
+         sin_t = sin(radians),
+         cos_t = cos(radians)
+    integer {nx,ny} = naxes[axis]
+    for i=1 to length(points) do
+        atom x = points[i][nx],
+             y = points[i][ny]
+        points[i][nx] = x * cos_t - y * sin_t
+        points[i][ny] = y * cos_t + x * sin_t
+    end for
+    return points
+end function
+
+function projection(sequence points, atom d)
+--
+-- project points from {0,0,d} onto the perpendicular plane through {0,0,0}
+--
+    for i=1 to length(points) do
+        atom {x,y,z} = points[i],
+             denom = (1-z/d)
+        points[i][X] = x/denom
+        points[i][Y] = y/denom
+    end for
+    return points
+end function
+
+function nearest(sequence points)
+--
+-- return the index of the nearest point (highest z value)
+--
+    integer np = 1
+    atom maxz = points[1][Z]
+    for i=2 to length(points) do
+        atom piz = points[i][Z]
+        if piz>maxz then
+            maxz = piz
+            np = i
+        end if
+    end for
+    return np
+end function
+
+procedure vertices(integer wx, wh, sequence points, face)
+-- (common code for line/fill drawing)
+    for i=2 to length(face) do
+        integer fi = face[i]
+        cdCanvasVertex(cd_canvas,wx+points[fi][X],wh-points[fi][Y])
+    end for
+end procedure
+
+procedure draw_cube(integer wx, wh)
+    sequence points = corners
+    points = rotate(points,45,X)    -- (cube should now look like a H)
+    atom zr = 90-arctan(sqrt(2))*CD_RAD2DEG -- (about 35 degrees)
+    points = rotate(points,zr,Z)    -- (cube should now look like an italic H)
+    points = rotate(points,ry,Y)    -- (timed, two corners should remain static)
+    points = projection(points,1000)
+    integer np = nearest(points)
+    --
+    -- find the three faces that contain the nearest point,
+    -- then order by/draw them furthest diag away first.
+    --  (one of them, and theoretically two but not at the
+    --   rotations in use, may be completely obscured, due 
+    --   to the effects of the perspective projection.)
+    --
+    sequence faceset = {}
+    for i=1 to length(faces) do
+        sequence fi = faces[i]
+        integer k = find(np,fi)
+        if k then
+            integer diag = mod(k,4)+2
+            diag = fi[diag]
+            faceset = append(faceset,{points[diag][Z],i})
+        end if
+    end for
+    faceset = sort(faceset)
+    for i=1 to length(faceset) do
+        integer fdx = faceset[i][2]
+        sequence fi = faces[fdx]
+        cdCanvasSetForeground(cd_canvas,fi[1])
+        -- draw edges (anti-aliased)
+        cdCanvasBegin(cd_canvas,CD_CLOSED_LINES)
+        vertices(wx,wh,points,fi)
+        cdCanvasEnd(cd_canvas)
+        -- fill sides (else would get bresenham edges)
+        cdCanvasBegin(cd_canvas,CD_FILL)
+        vertices(wx,wh,points,fi)
+        cdCanvasEnd(cd_canvas)
+    end for
+end procedure
+
+function canvas_action_cb(Ihandle canvas)
+--  if USE_OPENGL then
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+--  end if
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    integer {wx, wh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
+    draw_cube(wx,wh)
+    cdCanvasFlush(cd_canvas)
+--  if USE_OPENGL then
+--      IupGLSwapBuffers(canvas)    -- (no diff?)
+--  end if
+    return IUP_DEFAULT
+end function
+
+function canvas_map_cb(Ihandle canvas)
+    if USE_OPENGL then
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    else
+        cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
+    end if
+    cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+--  cdCanvasSetBackground(cd_canvas, CD_BLACK)
+--  cdCanvasSetForeground(cd_canvas, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    if USE_OPENGL then
+        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+        cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    end if
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    ry = mod(ry+359,360)
+    IupRedraw(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    IupImageLibOpen()
+--  if USE_OPENGL then
+--      IupGLCanvasOpen()   -- (no diff)
+--  end if
+    if USE_OPENGL then
+        canvas = IupGLCanvas()
+--      IupSetAttribute(canvas, "BUFFER", "DOUBLE") -- (no diff?)
+    else
+        canvas = IupCanvas()
+    end if
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
+    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    Ihandle dlg = IupDialog(IupVbox({canvas}))
+    IupSetAttribute(dlg,"TITLE","Draw a Rotating Cube");
+    IupSetCallback(dlg, "K_ANY",  Icallback("esc_close"))
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 40)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

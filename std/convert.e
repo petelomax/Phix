@@ -73,6 +73,7 @@ integer a,b,c,d
     return {a,b,c,d}
 end function
 
+--/* unused
 type sequence_8(sequence s)
 -- an 8-element sequence
     return length(s)=8
@@ -82,6 +83,7 @@ type sequence_4(sequence s)
 -- a 4-element sequence
     return length(s)=4
 end type
+--*/
 
 --**
 -- Converts a sequence of at most 4 bytes into an atom.

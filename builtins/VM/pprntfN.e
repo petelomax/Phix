@@ -51,11 +51,12 @@ function round(string result, atom f, integer exponent, integer charflag, intege
 integer tmp
 integer dot, dotm1
 --?result   --DOH, infinite loop! (use puts(1,<string>) instead!)
+integer one = iff(result[1]='-'?2:1)
     if exponent>=1 then
         f /= power(10,exponent)
     end if
     if f>5 or (f=5 and remainder(digit,2)=1) then
-        for i=length(result) to 1 by -1 do
+        for i=length(result) to one by -1 do
             dot = result[i]
             if dot='9' then
                 result[i] = '0'
@@ -65,10 +66,14 @@ integer dot, dotm1
                 result[i] = dot
                 exit
             end if
-            if i=1 then
+            if i=one then
 --DEV: (oldschool, from when prepend string did not work) [prepend always yields T_Seq now anyways] [DEV: lies, 28/3/2014]
 --              result = prepend(result,'1')
-                result = "1"&result
+                if one=1 then
+                    result = "1"&result
+                else
+                    result = "-1"&result[2..$]
+                end if
                 if charflag!='f' then
                     dot = find('.',result)
                     if dot then
