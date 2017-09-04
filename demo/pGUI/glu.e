@@ -30,9 +30,9 @@ include std/convert.e
 include opengl.e
 
 constant
-    GLUnurbsPtr = C_POINTER,
-    GLUquadricPtr   = C_POINTER,
-    GLUtesselatorPtr= C_POINTER
+    GLUnurbsPtr = C_PTR,
+    GLUquadricPtr   = C_PTR,
+    GLUtesselatorPtr= C_PTR
 
 --***********************************************************
 
@@ -236,11 +236,11 @@ global constant
 GluBeginPolygon         = validate_proc(glu32,"gluBeginPolygon",{GLUtesselatorPtr}),
 GluBeginSurface         = validate_proc(glu32,"gluBeginSurface",{GLUnurbsPtr}),
 GluBeginTrim            = validate_proc(glu32,"gluBeginTrim",{GLUnurbsPtr}),
-GluBuild2DMipmaps       = validate_func(glu32,"gluBuild2DMipmaps",{C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_POINTER},C_INT),
+GluBuild2DMipmaps       = validate_func(glu32,"gluBuild2DMipmaps",{C_INT,C_INT,C_INT,C_INT,C_INT,C_INT,C_PTR},C_INT),
 GluCylinder             = validate_proc(glu32,"gluCylinder",{GLUquadricPtr,C_DOUBLE,C_DOUBLE,C_DOUBLE,C_INT,C_INT}),
 GluDeleteNurbsRenderer  = validate_proc(glu32,"gluDeleteNurbsRenderer",{GLUnurbsPtr}),
 GluDeleteQuadric        = validate_proc(glu32,"gluDeleteQuadric",{GLUquadricPtr}),
-GluDeleteTess           = validate_proc(glu32,"gluDeleteTess",{C_POINTER}),
+GluDeleteTess           = validate_proc(glu32,"gluDeleteTess",{C_PTR}),
 GluDisk                 = validate_proc(glu32,"gluDisk",{GLUquadricPtr,C_DOUBLE,C_DOUBLE,C_INT,C_INT}),
 GluEndCurve             = validate_proc(glu32,"gluEndCurve",{GLUnurbsPtr}),
 GluEndPolygon           = validate_proc(glu32,"gluEndPolygon",{GLUtesselatorPtr}),
@@ -249,26 +249,27 @@ GluEndTrim              = validate_proc(glu32,"gluEndTrim",{GLUnurbsPtr}),
 GluLookAt               = validate_proc(glu32,"gluLookAt",repeat(C_DOUBLE,9)),
 GluNewNurbsRenderer     = validate_func(glu32,"gluNewNurbsRenderer",{},GLUnurbsPtr),
 GluNewQuadric           = validate_func(glu32,"gluNewQuadric",{},GLUquadricPtr),
-GluNewTess              = validate_func(glu32,"gluNewTess",{},C_POINTER),
+GluNewTess              = validate_func(glu32,"gluNewTess",{},C_PTR),
 GluNurbsProperty        = validate_proc(glu32,"gluNurbsProperty",{GLUnurbsPtr,C_INT,C_FLOAT}),
-GluNurbsSurface         = validate_proc(glu32,"gluNurbsSurface",{GLUnurbsPtr,C_INT,C_POINTER,C_INT,C_POINTER,C_INT,C_INT,C_POINTER,C_INT,C_INT,C_INT}),
-GluPerspective          = validate_proc(glu32,"gluPerspective",{ C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE }),
-GluPwlCurve             = validate_proc(glu32,"gluPwlCurve",{GLUnurbsPtr,C_INT,C_POINTER,C_INT,C_INT}),
+GluNurbsSurface         = validate_proc(glu32,"gluNurbsSurface",{GLUnurbsPtr,C_INT,C_PTR,C_INT,C_PTR,C_INT,C_INT,C_PTR,C_INT,C_INT,C_INT}),
+GluPerspective          = validate_proc(glu32,"gluPerspective",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+GluProject              = validate_func(glu32,"gluProject",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR},C_INT),
+GluPwlCurve             = validate_proc(glu32,"gluPwlCurve",{GLUnurbsPtr,C_INT,C_PTR,C_INT,C_INT}),
 GluQuadricDrawStyle     = validate_proc(glu32,"gluQuadricDrawStyle",{GLUquadricPtr,C_INT}),
-GluQuadricNormals       = validate_proc(glu32,"gluQuadricNormals",{ GLUquadricPtr, C_INT }),
-GluQuadricOrientation   = validate_proc(glu32,"gluQuadricOrientation",{ GLUquadricPtr,C_INT }),
-GluQuadricTexture       = validate_proc(glu32,"gluQuadricTexture",{ GLUquadricPtr, C_INT }),
-GluScaleImage           = validate_func(glu32,"gluScaleImage",{ C_INT, C_INT, C_INT, C_INT, C_POINTER, C_INT, C_INT, C_INT, C_POINTER },C_INT),
+GluQuadricNormals       = validate_proc(glu32,"gluQuadricNormals",{GLUquadricPtr, C_INT}),
+GluQuadricOrientation   = validate_proc(glu32,"gluQuadricOrientation",{GLUquadricPtr,C_INT}),
+GluQuadricTexture       = validate_proc(glu32,"gluQuadricTexture",{GLUquadricPtr, C_INT}),
+GluScaleImage           = validate_func(glu32,"gluScaleImage",{C_INT, C_INT, C_INT, C_INT, C_PTR, C_INT, C_INT, C_INT, C_PTR},C_INT),
 GluSphere               = validate_proc(glu32,"gluSphere",{GLUquadricPtr,C_DOUBLE,C_INT,C_INT}),
-GluTessBeginContour     = validate_proc(glu32,"gluTessBeginContour",{C_POINTER}),
-GluTessBeginPolygon     = validate_proc(glu32,"gluTessBeginPolygon",{C_POINTER,C_POINTER}),
-GluTessCallback         = validate_proc(glu32,"gluTessCallback",{C_POINTER,C_INT,C_POINTER}),
-GluTessEndContour       = validate_proc(glu32,"gluTessEndContour",{C_POINTER}),
-GluTessEndPolygon       = validate_proc(glu32,"gluTessEndPolygon",{C_POINTER}),
-GluTessNormal           = validate_proc(glu32,"gluTessNormal",{C_POINTER,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
-GluTessProperty         = validate_proc(glu32,"gluTessProperty",{C_POINTER,C_INT,C_DOUBLE}),
-GluTessVertex           = validate_proc(glu32,"gluTessVertex",{C_POINTER,C_POINTER,C_POINTER}),
-GluUnProject            = validate_func(glu32,"gluUnProject",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_POINTER,C_POINTER,C_POINTER,C_PTR,C_PTR,C_PTR},C_INT)
+GluTessBeginContour     = validate_proc(glu32,"gluTessBeginContour",{C_PTR}),
+GluTessBeginPolygon     = validate_proc(glu32,"gluTessBeginPolygon",{C_PTR,C_PTR}),
+GluTessCallback         = validate_proc(glu32,"gluTessCallback",{C_PTR,C_INT,C_PTR}),
+GluTessEndContour       = validate_proc(glu32,"gluTessEndContour",{C_PTR}),
+GluTessEndPolygon       = validate_proc(glu32,"gluTessEndPolygon",{C_PTR}),
+GluTessNormal           = validate_proc(glu32,"gluTessNormal",{C_PTR,C_DOUBLE,C_DOUBLE,C_DOUBLE}),
+GluTessProperty         = validate_proc(glu32,"gluTessProperty",{C_PTR,C_INT,C_DOUBLE}),
+GluTessVertex           = validate_proc(glu32,"gluTessVertex",{C_PTR,C_PTR,C_PTR}),
+GluUnProject            = validate_func(glu32,"gluUnProject",{C_DOUBLE,C_DOUBLE,C_DOUBLE,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR,C_PTR},C_INT)
 
 
 constant glu_buffer = allocate(512)
@@ -345,8 +346,14 @@ global procedure gluNurbsSurface(atom nurb,integer sKnotCount,sequence sKnots,in
     c_proc(GluNurbsSurface,{nurb,sKnotCount,glu_buffer,tKnotCount,glu_buffer+128,sStride,tStride,glu_buffer+256,sOrder,tOrder,typ})
 end procedure
 
-global procedure gluPerspective(atom a, atom b, atom c, atom d)
-    c_proc(GluPerspective,{a,b,c,d})
+global procedure gluPerspective(atom fovy, atom aspect, atom zNear, atom zFar)
+    c_proc(GluPerspective,{fovy,aspect,zNear,zFar})
+end procedure
+
+global procedure gluProject(atom objx,atom objy,atom objz,atom pModelMatrix,atom pProjMatrix,atom pViewport,atom winx,atom winy,atom winz)
+integer res
+    res = c_func(GluProject,{objx,objy,objz,pModelMatrix,pProjMatrix,pViewport,winx,winy,winz})
+    if res!=GL_TRUE then ?9/0 end if
 end procedure
 
 global procedure gluPwlCurve(atom nurb,integer count,sequence data,integer stride,integer typ)
