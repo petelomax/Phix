@@ -321,6 +321,7 @@ constant IupFuncs = {"IupDialog",
                      "IupButton",
                      "IupCalendar",
                      "IupCanvas",
+                     "IupGLCanvas",
                      "IupCbox",
                      "IupCells",
                      "IupClipboard",    -- (not really)
@@ -516,8 +517,8 @@ constant {IupProcs,IupProcIds} = columnize({nr("IupSetAttribute"),
 --4 errors
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\toggle.exw"--:109   dlg = IupDialog(toggles, "TITLE=IupToggle, MARGIN=5x5, GAP=5, RESIZE=NO")
 --IupGLCanvas
---constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\triangle.exw"--:70   dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
---IupGLCanvas
+constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\triangle.exw"--:70   dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
+--OK (but dull)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\vol_fog.exw"--:263   dialog = IupDialog(box);
 --IupWebBrowser:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\webbrowser.exw"--:56   hDialog = IupDialog(IupVbox({hToolBar, hWebBrowser}, "MARGIN=5x5,GAP=5"))
@@ -527,41 +528,12 @@ constant {IupProcs,IupProcIds} = columnize({nr("IupSetAttribute"),
 
 --OK:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Counter.exw"
-
 --OK:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Booker.exw"
---Broken (mat_attr):
+--OK:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Cells.exw"
---{"resolve_arg",0,"mat_attr","(allargsvalid:=false) [errorcount +=1, line 3547]"}
---[not]handles[3] = call_func(IupMatrix,{"invalid"})
---[not]res = call_func(IupVbox,{{-2},"MARGIN=10x10"})
---[not]handles[7] = call_func(IupDialog,{-2,"TITLE=Cells"})
---handles: {0,0,-2,0,0,0,-2,0,0}
---=>type check failure, livedisplay is -2
---I tried this, to no avail:
---  --constant mat_attr = sprintf("""
---  --NUMCOL=%d, NUMCOL_VISIBLE=%d,
---  --NUMLIN=%d, NUMLIN_VISIBLE=%d,
---  --WIDTHDEF=60, RESIZEMATRIX=YES,
---  --WIDTH0=10, HEIGHT0=10, ALIGNMENT=ALEFT""",
---  --{MAXCOL-1,min(MAXCOL-1,5),
---  -- MAXLIN-1,min(MAXLIN-1,20)})
---
---  --DEV for plade:
---  constant mat_attr = """
---  NUMCOL=26, NUMCOL_VISIBLE=5,
---  NUMLIN=100, NUMLIN_VISIBLE=20,
---  WIDTHDEF=60, RESIZEMATRIX=YES,
---  WIDTH0=10, HEIGHT0=10, ALIGNMENT=ALEFT"""
-
---IupGLCanvas (on one of the 2 windows)
+--OK:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\CircleDraw.exw"
--- maybe:
--- ok: handles[8] = call_func(IupLabel,{}), but then:
---  {"resolve_arg",0,"cx","(allargsvalid:=false) [errorcount +=1, line 3547]"}
---  {"resolve_arg",0,"cy","(allargsvalid:=false) [errorcount +=1, line 3547]"}
---  [not 3835] call_proc(IupSetStrAttribute,{15153400,"TITLE","Adjust diameter of circle at (%d,%d)","invalidinvalid"})
---==>? call_proc(IupSetStrAttribute,{15153400,"TITLE","Adjust diameter of circle at (%d,%d)"})??? [DONE]
 --OK:
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Converter.exw"
 --OK:
@@ -848,6 +820,7 @@ constant FUNC = 20, --DEV
          PROC = 21,
          SEQ = -5,
 --       IDENT = -1         -- or use LETTER?
+         MINUS = 9,
          IDENT = 10 --LETTER    -- or use LETTER?
 --SUG:   IDECL = 19         -- identifier declaration (if not aod?)
 --#with reformat
@@ -1944,6 +1917,7 @@ end procedure
 --  end while
 --end procedure
 
+object ares
 procedure Assignment(bool allowsubscripts)
     tgtname = token
     tgtline = tokline
@@ -1964,7 +1938,7 @@ procedure Assignment(bool allowsubscripts)
         tgtname = ""
     end if
     getToken()
-    {} = Expression()
+    ares = Expression()
 end procedure
 
 procedure DoMultipleAssignment()
@@ -2299,6 +2273,9 @@ object cv1
 end function
 --*/
 
+sequence constants = {"NULL"},
+         constvals = { NULL }
+
 procedure DoConstant()
 --integer insert_point = 0
 integer wasMapEndToMinusOne
@@ -2315,7 +2292,11 @@ integer wasMapEndToMinusOne
         if toktype=SYMBOL and equal(token,"{") then
             DoMultipleAssignment()
         else
+            if toktype!=LETTER then ?9/0 end if
+            string cname = token
             Assignment(False)
+            constants = append(constants,cname)
+            constvals = append(constvals,ares)
         end if
         if not equal(token,",") then exit end if
         if Ch='$' then
@@ -2538,6 +2519,11 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_canvas.png",
                                  {"BGCOLOR","BORDER","BUFFER","DRAWSIZE","EXPAND","MARGIN","RASTERSIZE","SCROLLBAR"},
                                  {"ACTION","BUTTON_CB","MAP_CB","MOTION_CB","RESIZE_CB","UNMAP_CB"}},
+-- or just alias to IupCanvas??
+         {nr("IupGLCanvas"),     'E',"AFAD",
+                                 "plade_canvas.png",
+                                 {"BGCOLOR","BORDER","BUFFER","DRAWSIZE","EXPAND","MARGIN","RASTERSIZE","SCROLLBAR"},
+                                 {"ACTION","BUTTON_CB","MAP_CB","MOTION_CB","RESIZE_CB","UNMAP_CB"}},
          {nr("IupCbox"),         'C',"[P]AD",
                                  "plade_cbox.png",
                                  {},
@@ -2575,7 +2561,6 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_frame.png",
                                  {"ALIGNMENT","GAP","POSITION","SIZE","TITLE"},
                                  {}},
---       {nr("IupGridBox"),      'E',"[P]AD",
          {nr("IupGridBox"),      'C',"[P]AD",
                                  "plade_grid.png",
                                  {},
@@ -3690,6 +3675,13 @@ integer k, kdx
 string name
 integer newpid
 --?{"resolve_arg",arg}
+
+--for eg: (DEV this can be improved!)
+--{"resolve_arg",{"-",{10,"l",0,318,44,44},{7,1,0,318,46,46}},"(allargsvalid:=false), errorcount+=1 line 3530"}
+    if length(arg)=3 and arg[TYPE]="-" then
+        arg[TYPE] = MINUS
+    end if
+
     if length(arg)=0
     or not integer(arg[TYPE]) then
         allargsvalid = false
@@ -3709,14 +3701,22 @@ integer newpid
             name = arg[NAME]
             k = find(name,names)
             if k=0 or not integer(namedx[k]) then
-                if not find(name,{"NULL"}) then
---                  ?9/0
+--DEV we should have a constants array (initialised with NULL)
+--20/11/17:
+--              if not find(name,{"NULL"}) then
+                k = find(name,constants)
+                if k=0 then
                     allargsvalid = false
                     ?{"resolve_arg",k,name,"(allargsvalid:=false) [errorcount +=1, line 3547]"}
                     errorcount += 1
                     return "invalid"
                 end if
+--DEV clean this up... (ie initialise constvals better)
+if k=1 then
                 res = NULL
+else
+                res = resolve_arg(0,constvals[k],0,0)
+end if
             else
 --if k=13 then trace(1) end if
                 kdx = namedx[k]
@@ -3796,6 +3796,15 @@ integer newpid
             res = create_control(adx,arg,pid,aschild)
 --          res = create_control(0,arg,pid,0)   --NO
 --          res = create_control(0,arg,lastnode,aschild)    -- NO
+        case MINUS:
+            arg[2] = resolve_arg(0,arg[2],0,false)
+            arg[3] = resolve_arg(0,arg[3],0,false)
+--?{"MINUS",arg}
+            if allargsvalid then
+                res = arg[2]-arg[3]
+            else
+                res = -3
+            end if
         default:
 --          ?{"resolve_arg",arg}
             ?{"resolve_arg",arg,"(allargsvalid:=false), errorcount+=1 line 3770"}
@@ -3871,20 +3880,21 @@ end if
             call_proc(IupProcIds[procdx],args)
             if hdx!=0 then
                 if procname="IupSetAttribute"
-                or procname="IupSetStrAttribute" then
+                or procname="IupSetStrAttribute"
+                or procname="IupSetInt" then
                     all_properties[hdx] = append(all_properties[hdx],args[2])
                 elsif procname="IupSetAttributes" then
                     sequence {names,vals} = parse_attributes(args[2])
                     all_properties[hdx] &= names
                 elsif procname!="IupSetAttributeHandle" then
-                    ?{"???[3935]"&procname}
+                    ?{"???[3892]"&procname}
                 end if
             end if
         end if
     else -- (not allargsvalid)
 if SHOWCONTROLS then
 --      printf(1,"[not] call_proc(%s[%d],%s)[%d]\n",{procname,procdx,sprint(args),ih})
-        printf(1,"[not 3835] call_proc(%s,%s)\n",{procname,sprint(args)})
+        printf(1,"[not 3899] call_proc(%s,%s)\n",{procname,sprint(args)})
 end if
     end if
 end procedure
@@ -5007,7 +5017,8 @@ integer pid
             -- 6) The following are not containers/take no children:
             --
             sequence nochild = {"IupButton","IupFlatButton","IupCalendar",
-                                "IupDatePick","IupCanvas","IupCells",
+                                "IupDatePick","IupCanvas","IupGLCanvas","IupCells",
+--                              "IupDatePick","IupCanvas","IupCells",
                                 "IupDial","IupFill","IupLabel","IupLink",
                                 "IupList","IupMatrix","IupMenuItem",
                                 "IupSeparator","IupProgressBar","IupPlot",
