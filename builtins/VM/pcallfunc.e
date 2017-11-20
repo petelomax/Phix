@@ -202,7 +202,9 @@ object res
             push eax                                -- [1] (popped into esi)
             push edi                                -- [2] (popped into ecx)
             push esi                                -- [3] 
+push dword[ebp+12]
             call :%opFrame
+pop dword[ebp+12]
             pop esi                                 -- [3] (params)
             mov edi,ebp                             -- address of first parameter
             pop ecx                                 -- [2] (noofparams)
@@ -341,6 +343,9 @@ end procedure -- (for Edita/CtrlQ)
             jl @f
                 add dword[ebx+esi*4-8],1
           @@:
+--29/10/17...
+--mov edx,[esp]
+--mov dword[ebp+12],edx
             push edi                            --[1] addr res
             push esi                            --[2] args
             push eax                            --[3] rid
@@ -353,10 +358,12 @@ end procedure -- (for Edita/CtrlQ)
             mov dword[ebp-8],ebx                -- isProc:=0
 --EXCEPT
 --X         mov dword[ebp+16],:callfuncret      -- return address
-            mov dword[ebp+28],:callfuncret      -- return address
+--          mov dword[ebp+28],:callfuncret      -- return address
+            mov dword[ebp+28],:!cf_ret          -- return address
             mov dword[ebp+12],edx               -- called from address
             jmp $_il                            -- jmp code:call_common
-          ::callfuncret
+--        ::callfuncret
+          :!cf_ret
             pop edi                             --[1] addr res
             mov edx,[edi]
             mov [edi],eax
@@ -393,10 +400,12 @@ end procedure -- (for Edita/CtrlQ)
             mov qword[rbp-16],rbx               -- isProc:=0
 --EXCEPT
 --X         mov qword[rbp+32],:callfuncret      -- return address
-            mov qword[rbp+56],:callfuncret      -- return address
+--          mov qword[rbp+56],:callfuncret      -- return address
+            mov qword[rbp+56],:!cf_ret          -- return address
             mov qword[rbp+24],rdx               -- called from address
             jmp $_il                            -- jmp code:call_common
-          ::callfuncret
+--        ::callfuncret
+          :!cf_ret
             pop rdi                             --[1] addr res
             mov rdx,[rdi]
             mov [rdi],rax

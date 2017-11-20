@@ -1,0 +1,232 @@
+--
+-- demo\rosetta\7guis\CircleDraw.exw
+-- =================================
+--
+include pGUI.e
+
+Ihandle dlg, undo, redo, canvas, menu, slider, slabel, scale
+cdCanvas cd_canvas
+
+-- each circle is {active,x,y,d,link}
+-- ie/eg if I draw circles 1,2,3, then resize 2, what I need is 
+-- circles 1,2,3,4 where 4 is 2 resized and 2 is now inactive,
+-- the alternative would be to yank 2 out of the list but have
+-- to replace it when 4 is undone. Easier to leave it in place
+-- and have a link field on 4 that can activate/deactivate 2 as
+-- 4 is undone/redone.
+
+enum ACTIVE=1, /*X=2, Y=3,*/ D=4, LINK = 5
+
+sequence circles = {}
+
+integer drawto = 0,     -- used/active part of circles
+        redomax = 0,    -- >=drawto, not yet invalidated.
+        C = 0,          -- selected/mouseover circle
+        save_d          -- original d, restored on close(slider)
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+integer active, x, y, d
+bool hit = false
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas) 
+    for i=1 to drawto do
+        {active,x,y,d} = circles[i]
+        if active then
+            if i=C then
+                hit = true
+            end if
+            cdCanvasArc(cd_canvas,x,height-y,d,d,0,360)
+        end if
+    end for
+    if hit then
+        {active,x,y,d} = circles[C]
+        cdCanvasSetForeground(cd_canvas, CD_GREY)
+        cdCanvasSector(cd_canvas,x,height-y,d,d,0,360)
+        cdCanvasSetForeground(cd_canvas, CD_BLACK)
+        cdCanvasArc(cd_canvas,x,height-y,d,d,0,360)
+    end if
+    cdCanvasFlush(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle /*ih*/)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    IupGLMakeCurrent(canvas)
+    cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    cdCanvasSetBackground(cd_canvas, CD_WHITE)
+    cdCanvasSetForeground(cd_canvas, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+procedure enable()
+    IupSetInt(undo,"ACTIVE",drawto>0)
+    IupSetInt(redo,"ACTIVE",drawto<redomax)
+end procedure
+
+function undo_cb(Ihandle /*undo*/)
+    integer restore = circles[drawto][LINK]
+    drawto -= 1
+    if restore then
+        circles[restore][ACTIVE] = true
+    end if
+    enable()
+    IupUpdate(canvas)
+    return IUP_CONTINUE
+end function
+
+function redo_cb(Ihandle /*redo*/)
+    drawto += 1 
+    integer disable = circles[drawto][LINK]
+    if disable then
+        circles[disable][ACTIVE] = false
+    end if
+    enable()
+    IupUpdate(canvas)
+    return IUP_CONTINUE
+end function
+
+procedure add_circle(sequence circle)
+    drawto += 1
+    if drawto>length(circles) then
+        circles = append(circles,circle)
+    else
+        circles[drawto] = circle
+    end if
+    redomax = drawto
+    enable()
+end procedure
+
+function button_cb(Ihandle /*canvas*/, integer button, pressed, x, y, atom /*pStatus*/)
+    if pressed=0 then   -- when released
+        if button=IUP_BUTTON1 then      -- left button
+            sequence circle = {true,x,y,20,0}   -- active,x,y,d,link
+            add_circle(circle)
+            IupUpdate(canvas)
+        elsif button=IUP_BUTTON3 then   -- right button
+            if C!=0 then
+                IupPopup(menu,IUP_MOUSEPOS,IUP_MOUSEPOS)
+            end if
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+function motion_cb(Ihandle /*ih*/, integer x, y, atom /*pStatus*/)
+integer best = 0
+atom bestd
+    if not IupGetInt(slider,"VISIBLE")
+    and not IupGetInt(menu,"VISIBLE") then
+        for i=1 to drawto do
+            integer {active,cx,cy,d} = circles[i]
+            if active then
+                cx -= x
+                cy -= y
+                atom thisd = sqrt(cx*cx+cy*cy)
+                if thisd<=d/2 then
+                    if best=0 or thisd<bestd then
+                        best = i
+                        bestd = thisd
+                    end if
+                end if
+            end if      
+        end for
+        if C!=best then
+            C = best
+            IupUpdate(canvas)
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+function menu_cb(Ihandle /*ih*/)
+    save_d = circles[C][D]  -- save (until close)
+    integer {active,cx,cy,d} = circles[C]
+    IupSetStrAttribute(slabel,"TITLE","Adjust diameter of circle at (%d,%d)",{cx,cy})
+    IupSetInt(scale,"VALUE",d)
+    integer {x,y} = IupGetIntInt(dlg,"SCREENPOSITION")
+    integer {w,h} = IupGetIntInt(dlg,"SIZE")
+    IupPopup(slider,IUP_CENTERPARENT,y+h+100)
+    return IUP_CONTINUE
+end function
+
+function slider_cb(Ihandle /*scale*/)
+    integer d = IupGetInt(scale,"VALUE")
+    circles[C][D] = d   -- (restored at close slider)
+    IupUpdate(canvas)
+    return IUP_CONTINUE
+end function
+
+function slider_close_cb(Ihandle /*slider*/)
+    sequence circle = circles[C]
+    circles[C][D] = save_d  -- restore
+    circles[C][ACTIVE] = false
+    circle[LINK] = C        -- for undo
+    add_circle(circle)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then
+        IupHide(slider)
+        return slider_close_cb(slider)
+    end if
+    return IUP_CONTINUE
+end function
+    
+procedure main()
+    IupOpen()
+
+    undo = IupButton("Undo",Icallback("undo_cb"),"ACTIVE=NO")
+    redo = IupButton("Redo",Icallback("redo_cb"),"ACTIVE=NO")
+
+    menu = IupMenu({IupMenuItem("Adjust diameter..",Icallback("menu_cb"))})
+
+    slabel = IupLabel()
+    scale = IupValuator(NULL,"VALUECHANGED_CB",Icallback("slider_cb"),
+                        "MIN=10, MAX=400, VALUE=20, EXPAND=HORIZONTAL")
+
+    slider = IupDialog(IupVbox({IupHbox({IupFill(),slabel,IupFill()}),scale}),"MARGIN=10x10")
+    IupSetCallback(slider, "K_ANY", Icallback("esc_close"))
+    IupSetCallback(slider, "CLOSE_CB", Icallback("slider_close_cb"));
+
+    canvas = IupGLCanvas("RASTERSIZE=340x340")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"))
+    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"))
+
+    dlg = IupDialog(IupVbox({IupHbox({IupFill(),undo,redo,IupFill()},"GAP=20"),
+                             canvas}),"MARGIN=10x10")
+    IupSetAttribute(dlg, "TITLE", "Circle Draw")
+    IupCloseOnEscape(dlg)
+    IupSetAttributeHandle(slider, "PARENTDIALOG", dlg)
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+
+--
+-- Notes: At first, undo/redo looked like it would be really cheap, but
+--        it needed to keep "inactive" entries lower down the stack..
+--        A final link field was thus needed for undo/redo, and it proved
+--        easier to modify the selected circle diameter ([C][D]!) in situ,
+--        and restore it (from save_d) at the point when slider was closed
+--        and the new (resized) entry was added, and the entry we restored
+--        that save_d onto was marked as inactive.
+--        The map_cb and resize_cb routines are pretty standard fare that
+--        I nowadays just blindly copy into any IupGLCanvas-using app.
+--

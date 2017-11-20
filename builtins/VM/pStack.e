@@ -1276,7 +1276,9 @@ end procedure -- (for Edita/CtrlQ)
         jl @f
           add dword[ebx+eax*4-8],1  -- incref
       @@:
-        mov [ebp],eax       -- [addr first] := value
+-- (minor listing issue)
+--      mov [ebp],eax       -- [addr first] := value
+        mov [ebp+ebx],eax   -- [addr first] := value
         ret                 -- execute typecheck code!
 
 --DEV if era is opTchkRetAddr, then replace it with the one on the stack... (very messy if there be stuff on the stack...)
@@ -1315,7 +1317,9 @@ end procedure -- (for Edita/CtrlQ)
         jl @f
           add qword[rbx+rax*4-16],1 -- incref
       @@:
-        mov [rbp],rax       -- [addr first] := value
+--ditto (minor listing issue)
+--      mov [rbp],rax       -- [addr first] := value
+        mov [rbp+rbx],rax   -- [addr first] := value
         ret                 -- execute typecheck code!
 
       :!opTchkRetAddr
@@ -1696,7 +1700,7 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         cmp [rbp+32],rbx            -- exception handler
         je @f
-            mov ecx,rax
+            mov rcx,rax
             pop rdx
             mov al,42               -- e42a
             sub rdx,1

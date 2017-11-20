@@ -16,7 +16,7 @@ global function elapsed(atom s)
 -- convert s (in seconds) into an elapsed time string suitable for display.
 -- limits: a type check error occurs if s exceeds approx 100 billion years.
 atom m,h,d,y
-string minus = "", secs, mins
+string minus = "", secs, mins, hours, days
     if s<0 then
         minus = "minus "
         s = 0-s
@@ -40,12 +40,14 @@ string minus = "", secs, mins
     end if
     d = floor(h/24)
     h = remainder(h,24)
+    hours = iff(h=0?"":", "&elapzd(h,"hour"))
     if d<365 then
-        return sprintf("%s%s, %s%s%s",{minus,elapzd(d,"day"),elapzd(h,"hour"),mins,secs})
+        return sprintf("%s%s%s%s%s",{minus,elapzd(d,"day"),hours,mins,secs})
     end if
     y = floor(d/365)
     d = remainder(d,365)
-    return sprintf("%s%s, %s, %s%s%s",{minus,elapzd(y,"year"),elapzd(d,"day"),elapzd(h,"hour"),mins,secs})
+    days = iff(d=0?"":", "&elapzd(d,"day"))
+    return sprintf("%s%s%s%s%s%s",{minus,elapzd(y,"year"),days,hours,mins,secs})
 end function
 
 global function elapsed_short(atom s)

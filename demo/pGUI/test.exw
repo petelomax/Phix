@@ -1,8 +1,6 @@
 --
 -- general scratch area
 --
-?""
-
 include pGUI.e
 
 -- For Edita/Tools/Re-indent source:
@@ -51,13 +49,11 @@ constant centres = {{ l, 0, 0},
                     { 0,-l, 0},
                     {-l, 0, 0}}
 
---SUG:
-constant use_rotation_stack = 0
 --
 -- For simplicity, we maintain a rotation stack, rather than try and express
--- the camera position in a shorter form such as (co-dependant) euler angles.
+-- the camera position in a shorter form such as 3 co-dependant euler angles.
 -- If you rotate X by 45 then Y by 45, you get a very different view to doing
--- a rotate Y by 45 then X by 45:
+-- it the other way round, ie rotate Y by 45 and then X by 45:
 --
 --                    +
 --        +-+        /|\
@@ -67,26 +63,16 @@ constant use_rotation_stack = 0
 --      +-+         \ /
 --                   +
 --
+-- Obviously, therefore, in an rX rY rX' sequence you cannot just add rX' 
+-- to rX; instead keep the full list, and do them all in the same order.
 -- The stack is of arbitrary length, extended by keystroke, but since we can
 -- easily perform 1.2 million rotations per second that does not bother us.
+-- (Obviously if performing an X rotation and rotations[$] is an X, then I
+--  will just add/subtract from that, rather than creating another entry.)
 --
-sequence rotations = {}     -- entries are {X|Y|Z,degrees}
-
--- rotation angles, 0..359
---  Note that these values aren't really meaningful or worth inspecting - 
---  there are literally an infinite number of ways to twist and turn such
---  that a camera initially above London ends up above New York, however 
---  applying them in the same order(nb) always ends up in the same place.
---  Also, the keys do not rotate about x/y/z but (anti-clockwise) about 
---  the current back/left/top, which switch places, from the camera pov, 
---  as the cube is rotated.
---
---DEV
-constant use_rxyz = 01
-sequence rxyz = {0,0,0}
-atom rx = 0,
-     ry = 0,
-     rz = 0
+sequence rotations = {}     -- entries are {axis,degrees}
+                            -- where axis is X|Y|Z
+                            --   and degrees is 0..360
 
 string pov_sides = "RUFBDL" -- (re-assigned on every re-draw)
 --                  YxZzXy  -- (upper=clockwise, lower=anti-clockwise)
@@ -192,76 +178,21 @@ procedure vertices(integer wx, wh, sequence points, face)
 -- (common code for line/fill drawing)
     for i=2 to length(face) do
         integer fi = face[i]
---      cdCanvasVertex(cd_canvas,wx+points[fi][X],wh-points[fi][Y])
         cdCanvasVertex(cd_canvas,wx+points[fi][X],wh+points[fi][Y])
     end for
 end procedure
 
-constant CD_TOPAZ       = #FFC87C,  -- and RGB code 255, 200, 124.
-         CD_RUBY        = #E0115F,  -- 224, 17, 95
-         CD_LIME        = #BFFF00,  -- 191, 255, 0
---       CD_FORESTGREEN = #014421   -- 1, 68, 33
-         CD_FORESTGREEN = #008000   -- 1, 68, 33
-
-if CD_TOPAZ or CD_RUBY or CD_LIME or CD_FORESTGREEN then end if
-
 procedure draw_cube(integer wx, wh)
 sequence points, cpoints
+integer axis
+atom angle
 
     points = corners
-if use_rxyz then
-    points = rotate(points,rxyz[X],X)
-    points = rotate(points,rxyz[Y],Y)
-    points = rotate(points,rxyz[Z],Z)
-else
-    points = rotate(points,rx,X)    -- (cube should now look like a H)
---  atom zr = 90-arctan(sqrt(2))*CD_RAD2DEG
---  points = rotate(points,zr,Z)    -- (cube should now look like an italic H)
-    points = rotate(points,ry,Y)    -- (timed, two corners should remain static)
-    points = rotate(points,rz,Z)
-end if
-
--- Alt3: (define these colours locally)
---  draw a cross on the top in CD_TOPAZ, on the right in CD_RUBY, and on the front in CD_FORESTGREEN.
---  perhaps on the bottom in CD_BROWN, and perhaps left in CD_LIME
---  xColour("forestgreen",              #22, #8B, #22)
---      Topaz   #FFC87C and RGB code 255, 200, 124.
---      Ruby    #E0115F 224, 17, 95
---      Forest green    #014421 1, 68, 33
---      Bronze  #CD7F32 205, 127, 50 (bottom)
---      Bazaar  #98777B 152, 119, 123 (back??)
---      Lime    #BFFF00 191, 255, 0
-
---/*
-OK, I've drawn a cube, quite nicely, I think:\\
-I have identified the nearest corner, and draw three faces, in the correct order such that the one or even two faces I didn't actually need to draw get obscured properly.\\
-I have (naievely) added up/down/left/right to rotate about the x and y axix, and +/- to rotate about the z axis.\\
-Initially that works fine, but as some of you may already know, gets very odd as the pov changes.\\
-I have investigated "arcball" and concluded three points:\\
-1) it is a bit complicated (I could probably cope, but...)\\
-2) I have other plans for using the mouse, I want to use the keyboard\\
-3) what I really want to know is, from any pov, which is the top/left/front/right/bottom (and the never-drawn back).
-
-So, focusing on point 3, of the 3 sides I draw, with the 7 {x,y} needed all present and correct, and knowing the nearest corner, how best can I assign top/left etc to those three faces?\\
-I am not worried about "edge" case ambiguities, eg a rotation of exactly 45 degrees could equivalently be called left-front or front-right (or top-front or front-bottom).
-
-AHA: the *nearest centre* of the 3 faces should be front, plus /one/ of:
---  left-top,
---  top-right,
---  right-bottom,
---  bottom-left
-AHA2: front is the last one we draw (obviously!)
-
---*/
-
+    for i=1 to length(rotations) do
+        {axis, angle} = rotations[i]
+        points = rotate(points,angle,axis)
+    end for
     points = projection(points,1000)
---  ,
---          highest = nearest(points,Y,-1),
---          lowest = nearest(points,Y,-1),
---          rightmost = nearest(points,X,1),
---          leftmost = nearest(points,X,-1)
---  IupSetStrAttribute(dlg,"TITLE","Draw a Rotating Cube (highest=%d, rightmost=%d, leftmost=%d)",{highest,rightmost,leftmost})
-
     --
     -- find the three faces that contain the nearest point
     --
@@ -340,24 +271,12 @@ AHA2: front is the last one we draw (obviously!)
     -- and work out the centre positions properly:
     --
     cpoints = centres
-if use_rxyz then
-    cpoints = rotate(cpoints,rxyz[X],X)
-    cpoints = rotate(cpoints,rxyz[Y],Y)
-    cpoints = rotate(cpoints,rxyz[Z],Z)
-else
-    cpoints = rotate(cpoints,rx,X)
-    cpoints = rotate(cpoints,ry,Y)
-    cpoints = rotate(cpoints,rz,Z)
-end if
+    for i=1 to length(rotations) do
+        {axis, angle} = rotations[i]
+        cpoints = rotate(cpoints,angle,axis)
+    end for
     cpoints = projection(cpoints,1000)
---?cpoints
-
---string f123="000"
---for i=1 to length(faceset) do
---  f123[i] += faceset[i][2]
---end for
---IupSetStrAttribute(dlg,"TITLE","Draw a Rotating Cube (%s, %s)",{pov_sides,f123})
-IupSetStrAttribute(dlg,"TITLE","Draw a Rotating Cube (%s)",{pov_sides})
+--IupSetStrAttribute(dlg,"TITLE","Draw a Rotating Cube (%s)",{pov_sides})
 
     for i=1 to length(faceset) do
         integer fdx = faceset[i][2]
@@ -371,45 +290,11 @@ IupSetStrAttribute(dlg,"TITLE","Draw a Rotating Cube (%s)",{pov_sides})
         cdCanvasBegin(cd_canvas,CD_FILL)
         vertices(wx,wh,points,fi)
         cdCanvasEnd(cd_canvas)
---DEV a much better plan is to drawn F/U/R/L/D in the centres...
--- (and the centre is mid-point of 1 and 3, == 2 and 4, irrespective of np being 1/2/3/4)
-----            -- draw cross
---          integer clr = CD_BLACK
-----            if find(highest,fi) then
-----                clr = CD_TOPAZ
-----            elsif find(rightmost,fi) then
---          if i=1 then
---              clr = CD_RUBY
-----            elsif find(leftmost,fi) then
---          elsif i=2 then
---              clr = CD_LIME
---          elsif i=3 then
---              clr = CD_FORESTGREEN
---          end if
---          cdCanvasSetForeground(cd_canvas,clr)
---          for j=2 to 3 do
---              integer fj = fi[j],
---                      fk = fi[j+2]
---              cdCanvasLine(cd_canvas,wx+points[fj][X],wh+points[fj][Y],
---                                     wx+points[fk][X],wh+points[fk][Y])
---          end for
+        -- and draw F/U/R/L/D in the centres
         cdCanvasSetForeground(cd_canvas,CD_BLACK)
---      diag = faceset[i][3]
---      integer fi = faceset[i][2]
---      atom mx = wx+(points[np][X]+points[diag][X])/2,
---           my = wh+(points[np][Y]+points[diag][Y])/2
---      atom mx = wx+points[np][X],
---           my = wh+points[np][Y]
---?fdx
         atom mx = wx+cpoints[fdx][X],
              my = wh+cpoints[fdx][Y]
---?{fdx,mx,my,pov_sides[fdx..fdx]}
         cdCanvasText(cd_canvas, mx, my, pov_sides[fdx..fdx]) 
---
---      for i=2 to length(fi) do
---          integer fi = fi[i]
---          cdCanvasVertex(cd_canvas,wx+points[fi][X],wh-points[fi][Y])
---      end for
     end for
 end procedure
 
@@ -458,151 +343,29 @@ function canvas_resize_cb(Ihandle /*canvas*/)
     return IUP_DEFAULT
 end function
 
---/*
-typedef struct {
-    float x;
-    float y;
-    float z;
-}Point;
-Point points; 
- 
-sequence rotationMatrix,    -- (4x4)
-         inputMatrix = repeat(0,4),
-         outputMatrix = repeat(0,4)
- 
-procedure showPoint()
-    ?outputMatrix[1..3]
-end procedure
- 
-procedure multiplyMatrix()
-    for i=1 to 4 do
-        outputMatrix[i] = 0;
-        for k=1 to 4 do
-            outputMatrix[i] += rotationMatrix[i][k] * inputMatrix[k]
-        end for
-    end for
-end procedure
-
-procedure setUpRotationMatrix(atom angle, u, v, w)
-atom radians = angle*PI/180,
-     cosr = cos(radians),
-     sinr = sin(radians),
-     L = u*u + v*v + w*w,
-     sqrtL = sqrt(L),
-     u2 = u * u,
-     v2 = v * v,
-     w2 = w * w 
- 
-    rotationMatrix = {{(u2 + (v2+w2)*cosr)/L,
-                       (u*v*(1-cosr) - w*sqrtL*sinr)/L
-                       (u*w*(1-cosr) + v*sqrtL*sinr)/L
-                       0.0},
-                      {(u*v*(1-cosr) + w*sqrtL*sinr)/L,
-                       (v2 + (u2+w2)*cosr)/L,
-                       (v*w*(1-cosr) - u*sqrtL*sinr)/L,
-                       0.0},
-                      {(u*w*(1-cosr) - v*sqrtL*sinr)/L,
-                       (v*w*(1-cosr) + u*sqrtL*sinr)/L,
-                       (w2 + (u2+v2)*cosr)/L,
-                       0.0},
-                      {0.0,
-                       0.0,
-                       0.0,
-                       1.0}}
-end procedure
- 
-int main()
-{
-    float angle;
-    float u, v, w;
-    cout<<"Enter the initial point you want to transform:";
-    cin>>points.x>>points.y>>points.z;
-    inputMatrix[0][0] = points.x;
-    inputMatrix[1][0] = points.y;
-    inputMatrix[2][0] = points.z;
-    inputMatrix[3][0] = 1.0; 
- 
-    cout<<"Enter axis vector: ";
-    cin>>u>>v>>w; 
- 
-    cout<<"Enter the rotating angle in degree: ";
-    cin>>angle; 
- 
-    setUpRotationMatrix(angle, u, v, w);
-    multiplyMatrix();
-    showPoint(); 
- 
-    return 0;
-}
---*/
-
 function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then 
-        return IUP_CLOSE
---SUG
---  else
-    elsif use_rxyz then
-        --
-        -- Note that up/right/+ keys do not rotate about x/y/z but (anti-clockwise)  
-        -- about the current left/top/front, from the camera pov, as assigned when
-        -- the cube was last drawn.
-        --
---      integer d = 1,
---              fdx = find(c,{K_DOWN,K_LEFT,'+'})
---      if fdx then
---          d = 359
---      else
---          fdx = find(c,{K_UP,K_RIGHT,'-'})
---      end if
-        integer d = 1,
---              fdx = find(c,{K_UP,K_DOWN,K_LEFT,K_RIGHT,'+','-'})
---              fdx = find(c,{K_LEFT,K_DOWN,'-',K_UP,'+',K_RIGHT})
-                fdx = find(c,{K_RIGHT,K_DOWN,'-','+',K_UP,K_LEFT})
-        if fdx then
-?"DRFBLU"[fdx..fdx]
---          fdx = find("UDLRFB"[fdx],pov_sides)
---          fdx = find("DRFBLU"[fdx],pov_sides)
-            fdx = find(pov_sides[fdx],"ULBFRD")
-?"DRFBLU"[fdx..fdx]
---          if and_bits(fdx,1)=0 then
-            if fdx>3 then
-                fdx = 7-fdx
-                d = 359
-            end if
---          fdx = floor((fdx+1)/2)
---string pov_sides = "RUFBDL" -- (re-assigned on every re-draw)
--- -                  YxZzXy    -- (upper=clockwise, lower=anti-clockwise)
-
---          fdx = find("UDLRFB"[fdx],pov_sides)
-?{fdx,d}
-            rxyz[fdx] = mod(rxyz[fdx]+d,360)            
-            IupRedraw(canvas)
+integer fdx, d
+    if c=K_ESC then return IUP_CLOSE end if
+    fdx = find(c,{K_DOWN,K_LEFT,'-','+',K_RIGHT,K_UP})
+    if fdx then
+        d = 1
+        if fdx>3 then
+            d = 359
+            fdx = 7-fdx
         end if
---  end if
-    elsif c=K_UP then
---      dy = 1
-        rx = mod(rx+359,360)
-    elsif c=K_DOWN then
---      dy = -1
-        rx = mod(rx+1,360)
-    elsif c=K_LEFT then
-        ry = mod(ry+359,360)
-    elsif c=K_RIGHT then
-        ry = mod(ry+1,360)
-    elsif c='+' then
-?find('U',pov_sides)
-        rz = mod(rz+359,360)
-    elsif c='-' then
-        rz = mod(rz+1,360)
-    end if
---  IupSetStrAttribute(dlg,"TITLE","Draw a Rotating Cube (rx=%d, ry=%d, rz=%d)",{rx,ry,rz})
-    IupRedraw(canvas)
+        if length(rotations) 
+        and rotations[$][1] = fdx then
+            rotations[$][2] = mod(rotations[$][2]+d,360)
+        else
+            rotations = append(rotations,{fdx,d})
+        end if  
+        IupRedraw(canvas)
+    end if      
     return IUP_CONTINUE
 end function
 
 --function timer_cb(Ihandle /*ih*/)
---  ry = mod(ry+359,360)
+--? ry = mod(ry+359,360)
 --  IupRedraw(canvas)
 --  return IUP_IGNORE
 --end function

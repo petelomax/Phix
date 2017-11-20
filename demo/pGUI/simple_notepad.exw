@@ -385,7 +385,9 @@ function find_next_action_cb(Ihandle /*ih*/)
 
         string str_to_find = IupGetAttribute(find_txt, "VALUE");
 
-        integer casesensitive = IupGetInt(find_case, "VALUE");
+-- LES 
+--        integer casesensitive = IupGetInt(find_case, "VALUE"); 
+        integer casesensitive = IupGetInt(find_case, "VALUE") xor 1; 
 
         /* test again, because it can be called from the hot key */
         if length(str_to_find)=0 then
@@ -398,11 +400,16 @@ function find_next_action_cb(Ihandle /*ih*/)
         str = IupGetAttribute(multitext, "VALUE");
 
         pos = match(str_to_find, str, find_pos, casesensitive)
-        if pos>=0 then
-            pos += find_pos;
-        elsif find_pos>0 then
-            pos = match(str_to_find, str, 1, casesensitive) /* try again from the start */
-        end if
+-- LES 
+--        if pos>=0 then 
+--            pos += find_pos; 
+--        elsif find_pos>0 then 
+--            pos = match(str_to_find, str, 1, casesensitive) /* try again from the start */ 
+--        end if 
+        if pos<=0 and find_pos>0 then 
+            pos = match(str_to_find, str, 1, casesensitive) /* try again from the start */ 
+        end if 
+
         if pos>=1 then
             integer line, col,
             end_pos = pos+length(str_to_find);
@@ -410,8 +417,11 @@ function find_next_action_cb(Ihandle /*ih*/)
             IupSetInt(multitext, "FIND_POS", end_pos);
 
             IupSetFocus(multitext);
-            IupSetAttributes(multitext, "SELECTIONPOS=%d:%d", {pos, end_pos});
-            IupSetAttributes(multitext, "FIND_SELECTION=%d:%d", {pos, end_pos});
+-- LES 
+--            IupSetAttributes(multitext, "SELECTIONPOS=%d:%d", {pos, end_pos}); 
+--            IupSetAttributes(multitext, "FIND_SELECTION=%d:%d", {pos, end_pos}); 
+            IupSetAttributes(multitext, "SELECTIONPOS=%d:%d", {pos-1, end_pos-1}); 
+            IupSetAttributes(multitext, "FIND_SELECTION=%d:%d", {pos-1, end_pos-1}); 
 
             {line,col} = IupTextConvertPosToLinCol(multitext, pos);
             pos = IupTextConvertLinColToPos(multitext, line, 0);  /* position at col=0, just scroll lines */

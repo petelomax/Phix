@@ -1,0 +1,371 @@
+--
+-- demo\rosetta\rubik_tomas.exw
+-- ============================
+--
+-- Translation/de-golf(hrumph) of Tomas Sirgedas' winning entry from http://tomas.rokicki.com/cubecontest as held in 2004.
+-- Faster and shorter solutions (in most cases) than cfop, however probably nigh on impossible to debug/enhance...
+
+function xor_string(string s)
+    return xor_bits(s[1],xor_bits(s[2],iff(length(s)=3?s[3]:'!')))
+end function
+
+function xor_all(sequence s)
+    for i=1 to length(s) do
+        s[i] = xor_string(s[i])
+    end for
+    return s
+end function
+
+constant d1 = xor_all(split("UF DF UB DB UR DR UL DL FR FL BR BL UFR DBR UBL DFL DLB ULF DRF URB"))
+-- This is Mike Reid's notation, 12 sides then 8 corners, which may be rotated - hence we xor the
+-- characters for fast lookup. The above string represents a cube in the solved state.
+
+constant d2 = {18,12,17,15,0, 9,1,8,16,14,19,13,2,10,3,11,12,18,13,19,4,8,5,10,
+               14,16,15,17,6,11,7,9,17,12,19,14,6, 0,4, 2,18,15,16,13,1,7,3, 5}
+--?sort(d2): (0..11 appear twice, 12..19 appear thrice - edges/corners is pretty much all I can say)
+
+constant d3 = {13,16,15,1,3,
+               19,18,17,4,6}
+-- these apppear to be swapped during initialisation, dunno why...
+
+integer cur_phase, search_mode, history_idx
+sequence history_mov = repeat(0,48),
+         history_rpt = repeat(0,48),
+         depth_to_go,
+         hash_table = repeat(repeat(6,6912),48)
+         -- (hash_table can/should be preserved for different problems)
+
+sequence cubelet_pos = repeat(0,48),
+         cubelet_twi = repeat(0,48)
+
+procedure rot(integer cur_phase)
+    if cur_phase<4 then
+        for i=0 to 3 do
+            integer di = cur_phase*8+i+1,
+                    j = d2[di]+1,
+                    k = d2[di+4]+1
+            cubelet_twi[j] = mod(cubelet_twi[j]+2-mod(i,2),3)
+            cubelet_twi[k] = xor_bits(cubelet_twi[k],cur_phase<2)
+        end for
+    end if
+    
+    for i=0 to 6 do
+        integer di = cur_phase*8+i+1,
+                j = d2[di+(i!=3)]+1,
+                k = d2[di]+1
+        -- swap(cubelet[j]], cubelet[k]);
+        {cubelet_pos[j],cubelet_pos[k]} = {cubelet_pos[k],cubelet_pos[j]}
+        {cubelet_twi[j],cubelet_twi[k]} = {cubelet_twi[k],cubelet_twi[j]}
+    end for
+end procedure
+
+function hashf()
+    int ret = 0;
+    switch cur_phase do
+        case 0:
+                for i=0 to 10 do
+                    ret += ret + cubelet_twi[i+1]
+                end for
+                return ret;
+        case 1:
+                for i=0 to 6 do
+                    ret = ret*3 + cubelet_twi[i+12+1]
+                end for
+                for i=0 to 10 do
+                    ret += ret + (cubelet_pos[i+1]>7)
+                end for
+                return ret-7;
+        case 2:
+                sequence inva = repeat(0,48),
+                         b = repeat(0,48)
+                for i=0 to 7 do
+                    integer ci12p = cubelet_pos[i+12+1], 
+                            ci12p3 = and_bits(ci12p,3)
+                    if ci12p<16 then
+                        inva[ci12p3+1] = ret
+                        ret += 1
+                    else
+                        b[i-ret+1] = ci12p3 
+                    end if
+                end for
+                for i=0 to 6 do
+                    ret += ret + (cubelet_pos[i+1]>3);
+                end for
+                for i=0 to 6 do
+                    ret += ret + (cubelet_pos[i+12+1]>15);
+                end for
+                integer ib2 = xor_bits(inva[b[1]+1],inva[b[2]+1])*2,
+                        ib3 = xor_bits(inva[b[1]+1],inva[b[3]+1]),
+                        ib4 = xor_bits(inva[b[1]+1],inva[b[4]+1])
+                return ret*54 + ib2 + (ib3 > ib4) - 3587708
+    end switch
+    for i=0 to 4 do
+        ret *= 24;
+        for cp=0 to 3 do
+            for k=0 to cp-1 do
+                if cubelet_pos[i*4+cp+1] < cubelet_pos[i*4+k+1] then
+                    ret += cp + iff(cp=3?cp:0)
+                end if
+            end for
+        end for
+    end for
+    return floor(ret/2)
+end function
+
+function do_search(integer dpt)
+    integer h = hashf(), 
+            q = (floor(cur_phase/2)*19+8)*power(2,7),
+            hmq = mod(h,q)+1,
+            hfq = floor(h/q)+1,
+            d = (dpt < hash_table[cur_phase+1][hmq] or 
+                 dpt < hash_table[cur_phase+5][hfq])
+
+    if d xor search_mode then
+        if search_mode then
+            if dpt <= depth_to_go[h+1] then
+                return not h;
+            else
+                depth_to_go[h+1] = dpt;
+            end if
+        end if
+
+        hash_table[cur_phase+1][hmq] = min(hash_table[cur_phase+1][hmq],dpt);
+        hash_table[cur_phase+5][hfq] = min(hash_table[cur_phase+5][hfq],dpt);
+        
+        for k=0 to 5 do
+            for i=0 to 3 do
+                rot(k)
+                if (k>=cur_phase*2 or i=1) and i<=2 then
+                    history_idx += 1
+                    history_mov[history_idx] = k
+                    history_rpt[history_idx] = i
+                    if do_search(dpt-search_mode*2+1) then return 1 end if
+                    history_idx -= 1
+                end if
+            end for
+        end for
+    end if
+    return 0
+end function
+
+function pack_moves()
+-- (aside: this reduces the average from 16.03 to 15.57 on the test set)
+string moves = ""
+integer n = 0, this, last, last_rpt
+    if history_idx!=0 then
+        -- add a dummy move to trigger the last move print:
+        last = xor_bits(history_mov[history_idx],1) -- F<->B, etc
+        history_idx += 1
+        history_mov[history_idx] = last
+        history_rpt[history_idx] = 0
+        last = history_mov[1]
+        last_rpt = 0
+        for i=1 to history_idx do
+            this = history_mov[i]
+            if this!=last then
+                -- coalesce eg F1F2 to F' (unless you wanna fix do_search()!)
+                if last_rpt then
+                    moves &= "FBRLUD"[last+1] & {"","2","'"}[last_rpt]
+                    n += 1
+                end if
+                last = this
+                last_rpt = history_rpt[i]+1
+            else
+                last_rpt = mod(last_rpt+history_rpt[i]+1,4)
+            end if
+        end for
+--      history_idx -= 1
+    end if
+    return {moves,n,iff(n=1?"":"s")}
+--  return {moves,history_idx,iff(n=1?"":"s")}
+end function
+
+function tomas(sequence args)
+    search_mode = 0
+    history_idx = 0
+    depth_to_go = repeat(0,5*power(2,20))
+
+    for i=0 to 19 do
+        cubelet_pos[i+1] = i
+    end for
+    for i=0 to 3 do
+        cur_phase = i
+        {} = do_search(0)
+    end for
+    args = split(args)
+    for i=0 to 19 do
+        string s = args[i+1]    -- (may be rotated, eg RU or UR)
+        integer p = find(xor_string(s),d1)
+        if p=0 then ?9/0 end if -- sensible message(bad args)?
+        cubelet_pos[i+1] = p-1
+        int x = max(find('U',s), find('D',s));
+        cubelet_twi[i+1] = iff(x!=0 ? x-1 : s[1]>'F')
+    end for
+    for i=0 to 4 do
+        integer j = d3[i+1]+1,
+                k = d3[i+6]+1
+        -- swap(cubelet[j], cubelet[k]);        
+        {cubelet_pos[j],cubelet_pos[k]} = {cubelet_pos[k],cubelet_pos[j]}
+        {cubelet_twi[j],cubelet_twi[k]} = {cubelet_twi[k],cubelet_twi[j]}
+    end for
+    search_mode = 1;
+    for cp=0 to 3 do
+        cur_phase = cp
+        for i=0 to 19 do
+            if do_search(i) then exit end if
+        end for
+    end for
+    return pack_moves()
+end function
+
+sequence args = {
+--  "UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR",  "", -- (solved)
+    "UR UB UL UF DF DR DB DL FR FL BR BL URB UBL ULF UFR DRF DFL DLB DBR",  "U'",
+    "UB UL UF UR DF DR DB DL FR FL BR BL UBL ULF UFR URB DRF DFL DLB DBR",  "U2",
+    "UL UF UR UB DF DR DB DL FR FL BR BL ULF UFR URB UBL DRF DFL DLB DBR",  "U",
+    "LF UR UB UL RF DR DB DL FU FD BR BL LFU URB UBL LDF RUF RFD DLB DBR",  "F'",
+    "DF UR UB UL UF DR DB DL FL FR BR BL DFL URB UBL DRF ULF UFR DLB DBR",  "F2",
+    "RF UR UB UL LF DR DB DL FD FU BR BL RFD URB UBL RUF LDF LFU DLB DBR",  "F",
+    "UF FR UB UL DF BR DB DL DR FL UR BL FDR FRU UBL ULF BRD DFL DLB BUR",  "R'",
+    "UF DR UB UL DF UR DB DL BR FL FR BL DBR DRF UBL ULF URB DFL DLB UFR",  "R2",
+    "UF BR UB UL DF FR DB DL UR FL DR BL BUR BRD UBL ULF FRU DFL DLB FDR",  "R",
+    "UF UR UB UL DL DF DR DB FR FL BR BL UFR URB UBL ULF DFL DLB DBR DRF",  "D'",
+    "UF UR UB UL DB DL DF DR FR FL BR BL UFR URB UBL ULF DLB DBR DRF DFL",  "D2",
+    "UF UR UB UL DR DB DL DF FR FL BR BL UFR URB UBL ULF DBR DRF DFL DLB",  "D",
+    "UF UR RB UL DF DR LB DL FR FL BD BU UFR RDB RBU ULF DRF DFL LUB LBD",  "B'",
+    "UF UR DB UL DF DR UB DL FR FL BL BR UFR DLB DBR ULF DRF DFL URB UBL",  "B2",
+    "UF UR LB UL DF DR RB DL FR FL BU BD UFR LUB LBD ULF DRF DFL RDB RBU",  "B",
+    "UF UR UB BL DF DR DB FL FR UL BR DL UFR URB BDL BLU DRF FUL FLD DBR",  "L'",
+    "UF UR UB DL DF DR DB UL FR BL BR FL UFR URB DFL DLB DRF UBL ULF DBR",  "L2",
+    "UF UR UB FL DF DR DB BL FR DL BR UL UFR URB FUL FLD DRF BDL BLU DBR",  "L",
+    "LB UL UF UR DF DR RB DL FR FL BU BD LBD ULF UFR LUB DRF DFL RDB RBU",  "U2B",
+    "UR UB UL DL DF DR DB UF FR BL BR FL URB UBL DFL DLB DRF ULF UFR DBR",  "L2U'",
+    "UL BR UR UB DF FR DB DL UF FL DR BL RUF BRD URB UBL LFU DFL DLB FDR",  "RU",
+    "UF UR UB BL FL DF DR DB FR UL BR DL UFR URB BDL BLU FUL FLD DBR DRF",  "D'L'",
+    "UF UR UB DL UL DF DR DB FR BL BR FL UFR URB DFL DLB UBL ULF DBR DRF",  "D'L2",
+    "RF UR UB UL DB DL LF DR FD FU BR BL RFD URB UBL RUF DLB DBR LDF LFU",  "D2F",
+    "LF DR UB UL RF UR DB DL BR FD FU BL DBR RUF UBL LDF URB RFD DLB LFU",  "R2F'",
+    "DF FL UB UL UF BR DB DL DR FR UR BL FUL FLD UBL DRF BRD UFR DLB BUR",  "R'F2",
+    "UB UL UF UR DL DF DR DB FR FL BR BL UBL ULF UFR URB DFL DLB DBR DRF",  "DU2D2",    -- (3 moves, vs D'U2 by CFOP)
+    "UF DR UB BL DF UR DB FL BR UL FR DL DBR DRF BDL BLU URB FUL FLD UFR",  "LR2L2",    -- (3 moves, vs L'R2 by CFOP)
+    "UF UR UB BL DL DF DR FL FR UL BR DB UFR URB RDB BLU DFL FUL LBD DRF",  "L'D'",
+    "DF UR UB UL DR DB DL UF FL FR BR BL DFL URB UBL DRF DBR ULF UFR DLB",  "DF2",
+    "UB UL UF FR DF BR DB DL DR FL UR BL UBL ULF FDR FRU BRD DFL DLB BUR",  "U2R'",
+    "UR UB UL BL DF DR DB FL FR UF BR DL URB UBL BDL LFU DRF RUF FLD DBR",  "L'U'",
+    "UL UF DR UB DF UR DB DL BR FL FR BL ULF DBR DRF UBL URB DFL DLB UFR",  "UR2",
+    "UL UF FR UB DF BR DB DL DR FL UR BL ULF FDR FRU UBL BRD DFL DLB BUR",  "UR'",
+    "RF UL UF UR LF DR DB DL FD BU BR BL RFD ULF UFR LUB LDF RBU DLB DBR",  "FU2",
+    "UB UL UF BR DF FR DB DL UR FL DR BL UBL ULF BUR BRD FRU DFL DLB FDR",  "U2R",
+    "DR UR UB UL LF DB DL RF FD FU BR BL RUF URB UBL DBR LDF LFU RFD DLB",  "F2DF'",
+    "DR UL UF UR UB DB DL DF FL FR BR BL DRF ULF UFR DBR URB UBL DFL DLB",  "F2DU2",
+    "UF FR UB BL DB DL DF FL DR UL UR BR FDR FRU DBR BLU DLB FUL URB DFL",  "R'B2LU2R2F2R2U2L2B2", -- (10 moves)
+    --                                                                      "D2R' LB2L'B2L'"  (7 moves by CFOP!)
+    --                                                                      single stage: L'D2R'    (3 moves!!!)
+    "UF BR UB UL DR DB DL FR UR FL DF BL BUR RFD UBL ULF DBR LDF FRU DLB",  "D2RD'",
+    "RD FR DB UL LF BL UB DL FD FU UR BR LUB FRU DBR RFD LDF LFU URB BDL",  "FR'B2",
+    "DF UR DB FR UF DR UB BR FL DL BL UL DFL DLB FDR FRU ULF BUR BRD UBL",  "LF2B2",
+    "UL UF DR LB DF UR RB DL BU FL FR BD ULF RBU DRF LBD LUB DFL RDB UFR",  "R2UBU'LF2UF2U'LF2L2F2R2F2U'F2R2F2U2B2R2B2", -- (23 moves)
+    --                                                                      "UBR2 R2B'R2B"  (7 moves by CFOP!)
+    --                                                                      single stage: UR2B  (3 moves!!!)
+    "LF UR UB UL RB DR DB DL FR FD FU BL UFR RDB UBL LDF DRF RBU DLB LFU",  "R2F'R2",
+    "UF BR UB DB DL DF FR UL UR BL DR FL BUR BRD DLB FDR DFL UBL ULF FRU",  "L2D'R",
+    "RF UR UB UL LB DR DB DL FD FL BR FU RFD URB LBD ULF LUB DFL RUF DBR",  "L2FL2",
+    "LF BU LB UL RU FR RB DL FU FD DR BD LFU BUR LBD LDF UBL RUF RDB FDR",  "FRBD'B2D2R'F2RU2F2DF2R2U2L2U2D2F2L2D2R2", -- (22 moves)
+    --                                                                      "F'RB" (3 moves by CFOP!!)
+    "DR UB UL BL DF UR DB FL BR UF FR DL DRF UBL BDL LFU URB RDB FLD UFR",  "L'U'R2",
+    "UF BR LB BD DF FR RD FL UR UL BU DL BUR LUB DRF BDL FRU FUL FLD RDB",  "L'BR",
+    "UL UF DB UB DF FR BR DL UR FL BL DR ULF DLB FDR UBL FRU DFL BUR BRD",  "B2UR",
+    "UF UR RB BU DF DR LF BL FR DL BD UL UFR RDB FLD BUR DRF BDL BLU LFU",  "L'B'L2",
+    "UF UR DB FL DR UB BL DF FR DL UL BR UFR BLU DBR FLD FUL DRF BDL URB",  "DB2L",
+    "DF BR RD UL UF FL LB DL UR FR BD BU BUR LFU RDB DRF FLD UFR LUB LBD",  "B'RF2",
+    "LF UR UB UL DF DR DB RF FU LD BR BL LFU URB UBL BDL DRF RUF FLD DBR",  "DF'D'",
+    "RU LF BL FR BR DB FD LD DR FU UB LU LDF BLU FRU DBR LBD DRF ULF RBU",  "RB'R2DF'UL'DR'L2UD'RU'B2UB2U2B2R2UB2DF2U2F2U2F2R2L2U2L2B2", -- (33 moves)
+    --                                                                      make cross: DL'R'FLF2  (6 moves)
+    --                                                                      solve first two layers: RFR'LF'L'B'R'U'BF'UFU'F'L'U'L  (18 moves)
+    --                                                                      orientate last layer: B'R'F'RBR'FR  (8 moves)
+    --                                                                      permute last layer: BL'B'LU'B'UBLU'L'U2LU2L'U  (16 moves)
+    --                                                                      solution of 48 total moves
+    "UF BD BL FL RB UB DR UL RF RU FD LD LDF LBD RUF FDR DBR LFU BUR LUB",  "FRU'DBUR'D'LUF2U2LUF2U'L2B2U'L2UF2UF2L2U2R2B2D2F2R2D2",    -- (32 moves, vs 52 by CFOP)
+    "DF FU DB BL LF LU DR UR FR LD BR UB DFL ULF UFR BRD LUB DRF BUR LBD",  "URFU'RU2L2F2DRB2UF2B2U2R2UB2UF2U2F2U2F2D2R2U2R2B2L2D2",    -- (31 moves, vs 50 by CFOP)
+    "LU UB DR FR UF FL DL DF BD LB RU BR FUL BLU FRU DLB URB BRD RFD DFL",  "RD'R'FL'D'R'U'LDRLF2UL2F2U'L2UF2DF2U2F2D2L2D2R2B2U2F2L2",  -- (32 moves, vs 45 by CFOP)
+    "RF RB LU FD FU FL LD RD DB UR BL BU RFD RUF LDF LUB ULF URB LBD BRD",  "B2LBR'F'B2U'RD'RU'RUR2UL2U'L2UL2DF2R2U2B2R2B2D2B2D2L2U2",  -- (32 moves, vs 47 by CFOP)
+    "FL LU RU DL FU FR RD UB RB DB FD BL ULF RFD BDL FLD BUR FRU BRD BLU",  "B'U2LFUR'DF2R'D'B2RF2UF2U'B2UR2F2UF2U2L2U2L2U2F2L2B2U2F2", -- (32 moves, vs 48 by CFOP)
+    "LU FD FL FU DR BD UB LB RB DL UR FR LBD UFR RFD BLU BUR ULF FLD DBR",  "R'B'L'DFBR'U2L2U'RF2LB2R2UB2UR2F2U2L2U2F2L2D2F2U2F2",      -- (29 moves)
+    "LB RB FU DF UB DB DL UR FR LF UL DR BDL UBL RUF FLD RDB ULF URB FDR",  "FR'U2FB2U2R2D2L'DRLF2R2UF2U'R2UF2R2L2DR2F2R2L2U2R2B2R2F2L2",   -- (33 moves)
+    "FD FL UF UL UR DB DR BU BR FR LB LD DLB UFR LUB FUL BUR DRF BRD LDF",  "U2D'BD2RD'B2R'DR2F2LF2UL2UB2L2U2R2UB2DF2L2B2R2L2U2L2",         -- (30 moves)
+    "UB UR UL DF DB LD RF BR LF RD BL UF BLU FDR BDL FUL RUF BRD DFL BUR",  "B2U2D'F'U2RL2UD2L2DRUF2U'L2UR2B2DF2U2F2R2B2L2U2F2D2F2R2",      -- (31 moves)
+    "LF UB UF DF UR DB RB UL RD RF LB LD BDL BRD LDF UFR BUR UBL LFU RFD",  "FLULBLUL'UD2LULUF2U'F2UB2U2L2U'B2DU2L2U2F2D2B2U2",             -- (31 moves)
+    "DF FR UB BD FU BL RU BR RD DL LU LF DBR RUF BDL UBL RFD FLD BUR LFU",  "BLU'FB2D'F2L2U'RD2L'U'R2UL2U2F2UF2L2U2B2R2B2U2F2U2R2",         -- (29 moves)
+    "FU FR RU LU LD BL FL RB UB BD RD FD FDR FUL FRU BDL LUB RDB URB FLD",  "F2L'FD'BU'RU'D'LR2UF2U'R2UB2DR2U2F2D2R2F2L2F2L2",              -- (27 moves)
+    "LD DF FR BR UF RU UB FL RD LB UL DB LDF BRD FRU LFU BDL RFD BUR LUB",  "D'FB2R2UB2D'RL2U'LUF2U'B2UL2U2F2U'F2UF2U2L2B2R2F2U2R2D2F2D2",  -- (33 moves)
+    "BD BU RU DL DF BL FR FL LU DR BR UF LDF LBD URB FUL BRD RUF UBL RFD",  "F2R'U2FL2U'LD'R2F2DRF2UR2UB2U'F2UL2UD2F2L2F2L2U2B2D2B2D2",     -- (32 moves)
+    "FR LU BU DL BD UF UR BL FL FD BR DR RFD RUF BRD DFL LFU LBD UBL URB",  "R'U2FLDB2L2D'RUF2RB2R2UR2UL2U2B2UF2R2L2U2F2R2D2F2L2D2L2",      -- (32 moves)
+    "LU FU RU DF LB RB DL BD LF RD RF BU BRD DFL RBU LUB DLB LFU FDR RUF",  "FBLU'DBDF2LUR'D'B2R'U'F2UB2U'F2UB2UF2R2F2U2F2D2L2F2R2B2",      -- (33 moves)
+    "UB DF BD UF LB LF LU UR LD RD BR FR RBU LBD FDR UBL LFU DBR LDF RUF",  "F'R'L2BF2URUD2L2ULB2U'F2UL2U2B2U'F2D'F2D2R2D2R2B2",            -- (28 moves)
+    "RB UB RF LF UF RD BL DL RU DF DB LU RFD LFU LDF RUF UBL RDB LBD URB",  "DB'LD2FR2DLUD2L2U'LU'R2UL2U'R2B2U'R2UF2R2B2U2F2L2B2U2R2B2",    -- (33 moves)
+    "FR LB FD FU DR BR LU BD UR BU LF LD LUB LFU BDL DBR DRF RBU FLD RUF",  "BR'U'DF'L2D2RUD2LF2UF2UF2L2UR2DU2F2U2R2U2D2F2D2L2U2",          -- (30 moves)
+    "UL DL RF UB FD BR DB UF DR UR BL FL FDR BLU DLB URB RUF FLD BRD FUL",  "UF'R'FB2R2B2LD2L2DLR2U'F2UF2U2F2L2UF2DF2U2R2U2R2B2D2R2F2L2B2D2",   -- (35 moves)
+    "RU BU FL RD BD FR LU FD FU DL BL RB RUF DFL UBL ULF URB BDL DBR FDR",  "B'LFU'BUF2RF2UB2RUL2B2U'F2DU2B2U2R2B2U2R2D2L2",                -- (27 moves)
+    "RF DL BL LF DB BR FD BU RD FU RU LU URB LUB RFD DFL FRU BDL DBR ULF",  "UBU'DFLU2B2R2U'RD2LU'R2B2UL2U'R2UF2DL2B2R2F2D2R2D2F2",         -- (31 moves)
+    "RU FL FR FU DL RD UB BD UL FD BL RB BDL BRD UFR FDR BLU RBU FLD LFU",  "DF'U2RBRL'UL'U2B2U'LF2U'B2U'R2UL2U'F2DR2F2R2F2R2U2F2L2U2L2",   -- (33 moves)
+    "RF FU BU FL UL LD RB DB BL FD RU RD BRD RUF DLB UBL DFL LFU URB FDR",  "BD'R'FLU2DL'F2R'U2D'R'L2U2R2UL2U'B2UF2R2D2B2U2B2R2U2L2",       -- (30 moves)
+    "FR RU UF LF BD LU BU DL RB FD LB DR FLD RUF BLU RFD DBR LFU LBD BUR",  "BRUFBUF2RDLF2L'URF2R2UL2F2UL2DU2L2F2B2U2R2B2L2F2L2",           -- (32 moves)
+    "FL RD BR UB UR DF BL UL FU BD DL RF ULF UBL FRU URB DRF BRD FLD DLB",  "B2R'UD'FB2L'B2ULUD2LR2UF2U'B2R2U'R2DF2L2F2L2D2L2U2B2D2B2",     -- (32 moves)
+    "BR LU UB BL FR RD FL FD BD UF UR DL DBR BUR FLD LUB RFD FRU ULF BDL",  "L'UD'FU2F2U'RLB2DLUR2U'B2U'F2UR2U'L2UR2U2B2U2D2R2D2B2D2",      -- (32 moves)
+    "UL DF LB RU BR UF BD LD LF BU DR FR FRU BUR LDF DRF UBL RDB BDL ULF",  "LBU2DF'B2U'R'UR2UD2LF2UF2U'B2UR2U2L2U2F2U2F2L2D2L2U2",         -- (30 moves)
+    "UB FR LU RD RU UF LF RB LB DF LD BD RFD BDL ULF LUB LDF BUR RUF BRD",  "BU'L'FUB2R'D'B2LR2U2F2UF2U2L2U'L2UR2F2R2F2U2R2U2F2R2B2L2B2",   -- (32 moves)
+    "BR FD UF LB UL UB RF DR FL RU LD BD UBL ULF RUF FLD BDL RDB BUR DRF",  "FUFBF2U2D'L'U'LU2F2U'L2UR2U2B2U'B2DF2L2B2U2R2B2D2",            -- (28 moves)
+    "RU FR LB DL BD DF LF BR UF UL DR UB DFL BLU BRD UFR LBD ULF FDR RBU",  "UF2RL'U2BF2UR'B2U2R'D2LU'L2B2U'B2DF2R2U2B2D2R2F2D2",           -- (28 moves)
+    "LD LU DF LB UR FL DR BR FR UF UB BD DFL DRF LUB LFU DLB RUF DBR RBU",  "R'L2DF'D'LU'R'B2RUR2U2F2U'L2U2L2U2F2L2F2U2B2",                 -- (24 moves)
+    "LB DB RU DF LU BU RF RB UF RD DL LF DLB LFU FLD RDB FDR BLU BUR UFR",  "RFB2LBUF2B2DB2D'RU'R2U'R2UL2D2R2U2B2R2B2D2F2L2",               -- (27 moves)
+    "DR DB BU DL BL DF BR FL UL UR FR FU ULF UFR DBR DFL BLU BUR BDL RFD",  "LBL'BUF2L2U'B2D'RUF2U2L2UR2DB2U2F2R2F2D2R2F2U2B2U2R2",         -- (30 moves)
+    "DB DL DF UF UB FR LB DR UL LF UR BR DRF LDF UFR BRD DLB RBU UBL FUL",  "F'D2FUF2R2L2DF2LUL2F2R2B2DF2R2U2F2U2L2B2R2L2U2L2B2",           -- (28 moves)
+    "BL DF UL RB BD UR UB FL LD DR RF UF URB LBD LFU RFD BRD BLU FRU DFL",  "F'R2U'FUF2RU2RF2U'LB2UR2UF2U2L2U'B2DR2U2R2U2R2U2F2R2B2",       -- (31 moves)
+    "UL DR BU BL DF LD BR DB LF RF FU RU BLU URB LBD FDR DFL DBR LFU FRU",  "BRUD'FRUR'D2L2B2UL'UF2U'B2UL2DF2U2R2U2B2U2F2L2U2L2B2",         -- (31 moves)
+    "UR BL DB RB FL UB DL UF DF RF RD LU DFL BLU FDR LBD BUR UFR LFU RDB",  "L'UD'BUB2R'B2L'D'RU'R2F2U'L2UR2U'B2UD2B2R2B2L2D2F2R2",         -- (29 moves)
+    "DL LU FU BD RD FR RB BL FD UR FL UB BDL FLD ULF RBU FRU RDB BLU RFD",  "LF'RL2BLULUD'LD'LR2F2R2U2F2UF2R2F2L2D2B2U2B2R2U2",             -- (29 moves)
+    "UB FU LU DL RB DB LB RF FD RU LF DR FRU DRF BLU BUR BRD DLB FLD ULF",  "LBL'UFDF2DLU2D'L'F2U2R2UB2DF2R2U2F2U2L2U2R2F2L2B2",            -- (29 moves)
+    "UR FU DL UL BL LF FD UB RB FR DR DB UFR BLU BUR FLD DLB LFU RFD DBR",  "UD2L'FD'F2R2L'DRF2UR2F2U'F2UR2DF2R2U2F2R2B2R2D2B2U2L2D2",      -- (31 moves, vs 48 by CFOP)
+    "RB UF DF FR DL DR UL UR UB BL FL BD FLD RDB BLU BUR RUF RFD LBD FUL",  "F'L2F'B2L'D'R2L'DL'UB2U2L2U'F2UR2F2B2U2F2B2L2B2D2",    -- (26 moves, vs 49 by CFOP)
+    "BD LU UB DL DR BL RF DF BR UF LF UR FLD LUB RUF LBD RDB ULF DRF RBU",  "U2L'BF2B2RL2URD'R'U2F2L2U'R2F2UF2R2U2F2U2D2R2U2F2D2",  -- (28 moves, vs 45 by CFOP)
+    "RU LF RD RF FU UL BD DF RB LB BU LD LBD URB LUB DRF ULF FLD RDB UFR",  "FBRBUBRU'L2F2LUD'LUR2UF2R2UF2U'L2UF2B2U2L2F2L2D2R2U2",     -- (33 moves, vs 53 by CFOP)
+    "UL DB BR FL BL DR FD RU FR UB LD FU FDR FUL BDL RBU FLD RUF DBR LUB",  "B2D'B'U2B2D'L'DRU2LU'B2UB2U2L2U'B2UR2F2U2F2D2F2D2R2U2F2L2B2", -- (32 moves, vs 48 by CFOP)
+}
+    if 01 then
+--      printf(1,"%s (%d move%s)\n",tomas(args[1]))
+--      printf(1,"%s (%d move%s)\n",tomas("UL DL RF UB FD BR DB UF DR UR BL FL FDR BLU DLB URB RUF FLD BRD FUL"))
+        --  UF'R'FB2R2B2LD2L2DLR2U'F2UF2U2F2L2UF2DF2U2R2U2R2B2D2R2F2L2B2D2 (35 moves)
+--      printf(1,"%s (%d move%s)\n",tomas("FU RU BU LU FD RD BD LD RB LB RF LF BLU LFU FRU RBU BDL RDB FDR LDF"))   -- ("hardest case")
+        --  FRBU'L'D'FU2B2UF2LUF2RU2L2UL2U2F2U'R2DR2B2R2D2F2U2R2U2B2L2B2 (35 moves)
+--      printf(1,"%s (%d move%s)\n",tomas("FU RU BU LU FD RD BD LD RF LF RB LB UFR URB UBL ULF DRF DFL DLB DBR"))   -- ("superflip")
+        --  FRBU'L'D'FRB2RD2RF2UL2U'F2UR2DF2L2U2R2F2L2B2U2B2U2L2 (31 moves)
+        printf(1,"%s (%d move%s)\n",tomas("FD UR FR LU LD BU DB LF LB RB DR FU LFU URB FLD LBD RUF DBR LUB FDR"))
+        --  FR'UD'BU'R2URD2RD2LR2UR2U'F2UR2U'F2L2U2R2D2B2R2U2F2 (30 moves)
+--      printf(1,"%s (%d move%s)\n",tomas("UF UR UB UL DF DR DB DL FR FL BR BL UFR BUR BLU ULF DRF DFL DLB DBR"))
+        --  RURDR'U'RU'R2UB2U'R2UB2DL2F2U2L2F2U2F2U2D2 (25 moves)
+--      printf(1,"%s (%d move%s)\n",tomas("UF UR UB UL DF DR DB DL FR FL BR BL FRU BUR UBL ULF DRF DFL DLB DBR"))
+        --  F2URU'L2UR'U'R2UR2U'L2UR2U'R2F2 (18 moves)
+--      printf(1,"%s (%d move%s)\n",tomas("UF UR UB UL DF DR DB DL FR FL BR BL RUF RBU UBL ULF DRF DFL DLB DBR"))
+        --  F2ULD'R2DLR2U'L2U'R2UL2U'L2U'F2U2L2B2L2F2D2F2 (25 moves)
+--      printf(1,"%s (%d move%s)\n",tomas("UF UR UB UL DF DR DB DL FR FL BR BL FRU URB UBL FUL DRF DFL DLB DBR"))
+        --  R2ULU'R2ULR2U'F2U'L2UF2U'R2UD2R2D2F2L2F2R2U2L2 (26 moves)
+--      printf(1,"%s (%d move%s)\n",tomas(""))
+    else
+        integer t = 0
+        atom t1 = time()+1
+        for i=1 to length(args) by 2 do
+            if time()>t1 then
+                printf(1,"running test %d/%d\r",{i/2,length(args)/2})
+                t1 = time()+1
+            end if
+            {string moves, integer n} = tomas(args[i])
+            t += n
+            if moves!=args[i+1] then
+                ?args[i]
+                printf(1,"%s (%d moves)\n",{moves,n})
+            end if  
+        end for
+        printf(1,"average: %3.2f moves\n",t/(length(args)/2))
+    end if
+{} = wait_key()
+

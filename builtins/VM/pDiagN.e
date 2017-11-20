@@ -2264,7 +2264,8 @@ integer lineno,         -- linenumber as calculated from return addr/offset & li
 integer c               -- scratch var
 atom    --returnoffset, -- era as offset into code block, used in lineno calc
         TchkRetAddr,    -- value of !opTchkRetAddr in pStack.e
-        cb_ret_addr     -- value of !cb_ret in pcfunc.e
+        cb_ret_addr,    -- value of !cb_ret in pcfunc.e
+        cf_ret_addr     -- value of !cf_ret in pcallfunc.e
 
 sequence msg,           -- error message, from msgs[msg_id] plus any params
          wmsg,          -- work var, used for building msg
@@ -2403,6 +2404,13 @@ X               mov qword[rbp+32],:rbidsret
             fild qword[esp]
             add esp,8
             call :%pStoreFlt
+            mov eax,:!cf_ret
+            lea edi,[cf_ret_addr]
+            push ebx
+            push eax
+            fild qword[esp]
+            add esp,8
+            call :%pStoreFlt
             lea edi,[symtab]
         [64]
             mov rax,:!opTchkRetAddr
@@ -2414,6 +2422,12 @@ X               mov qword[rbp+32],:rbidsret
             call :%pStoreFlt
             mov rax,:!cb_ret
             lea rdi,[cb_ret_addr]
+            push rax
+            fild qword[rsp]
+            add rsp,8
+            call :%pStoreFlt
+            mov rax,:!cf_ret
+            lea rdi,[cf_ret_addr]
             push rax
             fild qword[rsp]
             add rsp,8
@@ -2474,8 +2488,11 @@ X               mov qword[rbp+32],:rbidsret
     if show_low_level_diagnostics then
         if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
             printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
+--DEV (is fn not assigned yet??)
+--          put2(sprintf("N=%d, rtn=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
                    {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)})
             printf(1,"or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
+--          put2(sprintf("or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
                    {or_eax,or_ecx,or_edx,or_esi,or_edi})
             magicok = "\"@VSB\""
 --DEV wrong on machine_bits()=64... (possibly one for docs) [I think it may be OK now...]
@@ -2484,6 +2501,7 @@ X               mov qword[rbp+32],:rbidsret
                 magicok = "**BAD MAGIC**"
             end if
             printf(1,"vsb_prev=#%s, vsb_next=#%s, vsb_magic=%s (%s)\n",
+--          put2(sprintf("vsb_prev=#%s, vsb_next=#%s, vsb_magic=%s (%s)\n",
                    {addrS(vsb_prev),addrS(vsb_next),addrS(vsb_magic),magicok})
 --  end if
 --
@@ -3013,7 +3031,8 @@ bool error_handler
             setne al
             mov [error_handler],rax
           }
-    if error_handler then
+    if error_handler 
+    and msg_id!=12 then -- not e12pa ('!' keyed in trace window)
         msg = trim(msg)
         sr = symtab[rtn]
         lineno = convert_offset(or_era,sr)
@@ -3311,14 +3330,24 @@ end if
         while 1 do
             or_ebp = floor(prev_ebp/4)
 --11/12/15:
-            if ret_addr=TchkRetAddr then
+--          if ret_addr=TchkRetAddr then
+--29/10/17:
+            if ret_addr=TchkRetAddr
+            or ret_addr=cf_ret_addr-1 then
                 or_era = from_addr-1
             else
                 or_era = ret_addr-1
             end if
+--?{ret_addr,cf_ret_addr,from_addr,or_era}
+--put2(sprint({ret_addr,cf_ret_addr,from_addr,or_era}))
+--put2(sprintf("ret_addr=#%s, cf_ret_addr=#%s, from_addr=%s, or_era=#%s\n",
+--  {addrS(ret_addr),addrS(cf_ret_addr),addrS(from_addr),addrS(or_era)}))
+
             if or_ebp=0 then exit end if
 --DEV (untried)
---          {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+machine_word(),6},machine_word(),0)
+--constant W = machine_word()
+--  --      {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peekNS({or_ebp*4+W,6},W,0)
+--          {N,rtn,from_addr,?,prev_ebp,ebp_root,ret_addr} = peekNS({or_ebp*4+W,7},W,0)
             if machine_bits()=32 then
 --EXCEPT
 --              {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek4u({or_ebp*4+4,6})
@@ -3327,15 +3356,39 @@ end if
 --              {N,rtn,from_addr,ret_addr,prev_ebp,ebp_root} = peek8u({or_ebp*4+8,6})
                 {N,rtn,from_addr,?,prev_ebp,ebp_root,ret_addr} = peek8u({or_ebp*4+8,7})
             end if
+if 0 then -- DEV 29/10/17/TEMP
+    if show_low_level_diagnostics then
+--      if diagdiag>0 or (vsb_magic-#40565342) or msg_id<1 or msg_id>length(msgs) then
+        if diagdiag>0 then
+            put2(sprintf("N=%d, rtn=%d, from=#%s, ret=#%s, ehand=%s, prevebp=#%s, ebproot=#%s\n",
+                   {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)}))
+            put2(sprintf("or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
+                   {or_eax,or_ecx,or_edx,or_esi,or_edi}))
+            magicok = "\"@VSB\""
+--DEV wrong on machine_bits()=64... (possibly one for docs) [I think it may be OK now...]
+--          if vsb_magic!=#40565342 then
+            if (vsb_magic-#40565342) then
+                magicok = "**BAD MAGIC**"
+            end if
+            put2(sprintf("vSb_prev=#%s, vsb_next=#%s, vsb_magic=%s (%s)\n",
+                   {addrS(vsb_prev),addrS(vsb_next),addrS(vsb_magic),magicok}))
+        end if
+    end if
+end if
 --if diagdiag then
 --          printf(1,"N=%d, rtn=%d, from=#%s, ret=#%s, prevebp=#%s, ebproot=#%s\n",
 --                 {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(prev_ebp),addrS(ebp_root)})
 --end if
 -- (untried [might cause problems with test after loop, which might go away if moved (back) above??])
             if prev_ebp=0 then exit end if
+--          if prev_ebp=0 then put2("prev_ebp=0\n") exit end if
+--if ret_addr=cf_ret_addr-1 then ret_addr = ?? end if
             if ret_addr!=0 
 --          and ret_addr!=cb_ret_addr then
             and or_era!=cb_ret_addr-1 then
+--          and or_era!=cf_ret_addr-2 then
+--          and ret_addr!=cf_ret_addr-1 then
+--put2("QUIT\n")
                 ret_addr -= 1
                 exit
             end if

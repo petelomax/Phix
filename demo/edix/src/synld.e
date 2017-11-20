@@ -780,6 +780,7 @@ integer lh, f2, k, b1, b2
     lineno = 1
     columnOne = 1
     fullname = initialcurrentdir&"help\\"&name
+    fullname = get_proper_path(fullname) 
     f = open(fullname,"rb") -- closed by caller (if f!=-1).
     if f=-1 then
         fatal("cannot open file \""&fullname&"\"")

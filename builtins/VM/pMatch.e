@@ -6,7 +6,7 @@
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
 
-global function match(object s1, sequence s2, integer start=1, integer case_insensitive=0)
+global function match(object s1, sequence s2, integer start=1, bool case_insensitive=false)
 --
 -- Try to match s1 against some slice of s2.
 -- If successful, return the element number of s2 where the (first) matching slice begins,

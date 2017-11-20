@@ -16,7 +16,7 @@
             include pGUI.e
            <br>
            <br>
-            IupTreeAddNodes(Ihandle tree, sequence tree_nodes, integer id=-1)
+            IupTreeAddNodes(<a href="Ihandle.htm">Ihandle</a> tree, <a href="sequence.htm">sequence</a> tree_nodes, <a href="integer.htm">integer</a> id=-1)
          </td>
         </tr>
         <tr>
@@ -24,7 +24,7 @@
           <b>Description:</b>
          </td>
          <td>
-            Populates a tree from a nested sequence of branches and leaves.
+            Populates a tree from a nested <a href="sequence.htm">sequence</a> of branches and leaves.
           <br>
           <br>
             tree: The result of some previous invocation of <a href="IupTree.htm">IupTree</a>().<br>
@@ -42,35 +42,76 @@
          </td>
          <td>
             A tree is represented by a nested collection of nodes (see example below).<br>
-            A node is a string (leaf node) or a sequence of length 2 or 3:<br>
+            A node is a <a href="string.htm">string</a> (leaf node) or a <a href="sequence.htm">sequence</a> of length 2 or 3:<br>
             <ul>
-            <li>    The first element is a string description.</li>
+            <li>    The first element is a <a href="string.htm">string</a> description.</li>
             <li>    If length is 3 the second is an even-length set of attribute name/value pairs.</li>
-            <li>    The last element is a sequence of children, or 0 to indicate a leaf node.</li>
+            <li>    The last element is a <a href="sequence.htm">sequence</a> of children, or 0 to indicate a leaf node.</li>
             </ul>
-            Each element of children is either a string to represent a leaf node or a sequence
-            of length 2 or 3 as above. Note that if the top-level node of a (/the entire) tree is a single string, 
+            Each element of children is either a <a href="string.htm">string</a> to represent a leaf node or a <a href="sequence.htm">sequence</a>
+            of length 2 or 3 as above. Note that if the top-level node of a (/the entire) tree is a single <a href="string.htm">string</a>, 
             it represents a single leaf node with no attributes, and no branches.
             <br>
             <br>
             The rules to remember are: <br>
-            if you have attributes on a leaf node, it must have a a third element of 0, and: <br>
+            if you have attributes on a leaf node, it must have a third element of 0, and: <br>
             if a branch has no children it must still have a {} to represent that. <br>
             Should you see leaf nodes such as "STATE" and "COLLAPSED", or similar attribute names/values, suspect a missing 0 or {}.
             <br>
             <br>
+            The following table lists the permitted nodes. Note that the entire tree is always represented by a single node, 
+            albeit an arbitrarily nested one.
+            <br>
+            <br>
+            <table>
+            <tr>
+                <th>Node</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td>"string"</td>
+                <td>a leaf node with no attributes.</td>
+            </tr>
+            <tr>
+                <td>{"string"}</td>
+                <td>ditto.</td>
+            </tr>
+            <tr>
+                <td>{"string",0}</td>
+                <td>ditto.</td>
+            </tr>
+            <tr>
+                <td>{"string",sequence evennvseq,0}</td>
+                <td>a leaf node with attributes.</td>
+            </tr>
+            <tr>
+                <td>{"string",sequence children}</td>
+                <td>a branch node with no attributes, each element of children is a node.</td>
+            </tr>
+            <tr>
+                <td>{"string",sequence evennvseq,sequence children}</td>
+                <td>a branch node with attributes and a (potentially empty) list of children.</td>
+            </tr>
+            </table>
+            <br>
+            &nbsp;
+            <br>
             Every odd element in any even-length set of attributes should be an attribute that 
-            accepts an id, ie one from the "Nodes" or "Images" section of the Attributes table 
-            as shown in the documentation for IupTree. The even elements are strings, except 
-            for "USERDATA" which requires a positive integer, intended to be an index into some
-            application-specific table. Note that setting custom attributes proved problematical
-            and therefore attempts to do so now trigger a fatal error. If someone gets such things
-            working, outside of IupTreeAddNodes, via IupTreeGetId and friends, then I&rsquo;ll
-            take another look.
+            accepts an id, ie one from the <a href="IupTree.htm#Nodes">Nodes</a> or 
+            <a href="IupTree.htm#Images">Images</a> section of the Attributes table 
+            as shown in the documentation for <a href="IupTree.htm">IupTree</a>. The even elements 
+            are strings, except for "USERDATA" which requires a positive integer, intended to be 
+            an index into some application-specific table. Note that setting custom attributes 
+            proved problematical and therefore attempts to do so now trigger a fatal error. 
+            If someone gets such things working, outside of IupTreeAddNodes, via IupTreeGetId 
+            and friends, then I&rsquo;ll take another look.
             <br>
             <br>
-            In practice, a node can also be a sequence of length 1, which represents a leaf node
-            in the same way that a plain string does.
+            In practice, a node can also be a <a href="sequence.htm">sequence</a> of length 1, which 
+            represents a leaf node in the same way that a plain <a href="string.htm">string</a> does.
+            The fact that a leaf node with no attributes can be represented in three different ways
+            is a simple consequence of making the recursive structure easier to use, rather than a
+            deliberate design decision to complicate matters.
             <br>
             <br>
             Performance note: For large trees it would normally be prudent to create all branches
@@ -220,10 +261,15 @@ end function
 </font><font color="#5E005E">        IupTreeAddNodes</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#000000"> tree_nodes</font><font color="#0000FF">)</font>
 </pre>
             <br>
-            The output does differ slightly, in diamond and 2D, but otherwise should be fairly similar to:
+            The output does differ slightly, in diamond and 2D (just run demo\pGUI\sample.exw if at all worried about that), 
+            but otherwise it should be fairly similar to (an image I already had):
             <br>
             <br>
             <img src="images/iuptree2_addbranch9.png">
+            <br>
+            <br>
+            Note that USERDATA is generally useful for other purposes, and would normally be allocated sequentially on that basis, hence the
+            "plucked out of the air" aspect: if you need to defer-load three nodes, avoid thinking that you must use {1,2,3}.
          </td>
         </tr>
         <tr>

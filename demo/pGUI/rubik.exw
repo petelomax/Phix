@@ -1,16 +1,1196 @@
 --
--- glcanvas_cube.exw
+-- rubik.exw
 --
--- From https://sourceforge.net/p/iup/iup/1530/tree/tags/iup_2_7_1/iup2/test/iupgl/glcanvas_cube.c
--- (simplified version of iup3Dctrls.exw)
--- Translated to Phix by Pete Lomax
+--?"started"
+--ppOpt({pp_Pause,0})
+
+constant HELP_TEXT = """
+The RUFBDL keys rotate a single face clockwise, with shift anti-clockwise.
+The MSE keys rotate the XZY middle slices, again with shift anti-clockwise.
+Should keys be pressed in quick succession, any outstanding animation is 
+immediately completed - instead of eg R2 just enter RR.
+The XYZ keys rotate the whole cube about that axis, with shift anti-clockwise.
+The arrow and +/- keys micro-adjust the viewing angle/perspective.
+
+Note that double-slice moves (if you are used to that notation) are not supported,
+but obviously they can be emulated quite easily, eg f with BZ, f' with Shift(BZ), 
+r with LX, r' with Shift(LX), u with DY, u' with Shift(DY), etc.
+
+The flat projection (top left) has fixed centres (Y\nBRGO\nW aka  U\nLFRB\nD). 
+In contrast, on the main cube the front (back never shown) and u/d and l/r sides
+are assigned from the point of view, and hence may be quite different.
+
+Most of the entries on the Cube menu should be self-explanatory:
+Reset - return the cube to the solved state (instantly)
+Input Cube - use the mouse to set all 48 facelets (centres are fixed)
+             you can also save the equivalent reid code for later use
+Scramble - enter a reid or move code, select a test, or go random
+Solve - animated (Shift F5) or single-step (F5)
+        note that finding a solution, first, may sometimes take a few minutes.
+Exit - close the program
+
+On the Help menu:
+the settings option allows configuration:
+ animate angle allows 90..0 images to be shown per side rotation
+ animate delay (>=10ms) between those images can also be set
+the about option shows this text.
+"""
+
+--DING:
+-- The background thread should populate a solution dictionary and ping the GUI
+--  as required. It can also run through the best solution adding entries for 
+--  all the stages. Note the frontend might throw hundreds of solve requests at 
+--  the backend, and that should simply discard any "not started" entries.
+
+
+-- Settings can also be changed via Rubik.ini
+
+
+-- Solving methods:
+-- ----------------
+--  The reader wishing to study the algorithms should first examine 
+--  demo/rosetta/riubik_cfop.exw and demo/rosetta/riubik_thomas.exw;
+--  this application combines these and extends cfop:
+--      cfop - 4 stage (cross/f2l/oll/pll)
+--          `- single_stage
+--      thistlethwaite
+--  The single_stage uses the same code as cfop, but tries directly
+--  for a solution in one step. Note however this can involve a very
+--  large search space and should therefore only be attempted once a
+--  suitable upper bounds limit has been established - left unchecked
+--  it will consume enough resources to seriously slow down a machine
+--  and maybe even force a reboot. 
+--  Note that even when single_stage succeeds, it does /not/ guarantee an optimal
+--  solution, since it trims the workspace on a regular basis.
+--  Since the thistlethwaite is by far the fastest, it is used to
+--  set the initial upper bounds limit for the search space.
+--  The cfop and single_stage can take in excess of 100s each.
+
+-- Possible enhancement:
+-- ---------------------
+--  Rotate the cube/moves so that the number of R/U/F are maximised.
+--  Replace (RL'|L'R) with M, and (R'L|LR') with M', etc.
+--  (It is however probably wise to rotate and avoid S/E moves)
+--  Also perhaps replace D with u' and B with f', if that helps...
 --
+
+--copied from rosetta/rubik_thomas.exw:
+--DEV?
+--include ../rosetta/rub-k_thomas.e
+function xor_string(string s)
+    return xor_bits(s[1],xor_bits(s[2],iff(length(s)=3?s[3]:'!')))
+end function
+
+function xor_all(sequence s)
+    for i=1 to length(s) do
+        s[i] = xor_string(s[i])
+    end for
+    return s
+end function
+
+constant d1 = xor_all(split("UF DF UB DB UR DR UL DL FR FL BR BL UFR DBR UBL DFL DLB ULF DRF URB"))
+-- This is Mike Reid's notation, 12 sides then 8 corners, which may be rotated - hence we xor the
+-- characters for fast lookup. The above string represents a cube in the solved state.
+
+constant d2 = {18,12,17,15,0, 9,1,8,16,14,19,13,2,10,3,11,12,18,13,19,4,8,5,10,
+               14,16,15,17,6,11,7,9,17,12,19,14,6, 0,4, 2,18,15,16,13,1,7,3, 5}
+--?sort(d2): (0..11 appear twice, 12..19 appear thrice - edges/corners is pretty much all I can say)
+
+constant d3 = {13,16,15,1,3,
+               19,18,17,4,6}
+-- these apppear to be swapped during initialisation, dunno why...
+
+integer cur_phase, search_mode, history_idx
+sequence history_mov = repeat(0,48),
+         history_rpt = repeat(0,48),
+         depth_to_go,
+         hash_table = repeat(repeat(6,6912),48)
+         -- (hash_table can/should be preserved for different problems)
+
+sequence cubelet_pos = repeat(0,48),
+         cubelet_twi = repeat(0,48)
+
+procedure rot(integer cur_phase)
+    if cur_phase<4 then
+        for i=0 to 3 do
+            integer di = cur_phase*8+i+1,
+                    j = d2[di]+1,
+                    k = d2[di+4]+1
+            cubelet_twi[j] = mod(cubelet_twi[j]+2-mod(i,2),3)
+            cubelet_twi[k] = xor_bits(cubelet_twi[k],cur_phase<2)
+        end for
+    end if
+    
+    for i=0 to 6 do
+        integer di = cur_phase*8+i+1,
+                j = d2[di+(i!=3)]+1,
+                k = d2[di]+1
+        -- swap(cubelet[j]], cubelet[k]);
+        {cubelet_pos[j],cubelet_pos[k]} = {cubelet_pos[k],cubelet_pos[j]}
+        {cubelet_twi[j],cubelet_twi[k]} = {cubelet_twi[k],cubelet_twi[j]}
+    end for
+end procedure
+
+function hashf()
+    int ret = 0;
+    switch cur_phase do
+        case 0:
+                for i=0 to 10 do
+                    ret += ret + cubelet_twi[i+1]
+                end for
+                return ret;
+        case 1:
+                for i=0 to 6 do
+                    ret = ret*3 + cubelet_twi[i+12+1]
+                end for
+                for i=0 to 10 do
+                    ret += ret + (cubelet_pos[i+1]>7)
+                end for
+                return ret-7;
+        case 2:
+                sequence inva = repeat(0,48),
+                         b = repeat(0,48)
+                for i=0 to 7 do
+                    integer ci12p = cubelet_pos[i+12+1], 
+                            ci12p3 = and_bits(ci12p,3)
+                    if ci12p<16 then
+                        inva[ci12p3+1] = ret
+                        ret += 1
+                    else
+                        b[i-ret+1] = ci12p3 
+                    end if
+                end for
+                for i=0 to 6 do
+                    ret += ret + (cubelet_pos[i+1]>3);
+                end for
+                for i=0 to 6 do
+                    ret += ret + (cubelet_pos[i+12+1]>15);
+                end for
+                integer ib2 = xor_bits(inva[b[1]+1],inva[b[2]+1])*2,
+                        ib3 = xor_bits(inva[b[1]+1],inva[b[3]+1]),
+                        ib4 = xor_bits(inva[b[1]+1],inva[b[4]+1])
+                return ret*54 + ib2 + (ib3 > ib4) - 3587708
+    end switch
+    for i=0 to 4 do
+        ret *= 24;
+        for cp=0 to 3 do
+            for k=0 to cp-1 do
+                if cubelet_pos[i*4+cp+1] < cubelet_pos[i*4+k+1] then
+                    ret += cp + iff(cp=3?cp:0)
+                end if
+            end for
+        end for
+    end for
+    return floor(ret/2)
+end function
+
+function do_search(integer dpt)
+    integer h = hashf(), 
+            q = (floor(cur_phase/2)*19+8)*power(2,7),
+            hmq = mod(h,q)+1,
+            hfq = floor(h/q)+1,
+            d = (dpt < hash_table[cur_phase+1][hmq] or 
+                 dpt < hash_table[cur_phase+5][hfq])
+
+    if d xor search_mode then
+        if search_mode then
+            if dpt <= depth_to_go[h+1] then
+                return not h;
+            else
+                depth_to_go[h+1] = dpt;
+            end if
+        end if
+
+        hash_table[cur_phase+1][hmq] = min(hash_table[cur_phase+1][hmq],dpt);
+        hash_table[cur_phase+5][hfq] = min(hash_table[cur_phase+5][hfq],dpt);
+        
+        for k=0 to 5 do
+            for i=0 to 3 do
+                rot(k)
+                if (k>=cur_phase*2 or i=1) and i<=2 then
+                    history_idx += 1
+                    history_mov[history_idx] = k
+                    history_rpt[history_idx] = i
+                    if do_search(dpt-search_mode*2+1) then return 1 end if
+                    history_idx -= 1
+                end if
+            end for
+        end for
+    end if
+    return 0
+end function
+
+--DEV global?
+function pack_moves()
+-- (aside: this reduces the average from 16.03 to 15.57 on the test set)
+string moves = ""
+integer n = 0, this, last, last_rpt
+    if history_idx!=0 then
+        -- add a dummy move to trigger the last move print:
+        last = xor_bits(history_mov[history_idx],1) -- F<->B, etc
+        history_idx += 1
+        history_mov[history_idx] = last
+        history_rpt[history_idx] = 0
+        last = history_mov[1]
+        last_rpt = 0
+        for i=1 to history_idx do
+            this = history_mov[i]
+            if this!=last then
+                -- coalesce eg F1F2 to F' (unless you wanna fix do_search()!)
+                if last_rpt then
+                    moves &= "FBRLUD"[last+1] & {"","2","'"}[last_rpt]
+                    n += 1
+                end if
+                last = this
+                last_rpt = history_rpt[i]+1
+            else
+                last_rpt = mod(last_rpt+history_rpt[i]+1,4)
+            end if
+        end for
+        history_idx -= 1
+    end if
+    return {moves,n,iff(n=1?"":"s")}
+--  return {moves,history_idx,iff(n=1?"":"s")}
+end function
+
+--DEV global
+function tomas(sequence args)
+    search_mode = 0
+    history_idx = 0
+    depth_to_go = repeat(0,5*power(2,20))
+
+    for i=0 to 19 do
+        cubelet_pos[i+1] = i
+    end for
+    for i=0 to 3 do
+        cur_phase = i
+        {} = do_search(0)
+    end for
+    args = split(args)
+    for i=0 to 19 do
+        string s = args[i+1]    -- (may be rotated, eg RU or UR)
+        integer p = find(xor_string(s),d1)
+        if p=0 then ?9/0 end if -- sensible message(bad args)?
+        cubelet_pos[i+1] = p-1
+        int x = max(find('U',s), find('D',s));
+        cubelet_twi[i+1] = iff(x!=0 ? x-1 : s[1]>'F')
+    end for
+    for i=0 to 4 do
+        integer j = d3[i+1]+1,
+                k = d3[i+6]+1
+        -- swap(cubelet[j], cubelet[k]);        
+        {cubelet_pos[j],cubelet_pos[k]} = {cubelet_pos[k],cubelet_pos[j]}
+        {cubelet_twi[j],cubelet_twi[k]} = {cubelet_twi[k],cubelet_twi[j]}
+    end for
+    search_mode = 1;
+    for cp=0 to 3 do
+        cur_phase = cp
+        for i=0 to 19 do
+            if do_search(i) then exit end if
+        end for
+    end for
+--DEV...
+    return pack_moves()
+end function
+
+--DEV
+if 0 then
+    ?tomas({})
+--  ?pack_moves(tomas({}))
+end if
+
+--copied from rubik_cfop.exw:
+--DEV
+-- include ../rosetta/rubik_cfop.e
+--DEV param?
+constant THRESHOLD = 100000 -- 100000 -- very slow (100s), best results
+                            --  10000 -- slow (10s), reasonable results
+                            --   1000 -- fast (1s), fairly poor results
+                            --    100 -- (counter-productive/slower)
+
+--DEV param...
+--bool single_stage = true
+bool single_stage = false
+
+--DEV "collect" stages, eg after 6 moves, collect all cross (and only cross?),
+--                      and after 6+28 moves, collect all f2l, etc
+--bool collect_stages = single_stage
+--bool collect_stages = false
+
+
+string init ="""
+_____________---YYY--------
+             ---YYY--------
+             ---YYY--------
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+-- numbering:
+--  1..15:   ---456--------\n
+--  16..30:  ---901--------\n   -- U
+--  31..45:  ---456--------\n
+--  46..60:  678901234567--\n
+--  61..75:  123456789012--\n   -- LFRB
+--  76..90:  678901234567--\n
+--  91..105: ------789-----\n
+--  106..120:------234-----\n   -- D
+--  121..136:------789-----\n\n
+
+if length(init)!=136 then ?9/0 end if
+
+--
+-- TIP: Wrap a cube with blank paper, and write
+--      the numbers on it, to derive these sets.
+--
+constant centres = {20,62,65,68,71,113}
+
+constant edges = {{  4,  5,  6,57,56,55},   -- ie YYY/OOO
+                  {  6, 21, 36,54,53,52},   --    YYY/GGG
+                  { 34, 35, 36,49,50,51},   --    YYY/RRR
+                  {  4, 19, 34,46,47,48},   --    YYY/BBB
+                  { 51, 66, 81,52,67,82},   --    RRR/GGG
+                  { 54, 69, 84,55,70,85},   --    GGG/OOO
+                  { 57, 72, 87,46,61,76},   --    OOO/BBB
+                  { 48, 63, 78,49,64,79},   --    BBB/RRR
+                  { 97, 98, 99,82,83,84},   --    WWW/GGG
+                  { 99,114,129,85,86,87},   --    WWW/OOO
+                  {127,128,129,78,77,76},   --    WWW/BBB
+                  { 97,112,127,81,80,79}}   --    WWW/RRR
+
+constant korners = {{ 4, 57,46},{34,48, 49},{36,51,52},{ 6,54,55},
+                --   YOB/UBL     YBR/UFL     YRG/UFR    YGO/UBL
+                    {76,129,87},{78,79,127},{81,82,97},{84,85,99}}
+                --   BWO/DBL     BRW/DFL     RGW/DFR    GOW/DFL
+
+constant facing_corners = {-16,-14,16,14}, -- (nb not 14,16)
+         facing_edges   = {-15,  1,15,-1},
+         fce = facing_corners&facing_edges,
+         rotations = {
+                      -- up (clockwise):
+                      {{57,54,51,48},   -- clockwise corners
+                       {46,55,52,49},   -- anticlockwise corners
+                       {47,56,53,50}},  -- middle edges
+                      -- left
+                      {{ 4,49,127, 87},
+                       {57,34, 79,129},
+                       {19,64,128, 72}},
+                      -- front
+                      {{34,52, 97, 78},
+                       {48,36, 82,127},
+                       {35,67,112, 63}},
+                      -- right
+                      {{36,55,99,81},
+                       {51, 6,85,97},
+                       {21,70,98,66}},
+                      -- back
+                      {{ 6,46,129,84},
+                       {54, 4, 76,99},
+                       { 5,61,114,69}},
+                      -- down
+                      {{82,85,76,79},
+                       {81,84,87,78},
+                       {83,86,77,80}}}
+
+-- Routines to convert between my 136-character cube and reid notation:
+
+--                  "UF", "UR", "UB", "UL", "DF",  "DR", "DB",  "DL",  "FR", "FL", "BR", "BL", 
+constant reidmap = {35,50,21,53, 5,56,19,47,112,80,98,83,114,86,128,77,66,67,64,63,70,69,72,61,
+--                  "UFR",   "URB",  "UBL",  "ULF",   "DRF",   "DFL",    "DLB",    "DBR"
+                    36,51,52,6,54,55,4,57,46,34,48,49,97,82,81,127,79,78,129,76,87,99,85,84}
+
+function is_reid(string s)
+-- is s eg "UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR"?
+    s = trim(s)
+    return length(s)=67 and length(substitute(s," ",""))=48
+end function
+
+function reid_to_cube(string reid)
+string cube = init
+--  cube = substitute_all(cube,"YBRGOW","ybrgow")   -- (test)
+    reid = substitute(reid," ","")
+    for i=1 to length(reid) do
+        cube[reidmap[i]] = "YBRGOW"[find(reid[i],"ULFRBD")]
+    end for
+    return cube
+end function
+
+if 0 then
+    ?is_reid("UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR")
+    puts(1,reid_to_cube("UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR"))
+end if
+
+function cube_to_reid(string cube)
+string res = ""
+    for i=1 to length(reidmap) do
+        if i<=25 then
+            if i>1 and mod(i,2)=1 then res &= ' ' end if
+        elsif mod(i,3)=1 then
+            res &= ' '
+        end if
+        res &= "ULFRBD"[find(cube[reidmap[i]],"YBRGOW")]
+    end for
+    return res
+end function
+
+if 0 then
+    ?cube_to_reid(reid_to_cube("UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR"))
+    --"UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR" (tick)
+end if
+
+enum U=1,Lx=2,F=3,R=4,B=5,D=6,Dbl=#08,Shift=#10
+constant U2 = U+Dbl, L2x = Lx+Dbl, F2 = F+Dbl, R2 = R+Dbl, B2 = B+Dbl, D2 = D+Dbl,
+         Us = U+Shift, Fs = F+Shift, Bs = B+Shift, Rs = R+Shift, Ds = D+Shift
+
+enum CROSS,F2L,OLL,PLL
+
+integer f2l = 0         -- (28==done)
+integer edge_score = 0  -- (0..12 for f2l [as U cleared],
+                        --  0..24 for oll and pll stages)
+
+function score(string cube, integer stage)
+integer res = 0, c, cc, k
+    f2l = 0
+    for i=1 to length(centres) do
+        c = centres[i]
+        cc = cube[c]
+        for j=1 to length(fce) do -- (the 8 next to c)
+            k = c+fce[j]
+            if cube[k]=cc then
+                res += 1
+                f2l += (stage>CROSS and k>=61)
+            end if
+        end for
+    end for
+    -- give extra credit for edges paired with corners
+    edge_score = 0  -- += (0|1|2) for the 12 edges:
+    if stage>CROSS then
+        for i=1 to length(edges) do
+            sequence ei = edges[i]  -- as 123
+            --                      --    456
+            -- then if {1,4}=={2,5} then edge_score += 1, 
+            -- plus if {2,5}=={3,6} then edge_score += 1.
+            edge_score += (cube[ei[1]]=cube[ei[2]] and
+                           cube[ei[4]]=cube[ei[5]]) +
+                          (cube[ei[2]]=cube[ei[3]] and
+                           cube[ei[5]]=cube[ei[6]])
+        end for
+    end if
+    return res
+end function
+
+function oll_score(string cube)
+-- (should only be invoked if f2l==28)
+integer res = 0     -- (true if res=8)
+integer cu = centres[U]
+    if cube[cu]!='Y' then ?9/0 end if
+    for i=1 to length(fce) do
+        integer fcei = fce[i]
+        res += (cube[cu+fcei]='Y')
+    end for
+    return res
+end function
+
+function rotate_face(string cube, integer face)
+--
+-- face is 1..6 for clockwise (ULFRBD), 
+-- plus #08(Dbl) for a 180 (clockwise),
+-- plus #10(Shift) for anti-clockwise.
+--
+-- Technical note: while all rotations are declared
+-- in a clockwise fashion, this actually performs a
+-- {12,3,6,9} = {3,6,9,12}, which is anti-clockwise.
+-- Hence bool cw may be inverse of that expected,
+-- but overall it achieves exactly what it should.
+--
+    integer dbl = 1+(and_bits(face,Dbl)=Dbl)
+    bool cw = 1-floor(face/Shift)
+    face = remainder(face,Dbl)
+    integer cf = centres[face]
+    sequence rf = {sq_add(facing_corners,cf),
+                   sq_add(facing_edges,cf)}
+                  &rotations[face]
+    for d=1 to dbl do
+        for i=1 to length(rf) do
+            sequence rfi = rf[i]
+            if cw then rfi = reverse(rfi) end if
+            integer rfi1 = cube[rfi[1]]
+            for j=1 to 3 do
+                cube[rfi[j]] = cube[rfi[j+1]]
+            end for
+            cube[rfi[4]] = rfi1
+        end for
+    end for
+    return cube
+end function
+
+function apply_moves(string cube, sequence moves)
+    for i=1 to length(moves) do
+        cube = rotate_face(cube,moves[i])
+    end for
+    return cube
+end function
+
+function moves_to_string(sequence moves)
+-- convert eg {1,20,11} to "UR'F2"
+string res = ""
+integer l = length(moves)
+    for i=1 to l do
+        integer face = moves[i]
+        integer dbl = and_bits(face,Dbl)=Dbl
+        bool anticlockwise = floor(face/Shift)
+        face = remainder(face,Dbl)
+        res &= "ULFRBD"[face]
+        if dbl then
+            res &= '2'
+        elsif anticlockwise then
+            res &= '\''
+        end if
+    end for
+    res &=sprintf("  (%d move%s)     ",{l,iff(l=1?"":"s")})
+    return res
+end function
+        
+--
+-- The seen dictionary.
+--  Without this, since it uses a breadth/highscore-first
+--  algorithm, after f2l (for instance) it would probably
+--  just do U and U' as the new high scores, forever.
+--  (The THRESHOLD constant mitigates that to some extent)
+--
+integer seen = new_dict()
+
+-- A solved cube scores 48. It is not mathematically possible to score 47 or 46;
+--  using a workspace of length 46 (holding scores 0..45) which will crash if
+--  given a cube with one edge flipped seems sensible. However a single corner
+--  rotation or other invalid/unsolveable cubes will lead to an infinite loop,
+--  or more accurately it will run out of memory, and probably fairly quickly.
+--  (That was written before edge and oll scores were used, but still applies 
+--   to the wslen settings (>CROSS) below.)
+
+bool aborted = false
+integer move_count = 1
+
+function solve_stage(string cube, integer stage, integer limit=0)
+atom t1 = time()+1
+string moves = "", moves2
+sequence workspace, w2,
+         init
+integer wslen, high = 1,
+        s, c2c = 0, o = 0
+bool done
+--integer achieved_stage=0
+
+    if stage=CROSS then
+        --
+        -- first, blank out all corners, and   
+        -- all edges without a white on them.
+        --
+        for i=1 to length(rotations) do
+            for j=1 to 2 do -- (just corners)
+                for k=1 to 4 do
+                    cube[rotations[i][j][k]]='-'
+                end for
+            end for
+        end for
+        for i=1 to length(edges) do
+            integer {?,m1,?,?,m2,?} = edges[i]
+            if cube[m1]!='W'
+            and cube[m2]!='W' then
+                cube[m1] = '-'
+                cube[m2] = '-'
+            end if
+        end for
+--      puts(1,cube)    -- looks good to me!
+        wslen = 8
+        s = score(cube,CROSS)
+        done = (s=8)
+    elsif stage=F2L then
+        --
+        -- first, blank out all pieces with a yellow
+        --
+        for i=1 to length(korners) do
+            integer {c1,c2,c3} = korners[i]
+            if cube[c1]='Y'
+            or cube[c2]='Y'
+            or cube[c3]='Y' then
+                cube[c1] = '-'
+                cube[c2] = '-'
+                cube[c3] = '-'
+            end if
+        end for
+        for i=1 to length(edges) do
+            integer {?,m1,?,?,m2,?} = edges[i]
+--DEV obvious typo, but "correcting" it adds 20% to moves and 50% to time (at least in the "hardest case")...
+            if cube[m1]='Y'
+            and cube[m2]='Y' then
+--          or cube[m2]='Y' then
+                cube[m1] = '-'
+                cube[m2] = '-'
+            end if
+        end for
+--      puts(1,cube)    -- looks good to me!
+        wslen = 57+12
+        s = score(cube,F2L)
+        done = (f2l=28)
+    else
+        wslen = 77+24
+        s = score(cube,stage)
+        if not single_stage then
+            if f2l!=28 then ?9/0 end if
+        end if
+--      if collect_stages then
+--          done = (s=48)
+--          if not done then
+----                stage = CROSS   --DEV...
+--              stage = F2L
+--              if f2l=28 then
+--                  stage = OLL
+--                  if oll_score(cube)=8 then
+--                      stage = PLL
+--                  end if
+--              end if
+--          end if
+--      else
+            if stage=OLL then
+                done = (oll_score(cube)=8)
+            else -- (stage=PLL)
+                done = (s=48)
+            end if
+--      end if
+    end if
+    move_count = 0
+    if not done then
+        workspace = repeat({},wslen)
+        w2 = workspace
+        init = cube
+        workspace[high] = {""}
+        destroy_dict(seen,justclear:=1)
+        move_count = 1
+--integer best_score = 0
+--sequence best_moves
+        while 1 do
+            if workspace[high]={} then
+--if best_score then    -- (implies single_stage) [or collect_stages...]
+--  if not collect_stages or (stage=PLL) then
+--  if not collect_stages or (stage=PLL) then
+--                          destroy_dict(seen,justclear:=1)
+--                          return best_moves
+--  else
+--      ?9/0
+--  end if
+--?"stage += 1"
+--  stage += 1
+--  best_score = 0
+--end if
+                while high and workspace[high]={} do high -= 1 end while
+                if high=0 or (stage!=CROSS and c2c>THRESHOLD) then
+                    move_count += 1
+--DEV 
+if limit and move_count>limit then return "-1" end if
+                    workspace = w2
+                    w2 = repeat({},wslen)
+                    c2c = 0
+                    high = wslen
+                    while workspace[high]={} do high -= 1 end while
+                end if
+            end if
+            moves = workspace[high][1]
+            workspace[high] = workspace[high][2..$]
+            cube = apply_moves(init,moves)
+            for face=U to D do
+                -- (originally this loop did 180s as well, but that
+                --  gave them far too much dominance, esp during pll.
+                --  instead we now coalese those that survive a 90.)
+                for m=0 to Shift by Shift do
+                    integer mi = face+m
+                    sequence cube2 = rotate_face(cube,mi)
+                    if getd_index(cube2,seen)=0 then
+                        putd(cube2,0,seen)
+                        s = score(cube2,stage)
+                        if stage=CROSS then
+                            done = (s=8)
+                        elsif stage=F2L then
+                            done = (f2l=28)
+                        else
+                            if f2l=28 then
+                                o = oll_score(cube2)
+                            else
+                                o = 0
+                            end if
+                            if stage=OLL then
+                                done = (o=8)
+                            else
+                                done = (s=48)
+                            end if
+                        end if
+                        moves2 = moves
+                        if length(moves2) and moves2[$]=mi then
+                            moves2[$] = face+Dbl
+                        else
+                            moves2 &= mi
+                        end if
+                        if done then
+--DEV resurrect this??
+--                          if s=48 or single_stage then
+--                          if 0 then
+                                destroy_dict(seen,justclear:=1)
+                                return moves2
+--                          end if
+--if collect_stages then
+--  if not best_score then
+--      w2 = repeat({},wslen)
+--  end if
+--end if
+--                          if s>=best_score then
+--                              best_score = s
+--                              best_moves = moves2
+--                          end if
+                        end if
+--if s<48 then
+--if s<48 and ((not collect_stages) or done or best_score=0) then
+                        s += 1+edge_score*2+o
+--NO!!
+--  if s<=length(w2) then
+--  while s>length(w2) do ?"&0" w2&=0 high = length(w2) end while
+    while s>length(w2) do ?"&0" w2&=0 end while
+                        w2[s] = append(w2[s],moves2)
+--  end if
+--end if
+                        c2c += 1
+                    end if
+                end for
+            end for
+            if time()>t1 then
+                printf(1,"working... %d moves, %d positions (high=%d/%d)\r",{move_count,dict_size(seen),high,length(w2)+1})
+--              printf(1,"working... %d moves, %d positions (best=%d)\r",{move_count,dict_size(seen),best_score})
+                t1 = time()+1
+                if get_key()=#1B then aborted=true exit end if
+            end if
+        end while   
+    end if
+    return ""   -- (already solved, or aborted)
+end function
+        
+constant stage_desc = { "make cross",
+                        "solve first two layers",
+                        "orientate last layer",
+                        "permute last layer",
+                        "single stage" }
+
+procedure main2()
+string cube
+sequence moves
+integer total_moves = 0
+atom t0 = time()
+
+if 0 then
+    if 0 then
+        moves = sq_rand(repeat(6,1000)) -- (would be perfectly fine...)
+    elsif 0 then
+        moves = {}   -- (tests the "already solved" case)
+    elsif 0 then
+        -- "hardest case" from http://www.cube20.org/ 
+        moves = {F, Us, F2, Ds, B, U, Rs, Fs, Lx, Ds, 
+                 Rs, Us, Lx, U, Bs, D2, Rs, F, U2, D2}
+--threshold 100000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: FUL'R'FLRF'LRB'R'U'BU'B'U'B  (18 moves)
+--orientate last layer: R'F'U'FUR  (6 moves)
+--permute last layer: RU'L'UR'U2LU'L'U2LU'  (12 moves)
+--solution of 42 total moves found in 81.95s
+--threshold 100000(ss):
+--single stage: UFDLBU'RFLD'BDBDB'DBD'U2F2U2BD'L'DLB'  (27 moves)
+--solution of 27 moves found in 111.97s                                 <<**
+--threshold 100000(cs):
+--<<crashed after ~83 moves>>
+--threshold 10000(ss):
+--single stage: FDLBU'RFUDB'U'BUDR'BD2LFU'L'U2LF'D'LDL'FLF'D'LDFL'F'L'FL2F'D'LDL'  (45 moves)
+--solution of 45 moves found in 15.47s
+--threshold 10000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: U'RB'U2R'UL'B'LBR'U'RL'ULU'FU'F'  (20 moves)
+--orientate last layer: R'F'U'FUR  (6 moves)
+--permute last layer: F'LDFD'L'FU'RUR'DR'D'R'DR2D'F'RFR'  (22 moves)
+--solution of 54 total moves found in 11.39s
+--threshold 10000(cs):
+--single stage: FDLBU'RFUDB'U'BUDR'BD2LFU'L'U2LF'D'LDLD'L'DLD'B'L2BDL2U'F2UFU'F'UFUL'U'LFU'R'UF2D'F'DF2U'RUF2D'L'DF2B'UBUB'U2BLU'L'U    (78 moves)
+--solution of 78 moves found in 34.08s
+--threshold 1000(ms): (slightly helpful)
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: U'B'L'U'LU'RU'R'UB'UB'U'BU2BLU'LUL'U'L2ULU'L'  (28 moves)
+--orientate last layer: (0 moves)
+--permute last layer: U2R'U2RL'B'LB'U'LUL'UBUR'U2F'U'FR  (21 moves)
+--solution of 55 total moves found in 1.81s
+--thistlethwaite(FU RU BU LU FD RD BD LD RB LB RF LF BLU LFU FRU RBU BDL RDB FDR LDF)
+--  FRBU'L'D'FU2B2UF2LUF2RU2L2UL2U2F2U'R2DR2B2R2D2F2U2R2U2B2L2B2 (35 moves)     [ beaten by 100000ss ]
+
+    elsif 0 then
+--broken on single_stage, max threshold...
+        -- "superflip", also from http://www.cube20.org/
+        moves = {R, Lx, U2, F, Us, D, F2, R2, B2, Lx, 
+                 U2, Fs, Bs, U, R2, D, F2, U, R2, U}
+--threshold 100000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: U'BL'UB'L'FD'B'DL'F2LF'L'UL'  (17 moves)
+--orientate last layer: FUF'L'U'LUFU2F'  (10 moves)
+--permute last layer: L'U'L'UL2U'L'F'L'FL2F'L'FL'  (15 moves)
+--solution of 48 total moves found in 111.05s
+--threshold 100000(ss): error
+--threshold 100000(cs): (much better [than ss]!)
+--single stage: UL'B'F'R'D'L'B'D2L2D2L2U'LUBUB'UB2R2B'R'B'RB'DB'D'BD'R2DR'D'R2DRD'R'DBR'B'RBR'B'RB'LB2L'B2U'LULU'L'UL'B'UBU'    (66 moves)
+--solution of 66 moves found in 338.83s
+--threshold 10000(ss):
+--single stage: UD'LDF'U'F2<snip>BL2B'U2FUF'U  (289 moves)
+--solution of 289 moves found in 227.09s
+--threshold 10000(cs): (also much better!)
+--single stage: UD'L'U'FDF2R'F'UFB'L'B2U2RF'BD'F'R2F2R'UFUF'U'RU'R'FR'F'RL'U2LUL'U'LU'FUFUF'U'F'UL2D'L'DFL'FU'F2
+--              UFU'F'UF2RF2R'D2F'D2BR2B'R'BRB'R'B'DBD'B'DBD'R'D'RDR'D'R2DB2U'B2UR'URU'B'U'BURB'R'B'RBR'BUR'U'R  (120 moves)
+--solution of 120 moves found in 63.34s
+--threshold 10000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: UR2FR'F'RFR'F'ULU'L'F'LFL'U2B'U'B  (21 moves)
+--orientate last layer: RB'R'BU2R2FRF'R  (10 moves)
+--permute last layer: FRUR'U'F'UFURU'R'F2LFL'BL'B'L'BL2B'U'LUL'  (27 moves)
+--solution of 64 total moves found in 16.45s
+--threshold 1000(ms): (slightly helpful)
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: UR2FR'F'RFR'UF'LUL'U'LUL'UFU2F'UL'U'LUL'U'LU'L'UL  (33 moves)
+--orientate last layer: R'U2RU'BU2B'R'U'RBU'B'U2BU2B'  (17 moves)
+--permute last layer: F'U2FB'R'BR'U'BUB'URURU'R'U2  (18 moves)
+--solution of 74 total moves found in 2.31s
+--thistlethwaite(FU RU BU LU FD RD BD LD RF LF RB LB UFR URB UBL ULF DRF DFL DLB DBR)
+--FRBU'L'D'FRB2RD2RF2UL2U'F2UR2DF2L2U2R2F2L2B2U2B2U2L2 (31 moves)                               <<**
+        
+    elsif 01 then
+-- from https://en.wikibooks.org/wiki/How_to_Solve_the_Rubik%27s_Cube
+        moves = {U,Bs,R2,Ds,Us,R,U2,B,Rs,B2,L2x,R,F2,R2,U2,R,B,U2,F2,L2x,F2,D,R,B2,R2}
+--threshold 100000(ms):
+--make cross: UFLF'R  (5 moves)
+--solve first two layers: BR'B'RU'BRL'B'ULB'U'F'LFUL'  (18 moves)
+--orientate last layer: F'L'U'LU'FU'RURB'R'BR'  (14 moves)
+--permute last layer: F2L'U'LF2R'DR'D'R2  (10 moves)
+--solution of 47 total moves found in 106.19s
+--threshold 100000(cs):
+--single stage: BD'B'ULF'RD'BDFLU'F'L'F'ULU'DFD'BLB'U'L'ULBL2B'L'  (33 moves)
+--solution of 33 moves found in 120.25s
+--threshold 100000(ss):
+--single stage: FU'L'FR'L'UFLD2BF2L2F'D2F'D2BL'D'LB'U'L'UB2D'B2DF'DFDF'D'FD'L'FLF'  (41 moves)
+--solution of 41 moves found in 15.36s  (vs the 54 shown)
+--threshold 10000(ms):
+--with a threshold of 10000:
+--make cross: UFLF'R  (5 moves)
+--solve first two layers: D'R2DB'U'LB'LBL2B'LUB'U'BL'B'L  (19 moves)
+--orientate last layer: F'L'U'LUF  (6 moves)
+--permute last layer: R'F'U'FURF'U'L'ULF2R'F'RB'RBRB'R2BUR'U'R  (26 moves)
+--solution of 56 total moves found in 13.00s
+--threshold 10000(cs):
+--single stage: FU'L'FR'L'UFLD2BF2L2F'D2F'D2BL'D'LB'U'L'UB2D'B2DF'DFDF'D'FD'L'FLF'  (41 moves)
+--solution of 41 moves found in 15.30s
+--threshold 10000(ss):
+--solution of 144 total moves found in 5.34s
+--threshold 1000(ms): (no help)
+--solution of 144 total moves found in 5.51s
+--thistlethwaite(FD UR FR LU LD BU DB LF LB RB DR FU LFU URB FLD LBD RUF DBR LUB FDR)
+--  FR'UD'BU'R2URD2RD2LR2UR2U'F2UR2U'F2L2U2R2D2B2R2U2F2 (30 moves)							<<**
+    else
+        -- but this costs nothing really (<<0.015s anyway)
+        moves = shuffle(       sq_rand(repeat(6,1000))&
+                        sq_add(sq_rand(repeat(6,500)),Shift)&
+                        sq_add(sq_rand(repeat(6,100)),Dbl))
+--      moves = moves[1..20] -- (helpful when testing)
+    end if
+    cube = apply_moves(init,moves)
+--?cube_to_reid(cube)
+    if length(moves)<=40 then
+        printf(1,"scramble: %s\n",{moves_to_string(moves)})
+        printf(1,"(%s)\n",{cube_to_reid(cube)})
+    end if
+elsif 0 then
+      cube = """
+_____________---OYO--------
+             ---YYY--------
+             ---YYY--------
+             YBBRRRGGYGOB--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: LFL'BLF'L'B'    (8 moves)
+--permute last layer: B'R'L'BLB'RBL'B'LB    (12 moves)
+--solution of 20 total moves found in 30.59s
+--threshold 100000(cs):
+--single stage: BLB2R'BL'B'RU'BLBL'B'U  (15 moves)
+--solution of 15 moves found in 36.48s                      <<** (==1)
+--threshold 100000(ss):
+--single stage: BLB2R'BL'B'RU'BLBL'B'U  (15 moves)
+--solution of 15 total moves found in 35.41s                <<** (==1)
+--threshold 10000(ms):
+--orientate last layer: B'R'URBUB'U'BLU2L'U'BL'B'L  (17 moves)
+--permute last layer: U2R'U2RB2L'B2LF'LFLF'L2FUL'U'L    (19 moves)
+--solution of 36 total moves found in 9.88s
+--threshold 10000(ss):
+--single stage: BD'BDB'L'B'LBL'B'L'U'L2ULU'L'U  (19 moves)
+--solution of 19 moves found in 4.59s
+--threshold 10000(cs):
+--single stage: BL'B'LBL2B'L'U'L'ULU'L'U'FUF'U  (19 moves)
+--solution of 19 moves found in 4.69s   (no help)
+--threshold 1000(ms):
+--solution of 130 total moves found in 5.58s    (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL UFR BUR BLU ULF DRF DFL DLB DBR)
+--RURDR'U'RU'R2UB2U'R2UB2DL2F2U2L2F2U2F2U2D2 (25 moves)     [ beaten by 10000ss ]
+
+elsif 0 then
+      cube = """
+_____________---YYO--------
+             ---YYY--------
+             ---YYR--------
+             BBBRRGYGYGOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: UFU2B'UF'U'BR'UFUF'U'R  (15 moves)
+--solution of 15 total moves found in 35.75s                    <<** (==1)
+--threshold 100000(ss):
+--single stage: UFU2B'UF'U'BR'UFUF'U'R  (15 moves)
+--solution of 15 total moves found in 35.61s                    <<** (==1)
+--threshold 100000(cs):
+--<<killed after 74 moves>>
+--threshold 10000(ms):
+--orientate last layer: U'L'B'UBLU2L'U'LUL'U'LFU2F'  (17 moves)
+--permute last layer: FU2F'L2BL2B'U'B'URBR'U'BL'UB2D'B'DB2U'LUB2D'R'DB2F'UFUF'U2FRU'R'U  (41 moves)
+--solution of 58 total moves found in 19.44s
+--threshold 10000(ss):
+--single stage: UL'ULU'F'U'FUF'U'F'R'F2RFR'F'R  (19 moves)
+--solution of 19 moves found in 4.61s
+--threshold 10000(cs):
+--single stage: UL'ULU'F'U'FUF'U'F'R'F2RFR'F'R  (19 moves)
+--solution of 19 moves found in 4.78s   (so so)
+--threshold 1000(ms):
+--solution of 236 total moves found in 14.92s (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL FRU BUR UBL ULF DRF DFL DLB DBR)
+--F2URU'L2UR'U'R2UR2U'L2UR2U'R2F2 (18 moves)			[ beaten by 100000ms ]
+
+elsif 0 then
+      cube = """
+_____________---YYG--------
+             ---YYY--------
+             ---YYG--------
+             BBBRRYRGOYOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: BLB'RBL'B'R'    (8 moves)
+--permute last layer: R'F'B'RBR'FRB'R'BR    (12 moves)
+--solution of 20 total moves found in 30.59s
+--threshold 100000(ss):
+--single stage: RBR2F'RB'R'FU'RBRB'R'U  (15 moves)          <<** (==1)
+--solution of 15 total moves found in 35.55s
+--threshold 100000(cs):
+--single stage: RBR2F'RB'R'FU'RBRB'R'U  (15 moves)
+--solution of 15 moves found in 40.36s                      <<** (==1)
+--threshold 10000(ms):
+--orientate last layer: R'F'UFRUR'U'RBU2B'U'RB'R'B  (17 moves)
+--permute last layer: U2F'U2FR2B'R2BL'BLBL'B'LB'U'LUL'  (20 moves)
+--solution of 37 total moves found in 9.84s
+--threshold 10000(ss):
+--single stage: RD'RDR'B'R'BRB'R'B'U'B2UBU'B'U  (19 moves)
+--solution of 19 moves found in 4.56s
+--threshold 10000(cs):
+--single stage: RB'R'BRB2R'B'U'B'UBU'B'U'LUL'U  (19 moves)
+--solution of 19 moves found in 4.70s   (so so)
+--threshold 1000(ms):
+--solution of 131 total moves found in 5.56s (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL RUF RBU UBL ULF DRF DFL DLB DBR)
+--F2ULD'R2DLR2U'L2U'R2UL2U'L2U'F2U2L2B2L2F2D2F2 (25 moves)	[ beaten by 100000ss ]
+
+elsif 0 then
+      cube = """
+_____________---YYY--------
+             ---YYY--------
+             ---RYR--------
+             BBYBRGYGGOOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: RBR'FRB'R'F'    (8 moves)
+--permute last layer: F'L'R'FRF'LFR'F'RF    (12 moves)
+--solution of 20 total moves found in 30.64s
+--threshold 100000(ss):
+--single stage: FRF2L'FR'F'LU'FRFR'F'U  (15 moves)
+--solution of 15 total moves found in 35.62s                <<** (==1)
+--threshold 100000(cs):
+--single stage: FRF2L'FR'F'LU'FRFR'F'U  (15 moves)
+--solution of 15 moves found in 36.77s                      <<** (==1)
+--threshold 10000(ms):
+--orientate last layer: F'L'ULFUF'U'FRU2R'U'FR'F'R  (17 moves)
+--permute last layer: U2L'U2LF2R'F2RB'RBRB'R2BUR'U'R    (19 moves)
+--solution of 36 total moves found in 9.86s
+--threshold 10000(ss):
+--single stage: FD'FDF'R'F'RFR'F'R'U'R2URU'R'U  (19 moves)
+--solution of 19 moves found in 4.58s
+--threshold 10000(cs):
+--single stage: FR'F'RFR2F'R'U'R'URU'R'U'BUB'U  (19 moves)
+--solution of 19 moves found in 4.74s   (so so)
+--threshold 1000(ms):
+--solution of 131 total moves found in 5.55s (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL FRU URB UBL FUL DRF DFL DLB DBR)
+--R2ULU'R2ULR2U'F2U'L2UF2U'R2UD2R2D2F2L2F2R2U2L2 (26 moves) [ beaten by 100000ss ]
+
+elsif 01 then
+    cube = reid_to_cube("UL UF DR LB DF UR RB DL BU FL FR BD ULF RBU DRF LBD LUB DFL RDB UFR")
+--100000ms
+--make cross: UBR2  (3 moves)
+--solve first two layers: R2B'R2B  (4 moves)
+--solution of 7 total moves found in 2.56s
+--100000ss
+--single stage: UR2B    (3 moves)
+--solution of 3 moves found in 0.08s                <<**
+--100000cs
+--<<killed after 25 moves>>
+--  "UL UF DR LB DF UR RB DL BU FL FR BD ULF RBU DRF LBD LUB DFL RDB UFR",  "R2UBU'LF2UF2U'LF2L2F2R2F2U'F2R2F2U2B2R2B2", -- (23 moves)
+--  --                                                                      "UBR2 R2B'R2B"  (7 moves by CFOP!)
+elsif 01 then
+    cube = reid_to_cube("UF FR UB BL DB DL DF FL DR UL UR BR FDR FRU DBR BLU DLB FUL URB DFL")
+--100000(ms)
+--make cross: D2R'  (2 moves)
+--solve first two layers: LB2L'B2L'  (5 moves)
+--solution of 7 total moves found in 5.39s
+--100000(ss)
+--single stage: L'D2R'  (3 moves)
+--solution of 3 moves found in 0.05s
+--100000(cs)
+--<<killed after 40 moves>>
+--  "UF FR UB BL DB DL DF FL DR UL UR BR FDR FRU DBR BLU DLB FUL URB DFL",  "R'B2LU2R2F2R2U2L2B2", -- (10 moves)
+    --                                                                      "D2R' LB2L'B2L'"  (7 moves by CFOP!)
+else
+    -- grab from args...
+--  cube = reid_to_cube(args[1])
+    cube = reid_to_cube("UL DL RF UB FD BR DB UF DR UR BL FL FDR BLU DLB URB RUF FLD BRD FUL")
+--threshold 100000(ms):
+--make cross: R'F2ULF'  (5 moves)
+--solve first two layers: LF'RD'R'L'UFB'L'UB'LBUB'U'L'B'L  (20 moves)
+--orientate last layer: R'U'F'UFU'F'UFR  (10 moves)
+--permute last layer: F2RUR'F2LD'LDL2  (10 moves)
+--solution of 45 total moves found in 120.94s
+--threshold 100000(ss):
+--single stage: D'B2L2DR'LU2F2LFU'FU2F2U'F'U'F2UFU'F  (22 moves)
+--solution of 22 moves found in 113.30s                                             <<**
+--threshold 100000(cs):
+--(??appears to take 18 moves to solve the cross...)
+--single stage: ULD'BUL'DR'F'UL'U'L'ULF2R'F2RU'B'U'BLUL'U'B'U2B  (30 moves)
+--solution of 30 moves found in 108.73s
+--threshold 10000(ms):
+--make cross: R'F2ULF'  (5 moves)
+--solve first two layers: FL'FLF'LB'U'RB'R'B'U'RUR'UB'U2B'U2B2U'B'  (24 moves)
+--orientate last layer: B'R'U'RUBU2F'LF'L'F2RU2R'  (15 moves)
+--permute last layer: UL'UL'U'L2UBL'B'L2BL'B'L2FLF'DF'R'FD2B'D'BD2F'RFD2B'L'BD2U'FUFU'F'UF'L'ULU'  (47 moves)
+--solution of 91 total moves found in 29.28s
+--threshold 10000(ss):
+--single stage: R'UDFUFD'BUB'LR'F'RUFU2FR'F'D'F'DF'R'F'RFRF'  (30 moves)
+--solution of 30 moves found in 8.53s
+--threshold 10000(cs):
+--<<killed after 350 moves>>
+--threshold 1000(ms):
+--solution of 60 total moves found in 2.05s (not really helpful)
+--thistlethwaite
+--"UF'R'FB2R2B2LD2L2DLR2U'F2UF2U2F2L2UF2DF2U2R2U2R2B2D2R2F2L2B2D2", -- (35 moves)
+end if
+
+    puts(1,substitute(cube,"-"," "))
+    printf(1,"(%s)\n",{cube_to_reid(cube)})
+
+    aborted = false
+--DEV
+integer limit = 0
+--  for stage=CROSS to PLL do
+    for stage=iff(single_stage?PLL:CROSS) to PLL do
+        moves = solve_stage(cube, stage, limit)
+        total_moves += length(moves)
+        cube = apply_moves(cube,moves)
+        string sd = stage_desc[iff(single_stage?5:stage)]
+        printf(1,"%s: %s     \n",{sd,moves_to_string(moves)})
+        if length(moves) then
+            puts(1,substitute(cube,"-"," "))
+        elsif aborted then
+            exit
+        end if
+    end for
+    if not aborted then
+--      printf(1,"\nsolution of %d total moves found in %3.2fs\n",{total_moves,time()-t0})
+        printf(1,"\nsolution of %d %smoves found in %3.2fs\n",{total_moves,iff(single_stage?"","total "),time()-t0})
+    end if
+end procedure
+
+--DEV
+if 0 then
+    main2()
+end if
+
+
+--
+-- maybe we should only print the cube after a std set of moves... - nah, make it an option
+--
+--DEV use the term facelet... [??]
+--
+--*!/
 
 include pGUI.e
-include opengl.e
-include glu.e
 
+--To do:
+--  draw a slice, with black as needed (rotateable)         [DONE]
+--  repeat for middle                                       [DONE]
+--  draw the cube in 3 slices                               [DONE]
+--  get colours from side_map/colour_map and an x(136) thing  [DONE]
+--  rotate a slice, by keys or mouse swipes, with timer     [DONE]
+--  quick 90/180 degree flips and inversions (keystrokes)   [use XYZ...]
+--  integrate with demo\rosetta\rubik_cfop.exw              [COPIED]
+--          and/or demo\rosetta\rubik_tomas.exw
+--  display moves, with pause, and single step
+--  test for solved state
+--  support cubes 1..N(??)
+--  menus (Cube, Help)                                      [PART]
+--  zoom in/out (ctrl/shift +/-?)
+--  assign colours/input cube
+--  (omgg..)
+
+
+-- For Edita/Tools/Re-indent source:
 --#withtype Ihandle
+--#withtype Ihandln
+--#withtype cdCanvas
+
+Ihandle dlg, canvas, timer
+cdCanvas cd_canvas
+
+enum X, Y, Z
+
+constant L = 40,    -- (1/6th of the cube)
+         L2 = L*2,  --       (1/3rd)
+         L3 = L*3   --        (1/2)
 
 --
 -- define 8 corners equidistant from {0,0,0}:
@@ -21,282 +1201,887 @@ include glu.e
 --
 -- ie the right face is 1-2-3-4 clockwise, and the left face
 --  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+-- (used only for deciding FRUDLB, but the same concept and
+--  ordering is also used for the 27 individual cublets)
 --
---enum X, Y, Z
---constant l = 1--00
---constant corners = {{+l,+l,+l},
---                  {+l,+l,-l},
---                  {+l,-l,-l},
---                  {+l,-l,+l},
---                  {-l,+l,+l},
---                  {-l,+l,-l},
---                  {-l,-l,-l},
---                  {-l,-l,+l}}
+constant corners = {{+L3,+L3,+L3},
+                    {+L3,+L3,-L3},
+                    {+L3,-L3,-L3},
+                    {+L3,-L3,+L3},
+                    {-L3,+L3,+L3},
+                    {-L3,+L3,-L3},
+                    {-L3,-L3,-L3},
+                    {-L3,-L3,+L3}}
 
-constant corners = {{0, 0, 0},
-                    {1, 0, 0},
-                    {0, 1, 0},
-                    {0, 0, 1},
-                    {0, 1, 1},
-                    {1, 0, 1},
-                    {1, 1, 0},
-                    {1, 1, 1}}
+constant faces = {{CD_BLUE,     1,2,3,4},   -- right
+                  {CD_WHITE,    1,5,6,2},   -- top/upper
+                  {CD_RED,      1,4,8,5},   -- front
+                  {CD_ORANGE,   2,3,7,6},   -- back
+                  {CD_YELLOW,   3,4,8,7},   -- btm/down
+                  {CD_GREEN,    5,6,7,8}}   -- left
 
-constant cd_RED     = {1.0,0.0,0.0},
-         cd_YELLOW  = {1.0,1.0,0.0},
-         cd_GREEN   = {0.0,1.0,0.0},
-         cd_BLUE    = {0.0,0.0,1.0},
-         cd_WHITE   = {1.0,1.0,1.0},
-         cd_ORANGE  = {1.0,0.5,0.0}
+constant cubie0 = {{+L,+L,+L},
+                   {+L,+L,-L},
+                   {+L,-L,-L},
+                   {+L,-L,+L},
+                   {-L,+L,+L},
+                   {-L,+L,-L},
+                   {-L,-L,-L},
+                   {-L,-L,+L}}
 
-constant faces = {{cd_RED,      2,7,8,6},   -- right
-                  {cd_YELLOW,   3,5,8,7},   -- top/upper
-                  {cd_GREEN,    4,5,8,6},   -- front
-                  {cd_BLUE,     1,2,7,3},   -- back
-                  {cd_WHITE,    1,2,6,4},   -- btm/down
-                  {cd_ORANGE,   1,3,5,4}}   -- left
-
-constant R = 1, G = 2, B = 3
---DEV type corner??
-type color3D(object c)
-    return sequence(c) and length(c)=3 and atom(c[R]) and atom(c[G]) and atom(c[B])
-end type
-
-procedure add_color_vertex(color3D c)
-    glColor3(c)
-    glVertex3d(c)
-end procedure
-
-procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
-atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4
-atom g = (c1[G]+c2[G]+c3[G]+c4[G])/4
-atom b = (c1[B]+c2[B]+c3[B]+c4[B])/4
-color3D cm = {r,g,b}
-
-    add_color_vertex(cm)
-    add_color_vertex(c1)
-    add_color_vertex(c2)
-
-    add_color_vertex(cm)
-    add_color_vertex(c2)
-    add_color_vertex(c3)
-
-    add_color_vertex(cm)
-    add_color_vertex(c3)
-    add_color_vertex(c4)
-
-    add_color_vertex(cm)
-    add_color_vertex(c4)
-    add_color_vertex(c1)
-end procedure
-
---DEV earein misses this:
-constant color3D c3D_black   = {0, 0, 0},
-                 c3D_red     = {1, 0, 0},
-                 c3D_green   = {0, 1, 0},
-                 c3D_blue    = {0, 0, 1},
-                 c3D_cyan    = {0, 1, 1},
-                 c3D_magenta = {1, 0, 1},
-                 c3D_yellow  = {1, 1, 0},
-                 c3D_white   = {1, 1, 1}
-
-procedure draw_cube()
-    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
-
-if 01 then
-    for i=1 to length(faces) do
-        glColor3(faces[i][1])
-        for j=1 to 2 do -- (lines then fill)
-            glBegin({GL_LINE_LOOP,GL_POLYGON}[j])
-            for k=2 to 5 do
-                glVertex3d(corners[faces[i][k]])
+function make_centres()
+    sequence centres = {}
+    for x=-L2 to +L2 by L2 do -- {-L2,0,+L2} 
+        for y=-L2 to +L2 by L2 do --  ""
+            for z=-L2 to +L2 by L2 do --  ""
+                centres = append(centres,{x,y,z})
             end for
-            glEnd()
         end for
     end for
-else
-
-    glBegin(GL_TRIANGLES);
-
-    draw_cube_face(c3D_black, c3D_blue,    c3D_magenta, c3D_red);
-    draw_cube_face(c3D_black, c3D_green,   c3D_cyan,    c3D_blue);
-    draw_cube_face(c3D_black, c3D_red,     c3D_yellow,  c3D_green);
-    draw_cube_face(c3D_white, c3D_cyan,    c3D_blue,    c3D_magenta);
-    draw_cube_face(c3D_white, c3D_cyan,    c3D_green,   c3D_yellow);
-    draw_cube_face(c3D_white, c3D_magenta, c3D_red,     c3D_yellow);
-
-    glEnd();
-end if
-end procedure
-
-procedure init()
---  glClearColor(0.5,0.5,0.5,0.0);  -- mid-grey
-    glClearColor(1.0,1,0.9,0.0);    -- parchment
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(45, 1, 1, 10);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    gluLookAt({0.5, 0.5, 4.0},  /* position of the observer */
-              {0.5, 0.5, 0.0},  /* reference point          */
-              {0.0, 1.0, 0.0})  /* up                       */
-    glEnable(GL_DEPTH_TEST);
-    glClearDepth(1.0)
-end procedure
-
-procedure unproject(atom x2, atom y2, atom p3)
-atom mv = allocate(16*8)                -- 16 doubles
-atom pm = allocate(16*8)                -- 16 doubles
-atom vp = allocate(4*machine_word())    -- 4 ints
-
-    glGetDoublev(GL_MODELVIEW_MATRIX,  mv);
-    glGetDoublev(GL_PROJECTION_MATRIX, pm);
-    glGetIntegerv(GL_VIEWPORT, vp);
-    gluUnProject(x2, y2, 0.0,
-                 mv, pm, vp,
-                 p3, p3+8, p3+16);
-    free(mv)
-    free(pm)
-    free(vp)
-end procedure
-
-integer pos_x, pos_y;
-integer move = 0;
-
-function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
---?"button-cb"
-    if but==IUP_BUTTON1 then
-        if pressed then
-            pos_x = x;
-            pos_y = y;
-            move = 1;
-        else
-            move = 0;
-        end if
-    end if
-    return IUP_DEFAULT;
+    return centres
 end function
 
-function peek_double(object pDouble)
-sequence doubles
+constant CENTRES = make_centres()
 
-    if atom(pDouble) then
-        return float64_to_atom(peek({pDouble,8}))
+--
+-- We draw the cube as 27 cubies - I experimented with drawing whole
+-- slices, etc, but building them was too much effort. Each cubie is
+-- represented by an integer 0(4)111 to 0(4)333 such that a mask of
+-- 0(4)100 specifies the left X slice, .. 0(4)003 the back Z slice.
+-- (hex/octal would also work but using base 4 is a bit more fun.)
+-- Note that cubie_ids correspond to the fixed model, ie red=front,
+-- yellow=up, green=right, rather than (and with a mapping to) the
+-- on-screen versions of front/up/right/etc.
+
+constant fmask = {0(4)300,  -- right
+                  0(4)030,  -- up
+                  0(4)003,  -- front
+                  0(4)001,  -- back
+                  0(4)010,  -- down
+                  0(4)100}  -- left
+
+constant cmask = {0(4)022,  -- right
+                  0(4)202,  -- up
+                  0(4)220,  -- front
+                  0(4)220,  -- back
+                  0(4)202,  -- down
+                  0(4)022}  -- left
+
+-- For determining the slice draw order:
+constant cslice = {{ L2, 0,  0},
+                   { 0, L2,  0},
+                   { 0,  0, L2},
+                   { 0,  0,-L2},
+                   { 0,-L2,  0},
+                   {-L2, 0,  0}}
+
+-- For drawing F/U/D/L/R
+constant labels = {{ L3, 0,  0},
+                   { 0, L3,  0},
+                   { 0,  0, L3},
+                   { 0,  0,-L3},
+                   { 0,-L3,  0},
+                   {-L3, 0,  0}}
+
+constant label_height = 1.0         -- DEV make this a parameter
+                                    -- (and maybe draw all 6)
+
+--DEV (temp?)
+--/*
+string cube = """
+_____________---YYY--------
+             ---YYY--------
+             ---RYR--------
+             BBYBRGYGGOOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--*/
+--/!*
+string cube = """
+---RRY--------
+---BYY--------
+---BRB--------
+WYOWWRYGGOGB--
+YBOGRBOGGWOR--
+YRGOWRYYGWOO--
+------GOR-----
+------BWW-----
+------WBB-----
+
+"""
+--?cube[82..85]
+--if cube[84]='-' then ?9/0 end if
+--*!/
+--constant face_centres = {20,62,65,68,71,113}  -- (ULFRBD?)
+constant face_centres = {68,20,65,71,113,62}    -- (RUFBDL)
+         -- (ie/eg cube[20] is the fixed Y on line 2 of cube)
+constant face_pieces = {-16,-15,-14,-1,0,1,14,15,16}
+
+constant colour_map = {"ROBGWY",
+                       {CD_RED,CD_ORANGE,CD_BLUE,CD_GREEN,CD_WHITE,CD_YELLOW}}
+
+-- not set in stone: represent offsets to centre, see rubiks_cfop... [DONE]
+-- may be better to use 3 not 4, octal (or even base 4) not hex... [DONE]
+-- (same order as faces)
+constant side_map = {
+                     -- right
+                     {0(4)333,0(4)332,0(4)331,0(4)323,0(4)322,0(4)321,0(4)313,0(4)312,0(4)311},
+--                   {     52,     53,     54,     67,     68,     69,     82,     83,     84},
+                     -- up
+                     {0(4)131,0(4)231,0(4)331,0(4)132,0(4)232,0(4)332,0(4)133,0(4)233,0(4)333},
+--                   {      4,      5,      6,     19,     20,     21,     34,     35,     36},
+                     -- front
+                     {0(4)133,0(4)233,0(4)333,0(4)123,0(4)223,0(4)323,0(4)113,0(4)213,0(4)313},
+--                   {     49,     50,     51,     64,     65,     66,     79,     80,     81},
+                     -- back
+                     {0(4)331,0(4)231,0(4)131,0(4)321,0(4)221,0(4)121,0(4)311,0(4)211,0(4)111},
+--                   {     55,     56,     57,     70,     71,     72,     85,     86,     87},
+                     -- down
+                     {0(4)313,0(4)312,0(4)311,0(4)213,0(4)212,0(4)211,0(4)113,0(4)112,0(4)111},
+--                   {     99,    114,    129,     98,    113,    128,     97,    112,    127},
+                     -- left
+                     {0(4)131,0(4)132,0(4)133,0(4)121,0(4)122,0(4)123,0(4)111,0(4)112,0(4)113},
+--                   {     46,     47,     48,     61,     62,     63,     76,     77,     78},
+                    }
+--?0(4)333  -- 63 (ah, but edges appear twice, corners thrice; only centres appear only once...)
+--?0(4)111  -- 21   -- (so the above is ascii-able...)
+--?0o444    -- 292...
+
+
+
+--
+-- Camera position:
+--
+-- For simplicity, we maintain a rotation stack, rather than try and express
+-- the camera position in a shorter form such as 3 co-dependant euler angles.
+-- If you rotate X by 45 then Y by 45, you get a very different view (lhs) to 
+-- doing it the other way round, ie rotate Y by 45 and then X by 45 (rhs).
+-- In fact, you end up with a 30 degree difference in Z rotation, an axis 
+-- along which you didn't deliberately do any rotations at all:
+--
+--            __           /|\
+--           /_/\   vs    |/\|
+--           \ \/         \ /
+--
+-- Obviously, therefore, in an rX rY rX' sequence you cannot just add rX' to
+-- rX; instead keep the full list, and always do them all in the same order.
+-- The stack is of arbitrary length, extended by keystroke, but since we can
+-- easily perform 1.2 million rotations per second that does not bother us.
+-- Obviously however if performing an X rotation and view_rotations[$] is an 
+-- X, then just add/subtract from that, rather than create yet another entry.
+--
+-- entries are {axis,degrees} where axis is X|Y|Z and degrees is 0..359.
+--
+sequence view_rotations = {{X,25},{Y,25},{Z,350}}
+
+constant naxes = {{Y,Z},    -- (rotate about the X-axis)
+                  {X,Z},    -- (rotate about the Y-axis)
+                  {X,Y}}    -- (rotate about the Z-axis)
+
+function rotate(sequence points, atom angle, integer axis)
+--
+-- rotate points by the specified angle about the given axis
+--   eg when rotating about the X-axis, all X values stay
+--   exactly the same, while the other two [Y & Z] change.
+--
+-- points is a sequence of {x,y,z} [longer elements ok]
+-- angle is in degrees, normally 0..359.99
+-- axis is X|Y|Z
+--
+--  [should you want to sort points after rotate/project,
+--   you can put addition info, eg index, after the xyz].
+--
+    atom radians = angle*CD_DEG2RAD,
+         sinr = sin(radians),
+         cosr = cos(radians)
+    integer {nx,ny} = naxes[axis] -- (the 2 of XYZ != axis)
+    for i=1 to length(points) do
+        atom x = points[i][nx],
+             y = points[i][ny]
+        points[i][nx] = x*cosr - y*sinr
+        points[i][ny] = y*cosr + x*sinr
+    end for
+    return points
+end function
+
+--procedure test_speed()
+--atom t0 = time()
+--sequence points = corners
+--  for i=1 to 400000 do
+--      points = rotate(points,rxyz[X],X)
+--      points = rotate(points,rxyz[Y],Y)
+--      points = rotate(points,rxyz[Z],Z)
+--  end for
+--  ?time()-t0
+--end procedure
+--test_speed()
+
+function projection(sequence points, atom d)
+--
+-- project points from {0,0,d} onto the perpendicular plane through {0,0,0},
+-- and set the Z coordinates to the true distance from {0,0,d}, as those are
+-- used to determine the drawing order (ie nearest last)
+--
+    for i=1 to length(points) do
+        atom {x,y,z} = points[i],
+             denom = (1-z/d)
+        points[i][X] = x/denom
+        points[i][Y] = y/denom
+        z = d-z
+        z = sqrt(x*x+y*y+z*z)
+        points[i][Z] = d-z
+    end for
+    return points
+end function
+
+function rotate_and_project(sequence points)
+    for i=1 to length(view_rotations) do
+        {integer axis, atom angle} = view_rotations[i]
+        points = rotate(points,angle,axis)
+    end for
+    points = projection(points,1000)    -- DEV make d variable/configurable?
+    return points
+end function
+
+string pov_sides = "RUFBDL"         -- (overwritten)
+
+procedure set_pov_sides(sequence faceset, sequence corners, integer np)
+--
+-- label the sides with F/B/U/D/L/R appropriately.
+-- We already know the front: the last/third face we draw.
+-- Look at diag->np on the front to decide which other two sides are
+--  being drawn (one or even two of which may be completely obscured
+--  by nearer faces, from some angles).
+-- If np is above diag then we will be labelling the others LU or UR, 
+--  otherwise we will be labelling the others LD or DR.
+-- It may sound blatently obvious now, but using Y(1,2) to elect U/D,
+--  and X(other,np) to elect L/R was far from the first thing I tried.
+--  (Bear in mind that {1,2} are /not/ in any useful order for this.)
+-- Obviously some cases are ambiguous, for instance the corner-on of
+--  three identical sides could validly be labelled any of 16 ways:
+--
+--              L U    F R              F      U 
+--               F      D       /|\    L D    L F     / \
+--                  or         |/\|        or        |\/|
+--              U R    L F     \ /      F      U     \|/ 
+--               F      D              D R    F R 
+--
+--          F   U   L   U      __     U   U   R   F    __    
+--           R   F   F   R    /_/\   L   F   F   L    /\_\
+--          D   L   D   F     \_\/    F   R   D   D   \/_/   
+--  
+--  (Obviously, nudging an axis or two locks it into 1 of those 16.)
+--  With edge-on as LF|FR or UF|FD, and square-on as just F, nothing 
+--  else is ever valid. There are 21 different ways to label a cube!
+--
+    integer front, up, left, diag
+    {front,diag} = faceset[3][2..3]     -- front==nearest
+    pov_sides[front] = 'F'
+    pov_sides[7-front] = 'B'
+    atom y1 = corners[faceset[1][3]][Y],
+         y2 = corners[faceset[2][3]][Y],
+         nY = corners[np][Y],
+         dY = corners[diag][Y],
+         dX = corners[diag][X]
+    bool istop = nY>dY
+    integer higher = iff(y1>y2?1:2),
+            other = 3-higher
+    if istop then
+        -- LU or UR (in {other,higher} or {higher,other} respectively)
+        up = faceset[higher][2]
+        left = faceset[other][2]
+        if corners[faceset[other][3]][X]>dX then
+            left = 7-left
+        end if
     else
-        doubles = {}
-
-        for i=1 to pDouble[2] do
-            doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
-        end for
-
-        return doubles
-    end if
-end function
-
-function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
-    if move then
-        atom dif_x, dif_y
-        atom dx, dy, dz
-        atom pxyz = allocate(3*8)               -- 3 doubles
-        atom x1, y1, z1
-        atom x2, y2, z2
-        atom angle, norma
-        integer height = IupGetInt2(ih, "RASTERSIZE")
-
-        IupGLMakeCurrent(ih);
-
-        dif_x = x-pos_x;
-        dif_y = y-pos_y;
-
-        pos_x = x;
-        pos_y = y;
-
-        angle = sqrt(dif_x*dif_x+dif_y*dif_y);
-
-        unproject(pos_x,height-y,pxyz)
-        {x1,y1,z1} = peek_double({pxyz,3})
-        unproject(dif_y+pos_x, dif_x+(height-y), pxyz)
-        {x2,y2,z2} = peek_double({pxyz,3})
-        dx = x2-x1
-        dy = y2-y1
-        dz = z2-z1;
-        norma = sqrt(dx*dx+dy*dy+dz*dz);
-        if norma!=0 then    -- bugfix...
-            dx /= norma
-            dy /= norma
-            dz /= norma
-
-            glTranslate(0.5, 0.5, 0.5);
-            glRotate(angle, dx, dy, dz);
-            glTranslate(-0.5, -0.5, -0.5);
-
-            draw_cube();
-
-            IupGLSwapBuffers(ih);
+        -- LD or DR (in {higher,other} or {other,higher} respectively)
+        up = 7-faceset[other][2]
+        left = faceset[higher][2]
+        if corners[faceset[higher][3]][X]>dX then
+            left = 7-left
         end if
-        free(pxyz)
     end if
-    return IUP_DEFAULT;
+    pov_sides[up] = 'U'
+    pov_sides[7-up] = 'D'
+    pov_sides[left] = 'L'
+    pov_sides[7-left] = 'R'
+end procedure
+
+function get_faceset(sequence corners)
+    --
+    -- first get the index of the maximum Z value 
+    -- (as rotated to make the camera be {0,0,d}).
+    --
+    integer np = 1  -- (nearest point)
+    atom maxz = corners[1][Z]
+    for i=2 to length(corners) do
+        atom cz = corners[i][Z]
+        if cz>maxz then
+            maxz = cz
+            np = i
+        end if
+    end for
+    --
+    -- find the three faces that contain the nearest point
+    --
+    sequence faceset = {}
+    for i=1 to length(faces) do
+        sequence fi = faces[i]
+        integer k = find(np,fi)
+        if k then                       -- (2..5)
+            integer diag = mod(k,4)+2   --   ""
+            diag = fi[diag]             -- (1..8)
+            faceset = append(faceset,{corners[diag][Z],i,diag})
+        end if
+    end for
+    if length(faceset)!=3 then ?9/0 end if
+    --
+    -- order by/draw them furthest (diag) away first.
+    -- (this also tells us which face is the front.)
+    --
+    faceset = sort(faceset)
+    return {faceset,np}
 end function
 
-function action(Ihandle ih)
-    IupGLMakeCurrent(ih);
 
-    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+--DEV... (to be set in key_cb)
+--integer sliceset = 0(4)300, rotcode = 0(4)300, rangle = 0, radir = -6, ralim = -90, raxis = X
+--integer sliceset = 0(4)030, rotcode = 0(4)010, rangle = 0, radir = -6, ralim = -90, raxis = Y
+--?factors(90) --{2,3,5,6,9,10,15,18,30,45}
+--DEV put this back...
+integer sliceset = 0(4)003, rotcode = 0(4)003, rangle = 0, radir = 6, ralim = 90, raxis = Z
+--integer sliceset = 0(4)003, rotcode = 0(4)002, rangle = 20, radir = 6, ralim = 90, raxis = Z
+--integer sliceset = 0(4)030, rotcode = 0(4)020, rangle = 20, radir = 6, ralim = 90, raxis = Y
+--integer sliceset = 0(4)300, rotcode = 0(4)200, rangle = 20, radir = 6, ralim = 90, raxis = X
+--integer sliceset = 0, rotcode = 0, rangle = 15, raxis = Z
 
-    draw_cube();
+--constant ss = {0(4)333,0(4)002}
 
-    IupGLSwapBuffers(ih);
+procedure draw_cubies(integer wx, wh)
+sequence cubies = {}
+sequence cpoints = rotate_and_project(cslice),
+         rpoints
 
-    return IUP_DEFAULT;
+atom z1 = cpoints[raxis][Z],
+--   z2 = 0,
+     z3 = cpoints[7-raxis][Z]
+
+sequence csetorder = sq_mul(iff(z1>z3?iff(z1>0?{1,2,3}:{1,3,2})
+                                     :iff(z3>0?{3,2,1}:{3,1,2})),
+                            sliceset/3)
+integer cdx = 1, cset
+atom centre
+sequence xyz
+integer cubie_id
+sequence points,
+         faceset
+integer np
+integer colour
+integer mask
+
+--?{z1,0,z3,csetorder}
+
+    cpoints = rotate_and_project(CENTRES)
+--  if rotcode then
+    if rangle then
+        rpoints = rotate(CENTRES,rangle,raxis)
+        rpoints = rotate_and_project(rpoints)
+    end if
+
+    for x=0(4)100 to 0(4)300 by 0(4)100 do
+        for y=0(4)010 to 0(4)030 by 0(4)010 do
+            for z=0(4)001 to 0(4)003 by 0(4)001 do
+                cubie_id = x+y+z
+--              if rotcode and and_bits(sliceset,cubie_id)=rotcode then
+--              if rangle and and_bits(sliceset,cubie_id)=rotcode then
+                if rangle and (and_bits(sliceset,cubie_id)=rotcode or sliceset=0(4)333) then
+--              if rangle and (and_bits(sliceset,cubie_id)=rotcode or find(sliceset,ss)) then
+                    centre = rpoints[cdx][Z]
+                else
+--?{x,y,z}
+                    centre = cpoints[cdx][Z]
+                end if
+                cdx += 1
+if sliceset=0(4)333 then
+    cset = 0
+else
+                cset = find(and_bits(cubie_id,sliceset),csetorder)
+end if
+                cubies = append(cubies,{cset,centre,cubie_id})
+            end for
+        end for
+    end for
+    cubies = sort(cubies)
+
+    points = rotate_and_project(corners)
+    {faceset,np} = get_faceset(points)
+    set_pov_sides(faceset, points, np)
+
+    for ci=1 to length(cubies) do
+        cubie_id = cubies[ci][3]
+        xyz = sq_and_bits(cubie_id,{0(4)300,0(4)030,0(4)003})
+        xyz = sq_floor_div(xyz,    {0(4)100,0(4)010,0(4)001})
+sequence xyz0 = xyz
+        xyz = sq_sub(xyz,2)     --> (-1|0|+1) (3 of)
+        xyz = sq_mul(xyz,L2)    --> (-L2|0|+L2) "
+        points = sq_add(repeat(xyz,8),cubie0)
+--      if rotcode and and_bits(sliceset,cubie_id)=rotcode then
+--      if rangle and and_bits(sliceset,cubie_id)=rotcode then
+        if rangle and (and_bits(sliceset,cubie_id)=rotcode or sliceset=0(4)333) then
+            points = rotate(points,rangle,raxis)
+        end if
+        points = rotate_and_project(points)
+        {faceset,np} = get_faceset(points)
+        for i=1 to length(faceset) do
+            integer fdx = faceset[i][2]
+            sequence fi = faces[fdx]
+            mask = fmask[iff(fdx>3?7-fdx:fdx)]
+            if and_bits(mask,cubie_id)=fmask[fdx] then
+                -- (using k/2/3 for debugging reasons only)
+                integer k = find(cubie_id,side_map[fdx]),
+                        k2 = face_centres[fdx]+face_pieces[k],
+                        k3 = find(cube[k2],colour_map[1])
+                colour = colour_map[2][k3]
+            else
+                colour = CD_BLACK
+            end if
+            cdCanvasSetForeground(cd_canvas,colour)
+            cdCanvasBegin(cd_canvas,CD_FILL)
+            for k=2 to length(fi) do
+                integer fik = fi[k]
+                cdCanvasVertex(cd_canvas,wx+points[fik][X],wh+points[fik][Y])
+            end for
+            cdCanvasEnd(cd_canvas)
+            -- draw some black lines
+            cdCanvasSetForeground(cd_canvas,CD_BLACK)
+            cdCanvasLineWidth(cd_canvas,4)
+            cdCanvasBegin(cd_canvas,CD_CLOSED_LINES)
+            for k=2 to length(fi) do
+                integer fik = fi[k]
+                cdCanvasVertex(cd_canvas,wx+points[fik][X],wh+points[fik][Y])
+            end for
+            cdCanvasEnd(cd_canvas)
+            cdCanvasLineWidth(cd_canvas,1)
+
+            -- and draw F/U/R/L/D in the centres
+            if colour!=CD_BLACK                         -- if a side facelet
+            and sliceset!=0(4)333 then                  -- not whole cube rots
+                mask = 0(4)333-mask
+                if and_bits(cubie_id,mask)=cmask[fdx]   -- and a centre piece
+                and (rangle=0 or                        -- and not being rotated
+                    (not find(rotcode,{0(04)200,0(4)020,0(4)002})) or 
+                    and_bits(sliceset,cubie_id)!=rotcode) then
+                    cdCanvasSetForeground(cd_canvas,CD_BLACK)
+                    sequence lpoints = labels
+-- works fine... 
+--                  if rangle and and_bits(sliceset,cubie_id)=rotcode then
+--                      lpoints = rotate(lpoints,rangle,raxis)
+--                  end if
+                    lpoints = rotate_and_project(lpoints)
+                    atom mx = wx+lpoints[fdx][X]*label_height,
+                         my = wh+lpoints[fdx][Y]*label_height
+                    cdCanvasText(cd_canvas, mx, my, pov_sides[fdx..fdx]) 
+                end if
+            end if
+        end for
+--sleep(0.1)
+--  cdCanvasFlush(cd_canvas)
+    end for
+end procedure
+
+procedure draw_ulc_swatches(integer h)
+sequence cube9 = split(cube,'\n')
+    cdCanvasSetForeground(cd_canvas,CD_BLACK)
+    cdCanvasBox(cd_canvas, 37, 71, h+1, h-33) 
+    cdCanvasBox(cd_canvas, 4, 137, h-32, h-66) 
+    cdCanvasBox(cd_canvas, 70, 104, h-65, h-99) 
+    for row=1 to 9 do
+        integer x = 5
+        for col=1 to 12 do
+            integer c = cube9[row][col]
+            if c!='-' then
+                integer k = find(c,colour_map[1])
+                integer colour = colour_map[2][k]
+                cdCanvasSetForeground(cd_canvas,colour)
+                cdCanvasBox(cd_canvas, x, x+10, h, h-10) 
+            end if
+            x += 11
+        end for
+        h -= 11
+    end for
+end procedure
+
+function canvas_action_cb(Ihandle canvas)
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    integer {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
+    integer {wx,wh} = sq_floor_div({w,h},2)
+    draw_cubies(wx,wh)
+    draw_ulc_swatches(h-5)
+    cdCanvasFlush(cd_canvas)
+    return IUP_DEFAULT
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
+function canvas_map_cb(Ihandle canvas)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    IupGLMakeCurrent(canvas)
+    cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+    {} = cdCanvasTextAlignment(cd_canvas, CD_CENTER) 
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+constant slices = {0(4)300,0(4)030,0(4)003}
+
+integer movei
+
+function timer_cb(Ihandln timer)
+    rangle += radir
+    if timer!=NULL then
+        IupRedraw(canvas)
+    end if
+    if rangle=ralim then
+        rangle = 0
+        if movei=0 then -- whole cube or middle slice rotation
+            if length(view_rotations) 
+            and view_rotations[1][1] = raxis then
+                view_rotations[1][2] = mod(view_rotations[1][2]+ralim,360)
+            else
+                view_rotations = prepend(view_rotations,{raxis,ralim})
+            end if  
+            if sliceset!=0(4)333 then
+                switch sliceset do
+                    case 0(4)300:
+                        cube = rotate_face(cube,4+Shift*(ralim<0))
+                        cube = rotate_face(cube,2+Shift*(ralim>0))
+                    case 0(4)030:
+                        cube = rotate_face(cube,6+Shift*(ralim<0))
+                        cube = rotate_face(cube,1+Shift*(ralim>0))
+                    case 0(4)003:
+                        cube = rotate_face(cube,3+Shift*(ralim<0))
+                        cube = rotate_face(cube,5+Shift*(ralim>0))
+                end switch
+            end if
+        else
+            cube = rotate_face(cube,movei)
+        end if
+        sliceset = 0
+        if timer!=NULL then
+            IupSetInt(timer,"RUN",0)
+            IupRedraw(canvas)
+        end if
+    end if
+    return IUP_IGNORE
+end function
+
+function help_cb(Ihandle /*ih*/)
+    IupMessage("Cube Help", HELP_TEXT)
+    return IUP_DEFAULT
+end function
+
+enum SIDE, CUBE, MID    -- rotation types (only used within key_cb)
+
+--/*
+--from wp:
+F (Front): the side currently facing the solver
+B (Back): the side opposite the front
+U (Up): the side above or on top of the front side
+D (Down): the side opposite the top, underneath the Cube
+L (Left): the side directly to the left of the front
+R (Right): the side directly to the right of the front
+ƒ (Front two layers): the side facing the solver and the corresponding middle layer
+b (Back two layers): the side opposite the front and the corresponding middle layer
+u (Up two layers) : the top side and the corresponding middle layer
+d (Down two layers) : the bottom layer and the corresponding middle layer
+l (Left two layers) : the side to the left of the front and the corresponding middle layer
+r (Right two layers) : the side to the right of the front and the corresponding middle layer
+x (rotate): rotate the entire Cube on R
+y (rotate): rotate the entire Cube on U
+z (rotate): rotate the entire Cube on F
+M (Middle): the layer between L and R, turn direction as L (top-down)
+E (Equator): the layer between U and D, turn direction as D (left-right)
+S (Standing): the layer between F and B, turn direction as F
+
+An alternative notation, Wolstenholme notation,[53] is designed to make memorising sequences of moves easier for novices. 
+This notation uses the same letters for faces except it replaces U with T (top), so that all are consonants. 
+The key difference is the use of the vowels O, A and I for clockwise, anticlockwise and 180-degree turns, which results in 
+word-like sequences such as LOTA RATO LATA ROTI (equivalent to LU'R'UL'U'RU2 in Singmaster notation). 
+Addition of a C implies rotation of the entire cube, so ROC is the clockwise rotation of the cube around its right face. 
+Middle layer moves are denoted by adding an M to corresponding face move, so RIM means a 180-degree turn of the middle layer adjacent to the R face.
+--*/
+
+function key_cb(Ihandle ih, atom c)
     if c=K_ESC then return IUP_CLOSE end if
+    if c=K_F1 then return help_cb(ih) end if
+    integer axis = find(c,{K_DOWN,K_LEFT,'-','+',K_RIGHT,K_UP})
+    if axis then
+        integer angle = 1
+        if axis>3 then
+            angle = 359
+            axis = 7-axis
+        end if
+        if length(view_rotations) 
+        and view_rotations[$][1] = axis then
+            view_rotations[$][2] = mod(view_rotations[$][2]+angle,360)
+        else
+            view_rotations = append(view_rotations,{axis,angle})
+        end if  
+        IupRedraw(canvas)
+    else
+        integer base = upper(iup_XkeyBase(c))
+--      integer ctrl = iup_isCtrlXkey(c)
+--      integer shift = iup_isShiftXkey(c) (no!!)
+        integer shift = find('S',IupGetGlobal("MODKEYSTATE"))!=0
+--      integer alt = iup_isAltXkey(c)
+
+        integer rot_type = 0
+        integer k = find(base,pov_sides)
+        if k then
+            rot_type = SIDE
+        else
+            k = find(base,"XYZ")
+            if k then
+                rot_type = CUBE
+            else
+                k = find(base,"MES")
+                if k then
+                    rot_type = MID
+                end if
+            end if
+        end if
+
+        if rot_type then
+            if rangle then
+                while rangle do {} = timer_cb(NULL) end while
+                IupRedraw(canvas) -- (set pov_sides for XYZ/MSE)
+            end if          
+            if rot_type=SIDE then
+                rotcode = 1
+                movei = find("RUFBDL"[k],"ULFRBD")+shift*Shift
+            else
+                movei = 0
+                k = find("RUF"[k],pov_sides)
+            end if
+            if k>3 then
+                shift = not shift
+                rotcode = 3
+                k = 7-k
+            end if
+            if k=2 then shift = not shift end if    -- (DEV/fudge...)
+            raxis = k
+            if rot_type=CUBE then
+                sliceset = 0(4)333
+                rotcode = sliceset
+            else
+                sliceset = slices[raxis]
+                if rot_type=SIDE then
+                    rotcode = sliceset/rotcode
+                elsif rot_type=MID then
+                    rotcode = sliceset/3*2
+                end if
+            end if
+            k = iff(shift?1:-1)
+            radir = k*6
+            ralim = k*90
+            IupSetInt(timer,"RUN",1)
+        end if
+    end if      
     return IUP_CONTINUE
 end function
 
+function reset_cb(Ihandle /*ih*/)
+    cube = init
+    IupRedraw(canvas)
+    return IUP_DEFAULT
+end function
+
+function input_cb(Ihandle /*ih*/)
+    cube = init
+    IupRedraw(canvas)
+    return IUP_DEFAULT
+end function
+
+function scramble_cb(Ihandle /*ih*/)
+-- code/tests/random
+    cube = init
+    IupRedraw(canvas)
+    return IUP_DEFAULT
+end function
+
+Ihandln settings_dlg = NULL
+--      goto_lbl, 
+--      goto_txt
+--/*
+
+function goto_longest_cb(Ihandle /*bt_long*/)
+integer line = 1, maxlen = 0, thislen
+    for i=1 to length(filetext[currfile]) do
+        thislen = ExpLength(filetext[currfile][i])
+        if thislen>maxlen then
+            maxlen = thislen
+            line = i
+        end if
+    end for
+    IupSetInt(goto_txt, "VALUE", line)
+    IupSetInt(goto_txt, "STATUS", 1)
+    return IUP_CLOSE;
+end function
+
+function goto_ok_action_cb(Ihandle /*bt_ok*/)
+integer line = IupGetInt(goto_txt, "VALUE");
+    if line<1 or line>=length(filetext[currfile]) then
+        IupMessage("Error", "Invalid line number.");
+        IupSetInt(goto_txt, "STATUS", 0)
+        return IUP_DEFAULT;
+    end if
+    IupSetInt(goto_txt, "STATUS", 1)
+    return IUP_CLOSE;
+end function
+
+function goto_cancel_action_cb(Ihandle /*bt_cancel*/)
+    IupSetInt(goto_txt, "STATUS", 0);
+    return IUP_CLOSE;
+end function
+
+--*/
+
+function settings_cb(Ihandle /*ih*/)
+--Ihandle buttons, box, bt_long, bt_ok, bt_cancel
+    if settings_dlg=NULL then
+--Animate scramble? ([or,] if code<=40?)
+--Animate solve? (or let below cover that)
+-- Animate angle (factors(90) -- {1,2,3,5,6,9,10,15,18,30,45})
+-- Animate delay (>=10 ms)
+--/*
+        goto_lbl = IupLabel()
+        goto_txt = IupText();
+        IupSetAttribute(goto_txt, "MASK", IUP_MASK_UINT);   /* unsigned integer numbers only */
+--      IupSetAttribute(goto_txt, "NAME", "LINE_TEXT");
+        IupSetAttribute(goto_txt, "VISIBLECOLUMNS", "8");
+        bt_long = IupButton("longest","ACTION", Icallback("goto_longest_cb"),"PADDING=10x2")
+        bt_ok = IupButton("OK","ACTION", Icallback("goto_ok_action_cb"),"PADDING=10x2")
+--      bt_ok = IupButton("OK");
+--      IupSetAttribute(bt_ok, "PADDING", "10x2");
+--      IupSetCallback(bt_ok, "ACTION", Icallback("goto_ok_action_cb"));
+        bt_cancel = IupButton("Cancel","ACTION", Icallback("goto_cancel_action_cb"),"PADDING=10x2")
+--      bt_cancel = IupButton("Cancel");
+--      IupSetCallback(bt_cancel, "ACTION", Icallback("goto_cancel_action_cb"));
+--      IupSetAttribute(bt_cancel, "PADDING", "10x2");
+        buttons = IupHbox({IupFill(),bt_long,bt_ok,bt_cancel},"NORMALIZESIZE=HORIZONTAL")
+        box = IupVbox({IupHbox({goto_lbl,goto_txt}),
+                       buttons})
+        IupDestroy(IupNormalizer({goto_lbl,goto_txt},"NORMALIZE=VERTICAL"))
+
+        IupSetAttribute(box, "MARGIN", "10x10");
+        IupSetAttribute(box, "GAP", "5");
+
+        settings_dlg = IupDialog(box);
+        IupSetAttribute(settings_dlg, "TITLE", "Settings");
+        IupSetAttribute(settings_dlg, "DIALOGFRAME", "Yes");
+        IupSetAttributeHandle(settings_dlg, "DEFAULTENTER", bt_ok);
+        IupSetAttributeHandle(settings_dlg, "DEFAULTESC", bt_cancel);
+--      IupSetAttributeHandle(settings_dlg, "PARENTDIALOG", dlg);
+--18/11/17 really??
+--      IupSetAttributePtr(settings_dlg, "PARENTDIALOG", dlg);
+        IupSetAttributeHandle(settings_dlg, "PARENTDIALOG", dlg);
+--*/
+    end if
+--/*
+    IupSetStrAttribute(goto_lbl, "TITLE", "Line Number [1-%d]:", {length(filetext[currfile])});
+    IupSetAttribute(goto_txt, "SELECTION", "ALL");
+
+    IupPopup(settings_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
+
+    if IupGetInt(goto_txt, "STATUS")==1 then
+        integer line = IupGetInt(goto_txt, "VALUE");
+        CursorX = 0
+        CursorY = line-1
+        forceCursorOnscreen()
+        paintall()
+    end if
+--*/
+
+--  IupDestroy(settings_dlg);
+--  IupHide(settings_dlg)   -- (not needed)
+    return IUP_DEFAULT;
+end function
+--global constant cb_settings = Icallback("settings_cb")
+
+function solve_cb(Ihandle /*ih*/)
+--tee hee...
+    cube = init
+    IupRedraw(canvas)
+    return IUP_DEFAULT
+end function
+
+function single_cb(Ihandle /*ih*/)
+--tee hee...
+    cube = init
+    IupRedraw(canvas)
+    return IUP_DEFAULT
+end function
+
+function exit_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+
 procedure main()
-Ihandle dialog, canvas, box;
+    IupOpen()
+--  IupImageLibOpen()
+    Ihandle cmenu = IupMenu({
+--(undo/redo?)
+                             IupMenuItem("&Reset", Icallback("reset_cb")),
+--or option on scramble?
+                             IupMenuItem("&Input cube", Icallback("input_cb")),
+                             IupMenuItem("&Scramble", Icallback("scramble_cb")),
+--tests
+--rotate (to show keystrokes, mainly) - NAH, do that in the help text...
+                             IupMenuItem("Solve\t(Shift F5)", Icallback("solve_cb")),
+                             IupMenuItem("Solve (single-step)\t(F5)", Icallback("single_cb")),
+                             IupMenuItem("E&xit", Icallback("exit_cb"))
+                            }),
+            hmenu = IupMenu({
+--settings
+                             IupMenuItem("&Settings\t(F2)", Icallback("settings_cb")),
+                             IupMenuItem("&About\t(F1)", Icallback("help_cb"))
+                            }),
+            menu = IupMenu({IupSubmenu("&Cube",cmenu),
+                            IupSubmenu("&Help",hmenu)})
 
-    IupOpen();
-    IupGLCanvasOpen();
-
-    box = IupVbox({});
-    IupSetAttribute(box, "MARGIN", "5x5");
-
-    canvas = IupGLCanvas();
-    IupSetCallback(canvas, "ACTION", Icallback("action"));
-    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"));
-    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"));
-    IupSetAttribute(canvas, "BUFFER", "DOUBLE");
-    IupSetAttribute(canvas, "BORDER", "NO");
-    IupSetAttribute(canvas, "RASTERSIZE", "400x400");
-    IupAppend(box, canvas);
-
-    dialog = IupDialog(box);
-    IupSetAttribute(dialog, "TITLE", "IupGLCanvas Test (drag cube to rotate it)")
-
-    IupMap(dialog);
-
-    IupGLMakeCurrent(canvas);
-    init();
---  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR));
---  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER));
---  printf(1,"Version: %s\n", glGetString(GL_VERSION));
-    IupSetAttribute(canvas, "RASTERSIZE", NULL);
-    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
-
-    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
-
-    IupMainLoop();
-
-    IupDestroy(dialog);
-
-    IupClose();
-
+    canvas = IupGLCanvas()
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
+    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    dlg = IupDialog(IupVbox({canvas}))
+--  IupSetAttribute(dlg,"TITLE","Cube Help")
+    IupSetAttribute(dlg,"TITLE","Rubiks Cube")
+    IupSetAttributeHandle(dlg, "MENU", menu)
+    IupSetCallback(dlg, "K_ANY",  Icallback("key_cb"))
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    timer = IupTimer(Icallback("timer_cb"), 40, 0)
+    IupMainLoop()
+    IupClose()
 end procedure
+
 main()
 

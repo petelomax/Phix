@@ -1,3 +1,6 @@
+?"src/qj.e incomplete!"
+--object void
+
 --
 -- edix\src\qj.ew
 -- ==============
@@ -5,7 +8,8 @@
 -- code to quickly extract names of all routines in the current file
 --
 
-Ihandle ROUTINEWINDOW, All, Globals, Sections, Filtxt, Filter, ROUTINELIST
+Ihandln ROUTINEWINDOW=NULL
+Ihandle All, Globals, Sections, Filtxt, Filter, ROUTINELIST
 
 --/*
 constant
@@ -28,11 +32,16 @@ constant
     setVisible(ROUTINEWINDOW, False)
 --*/
 
+
+--atom user32, xIsWindow
+include cffi.e
+set_unicode(0)
+
 sequence routinescope, 
-     routinenames, 
-     routineparams,
-     routinelinenumbers,
-     routineends
+         routinenames, 
+         routineparams,
+         routinelinenumbers,
+         routineends
 --routinetype
 
 sequence BuiltinsPath
@@ -43,11 +52,14 @@ constant ALL=0, GLOBAL=1, SECTION=-1
 procedure setScope()
 --  if isChecked(All) then
     if IupGetInt(All, "VALUE") then
+--?"ALL"
         scope = ALL
 --  elsif isChecked(Globals) then
     elsif IupGetInt(Globals, "VALUE") then
+--?"GLOBAL"
         scope = GLOBAL
     else
+--?"SECTION"
         scope = SECTION
     end if
 end procedure
@@ -75,7 +87,8 @@ integer tally, ind
 --      IupSetInt(toolb_rtns,"VALUE",length(actset))
 --*/
 --  deleteItem(ROUTINELIST,0)   -- empty list
-    IupSetInt(ROUTINELIST,"1",NULL) -- empty list
+--  IupSetInt(ROUTINELIST,"1",NULL) -- empty list
+    IupSetAttribute(ROUTINELIST,"REMOVEITEM","ALL") -- empty list
     -- populate list, applying filter
     tally = 0
     ind = 0
@@ -89,7 +102,7 @@ integer tally, ind
                     name &= routineparams[i]
                 end if
                 if length(name)>512 then name = name[1..512] end if -- added 19/11/2013
---              void = insertItem(ROUTINELIST,name,0)
+--              {} = insertItem(ROUTINELIST,name,0)
                 tally += 1
                 IupSetAttributeId(ROUTINELIST, "", tally, name)
                 if routinelinenumbers[i]<=CursorY+1 then
@@ -125,22 +138,24 @@ integer dbg dbg=ind
         end if
     end for
 --trace(1)
---  void = messageBox("Sorry","Internal Error",MB_OK)
+--  {} = messageBox("Sorry","Internal Error",MB_OK)
     IupMessage("Sorry","Internal Error")
     return 1    -- just jump to line one then
 end function
 
+--/*
 --procedure setHelpFont(integer id)
 procedure setHelpFont(Ihandln id)
 ?{"setHelpFont",id}
 --/*
     if sequence(hFont) then
-        void = sendMessage( id, WM_SETFONT, hFont[4], 1 ) -- EA_Normal
+        {} = sendMessage( id, WM_SETFONT, hFont[4], 1 ) -- EA_Normal
     else
-        void = sendMessage( id, WM_SETFONT, hFont, 1 )
+        {} = sendMessage( id, WM_SETFONT, hFont, 1 )
     end if
 --*/
 end procedure
+--*/
 
 --DEV use the jumpTo?
 procedure jumpToNewLine(integer newline)
@@ -161,71 +176,148 @@ integer justDblClick
 integer initialShow
         initialShow = 0
 
+function action_cb(Ihandle /*ih*/, integer state)
+    if state=1 then
+        setScope()
+        string Ftext = IupGetAttribute(Filter,"VALUE")
+        if not equal(onScreen,{scope,Ftext}) then
+            onScreen = {scope,Ftext}
+            -- insert these into list
+            if not populateRoutineList() and clearFilterIfEmpty then
+                IupSetAttribute(Filter,"VALUE","")
+                if populateRoutineList() then end if
+            end if
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+constant cb_action = Icallback("action_cb")
+
+function dblclick_cb(Ihandle /*ROUTINELIST*/, integer item, atom /*pText*/)
+    -- Focus issues if I act immediately on the double click, 
+    -- so instead I set a flag and act on the next mouse up.
+    justDblClick = getActualLineNumberOfRoutine(item)
+    return IUP_CONTINUE
+end function
+constant cb_dblclick = Icallback("dblclick_cb")
+
+function button_cb(Ihandle /*ROUTINELIST*/, integer /*button*/, pressed, /*x*/, /*y*/, atom /*pStatus*/)
+    if pressed=0 and justDblClick!=0 then
+        jumpToNewLine(justDblClick)
+        justDblClick = 0
+        IupHide(ROUTINEWINDOW)
+    end if
+    return IUP_CONTINUE
+end function
+constant cb_button = Icallback("button_cb")
+
+function rtn_keys_cb(Ihandle ih/*HelpWin*/, atom c)
+    if c=K_ESC then
+        IupHide(ROUTINEWINDOW)
+    elsif c=K_CR then
+        integer item = IupGetInt(ROUTINELIST,"VALUE"),
+                line = getActualLineNumberOfRoutine(item)
+        jumpToNewLine(line)
+        IupHide(ROUTINEWINDOW)
+    elsif c=K_DEL
+       or c=K_BS then
+        string Ftext = IupGetAttribute(Filter,"VALUE")
+        if length(Ftext) then
+            Ftext = Ftext[1..$-1]
+            IupSetAttribute(Filter,"VALUE",Ftext)
+            if populateRoutineList() then end if
+        end if
+    elsif c>=' ' and c<='~' then
+        string Ftext = IupGetAttribute(Filter,"VALUE")&c
+        IupSetAttribute(Filter,"VALUE",Ftext)
+        if populateRoutineList() then end if
+    end if
+    return IUP_CONTINUE
+end function
+constant cb_rtn_keys = Icallback("rtn_keys_cb")
+
+procedure create_rtnwin()
+    All = IupToggle("&All",cb_action,"CANFOCUS=NO")
+    Globals = IupToggle("&Globals",cb_action,"CANFOCUS=NO")
+    Sections = IupToggle("&Sections",cb_action,"CANFOCUS=NO")
+    Ihandle radio = IupRadio(IupHbox({All,Globals,Sections}))
+    Filtxt = IupLabel("Filter")
+    Filter = IupText("EXPAND=HORIZONTAL,CANFOCUS=NO,ACTIVE=NO")
+--  IupSetCallback(Filter,"GETFOCUS_CB",cb_filter_getfocus)
+    Ihandle hbox = IupHbox({radio,Filtxt,Filter},"ALIGNMENT=ACENTER")
+    ROUTINELIST = IupList("EXPAND=YES,SIZE=500x250")
+    IupSetCallback(ROUTINELIST,"DBLCLICK_CB",cb_dblclick)
+    IupSetCallback(ROUTINELIST,"BUTTON_CB",cb_button)
+    ROUTINEWINDOW = IupDialog(IupVbox({hbox,ROUTINELIST},"MARGIN=5x5,GAP=5"))
+    IupSetCallback(ROUTINEWINDOW,"K_ANY",cb_rtn_keys)
+    IupSetAttributeHandle(ROUTINEWINDOW,"PARENTDIALOG",dlg)
+end procedure
+
 --/*
 without trace
 function routinelistHandler(integer id, integer msg, atom wParam, object lParam)
 sequence rect
 integer index
 sequence Ftext
-    if msg=WM_SIZE then
-        rect = getClientRect(ROUTINEWINDOW)
-        void = c_func( xMoveWindow, {RLhwnd, 2, 40, rect[3]-4, rect[4]-42, 1} )
-        void = c_func( xMoveWindow, {FltrHwnd, 255, 12, rect[3]-260, 25, 1} )
-    elsif id=ROUTINELIST then
-        if msg=WM_LBUTTONDBLCLK then
-            -- I get focus issues if I act on the double click,
-            -- (probably because if I hide the window and setfocus to
-            --  Main, then windows gets a mouseup message for the now
-            --  hidden control, it nicks focus back from Main)
-            -- so instead I set a flag and act on the next mouse up.
-            justDblClick = 1
-        elsif (msg=WM_LBUTTONUP and justDblClick)
-           or (msg=WM_CHAR and wParam=VK_RETURN) then
-            justDblClick = 0
-            index = getIndex(ROUTINELIST)
-            if index>0 then
-                index = getActualLineNumberOfRoutine(index)
-                jumpToNewLine(index)
-                msg = WM_CLOSE
-            end if
-        end if
-    elsif msg=WM_CTLCOLORLISTBOX and lParam=getHwnd(ROUTINELIST) then
-        void = c_func(xSetTextColor, {wParam, ColourTab[Other]})
-        void = c_func(xSetBkMode , {wParam, TRANSPARENT})
-        return {backBrush}
-    elsif msg=WM_COMMAND then
-        if find(id,{All,Globals,Sections}) then
-            if lParam=1 then
-                setCheck({All,Globals,Sections},False)
-                setCheck(id,True)
-            end if
-        elsif id=Filtxt then
-            setFocus(Filter)
-            return 0
-        end if
-        setScope()
-        Ftext = getText(Filter)
-        if not equal(onScreen,{scope,Ftext}) then
-            onScreen = {scope,Ftext}
-            -- insert these into list
-            if not populateRoutineList() and clearFilterIfEmpty then
-                setText(Filter,"")
-                if populateRoutineList() then end if
-            end if
-        end if
-    elsif id=All and msg=WM_SETFOCUS and initialShow then
-        -- there is an annoying focusbox on "All" which appears
-        -- on the initial display; suppress it while the 
-        -- routinelist is being built.
---DEV copy handling from tedb here.
-        return {1}
-    end if
-    if id!=Filter and msg=WM_KEYDOWN and wParam=VK_DELETE then
-        Ftext = getText(Filter)
-        if length(Ftext) then
-            setText(Filter,Ftext[1..length(Ftext)-1])
-            if populateRoutineList() then end if
-        end if
+--  if msg=WM_SIZE then
+--      rect = getClientRect(ROUTINEWINDOW)
+--      void = c_func( xMoveWindow, {RLhwnd, 2, 40, rect[3]-4, rect[4]-42, 1} )
+--      void = c_func( xMoveWindow, {FltrHwnd, 255, 12, rect[3]-260, 25, 1} )
+--  elsif id=ROUTINELIST then
+--      if msg=WM_LBUTTONDBLCLK then
+--          -- I get focus issues if I act on the double click,
+--          -- (probably because if I hide the window and setfocus to
+--          --  Main, then windows gets a mouseup message for the now
+--          --  hidden control, it nicks focus back from Main)
+--          -- so instead I set a flag and act on the next mouse up.
+--          justDblClick = 1
+--      elsif (msg=WM_LBUTTONUP and justDblClick)
+--         or (msg=WM_CHAR and wParam=VK_RETURN) then
+--          justDblClick = 0
+--          index = getIndex(ROUTINELIST)
+--          if index>0 then
+--              index = getActualLineNumberOfRoutine(index)
+--              jumpToNewLine(index)
+--              msg = WM_CLOSE
+--          end if
+--      end if
+--  elsif msg=WM_CTLCOLORLISTBOX and lParam=getHwnd(ROUTINELIST) then
+--      void = c_func(xSetTextColor, {wParam, ColourTab[Other]})
+--      void = c_func(xSetBkMode , {wParam, TRANSPARENT})
+--      return {backBrush}
+--  elsif msg=WM_COMMAND then
+--      if find(id,{All,Globals,Sections}) then
+--          if lParam=1 then
+--              setCheck({All,Globals,Sections},False)
+--              setCheck(id,True)
+--          end if
+--      elsif id=Filtxt then
+--          setFocus(Filter)
+--          return 0
+--      end if
+--      setScope()
+--      Ftext = getText(Filter)
+--      if not equal(onScreen,{scope,Ftext}) then
+--          onScreen = {scope,Ftext}
+--          -- insert these into list
+--          if not populateRoutineList() and clearFilterIfEmpty then
+--              setText(Filter,"")
+--              if populateRoutineList() then end if
+--          end if
+--      end if
+--  elsif id=All and msg=WM_SETFOCUS and initialShow then
+--      -- there is an annoying focusbox on "All" which appears
+--      -- on the initial display; suppress it while the 
+--      -- routinelist is being built.
+----DEV copy handling from tedb here.
+--      return {1}
+--  end if
+--  if id!=Filter and msg=WM_KEYDOWN and wParam=VK_DELETE then
+--      Ftext = getText(Filter)
+--      if length(Ftext) then
+--          setText(Filter,Ftext[1..length(Ftext)-1])
+--          if populateRoutineList() then end if
+--      end if
     elsif msg=WM_CHAR and wParam!=VK_ESCAPE and id!=Filter then
         if wParam>=' ' and wParam<='z' then
             setText(Filter,getText(Filter)&wParam)
@@ -763,7 +855,10 @@ global procedure setListOfAllRoutines(integer target, sequence text, integer log
     if logG then
         incset = {}
         if logG!=3 then -- this already called from backGroundProcessing
-            initForGlobalLogging(filepaths[currfile],filenames[currfile])
+            string path = filepaths[currfile],
+                   name = filenames[currfile]
+            {} = logFile(path,name,1)
+            initForGlobalLogging(path,name)
         end if
     end if
 
@@ -820,6 +915,8 @@ integer default_view
         return
     end if
 
+    if ROUTINEWINDOW=NULL then create_rtnwin() end if
+    
 --  if isVisible(ROUTINEWINDOW)=False then
     if IupGetInt(ROUTINEWINDOW,"VISIBLE")=0 then
 
@@ -831,18 +928,18 @@ integer default_view
 
         if not equal(lcfile,"[untitled]") then
 
-            setHelpFont(ROUTINELIST)
+--          setHelpFont(ROUTINELIST)
 
             initialShow = 1
 --          setEnable(TC,False)
-?"setEnable(TC,False)"
+--?"setEnable(TC,False)"
 --          addFocus(ROUTINEWINDOW)
-?"addFocus(ROUTINEWINDOW)"
+--?"addFocus(ROUTINEWINDOW)"
 --          openWindow(ROUTINEWINDOW, SW_NORMAL)    
-            IupShow(ROUTINEWINDOW)
+            IupShowXY(ROUTINEWINDOW,IUP_CENTERPARENT,IUP_CENTERPARENT)
 --(menus get disabled)
 --??        call_proc(r_enableMenuToolBar,{})
-?"call_proc(r_enableMenuToolBar,{})"
+--?"call_proc(r_enableMenuToolBar,{})"
 
             -- default to Sections view for non-Euphoria/Phix files
             default_view = Sections
@@ -866,8 +963,11 @@ integer default_view
             -- pretend All or Sections radio just clicked:
             onScreen = {} -- force update!
             clearFilterIfEmpty = 1
-?9/0
+--?9/0
 --          void = routinelistHandler(default_view,WM_COMMAND,0,1)
+--?"routinelistHandler(default_view,WM_COMMAND,0,1)"
+            IupSetAttribute(default_view,"VALUE","ON")
+            {} = action_cb(default_view, 1)
             clearFilterIfEmpty = 0
 
             initialShow = 0
@@ -881,7 +981,7 @@ end procedure
 -- Part 2: the help text window.
 --
 Ihandln HelpWin = NULL
-Ihandle HelpList
+Ihandle HelpList, Hexmncd, HWclose, Hkeybdh
 --/*
 constant
     HelpWin = create(Window, "", 0, Main, 100, 10, ScreenW-200, ScreenH-90, 0),
@@ -901,9 +1001,46 @@ sequence EurefWord
 object KeyHelpText
        KeyHelpText = 0
 
+function help_keys_cb(Ihandle /*HelpWin*/, atom c)
+    if c=K_ESC then
+        IupHide(HelpWin)
+    end if
+    return IUP_CONTINUE
+end function
+constant cb_help_keys = Icallback("help_keys_cb")
+
+function help_close_cb(Ihandle /*HWclose*/)
+    IupHide(HelpWin)
+    return IUP_CONTINUE
+end function
+constant cb_help_close = Icallback("help_close_cb")
+
+procedure create_helpwin()
+    HelpList = IupList("EXPAND=YES,SIZE=500x250")
+--/*
+list_1 = IupList();
+--  IupSetAttribute(list_1,"EXPAND","YES");
+IupSetAttribute(list_1,"VALUE","1");
+IupSetAttribute(list_1,"1","Item 1 Text");
+IupSetAttribute(list_1,"2","Item 2 Text");
+IupSetAttribute(list_1,"3","Item 3 Text");
+IupSetAttribute(list_1,"TIP","List 1");
+--*/
+    Hexmncd = IupButton("Examine code")
+    HWclose = IupButton("Close",cb_help_close)
+    Hkeybdh = IupButton("Keyboard Help")
+    Ihandle buttons = IupHbox({Hexmncd,IupFill(),HWclose,IupFill(),Hkeybdh})
+    HelpWin = IupDialog(IupVbox({HelpList,buttons},"MARGIN=5x5,GAP=5"))
+    IupSetCallback(HelpWin,"K_ANY",cb_help_keys)
+    IupSetAttributeHandle(HelpWin,"PARENTDIALOG",dlg)
+    IupSetAttributeHandle(HelpWin,"STARTFOCUS",HWclose)
+end procedure
+
 procedure setKeyHelpText()
+    if HelpWin=NULL then create_helpwin() end if
 --  deleteItem(HelpList,0)  -- empty list
-    IupSetInt(HelpList,"1",NULL) -- empty list
+--  IupSetInt(HelpList,"1",NULL) -- empty list
+    IupSetAttribute(HelpList,"REMOVEITEM","ALL") -- empty list
     if atom(KeyHelpText) then
         KeyHelpText = xl("_F1HELP")
         for i=1 to length(KeyHelpText) do
@@ -914,6 +1051,7 @@ procedure setKeyHelpText()
             end if
         end for
     end if
+    if HelpWin=NULL then ?9/0 end if
 --  void = insertItem(HelpList,KeyHelpText,0)
 --  IupSetAttributeId(ROUTINELIST, "", tally, name)
     IupSetAttribute(HelpList, "1", KeyHelpText)
@@ -995,7 +1133,8 @@ integer rend, start, bcount, tally
     targetLine = idx
 
 --  deleteItem(HelpList,0)  -- empty list
-    IupSetInt(HelpList,"1",NULL) -- empty list
+--  IupSetInt(HelpList,"1",NULL) -- empty list
+    IupSetAttribute(HelpList,"REMOVEITEM","ALL") -- empty list
 --  void = insertItem(HelpList,"",0)    -- start with a blank line (DEV, spacing issue)
 
     start = idx
@@ -1080,7 +1219,7 @@ integer lineno
     if fn=-1 then
         if showErr then
 --          void = messageBox(xl("Edita: Error opening file"),filepathname,0)
-            IupMessage("Edita: Error opening file",filepathname)
+            IupMessage("Edix: Error opening file",filepathname)
         end if
         return ""
     end if
@@ -1107,20 +1246,43 @@ integer lineno
     return text[1..lineno]
 end function
 
+--/*
+--DEV nicked from xlate.e:
+--global 
+function getexhname()
+sequence exhpath, exhname
+--? if tf>=0 then
+    if 1 then
+--      exhpath=current_dir()&"\\lang\\"
+        exhpath=initialcurrentdir&"lang\\"
+--      exhname="ealng_" & tfname & ".exh"
+        exhname="elng_" & tfname & ".exh"
+--      if not atom(pdir:dir(exhpath&exhname)) then
+        if not atom(dir(exhpath&exhname)) then
+            return {exhpath,exhname}
+        end if
+    end if
+    return 0
+end function
+--*/
+
 function loadfsIdx()
-sequence exhname
+--sequence exhname
 integer idx
     text = {}
     filepathname = getNameAndDir(fileset[fsIdx],1,1)
+--/*
     exhname = getexhname()
     if equal(exhname[2],filepathname[2]) then
 --DEV Phix?
+        if HelpWin=NULL then ?9/0 end if
 --      setText(HelpWin,xl("Euphoria Builtin"))
         IupSetAttribute(HelpWin,"TITLE","Phix builtin")
 --      setText(Hexmncd,xl("Reference Manual"))
 ?9/0
         EurefWord = word
     end if
+--*/
     target = 0
 --if usegpp then
     for i=1 to length(filepaths) do
@@ -1169,6 +1331,7 @@ integer idx
     idx = find(word,routinenames)
     if idx!=0 then
         if not length(EurefWord) then
+            if HelpWin=NULL then ?9/0 end if
 --          setText(HelpWin,filepathname&sprintf(" [%d/%d]",{fsIdx,length(fileset)}))
             IupSetStrAttribute(HelpWin,"TITLE",filepathname&" [%d/%d]",{fsIdx,length(fileset)})
         end if
@@ -1180,18 +1343,18 @@ end function
 without trace
 function HelpWinHandler(integer id, integer msg, atom wParam, object lParam)
 sequence rect
-    if msg=WM_SIZE then
-        rect = getClientRect(HelpWin)
-        void = c_func(xMoveWindow, {HLhwnd, 2, 2, rect[3]-4, rect[4]-40, 1})
-        void = c_func(xMoveWindow, {Hechwnd, 4, rect[4]-34, 126, 30, 1})
-        void = c_func(xMoveWindow, {Hwchwnd, floor(rect[3]/2)-57, rect[4]-34, 94, 30, 1})
-        void = c_func(xMoveWindow, {Hkhhwnd, rect[3]-151, rect[4]-34, 147, 30, 1})
-
-    elsif msg=WM_CTLCOLORLISTBOX and lParam=getHwnd(HelpList) then
-        void = c_func(xSetTextColor, {wParam, ColourTab[Other]})
-        void = c_func(xSetBkMode , {wParam, TRANSPARENT})
-        return {backBrush}
-    elsif msg=WM_COMMAND 
+--  if msg=WM_SIZE then
+--      rect = getClientRect(HelpWin)
+--      void = c_func(xMoveWindow, {HLhwnd, 2, 2, rect[3]-4, rect[4]-40, 1})
+--      void = c_func(xMoveWindow, {Hechwnd, 4, rect[4]-34, 126, 30, 1})
+--      void = c_func(xMoveWindow, {Hwchwnd, floor(rect[3]/2)-57, rect[4]-34, 94, 30, 1})
+--      void = c_func(xMoveWindow, {Hkhhwnd, rect[3]-151, rect[4]-34, 147, 30, 1})
+--
+--  elsif msg=WM_CTLCOLORLISTBOX and lParam=getHwnd(HelpList) then
+--      void = c_func(xSetTextColor, {wParam, ColourTab[Other]})
+--      void = c_func(xSetBkMode , {wParam, TRANSPARENT})
+--      return {backBrush}
+    if msg=WM_COMMAND 
       or (msg=WM_CHAR and wParam=VK_RETURN) then
         if id=Hexmncd then
             if length(EurefWord) then
@@ -1265,7 +1428,9 @@ integer tally = 0
             end for
         end if
 --      deleteItem(HelpList,0)  -- empty list
-        IupSetInt(HelpList,"1",NULL) -- empty list
+        if HelpWin=NULL then create_helpwin() end if
+--      IupSetInt(HelpList,"1",NULL) -- empty list
+        IupSetAttribute(HelpList,"REMOVEITEM","ALL") -- empty list
         for i=1 to length(text) do
             if match(startWord,text[i]) then
                 if targetLine=0 then
@@ -1281,212 +1446,225 @@ integer tally = 0
     end if
 end procedure
 
---DEV??
---global 
-atom HH, HtmlHelp
-            HH = 0
-sequence lastHHname
-         lastHHname = {}
+sequence lastHHname = {}
 
 constant 
-  HH_DISPLAY_TOPIC    = #0000,
+--  HH_DISPLAY_TOPIC      = #0000,
   HH_DISPLAY_TOC      = #0001,
   HH_KEYWORD_LOOKUP   = #000D,
-  HH_ALINK_LOOKUP     = #0013, 
-  HH_CLOSE_ALL        = #0012   -- close all windows opened directly or indirectly by the caller
+  HH_ALINK_LOOKUP     = #0013 
+--  HH_CLOSE_ALL          = #0012   -- close all windows opened directly or indirectly by the caller
 
---DEV cffi, windows only...
---/*
-constant 
-    HH_AKLINK       = new_struct(),
-    cbStruct        = struc(C_LONG), -- sizeof this structure
-    fReserved       = struc(C_LONG), -- must be FALSE (really!)
-    pszKeywords     = struc(C_POINTER), -- semi-colon separated keywords
-    pszURL          = struc(C_POINTER), -- URL to jump to if no keywords found (may be NULL)
-    pszMsgText      = struc(C_POINTER), -- Message text to display in MessageBox if pszUrl is NULL and no keyword match
-    pszMsgTitle     = struc(C_POINTER), -- Message text to display in MessageBox if pszUrl is NULL and no keyword match
-    pszWindow       = struc(C_POINTER), -- Window to display URL in
-    fIndexOnFail    = struc(C_LONG) -- Displays index if keyword lookup fails.
+constant tHH="""
+HWND HtmlHelp(
+              HWND    hwndCaller,
+              LPCSTR  pszFile,
+              UINT    uCommand,
+              DWORD   dwData) ;"""
+integer xHtmlHelp=0
 
-constant aklen = sizeofstruct(HH_AKLINK)
---*/
+constant tHH_AKLINK="""
+typedef struct tagHH_AKLINK {
+  int     cbStruct;
+  BOOL    fReserved;
+  LPCTSTR pszKeywords;
+  LPCTSTR pszUrl;
+  LPCTSTR pszMsgText;
+  LPCTSTR pszMsgTitle;
+  LPCTSTR pszWindow;
+  BOOL    fIndexOnFail;
+} HH_AKLINK;"""
+integer idHH_AKLINK
 
-atom chmwnd
-     chmwnd = NULL
+constant tIsWindow="""
+BOOL WINAPI IsWindow(
+  _In_opt_  HWND hWnd
+);"""
+integer xIsWindow
 
-atom hProcess
-     hProcess = NULL
+constant tGetForegroundWindow="""
+HWND WINAPI GetForegroundWindow(void);"""
+integer xGetForegroundWindow
 
---include builtins\syswait.ew
+constant tRegisterHotKey = """
+BOOL WINAPI RegisterHotKey(
+  _In_opt_  HWND hWnd,
+  _In_      int id,
+  _In_      UINT fsModifiers,
+  _In_      UINT vk
+);"""
+integer xRegisterHotKey
 
-atom lpEXECINFO
-     lpEXECINFO = 0
+constant tUnregisterHotKey = """
+BOOL WINAPI UnregisterHotKey(
+  _In_opt_  HWND hWnd,
+  _In_      int id
+);"""
+integer xUnregisterHotKey
 
-constant SEE_MASK_NOCLOSEPROCESS = #40
+constant WM_HOTKEY = 0x0312
+
+constant tSetWindowLongPtr = """
+LONG_PTR WINAPI SetWindowLongPtr(
+  _In_  HWND hWnd,
+  _In_  int nIndex,
+  _In_  LONG_PTR dwNewLong
+);"""
+integer xSetWindowLongPtr
+
+constant tCallWindowProc = """
+LRESULT WINAPI CallWindowProc(
+  _In_  WNDPROC lpPrevWndFunc,
+  _In_  HWND hWnd,
+  _In_  UINT Msg,
+  _In_  WPARAM wParam,
+  _In_  LPARAM lParam
+);"""
+integer xCallWindowProc
+
+constant GWL_WNDPROC = -4          
+
+constant tSendMessage = """
+LRESULT WINAPI SendMessage(
+  _In_  HWND hWnd,
+  _In_  UINT Msg,
+  _In_  WPARAM wParam,
+  _In_  LPARAM lParam
+);"""
+integer xSendMessage
+
+procedure initw()
+-- windows-only initialisation (for F1 help chm file, esp close on esc)
+    xHtmlHelp = define_cffi_func("hhctrl.ocx",tHH)
+    idHH_AKLINK = define_struct(tHH_AKLINK)
+    xIsWindow = define_cffi_func("user32.dll",tIsWindow)
+    xGetForegroundWindow = define_cffi_func("user32.dll",tGetForegroundWindow)
+    xRegisterHotKey = define_cffi_func("user32.dll",tRegisterHotKey)
+    xUnregisterHotKey = define_cffi_func("user32.dll",tUnregisterHotKey)
+    string tSetWindowLong = tSetWindowLongPtr
+    if machine_bits()=32 then
+        -- YUK: (because C handles this using a stupid macro...)
+        tSetWindowLong = substitute(tSetWindowLong,"SetWindowLongPtr","SetWindowLong")
+    end if      
+    xSetWindowLongPtr = define_cffi_func("user32.dll",tSetWindowLong)
+    xCallWindowProc = define_cffi_func("user32.dll",tCallWindowProc)
+    xSendMessage = define_cffi_func("user32.dll",tSendMessage)
+end procedure
+
+atom chmwnd = NULL
+
+atom lpPrevWndProc = NULL
+atom hwnd = NULL
+
+integer isRegistered = 0
+
+Ihandln chmesc = NULL
+
+procedure unregister(bool bStopTimer)
+--(common code) [windows only]
+    if bStopTimer then
+        chmwnd = NULL
+        IupSetAttribute(chmesc,"RUN","NO")
+    end if
+    if isRegistered then
+        {} = c_func(xUnregisterHotKey,{hwnd,1})
+        isRegistered = 0
+    end if
+end procedure
+
+function chmesc_cb(Ihandle /*chmesc*/)
+-- timer callback (10 times a second) [windows only]
+bool bStopTimer = false
+    if chmwnd!=NULL then
+        if not c_func(xIsWindow,{chmwnd}) then
+            bStopTimer = true
+        elsif c_func(xGetForegroundWindow,{})=chmwnd then
+            if not isRegistered then
+                isRegistered = c_func(xRegisterHotKey,{hwnd,1,0,#1B})
+            end if
+            return IUP_DEFAULT
+        end if
+    end if
+    unregister(bStopTimer)
+    return IUP_DEFAULT
+end function
+constant cb_chmesc = Icallback("chmesc_cb")
+
+constant WM_CLOSE = 0x0010
+
+function winproc(atom hwnd, uMsg, wParam, lParam)
+    if uMsg=WM_HOTKEY
+    and chmwnd!=NULL
+    and c_func(xIsWindow,{chmwnd})
+    and c_func(xGetForegroundWindow,{})=chmwnd then
+        {} = c_func(xSendMessage,{chmwnd,WM_CLOSE,0,0})
+        unregister(true)
+        return 0
+    end if
+    return c_func(xCallWindowProc,{lpPrevWndProc,hwnd,uMsg,wParam,lParam})
+end function
+constant cb_winproc = call_back(routine_id("winproc"))
+
 
 global procedure openChm(sequence filename, object word)
-sequence ext
-atom pChm, ak
-
-    ext = getFileExtension(filename)
---  if find(' ',filename) then
---      filename = '\"'&filename&'\"'
---  end if
---DEV drop support for this?
---/*
-    if equal(ext,"hlp") then
-        if sequence(word) then
---          void = system_wait("winhlp32 -k "&word&" "&filename)
-            filename = "-k "&word&" "&filename
---      else
---          void = system_wait("winhlp32 "&filename)
-        end if
---      if hhwnd>32 then
---          puts(1,"WM_CLOSE\n")
---          void = c_func(xSendMessage,{hhwnd,WM_CLOSE,0,0})
---      end if
---      hhwnd = c_func(xShellExecute,{mainHwnd,
---                                    allocate_StringZ("open"),
---                                    allocate_StringZ("winhlp32"),
---                                    allocate_StringZ(filename),
---                                    NULL,
---                                    SW_SHOWNORMAL})
---?hhwnd
-        if lpEXECINFO=0 then
-            lpEXECINFO = allocate(sizeofstruct(SHELLEXECUTEINFO))
-            poke4(lpEXECINFO+SHELLEXECUTEINFO_cbSize,sizeofstruct(SHELLEXECUTEINFO))
-            poke4(lpEXECINFO+SHELLEXECUTEINFO_hwnd,mainHwnd)
-            poke4(lpEXECINFO+SHELLEXECUTEINFO_lpDirectory,0)
-            poke4(lpEXECINFO+SHELLEXECUTEINFO_nShow,SW_SHOWNORMAL)
-        end if
-        if hProcess then
-            void = c_func(xTerminateProcess,{hProcess,0})
-        end if
-        poke4(lpEXECINFO+SHELLEXECUTEINFO_fMask,SEE_MASK_NOCLOSEPROCESS)
-        poke4(lpEXECINFO+SHELLEXECUTEINFO_lpVerb,allocate_StringZ("open"))
-        poke4(lpEXECINFO+SHELLEXECUTEINFO_lpFile,allocate_StringZ("winhlp32"))
-        poke4(lpEXECINFO+SHELLEXECUTEINFO_lpParameters,allocate_StringZ(filename))
-        if c_func(xShellExecuteEx,{lpEXECINFO}) then
-            hProcess = peek4u(lpEXECINFO+SHELLEXECUTEINFO_hProcess)
-        else
-            hProcess = 0
-        end if
-    elsif equal(ext,"chm") then
---*/
-    if equal(ext,"chm") and platform()=WINDOWS then
-        if HH=0 then
-            HH = open_dll("hhctrl.ocx")
-            HtmlHelp = define_c_func(HH,"HtmlHelpA",{C_PTR,C_PTR,C_UINT,C_LONG},C_PTR)
---          void = c_func(xRegisterHotKey,{mainHwnd,1,0,VK_ESCAPE})
---          setText(Main,sprintf("xRegisterHotKey: %d",void))
-        end if
-?9/0
---/*
-        if chmwnd then
+    if get_file_extension(filename)!="chm" then ?9/0 end if
+    if platform()=WINDOWS then
+        if xHtmlHelp=0 then initw() end if
+        if chmwnd!=NULL then
             if not c_func(xIsWindow,{chmwnd}) then
                 chmwnd = NULL
             elsif not equal(lastHHname,filename) then
-                void = c_func(HtmlHelp,{0,NULL,HH_CLOSE_ALL,NULL})
+                {} = c_func(xSendMessage,{chmwnd,WM_CLOSE,0,0})
                 lastHHname = ""
                 chmwnd = NULL
-                --
-                -- Yuk:
-                -- When switching between chm files, if you don't give it time to close, 
-                --  it will try to open the new window in the existing file and bitch
-                --  and moan (by opening an error message in the background where you
-                --  cannot see it and think your app has hung) telling you that the new
-                --  window does not exist in the old file. Well, DUH, that's why I told
-                --  you to shut it, you stupid thing...
-                --
-                sleep(1)
             end if
         end if
-        pChm = allocate_StringZ(filename)
+        atom pChm = IupRawStringPtr(filename)
         if sequence(word) then
-            ak = allocate(aklen)
-            mem_set(ak,0,aklen)
-            poke4(ak+cbStruct,aklen)
-            poke4(ak+fReserved,False)
-            poke4(ak+pszKeywords,allocate_StringZ(word))
-            poke4(ak+pszURL,NULL)
-            poke4(ak+pszMsgText,NULL)
-            poke4(ak+pszMsgTitle,NULL)
-            poke4(ak+pszWindow,NULL)
-            poke4(ak+fIndexOnFail,True)
+            atom ak = allocate_struct(idHH_AKLINK)
+            set_struct_field(idHH_AKLINK,ak,"cbStruct",get_struct_size(idHH_AKLINK))
+            set_struct_field(idHH_AKLINK,ak,"fReserved",false)
+            set_struct_field(idHH_AKLINK,ak,"pszKeywords",IupRawStringPtr(word))
+            set_struct_field(idHH_AKLINK,ak,"pszUrl",NULL)
+            set_struct_field(idHH_AKLINK,ak,"pszMsgText",NULL)
+            set_struct_field(idHH_AKLINK,ak,"pszMsgTitle",NULL)
+            set_struct_field(idHH_AKLINK,ak,"pszWindow",NULL)
+            set_struct_field(idHH_AKLINK,ak,"fIndexOnFail",true)
             -- show the page we want...
-            chmwnd = c_func(HtmlHelp,{0,pChm,HH_KEYWORD_LOOKUP,ak})
+            chmwnd = c_func(xHtmlHelp,{0,pChm,HH_KEYWORD_LOOKUP,ak})
             -- 30/12/13: ...and fill in the index to match
-            void = c_func(HtmlHelp,{0,pChm,HH_ALINK_LOOKUP,ak})
+            {} = c_func(xHtmlHelp,{0,pChm,HH_ALINK_LOOKUP,ak})
             free(ak)
-            lastHHname = filename
--- 31/01/14:
         else
-            chmwnd = c_func(HtmlHelp,{0,pChm,HH_DISPLAY_TOC,NULL})
+            chmwnd = c_func(xHtmlHelp,{0,pChm,HH_DISPLAY_TOC,NULL})
         end if
---*/
+        lastHHname = filename
+        if lpPrevWndProc=NULL then
+            hwnd = IupGetAttributePtr(dlg,"HWND")
+            lpPrevWndProc = c_func(xSetWindowLongPtr,{hwnd,GWL_WNDPROC,cb_winproc})
+            if chmesc=NULL then
+                chmesc = IupTimer(cb_chmesc, 100)
+            end if
+        end if
+        IupSetAttribute(chmesc,"RUN","YES")
     else
-        ?9/0
+        ?"9/0 (qj.e line 1665)"
     end if
 end procedure
-
-global function setChmHotKey(integer isRegistered)
-?{"setChmHotKey",isRegistered}
---/*
-    if HH and chmwnd!=NULL then
-        if not c_func(xIsWindow,{chmwnd}) then  -- has user manually closed it?
-            chmwnd=NULL
-        elsif c_func(xGetForegroundWindow,{})=chmwnd then
-            if not isRegistered then
-                void = c_func(xRegisterHotKey,{mainHwnd,1,0,VK_ESCAPE})
---setText(Main,sprintf("Registerhotkey[2]: %d",void))
-            end if
-            return 1
-        end if
-    end if
-    if isRegistered then
-        void = c_func(xUnregisterHotKey,{mainHwnd,1})
---setText(Main,sprintf("unregisterhotkey[2]: %d",void))
-    end if
---*/
-    return 0
-end function
 
 global procedure closeChm()
-?"closeChm"
---/*
-    if hProcess then
-        void = c_func(xTerminateProcess,{hProcess,0})
-        hProcess = 0
-    end if
-    if HH and chmwnd!=NULL then
-        if not c_func(xIsWindow,{chmwnd}) then  -- has user manually closed it?
-            chmwnd = NULL
-        elsif length(lastHHname) then
-            void = c_func(HtmlHelp,{0,NULL,HH_CLOSE_ALL,NULL})
-            lastHHname = ""
-            chmwnd = NULL
+    if chmwnd!=NULL then
+        if c_func(xIsWindow,{chmwnd}) then
+            {} = c_func(xSendMessage,{chmwnd,WM_CLOSE,0,0})
         end if
+        lastHHname = ""
+        unregister(true)
     end if
---*/
 end procedure
 
---global function notHotKeyying()
---  if HH and chmwnd!=NULL then return 0 end if
---  return 1
---end function
-
-global function HotKeyEsc()
-?"HotKeyEsc"
---/*
-    void = c_func(xUnregisterHotKey,{mainHwnd,1})
-    void = c_func(xSendMessage,{chmwnd,WM_CLOSE,0,0})
---*/
-    chmwnd = 0
-    return 0
-end function
 
 global integer rcX, rcY -- set by TrackMenu (from mouse position),
-            -- and virtualKey (from CursorX,CursorY).
+                        -- and virtualKey (from CursorX,CursorY).
 --with trace
 global procedure F1help(integer control)
 --
@@ -1625,7 +1803,7 @@ integer lw
                     if not length(fileset) then exit end if
                     fsIdx = 1
                     if length(fileset)>1 then
-                    --look for anything known to be part of this project
+                        -- look for anything known to be part of this project
                         for i=1 to length(fileset) do
                             filepathname = getNameAndDir(fileset[i],1,1)
                             if inProjectSet(filepathname[1],filepathname[2],currProjFileSet) then
@@ -1637,12 +1815,15 @@ integer lw
                     end if
                     idx = loadfsIdx()
                     if idx != 0 then exit end if
-                    void = proemh("Warning","global database lied",0)
+--                  void = proemh("Warning","global database lied",0)
+?{"proemh","Warning","global database lied",0}
                     ScratchGlobal(word,fileset[1])
                 end while
             else
                 text = filetext[currfile]
 --              setText(HelpWin,xl("Locally defined in this source"))
+--              if HelpWin=NULL then ?9/0 end if
+                if HelpWin=NULL then create_helpwin() end if
                 IupSetAttribute(HelpWin,"TITLE","Locally defined in this source")
                 if idx and routinelinenumbers[idx]=CursorY+1
                 and routinescope[idx]=GLOBAL
@@ -1697,6 +1878,7 @@ integer lw
             if StartCh=0 then
                 localSearch(startWord,filetext[currfile])
                 if targetLine > 0 then
+                    if HelpWin=NULL then ?9/0 end if
 --                  setText(HelpWin,xl("Local definition/uses of ")&startWord&xl(" in this source"))
                     IupSetStrAttribute(HelpWin,"TITLE","Local definition/uses of "&startWord&" in this source")
                 else
@@ -1710,16 +1892,19 @@ integer lw
     else
         setKeyHelpText()
     end if
-    setHelpFont(HelpList)
+    if HelpWin=NULL then ?9/0 end if
+--  setHelpFont(HelpList)
 --  setEnable(TC,False)
-?"setEnable(TC,False)"
+--?"setEnable(TC,False)"
 --  addFocus(HelpWin)
 --  openWindow(HelpWin,SW_NORMAL)
-    IupShow(HelpWin)
+--  IupShow(HelpWin)
+--DEV see keyboard.e and/or filelist.e for config stuff...
+    IupShowXY(HelpWin,IUP_CENTERPARENT,IUP_CENTERPARENT)
 --  call_proc(r_enableMenuToolBar,{})
-?"call_proc(r_enableMenuToolBar,{})"
+--?"call_proc(r_enableMenuToolBar,{})"
 --  setFocus(HWclose)
-?"setFocus(HWclose)"
+--?"setFocus(HWclose)"
 end procedure
 global constant r_F1help=routine_id("F1help")
 
@@ -1737,6 +1922,10 @@ sequence sdt, text
 --atom t
 --?1
 --t=time()
+
+--  if ROUTINEWINDOW=NULL then create_rtnwin() end if
+    if ROUTINEWINDOW=NULL then ?9/0 end if
+
     if isVisible(ROUTINEWINDOW)=False then
         fkey = getModifiedFile()
     else

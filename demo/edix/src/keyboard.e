@@ -9,6 +9,11 @@
 --
 --  May benefit from a filter... [DEV]
 
+--DEV/BUG: open Options/Keyboard, navigate to Ctrl Q and press Ctrl J. Now
+-- navigate to Ctrl J (correctly *'d) and press Ctrl J. It is reactivated,
+-- but Ctrl Q remains. [Press Ctrl J a second time and it clears Ctrl Q,
+-- and/at the point it *s Ctrl J, which seems rather silly..]
+
 include builtins/dict.e     -- (not strictly necessary, it's an autoinclude)
 
 integer KEYDICT = 0,
@@ -613,7 +618,6 @@ constant stext = """
 <Ctrl N> is New File
 <Ctrl O> is Open File
 <Ctrl P> is Print Preview
---<<<<<<<<<<<<<<<<<<<<<<<<< ************* DONE TO HERE [DEV] ************* >>>>>>>>>>>>>>>>>>>>>>>>>
 <Ctrl Q> is Quick Jump
 <Ctrl S> is Save File
 <Ctrl T> is File List
@@ -622,6 +626,7 @@ constant stext = """
 <Ctrl X> is Cut
 <Ctrl Y> is Redo
 <Ctrl Z> is Undo
+--<<<<<<<<<<<<<<<<<<<<<<<<< ************* DONE TO HERE [DEV] ************* >>>>>>>>>>>>>>>>>>>>>>>>>
 <Ctrl ']'> is Next Control Structure
 <Ctrl '['> is Prior Control Structure
 --<Ctrl '-'> is Fold Selection Or Control Block

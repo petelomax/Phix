@@ -18,6 +18,8 @@ include pprntfN.e
 --constant tnr = "tnr"
 --constant tnr = "tnr\\\"\'\0"
 constant tnr = "tnr\\\"\'0e"
+
+--function allascii(string x, bool withquotes)
 function allascii(string x)
 -- Phix allows "strings" to hold binary data, so double check 
 -- before printing it as a string.
@@ -26,7 +28,7 @@ integer c
         c = x[i]
 --31/1/15:
 --      if c<' ' then
-        if c<' ' or c>#7E or find(c,"\\\"\'") then
+        if c<' ' or c>#FF or find(c,"\\\"\'") then
 --          c = find(c,"\t\n\r")
             c = find(c,"\t\n\r\\\"\'\0\e")
             if c then
@@ -36,8 +38,10 @@ integer c
             end if
         end if
     end for
-    return '\"'&x&'\"'
---  return x
+--  if withquotes then
+        x = '\"'&x&'\"'
+--  end if
+    return x
 end function
 
 --global function sprint(object x)
@@ -75,10 +79,12 @@ object s, xi
 --8/8/16: (change as above)
         if string(x) then
 --      if string(x) and length(x)>4 then
+--          s = allascii(x[1..maxlen-4],true)
             s = allascii(x[1..maxlen-4])
             if string(s) then return s&".." end if
         end if
     elsif string(x) then
+--      s = allascii(x,nest!=0)
         s = allascii(x)
         if string(s) then return s end if
     end if
@@ -87,7 +93,8 @@ object s, xi
 --      s &= sprint(x[i])
         xi = x[i]
         if maxlen=-1 then
-            s &= sprint(xi)
+--          s &= sprint(xi)
+            s &= sprint(xi,-1,nest+1)
         else
             if maxlen>length(s) then
                 s &= sprint(xi,maxlen-length(s),nest+1)

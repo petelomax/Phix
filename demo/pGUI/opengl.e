@@ -718,7 +718,8 @@ global constant GL_CURRENT_COLOR                    = #0B00,
 -->
 
 --DEV use the routines in pGUI.e:
-global function validate_proc(atom lib,sequence name,sequence parms)
+global 
+function validate_proc(atom lib, sequence name, sequence parms)
     integer hProc
 
     hProc = define_c_proc(lib,name,parms)
@@ -732,7 +733,8 @@ global function validate_proc(atom lib,sequence name,sequence parms)
 end function
 
 
-global function validate_func(atom lib,sequence name,sequence parms,atom rtype)
+global 
+function validate_func(atom lib, sequence name, sequence parms, atom rtype)
     integer hFunc
 
     hFunc = define_c_func(lib,name,parms,rtype)
@@ -745,7 +747,8 @@ global function validate_func(atom lib,sequence name,sequence parms,atom rtype)
     return hFunc
 end function
 
-global constant GL_LIBPATH = "/usr/lib/x86_64-linux-gnu/"
+global 
+constant GL_LIBPATH = "/usr/lib/x86_64-linux-gnu/"
 
 --define some GL types
 global constant GLbyte      = C_CHAR,
@@ -1718,7 +1721,7 @@ procedure gl_pokef64(atom dest,sequence data)
 end procedure
 --*/
 
-global procedure glAccum(integer op,atom val)
+global procedure glAccum(integer op, atom val)
     c_proc(GlAccum,{op,val})
 end procedure
 
@@ -1726,15 +1729,15 @@ global procedure glBegin(integer what)
     c_proc(GlBegin,{what})
 end procedure
 
-global procedure glBindTexture(integer target, atom tex)
-    c_proc(GlBindTexture,{target,tex})
+global procedure glBindTexture(integer target, atom texture)
+    c_proc(GlBindTexture,{target,texture})
 end procedure
 
-global procedure glBitmap(integer width,integer height,atom xorig,atom yorig,atom xmove,atom ymove,atom bitmap)
+global procedure glBitmap(integer width, height, atom xorig, yorig, xmove, ymove, bitmap)
     c_proc(GlBitmap,{width,height,xorig,yorig,xmove,ymove,bitmap})
 end procedure
 
-global procedure glBlendFunc(integer sfactor, integer dfactor)
+global procedure glBlendFunc(integer sfactor, dfactor)
     c_proc(GlBlendFunc,{sfactor,dfactor})
 end procedure
 
@@ -1742,7 +1745,7 @@ global procedure glCallList(integer list)
     c_proc(GlCallList,{list})
 end procedure
 
-global procedure glCallLists(integer n,integer typ,atom lists)
+global procedure glCallLists(integer n, integer typ, atom lists)
     c_proc(GlCallLists,{n,typ,lists})
 end procedure
 
@@ -1750,11 +1753,11 @@ global procedure glClear(integer mask)
     c_proc(GlClear,{mask})
 end procedure
 
-global procedure glClearAccum(atom r, atom g, atom b, atom a)
+global procedure glClearAccum(atom r, g, b, a)
     c_proc(GlClearAccum,{r,g,b,a})
 end procedure
 
-global procedure glClearColor(atom r, atom g, atom b, atom a)
+global procedure glClearColor(atom r, g, b, a)
     c_proc(GlClearColor,{r,g,b,a})
 end procedure
 
@@ -1762,7 +1765,7 @@ global procedure glClearDepth(atom depth)
     c_proc(GlClearDepth,{depth})
 end procedure
 
-global procedure glColor(atom red, atom blue, atom green, atom alpha=1)
+global procedure glColor(atom red, blue, green, alpha=1)
     c_proc(GlColor4d,{red,blue,green,alpha})
 end procedure
 
@@ -1839,11 +1842,11 @@ global procedure glFlush()
     c_proc(GlFlush,{})
 end procedure
 
-global procedure glFogf(integer pname,atom param)
+global procedure glFogf(integer pname, atom param)
     c_proc(GlFogf,{pname,param})
 end procedure
 
-global procedure glFogfv(integer pname,sequence params)
+global procedure glFogfv(integer pname, sequence params)
     gl_pokef32(gl_vector_buffer,params)
     c_proc(GlFogfv,{pname,gl_vector_buffer})
 end procedure
@@ -1856,7 +1859,7 @@ global procedure glFrontFace(integer mode)
     c_proc(GlFrontFace,{mode})
 end procedure
 
-global procedure glFrustum(atom left, atom right, atom top, atom bottom, atom zNear, atom zFar)
+global procedure glFrustum(atom left, right, top, bottom, zNear, zFar)
     c_proc(GlFrustum,{left,right,top,bottom,zNear,zFar})
 end procedure
 
@@ -2046,7 +2049,7 @@ end procedure
 --  c_proc(GlNormal3s,normal)
 --end procedure
 
-global procedure glOrtho(atom left, atom right, atom top, atom bottom, atom zNear, atom zFar)
+global procedure glOrtho(atom left, right, top, bottom, zNear, zFar)
     c_proc(GlOrtho,{left,right,top,bottom,zNear,zFar})
 end procedure
 
@@ -2078,15 +2081,15 @@ global procedure glRectf(sequence rect)
     c_proc(GlRectf,rect)
 end procedure
 
-global procedure glRotate(atom angle, atom x, atom y, atom z)
+global procedure glRotate(atom angle, x, y, z)
     c_proc(GlRotated,{angle,x,y,z})
 end procedure
 
-global procedure glRotated(atom angle, atom x, atom y, atom z)
+global procedure glRotated(atom angle, x, y, z)
     c_proc(GlRotated,{angle,x,y,z})
 end procedure
 
-global procedure glRotatef(atom angle, atom x, atom y, atom z)
+global procedure glRotatef(atom angle, x, y, z)
     c_proc(GlRotatef,{angle,x,y,z})
 end procedure
 
@@ -2102,7 +2105,7 @@ global procedure glScalef(sequence scale)
     c_proc(GlScalef,scale)
 end procedure
 
-global procedure glScissor(integer x, integer y, integer width, integer height)
+global procedure glScissor(integer x, y, width, height)
     c_proc(GlScissor, {x, y, width, height})
 end procedure
 
@@ -2110,44 +2113,43 @@ global procedure glShadeModel(integer model)
     c_proc(GlShadeModel,{model})
 end procedure
 
-global procedure glTexCoord(atom s, atom t=0, atom r=0, atom q=1)
+global procedure glTexCoord(atom s, t=0, r=0, q=1)
     c_proc(GlTexCoord4d,{s,t,r,q})
 end procedure
 
-global procedure glTexImage2D(integer target, integer level, integer components, integer width, integer height,
-                integer border, integer fmt, integer typ, atom pixels)
+global procedure glTexImage2D(integer target, level, components, width, height, border, fmt, typ, atom pixels)
     c_proc(GlTexImage2D,{target,level,components,width,height,border,fmt,typ,pixels})
 end procedure
 
-global procedure glTexParameteri(integer target,integer pname,integer param)
+global procedure glTexParameteri(integer target, pname, param)
     c_proc(GlTexParameteri,{target,pname,param})
 end procedure
 
-global procedure glTexEnvi(integer i, integer j, integer k)
+global procedure glTexEnvi(integer i, j, k)
     c_proc(GlTexEnvi,{i,j,k})
 end procedure
 
-global procedure glTexEnvf(integer i, integer j, atom k)
+global procedure glTexEnvf(integer i, j, atom k)
     c_proc(GlTexEnvf,{i,j,k})
 end procedure
 
-global procedure glTexGeni(integer coord,integer pname,integer param)
+global procedure glTexGeni(integer coord, pname, param)
     c_proc(GlTexGeni,{coord,pname,param})
 end procedure
 
-global procedure glTranslate(atom x, atom y, atom z)
+global procedure glTranslate(atom x, y, z)
     c_proc(GlTranslated,{x,y,z})
 end procedure
 
-global procedure glTranslated(atom x, atom y, atom z)
+global procedure glTranslated(atom x, y, z)
     c_proc(GlTranslated,{x,y,z})
 end procedure
 
-global procedure glTranslatef(atom x, atom y, atom z)
+global procedure glTranslatef(atom x, y, z)
     c_proc(GlTranslatef,{x,y,z})
 end procedure
 
-global procedure glVertex(atom x, atom y, atom z=0, atom w=1)
+global procedure glVertex(atom x, y, z=0, w=1)
     c_proc(GlVertex4d,{x,y,z,w})
 end procedure
 
@@ -2207,11 +2209,11 @@ end procedure
 --  c_proc(GlVertex3d,vertex)
 --end procedure
 
-global procedure glVertexPointer(integer size, integer ptype, integer stride, atom pointer)
+global procedure glVertexPointer(integer size, ptype, stride, atom pointer)
     c_proc(GlVertexPointer, {size, ptype, stride, pointer})
 end procedure
 
-global procedure glViewport(integer x, integer y, integer w, integer h)
+global procedure glViewport(integer x, y, w, h)
     c_proc(GlViewport,{x,y,w,h})
 end procedure
 

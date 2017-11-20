@@ -1,0 +1,71 @@
+--
+-- demo\rosetta\7guis\Timer.exw
+-- ============================
+--
+include pGUI.e
+
+Ihandle dlg,
+        G,      -- gauge/progress bar
+        L,      -- time label
+        S,      -- slider
+        R,      -- reset button
+        T       -- timer 
+
+atom e = 0
+
+function timer_cb(Ihandle /*T*/)
+    if e>=IupGetDouble(S,"VALUE") then
+        IupSetInt(T,"RUN",0)
+    else
+        e += 0.1
+        IupSetDouble(G,"VALUE",e)
+        IupSetStrAttribute(L,"TITLE","%3.1fs",{e})
+    end if
+    return IUP_CONTINUE
+end function
+constant cb_timer = Icallback("timer_cb")
+ 
+function slider_cb(Ihandle /*B*/)
+    atom v = IupGetDouble(S,"VALUE")
+    IupSetDouble(G,"MAX",v)
+    IupSetDouble(G,"VALUE",e) -- (rqd after MAX)
+    IupSetInt(T,"RUN",v>e)
+    return IUP_CONTINUE
+end function
+constant cb_slider = Icallback("slider_cb")
+
+function reset_cb(Ihandle /*B*/)
+    e = 0
+    IupSetInt(T,"RUN",1)
+    return IUP_CONTINUE
+end function
+constant cb_reset = Icallback("reset_cb")
+
+IupOpen()
+G = IupProgressBar("MIN=0, MAX=25, EXPAND=HORIZONTAL,RASTERSIZE=100x20")
+L = IupLabel("99.9s")
+S = IupValuator(NULL,"MIN=0.1, MAX=40, VALUE=25, EXPAND=HORIZONTAL")
+IupSetCallback(S,"VALUECHANGED_CB",cb_slider)
+R = IupButton("Reset",cb_reset,"EXPAND=HORIZONTAL")
+dlg = IupDialog(IupVbox({IupHbox({IupLabel("Elapsed Time:"),G},"ALIGNMENT=ACENTER"),
+                         IupHbox({L}),
+                         IupHbox({IupLabel("Duration: "),S},"ALIGNMENT=ACENTER"),
+                         IupHbox({R})},
+                        "MARGIN=10x10"),
+                "TITLE=\"Timer\"")
+IupCloseOnEscape(dlg)
+IupSetAttributeHandle(dlg,"STARTFOCUS",R)
+T = IupTimer(cb_timer,100)
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+
+--
+-- Notes: S has a min of 0.1 otherwise MIN=MAX=VALUE=0 is, logically,
+--        both empty and full, but displays (G) as empty which looks 
+--        wrong in this particular demo, when S is dragged fully left.
+--        L and R get matching IupHbox to inherit the matching MARGIN.
+--        L gets a dummy initial value to avoid IupRefresh on change.
+--        A startfocus of R just looks much nicer than it being S.
+--
+

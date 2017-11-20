@@ -205,7 +205,7 @@ end function
 --      minit = 0
 --atom mem
 
-global function bytes_to_int(sequence s, integer signed=1)
+global function bytes_to_int(sequence s, bool signed=true)
 -- converts a byte sequence such as that returned from peek() into an integer value.
 integer len = length(s)
 atom mem = allocate(len,1)

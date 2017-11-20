@@ -1,0 +1,153 @@
+--
+-- demo\rosetta\7guis\CRUD.exw
+-- ===========================
+--
+include pGUI.e
+
+Ihandle dlg,
+        Tprefix,
+        Tname,
+        Tsurname,
+        L,
+        BC,
+        BU,
+        BD
+
+-- (permanent storage not implemented)
+sequence data = {"Emil, Hans",
+                 "Mustermann, Max",
+                 "Tisch, Roman"}
+sequence tags = {} -- (items actually shown)
+
+function value_changed(Ihandle /*L*/)
+integer sel = IupGetInt(L,"VALUE")
+    IupSetInt(BU,"ACTIVE",sel!=0)
+    IupSetInt(BD,"ACTIVE",sel!=0)
+    if sel!=0 then
+        string surname = data[tags[sel]], name = ""
+        integer k = match(", ",surname)
+        if k then 
+            name = surname[k+2..$]
+            surname = surname[1..k-1]
+        end if
+        IupSetAttribute(Tname,"VALUE",name)
+        IupSetAttribute(Tsurname,"VALUE",surname)
+    end if
+    return IUP_CONTINUE
+end function
+constant select_cb = Icallback("value_changed")
+        
+function prefix_changed_cb(Ihandle /*Tprefix*/)
+integer prev = IupGetInt(L,"VALUE"),
+        k = iff(prev!=0?tags[prev]:0)
+string filter = lower(IupGetAttribute(Tprefix,"VALUE"))
+    tags = {}
+    IupSetAttribute(L,"REMOVEITEM","ALL")
+    for i=1 to length(data) do
+        if filter=""
+        or match(filter,lower(data[i]))=1 then
+            tags &= i
+            IupSetAttributeId(L,"",length(tags),data[i])
+            if i=k then
+                IupSetInt(L,"VALUE",length(tags))
+            end if
+        end if
+    end for
+    {} = value_changed(L) -- (enable/disable buttons)
+    return IUP_CONTINUE
+end function
+constant cb_prefix_changed = Icallback("prefix_changed_cb")
+
+function get_name()
+    string name = IupGetAttribute(Tname,"VALUE"),
+           surname = IupGetAttribute(Tsurname,"VALUE")
+    if surname="" then
+        if name="" then
+            IupMessage("Error","No name entered")
+--          return ""   -- (happens anyway)
+        end if
+        surname = name
+    elsif name!="" then
+        surname &= ", "&name
+    end if
+    return surname
+end function
+
+function create_cb(Ihandle /*BC*/)
+    string name = get_name()
+    if name="" then return IUP_CONTINUE end if
+    data = append(data,name)
+    --
+    -- Keep it selected after creation:
+    -- (unless filtering hides it)
+    -- select item 1, creating a dummy entry
+    -- if necessary, and set tags to match.
+    --
+    if IupGetInt(L,"COUNT")=0 then
+        IupSetAttribute(L,"1",name)
+    end if
+    IupSetInt(L,"VALUE",1)
+    tags = {length(data)}
+    return prefix_changed_cb(Tprefix)
+end function
+constant cb_create = Icallback("create_cb")
+
+function update_cb(Ihandle /*BU*/)
+    string name = get_name()
+    integer sel = IupGetInt(L,"VALUE"),
+            k = tags[sel]
+    data[k] = name
+    return prefix_changed_cb(Tprefix)
+end function
+constant cb_update = Icallback("update_cb")
+
+function delete_cb(Ihandle /*BD*/)
+    integer sel = IupGetInt(L,"VALUE"),
+            k = tags[sel]
+    data[k..k] = {}
+    IupSetInt(L,"VALUE",0) -- clear
+    return prefix_changed_cb(Tprefix)
+end function
+constant cb_delete = Icallback("delete_cb")
+
+
+IupOpen()
+Tprefix = IupText("VALUECHANGED_CB",cb_prefix_changed)
+Tname = IupText()
+Tsurname = IupText()
+IupSetAttributes({Tprefix,Tname,Tsurname},
+                 "VISIBLECOLUMNS=10,EXPAND=HORIZONTAL")
+L = IupList("VALUECHANGED_CB",select_cb,"EXPAND=YES")
+BC = IupButton("Create",cb_create)
+BU = IupButton("Update",cb_update)
+BD = IupButton("Delete",cb_delete)
+Ihandle filter = IupHbox({IupLabel("Filter prefix:"),Tprefix},"GAP=10,ALIGNMENT=ACENTER")
+Ihandle names = IupVbox({IupHbox({IupLabel("Name:"),IupFill(),Tname},"GAP=12,ALIGNMENT=ACENTER"),
+                         IupHbox({IupLabel("Surname:"),Tsurname},"GAP=9,ALIGNMENT=ACENTER")},
+                        "NMARGIN=10x0,GAP=10")
+Ihandle grid = IupGridBox({filter,IupFill(),
+                           L,     names},
+                         "NUMDIV=2,SIZELIN=1,NMARGIN=10x10,GAPLIN=10")
+Ihandle buttons = IupHbox({BC,BU,BD},"GAP=30,NORMALIZESIZE=HORIZONTAL,MARGIN=10x5,PADDING=10x0")
+dlg = IupDialog(IupVbox({grid,
+                         buttons}),
+                "TITLE=CRUD, MINSIZE=435x195")
+IupCloseOnEscape(dlg)
+IupDestroy(IupNormaliser({filter,L},"NORMALIZE=HORIZONTAL"))
+IupDestroy(IupNormaliser({Tname,Tsurname},"NORMALIZE=VERTICAL"))
+IupShow(dlg)
+{} = prefix_changed_cb(Tprefix)
+IupMainLoop()
+IupClose()
+
+--
+-- Notes: GAP/MARGIN/PADDING etc obtained using the incomplete pGUI-IDE;
+--        IupFill()/gaps of 12/9 to get names lined up was the worst.
+--        No attempt has been made to separate domain and presentation
+--        logic. Only create_cb/update_cb/delete_cb actually modify data 
+--        (1 line each) - which would probably become routine calls.
+--        It will let you add "Cher", and then treat it as a surname.
+--        Handles resizing pretty well, especially since this is my 
+--        first ever actual use of an IupGridBox - handles "Additional 
+--        Task: Dynamic Layouts Responsive Design." perfectly (imo).
+--

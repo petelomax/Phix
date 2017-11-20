@@ -160,7 +160,8 @@ constant vm_names = {
                      {"pDeleteN.e", {"%opDelRtn",
                                      "%opDelete"}},
                      {"pcallfunc.e",{"%opCallFunc",
-                                     "%opCallProc"}},
+                                     "%opCallProc",
+                                     "!cf_ret"}},
                      -- group 4: optional, except for pDiagN (ie without these, pDiagN will start doing cmp 0's, and
                      --                                       hence some errors may start being incorrectly reported,
                      --                                       but all the non-error stuff should be just fine.)

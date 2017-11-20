@@ -288,7 +288,8 @@ Ihandle layoutdlg_list2
 Ihandle layoutdlg_list3
 Ihandln layoutdlg_mark=NULL
 Ihandle layoutdlg_propelem
-Ihandle layoutcontextelement
+--Ihandle layoutcontextelement
+Ihandln layoutcontextelement
 
 --typedef enum _IattribFlags{
 constant 
@@ -2169,7 +2170,8 @@ function iLayoutPropertiesList1_CB(Ihandle list1, atom pName, integer /*item*/, 
     end if
 
     IupSetStrAttribute(lbl3, "TITLE", "%s\n%s%s%s%s%s",
-                       {iff(and_bits(flags,or_bits(IUPAF_NO_INHERIT,IUPAF_NO_STRING))? "Inheritable": "NON Inheritable"), 
+--                     {iff(and_bits(flags,or_bits(IUPAF_NO_INHERIT,IUPAF_NO_STRING))!=0? "Inheritable": "NON Inheritable"), 
+                       {iff(and_bits(flags,or_bits(IUPAF_NO_INHERIT,IUPAF_NO_STRING))!=0? "NON Inheritable": "Inheritable"), 
                         iff(and_bits(flags,IUPAF_NO_STRING)? "NOT a String\n": ""), 
                         iff(and_bits(flags,IUPAF_HAS_ID)? "Has ID\n":""), 
                         iff(and_bits(flags,IUPAF_READONLY)? "Read-Only\n": iff(and_bits(flags,IUPAF_WRITEONLY)? "Write-Only\n": "")),
@@ -2369,10 +2371,12 @@ function iLayoutPropertiesCreateDialog(Ihandle parent)
   box11 = IupVbox({
             IupLabel("Value:"),
             IupHbox({IupText("MULTILINE=Yes, ALIGNMENT=ALEFT:ATOP, EXPAND=YES, NAME=VALUE1A"), IupVbox({set, colorbut, fontbut, showidlist})}),
-            IupSetAttributesf(IupFill(), "RASTERSIZE=10"), 
+--          IupSetAttributesf(IupFill(), "RASTERSIZE=10"), 
+            IupFill("RASTERSIZE=10"), 
             IupLabel("Default Value:"),
             IupFrame(IupLabel(NULL, "ALIGNMENT=ALEFT:ATOP, EXPAND=HORIZONTAL, NAME=VALUE1B")),
-            IupSetAttributesf(IupFill(), "RASTERSIZE=10"), 
+--          IupSetAttributesf(IupFill(), "RASTERSIZE=10"), 
+            IupFill("RASTERSIZE=10"), 
             IupLabel("Other Info:"),
             IupFrame(IupLabel(NULL, "SIZE=90x48, ALIGNMENT=ALEFT:ATOP, NAME=VALUE1C"))})
   IupSetAttribute(box11,"MARGIN","0x0");
@@ -2381,10 +2385,12 @@ function iLayoutPropertiesCreateDialog(Ihandle parent)
   box22 = IupVbox({
             IupLabel("Value:"),
             IupText("MULTILINE=Yes, ALIGNMENT=ALEFT:ATOP, EXPAND=YES, NAME=VALUE2, READONLY=Yes"),
-            IupSetAttributesf(IupFill(), "RASTERSIZE=10"), 
+--          IupSetAttributesf(IupFill(), "RASTERSIZE=10"), 
+            IupFill("RASTERSIZE=10"), 
             IupButton("Get as String", "ACTION", Icallback("iLayoutPropertiesGetAsString_CB"), "PADDING=3x3"),
             IupLabel("IMPORTANT: if the attribute is not a string\nthis can crash the application."),
-            IupSetAttributesf(IupFill(), "SIZE=60")})
+--          IupSetAttributesf(IupFill(), "SIZE=60")})
+            IupFill("SIZE=60")})
   IupSetAttribute(box22,"MARGIN","0x0");
   IupSetAttribute(box22,"GAP","0");
 
@@ -2926,7 +2932,7 @@ function iLayoutTreeDragDrop_CB(Ihandle tree, integer drag_id, integer drop_id, 
 
   if upper(IupGetAttributeId(tree, "KIND", drop_id))="BRANCH"
   and upper(IupGetAttributeId(tree, "STATE", drop_id))="EXPANDED" then
-    Ihandle ref_child = ih_firstchild(drop_elem)   /* the first child as reference */
+    Ihandln ref_child = ih_firstchild(drop_elem)   /* the first child as reference */
 
     /* if first element is internal, use the next one. */
     if ref_child!=NULL and and_bits(ih_flags(ref_child),IUP_INTERNAL) then

@@ -38,8 +38,6 @@ procedure Einit()
     leave_cs()
 end procedure
 
---DEV doc/psym:
---global function getenv(sequence var)
 global function getenv(string var)
 --
 -- Return the specified environment variable setting, eg

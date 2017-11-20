@@ -13,34 +13,28 @@
           <b>Definition:</b>
          </td>
          <td>
-          integer i = peek(atom a)
+          <a href="integer.htm">integer</a> i = peek(<a href="atom.htm">atom</a> a)
           <br>
           <i>-- or --</i>
           <br>
-          sequence s = peek({a, i})
+          <a href="sequence.htm">sequence</a> s = peek({a, i})
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>Return a single byte value in the range 0 to 255 from machine
-             address a, or return a sequence containing i consecutive byte
-             values starting at address a in memory.
+         <td>
+            Return a single byte value in the range 0 to 255 from machine address a in memory, or return a 
+            <a href="sequence.htm">sequence</a> containing i consecutive byte values starting at address a.
           <br>
           <br>
-DEV! I made some silly changes, undid quite a few, started going round in circles, and had to run away and leave all this in a bit of a mess...<br>
-Give me a kick if you need this sorted out, for now be warned there may be some untruths/alarmist nonsense below, but the code itself isn't
-really any better or worse that it has been for the past couple of years, apart from demo/taskwire now runs on 64-bit, but perhaps for the
-wrong reasons. (The most significant doubt remaining is that C_PTR may be wrong on 64-bit.)
-<br>
-<br>
-            There are in fact <s>nine</s> eight further variations of the peek function:
+            There are in fact nine further variations of the peek function:
           <br>
           <br>
 <pre>
       peek1s  peek2s  peek4s  peek8s
-      peek1u  peek2u  peek4u  <font color="#FF0000">peek8u</font>
+      peek1u  peek2u  peek4u  peek8u
       peekNS
 </pre>
           <br>
@@ -48,11 +42,11 @@ wrong reasons. (The most significant doubt remaining is that C_PTR may be wrong 
             with the first row obtaining signed values and the second unsigned.
           <br>
           <br>
-            The peekNS routine takes three parameters: (a or {a,i}), size, and sign.
+            The peekNS routine takes three parameters: (a or {a,i}), size, and signed, eg peek4u(a)==peekNS(a,4,false).
           <br>
           <br>
             The peek routine is actually an alias of peek1u, and when passed a
-            parameter of {a,i} returns a string, whereas when given the same 
+            parameter of {a,i} returns a <a href="string.htm">string</a>, whereas when given the same 
             parameter all the others, including peek1s, return a 
           <a href="html/glossary.htm#dwordseq">dword-sequence</a>.
          </td>
@@ -62,36 +56,33 @@ wrong reasons. (The most significant doubt remaining is that C_PTR may be wrong 
           <b>Comments:</b>
          </td>
          <td>
-            The peek8s/u routines are not intended for use on 32-bit, plus <font color="#FF0000">peek8u</font> has some
-            precision issues; for more details see the Technicalia dropdown below.
+            The peek8s/u routines are not intended for use on 32-bit; for more details see the Technicalia dropdown below.
           <br>
           <br>
             The 32-bit values returned by peek4s/u() may be too large for the 32-bit phix
-            integer type (31-bits), so you should use
-            <b>atom</b>
+            integer type (31-bits), so you should use <a href="atom.htm">atom</a> 
             variables, likewise for 64-bit values returned by peek8s() on 64-bit phix.
           <br>
           <br>
-            For similar reasons all variables that hold an address should also be declared as
-          <b>atoms</b>.
+            For similar reasons all variables that hold an address should also be declared as <a href="atom.htm">atoms</a>.
           <br>
           <br>
             When passed an atom parameter, peek(1|2)(s|u) (and peek4(s|u) on 64-bit) are 
             however guaranteed to return an integer, should that help any.
           <br>
           <br>
-            Historically the peek({a,i}) form was faster than reading one byte at a time in a 
-            loop, however recent optimisations mean that is no longer necessarily (but will more 
-            often than not be) true. Specifically, when the overhead of subscripting to extract 
-            the individual elements of a sequence result that might otherwise not exist is taken 
-            into account, then individual peeks in a loop is likely to be faster. Of course if 
-            you are retreiving a string/sequence, and keeping a copy of it anyway, then whether 
-            or not you examine the individual characters/elements the peek({a,i}) form will 
-            almost certainly be faster.
+            Historically the peek({a,i}) form was faster than reading one byte at a time in a loop, however 
+            recent optimisations mean that is no longer necessarily (but will more often than not be) true. 
+            Specifically, when the overhead of subscripting to extract the individual elements of a 
+            <a href="sequence.htm">sequence</a> result that might otherwise not exist is taken into account, 
+            then individual peeks in a loop is likely to be faster. Of course if you are retreiving a 
+            <a href="string.htm">string</a>/<a href="sequence.htm">sequence</a>, and keeping a copy of it 
+            anyway, then whether or not you examine the individual characters/elements the peek({a,i}) form 
+            will almost certainly be faster.
           <br>
           <br>
             Remember that peek always takes just one argument, which in the second form is 
-            actually a 2-element sequence (except for peekNS, which takes 3 parameters).
+            actually a 2-element <a href="sequence.htm">sequence</a> (except for peekNS, which takes 3 parameters).
          </td>
         </tr>
         <tr>
@@ -139,33 +130,6 @@ s = peek({addr, 4})
           </a>
          </td>
          <td>
-DEV - this is all nonsense!!<br>
-            It is worth a quick look at the internal structure of atoms, as implemented by the physical hardware (ie IEEE 754 binary format), 
-            64/80-bit as used by 32/64-bit phix:
-            <br>
-            <img src="images/floats.png"/>
-            <br>
-            Now, 32-bit phix uses 64-bit floats which have 52 bits of precision, hence they can
-            more than easily hold any (32-bit) results from peek4s/u.<br>
-            However, 64-bit phix uses 80-bit floats which have 63 bits of precision plus a sign:
-            so they can hold any <i>signed</i> 64-bit integer, but <i><b>not</b></i> unsigned.<br>
-            As per the <a href="accuracy.htm#bookshelf">bookshelf analogy</a>, only the <i>even</i> 
-            unsigned values in the range #8000_0000_0000_0000 to #FFFF_FFFF_FFFF_FFFE can be held, 
-            the last odd bit would get dropped (more on this below).<br>
-            On the bright side, you can easily prove that, as long as you are consistent, it does not 
-            matter whether you use signed or unsigned to peek/poke a 32-bit pointer, hence we can say 
-            that peek8s will cope with all 64-bit pointers. You should never really need peek8u anyway. 
-            Also note that peekNS(<i>a</i>,8,0) [<small>as opposed to peekNS(<i>a</i>,8,1)</small>] has
-            the same issue, however prohibiting it outright might spanner <a href="cffi.htm">cffi</a> 
-            unnecessarily, for instance an unsigned 64 bit filesize will be fine until hard disks 
-            exceed 8 <i>million</i> TB - at the time of writing, Seagate has just announced a monster
-            60TB drive, which is a mere 0.00075% of that.
-            <br>
-            <br>
-            To highlight this issue, and encourage the use of peek8s instead, <font color="#FF0000">peek8u</font> is syntax-coloured red.<br>
-            Also, <a href="define_c_func.htm">C_PTR</a> and friends are now signed on 64-bit (but remain unsigned in 32-bit phix).
-          <br>
-          <br>
             While somewhat flakey versions of peek8s and peek8u now exist in 32-bit phix
             they are not formally supported; any code that is required to run on both 32 
             and 64 bit should stick to using peek4s/u and below. Atoms in 64-bit phix use
@@ -184,35 +148,34 @@ result = peek8u({addr,2})
 <font color="#000000"></font><font color="#7060A8">poke</font><font color="#0000FF">(</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">#80</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">#80</font><font color="#800000">}</font><font color="#0000FF">)
 </font><font color="#000000">result</font><font color="#0000FF"> =</font><font color="#7060A8"> peek8u</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
-        <br>
-        On 64-bit result gets set to {#8000000000000000,#8000000000000001}
-        <br>
-        On 32-bit result gets set to {#8000000000000000,{#80000000,#00000001}}.
-        <br>
-        <br>
-        Internally, of course, result[1] is an atom value that happens to fit quite comfortably in 53 bits, whereas
-        attempting to do the same for result[2] would simply throw away the trailing 1, along with 10 other bits.
-        In hex, that translates as two-and-half nibbles, or hex characters, roughly speaking the trailing #03FF, so
-        very loosly speaking this split occurs when any quadword does not end #x000, or start with #000x or #FFFx.
-        (Internally it uses a simple and straightforward "is the reconstructed qword binary identical?" test. In
-         decimal, the largest integer on 32 bit is 9,007,199,254,740,992 as per core/atoms/floats are not exact.)
-        Note that when two dwords are returned, they are always unsigned, even for peek8s, and are in the correct
-        order for <code>sprintf("#%08x%08x",result[2])</code> but the wrong order for <code>poke4(addr+8,result[2])</code>, 
-        whereas <code>poke8(addr,result[1])</code> together with <code>poke4(addr+8,reverse(result[2]))</code> would 
-        make for the perfect bitwise copy, and obviously it would all be far easier if you just did it all using 
-        peek4s/u and poke4s/u, as I recommended in the first place. (And likewise, on 32 bit, if you try and shift/
-        add the results from peek4s/u together to form a quadword, you will get exactly the same precision loss that
-        all this was trying to avoid.)
-        <br>
-        <br>
-        Naturally poke8 would go hopelessly wrong should you pass it a pair of dwords obtained from peek8s/u, that is, 
-        when under 32-bit, and obviously poke8(addr,result) would fail over the nested subsequence. Also note that the 
-        32-bit version of printf() is not designed to cope well with negative integer/hex values less than -#80000000, 
-        (arguably a bug, but hex values of more than 32 bits on a 32 bit system, one has to ask is it worth fixing?).
-DEV:
-        In truth, there are two reasons why peek8s/u exist at all on 32-bit: peek8u is used (lightly and in a 
-        non-critical manner) when cross-compiling, ie when a 32-bit phix is asked, via a format directive, to create a 
-        64-bit executable, and secondly so that code such as
+            <br>
+            On 64-bit result gets set to {#8000000000000000,#8000000000000001}
+            <br>
+            On 32-bit result gets set to {#8000000000000000,{#80000000,#00000001}}.
+            <br>
+            <br>
+            Internally, of course, result[1] is an atom value that happens to fit quite comfortably in 53 bits, whereas
+            attempting to do the same for result[2] would simply throw away the trailing 1, along with 10 other bits.
+            In hex, that translates as two-and-half nibbles, or hex characters, roughly speaking the trailing #03FF, so
+            very loosly speaking this split occurs when any quadword does not end #x000, or start with #000x or #FFFx.
+            (Internally it uses a simple and straightforward "is the reconstructed qword binary identical?" test. In
+             decimal, the largest integer on 32 bit is 9,007,199,254,740,992 as per <a href="accuracy.htm">floats are not exact</a>.)
+            Note that when two dwords are returned, they are always unsigned, even for peek8s, and are in the correct
+            order for <code>sprintf("#%08x%08x",result[2])</code> but the wrong order for <code>poke4(addr+8,result[2])</code>, 
+            whereas <code>poke8(addr,result[1])</code> together with <code>poke4(addr+8,reverse(result[2]))</code> would 
+            make for the perfect bitwise copy, and obviously it would all be far easier if you just did it all using 
+            peek4s/u and poke4s/u, as I recommended in the first place. (And likewise, on 32 bit, if you try and shift/
+            add the results from peek4s/u together to form a quadword, you will get exactly the same precision loss that
+            all this was trying to avoid.)
+            <br>
+            <br>
+            Naturally poke8 would go hopelessly wrong should you pass it a pair of dwords obtained from peek8s/u, that is, 
+            when under 32-bit, and obviously poke8(addr,result) would fail over the nested subsequence. Also note that the 
+            32-bit version of printf() is not designed to cope well with negative integer/hex values less than -#80000000, 
+            (arguably a bug, but hex values of more than 32 bits on a 32 bit system, one has to ask is it worth fixing?).
+            In truth, there are two reasons why peek8s/u exist at all on 32-bit: peek8u is used (lightly and in a 
+            non-critical manner) when cross-compiling, ie when a 32-bit phix is asked, via a format directive, to create a 
+            64-bit executable, and secondly so that code such as
 <!--eucode>
 if machine_bits()=32 then
     r = peek4u(k)
@@ -229,19 +192,19 @@ end if
 </font><font color="#008080">end if
 </font><font color="#000080"><i>-- r = peekNS(machine_word(),0) -- one-line equivalent to the above</i></font>
 </pre>
-        <br>
-        compiles cleanly rather than complains that peek8u does not exist, even though you are not going to call it
-        because you understand and accept that it can be a bit flakey on 32-bit. Also note that the 32-bit version 
-        of dir() uses a peek8 on linux on the assumption you will not have many files >8192TB lying about.
-        <br>
-        <br>
-        Since 64-bit phix uses 80-bit floats that have the required 64 bits of precision, peek8s/u does not need to do 
-        any of this, not that your code would suffer much from a few sequence() checks on the result.
-        <br>
-        <br>
-        Note that the last two parameters to the peekNS routine must be integers: a <code>size</code> of 2.001 should (for performance reasons) 
-        trigger a run-time error, as it is not one of the integers (1|2|4|8), in contrast <code>sign</code> is just tested for non-zero rather 
-        than formally validated as being (0|1).
+            <br>
+            compiles cleanly rather than complains that peek8u does not exist, even though you are not going to call it
+            because you understand and accept that it can be a bit flakey on 32-bit. Also note that the 32-bit version 
+            of dir() uses a peek8 on linux on the assumption you will not have many files >8192TB lying about.
+            <br>
+            <br>
+            Since 64-bit phix uses 80-bit floats that have the required 64 bits of precision, peek8s/u does not need to do 
+            any of this, not that your code would suffer much from a few <a href="sequence.htm">sequence</a>() checks on the result.
+            <br>
+            <br>
+            Note that the last two parameters to the peekNS routine must be integers: a <code>size</code> of 2.001 should (for performance reasons) 
+            trigger a run-time error, as it is not one of the integers (1|2|4|8), in contrast <code>sign</code> is just tested for non-zero rather 
+            than formally validated as being (0|1).
          </td>
         </tr>
        </table>

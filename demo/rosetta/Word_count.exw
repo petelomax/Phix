@@ -1,0 +1,48 @@
+--
+-- demo\rosetta\Word_count.exw
+-- ===========================
+--
+?"loading..."
+constant subs = "\t\r\n_.,\"\'!;:?][()|=<>#/*{}+@%&$",
+         reps = repeat(' ',length(subs)),
+         fn = open("135-0.txt","r")
+string text = lower(substitute_all(get_text(fn),subs,reps))
+close(fn)
+sequence words = append(sort(split(text,no_empty:=true)),"")
+constant wf = new_dict()
+string last = words[1]
+integer count = 1
+for i=2 to length(words) do
+    if words[i]!=last then
+        setd({count,last},0,wf)
+        count = 0
+        last = words[i]
+    end if
+    count += 1
+end for
+count = 10
+function visitor(object key, object /*data*/, object /*user_data*/)
+    ?key
+    count -= 1
+    return count>0
+end function
+traverse_dict(routine_id("visitor"),0,wf,true)
+?"done"
+{} = wait_key()
+--/*
+loading...
+{40743,"the"}
+{19925,"of"}
+{14881,"and"}
+{14474,"a"}
+{13704,"to"}
+{11174,"in"}
+{9623,"he"}
+{8613,"was"}
+{7867,"that"}
+{6612,"it"}
+
+(["the" 41036] ["of" 19946] ["and" 14940] ["a" 14589] ["to" 13939]
+ ["in" 11204] ["he" 9645] ["was" 8619] ["that" 7922] ["it" 6659])
+--*/
+

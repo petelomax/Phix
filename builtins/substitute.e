@@ -31,12 +31,15 @@ end function
 global function substitute_all(string text, sequence strings, sequence replacements)
     for i=1 to length(strings) do
         if string(strings) then
---          text = substitute(text,strings[i..i],replacements[i..i])
-            -- in this case a naive in situ approach is faster:
-            integer ch = strings[i], repch = replacements[i]
-            for j=1 to length(text) do
-                if text[j]=ch then text[j] = repch end if
-            end for
+            if string(replacements) then
+                -- in this case a naive in situ approach is faster:
+                integer ch = strings[i], repch = replacements[i]
+                for j=1 to length(text) do
+                    if text[j]=ch then text[j] = repch end if
+                end for
+            else
+                text = substitute(text,strings[i..i],replacements[i])
+            end if
         else
             text = substitute(text,strings[i],replacements[i])
         end if

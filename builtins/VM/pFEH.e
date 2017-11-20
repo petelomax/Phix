@@ -74,7 +74,7 @@ integer finit = 0
         push 4  -- SA_SIGINFO
         push 0
         push :my_signal_handler
-        mov eax, 67 -- SYSCALL_SIGACTION 
+        mov eax, 67 -- SYSCALL_SIGACTION (67==#43)
         mov ebx, 11 -- SIGSEGV 
         mov ecx,esp
         xor edx, edx 
@@ -88,6 +88,10 @@ integer finit = 0
 --      mov ecx,:my_signal_handler 
 --      int 0x80 
 --      xor ebx,ebx             -- (common requirement after int 0x80)
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--67    sys_sigaction               0x43    int sig                 const struct old_sigaction *act struct old_sigaction *oact  -           -               arch/mips/kernel/signal.c:300
+
 --48        sys_signal                  0x30    int sig                 __sighandler_t handler  -                       -                       -               kernel/signal.c:2683
 --67        sys_sigaction               0x43    int sig                 const struct old_sigaction *act struct old_sigaction *oact  -           -               arch/mips/kernel/signal.c:300
 --119       sys_sigreturn               0x77    struct pt_regs *regs    -                       -                       -                       -               arch/alpha/kernel/entry.S:758

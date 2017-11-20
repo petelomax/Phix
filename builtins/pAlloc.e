@@ -31,7 +31,7 @@ global procedure free(object addr)
 end procedure
 constant r_free = routine_id("free")
 
-global function allocate(integer size, integer cleanup = 0)
+global function allocate(integer size, bool cleanup=false)
 atom res
     if size<0 then
         #ilASM{
@@ -62,11 +62,11 @@ atom res
     return res
 end function
 
-global function allocate_data(integer size, integer cleanup = 0)
+global function allocate_data(integer size, bool cleanup=false)
     return allocate(size,cleanup)
 end function
 
-global function allocate_string(sequence s, integer cleanup = 0)
+global function allocate_string(sequence s, bool cleanup=false)
 -- create a C-style null-terminated string in memory
 atom mem
 
@@ -82,7 +82,7 @@ atom mem
     return mem
 end function
 
-global function allocate_wstring(sequence s, integer cleanup = 0)
+global function allocate_wstring(sequence s, bool cleanup=false)
 -- create a WideString (16 bits per char) null-terminated string in memory.
 -- note: calling utf8_to_utf16() or utf32_to_utf16() first may be helpful.
 atom mem

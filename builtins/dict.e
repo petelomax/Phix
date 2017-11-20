@@ -16,16 +16,20 @@ enum KEY = 0,
      RIGHT
 
 sequence trees
+sequence treenames
 sequence roots
 sequence sizes
+sequence defaults
 sequence freelists
 integer free_trees = 0
 integer initd = 0
 
 procedure dinit()
     trees = {{}}
+    treenames = {"1"}
     roots = {0}
     sizes = {0}
+    defaults = {NULL}
     freelists = {0}
     initd = 1
 end procedure
@@ -139,6 +143,10 @@ end procedure
 --  roots[tid] = insertNode(roots[tid], key, data, tid)
 --end procedure
 
+global procedure setd_default(object o, integer tid=1)
+    defaults[tid] = o
+end procedure
+
 function getNode(integer node, object key, integer tid)
     while node!=NULL do
         integer c = compare(key,trees[tid][node+KEY])
@@ -146,7 +154,7 @@ function getNode(integer node, object key, integer tid)
         integer direction = HEIGHT+c    -- LEFT or RIGHT
         node = trees[tid][node+direction]
     end while
-    return NULL
+    return defaults[tid]
 end function
 
 global function getd(object key, integer tid=1)
@@ -296,7 +304,7 @@ constant r_gpkv = routine_id("gpk_visitor")
 
 global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
     check(tid)
-    gpk = 0
+    gpk = defaults[tid]
     if roots[tid]!=0 then
         {} = traverse_key(roots[tid], r_gpkv, pkey, NULL, tid, rev)
     end if
@@ -308,37 +316,53 @@ global function dict_size(integer tid=1)
     return sizes[tid]
 end function
 
+global function dict_name(integer tid=1)
+    check(tid)
+    return treenames[tid]
+end function
+
 global function new_dict(sequence kd_pairs = {}, integer pool_only=0)
     if not initd then dinit() end if
     integer tid = free_trees
     if tid!=0 then
         free_trees = trees[free_trees]
         trees[tid] = {}
+        treenames[tid] = ""
         roots[tid] = NULL
         sizes[tid] = 0
+        defaults[tid] = NULL
         freelists[tid] = 0
     elsif pool_only=0 then
         trees = append(trees,{})
+        treenames = append(treenames,"")
         roots &= NULL
         sizes &= 0
+        defaults &= 0
         freelists &= 0
         tid = length(trees)
     elsif pool_only>1 then
+        if length(kd_pairs) then ?9/0 end if
         for i=1 to pool_only do
 --25/8/16 (spotted in passing!)
 --          trees = append(trees,{})
             trees = append(trees,free_trees)
+            treenames = append(treenames,"")
             free_trees = length(trees)
             roots &= NULL
             sizes &= 0
+            defaults &= 0
             freelists &= 0
         end for
     end if
-    for i=1 to length(kd_pairs) do
-        if length(kd_pairs[i])!=2 then ?9/0 end if
-        object {key,data} = kd_pairs[i]
-        setd(key,data,tid)
-    end for
+    if string(kd_pairs) then
+        treenames[tid] = kd_pairs
+    else
+        for i=1 to length(kd_pairs) do
+            if length(kd_pairs[i])!=2 then ?9/0 end if
+            object {key,data} = kd_pairs[i]
+            setd(key,data,tid)
+        end for
+    end if
     return tid
 end function
 
@@ -356,12 +380,14 @@ global procedure destroy_dict(integer tid, bool justclear=false)
         trees[tid] = {}
         roots[tid] = NULL
         sizes[tid] = 0
+        defaults[tid] = NULL
 --      freelists[tid] = 0
         if freelists[tid]!=0 then ?9/0 end if
     else
         trees[tid] = free_trees
         roots[tid] = NULL
         sizes[tid] = 0
+        defaults[tid] = NULL
         free_trees = tid
         freelists[tid] = 0
     end if

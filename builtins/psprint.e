@@ -16,7 +16,7 @@
 include pprntf.e
 
 constant tnr = "tnre"
-function allascii(string x)
+function allascii(string x, bool withquotes)
 -- Phix allows "strings" to hold binary data, so double check 
 -- before printing it as a string.
 integer c
@@ -31,10 +31,13 @@ integer c
             end if
         end if
     end for
-    return '\"'&x&'\"'
+    if withquotes then
+        x = '\"'&x&'\"'
+    end if
+    return x
 end function
 
-global function sprint(object x)
+global function sprint(object x, bool withquotes=true)
 -- Return the string representation of any data object. 
 -- This is the same as the output from print(1, x) or '?', 
 --  but returned as a string sequence rather than printed.
@@ -45,12 +48,12 @@ object s
         return sprintf("%.10g", x)
     end if
     if string(x) then
-        s = allascii(x)
+        s = allascii(x,withquotes)
         if string(s) then return s end if
     end if
     s = "{"
     for i=1 to length(x) do
-        s &= sprint(x[i])
+        s &= sprint(x[i],true)
         if i<length(x) then
             s &= ','
         end if

@@ -2,89 +2,178 @@
 -- pbreak.e
 --
 -- Phix implementation of allow_break() and check_break().
---DEV I really might need to recode this in asm to switch it off for debug/trace/error...
--- I may also want to force a console to exist...
 --
+--without debug
 without trace
---with trace
 
-integer binit binit = 0
-integer AllowBreak
-integer cc_count
+integer binit = 0
+integer AllowBreak = true
+integer cc_count = 0
 
 constant CTRL_C_EVENT       = 0,
          CTRL_BREAK_EVENT   = 1
 
---integer maxonce
---      maxonce = 1
---puts(1,"ooh\n")
-function HandlerRoutine(integer event)
---if maxonce then
---  maxonce = 0
---  puts(1,"ooh\n")
---  ?9/0
---end if
-    if event=CTRL_C_EVENT
-    or event=CTRL_BREAK_EVENT then
-        if not AllowBreak then
-            cc_count += 1
-            return 1        -- handled
-        end if
+constant SIGINT = 2
+
+#ilASM{ jmp :!opCallOnceYeNot
+
+  :%initB
+    [PE32]
+        push 1                      -- BOOL  fAdd
+        push :my_signal_handler     -- address of handler function
+        call "kernel32.dll","SetConsoleCtrlHandler"
+        ret
+  ::my_signal_handler
+        xor ebx,ebx                 -- important!
+        mov eax,[esp+4]
+        push ecx
+        push edx
+        cmp eax,CTRL_C_EVENT
+        je @f
+        cmp eax,CTRL_BREAK_EVENT
+        jne :retz
+          @@:
+--DEV fixme!
+            cmp [AllowBreak],ebx
+--00429B01   391D 6C2A4000  CMP DWORD PTR DS:[402A6C],EBX
+--00429B07   3905 6C2A4000  CMP DWORD PTR DS:[402A6C],EAX
+--          mov eax,[AllowBreak]
+--          cmp eax,ebx
+            jne :retz
+            mov eax,1   -- handled
+--          add [cc_count],eax
+            add [cc_count],1
+--          mov ecx,[cc_count]
+--          add ecx,eax
+--          mov [cc_count],ecx
+            pop edx
+            pop ecx
+            ret 4
+  ::retz
+        pop edx
+        pop ecx
+        xor eax,eax     -- not handled
+        ret 4
+    [PE64]
+        mov rcx,rsp -- put 2 copies of rsp onto the stack...
+        push rsp
+        push rcx
+        or rsp,8
+        sub rsp,8*5
+        mov rdx,1                       -- BOOL  fAdd
+        mov rcx,:my_signal_handler      -- address of handler function
+        call "kernel32.dll","SetConsoleCtrlHandler"
+        mov rsp,[rsp+8*5]
+        ret
+  ::my_signal_handler
+        xor rbx,rbx                 -- important!
+        cmp rcx,CTRL_C_EVENT
+        je @f
+        cmp rcx,CTRL_BREAK_EVENT
+        jne retz
+          @@:
+            cmp [AllowBreak],rbx
+--          mov rax,[AllowBreak]
+--          cmp rax,rbx
+            jne :retz
+            mov rax,1   -- handled
+            add [cc_count],rax
+--          add [cc_count],1
+--          mov rcx,[cc_count]
+--          add rcx,rax
+--          mov [cc_count],rcx
+            ret
+  ::retz
+        xor rax,rax     -- not handled
+        ret
+    [ELF32]
+--#     Name                        Registers                                                                                                               Definition
+--                                  eax     ebx                     ecx                     edx                     esi                     edi
+--67    sys_sigaction               0x43    int sig                 const struct old_sigaction *act struct old_sigaction *oact  -           -               arch/mips/kernel/signal.c:300
+
+        push 0
+        push 4  -- SA_SIGINFO
+        push 0
+        push :my_signal_handler
+        mov eax, 67 -- SYSCALL_SIGACTION (67==#43)
+--      mov ebx, 11 -- SIGSEGV 
+        mov ebx, SIGINT
+        mov ecx,esp
+        xor edx, edx 
+        int 0x80                -- sigaction(SIGINT, &sigact, 0)
+        add esp,16
+        xor ebx,ebx             -- (common requirement after int 0x80)
+        ret
+      ::my_signal_handler
+        add [cc_count],1
+--      mov ecx,[cc_count]
+--      add ecx,1
+--      mov [cc_count],ecx
+        ret
+    [ELF64]
+--%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
+--13        sys_rt_sigaction        int sig                 const struct sigaction *act     struct sigaction *oact  size_t sigsetsize
+        -- (untested: may need more space: 8 qw (of 0) for the mask, restore function, and "push 0x04000004 -- SA_SIGINFO or SA_RESTORER", see example64.asm)
+--      push 4  -- SA_SIGINFO
+        push rbx
+        push rbx
+        push rbx
+        push rbx
+        push rbx
+        push rbx
+        push rbx
+        push rbx
+
+        push :restorer
+        push 0x04000004    -- SA_SIGINFO or SA_RESTORER
+        push :my_signal_handler
+        mov r10,8
+        mov rcx,r10
+        xor rdx,rdx
+        mov rsi,rsp
+        mov rdi,SIGINT
+        mov rax,13  -- sys_rt_sigaction
+        syscall
+        add rsp,88
+        ret
+
+      ::restorer
+        mov rax,15 -- NR_rt_sigreturn
+        syscall
+
+      ::my_signal_handler
+        add [cc_count],1
+--      mov rcx,[cc_count]
+--      add rcx,1
+--      mov [cc_count],rcx
+        ret
+      }
+
+global procedure allow_break(bool bAllow)
+-- Determine whether control-c/control-break terminate the program. 
+-- If bAllow is TRUE then allow that, else/FALSE, don't.
+-- Initially those keystrokes *will* terminate the program, but
+--  only when it actually tries to read input from a console.
+    if not binit then
+        #ilASM{call :%initB}
     end if
-    return 0                -- not handled
-end function
-
-procedure initB()
-atom kernel32, xSetConsoleCtrlHandler
-
-    if platform()=WINDOWS then
-        kernel32 = open_dll("kernel32.dll")     -- DEV do something about this?...
-
---#without reformat
-
-        xSetConsoleCtrlHandler = define_c_func(kernel32,"SetConsoleCtrlHandler",
-            {C_POINTER, --  PHANDLER_ROUTINE  pHandlerRoutine,  // address of handler function
-             C_INT},    --  BOOL  fAdd  // handler to add or remove
-            C_INT)      -- BOOL
-
---#with reformat
-
-        if not c_func(xSetConsoleCtrlHandler,{call_back(routine_id("HandlerRoutine")),1}) then ?9/0 end if
-
-    elsif platform()=LINUX then
-puts(1,"pbreak.e not linux\n")
-        ?9/0
-    end if
-
-    AllowBreak = 0
-
-    cc_count = 0
-
-    binit = 1
-
-end procedure
-
-type boolean(integer b)
-    return b=0 or b=1
-end type
-
-global procedure allow_break(boolean b)
--- If b is TRUE then allow control-c/control-break to terminate the program. 
--- If b is FALSE then don't allow it.
--- Initially they *will* terminate the program, but only when it
--- tries to read input from the keyboard.
-    if not binit then initB() end if
-    AllowBreak = b
+    AllowBreak = bAllow
 end procedure
 
 global function check_break()
 -- returns the number of times that control-c or control-break
 -- were pressed since the last time check_break() was called
-integer r
-    if not binit then initB() end if
-    r = cc_count
+--integer res = cc_count    -- grr...
+integer res
+    #ilASM{
+        [32]
+            mov eax,[cc_count]
+            mov [res],eax
+        [64]
+            mov rax,[cc_count]
+            mov [res],rax
+          }
     cc_count = 0
-    return r
+    return res
 end function
-
 

@@ -5192,7 +5192,9 @@ end procedure -- (for Edita/CtrlQ)
 --1     sys_write               unsigned int fd         const char *buf                 size_t count
         mov rax,1               -- sys_write
 --      rdi already set         -- fd
-        mov rcx,rsp             -- buffer (==rdx btw)
+--31/10/17 (thanks to tom for finding this)
+--      mov rcx,rsp             -- buffer (==rdx btw)
+        mov rsi,rsp             -- buffer (==rdx btw)
         mov rdx,1               -- count
         syscall
     [64]

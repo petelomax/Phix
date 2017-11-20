@@ -776,6 +776,8 @@ integer lastparam   -- saved in ParamList(), used in Branch(), for localtype inf
                     -- from (eg) "if udt(lastparam) then". By the time Branch() 
                     -- is invoked, only res:udt remains on opstack.
 
+--integer laststringparam -- "" but string-only...
+
 function plausible(integer sig, integer act)
 --function plausible(integer sig, integer act, integer vidx)
 --
@@ -3351,6 +3353,7 @@ object Default
                         if k!=0 and k<nParams then
                             -- eg (sequence a, integer b=routine_id(a))
                             if k!=nParams-1 
+--                          if (k!=nParams-1 and k!=nParams-2)
                             or paramDflts[k]!=0 then
                                 Aborp("unsupported")
                             end if
@@ -3932,6 +3935,7 @@ end if
     actsig = {}
     siglen = length(signature)
     sigidx = 1
+--  laststringparam = 0
     if not paramsOnStack then
         tok_abort_line = tokline    -- save for possible use by TopLevel
         tok_abort_col = tokcol      -- ""
@@ -4107,6 +4111,9 @@ end if
 --dbg = symtab[lastparam]
                 act = symtab[lastparam][S_ltype]
             end if
+--          if act=T_string then
+--              laststringparam = lastparam
+--          end if
 --          actsig = append(actsig,plausible(sig,act,forward_call,routineNo))
 --          actsig = append(actsig,plausible(sig,act,routineNo))
 --          wasRoutineNo = routineNo    -- 13/11/10 moved to top
@@ -4159,6 +4166,7 @@ end if
     and paramsOnStack=0
     and not forward_call then
         if lastparam=0 then
+--      if laststringparam=0 then
             if emitON=0 then
                 -- 11/3/16, cope with Icallback("xx") under emitON=0
                 --  (we just have to assume the routine name would
@@ -7859,6 +7867,10 @@ end if
 --      end if
         CompoundAssignment=find(toktype,"+-/*&")
         if CompoundAssignment then
+
+--7/11/17(!):
+            symtab[tidx][S_State] = or_bits(symtab[tidx][S_State],S_used)
+
             if CompoundAssignment=5
             and subscript=SliceOp then
                 --
@@ -9535,6 +9547,8 @@ integer cnTyp
         end if -- NOLT
         apnds5({opFor2,flags,NI,N,NS,NL,0})
         bpFor = length(s5)
+--hmm 25/10/17: (nope)
+--      exitBP = bpFor
     end if
 --  freeTmp(-3) -- hmmm?? (no testing, just panic) [DEV]
 --DEV 1/11/2011 (apparently unused [and probably should have been "(opsltrl[n]=1)"])
@@ -9569,6 +9583,14 @@ integer cnTyp
     continueBP = saveContinueBP
 
     if emitON then
+--  83:  opJmp,3,95,0,                       opJmp,exitMerge,tgt,link
+--  87:  opLn,14,                            --: end for
+--  89:  opEndFor,17,55,                         opEndFor,END+LOOP,bpFor
+        if s5[-4]=opJmp
+        and s5[-3]=exitMerge then
+            -- 25/10/17: unconditional exit immediately preceding end for is not allowed.
+            Aborp("illegal/unsupported construct.") -- (dotless one in pilx86.e...)
+        end if
 --      apnds5({opCtrl,END+LOOP,bpFor-8,emitline})
         apnds5({opEndFor,END+LOOP,bpFor})   -- link opEndFor to opFor
         lens5 = length(s5)
@@ -10562,8 +10584,13 @@ bool wasdot = false,
 --12/11/15...
 --              if InTable(InTop) then Duplicate() end if
                 if InTable(InVeryTop) then Duplicate() end if
+--1/11/17:
+--          end if
+--          tokno = InTable(InAny)
+                tokno = 0   -- force creation
+            else
+                tokno = InTable(InAny)
             end if
-            tokno = InTable(InAny)
             if tokno<=0 then
                 if isDeclaration then
                     tokno = addSymEntryAt(ttidx,isGlobal,isDeclaration,Typ,0,0,tokcol)

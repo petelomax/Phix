@@ -2885,6 +2885,28 @@ end if
                                 else
                                     ?9/0  -- sanity check (should never trigger)
                                 end if
+                            elsif sType=S_GVar2 then -- or Const??
+                                -- 0o001 0r5    -- add [mem32],r32
+                                -- 0o011 0r5    -- or [mem32],r32
+                                -- 0o021 0r5    -- adc [mem32],r32
+                                -- 0o031 0r5    -- sbb [mem32],r32
+                                -- 0o041 0r5    -- and [mem32],r32
+                                -- 0o051 0r5    -- sub [mem32],r32
+                                -- 0o061 0r5    -- xor [mem32],r32
+                                -- 0o071 0r5    -- cmp [mem32],r32
+                                xrm = 0o001+mod*8 -- 0o0m1 (where m is instruction modifier)
+                                s5 &= xrm
+                                xrm = 0o005+reg*8 -- 0o0r5
+                                s5 &= xrm
+if X64=1 then
+                                s5 &= {isVar4,0,0,N}
+else
+                                s5 &= {isVar,0,0,N}
+end if
+--          cmp [AllowBreak],ebx
+--00429B01   #39 0o035 6C2A4000 CMP DWORD PTR DS:[402A6C],EBX
+--00429B01   0o071 0o035 6C2A4000   CMP DWORD PTR DS:[402A6C],EBX
+--00429B07   0o071 0o005 6C2A4000   CMP DWORD PTR DS:[402A6C],EAX
                             else
                                 ?9/0  -- placeholder for more code
                             end if
@@ -2906,27 +2928,26 @@ else
                                     s5 &= {0o307,0o005,isVar,0,0,N}
 end if
                                     apnds5dword(p2details)  -- imm32
-                                elsif op=T_cmp then
+                                else
                                     -- 0o201 0o075 m32 imm32                        -- cmp dword[m32],imm32
                                     -- 0o203 0o075 m32 imm8                         -- cmp dword[m32],imm8
+                                    xrm = 0o005+mod*8   -- 0o0m5
                                     if p2details<-#80 or p2details>#7F then
 --if Z64=1 then ?9/0 end if
 if X64=1 then ?9/0 end if
-                                        s5 &= {0o201,0o075,isVar,0,0,N}
+                                        s5 &= {0o201,xrm,isVar,0,0,N}
                                         apnds5dword(p2details)  -- imm32
                                     else
 --24/1/15:
 --if Z64=1 then
 if X64=1 then
 --?1
-                                        s5 &= {0o203,0o075,isVar1,0,0,N}
+                                        s5 &= {0o203,xrm,isVar1,0,0,N}
 else
-                                        s5 &= {0o203,0o075,isVar,0,0,N}
+                                        s5 &= {0o203,xrm,isVar,0,0,N}
 end if
                                         s5 &= and_bits(p2details,#FF)  -- imm8
                                     end if
-                                else
-                                    ?9/0    -- placeholder for more code
                                 end if
                             elsif sType=S_TVar then
                                 if op=T_mov then

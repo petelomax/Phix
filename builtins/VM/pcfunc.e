@@ -102,7 +102,7 @@
 --  way that legacy code would/had to.
 --
 
---!/**/without debug
+--/**/without debug
 --!/**/with debug
 
 include builtins\VM\pHeap.e     -- :%pStoreFlt etc

@@ -129,6 +129,64 @@ Version 0.7.5
             that routine, hence the simplest possible solution won.
 02/09/2017  Bugfix: sprintf("%f",-9.999999999) yielded ".0" because round()
             was not accounting for a leading '-'. (Amazingly, not seen b4)
+25/09/2017  BUGFIX: ?sort({{0},{-3.8}}) gave completely the wrong results.
+            In compare({a},{b}) the nested compare of a,b was not handling
+            integers vs floats correctly; if {a,b} was {int,float} or
+            {float,int} it would simply assume int<float. The same bug was
+            present for infix <, <=, >, >=, though = and != were fine.
+            Quite amazing how that one lain undetected for 4..10 years!
+            Also, a=compare(a,b) looked dodgy - deallocating tgt before 
+            the comparison - now does it after (no new tests though).
+25/10/2017  An "illegal/unsupported construct" error now occurs if an end 
+            for statement is immediately preceded by an unconditional exit.
+            Where possible, use a simple if construct instead. This proved 
+            necessary because the opEndFor was being skipped, but that sets 
+            the zero iterations jump. Example:
+                for i=1 to length(s) do
+                    ?s[i]
+--                  if 1 then   -- (or constant DEBUG etc)
+                        exit
+--                  end if
+                end for
+            (s[1] errored on length(s)=0, because the <1 jump was wrong.)
+            Note the /*unconditional*/ inner "if" makes no difference here.
+            However and of course, this sort of thing is (still) fine:
+                for i=1 to length(s) do
+                    ?s[i]
+                    if "abc"="def" then
+                        ?"what??"
+                    else
+                        exit
+                    end if
+                end for
+            (assuming the compiler does not optimise that test away too)
+            Update: Problem resurfaced. There are now fixes for this in 
+            both pmain.e/DoFor() and pilx86.e/jskip().
+29/10/2017  Bugfix. A call_func that triggered a type check was displaying
+            an incorrect return address/line number of -1. As part of this
+            fix, the ex.err no longer contains the stack entry arising from 
+            pcallfunc.e/call_common(), somewhat unintended, but perhaps not
+            a bad thing. [Critical addition: !cf_ret now in the optable.]
+01/11/2017  Bugfix. Multiple assignment style declarations were not always
+            correctly declaring/defining local variables, eg:
+
+                string str = "1"
+
+                procedure test()
+                    -- this /should/ declare a new private variable,
+                    string {str} = {"22"}
+                    -- whereas this we /would/ expect to do damage!
+                    --  {str} = {"22"}
+                    if str="33" then ?9/0 end if --(suppress warning)
+                end procedure
+
+                test()
+                if length(str)=2 then ?9/0 end if
+            
+            Previously, because there already was a variable named str, 
+            it did not declare a new, and private, one inside test() - 
+            but now it always does. Trivial change, that took far longer
+            to find then test and then write this, than actually code.
 
 Version 0.7.2
 =============

@@ -2,22 +2,26 @@
 -- demo\rosetta\Yin_and_yang.exw
 -- =============================
 --
--- Hmm: can we do some edge smoothing or something on this? [DEV]
-
 include pGUI.e
 
 Ihandle dlg, canvas
-cdCanvas cddbuffer, cdcanvas
+cdCanvas cd_canvas
+
+procedure cdCanvasSecArc(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2) 
+-- cdCanvasSector does not draw anti-aliased edges, but cdCanvasArc does, so over-draw...
+    cdCanvasSector(hCdCanvas, xc, yc, w, h, angle1, angle2) 
+    cdCanvasArc   (hCdCanvas, xc, yc, w, h, angle1, angle2) 
+end procedure
 
 procedure yinyang(atom  cx, cy, r)
-    cdCanvasArc(cddbuffer, cx, cy, r, r, 0, 360) 
-    cdCanvasSector(cddbuffer, cx, cy, r, r, 270, 90) 
-    cdCanvasSector(cddbuffer, cx, cy-r/4, r/2-1, r/2-1, 0, 360) 
-    cdCanvasSetForeground(cddbuffer, CD_WHITE)
-    cdCanvasSector(cddbuffer, cx, cy+r/4, r/2-1, r/2-1, 0, 360) 
-    cdCanvasSector(cddbuffer, cx, cy-r/4, r/8, r/8, 0, 360) 
-    cdCanvasSetForeground(cddbuffer, CD_BLACK)
-    cdCanvasSector(cddbuffer, cx, cy+r/4, r/8, r/8, 0, 360) 
+    cdCanvasArc(cd_canvas, cx, cy, r, r, 0, 360) 
+    cdCanvasSecArc(cd_canvas, cx, cy, r, r, 270, 90) 
+    cdCanvasSecArc(cd_canvas, cx, cy-r/4, r/2-1, r/2-1, 0, 360) 
+    cdCanvasSetForeground(cd_canvas, CD_WHITE)
+    cdCanvasSecArc(cd_canvas, cx, cy+r/4, r/2-1, r/2-1, 0, 360) 
+    cdCanvasSecArc(cd_canvas, cx, cy-r/4, r/8, r/8, 0, 360) 
+    cdCanvasSetForeground(cd_canvas, CD_BLACK)
+    cdCanvasSecArc(cd_canvas, cx, cy+r/4, r/8, r/8, 0, 360) 
 end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
@@ -25,19 +29,27 @@ integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
 integer r = min(width,height)-40
 integer cx = floor(width/2)
 integer cy = floor(height/2)
-    cdCanvasActivate(cddbuffer)
-    cdCanvasClear(cddbuffer) 
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas) 
     yinyang(cx-r*.43,cy+r*.43,r/6)
     yinyang(cx,cy,r)
-    cdCanvasFlush(cddbuffer)
+    cdCanvasFlush(cd_canvas)
     return IUP_DEFAULT
 end function
 
 function map_cb(Ihandle ih)
-    cdcanvas = cdCreateCanvas(CD_IUP, ih)
-    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
-    cdCanvasSetBackground(cddbuffer, CD_WHITE)
-    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    IupGLMakeCurrent(canvas)
+    cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    cdCanvasSetBackground(cd_canvas, CD_WHITE)
+    cdCanvasSetForeground(cd_canvas, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
     return IUP_DEFAULT
 end function
 
@@ -47,11 +59,12 @@ function esc_close(Ihandle /*ih*/, atom c)
 end function
 
 procedure main()
-    IupOpen(join_path({"..","pGUI"},1))
+    IupOpen()
 
-    canvas = IupCanvas(NULL)
+    canvas = IupGLCanvas()
     IupSetAttribute(canvas, "RASTERSIZE", "340x340") -- initial size
     IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
 
     dlg = IupDialog(canvas)
     IupSetAttribute(dlg, "TITLE", "Yin and Yang")

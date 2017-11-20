@@ -53,47 +53,45 @@
        <a name=scope></a>
        <br>
          A symbol is defined from the point where it is declared to the end of its
-       <font color="#030303">
-        <b>scope</b>.
-       </font>
-         The scope of a variable declared inside a procedure or function (a
-       <font color="#030303">
-        <b>private</b>
-       </font> variable) ends
-         at the end of the procedure or function. The scope
-         of all other variables, constants, procedures, functions and types ends at
-         the end of the source file in which they are declared and they are referred
-         to as
-       <font color="#030303">
-        <b>local</b>
-       </font>,
-         unless the keyword
-       <font color="#030303">
-        <b>global</b>
-       </font> precedes
-         their declaration, in which case their scope extends indefinitely.
+        <b>scope</b>.<br>
+         The scope of a variable declared inside a procedure or function (a parameter or
+        <b>private</b> variable) ends at the end of the procedure or function.<br>
+         The controlling variable used in a <a href="for.htm">for-loop</a> is special:
+         if a variable of that name has not been declared in the immediately surrounding
+         scope, it is automatically declared at the beginning of the loop, and its scope 
+         ends at the end of the for-loop. (Be warned there may be some cases where 
+         new/reuse is ill-defined/an implementation detail, eg nested functions.)<br>
+         The scope of all other variables, constants, procedures, functions and types 
+         ends at the end of the source file in which they are declared and they are 
+         referred to as <b>local</b>, unless the keyword <b>global</b> precedes their 
+         declaration, in which case their scope extends indefinitely.
        <br>
        <br>
-         When you include a phix file in a main file (see
+<!--
+        If the loop is inside a function or procedure, 
+         the loop variable is a private variable and may only assume the identity of 
+         another private variable. When the loop is at the top level, outside of any 
+         function or procedure, the loop variable is a local variable and may assume the
+         identity of a previous local or global variable that has been declared in the
+         same file, but not a global from any other file. 
+-->
+        You can use the same name in many different for-loops as long as the loops are not nested. 
+        You do not have to declare loop variables as you would other variables. However should you
+        chose to, you should use type integer, as phix does not allow floating point for loops.
+       <br>
+       <br>
+        When you include a phix file in a main file (see 
        <a href="specialtop.htm">Special Top-Level Statements</a>),
-         only the variables and routines declared using the
-       <font color="#030303">
-        <b>global</b>
-       </font> keyword are
-         accessible or even visible to the main file. The other, non-global,
-         declarations in the included file are forgotten at the end of
-         the included file, and you will get an error message, "not declared", if you
-         try to use them in the main file.
+        only the variables and routines declared using the <b>global</b> keyword are accessible 
+        or even visible to the main file. The other, non-global, declarations in the included 
+        file are forgotten at the end of the included file, and you will get an error message, 
+        "not declared", if you try to use them in the main file.
        <br>
        <br>
-         The
-       <font color="#030303">
-        <b>global</b>
-       </font> keyword
-         makes it clear which symbols can be used externally,
-         and which symbols are strictly for internal use within the include file.
-         This information is helpful when maintaining or enhancing the file,
-         or when learning how to use the file.
+        The <b>global</b> keyword makes it clear which symbols can be used externally,
+        and which symbols are strictly for internal use within the include file.<br>
+        This information is helpful when maintaining or enhancing the file, or when learning 
+        how to use the file.
        <br>
        <br>
        <blockquote>
@@ -124,13 +122,10 @@
 </pre>
        In this case, the variable x was declared in two different files,
         and you want to refer to both variables in your file.
-        Using the
-       <i>namespace identifier</i> of either john or bill, you can
+        Using the <i>namespace identifier</i> of either john or bill, you can
         attach a prefix to x to indicate which x you are referring to.
-        We sometimes say that john refers to one
-       <i>namespace</i>, while bill 
-        refers to another distinct
-       <i>namespace</i>. 
+        We sometimes say that john refers to one <i>namespace</i>, while bill 
+        refers to another distinct <i>namespace</i>. 
         You can attach a namespace identifier
         to any user-defined variable, constant, procedure or function. You can do it
         to solve a conflict, or simply to make things clearer. A namespace identifier
@@ -140,72 +135,51 @@
         included file. See also <a href="include.htm">include</a>.
        <br>
        <br>
-         Phix encourages you to restrict the scope of symbols. If all symbols were
-         automatically global to the whole program, you might have a lot of
-         naming conflicts, especially in a large program consisting of files
-         written by many different programmers. A naming conflict might cause
-         a compiler error message, or it could lead to a very subtle bug, where
-         different parts of a program accidentally modify the same variable without
-         being aware of it.
-         Try to use the most restrictive scope that you can. Make variables
-       <font color="#030303">
-        <b>private</b>
-       </font> to
-         one routine where possible, and where that is not possible, make them
-       <font color="#030303">
-        <b>local</b>
-       </font> to a file, rather than
-       <font color="#030303">
-        <b>global</b>
-       </font> to the whole program.
+        Phix encourages you to restrict the scope of symbols. If all symbols were
+        automatically global to the whole program, you might have a lot of
+        naming conflicts, especially in a large program consisting of files
+        written by many different programmers. A naming conflict might cause
+        a compiler error message, or it could lead to a very subtle bug, where
+        different parts of a program accidentally modify the same variable without
+        being aware of it.
+        Try to use the most restrictive scope that you can. Make variables <b>private</b> 
+        to one routine where possible, and where that is not possible, make them
+        <b>local</b> to a file, rather than <b>global</b> to the whole program.
        <br>
        <br>
-         When phix looks up the declaration of a symbol, it first checks the current routine, 
+        When phix looks up the declaration of a symbol, it first checks the current routine, 
         then the current file, then globals in other files. At least that is the simple version,
         see the comments in psym.e for more detailed technical information. Symbols that are more 
-        localized will temporarily
-       <i>override</i> symbols that are more globalized,
-         without any error message occurring.
+        localized will temporarily <i>override</i> symbols that are more globalized, without any 
+        error message occurring.
        <br>
        <br>
-       <font color="#030303">
-        <b>Constant</b>
-       </font> declarations must be
-         outside of any subroutine. Constants can be global or local, but 
-         not
-       <font color="#030303">
-        <b>private</b>.
-       </font>
+        <b>Constant</b> declarations must be outside of any subroutine. <br>
+        Constants can be global or local, but not <b>private</b>.
        <br>
        <br>
-         Historically, variable declarations inside a subroutine had to appear at the beginning,
-         before the executable statements of the subroutine. However block scope is now supported,
-         meaning a variable can be private to a single branch of an if-construct, for example, and
-         they can now be mixed in with executable statements as needed.
+        Historically, variable declarations inside a subroutine had to appear at the beginning,
+        before the executable statements of the subroutine. However block scope is now supported,
+        meaning a variable can be private to a single branch of an if-construct, for example, and
+        they can now be mixed in with executable statements as needed. <br>
+        Note however that block scopes may not "shadow" containing local scopes: attempts to 
+        declare another variable "i", for instance, when one is already visible from some 
+        containing block or routine scope will trigger a compilation error.
        <br>
        <br>
-         Likewise, declarations at the top level, outside of any subroutine, originally had to be
-         at the very top, but can now be nested inside a loop or <a href="if.htm">if-statement</a>.
-       <br>
-       <a name=loop_scope></a>
-       <br>
-         The controlling variable used in a <a href="for.htm">for-loop</a> is special. 
-         If a variable of that name has not been declared in the immediately surrounding
-         scope, it is automatically declared at the beginning of the loop, and its scope 
-         ends at the end of the for-loop. 
+        Likewise, declarations at the top level, outside of any subroutine, originally had to be
+        at the very top, but can now be nested inside a loop or <a href="if.htm">if-statement</a>,
+        and similarly cannot shadow or otherwise (temporarily) override any other locally defined 
+        containing block or file-level variables, however anything locally declared can shadow
+        any (same-named) globals defined in another source file.
 <!--
-        If the loop is inside a function or procedure, 
-         the loop variable is a private variable and may only assume the identity of 
-         another private variable. When the loop is at the top level, outside of any 
-         function or procedure, the loop variable is a local variable and may assume the
-         identity of a previous local or global variable that has been declared in the
-         same file, but not a global from any other file. 
+[DEV maybe, if I ever fix the multiple i from for loops issue...]
+       <br>
+       <br>
+        Allowing variable shadowing would, in my opinion, make some code ever so slightly easier 
+        to write, often make it harder to comprehend, and almost always cause confusion when
+        debugging (eg your ex.err contains 7 (local) variables named "i"...)
 -->
-        You can use the same name in 
-         many different for-loops as long as the loops are not nested. You do not have
-         to declare loop variables as you would other variables. However should you
-         chose to, you should use type integer, as phix does not allow floating point
-         for loops.
        <br>
        <br>
       </div>

@@ -5,7 +5,8 @@
 --
 -- At last count (29/4/16) there are ~173 routines yet to be documented... 
 --           [all done to IupSbox, ~line 2061] DEV
---  (11/11/16 all done to IupSpin, ~line 2790]
+--  (11/11/16 all done to IupSpin, ~line 2790)
+--  (29/10/17 all done to IupColorbar, ~line 3309)
 --  (none of which are used in any of the demos, and some of which may get culled)
 --  (IupLayoutDialog skipped for now)
 
@@ -250,11 +251,10 @@ global function rand_range(integer lo, integer hi)
 end function
 
 -- (This is an example of an application-specific variation of OpenEuphoria's allocate_pointer_array)
-function iup_ptr_array(sequence pointers)
-atom pList
-    pointers &= 0
-    pList = allocate(length(pointers)*machine_word())
-    pokeN(pList, pointers, machine_word())
+function iup_ptr_array(Ihandles pointers)
+sequence p0 = pointers & 0
+atom pList = allocate(length(p0)*machine_word())
+    pokeN(pList, p0, machine_word())
     return pList
 end function
 
@@ -333,6 +333,7 @@ atom res
     return res
 end function
 
+--DEV should this allocate too? (spotted in passing)
 procedure iup_poke_string_pointer_array(atom ptr, sequence strings)
     for i=1 to length(strings) do
         string si = strings[i]
@@ -1020,7 +1021,7 @@ constant
 
 global -- for iup_layoutdlg.e
 atom
-    iup
+    iup = NULL
 atom
     xIupOpen,
     xIupClose,
@@ -1030,7 +1031,7 @@ atom
 --  xIupGetLanguage,
 --DEV these are documented in elements...
     xIupCreate,
---  xIupCreatev, -- (deliberately omitted)
+    xIupCreatev,
     xIupDestroy,
     xIupMap,
     xIupUnmap,
@@ -1377,7 +1378,7 @@ end if
 --  xIupGetLanguage     = iup_c_func(iup, "IupGetLanguage", {}, P)
 --DEV these are documented in elements...
     xIupCreate          = iup_c_func(iup, "IupCreate", {P},P)
---  xIupCreatev         = iup_c_func(iup, "IupCreatev", {P,P},P) -- (deliberately omitted)
+    xIupCreatev         = iup_c_func(iup, "IupCreatev", {P,P},P)
     xIupDestroy         = iup_c_proc(iup, "IupDestroy", {P})
     xIupMap             = iup_c_func(iup, "IupMap", {P},I)
     xIupUnmap           = iup_c_proc(iup, "IupUnmap", {P})
@@ -1674,11 +1675,6 @@ end procedure
 --global function IupGetLanguage()
 --  return peek_string(c_func(xIupGetLanguage, {}))
 --end function
-
-global function IupCreate(string name)
-    Ihandle ih = c_func(xIupCreate, {name})
-    return ih
-end function
 
 global procedure IupDestroy(Ihandles ih)
     if sequence(ih) then
@@ -2057,11 +2053,19 @@ Ihandle* IupSetAttributes(Ihandle *ih, const char* str)
   return ih;
 }
 --*/
-global procedure IupSetAttributes(Ihandle ih, string attributes, sequence data={})
+global procedure IupSetAttributes(Ihandles ih, string attributes, sequence data={})
     if length(data) then
         attributes = sprintf(attributes, data)
     end if
-    c_proc(xIupSetAttributes, {ih, attributes})
+    if length(attributes) then
+        if atom(ih) then
+            c_proc(xIupSetAttributes, {ih, attributes})
+        else
+            for i=1 to length(ih) do
+                c_proc(xIupSetAttributes, {ih[i], attributes})
+            end for
+        end if
+    end if
 end procedure
 
 global function IupSetAttributesf(Ihandle ih, string attributes, sequence data={})
@@ -2280,6 +2284,15 @@ atom func = c_func(xIupGetCallback, {ih, name})
     return func
 end function
 
+function key_cb(Ihandle /*ih*/, atom c)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+constant cb_key = Icallback("key_cb")
+
+global procedure IupCloseOnEscape(Ihandle dlg)
+    IupSetCallback(dlg, "K_ANY", cb_key)
+end procedure
+
 global function IupGetAllClasses()
 atom n = c_func(xIupGetAllClasses, {NULL,0})
 atom ptr = allocate_data(sizeof(P)*n, 1)
@@ -2327,6 +2340,21 @@ end type
 global procedure IupSetClassDefaultAttribute(string classname, string name, m1_string val)
     c_proc(xIupSetClassDfltAttribute, {classname, name, val})
 end procedure
+
+global function IupCreate(string name, Ihandles children={}, string attributes="", sequence data={})
+Ihandle ih
+    if length(children)=0 then
+        ih = c_func(xIupCreate, {name})
+    else
+        atom pChildren = iup_ptr_array(children)
+        ih = c_func(xIupCreatev, {name,pChildren})
+        free(pChildren)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
 
 /************************************************************************/
 /*               Mouse Button Values and Macros                         */
@@ -2483,12 +2511,15 @@ end function
 --  xIupGridBoxv    = iup_c_func(iup, "IupGridBoxv", {P}, P),
 --  $
 --
-global function IupFill()
+global function IupFill(string attributes="", sequence data={})
     Ihandle ih = c_func(xIupFill, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupHbox(sequence children, string attributes="", sequence data={})
+global function IupHbox(Ihandles children={}, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupHboxv, {pChildren})
     free(pChildren)
@@ -2498,7 +2529,7 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupVbox(sequence children, string attributes="", sequence data={})
+global function IupVbox(Ihandles children={}, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupVboxv, {pChildren})
     free(pChildren)
@@ -2508,7 +2539,7 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupZbox(sequence children, string attributes="", sequence data={})
+global function IupZbox(Ihandles children={}, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupZboxv, {pChildren})
     free(pChildren)
@@ -2518,7 +2549,7 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupRadio(Ihandle child, string attributes="", sequence data={})
+global function IupRadio(Ihandln child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupRadio, {child})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -2526,7 +2557,7 @@ global function IupRadio(Ihandle child, string attributes="", sequence data={})
     return ih
 end function
 
-global function IupNormalizer(sequence ih_list, string attributes="", sequence data={})
+global function IupNormalizer(Ihandles ih_list, string attributes="", sequence data={})
     atom p_ih_list = iup_ptr_array(ih_list)
     Ihandle ih = c_func(xIupNormalizerv, {p_ih_list})
     free(p_ih_list)
@@ -2536,11 +2567,11 @@ global function IupNormalizer(sequence ih_list, string attributes="", sequence d
     return ih
 end function
 
-global function IupNormaliser(sequence ih_list, string attributes="", sequence data={})
+global function IupNormaliser(Ihandles ih_list, string attributes="", sequence data={})
     return IupNormalizer(ih_list, attributes, data)
 end function
 
-global function IupCbox(sequence children, string attributes="", sequence data={})
+global function IupCbox(Ihandles children={}, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupCboxv, {pChildren})
     free(pChildren)
@@ -2550,13 +2581,19 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupSbox(Ihandle child)
+global function IupSbox(Ihandln child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupSbox, {child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupSplit(Ihandle child1, Ihandle child2)
+global function IupSplit(Ihandln child1=NULL, Ihandln child2=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupSplit, {child1,child2})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
@@ -2564,7 +2601,7 @@ end function
 --global enum IGBOX_HORIZONTAL, 
 --          IGBOX_VERTICAL
 
-global function IupGridBox(sequence children={}, string attributes="", sequence data={})
+global function IupGridBox(Ihandles children={}, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupGridBoxv, {pChildren})
     free(pChildren)
@@ -2593,15 +2630,28 @@ end function
 --  xIupGetDialog       = iup_c_func(iup, "IupGetDialog", {P},P),
 --  xIupGetDialogChild  = iup_c_func(iup, "IupGetDialogChild", {P,P},P)
 
+--DEV/SUG: (then again, do we actually need IupAppends? - NO!)
+--global procedure IupAppend(Ihandle ih, Ihandles children)
+--Ihandle parent, child
+--  if atom(children) then
+--      parent = c_func(xIupAppend, {ih,children})  -- (error if NULL/fail)
+--  else
+--      for i=1 to length(children) do
+--          child = children[i]           -- (error if NULL or over-nested)
+--          parent = c_func(xIupAppend, {ih,child}) -- (error if NULL/fail)
+--      end for
+--  end if
+--end procedure
+
 global procedure IupAppend(Ihandle ih, Ihandle child)
-    Ihandle parent = c_func(xIupAppend, {ih,child}) -- (error if NULL/fail)
+    Ihandle actual_parent = c_func(xIupAppend, {ih,child}) -- (error if NULL/fail)
 end procedure
 
-global procedure IupAppends(Ihandle ih, sequence children)
-    for i=1 to length(children) do
-        IupAppend(ih, children[i])
-    end for
-end procedure
+--global procedure IupAppends(Ihandle ih, sequence children)
+--  for i=1 to length(children) do
+--      IupAppend(ih, children[i])
+--  end for
+--end procedure
 
 global procedure IupDetach(Ihandle ih)
     c_proc(xIupDetach, {ih})
@@ -2775,6 +2825,7 @@ global function IupAlarm(string title, string msg, string b1, nullable_string b2
 end function
 
 global procedure IupMessage(nullable_string title=NULL, nullable_string msg=NULL, dword_seq data={})
+    if iup=NULL then iup_init1(NULL) end if
     if length(data) then
         msg = sprintf(msg, data)
     end if
@@ -2806,8 +2857,12 @@ global function IupColorDlg()
     return ih
 end function
 
-global function IupDatePick()
-    return c_func(xIupDatePick, {})
+global function IupDatePick(string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupDatePick, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 global function IupFileDlg()
@@ -2929,6 +2984,7 @@ end function
 
 global function IupGetText(string title, string text)
 atom pText = allocate(10240,1)
+--  text &= '\0'
     poke(pText, text&0)
     if c_func(xIupGetText, {title, pText})=0 then
         return ""
@@ -3027,7 +3083,7 @@ global function IupCanvas(object action=NULL, object func=NULL, sequence attribu
     return ih
 end function
 
-global function IupFrame(Ihandle child, string attributes="", sequence data={})
+global function IupFrame(Ihandle child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupFrame, {child})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -3061,8 +3117,11 @@ global function IupList(object action=NULL, object func=NULL, sequence attribute
     return ih
 end function
 
-global function IupProgressBar()
+global function IupProgressBar(sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupProgressBar, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
@@ -3071,19 +3130,22 @@ global function IupSpin()
     return ih
 end function
 
-global function IupSpinBox(Ihandle child)
+global function IupSpinBox(Ihandln child=NULL)
     Ihandle ih = c_func(xIupSpinbox, {child})
     return ih
 end function
 
-global function IupSpinbox(Ihandle child)
+global function IupSpinbox(Ihandln child=NULL)
     return IupSpinBox(child)
 end function
 
-global function IupTabs(sequence children={})
+global function IupTabs(Ihandles children={}, sequence attributes="", dword_seq data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupTabsv, {pChildren})
     free(pChildren)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
@@ -3459,7 +3521,7 @@ global procedure IupGLControlsOpen()
 end procedure
 
 --DEV paranormalised etc the rest of them (I only did this one because I copied IupHbox)
-global function IupGLCanvasBox(sequence children, string attributes="", sequence data={})
+global function IupGLCanvasBox(Ihandles children, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupGLCanvasBoxv, {pChildren})
     free(pChildren)
@@ -4031,6 +4093,16 @@ global function im_data(imImage image)
     return dataptr
 end function
 
+global function im_pixel(imImage image, integer x, integer y)
+    atom data_ptr = im_data(image)
+    integer offset = y*im_width(image)+x
+    atom {rptr,gptr,bptr} = sq_add(peekNS({data_ptr,3},machine_word(),0),offset)
+    integer r = peek(rptr),
+            g = peek(gptr),
+            b = peek(bptr)
+    return {r,g,b}
+end function
+
 
 --****
 -- === Keyboard
@@ -4072,14 +4144,17 @@ end function
 --  xIupSeparator   = iup_c_func(iup, "IupSeparator", {}, P),
 --  xIupSubmenu     = iup_c_func(iup, "IupSubmenu", {P,P}, P)
 --
-global function IupMenu(sequence children)
+global function IupMenu(Ihandles children={}, sequence attributes="", dword_seq data={})
 atom pChildren = iup_ptr_array(children)
 Ihandle ih = c_func(xIupMenuv, {pChildren})
     free(pChildren)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupMenuItem(string title, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+global function IupMenuItem(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupItem, {title, action})
     if func!=NULL then
@@ -4094,7 +4169,7 @@ global function IupMenuItem(string title, object action=NULL, object func=NULL, 
     return ih
 end function
 
-global function IupItem(string title, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+global function IupItem(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     return IupMenuItem(title, action, func, attributes, data)
 end function
 
@@ -4104,7 +4179,7 @@ global function IupSeparator()
 end function
 
 --Ihandle* IupSubmenu(const char* title, Ihandle* child);
-global function IupSubmenu(nullable_string title, Ihandln menu, string attributes="", sequence data={})
+global function IupSubmenu(nullable_string title=NULL, Ihandln menu=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupSubmenu, {title, menu})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -4112,8 +4187,8 @@ global function IupSubmenu(nullable_string title, Ihandln menu, string attribute
     return ih
 end function
 
-global function IupSubMenu(nullable_string title, Ihandln menu)
-    return IupSubmenu(title, menu)
+global function IupSubMenu(nullable_string title=NULL, Ihandln menu=NULL, string attributes="", sequence data={})
+    return IupSubmenu(title, menu, attributes, data)
 end function
 
 --****
@@ -4161,7 +4236,7 @@ global function IupClipboard()
     return ih
 end function
 
-global function IupTimer(atom func=NULL, integer msecs=0, integer active=1)
+global function IupTimer(atom func=NULL, integer msecs=0, bool active=true)
     Ihandle ih = c_func(xIupTimer, {})
     if func!=NULL and msecs!=0 then
         IupSetCallback(ih, ACTION_CB, func)
@@ -5750,7 +5825,7 @@ end procedure
 --  xcdCanvasText   = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P}),
 --  xcdText         = iup_c_proc(hCd, "cdText", {I,I,P})
 
-global procedure cdCanvasPixel(cdCanvas hCdCanvas, atom x, atom y, atom color)
+global procedure cdCanvasPixel(cdCanvas hCdCanvas, atom x, atom y, integer color)
     c_proc(xcdCanvasPixel, {hCdCanvas, x, y, color})
 end procedure
 
@@ -5935,6 +6010,7 @@ global function cdCanvasGetForeground(cdCanvas hCdCanvas)
 end function
 
 global procedure cdSetForeground(atom color)
+    iup_init_cd()
     c_proc(xcdForeground, {color})
 end procedure
 
@@ -5999,12 +6075,14 @@ atom pDashes = allocate(4*length(dashes))
     free(pDashes)
 end procedure
 
-global function canvas_line_join(cdCanvas hCdCanvas, atom join)
-    return c_func(xcdCanvasLineJoin, {hCdCanvas, join})
+--global function canvas_line_join(cdCanvas hCdCanvas, atom join)
+global function cdCanvasLineJoin(cdCanvas hCdCanvas, integer join_style)
+    return c_func(xcdCanvasLineJoin, {hCdCanvas, join_style})
 end function
 
-global function canvas_line_cap(cdCanvas hCdCanvas, atom cap)
-    return c_func(xcdCanvasLineCap, {hCdCanvas, cap})
+--global function canvas_line_cap(cdCanvas hCdCanvas, atom cap)
+global function cdCanvasLineCap(cdCanvas hCdCanvas, atom cap_style)
+    return c_func(xcdCanvasLineCap, {hCdCanvas, cap_style})
 end function
 
 --[integer prevstyle = cdCanvasInteriorStyle(cdCanvas canvas, integer style) [default style of CD_SOLID should be fine]]
@@ -7093,7 +7171,7 @@ procedure pplot_open()
     c_proc(xIupPPlotOpen, {})
 end procedure
 
-global function IupPPlot(sequence attributes={}, sequence data={})
+global function IupPPlot(string attributes="", sequence data={})
     if not did_pplot_open then
         pplot_open()
     end if
@@ -8136,7 +8214,7 @@ global procedure IupSetGlobalFunction(string name, cbfunc func)
 end procedure
 
 ----int IupClassMatch(Ihandle* ih, const char* classname);
-global function IupClassMatch(atom ih, string classname)
+global function IupClassMatch(Ihandle ih, string classname)
     bool result = c_func(xIupClassMatch, {ih,classname})
     return result   -- true(1) or false(0)
 end function
@@ -8146,27 +8224,47 @@ end function
 /************************************************************************/
 
 --Ihandle* IupScrollBox(Ihandle* child);
-global function IupScrollBox(Ihandln child)
-    Ihandle result = c_func(xIupScrollBox, {child})
-    return result
+global function IupScrollBox(Ihandln child=NULL, string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupScrollBox, {child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 --Ihandle* IupExpander(Ihandle *child);
-global function IupExpander(Ihandln child)
-    Ihandle result = c_func(xIupExpander, {child})
-    return result
+global function IupExpander(Ihandln child=NULL, string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupExpander, {child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 --Ihandle* IupDetachBox(Ihandle *child);
-global function IupDetachBox(Ihandln child)
-    Ihandle result = c_func(xIupDetachBox, {child})
-    return result
+global function IupDetachBox(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    Ihandle ih = c_func(xIupDetachBox, {child})
+    if func!=NULL then
+        if action=NULL then
+--          action = "ACTION"
+            action = "DETACHED_CB"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 --Ihandle* IupBackgroundBox(Ihandle *child);
-global function IupBackgroundBox(Ihandln child)
-    Ihandle result = c_func(xIupBackgroundBox, {child})
-    return result
+global function IupBackgroundBox(Ihandln child=NULL, string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupBackgroundBox, {child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
 end function
 
 --Ihandle* IupLink(const char* url, const char* title);
@@ -8217,19 +8315,19 @@ end procedure
 
 /* IupTree utilities */
 --int IupTreeSetUserId(Ihandle* ih, int id, void* userid);
-global procedure IupTreeSetUserId(atom ih, atom id, atom userid)
+global procedure IupTreeSetUserId(Ihandle ih, integer id, atom userid)
     atom result = c_func(xIupTreeSetUserId, {ih,id,userid})
     if result=0 then ?9/0 end if
 end procedure
 
 --void* IupTreeGetUserId(Ihandle* ih, int id);
-global function IupTreeGetUserId(atom ih, atom id)
+global function IupTreeGetUserId(Ihandle ih, integer id)
 atom result = c_func(xIupTreeGetUserId, {ih,id})
     return result
 end function
 
 --int IupTreeGetId(Ihandle* ih, void *userid);
-global function IupTreeGetId(atom ih, atom userid)
+global function IupTreeGetId(Ihandle ih, atom userid)
 atom result = c_func(xIupTreeGetId, {ih,userid})
     return result
 end function
@@ -8372,20 +8470,20 @@ end procedure
 /************************************************************************/
 --Ihandle* IupProgressDlg(void);
 global function IupProgressDlg()
-    Ihandle result = c_func(xIupProgressDlg, {})
-    return result
+    Ihandle ih = c_func(xIupProgressDlg, {})
+    return ih
 end function
 
 --Ihandle* IupParamf(const char* format);
 --global function IupParamf(nullable_string fmt=NULL)
---  Ihandle result = c_func(xIupParamf, {fmt})
---  return result
+--  Ihandle ih = c_func(xIupParamf, {fmt})
+--  return ih
 --end function
 
 --Ihandle* IupParamBox(Ihandle* parent, Ihandle** params, int count);
 --global function IupParamBox(Ihandle parent, atom params, integer count)
---  Ihandle result = c_func(xIupParamBox, {parent,params,count})
---  return result
+--  Ihandle ih = c_func(xIupParamBox, {parent,params,count})
+--  return ih
 --end function
 
 --Ihandle* IupElementPropertiesDialog(Ihandle* elem);

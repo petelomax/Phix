@@ -16,15 +16,7 @@
             include pGUI.e
            <br>
            <br>
-            IupSetAttributes(Ihandle ih, string attributes, sequence data={})
-            <br>
-            <i>-- or --</i>
-            <br>
-            Ihandle ih = IupSetAttributesf(Ihandle ih, string attributes, sequence data={})
-            <br>
-            <i>-- or --</i>
-            <br>
-            Ihandle ih = IupSetAtt(nullable_string name, Ihandle ih, sequence attribute_pairs)
+            IupSetAttributes(<a href="Ihandle.htm">Ihandles</a> ih, <a href="string.htm">string</a> attributes, <a href="sequence.htm">sequence</a> data={})
          </td>
         </tr>
         <tr>
@@ -32,14 +24,14 @@
           <b>Description:</b>
          </td>
          <td>
-            Sets several attributes of an interface element.
+            Sets several attributes of an interface element or elements.
           <br>
           <br>
-            ih: Identifier of the interface element.
+            ih: Identifier(s) of the interface element.
           <br>
             attributes: string with the attributes in the format "v1=a1, v2=a2,..." where v<sub><small>i</small></sub> is the name of an attribute and a<sub><small>i</small></sub> is its value.
           <br>
-            data: if a non-empty sequence is passed, it performs attributes = sprintf(attributes,data) first.
+            data: if a non-empty <a href="sequence.htm">sequence</a> is passed, it performs attributes = sprintf(attributes,data) first.
          </td>
         </tr>
         <tr>
@@ -48,7 +40,7 @@
          </td>
          <td>
             Most interface elements can be created with an optional inline invocation of IupSetAttributes, which can make code much cleaner 
-            than invoking this function directly (not that doing so is in any way a bad thing), as the examples below show.
+            than invoking this function, as example 2 below shows.
             <br>
             <br>
             There are cases such as a title of "the string is \"X\" [SIZE=%d]" which are difficult if not impossible to achieve via 
@@ -61,18 +53,16 @@
             If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
             <br>
             <br>
-            The function IupSetAttributesf is identical to IupSetAttributes, except that it returns the ih parameter. While in the raw C API 
-            this can make it easier to create dialogs, optional parameters in the pGUI wrapper usually mean there is an even easier way, as 
-            shown in example 1. (IupSetAttributesf is provided to simplify translating C code, but not recommended when cutting new code.)
+            While the most common use is to set several attributes on a single element, it is also possible to set the same attribute(s) on
+            several elements, as example 3 below shows.
             <br>
             <br>
-            The IupSetAtt function is also provided to simplify translation of calls to the C function IupSetAtt: a call such as <br>
-            <code> IupSetAtt(NULL, list, "VALUE", "3", "1", "Brazil", "2", "USA", "3", "Japan", "4", "France", NULL); </code><br>
-            should be translated such that the third parameter becomes an even-lengthed list with odd elements being names and even
-            elements being values, and the trailing NULL removed. A non-null name (which cannot be omitted, and should be globally
-            unique) simply triggers a call to <a href="IupSetHandle.htm">IupSetHandle</a>. You could also translate that to an inline
-            call as part of the element creation, as shown in example 2 below, which I personally find much clearer, although it will
-            of course require significantly more editing keystrokes.
+            The function IupSetAttributesf has been removed, since that functionality is now provided by the optional 
+            <code>string attributes="", sequence data={}</code> parameters on all relevant element creation routines (with non-default
+            values triggering an internal invocation of this very routine).<br>
+            Likewise the IupSetAtt function has been removed, see example below, though admittedly when a non-null name has
+            been provided that may require extra <a href="IupSetHandle.htm">IupSetHandle</a>() calls (which, btw, is equivalent
+            to making the handle global, and therefore a recipe for disaster in my book).
          </td>
         </tr>
         <tr>
@@ -80,27 +70,26 @@
           <b>Example 1:</b>
          </td>
          <td>
+            Select the appropriate file dialog type and title.
+         </td>
+        </tr>
+        <tr>
+         <td>
+         </td>
+         <td>
 <!--eucode>
-Ihandle canvas = IupSetAttributesf(IupCanvas(NULL), "BORDER=NO, RASTERSIZE=100x100")
-Ihandle dialog = IupSetAttributesf(IupDialog(IupSetAttributesf(IupHBox({canvas}),
-                                                               "MARGIN=10x10")),
-                                   "TITLE=Test")
+if bOpen then
+    IupSetAttributes(filedlg, "DIALOGTYPE=OPEN, TITLE=Open")
+else
+    IupSetAttributes(filedlg, "DIALOGTYPE=SAVE, TITLE=Save")
+end if
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> canvas</font><font color="#0000FF"> =</font><font color="#5E005E"> IupSetAttributesf</font><font color="#0000FF">(</font><font color="#5E005E">IupCanvas</font><font color="#800000">(</font><font color="#004600">NULL</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000"> "BORDER=NO, RASTERSIZE=100x100"</font><font color="#0000FF">)
-</font><font color="#5E005E">Ihandle</font><font color="#000000"> dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupSetAttributesf</font><font color="#0000FF">(</font><font color="#5E005E">IupDialog</font><font color="#800000">(</font><font color="#5E005E">IupSetAttributesf</font><font color="#800080">(</font><font color="#000000">IupHBox</font><font color="#00FF00">(</font><font color="#000080">{</font><font color="#000000">canvas</font><font color="#000080">}</font><font color="#00FF00">)</font><font color="#0000FF">,
-</font><font color="#008000">                                                               "MARGIN=10x10"</font><font color="#800080">)</font><font color="#800000">)</font><font color="#0000FF">,
-</font><font color="#008000">                                   "TITLE=Test"</font><font color="#0000FF">)</font>
-</pre>
-            <br>
-            Thankfully these can be written much more succinctly:
-<!--eucode>
-Ihandle canvas = IupCanvas("BORDER=NO, RASTERSIZE=100x100")
-Ihandle dialog = IupDialog(IupHBox({canvas},"MARGIN=10x10"),"TITLE=Test")
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> canvas</font><font color="#0000FF"> =</font><font color="#5E005E"> IupCanvas</font><font color="#0000FF">(</font><font color="#008000">"BORDER=NO, RASTERSIZE=100x100"</font><font color="#0000FF">)
-</font><font color="#5E005E">Ihandle</font><font color="#000000"> dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">IupHBox</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">canvas</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#008000">"MARGIN=10x10"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"TITLE=Test"</font><font color="#0000FF">)</font>
+<font color="#000000"></font><font color="#008080">if</font><font color="#000000"> bOpen</font><font color="#008080"> then
+</font><font color="#5E005E">    IupSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#008000"> "DIALOGTYPE=OPEN, TITLE=Open"</font><font color="#0000FF">)
+</font><font color="#008080">else
+</font><font color="#5E005E">    IupSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#008000"> "DIALOGTYPE=SAVE, TITLE=Save"</font><font color="#0000FF">)
+</font><font color="#008080">end if</font>
 </pre>
          </td>
         </tr>
@@ -116,11 +105,36 @@ Ihandle dialog = IupDialog(IupHBox({canvas},"MARGIN=10x10"),"TITLE=Test")
          <td>
          </td>
          <td>
+            Translate C code such as <code>list = IupList(); IupSetAtt(NULL, list, "VALUE", "3", "1", "Brazil", "2", "USA", "3", "Japan", "4", "France", NULL);</code> to
 <!--eucode>
-Ihandle list = IupList("VALUE=3,1=Brazil,2=USA,3=Japan,4=France")
+Ihandle list = IupList("VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France")
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#5E005E"> IupList</font><font color="#0000FF">(</font><font color="#008000">"VALUE=3,1=Brazil,2=USA,3=Japan,4=France"</font><font color="#0000FF">)</font>
+<font color="#000000"></font><font color="#5E005E">Ihandle</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#5E005E"> IupList</font><font color="#0000FF">(</font><font color="#008000">"VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France"</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Admittedly this is more of an example of when <i>not</i> to use IupsetAttributes, or more accurately inline it.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 3:</b>
+         </td>
+         <td>
+            Enable or disable several buttons and menu entries simultaneously.
+         </td>
+        </tr>
+        <tr>
+         <td>
+         </td>
+         <td>
+<!--eucode>
+string active = iff(selected_text={}?"NO":YES")
+IupSetAttributes({b_cut,b_copy,b_delete,m_cut,m_copy,m_delete}, "ACTIVE", active)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">string</font><font color="#000000"> active</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">selected_text</font><font color="#0000FF">=</font><font color="#800000">{}</font><font color="#0000FF">?</font><font color="#008000">"NO"</font><font color="#0000FF">:</font><font color="#000000">YES</font><font color="#FF0000">"</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetAttributes</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">b_cut</font><font color="#0000FF">,</font><font color="#000000">b_copy</font><font color="#0000FF">,</font><font color="#000000">b_delete</font><font color="#0000FF">,</font><font color="#000000">m_cut</font><font color="#0000FF">,</font><font color="#000000">m_copy</font><font color="#0000FF">,</font><font color="#000000">m_delete</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "ACTIVE"</font><font color="#0000FF">,</font><font color="#000000"> active</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

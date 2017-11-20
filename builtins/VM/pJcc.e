@@ -176,9 +176,13 @@ end procedure -- (for Edita/CtrlQ)
         cmp eax,edx
         je :compareSeqSeqNxt
         cmp eax,h4
-        jl :compareSeqReset
+--25/9/17
+--      jl :compareSeqReset
+        jl :compareSeqp3iint
         cmp edx,h4
-        jl :compareSeqReset
+--25/9/17
+--      jl :compareSeqReset
+        jl :compareSeqp2iint
         pushad
         call :compareSeq
         popad
@@ -193,7 +197,47 @@ end procedure -- (for Edita/CtrlQ)
         cmp ecx,edx
         ret
 
+--25/9/17:
+-- BUGFIX: ?sort({{0},{-3.8}}) gave completely the wrong results.
+-- In compare({a},{b}) the nested compare of a,b was not handling
+-- integers vs floats correctly; if {a,b} was {int,float} or
+-- {float,int} it would simply assume int<float. The same bug was
+-- present for infix <, <=, >, >=, though = and != were fine.
+      ::compareSeqp3iint
+        -- p3[i] (eax) is an integer
+        -- p2[i] (edx) is of unknown type
+        cmp edx,h4
+        jl :compareSeqReset
+        cmp byte[ebx+edx*4-1],0x12
+        jne :compareSeqReset    -- all ints (eax<h4) deemed less than sequences (edi>h4)
+        -- p2(edx) flt, p3(eax) int:
+        push eax
+        fld qword[ebx+edx*4]
+        fild dword[esp]
+        jmp @f
+        
+      ::compareSeqp2iint
+        -- p2[i] (edx) is an integer
+        -- p3[i] (eax) is not, but could be a float
+        cmp byte[ebx+eax*4-1],0x12
+        jne :compareSeqReset    -- all ints (eax<h4) deemed less than sequences (edi>h4)
+        -- p2(edx) int, p3(eax) flt:
+        push edx
+        fild dword[esp]
+        fld qword[ebx+eax*4]
+      @@:
+        add esp,4
+        fcompp
+        fnstsw ax
+        mov ch,ah
+        and ah,0x7f     -- clear sign
+        shl ch,7
+        or ah,ch
+        sahf
+        jmp :compareSeqPop2Ret
+
       ::compareSeqReset
+--25/9/17 BUG!! (as per Jccp2Intp3Ref...)
         cmp eax,edx
       ::compareSeqPop2Ret
 --  lea esp,[esp+8]
@@ -465,10 +509,14 @@ end procedure -- (for Edita/CtrlQ)
         je :compareSeq64SeqNxt
 --      cmp rax,h4
         cmp rax,r15
-        jl :compareSeq64Reset
+--25/9/17
+--      jl :compareSeq64Reset
+        jl :compareSeq64p3iint
 --      cmp rdx,h4
         cmp rdx,r15
-        jl :compareSeq64Reset
+--25/9/17
+--      jl :compareSeq64Reset
+        jl :compareSeq64p2iint
 --      pushad
 push rsi
 push rdi
@@ -488,6 +536,40 @@ pop rsi
         pop rcx
         cmp rcx,rdx
         ret
+
+--25/9/17:
+      ::compareSeq64p3iint
+        -- p3[i] (rax) is an integer
+        -- p2[i] (rdx) is of unknown type
+        cmp rdx,r15
+        jl :compareSeq64Reset
+        cmp byte[rbx+rdx*4-1],0x12
+        jne :compareSeq64Reset  -- all ints (rax<h4) deemed less than sequences (rdi>h4)
+        -- p2(rdx) flt, p3(rax) int:
+        push rax
+        fld tbyte[ebx+edx*4]
+        fild qword[rsp]
+        jmp @f
+        
+      ::compareSeq64p2iint
+        -- p2[i] (rdx) is an integer
+        -- p3[i] (rax) is not, but could be a float
+        cmp byte[rbx+rax*4-1],0x12
+        jne :compareSeq64Reset  -- all ints (rax<h4) deemed less than sequences (rdi>h4)
+        -- p2(rdx) int, p3(rax) flt:
+        push rdx
+        fild qword[rsp]
+        fld tbyte[rbx+rax*4]
+      @@:
+        add rsp,8
+        fcompp
+        fnstsw ax
+        mov ch,ah
+        and ah,0x7f     -- clear sign
+        shl ch,7
+        or ah,ch
+        sahf
+        jmp :compareSeq64Pop2Ret
 
       ::compareSeq64Reset
         cmp rax,rdx
@@ -1818,7 +1900,12 @@ end procedure -- (for Edita/CtrlQ)
         --  mov edi,[p3]    (opUnassigned)
         --  mov eax,[p2]    (opUnassigned)
         --  call opSgt  [tgt] := -1/0/+1
+--/!* (25/9/17 sug) [14/10 went ahead anyway (w/o any new tests)]
+        push dword[edx]
+--*!/
         push edx
+--DEV 25/9/17 (spotted in passing) this will (probably) have issues for a = compare(a,b)...
+--/*
         mov edx,[edx]
         cmp edx,h4
         jle @f
@@ -1831,6 +1918,7 @@ end procedure -- (for Edita/CtrlQ)
             pop eax
             pop edi
       @@:
+--*/
         call :%opJcc
         pop edx
         mov eax,ebx     -- 0                
@@ -1841,6 +1929,18 @@ end procedure -- (for Edita/CtrlQ)
 --      mov eax,-1
       @@:
         mov [edx],eax
+--/!* (25/9/17 sug)
+        pop edx
+        cmp edx,h4
+        jle @f
+            sub dword[ebx+edx*4-8],1
+--          jnz @f
+--          push dword[esp+12??]    -- (next line needs careful testing!)
+--          push dword[esp]
+--          call :%pDealloc0
+            jz :%pDealloc
+      @@:
+--*!/
         ret
     [64]
         --calling convention:
@@ -1848,20 +1948,22 @@ end procedure -- (for Edita/CtrlQ)
         --  mov rdi,[p3]    (opUnassigned)
         --  mov rax,[p2]    (opUnassigned)
         --  call opSgt  [tgt] := -1/0/+1
+        push qword[edx]
         push rdx
-        mov rdx,[rdx]
-        mov r15,h4
-        cmp rdx,r15
-        jle @f
-            sub qword[rbx+rdx*4-16],1
-            jnz @f
-            push rdi
-            push rax
-            push qword[rsp+24]
-            call :%pDealloc0
-            pop rax
-            pop rdi
-      @@:
+--DEV as above
+--      mov rdx,[rdx]
+--      mov r15,h4
+--      cmp rdx,r15
+--      jle @f
+--          sub qword[rbx+rdx*4-16],1
+--          jnz @f
+--          push rdi
+--          push rax
+--          push qword[rsp+24]
+--          call :%pDealloc0
+--          pop rax
+--          pop rdi
+--    @@:
 --      call :compareSeq64R
         call :%opJcc
         pop rdx
@@ -1873,6 +1975,12 @@ end procedure -- (for Edita/CtrlQ)
 --      mov rax,-1
       @@:
         mov [rdx],rax
+        pop rdx
+        cmp rdx,r15
+        jle @f
+            sub qword[rbx+rdx*4-16],1
+            jz :%pDealloc
+      @@:
         ret
     []
 

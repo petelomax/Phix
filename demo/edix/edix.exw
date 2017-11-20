@@ -944,10 +944,11 @@ sequence fci
     if recalc then reCalcMaxLen() end if
 end procedure
 
---/*
+Ihandle toolb_rtns
+
+--/"*
 --global 
-integer prevRtnIdx
-               prevRtnIdx = 0
+integer prevRtnIdx = 0
 
 procedure setRtnIndex()
 integer k
@@ -961,19 +962,34 @@ sequence r
         end for
         if prevRtnIdx!=k then
             prevRtnIdx = k
-            if rtnList and not F11mode then
-                if isEnabled(rtnList) then
-                    setIndex(rtnList,k)
-                end if
-            end if
+--          if rtnList and not F11mode then
+--              if isEnabled(rtnList) then
+--                  setIndex(rtnList,k)
+                    IupSetInt(toolb_rtns,"VALUE",k)
+--              end if
+--          end if
         end if
     end if
 end procedure
---*/
+--*"/
 
 global procedure setRtnList()
     -- load the ComboDropDownList, rtnList and set the index
     ?"setRtnList" --DEV
+    IupSetAttribute(toolb_rtns,"REMOVEITEM","ALL")
+    if currfile and sequence(routines[currfile]) then
+        sequence rcn = routines[currfile][rtnNAMES]
+        for i=1 to length(rcn) do
+            IupSetAttributeId(toolb_rtns, "", i, rcn[i])
+        end for
+        IupSetInt(toolb_rtns,"VISIBLEITEMS",length(rcn)+1)  -- [no idea why it needs the +1]
+        IupSetInt(toolb_rtns, "ACTIVE", 1)
+        prevRtnIdx = 0
+        setRtnIndex()
+        IupRefresh(toolb_rtns)  -- (needed for "VISIBLEITEMS" to take effect)
+    else
+        IupSetInt(toolb_rtns, "ACTIVE", 0)
+    end if
 --/*
     if rtnList then
         deleteItem(rtnList,0)   -- empty list
@@ -1236,26 +1252,26 @@ integer FW
             if getNIL then
                 nextImportantLine = -1
                 for i=lineno+1 to 1 by -1 do
---maybe 10/7/16 (untested)
---                  if i<=length(BookMarkSet) then
-                    SetEntry = BookMarkSet[i]
-                    if sequence(SetEntry) then
-                        BiE = SetEntry[bfEnd]
-                        if sequence(BiE) then
-                            BiE = SetEntry[bfStart]
-                        end if
-                        if BiE<=lineno --+1
-                        and BiE+1>nextImportantLine then
-                            if and_bits(SetEntry[bfType],FOLD) then
-                                nextImportantLine = BiE+1
-                                foldIdx = i
-                            elsif isWordWrapON and and_bits(SetEntry[bfType],WRAP) then
-                                nextImportantLine = BiE
-                                foldIdx = i
+--maybe 10/7/16 (untested) [needed 14/11/17]
+                    if i<=length(BookMarkSet) then
+                        SetEntry = BookMarkSet[i]
+                        if sequence(SetEntry) then
+                            BiE = SetEntry[bfEnd]
+                            if sequence(BiE) then
+                                BiE = SetEntry[bfStart]
+                            end if
+                            if BiE<=lineno --+1
+                            and BiE+1>nextImportantLine then
+                                if and_bits(SetEntry[bfType],FOLD) then
+                                    nextImportantLine = BiE+1
+                                    foldIdx = i
+                                elsif isWordWrapON and and_bits(SetEntry[bfType],WRAP) then
+                                    nextImportantLine = BiE
+                                    foldIdx = i
+                                end if
                             end if
                         end if
                     end if
---                  end if
                 end for
                 getNIL = False
             end if
@@ -1397,19 +1413,23 @@ include builtins\timedate.e
 --end function
 
 procedure update_statusbar()
+integer k
     if currfile then
         IupSetStrAttribute(sbline,"TITLE","Line %d of %d, Column %d",{CursorY+1,length(filetext[currfile]),CursorX+1})
         string imode = iff(insertMode?"INS":"OVR")
         string chstr = "   "
+        unicodeflag = unicodefile[currfile]
         if CursorY<length(filetext[currfile]) then
 --          string oneline = filetext[currfile][CursorY+1]
             sequence oneline = filetext[currfile][CursorY+1]
-            integer k = MapToByte(oneline,CursorX)
+            k = MapToByte(oneline,CursorX)
             if k then
-                chstr = sprintf("#%02x",oneline[k])
+                chstr = sprintf(iff(unicodeflag=ANSI?"#%02x":"#%04x"),oneline[k])
             end if
         end if
-        IupSetStrAttribute(sbinfo,"TITLE","%s  %s",{imode,chstr})
+        k = unicodeflag+(unicodeflag<3)
+        string fmode = {"ANSI ","UTF-8 ","UTF-16"}[k]
+        IupSetStrAttribute(sbinfo,"TITLE","%s  %s  %s",{fmode,imode,chstr})
 --DEV[?]
 --/*
                 if atom(routines[currfile]) and isEu 
@@ -1420,6 +1440,8 @@ procedure update_statusbar()
                     setText(SB6,"")
                 end if
 --*/
+--17/11/17: (definately helps!)
+        setRtnIndex()
     else
         IupSetAttribute(sbline,"TITLE","")
         IupSetAttribute(sbinfo,"TITLE","")
@@ -1898,6 +1920,13 @@ sequence cursel
         cursel = filecursel[currfile]
         {CursorX,CursorY,TopLine,Column,selON,selX,selY,
          lastFold,lastFoldEnd,TopChunk} = cursel
+        -- erm, 15/11/17 (then decided to add the warning as well):
+--      CursorY = min(length(filetext[currfile])-1,CursorY)
+        integer maxcY = length(filetext[currfile])-1
+        if CursorY>maxcY then
+            CursorY = maxcY
+            ?"warning: CursorY reset (edix.exw line 1910)"
+        end if
 --      CursorX     = cursel[1]
 --      CursorY     = cursel[2]
 --      TopLine     = cursel[3]
@@ -1962,7 +1991,6 @@ Ihandle toolb_zoomin
 Ihandle toolb_zoomout
 Ihandle toolb_back
 Ihandle toolb_run
-Ihandle toolb_rtns
 
 --DEV extension handling....
 --sequence runnables = {"ex","exu","exw","exwc","htm","html","bat"}
@@ -2298,7 +2326,7 @@ end procedure
 --without trace
 --with trace
 --global 
-procedure changeTo(integer i)
+procedure changeTo(integer i, integer npos)
 -- switch to the specified file
 --sequence fileExt
 --integer lenExt
@@ -2372,6 +2400,9 @@ procedure changeTo(integer i)
 --      setFocus(tabs[currfile])
 --  end if
 --?"setFocus"
+    if npos!=-1 then
+        IupSetInt(tabs,"VALUEPOS",npos)
+    end if
     IupSetFocus(canvas)
 
     checkProj = 1
@@ -2379,6 +2410,21 @@ procedure changeTo(integer i)
         setRtnList()
     end if
 end procedure
+
+function findtab(integer c, bool return_handle=false)
+    for pos=0 to IupGetInt(tabs,"COUNT")-1 do
+        Ihandle tab = IupGetChild(tabs, pos)
+        if IupGetInt(tab,"FILEIDX")=c then
+            if return_handle then
+                return tab
+            else
+                return pos
+            end if
+        end if
+    end for
+    return 9/0
+end function
+
 
 --/*
 --global 
@@ -4230,7 +4276,7 @@ C:\Program Files (x86)\Phix\demo\edix\crud.exw:5424         linelengths[lineleng
     integer fidx = length(filenames)
     IupSetInt(tab,"FILEIDX",fidx)
     if not opening then
-        changeTo(fidx)
+        changeTo(fidx,-1)   -- (tab pos already set - by IupSetAttributeHandle(tabs, "VALUE", tab) above)
         IupRefresh(tabs)
         appUpdateRender()
     end if
@@ -4251,14 +4297,16 @@ C:\Program Files (x86)\Phix\demo\edix\crud.exw:5424         linelengths[lineleng
     end if
 end procedure
 
-function openFile(integer opening, string filepath, integer encoding)
+global function openFile(integer opening, string filepath, integer encoding)
     string title = get_file_name(filepath)
 --  string path = filename[1..length(filename)-length(title)]
     string path = get_file_path(filepath,0)
     for i=1 to length(filepaths) do
         if filepaths[i]=path
         and filenames[i]=title then
-            if i!=currfile then changeTo(i) end if
+            if i!=currfile then
+                changeTo(i,findtab(i))
+            end if
 --          return 3    -- let eacons.ew know it is a "switch".
             return true
         end if
@@ -4443,7 +4491,9 @@ end function
     else
         filedlg = IupFileDlg()
 
-        IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
+--18/11/17:
+--      IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
+        IupSetAttributeHandle(filedlg, "PARENTDIALOG", dlg)
 --      IupSetAttributes(filedlg, "DIALOGTYPE = SAVE, TITLE = \"File Save\"")
         IupSetAttribute(filedlg, "TITLE", "Open")
 --      IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
@@ -4625,9 +4675,12 @@ string filename = ""
                 {encoding,filename} = res
             end if
         else
+            IupSetGlobal("UTF8MODE_FILE","YES")
             filedlg = IupFileDlg()
 
-            IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
+--18/11/17:
+--          IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
+            IupSetAttributeHandle(filedlg, "PARENTDIALOG", dlg)
             IupSetAttributes(filedlg, "DIALOGTYPE=SAVE, TITLE=Save")
             IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
             IupSetInt(filedlg, "FILTERUSED", 2)
@@ -4654,6 +4707,10 @@ string filename = ""
 --23/7/17...
             unicodefile[c] = encoding
             if saveFile(warnBackup:=false) then
+--DEV tryme:
+if 0 then
+                IupSetAttributeId(tabs, "TABTITLE", findtab(c), filenames[c])
+else
                 Ihandle tab
                 for pos=0 to IupGetInt(tabs,"COUNT")-1 do
                     tab = IupGetChild(tabs, pos)
@@ -4666,6 +4723,7 @@ string filename = ""
                         exit
                     end if
                 end for
+end if
                 IupConfigRecentUpdate(config, filename)
                 for i=1 to length(filenames) do
                     if i!=c
@@ -4675,6 +4733,10 @@ string filename = ""
 --?{i,c}
 --show_tab_info()
                         removelast(i)
+--DEV tryme:
+if 0 then
+                        IupDestroy(findtab(i,true))
+else
                         for pos=0 to IupGetInt(tabs,"COUNT")-1 do
                             Ihandle dtab = IupGetChild(tabs, pos)
                             if IupGetInt(dtab,"FILEIDX")=i then
@@ -4682,6 +4744,7 @@ string filename = ""
                                 exit
                             end if
                         end for
+end if
 --show_tab_info()
                         exit
 --?9/0
@@ -4807,11 +4870,13 @@ global constant r_saveFileAs=routine_id("saveFileAs")
 
 --*/
 
-function filelist_cb(Ihandle /*item_filelist*/)
-?"filelist_cb"
-    return IUP_DEFAULT;
-end function
-constant cb_filelist = Icallback("filelist_cb")
+--DEV
+include src\filelist.e
+--function filelist_cb(Ihandle /*item_filelist*/)
+--?"filelist_cb"
+--  return IUP_DEFAULT;
+--end function
+--constant cb_filelist = Icallback("filelist_cb")
 
 function save_cb(Ihandle item_save)
 integer c = iff(tabfile?tabfile:currfile) -- (deliberately not zeroed here)
@@ -4853,9 +4918,9 @@ Ihandln ntab = IupGetChild(ih, pos+1)
     if ntab=NULL then
         IupSetAttribute(dlg,"TITLE","Edix")
     else
-        IupSetInt(tabs,"VALUEPOS",pos+1)
+--      IupSetInt(tabs,"VALUEPOS",pos+1)
         integer nidx = IupGetInt(ntab,"FILEIDX")
-        changeTo(nidx)
+        changeTo(nidx,pos+1)
     end if
 --DEV necessary? or ...?
     appUpdateRender()
@@ -4982,6 +5047,10 @@ constant cb_print = Icallback("print_cb")
 --constant SessionLimit = 40
 constant SessionLimit = 0   -- while developing!
 
+include src/eaedb.e
+include src/dir.e   -- DEV xExtractAssociatedIcon, getBackupSet
+include src/qj.e    -- currProjFileSet("")
+
 function exit_cb(Ihandle /*item_exit*/)
 --  if not save_check(item_exit) then
 --      return IUP_IGNORE;  /* to abort the CLOSE_CB callback */
@@ -5065,6 +5134,9 @@ function exit_cb(Ihandle /*item_exit*/)
     IupConfigDialogClosed(config, dlg, "MainWindow");
     {} = IupConfigSave(config);
     IupDestroy(config);
+--erm, does not seem to be necessary...
+--  {} = closeChm()
+    closeChm()
     return IUP_CLOSE;
 end function
 constant cb_exit = Icallback("exit_cb")
@@ -5171,7 +5243,6 @@ constant cb_backtimer = Icallback("backtimer_cb")
 
 --  IupSetAttribute(backtimer,"RUN","YES")
 
-
 function backoff_cb(atom /*self*/)
     if IupAlarm("Disable background processing?",
                 "Background processing should not normally affect performance.\n"&
@@ -5248,7 +5319,7 @@ end function
 constant cb_cca = Icallback("cca_cb")
 
 function qjmp_cb(atom /*self*/)
-?"qjmp_cb" --DEV
+    onClickToolQjmp()
     return IUP_IGNORE
 end function
 constant cb_qjmp = Icallback("qjmp_cb")
@@ -5675,7 +5746,7 @@ Ihandle file_open   = menu_item("&Open\tCtrl O",            "PNG_FileOpen",     
         file_reopen = menu_item("&ReOpen\tCtrl Shift O",    "PNG_FileReOpen",   cb_reopen,      0)
         file_save   = menu_item("&Save\t\tCtrl S",          "PNG_FileSave",     cb_save,        0)
         file_saveas = menu_item("Save &As..",               "PNG_FileSaveAs",   cb_saveas,      0)
-Ihandle file_list   = menu_item("File Lis&t",               "PNG_FileList",     cb_filelist,    0)
+Ihandle file_list   = menu_item("File Lis&t",               "PNG_FileList",     cb_filelist,    1)
         file_close  = menu_item("C&lose\t\tCtrl F4",        "PNG_FileClose",    cb_close,       0)
         file_prntp  = menu_item("Print Pre&view\t\tCtrl P", "PNG_FilePreview",  cb_preview,     0)
         file_print  = menu_item("&Print\t\tCtrl Shift P",   "PNG_FilePrint",    cb_print,       0)
@@ -5772,7 +5843,7 @@ toolm_fif   = menu_item("&Find In Files\tCtrl Shift F", "PNG_FindInFiles",      
 toolm_html  = menu_item("&Htmlise eucode",              "PNG_ToolsHtmlise",     cb_html,     0)
 toolm_rein  = menu_item("Re-&Indent source",            "PNG_Reindent",         cb_rein,     1)
 toolm_cca   = menu_item("Co&mmon Code Analysis",        "PNG_CommonCode",       cb_cca,      0)
-toolm_qjmp  = menu_item("&Quick Jump",                  "PNG_QuickJump",        cb_qjmp,     0)
+toolm_qjmp  = menu_item("&Quick Jump\tCtrl Q",          "PNG_QuickJump",        cb_qjmp,     1)
 toolm_recvr = menu_item("&Recovery",                    "PNG_Recovery",         cb_rcvr,     0)
 --toolm_paint = menu_item("&Window Painter",                "PNG_WindowPaint",      cb_wpnt,     0)
 --toolm_paint = menu_item("&Layout Designer",               "PNG_Designer",     cb_wpnt,     0)
@@ -5901,14 +5972,26 @@ constant H_F1 = 101,
          H_UPGRADE = 107,
          H_ABOUT = 108
 
+Ihandle F1menuitem
+
 global function help_cb(Ihandle self)
 integer id = IupGetInt(self,"ID")
 ?"help_cb"
     if id<=100 then
 --DEV eaqj.ew...
 --      openChm(helpfiles[id],0)
-        ?helpfiles[id]
+        openChm(helpfiles[id],"")
+--      ?helpfiles[id]
     elsif id=H_F1 then
+--?"F1!"
+--      openChm("phix.chm",0)
+--DEV get path dynamically, word under the cursor... and esc to close
+--      openChm("C:\\Program Files (x86)\\Phix\\docs\\phix\\phix.chm","")
+        if currfile then
+            rcX = CursorX
+            rcY = CursorY
+        end if
+        F1help(0)
     elsif id=H_HOME then
     elsif id=H_MANUAL then
     elsif id=H_LICENCE then
@@ -5936,6 +6019,7 @@ Ihandle help_forum      = menu_item("OpenEuphoria Forum",   "PNG_UserGroup",    
 Ihandle help_upgrades   = menu_item("Check for &Upgrades",  "PNG_AppUpgrade",   cb_help,  1, H_UPGRADE)
 Ihandle help_about      = menu_item("&About",               "PNG_HelpAbout",    cb_help,  1, H_ABOUT)
 
+F1menuitem = help_context
 Ihandles children = {help_context,
                      IupSeparator()}
 --Ihandles from_helpfiles = {}
@@ -6042,7 +6126,7 @@ function create_toolbar()
 --DEV in windows the control will still get the focus when clicked [the DEV part being that we need some extra code to re-focus]
     toolb_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
     --DEV this will be more dynamically set:
-    if 0 then
+    if 01 then
         IupSetInt(toolb_rtns, "ACTIVE", 0)
     else
 --      IupSetAttributeId(toolb_rtns, "", length(actset), NULL)
@@ -7172,8 +7256,8 @@ procedure pageup(integer ctrl, shift, alt)
                         Ihandle ntab = IupGetChild(tabs, pos-1)
                         integer nidx = IupGetInt(ntab,"FILEIDX")
 --                      currfile = nidx
-                        changeTo(nidx)
-                        IupSetInt(tabs,"VALUEPOS",pos-1)
+                        changeTo(nidx,pos-1)
+--                      IupSetInt(tabs,"VALUEPOS",pos-1)
 --end if
                     end if
                     IupRefresh(tabs)
@@ -7226,7 +7310,7 @@ procedure pagedn(integer ctrl, shift, alt)
                 IupSetInt(tabs,"VALUEPOS",pos+1)
                 Ihandle ntab = IupGetAttributeHandle(tabs, "VALUE")
                 integer nidx = IupGetInt(ntab,"FILEIDX")
-                changeTo(nidx)
+                changeTo(nidx,-1) -- (pos just set)
             end if
             IupRefresh(tabs)
             appUpdateRender()
@@ -7310,6 +7394,30 @@ procedure backdel(integer base, ctrl, shift, /*alt*/)
             end if
         end if
     end if
+end procedure
+
+include src\cflow.e
+
+procedure bracket(integer base, /*ctrl*/, shift, alt)
+    if selON then
+        if selY = CursorY then
+            CursorX = 0
+            clearSelection()
+        end if
+    end if
+--  startSelection(shift,menu)
+    startSelection(shift,alt)
+    integer d = iff(base='['?-1:+1)
+    ctrlBracket(d)
+    if cbY = CursorY
+    and cbX = CursorX
+    and CursorX then
+        integer wasCursorX = CursorX
+        CursorX = 0
+        ctrlBracket(d)
+        if cbY=CursorY then  cbX = wasCursorX  end if
+    end if
+    jumpTo(cbX,cbY)
 end procedure
 
 procedure insertkey(integer ctrl, shift, /*alt*/)
@@ -7444,6 +7552,8 @@ function clear_tip_sel()
         selON = 0
         appUpdateRender()
         update_toolbar()
+--SUG:
+--  elsif not closeChm() then
     else
         return exit_cb(dlg) -- DEV to go (once edix gets useable)
     end if
@@ -7493,6 +7603,7 @@ function key_cb(Ihandle ih, atom c)
 --          case K_Menu: CSM(ctrl,shift,alt)
             case K_Menu: menu_key(ctrl,shift,alt)
 --          case K_F1: F1help(ctrl,shift,alt)
+            case K_F1: {} = help_cb(F1menuitem)
 --          case K_F2: F2mark(ctrl,shift,alt)
             case K_F3: fdlg:F3find(ctrl,shift)
 --          case K_F4: F4diff(ctrl,shift,alt)
@@ -7501,7 +7612,7 @@ function key_cb(Ihandle ih, atom c)
 --          case K_F12: F12() -- (jump to error) --ctrl,shift,alt)
 --          case '<','>': comment_indent(base,ctrl,shift,alt)
 --          case '-','+': fold(base,ctrl,shift,alt)
---          case '[',']': bracket(base,ctrl,shift,alt)
+            case '[',']': bracket(base,ctrl,shift,alt)
             case K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,
                  K_LALT,K_RALT,K_NUM,K_SCROLL,K_CAPS:
                 break   -- (avoid TITLE update)
@@ -7530,10 +7641,10 @@ function key_cb(Ihandle ih, atom c)
                 case K_mL:  caseOp(LOWER)
                 case K_msL: caseOp(SENTENCE)
                 case K_cP:  return preview_cb(file_prntp)   -- print preview
---              case K_cQ:  quick_jump()
+                case K_cQ:  onClickToolQjmp()
                 case K_csR: zoom(-1)
                 case K_cS:  return save_cb(ih)
---              case K_cT:  file_list()
+                case K_cT:  fileList()
                 case K_mU:  caseOp(UPPER)
                 case K_msU: caseOp(CAPITALISE)
                 case K_cV:  Paste()
@@ -7611,7 +7722,7 @@ function tabchange_cb(atom /*self*/, atom new_tab, atom old_tab)
 --  savecurr()  -- no help...
 --2/12/16:
 if fidx!=0 then
-    changeTo(fidx)
+    changeTo(fidx,-1)   -- (pos not changed)
 end if
 
 --DEV I should probably have a posmap[] to do this... (and get rid of FILEIDX)
@@ -7914,7 +8025,8 @@ procedure main()
     tcbox = IupVbox({tabs,canvas})
 
 --DEV cannot get VALUE to do anything meaningful...
-    tbox = IupSetAttributesf(IupSplit(rtbox,tcbox),"ORIENTATION=VERTICAL, AUTOHIDE=YES, VALUE=305")
+--  tbox = IupSetAttributesf(IupSplit(rtbox,tcbox),"ORIENTATION=VERTICAL, AUTOHIDE=YES, VALUE=305")
+    tbox = IupSplit(rtbox,tcbox,"ORIENTATION=VERTICAL, AUTOHIDE=YES, VALUE=305")
 --  tbox = IupSetAttributesf(IupSplit(rtbox,tcbox),"ORIENTATION=VERTICAL, AUTOHIDE=YES, NORMALIZESIZE=HORIZONTAL")
 --  tbox = IupSetAttributesf(IupSplit(rtbox,tcbox),"ORIENTATION=VERTICAL, AUTOHIDE=YES")
 
@@ -7922,7 +8034,7 @@ procedure main()
 --  better: 2 fixed, auto-expand to fit??
 --  statusbar = IupLabel("Line 1 of 1, Column 1","NAME=STATUSBAR, EXPAND=HORIZONTAL, PADDING=10x5")
     sbline = IupLabel("Line 1 of 1, Column 1","PADDING=10x5,SIZE=120x")
-    sbinfo = IupLabel("INS #cc dd Mmmm Yyyy hh:mmpm","PADDING=10x5,SIZE=50x")
+    sbinfo = IupLabel("UTF-16 INS #cccc ","PADDING=10x5,SIZE=80x")
     sbdate = IupLabel("dd Mmmm Yyyy hh:mmpm","PADDING=10x5")--,"SIZE=??")
 --  sbtemp = IupLabel("gdi","PADDING=10x5")
     sbmsg  = IupLabel("","EXPAND=HORIZONTAL, PADDING=10x5")
@@ -8026,7 +8138,7 @@ procedure main()
         IupSetInt(tabs,"VALUEPOS",currfile-1)
         restcursel()
         IupRefresh(tabs)
-        changeTo(currfile)
+        changeTo(currfile,-1)   -- (pos just set)
     end if
 
     IupSetFocus(canvas)

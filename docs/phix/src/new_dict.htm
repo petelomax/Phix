@@ -13,7 +13,12 @@
           <b>Definition:</b>
          </td>
          <td>
-          integer tid = new_dict(sequence kd_pairs={}, integer pool_only=0)
+          <a href="integer.htm">integer</a> tid = new_dict(<a href="sequence.htm">sequence</a> kd_pairs={}, 
+                                                           <a href="integer.htm">integer</a> pool_only=0)
+            <br>
+            <i>-- or --</i>
+            <br>
+          <a href="integer.htm">integer</a> tid = new_dict(<a href="string.htm">string</a> dictname="")
          </td>
         </tr>
         <tr>
@@ -22,7 +27,7 @@
          </td>
          <td>
             Creates a new dictionary, so that clashes with other uses of {key,data} pairings can be avoided, and optionally 
-            initialises it with a set of {key,data} pairs.
+            initialises it with a set of {key,data} pairs, or a diagnostic name.
          </td>
         </tr>
         <tr>
@@ -30,22 +35,20 @@
           <b>Comments:</b>
          </td>
          <td>
-            Every element of kd_pairs, if present, should be a sequence of length 2, and said {key,data} gets passed to 
+            If kd_pairs is a string then it is treated as a name for the dictionary, which may be useful for diagnostic purposes,
+            and can be retrieved using <a href="dict_name.htm">dict_name</a>().
+            Otherwise every element of kd_pairs, if present, should be a <a href="sequence.htm">sequence</a> of length 2, and said {key,data} gets passed to 
             <a href="setd.htm">setd</a>(), along with the id of the newly created dictionary.
             <br>
             <br>
             The returned tid is intended to be passed as the last parameter to <a href="setd.htm">setd</a>(), <a href="getd.htm">getd</a>(),
-            <a href="getd_index.htm">getd_index</a>(), <a href="getd_by_index.htm">getd_by_index</a>(), <a href="deld.htm">deld</a>(), 
-            <a href="destroy_dict.htm">destroy_dict</a>(), and <a href="traverse_dict.htm">traverse_dict</a>().
+            <a href="deld.htm">deld</a>(), <a href="destroy_dict.htm">destroy_dict</a>(), <a href="traverse_dict.htm">traverse_dict</a>(),
+            and similar, taking care not to miss any.
             <br>
             <br>
-            By default, all {key,data} pairings (via setd, as opposed to the kd_pairs parameter) are entered into one common dictionary, 
-            in effect the system behaves as if new_dict() had been called and returned 1, and everyone was using that (which explains all 
-            the defaulted integer tid=1 parameters that, if you have not already seen, will do soon).
-            <br>
-            <br>
-            You can also create multiple additional dictionaries by calling new_dict(), and pass the result as an additional (final) 
-            parameter to the other routines (taking care not to miss any).
+            For smaller applicatons, there is a default dictionary, 1, that can be used without ever calling new_dict(), however larger
+            applications and in particular third party components will obviously benefit from keeping their data private (by the simple
+            act of not sharing their tid<small><sup>1</sup></small>).
             <br>
             <br>
             When you have no further use for it, an entire dictionary can be removed by invoking destroy_dict(tid), except for the
@@ -55,6 +58,16 @@
             <br>
             Dictionaries are <b>not</b> thread-safe, for details of that, or if you are curious about the mysterious pool_only
             parameter, see the Technicalia drop-down.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Disclaimer:</b>
+         </td>
+         <td>
+            <small><sup>1</sup></small>Rogue code that wantonly writes garbage to a tid of, say, 5, when it did <i>not</i> obtain 
+            that 5 from new_dict(), can obviously wreak havoc. Should it ever prove necessary it would probably be fairly easy to
+            change integer tid to {integer tid, string passkey} just to make it far harder to accidentally replicate a tid.
          </td>
         </tr>
         <tr>
@@ -79,14 +92,14 @@ integer tid = new_dict({{1,"one"},{2,"two"}})
 -- multithreaded applications need to use locking (see Technicalia)
 integer dictcs = init_cs(), tid
     enter_cs(dictcs)
-    tid = new_dict()
+    tid = new_dict("thread data")
     leave_cs(dictcs)
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#000080"><i>-- multithreaded applications need to use locking (see Technicalia)
 </i></font><font color="#004080">integer</font><font color="#000000"> dictcs</font><font color="#0000FF"> =</font><font color="#5E005E"> init_cs</font><font color="#0000FF">(),</font><font color="#000000"> tid
 </font><font color="#5E005E">    enter_cs</font><font color="#0000FF">(</font><font color="#000000">dictcs</font><font color="#0000FF">)
-</font><font color="#000000">    tid</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">()
+</font><font color="#000000">    tid</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#008000">"thread data"</font><font color="#0000FF">)
 </font><font color="#5E005E">    leave_cs</font><font color="#0000FF">(</font><font color="#000000">dictcs</font><font color="#0000FF">)</font>
 </pre>
          </td>
@@ -107,7 +120,7 @@ integer dictcs = init_cs(), tid
           </a>
          </td>
          <td>
-            Multiple threads concurrently accessing dictionaries will cause corruption unless protected as per Example 2.<br>
+            Multiple threads concurrently accessing dictionaries will cause corruption unless protected as shown in Example 2.<br>
             If your application is not multithreaded, or only one thread accesses dictionaries, then nothing that follows is of 
             <i>any</i> concern to you, and if I were you, I&rsquo;d get out while I still can.
             <br>
@@ -115,7 +128,8 @@ integer dictcs = init_cs(), tid
             A single critical section protecting all dictionaries is normally sufficient, and in the vast majority of cases there
             would be no point making life any more difficult for yourself, however per-dictionary locks are also perfectly viable, 
             and if only one thread has access to a particular dictionary, then only new_dict() and destroy_dict() may need locking 
-            - but for either of the last two options, a big enough pool must be created at the get-go:
+            - but for either of the last two options (ie per-dict and create/destroy-only-locking), then a big enough pool must be 
+            created at the get-go:
             <br>
             <br>
             If pool_only is greater than 1, the routine adds the specified number of entries to the freelist and returns 0.
@@ -125,7 +139,8 @@ integer dictcs = init_cs(), tid
             <br>
             <br>
             Subsequent invocations of new_dict(pool_only:=1) [presumably from within an appropriate critical section] will yield 0 
-            if the pool is exhausted. In that case, the program should unlock, sleep and retry a bit later.
+            if the pool is exhausted. In that case, the program should unlock, sleep and retry a bit later. You can actually specify
+            a diagnostic name and pool_only of 1 (or 0), however passing a string plus pool_only>1 triggers a fatal error.
             <br>
             <br>
             If in fact you are trying to shut down, but other threads have died or forgotten to destroy_dict(), it is not entirely 

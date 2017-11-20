@@ -30,3 +30,18 @@ atom res = 1
     return res
 end function
 
+global function k_perm(integer n, k)
+-- standard partial permutations calculation (sequences without repetition)
+atom res = n
+    for i=n-1 to n-k+1 by -1 do
+        res *= i
+    end for
+    return res
+end function
+
+global function choose(integer n, k)
+-- standard combinations calculation - choose k from n aka "n choose k"
+atom res = k_perm(n,k)/factorial(k)
+    return res
+end function
+

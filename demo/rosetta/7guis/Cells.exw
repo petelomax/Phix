@@ -1,0 +1,466 @@
+--
+-- demo\rosetta\7guis\Cells.exw
+-- ============================
+--
+include pGUI.e
+
+Ihandln mat
+
+constant MAXLIN = 101   -- (includes title, 0..99)
+constant MAXCOL = 27    -- (includes title, A..Z)
+
+-- each data[l][c] is a sequence of 2, 4, or 5 elements:
+
+enum NUMERIC,           -- (cell can be referenced, [VALUE..REFS] exist)
+     TEXT               -- (cell cannot be referenced [meaningfully])
+
+enum TYPE,              -- NUMERIC or TEXT
+     RESULT,            -- (string)
+     VALUE,             -- (atom) (optional/0 on TEXT)
+     REFS,              -- (seq) for propagation 
+     FORMULA            -- (string)    (NUMERIC only)
+
+-- An unreferenced and unedited TEXT cell is just 2 elements. However if 
+-- that cell is referenced somewhere in a formula, it becomes a length 4 
+-- sequence, and if a NUMERIC is edited to become a text, simply replaces 
+-- TYPE/RESULT, leaving REFS undamaged and cell as a length 5 sequence.
+
+--sequence data = repeat(repeat({TEXT,""},MAXCOL),MAXLIN)
+sequence data
+
+function value_cb(Ihandle /*mat*/, integer lin, integer col)
+integer l=lin+1, c=col+1
+    if l>length(data)
+    or c>length(data[1]) then
+        return NULL
+    end if
+    atom res = IupRawStringPtr(data[l][c][RESULT])
+    return res
+end function
+
+function add(atom a1, atom a2)
+    return a1+a2
+end function
+
+function sub(atom a1, atom a2)
+    return a1-a2
+end function
+
+function mul(atom a1, a2)
+    return a1*a2
+end function
+
+function div(atom a1, a2)
+    return a1/a2
+end function
+
+function rmdr(atom a1,a2)
+    return remainder(a1,a2)
+end function
+
+function cell(integer l, c)
+    return data[l][c][VALUE]
+end function
+
+function cells(sequence args)
+    integer {l,c,le,ce} = args
+    sequence res = {}
+    for i=l to le do
+        for j=c to ce do
+            res = append(res,data[i][j][VALUE])
+        end for
+    end for
+    return res
+end function
+
+include builtins/psum.e     -- use the builtin sum()
+
+function prod(object a)
+atom res = 1
+    if atom(a) then
+        res = a
+    else
+        for i=1 to length(a) do
+            res *= prod(a[i])
+        end for
+    end if
+    return res
+end function
+
+function nr(string name, integer id=routine_id(name))
+    return {name,id}
+end function
+
+constant {fnames,fids} = columnize({nr("add"),
+                                    nr("sub"),
+                                    nr("mul"),
+                                    nr("div"),
+                                    nr("rmdr"),
+                                    nr("cell"),
+                                    nr("cells"),
+                                    nr("sum"),
+                                    nr("prod")})
+
+string parse_error = ""
+
+function cell_ref(string expr, integer edx)
+--
+-- parse one cell ref, ie "A0".."Z99"
+--
+    integer ch = iff(edx>length(expr)?'?':expr[edx])
+    if ch<'A'
+    or ch>'Z' then
+        parse_error = "expected A..Z  ["&expr[1..edx-1]&"]\n"
+    else
+        integer c = ch-'A'
+        if edx<length(expr) then
+            ch = expr[edx+1]
+        end if
+        if ch<'0'
+        or ch>'9' then
+            parse_error = "expected 0..9  ["&expr[1..edx]&"]\n"
+        else
+            integer l = ch-'0'
+            if edx+2<=length(expr) then
+                ch = expr[edx+2]
+                if ch>='0'
+                and ch<='9' then
+                    l = l*10+ch-'0'
+                    expr = expr[2..$]
+                    edx += 1
+                end if
+            end if
+            edx += 2
+            -- A0 held as {2,2}, 
+            -- and Z99 as {101,27}
+            return {edx,l+2,c+2}
+        end if
+    end if
+    return {0,0,0} -- error
+end function
+
+function parse(string expr, integer edx=1, sequence refs={})
+integer ndx, l, c
+sequence tree = {}
+string name
+    integer k = find('(',expr,edx)
+    if k!=0 then
+        name = expr[edx..k-1]
+        ndx = k+1
+        k = find(name,fnames)
+    end if
+    if k!=0 then
+        edx = ndx
+        tree = {NUMERIC,name}
+        object arg
+        while 1 do
+            {ndx,arg,refs} = parse(expr,edx,refs)
+            tree = append(tree,arg)
+            edx = ndx+1
+            if ndx>length(expr) or expr[ndx]!=',' then exit end if
+        end while
+        if ndx>length(expr) or expr[ndx]!=')' then
+            parse_error &= "missing ')'  ["&expr[1..ndx-1]&"]\n"
+        elsif k<=6          -- exactly 2 args
+          and length(tree)!=4 then
+            parse_error &= "wrong no of args  ["&expr[1..ndx]&"]\n"
+        else
+            return {edx,tree,refs}
+        end if
+    else
+        object arg = "error"
+        sequence r = scanf(expr[edx..$],"%f%s")
+        if length(r)=1 then
+            arg = {NUMERIC,r[1][1]}
+            edx = length(expr)-length(r[1][2])+1
+        else
+            {ndx,l,c} = cell_ref(expr,edx)
+            if ndx!=0 then  -- error
+                if ndx<=length(expr)
+                and expr[ndx]=':' then
+                    if edx<=2 then return {0,{},{}} end if
+                    integer {ndx2,le,ce} = cell_ref(expr,ndx+1)
+                    if ndx2!=0 then
+                        arg = {NUMERIC,"cells",{NUMERIC,l},{NUMERIC,c},
+                                               {NUMERIC,le},{NUMERIC,ce}}
+                        for i=l to le do
+                            for j=c to ce do
+                                refs = append(refs,{i,j})
+                            end for
+                        end for
+                        edx = ndx2
+                    end if
+                else
+                    arg = {NUMERIC,"cell",{NUMERIC,l},{NUMERIC,c}}
+                    refs = append(refs,{l,c})
+                    edx = ndx
+                end if
+            end if
+        end if
+        return {edx,arg,refs}
+    end if
+    return {0,{},{}}
+end function
+
+procedure remove_refs(integer l, integer c)
+-- unlink the old expression from other cells
+-- (it may help to study replace_refs() first)
+    if data[l][c][TYPE]=NUMERIC then
+        string expr = data[l][c][FORMULA]
+        if expr[1]='=' then
+            sequence ref = {l,c}, tree, refs
+            integer edx
+            {edx,tree,refs} = parse(expr,2)
+            if edx!=length(expr)+1 then
+                -- (this one should be fatal, I think)
+                ?"incomplete parse" ?9/0 
+            end if
+            for i=1 to length(refs) do
+                sequence refi = refs[i]
+                integer {rl,rc} = refi
+                -- NB data[rl][rc][TYPE] can be any here.
+                integer k = find(ref,data[rl][rc][REFS])
+                if k=0 then
+                    -- eg "add(A1,A1)" might have put two A1's in...
+                    -- otherwise something just went horribly wrong
+                    if find(ref,refs)=i then ?9/0 end if
+                else
+                    data[rl][rc][REFS][k..k] = {}
+                end if
+            end for
+            -- final sanity check
+            for i=1 to MAXLIN do
+                for j=1 to MAXCOL do
+                    if data[i][j][TYPE]=NUMERIC then
+                        -- (die loudly if we missed any)
+                        if find(ref,data[i][j][REFS]) then ?9/0 end if
+                    end if
+                end for
+            end for
+        end if
+    end if
+end procedure
+
+procedure replace_refs(integer l, integer c, sequence refs)
+--
+-- NB refs is the inverse of data[l][c][REFS]; it is a 
+-- list of cells that [l][c][FORMULA] references, each 
+-- of which needs an {l,c} on it's [REFS] list.
+--
+sequence ref = {l,c}
+    for i=1 to length(refs) do
+        integer {rl, rc} = refs[i]
+        if length(data[rl][rc])<REFS then
+            -- (die loudly if entry is invalid)
+            if data[rl][rc][TYPE]!=TEXT then ?9/0 end if
+            if length(data[rl][rc])!=2 then ?9/0 end if
+            -- add VALUE (of 0) and REFS of length 1:
+            data[rl][rc] &= {0,{ref}}
+        elsif not find(ref,data[rl][rc][REFS]) then
+            data[rl][rc][REFS] = append(data[rl][rc][REFS],ref)
+        end if
+    end for     
+end procedure
+
+function evaluate(sequence tree)
+-- tree is eg = {1,"mul",{1,"cell",{1,3},{1,3}},{1,4}}
+    -- (first, die loudly if called on wrong thing)
+    if tree[1]!=NUMERIC then ?9/0 end if
+    object t2 = tree[2]
+    if atom(t2) then return t2 end if
+    integer k = find(t2,fnames)
+    if k then
+        for i=3 to length(tree) do
+            tree[i] = evaluate(tree[i])
+        end for
+        sequence args = tree[3..$]
+        -- sum() & prod() take just one arg, nested:
+        if k>6 then args = {args} end if
+        return call_func(fids[k],args)
+    end if
+    ?9/0    -- oops (should be fatal)
+end function
+
+procedure eval(integer l, c, string expr, bool bReplace)
+    if length(expr)>0 then
+        integer edx, valid = false
+        sequence tree, refs
+        atom res
+        if expr[1]='=' then
+            {edx,tree,refs} = parse(expr,2)
+            if edx!=length(expr)+1 then
+                parse_error &= "incomplete parse\n"
+            elsif tree[1]=NUMERIC then
+                if bReplace then
+                    -- (Wouldn't hurt, but utterly pointless if we 
+                    --  came from update_refs or reset rather than 
+                    --  value_edit_cb or initial load. 
+                    --  Alternatively, we could pass bReplace to
+                    --  replace_refs, and have that error out if
+                    --  it does add a ref when it ought not to.)
+                    replace_refs(l,c,refs)
+                end if
+                res = evaluate(tree)
+                valid = true
+            end if
+        else
+            sequence r = scanf(expr,"%f")
+            if length(r)=1 then
+                res = r[1][1]
+                valid = true
+            end if
+        end if
+        if valid then
+            refs = iff(length(data[l][c])>=REFS?data[l][c][REFS]:{})
+            string result = sprintf(iff(integer(res)?"%g":"%.2f"),res)
+            --            TYPE/RESULT/VALUE/REFS/FORMULA
+            data[l][c] = {NUMERIC,result,res,refs,expr}
+            IupMatSetAttribute(mat,"ALIGN",l-1,c-1,"ACENTER:ARIGHT")
+            return
+        end if
+    end if
+    if length(parse_error) then
+        IupMessage("Error","Invalid formula: "&expr&"\n\n"&parse_error)
+        parse_error = ""
+    end if
+    IupMatSetAttribute(mat,"ALIGN",l-1,c-1,"ACENTER:ALEFT")
+    data[l][c][TYPE] = TEXT
+    data[l][c][RESULT] = expr
+    if length(data[l][c])>=VALUE then
+        data[l][c][VALUE] = 0
+        -- perhaps we should remove [FORMULA] here?
+    end if
+end procedure
+
+bool iloop_shown = false
+
+procedure update_refs(integer l,c, integer lim=0)
+-- Recalculate all cells affected by changing [l][c].
+    if lim>2600 then
+        -- Aside: Some people get very creative with spreadsheets, eg
+        -- you can actually implement Newton–Raphson-esque iteration,
+        -- not that I can give an example. Instead of detecting and
+        -- outright banning mutual recursion, this uses new!=prev and
+        -- an arbitrary limit of 2600 (the total number of cells).
+        -- The iloop_shown flag both limits the display to once and stops
+        -- any outstanding recursive calls from impaling themselves on
+        -- the same spike, should there be more than 1 path to infinity.
+        if not iloop_shown then
+            iloop_shown = true
+            string msg = "Infinite loop detected (cell %c%d)"
+            IupMessage("Warning",sprintf(msg,{c+'A'-2,l-2}))
+        end if
+    elsif data[l][c][TYPE]=NUMERIC then
+        sequence refs = data[l][c][REFS]
+        for i=1 to length(refs) do
+            integer {rl,rc} = refs[i]
+            if data[rl][rc][TYPE]!=NUMERIC then
+                -- NB fix whatever dumped the bad ref, and *NOT* by
+                -- quietly skipping or yielding 0 when you find one!
+                ?9/0
+            end if
+            atom prev = data[rl][rc][VALUE]
+            eval(rl,rc,data[rl][rc][FORMULA],false)
+            if data[rl][rc][VALUE]!=prev then
+                if lim=0 then
+                    iloop_shown = false
+                end if
+                if not iloop_shown then
+                    update_refs(rl,rc,lim+1)
+                end if
+            end if
+        end for
+    end if
+end procedure
+
+function edition_cb(Ihandle /*ih*/, integer lin, col, mode, update) 
+integer l=lin+1, c=col+1
+    if update=0 then
+        if data[l][c][TYPE]=NUMERIC then
+            string f = data[l][c][FORMULA]
+            if mode=0 then -- reset
+                eval(l,c,f,false)
+            else -- start editing this:
+                data[l][c][RESULT] = f
+            end if
+        end if
+    end if
+    return IUP_DEFAULT
+end function
+
+function value_edit_cb(Ihandle /*ih*/, integer lin, col, atom pNewValue)
+integer l=lin+1, c=col+1
+string newstr = peek_string(pNewValue)
+    remove_refs(l,c)
+    eval(l,c,newstr,true)
+    update_refs(l,c)
+    return IUP_DEFAULT
+end function
+
+constant mat_attr = sprintf("""
+NUMCOL=%d, NUMCOL_VISIBLE=%d,
+NUMLIN=%d, NUMLIN_VISIBLE=%d,
+WIDTHDEF=60, RESIZEMATRIX=YES,
+WIDTH0=10, HEIGHT0=10, ALIGNMENT=ALEFT""",
+{MAXCOL-1,min(MAXCOL-1,5),
+ MAXLIN-1,min(MAXLIN-1,20)})
+
+include CellSamples.e   -- Three_sample_spreadsheets[]
+
+procedure main()
+    IupOpen()
+
+    data = repeat(repeat({TEXT,""},MAXCOL),MAXLIN)
+    for i=2 to MAXCOL do
+        data[1][i][RESULT] = ""&('A'+i-2)
+    end for
+    for i=2 to MAXLIN do
+        data[i][1][RESULT] = sprintf("%d",i-2)
+    end for
+
+    mat = IupMatrix(mat_attr);
+    if 01 then
+        sequence sample = Three_sample_spreadsheets[rand(3)]
+        for i=1 to length(sample) by 2 do
+            integer {?,l,c} = cell_ref(sample[i],1)
+            -- (die loudly if not big enough)
+            if l>MAXLIN then ?9/0 end if
+            if c>MAXCOL then ?9/0 end if
+            eval(l,c,sample[i+1],true)
+            update_refs(l,c)
+        end for
+    end if
+
+    IupSetCallback(mat, "VALUE_CB", Icallback("value_cb"));
+    IupSetCallback(mat, "VALUE_EDIT_CB", Icallback("value_edit_cb"));
+    IupSetCallback(mat, "EDITION_CB", Icallback("edition_cb"));
+
+    Ihandle dlg = IupDialog(IupVbox({mat},"MARGIN=10x10"),"TITLE=Cells")
+    IupCloseOnEscape(dlg)
+
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)    
+    IupSetAttribute(mat,"NUMLIN_VISIBLE",NULL)
+    IupSetAttribute(mat,"NUMCOL_VISIBLE",NULL)
+    IupMainLoop()
+    IupClose()  
+end procedure
+
+main()
+
+--
+-- Notes: The leading space in column A of Three_sample_spreadsheets[2] makes all of them text, 
+--        whereas for live use you would almost certainly want to trim() any input spaces etc.
+--        Given that it already had a general routine invoke mechanism, I felt I may as well 
+--        add the cell() and cells() routines, to unify them & halve the size of evaluate().
+--        I have deliberately aimed for a fail fast/fragile/brittle core that errors out asap,
+--        the most critical example of which is clearly marked in update_refs(). However most  
+--        user errors should be handled fairly gracefully, in a standard IupMessage().
+--        The quick hack of IupMatSetAttribute(mat,"ALIGN",...) could no doubt be improved.
+--        As noted above, it may prove wise to remove unused [FORMULA] at the end of eval().
+--        Clearing NUMLIN_VISIBLE/NUMCOL_VISIBLE after mapping makes resize a little better, 
+--        but not quite perfect, maybe setting MINSIZE or similar would be in order.
+--        Obviously if you have a long list of functions then eg {NUMERIC,"cell"} might be
+--        better/faster as {NUMERIC,{5}}, to eliminate many of the k=find() calls, but of
+--        course that could make it harder to debug. A dict would work well too, obvs.
+--
+

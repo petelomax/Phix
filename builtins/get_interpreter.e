@@ -107,7 +107,7 @@ for i=1 to length(itestset) do
 end for
 --*/
 
-global function get_interpreter(integer enquote=0, object mb=machine_bits(), integer plat=platform())
+global function get_interpreter(bool enquote=false, object mb=machine_bits(), integer plat=platform())
 -- returns "" on failure
 sequence vset   -- permitted filenames
 string filepath

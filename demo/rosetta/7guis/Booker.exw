@@ -1,0 +1,71 @@
+--
+-- demo\rosetta\7guis\Booker.exw
+-- =============================
+--
+include pGUI.e
+include builtins\timedate.e
+set_timedate_formats({"DD.MM.YYYY"}) -- (add more if rqd)
+
+Ihandle dlg,
+        C,      -- Combo: one-way or return
+        T1,     -- departure date
+        T2,     -- return date
+        B       -- book button
+
+procedure enable()
+integer item = IupGetInt(C,"VALUE")
+sequence d1 = parse_date_string(IupGetAttribute(T1,"VALUE")),
+         d2 = parse_date_string(IupGetAttribute(T2,"VALUE"))
+bool b1ok = timedate(d1),
+     b2ok = item=1 or (timedate(d2) and d2>=d1)
+    IupSetAttribute(T1,"BGCOLOR",iff(b1ok?"TXTBGCOLOR":"255 0 0"))
+    IupSetAttribute(T2,"BGCOLOR",iff(b2ok?"TXTBGCOLOR":"255 0 0"))
+    IupSetInt(T2,"ACTIVE",item=2)
+    IupSetInt(B,"ACTIVE",b1ok and b2ok)
+end procedure
+
+function action_cb(Ihandle /*C*/, atom /*pText*/, integer /*item*/, /*state*/)
+    enable()
+    return IUP_CONTINUE
+end function
+constant cb_action = Icallback("action_cb")
+ 
+function t12_changed_cb(Ihandle /*T1 or T2*/)
+    enable()
+    return IUP_CONTINUE
+end function
+constant cb_t12_changed = Icallback("t12_changed_cb")
+
+function book_cb(Ihandle /*B*/)
+integer item = IupGetInt(C,"VALUE")
+string msg = "You have booked a "
+    msg &= IupGetAttributeId(C,"",item)
+    msg &= " leaving on "
+    msg &= IupGetAttribute(T1,"VALUE")
+    if item=2 then
+        msg &= " and returning on "
+        msg &= IupGetAttribute(T2,"VALUE")
+    end if
+    IupMessage("Flight Booker",msg)
+    return IUP_CONTINUE
+end function
+constant cb_book = Icallback("book_cb")
+
+IupOpen()
+C = IupList(cb_action,"DROPDOWN=YES,VALUE=1,1=\"one-way flight\",2=\"return flight\"")
+string today = format_timedate(date())
+T1 = IupText("VALUECHANGED_CB",cb_t12_changed,"VALUE=%s,EXPAND=HORIZONTAL",{today})
+T2 = IupText("VALUECHANGED_CB",cb_t12_changed,"VALUE=%s,EXPAND=HORIZONTAL",{today})
+B = IupButton("Book Flight",cb_book,"EXPAND=HORIZONTAL")
+dlg = IupDialog(IupVbox({C,
+                         T1,
+                         T2,
+                         B},
+                        "MARGIN=20x10,GAP=10,ALIGNMENT=ACENTER"),
+                "TITLE=\"Flight Booker\"")
+IupCloseOnEscape(dlg)
+enable()
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+

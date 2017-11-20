@@ -1722,6 +1722,7 @@ atom pi, inf, nan
     initialConstant("PI",3.141592653589793238)
     initialConstant("E",2.7182818284590452)
     initialConstant("INVLN10",0.43429448190325182765)
+--sug:  Phi (the golden ratio, = 1.618033988749895)
 
     -- from file.e:
     initialConstant("D_NAME",           1)
@@ -2498,7 +2499,7 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("bits_to_int",     S_Func,"FP",    "machine.e",0,E_none)
     initialAutoEntry("ceil",            S_Func,"FN",    "pmaths.e",0,E_none)
-if newEmit then
+--if newEmit then
     --DEV or is c_func an object result?? (eg C:\Program Files\Phix\demo\SUDOKU\EuWinGUI.ew:359)
     initialAutoEntry("c_func",          S_Func,"FIP",   "VM\\pcfunc.e",0,E_all)
     initialAutoEntry("call_back",       S_Func,"FO",    "VM\\pcfunc.e",0,E_none)
@@ -2511,18 +2512,20 @@ if newEmit then
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("get_proc_address",S_Func,"FNS",   "VM\\pcfunc.e",0,E_none)
     initialAutoEntry("open_dll",        S_Func,"FP",    "VM\\pcfunc.e",0,E_none)
-else
-    initialAutoEntry("float80_to_atom", S_Func,"FP",    "pfloat.e",0,E_none)
-    initialAutoEntry("c_func",          S_Func,"FIP",   "pcfunc.e",0,E_all)
-    initialAutoEntry("call_back",       S_Func,"FO",    "pcfunc.e",0,E_none)
-    initialAutoEntry("define_c_var",    S_Func,"FNS",   "pcfunc.e",0,E_none)
-    initialAutoEntry("open_dll",        S_Func,"FP",    "pcfunc.e",0,E_none)
-end if
+--else
+--  initialAutoEntry("float80_to_atom", S_Func,"FP",    "pfloat.e",0,E_none)
+--  initialAutoEntry("c_func",          S_Func,"FIP",   "pcfunc.e",0,E_all)
+--  initialAutoEntry("call_back",       S_Func,"FO",    "pcfunc.e",0,E_none)
+--  initialAutoEntry("define_c_var",    S_Func,"FNS",   "pcfunc.e",0,E_none)
+--  initialAutoEntry("open_dll",        S_Func,"FP",    "pcfunc.e",0,E_none)
+--end if
+    initialAutoEntry("choose",          S_Func,"FII",   "factorial.e",0,E_none)
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
     initialAutoEntry("gcd",             S_Func,"FON",   "gcd.e",0,E_none)
     initialAutoEntry("get_file_size",   S_Func,"FS",    "pfile.e",0,E_none)
     Alias("file_length", symlimit)
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
+    initialAutoEntry("k_perm",          S_Func,"FII",   "factorial.e",0,E_none)
     initialAutoEntry("log10",           S_Func,"FN",    "log10.e",0,E_none)
     initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
@@ -2928,6 +2931,8 @@ end if
     initialAutoEntry("setd",                S_Proc,"POOI",  "dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 2
     Alias("putd", symlimit)
+    initialAutoEntry("setd_default",        S_Proc,"POI",   "dict.e",0,E_other)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("system",              S_Proc,"PSI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
 --  initialAutoEntry("sysproc",             S_Proc,"PS",    "syswait.ew",0,E_other)

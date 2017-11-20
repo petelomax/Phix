@@ -1,0 +1,1998 @@
+--
+-- rubik.exw
+--
+?"started"
+ppOpt({pp_Pause,0})
+
+--basis of rotation (in progress when i!=0, do this in a timer)
+--?factors(90) - {1,2,3,5,6,9,10,15,18,30,45}
+--integer i = +/-10
+--while i do
+--  ?i
+--  i = remainder(i+/-10,90)
+--end while
+
+--
+-- maybe we should only print the cube after a std set of moves... - nah, make it an option
+--
+--DEV use the term facelet... [??]
+--
+--*!/
+
+include pGUI.e
+
+--To do:
+--  draw a slice, with black as needed (rotateable)
+--  repeat for middle
+--  draw the cube in 3 slices
+--  rotate a slice, by keys or mouse swipes, with timer
+--  quick 90/180 degree flips and inversions (keystrokes)
+--  integrate with demo\rosetta\rubik_cfop.exw 
+--          and/or demo\rosetta\rubik_tomas.exw
+--  display moves, with pause, and single step
+--  test for solved state
+--  support cubes 1..N(??)
+--  menus (Cube, Help)
+--  zoom in/out (ctrl/shift +/-?)
+--  assign colours/input cube
+--  (omgg..)
+
+
+-- For Edita/Tools/Re-indent source:
+--#withtype Ihandle
+--#withtype Ihandln
+--#withtype cdCanvas
+
+Ihandle dlg, canvas
+cdCanvas cd_canvas
+
+constant USE_OPENGL = 01
+
+constant L = 40,    -- (1/6th of the cube)
+         L2 = L*2,
+         L3 = L*3
+--       L5 = L*5
+
+-- use a 4x4x4 grid of points
+--  (initially like looking side-on at a sliced loaf)
+--  ([1] = left/down/back, [4] = right/up/front)
+
+function make_initial_cube()
+    sequence points = {}   -- 64 of, 8 not used
+    for px=-L3 to +L3 by L2 do  -- {-L3,-L,+L,+L3} 
+        for py=-L3 to +L3 by L2 do  --  ""
+            for pz=-L3 to +L3 by L2 do  --  ""
+                points = append(points,{px, py, pz})
+            end for
+        end for
+    end for
+--temp... (?use (x-1)*16+(y-1)*4+z instead?)
+    sequence line = repeat(0,4)         -- (initially all same x & y)
+    sequence layer = repeat(line,4)     -- (initially all same x)
+    sequence xyz = repeat(layer,4)      -- (index as XYZ[x,y,z])
+    integer k = 1
+    for x=1 to 4 do
+        for y=1 to 4 do
+            for z=1 to 4 do
+--              if k!=(x-1)*16+(y-1)*4+z then ?9/0 end if   -- OK!
+                line[z] = k
+                k += 1
+            end for
+            layer[y] = line
+        end for
+        xyz[x] = layer
+    end for
+    return {points,xyz}
+--  return points
+end function
+
+-- Keep the (moveable) points separate from the 
+-- (static) indexing mechanism for simplicity.
+-- (we never actually index IPOINTS directly)
+
+--constant sequence {IPOINTS,XYZ} = make_initial_cube()
+constant {IPOINTS,XYZ} = make_initial_cube()
+--constant IPOINTS = make_initial_cube()
+
+--?XYZ
+--{{{ 1, 2, 3, 4},{ 5, 6, 7, 8},{ 9,10,11,12},{13,14,15,16}},
+-- {{17,18,19,20},{21,22,23,24},{25,26,27,28},{29,30,31,32}},
+-- {{33,34,35,36},{37,38,39,40},{41,42,43,44},{45,46,47,48}},
+-- {{49,50,51,52},{53,54,55,56},{57,58,59,60},{61,62,63,64}}}
+
+
+--/*
+constant SLC = {-2,0,-1,1,PI,2,0}   -- slices->centre
+
+--function make_shape(integer slices)
+--
+-- slices is a bit-mask of #01, #02, #04:
+--  1 makes a single (left) slice
+--  2 makes a single (middle) slice
+--  3 makes a double (l&m) slice
+--  4 makes a single (right) slice
+--  6 makes a double (m&r) slice
+--  7 makes a full cube
+-- the shape is rotated into place after creation.  [???]
+--
+--  5 is deemed invalid, since you cannot draw
+--      that both before and after the middle.
+--      (the PI in SLC triggers a typecheck)
+--
+integer cx = SLC[slices]*L
+sequence centre = {{cx,0,0}},
+         corners = {},
+--NO: make_side() instead...
+         facelets = {},
+         lines = {},
+         shape
+
+    if and_bits(slices,#01) then    -- lhs slice
+--DEV temp!!
+--      corners = {XYZ[1,1,1],
+--                 XYZ[1,4,1],
+--                 XYZ[4,4,1],
+--                 XYZ[4,1,1]}
+        corners = {XYZ[1,4,4],  -- UFL
+                   XYZ[4,4,4],  -- UFR
+                   XYZ[4,1,4],  -- DFR
+                   XYZ[1,1,4]}  -- DFL
+                & {XYZ[1,4,3],
+                   XYZ[4,4,3],
+                   XYZ[4,1,3],
+                   XYZ[1,1,3]}
+        facelets = {}
+                 & {XYZ[1,4,3],
+                    XYZ[4,4,3],
+                    XYZ[4,1,3],
+                    XYZ[1,1,3]}
+        lines = {{XYZ[1,3,4],
+                  XYZ[4,3,4]},
+                 {XYZ[1,2,4],
+                  XYZ[4,2,4]},
+                 {XYZ[2,4,4],
+                  XYZ[2,1,4]},
+                 {XYZ[3,4,4],
+                  XYZ[3,1,4]}}
+              & {{XYZ[2,4,4],
+                  XYZ[2,4,3]},
+                 {XYZ[3,4,4],
+                  XYZ[3,4,4]}}
+--"started"
+--{-33.8094745,{16,64,52,4,15,63,51,3},{15,63,51,3},{{12,60},{8,56},{32,20},{48,36},{32,31},{48,48}}}
+    end if
+    if and_bits(slices,#02) then
+        if not and_bits(slices,#04) then
+            -- inner black face
+        end if
+    else
+        -- inner black face
+    end if
+    if and_bits(slices,#04) then
+--      ...
+    end if
+    shape = {centre,corners,facelets,lines}
+    return shape
+--end function
+--*/
+
+
+--
+-- define 8 corners equidistant from {0,0,0}:
+--
+--          6-----2
+--      5-----1   3
+--      8-----4  
+--
+-- ie the right face is 1-2-3-4 clockwise, and the left face
+--  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+--
+enum X, Y, Z
+
+constant corners = {{+L3,+L3,+L3},
+                    {+L3,+L3,-L3},
+                    {+L3,-L3,-L3},
+                    {+L3,-L3,+L3},
+                    {-L3,+L3,+L3},
+                    {-L3,+L3,-L3},
+                    {-L3,-L3,-L3},
+                    {-L3,-L3,+L3}}
+
+--/*
+constant layers = {{+L3,+L3,+L3},
+                   {+L3,+L3,-L3},
+                   {+L3,-L3,-L3},
+                   {+L3,-L3,+L3},
+                   {-L3,+L3,+L3},
+                   {-L3,+L3,-L3},
+                   {-L3,-L3,-L3},
+                   {-L3,-L3,+L3}}
+--*/
+
+constant faces = {{CD_BLUE,     1,2,3,4},   -- right
+                  {CD_WHITE,    1,5,6,2},   -- top/upper
+                  {CD_RED,      1,4,8,5},   -- front        -- (or: 5148)
+                  {CD_ORANGE,   2,3,7,6},   -- back
+                  {CD_YELLOW,   3,4,8,7},   -- btm/down
+                  {CD_GREEN,    5,6,7,8}}   -- left
+
+constant fmask = {0(4)300,  -- right
+                  0(4)030,  -- up
+                  0(4)003,  -- front
+                  0(4)001,  -- back
+                  0(4)010,  -- down
+                  0(4)100}  -- left
+
+--constant cmask = {0(4)033,    -- right
+--                0(4)303,  -- up
+--                0(4)220,  -- front
+--                0(4)220,  -- back
+--                0(4)202,  -- down
+--                0(4)022}  -- left
+
+constant cmask = {0(4)022,  -- right
+                  0(4)202,  -- up
+                  0(4)220,  -- front
+                  0(4)220,  -- back
+                  0(4)202,  -- down
+                  0(4)022}  -- left
+
+-- For drawing F/U/D/L/R, also determines slice draw order:
+constant labels = {{ L3, 0,  0},
+                   { 0, L3,  0},
+                   { 0,  0, L3},
+                   { 0,  0,-L3},
+                   { 0,-L3,  0},
+                   {-L3, 0,  0}}
+
+constant cslice = {{ L2, 0,  0},
+                   { 0, L2,  0},
+                   { 0,  0, L2},
+                   { 0,  0,-L2},
+                   { 0,-L2,  0},
+                   {-L2, 0,  0}}
+
+constant label_height = 1.0         -- DEV make this a parameter
+                                    -- (and maybe draw all 6)
+
+-- no help...
+--constant xd = {7,8,5,6,3,4,1,2} -- (diags thru {0,0,0})
+
+--
+-- All the (16) points needed for drawing one side of a 3x3 cube.
+-- In fact this is the front side (with Z of +1), which we first 
+-- rotate by one of 0/90/180/270 about the X or Y axis to the 
+-- side actually being drawn. 
+--OLD:
+--As-is, it duplicates four corners, leaving 12 
+-- unique, whereas if we defined all six sides here, we would 
+-- have 96 points of which 48 were duplicates - in other words
+-- the additional initial rotation is actually a saving.
+--NEW: (erm)
+--  To draw slices, we also need four points on the back plane.
+--  These occupy 1,4,13,16 (rather than duplicate "corners").
+--  This defines the middle horizontal slice; if instead we are 
+--  drawing a vertical slice, perform an initial 90 Z rotation.
+--NEW:
+--  We also define 8 points on the back plane to facilitate
+--  drawing slices (specifically a single black inner face).
+--  [DEV/SUG an initial 90 Z rotation could reduce that to 4]
+--
+--  1234
+--  5678
+--  9012
+--  3456
+--
+constant aside = {{-L3,+L3,+L3},    -- 1 (corner/duplicate)
+                  {-L, +L3,+L3},    -- 2
+                  {+L, +L3,+L3},    -- 3
+                  {+L3,+L3,+L3},    -- 4 (corner/duplicate)
+                  {-L3,+L, +L3},    -- 5
+                  {-L, +L, +L3},    -- 6
+                  {+L, +L, +L3},    -- 7
+                  {+L3,+L, +L3},    -- 8
+                  {-L3,-L, +L3},    -- 9
+                  {-L, -L, +L3},    -- 10
+                  {+L, -L, +L3},    -- 11
+                  {+L3,-L, +L3},    -- 12
+                  {-L3,-L3,+L3},    -- 13 (corner/duplicate)
+                  {-L, -L3,+L3},    -- 14
+                  {+L, -L3,+L3},    -- 15
+                  {+L3,-L3,+L3}},   -- 16 (corner/duplicate)
+
+--                {-L, +L3,-L3},    -- "behind" 2
+--                {+L, +L3,-L3},    -- "behind" 3
+--                {-L3, +L,-L3},    -- "behind" 5
+--                {+L3, +L,-L3},    -- "behind" 8
+--                {+L3, +L,-L3},    -- "behind" 9
+--                {+L3, -L,+L3},    -- "behind" 12
+--                {-L, -L3,+L3},    -- "behind" 14
+--                {+L, -L3,+L3}},   -- "behind" 15
+
+         --
+         -- as faces:right,up,front,back,down,left:
+         --
+         side_rots = {-270,270,0,    180,90,  -90},
+         --
+         -- ie:  +ve angles about the X axis,
+         --      -ve angles about the Y axis,
+         --        so -270 == +90 in Y axis, (right)
+         --            270 == -90 in X axis, (up)
+         --            0/180 same in X or Y axis,
+         --             90 == +90 in X axis, (down)
+         --            -90 == -90 in Y axis. (left)
+         -- 
+
+         -- the individual facelets (9 of)
+         facelets = {{ 1, 2, 6, 5},{ 2, 3, 7, 6},{ 3, 4, 8, 7},
+                     { 5, 6,10, 9},{ 6, 7,11,10},{ 7, 8,12,11},
+                     { 9,10,14,13},{10,11,15,14},{11,12,16,15}},
+
+         -- for drawing noughts-and-crosses style lines:
+         sidelines = {{2,14},{3,15},{5,8},{9,12}}
+
+
+enum CENTRE = 1, CORNERS = 2, FLAGS = 3, SIDE = 4, POINTS = 5
+
+--/*
+--
+-- define 8 corners equidistant from {0,0,0}:
+--
+--          6-----2
+--      5-----1   3
+--      8-----4  
+--
+-- ie the right face is 1-2-3-4 clockwise, and the left face
+--  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+--
+enum X, Y, Z
+
+constant corners = {{+L3,+L3,+L3},
+                    {+L3,+L3,-L3},
+                    {+L3,-L3,-L3},
+                    {+L3,-L3,+L3},
+                    {-L3,+L3,+L3},
+                    {-L3,+L3,-L3},
+                    {-L3,-L3,-L3},
+                    {-L3,-L3,+L3}}
+--*/
+
+function make_shape(integer flags, side)
+--function make_shape(bool mid)
+--DEV flags should be something like 0b001=L, 0b010=M, 0b100=R, 0b111 = full cube,
+--          with 0b110 and 0b011 also valid, but 0b101 specifically not.
+--    side should be 1..6, mapping to RUFBDL (or whatever makes things easiest).
+--OR: 
+--  just do 4 shapes: side, mid, dbl, whole, and (then) rotate as needed.
+--                   ( 1     2    3     4  )
+--       (in which case the side parameter becomes redundant)
+--OR:
+--  just do 2 shapes: side and mid, and always draw 3.
+--
+-- returns a centre and 8 corners (plus the input flag for convenience)
+sequence centre, corners
+    -- note: (x-1)*16+(y-1)*4+z works just as well as XYZ[x,y,z]...
+--front slice:
+--if side=3 then
+if flags=1 then     -- side
+    centre = {0,0,L2}
+--  centre = {0,0,L3}
+    corners = {XYZ[4,4,4],  -- UFR
+               XYZ[4,4,3],  -- URB
+               XYZ[4,1,3],  -- DBR
+               XYZ[4,1,4],  -- DRF
+               XYZ[1,4,4],  -- ULF
+               XYZ[1,4,3],  -- UBL
+               XYZ[1,1,3],  -- DLB
+               XYZ[1,1,4]}  -- DFL
+elsif flags=2 then  -- mid
+    centre = {0,0,0}
+    corners = {XYZ[4,4,3],
+               XYZ[4,4,2],
+               XYZ[4,1,2],
+               XYZ[4,1,3],
+               XYZ[1,4,3],
+               XYZ[1,4,2],
+               XYZ[1,1,2],
+               XYZ[1,1,3]}
+else
+--/*
+    if mid then
+        centre = {0,0,0}
+        corners = sq_sub(corners,{0,0,1})
+    end if
+--*/
+    ?9/0
+end if
+    return {centre,corners,flags,side}
+end function
+
+function make_side(integer flags, side, fdx)
+sequence facelets, lines
+    if flags or side then end if        --DEV/temp
+    integer colour = faces[fdx][1]      --DEV/temp
+--?{flags,side,fdx}
+bool show = true
+bool centre = false
+if flags=1 then
+-- single slice:
+    if fdx=1 then -- right
+        facelets = {{colour,{XYZ[4,4,4],
+                             XYZ[4,4,3],
+                             XYZ[4,3,3],
+                             XYZ[4,3,4]}},
+                    {colour,{XYZ[4,3,4],
+                             XYZ[4,3,3],
+                             XYZ[4,2,3],
+                             XYZ[4,2,4]}},
+                    {colour,{XYZ[4,2,4],
+                             XYZ[4,2,3],
+                             XYZ[4,1,3],
+                             XYZ[4,1,4]}}
+                   }
+--{{255,{64,63,59,60}},{255,{60,59,55,56}},{255,{56,55,51,52}}}
+        lines = {{XYZ[4,4,4],XYZ[4,4,3]},
+                 {XYZ[4,3,4],XYZ[4,3,3]},
+                 {XYZ[4,2,4],XYZ[4,2,3]},
+                 {XYZ[4,1,4],XYZ[4,1,3]},
+                 {XYZ[4,4,4],XYZ[4,1,4]},   -- ([1,1]..[4,1])
+                 {XYZ[4,4,3],XYZ[4,1,3]}}   -- ([1,2]..[4,2])
+--{{64,63},{60,59},{56,55},{52,51},{64,52},{63,51}}
+        show = false
+    elsif fdx=2 then    -- up
+        facelets = {{colour,{XYZ[1,4,4],
+                             XYZ[1,4,3],
+                             XYZ[2,4,3],
+                             XYZ[2,4,4]}},
+                    {colour,{XYZ[2,4,4],
+                             XYZ[2,4,3],
+                             XYZ[3,4,3],
+                             XYZ[3,4,4]}},
+                    {colour,{XYZ[3,4,4],
+                             XYZ[3,4,3],
+                             XYZ[4,4,3],
+                             XYZ[4,4,4]}}
+                   }
+--{{16777215,{16,15,31,32}},{16777215,{32,31,47,48}},{16777215,{48,47,63,64}}}
+        lines = {{XYZ[1,4,4],XYZ[1,4,3]},
+                 {XYZ[2,4,4],XYZ[2,4,3]},
+                 {XYZ[3,4,4],XYZ[3,4,3]},
+                 {XYZ[4,4,4],XYZ[4,4,3]},
+                 {XYZ[1,4,4],XYZ[4,4,4]},
+                 {XYZ[1,4,3],XYZ[4,4,3]}}
+--{{16,15},{32,31},{48,47},{64,63},{16,64},{15,63}}
+        show = false
+    elsif fdx=3 then    -- front
+        facelets = {{colour,{XYZ[1,1,4],
+                             XYZ[1,2,4],
+                             XYZ[2,2,4],
+                             XYZ[2,1,4]}},
+                    {colour,{XYZ[2,1,4],
+                             XYZ[2,2,4],
+                             XYZ[3,2,4],
+                             XYZ[3,1,4]}},
+                    {colour,{XYZ[3,1,4],
+                             XYZ[3,2,4],
+                             XYZ[4,2,4],
+                             XYZ[4,1,4]}},
+                    {colour,{XYZ[1,2,4],
+                             XYZ[1,3,4],
+                             XYZ[2,3,4],
+                             XYZ[2,2,4]}},
+                    {colour,{XYZ[2,2,4],
+                             XYZ[2,3,4],
+                             XYZ[3,3,4],
+                             XYZ[3,2,4]}},
+                    {colour,{XYZ[3,2,4],
+                             XYZ[3,3,4],
+                             XYZ[4,3,4],
+                             XYZ[4,2,4]}},
+                    {colour,{XYZ[1,3,4],
+                             XYZ[1,4,4],
+                             XYZ[2,4,4],
+                             XYZ[2,3,4]}},
+                    {colour,{XYZ[2,3,4],
+                             XYZ[2,4,4],
+                             XYZ[3,4,4],
+                             XYZ[3,3,4]}},
+                    {colour,{XYZ[3,3,4],
+                             XYZ[3,4,4],
+                             XYZ[4,4,4],
+                             XYZ[4,3,4]}}
+                   }
+--{{16711680,{4,8,24,20}},{16711680,{20,24,40,36}},{16711680,{36,40,56,52}},{16711680,{8,12,28,24}},{16711680,{24,28,44,40}},{16711680,{40,44,60,56}},{16711680,{12,16,32,28}},{16711680,{28,32,48,44}},{16711680,{44,48,64,60}}}
+        lines = {{XYZ[1,4,4],XYZ[4,4,4]},
+                 {XYZ[1,3,4],XYZ[4,3,4]},
+                 {XYZ[1,2,4],XYZ[4,2,4]},
+                 {XYZ[1,1,4],XYZ[4,1,4]},
+                 {XYZ[1,4,4],XYZ[1,1,4]},
+                 {XYZ[2,4,4],XYZ[2,1,4]},
+                 {XYZ[3,4,4],XYZ[3,1,4]},
+                 {XYZ[4,4,4],XYZ[4,1,4]}}
+--{{16,64},{12,60},{8,56},{4,52},{16,4},{32,20},{48,36},{64,52}}
+        show = false
+        centre = true
+    elsif fdx=4 then    -- back
+        -- (of a front slice)
+        facelets = {{CD_BLACK,{XYZ[1,4,3],
+                               XYZ[4,4,3],
+                               XYZ[4,1,3],
+                               XYZ[1,1,3]}}}
+--{{0,{15,63,51,3}}}
+        lines = {{XYZ[1,4,3],XYZ[4,4,3]},
+                 {XYZ[4,4,3],XYZ[4,1,3]},
+                 {XYZ[4,1,3],XYZ[1,1,3]},
+                 {XYZ[1,1,3],XYZ[1,4,3]}}
+--{{15,63},{63,51},{51,3},{3,15}}
+        show = false
+    elsif fdx=5 then    -- down
+        -- DEV order suspect... (should that help any)
+        facelets = {{colour,{XYZ[1,1,3],
+                             XYZ[1,1,4],
+                             XYZ[2,1,4],
+                             XYZ[2,1,3]}},
+                    {colour,{XYZ[2,1,3],
+                             XYZ[2,1,4],
+                             XYZ[3,1,4],
+                             XYZ[3,1,3]}},
+                    {colour,{XYZ[3,1,3],
+                             XYZ[3,1,4],
+                             XYZ[4,1,4],
+                             XYZ[4,1,3]}}
+                   }
+--/*
+--or maybe not... (untried)
+        facelets = {{colour,{XYZ[1,1,4],
+                             XYZ[2,1,4],
+                             XYZ[2,1,3],
+                             XYZ[1,1,3]}},
+                    {colour,{XYZ[2,1,4],
+                             XYZ[3,1,4],
+                             XYZ[3,1,3],
+                             XYZ[2,1,3]}},
+                    {colour,{XYZ[3,1,4],
+                             XYZ[4,1,4],
+                             XYZ[4,1,3],
+                             XYZ[3,1,3]}}
+                   }
+--*/
+--{{16776960,{3,4,20,19}},{16776960,{19,20,36,35}},{16776960,{35,36,52,51}}}
+        lines = {{XYZ[1,1,3],XYZ[1,1,4]},
+                 {XYZ[2,1,3],XYZ[2,1,4]},
+                 {XYZ[3,1,3],XYZ[3,1,4]},
+                 {XYZ[4,1,3],XYZ[4,1,4]},
+                 {XYZ[1,1,3],XYZ[4,1,3]},
+                 {XYZ[1,1,4],XYZ[4,1,4]}}
+--{{3,4},{19,20},{35,36},{51,52},{3,51},{4,52}}
+        show = false
+    elsif fdx=6 then    -- left
+        facelets = {{colour,{XYZ[1,4,3],
+                             XYZ[1,4,4],
+                             XYZ[1,3,4],
+                             XYZ[1,3,3]}},
+                    {colour,{XYZ[1,3,3],
+                             XYZ[1,3,4],
+                             XYZ[1,2,4],
+                             XYZ[1,2,3]}},
+                    {colour,{XYZ[1,2,3],
+                             XYZ[1,2,4],
+                             XYZ[1,1,4],
+                             XYZ[1,1,3]}}
+                   }
+--{{65280,{15,16,12,11}},{65280,{11,12,8,7}},{65280,{7,8,4,3}}}
+        lines = {{XYZ[1,4,3],XYZ[1,4,4]},
+                 {XYZ[1,3,3],XYZ[1,3,4]},
+                 {XYZ[1,2,3],XYZ[1,2,4]},
+                 {XYZ[1,1,3],XYZ[1,1,4]},
+                 {XYZ[1,4,3],XYZ[1,1,3]},
+                 {XYZ[1,4,4],XYZ[1,1,4]}}
+--{{15,16},{11,12},{7,8},{3,4},{15,3},{16,4}}
+        show = false
+    else
+        ?9/0
+    --?{"made_side:fdx",fdx}
+    --  facelets = {}
+    --  lines = {}
+    end if
+
+elsif flags=2 then  -- mid
+-- middle slice:
+    if fdx=1 then -- right
+        facelets = {{colour,{XYZ[4,4,3],
+                             XYZ[4,4,2],
+                             XYZ[4,3,2],
+                             XYZ[4,3,3]}},
+                    {colour,{XYZ[4,3,3],
+                             XYZ[4,3,2],
+                             XYZ[4,2,2],
+                             XYZ[4,2,3]}},
+                    {colour,{XYZ[4,2,3],
+                             XYZ[4,2,2],
+                             XYZ[4,1,2],
+                             XYZ[4,1,3]}}
+                   }
+--{{255,{63,62,58,59}},{255,{59,58,54,55}},{255,{55,54,50,51}}}
+        lines = {{XYZ[4,4,3],XYZ[4,4,2]},
+                 {XYZ[4,3,3],XYZ[4,3,2]},
+                 {XYZ[4,2,3],XYZ[4,2,2]},
+                 {XYZ[4,1,3],XYZ[4,1,2]},
+                 {XYZ[4,4,3],XYZ[4,1,3]},   -- ([1,1]..[4,1])
+                 {XYZ[4,4,2],XYZ[4,1,2]}}   -- ([1,2]..[4,2])
+--{{63,62},{59,58},{55,54},{51,50},{63,51},{62,50}}
+        show = false
+        centre = true
+    elsif fdx=2 then    -- up
+        facelets = {{colour,{XYZ[1,4,3],
+                             XYZ[1,4,2],
+                             XYZ[2,4,2],
+                             XYZ[2,4,3]}},
+                    {colour,{XYZ[2,4,3],
+                             XYZ[2,4,2],
+                             XYZ[3,4,2],
+                             XYZ[3,4,3]}},
+                    {colour,{XYZ[3,4,3],
+                             XYZ[3,4,2],
+                             XYZ[4,4,2],
+                             XYZ[4,4,3]}}
+                   }
+--{{16777215,{15,14,30,31}},{16777215,{31,30,46,47}},{16777215,{47,46,62,63}}}
+        lines = {{XYZ[1,4,3],XYZ[1,4,2]},
+                 {XYZ[2,4,3],XYZ[2,4,2]},
+                 {XYZ[3,4,3],XYZ[3,4,2]},
+                 {XYZ[4,4,3],XYZ[4,4,2]},
+                 {XYZ[1,4,3],XYZ[4,4,3]},
+                 {XYZ[1,4,2],XYZ[4,4,2]}}
+--{{15,14},{31,30},{47,46},{63,62},{15,63},{14,62}}
+        show = false
+        centre = true
+    elsif fdx=3 then    -- front
+        facelets = {{CD_BLACK,{XYZ[1,4,3],
+                               XYZ[4,4,3],
+                               XYZ[4,1,3],
+                               XYZ[1,1,3]}}}
+--{{0,{15,63,51,3}}}
+        lines = {{XYZ[1,4,3],XYZ[4,4,3]},
+                 {XYZ[4,4,3],XYZ[4,1,3]},
+                 {XYZ[4,1,3],XYZ[1,1,3]},
+                 {XYZ[1,1,3],XYZ[1,4,3]}}
+--{{15,63},{63,51},{51,3},{3,15}}
+        show = false
+    elsif fdx=4 then    -- back
+        -- (of a front slice)
+        facelets = {{CD_BLACK,{XYZ[1,4,2],
+                               XYZ[4,4,2],
+                               XYZ[4,1,2],
+                               XYZ[1,1,2]}}}
+--{{0,{14,62,50,2}}}
+        lines = {{XYZ[1,4,2],XYZ[4,4,2]},
+                 {XYZ[4,4,2],XYZ[4,1,2]},
+                 {XYZ[4,1,2],XYZ[1,1,2]},
+                 {XYZ[1,1,2],XYZ[1,4,2]}}
+--{{14,62},{62,50},{50,2},{2,14}}
+        show = false
+    elsif fdx=5 then    -- down
+        facelets = {{colour,{XYZ[1,1,2],
+                             XYZ[1,1,3],
+                             XYZ[2,1,3],
+                             XYZ[2,1,2]}},
+                    {colour,{XYZ[2,1,2],
+                             XYZ[2,1,3],
+                             XYZ[3,1,3],
+                             XYZ[3,1,2]}},
+                    {colour,{XYZ[3,1,2],
+                             XYZ[3,1,3],
+                             XYZ[4,1,3],
+                             XYZ[4,1,2]}}
+                   }
+--{{16776960,{2,3,19,18}},{16776960,{18,19,35,34}},{16776960,{34,35,51,50}}}
+        lines = {{XYZ[1,1,2],XYZ[1,1,3]},
+                 {XYZ[2,1,2],XYZ[2,1,3]},
+                 {XYZ[3,1,2],XYZ[3,1,3]},
+                 {XYZ[4,1,2],XYZ[4,1,3]},
+                 {XYZ[1,1,2],XYZ[4,1,2]},
+                 {XYZ[1,1,3],XYZ[4,1,3]}}
+--{{2,3},{18,19},{34,35},{50,51},{2,50},{3,51}}
+        show = false
+        centre = true
+    elsif fdx=6 then    -- left
+        facelets = {{colour,{XYZ[1,4,2],
+                             XYZ[1,4,3],
+                             XYZ[1,3,3],
+                             XYZ[1,3,2]}},
+                    {colour,{XYZ[1,3,2],
+                             XYZ[1,3,3],
+                             XYZ[1,2,3],
+                             XYZ[1,2,2]}},
+                    {colour,{XYZ[1,2,2],
+                             XYZ[1,2,3],
+                             XYZ[1,1,3],
+                             XYZ[1,1,2]}}
+                   }
+--{{65280,{14,15,11,10}},{65280,{10,11,7,6}},{65280,{6,7,3,2}}}
+        lines = {{XYZ[1,4,2],XYZ[1,4,3]},
+                 {XYZ[1,3,2],XYZ[1,3,3]},
+                 {XYZ[1,2,2],XYZ[1,2,3]},
+                 {XYZ[1,1,2],XYZ[1,1,3]},
+                 {XYZ[1,4,2],XYZ[1,1,2]},
+                 {XYZ[1,4,3],XYZ[1,1,3]}}
+--{{14,15},{10,11},{6,7},{2,3},{14,2},{15,3}}
+        show = false
+        centre = true
+    else
+        ?9/0
+    --?{"made_side:fdx",fdx}
+    --  facelets = {}
+    --  lines = {}
+    end if
+else -- flags??
+    ?9/0
+end if
+
+if show then
+    ?{flags,fdx}
+    ?facelets
+    ?lines
+end if
+    return {facelets,lines,centre}
+end function
+
+--
+-- Camera position:
+--
+-- For simplicity, we maintain a rotation stack, rather than try and express
+-- the camera position in a shorter form such as 3 co-dependant euler angles.
+-- If you rotate X by 45 then Y by 45, you get a very different view (lhs) to 
+-- doing it the other way round, ie rotate Y by 45 and then X by 45 (rhs).
+-- In fact, you end up with a 30 degree difference in Z rotation, an axis 
+-- along which you didn't deliberately do any rotations at all:
+--
+--            __           /|\
+--           /_/\   vs    |/\|
+--           \ \/         \ /
+--
+-- Obviously, therefore, in an rX rY rX' sequence you cannot just add rX' to
+-- rX; instead keep the full list, and always do them all in the same order.
+-- The stack is of arbitrary length, extended by keystroke, but since we can
+-- easily perform 1.2 million rotations per second that does not bother us.
+-- Obviously however if performing an X rotation and view_rotations[$] is an 
+-- X, then just add/subtract from that, rather than create yet another entry.
+--
+-- entries are {axis,degrees} where axis is X|Y|Z and degrees is 0..359.99.
+--
+sequence view_rotations = {{X,25},{Y,25},{Z,350}}
+
+constant naxes = {{Y,Z},    -- (rotate about the X-axis)
+                  {X,Z},    -- (rotate about the Y-axis)
+                  {X,Y}}    -- (rotate about the Z-axis)
+
+function rotate(sequence points, atom angle, integer axis)
+--
+-- rotate points by the specified angle about the given axis
+--   eg when rotating about the X-axis, all X values stay
+--   exactly the same, while the other two [Y & Z] change.
+--
+-- points is a sequence of {x,y,z} [longer elements ok]
+-- angle is in degrees, 0..359.99
+-- axis is X|Y|Z
+--
+--  [should you want to sort points after rotate/project,
+--   you can put addition info, eg index, after the xyz].
+--
+    atom radians = angle*CD_DEG2RAD,
+         sinr = sin(radians),
+         cosr = cos(radians)
+    integer {nx,ny} = naxes[axis] -- (the 2 of XYZ != axis)
+    for i=1 to length(points) do
+        atom x = points[i][nx],
+             y = points[i][ny]
+        points[i][nx] = x*cosr - y*sinr
+        points[i][ny] = y*cosr + x*sinr
+    end for
+    return points
+end function
+
+--procedure test_speed()
+--atom t0 = time()
+--sequence points = corners
+--  for i=1 to 400000 do
+--      points = rotate(points,rxyz[X],X)
+--      points = rotate(points,rxyz[Y],Y)
+--      points = rotate(points,rxyz[Z],Z)
+--  end for
+--  ?time()-t0
+--end procedure
+--test_speed()
+
+function projection(sequence points, atom d)
+--
+-- project points from {0,0,d} onto the perpendicular plane through {0,0,0}
+-- the Z coordinates are left undamaged, which turns out to be handy for
+-- determining the drawing order (ie nearest last)
+-- Update 30/9/17: obviously {0,0,z} is somewhat closer to the camera 
+-- than {1,1,z} (or {-1,-1,z}), hence z /is/ now adjusted accordingly.
+--
+    for i=1 to length(points) do
+        atom {x,y,z} = points[i],
+             denom = (1-z/d)
+        points[i][X] = x/denom
+        points[i][Y] = y/denom
+--30/9/17:
+if 01 then
+        z = d-z
+        z = sqrt(x*x+y*y+z*z)
+        points[i][Z] = d-z
+end if
+    end for
+    return points
+end function
+
+function rotate_and_project(sequence points)
+    for i=1 to length(view_rotations) do
+        {integer axis, atom angle} = view_rotations[i]
+        points = rotate(points,angle,axis)
+    end for
+    points = projection(points,1000)    -- DEV make d variable/configurable?
+    return points
+end function
+
+string pov_sides = "RUFBDL"         -- (overwritten)
+
+procedure set_pov_sides(sequence faceset, sequence corners, integer np)
+--
+-- label the sides with F/B/U/D/L/R appropriately.
+-- We already know the front: the last/third face we draw.
+-- Look at diag->np on the front to decide which other two sides are
+--  being drawn (one or even two of which may be completely obscured
+--  by nearer faces, from some angles).
+-- If np is above diag then we will be labelling the others LU or UR, 
+--  otherwise we will be labelling the others LD or DR.
+-- It may sound blatently obvious now, but using Y(1,2) to elect U/D,
+--  and X(other,np) to elect L/R was far from the first thing I tried.
+--  (Bear in mind that {1,2} are /not/ in any useful order for this.)
+-- Obviously some cases are ambiguous, for instance the corner-on of
+--  three identical sides could validly be labelled any of 16 ways:
+--
+--              L U    F R              F      U 
+--               F      D       /|\    L D    L F     / \
+--                  or         |/\|        or        |\/|
+--              U R    L F     \ /      F      U     \|/ 
+--               F      D              D R    F R 
+--
+--          F   U   L   U      __     U   U   R   F    __    
+--           R   F   F   R    /_/\   L   F   F   L    /\_\
+--          D   L   D   F     \_\/    F   R   D   D   \/_/   
+--  
+--  (Obviously, nudging an axis or two locks it into 1 of those 16.)
+--  With edge-on as LF|FR or UF|FD, and square-on as just F, nothing 
+--  else is ever valid. There are 21 different ways to label a cube!
+--
+    integer front, up, left, diag
+    {front,diag} = faceset[3][2..3]     -- deciding the front is easy!
+    pov_sides[front] = 'F'
+    pov_sides[7-front] = 'B'            -- (not strictly necessary)
+    atom y1 = corners[faceset[1][3]][Y],
+         y2 = corners[faceset[2][3]][Y],
+         nY = corners[np][Y],
+         dY = corners[diag][Y],
+         dX = corners[diag][X]
+    bool istop = nY>dY
+    integer higher = iff(y1>y2?1:2),
+            other = 3-higher
+    if istop then
+        -- LU or UR (in {other,higher} or {higher,other} respectively)
+        up = faceset[higher][2]
+        left = faceset[other][2]
+        if corners[faceset[other][3]][X]>dX then
+            left = 7-left
+        end if
+    else
+        -- LD or DR (in {higher,other} or {other,higher} respectively)
+        up = 7-faceset[other][2]
+        left = faceset[higher][2]
+        if corners[faceset[higher][3]][X]>dX then
+            left = 7-left
+        end if
+    end if
+    pov_sides[up] = 'U'
+    pov_sides[7-up] = 'D'
+    pov_sides[left] = 'L'
+    pov_sides[7-left] = 'R'
+end procedure
+
+--/*
+function nearest(sequence points, integer axis=Z, integer d=+1)
+--
+-- return the index of the furthest point from {0,0,0}
+--  (as viewed in the rotated/perspective adjusted model,
+--   ie the highest/lowest value in the specified axis)
+--
+--  nearest(points,Z,1) yields max z value (nearest),
+--  nearest(points,Z,-1) should always be hidden,
+--  nearest(points,X,1) yeilds rightmost point,
+--  nearest(points,X,-1) yeilds leftmost point,
+--  nearest(points,Y,1) yeilds topmost point,
+--  nearest(points,Y,-1) yeilds lowest point.
+--   (all from the camera's point of view)
+--
+--  some ambiguity is to be expected when the camera is
+--   edge-on, eg top/right might be one and the same.
+--   (if necessary, constrain all angles to be odd)
+--   (or, grey out rotate controls at some angles)
+--
+    integer np = 1
+    atom maxv = points[1][axis]
+    for i=2 to length(points) do
+        atom pix = points[i][axis]
+        if compare(pix,maxv)=d then
+            maxv = pix
+            np = i
+        end if
+    end for
+    return np
+end function
+--*/
+--DEV probably want to break this up again...
+function get_faceset(sequence corners, bool set_pov=true)
+    --
+    -- first get the index of the maximum Z value 
+    -- (as rotated to make the camera be {0,0,d}).
+    --
+    integer np = 1  -- (nearest point)
+    atom maxz = corners[1][Z]
+    for i=2 to length(corners) do
+        atom cz = corners[i][Z]
+        if cz>maxz then
+            maxz = cz
+            np = i
+        end if
+    end for
+    --
+    -- find the three faces that contain the nearest point
+    --
+    sequence faceset = {}
+    for i=1 to length(faces) do
+        sequence fi = faces[i]
+        integer k = find(np,fi)
+        if k then                       -- (2..5)
+            integer diag = mod(k,4)+2   --   ""
+            diag = fi[diag]             -- (1..8)
+            faceset = append(faceset,{corners[diag][Z],i,diag})
+        end if
+    end for
+    if length(faceset)!=3 then ?9/0 end if
+    --
+    -- order by/draw them furthest (diag) away first.
+    -- (this also tells us which face is the front.)
+    --
+    faceset = sort(faceset)
+
+    if set_pov then
+        set_pov_sides(faceset, corners, np)
+    end if
+
+    return faceset
+end function
+
+--DEV will now only be used once...
+--procedure vertices(integer wx, wh, sequence points, face)
+---- (common code for line/fill drawing)
+--  for i=2 to length(face) do
+--      integer fi = face[i]
+--      cdCanvasVertex(cd_canvas,wx+points[fi][X],wh+points[fi][Y])
+--  end for
+--end procedure
+
+function extract_points(sequence dx, points)
+    for i=1 to length(dx) do
+        dx[i] = points[dx[i]]
+    end for
+    return dx
+end function
+
+--  for x
+--/*
+--
+-- define 8 corners equidistant from {0,0,0}:
+--
+--          6-----2
+--      5-----1   3
+--      8-----4  
+--
+-- ie the right face is 1-2-3-4 clockwise, and the left face
+--  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+--
+enum X, Y, Z
+
+--*/
+constant cubie0 = {{+L,+L,+L},
+                   {+L,+L,-L},
+                   {+L,-L,-L},
+                   {+L,-L,+L},
+                   {-L,+L,+L},
+                   {-L,+L,-L},
+                   {-L,-L,-L},
+                   {-L,-L,+L}}
+
+--function make_cubie()
+--sequence cubie = repeat(0,8)
+--end function
+
+function make_centres()
+    sequence centres = {}
+--  integer xd = 0x0100
+    for px=-L2 to +L2 by L2 do -- {-L2,0,+L2} 
+--      integer yd = 0x010
+        for py=-L2 to +L2 by L2 do --   ""
+--          integer zd = 0x001
+            for pz=-L2 to +L2 by L2 do --   ""
+--              integer c = xd+yd+zd
+--              centres = append(centres,{px, py, pz, c})
+                centres = append(centres,{px, py, pz})
+--              zd *= 2
+            end for
+--          yd *= 2
+        end for
+--      xd *= 2
+    end for
+    return centres
+end function
+
+constant CENTRES = make_centres()
+
+if sequence(CENTRES) then end if    -- DEV
+
+-- not set in stone: represent offsets to centre, see rubiks_cfop...
+-- may be better to use 3 not 4, octal (or even base 4) not hex...
+constant side_map = {
+                     -- up
+                     {0(4)131,0(4)231,0(4)331,0(4)132,0(4)232,0(4)332,0(4)133,0(4)233,0(4)333},
+--                   {      4,      5,      6,     19,     20,     21,     34,     35,     36},
+                     -- left
+                     {0(4)131,0(4)132,0(4)133,0(4)121,0(4)122,0(4)123,0(4)111,0(4)112,0(4)113},
+--                   {     46,     47,     48,     61,     62,     63,     76,     77,     78},
+                     -- front
+                     {0(4)133,0(4)233,0(4)333,0(4)123,0(4)223,0(4)323,0(4)113,0(4)213,0(4)313},
+--                   {     49,     50,     51,     64,     65,     66,     79,     80,     81},
+                     -- right
+                     {0(4)333,0(4)332,0(4)331,0(4)323,0(4)322,0(4)321,0(4)313,0(4)312,0(4)311},
+--                   {     52,     53,     54,     67,     68,     69,     82,     83,     84},
+                     -- back
+                     {0(4)331,0(4)231,0(4)131,0(4)312,0(4)221,0(4)121,0(4)311,0(4)211,0(4)111},
+--                   {     55,     56,     57,     70,     71,     72,     85,     86,     87},
+                     -- down
+                     {0(4)113,0(4)213,0(4)313,0(4)112,0(4)212,0(4)312,0(4)111,0(4)211,0(4)311},
+--                   {     97,     98,     99,    112,    113,    114,    127,    128,    129}
+                    }
+--?0(4)333  -- 63 (ah, but edges appear twice, corners thrice; only centres appear only once...)
+--?0(4)111  -- 21   -- (so the above is ascii-able...)
+--?0o444    -- 292...
+
+if sequence(side_map) then end if   -- DEV
+
+constant colour_map = {"ROBGWY",
+                       {CD_RED,CD_ORANGE,CD_BLUE,CD_GREEN,CD_WHITE,CD_YELLOW}}
+
+if sequence(colour_map) then end if -- DEV
+
+procedure draw_cubies(integer wx, wh)
+--sequence centres = rotate_and_project(CENTRES)
+sequence lpoints = rotate_and_project(labels)
+sequence cpoints = rotate_and_project(cslice)
+--pp(lpoints)
+
+sequence cubies = {}
+--integer filter = 0    -- which set of points to use
+--DEV...
+--integer rot = 0(4)010, rangle = 10, raxis = Y
+integer sliceset = 0(4)003
+--sequence csetorder = {0(4)001,0(4)002,0(4)003}
+--sequence csetorder = {0(4)003,0(4)002,0(4)001}
+integer rot = 0(4)003, rangle = 45, raxis = Z
+atom z1 = cpoints[raxis][Z],
+--   z2 = 0,
+     z3 = cpoints[7-raxis][Z]
+sequence csetorder = iff(z1>z3?iff(z1>0?{0(4)001,0(4)002,0(4)003}
+                                       :{0(4)001,0(4)003,0(4)002})
+                              :iff(z3>0?{0(4)003,0(4)002,0(4)001}
+                                       :{0(4)003,0(4)001,0(4)002}))
+?{z1,0,z3,csetorder}
+--DEV missing!!:
+--                            :{0(4)003,0(4)001,0(4)002}
+--                            :{0(4)001,0(4)003,0(4)002}
+-- and maybe???
+--                            :{0(4)002,0(4)001,0(4)003}
+--                            :{0(4)002,0(4)003,0(4)001}
+--integer rot = 0, rangle = 10, raxis = X
+--sequence cpoints, rpoints
+sequence rpoints
+
+
+--!/*
+    cpoints = rotate_and_project(CENTRES)
+    if rot then
+        rpoints = rotate(CENTRES,rangle,raxis)
+        rpoints = rotate_and_project(rpoints)
+    end if
+--!*/
+
+    integer cdx = 1
+atom centre
+--  integer xd = 0x0100
+--  for x=1 to 1 do
+    for x=0(4)100 to 0(4)300 by 0(4)100 do
+--      integer yd = 0x010
+--      for y=1 to 1 do
+        for y=0(4)010 to 0(4)030 by 0(4)010 do
+--          integer zd = 0x001
+--          for z=1 to 1 do
+            for z=0(4)001 to 0(4)003 by 0(4)001 do
+--              integer c = xd+yd+zd
+                integer cubie_id = x+y+z
+--              sequence cubie = sq_and_bits(c,{#700,#070,#007})
+--              cubie = sq_mul(cubie,{1/256,1/16,1/2})
+----                sequence cubie = cubie0
+--              cubie = sq_mul(repeat(cubie,8),cubie0)
+--              if and_bits(cubie_id,filter) then
+--                  cubie = rotate(cubie,??)
+--              end if
+--!/*
+--              if rot and and_bits(rot,cubie_id)=rot then
+                if rot and and_bits(sliceset,cubie_id)=rot then
+                    centre = rpoints[cdx][Z]
+                else
+                    centre = cpoints[cdx][Z]
+                end if
+--!*/
+                cdx += 1
+--              cubie = rotate_and_project(cubie)
+--              cubies = append(cubies,cubie)
+--              integer cset = and_bits(cubie_id,sliceset)
+--DEV++:
+                integer cset = find(and_bits(cubie_id,sliceset),csetorder)
+                cubies = append(cubies,{cset,centre,cubie_id})
+--              zd *= 2
+            end for
+--          yd *= 2
+        end for
+--      xd *= 2
+    end for
+    cubies = sort(cubies)
+--?columnize(cubies, 1)
+sequence xyz
+--pp(cubies)
+sequence s = cubies
+integer cubie_id
+    for ci=1 to length(cubies) do
+        cubie_id = cubies[ci][3]
+        xyz = sq_and_bits(cubie_id,{0(4)300,0(4)030,0(4)003})
+        xyz = sq_floor_div(xyz,    {0(4)100,0(4)010,0(4)001})
+        s[ci][2] = xyz
+    end for
+--pp(s) 
+    for ci=1 to length(cubies) do
+
+sequence points,
+         faceset
+
+integer colour
+integer mask
+--  integer cubie_id = 0(4)122
+    cubie_id = cubies[ci][3]
+    xyz = sq_and_bits(cubie_id,{0(4)300,0(4)030,0(4)003})
+    xyz = sq_floor_div(xyz,    {0(4)100,0(4)010,0(4)001})
+--/* fine, if we need it:
+    integer {x,y,z} = xyz
+?xyz
+--*/
+    xyz = sq_sub(xyz,2)     --> (-1|0|+1) (3 of)
+    xyz = sq_mul(xyz,L2)    --> (-L2|0|+L2) "
+    points = sq_add(repeat(xyz,8),cubie0)
+--?points
+--  if rot and and_bits(rot,cubie_id)=rot then
+    if rot and and_bits(sliceset,cubie_id)=rot then
+        points = rotate(points,rangle,raxis)
+    end if
+    points = rotate_and_project(points)
+
+--DEV break this up; only set pov_sides from/for the whole cube...
+--  points = rotate_and_project(corners)
+    faceset = get_faceset(points,false)     -- (also sets pov_sides)
+--?faceset
+
+    for i=1 to length(faceset) do
+        integer fdx = faceset[i][2]
+        sequence fi = faces[fdx]
+----!/*
+--      atom angle = side_rots[fdx]
+--      integer axis = X
+--      if angle<0 then
+--          axis = Y
+--          angle = 0-angle
+--      end if
+--      sequence side = rotate(aside,angle,axis)
+--      side = rotate_and_project(side)
+----!*/
+
+if 01 then
+--      mask = fmask[fdx]
+        mask = fmask[iff(fdx>3?7-fdx:fdx)]
+        if and_bits(mask,cubie_id)=fmask[fdx] then
+            colour = fi[1]  --DEV...
+        else
+            colour = CD_BLACK
+        end if
+        cdCanvasSetForeground(cd_canvas,colour)
+--      for p=1 to length(facelets) do
+--          cdCanvasSetForeground(cd_canvas,faces[rand(6)][1])
+            cdCanvasBegin(cd_canvas,CD_FILL)
+--          sequence fp = facelets[p]
+        for k=2 to length(fi) do
+            integer fik = fi[k]
+            cdCanvasVertex(cd_canvas,wx+points[fik][X],wh+points[fik][Y])
+        end for
+--          for k=1 to length(fp) do
+--              integer fpk = fp[k]
+--              cdCanvasVertex(cd_canvas,wx+side[fpk][X],wh+side[fpk][Y])
+--          end for
+            cdCanvasEnd(cd_canvas)
+--      end for
+end if
+        -- draw some black lines
+        cdCanvasSetForeground(cd_canvas,CD_BLACK)
+        cdCanvasLineWidth(cd_canvas,2)
+        cdCanvasBegin(cd_canvas,CD_CLOSED_LINES)
+        for k=2 to length(fi) do
+            integer fik = fi[k]
+            cdCanvasVertex(cd_canvas,wx+points[fik][X],wh+points[fik][Y])
+        end for
+        cdCanvasEnd(cd_canvas)
+--if 0 then 
+--      for sideline=1 to length(sidelines) do
+--          integer {s1,s2} = sidelines[sideline]
+--          cdCanvasLine(cd_canvas,wx+side[s1][X],wh+side[s1][Y],wx+side[s2][X],wh+side[s2][Y])
+--      end for
+--end if
+        cdCanvasLineWidth(cd_canvas,1)
+
+--DEV if colour!=black then
+        if colour!=CD_BLACK then
+
+--  ??mask = 0(4)222-and_bits(0(4)222,mask) -- nah, but 022/202/220 anyway
+--constant fmask = {0(4)300,    -- right
+--                0(4)030,  -- up
+--                0(4)003,  -- front
+--                0(4)001,  -- back
+--                0(4)010,  -- down
+--                0(4)100}  -- left
+--
+--constant cmask = {0(4)033,    -- right
+--                0(4)303,  -- up
+--                0(4)220,  -- front
+--                0(4)220,  -- back
+--                0(4)202,  -- down
+--                0(4)022}  -- left
+--
+--      mask = 0(4)333-fmask[iff(fdx>3?7-fdx:fdx)]
+            mask = 0(4)333-mask
+--          if and_bits(cubie_id,mask)=cmask[fdx] then
+--(dev) don't try drawing on a rotating slice...
+            if and_bits(cubie_id,mask)=cmask[fdx] 
+            and (rot=0 or and_bits(sliceset,cubie_id)!=rot) then
+                -- and draw F/U/R/L/D in the centres
+                cdCanvasSetForeground(cd_canvas,CD_BLACK)
+--DEV...
+--              points = corners
+--              if rot then
+--                  points = rotate(points,rangle,raxis)
+--              end if
+--              points = rotate_and_project(corners)
+--              {} = get_faceset(points,true)   -- (also sets pov_sides)
+
+                atom mx = wx+lpoints[fdx][X]*label_height,
+                     my = wh+lpoints[fdx][Y]*label_height
+                cdCanvasText(cd_canvas, mx, my, pov_sides[fdx..fdx]) 
+            end if
+        end if
+    end for
+--sleep(0.1)
+--  cdCanvasFlush(cd_canvas)
+
+    end for
+
+end procedure
+
+procedure draw_cube2(integer wx, wh)
+sequence points,
+--       faceset,
+--       lpoints
+         shapes = {},
+         shape,
+         faceset,
+         facelets,
+         lines,
+         corners,
+         lpoints, 
+         pointss
+
+bool label
+integer flags = 1, 
+        side = 3    -- DEV/front (1..3 of)
+    points = rotate_and_project(IPOINTS)
+    shape = make_shape(flags,side)
+--  {centre,corners,flags} = shape
+    shape[CENTRE] = rotate_and_project({shape[CENTRE]})[1][Z]
+    shape[CORNERS] = extract_points(shape[CORNERS],points)
+shape = append(shape,points)
+    shapes = append(shapes,shape)
+
+if 0 then
+--  flags = 2
+    flags = 1
+    shape = make_shape(flags,side)
+    shape[CENTRE] = rotate({shape[CENTRE]},180,X)
+    shape[CENTRE] = rotate_and_project(shape[CENTRE])[1][Z]
+    sequence p180 = rotate(IPOINTS,180,X)
+    p180 = rotate_and_project(p180)
+--  shape[CORNERS] = extract_points(shape[CORNERS],points)
+    shape[CORNERS] = extract_points(shape[CORNERS],p180)
+shape = append(shape,p180)
+    shapes = append(shapes,shape)
+--pp(shapes)
+end if
+
+    shapes = sort(shapes)
+
+    lpoints = rotate_and_project(labels)
+    --([DEV] any cublet would do)
+    corners = {XYZ[4,4,4],  -- UFR
+               XYZ[4,4,1],  -- URB
+               XYZ[4,1,1],  -- DBR
+               XYZ[4,1,4],  -- DRF
+               XYZ[1,4,4],  -- ULF
+               XYZ[1,4,1],  -- UBL
+               XYZ[1,1,1],  -- DLB
+               XYZ[1,1,4]}  -- DFL
+    corners = extract_points(corners,points)
+    faceset = get_faceset(corners,true)     -- (also sets pov_sides) [DEV split that functionality up again]
+
+--  ?shapes
+    for s=1 to length(shapes) do
+        shape = shapes[s]
+pointss = shape[POINTS]
+        faceset = get_faceset(shape[CORNERS],false)
+--      faceset = get_faceset(corners,false)
+--?faceset
+        for f=1 to length(faceset) do
+            integer fdx = faceset[f][2]
+--erm?
+--          sequence fi = faces[fdx]
+            {facelets,lines,label} = make_side(shape[FLAGS],shape[SIDE],fdx)
+--?{facelets,lines}
+--?{"facelets",facelets}
+--          facelets = extract_points(facelets,points)
+--          lines = extract_points(lines,points)
+            -- draw up to 9 facelets on each side
+--          cdCanvasSetForeground(cd_canvas,fi[1])
+            for p=1 to length(facelets) do
+                cdCanvasSetForeground(cd_canvas,facelets[p][1])
+                cdCanvasBegin(cd_canvas,CD_FILL)
+--              sequence fp = extract_points(facelets[p][2],points)
+                sequence fp = extract_points(facelets[p][2],pointss)
+                for k=1 to length(fp) do
+                    sequence fpk = fp[k]
+                    cdCanvasVertex(cd_canvas,wx+fpk[X],wh+fpk[Y])
+--?{wx+fpk[X],wh+fpk[Y]}
+                end for
+                cdCanvasEnd(cd_canvas)
+            end for
+            -- draw some black lines
+--?{"lines",lines}
+            cdCanvasSetForeground(cd_canvas,CD_BLACK)
+            cdCanvasLineWidth(cd_canvas,2)
+            for l=1 to length(lines) do
+--              cdCanvasBegin(cd_canvas,CD_CLOSED_LINES)
+--              sequence lp = extract_points(lines[l],points)
+--              sequence lp = lines[l]
+--              for k = 1 to length(lp) do
+--                  integer lpk = lp[k]
+--                  cdCanvasVertex(cd_canvas,wx+points[lpk][X],wh+points[lpk][Y])
+                integer {p1,p2} = lines[l]
+                atom x1 = wx+pointss[p1][X],
+                     y1 = wh+pointss[p1][Y],
+                     x2 = wx+pointss[p2][X],
+                     y2 = wh+pointss[p2][Y]
+                cdCanvasLine(cd_canvas,x1,y1,x2,y2)
+--              end for
+--              cdCanvasEnd(cd_canvas)
+            end for
+            cdCanvasLineWidth(cd_canvas,1)
+            -- and draw F/U/R/L/D in the centres
+            cdCanvasSetForeground(cd_canvas,CD_BLACK)
+            if label then
+                atom mx = wx+lpoints[fdx][X]*label_height,
+                     my = wh+lpoints[fdx][Y]*label_height
+                cdCanvasText(cd_canvas, mx, my, pov_sides[fdx..fdx]) 
+            end if
+        end for
+    end for
+end procedure
+
+integer toggle = 0
+
+procedure draw_cube(integer wx, wh)
+sequence points,
+         faceset,
+         lpoints
+
+toggle = 1-toggle
+--if toggle then
+if 01 then
+    if 01 then
+        draw_cubies(wx,wh)
+    else
+        draw_cube2(wx,wh)
+    end if
+    return
+end if
+    
+--/*
+sequence shapes = {},   -- single cube | slice and double slice | three slices
+         shape          -- one of ""
+
+--  if rot then
+        --
+        -- the down (single) slice (which we'll rotate onto the rqd side):
+        --
+        --                -L3(X) +L3(X)
+        --  -L3(Z)  --      6-----2     -- -L(Y)
+        --  +L3(Z) --   5-----1   3     -- -L3(Y)
+        --              8-----4  
+        --
+if 0 then
+        points = {{+L3,-L, +L3},    -- UFR
+                  {+L3,-L, -L3},    -- URB
+                  {+L3,-L3,-L3},    -- DBR
+                  {+L3,-L3,+L3},    -- DRF
+                  {-L3,-L, +L3},    -- ULF
+                  {-L3,-L, -L3},    -- UBL
+                  {-L3,-L3,-L3},    -- DLB
+                  {-L3,-L3,+L3},    -- DFL
+                  { 0, -L2, 0 }}    -- centre
+elsif 1 then
+--  1234
+--  5678
+--  9012
+--  3456
+        points = aside&sq_sub(aside,{0,0,L2})
+        points = append(points,{0,-L2,0})   -- centre
+--  sequence {centre,corners,facelets,lines} = make_shape(integer slices)
+else
+        points = {}
+        integer sign = 1
+        for dx=+1 to -1 by -2 do            -- (right then left)
+            for dy=-1 to -3 by -2 do        -- ( up   then down)
+                for dz=+1 to -1 by -2 do    -- (odd=FB, even=BF)
+                    points = append(points,{dx*L3,dy*L,dz*L3*sign})
+                end for
+                sign = -sign
+            end for
+        end for
+        points = append(points,{0,-L2,0})   -- centre
+end if
+--      points = rotate(points,side_rots[?],?)
+--      points = rotate(points,rot?)
+        points = rotate_and_project(points)
+        faceset = get_faceset(points)
+sequence facelets,
+         lines
+        facelets = {}
+        lines = {}
+        for i=1 to length(faceset) do
+            integer fdx = faceset[i][2]
+            sequence fi = faces[fdx]
+            
+        end for
+        shape = {points[$][Z],facelets,lines}
+        shapes = append(shapes,shape)
+--  end if
+--  (again if middle rot)
+    -- (this one contains the middle layer)
+    shape = {Z,{},...}
+    shapes = append(shapes,shape)
+    shapes  = sort(shapes)  -- (draw nearest last)
+    for sdx = 1 to length(shapes)
+        shape = shapes[sdx]
+    end for
+--*/
+
+    points = rotate_and_project(corners)
+    faceset = get_faceset(points)       -- (also sets pov_sides)
+--?faceset
+    lpoints = rotate_and_project(labels)
+
+--IupSetStrAttribute(dlg,"TITLE","Draw a Rotating Cube (%s)",{pov_sides})
+
+--DEV/SUG 2 to length faceset if not drawing the last slice??
+--if layer=3 then draw all 9 facelets else draw a single black face... (for side xxx=???)
+    for i=1 to length(faceset) do
+        integer fdx = faceset[i][2]
+        sequence fi = faces[fdx]
+        atom angle = side_rots[fdx]
+        integer axis = X
+        if angle<0 then
+            axis = Y
+            angle = 0-angle
+        end if
+        sequence side = rotate(aside,angle,axis)
+        side = rotate_and_project(side)
+--if 0 then
+--      cdCanvasSetForeground(cd_canvas,fi[1])
+--      -- draw edges (anti-aliased)
+--      cdCanvasBegin(cd_canvas,CD_CLOSED_LINES)
+--      vertices(wx,wh,points,fi)
+--      cdCanvasEnd(cd_canvas)
+--      -- fill sides (else would get bresenham edges)
+--      cdCanvasBegin(cd_canvas,CD_FILL)
+--      vertices(wx,wh,points,fi)
+--      cdCanvasEnd(cd_canvas)
+--else
+        -- draw the 9 facelets of each side
+        cdCanvasSetForeground(cd_canvas,fi[1])
+        for p=1 to length(facelets) do
+--          cdCanvasSetForeground(cd_canvas,faces[rand(6)][1])
+            cdCanvasBegin(cd_canvas,CD_FILL)
+            sequence fp = facelets[p]
+            for k=1 to length(fp) do
+                integer fpk = fp[k]
+                cdCanvasVertex(cd_canvas,wx+side[fpk][X],wh+side[fpk][Y])
+            end for
+            cdCanvasEnd(cd_canvas)
+        end for
+--end if
+        -- draw some black lines
+        cdCanvasSetForeground(cd_canvas,CD_BLACK)
+        cdCanvasLineWidth(cd_canvas,2)
+        cdCanvasBegin(cd_canvas,CD_CLOSED_LINES)
+--      vertices(wx,wh,points,fi)
+        for k=2 to length(fi) do
+            integer fik = fi[k]
+            cdCanvasVertex(cd_canvas,wx+points[fik][X],wh+points[fik][Y])
+        end for
+        cdCanvasEnd(cd_canvas)
+        for sideline=1 to length(sidelines) do
+            integer {s1,s2} = sidelines[sideline]
+            cdCanvasLine(cd_canvas,wx+side[s1][X],wh+side[s1][Y],wx+side[s2][X],wh+side[s2][Y])
+        end for
+        cdCanvasLineWidth(cd_canvas,1)
+--bad idea:
+--  end for
+
+--DEV if /not/ perfoming a middle rotation... (just do up/down?)
+--  for i=1 to length(faceset) do
+--      integer fdx = faceset[i][2]
+        -- and draw F/U/R/L/D in the centres
+        cdCanvasSetForeground(cd_canvas,CD_BLACK)
+        atom mx = wx+lpoints[fdx][X]*label_height,
+             my = wh+lpoints[fdx][Y]*label_height
+        cdCanvasText(cd_canvas, mx, my, pov_sides[fdx..fdx]) 
+    end for
+end procedure
+
+function canvas_action_cb(Ihandle canvas)
+--  if USE_OPENGL then
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+--  end if
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    integer {wx, wh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
+    draw_cube(wx,wh)
+    cdCanvasFlush(cd_canvas)
+--  if USE_OPENGL then
+--      IupGLSwapBuffers(canvas)    -- (no diff?)
+--  end if
+    return IUP_DEFAULT
+end function
+
+function canvas_map_cb(Ihandle canvas)
+    if USE_OPENGL then
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    else
+        cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
+    end if
+    cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+--  cdCanvasSetBackground(cd_canvas, CD_BLACK)
+--  cdCanvasSetForeground(cd_canvas, CD_BLUE)
+    {} = cdCanvasTextAlignment(cd_canvas, CD_CENTER) 
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    if USE_OPENGL then
+        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+        cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    end if
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+integer axis, angle
+    if c=K_ESC then return IUP_CLOSE end if
+    axis = find(c,{K_DOWN,K_LEFT,'-','+',K_RIGHT,K_UP})
+    if axis then
+        angle = 1
+        if axis>3 then
+            angle = 359
+            axis = 7-axis
+        end if
+        if length(view_rotations) 
+        and view_rotations[$][1] = axis then
+            view_rotations[$][2] = mod(view_rotations[$][2]+angle,360)
+        else
+            view_rotations = append(view_rotations,{axis,angle})
+        end if  
+--?view_rotations
+        IupRedraw(canvas)
+    end if      
+    return IUP_CONTINUE
+end function
+
+--function timer_cb(Ihandle /*ih*/)
+--? ry = mod(ry+359,360)
+--  IupRedraw(canvas)
+--  return IUP_IGNORE
+--end function
+
+procedure main()
+    IupOpen()
+    IupImageLibOpen()
+--  if USE_OPENGL then
+--      IupGLCanvasOpen()   -- (no diff)
+--  end if
+    if USE_OPENGL then
+        canvas = IupGLCanvas()
+--      IupSetAttribute(canvas, "BUFFER", "DOUBLE") -- (no diff?)
+    else
+        canvas = IupCanvas()
+    end if
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
+    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    dlg = IupDialog(IupVbox({canvas}))
+    IupSetAttribute(dlg,"TITLE","Draw a Rotating Cube")
+    IupSetCallback(dlg, "K_ANY",  Icallback("esc_close"))
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+--  Ihandle hTimer = IupTimer(Icallback("timer_cb"), 40)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+
+--/*
+-- From https://sourceforge.net/p/iup/iup/1530/tree/tags/iup_2_7_1/iup2/test/iupgl/glcanvas_cube.c
+-- (simplified version of iup3Dctrls.exw)
+-- Translated to Phix by Pete Lomax
+--
+
+include pGUI.e
+include opengl.e
+include glu.e
+
+--#withtype Ihandle
+
+--
+-- define 8 corners equidistant from {0,0,0}:
+--
+--          6-----2
+--      5-----1   3
+--      8-----4  
+--
+-- ie the right face is 1-2-3-4 clockwise, and the left face
+--  is 5-6-7-8 counter-clockwise (unless using x-ray vision).
+--
+--enum X, Y, Z
+--constant l = 1--00
+--constant corners = {{+l,+l,+l},
+--                  {+l,+l,-l},
+--                  {+l,-l,-l},
+--                  {+l,-l,+l},
+--                  {-l,+l,+l},
+--                  {-l,+l,-l},
+--                  {-l,-l,-l},
+--                  {-l,-l,+l}}
+
+constant corners = {{0, 0, 0},
+                    {1, 0, 0},
+                    {0, 1, 0},
+                    {0, 0, 1},
+                    {0, 1, 1},
+                    {1, 0, 1},
+                    {1, 1, 0},
+                    {1, 1, 1}}
+
+constant cd_RED     = {1.0,0.0,0.0},
+         cd_YELLOW  = {1.0,1.0,0.0},
+         cd_GREEN   = {0.0,1.0,0.0},
+         cd_BLUE    = {0.0,0.0,1.0},
+         cd_WHITE   = {1.0,1.0,1.0},
+         cd_ORANGE  = {1.0,0.5,0.0}
+
+constant faces = {{cd_RED,      2,7,8,6},   -- right
+                  {cd_YELLOW,   3,5,8,7},   -- top/upper
+                  {cd_GREEN,    4,5,8,6},   -- front
+                  {cd_BLUE,     1,2,7,3},   -- back
+                  {cd_WHITE,    1,2,6,4},   -- btm/down
+                  {cd_ORANGE,   1,3,5,4}}   -- left
+
+constant R = 1, G = 2, B = 3
+--DEV type corner??
+type color3D(object c)
+    return sequence(c) and length(c)=3 and atom(c[R]) and atom(c[G]) and atom(c[B])
+end type
+
+procedure add_color_vertex(color3D c)
+    glColor3(c)
+    glVertex3d(c)
+end procedure
+
+procedure draw_cube_face(color3D c1, color3D c2, color3D c3, color3D c4)
+atom r = (c1[R]+c2[R]+c3[R]+c4[R])/4
+atom g = (c1[G]+c2[G]+c3[G]+c4[G])/4
+atom b = (c1[B]+c2[B]+c3[B]+c4[B])/4
+color3D cm = {r,g,b}
+
+    add_color_vertex(cm)
+    add_color_vertex(c1)
+    add_color_vertex(c2)
+
+    add_color_vertex(cm)
+    add_color_vertex(c2)
+    add_color_vertex(c3)
+
+    add_color_vertex(cm)
+    add_color_vertex(c3)
+    add_color_vertex(c4)
+
+    add_color_vertex(cm)
+    add_color_vertex(c4)
+    add_color_vertex(c1)
+end procedure
+
+--DEV earein misses this:
+constant color3D c3D_black   = {0, 0, 0},
+                 c3D_red     = {1, 0, 0},
+                 c3D_green   = {0, 1, 0},
+                 c3D_blue    = {0, 0, 1},
+                 c3D_cyan    = {0, 1, 1},
+                 c3D_magenta = {1, 0, 1},
+                 c3D_yellow  = {1, 1, 0},
+                 c3D_white   = {1, 1, 1}
+
+procedure draw_cube()
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+
+if 01 then
+    for i=1 to length(faces) do
+        glColor3(faces[i][1])
+        for j=1 to 2 do -- (lines then fill)
+            glBegin({GL_LINE_LOOP,GL_POLYGON}[j])
+            for k=2 to 5 do
+                glVertex3d(corners[faces[i][k]])
+            end for
+            glEnd()
+        end for
+    end for
+else
+
+    glBegin(GL_TRIANGLES);
+
+    draw_cube_face(c3D_black, c3D_blue,    c3D_magenta, c3D_red);
+    draw_cube_face(c3D_black, c3D_green,   c3D_cyan,    c3D_blue);
+    draw_cube_face(c3D_black, c3D_red,     c3D_yellow,  c3D_green);
+    draw_cube_face(c3D_white, c3D_cyan,    c3D_blue,    c3D_magenta);
+    draw_cube_face(c3D_white, c3D_cyan,    c3D_green,   c3D_yellow);
+    draw_cube_face(c3D_white, c3D_magenta, c3D_red,     c3D_yellow);
+
+    glEnd();
+end if
+end procedure
+
+procedure init()
+--  glClearColor(0.5,0.5,0.5,0.0);  -- mid-grey
+    glClearColor(1.0,1,0.9,0.0);    -- parchment
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(45, 1, 1, 10);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    gluLookAt({0.5, 0.5, 4.0},  /* position of the observer */
+              {0.5, 0.5, 0.0},  /* reference point          */
+              {0.0, 1.0, 0.0})  /* up                       */
+    glEnable(GL_DEPTH_TEST);
+    glClearDepth(1.0)
+end procedure
+
+procedure unproject(atom x2, atom y2, atom p3)
+atom mv = allocate(16*8)                -- 16 doubles
+atom pm = allocate(16*8)                -- 16 doubles
+atom vp = allocate(4*machine_word())    -- 4 ints
+
+    glGetDoublev(GL_MODELVIEW_MATRIX,  mv);
+    glGetDoublev(GL_PROJECTION_MATRIX, pm);
+    glGetIntegerv(GL_VIEWPORT, vp);
+    gluUnProject(x2, y2, 0.0,
+                 mv, pm, vp,
+                 p3, p3+8, p3+16);
+    free(mv)
+    free(pm)
+    free(vp)
+end procedure
+
+integer pos_x, pos_y;
+integer move = 0;
+
+function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
+--?"button-cb"
+    if but==IUP_BUTTON1 then
+        if pressed then
+            pos_x = x;
+            pos_y = y;
+            move = 1;
+        else
+            move = 0;
+        end if
+    end if
+    return IUP_DEFAULT;
+end function
+
+function peek_double(object pDouble)
+sequence doubles
+
+    if atom(pDouble) then
+        return float64_to_atom(peek({pDouble,8}))
+    else
+        doubles = {}
+
+        for i=1 to pDouble[2] do
+            doubles &= float64_to_atom(peek({pDouble[1]+8*(i-1),8}))
+        end for
+
+        return doubles
+    end if
+end function
+
+function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
+    if move then
+        atom dif_x, dif_y
+        atom dx, dy, dz
+        atom pxyz = allocate(3*8)               -- 3 doubles
+        atom x1, y1, z1
+        atom x2, y2, z2
+        atom angle, norma
+        integer height = IupGetInt2(ih, "RASTERSIZE")
+
+        IupGLMakeCurrent(ih);
+
+        dif_x = x-pos_x;
+        dif_y = y-pos_y;
+
+        pos_x = x;
+        pos_y = y;
+
+        angle = sqrt(dif_x*dif_x+dif_y*dif_y);
+
+        unproject(pos_x,height-y,pxyz)
+        {x1,y1,z1} = peek_double({pxyz,3})
+        unproject(dif_y+pos_x, dif_x+(height-y), pxyz)
+        {x2,y2,z2} = peek_double({pxyz,3})
+        dx = x2-x1
+        dy = y2-y1
+        dz = z2-z1;
+        norma = sqrt(dx*dx+dy*dy+dz*dz);
+        if norma!=0 then    -- bugfix...
+            dx /= norma
+            dy /= norma
+            dz /= norma
+
+            glTranslate(0.5, 0.5, 0.5);
+            glRotate(angle, dx, dy, dz);
+            glTranslate(-0.5, -0.5, -0.5);
+
+            draw_cube();
+
+            IupGLSwapBuffers(ih);
+        end if
+        free(pxyz)
+    end if
+    return IUP_DEFAULT;
+end function
+
+function action(Ihandle ih)
+    IupGLMakeCurrent(ih);
+
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+
+    draw_cube();
+
+    IupGLSwapBuffers(ih);
+
+    return IUP_DEFAULT;
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+Ihandle dialog, canvas, box;
+
+    IupOpen();
+    IupGLCanvasOpen();
+
+    box = IupVbox({});
+    IupSetAttribute(box, "MARGIN", "5x5");
+
+    canvas = IupGLCanvas();
+    IupSetCallback(canvas, "ACTION", Icallback("action"));
+    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"));
+    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"));
+    IupSetAttribute(canvas, "BUFFER", "DOUBLE");
+    IupSetAttribute(canvas, "BORDER", "NO");
+    IupSetAttribute(canvas, "RASTERSIZE", "400x400");
+    IupAppend(box, canvas);
+
+    dialog = IupDialog(box);
+    IupSetAttribute(dialog, "TITLE", "IupGLCanvas Test (drag cube to rotate it)")
+
+    IupMap(dialog);
+
+    IupGLMakeCurrent(canvas);
+    init();
+--  printf(1,"Vendor: %s\n", glGetString(GL_VENDOR));
+--  printf(1,"Renderer: %s\n", glGetString(GL_RENDERER));
+--  printf(1,"Version: %s\n", glGetString(GL_VERSION));
+    IupSetAttribute(canvas, "RASTERSIZE", NULL);
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
+
+    IupMainLoop();
+
+    IupDestroy(dialog);
+
+    IupClose();
+
+end procedure
+main()
+
+-- from cube2:
+--?cube
+--{{1,1,1,1,1,1,1,1,1},{2,2,2,2,2,2,2,2,2},{3,3,3,3,3,3,3,3,3},{4,4,4,4,4,4,4,4,4},{5,5,5,5,5,5,5,5,5},{6,6,6,6,6,6,6,6,6}}
+--  moves = "u"
+--{{1,1,1,1,1,1,1,1,1},{3,3,3,2,2,2,2,2,2},{5,3,3,5,3,3,5,3,3},{4,4,2,4,4,2,4,4,2},{5,5,5,5,5,5,4,4,4},{6,6,6,6,6,6,6,6,6}}
+--  moves = "U"
+--{{1,1,1,1,1,1,1,1,1},{4,4,4,2,2,2,2,2,2},{2,3,3,2,3,3,2,3,3},{4,4,5,4,4,5,4,4,5},{5,5,5,5,5,5,3,3,3},{6,6,6,6,6,6,6,6,6}}
+--  moves = "F"
+--{{1,1,1,1,1,1,3,3,3},{2,2,2,2,2,2,2,2,2},{3,3,3,3,3,3,6,6,6},{4,4,4,4,4,4,1,1,1},{5,5,5,5,5,5,5,5,5},{4,4,4,6,6,6,6,6,6}}
+--  moves = "R"
+--{{1,1,5,1,1,5,1,1,5},{2,2,1,2,2,1,2,2,1},{3,3,3,3,3,3,3,3,3},{4,4,4,4,4,4,4,4,4},{5,5,6,5,5,6,5,5,6},{6,6,2,6,6,2,6,6,2}}
+--(UFRBLD?)
+
+--*/
+
+

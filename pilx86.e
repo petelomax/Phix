@@ -1971,7 +1971,7 @@ end if
                   and not and_bits(siState,S_used) then         -- and this routine not (directly) used
                     WarnU(siNTyp,si," is not used.",i)
                 end if
-            else
+            else -- <S_TYpe
 --29/1/10:
 --              if i>T_Bin and siNTyp<=S_TVar
                 if siNTyp<=S_TVar and si[S_FPno]!=0
@@ -4290,6 +4290,8 @@ integer waspc, xpc
         nextop = s5[pc]
 --28/7/17
         if nextop=opCatch then return 0 end if
+--25/10/17 (nope...)
+--      if nextop=opEndFor then return 0 end if
         if nextop=opLabel then
 --DEV 28/4/13: (umm)
 --      if nextop=opLabel
@@ -4358,6 +4360,35 @@ end if
             pc += 4
 --          pc += 5
 --          pc += 6
+
+--25/10/17:
+--/!* --(nope)
+        elsif nextop=opEndFor
+          and s5[waspc+1] = exitMerge
+          and pc = tgt-6 then
+--?9/0
+            tokline = emitline
+            while 1 do
+                tokcol = match("exit",exptext[fileno][tokline])
+                if tokcol!=0 then exit end if
+                tokline += 1
+            end while
+            tokcol += linestarts[tokline]-1
+            Abort("illegal/unsupported construct")
+--  81:  opLn,13,                            --:  exit
+--  83:  opJmp,3,95,0,                       opJmp,exitMerge,tgt,link
+--  87:  opLn,14,                            --: end for
+--  89:  opEndFor,17,55,                         opEndFor,END+LOOP,bpFor
+--  92:  opLabel,3,0,86,                         opLabel,exitMerge,0/x86loc,link
+--          if NOLT=0 or bind or lint then
+--              if pc!=waspc then
+----                    ltskip(pc,waspc)
+--                  ltskip(pc-2,waspc)
+--              end if
+--          end if -- NOLT
+----            return 1
+--          return 0
+--*!/
         else
             skip = opSkip[nextop]
             if skip>0 then

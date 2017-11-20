@@ -1,3 +1,11 @@
+--DEV delete this crud!
+--?"src/dir.e incomplete!"
+-- NB: unassigned errors on purpose:
+--atom xExtractAssociatedIcon, xImageList_AddIcon, xDeleteObject, xImageList_Create, xGetSystemMetrics,
+--SM_CXSMICON,SM_CYSMICON,ILC_COLOR8,ILC_MASK
+--, TVrecl
+--, needVedb
+--object void
 --
 -- edix\src\dir.e
 -- ==============
@@ -64,12 +72,13 @@ include builtins\file.e
 --constant cX = c_func(xGetSystemMetrics,{SM_CXSMICON}),
 --       cY = c_func(xGetSystemMetrics,{SM_CYSMICON})
 --
-atom himl
---  himl = c_func(xImageList_Create,{cX,cY,ILC_COLOR8+ILC_MASK,1,32})
-    himl = 0
+--atom himl
+----    himl = c_func(xImageList_Create,{cX,cY,ILC_COLOR8+ILC_MASK,1,32})
+--  himl = 0
 --
 
-atom mem,icon
+--atom mem
+--atom icon
 --
 --
 --setCheck(ICONS,True)
@@ -83,24 +92,27 @@ sequence extensions,    -- for imagelist lookup
     projItems = {{0,"edita!?!",0,0}}
     backItems = {}
 
-integer freelist
-        freelist = 0
+--integer freelist
+--      freelist = 0
 
 
-integer lTI -- length(treeItems)
+--integer lTI -- length(treeItems)
 
-constant tHandle=1, tText=2, tLoaded=3, tPidx=4 -- indexes to treeItems
-constant tDirNo=5, tFileNo=6                    -- extra fields on backItems
+--constant tHandle=1, tText=2, tLoaded=3, tPidx=4 -- indexes to treeItems
+--constant tDirNo=5, tFileNo=6                  -- extra fields on backItems
 --constant tBackNo=5                                -- "" if leaf item ([tLoaded]=-1)
 
 --DEV as tagsort (see Phix.chm)?
+--/*
 function caseInsensitiveSort(sequence s1,sequence s2)
 --/**/  return compare(pcase:upper(s1[D_NAME]),pcase:upper(s2[D_NAME]))
 --/*
         return compare(upper(s1[D_NAME]),upper(s2[D_NAME]))
 --*/
 end function
+--*/
 
+--/*
 function loadDir(integer pidx, sequence path)
 -- wrapper round dir() to add tree items.
 atom parent
@@ -195,7 +207,7 @@ atom pWord
                     extensions = append(extensions,ext)
                     k = length(extensions)
 --DEV WINDOWS only
---                  mem = allocate_StringZ(path&d[i][D_NAME])
+--                  mem = allocate_StringZ(path&d[i][D_NAME])   --?IupRawStringPtr
                     string name = path&d[i][D_NAME]
                     pWord = allocate(2)
                     poke2(pWord,0)
@@ -237,7 +249,9 @@ atom pWord
     end if
     return 0        -- does not have Children
 end function
+--*/
 
+--/*
 procedure createImageList()
 ---- create imagelist using the recommended sizes for small icons:
 atom pWord = allocate(2)
@@ -247,31 +261,28 @@ atom pWord = allocate(2)
                                      ILC_COLOR8+ILC_MASK,1,32})
 
     -- get a folder icon
---  mem = allocate_StringZ("C:\\WINDOWS")
     poke2(pWord,0)
---  icon = c_func(xExtractAssociatedIcon,{instance(),mem,pWord})
     icon = c_func(xExtractAssociatedIcon,{instance(),"C:\\WINDOWS",pWord})
     void = c_func(xImageList_AddIcon,{himl,icon})
     void = c_func(xDeleteObject,{icon})
     -- get a drive icon
---  mem = allocate_StringZ("C:\\")
---  icon = c_func(xExtractAssociatedIcon,{instance(),mem,pWord})
     icon = c_func(xExtractAssociatedIcon,{instance(),"C:\\",pWord})
     void = c_func(xImageList_AddIcon,{himl,icon})
     void = c_func(xDeleteObject,{icon})
     free(pWord)
 end procedure
+--*/
 
 --with trace
-integer RecInit
-        RecInit = 0     -- flag indicating if loadRecoveryDirs() has been called.
+--integer RecInit
+--      RecInit = 0     -- flag indicating if loadRecoveryDirs() has been called.
 
 --sequence RecDirList, RecDirNames
 
-atom recSelItem -- item to select once tree is loaded
+--atom recSelItem -- item to select once tree is loaded
 
-integer RecDir, -- limit of directory entries
-        recUsed -- used part of backItems
+--integer RecDir, -- limit of directory entries
+--      recUsed -- used part of backItems
 
 --procedure loadRecSubDirs(atom pItem, integer pIdx, sequence parentDir)
 --sequence thisDir
@@ -301,19 +312,22 @@ integer RecDir, -- limit of directory entries
 --end procedure
 
 --DEV one hit, one multiple of 32....
+--/*
 procedure bulkUpbackItems(integer k)
     while length(backItems)<k do
         -- bulk up table to next multiple of 32
         backItems &= repeat(0,32)
     end while
 end procedure
-
+--*/
 
 --with trace
-constant ANY=1
+--constant ANY=1
 
 --integer lRDcount lRDcount=1
+--/*
 procedure loadRecoveryDetails(integer treeIdx, bool bSelect)
+?{"loadRecoveryDetails",treeIdx,bSelect}
 integer fileNo, backNo, backMod, f
 sequence fileSet, backName, backExtension
 atom hParent, hItem
@@ -329,7 +343,8 @@ atom hParent, hItem
         IupSetAttribute(TVrecl,"AUTOREDRAW","NO")
         hParent = backItems[treeIdx][tHandle]
         bulkUpbackItems(recUsed+length(fileSet))
-        backExtension = '.'&getFileExtension(backItems[treeIdx][tText])
+--      backExtension = '.'&getFileExtension(backItems[treeIdx][tText])
+        backExtension = '.'&get_file_extension(backItems[treeIdx][tText])
         backMod = 0
         for i=length(fileSet) to 1 by -1 do
             -- check file still exists...
@@ -371,8 +386,11 @@ atom hParent, hItem
         IupSetAttribute(TVrecl,"AUTOREDRAW","YES")
     end if
 end procedure
+--*/
 
+--/*
 procedure loadRecoveryFiles(integer treeIdx)
+?{"loadRecoveryFiles",treeIdx}
 integer dirno
 sequence fileSet
 atom hParent, hItem
@@ -422,8 +440,10 @@ integer fileNo, hasChildren
 --  void = sendMessage(TVrecl,WM_SETREDRAW,1,0)
     IupSetAttribute(TVrecl,"AUTOREDRAW","YES")
 end procedure
+--*/
 
 
+--/*
 procedure loadRecoveryDirs()
 atom hItem
 sequence loadSet
@@ -480,9 +500,10 @@ integer selIdx
     IupSetAttribute(TVrecl,"AUTOREDRAW","YES")
 --  setEnable(TVrecdel,False)
 end procedure
-
+--*/
 
 --include builtins\ppp.e
+--/*
 procedure loadAllDrives()
 --loadDir(NULL,"C:\\Euphoria")
 --loadDir(NULL,"C:")
@@ -524,9 +545,10 @@ procedure loadAllDrives()
         void = loadDir(pidx,upper(onedrive[1..-2]))
     end for
 end procedure
+--*/
 
-integer TVinit  -- flag indicating if loadAllDrives() has been called.
-        TVinit = 0
+--integer TVinit    -- flag indicating if loadAllDrives() has been called.
+--      TVinit = 0
 
 --integer PRinit    --DEV
 --      PRinit = 0
@@ -534,6 +556,7 @@ integer TVinit  -- flag indicating if loadAllDrives() has been called.
 global integer resetPrev
                resetPrev = 1
 
+--/*
 function getTreeText(integer treeIdx, integer fullpath)
 -- gets the text of the treeview item, optionally returning the full tree path.
 -- If fullpath is 0, the result is eg "ascii.bat";
@@ -563,7 +586,9 @@ sequence text
     end if
     return treeItems[treeIdx][tText]
 end function
+--*/
 
+--/*
 procedure delTree(integer treeIdx)
     for i=1 to length(treeItems) do
         if sequence(treeItems[i]) and treeItems[i][tPidx]=treeIdx then
@@ -576,7 +601,9 @@ procedure delTree(integer treeIdx)
         end if
     end for
 end procedure
+--*/
 
+--/*
 procedure purgefreelist()
 -- Shrink treeItems as much as possible, but don't go mad.
 -- This just makes sure that if eg none of the last 1000 entries
@@ -624,10 +651,12 @@ integer newmax,k, flscan
     --
     treeItems = treeItems[1..newmax]
 end procedure
+--*/
 
 --
 -- Select a previous item (does nothing if not found):
 --
+--/*
 procedure selectPreviousItem(sequence previtem)
 sequence this
 integer previdx, pidx, loaded
@@ -666,6 +695,7 @@ atom hItem
 ?"void = sendMessage(TVdirl,TVM_SELECTITEM,TVGN_CARET,hItem)"
     end if
 end procedure
+--*/
 
 --selectPreviousItem("C:\\Euphoria\\include\\dll.e")
 
@@ -691,10 +721,10 @@ sequence lp, lf, cpfs
     lp = filepaths[currfile]
     lf = filenames[currfile]
 --  if usegpp then
-        if needVedb then
-            lp = upper(lp)
-            lf = lower(lf)
-        end if
+--      if needVedb then
+--          lp = upper(lp)
+--          lf = lower(lf)
+--      end if
 --  else
 --      lp = upper(lp)
 --      lf = lower(lf)
@@ -847,7 +877,8 @@ atom TVI
                 textsave = treeItems[treeIdx][tText]
                 treeItems[treeIdx][tText] = text
                 f2 = getTreeText(treeIdx, 1)
-                if not c_func(xMoveFile,{allocate_StringZ(f1),allocate_StringZ(f2)}) then
+--              if not c_func(xMoveFile,{allocate_StringZ(f1),allocate_StringZ(f2)}) then
+                if not c_func(xMoveFile,{IupRawStringPtr(f1),IupRawStringPtr(f2)}) then
                     void = proemh(sprintf("Error %d moving file",getLastError()),
                                   f1&"\n\nto\n\n"&f2,0)
                     treeItems[treeIdx][tText] = textsave

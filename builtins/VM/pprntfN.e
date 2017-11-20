@@ -739,7 +739,9 @@ end if
                         end while
                     end if
                 end if
-                minfieldwidth -= length(r1)
+-- replaced 19/10/17:
+--              minfieldwidth -= length(r1)
+                minfieldwidth -= length(utf8_to_utf32(r1))
                 if minfieldwidth>0 then
                     if zerofill then
                         r1 = repeat('0',minfieldwidth)&r1

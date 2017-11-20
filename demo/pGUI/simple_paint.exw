@@ -7,8 +7,7 @@
 --  BUG: [FIXED] does not work on 64-bit (I need to get an ex.err out of 64-bit Phix before doing anything else about that)
 --  BUG: picture vanishes when zooming in too far on 64-bit..
 --  BUG: [FIXED] statusbar not visible initially, but menu entry for it checked. (it should be visible and menu entry is then fine)
---  BUG: [FIXED] as shown in the statusbar, it does not manage to retrieve RGB values under the cursor. There are two places to be 
---          fixed, search for {r,g,b} = peek(??). Or, more than likely, it is im_data() at fault.   [FIXED (only tested on 32 bit)]
+--  BUG: [FIXED] as shown in the statusbar, it does not manage to retrieve RGB values under the cursor. [im_pixel added]
 --
 --   Possible Enhancements (as copied from the C original): 
 --     - Save last used toolbox options in configuration file?
@@ -1045,25 +1044,7 @@ imImage image = IupGetInt(canvas, "IMAGE")
 
                     if tool_index==1 then   -- Color Picker
                         Ihandle color = IupGetDialogChild(toolbox, "COLOR")
---                      unsigned char** data = (unsigned char**)image->data
-                        atom data_ptr = im_data(image)
-                        integer r = -1, g = -1, b = -1
-                        integer offset
-
---DEV (problem was in im_data(), not tested on 64 bit)
---if data_ptr!=0 then
-                        offset = y*im_width(image)+x
---                      {r,g,b} = peek(??)
---                      maybe/untested:
---                      atom {rptr,gptr,bptr} = sq_add(peekNS({data_ptr,3},machine_word(),0),offset)
---                      r = peek(rptr)
---                      g = peek(gptr)
---                      b = peek(bptr)
-                        r = peek(peekNS(data_ptr,machine_word(),0)+offset)
-                        g = peek(peekNS(data_ptr+machine_word(),machine_word(),0)+offset)
-                        b = peek(peekNS(data_ptr+machine_word()*2,machine_word(),0)+offset)
---end if
-
+                        integer {r,g,b} = im_pixel(image,x,y)
                         IupSetRGB(color, "BGCOLOR", r, g, b)
 --                      IupSetRGB(toolbox, "TOOLCOLOR", r, g, b)
                         IupSetRGB(toolcolor_btn, "BGCOLOR", r, g, b)
@@ -1140,27 +1121,8 @@ imImage image = IupGetInt(canvas, "IMAGE")
 
         -- inside image area
         if x>view_x and y>view_y and x<view_x+view_width and y<view_y+view_height then
--->         unsigned char** data = (unsigned char**)image->data;
-            atom data_ptr = im_data(image)
---          data_ptr = peekNS(data_ptr,machine_word(),0)
-            integer r = -1, g = -1, b = -1
-            integer offset
-
---if data_ptr!=0 then -- (as above)
             {x, y} = view_zoom_offset(view_x, view_y, im_width(image), im_height(image), zoom_factor, x, y)
-
-            offset = y*im_width(image)+x
---          {r,g,b} = peek(??)
--- (see above)
-            r = peek(peekNS(data_ptr,machine_word(),0)+offset)
-            g = peek(peekNS(data_ptr+machine_word(),machine_word(),0)+offset)
-            b = peek(peekNS(data_ptr+machine_word()*2,machine_word(),0)+offset)
---end if
-
---    r = data[0][offset];
---    g = data[1][offset];
---    b = data[2][offset];
---
+            integer {r,g,b} = im_pixel(image,x,y)
             IupSetStrAttribute(status_lbl, "TITLE", "(%4d, %4d) = %3d %3d %3d", {x, y, r, g, b})
 
             if iup_isbutton1(pStatus) then -- left mouse down

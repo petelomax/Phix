@@ -842,6 +842,9 @@ else -- old code
                 end if
             end if
 end if
+--2/11/17 for tom: (if we could not find xx.exw, look for xx.ex)
+        elsif length(file)>4 and file[-4..-1]=".exw" then
+            path = {{file[1..$-1]}}
         else
             if find('*',file)>k then
                 path = dir(file)
