@@ -499,7 +499,7 @@ constant {IupProcs,IupProcIds} = columnize({nr("IupSetAttribute"),
 --C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:127 function IupDialog(Ihandln child)
 --C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:128   Ihandle ih = c_func(xIupDialog, {child})
 --C:\Program Files (x86)\Phix\demo\pGUI\t2.exw:219   atom dialog = IupDialog(toolbar)
-constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tabs.exw"--:41   dlg = IupDialog(box)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tabs.exw"--:41 dlg = IupDialog(box)
 --NO: (ifdef)
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tee.exw"--:1815 atom dialog = IupDialog(vbox)
 --IupGLCanvas:
@@ -524,6 +524,50 @@ constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\tabs.exw"--:41   dlg 
 --Split over multiple files... but should be able to do the amend_dlg...
 --40 errors...
 --constant src = "C:\\Program Files (x86)\\Phix\\demo\\pGUI\\pdemo\\demo.ew"--:815      amend_dlg = IupDialog(vbox);
+
+--OK:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Counter.exw"
+
+--OK:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Booker.exw"
+--Broken (mat_attr):
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Cells.exw"
+--{"resolve_arg",0,"mat_attr","(allargsvalid:=false) [errorcount +=1, line 3547]"}
+--[not]handles[3] = call_func(IupMatrix,{"invalid"})
+--[not]res = call_func(IupVbox,{{-2},"MARGIN=10x10"})
+--[not]handles[7] = call_func(IupDialog,{-2,"TITLE=Cells"})
+--handles: {0,0,-2,0,0,0,-2,0,0}
+--=>type check failure, livedisplay is -2
+--I tried this, to no avail:
+--  --constant mat_attr = sprintf("""
+--  --NUMCOL=%d, NUMCOL_VISIBLE=%d,
+--  --NUMLIN=%d, NUMLIN_VISIBLE=%d,
+--  --WIDTHDEF=60, RESIZEMATRIX=YES,
+--  --WIDTH0=10, HEIGHT0=10, ALIGNMENT=ALEFT""",
+--  --{MAXCOL-1,min(MAXCOL-1,5),
+--  -- MAXLIN-1,min(MAXLIN-1,20)})
+--
+--  --DEV for plade:
+--  constant mat_attr = """
+--  NUMCOL=26, NUMCOL_VISIBLE=5,
+--  NUMLIN=100, NUMLIN_VISIBLE=20,
+--  WIDTHDEF=60, RESIZEMATRIX=YES,
+--  WIDTH0=10, HEIGHT0=10, ALIGNMENT=ALEFT"""
+
+--IupGLCanvas (on one of the 2 windows)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\CircleDraw.exw"
+-- maybe:
+-- ok: handles[8] = call_func(IupLabel,{}), but then:
+--  {"resolve_arg",0,"cx","(allargsvalid:=false) [errorcount +=1, line 3547]"}
+--  {"resolve_arg",0,"cy","(allargsvalid:=false) [errorcount +=1, line 3547]"}
+--  [not 3835] call_proc(IupSetStrAttribute,{15153400,"TITLE","Adjust diameter of circle at (%d,%d)","invalidinvalid"})
+--==>? call_proc(IupSetStrAttribute,{15153400,"TITLE","Adjust diameter of circle at (%d,%d)"})??? [DONE]
+--OK:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Converter.exw"
+--OK:
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\CRUD.exw"
+--OK (3 errors re IupTimer)
+--constant src = "C:\\Program Files (x86)\\Phix\\demo\\rosetta\\7guis\\Timer.exw"
 
 --DEV not here!!
 constant srcname = get_file_name(src)
@@ -1988,6 +2032,9 @@ sequence sType, tType, res
 
     sType = token   -- procedure/function/type
     getToken()
+--?token
+--if token="action_cb" then trace(1) end if
+
 --?{"DoRoutineDef",token}
     if sType="procedure" then
         if find(token,IupProcs) then
@@ -2035,6 +2082,8 @@ sequence sType, tType, res
                 end if
                 if not equal(token,",") then exit end if
                 getToken()
+--20/11/17:
+                if equal(token,")") then exit end if
             end if
 --DEV positive types..
 --          while Ch=',' do
@@ -3782,7 +3831,21 @@ procedure apply_update(integer ih, integer i, integer hdx)
             exit
         end if
     end for
+--20/11/17 (for CircleDraw):
+--{">>IupSetStrAttribute",{14244952,"TITLE","Adjust diameter of circle at (%d,%d)","invalidinvalid"}}
+    if procname="IupSetStrAttribute"
+    and not allargsvalid
+    and length(args)=4
+    and Ihandle(args[1])
+    and string(args[2])
+    and string(args[3]) then
+--      ?{">>IupSetStrAttribute",args}
+        args = args[1..3]
+        allargsvalid = true
+    end if
+
     if procname="IupSetAttribute"
+    and length(args)>=3
     and args[2]="RASTERSIZE"
     and args[3]=NULL then
         -- A very specific requirement/assumption:
@@ -3791,7 +3854,8 @@ procedure apply_update(integer ih, integer i, integer hdx)
 --      RASTERSIZENULL = append(RASTERSIZENULL,{ih,dialogs[i]})
         RASTERSIZENULL = append(RASTERSIZENULL,{ih,dialogN[i]})
 --      RASTERSIZENULL = append(RASTERSIZENULL,{ih,i})
-    elsif allargsvalid then
+    elsif procname!="IupSetCallback"
+      and allargsvalid then
 --?{procname,procdx,ih}
 --  printf(1,"call_proc(%s[%d],%s)\n",{procname,iuprids[procdx],sprint(args)})
 --  printf(1,"call_proc(%s[%d],%s)[%d]\n",{procname,iuprids[procdx],sprint(args),ih})
@@ -3806,12 +3870,13 @@ end if
         else
             call_proc(IupProcIds[procdx],args)
             if hdx!=0 then
-                if procname="IupSetAttribute" then
+                if procname="IupSetAttribute"
+                or procname="IupSetStrAttribute" then
                     all_properties[hdx] = append(all_properties[hdx],args[2])
                 elsif procname="IupSetAttributes" then
                     sequence {names,vals} = parse_attributes(args[2])
                     all_properties[hdx] &= names
-                else
+                elsif procname!="IupSetAttributeHandle" then
                     ?{"???[3935]"&procname}
                 end if
             end if
@@ -3819,7 +3884,7 @@ end if
     else -- (not allargsvalid)
 if SHOWCONTROLS then
 --      printf(1,"[not] call_proc(%s[%d],%s)[%d]\n",{procname,procdx,sprint(args),ih})
-        printf(1,"[not] call_proc(%s,%s)\n",{procname,sprint(args)})
+        printf(1,"[not 3835] call_proc(%s,%s)\n",{procname,sprint(args)})
 end if
     end if
 end procedure
@@ -3892,12 +3957,14 @@ end if
         end if -- (not menus)
         sequence args = pdi[ARGS]
         allargsvalid = true
+--?funcname
         integer childk = iff(find(funcname,{"IupSubMenu","IupSubmenu","IupMenuItem","IupItem"})?2:1)
         for k=1 to length(args) do
             newpid = lastnode
             args[k] = resolve_arg(0,args[k],newpid,k=childk)
         end for
         string lhs = iff(i=0?"res":sprintf("handles[%d]",{i}))
+--?{"<<",funcname}
         if not allargsvalid then
             lhs = "[not]" & lhs
 --          errorcount += 1 (already accounted for?)
@@ -3918,10 +3985,19 @@ end if
 --sequence wasargs
 --DEV can we do this on sig[funcdx]?
                 if find(funcname,{"IupButton","IupToggle"})
+--              if find(funcname,{"IupButton","IupToggle","IupText"})   -- maybe, didne help...
+-- (but what I think might help (Booker.exw) is
+--      handles[9] = call_func(IupText,{"VALUECHANGED_CB",0})
+--  ==> handles[9] = call_func(IupText,{}) - which is a different thing...)
                 and length(args)>=2 
                 and args[2]=NULL then
 -- wasargs = args
                     args[2..2] = {}
+                elsif find(funcname,{"IupList"})
+                and length(args)>=1 
+                and args[1]=NULL then
+-- wasargs = args
+                    args[1..1] = {}
                 end if
 
                 res = call_func(iuprids[funcdx],args)
@@ -3954,9 +4030,14 @@ end if
             end if
             if i!=0 then
                 handles[i] = res
+--20/11/17:
+integer wasvalid = allargsvalid,
+        waserrorcount = errorcount
                 for k=1 to length(updates[i]) do
                     apply_update(res,updates[i][k],hdx)
                 end for
+allargsvalid = wasvalid
+errorcount = waserrorcount
             end if
         end if
     end if
@@ -4402,9 +4483,9 @@ procedure make_live(integer dx)
             errorcount = 0
         end if
         if errorcount=0 then
---          if Ihandle(handles[di]) then
+            if Ihandle(handles[di]) then
                 livedisplay = handles[di]
---          end if
+            end if
         end if
     else
         -- new window

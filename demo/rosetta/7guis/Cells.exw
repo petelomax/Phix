@@ -105,7 +105,7 @@ string parse_error = ""
 
 function cell_ref(string expr, integer edx)
 --
--- parse one cell ref, ie "A0".."Z99"
+-- parse one cell ref, ie/eg "A0".."Z99"
 --
     integer ch = iff(edx>length(expr)?'?':expr[edx])
     if ch<'A'
@@ -175,7 +175,7 @@ string name
             edx = length(expr)-length(r[1][2])+1
         else
             {ndx,l,c} = cell_ref(expr,edx)
-            if ndx!=0 then  -- error
+            if ndx!=0 then  -- not error
                 if ndx<=length(expr)
                 and expr[ndx]=':' then
                     if edx<=2 then return {0,{},{}} end if
@@ -274,7 +274,7 @@ function evaluate(sequence tree)
             tree[i] = evaluate(tree[i])
         end for
         sequence args = tree[3..$]
-        -- sum() & prod() take just one arg, nested:
+        -- cells(), sum() & prod() take just one arg, nested:
         if k>6 then args = {args} end if
         return call_func(fids[k],args)
     end if
@@ -374,6 +374,7 @@ procedure update_refs(integer l,c, integer lim=0)
 end procedure
 
 function edition_cb(Ihandle /*ih*/, integer lin, col, mode, update) 
+-- entering or exiting edit mode
 integer l=lin+1, c=col+1
     if update=0 then
         if data[l][c][TYPE]=NUMERIC then
@@ -389,6 +390,7 @@ integer l=lin+1, c=col+1
 end function
 
 function value_edit_cb(Ihandle /*ih*/, integer lin, col, atom pNewValue)
+-- edit finished
 integer l=lin+1, c=col+1
 string newstr = peek_string(pNewValue)
     remove_refs(l,c)
