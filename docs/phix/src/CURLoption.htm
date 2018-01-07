@@ -1,0 +1,4208 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">CURLoption type</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pGUI.e
+           <br>
+           <br>
+            CURLoption <i>identifier</i>
+            <br>
+            <i>-- or --</i>
+            <br>
+            <a href="integer.htm#bool">bool</a> res = CURLoption(<a href="integer.htm">integer</a> x)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            options for <a href="curl_easy_setopt.htm">curl_easy_setopt</a>() - note that types below for the third parameter are
+            suggestive only; it is of course (always) an <a href="object.htm">object</a>, and certainly, for instance, when this 
+            page says string for that argument, an atom char* pointer is just as valid.
+            <br>
+            <br>
+            The options go from 1 to 244 (if you ignore the +k*10000 encoding it uses internally), with several no longer used.
+            <br>
+            <br>
+            The one-liners below with "See CURLOPT_XXX" have <b>not</b> been tested, or properly documented here (which is most of them!).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>CURLoption</b>
+         </td>
+         <td>
+            A CURLoption is one of the following:
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>BEHAVIOR OPTIONS</b>
+         </td>
+         <td>
+          <small><br><a name="CURLOPT_VERBOSE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_VERBOSE
+         </td>
+         <td>
+            Synopsis: CURLcode res = <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_VERBOSE, <a href="integer.htm#bool">bool</a> onoff)
+            <br>
+            <br>
+            Set verbose mode on/off. The parameter (onoff) should be 0/1 (or false/true). Default 0 (false), meaning disabled.
+            <br>
+            <br>
+            Set the onoff parameter to 1 (true) to make the library display a lot of verbose information about its operations on this handle. <br>
+            Very useful for libcurl and/or protocol debugging and understanding. <br>
+            The verbose information will be sent to stderr, or the stream set with CURLOPT_STDERR.
+            <br>
+            <br>
+            You hardly ever want this set in production use, you will almost always want this when you debug/report problems.
+            <br>
+            <br>
+            To also get all the protocol data sent and received, consider using the CURLOPT_DEBUGFUNCTION.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Returns: <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>
+            <br>
+            <br>
+            See also: CURLOPT_STDERR, CURLOPT_DEBUGFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HEADER
+         </td>
+         <td>
+            Include the header in the body output. See CURLOPT_HEADER
+          <small><br><a name="CURLOPT_NOPROGRESS"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NOPROGRESS
+         </td>
+         <td>
+            Shut off the progress meter.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_NOPROGRESS, bool onoff)
+            <br>
+            <br>
+            If onoff is set to true(1), it tells the library to shut off the progress meter completely for requests done with this handle. <br>
+            It will also prevent the <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a> or 
+            <a href="#CURLOPT_PROGRESSFUNCTION">CURLOPT_PROGRESSFUNCTION</a> from getting called.
+            <br>
+            <br>
+            Default: true(1), meaning it normally runs without a progress meter.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Availability: Always
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>.
+            <br>
+            <br>
+            See also: 
+            <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a>, 
+            <a href="#CURLOPT_PROGRESSFUNCTION">CURLOPT_PROGRESSFUNCTION</a>, 
+            <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NOSIGNAL
+         </td>
+         <td>
+            Do not install signal handlers. See CURLOPT_NOSIGNAL
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_WILDCARDMATCH
+         </td>
+         <td>
+            Transfer multiple files according to a file name pattern. See CURLOPT_WILDCARDMATCH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>CALLBACK OPTIONS</b>
+         </td>
+         <td>
+          <small><br><a name="CURLOPT_WRITEFUNCTION"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_WRITEFUNCTION
+         </td>
+         <td>
+            Callback for writing data.
+            <br>
+            <br>
+            Synopsis/Example:
+<!--eucode>
+include builtins/libcurl.e
+ 
+function write_callback(atom pData, integer size, integer nmemb, atom pUserdata);
+integer bytes_written = size*nmemb
+    ... peek(pData,bytes_processed) ...
+    return bytes_written
+end function
+constant write_cb = call_back({'+',routine_id("write_callback")})
+
+curl_easy_setopt(atom curl, CURLOPT_WRITEFUNCTION, write_cb)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins</font><font color="#0000FF">/</font><font color="#000000">libcurl.e
+</font><font color="#C0C0C0"> 
+</font><font color="#008080">function</font><font color="#000000"> write_callback</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> pData</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> size</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> nmemb</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> pUserdata</font><font color="#0000FF">);
+</font><font color="#004080">integer</font><font color="#000000"> bytes_written</font><font color="#0000FF"> =</font><font color="#000000"> size</font><font color="#0000FF">*</font><font color="#000000">nmemb
+</font><font color="#0000FF">    ...</font><font color="#7060A8"> peek</font><font color="#0000FF">(</font><font color="#000000">pData</font><font color="#0000FF">,</font><font color="#000000">bytes_processed</font><font color="#0000FF">) ...
+</font><font color="#008080">    return</font><font color="#000000"> bytes_written
+</font><font color="#008080">end function
+constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#5E005E">routine_id</font><font color="#800080">(</font><font color="#008000">"write_callback"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_WRITEFUNCTION</font><font color="#0000FF">,</font><font color="#000000"> write_cb</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Pass a pointer to your callback function, which should match the prototype shown above.
+            <br>
+            <br>
+            This callback function gets called by libcurl as soon as there is data received that needs to be saved. <br>
+            pData points to the delivered data, and the size of that data is size multiplied with nmemb.
+            <br>
+            <br>
+            The callback function will be passed as much data as possible in all invokes, but you must not make any assumptions. <br>
+            It may be one byte, it may be thousands. The maximum amount of body data that will be passed to the write callback is 
+            defined in the curl.h header file: CURL_MAX_WRITE_SIZE (the usual default is 16K). If CURLOPT_HEADER is enabled, which 
+            makes header data get passed to the write callback, you can get up to CURL_MAX_HTTP_HEADER bytes (usually 100K). <br>
+            Note that builtins\libcurl.e defines neither CURL_MAX_WRITE_SIZE nor CURL_MAX_HTTP_HEADER, since they would not reflect how the dll/so was built.
+            <br>
+            <br>
+            This function may be called with zero bytes data if the transferred file is empty.
+            <br>
+            <br>
+            The data passed to this function will not be zero terminated!
+            <br>
+            <br>
+            Set the pUserdata argument with the <a href="#CURLOPT_WRITEDATA">CURLOPT_WRITEDATA</a> option.
+            <br>
+            <br>
+            Your callback should return the number of bytes actually taken care of. <br>
+            If that amount differs from the amount passed to your callback function, it will signal an error condition to the library. <br>
+            This will cause the transfer to get aborted and the libcurl function used will return CURLE_WRITE_ERROR.
+            <br>
+            <br>
+            If your callback function returns CURL_WRITEFUNC_PAUSE it will cause this transfer to become paused. See curl_easy_pause for further details.
+            <br>
+            <br>
+            Set this option to NULL to get the internal default function used instead of your callback. <br>
+            The internal default function will write the data to the FILE * given with <a href="#CURLOPT_WRITEDATA">CURLOPT_WRITEDATA</a>.
+            <br>
+            <br>
+            Default: libcurl will use 'fwrite' as a callback by default.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Availability: Support for the CURL_WRITEFUNC_PAUSE return code was added in version 7.18.0.
+            <br>
+            <br>
+            Return value: This will return <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>.
+            <br>
+            <br>
+<!--
+            EXAMPLE
+
+A common technique is to use this callback to store the incoming data into a dynamically growing allocated buffer. Like in the getinmemory example: https://curl.haxx.se/libcurl/c/getinmemory.html
+            <br>
+            <br>
+-->
+            See also: <a href="#CURLOPT_WRITEDATA">CURLOPT_WRITEDATA</a>, CURLOPT_READFUNCTION
+          <small><br><a name="CURLOPT_WRITEDATA"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_WRITEDATA
+         </td>
+         <td>
+            Custom data pointer to pass to the write callback.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_WRITEDATA, atom pdata)
+            <br>
+            <br>
+            A data pointer to pass to the write callback.<br>
+            If you use the <a href="CURLoption.htm#CURLOPT_WRITEFUNCTION">CURLOPT_WRITEFUNCTION</a> option, this is the pointer you get in that callback&rsquo;s 4th argument.<br>
+            If you don&rsquo;t use a write callback, you must make pointer a 'FILE *' (cast to 'void *') as libcurl will pass this to fwrite(3) when writing data.<br>
+            [PL: from a Phix/libcurl.e perspective, you cannot use results from <a href="open.htm">open</a>(), but you may be able to obtain handles for stderr etc,
+             or perhaps even from something like builtins\VM\pfileioN.e that returns handles [see fdtbl] - all completely untested, of course.]<br>
+            The internal <a href="CURLoption.htm#CURLOPT_WRITEFUNCTION">CURLOPT_WRITEFUNCTION</a> will write the data to the FILE * given with this option, or 
+            to stdout if this option has not been set.
+            <br>
+            <br>
+            If you are using libcurl as a win32 DLL, you MUST use the <a href="CURLoption.htm#CURLOPT_WRITEFUNCTION">CURLOPT_WRITEFUNCTION</a> if you set this option or 
+            you will experience crashes.
+            <br>
+            <br>
+            Default: By default, this is a FILE * to stdout.
+            <br>
+            <br>
+            Protocols: Used for all protocols.
+            <br>
+            <br>
+            Example: A common technique is to use the write callback to store the incoming data into a dynamically growing allocated buffer, and then this 
+            CURLOPT_WRITEDATA is used to point to a struct or the buffer to store data in.<br>
+            [DEV see builtins/libcurl.e, curle_easy_perform_ex() for the basic idea, though that does not actually use CURLOPT_WRITEDATA. I should try and 
+            write a proper thread-safe example.]
+            <br>
+            <br>
+            Availability: Available in all libcurl versions. This option was formerly known as CURLOPT_FILE, the name CURLOPT_WRITEDATA was introduced in 7.9.7.
+            <br>
+            <br>
+            Return value: This will return <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>.
+            <br>
+            <br>
+            See also: <a href="CURLoption.htm#CURLOPT_WRITEFUNCTION">CURLOPT_WRITEFUNCTION</a>, CURLOPT_READDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_READFUNCTION
+         </td>
+         <td>
+            Callback for reading data. See CURLOPT_READFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_READDATA
+         </td>
+         <td>
+            Data pointer to pass to the read callback. See CURLOPT_READDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_IOCTLFUNCTION
+         </td>
+         <td>
+            Callback for I/O operations. See CURLOPT_IOCTLFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_IOCTLDATA
+         </td>
+         <td>
+            Data pointer to pass to the I/O callback. See CURLOPT_IOCTLDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SEEKFUNCTION
+         </td>
+         <td>
+            Callback for seek operations. See CURLOPT_SEEKFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SEEKDATA
+         </td>
+         <td>
+            Data pointer to pass to the seek callback. See CURLOPT_SEEKDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SOCKOPTFUNCTION
+         </td>
+         <td>
+            Callback for sockopt operations. See CURLOPT_SOCKOPTFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SOCKOPTDATA
+         </td>
+         <td>
+            Data pointer to pass to the sockopt callback. See CURLOPT_SOCKOPTDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_OPENSOCKETFUNCTION
+         </td>
+         <td>
+            Callback for socket creation. See CURLOPT_OPENSOCKETFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_OPENSOCKETDATA
+         </td>
+         <td>
+            Data pointer to pass to the open socket callback. See CURLOPT_OPENSOCKETDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CLOSESOCKETFUNCTION
+         </td>
+         <td>
+            Callback for closing socket. See CURLOPT_CLOSESOCKETFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CLOSESOCKETDATA
+         </td>
+         <td>
+            Data pointer to pass to the close socket callback. See CURLOPT_CLOSESOCKETDATA
+          <small><br><a name="CURLOPT_PROGRESSFUNCTION"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROGRESSFUNCTION
+         </td>
+         <td>
+            OBSOLETE callback for progress meter.
+            <br>
+            <br>
+            Synopsis/Example:
+<!--eucode>
+include builtins/libcurl.e
+ 
+-- *** NB *** / needs checking on 64 bit... [DEV]
+--int progress_callback(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow);
+function curl_progress_callback(atom clientp,
+                                atom dltotal1, atom dltotal2,
+                                atom dlnow1, atom dlnow2,
+                                atom ultotal1, atom ultotal2, 
+                                atom ulnow1, atom ulnow2)
+    atom f64 = allocate(8), dltotal, dlnow, ultotal, ulnow
+
+    -- convert to float64
+    poke4(f64,{dltotal1, dltotal2})     dltotal = float64_to_atom(peek({f64,8}))
+    poke4(f64,{dlnow1,   dlnow2})       dlnow   = float64_to_atom(peek({f64,8}))
+    poke4(f64,{ultotal1, ultotal2})     ultotal = float64_to_atom(peek({f64,8}))
+    poke4(f64,{ulnow1,   ulnow2})       ulnow   = float64_to_atom(peek({f64,8}))
+    free(f64)
+
+    atom pcnt = iff(dltotal=0?0:dlnow*100/dltotal)
+    printf(1, "Current=%d kb  Total=%d kb (%d%%)\n  ", {dlnow/1024, dltotal/1024, pcnt})
+
+    return 0 -- signify success
+end function
+constant progress_cb = call_back({'+', routine_id("curl_progress_callback")})
+
+curl_easy_setopt(atom curl, CURLOPT_PROGRESSFUNCTION, progress_cb)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins</font><font color="#0000FF">/</font><font color="#000000">libcurl.e
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>-- *** NB *** / needs checking on 64 bit... [DEV]
+--int progress_callback(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow);
+</i></font><font color="#008080">function</font><font color="#000000"> curl_progress_callback</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> clientp</font><font color="#0000FF">,
+</font><font color="#004080">                                atom</font><font color="#000000"> dltotal1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> dltotal2</font><font color="#0000FF">,
+</font><font color="#004080">                                atom</font><font color="#000000"> dlnow1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> dlnow2</font><font color="#0000FF">,
+</font><font color="#004080">                                atom</font><font color="#000000"> ultotal1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> ultotal2</font><font color="#0000FF">, 
+</font><font color="#004080">                                atom</font><font color="#000000"> ulnow1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> ulnow2</font><font color="#0000FF">)
+</font><font color="#004080">    atom</font><font color="#000000"> f64</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">),</font><font color="#000000"> dltotal</font><font color="#0000FF">,</font><font color="#000000"> dlnow</font><font color="#0000FF">,</font><font color="#000000"> ultotal</font><font color="#0000FF">,</font><font color="#000000"> ulnow
+
+</font><font color="#000080"><i>    -- convert to float64
+</i></font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">dltotal1</font><font color="#0000FF">,</font><font color="#000000"> dltotal2</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000000"> dltotal</font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">dlnow1</font><font color="#0000FF">,  </font><font color="#000000"> dlnow2</font><font color="#800000">}</font><font color="#0000FF">)      </font><font color="#000000"> dlnow  </font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">ultotal1</font><font color="#0000FF">,</font><font color="#000000"> ultotal2</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000000"> ultotal</font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">ulnow1</font><font color="#0000FF">,  </font><font color="#000000"> ulnow2</font><font color="#800000">}</font><font color="#0000FF">)      </font><font color="#000000"> ulnow  </font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#7060A8">    free</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">)
+
+</font><font color="#004080">    atom</font><font color="#000000"> pcnt</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">dltotal</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">?</font><font color="#000000">0</font><font color="#0000FF">:</font><font color="#000000">dlnow</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#0000FF">/</font><font color="#000000">dltotal</font><font color="#0000FF">)
+</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Current=%d kb  Total=%d kb (%d%%)\n  "</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">dlnow</font><font color="#0000FF">/</font><font color="#000000">1024</font><font color="#0000FF">,</font><font color="#000000"> dltotal</font><font color="#0000FF">/</font><font color="#000000">1024</font><font color="#0000FF">,</font><font color="#000000"> pcnt</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#008080">    return</font><font color="#000000"> 0</font><font color="#000080"><i> -- signify success
+</i></font><font color="#008080">end function
+constant</font><font color="#000000"> progress_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#5E005E"> routine_id</font><font color="#800080">(</font><font color="#008000">"curl_progress_callback"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_PROGRESSFUNCTION</font><font color="#0000FF">,</font><font color="#000000"> progress_cb</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Note the routine actually gets passed a pointer and four doubles (64-bit floats).
+            Callbacks get 32-bit args on 32-bit, which must be stitched back together into 64 bit floats.
+            <br>
+            <br>
+            Pass a pointer to your callback function, which should match the prototype shown above.
+            <br>
+            <br>
+            We encourage users to use the newer <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a> instead, if you can.
+            <br>
+            <br>
+            This function gets called by libcurl instead of its internal equivalent with a frequent interval. <br>
+            While data is being transferred it will be called very frequently, and during slow periods like when nothing is being transferred 
+            it can slow down to about one call per second.
+            <br>
+            <br>
+            clientp is the pointer set with CURLOPT_PROGRESSDATA, it is not used by libcurl but is only passed along from the application to the callback.
+            <br>
+            <br>
+            The callback gets told how much data libcurl will transfer and has transferred, in number of bytes. <br>
+            dltotal is the total number of bytes libcurl expects to download in this transfer. <br>
+            dlnow is the number of bytes downloaded so far. <br>
+            ultotal is the total number of bytes libcurl expects to upload in this transfer. <br>
+            ulnow is the number of bytes uploaded so far.
+            <br>
+            <br>
+            Unknown/unused argument values passed to the callback will be set to zero (like if you only download data, the upload size will remain 0). <br>
+            Many times the callback will be called one or more times first, before it knows the data sizes so a program must be made to handle that.
+            <br>
+            <br>
+            Returning a non-zero value from this callback will cause libcurl to abort the transfer and return CURLE_ABORTED_BY_CALLBACK.
+            <br>
+            <br>
+            If you transfer data with the multi interface, this function will not be called during periods of idleness unless 
+            you call the appropriate libcurl function that performs transfers.
+            <br>
+            <br>
+            <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a> must be set to 0 to make this function actually get called.
+            <br>
+            <br>
+            Default: By default, libcurl has an internal progress meter. That&rsquo;s rarely wanted by users.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Availability: Always
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>.
+            <br>
+            <br>
+            See also: <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>, <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROGRESSDATA
+         </td>
+         <td>
+            Data pointer to pass to the progress meter callback. See CURLOPT_PROGRESSDATA
+          <small><br><a name="CURLOPT_XFERINFOFUNCTION"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_XFERINFOFUNCTION
+         </td>
+         <td>
+            Callback for progress meter.
+            <br>
+            <br>
+            Synopsis/Example:
+<!--eucode>
+include builtins/libcurl.e
+ 
+-- *** NB WRONG *** / to be filled in... [DEV]
+function write_callback(atom pData, integer size, integer nmemb, atom pUserdata);
+integer bytes_written = size*nmemb
+    ... peek(pData,bytes_processed) ...
+    return bytes_written
+end function
+constant write_cb = call_back({'+',routine_id("write_callback")})
+
+curl_easy_setopt(atom curl, CURLOPT_WRITEFUNCTION, write_cb)
+--int progress_callback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, 
+--                                     curl_off_t ultotal, curl_off_t ulnow);
+--CURLcode curl_easy_setopt(CURL *handle, CURLOPT_XFERINFOFUNCTION, progress_callback);
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins</font><font color="#0000FF">/</font><font color="#000000">libcurl.e
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>-- *** NB WRONG *** / to be filled in... [DEV]
+</i></font><font color="#008080">function</font><font color="#000000"> write_callback</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> pData</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> size</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> nmemb</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> pUserdata</font><font color="#0000FF">);
+</font><font color="#004080">integer</font><font color="#000000"> bytes_written</font><font color="#0000FF"> =</font><font color="#000000"> size</font><font color="#0000FF">*</font><font color="#000000">nmemb
+</font><font color="#0000FF">    ...</font><font color="#7060A8"> peek</font><font color="#0000FF">(</font><font color="#000000">pData</font><font color="#0000FF">,</font><font color="#000000">bytes_processed</font><font color="#0000FF">) ...
+</font><font color="#008080">    return</font><font color="#000000"> bytes_written
+</font><font color="#008080">end function
+constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#5E005E">routine_id</font><font color="#800080">(</font><font color="#008000">"write_callback"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_WRITEFUNCTION</font><font color="#0000FF">,</font><font color="#000000"> write_cb</font><font color="#0000FF">)
+</font><font color="#000080"><i>--int progress_callback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, 
+--                                     curl_off_t ultotal, curl_off_t ulnow);
+--CURLcode curl_easy_setopt(CURL *handle, CURLOPT_XFERINFOFUNCTION, progress_callback);</i></font>
+</pre>
+            <br>
+            Note the above assumes curl_off_t is int64. Callbacks get 32-bit args on 32-bit, which must be stitched together into int64s.
+            <br>
+            <br>
+            Pass a pointer to your callback function, which should match (one or both of?) the prototypes shown above.
+            <br>
+            <br>
+            This function gets called by libcurl instead of its internal equivalent with a frequent interval. <br>
+            While data is being transferred it will be called very frequently, and during slow periods like when nothing is being transferred 
+            it can slow down to about one call per second.
+            <br>
+            <br>
+            clientp is the pointer set with CURLOPT_XFERINFODATA, it is not used by libcurl but is only passed along from the application to the callback.
+            <br>
+            <br>
+            The callback gets told how much data libcurl will transfer and has transferred, in number of bytes. <br>
+            dltotal is the total number of bytes libcurl expects to download in this transfer. <br>
+            dlnow is the number of bytes downloaded so far. <br>
+            ultotal is the total number of bytes libcurl expects to upload in this transfer. <br>
+            ulnow is the number of bytes uploaded so far.
+            <br>
+            <br>
+            Unknown/unused argument values passed to the callback will be set to zero (like if you only download data, the upload size will remain 0). <br>
+            Many times the callback will be called one or more times first, before it knows the data sizes so a program must be made to handle that.
+            <br>
+            <br>
+            Returning a non-zero value from this callback will cause libcurl to abort the transfer and return CURLE_ABORTED_BY_CALLBACK.
+            <br>
+            <br>
+            If you transfer data with the multi interface, this function will not be called during periods of idleness unless 
+            you call the appropriate libcurl function that performs transfers.
+            <br>
+            <br>
+            <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a> must be set to 0 to make this function actually get called.
+            <br>
+            <br>
+            Default: By default, libcurl has an internal progress meter. That&rsquo;s rarely wanted by users.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Availability: Added in 7.32.0. This callback replaces <a href="#CURLOPT_PROGRESSFUNCTION">CURLOPT_PROGRESSFUNCTION</a>
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>.
+            <br>
+            <br>
+            See also: CURLOPT_XFERINFODATA, <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_XFERINFODATA
+         </td>
+         <td>
+            Data pointer to pass to the progress meter callback. See CURLOPT_XFERINFODATA
+          <small><br><a name="CURLOPT_HEADERFUNCTION"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HEADERFUNCTION
+         </td>
+         <td>
+            Specify a callback that receives header data.
+            <br>
+            <br>
+            Synopsis/Example:
+<!--eucode>
+include builtins/libcurl.e
+ 
+function header_callback(atom pData, integer size, integer nmemb, atom pUserdata);
+integer bytes_processed = size*nmemb
+    ... peek(pData,bytes_processed) ...
+    return bytes_processed
+end function
+constant header_cb = call_back({'+',routine_id("header_callback")})
+
+    curl_easy_setopt(atom curl, CURLOPT_HEADERFUNCTION, header_cb)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins</font><font color="#0000FF">/</font><font color="#000000">libcurl.e
+</font><font color="#C0C0C0"> 
+</font><font color="#008080">function</font><font color="#000000"> header_callback</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> pData</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> size</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> nmemb</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> pUserdata</font><font color="#0000FF">);
+</font><font color="#004080">integer</font><font color="#000000"> bytes_processed</font><font color="#0000FF"> =</font><font color="#000000"> size</font><font color="#0000FF">*</font><font color="#000000">nmemb
+</font><font color="#0000FF">    ...</font><font color="#7060A8"> peek</font><font color="#0000FF">(</font><font color="#000000">pData</font><font color="#0000FF">,</font><font color="#000000">bytes_processed</font><font color="#0000FF">) ...
+</font><font color="#008080">    return</font><font color="#000000"> bytes_processed
+</font><font color="#008080">end function
+constant</font><font color="#000000"> header_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#5E005E">routine_id</font><font color="#800080">(</font><font color="#008000">"header_callback"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#5E005E">    curl_easy_setopt</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_HEADERFUNCTION</font><font color="#0000FF">,</font><font color="#000000"> header_cb</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            The specified function gets called by libcurl as soon as it has received header data. <br>
+            The header callback will be called once for each header and only complete header lines are passed on to the callback. <br>
+            Parsing headers is very easy using this. The size of the data pointed to by buffer is size multiplied with nmemb. <br>
+            Do not assume that the header line is zero terminated! <br>
+            The pointer named pUserdata is the one you set with the CURLOPT_HEADERDATA option. <br>
+            This callback function must return the number of bytes actually taken care of. <br>
+            If that amount differs from the amount passed in to your function, it will signal an error to the library. <br>
+            This will cause the transfer to get aborted and the libcurl function in progress will return CURLE_WRITE_ERROR.
+            <br>
+            <br>
+            A complete HTTP header that is passed to this function can be up to CURL_MAX_HTTP_HEADER (100K) bytes.
+            <br>
+            <br>
+            If this option is not set, or if it is set to NULL, but CURLOPT_HEADERDATA is set to anything but NULL, 
+            the function used to accept response data will be used instead. <br>
+            That is, it will be the function specified with <a href="CURLoption.htm#CURLOPT_WRITEFUNCTION">CURLOPT_WRITEFUNCTION</a>, 
+            or if it is not specified or NULL - the default, stream-writing function.
+            <br>
+            <br>
+            It is important to note that the callback will be invoked for the headers of all responses received after 
+            initiating a request and not just the final response. <br>
+            This includes all responses which occur during authentication negotiation. <br>
+            If you need to operate on only the headers from the final response, you will need to collect headers 
+            in the callback yourself and use HTTP status lines, for example, to delimit response boundaries.
+            <br>
+            <br>
+            When a server sends a chunked encoded transfer, it may contain a trailer. <br>
+            That trailer is identical to a HTTP header and if such a trailer is received it is passed to the application using this callback as well. <br>
+            There are several ways to detect it being a trailer and not an ordinary header:<br>
+            1) it comes after the response-body.<br>
+            2) it comes after the final header line (CR LF)<br>
+            3) a Trailer: header among the regular response-headers mention what header(s) to expect in the trailer.
+            <br>
+            <br>
+            For non-HTTP protocols like FTP, POP3, IMAP and SMTP this function will get called with the server responses to the commands that libcurl sends.
+            <br>
+            <br>
+            Default: Nothing.
+            <br>
+            <br>
+            Protocols: Used for all protocols with headers or meta-data concept: HTTP, FTP, POP3, IMAP, SMTP and more.
+            <br>
+            <br>
+            Availability: Always
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>
+            <br>
+            <br>
+            See also: CURLOPT_HEADERDATA, <a href="CURLoption.htm#CURLOPT_WRITEFUNCTION">CURLOPT_WRITEFUNCTION</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HEADERDATA
+         </td>
+         <td>
+            Data pointer to pass to the header callback. See CURLOPT_HEADERDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DEBUGFUNCTION
+         </td>
+         <td>
+            Callback for debug information. See CURLOPT_DEBUGFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DEBUGDATA
+         </td>
+         <td>
+            Data pointer to pass to the debug callback. See CURLOPT_DEBUGDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_CTX_FUNCTION
+         </td>
+         <td>
+            Callback for SSL context logic. See CURLOPT_SSL_CTX_FUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_CTX_DATA
+         </td>
+         <td>
+            Data pointer to pass to the SSL context callback. See CURLOPT_SSL_CTX_DATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CONV_TO_NETWORK_FUNCTION
+         </td>
+         <td>
+            Callback for code base conversion. See CURLOPT_CONV_TO_NETWORK_FUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CONV_FROM_NETWORK_FUNCTION
+         </td>
+         <td>
+            Callback for code base conversion. See CURLOPT_CONV_FROM_NETWORK_FUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CONV_FROM_UTF8_FUNCTION
+         </td>
+         <td>
+            Callback for code base conversion. See CURLOPT_CONV_FROM_UTF8_FUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_INTERLEAVEFUNCTION
+         </td>
+         <td>
+            Callback for RTSP interleaved data. See CURLOPT_INTERLEAVEFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_INTERLEAVEDATA
+         </td>
+         <td>
+            Data pointer to pass to the RTSP interleave callback. See CURLOPT_INTERLEAVEDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CHUNK_BGN_FUNCTION
+         </td>
+         <td>
+            Callback for wildcard download start of chunk. See CURLOPT_CHUNK_BGN_FUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CHUNK_END_FUNCTION
+         </td>
+         <td>
+            Callback for wildcard download end of chunk. See CURLOPT_CHUNK_END_FUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CHUNK_DATA
+         </td>
+         <td>
+            Data pointer to pass to the chunk callbacks. See CURLOPT_CHUNK_DATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FNMATCH_FUNCTION
+         </td>
+         <td>
+            Callback for wildcard matching. See CURLOPT_FNMATCH_FUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FNMATCH_DATA
+         </td>
+         <td>
+            Data pointer to pass to the wildcard matching callback. See CURLOPT_FNMATCH_DATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SUPPRESS_CONNECT_HEADERS
+         </td>
+         <td>
+            Suppress proxy CONNECT response headers from user callbacks. See CURLOPT_SUPPRESS_CONNECT_HEADERS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>ERROR OPTIONS</b>
+         </td>
+         <td>
+          <small><br><a name="CURLOPT_ERRORBUFFER"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_ERRORBUFFER
+         </td>
+         <td>
+            Set error message buffer.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
+            <br>
+            <br>
+            Pass a pointer to a buffer that libcurl may store human readable error messages in on failures or problems. <br>
+            This may be more helpful than just the return code from <a href="curl_easy_perform.htm">curl_easy_perform</a> and related functions. <br>
+            The buffer must be at least CURL_ERROR_SIZE bytes big.
+            <br>
+            <br>
+            You must keep the associated buffer available until libcurl no longer needs it. <br>
+            Failing to do so will cause very odd behavior or even crashes. <br>
+            libcurl will need it until you call <a href="curl_easy_cleanup.htm">curl_easy_cleanup</a>() or you set the same option again to use a different pointer.
+            <br>
+            <br>
+            Consider <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a> and CURLOPT_DEBUGFUNCTION to better debug and trace why errors happen.
+            <br>
+            <br>
+            If the library does not return an error, the buffer may not have been touched. Do not rely on the contents in those cases.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom pErrorBuffer = allocate(CURL_ERROR_SIZE)
+curl_easy_setopt(atom curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
+...
+curl_easy_cleanup(curl)
+free(pErrorBuffer)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> pErrorBuffer</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#004600">CURL_ERROR_SIZE</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_ERRORBUFFER</font><font color="#0000FF">,</font><font color="#000000"> pErrorBuffer</font><font color="#0000FF">)
+...
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#7060A8">free</font><font color="#0000FF">(</font><font color="#000000">pErrorBuffer</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Always
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>
+            <br>
+            <br>
+            See also: CURLOPT_DEBUGFUNCTION, <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>, 
+            <a href="CURLcode.htm#curl_easy_strerror">curl_easy_strerror</a>, curl_multi_strerror, curl_share_strerror
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_STDERR
+         </td>
+         <td>
+            stderr replacement stream. See CURLOPT_STDERR
+          <small><br><a name="CURLOPT_FAILONERROR"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FAILONERROR
+         </td>
+         <td>
+            Fail on HTTP 4xx errors.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_FAILONERROR, bool fail)
+            <br>
+            <br>
+            A parameter of true (1) tells the library to fail the request if the HTTP code returned is equal to or larger than 400. <br>
+            The default action would be to return the page normally, ignoring that code.
+            <br>
+            <br>
+            This method is not fail-safe and there are occasions where non-successful response codes will slip through, 
+            especially when authentication is involved (response codes 401 and 407).
+            <br>
+            <br>
+            You might get some amounts of headers transferred before this situation is detected, like when a "100-continue" is received 
+            as a response to a POST/PUT and a 401 or 407 is received immediately afterwards.
+            <br>
+            <br>
+            When this option is used and an error is detected, it will cause the connection to get closed and 
+            <a href="CURLcode.htm#CURLE_HTTP_RETURNED_ERROR">CURLE_HTTP_RETURNED_ERROR</a> is returned.
+            <br>
+            <br>
+            Default: false (0), do not fail on error.
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/")
+curl_easy_setopt(curl, CURLOPT_FAILONERROR, true)
+CURLcode ret = curl_easy_perform(curl)
+if ret=CURLE_HTTP_RETURNED_ERROR then
+    /* a HTTP response error problem */
+end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "https://example.com/"</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_FAILONERROR</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
+</font><font color="#5E005E">CURLcode</font><font color="#000000"> ret</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> ret</font><font color="#0000FF">=</font><font color="#004600">CURLE_HTTP_RETURNED_ERROR</font><font color="#008080"> then
+</font><font color="#000080"><i>    /* a HTTP response error problem */
+</i></font><font color="#008080">end if</font>
+</pre>
+            Availability: Along with HTTP.
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if HTTP is enabled, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: CURLOPT_HTTP200ALIASES, CURLOPT_KEEP_SENDING_ON_ERROR
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_KEEP_SENDING_ON_ERROR
+         </td>
+         <td>
+            Keep sending on HTTP >= 300 errors. CURLOPT_KEEP_SENDING_ON_ERROR
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>NETWORK OPTIONS</b>
+         </td>
+         <td>
+          <small><br><a name="CURLOPT_URL"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_URL
+         </td>
+         <td>
+            Synopsis: CURLcode res = <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_URL, <a href="string.htm">string</a> URL)
+            <br>
+            <br>
+            Specify the URL to work with. The parameter should be a string (or char *) which must be URL-encoded in the following format:
+            <br>
+            <br>
+            scheme:/<wbr>/host:port/path
+            <br>
+            <br>
+            For a greater explanation of the format please see  <a id="ext375" style="color:#9B5565" 
+            href="javascript:ExternalLink('ext375','http://www.ietf.org/rfc/rfc3986.txt');">RFC 3986</a>.       
+            <br>
+            <br>
+            libcurl doesn&rsquo;t validate the syntax or use this variable until the transfer is issued. <br>
+            Even if you set a crazy value here, <a href="curl_easy_setopt.htm">curl_easy_setopt</a> will still return <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>.
+            <br>
+            <br>
+            If the given URL is missing a scheme name (such as "http://" or "ftp://" etc) then libcurl will make a guess based on the host. <br>
+            If the outermost sub-domain name matches DICT, FTP, IMAP, LDAP, POP3 or SMTP then that protocol will be used, otherwise HTTP will be used. <br>
+            Since 7.45.0 guessing can be disabled by setting a default protocol, see CURLOPT_DEFAULT_PROTOCOL for details.
+            <br>
+            <br>
+            Should the protocol, either that specified by the scheme or deduced by libcurl from the host name, not be supported by libcurl then 
+            <a href="CURLcode.htm#CURLE_UNSUPPORTED_PROTOCOL">CURLE_UNSUPPORTED_PROTOCOL</a> will be returned from either the 
+            <a href="curl_easy_perform.htm">curl_easy_perform</a> or 
+            curl_multi_perform functions when you call them. <br>
+            Use <a href="curl_version_info.htm">curl_version_info</a> for detailed information of which protocols are supported by the build of libcurl you are using.
+            <br>
+            <br>
+            CURLOPT_PROTOCOLS can be used to limit what protocols libcurl will use for this transfer, independent of what libcurl has been compiled to support. <br>
+            That may be useful if you accept the URL from an external source and want to limit the accessibility.
+            <br>
+            <br>
+            CURLOPT_URL is the only option that must be set before a transfer is started.
+            <br>
+            <br>
+            The host part of the URL contains the address of the server that you want to connect to. <br>
+            This can be the fully qualified domain name of the server, the local network name of the machine on your network or 
+            the IP address of the server or machine represented by either an IPv4 or IPv6 address. For example:
+            <pre>
+http://www.example.com/
+
+http://hostname/
+
+http://192.168.0.1/
+
+http://[2001:1890:1112:1::20]/
+            </pre>
+            It is also possible to specify the user name, password and any supported login options as part of the host, for the following protocols, 
+            when connecting to servers that require authentication:
+            <pre>
+http://user:password@www.example.com
+
+ftp://user:password@ftp.example.com
+
+smb://domain%2fuser:password@server.example.com
+
+imap://user:password;options@mail.example.com
+
+pop3://user:password;options@mail.example.com
+
+smtp://user:password;options@mail.example.com
+            </pre>
+            At present only IMAP, POP3 and SMTP support login options as part of the host. <br>
+            For more information about the login options in URL syntax please see RFC 2384, RFC 5092 and IETF draft draft-earhart-url-smtp-00.txt (Added in 7.31.0).
+            <br>
+            <br>
+            The port is optional and when not specified libcurl will use the default port based on the determined or specified protocol: <br>
+            80 for HTTP, 21 for FTP and 25 for SMTP, etc. The following examples show how to specify the port:
+            <pre>
+http://www.example.com:8080/ - [1]
+
+smtp://mail.example.com:587/ - [2]
+            </pre>
+            [1] This will connect to a web server using port 8080 rather than 80.<br>
+            [2] This will connect to a SMTP server on the alternative mail port.
+            <br>
+            <br>
+            The path part of the URL is protocol specific and whilst some examples are given below this list is not conclusive:
+
+            <h3>HTTP</h3>
+
+            The path part of a HTTP request specifies the file to retrieve and from what directory. <br>
+            If the directory is not specified then the web server&rsquo;s root directory is used. <br>
+            If the file is omitted then the default document will be retrieved for either the directory specified or the root directory. <br>
+            The exact resource returned for each URL is entirely dependent on the server&rsquo;s configuration.
+            <br>
+            <pre>
+http://www.example.com - [1]
+
+http://www.example.com/index.html - [2]
+
+http://www.example.com/contactus/ - [3]
+            </pre>
+            [1] This gets the main page from the web server.<br>
+            [2] This returns the main page by explicitly requesting it.<br>
+            [3] This returns the default document from the contactus directory.
+
+            <h3>FTP</h3>
+
+            The path part of an FTP request specifies the file to retrieve and from what directory. <br>
+            If the file part is omitted then libcurl downloads the directory listing for the directory specified. <br>
+            If the directory is omitted then the directory listing for the root / home directory will be returned.
+            <pre>
+ftp://ftp.example.com - [1]
+
+ftp://ftp.example.com/readme.txt - [2]
+
+ftp://ftp.example.com/libcurl/readme.txt - [3]
+
+ftp://user:password@ftp.example.com/readme.txt - [4]
+
+ftp://user:password@ftp.example.com//readme.txt - [5]
+            </pre>
+            [1] This retrieves the directory listing for the root directory.<br>
+            [2] This downloads the file readme.txt from the root directory.<br>
+            [3] This downloads readme.txt from the libcurl directory.<br>
+            [4] This retrieves the readme.txt file from the user&rsquo;s home directory. <br>
+            When a username and password is specified, everything that is specified in the path part is relative to the user&rsquo;s home directory. <br>
+            To retrieve files from the root directory or a directory underneath the root directory then the absolute path must be specified by prepending 
+            an additional forward slash to the beginning of the path.<br>
+            [5] This retrieves the readme.txt from the root directory when logging in as a specified user.
+
+            <h3>SMTP</h3>
+
+            The path part of a SMTP request specifies the host name to present during communication with the mail server. <br>
+            If the path is omitted then libcurl will attempt to resolve the local computer&rsquo;s host name. <br>
+            However, this may not return the fully qualified domain name that is required by some mail servers and specifying this path 
+            allows you to set an alternative name, such as your machine&rsquo;s fully qualified domain name, which you might have obtained 
+            from an external function such as gethostname or getaddrinfo.
+            <pre>
+smtp://mail.example.com - [1]
+
+smtp://mail.example.com/client.example.com - [2]
+            </pre>
+            [1] This connects to the mail server at example.com and sends your local computer&rsquo;s host name in the HELO / EHLO command.<br>
+            [2] This will send client.example.com in the HELO / EHLO command to the mail server at example.com.
+            
+            <h3>POP3</h3>
+
+            The path part of a POP3 request specifies the message ID to retrieve. <br>
+            If the ID is not specified then a list of waiting messages is returned instead.
+            <pre>
+pop3://user:password@mail.example.com - [1]
+
+pop3://user:password@mail.example.com/1 - [2]
+            </pre>
+            [1] This lists the available messages for the user<br>
+            [2] This retrieves the first message for the user
+
+            <h3>IMAP</h3>
+
+            The path part of an IMAP request not only specifies the mailbox to list (Added in 7.30.0) or select, 
+            but can also be used to check the UIDVALIDITY of the mailbox, to specify the UID, SECTION (Added in 7.30.0) 
+            and PARTIAL octets (Added in 7.37.0) of the message to fetch and to specify what messages to search for (Added in 7.37.0).
+            <pre>
+imap://user:password@mail.example.com - [1]
+
+imap://user:password@mail.example.com/INBOX - [2]
+
+imap://user:password@mail.example.com/INBOX/;UID=1 - [3]
+
+imap://user:password@mail.example.com/INBOX;UIDVALIDITY=50/;UID=2 - [4]
+
+imap://user:password@mail.example.com/INBOX/;UID=3/;SECTION=TEXT - [5]
+
+imap://user:password@mail.example.com/INBOX/;UID=4/;PARTIAL=0.1024 - [6]
+
+imap://user:password@mail.example.com/INBOX?NEW - [7]
+
+imap://user:password@mail.example.com/INBOX?SUBJECT%20shadows - [8]
+            </pre>
+            [1] Performs a top level folder list<br>
+            [2] Performs a folder list on the user&rsquo;s inbox<br>
+            [3] Selects the user&rsquo;s inbox and fetches message 1<br>
+            [4] Selects the user&rsquo;s inbox, checks the UIDVALIDITY of the mailbox is 50 and fetches message 2 if it is<br>
+            [5] Selects the user&rsquo;s inbox and fetches the text portion of message 3<br>
+            [6] Selects the user&rsquo;s inbox and fetches the first 1024 octets of message 4<br>
+            [7] Selects the user&rsquo;s inbox and checks for NEW messages<br>
+            [8] Selects the user&rsquo;s inbox and searches for messages containing "shadows" in the subject line
+            <br>
+            <br>
+            For more information about the individual components of an IMAP URL please see RFC 5092.
+
+            <h3>SCP</h3>
+
+            The path part of a SCP request specifies the file to retrieve and from what directory. <br>
+            The file part may not be omitted. The file is taken as an absolute path from the root directory on the server. <br>
+            To specify a path relative to the user&rsquo;s home directory on the server, prepend &tilde;/ to the path portion. <br>
+            If the user name is not embedded in the URL, it can be set with the <a href="#CURLOPT_USERPWD">CURLOPT_USERPWD</a> or 
+            CURLOPT_USERNAME option.
+            <pre>
+scp://user@example.com/etc/issue - [1]
+
+scp://example.com/~/my-file - [2]
+            </pre>
+            [1] This specifies the file /etc/issue<br>
+            [2] This specifies the file my-file in the user&rsquo;s home directory on the server
+    
+            <h3>SFTP</h3>
+
+            The path part of a SFTP request specifies the file to retrieve and from what directory. <br>
+            If the file part is omitted then libcurl downloads the directory listing for the directory specified. <br>
+            If the path ends in a / then a directory listing is returned instead of a file. <br>
+            If the path is omitted entirely then the directory listing for the root / home directory will be returned. <br>
+            If the user name is not embedded in the URL, it can be set with the <a href="#CURLOPT_USERPWD">CURLOPT_USERPWD</a> or 
+            CURLOPT_USERNAME option.
+            <pre>
+sftp://user:password@example.com/etc/issue - [1]
+
+sftp://user@example.com/~/my-file - [2]
+
+sftp://ssh.example.com/~/Documents/ - [3]
+            </pre>
+            [1] This specifies the file /etc/issue<br>
+            [2] This specifies the file my-file in the user&rsquo;s home directory<br>
+            [3] This requests a directory listing of the Documents directory under the user&rsquo;s home directory
+
+            <h3>SMB</h3>
+
+            The path part of a SMB request specifies the file to retrieve and from what share and directory or the share to upload to and as such, may not be omitted. <br>
+            If the user name is not embedded in the URL, it can be set with the <a href="#CURLOPT_USERPWD">CURLOPT_USERPWD</a> or 
+            CURLOPT_USERNAME option. <br>
+            If the user name is embedded in the URL then it must contain the domain name and as such, the backslash must be URL encoded as %2f.
+            <pre>
+smb://server.example.com/files/issue - [1]
+
+smb://server.example.com/files/ -T issue - [2]
+            </pre>
+            [1] This specifies the file "issue" located in the root of the "files" share<br>
+            [2] This specifies the file "issue" will be uploaded to the root of the "files" share.
+
+            <h3>LDAP</h3>
+
+            The path part of a LDAP request can be used to specify the: Distinguished Name, Attributes, Scope, Filter and Extension for a LDAP search. <br>
+            Each field is separated by a question mark and when that field is not required an empty string with the question mark separator should be included.
+            <pre>
+ldap://ldap.example.com/o=My%20Organisation - [1]
+
+ldap://ldap.example.com/o=My%20Organisation?postalAddress - [2]
+
+ldap://ldap.example.com/?rootDomainNamingContext - [3]
+            </pre>
+            [1] This will perform a LDAP search with the DN as My Organisation.<br>
+            [2] This will perform the same search but will only return postalAddress attributes.<br>
+            [3] This specifies an empty DN and requests information about the rootDomainNamingContext attribute for an Active Directory server.
+            <br>
+            <br>
+            For more information about the individual components of a LDAP URL please see RFC 4516.
+
+            <h3>RTMP</h3>
+
+            There&rsquo;s no official URL spec for RTMP so libcurl uses the URL syntax supported by the underlying librtmp library. <br>
+            It has a syntax where it wants a traditional URL, followed by a space and a series of space-separated name=value pairs.
+            <br>
+            <br>
+            While space is not typically a "legal" letter, libcurl accepts them. <br>
+            When a user wants to pass in a '#' (hash) character it will be treated as a fragment and get cut off by libcurl if provided literally. <br>
+            You will instead have to escape it by providing it as backslash and its ASCII value in hexadecimal: "\23".
+            <br>
+            <br>
+            The application does not have to keep the string around after setting this option.
+        
+            <h3>DEFAULT</h3>
+
+            There is no default URL. If this option isn&rsquo;t set, no transfer can be performed.
+
+            <h3>SECURITY CONCERNS</h3>
+
+            Applications may at times find it convenient to allow users to specify URLs for various purposes and that string would then end up fed to this option.
+            <br>
+            <br>
+            Getting a URL from an external untrusted party will bring reasons for several security concerns:
+            <br>
+            <br>
+            If you have an application that runs as or in a server application, getting an unfiltered URL can easily trick your application 
+            to access a local resource instead of a remote. Protecting yourself against localhost accesses is very hard when accepting user provided URLs.
+            <br>
+            <br>
+            Such custom URLs can also access other ports than you planned as port numbers are part of the regular URL format. <br>
+            The combination of a local host and a custom port number can allow external users to play tricks with your local services.
+            <br>
+            <br>
+            Accepting external URLs may also use other protocols than http:// or other common ones. Restrict what accept with CURLOPT_PROTOCOLS.
+            <br>
+            <br>
+            User provided URLs can also be made to point to sites that redirect further on (possibly to other protocols too). <br>
+            Consider your CURLOPT_FOLLOWLOCATION and CURLOPT_REDIR_PROTOCOLS settings.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Availability: POP3 and SMTP were added in 7.31.0
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> on success or CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+            <br>
+            <br>
+            Note that <a href="curl_easy_setopt.htm">curl_easy_setopt</a> won&rsquo;t actually parse the given string so given a bad URL, 
+            it will not be detected until <a href="curl_easy_perform.htm">curl_easy_perform</a> or similar is called.
+            <br>
+            <br>
+            See also: <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>, CURLOPT_PROTOCOLS, CURLOPT_FORBID_REUSE, CURLOPT_FRESH_CONNECT, 
+            <a href="curl_easy_perform.htm">curl_easy_perform</a>, CURLINFO_REDIRECT_URL, CURLOPT_PATH_AS_IS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PATH_AS_IS
+         </td>
+         <td>
+            Disable squashing /../ and /./ sequences in the path. See CURLOPT_PATH_AS_IS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROTOCOLS
+         </td>
+         <td>
+            Allowed protocols. See CURLOPT_PROTOCOLS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_REDIR_PROTOCOLS
+         </td>
+         <td>
+            Protocols to allow redirects to. See CURLOPT_REDIR_PROTOCOLS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DEFAULT_PROTOCOL
+         </td>
+         <td>
+            Default protocol. See CURLOPT_DEFAULT_PROTOCOL
+          <small><br><a name="CURLOPT_PROXY"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY
+         </td>
+         <td>
+            Proxy to use. See CURLOPT_PROXY
+            Synopsis: CURLcode res = <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_PROXY, <a href="string.htm">string</a> proxy)
+            <br>
+            <br>
+            Set the proxy to use for the upcoming request. The parameter should be a string (or char *) holding the host name or dotted numerical IP address. <br>
+            A numerical IPv6 address must be written within [brackets].
+            <br>
+            <br>
+            To specify port number in this string, append :[port] to the end of the host name. <br>
+            The proxy&rsquo;s port number may optionally be specified with the separate option CURLOPT_PROXYPORT. <br>
+            If not specified, libcurl will default to using port 1080 for proxies.
+            <br>
+            <br>
+            The proxy string may be prefixed with [scheme]:/<wbr>/ to specify which kind of proxy is used.<br>
+            http:// - HTTP Proxy. Default when no scheme or proxy type is specified.<br>
+            https:// - HTTPS Proxy. (Added in 7.52.0 for OpenSSL, GnuTLS and NSS)<br>
+            socks4:// - SOCKS4 Proxy.<br>
+            socks4a:// - SOCKS4a Proxy. Proxy resolves URL hostname.<br>
+            socks5:// - SOCKS5 Proxy.<br>
+            socks5h:// - SOCKS5 Proxy. Proxy resolves URL hostname.
+            <br>
+            <br>
+            Without a scheme prefix, CURLOPT_PROXYTYPE can be used to specify which kind of proxy the string identifies.
+            <br>
+            <br>
+            When you tell the library to use a HTTP proxy, libcurl will transparently convert operations to HTTP even if you specify an FTP URL etc. <br>
+            This may have an impact on what other features of the library you can use, such as CURLOPT_QUOTE and similar FTP specifics that don&rsquo;t 
+            work unless you tunnel through the HTTP proxy. Such tunneling is activated with CURLOPT_HTTPPROXYTUNNEL.
+            <br>
+            <br>
+            Setting the proxy string to "" (an empty string) will explicitly disable the use of a proxy, even if there is an environment variable set for it.
+            <br>
+            <br>
+            A proxy host string can also include protocol scheme (http://) and embedded user + password.
+            <br>
+            <br>
+            The application does not have to keep the string around after setting this option.
+
+            <h3>Environment variables</h3>
+            
+            libcurl respects the proxy environment variables named http_proxy, ftp_proxy, sftp_proxy etc. <br>
+            If set, libcurl will use the specified proxy for that URL scheme. <br>
+            So for a "FTP://" URL, the ftp_proxy is considered. <br>
+            all_proxy is used if no protocol specific proxy was set.
+            <br>
+            <br>
+            If no_proxy (or NO_PROXY) is set, it can specify a list of host names to not use a proxy for (even if one of the previous mention variables are set). <br>
+            That is the exact equivalent of setting the CURLOPT_NOPROXY option.
+            <br>
+            <br>
+            The CURLOPT_PROXY and CURLOPT_NOPROXY options override environment variables.
+            <br>
+            <br>
+            Default: Default is NULL, meaning no proxy is used.
+            <br>
+            <br>
+            When you set a host name to use, do not assume that there&rsquo;s any particular single port number used widely for proxies. Specify it!
+            <br>
+            <br>
+            Protocols: All except file://. Note that some protocols don&rsquo;t do very well over proxy.
+            <br>
+            <br>
+            Availability<br>
+            Since 7.14.1 the proxy environment variable names can include the protocol scheme.<br>
+            Since 7.21.7 the proxy string supports the socks protocols as "schemes".<br>
+            Since 7.50.2, unsupported schemes in proxy strings cause libcurl to return error.
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if proxies are supported, 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not, 
+            or CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+            <br>
+            <br>
+            See also: CURLOPT_PROXYPORT, CURLOPT_HTTPPROXYTUNNEL, CURLOPT_PROXYTYPE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PRE_PROXY
+         </td>
+         <td>
+            Socks proxy to use. See CURLOPT_PRE_PROXY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXYPORT
+         </td>
+         <td>
+            Proxy port to use. See CURLOPT_PROXYPORT
+          <small><br><a name="CURLOPT_PROXYTYPE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXYTYPE
+         </td>
+         <td>
+            Synopsis: CURLcode res = <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_PROXYTYPE, <a href="integer.htm">integer</a> proxytype)
+            <br>
+            <br>
+            Pass one of the values below to set the type of the proxy.<br>
+            CURLPROXY_HTTP - HTTP Proxy. Default.<br>
+            CURLPROXY_HTTPS - HTTPS Proxy. (Added in 7.52.0 for OpenSSL, GnuTLS and NSS)<br>
+            CURLPROXY_HTTP_1_0 - HTTP 1.0 Proxy. This is very similar to CURLPROXY_HTTP except it uses HTTP/1.0 for any CONNECT tunnelling. <br>
+            It does not change the HTTP version of the actual HTTP requests, controlled by CURLOPT_HTTP_VERSION.<br>
+            CURLPROXY_SOCKS4 - SOCKS4 Proxy.<br>
+            CURLPROXY_SOCKS4A - SOCKS4a Proxy. Proxy resolves URL hostname.<br>
+            CURLPROXY_SOCKS5 - SOCKS5 Proxy.<br>
+            CURLPROXY_SOCKS5_HOSTNAME - SOCKS5 Proxy. Proxy resolves URL hostname.
+            <br>
+            <br>
+            Often it is more convenient to specify the proxy type with the scheme part of the CURLOPT_PROXY string.
+            <br>
+            <br>
+            Default: CURLPROXY_HTTP
+            <br>
+            <br>
+            Protocols: Most
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>
+            <br>
+            <br>
+            See also: CURLOPT_PROXY, CURLOPT_PROXYPORT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NOPROXY
+         </td>
+         <td>
+            Filter out hosts from proxy use. CURLOPT_NOPROXY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTPPROXYTUNNEL
+         </td>
+         <td>
+            Tunnel through the HTTP proxy. CURLOPT_HTTPPROXYTUNNEL
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CONNECT_TO
+         </td>
+         <td>
+            Connect to a specific host and port. See CURLOPT_CONNECT_TO
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SOCKS5_AUTH
+         </td>
+         <td>
+            Socks5 authentication methods. See CURLOPT_SOCKS5_AUTH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SOCKS5_GSSAPI_SERVICE
+         </td>
+         <td>
+            Socks5 GSSAPI service name. CURLOPT_SOCKS5_GSSAPI_SERVICE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SOCKS5_GSSAPI_NEC
+         </td>
+         <td>
+            Socks5 GSSAPI NEC mode. See CURLOPT_SOCKS5_GSSAPI_NEC
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SERVICE_NAME
+         </td>
+         <td>
+            Proxy authentication service name. CURLOPT_PROXY_SERVICE_NAME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SERVICE_NAME
+         </td>
+         <td>
+            Authentication service name. CURLOPT_SERVICE_NAME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_INTERFACE
+         </td>
+         <td>
+            Bind connection locally to this. See CURLOPT_INTERFACE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_LOCALPORT
+         </td>
+         <td>
+            Bind connection locally to this port. See CURLOPT_LOCALPORT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_LOCALPORTRANGE
+         </td>
+         <td>
+            Bind connection locally to port range. See CURLOPT_LOCALPORTRANGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DNS_CACHE_TIMEOUT
+         </td>
+         <td>
+            Timeout for DNS cache. See CURLOPT_DNS_CACHE_TIMEOUT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DNS_USE_GLOBAL_CACHE
+         </td>
+         <td>
+            OBSOLETE Enable global DNS cache. See CURLOPT_DNS_USE_GLOBAL_CACHE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_BUFFERSIZE
+         </td>
+         <td>
+            Ask for alternate buffer size. See CURLOPT_BUFFERSIZE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PORT
+         </td>
+         <td>
+            Port number to connect to. See CURLOPT_PORT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TCP_FASTOPEN
+         </td>
+         <td>
+            Enable TFO, TCP Fast Open. See CURLOPT_TCP_FASTOPEN
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TCP_NODELAY
+         </td>
+         <td>
+            Disable the Nagle algorithm. See CURLOPT_TCP_NODELAY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_ADDRESS_SCOPE
+         </td>
+         <td>
+            IPv6 scope for local addresses. See CURLOPT_ADDRESS_SCOPE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TCP_KEEPALIVE
+         </td>
+         <td>
+            Enable TCP keep-alive. See CURLOPT_TCP_KEEPALIVE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TCP_KEEPIDLE
+         </td>
+         <td>
+            Idle time before sending keep-alive. See CURLOPT_TCP_KEEPIDLE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TCP_KEEPINTVL
+         </td>
+         <td>
+            Interval between keep-alive probes. See CURLOPT_TCP_KEEPINTVL
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_UNIX_SOCKET_PATH
+         </td>
+         <td>
+            Path to a Unix domain socket. See CURLOPT_UNIX_SOCKET_PATH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_ABSTRACT_UNIX_SOCKET
+         </td>
+         <td>
+            Path to an abstract Unix domain socket. See CURLOPT_ABSTRACT_UNIX_SOCKET
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>NAMES</b>
+         </td>
+         <td>
+             and PASSWORDS OPTIONS (Authentication)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NETRC
+         </td>
+         <td>
+            Enable .netrc parsing. See CURLOPT_NETRC
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NETRC_FILE
+         </td>
+         <td>
+            .netrc file name. See CURLOPT_NETRC_FILE
+          <small><br><a name="CURLOPT_USERPWD"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_USERPWD
+         </td>
+         <td>
+            Set the user name and password to use in authentication.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_USERPWD, string userpwd)
+            <br>
+            <br>
+            Pass a string (or char *) as parameter, pointing to a login details string for the connection, 
+            the format of which is: <i>&lt;user name&gt;</i>:<i>&lt;password&gt;</i>.
+            <br>
+            <br>
+            When using Kerberos V5 authentication with a Windows based server, you should specify the user name part with the domain name in order for 
+            the server to successfully obtain a Kerberos Ticket. If you don&rsquo;t then the initial part of the authentication handshake may fail.
+            <br>
+            <br>
+            When using NTLM, the user name can be specified simply as the user name without the domain name should the server be part of a single domain and forest.
+            <br>
+            <br>
+            To specify the domain name use either Down-Level Logon Name or UPN (User Principal Name) formats. 
+            For example, EXAMPLE\user and user@example.com respectively.
+            <br>
+            <br>
+            Some HTTP servers (on Windows) support inclusion of the domain for Basic authentication as well.
+            <br>
+            <br>
+            When using HTTP and CURLOPT_FOLLOWLOCATION, libcurl might perform several requests to possibly different hosts. <br>
+            libcurl will only send this user and password information to hosts using the initial host name (unless CURLOPT_UNRESTRICTED_AUTH is set), 
+            so if libcurl follows locations to other hosts it will not send the user and password to those. <br>
+            This is enforced to prevent accidental information leakage.
+            <br>
+            <br>
+            Use CURLOPT_HTTPAUTH to specify the authentication method for HTTP based connections or CURLOPT_LOGIN_OPTIONS to control IMAP, POP3 and SMTP options.
+            <br>
+            <br>
+            The user and password strings are not URL decoded, so there&rsquo;s no way to send in a user name containing a colon using this option. <br>
+            Use CURLOPT_USERNAME for that, or include it in the URL.
+            <br>
+            <br>
+            The application does not have to keep the string around after setting this option.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: Most
+            <br>
+            <br>
+            Example: curl_easy_setopt(curl, CURLOPT_USERPWD, "clark:kent")
+            <br>
+            <br>
+            Availability: Always
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> on success or CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+            <br>
+            <br>
+            See also: CURLOPT_USERNAME, CURLOPT_PASSWORD, CURLOPT_PROXYUSERPWD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXYUSERPWD
+         </td>
+         <td>
+            Proxy user name and password. See CURLOPT_PROXYUSERPWD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_USERNAME
+         </td>
+         <td>
+            User name. See CURLOPT_USERNAME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PASSWORD
+         </td>
+         <td>
+            Password. See CURLOPT_PASSWORD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_LOGIN_OPTIONS
+         </td>
+         <td>
+            Login options. See CURLOPT_LOGIN_OPTIONS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXYUSERNAME
+         </td>
+         <td>
+            Proxy user name. See CURLOPT_PROXYUSERNAME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXYPASSWORD
+         </td>
+         <td>
+            Proxy password. See CURLOPT_PROXYPASSWORD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTPAUTH
+         </td>
+         <td>
+            HTTP server authentication methods. See CURLOPT_HTTPAUTH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TLSAUTH_USERNAME
+         </td>
+         <td>
+            TLS authentication user name. See CURLOPT_TLSAUTH_USERNAME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_TLSAUTH_USERNAME
+         </td>
+         <td>
+            Proxy TLS authentication user name. See CURLOPT_PROXY_TLSAUTH_USERNAME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TLSAUTH_PASSWORD
+         </td>
+         <td>
+            TLS authentication password. See CURLOPT_TLSAUTH_PASSWORD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_TLSAUTH_PASSWORD
+         </td>
+         <td>
+            Proxy TLS authentication password. See CURLOPT_PROXY_TLSAUTH_PASSWORD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TLSAUTH_TYPE
+         </td>
+         <td>
+            TLS authentication methods. See CURLOPT_TLSAUTH_TYPE
+         </td>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_TLSAUTH_TYPE
+         </td>
+         <td>
+            Proxy TLS authentication methods. See CURLOPT_PROXY_TLSAUTH_TYPE
+         </td>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXYAUTH
+         </td>
+         <td>
+            HTTP proxy authentication methods. See CURLOPT_PROXYAUTH
+         </td>
+        <tr>
+         <td valign=top>
+          CURLOPT_SASL_IR
+         </td>
+         <td>
+            Enable SASL initial response. See CURLOPT_SASL_IR
+         </td>
+        <tr>
+         <td valign=top>
+          CURLOPT_XOAUTH2_BEARER
+         </td>
+         <td>
+            OAuth2 bearer token. See CURLOPT_XOAUTH2_BEARER
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>HTTP OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_AUTOREFERER
+         </td>
+         <td>
+            Automatically set Referer: header. See CURLOPT_AUTOREFERER
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_ACCEPT_ENCODING
+         </td>
+         <td>
+            Accept-Encoding and automatic decompressing data. See CURLOPT_ACCEPT_ENCODING
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TRANSFER_ENCODING
+         </td>
+         <td>
+            Request Transfer-Encoding. See CURLOPT_TRANSFER_ENCODING
+          <small><br><a name="CURLOPT_FOLLOWLOCATION"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FOLLOWLOCATION
+         </td>
+         <td>
+            Follow HTTP 3xx redirects.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, bool enable)
+            <br>
+            <br>
+            A parameter of true (1) tells the library to follow any Location: header that the server sends as part of a HTTP header in a 3xx response. <br>
+            The Location: header can specify a relative or an absolute URL to follow.
+            <br>
+            <br>
+            libcurl will issue another request for the new URL and follow new Location: headers all the way until no more such headers are returned. <br>
+            CURLOPT_MAXREDIRS can be used to limit the number of redirects libcurl will follow.
+            <br>
+            <br>
+            libcurl limits what protocols it automatically follows to. <br>
+            The accepted protocols are set with CURLOPT_REDIR_PROTOCOLS. <br>
+            By default libcurl will allow all protocols on redirect except those disabled for security reasons: 
+            Since 7.19.4 FILE and SCP are disabled, and since 7.40.0 SMB and SMBS are also disabled.
+            <br>
+            <br>
+            When following a Location:, the 3xx response code that redirected it also dictates which request method it will use in the subsequent request: 
+            For 301, 302 and 303 responses libcurl will switch method to GET unless CURLOPT_POSTREDIR instructs libcurl otherwise. <br>
+            All other 3xx codes will make libcurl send the same method again.
+            <br>
+            <br>
+            For users who think the existing location following is too naive, too simple or just lacks features, it is very easy to instead implement 
+            your own redirect follow logic with the use of curl_easy_getinfo&rsquo;s CURLINFO_REDIRECT_URL option instead of using CURLOPT_FOLLOWLOCATION.
+            <br>
+            <br>
+            Default: false (0), disabled
+            <br>
+            <br>
+            Protocols: HTTP(S)
+            <br>
+            <br>
+            Example
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/")
+/* example.com is redirected, so we tell libcurl to follow redirection */
+curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, true)
+CURLcode ret = curl_easy_perform(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "https://example.com/"</font><font color="#0000FF">)
+</font><font color="#000080"><i>/* example.com is redirected, so we tell libcurl to follow redirection */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_FOLLOWLOCATION</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
+</font><font color="#5E005E">CURLcode</font><font color="#000000"> ret</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Along with HTTP
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if HTTP is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: CURLOPT_REDIR_PROTOCOLS, CURLOPT_PROTOCOLS, CURLOPT_POSTREDIR, CURLINFO_REDIRECT_URL, CURLINFO_REDIRECT_COUNT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_UNRESTRICTED_AUTH
+         </td>
+         <td>
+            Do not restrict authentication to original host. CURLOPT_UNRESTRICTED_AUTH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAXREDIRS
+         </td>
+         <td>
+            Maximum number of redirects to follow. See CURLOPT_MAXREDIRS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_POSTREDIR
+         </td>
+         <td>
+            How to act on redirects after POST. See CURLOPT_POSTREDIR
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PUT
+         </td>
+         <td>
+            Issue a HTTP PUT request. See CURLOPT_PUT
+          <small><br><a name="CURLOPT_POST"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_POST
+         </td>
+         <td>
+            Issue a HTTP POST request.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_POST, bool post)
+            <br>
+            <br>
+            A parameter set to true(1) tells libcurl to do a regular HTTP post. <br>
+            This will also make the library use a "Content-Type: application/x-www-form-urlencoded" header. <br>
+            (This is by far the most commonly used POST method).
+            <br>
+            <br>
+            Use one of <a href="#CURLOPT_POSTFIELDS">CURLOPT_POSTFIELDS</a> or CURLOPT_COPYPOSTFIELDS options to specify what data to post and 
+            CURLOPT_POSTFIELDSIZE or CURLOPT_POSTFIELDSIZE_LARGE to set the data size.
+            <br>
+            <br>
+            Optionally, you can provide data to POST using the CURLOPT_READFUNCTION and CURLOPT_READDATA options but then you must make sure 
+            to not set <a href="#CURLOPT_POSTFIELDS">CURLOPT_POSTFIELDS</a> to anything but NULL. <br>
+            When providing data with a callback, you must transmit it using chunked transfer-encoding or you must set the size of the data 
+            with the CURLOPT_POSTFIELDSIZE or CURLOPT_POSTFIELDSIZE_LARGE options. <br>
+            To enable chunked encoding, you simply pass in the appropriate Transfer-Encoding header, see the post-callback.c example.
+            <br>
+            <br>
+            You can override the default POST Content-Type: header by setting your own with CURLOPT_HTTPHEADER.
+            <br>
+            <br>
+            Using POST with HTTP 1.1 implies the use of a "Expect: 100-continue" header. <br>
+            You can disable this header with CURLOPT_HTTPHEADER as usual.
+            <br>
+            <br>
+            If you use POST to a HTTP 1.1 server, you can send data without knowing the size before starting the POST if you use chunked encoding. <br>
+            You enable this by adding a header like "Transfer-Encoding: chunked" with CURLOPT_HTTPHEADER. <br>
+            With HTTP 1.0 or without chunked transfer, you must specify the size in the request.
+            <br>
+            <br>
+            When setting CURLOPT_POST to 1, it will automatically set CURLOPT_NOBODY to 0.
+            <br>
+            <br>
+            If you issue a POST request and then want to make a HEAD or GET using the same re-used handle, you must explicitly set 
+            the new request type using CURLOPT_NOBODY or CURLOPT_HTTPGET or similar.
+            <br>
+            <br>
+            Default: false(0), disabled
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com/foo.bin")
+curl_easy_setopt(curl, CURLOPT_POST, true)
+ 
+/* set up the read callback with CURLOPT_READFUNCTION */
+ 
+ret = curl_easy_perform(curl)
+ 
+curl_easy_cleanup(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com/foo.bin"</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_POST</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* set up the read callback with CURLOPT_READFUNCTION */
+</i></font><font color="#C0C0C0"> 
+</font><font color="#000000">ret</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Along with HTTP
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if HTTP is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: <a href="#CURLOPT_POSTFIELDS">CURLOPT_POSTFIELDS</a>, CURLOPT_HTTPPOST
+          <small><br><a name="CURLOPT_POSTFIELDS"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_POSTFIELDS
+         </td>
+         <td>
+            Specify data to POST to server.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_POSTFIELDS, nullable_string postdata)
+            <br>
+            <br>
+            Specify the full data to send in a HTTP POST operation. <br>
+            You must make sure that the data is formatted the way you want the server to receive it. <br>
+            libcurl will not convert or encode it for you in any way. <br>
+            For example, the web server may assume that this data is url-encoded.
+            <br>
+            <br>
+            The data pointed to is NOT copied by the library: as a consequence, it must be preserved by the calling application until the associated transfer finishes. <br>
+            This behaviour can be changed (so libcurl does copy the data) by setting the CURLOPT_COPYPOSTFIELDS option.
+            <br>
+            <br>
+            This POST is a normal application/x-www-form-urlencoded kind (and libcurl will set that Content-Type by default when this option is used), 
+            which is commonly used by HTML forms. <br>
+            Change Content-Type with <a href="#CURLOPT_HTTPHEADER">CURLOPT_HTTPHEADER</a>.
+            <br>
+            <br>
+            You can use curl_easy_escape to url-encode your data, if necessary. <br>
+            It returns a pointer to an encoded string that can be passed as postdata.
+            <br>
+            <br>
+            Using CURLOPT_POSTFIELDS implies CURLOPT_POST.
+            <br>
+            <br>
+            If CURLOPT_POSTFIELDS is explicitly set to NULL then libcurl will get the POST data from the read callback. <br>
+            If you want to send a zero-byte POST set CURLOPT_POSTFIELDS to an empty string, or set CURLOPT_POST to 1 and 
+            <a href="#CURLOPT_POSTFIELDSIZE">CURLOPT_POSTFIELDSIZE</a> to 0.
+            <br>
+            <br>
+            Using POST with HTTP 1.1 implies the use of a "Expect: 100-continue" header, and libcurl will add that header automatically 
+            if the POST is either known to be larger than 1024 bytes or if the expected size is unknown. <br>
+            You can disable this header with <a href="#CURLOPT_HTTPHEADER">CURLOPT_HTTPHEADER</a> as usual.
+            <br>
+            <br>
+            To make multipart/formdata posts (aka RFC 2388-posts), check out the CURLOPT_HTTPPOST option combined with curl_formadd.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+string data = "data to send"
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+/* size of the POST data */
+curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, length(data))
+/* pass in a pointer to the data - libcurl will not copy */
+curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data)
+curl_easy_perform(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#004080">string</font><font color="#000000"> data</font><font color="#0000FF"> =</font><font color="#008000"> "data to send"
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">);
+</font><font color="#000080"><i>/* size of the POST data */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_POSTFIELDSIZE</font><font color="#0000FF">,</font><font color="#7060A8"> length</font><font color="#800000">(</font><font color="#000000">data</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#000080"><i>/* pass in a pointer to the data - libcurl will not copy */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_POSTFIELDS</font><font color="#0000FF">,</font><font color="#000000"> data</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Always
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>
+            <br>
+            <br>
+            See also: <a href="#CURLOPT_POSTFIELDSIZE">CURLOPT_POSTFIELDSIZE</a>, CURLOPT_READFUNCTION
+          <small><br><a name="CURLOPT_POSTFIELDSIZE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_POSTFIELDSIZE
+         </td>
+         <td>
+            The POST data is this big.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, integer postdatasize)
+            <br>
+            <br>
+            If you want to post data to the server without having libcurl do a strlen() to measure the data size, this option must be used. <br>
+            When this option is used you can post fully binary data, which otherwise is likely to fail. <br>
+            If set to -1, the library will use strlen() to get the size.
+            <br>
+            <br>
+            If you post more than 2GB, use CURLOPT_POSTFIELDSIZE_LARGE.
+            <br>
+            <br>
+            Default: -1
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+string data = "data to send"
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+/* size of the POST data */
+curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, length(data)) 
+curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data)
+curl_easy_perform(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#004080">string</font><font color="#000000"> data</font><font color="#0000FF"> =</font><font color="#008000"> "data to send"
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#000080"><i>/* size of the POST data */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_POSTFIELDSIZE</font><font color="#0000FF">,</font><font color="#7060A8"> length</font><font color="#800000">(</font><font color="#000000">data</font><font color="#800000">)</font><font color="#0000FF">) 
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_POSTFIELDS</font><font color="#0000FF">,</font><font color="#000000"> data</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Along with HTTP
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if HTTP is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: <a href="#CURLOPT_POSTFIELDS">CURLOPT_POSTFIELDS</a>, CURLOPT_POSTFIELDSIZE_LARGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_POSTFIELDSIZE_LARGE
+         </td>
+         <td>
+            The POST data is this big. See CURLOPT_POSTFIELDSIZE_LARGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_COPYPOSTFIELDS
+         </td>
+         <td>
+            Send a POST with this data - and copy it. See CURLOPT_COPYPOSTFIELDS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTPPOST
+         </td>
+         <td>
+            Multipart formpost HTTP POST. See CURLOPT_HTTPPOST
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_REFERER
+         </td>
+         <td>
+            Referer: header. See CURLOPT_REFERER
+          <small><br><a name="CURLOPT_USERAGENT"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_USERAGENT
+         </td>
+         <td>
+            Set HTTP user-agent header.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_USERAGENT, string user_agent)
+            <br>
+            <br>
+            The string will be used to set the User-Agent: header in the HTTP request sent to the remote server. <br>
+            This can be used to fool servers or scripts. <br>
+            You can also set any custom header with CURLOPT_HTTPHEADER.
+            <br>
+            <br>
+            The application does not have to keep the string around after setting this option.
+            <br>
+            <br>
+            Default: NULL, no User-Agent: header is used by default.
+            <br>
+            <br>
+            Protocols: HTTP, HTTPS
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+curl_easy_setopt(curl, CURLOPT_USERAGENT, "Dark Secret Ninja/1.0")
+curl_easy_perform(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_USERAGENT</font><font color="#0000FF">,</font><font color="#008000"> "Dark Secret Ninja/1.0"</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: As long as HTTP is supported
+            <br>
+            <br>
+            Return value: Returns CURLE_OK if HTTP is supported, CURLE_UNKNOWN_OPTION if not, or CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+            <br>
+            <br>
+            See also: CURLOPT_REFERER, CURLOPT_HTTPHEADER
+          <small><br><a name="CURLOPT_HTTPHEADER"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTPHEADER
+         </td>
+         <td>
+            Set custom HTTP headers.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_HTTPHEADER, atom headers)
+            <br>
+            <br>
+            Pass an slist (linked list of strings) of HTTP headers to pass to the server and/or proxy in your HTTP request. <br>
+            The same list can be used for both host and proxy requests!
+            <br>
+            <br>
+            The linked list should be a fully valid list of struct curl_slist structs properly filled in. <br>
+            Use curl_slist_append to create the list and curl_slist_free_all to clean up an entire list. <br>
+            If you add a header that is otherwise generated and used by libcurl internally, your added one will be used instead. <br>
+            If you add a header with no content as in 'Accept:' (no data on the right side of the colon), the internally used header will get disabled. <br>
+            With this option you can add new headers, replace internal headers and remove internal headers. <br>
+            To add a header with no content (nothing to the right side of the colon), use the form 'MyHeader;' (note the ending semicolon).
+            <br>
+            <br>
+            The headers included in the linked list must not be CRLF-terminated, because libcurl adds CRLF after each header item. <br>
+            Failure to comply with this will result in strange bugs because the server will most likely ignore part of the headers you specified.
+            <br>
+            <br>
+            The first line in a request (containing the method, usually a GET or POST) is not a header and cannot be replaced using this option. <br>
+            Only the lines following the request-line are headers. <br>
+            Adding this method line in this list of headers will only cause your request to send an invalid header.<br>
+            Use <a href="#CURLOPT_CUSTOMREQUEST">CURLOPT_CUSTOMREQUEST</a> to change the method.
+            <br>
+            <br>
+            When this option is passed to curl_easy_setopt, libcurl will not copy the entire list so you must keep it around until you no longer 
+            use this handle for a transfer before you call curl_slist_free_all on the list.
+            <br>
+            <br>
+            Pass a NULL to this option to reset back to no custom headers.
+            <br>
+            <br>
+            The most commonly replaced headers have "shortcuts" in the options CURLOPT_COOKIE, CURLOPT_USERAGENT and CURLOPT_REFERER. We recommend using those.
+            <br>
+            <br>
+            There is an alternative option that sets or replaces headers only for requests that are sent with CONNECT to a proxy: CURLOPT_PROXYHEADER. <br>
+            Use CURLOPT_HEADEROPT to control the behavior.
+            <br>
+            <h3>Security concerns</h3>
+            By default, this option makes libcurl send the given headers in all HTTP requests done by this handle. <br>
+            You should therefore use this option with caution if you for example connect to the remote site using a proxy and a CONNECT request, <br>
+            you should to consider if that proxy is supposed to also get the headers. <br>
+            They may be private or otherwise sensitive to leak.
+            <br>
+            <br>
+            Use CURLOPT_HEADEROPT to make the headers only get sent to where you intend them to get sent.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+atom headers = NULL
+headers = curl_slist_append(headers, "Shoesize: 10")
+headers = curl_slist_append(headers, "Accept:")
+curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers)
+
+curl_easy_perform(curl)
+ 
+/* always cleanup */
+curl_easy_cleanup(curl)
+curl_slist_free_all(headers)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#004080">atom</font><font color="#000000"> headers</font><font color="#0000FF"> =</font><font color="#004600"> NULL
+</font><font color="#000000">headers</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_slist_append</font><font color="#0000FF">(</font><font color="#000000">headers</font><font color="#0000FF">,</font><font color="#008000"> "Shoesize: 10"</font><font color="#0000FF">)
+</font><font color="#000000">headers</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_slist_append</font><font color="#0000FF">(</font><font color="#000000">headers</font><font color="#0000FF">,</font><font color="#008000"> "Accept:"</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_HTTPHEADER</font><font color="#0000FF">,</font><font color="#000000"> headers</font><font color="#0000FF">)
+
+</font><font color="#5E005E">curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* always cleanup */
+</i></font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_slist_free_all</font><font color="#0000FF">(</font><font color="#000000">headers</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: As long as HTTP is enabled
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if HTTP is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: <a href="#CURLOPT_CUSTOMREQUEST">CURLOPT_CUSTOMREQUEST</a>, CURLOPT_HEADEROPT, CURLOPT_PROXYHEADER, CURLOPT_HEADER
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HEADEROPT
+         </td>
+         <td>
+            Control custom headers. See CURLOPT_HEADEROPT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXYHEADER
+         </td>
+         <td>
+            Custom HTTP headers sent to proxy. See CURLOPT_PROXYHEADER
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTP200ALIASES
+         </td>
+         <td>
+            Alternative versions of 200 OK. See CURLOPT_HTTP200ALIASES
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_COOKIE
+         </td>
+         <td>
+            Cookie(s) to send. See CURLOPT_COOKIE
+          <small><br><a name="CURLOPT_COOKIEFILE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_COOKIEFILE
+         </td>
+         <td>
+            File name to read cookies from.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_COOKIEFILE, string filename)
+            <br>
+            <br>
+            Specify the file name of your file holding cookie data to read. <br>
+            The cookie data can be in either the old Netscape / Mozilla cookie data format or just regular HTTP headers (Set-Cookie style) dumped to a file.
+            <br>
+            <br>
+            It also enables the cookie engine, making libcurl parse and send cookies on subsequent requests with this handle.
+            <br>
+            <br>
+            Given an empty or non-existing file or by passing the empty string ("") to this option, you can enable the cookie engine without reading any initial cookies.
+            <br>
+            <br>
+            This option only reads cookies. To make libcurl write cookies to file, see CURLOPT_COOKIEJAR.
+            <br>
+            <br>
+            Exercise caution if you are using this option and multiple transfers may occur. <br>
+            If you use the Set-Cookie format and don&rsquo;t specify a domain then the cookie is sent for any domain (even after redirects are followed) 
+            and cannot be modified by a server-set cookie. <br>
+            If a server sets a cookie of the same name then both will be sent on a future transfer to that server, likely not what you intended. <br>
+            To address these issues set a domain in Set-Cookie (doing that will include sub-domains) or use the Netscape format.
+            <br>
+            <br>
+            If you use this option multiple times, you just add more files to read. Subsequent files will add more cookies.
+            <br>
+            <br>
+            The application does not have to keep the string around after setting this option.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example
+<!--eucode>
+include builtins/libcurl.e
+ 
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com/foo.bin")
+
+-- get cookies from an existing file
+curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "/tmp/cookies.txt")
+
+object ret = curl_easy_perform(curl)
+curl_easy_cleanup(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins</font><font color="#0000FF">/</font><font color="#000000">libcurl.e
+</font><font color="#C0C0C0"> 
+</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com/foo.bin"</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- get cookies from an existing file
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_COOKIEFILE</font><font color="#0000FF">,</font><font color="#008000"> "/tmp/cookies.txt"</font><font color="#0000FF">)
+
+</font><font color="#004080">object</font><font color="#000000"> ret</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: As long as HTTP is supported
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if HTTP is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: CURLOPT_COOKIE, CURLOPT_COOKIEJAR
+          <small><br><a name="CURLOPT_COOKIEJAR"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_COOKIEJAR
+         </td>
+         <td>
+            File name to write cookies to.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_COOKIEJAR, string filename)
+            <br>
+            <br>
+            This will make libcurl write all internally known cookies to the specified file when curl_easy_cleanup is called. <br>
+            If no cookies are known, no file will be created. <br>
+            Specify "-" as filename to instead have the cookies written to stdout. <br>
+            Using this option also enables cookies for this session, so if you for example follow a location it will make matching cookies get sent accordingly.
+            <br>
+            <br>
+            Note that libcurl doesn&rsquo;t read any cookies from the cookie jar. <br>
+            If you want to read cookies from a file, use CURLOPT_COOKIEFILE.
+            <br>
+            <br>
+            If the cookie jar file can&rsquo;t be created or written to (when the curl_easy_cleanup is called), libcurl will not and cannot report an error for this. <br>
+            Using <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a> or CURLOPT_DEBUGFUNCTION will get a warning to display, 
+            but that is the only visible feedback you get about this possibly lethal situation.
+            <br>
+            <br>
+            Since 7.43.0 cookies that were imported in the Set-Cookie format without a domain name are not exported by this option.
+            <br>
+            <br>
+            The application does not have to keep the string around after setting this option.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com/foo.bin")
+ 
+/* export cookies to this file when closing the handle */
+curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "/tmp/cookies.txt");
+ 
+ret = curl_easy_perform(curl)
+ 
+/* close the handle, write the cookies! */
+curl_easy_cleanup(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com/foo.bin"</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* export cookies to this file when closing the handle */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_COOKIEJAR</font><font color="#0000FF">,</font><font color="#008000"> "/tmp/cookies.txt"</font><font color="#0000FF">);
+</font><font color="#C0C0C0"> 
+</font><font color="#000000">ret</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* close the handle, write the cookies! */
+</i></font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Along with HTTP
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if HTTP is supported, 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not, or CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+            <br>
+            <br>
+            See also: CURLOPT_COOKIEFILE, CURLOPT_COOKIE, <a href="#CURLOPT_COOKIELIST">CURLOPT_COOKIELIST</a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_COOKIESESSION
+         </td>
+         <td>
+            Start a new cookie session. See CURLOPT_COOKIESESSION
+          <small><br><a name="CURLOPT_COOKIELIST"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_COOKIELIST
+         </td>
+         <td>
+            Add to (feed cookie into cookie engine) or manipulate cookies held in memory.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_COOKIELIST, string cookie)
+            <br>
+            <br>
+            The cookie can be either a single line in Netscape / Mozilla format or just regular HTTP-style header (Set-Cookie: ...) format. <br>
+            This will also enable the cookie engine. <br>
+            This adds that single cookie to the internal cookie store.
+            <br>
+            <br>
+            Exercise caution if you are using this option and multiple transfers may occur. <br>
+            If you use the Set-Cookie format and don&rsquo;t specify a domain then the cookie is sent for any domain (even after redirects are followed) 
+            and cannot be modified by a server-set cookie. <br>
+            If a server sets a cookie of the same name (or maybe you&rsquo;ve imported one) then both will be sent on a future transfer to that server, 
+            likely not what you intended. <br>
+            To address these issues set a domain in Set-Cookie (doing that will include sub-domains) or use the Netscape format as shown in EXAMPLE.
+            <br>
+            <br>
+            Additionally, there are commands available that perform actions if you pass in these exact strings:<br>
+            "ALL" - erases all cookies held in memory<br>
+            "SESS" - erases all session cookies held in memory<br>
+            "FLUSH" - writes all known cookies to the file specified by CURLOPT_COOKIEJAR<br>
+            "RELOAD" - loads all cookies from the files specified by CURLOPT_COOKIEFILE
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: HTTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+/* This example shows an inline import of a cookie in Netscape format.
+You can set the cookie as HttpOnly to prevent XSS attacks by prepending
+#HttpOnly_ to the hostname. That may be useful if the cookie will later
+be imported by a browser.
+*/
+ 
+string my_cookie = "example.com\tFALSE\t/\tFALSE\t0\tfoo\tbar"
+                -- Hostname = example.com,
+                -- Include subdomains = FALSE,
+                -- Path = \,
+                -- Secure = FALSE,
+                -- Expiry = 0, (==Session)
+                -- Name = foo,
+                -- Value = bar
+
+/* my_cookie is imported immediately via CURLOPT_COOKIELIST. */
+curl_easy_setopt(curl, CURLOPT_COOKIELIST, my_cookie)
+ 
+/* The list of cookies in cookies.txt will not be imported until right
+before a transfer is performed. Cookies in the list that have the same
+hostname, path and name as in my_cookie are skipped. That is because
+libcurl has already imported my_cookie and it's considered a "live"
+cookie. A live cookie won't be replaced by one read from a file.
+*/
+curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "cookies.txt")   /* import */
+ 
+/* Cookies are exported after curl_easy_cleanup is called. The server
+may have added, deleted or modified cookies by then. The cookies that
+were skipped on import are not exported.
+*/
+curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "cookies.txt")  /* export */
+ 
+curl_easy_perform(curl)  /* cookies imported from cookies.txt */
+ 
+curl_easy_cleanup(curl)  /* cookies exported to cookies.txt */
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>/* This example shows an inline import of a cookie in Netscape format.
+You can set the cookie as HttpOnly to prevent XSS attacks by prepending
+#HttpOnly_ to the hostname. That may be useful if the cookie will later
+be imported by a browser.
+*/
+</i></font><font color="#C0C0C0"> 
+</font><font color="#004080">string</font><font color="#000000"> my_cookie</font><font color="#0000FF"> =</font><font color="#008000"> "example.com\tFALSE\t/\tFALSE\t0\tfoo\tbar"
+</font><font color="#000080"><i>                -- Hostname = example.com,
+                -- Include subdomains = FALSE,
+                -- Path = \,
+                -- Secure = FALSE,
+                -- Expiry = 0, (==Session)
+                -- Name = foo,
+                -- Value = bar
+
+/* my_cookie is imported immediately via CURLOPT_COOKIELIST. */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_COOKIELIST</font><font color="#0000FF">,</font><font color="#000000"> my_cookie</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* The list of cookies in cookies.txt will not be imported until right
+before a transfer is performed. Cookies in the list that have the same
+hostname, path and name as in my_cookie are skipped. That is because
+libcurl has already imported my_cookie and it's considered a "live"
+cookie. A live cookie won't be replaced by one read from a file.
+*/
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_COOKIEFILE</font><font color="#0000FF">,</font><font color="#008000"> "cookies.txt"</font><font color="#0000FF">)  </font><font color="#000080"><i> /* import */
+</i></font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* Cookies are exported after curl_easy_cleanup is called. The server
+may have added, deleted or modified cookies by then. The cookies that
+were skipped on import are not exported.
+*/
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_COOKIEJAR</font><font color="#0000FF">,</font><font color="#008000"> "cookies.txt"</font><font color="#0000FF">) </font><font color="#000080"><i> /* export */
+</i></font><font color="#C0C0C0"> 
+</font><font color="#5E005E">curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">) </font><font color="#000080"><i> /* cookies imported from cookies.txt */
+</i></font><font color="#C0C0C0"> 
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">) </font><font color="#000080"><i> /* cookies exported to cookies.txt */</i></font>
+</pre>
+            <br>
+            Availability:<br>
+            ALL was added in 7.14.1<br>
+            SESS was added in 7.15.4<br>
+            FLUSH was added in 7.17.1<br>
+            RELOAD was added in 7.39.0
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not, or CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+            <br>
+            <br>
+            See also: CURLOPT_COOKIEFILE, CURLOPT_COOKIEJAR, CURLOPT_COOKIE, CURLINFO_COOKIELIST
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTPGET
+         </td>
+         <td>
+            Do a HTTP GET request. See CURLOPT_HTTPGET
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_REQUEST_TARGET
+         </td>
+         <td>
+            Set the request target. CURLOPT_REQUEST_TARGET
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTP_VERSION
+         </td>
+         <td>
+            HTTP version to use. CURLOPT_HTTP_VERSION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_IGNORE_CONTENT_LENGTH
+         </td>
+         <td>
+            Ignore Content-Length. See CURLOPT_IGNORE_CONTENT_LENGTH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTP_CONTENT_DECODING
+         </td>
+         <td>
+            Disable Content decoding. See CURLOPT_HTTP_CONTENT_DECODING
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_HTTP_TRANSFER_DECODING
+         </td>
+         <td>
+            Disable Transfer decoding. See CURLOPT_HTTP_TRANSFER_DECODING
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_EXPECT_100_TIMEOUT_MS
+         </td>
+         <td>
+            100-continue timeout. See CURLOPT_EXPECT_100_TIMEOUT_MS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PIPEWAIT
+         </td>
+         <td>
+            Wait on connection to pipeline on it. See CURLOPT_PIPEWAIT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_STREAM_DEPENDS
+         </td>
+         <td>
+            This HTTP/2 stream depends on another. See CURLOPT_STREAM_DEPENDS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_STREAM_DEPENDS_E
+         </td>
+         <td>
+            This HTTP/2 stream depends on another exclusively. See CURLOPT_STREAM_DEPENDS_E
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_STREAM_WEIGHT
+         </td>
+         <td>
+            Set this HTTP/2 stream&rsquo;s weight. See CURLOPT_STREAM_WEIGHT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>SMTP OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAIL_FROM
+         </td>
+         <td>
+            Address of the sender. See CURLOPT_MAIL_FROM
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAIL_RCPT
+         </td>
+         <td>
+            Address of the recipients. See CURLOPT_MAIL_RCPT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAIL_AUTH
+         </td>
+         <td>
+            Authentication address. See CURLOPT_MAIL_AUTH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>TFTP OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TFTP_BLKSIZE
+         </td>
+         <td>
+            TFTP block size. See CURLOPT_TFTP_BLKSIZE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TFTP_NO_OPTIONS
+         </td>
+         <td>
+            Do not send TFTP options requests. See CURLOPT_TFTP_NO_OPTIONS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>FTP OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTPPORT
+         </td>
+         <td>
+            Use active FTP. See CURLOPT_FTPPORT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_QUOTE
+         </td>
+         <td>
+            Commands to run before transfer. See CURLOPT_QUOTE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_POSTQUOTE
+         </td>
+         <td>
+            Commands to run after transfer. See CURLOPT_POSTQUOTE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PREQUOTE
+         </td>
+         <td>
+            Commands to run just before transfer. See CURLOPT_PREQUOTE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_APPEND
+         </td>
+         <td>
+            Append to remote file. See CURLOPT_APPEND
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_USE_EPRT
+         </td>
+         <td>
+            Use EPTR. See CURLOPT_FTP_USE_EPRT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_USE_EPSV
+         </td>
+         <td>
+            Use EPSV. See CURLOPT_FTP_USE_EPSV
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_USE_PRET
+         </td>
+         <td>
+            Use PRET. See CURLOPT_FTP_USE_PRET
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_CREATE_MISSING_DIRS
+         </td>
+         <td>
+            Create missing directories on the remote server. See CURLOPT_FTP_CREATE_MISSING_DIRS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_RESPONSE_TIMEOUT
+         </td>
+         <td>
+            Timeout for FTP responses. See CURLOPT_FTP_RESPONSE_TIMEOUT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_ALTERNATIVE_TO_USER
+         </td>
+         <td>
+            Alternative to USER. See CURLOPT_FTP_ALTERNATIVE_TO_USER
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_SKIP_PASV_IP
+         </td>
+         <td>
+            Ignore the IP address in the PASV response. See CURLOPT_FTP_SKIP_PASV_IP
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTPSSLAUTH
+         </td>
+         <td>
+            Control how to do TLS. See CURLOPT_FTPSSLAUTH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_SSL_CCC
+         </td>
+         <td>
+            Back to non-TLS again after authentication. See CURLOPT_FTP_SSL_CCC
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_ACCOUNT
+         </td>
+         <td>
+            Send ACCT command. See CURLOPT_FTP_ACCOUNT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FTP_FILEMETHOD
+         </td>
+         <td>
+            Specify how to reach files. See CURLOPT_FTP_FILEMETHOD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>RTSP OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RTSP_REQUEST
+         </td>
+         <td>
+            RTSP request. See CURLOPT_RTSP_REQUEST
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RTSP_SESSION_ID
+         </td>
+         <td>
+            RTSP session-id. See CURLOPT_RTSP_SESSION_ID
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RTSP_STREAM_URI
+         </td>
+         <td>
+            RTSP stream URI. See CURLOPT_RTSP_STREAM_URI
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RTSP_TRANSPORT
+         </td>
+         <td>
+            RTSP Transport: header. See CURLOPT_RTSP_TRANSPORT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RTSP_CLIENT_CSEQ
+         </td>
+         <td>
+            Client CSEQ number. See CURLOPT_RTSP_CLIENT_CSEQ
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RTSP_SERVER_CSEQ
+         </td>
+         <td>
+            CSEQ number for RTSP Server->Client request. See CURLOPT_RTSP_SERVER_CSEQ
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>PROTOCOL OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TRANSFERTEXT
+         </td>
+         <td>
+            Use text transfer. See CURLOPT_TRANSFERTEXT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_TRANSFER_MODE
+         </td>
+         <td>
+            Add transfer mode to URL over proxy. See CURLOPT_PROXY_TRANSFER_MODE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CRLF
+         </td>
+         <td>
+            Convert newlines. See CURLOPT_CRLF
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RANGE
+         </td>
+         <td>
+            Range requests. See CURLOPT_RANGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RESUME_FROM
+         </td>
+         <td>
+            Resume a transfer. See CURLOPT_RESUME_FROM
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RESUME_FROM_LARGE
+         </td>
+         <td>
+            Resume a transfer. See CURLOPT_RESUME_FROM_LARGE
+          <small><br><a name="CURLOPT_CUSTOMREQUEST"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CUSTOMREQUEST
+         </td>
+         <td>
+            Custom request/method.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, nullable_string request)
+            <br>
+            <br>
+            When you change the request method by setting CURLOPT_CUSTOMREQUEST to something, you don&rsquo;t actually change 
+            how libcurl behaves or acts in regards to the particular request method, it will only change the actual string sent in the request.
+            <br>
+            <br>
+            Restore to the internal default by setting this to NULL.
+            <br>
+            <br>
+            This option can be used to specify the request:
+            <br>
+            <br>
+            HTTP<br>
+            Instead of GET or HEAD when performing HTTP based requests. This is particularly useful, for example, for performing a HTTP DELETE request.
+            <br>
+            <br>
+            For example: <br>
+            When you tell libcurl to do a HEAD request, but then specify a GET though a custom request libcurl will still act as if it sent a HEAD. <br>
+            To switch to a proper HEAD use CURLOPT_NOBODY, to switch to a proper POST use CURLOPT_POST or CURLOPT_POSTFIELDS and to switch to a proper GET use CURLOPT_HTTPGET.
+            <br>
+            <br>
+            Many people have wrongly used this option to replace the entire request with their own, including multiple headers and POST contents. <br>
+            While that might work in many cases, it will cause libcurl to send invalid requests and it could possibly confuse the remote server badly. <br>
+            Use CURLOPT_POST and CURLOPT_POSTFIELDS to set POST data. <br>
+            Use CURLOPT_HTTPHEADER to replace or extend the set of headers sent by libcurl. <br>
+            Use CURLOPT_HTTP_VERSION to change HTTP version.
+            <br>
+            <br>
+            FTP<br>
+            Instead of LIST and NLST when performing FTP directory listings.
+            <br>
+            <br>
+            IMAP<br>
+            Instead of LIST when issuing IMAP based requests.
+            <br>
+            <br>
+            POP3<br>
+            Instead of LIST and RETR when issuing POP3 based requests.
+            <br>
+            <br>
+            For example:<br>
+            When you tell libcurl to use a custom request it will behave like a LIST or RETR command was sent where it expects data to be returned by the server. <br>
+            As such CURLOPT_NOBODY should be used when specifying commands such as DELE and NOOP for example.
+            <br>
+            <br>
+            SMTP<br>
+            Instead of a HELP or VRFY when issuing SMTP based requests.
+            <br>
+            <br>
+            For example:<br>
+            Normally a multiline response is returned which can be used, in conjunction with CURLOPT_MAIL_RCPT, to specify an EXPN request. <br>
+            If the CURLOPT_NOBODY option is specified then the request can be used to issue NOOP and RSET commands.
+            <br>
+            <br>
+            The application does not have to keep the string around after setting this option.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: HTTP, FTP, IMAP, POP3 and SMTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com/foo.bin")
+/* DELETE the given path */
+curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+ret = curl_easy_perform(curl)
+curl_easy_cleanup(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com/foo.bin"</font><font color="#0000FF">)
+</font><font color="#000080"><i>/* DELETE the given path */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_CUSTOMREQUEST</font><font color="#0000FF">,</font><font color="#008000"> "DELETE"</font><font color="#0000FF">);
+</font><font color="#000000">ret</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: IMAP is supported since 7.30.0, POP3 since 7.26.0 and SMTP since 7.34.0.
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not, 
+            or CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+            <br>
+            <br>
+            See also: CURLOPT_HTTPHEADER, CURLOPT_NOBODY, CURLOPT_REQUEST_TARGET
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FILETIME
+         </td>
+         <td>
+            Request file modification date and time. See CURLOPT_FILETIME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DIRLISTONLY
+         </td>
+         <td>
+            List only. See CURLOPT_DIRLISTONLY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NOBODY
+         </td>
+         <td>
+            Do not get the body contents. See CURLOPT_NOBODY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_INFILESIZE
+         </td>
+         <td>
+            Size of file to send. CURLOPT_INFILESIZE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_INFILESIZE_LARGE
+         </td>
+         <td>
+            Size of file to send. CURLOPT_INFILESIZE_LARGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_UPLOAD
+         </td>
+         <td>
+            Upload data. See CURLOPT_UPLOAD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MIMEPOST
+         </td>
+         <td>
+            Post/send MIME data. See CURLOPT_MIMEPOST
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAXFILESIZE
+         </td>
+         <td>
+            Maximum file size to get. See CURLOPT_MAXFILESIZE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAXFILESIZE_LARGE
+         </td>
+         <td>
+            Maximum file size to get. See CURLOPT_MAXFILESIZE_LARGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TIMECONDITION
+         </td>
+         <td>
+            Make a time conditional request. See CURLOPT_TIMECONDITION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TIMEVALUE
+         </td>
+         <td>
+            Time value for the time conditional request. See CURLOPT_TIMEVALUE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>CONNECTION OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TIMEOUT
+         </td>
+         <td>
+            Timeout for the entire request. See CURLOPT_TIMEOUT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TIMEOUT_MS
+         </td>
+         <td>
+            Millisecond timeout for the entire request. See CURLOPT_TIMEOUT_MS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_LOW_SPEED_LIMIT
+         </td>
+         <td>
+            Low speed limit to abort transfer. See CURLOPT_LOW_SPEED_LIMIT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_LOW_SPEED_TIME
+         </td>
+         <td>
+            Time to be below the speed to trigger low speed abort. See CURLOPT_LOW_SPEED_TIME
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAX_SEND_SPEED_LARGE
+         </td>
+         <td>
+            Cap the upload speed to this. See CURLOPT_MAX_SEND_SPEED_LARGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAX_RECV_SPEED_LARGE
+         </td>
+         <td>
+            Cap the download speed to this. See CURLOPT_MAX_RECV_SPEED_LARGE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_MAXCONNECTS
+         </td>
+         <td>
+            Maximum number of connections in the connection pool. See CURLOPT_MAXCONNECTS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FRESH_CONNECT
+         </td>
+         <td>
+            Use a new connection. CURLOPT_FRESH_CONNECT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_FORBID_REUSE
+         </td>
+         <td>
+            Prevent subsequent connections from re-using this. See CURLOPT_FORBID_REUSE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CONNECTTIMEOUT
+         </td>
+         <td>
+            Timeout for the connection phase. See CURLOPT_CONNECTTIMEOUT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CONNECTTIMEOUT_MS
+         </td>
+         <td>
+            Millisecond timeout for the connection phase. See CURLOPT_CONNECTTIMEOUT_MS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_IPRESOLVE
+         </td>
+         <td>
+            IP version to resolve to. See CURLOPT_IPRESOLVE
+          <small><br><a name="CURLOPT_CONNECT_ONLY"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CONNECT_ONLY
+         </td>
+         <td>
+            Only connect, nothing else (stop when connected to target server).
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, bool only)
+            <br>
+            <br>
+            If the parameter is true(1), it tells the library to perform all the required proxy authentication and connection setup, but no data transfer, and then return.
+            <br>
+            <br>
+            The option can be used to simply test a connection to a server, but is more useful when used with the 
+            <a href="curl_easy_getinfo.htm#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a> option 
+            to curl_easy_getinfo as the library can set up the connection and then the application can obtain the most recently used socket for special data transfers.
+            <br>
+            <br>
+            Default: false(0)
+            <br>
+            <br>
+            Protocols: HTTP, SMTP, POP3 and IMAP
+            <br>
+            <br>
+            Example
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, true)
+CURLcode ret = curl_easy_perform(curl);
+if ret=CURLE_OK then
+    /* only connected! */
+end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_CONNECT_ONLY</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
+</font><font color="#5E005E">CURLcode</font><font color="#000000"> ret</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">);
+</font><font color="#008080">if</font><font color="#000000"> ret</font><font color="#0000FF">=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#000080"><i>    /* only connected! */
+</i></font><font color="#008080">end if</font>
+</pre>
+            <br>
+            Availability: Added in 7.15.2
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>, CURLOPT_HTTPPROXYTUNNEL, curl_easy_recv, curl_easy_send
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_USE_SSL
+         </td>
+         <td>
+            Use TLS/SSL. See CURLOPT_USE_SSL
+          <small><br><a name="CURLOPT_RESOLVE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RESOLVE
+         </td>
+         <td>
+            Provide fixed/fake custom host name to IP address resolves.
+            <br>
+            <br>
+            Synopsis: curl_easy_setopt(curl, CURLOPT_RESOLVE, atom hosts)
+            <br>
+            <br>
+            Pass an slist (linked list of strings) with host name resolve information to use for requests with this handle. <br>
+            The linked list should be a fully valid list of struct curl_slist structs properly filled in. <br>
+            Use curl_slist_append to create the list and curl_slist_free_all to clean up an entire list.
+            <br>
+            <br>
+            Each single name resolve string should be written using the format HOST:PORT:ADDRESS where <br>
+            HOST is the name libcurl will try to resolve, <br>
+            PORT is the port number of the service where libcurl wants to connect to the HOST and <br>
+            ADDRESS is the numerical IP address. <br>
+            If libcurl is built to support IPv6, ADDRESS can of course be either IPv4 or IPv6 style addressing.
+            <br>
+            <br>
+            This option effectively pre-populates the DNS cache with entries for the host+port pair so redirects and everything <br>
+            that operations against the HOST+PORT will instead use your provided ADDRESS. <br>
+            Addresses set with CURLOPT_RESOLVE will not time-out from the DNS cache like ordinary entries.
+            <br>
+            <br>
+            The provided ADDRESS set by this option will be used even if CURLOPT_IPRESOLVE is set to make libcurl use another IP version.
+            <br>
+            <br>
+            Remove names from the DNS cache again, to stop providing these fake resolves, by including a string in the linked list 
+            that uses the format "-HOST:PORT". <br>
+            The host name must be prefixed with a dash, and the host name and port number must exactly match what was already added previously.
+            <br>
+            <br>
+            Support for providing the ADDRESS within [brackets] was added in 7.57.0.
+            <br>
+            <br>
+            Default: NULL
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Example: (see also demo/libcurl/read_cookies.exw)
+<!--eucode>
+atom hosts = NULL
+hosts = curl_slist_append(hosts, "example.com:80:127.0.0.1")
+ 
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_RESOLVE, hosts)
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+ 
+/* always cleanup */
+curl_easy_cleanup(curl)
+
+curl_slist_free_all(hosts)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> hosts</font><font color="#0000FF"> =</font><font color="#004600"> NULL
+</font><font color="#000000">hosts</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_slist_append</font><font color="#0000FF">(</font><font color="#000000">hosts</font><font color="#0000FF">,</font><font color="#008000"> "example.com:80:127.0.0.1"</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_RESOLVE</font><font color="#0000FF">,</font><font color="#000000"> hosts</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* always cleanup */
+</i></font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+
+</font><font color="#5E005E">curl_slist_free_all</font><font color="#0000FF">(</font><font color="#000000">hosts</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Added in 7.21.3. Removal support added in 7.42.0.
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: CURLOPT_IPRESOLVE, CURLOPT_DNS_CACHE_TIMEOUT, CURLOPT_CONNECT_TO
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DNS_INTERFACE
+         </td>
+         <td>
+            Bind name resolves to this interface. See CURLOPT_DNS_INTERFACE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DNS_LOCAL_IP4
+         </td>
+         <td>
+            Bind name resolves to this IP4 address. See CURLOPT_DNS_LOCAL_IP4
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DNS_LOCAL_IP6
+         </td>
+         <td>
+            Bind name resolves to this IP6 address. See CURLOPT_DNS_LOCAL_IP6
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_DNS_SERVERS
+         </td>
+         <td>
+            Preferred DNS servers. See CURLOPT_DNS_SERVERS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_ACCEPTTIMEOUT_MS
+         </td>
+         <td>
+            Timeout for waiting for the server&rsquo;s connect back to be accepted. See CURLOPT_ACCEPTTIMEOUT_MS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>SSL</b>
+         </td>
+         <td>
+             and SECURITY OPTIONS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSLCERT
+         </td>
+         <td>
+            Client cert. See CURLOPT_SSLCERT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSLCERT
+         </td>
+         <td>
+            Proxy client cert. See CURLOPT_PROXY_SSLCERT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSLCERTTYPE
+         </td>
+         <td>
+            Client cert type. See CURLOPT_SSLCERTTYPE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSLCERTTYPE
+         </td>
+         <td>
+            Proxy client cert type. See CURLOPT_PROXY_SSLCERTTYPE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSLKEY
+         </td>
+         <td>
+            Client key. See CURLOPT_SSLKEY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSLKEY
+         </td>
+         <td>
+            Proxy client key. See CURLOPT_PROXY_SSLKEY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSLKEYTYPE
+         </td>
+         <td>
+            Client key type. See CURLOPT_SSLKEYTYPE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSLKEYTYPE
+         </td>
+         <td>
+            Proxy client key type. See CURLOPT_PROXY_SSLKEYTYPE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_KEYPASSWD
+         </td>
+         <td>
+            Client key password. See CURLOPT_KEYPASSWD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_KEYPASSWD
+         </td>
+         <td>
+            Proxy client key password. See CURLOPT_PROXY_KEYPASSWD
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_ENABLE_ALPN
+         </td>
+         <td>
+            Enable use of ALPN. See CURLOPT_SSL_ENABLE_ALPN
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_ENABLE_NPN
+         </td>
+         <td>
+            Enable use of NPN. See CURLOPT_SSL_ENABLE_NPN
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSLENGINE
+         </td>
+         <td>
+            Use identifier with SSL engine. See CURLOPT_SSLENGINE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSLENGINE_DEFAULT
+         </td>
+         <td>
+            Default SSL engine. See CURLOPT_SSLENGINE_DEFAULT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_FALSESTART
+         </td>
+         <td>
+            Enable TLS False Start. See CURLOPT_SSL_FALSESTART
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSLVERSION
+         </td>
+         <td>
+            SSL version to use. See CURLOPT_SSLVERSION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSLVERSION
+         </td>
+         <td>
+            Proxy SSL version to use. See CURLOPT_PROXY_SSLVERSION
+          <small><br><a name="CURLOPT_SSL_VERIFYHOST"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_VERIFYHOST
+         </td>
+         <td>
+            Verify the host name in the SSL certificate.
+            <br>
+            <br>
+            Synopsis: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_SSL_VERIFYHOST, <a href="integer.htm#bool">bool</a> verify)
+            <br>
+            <br>
+            This option determines whether libcurl verifies that the server certificate is for the server it is known as.<br>
+            <small>(aside: an internal mapping of 1:=2 occurs automatically, to cover some deprecated debug option; the
+            value of 2 is also accepted, and treated as true)</small>
+            <br>
+            <br>
+            When negotiating TLS and SSL connections, the server sends a certificate indicating its identity.
+            <br>
+            <br>
+            When true, that certificate must indicate that the server is the server to which you meant to connect, or the connection fails. <br>
+            Simply put, it means it has to have the same name in the certificate as is in the URL you operate against.
+            <br>
+            <br>
+            Curl considers the server the intended one when the Common Name field or a Subject Alternate Name field in the certificate matches 
+            the host name in the URL to which you told Curl to connect.
+            <br>
+            <br>
+            When false, the connection succeeds regardless of the names in the certificate. Use that ability with caution!
+            <br>
+            <br>
+            The default value for this option is true.
+            <br>
+            <br>
+            This option controls checking the server&rsquo;s certificate&rsquo;s claimed identity. <br>
+            The server could be lying. <br>
+            To control lying, see CURLOPT_SSL_VERIFYPEER.
+            <br>
+            <br>
+            Limitations:
+            <br>
+            DarwinSSL: If verify value is 0, then SNI is also disabled. SNI is a TLS extension that sends the hostname to the server. <br>
+            The server may use that information to do such things as sending back a specific certificate for the hostname, or forwarding 
+            the request to a specific origin server. Some hostnames may be inaccessible if SNI is not sent.
+            <br>
+            NSS: If CURLOPT_SSL_VERIFYPEER is zero, CURLOPT_SSL_VERIFYHOST is also set to zero and cannot be overridden.
+            <br>
+            <br>
+            Protocols: All TLS based protocols: HTTPS, FTPS, IMAPS, POP3S, SMTPS etc.
+            <br>
+            <br>
+            Availability: If built TLS enabled.
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if TLS is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: CURLOPT_SSL_VERIFYPEER, CURLOPT_CAINFO
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSL_VERIFYHOST
+         </td>
+         <td>
+            Verify the host name in the proxy SSL certificate. See CURLOPT_PROXY_SSL_VERIFYHOST
+          <small><br><a name="CURLOPT_SSL_VERIFYPEER"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_VERIFYPEER
+         </td>
+         <td>
+            Verify the SSL certificate.
+            <br>
+            <br>
+            Synopsis: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_SSL_VERIFYPEER, <a href="integer.htm#bool">bool</a> verify)
+            <br>
+            <br>
+            Pass true(1) or false(0) as parameter to enable or disable.
+            <br>
+            <br>
+            This option determines whether curl verifies the authenticity of the peer&rsquo;s certificate. <br>
+            A value of 1 means curl verifies; 0 (zero) means it does not.
+            <br>
+            <br>
+            When negotiating a TLS or SSL connection, the server sends a certificate indicating its identity. <br>
+            Curl verifies whether the certificate is authentic, i.e. that you can trust that the server is who the certificate says it is. <br>
+            This trust is based on a chain of digital signatures, rooted in certification authority (CA) certificates you supply. <br>
+            curl uses a default bundle of CA certificates (the path for that is determined at build time) and you can specify alternate certificates
+            with the CURLOPT_CAINFO option or the CURLOPT_CAPATH option.
+            <br>
+            <br>
+            When CURLOPT_SSL_VERIFYPEER is enabled, and the verification fails to prove that the certificate is authentic, the connection fails. <br>
+            When the option is zero, the peer certificate verification succeeds regardless.
+            <br>
+            <br>
+            Authenticating the certificate is not enough to be sure about the server. <br>
+            You typically also want to ensure that the server is the server you mean to be talking to. <br>
+            Use CURLOPT_SSL_VERIFYHOST for that. <br>
+            The check that the host name in the certificate is valid for the host name you are connecting to is done 
+            independently of the CURLOPT_SSL_VERIFYPEER option.
+            <br>
+            <br>
+            WARNING: disabling verification of the certificate allows bad guys to man-in-the-middle the communication without you knowing it. <br>
+            Disabling verification makes the communication insecure. <br>
+            Just having encryption on a transfer is not enough as you cannot be sure that you are communicating with the correct end-point.
+            <br>
+            <br>
+            Default: By default, curl assumes a value of 1.
+            <br>
+            <br>
+            Protocols: All TLS based protocols: HTTPS, FTPS, IMAPS, POP3S, SMTPS etc.
+            <br>
+            <br>
+            Availability: If built TLS enabled.
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, 
+            and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: CURLOPT_SSL_VERIFYHOST, CURLOPT_PROXY_SSL_VERIFYPEER, CURLOPT_PROXY_SSL_VERIFYHOST
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSL_VERIFYPEER
+         </td>
+         <td>
+            Verify the proxy SSL certificate. See CURLOPT_PROXY_SSL_VERIFYPEER
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_VERIFYSTATUS
+         </td>
+         <td>
+            Verify the SSL certificate&rsquo;s status. See CURLOPT_SSL_VERIFYSTATUS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CAINFO
+         </td>
+         <td>
+            CA cert bundle. See CURLOPT_CAINFO
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_CAINFO
+         </td>
+         <td>
+            Proxy CA cert bundle. See CURLOPT_PROXY_CAINFO
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_ISSUERCERT
+         </td>
+         <td>
+            Issuer certificate. See CURLOPT_ISSUERCERT
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CAPATH
+         </td>
+         <td>
+            Path to CA cert bundle. See CURLOPT_CAPATH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_CAPATH
+         </td>
+         <td>
+            Path to proxy CA cert bundle. See CURLOPT_PROXY_CAPATH
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CRLFILE
+         </td>
+         <td>
+            Certificate Revocation List. See CURLOPT_CRLFILE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_CRLFILE
+         </td>
+         <td>
+            Proxy Certificate Revocation List. See CURLOPT_PROXY_CRLFILE
+          <small><br><a name="CURLOPT_CERTINFO"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_CERTINFO
+         </td>
+         <td>
+            Extract/request SSL certificate information.
+            <br>
+            <br>
+            Synopsis: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_CERTINFO, <a href="integer.htm#bool">bool</a> certinfo)
+            <br>
+            <br>
+            Pass true (1) to enable libcurl&rsquo;s certificate chain info gatherer. <br>
+            With this enabled, libcurl will extract lots of information and data about the certificates in the certificate chain used in the SSL connection. <br>
+            This data may then be retrieved after a transfer using curl_easy_getinfo and its option CURLINFO_CERTINFO.
+            <br>
+            <br>
+            Default: false (0)
+            <br>
+            <br>
+            Protocols: All TLS-based
+            <br>
+            <br>
+            Availability: This option is supported by the OpenSSL, GnuTLS, NSS and GSKit backends.
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, 
+            and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: CURLOPT_CAINFO, CURLOPT_SSL_VERIFYPEER
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PINNEDPUBLICKEY
+         </td>
+         <td>
+            Set pinned SSL public key . See CURLOPT_PINNEDPUBLICKEY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_PINNEDPUBLICKEY
+         </td>
+         <td>
+            Set the proxy&rsquo;s pinned SSL public key. See CURLOPT_PROXY_PINNEDPUBLICKEY
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_RANDOM_FILE
+         </td>
+         <td>
+            Provide source for entropy random data. See CURLOPT_RANDOM_FILE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_EGDSOCKET
+         </td>
+         <td>
+            Identify EGD socket for entropy. See CURLOPT_EGDSOCKET
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_CIPHER_LIST
+         </td>
+         <td>
+            Ciphers to use. See CURLOPT_SSL_CIPHER_LIST
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSL_CIPHER_LIST
+         </td>
+         <td>
+            Proxy ciphers to use. See CURLOPT_PROXY_SSL_CIPHER_LIST
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_SESSIONID_CACHE
+         </td>
+         <td>
+            Disable SSL session-id cache. See CURLOPT_SSL_SESSIONID_CACHE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSL_OPTIONS
+         </td>
+         <td>
+            Control SSL behavior. See CURLOPT_SSL_OPTIONS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROXY_SSL_OPTIONS
+         </td>
+         <td>
+            Control proxy SSL behavior. See CURLOPT_PROXY_SSL_OPTIONS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_KRBLEVEL
+         </td>
+         <td>
+            Kerberos security level. See CURLOPT_KRBLEVEL
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_GSSAPI_DELEGATION
+         </td>
+         <td>
+            Disable GSS-API delegation. See CURLOPT_GSSAPI_DELEGATION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>SSH OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_AUTH_TYPES
+         </td>
+         <td>
+            SSH authentication types. See CURLOPT_SSH_AUTH_TYPES
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_COMPRESSION
+         </td>
+         <td>
+            Enable SSH compression. See CURLOPT_SSH_COMPRESSION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_HOST_PUBLIC_KEY_MD5
+         </td>
+         <td>
+            MD5 of host&rsquo;s public key. See CURLOPT_SSH_HOST_PUBLIC_KEY_MD5
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_PUBLIC_KEYFILE
+         </td>
+         <td>
+            File name of public key. See CURLOPT_SSH_PUBLIC_KEYFILE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_PRIVATE_KEYFILE
+         </td>
+         <td>
+            File name of private key. See CURLOPT_SSH_PRIVATE_KEYFILE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_KNOWNHOSTS
+         </td>
+         <td>
+            File name with known hosts. See CURLOPT_SSH_KNOWNHOSTS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_KEYFUNCTION
+         </td>
+         <td>
+            Callback for known hosts handling. See CURLOPT_SSH_KEYFUNCTION
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SSH_KEYDATA
+         </td>
+         <td>
+            Custom pointer to pass to ssh key callback. See CURLOPT_SSH_KEYDATA
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>OTHER OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PRIVATE
+         </td>
+         <td>
+            Private pointer to store. See CURLOPT_PRIVATE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_SHARE
+         </td>
+         <td>
+            Share object to use. See CURLOPT_SHARE
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NEW_FILE_PERMS
+         </td>
+         <td>
+            Mode for creating new remote files. See CURLOPT_NEW_FILE_PERMS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_NEW_DIRECTORY_PERMS
+         </td>
+         <td>
+            Mode for creating new remote directories. See CURLOPT_NEW_DIRECTORY_PERMS
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>TELNET OPTIONS</b>
+         </td>
+         <td>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_TELNETOPTIONS
+         </td>
+         <td>
+            TELNET options. See CURLOPT_TELNETOPTIONS
+         </td>
+        </tr>
+      
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+SEE ALSO
+
+, curl_multi_strerror, curl_share_strerror, , , CURLOPT_DEBUGFUNCTION
+
+          <a href="CURLcode.htm#curl_easy_strerror">curl_easy_strerror</a>,
+
+          <a href="#CURLOPT_ERRORBUFFER">CURLOPT_ERRORBUFFER</a>,
+          <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>,
+          <a href="IupSetAttribute.htm">x</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

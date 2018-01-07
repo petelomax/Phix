@@ -1,5 +1,5 @@
 --
--- easynld.e
+-- synld.e
 --
 -- load syntax files
 --
@@ -100,7 +100,9 @@ integer f,          -- file handle
 string errorTitle, errorMsg
 
 global sequence comment -- eg "--"  -- set by changeTo()
-global sequence blockComment        -- ""
+--DEV
+--global sequence blockComment      -- ""
+global sequence blockComment = ""   -- ""
 global sequence ColourTab           -- ""
 global sequence StyleTab            -- ""
 

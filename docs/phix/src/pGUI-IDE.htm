@@ -6,7 +6,7 @@
      <stripped>
       <h1 class="title">pGUI-IDE</h1>
       <div id="mainSection">
-[DRAFT]
+[DRAFT/DUMPING-GOUND]
         <h2>Introduction</h2>
 
         pGUI-IDE is intended to help both beginners getting started and ease the pain of the more trivial 
@@ -32,10 +32,67 @@
         <br>
         <br>
 <hr>
+        <h2>Limitations</h2>
+        pGUI-IDE is <b>strongly</b> biased towards beginner/static/mundane/secondary windows. As a
+        dialogue gets ever more complicated and fancy, with dynamic/optional/alternative execution paths, the
+        limitations of pGUI-IDE will increasingly show, until eventually pGUI-IDE will simply not 
+        be able to cope with that window at all. This is intentional and entirely expected.
+        <br>
+        <br>
+        Perhaps the most important point here is the unsupported nature of constructs such as:
+<!--eucode>
+    IHandle ih
+    if <some condition> then
+        ih = IupThis()
+    else
+        ih = IupThat()
+    end if
+</eucode-->
+<pre>
+<font color="#000000">    IHandle ih
+</font><font color="#008080">    if</font><font color="#0000FF"> &lt;</font><font color="#000000">some condition</font><font color="#0000FF">&gt;</font><font color="#008080"> then
+</font><font color="#000000">        ih</font><font color="#0000FF"> =</font><font color="#000000"> IupThis</font><font color="#0000FF">()
+</font><font color="#008080">    else
+</font><font color="#000000">        ih</font><font color="#0000FF"> =</font><font color="#000000"> IupThat</font><font color="#0000FF">()
+</font><font color="#008080">    end if</font>
+</pre>
+        pGUI-IDE makes no special attempt to show one or the other, or both, and will typically
+        reject the code with a message such as "ih unresolved on line 751". Sometimes it may be
+        possible to tweak things until pGUI-IDE can cope, but that is the programmer&rsquo;s
+        responsibility.
+        <br>
+        <br>
+        The flip-side is that making the output of the pGUI-IDE first draft as standard code means 
+        that you <i>can</i> enhance it beyond the capabilities of pGUI-IDE, as opposed to hiding
+        things away in a special format/file that you might later struggle to amend.
+        <br>
+        <br>
+        Note however that if you do something like this:
+<!--eucode>
+    IHandle right
+    if SHOWDETAILS then
+        right = IupSplit(hierarchytree,properties)
+    else
+        right = hierarchytree
+    end if
+</eucode-->
+<pre>
+<font color="#000000">    IHandle right
+</font><font color="#008080">    if</font><font color="#000000"> SHOWDETAILS</font><font color="#008080"> then
+</font><font color="#000000">        right</font><font color="#0000FF"> =</font><font color="#5E005E"> IupSplit</font><font color="#0000FF">(</font><font color="#000000">hierarchytree</font><font color="#0000FF">,</font><font color="#000000">properties</font><font color="#0000FF">)
+</font><font color="#008080">    else
+</font><font color="#000000">        right</font><font color="#0000FF"> =</font><font color="#000000"> hierarchytree
+</font><font color="#008080">    end if</font>
+</pre>
+        Then pGUI-IDE will simply ignore the else part (whatever SHOWDETAILS is set to) and always show the IupSplit.<br>
+        In that way you can get the best of both worlds: something which is a bit more dynamic/configurable, but can
+        still be edited with pGUI-IDE.
+
+<hr>
         As a dialog becomes ever more complicated/dynamic/configurable or even platform-specific, it
         will outgrow pGUI-IDE, which cannot be expected to keep up with every little trick programmers
         use to make their fancy application (/main screen) ever more slick. For a laugh, open google
-        and find the view source option of the browser (or see https://xkcd.com/1605/ ).
+        and find the view source option of the browser ( credit to https://xkcd.com/1605/ ). [DEV external link, "xkcd/DNA"]
 <hr>
         There is an implicit assumption that you would never want to drag/drop an element to
         a sibling of an empty container. In some cases you might need to add a dummy element
@@ -58,8 +115,163 @@
         it is collapsed then it is made the next sibling. Therefore you must always ensure the destination
         node is in the correct expanded/collapsed state, before commencing the drag operation.
 <hr>
-        Actually, IupDestroy(IupNormaliser()) <i>should</i> be siblings of IupDialog - iff >=1(/verify that
+        Actually, IupDestroy(IupNormaliser()) <i>should</i> be siblings of IupDialog - iff &gt;=1(/verify that
         <i>ALL</i>) elements are indeed children of said.
+<hr>
+        If you right click anywhere on the properties frame, a menu appears offering to edit the currently 
+        selected item from the properties list. It is usually easier just to double-click on the property; 
+        if truth be told that menu only exists as a replacement for the Container/Element popup, since it 
+        would be very confusing were that to appear when right-clicking on the properties panel.
+<hr>
+        The confirm insert dialog appears:
+        &lt;image&gt;
+        The top centre drop-down can contain child, sibling, and parent, depending on whether the new and
+        target items are containers or elements, and whether the target and parent of target are already 
+        full. Note that several containers can only have one child (IupDialog, IupFrame, IupRadio, IupSbox, 
+        IupBackgroundBox, IupDetachBox, IupExpander, IupScrollBox, IupSpinBox), and IupSplit can only have 
+        two. Should it not be possible to insert the new item anywhere in the vicinity of the target, then
+        rather than showing a crippled confirm insert dialog, with the (empty) dropdown and ok buttons
+        disabled, the following error is shown: &lt;image&gt;
+<hr>
+        IupMessage("Invalid","""
+________The target element cannot have any [more] elements, so you cannot add a child,
+        and its parent is full, so you cannot add a sibling, and the selected element is not
+        a container, or the target is the main IupDialog, so you cannot make it a parent. 
+
+        Right-clicking on or when the main IupDialog is selected usually displays a menu
+        with all no-entry icons - try clicking on a sub-element, or add more containers, 
+        most commonly IupHbox and IupVbox.
+        
+        This message is explained in more detail right at the start of the manual.""")
+<hr>
+        Should only one of child/sibling/parent be valid, then it is automatically selected and the OK
+        button enabled. When more than one is valid, it forces one to be selected and the OK button is 
+        disabled until that happens. The initial focus is on the drop-down or OK button accordingly.
+        <br>
+        <br>
+        Note that before all this happens, any invalid entries on the Containers/Elements menu are 
+        given a no-entry icon - and the IupDialog entry is pretty much always in that state. The key
+        thing to understand is that IupHbox and IupVbox, in particular, plus IupCbox, IupGridBox, and 
+        IupZbox, are necessary but otherwise invisible mediators that allow complex dialogs to be 
+        constructed. The only other one of note is IupTabs, but that is not so invisible. All those
+        containers listed above, that can only take one child, almost always get either an IupHbox 
+        or an IupVbox, and in that way mutiple grand-children are not only allowed but also laid out
+        in the required manner.
+<hr>
+        When you move the mouse over the livedisplay, it auto-selects the corresponding entry in the 
+        hierarchy tree after a short delay (0.2s). Clicking on an element works more immediately and
+        then sets that delay to a whole second. Note that hovering the mouse achieves nothing - only 
+        move or click events will ever actually make anything happen. There are a few cases where it
+        gets mildly annoying, eg it is very easy to switch tabs and then move the mouse too quickly,
+        but the tiniest of nudges, or a quick click, should sort it out.
+        <br>
+        <br>
+        The short delay allows you to get the mouse off the live display without selecting things on 
+        the way to the edge, and/or having to re-select things from the hierarchy tree again.
+        <br>
+        <br>
+        Also note that non-visible elements such as IupHbox and IupFill are never auto-selected, and
+        in particular there are quite simply are no "IupTabItem" elements on an IupTabs which can be 
+        auto-selected, no matter how much you and I might want or expect there to be - instead each
+        and every tab just auto-selects the exact same IupTabs container, even when clicked. There
+        is, thankfully, no such problem auto-selecting elements within the currently open tab.
+        <br>
+        <br>
+        It should be enough that auto-select easily and quickly gets you in roughly the right area,
+        and obviously that could be a significant time-saving, for hierechy trees with hundreds of
+        nodes and a fair few levels of nesting.
+<hr>
+        For instance, pGUI-IDE can only cope with the source of pGUI-IDE because I tweaked it until
+        it could. There were several things like multiple Ihandle vbox; renaming them as vboxws (for
+        window selection) and vboxci (for confirm insert) made pGUI-IDE much happier. Another one
+        was that <code>info = IupLabel(); IupSetStrAttribute(info,"TITLE",fmt,args)</code> worked
+        much better than <code>string itxt = sprintf(fmt,args); info = IupLabel(itxt)</code>. The
+        fact remains that pGUI-IDE will always fare better on new/small "leaf sources", especially
+        those ones that are not significantly altered from what pGUI-IDE did or would have created 
+        itself, rather than the main cruft-filled and/or heavily hand-modified source files.
+        <br>
+        <br>
+        There are also a couple of modifications to demo\pGUI\frame.exw that made it work much
+        better with pGUI-IDE, the second of which became unnecessary. Perhaps in the future it
+        could be made to cope with "&" and "substitute()", or maybe pretend-resolve as "???"....
+<hr>
+        I have deliberately aimed for a fail fast/fragile/brittle core that errors out asap...
+<hr>
+        Obviously the livedisplay is "inert" - no button or menu entry is ever going to do anything
+        when clicked on, and of course it is entirely unsuitable for any actual testing, such as
+        whether various elements are correctly enabled/disabled or even visible during use (I only
+        mention that because sometimes it can be easy to forget, when it feels a bit too lifelike).
+<hr>
+        Developer/Samples
+            For quick testing, and learners. Note that selecting any of these entries puts pGUI-IDE
+            into "read-only" mode - you must use Edix/Tools/Layout Editor to save any changes (and
+            obviously first open/switch to the file that you want to update).
+                The following deserve special mention:
+                * GraphR.exw shows how dull a canvas-only app looks in pGUI-IDE.
+                * matrix3.exw somewhat over-sells the capabilities of pGUI-IDE on grids/lists/trees; 
+                in most cases the grid will be unoccupied, more like 7guis\Cells.exw, and can be 
+                completely blank should the number of row/columns be more dynamically set.
+                * tabs.exw likewise proves that pGUI-IDE works well on purely static tabs, but the
+                depiction of an IupTabs control will quite often be somewhat more mundane.
+                * toggle.exw showcases the inability of pGUI-IDE to show images, something also
+                evident, in places, in sample.exw and simple_paint.exw
+                
+//              demo\pGUI\fill.exw
+//                       IupMenuItem("demo\\pGUI\\GraphR"),
+//                       IupMenuItem("demo\\pGUI\\calendar"),
+//                       IupMenuItem("demo\\pGUI\\detachbox"),
+//                       IupMenuItem("demo\\pGUI\\hbox"),
+//                       IupMenuItem("demo\\pGUI\\matrix3"),    -- add a warning (this somewhat over-sells pGUI-IDE on IupMatrix)
+//                       IupMenuItem("demo\\pGUI\\radio"),
+//                       IupMenuItem("demo\\pGUI\\rot13"),
+//                       IupMenuItem("demo\\pGUI\\sample"),
+//                       IupMenuItem("demo\\pGUI\\simple_notepad"),
+//                       IupMenuItem("demo\\pGUI\\simple_paint"),
+//                       IupMenuItem("demo\\pGUI\\tabs"),
+//                       IupMenuItem("demo\\pGUI\\toggle"),     -- add a note regarding images
+//                       IupMenuItem("demo\\rosetta\\7guis\\Counter.exw"),
+//                       IupMenuItem("demo\\rosetta\\7guis\\Booker.exw"),
+//                       IupMenuItem("demo\\rosetta\\7guis\\Cells.exw"),
+//                       IupMenuItem("demo\\rosetta\\7guis\\CircleDraw.exw"),
+//                       IupMenuItem("demo\\rosetta\\7guis\\Converter.exw"),
+//                       IupMenuItem("demo\\rosetta\\7guis\\CRUD.exw"),
+//                       IupMenuItem("demo\\rosetta\\7guis\\Timer.exw")})
+
+            The same window appears automatically when pGUI-IDE is run standalone. Note that cancel
+            terminates the application, whether or not ...[DEV see what we can do]
+            
+        Developer/Show expected hierarchy
+            Used for bugfixing of pGUI-IDE itself. Typically I take a copy of the output of pGUI-IDE, 
+            with SHOWBRANCHINFO set to 1(true), specifically the IupSetAttributeId(hierarchytree,..)
+            lines, and plant them in setup_tree(). If I have not added a branch for the current 
+            source file name, the menu option will be disabled. I can then tweak those lines until
+            I get the tree structure actually desired, before figuring out a way to make the code
+            do exactly the same, which proves much easier than trying to do it "blind".
+        Developer/Write parse_data.txt
+            Can be very useful when debugging pGUI-IDE itself. Earlier versions used to just dump
+            this to the console, but that quickly gets completely and utterly impractical, once
+            more than 40 or so elements are involved. Obviously the idea is to manually (re-)open
+            that file in the editor - it can often remain exactly the same even over several long 
+            debugging sessions, plus you might want to(/that way can) add notes to it.
+        Developer/Write pGUI-IDE.log
+            Shows some of the inner workings of pGUI-IDE. Can also be useful to find out which
+            things pGUI-IDE struggles with - for instance see demo\pGUI\frame.exw, which works
+            much better in pGUI_IDE since the (clearly marked) removal of "&substitute(".
+            Note that eg "[3111]" refers to the source line in pGUI-IDE.exw that printed the
+            message, whereas "line 751" refers to the parsed source/your application.
+            Note that constants SHOWBRANCHINFO etc in pGUI-IDE.exw control what gets printed.
+        Developer/Write updates.lst
+            Dumps the list of edits required to the source file. This would normally be passed
+            directly to Edix, and ordered last-first. It is also possible for this file to be
+            ordered differently, or contain additional links/references [by the obvious method
+            of editing the source code of pGUI-IDE.exw].
+<hr>
+        Targetted squarely at dull/mundane windows...
+<hr>
+        IupSpin is not supported, since I cannot think of any reason why you would use a raw one rather 
+        that use an IupSpinBox, which is supported and contains a (hidden) IupSpin, and in fact I cannot
+        think of any reason to use an IupSpinBox instead of an IupText with the SPIN attribute set.
+<hr>
        <br>
        <br>
       </div>

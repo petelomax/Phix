@@ -206,7 +206,7 @@ end procedure
 
 integer vmpath = 0
 
-procedure initFilePathSet()
+global procedure initFilePathSet()
 object incpath
 integer semicolon, sm1
     filepaths = {}
@@ -253,6 +253,14 @@ integer semicolon, sm1
 --  activepaths = repeat(1,alwaysactive)
 --printf(1,"initFilePathSet: ")
 --?activepaths
+
+    allfiles = {}
+    exptext = {}
+    expandedYet = {}
+    unresolved_routine_ids = {}
+    finalOptWarn = {}
+    filenames = {}
+
 end procedure
 
 -- Files which should have a "Phix compatible" marker:
@@ -1147,6 +1155,24 @@ integer k
     end if
 end procedure
 
+--DEV/SUG: (to make it reusable)
+--include builtins\tok.e
+
+global procedure tokinit()
+--  initFilePathSet()
+
+    allpfiles = {}
+
+    line = 1
+    col = 0
+    ltl = -1
+    tokline = 0
+    tokcol = 0
+    
+    mapEndToMinusOne = 0
+
+end procedure
+
 global function getIncludeLine()
 string res
     tokcol = col+1
@@ -1161,13 +1187,8 @@ string res
     end for
 end function
 
-
 global integer Tok9
 global atom TokN
-
-global integer mapEndToMinusOne         -- 0=no, -ve = $ only (-1..-4 signal where set for debug),
-               mapEndToMinusOne=0       -- +ve = $ and end, set to T_end/'$' when triggered.
-                                        -- (oops, only set to '$' from -1/DoConstant)
 
 global procedure getCh()
 -- this code inlined where possible.
@@ -1863,7 +1884,8 @@ procedure HexadecimalByteString()
             Ch = text[col]
             return
         elsif Ch='\t'
-           or Ch=' ' then
+           or Ch=' '
+           or Ch='_' then
             Ch = ' '
         elsif Ch>='a'
           and Ch<='f' then
@@ -2422,27 +2444,6 @@ global procedure MatchString(integer T_ident, bool float_valid=false)
         Expected('\"'&getname(T_ident,-2)&'\"')
     end if
     getToken(float_valid)
-end procedure
-
-global procedure tokinit()
-    initFilePathSet()
-
-    allfiles = {}
-    allpfiles = {}
-    exptext = {}
-    expandedYet = {}
-    unresolved_routine_ids = {}
-    finalOptWarn = {}
-    filenames = {}
-
-    line = 1
-    col = 0
-    ltl = -1
-    tokline = 0
-    tokcol = 0
-    
-    mapEndToMinusOne = 0
-
 end procedure
 
 --with trace

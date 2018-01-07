@@ -99,17 +99,14 @@ constant</font><font color="#000000"> r_foo_num</font><font color="#0000FF"> =</
          <td>
 <!--eucode>
 function apply_to_all(sequence s, integer f)
--- apply a specified function to all elements of a sequence
-sequence result = {}
+-- apply the specified function to all elements of a sequence
     for i=1 to length(s) do
-        -- we can call add1() here, even if it is not in scope
-        result = append(result, call_func(f, {s[i]}))
+        s[i] = call_func(f, {s[i]})
     end for
-    return result
+    return s
 end function
 
 function add1(atom x)
--- (this may be a private function in a different file)
     return x + 1
 end function
 
@@ -133,6 +130,8 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
 
 </font><font color="#0000FF">?</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#5E005E"> routine_id</font><font color="#800000">(</font><font color="#008000">"add1"</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#000080"><i> -- displays {2,3,4}</i></font>
 </pre>
+            <br>
+            Note that add1 could be a private function in a completely different file; there is no need for it to be in scope when called.
          </td>
         </tr>
         <tr>
@@ -157,7 +156,7 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
          <td>
           When possible the routine_id is resolved at compile-time, but (especially for constructed strings) can be left until run-time.
           There is also an inline assembler compiler directive of the same name, which <i>must</i> however be resolved at compile-time,
-          and (implementation details can be found in pilasm.e) forward references are explicitly disallowed.
+          and forward references are explicitly disallowed. See pilasm.e for implementation details.
           <br>
           <br>
           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
@@ -177,8 +176,6 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
             call :%opFrame
             pop dword[ebp]                      -- filepath
             pop dword[ebp-4]                    -- openmode
---EXCEPT
---X         mov [ebp+16],:openret
             mov [ebp+28],:openret
             jmp $_il                            -- (symtab[fopen][S_il])
           ::openret
@@ -193,8 +190,6 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
 </i></font><font color="#7060A8">            call</font><font color="#0000FF"> :</font><font color="#000000">%opFrame
             pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#800000">]                     </font><font color="#000080"><i> -- filepath
 </i></font><font color="#000000">            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#0000FF">-</font><font color="#000000">4</font><font color="#800000">]                   </font><font color="#000080"><i> -- openmode
---EXCEPT
---X         mov [ebp+16],:openret
 </i></font><font color="#000000">            mov</font><font color="#800000"> [</font><font color="#000000">ebp</font><font color="#0000FF">+</font><font color="#000000">28</font><font color="#800000">]</font><font color="#0000FF">,:</font><font color="#000000">openret
             jmp $_il                           </font><font color="#000080"><i> -- (symtab[fopen][S_il])
 </i></font><font color="#0000FF">          ::</font><font color="#000000">openret

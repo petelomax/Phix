@@ -44,7 +44,7 @@ Ihandle buttons, box, bt_long, bt_ok, bt_cancel
         IupSetAttribute(goto_txt, "MASK", IUP_MASK_UINT);   /* unsigned integer numbers only */
 --      IupSetAttribute(goto_txt, "NAME", "LINE_TEXT");
         IupSetAttribute(goto_txt, "VISIBLECOLUMNS", "8");
-        bt_long = IupButton("longest","ACTION", Icallback("goto_longest_cb"),"PADDING=10x2")
+        bt_long = IupButton("&Longest","ACTION", Icallback("goto_longest_cb"),"PADDING=10x2")
         bt_ok = IupButton("OK","ACTION", Icallback("goto_ok_action_cb"),"PADDING=10x2")
 --      bt_ok = IupButton("OK");
 --      IupSetAttribute(bt_ok, "PADDING", "10x2");

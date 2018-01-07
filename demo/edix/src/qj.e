@@ -7,6 +7,12 @@
 --
 -- code to quickly extract names of all routines in the current file
 --
+-- Technical note: 
+--  I think this should internally work in utf8; should
+--  any filetext[i] be utf32, then utf32_to_utf8() it!
+--
+
+include keyboard.e as keybd
 
 Ihandln ROUTINEWINDOW=NULL
 Ihandle All, Globals, Sections, Filtxt, Filter, ROUTINELIST
@@ -44,7 +50,8 @@ sequence routinescope,
          routineends
 --routinetype
 
-sequence BuiltinsPath
+--sequence BuiltinsPath
+string BuiltinsPath
 
 integer scope
 constant ALL=0, GLOBAL=1, SECTION=-1
@@ -74,7 +81,8 @@ integer k
 end function
 
 function populateRoutineList()
-sequence Ftext, name
+--sequence Ftext, name
+string Ftext, name
 integer tally, ind
 
     setScope()
@@ -123,8 +131,9 @@ end function
 
 --with trace
 function getActualLineNumberOfRoutine(integer ind)
-sequence Ftext
-integer dbg dbg=ind
+--sequence Ftext
+string Ftext
+integer dbg = ind
     setScope()
 
 --  Ftext = lower(getText(Filter))
@@ -390,11 +399,13 @@ integer ch
         params = line[idx..idx+find(')',line[idx..length(line)])-1]
     end if
 
+--  string res = line[wstart..idx-1]
+--  return res
     return line[wstart..idx-1]
-
 end function
 
-function isReally(sequence keyword, sequence line, integer idx)
+--function isReally(sequence keyword, sequence line, integer idx)
+function isReally(string keyword, sequence line, integer idx)
     return equal(getWord(line,idx,0),keyword)
 end function
 
@@ -407,6 +418,7 @@ sequence path
 integer k
 --if usegpp then
     filepath = get_proper_path(filepath,"")
+    if not string(filepath) then ?9/0 end if
 --else
 --  filepath = cleanUpPath(filepath)
 --end if
@@ -468,14 +480,16 @@ integer semicolon
     end if
     if find(':',line) then
         -- absolute
-        if not atom (dir(line)) then
+--      if not atom (dir(line)) then
+        if get_file_type(line)=FILETYPE_FILE then
             foundInclude(line)
         end if
         return
     end if
     if find(line[1],"\\/") then
         -- possibly absolute
-        if not atom(dir(line)) then
+--      if not atom(dir(line)) then
+        if get_file_type(line)=FILETYPE_FILE then
             foundInclude(line)
             return
         end if
@@ -487,17 +501,22 @@ integer semicolon
 --DEV is this valid use of currfile?
 --  if not atom(dir(filepaths[currfile]&line)) then
 --  foundInclude(filepaths[currfile]&line)
-    if not atom(dir(gpath&line)) then
-        foundInclude(gpath&line)
+--  if not atom(dir(gpath&line)) then
+    string gline = join_path({gpath,line})
+    if get_file_type(gline)=FILETYPE_FILE then
+        foundInclude(gline)
         return
     end if
     --
-    -- Try BuultinsPath
+    -- Try BuiltinsPath
     --
-    if length(BuiltinsPath)
-    and not atom(dir(BuiltinsPath&line)) then
-        foundInclude(BuiltinsPath&line)
-        return
+    if length(BuiltinsPath) then
+        gline = join_path({BuiltinsPath,line})
+--  and not atom(dir(BuiltinsPath&line)) then
+        if get_file_type(gline)=FILETYPE_FILE then
+            foundInclude(gline)
+            return
+        end if
     end if
     --
     -- OK, so try EUINC
@@ -512,11 +531,13 @@ integer semicolon
                 else
                     path = incpath
                 end if
-                if not find(path[length(path)],"\\/") then
-                    path &= '\\'
-                end if
-                if not atom(dir(path&line)) then        -- FOUND IT!
-                    foundInclude(path&line)
+--              if not find(path[length(path)],"\\/") then
+--                  path &= '\\'
+--              end if
+                gline = join_path({path,line})
+--              if not atom(dir(path&line)) then        -- FOUND IT!
+                if get_file_type(gline)=FILETYPE_FILE then
+                    foundInclude(gline)
                     return
                 end if
             end if
@@ -530,65 +551,19 @@ integer semicolon
     --
     path = getenv("EUDIR")
     if not atom(path) then
-        if not find(path[length(path)],"\\/") then
-            path &= '\\'
-        end if
-        if not atom(dir(path&"INCLUDE\\"&line)) then        -- FOUND IT!
-            foundInclude(path&"INCLUDE\\"&line)
+--      if not find(path[length(path)],"\\/") then
+--          path &= '\\'
+--      end if
+--      if not atom(dir(path&"INCLUDE\\"&line)) then        -- FOUND IT!
+        gline = join_path({path,"include",line})
+        if get_file_type(gline)=FILETYPE_FILE then
+            foundInclude(gline)
         end if
     end if
     --oops
 end procedure
 
 --object ts -- timestamp data from eaedb.e
-
---DEV??
-function KtoF(string s) return s end function
-
-constant qJ_global = KtoF("global"),
-         qJ_public = KtoF("public"),
-         qJ_include = KtoF("include"),
-         qJ_function = KtoF("function"),
-         qJ_procedure = KtoF("procedure"),
-         qJ_type  =  KtoF("type"),
-         qJ_end = KtoF("end")
-
---18/4:
---constant first_chars = {qJ_global[1],
-----Added 15/4:
---                      qJ_public[1],
---                      qJ_include[1],
---                      '-',
---                      qJ_function[1],
---                      qJ_procedure[1],
---                      qJ_type[1],
---                      qJ_end[1]
---                     }
-constant qJ_global1 = qJ_global[1],
-         qJ_public1 = qJ_public[1],
-         qJ_include1 = qJ_include[1],
-         qJ_function1 = qJ_function[1],
-         qJ_procedure1 = qJ_procedure[1],
-         qJ_type1  =  qJ_type[1],
-         qJ_end1 = qJ_end[1]
-
-----15/4
-----constant after_global = {-1,--qJ_global[1],         --DEV think this should be -1... [not that it matters]
---constant after_global = {-1,
---                       -1,
---                       -1,
-----15/4
-----                         '-',                   --DEV think this should be -1... [idx=1 under c=3 protects us, but why?]
---                       -1,
-----18/4:
-----                         qJ_function[1],
-----                         qJ_procedure[1],
-----                         qJ_type[1],
---                       qJ_function1,
---                       qJ_procedure1,
---                       qJ_type1,
---                       -1
---                      }
 
 integer expro
 --with trace
@@ -612,100 +587,56 @@ sequence name
         idx += 1
     end if
     if idx<=length(line) then
---      c = find(line[idx],"gi-fpte")   -- now translated
--- 18/4:
---      c = find(line[idx],first_chars)
---      if c=1 then --'g' of global?
         c = line[idx]
-        if c=qJ_global1 then
-            if isReally(qJ_global,line,idx) then
-                idx += length(qJ_global)
+        integer k = find(c,"gp")
+        if k then
+            if isReally({"global","public"}[k],line,idx) then
+                idx += 6 --length("global"[=="public"])
                 isGlobal = 1
                 while idx<=length(line) and find(line[idx]," \t") do
                     idx += 1
                 end while
                 if idx<=length(line) then
---                  c = find(line[idx],"g_-fpt_")
---                  c = find(line[idx],after_global)
                     c = line[idx]
                 end if
---c = 0
-            end if
---      elsif c=2 then  -- 'p' of public?
-        elsif c=qJ_public1 then
-            if isReally(qJ_public,line,idx) then
-                idx += length(qJ_public)
-                isGlobal = 1
-                while idx<=length(line) and find(line[idx]," \t") do
-                    idx += 1
-                end while
-                if idx<=length(line) then
---                  c = find(line[idx],"g_-fpt_")
---                  c = find(line[idx],after_global)
-                    c = line[idx]
-                end if
---c = 0
             end if
         end if
---      if c=3 then --'i' of include?
-        if c=qJ_include1 then
-            if isReally(qJ_include,line,idx) then
+        if c='i' then
+            if isReally("include",line,idx) then
                 if logG then
-                    includeLine(line,idx+length(qJ_include))
+                    includeLine(line,idx+length("include"))
                 end if
-c = 0
             end if
---      elsif c=4 then -- '-'
-        end if
-        if c='-' then
---trace(1)
+        elsif c='-' then
             if logG and idx=1 and length(line)>10
             and equal(line[1..10],"--#include") then    -- NB not translated
---      if isReally("--#include",line,idx) then
---      if logG then
                 includeLine(line,11)
---      end if
--- 4/1/14:
             elsif logG and idx=1 and length(line)>13
             and equal(line[1..13],"--/**/include") then -- NB not translated
                 includeLine(line,14)
             end if
---      elsif c=5 then --'f' of function?
-        end if
-        if c=qJ_function1 then
-            if isReally(qJ_function,line,idx) then
-                name = getWord(line,idx+length(qJ_function),1)
+        elsif c='f' then
+            if isReally("function",line,idx) then
+                name = getWord(line,idx+length("function"),1)
                 rtnType = 2
-c = 0
             end if
---      elsif c=6 then --'p' of procedure?
-        end if
-        if c=qJ_procedure1 then
-            if isReally(qJ_procedure,line,idx) then
-                name = getWord(line,idx+length(qJ_procedure),1)
+        elsif c='p' then
+            if isReally("procedure",line,idx) then
+                name = getWord(line,idx+length("procedure"),1)
                 rtnType = 3
-c = 0
             end if
---      elsif c=7 then --'t' of type?
-        end if
-        if c=qJ_type1 then
-            if isReally(qJ_type,line,idx) then
-                name = getWord(line,idx+length(qJ_type),1)
+        elsif c='t' then
+            if isReally("type",line,idx) then
+                name = getWord(line,idx+length("type"),1)
                 rtnType = 1
-c = 0
             end if
---      elsif c=8 then  -- 'e' of end?
-        end if
-        if c=qJ_end1 then
-            if isReally(qJ_end,line,idx) then
---      if logG and logG!=3 then
---      if logG then
-                name = getWord(line,idx+length(qJ_end)+1,0) --DEV skip " \t"?
-                if find(name,{qJ_function,qJ_procedure,qJ_type})
+        elsif c='e' then
+            if isReally("end",line,idx) then
+                name = getWord(line,idx+length("end")+1,0) --DEV skip " \t"?
+                if find(name,{"function","procedure","type"})
                 and length(routineends) then
                     routineends[length(routineends)] = lnumber
                 end if
---      end if
                 return 0
             end if
         end if
@@ -713,7 +644,6 @@ c = 0
 
     if equal(name, "") then return 0 end if
 
---  if isGlobal and sequence(ts) then
     if isGlobal and logG then
         addGlobal(name)
 --  ,params,lnumber,rtnType)--,ts)
@@ -786,10 +716,8 @@ sequence prevline
                             while length(prevline) and prevline[1]<=' ' do  -- strip leading tabs and spaces
                                 prevline = prevline[2..length(prevline)]
                             end while
---                          if match("end procedure",prevline)!=1
---                          and match("end function",prevline)!=1 then
-                            if match(qJ_end&' '&qJ_procedure,prevline)!=1
-                            and match(qJ_end&' '&qJ_function,prevline)!=1 then
+                            if match("end procedure",prevline)!=1
+                            and match("end function",prevline)!=1 then
                                 -- ignore spaces only etc lines above the underline:
                                 for k=1 to length(prevline) do
 --PL 21/03/2011 (might really want >' ' and <='~')
@@ -1037,11 +965,14 @@ IupSetAttribute(list_1,"TIP","List 1");
 end procedure
 
 procedure setKeyHelpText()
+if not atom(KeyHelpText) then
+
     if HelpWin=NULL then create_helpwin() end if
 --  deleteItem(HelpList,0)  -- empty list
 --  IupSetInt(HelpList,"1",NULL) -- empty list
     IupSetAttribute(HelpList,"REMOVEITEM","ALL") -- empty list
     if atom(KeyHelpText) then
+?9/0
         KeyHelpText = xl("_F1HELP")
         for i=1 to length(KeyHelpText) do
 --DEV I should probably ship these files without tabs... [elng_ENG.txt done]
@@ -1058,6 +989,7 @@ procedure setKeyHelpText()
 --  setText(HelpWin,xlna("Keyboard Help"))
     IupSetAttribute(HelpWin, "TITLE", "Keyboard Help")
 --  setVisible({Hexmncd,Hkeybdh},False)
+end if
 end procedure
 
 --DEV Phix.chm:
@@ -1076,7 +1008,8 @@ integer k, fn
 --DEV Phix?
     helpfilepath = getenv("EUDIR")
     if atom(helpfilepath) then
-        if not atom(dir("C:\\Euphoria\\HTML\\Refman.htm")) then
+?       if not atom(dir("C:\\Euphoria\\HTML\\Refman.htm")) then
+--      if get_file_type(line)=FILETYPE_FILE then
             helpfilepath = "C:\\Euphoria"
         end if
     end if
@@ -1104,7 +1037,8 @@ integer k, fn
         else
             -- open the HTML version of refman.doc
             helpfilepath &= "\\HTML\\Refman.htm"
-            if atom(dir(helpfilepath)) then
+?           if atom(dir(helpfilepath)) then
+--          if get_file_type(line)=FILETYPE_FILE then
                 void = messageBox("Euphoria Manual not found",
                                   "Euphoria Manual not present in Euphoria directory"&10&13&
                                   helpfilepath, 0 )
@@ -1165,7 +1099,9 @@ integer rend, start, bcount, tally
                             tj = ExpandTabs(tj)
                         end if
                         tally += 1
-                        IupSetAttributeId(ROUTINELIST, "", tally, tj)
+--20/12/17:
+--                      IupSetAttributeId(ROUTINELIST, "", tally, tj)
+                        IupSetAttributeId(HelpList, "", tally, tj)
                     end for
                     exit
                 end if
@@ -1192,10 +1128,14 @@ integer rend, start, bcount, tally
                 ti = ExpandTabs(ti)
             end if
             tally += 1
-            IupSetAttributeId(ROUTINELIST, "", tally, ti)
+--20/12/17:
+--          IupSetAttributeId(ROUTINELIST, "", tally, ti)
+            IupSetAttributeId(HelpList, "", tally, ti)
         end if
     end for
     text = ""
+--20/12/17:
+KeyHelpText = ""
 end procedure
 
 integer fsIdx
@@ -1253,12 +1193,14 @@ function getexhname()
 sequence exhpath, exhname
 --? if tf>=0 then
     if 1 then
---      exhpath=current_dir()&"\\lang\\"
-        exhpath=initialcurrentdir&"lang\\"
---      exhname="ealng_" & tfname & ".exh"
-        exhname="elng_" & tfname & ".exh"
+--      exhpath = current_dir()&"\\lang\\"
+        exhpath = join_path({initialcurrentdir,"lang"},trailsep:=true)
+--      exhname = "ealng_" & tfname & ".exh"
+        exhname = "elng_" & tfname & ".exh"
 --      if not atom(pdir:dir(exhpath&exhname)) then
-        if not atom(dir(exhpath&exhname)) then
+--      if not atom(dir(exhpath&exhname)) then
+--      if atom(dir(exhpath&exhname)) then
+        if get_file_type(join_path(exhpath,exhname)=FILETYPE_FILE then
             return {exhpath,exhname}
         end if
     end if
@@ -1331,7 +1273,9 @@ integer idx
     idx = find(word,routinenames)
     if idx!=0 then
         if not length(EurefWord) then
-            if HelpWin=NULL then ?9/0 end if
+--triggered 20/12/17:
+--          if HelpWin=NULL then ?9/0 end if
+            if HelpWin=NULL then create_helpwin() end if
 --          setText(HelpWin,filepathname&sprintf(" [%d/%d]",{fsIdx,length(fileset)}))
             IupSetStrAttribute(HelpWin,"TITLE",filepathname&" [%d/%d]",{fsIdx,length(fileset)})
         end if
@@ -1363,7 +1307,8 @@ sequence rect
 ?9/0
             else
                 if sequence(targetFile) then
-                    if openFile(targetFile,1,isLegacyTabHandling)=0 then return 0 end if
+--                  if openFile(targetFile,1,isLegacyTabHandling)=0 then return 0 end if
+                    if openFile(0,targetFile,1)=0 then return 0 end if
                 else
                     changeTo(targetFile)
                 end if
@@ -1688,6 +1633,8 @@ integer lw
     doConvTab = 0
     fsIdx = 0
     post500 = 1
+--20/12/17:
+    KeyHelpText = 0
 
 --16/10/10:
 --  if currfile and not control and match("[untitled]",filenames[currfile])!=1 then
@@ -1892,6 +1839,9 @@ integer lw
     else
         setKeyHelpText()
     end if
+if atom(KeyHelpText) then
+        keybd:keyboard_dialog()
+else
     if HelpWin=NULL then ?9/0 end if
 --  setHelpFont(HelpList)
 --  setEnable(TC,False)
@@ -1905,6 +1855,7 @@ integer lw
 --?"call_proc(r_enableMenuToolBar,{})"
 --  setFocus(HWclose)
 --?"setFocus(HWclose)"
+end if
 end procedure
 global constant r_F1help=routine_id("F1help")
 

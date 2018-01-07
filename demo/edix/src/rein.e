@@ -114,7 +114,7 @@ constant use2 = 1   --DEV delete and rename sometime after March 2017
 --   ...
 --#with reformat
 --
---  There are a couple of examples of this being used in edita.exw.
+--  There are a couple of examples of this being used in edix.exw.
 --
 
 --
@@ -144,7 +144,7 @@ constant use2 = 1   --DEV delete and rename sometime after March 2017
 include reinh.e as reinh
 
 --default changed 23/1/17 (it may be that DoReturn was wrong)
---DEV these should be in Edita.ini:
+--DEV these should be in Edix.cfg:
 integer isAlignIfdef        --  0 = ifdef indented as part of the code,
 --      isAlignIfdef = -1   --  1 = ifdef indented independently of the code.
         isAlignIfdef = 1    --  1 = ifdef indented independently of the code.
@@ -206,7 +206,7 @@ constant SYMBOL  = 1,
          HEXDEC  = 6,
          DIGIT   = 7,
          FLOAT   = 8,
-         USCORE  = 9,
+--       USCORE  = 9,
          LETTER  = 10,
 --       SLICE   = 11,
 --       SUBSCR  = 12,
@@ -545,7 +545,8 @@ charClass['('..'/'] = SYMBOL    -- ()*+,-./
 charClass['.'] = ELLIPSE
 charClass['0'..'9'] = DIGIT
 charClass[':'..'?'] = SYMBOL    -- :;<=>?
-charClass['_'] = USCORE
+--charClass['_'] = USCORE
+charClass['_'] = LETTER
 --charClass['@'] = SYMBOL
 charClass['A'..'Z'] = LETTER
 charClass['a'..'z'] = LETTER
@@ -669,7 +670,7 @@ sequence oneline
 end procedure
 
 procedure pp_replace(sequence s)
--- note this does not enter into main Edita undo/redo handling, 
+-- note this does not enter into main Edix undo/redo handling, 
 --  but will(/should!) all get done/undone manually here
 sequence prev
     prev = filetext[currfile][tokline][tokstart..tokend]

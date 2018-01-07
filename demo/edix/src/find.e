@@ -15,8 +15,20 @@ Ihandle find_txt, find_case
 sequence find_txts = {}
 
 procedure hide_find()
-    IupConfigDialogClosed(config, find_dlg, "FindDialog")
-    IupHide(find_dlg) -- do not destroy, just hide
+    if IupGetInt(find_dlg,"VISIBLE")
+    and IupGetInt(find_dlg,"MAXIMIZED")=0 then
+        IupConfigDialogClosed(config, find_dlg, "FindDialog")
+        IupHide(find_dlg) -- do not destroy, just hide
+    end if
+end procedure
+
+bool eof_msg = false
+
+procedure eof_message()
+    if eof_msg then
+        eof_msg = false
+        IupMessage("End", "Search has reached end of document.")
+    end if
 end procedure
 
 procedure find_text(integer direction)
@@ -30,23 +42,23 @@ procedure find_text(integer direction)
                 IupSetAttribute(find_txt,sprintf("%d",length(find_txts)),str_to_find)
             end if
             integer casesensitive = IupGetInt(find_case, "VALUE")
-            integer pos = 0, i
-            sequence line = filetext[currfile][CursorY+1]
+            integer pos = 0, i, fromline=iff(direction=0?1:CursorY+1)
+            sequence line = filetext[currfile][fromline]
             integer start = iff(selON and selY=CursorY and compare(selX,CursorX)=direction?selX:CursorX)
-            if direction=1 then
-                start = MapToByte(line,start)
-                for i=CursorY+1 to length(filetext[currfile]) do
+            if direction=-1 then
+                start = length(line)+1-MapToByte(line,start-1)
+                str_to_find = reverse(str_to_find)
+                for i=fromline to 1 by -1 do
                     line = filetext[currfile][i]
-                    pos = match(str_to_find, line, start, casesensitive)
+                    pos = match(str_to_find, reverse(line), start, casesensitive)
                     if pos!=0 then exit end if
                     start = 1
                 end for
             else
-                start = length(line)+1-MapToByte(line,start-1)
-                str_to_find = reverse(str_to_find)
-                for i=CursorY+1 to 1 by -1 do
+                start = iff(direction=0?1:MapToByte(line,start))
+                for i=fromline to length(filetext[currfile]) do
                     line = filetext[currfile][i]
-                    pos = match(str_to_find, reverse(line), start, casesensitive)
+                    pos = match(str_to_find, line, start, casesensitive)
                     if pos!=0 then exit end if
                     start = 1
                 end for
@@ -60,26 +72,31 @@ procedure find_text(integer direction)
                 CursorY = i-1
                 selON = 1
                 selX = ExpLength(line[1..CursorX])
-                CursorX += length(str_to_find)*direction
+                CursorX += length(str_to_find)*iff(direction=0?1:direction)
                 CursorX = ExpLength(line[1..CursorX])
                 selY = CursorY
                 forceCursorOnscreen()
             else
-                IupMessage("End", "Search has reached end of document.");
+                -- moved to after IupPopup returns:
+--              IupMessage("End", "Search has reached end of document.");
+                eof_msg = true
             end if
+--          hide_find()
         end if
     end if
 end procedure
 
 function find_next_action_cb(Ihandle /*ih*/)
 /* this callback can be called from the main dialog also */
-    find_text(1)
+    find_text(+1)
+    eof_message()
     return IUP_DEFAULT
 end function
 global constant cb_findnext = Icallback("find_next_action_cb")
 
 function find_prior_action_cb(Ihandle /*ih*/)
     find_text(-1)
+    eof_message()
     return IUP_DEFAULT
 end function
 global constant cb_findprev = Icallback("find_prior_action_cb")
@@ -164,7 +181,8 @@ procedure create_find_dialog()
 
     IupSetAttributeHandle(find_dlg, "DEFAULTENTER", bt_next);
     IupSetAttributeHandle(find_dlg, "DEFAULTESC", bt_close);
-    IupSetAttributePtr(find_dlg, "PARENTDIALOG", dlg)
+    IupSetAttributeHandle(find_dlg, "PARENTDIALOG", dlg)
+--  IupSetAttributePtr(find_dlg, "PARENTDIALOG", dlg)
     IupSetCallback(find_dlg, "CLOSE_CB", cb_find_close_action);
     IupSetAttribute(find_dlg, "TITLE", "Find");
 end procedure
@@ -189,6 +207,7 @@ global procedure find_dialog()
     set_find_selection()
     IupConfigDialogShow(config, find_dlg, "FindDialog")
     IupPopup(find_dlg,IUP_CURRENT,IUP_CURRENT)
+    eof_message()
 end procedure
 
 function find_cb(Ihandle /*item_find*/)
@@ -203,11 +222,55 @@ global procedure F3find(integer ctrl, shift)
             create_find_dialog()
         end if
         set_find_selection()        
+        find_text(0)
+    else
+        find_text(iff(shift?-1,+1))
     end if
-    find_text(iff(shift?-1,1))
+    eof_message()
+end procedure
+
+global procedure F4diff(integer shift)
+--?{"F4diff",shift}
+    integer pos = 0, i
+    sequence line 
+    if shift then
+        for i=CursorY to 1 by -1 do
+            line = filetext[currfile][i]
+            pos = length(line) and find(line[1],"<>")
+            if pos!=0 then exit end if
+        end for
+    else
+        for i=CursorY+2 to length(filetext[currfile]) do
+            line = filetext[currfile][i]
+            pos = length(line) and find(line[1],"<>")
+            if pos!=0 then exit end if
+        end for
+    end if
+    if pos!=0 then
+        CursorX = 0
+        CursorY = i-1
+        selON = 0
+        forceCursorOnscreen()
+    else
+        eof_msg = true
+        eof_message()
+    end if
 end procedure
 
 global function find_active()
+-- should find next/prev be active? (btw, find_dlg "VISIBLE" is irrelevant)
     return find_dlg!=NULL and length(IupGetAttribute(find_txt, "VALUE"))>0
 end function
 
+--/*
+function setFindDefaults(sequence blob)
+    if not initFIND then createFind() end if
+    setText(findtext,blob[1])
+    setCheck(STOP,blob[2])
+    setCheck(UP,blob[3])
+    setCheck(CASE,blob[4])
+    setCheck(IgnoreW,blob[5])
+    return 0
+end function
+MacroRtns[3] = routine_id("setFindDefaults")
+--*/

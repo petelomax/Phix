@@ -7,6 +7,8 @@
 --           [all done to IupSbox, ~line 2061] DEV
 --  (11/11/16 all done to IupSpin, ~line 2790)
 --  (29/10/17 all done to IupColorbar, ~line 3309)
+--  (22/11/17 all done to IupWebBrowser, ~line 3675)
+--  (07/01/18 all done to IupDrawGetImageInfo, ~line 3843)
 --  (none of which are used in any of the demos, and some of which may get culled)
 --  (IupLayoutDialog skipped for now)
 
@@ -2068,10 +2070,10 @@ global procedure IupSetAttributes(Ihandles ih, string attributes, sequence data=
     end if
 end procedure
 
-global function IupSetAttributesf(Ihandle ih, string attributes, sequence data={})
-    IupSetAttributes(ih, attributes, data)
-    return ih
-end function
+--global function IupSetAttributesf(Ihandle ih, string attributes, sequence data={})
+--  IupSetAttributes(ih, attributes, data)
+--  return ih
+--end function
 
 global procedure IupSetAttributeHandle(Ihandln ih, string name, Ihandln ih_named)
 --  if name!=upper(name) then ?9/0 end if
@@ -2780,7 +2782,7 @@ global function IupDialog(Ihandln child=NULL, string attributes="", dword_seq da
     return ih
 end function
 
-global procedure IupPopup(Ihandle ih, integer x, integer y)
+global procedure IupPopup(Ihandle ih, integer x=IUP_CURRENT, integer y=IUP_CURRENT)
     if c_func(xIupPopup, {ih,x,y})!=IUP_NOERROR then ?9/0 end if
 end procedure
 
@@ -2790,7 +2792,7 @@ integer r
     if r!=IUP_NOERROR then ?9/0 end if
 end procedure
 
-global procedure IupShowXY(Ihandle ih, integer x, integer y)
+global procedure IupShowXY(Ihandle ih, integer x=IUP_CURRENT, integer y=IUP_CURRENT)
     if c_func(xIupShowXY, {ih, x, y})!=IUP_NOERROR then ?9/0 end if
 end procedure
 
@@ -2838,8 +2840,8 @@ global function IupMessageDlg()
 end function
 
 global function IupCalendar(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupCalendar, {})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "VALUECHANGED_CB"
@@ -3052,12 +3054,10 @@ end function
 
 --global function IupButton(nullable_string title=NULL, nullable_string action=NULL, cbfunc func=NULL, string attributes="", sequence data={})
 global function IupButton(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupButton, {title, action})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
---      IupSetCallback(ih, ACTION, func)    -- action?
         if action=NULL then
---          action = ACTION
             action = "ACTION"
         end if
         IupSetCallback(ih, action, func)    -- action?
@@ -3069,8 +3069,8 @@ global function IupButton(object title=NULL, object action=NULL, object func=NUL
 end function
 
 global function IupCanvas(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupCanvas, {action})
     {action,func,attributes,data} = paranormalise(action,func,attributes,data)
-    Ihandle ih = c_func(xIupCanvas, {action})   --DEV NULL?
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -3094,7 +3094,7 @@ end function
 --global function IupLabel(nullable_string title=NULL, string attributes="", sequence data={})
 --global function IupLabel(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 --  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
-global function IupLabel(object title=NULL, sequence attributes="", dword_seq data={})
+global function IupLabel(nullable_string title=NULL, string attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupLabel, {title})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -3103,8 +3103,8 @@ global function IupLabel(object title=NULL, sequence attributes="", dword_seq da
 end function
 
 global function IupList(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupList, {NULL})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -3150,8 +3150,8 @@ atom pChildren = iup_ptr_array(children)
 end function
 
 global function IupText(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupText, {NULL})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -3165,8 +3165,8 @@ global function IupText(object action=NULL, object func=NULL, sequence attribute
 end function
 
 global function IupMultiLine(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupMultiLine, {NULL})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -3192,9 +3192,9 @@ atom pLineCol = allocate(16,1)
     return peek4s({pLineCol,2}) -- integer {lin, col}
 end function
 
-global function IupToggle(string title, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+global function IupToggle(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupToggle, {title, NULL})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -3216,8 +3216,8 @@ global function IupTree(sequence attributes="", dword_seq data={})
 end function
 
 global function IupValuator(nullable_string orientation=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupVal, {orientation})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -3267,88 +3267,100 @@ global function IupConfig()
     return config
 end function
 
-global function IupConfigLoad(Ihandle ih)
-    integer errcode = c_func(xIupConfigLoad, {ih})
+global function IupConfigLoad(Ihandle config)
+    integer errcode = c_func(xIupConfigLoad, {config})
     return errcode  -- 0=no error; -1=error opening the file; -2=error accessing the file; -3=error during filename construction
 end function
 
-global function IupConfigSave(Ihandle ih)
-    integer errcode = c_func(xIupConfigSave, {ih})
+global function IupConfigSave(Ihandle config)
+    integer errcode = c_func(xIupConfigSave, {config})
     return errcode  -- 0=no error; -1=error opening the file; -2=error accessing the file; -3=error during filename construction
 end function
 
-global procedure IupConfigSetVariableInt(Ihandle ih, string group, string key, integer v)
-    c_proc(xIupConfigSetVariableInt, {ih,group,key,v})
+global procedure IupConfigSetVariableInt(Ihandle config, string group, string key, integer v)
+    c_proc(xIupConfigSetVariableInt, {config,group,key,v})
 end procedure
 
-global procedure IupConfigSetVariableIntId(Ihandle ih, string group, string key, integer id, integer v)
-    c_proc(xIupConfigSetVariableIntId, {ih,group,key,id,v})
+global procedure IupConfigSetVariableIntId(Ihandle config, string group, string key, integer id, integer v)
+    c_proc(xIupConfigSetVariableIntId, {config,group,key,id,v})
 end procedure
 
-global procedure IupConfigSetVariableDouble(Ihandle ih, string group, string key, atom v)
-    c_proc(xIupConfigSetVariableDouble, {ih,group,key,v})
+global procedure IupConfigSetVariableDouble(Ihandle config, string group, string key, atom v)
+    c_proc(xIupConfigSetVariableDouble, {config,group,key,v})
 end procedure
 
-global procedure IupConfigSetVariableDoubleId(Ihandle ih, string group, string key, integer id, atom v)
-    c_proc(xIupConfigSetVariableDoubleId, {ih,group,key,id,v})
+global procedure IupConfigSetVariableDoubleId(Ihandle config, string group, string key, integer id, atom v)
+    c_proc(xIupConfigSetVariableDoubleId, {config,group,key,id,v})
 end procedure
 
-global procedure IupConfigSetVariableStr(Ihandle ih, string group, string key, nullable_string v)
-    c_proc(xIupConfigSetVariableStr, {ih,group,key,v})
+global procedure IupConfigSetVariableStr(Ihandle config, string group, string key, nullable_string v)
+    c_proc(xIupConfigSetVariableStr, {config,group,key,v})
 end procedure
 
-global procedure IupConfigSetVariableStrId(Ihandle ih, string group, string key, integer id, nullable_string v)
-    c_proc(xIupConfigSetVariableStrId, {ih,group,key,id,v})
+global procedure IupConfigSetVariableStrId(Ihandle config, string group, string key, integer id, nullable_string v)
+    c_proc(xIupConfigSetVariableStrId, {config,group,key,id,v})
 end procedure
 
-global function IupConfigGetVariableInt(Ihandle ih, string group, string key, integer def=0)
-    integer res = c_func(xIupConfigGetVariableIntDef, {ih,group,key,def})
+global function IupConfigGetVariableInt(Ihandle config, string group, string key, integer def=0)
+    integer res = c_func(xIupConfigGetVariableIntDef, {config,group,key,def})
     return res
 end function
 
-global function IupConfigGetVariableIntId(Ihandle ih, string group, string key, integer id, integer def=0)
-    integer res = c_func(xIupConfigGetVariableIntIdDef, {ih,group,key,id,def})
+global function IupConfigGetVariableIntId(Ihandle config, string group, string key, integer id, integer def=0)
+    integer res = c_func(xIupConfigGetVariableIntIdDef, {config,group,key,id,def})
     return res
 end function
 
-global function IupConfigGetVariableDouble(Ihandle ih, string group, string key, atom def=0)
-    atom res = c_func(xIupConfigGetVariableDoubleDef, {ih,group,key,def})
+global function IupConfigGetVariableDouble(Ihandle config, string group, string key, atom def=0)
+    atom res = c_func(xIupConfigGetVariableDoubleDef, {config,group,key,def})
     return res
 end function
 
-global function IupConfigGetVariableDoubleId(Ihandle ih, string group, string key, integer id, atom def=0)
-    atom res = c_func(xIupConfigGetVariableDoubleIdDef, {ih,group,key,id,def})
+global function IupConfigGetVariableDoubleId(Ihandle config, string group, string key, integer id, atom def=0)
+    atom res = c_func(xIupConfigGetVariableDoubleIdDef, {config,group,key,id,def})
     return res
 end function
 
-global function IupConfigGetVariableStr(Ihandle ih, string group, string key, nullable_string def=NULL)
-    atom pString = c_func(xIupConfigGetVariableStrDef, {ih,group,key,def})
+global function IupConfigGetVariableStr(Ihandle config, string group, string key, nullable_string def=NULL)
+    atom pString = c_func(xIupConfigGetVariableStrDef, {config,group,key,def})
     string res = iff(pString=NULL?"":peek_string(pString))
     return res
 end function
 
-global function IupConfigGetVariableStrId(Ihandle ih, string group, string key, integer id, nullable_string def=NULL)
-    atom pString = c_func(xIupConfigGetVariableStrIdDef, {ih,group,key,id,def})
+global function IupConfigGetVariableStrId(Ihandle config, string group, string key, integer id, nullable_string def=NULL)
+    atom pString = c_func(xIupConfigGetVariableStrIdDef, {config,group,key,id,def})
     string res = iff(pString=NULL?"":peek_string(pString))
     return res
 end function
 
-global procedure IupConfigRecentInit(Ihandle ih, Ihandle menu, cbfunc recent_cb, integer max_recent)
-    c_proc(xIupConfigRecentInit, {ih,menu,recent_cb,max_recent})
+global procedure IupConfigRecentInit(Ihandle config, Ihandle menu, cbfunc recent_cb, integer max_recent)
+    c_proc(xIupConfigRecentInit, {config,menu,recent_cb,max_recent})
 end procedure
 
-global procedure IupConfigRecentUpdate(Ihandle ih, string filename)
-    c_proc(xIupConfigRecentUpdate, {ih,filename})
+global procedure IupConfigRecentUpdate(Ihandle config, string filename)
+    c_proc(xIupConfigRecentUpdate, {config,filename})
 end procedure
 
 global procedure IupConfigDialogShow(Ihandle config, Ihandle dialog, string name, bool maximised=0)
-integer m = IupConfigGetVariableInt(config, name, "Maximized", maximised)
-    IupConfigSetVariableInt(config, name, "Maximized", m)
+--integer m = IupConfigGetVariableInt(config, name, "Maximized", maximised)
+integer m = IupConfigGetVariableInt(config, name, "MaxiSized", maximised)
+--  IupConfigSetVariableInt(config, name, "Maximized", m)
+    IupConfigSetVariableInt(config, name, "MaxiSized", m)
     c_proc(xIupConfigDialogShow, {config,dialog,name})
+    if m then
+        c_proc(xIupHide,{dialog})
+        c_proc(xIupSetAttribute,{dialog,"PLACEMENT","MAXIMIZED"})
+        if c_func(xIupShow,{dialog})!=IUP_NOERROR then ?9/0 end if
+    end if
 end procedure
 
-global procedure IupConfigDialogClosed(Ihandle ih, Ihandle dialog, string name)
-    c_proc(xIupConfigDialogClosed, {ih,dialog,name})
+global procedure IupConfigDialogClosed(Ihandle config, Ihandle dialog, string name)
+integer m = IupGetInt(dialog,"MAXIMIZED")   -- (windows-only; 0 elsewhere)
+--  IupConfigSetVariableInt(config, name, "Maximized", m)
+    if m=0 then
+        c_proc(xIupConfigDialogClosed, {config,dialog,name})
+    end if
+    IupConfigSetVariableInt(config, name, "MaxiSized", m)
 end procedure
 
 
@@ -3365,7 +3377,6 @@ global function IupCells(string attributes="", dword_seq data={})
     return ih
 end function
 
---DEV doc (done to here)
 global function IupColorbar(string attributes="", dword_seq data={})
     IupControlsOpen()
     Ihandle ih = c_func(xIupColorbar, {})
@@ -3491,6 +3502,7 @@ atom iupGLControls = NULL,
      xIupGLScrollBox,
      xIupGLSeparator,
      xIupGLSizeBox,
+     xIupGLSubCanvas,
      xIupGLToggle,
      xIupGLVal
 
@@ -3510,6 +3522,7 @@ procedure iup_gl_controls_init()
         xIupGLScrollBox     = iup_c_func(iupGLControls, "IupGLScrollBox", {P}, P)
         xIupGLSeparator     = iup_c_func(iupGLControls, "IupGLSeparator", {}, P)
         xIupGLSizeBox       = iup_c_func(iupGLControls, "IupGLSizeBox", {P}, P)
+        xIupGLSubCanvas     = iup_c_func(iupGLControls, "IupGLSubCanvas", {P}, P)
         xIupGLToggle        = iup_c_func(iupGLControls, "IupGLToggle", {P}, P)
         xIupGLVal           = iup_c_func(iupGLControls, "IupGLVal", {P}, P)
     end if
@@ -3520,7 +3533,6 @@ global procedure IupGLControlsOpen()
     c_proc(xIupGLControlsOpen, {})
 end procedure
 
---DEV paranormalised etc the rest of them (I only did this one because I copied IupHbox)
 global function IupGLCanvasBox(Ihandles children, string attributes="", sequence data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupGLCanvasBoxv, {pChildren})
@@ -3531,38 +3543,81 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
-global function IupGLButton(nullable_string title)
+global function IupGLSubCanvas(string attributes="", sequence data={})
+Ihandle ih = c_func(xIupGLSubCanvas,{})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupGLButton(nullable_string title, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 Ihandle ih = c_func(xIupGLButton,{title})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action=NULL then
+            action = "ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLExpander(Ihandln child)
+global function IupGLExpander(Ihandln child=NULL, string attributes="", sequence data={})
 Ihandle ih = c_func(xIupGLExpander,{child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLFrame(Ihandln child)
+global function IupGLFrame(Ihandln child=NULL, string attributes="", sequence data={})
 Ihandle ih = c_func(xIupGLFrame,{child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLLabel(nullable_string title)
+global function IupGLLabel(nullable_string title=NULL, string attributes="", dword_seq data={})
 Ihandle ih = c_func(xIupGLLabel,{title})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLLink(nullable_string url, nullable_string title)
+global function IupGLLink(nullable_string url=NULL, nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 Ihandle ih = c_func(xIupGLLink,{url,title})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action=NULL then
+            action = "ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLProgressBar()
+global function IupGLProgressBar(sequence attributes="", dword_seq data={})
 Ihandle ih = c_func(xIupGLProgressBar,{})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLScrollBox(Ihandln child)
+global function IupGLScrollBox(Ihandln child=NULL, string attributes="", sequence data={})
 Ihandle ih = c_func(xIupGLScrollBox,{child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
@@ -3571,26 +3626,47 @@ Ihandle ih = c_func(xIupGLSeparator,{})
     return ih
 end function
 
-global function IupGLSizeBox(Ihandln child)
+global function IupGLSizeBox(Ihandln child=NULL, string attributes="", sequence data={})
 Ihandle ih = c_func(xIupGLSizeBox,{child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLToggle(nullable_string title)
+global function IupGLToggle(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 Ihandle ih = c_func(xIupGLToggle,{title})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action=NULL then
+            action = "ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLVal(nullable_string orientation=NULL)
+global function IupGLValuator(nullable_string orientation=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
 Ihandle ih = c_func(xIupGLVal,{orientation})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action=NULL then
+            action = "ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupGLValuator(nullable_string orientation=NULL)
-Ihandle ih = c_func(xIupGLVal,{orientation})
-    return ih
+global function IupGLVal(nullable_string orientation=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    return IupValuator(orientation, action, func, attributes, data)
 end function
-
 
 --****
 -- === Additional Web
@@ -3765,6 +3841,7 @@ atom pPixels = allocate(length(pixels))
     return ih
 end function
 
+--DEV doc (done to here)
 --void IupDrawGetImageInfo(const char* name, int *w, int *h, int *bpp)
 global function IupDrawGetImageInfo(string name)
 atom p_w = allocate(4, 1),
@@ -4155,8 +4232,8 @@ Ihandle ih = c_func(xIupMenuv, {pChildren})
 end function
 
 global function IupMenuItem(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupItem, {title, action})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -6447,16 +6524,16 @@ sequence r,g,b
     return {r,g,b}
 end function
 
-global procedure cdCanvasPutImageRectRGB(cdCanvas hCdCanvas, atom iw, atom ih, sequence rgb, atom x, atom y,
+global procedure cdCanvasPutImageRectRGB(cdCanvas hCdCanvas, atom iw, atom ih, sequence rgb3, atom x, atom y,
                                          atom w, atom h, atom xmin, atom xmax, atom ymin, atom ymax)
 atom pR, pG, pB
 
-    pR = allocate(3*length(rgb[1]))
-    pG = pR+length(rgb[1])
-    pB = pG+length(rgb[1])
-    poke(pR, rgb[1])
-    poke(pG, rgb[2])
-    poke(pB, rgb[3])
+    pR = allocate(3*length(rgb3[1]))
+    pG = pR+length(rgb3[1])
+    pB = pG+length(rgb3[1])
+    poke(pR, rgb3[1])
+    poke(pG, rgb3[2])
+    poke(pB, rgb3[3])
     c_proc(xcdCanvasPutImageRectRGB, {hCdCanvas, iw, ih, pR, pG, pB, x, y, w, h, xmin, xmax, ymin, ymax})
     free(pR)
 end procedure
@@ -7523,9 +7600,9 @@ global procedure IupGLCanvasOpen()
 end procedure
 
 global function IupGLCanvas(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     IupGLCanvasOpen()
     Ihandle ih = c_func(xIupGLCanvas, {NULL})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -8213,7 +8290,6 @@ global procedure IupSetGlobalFunction(string name, cbfunc func)
 --end function
 end procedure
 
-----int IupClassMatch(Ihandle* ih, const char* classname);
 global function IupClassMatch(Ihandle ih, string classname)
     bool result = c_func(xIupClassMatch, {ih,classname})
     return result   -- true(1) or false(0)
@@ -8223,7 +8299,6 @@ end function
 /*                        Elements                                      */
 /************************************************************************/
 
---Ihandle* IupScrollBox(Ihandle* child);
 global function IupScrollBox(Ihandln child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupScrollBox, {child})
     if length(attributes) then
@@ -8232,7 +8307,6 @@ global function IupScrollBox(Ihandln child=NULL, string attributes="", sequence 
     return ih
 end function
 
---Ihandle* IupExpander(Ihandle *child);
 global function IupExpander(Ihandln child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupExpander, {child})
     if length(attributes) then
@@ -8241,10 +8315,9 @@ global function IupExpander(Ihandln child=NULL, string attributes="", sequence d
     return ih
 end function
 
---Ihandle* IupDetachBox(Ihandle *child);
 global function IupDetachBox(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupDetachBox, {child})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
 --          action = "ACTION"
@@ -8258,7 +8331,6 @@ global function IupDetachBox(Ihandln child=NULL, object action=NULL, object func
     return ih
 end function
 
---Ihandle* IupBackgroundBox(Ihandle *child);
 global function IupBackgroundBox(Ihandln child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupBackgroundBox, {child})
     if length(attributes) then
@@ -8267,10 +8339,9 @@ global function IupBackgroundBox(Ihandln child=NULL, string attributes="", seque
     return ih
 end function
 
---Ihandle* IupLink(const char* url, const char* title);
 global function IupLink(nullable_string url=NULL, nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupLink, {url,title})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -8283,10 +8354,9 @@ global function IupLink(nullable_string url=NULL, nullable_string title=NULL, ob
     return ih
 end function
 
---Ihandle* IupFlatButton(const char* title);
 global function IupFlatButton(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
-    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     Ihandle ih = c_func(xIupFlatButton, {title})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
             action = "ACTION"
@@ -8317,7 +8387,8 @@ end procedure
 --int IupTreeSetUserId(Ihandle* ih, int id, void* userid);
 global procedure IupTreeSetUserId(Ihandle ih, integer id, atom userid)
     atom result = c_func(xIupTreeSetUserId, {ih,id,userid})
-    if result=0 then ?9/0 end if
+--  if result=0 then ?9/0 end if
+    if result=0 then ?"9/0 pGUI.e line 8322" end if
 end procedure
 
 --void* IupTreeGetUserId(Ihandle* ih, int id);
@@ -8714,12 +8785,12 @@ end function
 --
 -- IupPopup(colordlg, 10, 10)
 --
--- object res res = IupGetAttribute(colordlg, "VALUE")
+-- string res = IupGetAttribute(colordlg, "VALUE")
 --
--- if sequence(res) then
---         IupMessage(title, "You chose: '" & res & "'")
+-- if length(res) then
+--      IupMessage(title, "You chose: '" & res & "'")
 -- else
---         IupMessage(title, "You cancelled") 
+--      IupMessage(title, "You cancelled") 
 -- end if
 --
 -- IupClose()

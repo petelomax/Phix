@@ -56,33 +56,33 @@ constant color3D c3D_black   = {0, 0, 0},
                  c3D_white   = {1, 1, 1}
 
 procedure draw_cube()
-    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT))
 
-    glBegin(GL_TRIANGLES);
+    glBegin(GL_TRIANGLES)
 
-    draw_cube_face(c3D_black, c3D_blue,    c3D_magenta, c3D_red);
-    draw_cube_face(c3D_black, c3D_green,   c3D_cyan,    c3D_blue);
-    draw_cube_face(c3D_black, c3D_red,     c3D_yellow,  c3D_green);
-    draw_cube_face(c3D_white, c3D_cyan,    c3D_blue,    c3D_magenta);
-    draw_cube_face(c3D_white, c3D_cyan,    c3D_green,   c3D_yellow);
-    draw_cube_face(c3D_white, c3D_magenta, c3D_red,     c3D_yellow);
+    draw_cube_face(c3D_black, c3D_blue,    c3D_magenta, c3D_red)
+    draw_cube_face(c3D_black, c3D_green,   c3D_cyan,    c3D_blue)
+    draw_cube_face(c3D_black, c3D_red,     c3D_yellow,  c3D_green)
+    draw_cube_face(c3D_white, c3D_cyan,    c3D_blue,    c3D_magenta)
+    draw_cube_face(c3D_white, c3D_cyan,    c3D_green,   c3D_yellow)
+    draw_cube_face(c3D_white, c3D_magenta, c3D_red,     c3D_yellow)
 
-    glEnd();
+    glEnd()
 end procedure
 
 procedure init()
-    glClearColor(0.5,0.5,0.5,0.0);
+    glClearColor(0.5,0.5,0.5,0.0)
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(45, 1, 1, 10);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(45, 1, 1, 10)
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
     gluLookAt({0.5, 0.5, 4.0},  /* position of the observer */
               {0.5, 0.5, 0.0},  /* reference point          */
               {0.0, 1.0, 0.0})  /* up                       */
-    glEnable(GL_DEPTH_TEST);
-    glClearDepth(1.0);
+    glEnable(GL_DEPTH_TEST)
+    glClearDepth(1.0)
 end procedure
 
 procedure unproject(atom x2, atom y2, atom p3)
@@ -90,32 +90,32 @@ atom mv = allocate(16*8)                -- 16 doubles
 atom pm = allocate(16*8)                -- 16 doubles
 atom vp = allocate(4*machine_word())    -- 4 ints
 
-    glGetDoublev(GL_MODELVIEW_MATRIX,  mv);
-    glGetDoublev(GL_PROJECTION_MATRIX, pm);
-    glGetIntegerv(GL_VIEWPORT, vp);
+    glGetDoublev(GL_MODELVIEW_MATRIX,  mv)
+    glGetDoublev(GL_PROJECTION_MATRIX, pm)
+    glGetIntegerv(GL_VIEWPORT, vp)
     gluUnProject(x2, y2, 0.0,
                  mv, pm, vp,
-                 p3, p3+8, p3+16);
+                 p3, p3+8, p3+16)
     free(mv)
     free(pm)
     free(vp)
 end procedure
 
-integer pos_x, pos_y;
-integer move = 0;
+integer pos_x, pos_y
+integer move = 0
 
 function button_cb(Ihandle /*ih*/, integer but, integer pressed, integer x, integer y, atom /*pStatus*/)
 --?"button-cb"
     if but==IUP_BUTTON1 then
         if pressed then
-            pos_x = x;
-            pos_y = y;
-            move = 1;
+            pos_x = x
+            pos_y = y
+            move = 1
         else
-            move = 0;
+            move = 0
         end if
     end if
-    return IUP_DEFAULT;
+    return IUP_DEFAULT
 end function
 
 function peek_double(object pDouble)
@@ -144,15 +144,15 @@ function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
         atom angle, norma
         integer height = IupGetInt2(ih, "RASTERSIZE")
 
-        IupGLMakeCurrent(ih);
+        IupGLMakeCurrent(ih)
 
-        dif_x = x-pos_x;
-        dif_y = y-pos_y;
+        dif_x = x-pos_x
+        dif_y = y-pos_y
 
-        pos_x = x;
-        pos_y = y;
+        pos_x = x
+        pos_y = y
 
-        angle = sqrt(dif_x*dif_x+dif_y*dif_y);
+        angle = sqrt(dif_x*dif_x+dif_y*dif_y)
 
         unproject(pos_x,height-y,pxyz)
         {x1,y1,z1} = peek_double({pxyz,3})
@@ -160,34 +160,34 @@ function motion_cb(Ihandle ih, integer x, integer y, atom /*pStatus*/)
         {x2,y2,z2} = peek_double({pxyz,3})
         dx = x2-x1
         dy = y2-y1
-        dz = z2-z1;
-        norma = sqrt(dx*dx+dy*dy+dz*dz);
+        dz = z2-z1
+        norma = sqrt(dx*dx+dy*dy+dz*dz)
         dx /= norma
         dy /= norma
         dz /= norma
 
-        glTranslate(0.5, 0.5, 0.5);
-        glRotate(angle, dx, dy, dz);
-        glTranslate(-0.5, -0.5, -0.5);
+        glTranslate(0.5, 0.5, 0.5)
+        glRotate(angle, dx, dy, dz)
+        glTranslate(-0.5, -0.5, -0.5)
 
-        draw_cube();
+        draw_cube()
 
-        IupGLSwapBuffers(ih);
+        IupGLSwapBuffers(ih)
         free(pxyz)
     end if
-    return IUP_DEFAULT;
+    return IUP_DEFAULT
 end function
 
 function action(Ihandle ih)
-    IupGLMakeCurrent(ih);
+    IupGLMakeCurrent(ih)
 
-    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT));
+    glClear(or_bits(GL_COLOR_BUFFER_BIT,GL_DEPTH_BUFFER_BIT))
 
-    draw_cube();
+    draw_cube()
 
-    IupGLSwapBuffers(ih);
+    IupGLSwapBuffers(ih)
 
-    return IUP_DEFAULT;
+    return IUP_DEFAULT
 end function
 
 function esc_close(Ihandle /*ih*/, atom c)
@@ -197,43 +197,39 @@ function esc_close(Ihandle /*ih*/, atom c)
 end function
 
 procedure main()
-Ihandle dialog, canvas, box;
+Ihandle dialog, canvas
 
-    IupOpen();
-    IupGLCanvasOpen();
+    IupOpen()
+    IupGLCanvasOpen()
 
-    box = IupVbox({});
-    IupSetAttribute(box, "MARGIN", "5x5");
+    canvas = IupGLCanvas()
+    IupSetCallback(canvas, "ACTION", Icallback("action"))
+    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"))
+    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"))
+    IupSetAttribute(canvas, "BUFFER", "DOUBLE")
+    IupSetAttribute(canvas, "BORDER", "NO")
+    IupSetAttribute(canvas, "RASTERSIZE", "400x400")
 
-    canvas = IupGLCanvas();
-    IupSetCallback(canvas, "ACTION", Icallback("action"));
-    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"));
-    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"));
-    IupSetAttribute(canvas, "BUFFER", "DOUBLE");
-    IupSetAttribute(canvas, "BORDER", "NO");
-    IupSetAttribute(canvas, "RASTERSIZE", "400x400");
-    IupAppend(box, canvas);
-
-    dialog = IupDialog(box);
+    dialog = IupDialog(IupVbox({canvas},"MARGIN=5x5"))
     IupSetAttribute(dialog, "TITLE", "IupGLCanvas Test (drag cube to rotate it)")
 
-    IupMap(dialog);
+    IupMap(dialog)
 
-    IupGLMakeCurrent(canvas);
-    init();
-    printf(1,"Vendor: %s\n", glGetString(GL_VENDOR));
-    printf(1,"Renderer: %s\n", glGetString(GL_RENDERER));
-    printf(1,"Version: %s\n", glGetString(GL_VERSION));
-    IupSetAttribute(canvas, "RASTERSIZE", NULL);
+    IupGLMakeCurrent(canvas)
+    init()
+    printf(1,"Vendor: %s\n", glGetString(GL_VENDOR))
+    printf(1,"Renderer: %s\n", glGetString(GL_RENDERER))
+    printf(1,"Version: %s\n", glGetString(GL_VERSION))
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
     IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
 
-    IupShowXY(dialog, IUP_CENTER, IUP_CENTER);
+    IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
 
-    IupMainLoop();
+    IupMainLoop()
 
-    IupDestroy(dialog);
+    IupDestroy(dialog)
 
-    IupClose();
+    IupClose()
 
 end procedure
 main()

@@ -1,0 +1,173 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">curl_easy_perform</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\libcurl.e
+            <br>
+            <br>
+            <a href="CURLcode.htm">CURLcode</a> res = curl_easy_perform(<a href="atom.htm">atom</a> curl)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Perform a blocking file transfer synchronously.
+            <br>
+            <br>
+            Invoke this function after <a href="curl_easy_init.htm">curl_easy_init</a> and all the <a href="curl_easy_setopt.htm">curl_easy_setopt</a>
+            calls are made, to perform the transfer as described in the options. <br>
+            It must be called with the same easy_handle as input as the <a href="curl_easy_init.htm">curl_easy_init</a> call returned.
+            <br>
+            <br>
+            curl_easy_perform performs the entire request in a blocking manner and returns when done, or if it failed. <br>
+            For non-blocking behavior, see curl_multi_perform.
+            <br>
+            <br>
+            You can do any amount of calls to curl_easy_perform while using the same easy_handle. <br>
+            If you intend to transfer more than one file, you are even encouraged to do so. <br>
+            libcurl will then attempt to re-use the same connection for the following transfers, thus making the operations faster, less CPU intense 
+            and using less network resources. <br>
+            Just note that you will have to use <a href="curl_easy_setopt.htm">curl_easy_setopt</a> between the invokes to set options for the following curl_easy_perform.
+            <br>
+            <br>
+            You must never call this function simultaneously from two places using the same easy_handle. <br>
+            Let the function return first before invoking it another time. <br>
+            If you want parallel transfers, you must use several curl easy_handles.
+            <br>
+            <br>
+            While the easy_handle is added to a multi handle, it cannot be used by curl_easy_perform.
+            <br>
+            <br>
+            Return value: <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> (0) means everything was ok, 
+            non-zero means an error occurred - see <a href="CURLcode.htm">CURLcode</a>. <br>
+            If the <a href="CURLoption.htm#CURLOPT_ERRORBUFFER">CURLOPT_ERRORBUFFER</a> was set with <a href="curl_easy_setopt.htm">curl_easy_setopt</a> 
+            there will be a readable error message in the error buffer when non-zero is returned.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Utility Functions</b>
+         </td>
+         <td>
+            <a name="curl_easy_perform_ex"></a>
+            <a href="object.htm">object</a> res = <b>curl_easy_perform_ex</b>(<a href="atom.htm">atom</a> curl)<br>
+            curl: as above, a result from <a href="curl_easy_init.htm">curl_easy_init</a> that has been passed to a few <a href="curl_easy_setopt.htm">curl_easy_setopt</a>.
+            <br>
+            <br>
+            Returns: if an integer is returned, it is a <a href="CURLcode.htm">CURLcode</a> (except for <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>), otherwise it
+            is a single string containing the entire file contents. Note this is not suitable for multi-megabyte downloads, and is not thread safe, whereas the
+            following routine is, on both counts.
+            <br>
+            <br>
+            <a name="curl_easy_get_file"></a>
+            <a href="CURLcode.htm">CURLcode</a> res = <b>curl_easy_get_file</b>(<a href="string.htm">string</a> url, proxy, filename)
+            <br>
+            <br>
+            Save the text/binary from url to a new file on your local PC specified by filename.
+            Proxy details can also be set, "" to not use a proxy.
+            <br>
+            <br>
+            Returns: <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> on success, any other return value represents an error. <br>
+            If the specified filename cannot be opened, returns <a href="CURLcode.htm#CURLE_CANT_OPEN_FILE">CURLE_CANT_OPEN_FILE</a>
+            <br>
+            <br>
+            curl_easy_get_file() automatically performs <a href="curl_global_init.htm">curl_global_init()</a> and 
+            <a href="curl_global_cleanup.htm">curl_global_cleanup()</a> when required, and also
+            <a href="curl_easy_init.htm">curl_easy_init()</a> and 
+            <a href="curl_easy_cleanup.htm">curl_easy_cleanup()</a> (every time).<br>
+            By default libcurl keeps connections open and caches DNS entries automatically.<br>
+            However, curl_easy_get_file() starts and stops a curl_session for each file downloaded, so it will not be
+            as efficient, as several direct <a href="curl_easy_setopt.htm">curl_easy_setopt()</a> and
+            <a href="curl_easy_perform.htm">curl_easy_perform()</a> calls, when performing multiple downloads.<br>
+            Also note that <a href="CURLoption.htm#CURLOPT_ERRORBUFFER">CURLOPT_ERRORBUFFER</a> is not used and is not a natural 
+            fit for use with curl_easy_get_file(), along with most other debugging techniques, however the fairly trivial code 
+            of the included demo download.exw serves as a perfectly good template for something better.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+include builtins\libcurl.e
+curl_global_init()
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+CURLcode res = curl_easy_perform(curl)
+curl_easy_cleanup(curl)
+curl_global_cleanup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#5E005E">curl_global_init</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#5E005E">CURLcode</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_global_cleanup</font><font color="#0000FF">()</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+include builtins\libcurl.e
+    -- save remote file to local drive
+    CURLcode res = curl_easy_get_file("http://example.com", "", "example.html")
+    if res!=CURLE_OK then
+        ?"error"
+    end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#000080"><i>    -- save remote file to local drive
+</i></font><font color="#5E005E">    CURLcode</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_get_file</font><font color="#0000FF">(</font><font color="#008000">"http://example.com"</font><font color="#0000FF">,</font><font color="#008000"> ""</font><font color="#0000FF">,</font><font color="#008000"> "example.html"</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?</font><font color="#008000">"error"
+</font><font color="#008080">    end if</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+SEE ALSO
+, , curl_multi_add_handle, curl_multi_perform, 
+
+          <a href="curl_easy_init.htm">curl_easy_init</a>,
+          <a href="curl_easy_cleanup.htm">curl_easy_cleanup</a>,
+          <a href="curl_easy_setopt.htm">curl_easy_setopt</a>,
+
+          <a href="CURLcode.htm">CURLcode</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

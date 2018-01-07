@@ -1,9 +1,9 @@
 --
 -- eaedb.e
 --
--- This handles all traffic to/from edita.edb
+-- This handles all traffic to/from edix.edb
 --
--- **NO other programs in edita should update or directly read that file.**
+-- **NO other programs in edix should update or directly read that file.**
 --
 without trace
 --with trace
@@ -20,9 +20,7 @@ include builtins\file.e
 --include builtins\database.e
 --*/
 
---DEV edix.edb
---constant editaEDB = "edita.edb"
-constant editaEDB = "edix.edb"
+constant edixEDB = "edix.edb"
 
 sequence dbversion
 --global integer needVedb
@@ -38,7 +36,8 @@ constant Tversion       = "version",
 --       Tprojects      = "projects",   -- unused (DEV)
 --DEV ini file setings?
          Tmacros        = "macros",
-         Textset        = "extset"      -- added 19/6/07
+         Textset        = "extset",     -- added 19/6/07
+         Tfindif        = "findif"      -- added 10/12/17
 
 constant Tset=
 {Tversion,      -- added 11/8. Value is {0,2,0} [not necc. in step with eaversion]
@@ -53,7 +52,8 @@ constant Tset=
                 --  -extension is determined from Tfiles[key][2].
 -- Tprojects,   -- Key is uniq, data is {name,desc,date,type,fileset}          [***UNUSED***]
  Tmacros,       -- Key is text, data is {{type,details}}
- Textset}       -- Key is extension, data is {runwith,tabcolour}
+ Textset,       -- Key is extension, data is {runwith,tabcolour}
+ Tfindif}       -- Key is {1,dir} or {2,ext} or {3,"flags"}, data is 0/1 or {flags}
 
 global --DEV for isShowBGprogress
 integer gMFstate        -- getModifiedFile state flag/record no:
@@ -87,7 +87,7 @@ global integer alreadyBackGroundProcessing
                alreadyBackGroundProcessing = 0
 
 procedure DBopen()
--- open edita.edb 
+-- open edix.edb 
 -- Warning: calls to doEvents()/DoEvents() from here seem to cause major problems!
 integer errCode, retries
 --sequence winTxt
@@ -99,16 +99,16 @@ atom t
         machine_proc(M_SLEEP, 0)    -- sleep(0), but misc.e checks t>0  -- RDS --*/
         t = time()+1
         while 1 do
-            errCode = db_open(initialcurrentdir&editaEDB,DB_LOCK_EXCLUSIVE)
+            errCode = db_open(initialcurrentdir&edixEDB,DB_LOCK_EXCLUSIVE)
             if errCode = DB_OK then exit end if
             if retries>4 then
-                DBfatal(sprintf("open %s%s [%d]",{initialcurrentdir,editaEDB,errCode}),RETRY)
+                DBfatal(sprintf("open %s%s [%d]",{initialcurrentdir,edixEDB,errCode}),RETRY)
             else
                 retries += 1
 --DEV
 --/*
                 winTxt = IupGetAttribute(dlg,"TITLE")
-                IupSetStrAttribute(dlg,"TITLE",xl("Edita") & " - DATABASE LOCKED")
+                IupSetStrAttribute(dlg,"TITLE",xl("Edix") & " - DATABASE LOCKED")
                 sleep(1)
                 setText(Main,winTxt)
 --*/
@@ -270,7 +270,7 @@ sequence r
                         ?9/0
                     end if
                 end if
-                -- first one only (avoids making Edita unusable)
+                -- first one only (avoids making Edix unusable)
                 showErrors = 0
             end if
             k = db_table_size()+1
@@ -309,7 +309,7 @@ sequence r
                     ?9/0
                 end if
             end if
-            -- first one only (avoids making Edita unusable)
+            -- first one only (avoids making Edix unusable)
             showErrors = 0
         end if
 --  end if
@@ -353,6 +353,7 @@ sequence r
 end function
 
 --with trace
+--/*
 global procedure markAsFTP()
 -- tag the current file as "Edit with Edita"
 integer f, k
@@ -402,6 +403,7 @@ sequence d, res
     DBclose()
     return res
 end function
+--*/
 
 object guniq
 sequence gtkey
@@ -429,7 +431,7 @@ sequence r
                     ?9/0
                 end if
             end if
-            -- first one only (avoids making Edita unusable)
+            -- first one only (avoids making Edix unusable)
             showErrors = 0
         end if
 --  end if
@@ -692,6 +694,7 @@ global function getProjectSet(sequence path, sequence name)
 -- Builds the treeview info for the File Panel/Project tab.
 -- Each entry is {handle, name, path, image, hasChildren}, where
 --  handle is 0 here (saved when we addTVItem),
+--DEV??
 --  name is converted to/stored in lowercase, eg "edita.exw",
 --  path is converted to/stored in uppercase, eg "D:\\EDITA\\",
 --  the root parent is 0,
@@ -901,7 +904,7 @@ object void
 --              winTxt=getText(Main)    --DEV, but where to reset?
 --              setText(Main,sprintf("%s - %s [%d]",{Edita,fkey[2],gMFstate}))
 --              IupSetStrAttribute(dlg,"TITLE","%s - %s [%d]",{Edita,fkey[2],gMFstate}) --DEV
-                IupSetStrAttribute(dlg,"TITLE","%s - %s [%d]",{"Edita",fkey[2],gMFstate})
+                IupSetStrAttribute(dlg,"TITLE","%s - %s [%d]",{"Edix",fkey[2],gMFstate})
                 gMFstate += 1
             else
                 r = db_record_data(k) -- {uniq,size,filedate,s,i,b}
@@ -1195,24 +1198,48 @@ sequence recs
     return recs
 end function
 
+--global function load_fif(integer dirdict, extdict)
+-- returns flags, or {} if none
+global function get_fif(sequence key)
+object res = {}
+    SelectTable(Tfindif)
+    integer rn = db_find_key(key)
+    if rn>0 then
+        res = db_record_data(rn)
+    end if
+    DBclose()
+    return res
+end function
 
-procedure initEditaEdb()
+global procedure store_fif(sequence key, object data)
+    SelectTable(Tfindif)
+    integer rn = db_find_key(key)
+    if rn>0 then
+        db_replace_data(rn,data)
+    else
+        if db_insert(key,data)!=DB_OK then ?9/0 end if
+    end if
+    DBclose()
+end procedure
+    
+
+
+procedure initEdixEdb()
 --
--- open/create the edita database
+-- open/create the edix database
 --
 sequence tlist
 integer errCode
 sequence Fkey
 
-    errCode = db_open(initialcurrentdir&editaEDB,DB_LOCK_EXCLUSIVE)
+    errCode = db_open(initialcurrentdir&edixEDB,DB_LOCK_EXCLUSIVE)
     if errCode!=DB_OK then
         if errCode = DB_LOCK_FAIL then
 --          void = proemh("Error","edita.edb locked, aborting",0)  abort(0)
-            IupMessage("Error","edita.edb locked, aborting")  abort(0)
-        elsif db_create(initialcurrentdir&editaEDB,DB_LOCK_EXCLUSIVE)!=DB_OK then
---          void = proemh("Error","error creating edita.edb",0)  ?9/0
---          void = proemh("Error","error creating "&initialcurrentdir&editaEDB,0)  ?9/0
-            IupMessage("Error","error creating "&initialcurrentdir&editaEDB)  ?9/0
+            IupMessage("Error","edix.edb locked, aborting")  abort(0)
+        elsif db_create(initialcurrentdir&edixEDB,DB_LOCK_EXCLUSIVE)!=DB_OK then
+--          void = proemh("Error","error creating "&initialcurrentdir&edixEDB,0)  ?9/0
+            IupMessage("Error","error creating "&initialcurrentdir&edixEDB)  ?9/0
         end if
     end if
     isOpen = 1
@@ -1275,4 +1302,4 @@ sequence Fkey
     DBclose()
 
 end procedure
-initEditaEdb()
+initEdixEdb()

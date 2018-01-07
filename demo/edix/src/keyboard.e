@@ -7,12 +7,12 @@
 --  Note: Some keys such as Ctrl Insert may get handled directly in edix.exw,
 --        from a time before this was written/accidentally copied from Edita.
 --
---  May benefit from a filter... [DEV]
+--  May benefit from a filter... [DEV - nah]
 
 --DEV/BUG: open Options/Keyboard, navigate to Ctrl Q and press Ctrl J. Now
 -- navigate to Ctrl J (correctly *'d) and press Ctrl J. It is reactivated,
 -- but Ctrl Q remains. [Press Ctrl J a second time and it clears Ctrl Q,
--- and/at the point it *s Ctrl J, which seems rather silly..]
+-- and/at the point it *s Ctrl J, which seems rather silly..] [FIXED 20/12/17]
 
 include builtins/dict.e     -- (not strictly necessary, it's an autoinclude)
 
@@ -195,6 +195,7 @@ procedure addkey(string ks, string km)
     integer k = find(ks,KEYS)
     if k=0 then
         KEYS = append(KEYS,ks)
+--?{"ADD",KEYS}
         IupConfigSetVariableStr(config, "KeyMappings", "KEYS", join(sort(KEYS),','))
     end if
     k = find(ks,keymaps)
@@ -217,7 +218,11 @@ procedure removekey(string km)
     integer k = find(km,KEYS)
     if k!=0 then
         KEYS[k..k] = {}
+--?{"remove",KEYS}
+--?{km,keymaps}
         IupConfigSetVariableStr(config, "KeyMappings", "KEYS", join(KEYS,','))
+--20/12/17:
+--      k = find(km,keymaps)
     end if
     k = find(km,standards)
     if k!=0 and keymaps[k]="*" then
@@ -300,7 +305,7 @@ Show the standard keyboard settings, and allow overrides.
 
 Internally, Edix uses a fixed set of keystrokes, as shown in the Standard column.
 This window allows say <Shift Insert> to be mapped to <Ctrl V>, so that when 
-you press <Shift Insert>, Edita "sees" <Ctrl V>, and performs a Paste operation. 
+you press <Shift Insert>, Edix "sees" <Ctrl V>, and performs a Paste operation. 
 That key mapping happens to be one of the ten that are set up as the defaults
 (which mainly exist for illustrative purposes, but should help some users).
 
@@ -348,7 +353,9 @@ end function
 constant cb_help = Icallback("help_cb")
 
 function close_cb(Ihandle /*bt_close*/)
-    IupConfigDialogClosed(config, key_dlg, "KeyDialog")
+    if IupGetInt(key_dlg,"MAXIMIZED")=0 then
+        IupConfigDialogClosed(config, key_dlg, "KeyDialog")
+    end if
     IupHide(key_dlg) -- do not destroy, just hide
     return IUP_DEFAULT
 end function
@@ -439,6 +446,8 @@ function key_cb(Ihandle /*ih*/, atom c)
                 if km="" then
                     keymaps[l] = "*"
                     addkey(ks,"*")
+                elsif km="*" and find(ks,keymaps) then
+                    IupMessage("Cannot enable","Key is mapped to "&standards[find(ks,keymaps)])
                 else
                     keymaps[l] = ""
                     if km="*" then
@@ -447,7 +456,8 @@ function key_cb(Ihandle /*ih*/, atom c)
                         removekey(km)
                     end if
                 end if
-            else
+--          else
+            elsif km!=ks then
                 if km!="" then
                     removekey(km)
                 end if
@@ -626,7 +636,6 @@ constant stext = """
 <Ctrl X> is Cut
 <Ctrl Y> is Redo
 <Ctrl Z> is Undo
---<<<<<<<<<<<<<<<<<<<<<<<<< ************* DONE TO HERE [DEV] ************* >>>>>>>>>>>>>>>>>>>>>>>>>
 <Ctrl ']'> is Next Control Structure
 <Ctrl '['> is Prior Control Structure
 --<Ctrl '-'> is Fold Selection Or Control Block
@@ -663,14 +672,16 @@ constant stext = """
 --<Ctrl Shift Insert>:=<Ctrl Shift C>   -- Copy Append
 --<Ctrl Shift Delete>:=<Ctrl Shift X>   -- Cut Append
 --<Ctrl Shift '\t'>:=<Alt '<'>          -- Un-Indent
+<Alt B> is Move Line Back (up)
+<Alt D> is Move Line Down
 <Alt I> is Invert Case
 <Alt L> is Lower Case
 --<Alt P> is Print
 <Alt U> is Upper Case
 --<Alt W> is Wordwrap
 --<Alt Z> is Zoom?
-<Alt '-'> is Fold All Routines
-<Alt '+'> is Expand All Folds
+--<Alt '-'> is Fold All Routines
+--<Alt '+'> is Expand All Folds
 <Alt '>'> is Indent
 <Alt '<'> is Un-Indent
 <Alt Shift C> is Copy Prepend
@@ -740,7 +751,7 @@ procedure load_standards()
     end for
 end procedure
 
-procedure keyboard_dialog()
+global procedure keyboard_dialog()
     if KEYDICT=0 then load_mapping() end if
     if standards={} then load_standards() end if
     if key_dlg=NULL then

@@ -16,7 +16,7 @@
             include pGUI.e
             <br>
             <br>
-            IupConfigDialogClosed(<a href="Ihandle.htm">Ihandle</a> ih, <a href="Ihandle.htm">Ihandle</a> dialog, <a href="string.htm">string</a> name)
+            IupConfigDialogClosed(<a href="Ihandle.htm">Ihandle</a> config, <a href="Ihandle.htm">Ihandle</a> dialog, <a href="string.htm">string</a> name)
          </td>
         </tr>
         <tr>
@@ -27,7 +27,7 @@
             Store the position and size of a dialog, so when the application is run again the dialog can be shown at the last position and size.
             <br>
             <br>
-            ih: Identifier of the configuration database (see <a href="IupConfig.htm">IupConfig</a>)<br>
+            config: Identifier of the configuration database (see <a href="IupConfig.htm">IupConfig</a>)<br>
             dialog: the dialog to manage the size and position<br>
             name: a group name for this dialog
             <br>
@@ -46,7 +46,15 @@
             <br>
             <br>
             The position is saved in the variables "X" and "Y" of the given group name. <br>
-            The size is saved in the variables "Width" and "Height" of the given group name. 
+            The size is saved in the variables "Width" and "Height" of the given group name. <br>
+            Note that, unlike the raw C function, the Phix wrapper (pGUI.e) deliberately avoids obliterating X/Y/Width/Height when the window is maximised (windows only).<br>
+            The "official" value, "Maximized", is always zero, but pGUI.e shadows it with "MaxiSized" to achieve the desired effect, at least on Windows.<br>
+            <small>(internally it uses the windows-only "MAXIMIZED" attribute, since unfortunately testing "PLACEMENT"="MAXIMIZED" appears not to work.)</small>
+            <br>
+            <br>
+            Also, as something of a personal choice, I often completely avoid calling IupConfigDialogClosed() on maximised child windows - if I accidentally
+            maximise say the find (Ctrl F) window in Edix just before closing it on Friday night, then on Monday morning I just want a normal window to appear.
+            There is no specific support for that though, you have to remember to do it manually (as above, what I do there is also windows-only).
             <br>
             <br>
             Internally variables are stored as attributes using a "<GROUP>.<KEY>" combination, which is why the group name cannot have periods ".".

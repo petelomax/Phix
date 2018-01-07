@@ -1419,6 +1419,12 @@ integer k = find(symidx,aliases)
 end procedure
 --!*/
 
+global procedure UnAliasAll()
+    for i=1 to length(aliases) do
+        tt[alittxs[i]+EQ] = 0
+    end for
+end procedure
+
 --      k = addSymEntry(ttidx,0,S_Nspc,prevfile,0,0)
 procedure defaultNamespace(sequence name)
 -- for adding the "eu" and "phix" default namespaces

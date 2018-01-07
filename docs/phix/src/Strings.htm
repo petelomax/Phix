@@ -101,8 +101,8 @@
         \e       #1B     escape (ditto \E)
         \#HH     #HH     any hexadecimal byte (phix-only)
         \xHH     #HH     any hexadecimal byte
-        \uH4      -      any 16-bit unicode point
-        \UH8      -      any 32-bit unicode point
+        \uH4      -      any 16-bit unicode point, eg "\u1234", max #FFFF
+        \UH8      -      any 32-bit unicode point, eg "\U00105678", max #10FFFF
  </pre>
         For example, "Hello, World!\n", or '\\'. By default Edita displays character strings in green. Just as with 
         fractional results converting to floating-point automatically, setting a string element to a non-character 
@@ -116,8 +116,9 @@
         Note that you cannot use either \u or \U to specify UTF-16 surrogates, and of course all values outside 
         0..#10FFFF are automatically replaced with the standard invalid character ("\#EF\#BF\#BD" aka #FFFD). 
         Also note that \u and \U are double-quote-only - they cannot be used between single quotes. Plus of course
-        that is a general point about unicode characters: just because your episilon-cidilla-umlaut looks like a
-        single character, it is in fact a 3-byte string, and therefore cannot be single quoted, even WYSIWYG-style. 
+        that is a general point about unicode characters: although your episilon-cidilla-umlaut may look like a
+        single character, it is in fact a 3-byte (UTF-8) string, and therefore cannot be single quoted, even in
+        WYSIWYG-style - the Phix compiler supports plain ansi or utf-8 source files, but not utf-32 or utf-16. 
         See also the <a href="utfconv.htm">Unicode Library Routines</a>.
        <blockquote>
         <b>Technical note</b>:
@@ -131,7 +132,8 @@
         <br>
         Note that strings are byte-subscripted; while theoretically you may store UTF16 data in a string, it is 
         usually easier to store and manipulate such in <a href="html/glossary.htm#dwordseq">dword-sequences</a>. 
-        The handling is however completely transparent; you quite simply should not care.
+        The handling is however completely transparent; you quite simply should not care, at least not when dealing
+        with plain ASCII characters.
         <br>
         <br>
         This (the "quite simply should not care" part) was hammered home to me when I added 
@@ -208,12 +210,49 @@ string\thing`
         which are all equivalent.
         <br>
         <br>
-        Tip: if you accidentally start with a quadruple quote instead of a triplequote, then the underscore thing 
+        Tip: if you accidentally start with a quadruple quote, instead of a triplequote, then the underscore thing 
         won&rsquo;t work - obviously the compiler treats it as a triplequote followed by a normal single doublequote 
         that does not need escaping, all perfectly valid, so it would be quite wrong for any syntax-colouring or 
         suchlike to suggest any error. I only mention this because it is very easy to assume there is a bug in the
-        handling(/compiler/editor), when in fact the problem is in your code. (A quadruple closing quote is, in
-        contrast, quite clearly highlit and triggers a compilation error.)
+        handling(/compiler/editor), when in fact the problem is in your code. A quadruple closing quote is, in
+        contrast, quite clearly highlighted, and also triggers a compilation error.
+       <br>
+       <br>
+        Phix also supports <b>hexadecimal strings</b>, eg:
+<!--eucode>
+x"1 2 34 5678_AbC" -- same as {0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C}
+                   -- note however it displays as {1,2,52,86,120,171,12}
+                   -- whereas x"414243" displays as "ABC" (as all chars)
+</eucode-->
+<pre>
+<font color="#000000">x</font><font color="#008000">"1 2 34 5678_AbC"</font><font color="#000080"><i> -- same as {0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C}
+                   -- note however it displays as {1,2,52,86,120,171,12}
+                   -- whereas x"414243" displays as "ABC" (as all chars)</i></font>
+</pre>
+        A hexadecimal string begins with the pair x&ldquo; and ends with a double-quote (&rdquo;) character.<br>
+        They can only contain hexadecimal digits (0-9 A-F a-f), and space, tab, or underscore. Anything else is invalid. <br>
+        They may <i>not</i> (unlike OpenEuphoria) span multiple lines, or otherwise contain cr or lf characters.<br>
+        Whitespace delimits individual values. Underscores are treated as whitespace, unlike OpenEuphoria, which treats them as if they were never there - 
+        quite wrongly, imo, since that makes both x"12" and x"1_2" yield {18}, whereas on Phix the latter yields {1,2}. 
+        Each pair of contiguous hex digits represents a single sequence element with a value from 0 to 255.
+        The value is in fact always an 8-bit string, though as above it may be displayed like a dword_sequence if it contains any 
+        obviously non-character bytes, specifically &lt;#20 or &gt;#7F, with a few scattered exclusions (such as \t\n etc).
+        <br>
+        <br>
+<!--
+The rules for binary strings are...
+
+they begin with the pair b" and end with a double-quote (") character
+they can only contain binary digits (0-1), and space, underscore, tab, newline, carriage-return. Anything else is invalid.
+an underscore is simply ignored, as if it was never there. It is used to aid readability.
+each set of contiguous binary digits represents a single sequence element
+they can span multiple lines
+The non-digits are treated as punctuation and used to delimit individual values.
+b"1 10 11_0100 01010110_01111000" == {0x01, 0x02, 0x34, 0x5678}
+-->
+        Note, however, that phix does <b><i>not</i></b> currently support OpenEuphoria&rsquo;s binary strings, such as 
+        b"1 10 11_0100 01010110_01111000" == {0x01, 0x02, 0x34, 0x5678} - thus far I have not found any practical use, or
+        any OE code that actually uses that feature.
        <br>
        <br>
         On a practical note, as long as you have at least 2GB of physical memory, you 

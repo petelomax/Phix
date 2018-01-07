@@ -1,9 +1,10 @@
 --
--- pflatten.e
--- ==========
+-- builtins\pflatten.e
+-- ===================
 --
 --  flatten: Remove all nesting from a sequence.
 --  join: Concatenate all elements of a sequence.
+--  join_by: Interleave elements of a sequence.
 --  join_path: Concatenate all elements of a path.
 --
 
@@ -70,16 +71,13 @@ string elem, fname = ""
 
         elem = path_elements[i]
 
-        if length(elem) and elem[$]=SLASH then
+        if length(elem) and find(elem[$],"\\/") then
             elem = elem[1..$-1]
         end if
 
         if length(fname) and length(elem) and elem[1]!=SLASH then
-            if platform()=WINDOWS then
-                if elem[$]!=':' then
-                    elem = SLASH & elem
-                end if
-            else
+            if platform()!=WINDOWS
+            or elem[$]!=':' then
                 elem = SLASH & elem
             end if
         end if

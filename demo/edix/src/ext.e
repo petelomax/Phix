@@ -346,7 +346,9 @@ end function
 constant cb_save = Icallback("save_cb")
 
 function close_cb(Ihandle /*bt_close*/)
-    IupConfigDialogClosed(config, ext_dlg, "ExtDialog")
+    if IupGetInt(ext_dlg,"MAXIMIZED")=0 then
+        IupConfigDialogClosed(config, ext_dlg, "ExtDialog")
+    end if
     IupHide(ext_dlg) -- do not destroy, just hide
     return IUP_DEFAULT
 end function

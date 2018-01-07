@@ -1,0 +1,1057 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">curl_easy_getinfo</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\libcurl.e
+            <br>
+            <br>
+            <a href="object.htm">object</a> res = curl_easy_getinfo(<a href="atom.htm">atom</a> curl, <a href="integer.htm">integer</a> option)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Extract internal information from a curl session handle.<br>
+<!--
+The third argument MUST be a pointer to a long, a pointer to a char *, a pointer to a struct curl_slist * or a pointer to a double (as this documentation describes further down). 
+The data pointed-to will be filled in accordingly and can be relied upon only if the function returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>. <br>
+-->
+            Use this function AFTER a performed transfer if you want to get transfer related data.
+            <br>
+            <br>
+            The one-liners below with "See CURLINFO_XXX" have not been tested, or properly documented here.
+
+<!--
+You should not free the memory returned by this function unless it is explicitly mentioned below.
+
+RETURN VALUE
+
+If the operation was successful, <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> is returned. Otherwise an appropriate error code will be returned.
+-->
+            <br>
+            <a name="easy_info_res"></a>
+            <br>
+            The true error code is left in the global easy_info_res, which is particularly useful for cases where you cannot 
+            otherwise determine whether res is a successful result or an error code, although in many cases you can easily do
+            that with eg <code>if string(res)</code>. Simply test whether easy_info_res=CURLE_OK or not.<br>
+            Note however that field is not thread safe, however it is perfectly reasonable to enter a critical section around 
+            the curl_easy_getinfo() call, at least much more so than it would be around a 
+            <a href="curl_easy_perform.htm">curl_easy_perform</a>() call.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>AVAILABLE INFORMATION</b>
+         </td>
+         <td>
+            The following information can be extracted:
+          <small><br><a name="CURLINFO_EFFECTIVE_URL"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_EFFECTIVE_URL
+         </td>
+         <td>
+            Last used URL. See CURLINFO_EFFECTIVE_URL
+          <small><br><a name="CURLINFO_RESPONSE_CODE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_RESPONSE_CODE
+         </td>
+         <td>
+            Get the last received response code.
+            <br>
+            <br>
+            Synopsis: <a href="atom.htm">atom</a> res = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
+            <br>
+            <br>
+            Retrieves the last received HTTP, FTP or SMTP response code. <br>
+            This option was previously known as CURLINFO_HTTP_CODE in libcurl 7.10.7 and earlier. <br>
+            The stored value will be zero if no server response code has been received. <br>
+            Note that a proxy&rsquo;s CONNECT response should be read with CURLINFO_HTTP_CONNECTCODE and not this.
+            <br>
+            <br>
+            Support for SMTP responses added in 7.25.0.
+            <br>
+            <br>
+            Protocols: HTTP, FTP and SMTP
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+atom res = curl_easy_perform(curl)
+if res=CURLE_OK then
+    atom response_code = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
+    if easy_info_res!=CURLE_OK then
+        ?{"error",easy_info_res}
+    else
+        ?{"response code",response_code}
+    end if
+end if
+curl_easy_cleanup(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#004080">atom</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#004080">    atom</font><font color="#000000"> response_code</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_RESPONSE_CODE</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#004600"> easy_info_res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#004600">easy_info_res</font><font color="#0000FF">}
+</font><font color="#008080">    else
+</font><font color="#0000FF">        ?{</font><font color="#008000">"response code"</font><font color="#0000FF">,</font><font color="#000000">response_code</font><font color="#0000FF">}
+</font><font color="#008080">    end if
+end if
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Added in 7.10.8. CURLINFO_HTTP_CODE was added in 7.4.1.
+            <br>
+            <br>
+            Return value: Returns a response code if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.<br>
+            Note that to distinguish the latter from a valid response code, check whether <a href="#easy_info_res">easy_info_res</a> is 
+            <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> or not.
+            <br>
+            <br>
+            See also: curl_easy_setopt, CURLINFO_HTTP_CONNECTCODE
+          <small><br><a name="CURLINFO_HTTP_CONNECTCODE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_HTTP_CONNECTCODE
+         </td>
+         <td>
+            Last proxy CONNECT response code. See CURLINFO_HTTP_CONNECTCODE
+          <small><br><a name="CURLINFO_HTTP_VERSION"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_HTTP_VERSION
+         </td>
+         <td>
+            The http version used in the connection. See CURLINFO_HTTP_VERSION
+          <small><br><a name="CURLINFO_FILETIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_FILETIME
+         </td>
+         <td>
+            Remote time of the retrieved document. See CURLINFO_FILETIME
+          <small><br><a name="CURLINFO_TOTAL_TIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_TOTAL_TIME
+         </td>
+         <td>
+            Total time of previous transfer. See CURLINFO_TOTAL_TIME
+          <small><br><a name="CURLINFO_NAMELOOKUP_TIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_NAMELOOKUP_TIME
+         </td>
+         <td>
+            Time from start until name resolving completed. See CURLINFO_NAMELOOKUP_TIME
+          <small><br><a name="CURLINFO_CONNECT_TIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CONNECT_TIME
+         </td>
+         <td>
+            Time from start until remote host or proxy completed. See CURLINFO_CONNECT_TIME
+          <small><br><a name="CURLINFO_APPCONNECT_TIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_APPCONNECT_TIME
+         </td>
+         <td>
+            Time from start until the SSL/SSH connect/handshake with the remote host was completed. See CURLINFO_APPCONNECT_TIME
+            (Added in in 7.19.0)
+          <small><br><a name="CURLINFO_PRETRANSFER_TIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_PRETRANSFER_TIME
+         </td>
+         <td>
+            Time from start until the transfer begins. <br>
+            This includes all pre-transfer commands and negotiations that are specific to the particular protocol(s) involved. See CURLINFO_PRETRANSFER_TIME
+          <small><br><a name="CURLINFO_STARTTRANSFER_TIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_STARTTRANSFER_TIME
+         </td>
+         <td>
+            Time from start until the first byte is received. See CURLINFO_STARTTRANSFER_TIME
+          <small><br><a name="CURLINFO_REDIRECT_TIME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_REDIRECT_TIME
+         </td>
+         <td>
+            The time it took for all redirection steps including name lookup, connect, pretransfer and transfer, before the final transfer. 
+            So, this is zero if no redirection took place.
+            See CURLINFO_REDIRECT_TIME
+          <small><br><a name="CURLINFO_REDIRECT_COUNT"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_REDIRECT_COUNT
+         </td>
+         <td>
+            Total number of redirects that were followed. See CURLINFO_REDIRECT_COUNT
+          <small><br><a name="CURLINFO_REDIRECT_URL"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_REDIRECT_URL
+         </td>
+         <td>
+            Get the URL a redirect would go to, had you enabled redirects.
+            <br>
+            <br>
+            Synopsis: <a href="object.htm">object</a> res = curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL)
+            <br>
+            <br>
+            Retrieve the URL a redirect would take you to if you would enable CURLOPT_FOLLOWLOCATION. <br>
+            This can come very handy if you think using the built-in libcurl redirect logic isn&rsquo;t good enough for you but 
+            you would still prefer to avoid implementing all the magic of figuring out the new URL.
+            <br>
+            <br>
+            This URL is also set if the CURLOPT_MAXREDIRS limit prevented a redirect to happen (since 7.54.1).
+            <br>
+            <br>
+            Protocols: HTTP(S)
+            <br>
+            <br>
+            Example:
+<!--eucode>
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+CURLcode res = curl_easy_perform(curl)
+if res=CURLE_OK then
+    object url = curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL)
+    if string(url) then
+      printf(1,"Redirect to: %s\n", {url})
+    end if
+end if
+curl_easy_cleanup(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#5E005E">CURLcode</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#004080">    object</font><font color="#000000"> url</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_REDIRECT_URL</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">url</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#5E005E">      printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Redirect to: %s\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">url</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">    end if
+end if
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            Availability: Added in 7.18.2
+            <br>
+            <br>
+            Return value: Returns a string if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: curl_easy_setopt
+          <small><br><a name="CURLINFO_SIZE_UPLOAD"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SIZE_UPLOAD
+         </td>
+         <td>
+            (Deprecated) Number of bytes uploaded. See CURLINFO_SIZE_UPLOAD
+          <small><br><a name="CURLINFO_SIZE_UPLOAD_T"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SIZE_UPLOAD_T
+         </td>
+         <td>
+            Number of bytes uploaded. See CURLINFO_SIZE_UPLOAD_T
+          <small><br><a name="CURLINFO_SIZE_DOWNLOAD"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SIZE_DOWNLOAD
+         </td>
+         <td>
+            (Deprecated) Number of bytes downloaded. See CURLINFO_SIZE_DOWNLOAD
+          <small><br><a name="CURLINFO_SIZE_DOWNLOAD_T"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SIZE_DOWNLOAD_T
+         </td>
+         <td>
+            Number of bytes downloaded. See CURLINFO_SIZE_DOWNLOAD_T
+          <small><br><a name="CURLINFO_SPEED_DOWNLOAD"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SPEED_DOWNLOAD
+         </td>
+         <td>
+            (Deprecated) Average download speed. See CURLINFO_SPEED_DOWNLOAD
+          <small><br><a name="CURLINFO_SPEED_DOWNLOAD_T"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SPEED_DOWNLOAD_T
+         </td>
+         <td>
+            Average download speed. See CURLINFO_SPEED_DOWNLOAD_T
+          <small><br><a name="CURLINFO_SPEED_UPLOAD"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SPEED_UPLOAD
+         </td>
+         <td>
+            (Deprecated) Average upload speed. See CURLINFO_SPEED_UPLOAD
+          <small><br><a name="CURLINFO_SPEED_UPLOAD_T"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SPEED_UPLOAD_T
+         </td>
+         <td>
+            Average upload speed. See CURLINFO_SPEED_UPLOAD_T
+          <small><br><a name="CURLINFO_HEADER_SIZE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_HEADER_SIZE
+         </td>
+         <td>
+            Number of bytes of all headers received. See CURLINFO_HEADER_SIZE
+          <small><br><a name="CURLINFO_REQUEST_SIZE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_REQUEST_SIZE
+         </td>
+         <td>
+            Number of bytes sent in the issued HTTP requests. See CURLINFO_REQUEST_SIZE
+          <small><br><a name="CURLINFO_SSL_VERIFYRESULT"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SSL_VERIFYRESULT
+         </td>
+         <td>
+            Certificate verification result. See CURLINFO_SSL_VERIFYRESULT
+          <small><br><a name="CURLINFO_PROXY_SSL_VERIFYRESULT"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_PROXY_SSL_VERIFYRESULT
+         </td>
+         <td>
+            Proxy certificate verification result. See CURLINFO_PROXY_SSL_VERIFYRESULT
+          <small><br><a name="CURLINFO_SSL_ENGINES"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SSL_ENGINES
+         </td>
+         <td>
+            A list of OpenSSL crypto engines. See CURLINFO_SSL_ENGINES
+          <small><br><a name="CURLINFO_CONTENT_LENGTH_DOWNLOAD"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CONTENT_LENGTH_DOWNLOAD
+         </td>
+         <td>
+            (Deprecated) Content length from the Content-Length header. See CURLINFO_CONTENT_LENGTH_DOWNLOAD
+          <small><br><a name="CURLINFO_CONTENT_LENGTH_DOWNLOAD_T"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CONTENT_LENGTH_DOWNLOAD_T
+         </td>
+         <td>
+            Content length from the Content-Length header. See CURLINFO_CONTENT_LENGTH_DOWNLOAD_T
+          <small><br><a name="CURLINFO_CONTENT_LENGTH_UPLOAD"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CONTENT_LENGTH_UPLOAD
+         </td>
+         <td>
+            (Deprecated) Upload size. See CURLINFO_CONTENT_LENGTH_UPLOAD
+          <small><br><a name="CURLINFO_CONTENT_LENGTH_UPLOAD_T"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CONTENT_LENGTH_UPLOAD_T
+         </td>
+         <td>
+            Upload size. See CURLINFO_CONTENT_LENGTH_UPLOAD_T
+          <small><br><a name="CURLINFO_CONTENT_TYPE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CONTENT_TYPE
+         </td>
+         <td>
+            Get the Content-Type header.
+            <br>
+            <br>
+            Synopsis: <a href="object.htm">object</a> res = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
+            <br>
+            <br>
+<!-- (done internally)
+            Pass a pointer to a char pointer to receive the content-type of the downloaded object. <br>
+-->
+            This is the value read from the Content-Type: field. <br>
+<!--
+            If you get NULL, it means that the server didn&rsquo;t send a valid Content-Type header or that the protocol used doesn&rsquo;t support this.
+-->
+            If you get "", it means that the server didn&rsquo;t send a valid Content-Type header or that the protocol used doesn&rsquo;t support this.
+            <br>
+            <br>
+<!-- (handled internally)
+            The ct pointer will be NULL or pointing to private memory you MUST NOT free it - it gets freed when 
+            you call curl_easy_cleanup on the corresponding CURL handle.
+            <br>
+            <br>
+-->
+            Protocols: HTTP(S)
+            <br>
+            <br>
+            Example:
+<!--eucode>
+include builtins\libcurl.e
+curl_global_init()
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+object res = curl_easy_perform(curl);
+if res!=CURLE_OK then
+    ?"error"
+else
+    res = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
+    if atom(res) then
+        ?{"error",res}
+    else
+        printf(1, "We received Content-Type: %s\n", {res})
+    end if
+end if
+curl_easy_cleanup(curl)
+curl_global_cleanup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#5E005E">curl_global_init</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">);
+</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">    ?</font><font color="#008000">"error"
+</font><font color="#008080">else
+</font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_CONTENT_TYPE</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#004080"> atom</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</font><font color="#008080">    else
+</font><font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "We received Content-Type: %s\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">res</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">    end if
+end if
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_global_cleanup</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            Availability: Added in 7.9.4
+            <br>
+            <br>
+            Return value: returns a string if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>
+          <small><br><a name="CURLINFO_PRIVATE"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_PRIVATE
+         </td>
+         <td>
+            User&rsquo;s private data pointer. See CURLINFO_PRIVATE
+          <small><br><a name="CURLINFO_HTTPAUTH_AVAIL"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_HTTPAUTH_AVAIL
+         </td>
+         <td>
+            Available HTTP authentication methods. See CURLINFO_HTTPAUTH_AVAIL
+          <small><br><a name="CURLINFO_PROXYAUTH_AVAIL"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_PROXYAUTH_AVAIL
+         </td>
+         <td>
+            Available HTTP proxy authentication methods. See CURLINFO_PROXYAUTH_AVAIL
+          <small><br><a name="CURLINFO_OS_ERRNO"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_OS_ERRNO
+         </td>
+         <td>
+            The errno from the last failure to connect. See CURLINFO_OS_ERRNO
+          <small><br><a name="CURLINFO_NUM_CONNECTS"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_NUM_CONNECTS
+         </td>
+         <td>
+            Number of new successful connections used for previous transfer. See CURLINFO_NUM_CONNECTS
+          <small><br><a name="CURLINFO_PRIMARY_IP"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_PRIMARY_IP
+         </td>
+         <td>
+            IP address of the last connection. See CURLINFO_PRIMARY_IP
+          <small><br><a name="CURLINFO_PRIMARY_PORT"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_PRIMARY_PORT
+         </td>
+         <td>
+            Port of the last connection. See CURLINFO_PRIMARY_PORT
+          <small><br><a name="CURLINFO_LOCAL_IP"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_LOCAL_IP
+         </td>
+         <td>
+            Local-end IP address of last connection. See CURLINFO_LOCAL_IP
+          <small><br><a name="CURLINFO_LOCAL_PORT"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_LOCAL_PORT
+         </td>
+         <td>
+            Local-end port of last connection. See CURLINFO_LOCAL_PORT
+          <small><br><a name="CURLINFO_COOKIELIST"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_COOKIELIST
+         </td>
+         <td>
+            Get a list of all known cookies.
+            <br>
+            <br>
+            Synopsis: <a href="object.htm">object</a> res = curl_easy_getinfo(curl, CURLINFO_COOKIELIST)
+            <br>
+            <br>
+            Returns a list of all cookies curl knows (expired ones, too). <br>
+            If there are no cookies (cookies for the handle have not been enabled or simply none have been received) then {} is returned.
+            <br>
+            <br>
+            Since 7.43.0 cookies that were imported in the Set-Cookie format without a domain name are not exported by this option.
+            <br>
+            <br>
+            Protocols: HTTP(S)
+            <br>
+            <br>
+            Example:
+<!--eucode>
+include builtins\libcurl.e
+curl_global_init()
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+-- enable the cookie engine with a non-existing file:
+curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "-")
+object res = curl_easy_perform(curl);
+if res!=CURLE_OK then
+    ?"error"
+else
+    /* extract all known cookies */
+    res = curl_easy_getinfo(curl, CURLINFO_COOKIELIST)
+    if atom(res) then
+        ?{"error",res}
+    else
+        ?cookies
+    end if
+end if
+curl_easy_cleanup(curl)
+curl_global_cleanup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#5E005E">curl_global_init</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- enable the cookie engine with a non-existing file:
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_COOKIEFILE</font><font color="#0000FF">,</font><font color="#008000"> "-"</font><font color="#0000FF">)
+</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">);
+</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">    ?</font><font color="#008000">"error"
+</font><font color="#008080">else
+</font><font color="#000080"><i>    /* extract all known cookies */
+</i></font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_COOKIELIST</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#004080"> atom</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</font><font color="#008080">    else
+</font><font color="#0000FF">        ?</font><font color="#000000">cookies
+</font><font color="#008080">    end if
+end if
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_global_cleanup</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            See <a href="CURLoption.htm#CURLOPT_COOKIELIST">CURLOPT_COOKIELIST</a> for the individual cookie format
+            <br>
+            <br>
+            Availability: Added in 7.14.1
+            <br>
+            <br>
+            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, and 
+            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: curl_easy_setopt, <a href="CURLoption.htm#CURLOPT_COOKIELIST">CURLOPT_COOKIELIST</a>
+          <small><br><a name="CURLINFO_LASTSOCKET"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_LASTSOCKET
+         </td>
+         <td>
+            Get the last socket used.
+            <br>
+            <br>
+            Synopsis: atom socket = curl_easy_getinfo(curl, CURLINFO_LASTSOCKET)
+            <br>
+            <br>
+            Deprecated since 7.45.0. Use <a href="#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a> instead.
+            <br>
+            <br>
+            Retrieve the last socket used by this curl session. <br>
+            If the socket is no longer valid, -1 is returned. <br>
+            When you finish working with the socket, you must call curl_easy_cleanup() as usual and 
+            let libcurl close the socket and cleanup other resources associated with the handle. <br>
+            This is typically used in combination with <a href="CURLoption.htm#CURLOPT_CONNECT_ONLY">CURLOPT_CONNECT_ONLY</a>.
+            <br>
+            <br>
+            NOTE: this API is deprecated since it is not working on win64 where the SOCKET type is 64 bits large while its 'long' is 32 bits. <br>
+            Use the <a href="#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a> instead, if possible.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Example
+<!--eucode>
+include builtins\libcurl.e
+curl_global_init()
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+-- Do not do the transfer - only connect to host
+curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, true)
+object res = curl_easy_perform(curl)
+if res!=CURLE_OK then
+    ?"error"
+else
+    -- Extract the socket from the curl handle
+    res = curl_easy_getinfo(curl, CURLINFO_LASTSOCKET)
+    if easy_info_res!=CURLE_OK then
+        ?{"error",easy_info_res}
+    else
+        ?{"socket",res}
+    end if
+end if
+curl_easy_cleanup(curl)
+curl_global_cleanup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#5E005E">curl_global_init</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- Do not do the transfer - only connect to host
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_CONNECT_ONLY</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
+</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">    ?</font><font color="#008000">"error"
+</font><font color="#008080">else
+</font><font color="#000080"><i>    -- Extract the socket from the curl handle
+</i></font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_LASTSOCKET</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#004600"> easy_info_res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#004600">easy_info_res</font><font color="#0000FF">}
+</font><font color="#008080">    else
+</font><font color="#0000FF">        ?{</font><font color="#008000">"socket"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</font><font color="#008080">    end if
+end if
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_global_cleanup</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            Availability: Added in 7.15.2
+            <br>
+            <br>
+            Return value: Returns a socket if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.<br>
+            Note that to distinguish the latter from a valid socket, check whether <a href="#easy_info_res">easy_info_res</a> is 
+            <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> or not.
+            <br>
+            <br>
+            See also: curl_easy_getinfo, curl_easy_setopt, <a href="#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a>
+          <small><br><a name="CURLINFO_ACTIVESOCKET"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_ACTIVESOCKET
+         </td>
+         <td>
+            Get the session&rsquo;s active socket.
+            <br>
+            <br>
+            Synopsis: atom socket = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET)
+            <br>
+            <br>
+            Retrieve the active socket used by this curl session. <br>
+            If the socket is no longer valid, CURL_SOCKET_BAD is returned. <br>
+            When you finish working with the socket, you must call curl_easy_cleanup as usual on the easy handle and let libcurl close the socket and 
+            cleanup other resources associated with the handle. <br>
+            This is typically used in combination with <a href="CURLoption.htm#CURLOPT_CONNECT_ONLY">CURLOPT_CONNECT_ONLY</a>.
+            <br>
+            <br>
+            This option was added as a replacement for <a href="#CURLINFO_LASTSOCKET">CURLINFO_LASTSOCKET</a> since that one is not working on all platforms.
+            <br>
+            <br>
+            Protocols: All
+            <br>
+            <br>
+            Example
+<!--eucode>
+include builtins\libcurl.e
+curl_global_init()
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+-- Do not do the transfer - only connect to host
+curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, true)
+object res = curl_easy_perform(curl)
+if res!=CURLE_OK then
+    ?"error"
+else
+    -- Extract the socket from the curl handle
+    res = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET)
+    if easy_info_res!=CURLE_OK then
+        ?{"error",easy_info_res}
+    else
+        ?{"socket",res}
+    end if
+end if
+curl_easy_cleanup(curl)
+curl_global_cleanup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#5E005E">curl_global_init</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- Do not do the transfer - only connect to host
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_CONNECT_ONLY</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
+</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">    ?</font><font color="#008000">"error"
+</font><font color="#008080">else
+</font><font color="#000080"><i>    -- Extract the socket from the curl handle
+</i></font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_ACTIVESOCKET</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#004600"> easy_info_res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#004600">easy_info_res</font><font color="#0000FF">}
+</font><font color="#008080">    else
+</font><font color="#0000FF">        ?{</font><font color="#008000">"socket"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</font><font color="#008080">    end if
+end if
+</font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_global_cleanup</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            Availability: Added in 7.45.0
+            <br>
+            <br>
+            Return value: Returns a socket if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.<br>
+            Note that to distinguish the latter from a valid socket, check whether <a href="#easy_info_res">easy_info_res</a> is 
+            <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> or not.
+            <br>
+            <br>
+            See also: curl_easy_setopt, <a href="#CURLINFO_LASTSOCKET">CURLINFO_LASTSOCKET</a>
+          <small><br><a name="CURLINFO_FTP_ENTRY_PATH"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_FTP_ENTRY_PATH
+         </td>
+         <td>
+            The entry path after logging in to an FTP server. See CURLINFO_FTP_ENTRY_PATH
+          <small><br><a name="CURLINFO_CERTINFO"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CERTINFO
+         </td>
+         <td>
+            Get the TLS certificate chain.
+            <br>
+            <br>
+<!--
+#include <curl/curl.h>
+
+CURLcode curl_easy_getinfo(CURL *handle, CURLINFO_CERTINFO,   struct curl_certinfo *chainp);
+
+DESCRIPTION
+
+Pass a pointer to a 'struct curl_certinfo *' and you&rsquo;ll get it set to point to struct that holds a number of linked lists with info about the certificate chain, 
+assuming you had CURLOPT_CERTINFO enabled when the request was made. 
+The struct reports how many certs it found and then you can extract info for each of those certs by following the linked lists. 
+The info chain is provided in a series of data in the format "name:content" where the content is for the specific named data. 
+See also the certinfo.c example.
+-->
+            Protocols: All TLS-based
+<!--
+EXAMPLE
+
+curl = curl_easy_init();
+//if(curl) {
+  curl_easy_setopt(curl, CURLOPT_URL, "https://www.example.com/");
+ 
+  /* connect to any HTTPS site, trusted or not */
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, false);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, false);
+ 
+  curl_easy_setopt(curl, CURLOPT_CERTINFO, true);
+ 
+  res = curl_easy_perform(curl);
+ 
+  if (!res) {
+    struct curl_certinfo *ci;
+    res = curl_easy_getinfo(curl, CURLINFO_CERTINFO, &ci);
+ 
+    if (!res) {
+      printf("%d certs!\n", ci->num_of_certs);
+ 
+      for(i = 0; i < ci->num_of_certs; i++) {
+        struct curl_slist *slist;
+ 
+        for(slist = ci->certinfo[i]; slist; slist = slist->next)
+          printf("%s\n", slist->data);
+      }
+    }
+  }
+  curl_easy_cleanup(curl);
+//}
+-->
+            <br>
+            <br>
+            Availability: This option is only working in libcurl built with OpenSSL, NSS, schannel or GSKit support. schannel support added in 7.50.0
+            Added in 7.19.1
+            <br>
+            <br>
+            Return value: Returns a nested sequence, one for each certificate in the chain, with each subsequence being strings describing that
+            certificate, if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            <br>
+            <br>
+            See also: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>
+          <small><br><a name="CURLINFO_TLS_SSL_PTR"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_TLS_SSL_PTR
+         </td>
+         <td>
+            TLS session info that can be used for further processing. See CURLINFO_TLS_SSL_PTR
+          <small><br><a name="CURLINFO_TLS_SESSION"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_TLS_SESSION
+         </td>
+         <td>
+            TLS session info that can be used for further processing. See CURLINFO_TLS_SESSION. Deprecated option, use CURLINFO_TLS_SSL_PTR instead!
+          <small><br><a name="CURLINFO_CONDITION_UNMET"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_CONDITION_UNMET
+         </td>
+         <td>
+            Whether or not a time conditional was met. See CURLINFO_CONDITION_UNMET
+          <small><br><a name="CURLINFO_RTSP_SESSION_ID"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_RTSP_SESSION_ID
+         </td>
+         <td>
+            RTSP session ID. See CURLINFO_RTSP_SESSION_ID
+          <small><br><a name="CURLINFO_RTSP_CLIENT_CSEQ"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_RTSP_CLIENT_CSEQ
+         </td>
+         <td>
+            RTSP CSeq that will next be used. See CURLINFO_RTSP_CLIENT_CSEQ
+          <small><br><a name="CURLINFO_RTSP_SERVER_CSEQ"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_RTSP_SERVER_CSEQ
+         </td>
+         <td>
+            RTSP CSeq that will next be expected. See CURLINFO_RTSP_SERVER_CSEQ
+          <small><br><a name="CURLINFO_RTSP_CSEQ_RECV"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_RTSP_CSEQ_RECV
+         </td>
+         <td>
+            RTSP CSeq last received. See CURLINFO_RTSP_CSEQ_RECV
+          <small><br><a name="CURLINFO_PROTOCOL"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_PROTOCOL
+         </td>
+         <td>
+            The protocol used for the connection. (Added in 7.52.0) See CURLINFO_PROTOCOL
+          <small><br><a name="CURLINFO_SCHEME"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLINFO_SCHEME
+         </td>
+         <td>
+            The scheme used for the connection. (Added in 7.52.0) See CURLINFO_SCHEME
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>TIMES</b>
+         </td>
+         <td>
+            An overview of the six time values available from curl_easy_getinfo()
+            <br> 
+            <br> 
+            <a href="curl_easy_perform.htm">curl_easy_perform</a>()<br>
+            |<br>
+            |--<a href="curl_easy_getinfo.htm#CURLINFO_NAMELOOKUP_TIME">NAMELOOKUP</a><br>
+            |--|--<a href="curl_easy_getinfo.htm#CURLINFO_CONNECT_TIME">CONNECT</a><br>
+            |--|--|--<a href="curl_easy_getinfo.htm#CURLINFO_APPCONNECT_TIME">APPCONNECT</a><br>
+            |--|--|--|--<a href="curl_easy_getinfo.htm#CURLINFO_PRETRANSFER_TIME">PRETRANSFER</a><br>
+            |--|--|--|--|--<a href="curl_easy_getinfo.htm#CURLINFO_STARTTRANSFER_TIME">STARTTRANSFER</a><br>
+            |--|--|--|--|--|--<a href="curl_easy_getinfo.htm#CURLINFO_TOTAL_TIME">TOTAL</a><br>
+            |--|--|--|--|--|--<a href="curl_easy_getinfo.htm#CURLINFO_REDIRECT_TIME">REDIRECT</a><br>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="curl_easy_setopt.htm">curl_easy_setopt</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

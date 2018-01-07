@@ -1029,3 +1029,7 @@ global sequence exports
 global sequence exportaddrs -- addresses of static callbacks that invoke routine symtab[exports[i]]
                             -- (note: the first is always DllMain and includes all :>init calls)
 
+global integer mapEndToMinusOne         -- 0=no, -ve = $ only (-1..-4 signal where set for debug),
+               mapEndToMinusOne=0       -- +ve = $ and end, set to T_end/'$' when triggered.
+                                        -- (oops, only set to '$' from -1/DoConstant)
+

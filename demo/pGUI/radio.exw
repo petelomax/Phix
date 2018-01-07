@@ -3,7 +3,6 @@
 --  Creates a dialog for the user to select his/her gender. 
 --  In this case, the radio element is essential to prevent the user from selecting both options.
 --
-
 include pGUI.e
 
 function esc_close(Ihandle /*ih*/, atom c)
@@ -14,9 +13,12 @@ end function
 Ihandle male, female, exclusive, frame, dialog 
 
 function action_cb(Ihandle ih, integer state)
-    -- this gets the 0 first, then the 1:
+-- This gets the 0 first, then the 1; it works 
+-- just as well without the state test, btw.
 --  ?{iff(ih=male?"MALE":iff(ih=female?"FEMALE":"???")),state}
-    IupSetAttribute(dialog,"TITLE",iff(ih=male?"MALE":iff(ih=female?"FEMALE":"???")))
+    if state=1 then
+        IupSetAttribute(dialog,"TITLE",iff(ih=male?"MALE":iff(ih=female?"FEMALE":"???")))
+    end if
     return IUP_DEFAULT
 end function
 
@@ -27,13 +29,16 @@ end function
     female = IupToggle("Female",Icallback("action_cb"))
 
     exclusive = IupRadio(IupVbox({male,female})) 
-    IupSetHandle("male", male) 
-    IupSetHandle("female", female) 
-    IupSetAttribute(exclusive, "VALUE", "female") 
-    IupSetAttribute(male, "TIP",     "Two state button - Exclusive - RADIO") 
-    IupSetAttribute(female, "TIP",   "Two state button - Exclusive - RADIO") 
+--  IupSetHandle("male", male) 
+--  IupSetHandle("female", female) 
+--  IupSetAttribute(exclusive, "VALUE", "female") 
+    IupSetAttributeHandle(exclusive, "VALUE", female) 
+--  IupSetAttribute(male,  "TIP","Two state button - Exclusive - RADIO") 
+--  IupSetAttribute(female,"TIP","Two state button - Exclusive - RADIO") 
+    IupSetAttributes({male,female},"TIP=\"Two state button - Exclusive - RADIO\"") 
 
     frame = IupFrame(exclusive, "TITLE=Gender")
+--  IupSetAttribute(frame,"TIP","Two state button - Exclusive - RADIO") 
 
     dialog = IupDialog(IupHbox({IupFill(),frame,IupFill()})) 
 

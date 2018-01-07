@@ -1256,10 +1256,19 @@ integer sdx = 0,    -- chars processed in s
                             -- more likely than futures >20 years away. By
                             -- now most things use 4-digit dates anyway.
                             --
+--/*
                             if year<35 then
                                 year += 2000    -- 00..44 ==> 2000..2034
                             else
                                 year += 1900    -- 35..99 ==> 1935..1999
+                            end if
+--*/
+                            integer current_year = date()[DT_YEAR],
+                                    century = floor(current_year/100)*100
+
+                            year += (century-100)
+                            if year < (current_year-80) then
+                                year += 100
                             end if
 --                      end if
 --                      year -= 1900            -- to match date()

@@ -98,13 +98,15 @@
             actually work perfectly fine anyway - but there is certainly no guarantee of that.
             <br>
             <br>
-            Note that join_path automatically uses the appropriate platform-specific separator,
-            however should split_path preserve any leading/trailing separators, it will do so 
-            without substituting them for the correct platform-specific one, which as shown in this
-            second example may cause mishaps(*). Should this occur, my recommendation would be to 
-            use <a href="substitute.htm">substitute</a>() on path before passing it to split_path(), 
-            as shown in the third example, or better yet (if you do not mind that any relative paths
-            are replaced with fully qualified ones) <a href="get_proper_path.htm">get_proper_path</a>().
+            Note that join_path automatically uses the appropriate platform-specific separator, however should split_path preserve 
+            any leading/trailing separators, it will do so without substituting them for the correct platform-specific one, which 
+            as shown in this second example may cause mishaps (as marked with (*)). Should this occur, my recommendation would be to 
+            use <a href="substitute.htm">substitute</a>() on path before passing it to split_path(), as shown in the third example, 
+            or better yet (as long as you do not mind that any relative paths are replaced with fully qualified ones) 
+            <a href="get_proper_path.htm">get_proper_path</a>().<br>
+            UPDATE: two of the original errors have now been fixed, but one more new one has been found (though my attitude remains
+            that you would be far better off properly testing an application on different platforms, rather than complaining that
+            this routine occasionally does daft things if you ask it to, such as use /home on Windows or C:\\ on Linux).
             <br>
             <br>
           <b>Example 2:</b>
@@ -116,10 +118,11 @@
 ?join_path(split_path("\\demo\\edix"))      -- "\\demo/edix" (on Linux (*))
 ?join_path(split_path("home/john"))         -- "home\\john" (on Windows)
 ?join_path(split_path("/home/john"))        -- "/home/john" (on Linux)
+?join_path(split_path("/home/john"))        -- "/home\\john" (on Windows (*))
 ?join_path(split_path("demo\\edix\\"),1)    -- "demo\\edix\\" (on Windows)
-?join_path(split_path("demo/edix/",1),1)    -- "demo\\edix/\\" (on Windows (*))
+?join_path(split_path("demo/edix/",1),1)    -- "demo\\edix\\" (on Windows) [now fixed]
 ?join_path(split_path("demo/edix/"),1)      -- "demo/edix/" (on Linux)
-?join_path(split_path("demo\\edix\\",1),1)  -- "demo/edix\\/" (on Linux (*))
+?join_path(split_path("demo\\edix\\",1),1)  -- "demo/edix/" (on Linux) [now fixed]
 ?join_path(split_path(""))                  -- ""
 </eucode-->
 <pre>
@@ -130,14 +133,15 @@
 </i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"\\demo\\edix"</font><font color="#800000">)</font><font color="#0000FF">)     </font><font color="#000080"><i> -- "\\demo/edix" (on Linux (*))
 </i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"home/john"</font><font color="#800000">)</font><font color="#0000FF">)        </font><font color="#000080"><i> -- "home\\john" (on Windows)
 </i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"/home/john"</font><font color="#800000">)</font><font color="#0000FF">)       </font><font color="#000080"><i> -- "/home/john" (on Linux)
+</i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"/home/john"</font><font color="#800000">)</font><font color="#0000FF">)       </font><font color="#000080"><i> -- "/home\\john" (on Windows (*))
 </i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"demo\\edix\\"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)   </font><font color="#000080"><i> -- "demo\\edix\\" (on Windows)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"demo/edix/"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)   </font><font color="#000080"><i> -- "demo\\edix/\\" (on Windows (*))
+</i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"demo/edix/"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)   </font><font color="#000080"><i> -- "demo\\edix\\" (on Windows) [now fixed]
 </i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"demo/edix/"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)     </font><font color="#000080"><i> -- "demo/edix/" (on Linux)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"demo\\edix\\"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">) </font><font color="#000080"><i> -- "demo/edix\\/" (on Linux (*))
+</i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">"demo\\edix\\"</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">) </font><font color="#000080"><i> -- "demo/edix/" (on Linux) [now fixed]
 </i></font><font color="#0000FF">?</font><font color="#5E005E">join_path</font><font color="#0000FF">(</font><font color="#5E005E">split_path</font><font color="#800000">(</font><font color="#008000">""</font><font color="#800000">)</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- ""</i></font>
 </pre>
             <br>
-            It is of course join_path() inducing the use of (on Windows/Linux) qualifier comments, which were not needed in Example 1.
+            It is of course join_path(), rather than split_path(), that is giving us the platform-specific results here.
             <br>
             <br>
           <b>Example 3:</b>
@@ -163,7 +167,11 @@ string {sep1,sep2} = iff(platform()=WINDOWS?{"/","\\"}:{"\\","/"}),
 </pre>
             <br>
             I should also note that there is no direct correlation between the preservetrailsep parameter of split_path and the 
-            trailsep argument of join_path - sometimes both may be needed, sometimes one but not the other, and sometimes neither.
+            trailsep argument of join_path - sometimes both may be needed, sometimes one but not the other, sometimes the other
+            way round, and sometimes neither.
+            <br>
+            <br>
+            The relatively trivial implementation of this routine can be found in the autoinclude builtins\psplit.e
          </td>
         </tr>
        </table>

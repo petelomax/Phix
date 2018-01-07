@@ -87,6 +87,7 @@ function listen_cb(Ihandle /*ih*/)
     elsif rmsg!=0 then
         object res = getmsg()
 --DEV: (open ex.err/jump to error)
+--?"ex.err??"
         ?res
     end if
     return IUP_DEFAULT
@@ -134,11 +135,21 @@ Ihandln run_dlg = NULL,
 procedure run(string cmd, string path)
 -- worker thread (so system_exec() does not stall the whole app)
     {} = chdir(path)
-    atom res = system_exec(cmd)
+--  atom res = system_exec(cmd)
+--open "C:\Program Files (x86)\Phix\demo\libxlsxwriter\js\pendulum1.html"
+    if length(cmd)>5 
+    and cmd[1..5]="open " then  -- (note the space)
+        cmd = cmd[6..$]
+    end if
+    -- Hmm/DEV seems we need this... will likely fail, though,
+    --         for eg "dir *.exe", "p.exe test > out.txt", ...
+    integer mode = iff(match(".exe",cmd)?2:4)
+    atom res = system_exec(cmd,mode)
+--?{"run",cmd,res}
 --?res
     if res!=0
     and res!=#C000013A then -- terminated by Ctrl C
-        add_msg({res,path})
+        add_msg({res,cmd,path})
     end if
     enter_cs(msgcs)
     wcount -= 1
@@ -246,8 +257,13 @@ Note: if the command specified in Options/File Extensions contains "%s" then
 the checkboxes in this dialog are disabled, however you can manually edit the
 command string instead."""
 
+--DEV bug: esc works fine, unless you F1/esc first, then it bells...
+-- (actually, it bells first time in, but not subsequently???)
 function help_cb(Ihandle /*ih*/)
+--  IupSetGlobal("PARENTDIALOG", run_dlg)
     IupMessage("Parameterised Run Help",help_text)
+--  IupSetFocus(run_dlg)
+--  IupSetGlobal("PARENTDIALOG", dlg)
     return IUP_DEFAULT
 end function
 constant cb_help = Icallback("help_cb")
@@ -273,23 +289,32 @@ function cancel_cb(Ihandle /*bt_cancel*/)
 end function
 constant cb_cancel = Icallback("cancel_cb")
 
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_F1 then 
+        return help_cb(run_dlg)
+--  elsif c=K_ESC then
+--      return IUP_CLOSE
+    end if
+    return IUP_DEFAULT
+end function
+
 procedure open_rundlg()
 Ihandle run_lbl, buttons, command, box, bt_help, bt_ok, bt_cancel
     if run_dlg=NULL then
 --DEV Run With / Treat as Extension, Always use specified command...
         run_lbl = IupLabel("cmd")
         run_txt = IupList("EXPAND=HORIZONTAL, DROPDOWN=YES, EDITBOX=YES")
-        t_comp = IupToggle("compile",cb_compile,"PADDING=10x2")
-        t_list = IupToggle("listing",cb_listing,"PADDING=10x2")
+        t_comp = IupToggle("&compile",cb_compile,"PADDING=10x2")
+        t_list = IupToggle("&listing",cb_listing,"PADDING=10x2")
         l_type = IupList(cb_type,"DROPDOWN=YES, EDITBOX=NO")
         IupSetAttribute(l_type,"1","asm")
         IupSetAttribute(l_type,"2","il")
         IupSetInt(l_type,"VALUE",1)
         IupSetInt(l_type,"ACTIVE",0)
-        t_diag = IupToggle("nodiag",cb_compile,"PADDING=10x2")
-        t_nrun = IupToggle("norun",cb_compile,"PADDING=10x2")
-        t_lint = IupToggle("lint",cb_compile,"PADDING=10x2")
-        bt_help = IupButton("Help",cb_help,"PADDING=10x2")
+        t_diag = IupToggle("nodia&g",cb_compile,"PADDING=10x2")
+        t_nrun = IupToggle("no&run",cb_compile,"PADDING=10x2")
+        t_lint = IupToggle("l&int",cb_compile,"PADDING=10x2")
+        bt_help = IupButton("Help (F1)",cb_help,"PADDING=10x2")
         bt_ok = IupButton("OK",cb_ok,"PADDING=10x2")
         bt_cancel = IupButton("Cancel",cb_cancel,"PADDING=10x2")
 
@@ -308,6 +333,8 @@ Ihandle run_lbl, buttons, command, box, bt_help, bt_ok, bt_cancel
         IupSetAttributeHandle(run_dlg, "DEFAULTENTER", bt_ok)
         IupSetAttributeHandle(run_dlg, "DEFAULTESC", bt_cancel)
         IupSetAttributePtr(run_dlg, "PARENTDIALOG", dlg)
+--      IupSetAttributeHandle(run_dlg, "PARENTDIALOG", dlg)
+        IupSetCallback(run_dlg, "K_ANY", Icallback("key_cb"));
     end if
     set_run_txt()
     IupPopup(run_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
@@ -315,6 +342,7 @@ end procedure
 
 global procedure F5run(integer ctrl, integer shift)--, integer alt)
 -- called by main thread
+--?"F5run"
     if msgcs=0 then
         msgcs = init_cs()
         rmsg = 0
@@ -325,9 +353,18 @@ global procedure F5run(integer ctrl, integer shift)--, integer alt)
     if ctrl then
         open_rundlg()
     elsif shift then
-        run_currfile(last_cmd)
+        if length(last_cmd) then
+            run_currfile(last_cmd)
+        else
+            open_rundlg()
+        end if
     else
-        run_currfile(get_cmd(currfile,0))
+        string cmd = get_cmd(currfile,0)
+        if length(cmd) then
+            run_currfile(cmd)
+        else
+            open_rundlg()
+        end if
     end if
 end procedure
 

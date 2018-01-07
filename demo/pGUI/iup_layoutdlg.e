@@ -1526,14 +1526,16 @@ int iupStrToRGB(const char *str, unsigned char *r, unsigned char *g, unsigned ch
 --*/
 function iupStrToRGB(string s, sequence defval)
 integer {r,g,b} = defval
-    if s[1]='#' then
-        ?s
-        ?9/0
-        ?defval
-    else
-        sequence paramsets = scanf(s,"%d %d %d")
-        if length(paramsets)>0 then
-            {r,g,b} = paramsets[1]
+    if length(s) then
+        if s[1]='#' then
+            ?s
+            ?9/0
+            ?defval
+        else
+            sequence paramsets = scanf(s,"%d %d %d")
+            if length(paramsets)>0 then
+                {r,g,b} = paramsets[1]
+            end if
         end if
     end if
     return {r,g,b}

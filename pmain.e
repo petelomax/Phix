@@ -3043,6 +3043,7 @@ integer N
                 if ch=' ' then exit end if
             end for
             constseq &= v
+--?{v,constseq,string(constseq)}
 --3/1/16:
 --          if not integer(v) then
             if isFLOAT(v) then

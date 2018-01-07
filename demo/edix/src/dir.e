@@ -963,21 +963,24 @@ atom TVI
             treeIdx = getIndex(id)
             if treeIdx and treeIdx<=length(treeItems) then
                 if treeItems[treeIdx][tLoaded]=-1 then  -- a leaf node
-                    void = openFile(getTreeText(treeIdx,1),1,isLegacyTabHandling)
+--                  void = openFile(getTreeText(treeIdx,1),1,isLegacyTabHandling)
+                    {} = openFile(0,getTreeText(treeIdx,1),1)
                 end if
             end if
         elsif id=TVprjl then
             treeIdx = getIndex(id)
             --DEV debug this, why don't I need TVM_EXPAND here/need it elsewhere?
             if treeIdx and treeIdx<=length(currProjFileSet) then
-                void = openFile(currProjFileSet[treeIdx][3]&currProjFileSet[treeIdx][2],1,1)
+--              void = openFile(currProjFileSet[treeIdx][3]&currProjFileSet[treeIdx][2],1,1)
+                {} = openFile(0,currProjFileSet[treeIdx][3]&currProjFileSet[treeIdx][2],1)
             end if
         elsif id=TVrecl then
             treeIdx = getIndex(id)
             if treeIdx and treeIdx<=length(backItems) then
                 if backItems[treeIdx][tLoaded]=-1 then
                     oldcurrfile = currfile
-                    void = openFile(initialcurrentdir&"backup\\"&backItems[treeIdx][tText],1,1)
+--                  void = openFile(initialcurrentdir&"backup\\"&backItems[treeIdx][tText],1,1)
+                    {} = openFile(0,initialcurrentdir&"backup\\"&backItems[treeIdx][tText],1)
 -- 10/1/08:
 --                  if not isSingleDir then
 --                      if currfile>oldcurrfile+2 then

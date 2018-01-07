@@ -3146,6 +3146,8 @@ integer relptr
 integer showmapsymtab = 0
 --object dbg
 
+--1/1/18:
+    UnAliasAll()
 --if Z_ridN!=0 then -- still OK...
 ----    Z_ridN = 181
 --  ?symtab[Z_ridN]
@@ -4086,10 +4088,14 @@ end if
         if listing 
         or some_unresolved_rtnids
         or exceptions_in_use then
+
 --puts(1,"calling relink and reconstructids... (pemit2.e line 4336)\n")
             relink()
+--?{"symtab[1][S_Name] (pEmit2.e line 4089)",symtab[1][S_Name]}
             tt_traverse(r_ReconstructIds,"",-2)             -- identifiers
 --puts(1,"returned from reconstructids... (pemit2.e line 4339)\n")
+--?{"symtab[1][S_Name] (pEmit2.e line 4095)",symtab[1][S_Name]}
+
         end if
 --9/10/10: moved here (to be before blurph, for isConstRef[Count])
         -- reconstruct any nested sequences
@@ -4102,6 +4108,7 @@ end if
         end while
 
     end if -- bind/interpret
+
 
 --puts(1,"finalfixups2 line 4587\n")
 

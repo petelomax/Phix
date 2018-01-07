@@ -1,0 +1,158 @@
+--
+-- triangle.exw
+-- ============
+--
+--  Translation of http://rosettacode.org/wiki/OpenGL#Lua
+--
+--  Converted to pGUI by Pete Lomax
+--
+
+include pGUI.e
+include ..\pGUI\opengl.e
+
+--#withtype Ihandle
+
+function resize_cb(Ihandle /*ih*/, integer width, integer height)
+    glViewport(0, 0, width, height)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    glOrtho(-30.0, 30.0, -30.0, 30.0, -30.0, 30.0)
+    glMatrixMode(GL_MODELVIEW)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+function action(Ihandle /*ih*/)
+
+    glClearColor(0.3,0.3,0.3,0.0)
+    glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT)
+
+    glShadeModel(GL_SMOOTH)
+
+    glLoadIdentity()
+    glTranslate(-15.0, -15.0, 0.0)
+
+    glBegin(GL_TRIANGLES)
+    glColor(1.0, 0.0, 0.0)
+    glVertex(0.0, 0.0)
+    glColor(0.0, 1.0, 0.0)
+    glVertex(30.0, 0.0)
+    glColor(0.0, 0.0, 1.0)
+    glVertex(0.0, 30.0)
+    glEnd()
+
+    glFlush()
+
+    return IUP_DEFAULT
+end function
+
+Ihandle dialog, canvas
+
+function map_cb(Ihandle /*ih*/)
+    IupGLMakeCurrent(canvas)
+    integer {width, height} = IupGetIntInt(dialog, "RASTERSIZE")
+    {} = resize_cb(dialog, width, height)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    IupGLCanvasOpen()
+
+    canvas = IupGLCanvas(Icallback("action"), "RASTERSIZE=640x480")
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"))
+
+    dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
+    IupSetCallback(dialog, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+
+    IupShow(dialog)
+    IupMainLoop()
+    IupDestroy(dialog)
+    IupClose()
+end procedure
+main()
+
+--/*
+#include <stdio.h>
+#include <stdlib.h>
+#include <GL/glew.h>
+#include <GL/glut.h>
+ 
+GLuint ps, vs, prog, r_mod;
+float angle = 0;
+void render(void)
+{
+        glClear(GL_COLOR_BUFFER_BIT);
+        glUniform1f(r_mod, rand() / (float)RAND_MAX);
+ 
+        glLoadIdentity();
+        glRotatef(angle, angle * .1, 1, 0);
+        glBegin(GL_TRIANGLES);
+                glVertex3f(-1, -.5, 0);
+                glVertex3f(0, 1, 0);
+                glVertex3f(1, 0, 0);
+        glEnd();
+        angle += .02;
+        glutSwapBuffers();
+}
+ 
+void set_shader()
+{
+        const char *f =
+                "varying float x, y, z;"
+                "uniform float r_mod;"
+                "float rand(float s, float r) { return mod(mod(s, r + r_mod) * 112341, 1); }"
+                "void main() {"
+                "	gl_FragColor = vec4(rand(gl_FragCoord.x, x), rand(gl_FragCoord.y, y), rand(gl_FragCoord.z, z), 1);"
+                "}";
+        const char *v =
+                "varying float x, y, z;"
+                "void main() {"
+                "	gl_Position = ftransform();"
+                "	x = gl_Position.x; y = gl_Position.y; z = gl_Position.z;"
+                "	x += y; y -= x; z += x - y;"
+                "}";
+ 
+        vs = glCreateShader(GL_VERTEX_SHADER);
+        ps = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(ps, 1, &f, 0);
+        glShaderSource(vs, 1, &v, 0);
+ 
+        glCompileShader(vs);
+        glCompileShader(ps);
+ 
+        prog = glCreateProgram();
+        glAttachShader(prog, ps);
+        glAttachShader(prog, vs);
+ 
+        glLinkProgram(prog);
+        glUseProgram(prog);
+        r_mod = glGetUniformLocation(prog, "r_mod");
+}
+ 
+int main(int argc, char **argv)
+{
+        glutInit(&argc, argv);
+        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+        glutInitWindowSize(200, 200);
+        glutCreateWindow("Stuff");
+        glutIdleFunc(render);
+ 
+        glewInit();
+        if (!glewIsSupported("GL_VERSION_2_0")) {
+                fprintf(stderr, "GL 2.0 unsupported\n");
+                return 1;
+        }
+ 
+        set_shader();
+        glutMainLoop();
+ 
+        return 0;
+}
+--*/

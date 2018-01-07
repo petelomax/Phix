@@ -20,6 +20,7 @@ constant titles = {"", "Chq#", "Date", "Amount", "Status", "Bank"},
          twidth = {20,  40,     60,     100,      50,       50},
          C = "ACENTER", L = "ALEFT", R = "ARIGHT",
          talign = {C,   L,      C,      R,        C,        L},
+         LENT = 6, -- length(titles)
          MAX = 5000,
          LB = "lightbulb",
          RSPACE = "R    "
@@ -47,7 +48,7 @@ function value_cb(Ihandle /*self*/, integer l, integer c)
 object dlc
 --  printf(1,"value_cb: l=%d, c=%d\n",{l,c})
     if c>0 then
-        if c>length(titles) then return NULL end if
+        if c>LENT then return NULL end if
         if l==0 then
             return IupRawStringPtr(titles[c])   -- column title
         end if
@@ -81,16 +82,16 @@ end function
 integer eiskip = 1
 
 function enteritem_cb(Ihandle ih, integer lin, integer col)
-    IupSetAttribute(ih,"MARKED", NULL);  /* clear all marks */
-    IupMatSetAttribute(ih,"MARK", lin, 0, "Yes");
-    IupSetStrAttribute(ih,"REDRAW", "L%d", {lin});
-    IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}); -- [1]
+    IupSetAttribute(ih,"MARKED", NULL)  /* clear all marks */
+    IupMatSetAttribute(ih,"MARK", lin, 0, "Yes")
+    IupSetStrAttribute(ih,"REDRAW", "L%d", {lin})
+    IupSetStrAttribute(ih,"FOCUSCELL", "%d:%d", {lin,col}) -- [1]
     if eiskip then
         eiskip -= 1 -- (don't clobber inital buildDummyData() msg)
     else
         IupSetAttribute(statusbar, "TITLE", sprint(data[tags[lin]]))
     end if
-    return IUP_DEFAULT;
+    return IUP_DEFAULT
 end function
 
 integer sortcol = 0
@@ -110,11 +111,11 @@ end procedure
 
 function click_cb(Ihandle self, integer l, integer c, atom pStatus)
 string sortc
---nullable_string v = IupMatGetAttribute(self, "", l, c);
+--nullable_string v = IupMatGetAttribute(self, "", l, c)
 --  if v=NULL then v = "NULL" end if
 --  printf(1,"click_cb(%d, %d, %s)\n", {l, c, peek_string(pStatus)})
 --  printf(1,"  VALUE%d:%d = %s\n", {l, c, v})
-    if c>0 and c<=length(titles) then
+    if c>0 and c<=LENT then
         if l=0 then -- title clicked, so sort that column
             atom t = time()
             if sortcol!=0 and sortcol!=c then
@@ -136,14 +137,15 @@ string sortc
             showselected()
         end if
     end if
-    return IUP_DEFAULT;
+    return IUP_DEFAULT
 end function
 
 function resize_cb(Ihandle /*ih*/, integer width, integer /*height*/)
 sequence widths = repeat(0,IupGetInt(matrix,"NUMCOL"))
 integer total_width = 0, new_width
     for i=1 to length(widths) do
-        widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
+--      widths[i] = IupGetInt(matrix,sprintf("RASTERWIDTH%d",i))
+        widths[i] = IupGetIntId(matrix,"RASTERWIDTH",i)
     end for
     width -= 65
     if width<120 then width = 120 end if
@@ -152,7 +154,8 @@ integer total_width = 0, new_width
     for i=1 to length(widths) do
         new_width = floor((widths[i]/total_width)*width)
         if new_width<10 then new_width = 10 end if
-        IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
+--      IupSetInt(matrix,sprintf("RASTERWIDTH%d",i),new_width)
+        IupSetIntId(matrix,"RASTERWIDTH",i,new_width)
         widths[i] = new_width
     end for
     return IUP_DEFAULT
@@ -170,8 +173,8 @@ procedure main()
     IupSetHandle(LB, IupLoadImage("lightbulb.png"))
 
     matrix = IupMatrix()
-    IupSetInt(matrix, "NUMCOL", length(titles))
-    IupSetInt(matrix, "NUMCOL_VISIBLE", length(titles))
+    IupSetInt(matrix, "NUMCOL", LENT)
+    IupSetInt(matrix, "NUMCOL_VISIBLE", LENT)
     IupSetInt(matrix, "NUMLIN", MAX)
     IupSetInt(matrix, "NUMLIN_VISIBLE", 15)
 --  IupSetInt(matrix, "WIDTHDEF", 40) -- (now completely overidden anyway)
@@ -180,37 +183,40 @@ procedure main()
         IupSetAttributeId(matrix, "ALIGNMENT", i, talign[i])
     end for
     --IMPORTANT: HEIGHT0 tells IupMatrix that we are gonna have column titles at line 0
-    IupSetInt(matrix, "HEIGHT0", 10);
---  IupSetInt(matrix, "WIDTH0", NULL);  -- (no help)
-    IupSetAttribute(matrix, "RESIZEMATRIX", "YES");
-    IupSetAttribute(matrix, "MARKMODE", "LIN");
-    IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS");
+    IupSetInt(matrix, "HEIGHT0", 10)
+--  IupSetInt(matrix, "WIDTH0", NULL)   -- (no help)
+    IupSetAttribute(matrix, "RESIZEMATRIX", "YES")
+    IupSetAttribute(matrix, "MARKMODE", "LIN")
+    IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS")
 --DEV does not seem to work...
---  IupSetAttribute(matrix, "MULTIPLE", "YES"); -- (or is that "MARKMULTIPLE"? the default is NO anyway)
+--  IupSetAttribute(matrix, "MULTIPLE", "YES") -- (or is that "MARKMULTIPLE"? the default is NO anyway)
 
---  IupSetAttribute(matrix, "READONLY", "YES"); -- with VALUE_CB set, non-setting of VALUE_EDIT_CB (also) makes it read-only
-    IupSetAttribute(matrix, "HIDEFOCUS", "YES");
-    IupSetAttribute(matrix, "FRAMECOLOR", "220 220 220");
+--  IupSetAttribute(matrix, "READONLY", "YES") -- with VALUE_CB set, non-setting of VALUE_EDIT_CB (also) makes it read-only
+    IupSetAttribute(matrix, "HIDEFOCUS", "YES")
+    IupSetAttribute(matrix, "FRAMECOLOR", "220 220 220")
 --  IupSetAttribute(matrix, "FRAMEVERTCOLOR*:1", "255 255 255")
-    IupSetAttribute(matrix, "BORDER", "NO");
-    IupSetAttribute(matrix, "CURSOR", "ARROW");
-    IupSetAttribute(matrix, "TYPE*:1", "IMAGE");
+    IupSetAttribute(matrix, "BORDER", "NO")
+    IupSetAttribute(matrix, "CURSOR", "ARROW")
+    IupSetAttribute(matrix, "TYPE*:1", "IMAGE")
 
     IupSetCallback(matrix, "VALUE_CB",      Icallback("value_cb"))
-    IupSetCallback(matrix, "ENTERITEM_CB",  Icallback("enteritem_cb"));
-    IupSetCallback(matrix, "CLICK_CB",      Icallback("click_cb"));
+    IupSetCallback(matrix, "ENTERITEM_CB",  Icallback("enteritem_cb"))
+    IupSetCallback(matrix, "CLICK_CB",      Icallback("click_cb"))
 
-    statusbar = IupLabel(buildDummyData());
-    IupSetAttribute(statusbar, "EXPAND", "HORIZONTAL");
-    IupSetAttribute(statusbar, "PADDING", "10x5");
+--for pGUI-IDE:
+--  statusbar = IupLabel(buildDummyData())
+    statusbar = IupLabel()
+    IupSetStrAttribute(statusbar,"TITLE",buildDummyData())
+    IupSetAttribute(statusbar, "EXPAND", "HORIZONTAL")
+    IupSetAttribute(statusbar, "PADDING", "10x5")
 
     Ihandle vbox = IupVbox({matrix,
-                            statusbar});
+                            statusbar})
 
     Ihandle dlg = IupDialog(vbox)
-    IupSetAttribute(dlg, "TITLE", "IupMatrix in Callback Mode");
-    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"));
-    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"));
+    IupSetAttribute(dlg, "TITLE", "IupMatrix in Callback Mode")
+    IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
     IupShow(dlg)
 
     IupMainLoop()

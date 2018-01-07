@@ -1,0 +1,165 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">curl_global_init</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include builtins\libcurl.e
+          <br>
+          <br>
+          curl_global_init(<a href="integer.htm">integer</a> flags=CURL_GLOBAL_DEFAULT)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            This procedure sets up the program environment that libcurl needs. Think of it as an extension of the library loader.<br>
+            Typically you call curl_global_init() at the start of your program and 
+            <a href="curl_global_cleanup.htm">curl_global_cleanup</a>() at the end.
+            <br>
+            <br>
+            This procedure must be called at least once within a program (a program is all the code that shares a memory space) 
+            before the program calls any other function in libcurl. <br>
+            The environment it sets up is constant for the life of the program and is the same for every program, so multiple 
+            calls have the same effect as one call.
+            <br>
+            <br>
+            The flags option is a bit pattern that tells libcurl exactly what features to init, as described below. <br>
+            Set the desired bits by ORing the values together. In normal operation, specify CURL_GLOBAL_ALL (==CURL_GLOBAL_DEFAULT). <br>
+            Do not use any other value unless you are familiar with it and mean to control internal operations of libcurl.
+            <br>
+            <br>
+            This procedure is not thread safe. You must not call it when any other thread in the program (i.e. a thread sharing 
+            the same memory) is running. This doesn&rsquo;t just mean no other thread that is using libcurl. 
+            Because curl_global_init calls functions of other libraries that are similarly thread unsafe, it could conflict 
+            with any other thread that uses these other libraries.
+            <br>
+            <br>
+            If you are initializing libcurl from a Windows DLL you should not initialize it from DllMain or a static initializer 
+            because Windows holds the loader lock during that time and it could cause a deadlock.
+            <br>
+            <br>
+            See the description in 
+              <a id="ext747" style="color:#9B5565" 
+                href="javascript:ExternalLink('ext747','https://curl.haxx.se/libcurl/c/libcurl.html');">
+                https://curl.haxx.se/libcurl/c/libcurl.html
+              </a>&nbsp;of global environment requirements for details of how to use this routine.
+            <br>
+            <br>
+            The following constants are provided:
+<!--eucode>
+global constant CURL_GLOBAL_SSL       = 1,  -- (deprecated in 7.57.0)
+                CURL_GLOBAL_WIN32     = 2,
+                CURL_GLOBAL_ALL       = or_bits(CURL_GLOBAL_SSL, CURL_GLOBAL_WIN32),
+                CURL_GLOBAL_NOTHING   = 0,
+                CURL_GLOBAL_DEFAULT   = CURL_GLOBAL_ALL,
+                CURL_GLOBAL_ACK_EINTR = 4
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">global constant</font><font color="#000000"> CURL_GLOBAL_SSL      </font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">, </font><font color="#000080"><i> -- (deprecated in 7.57.0)
+</i></font><font color="#000000">                CURL_GLOBAL_WIN32    </font><font color="#0000FF"> =</font><font color="#000000"> 2</font><font color="#0000FF">,
+</font><font color="#004600">                CURL_GLOBAL_ALL      </font><font color="#0000FF"> =</font><font color="#7060A8"> or_bits</font><font color="#0000FF">(</font><font color="#000000">CURL_GLOBAL_SSL</font><font color="#0000FF">,</font><font color="#000000"> CURL_GLOBAL_WIN32</font><font color="#0000FF">),
+</font><font color="#000000">                CURL_GLOBAL_NOTHING  </font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#0000FF">,
+</font><font color="#004600">                CURL_GLOBAL_DEFAULT  </font><font color="#0000FF"> =</font><font color="#004600"> CURL_GLOBAL_ALL</font><font color="#0000FF">,
+</font><font color="#000000">                CURL_GLOBAL_ACK_EINTR</font><font color="#0000FF"> =</font><font color="#000000"> 4</font>
+</pre>
+            <br>
+            Note that CURL_GLOBAL_SSL ceased to have any effect in 7.57.0
+<!--
+FLAGS
+
+CURL_GLOBAL_ALL
+
+Initialize everything possible. This sets all known bits except CURL_GLOBAL_ACK_EINTR.
+
+CURL_GLOBAL_SSL
+
+(This flag's presence or absense serves no meaning since 7.57.0. The description below is for older libcurl versions.)
+
+Initialize SSL.
+
+The implication here is that if this bit is not set, the initialization of the SSL layer needs to be done by the application or at least outside of libcurl. 
+The exact procedure how to do SSL initializtion depends on the TLS backend libcurl uses.
+
+Doing TLS based transfers without having the TLS layer initialized may lead to unexpected behaviors.
+
+CURL_GLOBAL_WIN32
+
+Initialize the Win32 socket libraries.
+
+The implication here is that if this bit is not set, the initialization of winsock has to be done by the application or you risk getting undefined behaviors. 
+This option exists for when the initialization is handled outside of libcurl so there&rsquo;s no need for libcurl to do it again.
+
+CURL_GLOBAL_NOTHING
+
+Initialise nothing extra. This sets no bit.
+
+CURL_GLOBAL_DEFAULT
+
+A sensible default. It will init both SSL and Win32. Right now, this equals the functionality of the CURL_GLOBAL_ALL mask.
+
+CURL_GLOBAL_ACK_EINTR
+
+When this flag is set, curl will acknowledge EINTR condition when connecting or when waiting for data. Otherwise, curl waits until full timeout elapses. (Added in 7.30.0)
+
+SEE ALSO
+
+curl_global_init_mem, curl_global_cleanup, curl_global_sslset, curl_easy_init, libcurl
+-->
+            <br>
+            <br>
+<!--
+            If this function returns non-zero, something went wrong and you cannot use the other curl functions.
+-->
+            A fatal error occurs if initialisation fails.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+include builtins\libcurl.e
+curl_global_init()
+...
+curl_global_cleanup()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#5E005E">curl_global_init</font><font color="#0000FF">()
+...
+</font><font color="#5E005E">curl_global_cleanup</font><font color="#0000FF">()</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="curl_global_cleanup.htm">curl_global_cleanup</a>,
+          <a href="curl_easy_init.htm">curl_easy_init</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

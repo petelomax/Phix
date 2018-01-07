@@ -90,13 +90,11 @@ constant SIGINT = 2
 --#     Name                        Registers                                                                                                               Definition
 --                                  eax     ebx                     ecx                     edx                     esi                     edi
 --67    sys_sigaction               0x43    int sig                 const struct old_sigaction *act struct old_sigaction *oact  -           -               arch/mips/kernel/signal.c:300
-
         push 0
         push 4  -- SA_SIGINFO
         push 0
         push :my_signal_handler
         mov eax, 67 -- SYSCALL_SIGACTION (67==#43)
---      mov ebx, 11 -- SIGSEGV 
         mov ebx, SIGINT
         mov ecx,esp
         xor edx, edx 
@@ -106,15 +104,11 @@ constant SIGINT = 2
         ret
       ::my_signal_handler
         add [cc_count],1
---      mov ecx,[cc_count]
---      add ecx,1
---      mov [cc_count],ecx
         ret
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --13        sys_rt_sigaction        int sig                 const struct sigaction *act     struct sigaction *oact  size_t sigsetsize
-        -- (untested: may need more space: 8 qw (of 0) for the mask, restore function, and "push 0x04000004 -- SA_SIGINFO or SA_RESTORER", see example64.asm)
---      push 4  -- SA_SIGINFO
+        -- (may yet need a "push 0x04000004 -- SA_SIGINFO or SA_RESTORER"?, see example64.asm)
         push rbx
         push rbx
         push rbx
@@ -143,9 +137,6 @@ constant SIGINT = 2
 
       ::my_signal_handler
         add [cc_count],1
---      mov rcx,[cc_count]
---      add rcx,1
---      mov [cc_count],rcx
         ret
       }
 

@@ -170,7 +170,7 @@ integer  utf8len, i, headb, bytes, c
             i += 1                      -- check if the next byte is head
         end if
 
-        if fail_flag and (bytes=0 or c=INVALID_UTF8) then return -1 end if
+        if fail_flag=-1 and (bytes=0 or c=INVALID_UTF8) then return -1 end if
 
         if c<=#FF and bytes=2 and string(utf32) then
             -- force dword sequence (specifically for c in #80..#FF)
@@ -238,7 +238,7 @@ integer u
 
         end if
 
-        if fail_flag and chr=INVALID_UNICODE then return -1 end if
+        if fail_flag=-1 and chr=INVALID_UNICODE then return -1 end if
 
         utf8 &= chr
     end for

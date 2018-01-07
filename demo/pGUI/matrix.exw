@@ -82,14 +82,15 @@ Ihandle dlg, mat
 --2: single column (well a 'header' column and a data column)
 --/*
 -- (translated from basic)
+constant MAX=100
 procedure list_print(sequence list)
- 
- if length(list)!=0 then
+integer ll = MAX -- length(list) [for pGUI-IDE]
+ if ll!=0 then
   IupOpen()
   IupControlsOpen()
   Ihandle mat = IupMatrix()
   IupSetStrAttribute(mat,"NUMCOL","1")
-  IupSetStrAttribute(mat,"NUMLIN","%d",{length(list)})
+  IupSetStrAttribute(mat,"NUMLIN","%d",{ll})
   IupSetStrAttribute(mat,"NUMCOL_VISIBLE","1")
   IupSetStrAttribute(mat,"NUMLIN_VISIBLE","12")
   IupSetStrAttribute(mat,"READONLY","YES")  
@@ -121,13 +122,13 @@ end procedure
 procedure list_main()
 sequence list = {}
 
-  for i=1 to 100 do
+  for i=1 to MAX do
     list = append(list,rand(100))
   end for
   
   -- show the list
   list_print(list)
-  for i=1 to 100 do
+  for i=1 to MAX do
     list = append(list,rand(100))
   end for
   -- show the list
@@ -138,7 +139,7 @@ list_main()
 --*/
 
 --3: as 2, multi-column
---/!*
+--/*
 -- translated from perl
 
     IupOpen()
@@ -177,10 +178,10 @@ list_main()
 --IUP->MainLoop;
     IupMainLoop()
     IupClose()  
---*!/
+--*/
 
 --4: as 3 but using value_cb, lovely scroll effect!
---/*
+--/!*
 -- using VALUE_CB:
 constant data = {{"Inflation", "January 2000", "February 2000"},
                  {"Medicine",  "5.6",          "4.6"},
@@ -219,7 +220,7 @@ end function
 --IUP->MainLoop;
     IupMainLoop()
     IupClose()  
---*/
+--*!/
 
 --4a:
 --/* translated from perl
@@ -451,17 +452,17 @@ IupClose()
 --*/
 
 --5: rubbish
---/* untried:
+--/*
 IupOpen()
-Ihandle mat = IupMatrix("NUMCOL=25, NUMLIN=23, NUMCOL_VISIBLE=5, NUMLIN_VISIBLE=3, WIDTHDEF=34, RESIZEMATRIX=YES, "&
+Ihandle mat = IupMatrix("NUMCOL=25, NUMLIN=23, NUMCOL_VISIBLE=3, NUMLIN_VISIBLE=5, WIDTHDEF=54, RESIZEMATRIX=YES, "&
                         "MARKMODE=CELL, MARKMULTIPLE=YES, MARKAREA=NOT_CONTINUOUS, " &
                         "0:0=Inflation, 0:1=\"January 2000\", 0:2=\"February 2000\", "&
                         "1:0=Medicine,  1:1=5.6,              1:2=4.6, "&
                         "2:0=Food,      2:1=2.2,              2:2=1.3, "&
                         "3:0=Energy,    3:1=7.2,              3:2=1.4")
 
-function dropcheck_cb(integer /*l*/, integer c)
-    if c==2 then
+function dropcheck_cb(Ihandle /*ih*/, integer l, integer c)
+    if l==2 and c==2 then
         return IUP_DEFAULT; 
     end if
     return IUP_IGNORE; 
@@ -469,14 +470,13 @@ end function
 IupSetCallback(mat, "DROPCHECK_CB", Icallback("dropcheck_cb"));
 
 function drop_cb(Ihandle /*self*/, Ihandle drop, integer lin, integer col)
-printf(1,"drop_cb(%d, %d)\n", {lin, col})
-    if col==2 then 
+--printf(1,"drop_cb(%d, %d)\n", {lin, col})
+    if lin==2 and col==2 then 
         IupSetAttribute(drop, "1", "123");
         IupSetAttribute(drop, "2", "456");
---DEV tryme
---      IupSetInt(drop, "2", 456);
---      IupSetInt(drop, "3", 789);
-        IupSetAttribute(drop, "3", "789");
+--      IupSetAttribute(drop, "3", "789");
+--(this also works fine, not that it is very useful)
+        IupSetInt(drop, "3", 789);
         return IUP_DEFAULT 
     end if
     return IUP_IGNORE
@@ -484,6 +484,7 @@ end function
 IupSetCallback(mat, "DROP_CB", Icallback("drop_cb"));
 
     Ihandle dlg = IupDialog(IupVbox({mat}, "MARGIN=10x10"))
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
     IupShowXY(dlg,IUP_CENTER, IUP_CENTER)
     IupMainLoop()
     IupClose()
@@ -529,7 +530,7 @@ end function
     IupSetCallback(matrix, "VALUE_EDIT_CB", Icallback("value_edit_cb"));
     IupSetCallback(matrix, "ENTERITEM_CB", Icallback("enteritem_cb"));
 
-    Ihandle dlg = IupDialog(matrix,"TITLE=\"teste\"")
+    Ihandle dlg = IupDialog(matrix,"TITLE=\"test\"")
     IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
     IupShow(dlg)
     IupMainLoop()

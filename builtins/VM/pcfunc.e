@@ -102,7 +102,7 @@
 --  way that legacy code would/had to.
 --
 
---/**/without debug
+--!/**/without debug
 --!/**/with debug
 
 include builtins\VM\pHeap.e     -- :%pStoreFlt etc
@@ -566,7 +566,7 @@ integer res
 integer level = 2+(return_type=0)
 
     convention = STDCALL
-    if platform()!=WIN32 then
+    if platform()!=WINDOWS then
         convention = CDECL
     end if
     name = fname
@@ -708,9 +708,11 @@ integer convention
     else
         k = find(id,previd)
     end if
-    if k=0 then
+    if k!=0 then
+        r = prevcb[k]
+    else
         convention = STDCALL
-        if platform()!=WIN32 then
+        if platform()!=WINDOWS then
             convention = CDECL
         end if
         if sequence(id) then
@@ -873,8 +875,6 @@ end if
         previd = append(previd,id)
         prevcb = append(prevcb,r)
         leave_cs(tcs)
-    else
-        r = prevcb[k]
     end if
     return r
 end function
@@ -1340,6 +1340,7 @@ end if
 --                          }) then
             if argdefi=#01000004            -- C_INT
             or argdefi=#02000001            -- C_UCHAR
+            or argdefi=#01000002            -- C_SHORT
             or argdefi=#02000004            -- C_UINT == C_ULONG, C_POINTER, C_PTR
             or argdefi=#01000008 then
                 #ilASM{

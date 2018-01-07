@@ -1,4 +1,4 @@
---
+﻿--
 --  cffi.e
 --  ======
 --
@@ -681,6 +681,10 @@ string mname
     end if
     if equal(mname,"*") then    -- "&"? (would need '&' adding twice in stoken())
         mname = stoken()
+--17/12/17:
+        if equal(mname,"const") then
+            mname = stoken()
+        end if
         if equal(mname,"*") then
             mname = stoken()
         end if
@@ -962,6 +966,7 @@ end function
 --constant {C_SIZES,C_CONSTS} = columnize({
 sequence C_SIZES,C_CONSTS
     {C_SIZES,C_CONSTS} = columnize({
+                                         {{2,1},C_WORD},    -- (=== C_SHORT)
                                          {{4,0},C_DWORD},   -- (=== C_PTR, C_HWND, etc)
                                          {{4,1},C_INT},
                                          {{8,0},C_POINTER},

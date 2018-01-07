@@ -1,14 +1,8 @@
 --
--- edix.exw
+-- Edix.exw
 -- ========
 --  Port of Edita from arwen to pGUI
 
---
--- Yae.exw
--- =======
---  Yae! is Yet another editor!
---  Much of the code from Edita has been ported from arwen to pGUI
---
 with trace
 --
 -- **INCOMPLETE**
@@ -70,6 +64,8 @@ with trace
 -- SUG: cannot open -> offer browse (and default any more in the same dir)
 -- SUG: parameterised run should keep ~ten most recently run, in the config file.
 -- SUG: on paste of utf8 into ansi, offer "save as utf8?" pop-up.
+-- DEV: options: save macros Yes/Once/No.
+-- BUG: closing when maximised forgets the "natural" (main) window size. [FIXED, albeit windows only]
 --/*
 filedlg [DONE, ish]
 listview
@@ -252,10 +248,10 @@ global sequence filenames,
                             --       lines, even within a single file, and
                             --  **   it is **NOT** a bug should you see such
                             -- ****  in ex.err files/diagnostics. [***NB***]
-                unicodefile, filelinelens,
+                unicodefile, filelinelengths,
                 filecursel, bCfwds, filedt
                 filenames = {}  filepaths = {}  filetext = {}   unicodefile = {}
-                filelinelens = {}  filecursel = {}  bCfwds = {}  filedt = {}
+                filelinelengths = {}  filecursel = {}   bCfwds = {}  filedt = {}
 
 global -- for eacomp  DEV: possibly needed for eafif/eacca/eaxutil...
 sequence unpacked       -- 0=just loaded, -1=fully unpacked, +ve=unpacked to line nnn
@@ -345,7 +341,8 @@ global integer
                 isAutoComplete = 1,     -- 1 if autocompletion enabled
 --              isBackGround,           -- 1 if background processing enabled
 --              isCurrProject,          -- 0 if no project selected
-                isClearOverStrike = 0,      -- clear overstrike mode
+--              isClearOverStrike = 0,      -- clear overstrike mode
+                isClearOverStrike = #7F,        -- clear overstrike mode
                 isUndoTime = 0,         -- retain undo actions for nn seconds
                 isRetainBackupsFor = 5, -- retain automatic backups for nn days
 --              isCloseLeft             -- close tabs to left?
@@ -610,7 +607,7 @@ function readFile(sequence name, integer prompt=1)--, integer plth)
 --   {{"fred"}} represents a text file of four bytes,
 --   {{"fred"},""} represents four bytes "plus \n",
 --   likewise {"",""} represents a single line break.
---   Note that that \r\n conversion is inherent; if Edita opens
+--   Note that that \r\n conversion is inherent; if Edix opens
 --   a file with Linux-style linebreaks, it will automatically
 --   save it with Windows-style linebreaks, as determined by the
 --   puts(fn,'\n') statement in saveFile().
@@ -631,7 +628,7 @@ integer uniskip
     if fn=-1 then
         if prompt then
 --          void = messageBox(xl("Edita: Error opening file"),name,0)
-            IupMessage(xl("Edita: Error opening file"),name)
+            IupMessage(xl("Edix: Error opening file"),name)
         end if
         return 0
     end if
@@ -835,16 +832,15 @@ integer uniskip
 end function
 
 
-global integer  insertMode      -- insert/overstrike mode
-                insertMode = 1
+global integer insertMode = 1   -- insert(1)/overstrike(0) mode
 
 integer maxlen
         maxlen = 0
 
 procedure reCalcMaxLen()
     maxlen = 0
-    for i=length(filelinelens[currfile]) to 1 by -1 do
-        if filelinelens[currfile][i] then
+    for i=length(filelinelengths[currfile]) to 1 by -1 do
+        if filelinelengths[currfile][i] then
             maxlen = i
             exit
         end if
@@ -858,12 +854,12 @@ procedure replaceLine(integer idx, sequence newline)
 integer len, c
     len = ExpLength(filetext[currfile][idx])+1
 --DEV temp hack (load files as tab8?)
---  if len>length(filelinelens[currfile]) then
+--  if len>length(filelinelengths[currfile]) then
 --  if not rlle then
 --      void = messageBox("replaceLine Error",
 --              sprintf("replacing length %d, table length %d"&
 --                  "\n\n(let me know if/when this happens)",
---                  {len,length(filelinelens[currfile])}),
+--                  {len,length(filelinelengths[currfile])}),
 --              0)
 --      if isDebug then ?9/0 end if
 --      rlle = 1
@@ -871,14 +867,14 @@ integer len, c
 --  return
 --  end if
 
-    c = filelinelens[currfile][len]-1
-    filelinelens[currfile][len] = c
+    c = filelinelengths[currfile][len]-1
+    filelinelengths[currfile][len] = c
     len = ExpLength(newline)+1
-    if len>length(filelinelens[currfile]) then
-        filelinelens[currfile] = filelinelens[currfile] &
-                                 repeat(0,len-length(filelinelens[currfile])+1)
+    if len>length(filelinelengths[currfile]) then
+        filelinelengths[currfile] = filelinelengths[currfile] &
+                                    repeat(0,len-length(filelinelengths[currfile])+1)
     end if
-    filelinelens[currfile][len] = filelinelens[currfile][len]+1
+    filelinelengths[currfile][len] = filelinelengths[currfile][len]+1
     if len>maxlen or c=0 then
         reCalcMaxLen()
     end if
@@ -893,15 +889,15 @@ sequence fci
     fci = filetext[currfile][idx]
     len = ExpLength(fci)+1
 --DEV temp hack (load files as tab8?)
---  if len>length(filelinelens[currfile]) then
+--  if len>length(filelinelengths[currfile]) then
 --      IupMessage("removeLineLength Error",
 --          sprintf("removing length %d, table length %d"&
 --              "\n\n(let me know if/when this happens)",
---              {len,length(filelinelens[currfile])}))
+--              {len,length(filelinelengths[currfile])}))
 --  return
 --  end if
-    c = filelinelens[currfile][len]-1
-    filelinelens[currfile][len] = c
+    c = filelinelengths[currfile][len]-1
+    filelinelengths[currfile][len] = c
 --  for i = length(bookmarks[currfile]) to 1 by -1 do
 --  if bookmarks[currfile][i][bfStart]=idx-1 then
 --      bookmarks[currfile] = bookmarks[currfile][1..i-1]&
@@ -924,14 +920,14 @@ sequence fci
 --DEV temp hack (load files as tab8?)
 -- 5/5/08 put back in. Compared d.asm with p.asm, deleted first 100 or so lines...
 --22/6/13 put back in..
-        if len>length(filelinelens[currfile]) then
+        if len>length(filelinelengths[currfile]) then
             string msg = sprintf("removing length %d, table length %d",
-                                 {len,length(filelinelens[currfile])})
+                                 {len,length(filelinelengths[currfile])})
             IupMessage("removeLineLengths Error",msg)
             return
         end if
-        c = filelinelens[currfile][len]-1
-        filelinelens[currfile][len] = c
+        c = filelinelengths[currfile][len]-1
+        filelinelengths[currfile][len] = c
 --  for i = length(bookmarks[currfile]) to 1 by -1 do
 --      if bookmarks[currfile][i][bfStart]=idx-1 then
 --      bookmarks[currfile] = bookmarks[currfile][1..i-1]&
@@ -973,14 +969,25 @@ sequence r
 end procedure
 --*"/
 
+integer srl_once = 1    -- (temp)
 global procedure setRtnList()
     -- load the ComboDropDownList, rtnList and set the index
-    ?"setRtnList" --DEV
+--  ?"setRtnList" --DEV
     IupSetAttribute(toolb_rtns,"REMOVEITEM","ALL")
     if currfile and sequence(routines[currfile]) then
         sequence rcn = routines[currfile][rtnNAMES]
         for i=1 to length(rcn) do
-            IupSetAttributeId(toolb_rtns, "", i, rcn[i])
+--          IupSetAttributeId(toolb_rtns, "", i, rcn[i])
+--DEV (temp) [fix the bug in scanfor...]
+            sequence rcni = rcn[i]
+            if not string(rcni) then
+                rcni = utf32_to_utf8(rcni)
+                if srl_once then
+                    srl_once = 0
+                    ?"utf32, edix.exw line 984"
+                end if
+            end if
+            IupSetAttributeId(toolb_rtns, "", i, rcni)
         end for
         IupSetInt(toolb_rtns,"VISIBLEITEMS",length(rcn)+1)  -- [no idea why it needs the +1]
         IupSetInt(toolb_rtns, "ACTIVE", 1)
@@ -994,7 +1001,7 @@ global procedure setRtnList()
     if rtnList then
         deleteItem(rtnList,0)   -- empty list
         if currfile and sequence(routines[currfile]) then
-            void = insertItem(rtnList,routines[currfile][rtnNAMES],0)
+--          void = insertItem(rtnList,routines[currfile][rtnNAMES],0)
             prevRtnIdx = 0
         end if
     end if
@@ -1412,62 +1419,14 @@ include builtins\timedate.e
 --  return res
 --end function
 
-procedure update_statusbar()
-integer k
-    if currfile then
-        IupSetStrAttribute(sbline,"TITLE","Line %d of %d, Column %d",{CursorY+1,length(filetext[currfile]),CursorX+1})
-        string imode = iff(insertMode?"INS":"OVR")
-        string chstr = "   "
-        unicodeflag = unicodefile[currfile]
-        if CursorY<length(filetext[currfile]) then
---          string oneline = filetext[currfile][CursorY+1]
-            sequence oneline = filetext[currfile][CursorY+1]
-            k = MapToByte(oneline,CursorX)
-            if k then
-                chstr = sprintf(iff(unicodeflag=ANSI?"#%02x":"#%04x"),oneline[k])
-            end if
-        end if
-        k = unicodeflag+(unicodeflag<3)
-        string fmode = {"ANSI ","UTF-8 ","UTF-16"}[k]
-        IupSetStrAttribute(sbinfo,"TITLE","%s  %s  %s",{fmode,imode,chstr})
---DEV[?]
---/*
-                if atom(routines[currfile]) and isEu 
-                and match(untitled,filenames[currfile])!=1 then
-                    setText(SB6,"rebuilding routine list")
-                    setListOfAllRoutines(currfile,filetext[currfile],2,filenames[currfile])
-                    --      setRtnIndex()   -- added 17/05 (no help!)
-                    setText(SB6,"")
-                end if
---*/
---17/11/17: (definately helps!)
-        setRtnIndex()
-    else
-        IupSetAttribute(sbline,"TITLE","")
-        IupSetAttribute(sbinfo,"TITLE","")
-    end if
-    string datestr = format_timedate(date(),"dd Mmmm yyyy hh:mmpm")
-    IupSetStrAttribute(sbdate,"TITLE",datestr)
---DEV/temp:
---  if sbtemp!=NULL and platform()=WINDOWS then
---      IupSetStrAttribute(sbtemp,"TITLE","%d",{GetGuiResources()})
---  end if
-end procedure
+constant untitled = xl("[untitled]")
 
-atom cb_update_time
-function update_time_cb(Ihandle time_update)
-    update_statusbar()
-    if IupGetInt(time_update,"TIME")!=60000 then
-        -- (timer is initially created with (60-date()[DT_SECONDS])*1000,
-        --  so it updates precisely on the next minute. So first time in,
-        --  [and only once] recreate the timer with a 60 second period -
-        --  I did try IupSetInt(time_update,"TIME",60000), but no joy.
-        IupDestroy(time_update)
-        time_update = IupTimer(cb_update_time,60000,true)
-    end if
-    return IUP_DEFAULT
-end function
-cb_update_time = Icallback("update_time_cb")
+global -- for undo.e
+constant SEL_COPY = 0,  SEL_DELETE = 1
+
+integer cX -- for Clip()
+
+forward procedure update_statusbar()
 
 -- used by undo.e and eafind.ew:
 global procedure forceCursorOnscreen()
@@ -1519,23 +1478,6 @@ integer d
     if selON then paintCursorY() end if
     update_statusbar()
 end procedure
-
---DEV not currently needed to be global
-global procedure jumpTo(integer newX, integer newY)
---  paintCursorY()              -- remove old currentline highlight
---?"jumpTo"
-    CursorX = newX
-    CursorY = newY
---  ensureVisible(CursorY,      -- remove folds if required,
---                False)        -- but don't unfold top line.
-    forceCursorOnscreen()
-    paintCursorY()              -- set new currentline highlight.
-end procedure
-
-integer cX -- for Clip()
-
-global -- for undo.e
-constant SEL_COPY = 0,  SEL_DELETE = 1
 
 --with trace
 global function getSelection(integer flag)
@@ -1695,6 +1637,87 @@ integer cY, sX, sY
     return sel
 end function
 
+include src/ext.e as extns
+include src/find.e as fdlg
+
+include src/eaedb.e
+include src/dir.e   -- DEV xExtractAssociatedIcon, getBackupSet
+include src/qj.e    -- currProjFileSet("")
+
+procedure update_statusbar()
+integer k
+    if currfile then
+        IupSetStrAttribute(sbline,"TITLE","Line %d of %d, Column %d",{CursorY+1,length(filetext[currfile]),CursorX+1})
+        string imode = iff(insertMode?"INS":"OVR")
+        string chstr = "   "
+        unicodeflag = unicodefile[currfile]
+        if CursorY<length(filetext[currfile]) then
+--          string oneline = filetext[currfile][CursorY+1]
+            sequence oneline = filetext[currfile][CursorY+1]
+            k = MapToByte(oneline,CursorX)
+            if k then
+                chstr = sprintf(iff(unicodeflag=ANSI?"#%02x":"#%04x"),oneline[k])
+            end if
+        end if
+        k = unicodeflag+(unicodeflag<3)
+        string fmode = {"ANSI ","UTF-8 ","UTF-16"}[k]
+--DEV (temp)
+        IupSetStrAttribute(sbinfo,"TITLE","%s  %s  %s",{fmode,imode,chstr})
+--      IupSetStrAttribute(sbinfo,"TITLE","%s(%d)  %s  %s",{fmode,unicodeflag,imode,chstr})
+--DEV[?]
+--/!*
+--              if atom(routines[currfile]) and isEu 
+                if atom(routines[currfile]) 
+                and match(untitled,filenames[currfile])!=1 then
+--                  setText(SB6,"rebuilding routine list")
+                    IupSetAttribute(sbmsg,"TITLE","rebuilding routine list")
+                    setListOfAllRoutines(currfile,filetext[currfile],2,filenames[currfile])
+                    --      setRtnIndex()   -- added 17/05 (no help!)
+--                  setText(SB6,"")
+                    IupSetAttribute(sbmsg,"TITLE","")
+                end if
+--*!/
+--17/11/17: (definately helps!)
+        setRtnIndex()
+    else
+        IupSetAttribute(sbline,"TITLE","")
+        IupSetAttribute(sbinfo,"TITLE","")
+    end if
+    string datestr = format_timedate(date(),"dd Mmmm yyyy hh:mmpm")
+    IupSetStrAttribute(sbdate,"TITLE",datestr)
+--DEV/temp:
+--  if sbtemp!=NULL and platform()=WINDOWS then
+--      IupSetStrAttribute(sbtemp,"TITLE","%d",{GetGuiResources()})
+--  end if
+end procedure
+
+atom cb_update_time
+function update_time_cb(Ihandle time_update)
+    update_statusbar()
+    if IupGetInt(time_update,"TIME")!=60000 then
+        -- (timer is initially created with (60-date()[DT_SECONDS])*1000,
+        --  so it updates precisely on the next minute. So first time in,
+        --  [and only once] recreate the timer with a 60 second period -
+        --  I did try IupSetInt(time_update,"TIME",60000), but no joy.
+        IupDestroy(time_update)
+        time_update = IupTimer(cb_update_time,60000,true)
+    end if
+    return IUP_DEFAULT
+end function
+cb_update_time = Icallback("update_time_cb")
+
+--DEV not currently needed to be global
+global procedure jumpTo(integer newX, integer newY)
+--  paintCursorY()              -- remove old currentline highlight
+--?"jumpTo"
+    CursorX = newX
+    CursorY = newY
+--  ensureVisible(CursorY,      -- remove folds if required,
+--                False)        -- but don't unfold top line.
+    forceCursorOnscreen()
+    paintCursorY()              -- set new currentline highlight.
+end procedure
+
 global procedure paintLines(integer linefrom, integer lineto)
 --
 -- Paint all lines between linefrom and lineto inclusive.
@@ -1835,8 +1858,6 @@ integer isCurrLineColoured = 0  -- set to (ColourTab[HighLine]!=ColourTab[Backgr
 global integer rCompareTarget
                rCompareTarget = 0
 
-constant untitled = xl("[untitled]")
-
 sequence backdirs  = {},
          backrev   = {},
          backrevd  = {},
@@ -1916,7 +1937,9 @@ end procedure
 
 procedure restcursel()
 sequence cursel
-    if currfile then
+--DEV
+--  if currfile then
+    if currfile and currfile<=length(filecursel) then
         cursel = filecursel[currfile]
         {CursorX,CursorY,TopLine,Column,selON,selX,selY,
          lastFold,lastFoldEnd,TopChunk} = cursel
@@ -1995,13 +2018,15 @@ Ihandle toolb_run
 --DEV extension handling....
 --sequence runnables = {"ex","exu","exw","exwc","htm","html","bat"}
 
-include src/ext.e as extns
-include src/find.e as fdlg
-
 procedure update_toolbar()
 --  integer modified = (actionsave[fidx]!=actionptr[fidx])
 --  string tabimage = iff(modified?"PNG_FileSave":"PNG_FileNew")
 --  IupSetAttributeId(tabs, "TABIMAGE", pos, get_image(tabimage))
+--DEV
+    if currfile>length(actionsave) then
+        ?"update_toolbar line 2027"
+        return
+    end if
     IupSetInt(toolb_save,"ACTIVE",currfile and actionsave[currfile]!=actionptr[currfile])
     integer sel = (currfile and selON and (selX!=CursorX or selY!=CursorY))
     IupSetInt({toolb_cut,toolb_copy},"ACTIVE",sel)
@@ -2039,6 +2064,8 @@ end procedure
 --sequence opensize -- save of dir() info (F12 only)
 --       opensize = {} -- also updated by saveFile
 
+include src/macro.e as macro
+
 --global 
 function saveFile(bool warnBackup=true)
 -- the parameter should be 1, unless there is some special reason
@@ -2058,6 +2085,7 @@ integer k
 integer revision
 --integer wasTabWidth
 --sequence oneline
+    StopMacroLearn(1)
     if currfile then
         if tabfile then
             c = tabfile
@@ -2309,7 +2337,10 @@ if c!=currfile then ?9/0 end if
 end function
 
 procedure savecurr()
-    if currfile then
+    StopMacroLearn(1)
+--DEV
+--  if currfile then
+    if currfile and currfile<=length(filenames) then
         if actionsave[currfile]!=actionptr[currfile]
         and match(untitled,filenames[currfile])!=1 then
 --DEV
@@ -2325,12 +2356,19 @@ end procedure
 
 --without trace
 --with trace
---global 
-procedure changeTo(integer i, integer npos)
+
+--used by htmlise.e:
+global procedure changeTo(integer i, integer npos)
 -- switch to the specified file
 --sequence fileExt
 --integer lenExt
 --integer prevfile
+--DEV
+    if i>length(filenames) then
+        ?{"changeTo line 2363",i}
+        return
+    end if
+
     if and_bits(isClearOverStrike,cOVRfile) then
         insertMode = 1
     end if
@@ -2425,10 +2463,191 @@ function findtab(integer c, bool return_handle=false)
     return 9/0
 end function
 
+function buildFileFilter2()
+-- Build a file filter from the extension info loaded from the syntax files
+-- Give priority to the current syntax/extension set by placing in slot 2
+sequence res
+integer k
+sequence stardot
+    res = {{xl("All Files"), "*.*"}}
+    if newSyntax then
+        res = append(res,{SynNames[newSyntax]&xl(" files"),""})
+    end if
+    for i=2 to length(SynNames) do
+        if i!=newSyntax then
+            res = append(res,{SynNames[i]&xl(" files"),""})
+            k = length(res)
+        else
+            k = 2
+        end if
+        stardot = "*."
+        for j=1 to length(Extensions) do
+            if ExtensionNos[j]=i then
+                res[k][2] &= stardot & Extensions[j]
+                stardot = ";*."
+            end if
+        end for
+        res[k][1] &= " (" & res[k][2] & ")"
+    end for
+    return res
+end function
 
---/*
---global 
-function saveCurr()
+function move_last_to_vacated_spot(sequence s, integer idx)
+    s[idx] = s[$]
+    s = s[1..$-1]
+    return s
+end function
+
+procedure removelast(integer delidx)
+Ihandle mtab
+    integer fidx = length(filenames)
+    for pos=0 to IupGetInt(tabs,"COUNT")-1 do
+        mtab = IupGetChild(tabs, pos)
+        if IupGetInt(mtab,"FILEIDX")=fidx then
+            if delidx!=fidx then
+                -- move high FILEIDX into the just vacated slot
+                -- (and update currfile if it is the one moved)
+                IupSetInt(mtab,"FILEIDX",delidx)
+                filenames       = move_last_to_vacated_spot(filenames,       delidx)
+                filepaths       = move_last_to_vacated_spot(filepaths,       delidx)
+                filetext        = move_last_to_vacated_spot(filetext,        delidx)
+                unicodefile     = move_last_to_vacated_spot(unicodefile,     delidx)
+                actionptr       = move_last_to_vacated_spot(actionptr,       delidx)
+                actions         = move_last_to_vacated_spot(actions,         delidx)
+                actionsave      = move_last_to_vacated_spot(actionsave,      delidx)
+                bookmarks       = move_last_to_vacated_spot(bookmarks,       delidx)
+                filelinelengths = move_last_to_vacated_spot(filelinelengths, delidx)
+                routines        = move_last_to_vacated_spot(routines,        delidx)
+                filedt          = move_last_to_vacated_spot(filedt,          delidx)
+                bCfwds          = move_last_to_vacated_spot(bCfwds,          delidx)
+                if currfile=fidx then
+                    currfile = delidx
+                end if
+            end if
+            exit
+        end if
+    end for
+end procedure
+
+function saveFileAs()
+Ihandle filedlg
+integer encoding = ENC_NONE
+string filename = ""
+
+    StopMacroLearn(1)
+    if currfile then
+        integer c = iff(tabfile?tabfile:currfile) -- (deliberately not zeroed here)
+        if UseNativeDialog
+        and platform()=WINDOWS then
+            atom hWnd = IupGetAttributePtr(dlg,"HWND")
+            object res
+            sequence path = filepaths[c]
+            string name = filenames[c]
+            if not match(untitled,name) then
+                path = {path,name}
+            else
+                path = {path}
+            end if
+            encoding = unicodefile[c]
+--DEV??
+if encoding=0 then encoding = 1 end if
+            string ext = get_file_extension(name)
+            res = newGetSaveFileName(hWnd,buildFileFilter2(),{2,ext},path,encoding)
+            if sequence(res) then
+                {encoding,filename} = res
+--30/12/17:
+                encoding -= 1
+--?{"encoding (edix.exw line 2541)",encoding,filename}
+            end if
+        else
+            IupSetGlobal("UTF8MODE_FILE","YES")
+            filedlg = IupFileDlg()
+
+--18/11/17:
+--          IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
+            IupSetAttributeHandle(filedlg, "PARENTDIALOG", dlg)
+            IupSetAttributes(filedlg, "DIALOGTYPE=SAVE, TITLE=Save")
+            IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
+            IupSetInt(filedlg, "FILTERUSED", 2)
+            IupSetAttribute(filedlg, "DIRECTORY", filepaths[c])
+            if not match(untitled,filenames[c]) then
+                IupSetAttribute(filedlg, "FILE", filenames[c])
+            end if
+
+            IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
+
+            integer status = IupGetInt(filedlg, "STATUS")
+            if status!=-1 then  -- (not cancelled)
+                filename = IupGetAttribute(filedlg, "VALUE")
+                encoding = ANSI
+            end if
+
+            IupDestroy(filedlg)
+        end if
+        if length(filename) then
+            string waspath = filepaths[c],
+                   wasfile = filenames[c]
+            filepaths[c] = get_file_path(filename,dropslash:=false)
+            filenames[c] = get_file_name(filename)
+--23/7/17...
+            unicodefile[c] = encoding
+            if saveFile(warnBackup:=false) then
+--DEV tryme:
+if 0 then
+                IupSetAttributeId(tabs, "TABTITLE", findtab(c), filenames[c])
+else
+                Ihandle tab
+                for pos=0 to IupGetInt(tabs,"COUNT")-1 do
+                    tab = IupGetChild(tabs, pos)
+                    if IupGetInt(tab,"FILEIDX")=c then
+                        -- nb does not work after tab added (as documented):
+--                      IupSetAttribute(tab, "TABTITLE", filenames[c])
+                        -- However the following works just fine here, and
+                        --  updates the above child attribute as well:
+                        IupSetAttributeId(tabs, "TABTITLE", pos, filenames[c])
+                        exit
+                    end if
+                end for
+end if
+                IupConfigRecentUpdate(config, filename)
+                for i=1 to length(filenames) do
+                    if i!=c
+                    and filepaths[i]=filepaths[c]
+                    and filenames[i]=filenames[c] then
+--DEV close without saving... (see tabclose_cb) [needs testing!]
+--?{i,c}
+--show_tab_info()
+                        removelast(i)
+--DEV tryme:
+if 0 then
+                        IupDestroy(findtab(i,true))
+else
+                        for pos=0 to IupGetInt(tabs,"COUNT")-1 do
+                            Ihandle dtab = IupGetChild(tabs, pos)
+                            if IupGetInt(dtab,"FILEIDX")=i then
+                                IupDestroy(dtab)
+                                exit
+                            end if
+                        end for
+end if
+--show_tab_info()
+                        exit
+--?9/0
+                    end if
+                end for
+--DEV/sug:
+                changeTo(currfile,-1)       -- reset syntax
+                return 1
+            else
+                filepaths[c] = waspath
+                filenames[c] = wasfile
+            end if
+        end if
+    end if
+    return 0
+end function
+
+global function saveCurrAs()
 integer c
     if tabfile then
         c = tabfile
@@ -2438,18 +2657,19 @@ integer c
     end if
     if match(untitled,filenames[c])=1 then
         --2/6/10:
-        changeTo(c)
+        changeTo(c,-1)
         return saveFileAs()
     end if
     if actionsave[c]!=actionptr[c] then
         --2/6/10:
-        changeTo(c)
+        changeTo(c,-1)
         return saveFile(warnBackup:=true)
     end if
     return 1
 end function
 --global constant r_saveCurr=routine_id("saveCurr")
 
+--/*
 function savePrompt(integer c)
 integer mbRes
     if c and actionsave[c]!=actionptr[c] 
@@ -2468,7 +2688,7 @@ integer mbRes
 --      if mbRes = IDYES then
         if mbRes = 1 then
             tabfile = c
-            return saveCurr()
+            return saveCurrAs()
         end if
     end if
     return 1
@@ -2478,7 +2698,7 @@ end function
 --global 
 procedure closeFile()
 integer c
-    stopMacroLearn(1)
+    StopMacroLearn(1)
     if tabfile then
         c = tabfile
         tabfile = 0
@@ -2498,11 +2718,11 @@ integer len, recalc
     recalc = 0
     for i = 1 to length(lines) do
         len = ExpLength(lines[i]) + 1
-        if len>length(filelinelens[currfile]) then
-            filelinelens[currfile] = filelinelens[currfile] &
-                                     repeat(0,len-length(filelinelens[currfile])+1)
+        if len>length(filelinelengths[currfile]) then
+            filelinelengths[currfile] = filelinelengths[currfile] &
+                                        repeat(0,len-length(filelinelengths[currfile])+1)
         end if
-        filelinelens[currfile][len] = filelinelens[currfile][len] + 1
+        filelinelengths[currfile][len] = filelinelengths[currfile][len] + 1
         if len > maxlen then recalc = 1 end if
     end for
     if recalc then reCalcMaxLen() end if
@@ -2841,13 +3061,15 @@ integer wasSelON, outTabWidth, p1End, p2Start, p2End
             clipText = IupGetAttribute(clipboard,"TEXT")&clipText
         end if
 --      void = copyTextToClipboard(clipText,fmt)
+        IupSetAttribute(clipboard, "TEXT", NULL)    -- (as per docs)
         IupSetAttribute(clipboard, "TEXT", clipText)
     end if
 end procedure
 
 --with trace
---global 
-procedure Paste(object clipText=0)
+
+--used by htmlise.e:
+global procedure Paste(object clipText=0)
 object padding
 integer cX, cY, sX, absY, rCx
 integer newCursorY, newcX
@@ -3182,10 +3404,12 @@ atom n
 --                  c = sprintf("#%x",n)
                     hexchar = "0123456789ABCDEF"
                     c = ""
-                    while n do
+--                  while n do
+                    while 1 do
                         k = floor(remainder(n,16)+1)
                         c = prepend(c,hexchar[k])
                         n = floor(n/16)
+                        if n=0 then exit end if
                     end while
                     c = prepend(c,'#')
 
@@ -3199,19 +3423,23 @@ atom n
 
                 elsif base=8 then   -- show as octal
                     c = ""
-                    while n do
+--                  while n do
+                    while 1 do
                         k = remainder(n,8)
                         c = prepend(c,k+'0')
                         n = floor(n/8)
+                        if n=0 then exit end if
                     end while
                     c = "0o"&c
 
                 elsif base=2 then   -- show as binary
                     c = ""
-                    while n do
+--                  while n do
+                    while 1 do
                         k = remainder(n,2)
                         c = prepend(c,k+'0')
                         n = floor(n/2)
+                        if n=0 then exit end if
                     end while
                     c = "0b"&c
                 else
@@ -3471,12 +3699,17 @@ procedure toggle_line_numbers()
     paintall()
 end procedure
 
+Ihandle main_help_menu
+
 procedure DragLine(integer direction)
 -- swap current line with line+direction, move the cursor with it, and redisplay both
 integer SaveCursorX, SaveCursorY
 integer newY
 sequence line
 sequence block
+
+--DEV/test (does not work...)
+--IupSetAttribute(main_help_menu,"KEY",'B')
 
     if currfile then
         newY = adjustLine(CursorY,direction,CursorX)
@@ -3490,6 +3723,13 @@ sequence block
             line = filetext[currfile][CursorY+1]
             selON = 1
             if direction=+1 then
+--DEV... (now in key_cb)
+--/!*
+--string Yelp = "&Yelp"
+--  Yelp[2] = 'D'--iup_XkeyBase(c)
+--  IupSetStrAttribute(main_help_menu,"TITLE",Yelp)
+--  reset_help = true
+--*!/
                 -- Suppose we are on one, and moving it down:
                 --  one     -- (CursorY)
                 --  two     -- (newY)
@@ -3854,13 +4094,9 @@ end if
 --                      void = c_func(xSetTextColor, {mDC, chunk[c+1]})
 --                  cdCanvasSetForeground(cddbuffer, chunk[c+1])
                     txt = oneline[offset+1..offset+chunklen]
---30/9/16:
---                  if showSpecials then
---23/7/17:
+
                     if showSpecials or not string(txt) then
---DEV tcf if #FFFD were involved... [FIXME!! - done, I think...]
---                      txt = utf32_to_utf8(txt,1)
-                        txt = utf32_to_utf8(txt)
+                        txt = utf32_to_utf8(txt,1)
                     end if
 
                     bkColour = chunk[c+2]
@@ -4133,6 +4369,8 @@ end if
 
     cdCanvasFlush(cddbuffer)
     paintRqd = 0
+--added 30/12/17...
+    update_statusbar()
 end procedure
 
 --function redraw_cb(Ihandle /*ih*/, integer /*x*/, integer /*y*/)
@@ -4141,6 +4379,7 @@ function redraw_cb(Ihandle /*ih*/, atom /*x*/, atom /*y*/)
     return IUP_DEFAULT
 end function
 
+--without trace
 function resize_cb(Ihandle /*ih*/, integer width, integer height)
 --?"resize_cb"
     if IupGetInt(tbox,"VALUE")!=0 then
@@ -4164,6 +4403,7 @@ function resize_cb(Ihandle /*ih*/, integer width, integer height)
 --*/
     return IUP_DEFAULT
 end function
+--with trace
 
 function map_cb(Ihandle ih)
     cdcanvas = cdCreateCanvas(CD_IUP, ih)
@@ -4257,7 +4497,7 @@ Ihandle tab = IupHbox({IupFill()})
     actions = append(actions,{})
     actionsave = append(actionsave,0)
     bookmarks = append(bookmarks,repeat(0,length(text)))
-    filelinelens = append(filelinelens,linelengths)
+    filelinelengths = append(filelinelengths,linelengths)
     routines = append(routines,0)
 --?filecursel
     filecursel = append(filecursel,{0,0,0,0,0,0,0,0,0,0,0})
@@ -4300,15 +4540,17 @@ end procedure
 global function openFile(integer opening, string filepath, integer encoding)
     string title = get_file_name(filepath)
 --  string path = filename[1..length(filename)-length(title)]
-    string path = get_file_path(filepath,0)
+--  string path = get_file_path(filepath,0)
+    string path = get_file_path(filepath,dropslash:=false)
+    StopMacroLearn(1)
     for i=1 to length(filepaths) do
         if filepaths[i]=path
         and filenames[i]=title then
             if i!=currfile then
                 changeTo(i,findtab(i))
             end if
---          return 3    -- let eacons.ew know it is a "switch".
-            return true
+--          return true
+            return 3    -- signal a "switch".
         end if
     end for
     object res = readFile(filepath)
@@ -4316,6 +4558,7 @@ global function openFile(integer opening, string filepath, integer encoding)
         sequence {text,linelengths} = res
         if encoding=-1 then
             encoding = unicodeflag
+--?{"encoding (edix.exw line 4528)",encoding}
         end if
         add_tab(opening, path, title, text, linelengths, encoding)
 --      add_tab(opening, path, title, text, linelengths, unicodeflag)
@@ -4339,39 +4582,6 @@ function new_cb(Ihandle /*item_new*/)
     return IUP_DEFAULT;
 end function
 constant cb_new = Icallback("new_cb")
-
---DEV...
---constant filters = {{"All Files", "*.*"},
---                  {"Text Files", "*.txt;*.exe;*.e"}}
-
-function buildFileFilter2()
--- Build a file filter from the extension info loaded from the syntax files
--- Give priority to the current syntax/extension set by placing in slot 2
-sequence res
-integer k
-sequence stardot
-    res = {{xl("All Files"), "*.*"}}
-    if newSyntax then
-        res = append(res,{SynNames[newSyntax]&xl(" files"),""})
-    end if
-    for i=2 to length(SynNames) do
-        if i!=newSyntax then
-            res = append(res,{SynNames[i]&xl(" files"),""})
-            k = length(res)
-        else
-            k = 2
-        end if
-        stardot = "*."
-        for j=1 to length(Extensions) do
-            if ExtensionNos[j]=i then
-                res[k][2] &= stardot & Extensions[j]
-                stardot = ";*."
-            end if
-        end for
-        res[k][1] &= " (" & res[k][2] & ")"
-    end for
-    return res
-end function
 
 --function item_open_action_cb(Ihandle /*item_open*/)
 function open_cb(Ihandle /*item_open*/)
@@ -4423,6 +4633,9 @@ string filename = ""
 --      end if
         if sequence(res) then
             {encoding,filename} = res
+--30/12/17:
+            encoding -= 1
+--?{"encoding (edix.exw line 4602)",encoding}
 --/*
 
             integer r1 = res[1]
@@ -4528,7 +4741,8 @@ end function
         {text,linelengths} = readFile(filename)
         string title = get_file_name(filename)
 --      string path = filename[1..length(filename)-length(title)]
-        string path = get_file_path(filename,0)
+--      string path = get_file_path(filename,0)
+        string path = get_file_path(filename,dropslash:=false)
         for i=1 to length(filepaths) do
             if filepaths[i]=path
             and filenames[i]=title then
@@ -4544,7 +4758,10 @@ end function
 end function
 constant cb_open = Icallback("open_cb")
 
-function reopen_cb(Ihandle /*item_reopen*/)
+Ihandle file_new, file_open, file_reopen, file_save, file_saveas, file_list, 
+        file_close, file_prntp, file_print, recent_menu, file_recent, file_exit
+
+function reopen_cb(Ihandle /*file_reopen*/)
 --  integer c = iff(tabfile?tabfile:currfile) -- (no need to zero here)
     integer c = currfile -- (there is no reopen on the tab menu [DEV?])
     object res = readFile(filepaths[c]&filenames[c])
@@ -4556,7 +4773,7 @@ function reopen_cb(Ihandle /*item_reopen*/)
         actions[c] = {}
         actionsave[c] = 0
         bookmarks[c] = repeat(0,length(text))
-        filelinelens[c] = linelengths
+        filelinelengths[c] = linelengths
         routines[c] = 0
         filecursel[c] = {0,0,0,0,0,0,0,0,0,0,0}
         filedt[c] = 0
@@ -4590,7 +4807,7 @@ function reopen_cb(Ihandle /*item_reopen*/)
 --  actionptr[] = 0
 --  actions[] = {}
 --  actionsave[] = 0
---  filelinelens[] = linelengths
+--  filelinelengths[] = linelengths
 --  bookmarks = repeat(0,length(text))
 --  routines = 0
 --  filedt = 0 [??]
@@ -4600,43 +4817,6 @@ function reopen_cb(Ihandle /*item_reopen*/)
     return IUP_DEFAULT;
 end function
 constant cb_reopen = Icallback("reopen_cb")
-
-function move_last_to_vacated_spot(sequence s, integer idx)
-    s[idx] = s[$]
-    s = s[1..$-1]
-    return s
-end function
-
-procedure removelast(integer delidx)
-Ihandle mtab
-    integer fidx = length(filenames)
-    for pos=0 to IupGetInt(tabs,"COUNT")-1 do
-        mtab = IupGetChild(tabs, pos)
-        if IupGetInt(mtab,"FILEIDX")=fidx then
-            if delidx!=fidx then
-                -- move high FILEIDX into the just vacated slot
-                -- (and update currfile if it is the one moved)
-                IupSetInt(mtab,"FILEIDX",delidx)
-                filenames    = move_last_to_vacated_spot(filenames,    delidx)
-                filepaths    = move_last_to_vacated_spot(filepaths,    delidx)
-                filetext     = move_last_to_vacated_spot(filetext,     delidx)
-                unicodefile  = move_last_to_vacated_spot(unicodefile,  delidx)
-                actionptr    = move_last_to_vacated_spot(actionptr,    delidx)
-                actions      = move_last_to_vacated_spot(actions,      delidx)
-                actionsave   = move_last_to_vacated_spot(actionsave,   delidx)
-                bookmarks    = move_last_to_vacated_spot(bookmarks,    delidx)
-                filelinelens = move_last_to_vacated_spot(filelinelens, delidx)
-                routines     = move_last_to_vacated_spot(routines,     delidx)
-                filedt       = move_last_to_vacated_spot(filedt,       delidx)
-                bCfwds       = move_last_to_vacated_spot(bCfwds,       delidx)
-                if currfile=fidx then
-                    currfile = delidx
-                end if
-            end if
-            exit
-        end if
-    end for
-end procedure
 
 --procedure show_tab_info()
 --  sequence mtabs = {}, fidx = {}, names = {}, names2 = {}
@@ -4650,225 +4830,11 @@ end procedure
 --  ?{mtabs,fidx,names,names2}
 --end procedure
 
---DEV incomplete, see below!
 function saveas_cb(Ihandle /*item_saveas*/)
-Ihandle filedlg
-integer encoding = ENC_NONE
-string filename = ""
-
---  stopMacroLearn(1)
-    if currfile then
-        integer c = iff(tabfile?tabfile:currfile) -- (deliberately not zeroed here)
-        if UseNativeDialog
-        and platform()=WINDOWS then
-            atom hWnd = IupGetAttributePtr(dlg,"HWND")
-            object res
-            sequence path = filepaths[c]
-            string name = filenames[c]
-            if not match(untitled,name) then
-                path = {path,name}
-            else
-                path = {path}
-            end if
-            res = newGetSaveFileName(hWnd,buildFileFilter2(),{2,"exw"},path)
-            if sequence(res) then
-                {encoding,filename} = res
-            end if
-        else
-            IupSetGlobal("UTF8MODE_FILE","YES")
-            filedlg = IupFileDlg()
-
---18/11/17:
---          IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
-            IupSetAttributeHandle(filedlg, "PARENTDIALOG", dlg)
-            IupSetAttributes(filedlg, "DIALOGTYPE=SAVE, TITLE=Save")
-            IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
-            IupSetInt(filedlg, "FILTERUSED", 2)
-            IupSetAttribute(filedlg, "DIRECTORY", filepaths[c])
-            if not match(untitled,filenames[c]) then
-                IupSetAttribute(filedlg, "FILE", filenames[c])
-            end if
-
-            IupPopup(filedlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
-
-            integer status = IupGetInt(filedlg, "STATUS")
-            if status!=-1 then  -- (not cancelled)
-                filename = IupGetAttribute(filedlg, "VALUE")
-                encoding = ANSI
-            end if
-
-            IupDestroy(filedlg)
-        end if
-        if length(filename) then
-            string waspath = filepaths[c],
-                   wasfile = filenames[c]
-            filepaths[c] = get_file_path(filename,0)
-            filenames[c] = get_file_name(filename)
---23/7/17...
-            unicodefile[c] = encoding
-            if saveFile(warnBackup:=false) then
---DEV tryme:
-if 0 then
-                IupSetAttributeId(tabs, "TABTITLE", findtab(c), filenames[c])
-else
-                Ihandle tab
-                for pos=0 to IupGetInt(tabs,"COUNT")-1 do
-                    tab = IupGetChild(tabs, pos)
-                    if IupGetInt(tab,"FILEIDX")=c then
-                        -- nb does not work after tab added (as documented):
---                      IupSetAttribute(tab, "TABTITLE", filenames[c])
-                        -- However the following works just fine here, and
-                        --  updates the above child attribute as well:
-                        IupSetAttributeId(tabs, "TABTITLE", pos, filenames[c])
-                        exit
-                    end if
-                end for
-end if
-                IupConfigRecentUpdate(config, filename)
-                for i=1 to length(filenames) do
-                    if i!=c
-                    and filepaths[i]=filepaths[c]
-                    and filenames[i]=filenames[c] then
---DEV close without saving... (see tabclose_cb) [needs testing!]
---?{i,c}
---show_tab_info()
-                        removelast(i)
---DEV tryme:
-if 0 then
-                        IupDestroy(findtab(i,true))
-else
-                        for pos=0 to IupGetInt(tabs,"COUNT")-1 do
-                            Ihandle dtab = IupGetChild(tabs, pos)
-                            if IupGetInt(dtab,"FILEIDX")=i then
-                                IupDestroy(dtab)
-                                exit
-                            end if
-                        end for
-end if
---show_tab_info()
-                        exit
---?9/0
-                    end if
-                end for
-            else
-                filepaths[c] = waspath
-                filenames[c] = wasfile
-            end if
-        end if
-    end if
-    return IUP_DEFAULT;
+    {} = saveFileAs()
+    return IUP_DEFAULT
 end function
 constant cb_saveas = Icallback("saveas_cb")
---/*
-function saveFileAs()
-object name
-sequence path
-integer res
---/**/integer encoding
-
-    stopMacroLearn(1)
-    if currfile then
-        if tabfile then
-            path = filepaths[tabfile]
-            tabfile = 0
-        else
-            path = filepaths[currfile]
-        end if
-        encoding = unicodefile[currfile]+1
---      name = newGetSaveFileName(getHwnd(Main),buildFileFilter2(),{2,getFileExtension(filenames[currfile])},{path},encoding)
-        name = newGetSaveFileName(getHwnd(Main),buildFileFilter2(),{2,get_file_extension(filenames[currfile])},{path},encoding)
-        void = chdir(initialcurrentdir)
-        if sequence(name) then
-            encoding = unicodefile[currfile]
-            -- 4/6/14:
-            if length(name)!=2
-            or not sequence(name[2]) then
-                ?9/0
-            end if
-            encoding = name[1]
-            if encoding>0 then
-                encoding -= 1
-            end if
-            unicodefile[currfile] = encoding
-            name = name[2]
-            -- check against the files already open for editing:
-            for i = 1 to length(filepaths) do
-                if i!=currfile
-                and equal(filepaths[i]&filenames[i],name) then
-                    --
-                    -- Unusual case: Save as filename already exists
-                    -- (already warned in the Save As dialog), *AND*
-                    -- that target file is currently open for edit.
-                    --
---                  if messageBox(xl("File Already Open For Edit"),
---                                xl("Discard edit session?"),
---                                MB_OKCANCEL)=IDOK then
-                    if IupAlarm(xl("File Already Open For Edit"),
-                                xl("Discard edit session?"),
-                                "OK","CANCEL")=1 then
---!!                    filenames[i] = filenames[currfile]
---!!                    filepaths[i] = filepaths[currfile]
-                        filetext[i] = filetext[currfile]
-                        unicodefile[i] = unicodefile[currfile]
-                        filelinelens[i] = filelinelens[currfile]
-                        filecursel[i] = filecursel[currfile]
-                        filedt[i] = filedt[currfile]
-                        bCfwds[i] = bCfwds[currfile]
-                        unpacked[i] = unpacked[currfile]
-                        wrapped[i] = wrapped[currfile]
-                        bookmarks[i] = bookmarks[currfile]
-                        routines[i] = routines[currfile]
-                        actions[i] = actions[currfile]
-                        actionptr[i] = actionptr[currfile]
-                        actionsave[i] = actionsave[currfile]
-                        if i>currfile then  --NB: make this test /before/ closeTab()!
-                            closeTab()
-                            changeTo(i-1)
-                        else
-                            closeTab()
-                            changeTo(i)
-                        end if
-                        if saveFile(warnBackup:=true) then
-                            if (encoding=ANSI)!=(unicodefile[currfile]=ANSI) then
-                                -- reload
-                                void = call_func(r_openFile,{-1,1,0})
-                            end if
-                            return 1
-                        end if
-                    end if
-                    return 0
-                end if
-            end for
-if sequence(name) then -- added 3/6/14
-            for i=length(name) to 1 by -1 do
-                if name[i]='\\' then
-                    filepaths[currfile] = name[1..i]
-                    name = name[i+1..length(name)]
-                    filenames[currfile] = name
---                  if isTabBarVIS then
-                        setText(tabs[currfile],name)
-                        setTabColour(tabs[currfile],name)
-                        if rRebuildTabBar and isSingleDir then
-                            call_proc(rRebuildTabBar,{})
-                        end if
---                  end if
-                    res = saveFile(warnBackup:=false)
-                    changeTo(currfile)      -- reset syntax
-                    if res and (encoding=ANSI)!=(unicodefile[currfile]=ANSI) then
-                        -- reload
-                        void = call_func(r_openFile,{-1,1,0})
-                    end if
-                    return res
-                end if
-            end for
-end if
-        end if
-    end if
-    return 0
-end function
-global constant r_saveFileAs=routine_id("saveFileAs")
-
---*/
 
 --DEV
 include src\filelist.e
@@ -4907,7 +4873,7 @@ Ihandln ntab = IupGetChild(ih, pos+1)
     and actionsave[currfile]!=actionptr[currfile] then
         --DEV save ...
 --      saveFile(?)
---DEV we do want to be able to close without saving the file... (maybe we need a prompt here)
+--DEV we do want to be able to close without saving the file... (maybe we need a prompt here)       [***DEV/YES, THIS IS BROKEN***]
         if not saveFile() then return IUP_IGNORE end if
     end if
 
@@ -4943,8 +4909,10 @@ integer c
         --         a non-zero tabfile here that happens to be currfile)
         if c=currfile then
             -- save? [DEV, yes/no/cancel]
+?"save??"
         end if
     
+--DEV tryme/findtab()...
         for pos=0 to IupGetInt(tabs,"COUNT")-1 do
             Ihandle tab = IupGetChild(tabs, pos)
             if IupGetInt(tab,"FILEIDX")=currfile then
@@ -5047,10 +5015,6 @@ constant cb_print = Icallback("print_cb")
 --constant SessionLimit = 40
 constant SessionLimit = 0   -- while developing!
 
-include src/eaedb.e
-include src/dir.e   -- DEV xExtractAssociatedIcon, getBackupSet
-include src/qj.e    -- currProjFileSet("")
-
 function exit_cb(Ihandle /*item_exit*/)
 --  if not save_check(item_exit) then
 --      return IUP_IGNORE;  /* to abort the CLOSE_CB callback */
@@ -5141,6 +5105,19 @@ function exit_cb(Ihandle /*item_exit*/)
 end function
 constant cb_exit = Icallback("exit_cb")
 
+procedure F4key(integer ctrl, shift, alt)
+    if ctrl then
+        {} = close_cb(file_close)
+    elsif alt then
+        {} = exit_cb(file_exit)
+        IupHide(dlg)
+    else
+        clearSelection()
+        if isCurrLineColoured then paintCursorY() end if
+        fdlg:F4diff(shift)
+    end if
+end procedure
+
 function cut_cb(atom /*self*/)
     Clip(CUT,0)
     return IUP_IGNORE
@@ -5204,6 +5181,45 @@ function redo_cb(atom /*self*/)
 end function
 constant cb_redo = Icallback("redo_cb")
 
+include src\cflow.e
+
+procedure bracket(integer base, /*ctrl*/, shift, alt)
+--DEV needs routines[currfile] to be set...
+--?"bracket"
+--trace(1)
+    if selON then
+        if selY = CursorY then
+            CursorX = 0
+            clearSelection()
+        end if
+    end if
+--  startSelection(shift,menu)
+    startSelection(shift,alt)
+    integer d = iff(base='['?-1:+1)
+    ctrlBracket(d)
+    if cbY = CursorY
+    and cbX = CursorX
+    and CursorX then
+        integer wasCursorX = CursorX
+        CursorX = 0
+        ctrlBracket(d)
+        if cbY=CursorY then  cbX = wasCursorX  end if
+    end if
+    jumpTo(cbX,cbY)
+end procedure
+
+function nextcs_cb(Ihandle /*edit_nextcs*/)
+    bracket(']',0,0,0)
+    return IUP_DEFAULT;
+end function
+constant cb_nextcs = Icallback("nextcs_cb")
+
+function prevcs_cb(Ihandle /*edit_prevcs*/)
+    bracket('[',0,0,0)
+    return IUP_DEFAULT;
+end function
+constant cb_prevcs = Icallback("prevcs_cb")
+
 procedure zoom(integer adj)
     if adj>0 or fontsize>1 then
         fontsize += adj
@@ -5260,27 +5276,166 @@ constant cb_backoff = Icallback("backoff_cb")
 
 include src/run.e as run
 
+procedure F5key(integer ctrl, shift)
+    if actionsave[currfile]!=actionptr[currfile] then
+        if not saveCurrAs() then return end if
+    end if
+    run:F5run(ctrl,shift)
+end procedure
+
 function run_cb(atom self)
 integer ctrl = IupGetInt(self,"ID"), 
 --      shift = IupGetGlobal("SHIFTKEY")
         shift = IupGetInt(NULL,"SHIFTKEY")
-    run:F5run(ctrl,shift)
+    F5key(ctrl,shift)
     return IUP_IGNORE
 end function
 constant cb_run = Icallback("run_cb")
 
+global function jumpToErrorInFile(sequence oneline, integer prompt)
+-- prompt can take three values. 1: yes, 0: no, -1: return {file,line} if you can
+integer k,l,cY
+--5/1/18:
+--...included by C:\Program Files (x86)\Phix\demo\libcurl\test.exw, line 4
+    if match("... called from ",oneline)=1 then
+        oneline = oneline[17..length(oneline)]
+    elsif match("...included by ",oneline)=1 then
+        oneline = oneline[16..length(oneline)]
+        k = match(", line ",oneline)
+        if k then
+            oneline[k..k+6] = ":"
+        end if
+    end if
+    if match("Warning: ",oneline)=1 then
+        if length(oneline)>=11 
+        and oneline[11]=':' then
+            oneline = oneline[10..length(oneline)]
+        else
+            oneline = filepaths[currfile]&oneline[10..length(oneline)]
+        end if
+--  elsif usegpp then
+    else
+        if equal(filenames[currfile],"ctrace.out")
+        and match(filepaths[currfile],oneline)!=1 then
+            oneline = filepaths[currfile]&oneline
+        end if
+--  elsif equal(LowerCase(filenames[currfile]),"ctrace.out")
+--    and match(LowerCase(filepaths[currfile]),LowerCase(oneline))!=1 then
+--      oneline = filepaths[currfile]&oneline
+    end if
+    while length(oneline) and oneline[1]=' ' do
+        oneline = oneline[2..length(oneline)]
+    end while
+    if length(oneline)>2 and oneline[2]=':' then
+        k = 3
+    else
+        k = 1
+    end if
+    while k<length(oneline) do
+        if oneline[k]=':' then
+            if k>=4 and equal(lower(oneline[k-3..k-1]),"exe") then
+--DEV see if .exw is in same directory?
+                if prompt=1 then
+                    IupMessage(xl("Error occurred in executable"),
+                               xl("To jump to the error line, the program being executed\n"&
+                                  " must be source code, not bound/compiled."))
+                end if
+                return 0
+            end if
+            cY = 0
+            l = k
+            while l<length(oneline) and find(oneline[l+1],"0123456789") do
+                l += 1
+                cY = cY*10+oneline[l]-'0'
+            end while
+            if cY then
+                if prompt=-1 then
+                    return {oneline[1..k-1],cY}
+                end if
+--              if openFile(oneline[1..k-1],-1,isLegacyTabHandling) then
+                if openFile(0,oneline[1..k-1],-1) then
+                    if selON or isCurrLineColoured then
+                        -- remove old currentline highlight
+--28/12/2010
+                        paintCursorY()
+                        clearSelection()
+                    end if
+                    if cY>length(filetext[currfile]) then
+                        if prompt<=0 then return 0 end if
+                        IupMessage(xl("Warning"),xl("Error line past end of file"))
+                        CursorY = 0
+                    else
+                        CursorY = cY-1
+                    end if
+                    CursorX = 0
+                    selON = 0
+                    forceCursorOnscreen()
+--06/03/2010 (and above paintCursorY, which had been /replaced/ with clearSelection, resurrected)
+                    if isCurrLineColoured then
+                        paintCursorY()
+                    end if
+                    return 1
+                end if
+            end if
+            exit
+        end if
+        k += 1
+    end while
+    if k=length(oneline) and oneline[k]=':' and prompt!=-1 then
+--      if openFile(oneline[1..k-1],-1,isLegacyTabHandling) then
+        if openFile(0,oneline[1..k-1],-1) then
+            return 0
+        end if
+    end if
+    if prompt=1 then
+        IupMessage(xl("Couldn't capture error vectors"),
+                   xl("Move cursor to cursor to correct line \n and then double click or press F12"))
+    end if
+    return 0
+end function
+
+procedure F12()
+--?"F12"
+    if currfile then
+        string ext = get_file_extension(filenames[currfile])
+        if find(ext,{"err","out"}) then
+--          crashpath = filepaths[currfile]     -- added 18/01/2008
+            {} = jumpToErrorInFile(filetext[currfile][CursorY+1],1)
+        else
+--?         string filepath = join_path({crashpath,"ex.err"})
+            string filepath = join_path({filepaths[currfile],"ex.err"})
+            if openFile(0,filepath,-1)=3 then
+                {} = reopen_cb(file_reopen)
+            end if
+        end if
+    end if
+end procedure
+
+function jerr_cb(atom /*self*/)
+--?"jerr_cb" --DEV
+    F12()
+    return IUP_IGNORE
+end function
+constant cb_jerr = Icallback("jerr_cb")
+
+include src/compare.e as comp
+
 function comp_cb(atom /*self*/)
 ?"comp_cb" --DEV
+--  comp:Compare()
     return IUP_IGNORE
 end function
 constant cb_comp = Icallback("comp_cb")
 
+--/*
 function dcmp_cb(atom /*self*/)
 ?"dcmp_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_dcmp = Icallback("dcmp_cb")
+--*/
 
+--/*
 function fif_cb(atom /*self*/)
 ?"fif_cb" --DEV
 --  atom pos = IupGetInt(tabs, "VALUEPOS")
@@ -5298,9 +5453,13 @@ function fif_cb(atom /*self*/)
     return IUP_IGNORE
 end function
 constant cb_fif = Icallback("fif_cb")
+--*/
+
+include src\htmlise.e as html
 
 function html_cb(atom /*self*/)
-?"html_cb" --DEV
+--?"html_cb" --DEV
+    html:htmliseEucode()
     return IUP_IGNORE
 end function
 constant cb_html = Icallback("html_cb")
@@ -5509,18 +5668,6 @@ end function
 constant cb_selectall = Icallback("selectall_cb")
 
 
---DEV
-constant cb_rec6 = gdlg:cb_goto
-constant cb_play6 = gdlg:cb_goto
-constant cb_mngmt = gdlg:cb_goto
-
-Ihandle file_reopen
-Ihandle file_save
-Ihandle file_saveas
-Ihandle file_close
-Ihandle file_prntp
-Ihandle file_print
-
 function file_menu_open_cb(Ihandle /*ih*/)
     IupSetInt(file_reopen,"ACTIVE",currfile!=0)
     IupSetInt(file_save,"ACTIVE",currfile!=0 and actionsave[currfile]!=actionptr[currfile])
@@ -5547,23 +5694,13 @@ function file_menu_open_cb(Ihandle /*ih*/)
     return IUP_DEFAULT;
 end function
 
-Ihandle edit_undo
-Ihandle edit_redo
-Ihandle edit_cut
-Ihandle edit_cuta
-Ihandle edit_cutp
-Ihandle edit_copy
-Ihandle edit_copya
-Ihandle edit_copyp
-Ihandle edit_paste
-Ihandle edit_clip
-Ihandle edit_clips
-Ihandle edit_delete
-Ihandle edit_find
-Ihandle find_next
-Ihandle find_prev
-Ihandle edit_goto
-Ihandle edit_selall
+Ihandle edit_undo, edit_redo, 
+        edit_cut, edit_cuta, edit_cutp, 
+        edit_copy, edit_copya, edit_copyp, 
+        edit_paste, edit_clip, edit_clips, 
+        edit_delete, edit_find, find_next, find_prev, 
+        edit_nextcs, edit_prevcs, 
+        edit_goto, edit_selall
 
 function edit_menu_open_cb(Ihandle /*ih*/)
 -- (enable/disable depending on selection, contents of the clipboard, etc)
@@ -5576,15 +5713,16 @@ integer sel = (currfile and selON and (selX!=CursorX or selY!=CursorY))
     IupSetInt(edit_paste,"ACTIVE",currfile and isclip)
     IupSetInt(edit_clips,"ACTIVE",sel or (currfile and isclip))
     integer findnp = fdlg:find_active()
-    IupSetInt({find_next,find_prev},"ACTIVE",findnp)
+    IupSetInt({find_next,find_prev},"ACTIVE",currfile!=0 and findnp)
     IupSetInt({edit_goto,edit_selall},"ACTIVE",currfile!=0)
     return IUP_DEFAULT;
 end function
 
 Ihandle toolm_run
 Ihandle toolm_prun
+Ihandle toolm_jerr
 Ihandle toolm_comp
-Ihandle toolm_dcmp
+--Ihandle toolm_dcmp
 Ihandle toolm_fif
 Ihandle toolm_html
 Ihandle toolm_rein
@@ -5606,6 +5744,7 @@ function tool_menu_open_cb(Ihandle /*ih*/)
         runnable = getExtRunWith(ext)!=""
     end if
     IupSetInt({toolm_run,toolm_prun},"ACTIVE",runnable)
+    IupSetInt(toolm_fif,"ACTIVE",currfile!=0)
     return IUP_DEFAULT;
 end function
 constant cb_tool_menu_open = Icallback("tool_menu_open_cb")
@@ -5618,7 +5757,7 @@ Ihandle macro_play6
 Ihandle macro_play7
 Ihandle macro_play8
 Ihandle macro_play9
-Ihandle macro_mngmt
+--Ihandle macro_mngmt
 
 function macro_menu_open_cb(Ihandle /*ih*/)
 -- (enable/disable depending on selection, contents of the clipboard, etc)
@@ -5633,20 +5772,154 @@ function macro_menu_open_cb(Ihandle /*ih*/)
 --  IupSetInt({find_next,find_prev},"ACTIVE",findnp)
 --  IupSetInt({edit_goto,edit_selall},"ACTIVE",currfile!=0)
 --?"tool_menu_open_cb" --DEV
-    integer runnable = 0
+--  bool recordable = not MacroPlaying
+--  integer runnable = 0
 --DEV iff(recording?"Stop":"Record") and disable other records and empty playbacks:
-    IupSetInt(macro_rec6,"ACTIVE",runnable)
-    IupSetInt(macro_rec7,"ACTIVE",runnable)
-    IupSetInt(macro_rec8,"ACTIVE",runnable)
-    IupSetInt(macro_rec9,"ACTIVE",runnable)
-    IupSetInt(macro_play6,"ACTIVE",runnable)
-    IupSetInt(macro_play7,"ACTIVE",runnable)
-    IupSetInt(macro_play8,"ACTIVE",runnable)
-    IupSetInt(macro_play9,"ACTIVE",runnable)
-    IupSetInt(macro_mngmt,"ACTIVE",runnable)
+    IupSetInt({macro_rec6,macro_rec7,macro_rec8,macro_rec9},"ACTIVE",not MacroPlaying)
+--  IupSetInt(macro_rec7,"ACTIVE",recordable)
+--  IupSetInt(macro_rec8,"ACTIVE",runnable)
+--  IupSetInt(macro_rec9,"ACTIVE",runnable)
+    IupSetInt(macro_play6,"ACTIVE",MacroPlaying<1 and MacroKeys[1]!={})
+    IupSetInt(macro_play7,"ACTIVE",MacroPlaying<2 and MacroKeys[2]!={})
+    IupSetInt(macro_play8,"ACTIVE",MacroPlaying<3 and MacroKeys[3]!={})
+    IupSetInt(macro_play9,"ACTIVE",MacroPlaying<4 and MacroKeys[4]!={})
+--  IupSetInt(macro_mngmt,"ACTIVE",runnable)
     return IUP_DEFAULT;
 end function
 constant cb_macro_menu_open = Icallback("macro_menu_open_cb")
+
+Ihandle reset_help_timer
+bool reset_help = false
+Ihandln dumwin = NULL
+
+--, menu
+--, fake_menu
+
+--not menus...
+--function help_get_focus_cb(Ihandle ih)
+--?"help_get_focus_cb"
+--  IupSetFocus(tabs)
+--  return IUP_IGNORE
+--end function
+--constant cb_help_get_focus = Icallback("help_get_focus_cb")
+
+--DEV return once new version installed... [DONE]
+
+--/*
+Silence Alt keys
+I have finally figured out a solution:
+In key_cb:
+    if alt and find(base,"BCDILUX<>") then
+        string Yelp = "&Yelp"
+        Yelp[2] = base
+        IupSetStrAttribute(main_help_menu,"TITLE",Yelp)
+        reset_help = true
+    end if
+    <plus code to do what those alt-keys should>
+In main_help_menu_open_cb:
+    if reset_help then
+        reset_help = false
+        IupSetAttribute(main_help_menu,"TITLE","&Help")
+        IupSetInt(main_help_menu,"ACTIVE",false)
+        IupSetInt(reset_help_timer,"RUN",true)
+    end if
+In reset_help_cb (via reset_help_timer):
+    IupSetInt(main_help_menu,"ACTIVE",true)
+    IupSetInt(reset_help_timer,"RUN",false)
+--  IupSetFocus(canvas)         -- does not work
+--  IupSetGlobal("KEY",K_ESC)   -- does not work
+    if dumwin=NULL then dumwin=IupDialog(NULL) end if
+    IupShow(dumwin)
+    IupHide(dumwin)
+
+The last two lines do produce a minor blip, but I can live with that.
+
+My question is whether IupSetFocus and/or IupSetGlobal("KEY") should work 
+in these circumstances (instead of dumwin)?
+
+Pete
+--*/
+
+function reset_help_cb(Ihandle ih)
+--  if not IupGetInt(main_help_menu,"ACTIVE") then
+--?"active"
+    IupSetInt(reset_help_timer,"RUN",false)
+    IupSetInt(main_help_menu,"ACTIVE",true)
+--?"erm, edix.exw line 5825 (alt-D tests)"
+    if dumwin=NULL then dumwin = IupDialog() end if
+    IupShow(dumwin)
+    IupHide(dumwin)
+--  IupSetFocus(canvas)
+--      IupMessage("Uh","Oh")
+--      IupSetGlobal("KEY",K_ESC)   -- no help...
+--      IupSetGlobal("KEY",K_ESC)   -- no help...
+--      IupSetGlobal("KEY",#1B) -- no help...
+--      IupSetGlobal("KEY","K_ESC") -- no help...
+--      IupSetGlobal("MOUSEBUTTON","0x0 IUP_BUTTON2 0")
+--  elsif IupGetFocus()!=canvas then
+--  elsif IupGetFocus()=main_help_menu then
+--  elsif IupGetFocus()!=tabs then
+--?"focus"
+--      fake_menu = IupMenu()
+--      IupSetAttributeHandle(dlg, "MENU", fake_menu)
+--      IupSetAttributeHandle(dlg, "MENU", NULL)
+--      IupDestroy(fake_menu)
+--      IupSetFocus(canvas)
+--      IupSetFocus(tabs)
+--      IupSetGlobal("KEY",#1B) -- no help...
+--      IupFlush()  -- no help
+--  elsif IupGetInt(reset_help_timer,"RUN") then
+--?{"reset_help_cb",ih,"main_help_menu",main_help_menu,"canvas",canvas}
+--      IupSetGlobal("KEY",K_ESC)   -- loops!!
+--      IupSetAttribute(main_help_menu,"TITLE","&Help")
+--      IupSetAttributeHandle(dlg, "MENU", menu)
+--      IupSetGlobal("KEY",K_ESC)   -- no help...
+--      IupSetGlobal("KEY",#1B) -- no help...
+--      IupSetGlobal("KEY","K_ESC") -- no help...
+--      IupFlush()
+--      IupSetFocus(canvas)
+--      IupFlush()
+--      IupSetInt(main_help_menu,"ACTIVE",true)
+--      IupFlush()
+--      IupSetFocus(canvas)
+--      IupSetAttributeHandle(dlg, "MENU", NULL)
+--      fake_menu = IupMenu()
+--      IupSetAttributeHandle(dlg, "MENU", fake_menu)
+--      IupSetAttributeHandle(dlg, "MENU", NULL)
+--      IupSetAttributeHandle(dlg, "MENU", menu)
+--      IupDestroy(fake_menu)
+--      IupFlush()
+--      IupSetFocus(canvas)
+--  end if
+--  IupSetGlobal("KEYPRESS",K_ESC)
+--  IupSetGlobal("KEYRELEASE",K_ESC)
+--  IupSetGlobal("KEY",K_ESC)
+--  IupFlush()
+--  {} = IupLoopStep()
+--  IupSetGlobal("KEYPRESS",K_ESC)
+--  IupSetGlobal("KEYRELEASE",K_ESC)
+    return IUP_DEFAULT
+--  return IUP_IGNORE
+end function
+
+function help_menu_open_cb(Ihandle /*ih*/)
+--?{"help_menu_open_cb",reset_help_timer}
+--  IupSetGlobal("KEY",K_ESC)   -- hangs
+--?"only if triggered from..."
+    if reset_help then
+        reset_help = false
+        IupSetAttribute(main_help_menu,"TITLE","&Help")
+        IupSetInt(main_help_menu,"ACTIVE",false)
+        IupSetInt(reset_help_timer,"RUN",true)
+--      return IUP_DEFAULT
+        return IUP_IGNORE
+--      return IUP_CONTINUE
+--      return IUP_CLOSE
+    end if
+    return IUP_DEFAULT
+end function
+constant cb_help_menu_open = Icallback("help_menu_open_cb")
+--*!/
 
 include src/keyboard.e as keybd
 
@@ -5730,7 +6003,8 @@ integer c = currfile
 --      {text,linelengths,encoding} = read_file(filename,encoding)
         string title = get_file_name(filename)
 --      string path = filename[1..length(filename)-length(title)]
-        string path = get_file_path(filename,0)
+--      string path = get_file_path(filename,0)
+        string path = get_file_path(filename,dropslash:=false)
         add_tab(0,path, title, text, linelengths)
     end if
 --      add_tab(0,path, title, text, linelengths, encoding)
@@ -5741,20 +6015,20 @@ integer c = currfile
 end function
 
 function create_file_menu()
-Ihandle file_new    = menu_item("&New\t\tCtrl N",           "PNG_FileNew",      cb_new,         1)
-Ihandle file_open   = menu_item("&Open\tCtrl O",            "PNG_FileOpen",     cb_open,        1)
-        file_reopen = menu_item("&ReOpen\tCtrl Shift O",    "PNG_FileReOpen",   cb_reopen,      0)
-        file_save   = menu_item("&Save\t\tCtrl S",          "PNG_FileSave",     cb_save,        0)
-        file_saveas = menu_item("Save &As..",               "PNG_FileSaveAs",   cb_saveas,      0)
-Ihandle file_list   = menu_item("File Lis&t",               "PNG_FileList",     cb_filelist,    1)
-        file_close  = menu_item("C&lose\t\tCtrl F4",        "PNG_FileClose",    cb_close,       0)
-        file_prntp  = menu_item("Print Pre&view\t\tCtrl P", "PNG_FilePreview",  cb_preview,     0)
-        file_print  = menu_item("&Print\t\tCtrl Shift P",   "PNG_FilePrint",    cb_print,       0)
-Ihandle recent_menu = IupMenu({})
-Ihandle file_recent = IupSubmenu("Recent &Files", recent_menu)
+    file_new    = menu_item("&New\t\tCtrl N",           "PNG_FileNew",      cb_new,         1)
+    file_open   = menu_item("&Open\tCtrl O",            "PNG_FileOpen",     cb_open,        1)
+    file_reopen = menu_item("&ReOpen\tCtrl Shift O",    "PNG_FileReOpen",   cb_reopen,      0)
+    file_save   = menu_item("&Save\t\tCtrl S",          "PNG_FileSave",     cb_save,        0)
+    file_saveas = menu_item("Save &As..",               "PNG_FileSaveAs",   cb_saveas,      0)
+    file_list   = menu_item("File Lis&t\tCtrl T",       "PNG_FileList",     cb_filelist,    1)
+    file_close  = menu_item("C&lose\t\tCtrl F4",        "PNG_FileClose",    cb_close,       0)
+    file_prntp  = menu_item("Print Pre&view\t\tCtrl P", "PNG_FilePreview",  cb_preview,     0)
+    file_print  = menu_item("&Print\t\tCtrl Shift P",   "PNG_FilePrint",    cb_print,       0)
+    recent_menu = IupMenu({})
+    file_recent = IupSubmenu("Recent &Files", recent_menu)
     IupConfigRecentInit(config, recent_menu, Icallback("config_recent_cb"), 9)
     IupSetStrAttribute(file_recent, "IMAGE", get_image("PNG_FileRecent"))
-    Ihandle file_exit   = menu_item("E&xit\t\tAlt F4",  "PNG_FileExit",   cb_exit,   1)
+    file_exit   = menu_item("E&xit\t\tAlt F4",  "PNG_FileExit",   cb_exit,   1)
     Ihandle file_menu = IupMenu({file_new,
                                  file_open,
                                  file_reopen,
@@ -5775,28 +6049,30 @@ Ihandle file_recent = IupSubmenu("Recent &Files", recent_menu)
 end function
 
 function create_edit_menu()
-edit_undo   = menu_item("Undo\tCtrl Z",             "PNG_EditUndo",     cb_undo,            1)
-edit_redo   = menu_item("Redo\tCtrl Y",             "PNG_EditRedo",     cb_redo,            1)
+    edit_undo   = menu_item("Undo\tCtrl Z",                     "PNG_EditUndo",     cb_undo,            1)
+    edit_redo   = menu_item("Redo\tCtrl Y",                     "PNG_EditRedo",     cb_redo,            1)
 --DEV edit_case sub-menu
 --edit_case = create_edit_case_submenu()
 --DEV clipboard sub-menu; Clipboard History (updated by ctrl c/s/v, max clip entries=NN or -1)
 --    also filename/fullpath, and strip html.
-edit_cut    = menu_item("Cu&t\tCtrl X",             "PNG_EditCut",      cb_cut,             1)
-edit_cuta   = menu_item("Cut Append\tCtrl Shift X", "PNG_EditCuta",     cb_cuta,            1)
-edit_cutp   = menu_item("Cut Prepend\tAlt Shift X", "PNG_EditCutp",     cb_cutp,            1)
-edit_copy   = menu_item("&Copy\tCtrl C",            "PNG_EditCopy",     cb_copy,            1)
-edit_copya  = menu_item("Copy Append\tCtrl Shift C","PNG_EditCopya",    cb_copya,           1)
-edit_copyp  = menu_item("Copy Prepend\tAlt Shift C","PNG_EditCopyp",    cb_copyp,           1)
-edit_paste  = menu_item("&Paste\tCtrl V",           "PNG_EditPaste",    cb_paste,           1)
-edit_clip = IupMenu({edit_cut,edit_cuta,edit_cutp,edit_copy,edit_copya,edit_copyp,edit_paste})
-edit_delete = menu_item("&Delete\tDelete",          "PNG_EditErase",    cb_delete,          0)
-edit_find   = menu_item("&Find...\tCtrl F",         "PNG_EditFind",     fdlg:cb_find,       1)
-find_next   = menu_item("Find Next\tF3",            "PNG_FindNext",     fdlg:cb_findnext,   0)
-find_prev   = menu_item("Find Prev\tShift F3",      "PNG_FindPrev",     fdlg:cb_findprev,   0)
+    edit_cut    = menu_item("Cu&t\tCtrl X",                     "PNG_EditCut",      cb_cut,             1)
+    edit_cuta   = menu_item("Cut Append\tCtrl Shift X",         "PNG_EditCuta",     cb_cuta,            1)
+    edit_cutp   = menu_item("Cut Prepend\tAlt Shift X",         "PNG_EditCutp",     cb_cutp,            1)
+    edit_copy   = menu_item("&Copy\tCtrl C",                    "PNG_EditCopy",     cb_copy,            1)
+    edit_copya  = menu_item("Copy Append\tCtrl Shift C",        "PNG_EditCopya",    cb_copya,           1)
+    edit_copyp  = menu_item("Copy Prepend\tAlt Shift C",        "PNG_EditCopyp",    cb_copyp,           1)
+    edit_paste  = menu_item("&Paste\tCtrl V",                   "PNG_EditPaste",    cb_paste,           1)
+    edit_clip = IupMenu({edit_cut,edit_cuta,edit_cutp,edit_copy,edit_copya,edit_copyp,edit_paste})
+    edit_delete = menu_item("&Delete\tDelete",                  "PNG_EditErase",    cb_delete,          0)
+    edit_find   = menu_item("&Find...\tCtrl F",                 "PNG_EditFind",     fdlg:cb_find,       1)
+    find_next   = menu_item("Find Next\tF3",                    "PNG_FindNext",     fdlg:cb_findnext,   0)
+    find_prev   = menu_item("Find Prev\tShift F3",              "PNG_FindPrev",     fdlg:cb_findprev,   0)
 --DEV Next/prior diff, Ctrl [ ]
-edit_goto   = menu_item("&Goto...\tCtrl G",         "PNG_EditGoto",     gdlg:cb_goto,       1)
-edit_selall = menu_item("Select &All\tCtrl A",      "PNG_EditSelectAll",cb_selectall,       1)
---edit_selwrd = menu_item("Select &Word\tCtrl W",       "PNG_EditSelectWrd",cb_selectwrd,       1)
+    edit_nextcs = menu_item("Next Control Structure\tCtrl ]",   "PNG_EditNextCS",   cb_nextcs,          1)
+    edit_prevcs = menu_item("Prev Control Structure\tCtrl [",   "PNG_EditPrevCS",   cb_prevcs,          1)
+    edit_goto   = menu_item("&Goto...\tCtrl G",                 "PNG_EditGoto",     gdlg:cb_goto,       1)
+    edit_selall = menu_item("Select &All\tCtrl A",              "PNG_EditSelectAll",cb_selectall,       1)
+--edit_selwrd = menu_item("Select &Word\tCtrl W",               "PNG_EditSelectWrd",cb_selectwrd,       1)
 
 --  item_goto = IupMenuItem("&Go To...\tCtrl G");
 --  IupSetCallback(item_goto, "ACTION", Icallback("item_goto_action_cb"));
@@ -5807,93 +6083,102 @@ edit_selall = menu_item("Select &All\tCtrl A",      "PNG_EditSelectAll",cb_selec
 --  Ihandle tool_zoomin  = toolbar_item(cb_zoomin,  "PNG_ZoomIn",     "Zoom In (Ctrl +)",  0)
 --  Ihandle tool_zoomout = toolbar_item(cb_zoomout, "PNG_ZoomOut",    "Zoom Out (Ctrl -)", 0)
 
-edit_clips = IupSubmenu("Clipboard",edit_clip)
-Ihandle edit_menu = IupMenu({edit_undo,
-                             edit_redo,
-                             IupSeparator(),
---                           edit_cut,
---                           edit_cuta,
---                           edit_cutp,
---                           edit_copy,
---                           edit_copya,
---                           edit_copyp,
---                           edit_paste,
-                             edit_clips,
-                             edit_delete,
-                             IupSeparator(),
-                             edit_find,
-                             find_next,
-                             find_prev,
---                           edit_replace,
-                             edit_goto,
-                             IupSeparator(),
---                           edit_select_all})
-                             edit_selall})
+    edit_clips = IupSubmenu("Clipboard",edit_clip)
+    Ihandle edit_menu = IupMenu({edit_undo,
+                                 edit_redo,
+                                 IupSeparator(),
+--                               edit_cut,
+--                               edit_cuta,
+--                               edit_cutp,
+--                               edit_copy,
+--                               edit_copya,
+--                               edit_copyp,
+--                               edit_paste,
+                                 edit_clips,
+                                 edit_delete,
+                                 IupSeparator(),
+                                 edit_find,
+                                 find_next,
+                                 find_prev,
+--                               edit_replace,
+                                 IupSeparator(),
+                                 edit_nextcs,
+                                 edit_prevcs,
+                                 IupSeparator(),
+                                 edit_goto,
+                                 IupSeparator(),
+--                               edit_select_all})
+                                 edit_selall})
     IupSetCallback(edit_menu, "OPEN_CB", Icallback("edit_menu_open_cb"))
     return edit_menu
 end function
 
+include src/fif.e as fif
+
 function create_tool_menu()
 --DEV shortcut keys from keyboard.e
-toolm_run   = menu_item("Run\tF5",                      "PNG_ToolRun",          cb_run,      1)
-toolm_prun  = menu_item("Parameterised Run\tCtrl F5",   "PNG_ToolParamRun",     cb_run,      1,1)
-toolm_comp  = menu_item("&Compare",                     "PNG_Compare",          cb_comp,     0)
-toolm_dcmp  = menu_item("&Directory Compare",           "PNG_DirComp",          cb_dcmp,     0)
-toolm_fif   = menu_item("&Find In Files\tCtrl Shift F", "PNG_FindInFiles",      cb_fif,      0)
-toolm_html  = menu_item("&Htmlise eucode",              "PNG_ToolsHtmlise",     cb_html,     0)
-toolm_rein  = menu_item("Re-&Indent source",            "PNG_Reindent",         cb_rein,     1)
-toolm_cca   = menu_item("Co&mmon Code Analysis",        "PNG_CommonCode",       cb_cca,      0)
-toolm_qjmp  = menu_item("&Quick Jump\tCtrl Q",          "PNG_QuickJump",        cb_qjmp,     1)
-toolm_recvr = menu_item("&Recovery",                    "PNG_Recovery",         cb_rcvr,     0)
---toolm_paint = menu_item("&Window Painter",                "PNG_WindowPaint",      cb_wpnt,     0)
---toolm_paint = menu_item("&Layout Designer",               "PNG_Designer",     cb_wpnt,     0)
-toolm_desgn = menu_item("&Layout Designer",             "PNG_Designer",         cb_design,   01)
-toolm_dbvwr = menu_item("Database &Viewer",             "PNG_DatabaseViewer",   cb_dvwr,     0)
-toolm_dbvfy = menu_item("Verif&y Database",             "PNG_DatabaseVerify",   cb_dvfy,     0)
-toolm_showf = menu_item("Show Formatting\tCtrl Shift H","PNG_pilcrow",          cb_showfmt,  1)
-toolm_crash = menu_item("Crash",                        "PNG_Crash",            cb_crash,    1)
+    toolm_run   = menu_item("Run\tF5",                      "PNG_ToolRun",          cb_run,      1)
+    toolm_prun  = menu_item("Parameterised Run\tCtrl F5",   "PNG_ToolParamRun",     cb_run,      1,1)
+    toolm_jerr  = menu_item("Jump to error\tF12",           "PNG_error",            cb_jerr,     1)
+    toolm_comp  = menu_item("&Compare",                     "PNG_Compare",          cb_comp,     0)
+--  toolm_dcmp  = menu_item("&Directory Compare",           "PNG_DirComp",          cb_dcmp,     0)
+    toolm_fif   = menu_item("&Find In Files\tCtrl Shift F", "PNG_FindInFiles",      fif:cb_fif,  1)
+    toolm_html  = menu_item("&Htmlise eucode",              "PNG_ToolsHtmlise",     cb_html,     1)
+    toolm_rein  = menu_item("Re-&Indent source",            "PNG_Reindent",         cb_rein,     1)
+    toolm_cca   = menu_item("Co&mmon Code Analysis",        "PNG_CommonCode",       cb_cca,      0)
+    toolm_qjmp  = menu_item("&Quick Jump\tCtrl Q",          "PNG_QuickJump",        cb_qjmp,     1)
+    toolm_recvr = menu_item("&Recovery",                    "PNG_Recovery",         cb_rcvr,     0)
+--  toolm_paint = menu_item("&Window Painter",              "PNG_WindowPaint",      cb_wpnt,     0)
+--  toolm_paint = menu_item("&Layout Designer",             "PNG_Designer",     cb_wpnt,     0)
+    toolm_desgn = menu_item("&Layout Designer",             "PNG_Designer",         cb_design,   01)
+    toolm_dbvwr = menu_item("Database &Viewer",             "PNG_DatabaseViewer",   cb_dvwr,     0)
+    toolm_dbvfy = menu_item("Verif&y Database",             "PNG_DatabaseVerify",   cb_dvfy,     0)
+    toolm_showf = menu_item("Show Formatting\tCtrl Shift H","PNG_pilcrow",          cb_showfmt,  1)
+    toolm_crash = menu_item("Crash",                        "PNG_Crash",            cb_crash,    1)
 
-Ihandle tool_menu = IupMenu({toolm_run,
-                             toolm_prun,
-                             toolm_comp,
-                             toolm_dcmp,
-                             toolm_fif,
-                             toolm_html,
-                             toolm_rein,
-                             toolm_cca,
-                             toolm_qjmp,
-                             toolm_recvr,
-                             toolm_desgn,
-                             toolm_dbvwr,
-                             toolm_dbvfy,
-                             toolm_showf,
-                             IupSeparator(),
-                             toolm_crash})
+    Ihandle tool_menu = IupMenu({toolm_run,
+                                 toolm_prun,
+                                 toolm_jerr,
+                                 toolm_comp,
+--                               toolm_dcmp,
+                                 toolm_fif,
+                                 toolm_html,
+                                 toolm_rein,
+                                 toolm_cca,
+                                 toolm_qjmp,
+                                 toolm_recvr,
+                                 toolm_desgn,
+                                 toolm_dbvwr,
+                                 toolm_dbvfy,
+                                 toolm_showf,
+                                 IupSeparator(),
+                                 toolm_crash})
     IupSetCallback(tool_menu, "OPEN_CB", cb_tool_menu_open)
     return tool_menu
 end function
 
 function create_macro_menu()
 --DEV shortcut keys from keyboard.e[??]
-macro_rec6  = menu_item("Record F6\tCtrl F6",           "PNG_MacroRecord",  cb_rec6,  0)
-macro_rec7  = menu_item("Record F7\tCtrl F7",           "PNG_MacroRecord",  cb_rec6,  0)
-macro_rec8  = menu_item("Record F8\tCtrl F8",           "PNG_MacroRecord",  cb_rec6,  0)
-macro_rec9  = menu_item("Record F9\tCtrl F9",           "PNG_MacroRecord",  cb_rec6,  0)
-macro_play6 = menu_item("Play F6\tF6",                  "PNG_MacroPlay",    cb_play6, 0)
-macro_play7 = menu_item("Play F7\tF7",                  "PNG_MacroPlay",    cb_play6, 0)
-macro_play8 = menu_item("Play F8\tF8",                  "PNG_MacroPlay",    cb_play6, 0)
-macro_play9 = menu_item("Play F9\tF9",                  "PNG_MacroPlay",    cb_play6, 0)
-macro_mngmt = menu_item("Macro Management\tShift F8",   "PNG_MacroClap",    cb_mngmt, 0)
+    macro_rec6  = menu_item("Record F6\tCtrl F6",           "PNG_MacroRecord",  macro:cb_macro, 0,1)
+    macro_rec7  = menu_item("Record F7\tCtrl F7",           "PNG_MacroRecord",  macro:cb_macro, 0,2)
+    macro_rec8  = menu_item("Record F8\tCtrl F8",           "PNG_MacroRecord",  macro:cb_macro, 0,3)
+    macro_rec9  = menu_item("Record F9\tCtrl F9",           "PNG_MacroRecord",  macro:cb_macro, 0,4)
+    macro_play6 = menu_item("Play F6\tF6",                  "PNG_MacroPlay",    macro:cb_macro, 0,11)
+    macro_play7 = menu_item("Play F7\tF7",                  "PNG_MacroPlay",    macro:cb_macro, 0,12)
+    macro_play8 = menu_item("Play F8\tF8",                  "PNG_MacroPlay",    macro:cb_macro, 0,13)
+    macro_play9 = menu_item("Play F9\tF9",                  "PNG_MacroPlay",    macro:cb_macro, 0,14)
+--  macro_mngmt = menu_item("Macro Management\tShift F8",   "PNG_MacroClap",    cb_mngmt, 0)
 
-Ihandle macro_menu = IupMenu({macro_rec6,
-                              macro_rec7,
-                              macro_rec8,
-                              macro_rec9,
-                              macro_play6,
-                              macro_play7,
-                              macro_play8,
-                              macro_play9,
-                              macro_mngmt})
+    Ihandle macro_menu = IupMenu({macro_rec6,
+                                  macro_rec7,
+                                  macro_rec8,
+                                  macro_rec9,
+                                  macro_play6,
+                                  macro_play7,
+                                  macro_play8,
+                                  macro_play9})
+--                                macro_play9,
+--                                macro_mngmt})
     IupSetCallback(macro_menu, "OPEN_CB", cb_macro_menu_open)
     return macro_menu
 end function
@@ -5901,25 +6186,25 @@ end function
 function create_options_menu()
 --DEV should zoom in/out be here?
 --DEV move AutoComplete to Edit options!
---Ihandle options_autocomplete  = menu_item("&Auto Complete",       "PNG_MacroRecord",  cb_rec6,  0)
-Ihandle options_colours     = menu_item("&Colours",             "PNG_Colours",      cb_rec6,        0)
-Ihandle options_fonts       = menu_item("&Fonts",               "PNG_Fonts",        cb_rec6,        0)
+--Ihandle options_autocomplete  = menu_item("&Auto Complete",               "PNG_MacroRecord",  gdlg:cb_goto,       0)
+Ihandle options_colours     = menu_item("&Colours",                         "PNG_Colours",      gdlg:cb_goto,       0)
+--Ihandle options_fonts     = menu_item("&Fonts",                           "PNG_Fonts",        gdlg:cb_goto,       0)
 --SUG put edit/diplay/keyboard/extensions on a tabbed dialog
-Ihandle options_display     = menu_item("&Display Options",     "PNG_DisplayOpt",   cb_rec6,        0)
-Ihandle options_edit        = menu_item("&Edit Options",        "PNG_EditOpt",      cb_play6,       0)
-Ihandle options_keyboard    = menu_item("&Keyboard Settings",   "PNG_KeyboardOpt",  keybd:cb_keybd, 1)
-Ihandle options_file_extns  = menu_item("File E&xtensions",     "PNG_ExtOpt",       extns:cb_ext,   1)
-        options_file_panel  = menu_item("File Pane&l\t(Ctrl L)","PNG_PanelOn",      cb_file_panel,  1)
+Ihandle options_display     = menu_item("&Display Options",                 "PNG_DisplayOpt",   gdlg:cb_goto,       0)
+Ihandle options_edit        = menu_item("&Edit Options",                    "PNG_EditOpt",      gdlg:cb_goto,       0)
+Ihandle options_keyboard    = menu_item("&Keyboard Settings\t(Ctrl F1)",    "PNG_KeyboardOpt",  keybd:cb_keybd, 1)
+Ihandle options_file_extns  = menu_item("File E&xtensions",                 "PNG_ExtOpt",       extns:cb_ext,   1)
+        options_file_panel  = menu_item("File Pane&l\t(Ctrl L)",            "PNG_PanelOn",      cb_file_panel,  1)
     IupSetStrAttribute(options_file_panel, "IMPRESS", get_image("PNG_PanelOff"))
     IupSetAttribute(options_file_panel,"VALUE","OFF")
 
     --DEV move Wordwrap to Display options!
-    --Ihandle options_wordwrap  = menu_item("&Wordwrap",            "PNG_MacroPlay",    cb_play6, 0)
+    --Ihandle options_wordwrap  = menu_item("&Wordwrap",            "PNG_MacroPlay",    gdlg:cb_goto, 0)
     --SUG: Edit config file (use the FILENAME attribute, see IupConfigLoad)
     --Ihandle options_config    = menu_item("Edit Confi&g File",    "PNG_EditOpt",      cb_edit_config?, 0)
 
     Ihandle options_menu = IupMenu({options_colours,
-                                    options_fonts,
+--                                  options_fonts,
                                     options_display,
                                     options_edit,
                                     options_keyboard,
@@ -5974,30 +6259,44 @@ constant H_F1 = 101,
 
 Ihandle F1menuitem
 
+procedure F1key(integer ctrl)
+--?"F1!"
+--      openChm("phix.chm",0)
+--DEV get path dynamically, word under the cursor... and esc to close
+--      openChm("C:\\Program Files (x86)\\Phix\\docs\\phix\\phix.chm","")
+    if ctrl then
+        keybd:keyboard_dialog()
+    else
+        if currfile then
+            rcX = CursorX
+            rcY = CursorY
+        end if
+        F1help(0)
+    end if
+end procedure
+
 global function help_cb(Ihandle self)
 integer id = IupGetInt(self,"ID")
-?"help_cb"
+--?"help_cb"
     if id<=100 then
 --DEV eaqj.ew...
 --      openChm(helpfiles[id],0)
         openChm(helpfiles[id],"")
 --      ?helpfiles[id]
     elsif id=H_F1 then
---?"F1!"
---      openChm("phix.chm",0)
---DEV get path dynamically, word under the cursor... and esc to close
---      openChm("C:\\Program Files (x86)\\Phix\\docs\\phix\\phix.chm","")
-        if currfile then
-            rcX = CursorX
-            rcY = CursorY
-        end if
-        F1help(0)
+        F1key(0)
     elsif id=H_HOME then
+?"F1-home"
     elsif id=H_MANUAL then
+?"F1-manual"
     elsif id=H_LICENCE then
+?"F1-licence"
     elsif id=H_FORUM then
+?"F1-forum"
     elsif id=H_UPGRADE then
+?"F1-upgrade"
     elsif id=H_ABOUT then
+?"F1-about"
     else
         ?9/0
     end if
@@ -6055,19 +6354,24 @@ Ihandle help_menu = IupMenu(children)
 --                           help_upgrades,
 --                           help_about})
 --})
---  IupSetCallback(help_menu, "OPEN_CB", Icallback("options_menu_open_cb")); [probably not rqd]
+    IupSetCallback(help_menu, "OPEN_CB", cb_help_menu_open)
+--  IupSetCallback(help_menu, "GETFOCUS_CB", cb_help_get_focus)
+    reset_help_timer = IupTimer(Icallback("reset_help_cb"),40,false)
 --trace(0)
+--?{"help_menu",help_menu}
     return help_menu
 end function
 
 
 function create_menu()
+main_help_menu = IupSubmenu("&Help",    create_help_menu())
 Ihandle menu = IupMenu({IupSubmenu("&File",    create_file_menu()),
                         IupSubmenu("&Edit",    create_edit_menu()),
                         IupSubmenu("&Tools",   create_tool_menu()),
                         IupSubmenu("&Macro",   create_macro_menu()),
                         IupSubmenu("&Options", create_options_menu()),
-                        IupSubmenu("&Help",    create_help_menu()),
+--                      IupSubmenu("&Help",    create_help_menu()),
+                        main_help_menu
 --                          sub_menu_format,
 --                          sub_menu_view,
 --                          sub_menu_help});
@@ -6124,6 +6428,9 @@ function create_toolbar()
 --  toolb_run     = toolbar_item(cb_run,            "IUP_ActionOk",   "Run (F5)",                       0)
 
 --DEV in windows the control will still get the focus when clicked [the DEV part being that we need some extra code to re-focus]
+--Ihandle
+--htlbl = IupLabel("&D")
+
     toolb_rtns = IupList("CANFOCUS=NO, DROPDOWN=YES, EXPAND=HORIZONTAL")
     --DEV this will be more dynamically set:
     if 01 then
@@ -6164,6 +6471,7 @@ function create_toolbar()
                                IupLabel(NULL, "SEPARATOR=VERTICAL"),
                                toolb_back,
                                toolb_run,
+--htlbl,
                                toolb_rtns})
 --/*
 atom toolbar = IupHbox({
@@ -6319,7 +6627,7 @@ function canvas_button_cb(Ihandle ih, integer button, integer pressed, integer x
                     CursorX = x
                     CursorY = y
                     appUpdateRender()
-                    update_statusbar()
+--                  update_statusbar()  -- (now done inside "")
                 end if
             end if
         elsif button=IUP_BUTTON3    -- right mouse button
@@ -6398,7 +6706,9 @@ end function
 
 function motion_cb(Ihandle /*ih*/, integer x, integer y, atom pStatus)
 --?{x,y}
-    if currfile then
+--DEV
+--  if currfile then
+    if currfile and currfile<=length(filetext) then
         x = floor(x/charwidth)-marginRqd
 --      y = TopLine+floor(y/charheight)
         y = floor(y/charheight)+TopLine
@@ -6418,7 +6728,7 @@ function motion_cb(Ihandle /*ih*/, integer x, integer y, atom pStatus)
                 CursorX = x
                 CursorY = y
                 appUpdateRender()
-                update_statusbar()
+--              update_statusbar()  -- (now done inside "")
 --              if not selON then
 --              CursorX = x
 --          CursorY = y
@@ -6635,7 +6945,8 @@ integer startx
                                                 oneline = oneline[6..length(oneline)]
                                             end if
                                             if k=2 then     -- edit:
-                                                void = openFile(oneline,1,isLegacyTabHandling)
+--                                              void = openFile(oneline,1,isLegacyTabHandling)
+                                                {} = openFile(0,oneline,1)
                                                 x = -1
                                                 exit
                                             end if
@@ -7396,30 +7707,6 @@ procedure backdel(integer base, ctrl, shift, /*alt*/)
     end if
 end procedure
 
-include src\cflow.e
-
-procedure bracket(integer base, /*ctrl*/, shift, alt)
-    if selON then
-        if selY = CursorY then
-            CursorX = 0
-            clearSelection()
-        end if
-    end if
---  startSelection(shift,menu)
-    startSelection(shift,alt)
-    integer d = iff(base='['?-1:+1)
-    ctrlBracket(d)
-    if cbY = CursorY
-    and cbX = CursorX
-    and CursorX then
-        integer wasCursorX = CursorX
-        CursorX = 0
-        ctrlBracket(d)
-        if cbY=CursorY then  cbX = wasCursorX  end if
-    end if
-    jumpTo(cbX,cbY)
-end procedure
-
 procedure insertkey(integer ctrl, shift, /*alt*/)
 -- Note: <Ctrl Insert> and <Shift Insert> are defaults in keyboard.e
     if ctrl then
@@ -7433,6 +7720,7 @@ procedure insertkey(integer ctrl, shift, /*alt*/)
     else
         insertMode = not insertMode
         clearSelection()
+        update_statusbar()
     end if
 end procedure
 
@@ -7554,14 +7842,45 @@ function clear_tip_sel()
         update_toolbar()
 --SUG:
 --  elsif not closeChm() then
-    else
-        return exit_cb(dlg) -- DEV to go (once edix gets useable)
+--  else
+--      return exit_cb(dlg) -- DEV to go (once edix gets useable)
     end if
     return IUP_CONTINUE
 end function
 
+--/*
+function alt_cb(Ihandle ih, atom c)
+?{"alt_cb",sprintf("%x",c)}
+string Yelp = "&Yelp"
+    Yelp[2] = iup_XkeyBase(c)
+    IupSetStrAttribute(main_help_menu,"TITLE",Yelp)
+--  IupSetInt(main_help_menu,"VISIBLE",0)
+--  return IUP_DEFAULT
+
+--/* DEV (untried)
+    switch c do
+        case K_mD:  DragLine(+1)                    -- Alt D = drag line down
+    end switch
+--*/
+
+    return IUP_CONTINUE
+--  return IUP_IGNORE
+--  return IUP_CLOSE    -- no!
+end function
+--*/
+
+--function keypress_cb(Ihandle ih, atom c, bool press)
+--?{"keypress_cb",c,press}
+--  IupSetInt(main_help_menu,"ACTIVE",1)
+--  return IUP_IGNORE
+--end function
+
 function key_cb(Ihandle ih, atom c)
-    c = keybd:mapkey(c)
+--?"key_cb"
+--sleep(1)
+    if MacroPlaying=0 then
+        c = keybd:mapkey(c)
+    end if
     -- first handle all keys that work without a current file
     switch c do
         case K_cL: return file_panel_cb(NULL)   -- erm? [DEV - ensure a null project tree is fine]
@@ -7570,6 +7889,28 @@ function key_cb(Ihandle ih, atom c)
         case K_ESC: return clear_tip_sel()
     end switch
     if currfile then
+        integer base = iup_XkeyBase(c)
+        integer ctrl = iup_isCtrlXkey(c)
+        integer shift = iup_isShiftXkey(c)
+        integer alt = iup_isAltXkey(c)
+        if find(base,{K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,
+                      K_LALT,K_RALT,K_NUM,K_SCROLL,K_CAPS}) then
+            -- avoid TITLE update, and macro/record
+            return IUP_CONTINUE
+        elsif alt and find(base,"BD") then
+--      elsif alt and find(base,"BCDILUX") then
+            -- silence alt keys:
+            string Yelp = "&Yelp"
+            Yelp[2] = base
+            IupSetStrAttribute(main_help_menu,"TITLE",Yelp)
+            reset_help = true
+        end if
+        if MacroLearn
+        and not find(base,{K_F6,K_F7,K_F8,K_F9}) then
+--          MacroKeys[MacroLearn] = append(MacroKeys[MacroLearn],{MR_VIRT,{base,ctrl,shift}}) --,alt?
+--          MacroKeys[MacroLearn] = append(MacroKeys[MacroLearn],{MR_KEY,{c}})
+            MacroKeys[MacroLearn] = append(MacroKeys[MacroLearn],c)
+        end if
         if iup_isprint(c) then
 --          IupSetStrAttribute(dlg,"TITLE","iup_isprint:%0x",{c})
             if deleteSelection() then end if
@@ -7578,10 +7919,6 @@ function key_cb(Ihandle ih, atom c)
             update_toolbar()
             return IUP_CONTINUE
         end if
-        integer base = iup_XkeyBase(c)
-        integer ctrl = iup_isCtrlXkey(c)
-        integer shift = iup_isShiftXkey(c)
-        integer alt = iup_isAltXkey(c)
         if base!=K_LEFT
         and base!=K_RIGHT then  
             tip_visible = 0     --DEV (not left/right?)
@@ -7603,19 +7940,23 @@ function key_cb(Ihandle ih, atom c)
 --          case K_Menu: CSM(ctrl,shift,alt)
             case K_Menu: menu_key(ctrl,shift,alt)
 --          case K_F1: F1help(ctrl,shift,alt)
-            case K_F1: {} = help_cb(F1menuitem)
+--          case K_F1: {} = help_cb(F1menuitem)
+            case K_F1: F1key(ctrl)
 --          case K_F2: F2mark(ctrl,shift,alt)
             case K_F3: fdlg:F3find(ctrl,shift)
---          case K_F4: F4diff(ctrl,shift,alt)
-            case K_F5: run:F5run(ctrl,shift)--,alt)
---          case K_F6, K_F7, K_F8, K_F9: macro(base,ctrl,shift,alt)
---          case K_F12: F12() -- (jump to error) --ctrl,shift,alt)
---          case '<','>': comment_indent(base,ctrl,shift,alt)
+            case K_F4: F4key(ctrl,shift,alt)
+            case K_F5: F5key(ctrl,shift)--,alt)
+            case K_F6, K_F7, K_F8, K_F9: macro:macrokey(base,ctrl,shift,alt)
+            case K_F12: F12() -- (jump to error) --ctrl,shift,alt)
+--DEV cannot stop the bell on alt...
+            case '<',',': addAction(UNINDENT,unindent(iff(alt?K_TAB:comment))) --return IUP_IGNORE
+--trace(1)
+            case '>','.': addAction(INDENT,indentWith(iff(alt?K_TAB:comment))) --return IUP_DEFAULT
 --          case '-','+': fold(base,ctrl,shift,alt)
             case '[',']': bracket(base,ctrl,shift,alt)
-            case K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,
-                 K_LALT,K_RALT,K_NUM,K_SCROLL,K_CAPS:
-                break   -- (avoid TITLE update)
+--          case K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,
+--               K_LALT,K_RALT,K_NUM,K_SCROLL,K_CAPS:
+--              break   -- (avoid TITLE update)
             default:
             switch c do
                 case K_cA:  selectAll()
@@ -7629,7 +7970,8 @@ function key_cb(Ihandle ih, atom c)
                 case K_csE: zoom(+1)
                 case K_mD:  DragLine(+1)                    -- Alt D = drag line down
                 case K_cF:  fdlg:find_dialog()
-                case K_csF: return fif_cb(dlg)
+--              case K_csF: return fif_cb(dlg) --FIF()
+                case K_csF: fif:find_in_files()
                 case K_cG:  return gdlg:goto_cb(dlg)        -- (K_mG via keyboard.e)
                 case K_cH:  show_as_base(16)
                 case K_csH: return showfmt_cb(toolm_showf)  -- show_formatting()
@@ -7643,7 +7985,9 @@ function key_cb(Ihandle ih, atom c)
                 case K_cP:  return preview_cb(file_prntp)   -- print preview
                 case K_cQ:  onClickToolQjmp()
                 case K_csR: zoom(-1)
+--SUG:
                 case K_cS:  return save_cb(ih)
+--              case K_cS:  {} = save_file(currfile)
                 case K_cT:  fileList()
                 case K_mU:  caseOp(UPPER)
                 case K_msU: caseOp(CAPITALISE)
@@ -7700,14 +8044,50 @@ Function keys
                 default:
                     if not alt then -- (assume a menu key) [DEV this is temp anyway...]
                         IupSetStrAttribute(dlg,"TITLE","key_cb:%0x",{c})
+--                      IupSetStrAttribute(dlg,"TITLE","key_cb:%0x (base=%0x)",{c,base})
                     end if
             end switch
         end switch
     end if
     update_toolbar()
-    return IUP_CONTINUE
+--  return IUP_CONTINUE
+--  return IUP_DEFAULT
+    return IUP_IGNORE
+end function
+r_macro_key = routine_id("key_cb")
+
+--/*
+--Note: this means key_cb will not be called:
+function K_action_cb(Ihandle /*ih*/)
+?"K_action_cb"
+  return IUP_IGNORE
+--  return IUP_CONTINUE
+--  return IUP_DEFAULT
 end function
 
+--public constant IUP_K_comma = "K_comma"
+--public constant IUP_K_minus = "K_minus"
+--public constant IUP_K_period = "K_period"
+
+--public constant IUP_K_mUP = "K_mUP"
+
+
+function keypress_cb(Ihandle /*ih*/, atom /*c*/, bool /*press*/)
+?"keypress_cb"
+    return IUP_IGNORE
+--  return IUP_CONTINUE
+--  return IUP_DEFAULT
+end function
+
+function globalkeypress_cb(atom /*c*/, bool /*press*/) 
+?"globalkeypress_cb"
+--sleep(1)
+    return IUP_IGNORE
+--  return IUP_DEFAULT
+--  return IUP_CONTINUE
+end function
+--constant cb_keypress = Icallback("keypress_cb")
+--*/
 
 function tabchange_cb(atom /*self*/, atom new_tab, atom old_tab)
 --  if self or old_tab then end if
@@ -8019,6 +8399,7 @@ procedure main()
     IupSetAttributePtr(radio,"VALUE_HANDLE",tproject)
 --  IupSetAttributePtr(radio,"VALUE_HANDLE",tdirectory)
     rtbox = IupVbox({radio,
+--  rtbox = IupVbox({IupHbox({radio,htlbl}),
                      tree})
 --  IupSetAttribute(rtbox,"SHRINK","YES")
 --  tbox = IupHbox({rtbox,tcbox})
@@ -8059,9 +8440,29 @@ procedure main()
 --  IupSetAttribute(dlg, "MINSIZE", "144x87")   -- 96x46
 --  IupSetAttribute(dlg, "MINSIZE", "216x163")  -- 144x87
     IupSetAttribute(dlg, "MINSIZE", "462x163")
-    IupSetAttributeHandle(dlg, "MENU", create_menu());
+--  menu = create_menu()
+--  IupSetAttributeHandle(dlg, "MENU", menu)
+    IupSetAttributeHandle(dlg, "MENU", create_menu())
 
     IupSetCallback(dlg, "K_ANY",       Icallback("key_cb"))
+--  IupSetCallback(dlg, "K_mD",    Icallback("alt_cb"))
+--if 0 then
+--  IupSetCallback(dlg, "KEYPRESS_CB", Icallback("keypress_cb"))
+----    IupSetCallback(canvas, "KEYPRESS_CB", Icallback("keypress_cb"))
+--  IupSetCallback(canvas, "KEYPRESS_CB", Icallback("keypress_cb"))
+--end if
+--if 0 then
+--  IupSetGlobalFunction("GLOBALKEYPRESS_CB",Icallback("globalkeypress_cb"))
+--IupSetGlobal("INPUTCALLBACKS","YES")
+--end if
+--if 0 then
+----IupSetCallback(dlg, "K_c0", (Icallback)K_action_cb);
+----IupSetCallback(dlg, "K_mcomma", Icallback("K_action_cb"))
+--IupSetCallback(dlg, "K_mComma", Icallback("K_action_cb"))
+--IupSetCallback(dlg, "K_mC", Icallback("K_action_cb"))
+--end if
+
+
     IupSetCallback(dlg, "RESIZE_CB",   Icallback("resize_cb"))
     IupSetCallback(dlg, "COPYDATA_CB", Icallback("copydata_cb"));
     IupSetCallback(dlg, "CLOSE_CB",    Icallback("exit_cb"));
@@ -8109,7 +8510,8 @@ procedure main()
 --          if sequence(res) then
                 sequence {text,linelengths} = res
                 string title = get_file_name(filepath)
-                string path = get_file_path(filepath,0)
+--              string path = get_file_path(filepath,0)
+                string path = get_file_path(filepath,dropslash:=false)
 --DEV
                 add_tab(1,path, title, text, linelengths)--, encoding)
 --*/

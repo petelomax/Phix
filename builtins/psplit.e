@@ -1,10 +1,9 @@
 --
--- psplit.e
+-- builtins\psplit.e
 --
---  Phix implementation of split() and split_any()
+--  Phix implementation of split(), split_any(), and split_path()
 --
--- This is an auto-include file; there is no need to manually include
---  it, unless you want a namespace.
+--  This is an auto-include file; there is no need to manually include it, unless you want a namespace.
 --
 
 global function split(sequence source, object delimiter=' ', bool no_empty=false, integer limit=0)

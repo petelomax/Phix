@@ -1,14 +1,14 @@
 --
 -- read_file.e
 --
+global constant BINARY_MODE = 1, TEXT_MODE = 2
 
-global function read_file(object file)
+global function read_file(object file, integer as_text = BINARY_MODE)
 integer fn
 object line
---sequence text = {}
 string text = ""
     if sequence(file) then
-        fn = open(file,"r")
+        fn = open(file,iff(as_text=BINARY_MODE?"rb":"r"))
     else
         fn = file
     end if
@@ -16,7 +16,6 @@ string text = ""
     while 1 do
         line = gets(fn)
         if atom(line) then exit end if
---      text = append(text,trim(line,"\r\n"))
         text &= line
     end while
     if sequence(file) then
@@ -24,26 +23,5 @@ string text = ""
     end if
     return text
 end function
-
---/*
-function read_file(sequence filename)
-integer f
-object line
-sequence text
-
-    f = open(filename, "rb")
-    if f= -1 then
-        return -1
-    end if
-    line = gets(f)
-    text = ""
-    while sequence(line) do
-        text &= line
-        line = gets(f)
-    end while
-    close(f)
-    return text
-end function
---*/
 
 

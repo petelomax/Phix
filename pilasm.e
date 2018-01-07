@@ -4281,7 +4281,9 @@ end if
                     s5 &= {#48,0o230}           -- cdqe (eax -> rax)
                 end if
 
-            elsif ttidx=T_shld then
+            elsif ttidx=T_shld
+               or ttidx=T_shrd then
+                op = ttidx
 -- sorry, too messy atm... only supporting shld reg,reg,imm|cl for now
 --              {p1type,p1size,p1details} = get_operand(P_RM)
                 {p1type,p1size,p1details} = get_operand(P_REG)
@@ -4302,9 +4304,17 @@ end if
                     end if
                     s5 &= #0F
                     if p2type=P_IMM then -- (p3 really)
-                        s5 &= #A4
+                        if op=T_shld then
+                            s5 &= #A4
+                        else
+                            s5 &= #AC
+                        end if
                     else   -- P_REG(cl)
-                        s5 &= #A5
+                        if op=T_shld then
+                            s5 &= #A5
+                        else
+                            s5 &= #AD
+                        end if
                     end if
 --                  if p1type=P_REG then
                         xrm = 0o300+reg*8+p1details-1   -- 0o3sd
@@ -4322,6 +4332,12 @@ end if
 --004099B3  #0F #A5 0o330       SHLD AX,BX,CL
 --004099B7  #0F #A5 0o037       SHLD WORD PTR DS:[EDI],BX,CL
 --004099BB  #0F #A4 0o320 04        SHLD EAX,EDX,4
+
+--00425000 >     0FA4D0 06      SHLD EAX,EDX,6                           ;  f06.<ModuleEntryPoint>
+--00425004   0FACD0 06      SHRD EAX,EDX,6
+--00425008   0FADD0         SHRD EAX,EDX,CL
+--0042500B   0FA5D0         SHLD EAX,EDX,CL
+
 --
 --
 --?9/0

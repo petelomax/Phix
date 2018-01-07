@@ -44,7 +44,7 @@ integer k,k2
 --  k = getIndex(TLlvw)
     k = IupGetInt(matrix,"FOCUSCELL")
 --?{"select","k",k,"fmap[k]",fmap[k],"tags[fmap[k]]",tags[fmap[k]]}
-    if k then
+    if k and k<=length(fmap) then
         k = fmap[k]
 --      k = tags[k]
 --DEV??
@@ -258,7 +258,9 @@ end function
 constant cb_help = Icallback("help_cb")
 
 function close_cb(Ihandle /*bt_close*/)
-    IupConfigDialogClosed(config, filelist_dlg, "FileList")
+    if IupGetInt(filelist_dlg,"MAXIMIZED")=0 then
+        IupConfigDialogClosed(config, filelist_dlg, "FileList")
+    end if
     IupHide(filelist_dlg) -- do not destroy, just hide
     return IUP_DEFAULT
 end function
@@ -272,8 +274,6 @@ constant cb_ok = Icallback("ok_cb")
 
 function cancel_cb(Ihandle /*bt_cancel*/)
     return close_cb(bt_cancel)
-    select()
-    return IUP_DEFAULT
 end function
 constant cb_cancel = Icallback("cancel_cb")
 
@@ -382,7 +382,7 @@ procedure create_filelist_dialog()
     IupSetAttribute(filelist_dlg,"MINSIZE","570x220")
     IupSetAttributePtr(filelist_dlg, "PARENTDIALOG", dlg)
     IupSetCallback(filelist_dlg, "CLOSE_CB", cb_close);
-    IupSetAttribute(filelist_dlg, "TITLE", "Keyboard");
+    IupSetAttribute(filelist_dlg, "TITLE", "Currently Open File Tabs");
     IupSetCallback(filelist_dlg, "RESIZE_CB", Icallback("resize_cb"));
     IupSetCallback(filelist_dlg, "K_ANY", Icallback("key_cb"));
     IupSetAttributeHandle(filelist_dlg,"PARENTDIALOG",dlg)
@@ -392,6 +392,9 @@ global procedure fileList()
 
     if filelist_dlg=NULL then
         create_filelist_dialog()
+    elsif sortcol!=0 then
+        IupSetAttributeId(matrix,"SORTSIGN",sortcol,"NO")
+        sortcol = 0
     end if
 
     --

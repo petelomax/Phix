@@ -18,7 +18,7 @@ sequence closeRqd   -- lifo stack of expected closing brackets
 
 integer wbl
 
---global sequence bCfwd     -- defined in edita.exw
+--global sequence bCfwd     -- defined in edix.exw
          bCfwd = {}
 constant B_line=1, B_blockcomment=2, B_level=3, B_closesrqd=4
 -- each element is {line, blockcomment, level, sequence}, where

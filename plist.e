@@ -1498,6 +1498,7 @@ end if
 --      puts(listfn,";                K_drid = #080000  -- default routine_id\n")
         puts(listfn,";\n")
 --    end if
+--?{"symtab[1][S_Name] (psym.e line 1501)",symtab[1][S_Name]}
 --      symtab[1][S_Name] = "integer"
         symtab[2][S_Name] = "T_N"   -- a float (but not an integer)
 --      symtab[3][S_Name] = "atom"      -- (int|flt)
