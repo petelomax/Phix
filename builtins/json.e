@@ -208,7 +208,8 @@ string text, token
 integer invalid -- 0 = no error,
                 -- 2 = not yet reported
                 -- 1 = reported
-integer col, textlen, Ch, toktype, tokint
+integer col, textlen, Ch, toktype
+atom tokint -- (PL 7/1/18: int->atom; unix timestamps exceed #3FFFFFFF)
 atom tokatm
 
 procedure SkipSpaces()
