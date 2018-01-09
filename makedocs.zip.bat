@@ -1,5 +1,5 @@
 ::temp/test
-set v=0.7.6
+set v=0.7.7
 echo creating phix.docs.%v%.zip...
 copy phixzip.bat sfx\phix.docs.%v%.zip /Y
 del sfx\phix.docs.%v%.zip
