@@ -108,9 +108,12 @@ procedure set_rootpath()
 sequence cl
     cl = command_line()
     rootpath = get_proper_path(cl[1],"")
+--?rootpath
     for j=length(rootpath) to 0 by -1 do
         if find(rootpath[j],"\\/") then
+--DEV methinks a fix for get_proper_path() is in order... [done 10/1/18]
             rootpath = rootpath[1..j]
+--          rootpath = get_proper_path(rootpath[1..j])
             exit
         end if
     end for

@@ -143,7 +143,7 @@ object ch
     return res
 end function
 
-atom kernel32, buffer
+atom kernel32
 integer xGetLongPathName
 integer xGetShortPathName
 --integer xGetLastError
@@ -186,6 +186,7 @@ atom pFilePath
 --*/
 integer l
 sequence res
+atom buffer
     if not string(filepath) then
         filepath = toString(filepath)
     end if
@@ -237,6 +238,13 @@ sequence res
         if l=0 then
 --printf(1,"returning original, error code is %d\n",c_func(xGetLastError,{}))
             res = filepath
+--10/1/18:
+            for i=length(filepath) to 1 by -1 do
+                if find(filepath[i],"\\/") then
+                    res = get_proper_path(filepath[1..i-1])&filepath[i..$]
+                    exit
+                end if
+            end for
         else
             res = peek_string(buffer)
         end if 
