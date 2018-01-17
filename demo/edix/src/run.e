@@ -88,7 +88,7 @@ function listen_cb(Ihandle /*ih*/)
         object res = getmsg()
 --DEV: (open ex.err/jump to error)
 --?"ex.err??"
-        ?res
+        ?{"run.e, listen_cb, line 91",res}
     end if
     return IUP_DEFAULT
 end function

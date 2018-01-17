@@ -180,9 +180,9 @@ constant
 --       dec_edi        =  #4F,         -- 0o117                    -- dec edi
          push_eax       =  #50,         -- 0o120                    -- push eax     ..#57 for other regs
          push_edx       =  #52,         -- 0o122                    -- push edx
---       push_esi       =  #56,         -- 0o126                    -- push esi
+         push_esi       =  #56,         -- 0o126                    -- push esi
          pop_eax        =  #58,         -- 0o130                    -- pop eax  ..#5F for other regs
---       pop_esi        =  #5E,         -- 0o136                    -- pop esi
+         pop_esi        =  #5E,         -- 0o136                    -- pop esi
 --       pop_edi        =  #5F,         -- 0o137                    -- pop edi
 --       pushad         =  #60,         -- 0o140                    -- pushad
 --       popad          =  #61,         -- 0o141                    -- popad
@@ -14721,29 +14721,37 @@ if not newEmit then ?9/0 end if
 --emitHex1(pushad) -- pushad
 --if length(glblused) then  -- (added 10/11/16 [no help])
 --emitHex1(push_esi) -- push esi
---              integer pushesi = 0
+                integer pushesi = 0
 
                 for lblidx=1 to length(glblused) do
                     if and_bits(glblused[lblidx],G_init) then
 --                      x86 &= {call_rel32,isJmpG,0,0,lblidx}
-if PE=0 or X64=0 or glblname[lblidx]!=">initFEH" then
---  if pushesi=0 then
---      emitHex1(push_esi) -- push esi
---      pushesi = 1
---  end if
-                        emitHex5callG(0,lblidx)
-end if
+                        if PE=0 
+                        or X64=0 
+                        or glblname[lblidx]!=">initFEH" then
+                            -- (initFEH is not used on PE64, and
+                            --  has been subverted for exch64)
+                            if DLL and pushesi=0 then
+                                emitHex1(push_esi) -- push esi (needs to be saved for dlls!)
+                                pushesi = 1
+                            end if
+                            emitHex5callG(0,lblidx)
+                        end if
 --                      tt[aatidx[opInit]+EQ] = lblidx
 --                      emitHex5callG(opInit)
                     end if
                 end for
 --emitHex1(popad) -- popad
---if pushesi then
---  emitHex1(pop_esi) -- pop esi
---end if
 --end if
                 if DLL then
---DEV if no DllMain, we could just emit mov eax,1 ret (and reset exportaddr)...
+--DEV if no DllMain, we could just emit mov eax,1 ret (and reset exportaddr)... [DONE]
+--temp!
+--emitHex1(0o314) -- int3
+                    if pushesi then
+                        -- (note that :%cbhandler preserves esi)
+                        emitHex1(pop_esi) -- pop esi 
+                    end if
+
                     if length(exports)=0
                     or symtab[exports[1]][S_Name]!=T_DLLMAIN then
                         movRegImm32(eax,1)  -- mov eax,1
@@ -14761,7 +14769,7 @@ end if
 -- push rtnid!
 --                      movRegImm32(eax,ei)                 -- mov eax,imm32
 --              mov byte[edi],0o150     -- push (#68)
-if X64 then ?9/0 end if
+--if X64 then ?9/0 end if
 --                      emitHex5w(push_imm32,ei)            -- push imm32
                         emitHex5vno(push_imm32,ei)          -- push symtab index
                         -- emit call :%cbhandler[64]

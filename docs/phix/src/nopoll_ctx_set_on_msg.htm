@@ -1,0 +1,128 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">nopoll_ctx_set_on_msg</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include nopoll.e
+          <br>
+          <br>
+          nopoll_ctx_set_on_msg(<a href="atom.htm">atom</a> ctx, on_msg_cb, pUserData=NULL)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Set a general handler to get notifications about a message received over any connection that is running under the provided context.
+            <br>
+            <br>
+            ctx: The context where the notification will happen<br>
+            on_msg_cb: The handler to be called when an incoming message is received.<br>
+            pUserData: User defined pointer that is passed in into the handler when called.<br>
+            Note that the handler configured here will be overriden by the handler configured by 
+            <a href="nopoll_conn_set_on_msg.htm">nopoll_conn_set_on_msg</a>().
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+--DEV not tested!
+include nopoll.e
+
+function listener_on_message(atom /*ctx*/, conn, pMsg, /*user_data*/)
+    printf(1,"%s\nThe size of message is %d bytes\n",
+             {nopoll_msg_get_payload(pMsg),
+              nopoll_msg_get_payload_size(pMsg)})
+    ?nopoll_conn_send_text(conn, "Hello World")
+    return 0 -- (rqd for call_back, otherwise ignored)
+end function
+constant listener_on_message_cb = call_back(routine_id("listener_on_message"))
+
+atom ctx = nopoll_ctx_new()
+if ctx=NULL then ?9/0 end if
+
+--DEV??
+-- create a listener to receive connections on port 1234
+atom listener = nopoll_listener_new(ctx, "0.0.0.0", "9999");
+if not nopoll_conn_is_ok(listener) then ?9/0 end if
+
+-- now set a handler that will be called when a message (fragment or not) is received
+nopoll_ctx_set_on_msg(ctx, listener_on_message_cb, NULL)
+
+-- now call to wait for the loop to notify events
+integer error_code = nopoll_loop_wait(ctx, 0)
+
+nopoll_ctx_unref(ctx)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>--DEV not tested!
+</i></font><font color="#008080">include</font><font color="#000000"> nopoll.e
+
+</font><font color="#008080">function</font><font color="#000000"> listener_on_message</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000080"><i> /*ctx*/</i></font><font color="#0000FF">,</font><font color="#000000"> conn</font><font color="#0000FF">,</font><font color="#000000"> pMsg</font><font color="#0000FF">,</font><font color="#000080"><i> /*user_data*/</i></font><font color="#0000FF">)
+</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s\nThe size of message is %d bytes\n"</font><font color="#0000FF">,
+</font><font color="#800000">             {</font><font color="#5E005E">nopoll_msg_get_payload</font><font color="#800080">(</font><font color="#000000">pMsg</font><font color="#800080">)</font><font color="#0000FF">,
+</font><font color="#5E005E">              nopoll_msg_get_payload_size</font><font color="#800080">(</font><font color="#000000">pMsg</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+    ?</font><font color="#5E005E">nopoll_conn_send_text</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">,</font><font color="#008000"> "Hello World"</font><font color="#0000FF">)
+</font><font color="#008080">    return</font><font color="#000000"> 0</font><font color="#000080"><i> -- (rqd for call_back, otherwise ignored)
+</i></font><font color="#008080">end function
+constant</font><font color="#000000"> listener_on_message_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"listener_on_message"</font><font color="#800000">)</font><font color="#0000FF">)
+
+</font><font color="#004080">atom</font><font color="#000000"> ctx</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_ctx_new</font><font color="#0000FF">()
+</font><font color="#008080">if</font><font color="#000000"> ctx</font><font color="#0000FF">=</font><font color="#004600">NULL</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+
+</font><font color="#000080"><i>--DEV??
+-- create a listener to receive connections on port 1234
+</i></font><font color="#004080">atom</font><font color="#000000"> listener</font><font color="#0000FF"> =</font><font color="#000000"> nopoll_listener_new</font><font color="#0000FF">(</font><font color="#000000">ctx</font><font color="#0000FF">,</font><font color="#008000"> "0.0.0.0"</font><font color="#0000FF">,</font><font color="#008000"> "9999"</font><font color="#0000FF">);
+</font><font color="#008080">if not</font><font color="#5E005E"> nopoll_conn_is_ok</font><font color="#0000FF">(</font><font color="#000000">listener</font><font color="#0000FF">)</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+
+</font><font color="#000080"><i>-- now set a handler that will be called when a message (fragment or not) is received
+</i></font><font color="#5E005E">nopoll_ctx_set_on_msg</font><font color="#0000FF">(</font><font color="#000000">ctx</font><font color="#0000FF">,</font><font color="#000000"> listener_on_message_cb</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- now call to wait for the loop to notify events
+</i></font><font color="#004080">integer</font><font color="#000000"> error_code</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_loop_wait</font><font color="#0000FF">(</font><font color="#000000">ctx</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">)
+
+</font><font color="#000000">nopoll_ctx_unref</font><font color="#0000FF">(</font><font color="#000000">ctx</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+<!-- maybe (but it is a macro)
+References nopoll_return_if_fail.
+-->
+          <a href="nopoll_conn_set_on_msg.htm">nopoll_conn_set_on_msg</a>,
+          <a href="nopoll_conn_is_ok.htm">nopoll_conn_is_ok</a>,
+          <a href="nopoll_conn_is_ready.htm">nopoll_conn_is_ready</a>,
+          <a href="nopoll_msg_get_payload.htm">nopoll_msg_get_payload</a>,
+          <a href="nopoll_msg_get_payload_size.htm">nopoll_msg_get_payload_size</a>,
+          <a href="nopoll_conn_send_text.htm">nopoll_conn_send_text</a>,
+          <a href="nopoll_loop_wait.htm">nopoll_loop_wait</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

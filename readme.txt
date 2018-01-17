@@ -26,6 +26,9 @@ Please note the following entries are probably more for my benefit than yours,
 and contain some references to the low level back end which you may not find 
 very useful. But it is now all open source.
 
+Version 0.7.8
+=============
+
 Version 0.7.5
 =============
 22/02/2017: BUGFIX: task_yield() was incorrectly defined as E_other in psym.e,

@@ -1,0 +1,135 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">nopoll_conn_read</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include nopoll.e
+          <br>
+          <br>
+          {<a href="integer.htm">integer</a> n, <a href="string.htm">string</a> s} = nopoll_conn_read(<a href="atom.htm">atom</a> conn,
+                                                                                                      <a href="integer.htm">integer</a> bytes,
+                                                                                                      <a href="integer.htm#bool">bool</a> block,
+                                                                                                      <a href="integer.htm">integer</a> timeout)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Read the specified number of bytes from the provided connection.
+            <br>
+            <br>
+            Optionally, the function allows blocking the caller until the amount of bytes requested are satisfied. <br>
+            Also, the function allows to timeout the operation after provided amount of time.
+            <br>
+            <br>
+            conn: The connection where the read operation will take place.<br>
+            bytes: Number of bytes to be read from the connection.<br>
+            block: If true, the caller will be blocked until the amount of bytes requested are satisfied or until the timeout is reached (if enabled). <br>
+            If false, the function won&rsquo;t block and will return all bytes available at this moment.<br>
+            timeout: (in milliseconds, 1sec = 1000ms) If given a value higher than 0, a timeout will be enabled to complete the operation. <br>
+            If the timeout is reached, the function will return the bytes read so far. Please note that the function has a precision of 10ms.
+            <br>
+            <br>
+            Returns: Number of bytes read, along with a string containing the bytes actually read, or -1 and "" if it fails.<br>
+            The function returns -1 when no content is available to be read and you pass block == false
+            <br>
+            <br>
+            More calls to nopoll_conn_read might be needed. Because nopoll_conn_read() calls <a href="nopoll_conn_get_msg.htm">nopoll_conn_get_msg</a>()
+            to get content to satisfy the read requested, it might happen that the actual amount of bytes requested by this function (nopoll_conn_read) 
+            is smaller than the number of bytes that can be satisfied (because nopoll_conn_get_msg reported a noPollMsg with bigger content).
+            <br>
+            <br>
+            In such case, these bytes will be reported on next call to nopoll_conn_read.
+            <br>
+            <br>
+            However, it might also happen that the socket is being watched (by select(), poll(), epoll(), similar mechanism) and because all bytes 
+            have been read and are retained in a noPollMsg inside the provided noPollConn) this might cause a block until a forced nopoll_conn_read 
+            happens again (because the socket does not report any content to be read and nopoll_conn_read is not called).
+            <br>
+            <br>
+            In such scenarios, if you want to avoid such lockings, please use <a href="nopoll_conn_read_pending.htm">nopoll_conn_read_pending</a> 
+            to do more calls to nopoll_conn_read
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<! --eucode>
+include nopoll.e
+
+atom ctx = nopoll_ctx_new()
+atom conn = nopoll_conn_new(ctx, "echo.websocket.org", "80", NULL, "/", NULL, NULL)
+if not nopoll_conn_is_ok(conn) then
+    -- some error handling here
+end if
+if not nopoll_conn_wait_until_connection_ready(conn, 5) then
+    -- some error handling
+end if
+
+if nopoll_conn_send_text(conn, "Hello there! this is a test", 27) != 27 then
+    -- yet more error handling
+end if
+
+...
+</eucode-- >
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> nopoll.e
+
+</font><font color="#004080">atom</font><font color="#000000"> ctx</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_ctx_new</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> conn</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_conn_new</font><font color="#0000FF">(</font><font color="#000000">ctx</font><font color="#0000FF">,</font><font color="#008000"> "echo.websocket.org"</font><font color="#0000FF">,</font><font color="#008000"> "80"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#008000"> "/"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">)
+</font><font color="#008080">if not</font><font color="#5E005E"> nopoll_conn_is_ok</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#000080"><i>    -- some error handling here
+</i></font><font color="#008080">end if
+if not</font><font color="#5E005E"> nopoll_conn_wait_until_connection_ready</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">,</font><font color="#000000"> 5</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#000080"><i>    -- some error handling
+</i></font><font color="#008080">end if
+
+if</font><font color="#000000"> nopoll_conn_send_text</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">,</font><font color="#008000"> "Hello there! this is a test"</font><font color="#0000FF">,</font><font color="#000000"> 27</font><font color="#0000FF">) !=</font><font color="#000000"> 27</font><font color="#008080"> then
+</font><font color="#000080"><i>    -- yet more error handling
+</i></font><font color="#008080">end if
+
+</font><font color="#0000FF">...</font>
+</pre>
+         </td>
+        </tr>
+-->
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+<!-- maybe:
+NOPOLL_EWOULDBLOCK, NOPOLL_LEVEL_CRITICAL, NOPOLL_LEVEL_DEBUG, nopoll_msg_ref(), nopoll_msg_unref(), nopoll_timeval_substract()
+-->
+          <a href="nopoll_conn_read_pending.htm">nopoll_conn_read_pending</a>,
+          <a href="nopoll_conn_get_msg.htm">nopoll_conn_get_msg</a>,
+          <a href="nopoll_conn_is_ok.htm">nopoll_conn_is_ok</a>,
+          <a href="nopoll_msg_get_payload.htm">nopoll_msg_get_payload</a>,
+          <a href="nopoll_msg_get_payload_size.htm">nopoll_msg_get_payload_size</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

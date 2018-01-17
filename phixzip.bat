@@ -51,6 +51,7 @@ copy sfx\phix.%v%.zip sfx\phix.%v%.2.zip /Y > tmp.txt
 "C:\Program Files\7-zip\7z" d sfx\phix.%v%.2.zip demo\a* > tmp.txt
 "C:\Program Files\7-zip\7z" d sfx\phix.%v%.2.zip demo\d* > tmp.txt
 "C:\Program Files\7-zip\7z" d sfx\phix.%v%.2.zip demo\e* > tmp.txt
+"C:\Program Files\7-zip\7z" d sfx\phix.%v%.2.zip demo\libcurl\*.* > tmp.txt
 "C:\Program Files\7-zip\7z" d sfx\phix.%v%.2.zip demo\pGUI\*.* > tmp.txt
 "C:\Program Files\7-zip\7z" d sfx\phix.%v%.2.zip demo\pGUI\data > tmp.txt
 "C:\Program Files\7-zip\7z" d sfx\phix.%v%.2.zip demo\pGUI\icons > tmp.txt

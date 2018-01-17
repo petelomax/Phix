@@ -1,0 +1,116 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">nopoll_conn_new</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include nopoll.e
+          <br>
+          <br>
+          <a href="atom.htm">atom</a> conn = nopoll_conn_new(<a href="atom.htm">atom</a> ctx, <a href="nullable_string.htm">nullable_string</a> host_ip, host_port, host_name, get_url, protocols, origin)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a new Websocket connection to the specified destination, as located at host_ip and host_port (IPv4 version).
+            <br>
+            <br>
+            ctx: The noPoll context to which this new connection will be associated, as created by <a href="nopoll_ctx_new.htm">nopoll_ctx_new</a>().<br>
+            host_ip: The websocket server address to connect to.<br>
+            host_port: The websocket server port to connect to. If NULL is provided, port 80 is used.<br>
+            host_name: The Host: header value that will be sent, used by the websocket server to activate the right virtual host configuration. 
+                       If null uses host_ip value.<br>
+            get_url: As part of the websocket handshake, an url is passed to the remote server inside a GET method. 
+                     This parameter allows to configure this. If NULL then / will be used.<br>
+            origin: Websocket origin to be notified to the server.<br>
+            protocols: Optional protocols requested to be activated for this connection (a string or list of strings separated by a white space). <br>
+                       If the server accepts the connection you can use 
+                        <a href="nopoll_conn_get_accepted_protocol.htm">nopoll_conn_get_accepted_protocol</a>() to get the protocol accepted by the server.
+            <br>
+            <br>
+            Returns: A reference to the connection created or NULL if it fails. <br>
+            Keep in mind the connection reported may not be connected at the time is returned by this function. <br>
+            You can use <a href="nopoll_conn_is_ready">nopoll_conn_is_ready</a>() and 
+            <a href="nopoll_conn_is_ok">nopoll_conn_is_ok</a>() to ensure it can be used. <br>
+            There is also a helper function (NOTE it is blocking) that can help you implement a very simple wait until ready operation: 
+            <a href="nopoll_conn_wait_until_connection_ready.htm">nopoll_conn_wait_until_connection_ready</a>() 
+            however it is not recommended for any serious, non-command line programming.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            1: Is nopoll_conn_new() blocking?
+            <br>
+            <br>
+            Partially. It is blocking with a timeout but just for sending the client init (the initial packet that a WebSocket client must send), 
+            but the function does not block the caller until a reply from the server is received and the handshake is completed (which is where 
+            the blocking it is likely to happen).
+            <br>
+            <br>
+            So, it essence, nopoll_conn_new (and all its variants) is not blocking (unless you have a problem with network connection causing 
+            send() API to fail to send the WebSocket init message by returning EWOULD_BLOCK, which is very likely to not happen),
+            <br>
+            <br>
+            Because of that, the connection returned by this function have big chances to be not ready (that is why you have to use <br>
+            <a href="nopoll_conn_is_ready.htm">nopoll_conn_is_ready</a>() or the blocking one 
+            <a href="nopoll_conn_wait_until_connection_ready.htm">nopoll_conn_wait_until_connection_ready</a>() to ensure you successfully connected),
+            <br>
+            <br>
+            2: Control connect timeout
+            <br>
+            <br>
+            To control timeout for sending the initial message (and to ensure the engine sends it), you can use the following functions:
+            <br>
+            <br>
+            <a href="nopoll_conn_connect_timeout.htm">nopoll_conn_connect_timeout</a>()<br>
+            <a href="nopoll_conn_get_connect_timeout.htm">nopoll_conn_get_connect_timeout</a>()
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+include nopoll.e
+
+atom ctx = nopoll_ctx_new()
+atom conn = nopoll_conn_new(ctx, "echo.websocket.org", "80", NULL, "/", NULL, NULL)
+
+...
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> nopoll.e
+
+</font><font color="#004080">atom</font><font color="#000000"> ctx</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_ctx_new</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> conn</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_conn_new</font><font color="#0000FF">(</font><font color="#000000">ctx</font><font color="#0000FF">,</font><font color="#008000"> "echo.websocket.org"</font><font color="#0000FF">,</font><font color="#008000"> "80"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#008000"> "/"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">)
+
+...</font>
+</pre>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

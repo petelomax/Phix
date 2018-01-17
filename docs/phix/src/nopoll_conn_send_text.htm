@@ -1,0 +1,213 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">nopoll_conn_send_text</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include nopoll.e
+          <br>
+          <br>
+          <a href="integer.htm">integer</a> bytes_written = nopoll_conn_send_text(<a href="atom.htm">atom</a> conn,
+                                                                                  <a href="object.htm">object</a> content,
+                                                                                  <a href="integer.htm">integer</a> len=length(content))
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Send a UTF-8 text (op code 1) message over the provided connection with the provided length.
+            <br>
+            <br>
+            conn: The connection where the message will be sent.<br>
+            content: The content to be sent (it should be utf-8 content or the function will fail). Should be string or atom (/raw memory address)<br>
+            len: Number of bytes to take from the content to be sent. If not provided, for that default to work, content must be a string.
+            <br>
+            <br>
+            Returns: The number of bytes written otherwise < 0 is returned in case of failure. <br>
+            The function will fail if some parameter is NULL or undefined, or the content provided is not UTF-8. <br>
+            In the case of failure, also check errno variable to know more what went wrong.<br>
+            See Notes below to know more about error codes and when it is possible to retry write operations.
+            <br>
+            <br>
+            The function returns the number of bytes sent, being the max amount of bytes that can be reported as sent by this funciton. <br>
+            This means value reported by this function do not includes headers. The funciton also returns the following general indications:<br>
+            N : number of bytes sent (user land bytes sent, without including web socket headers). <br>
+            0 : no bytes sent (see errno indication). See also <a href="nopoll_conn_complete_pending_write.htm">nopoll_conn_complete_pending_write</a>() <br>
+            -1 : failure found <br>
+            -2 : retry operation needed (NOPOLL_EWOULDBLOCK) [PL: but that is 11!]
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Notes:</b>
+         </td>
+         <td>
+            <b>Retrying failed write operations</b>
+            <br>
+            Every time you do a write operation (using for example nopoll_conn_send_text or 
+            <a href="nopoll_conn_send_text_fragment.htm">nopoll_conn_send_text_fragment</a>) 
+            there is a possibility that the write operation failes because the socket isn&rsquo;t capable to keep on accepting more data.
+            <br>
+            <br>
+            In that case, errno == 11 (or NOPOLL_EWOULDBLOCK) is returned so you can check this to later retry the write operation.
+            <br>
+            <br>
+            Because websocket involves sending headers that already includes the size of the message sent, you cannot just retry by calling 
+            again to the send operation used (like nopoll_conn_send_text), especially because you must "continue" the send operation where 
+            it was left instead of sending more content with additional headers. In short, you must complete the operation.
+            <br>
+            <br>
+            To this end, you must use the following functions to check and complete pending write operations:<br>
+            <a href="nopoll_conn_pending_write_bytes.htm">nopoll_conn_pending_write_bytes</a>()<br>
+            <a href="nopoll_conn_complete_pending_write.htm">nopoll_conn_complete_pending_write</a>()
+            <br>
+            <br>
+            Here is a posible complete function considering all points:
+<!--eucode>
+--DEV not tested!
+include nopoll.e
+
+function websocket_write(atom conn, string content)
+
+    -- FIRST PART: normal send operation
+    integer tries = 0, 
+            bytes_written,
+            len = length(content)
+    -- do write operation and check
+    bytes_written = nopoll_conn_send_text(conn, content, len)
+    if bytes_written==len then
+        -- operation completed, just return bytes written
+        return bytes_written
+    end if
+
+    -- SECOND PART: retry in the case of failure
+    --  some failure found, check errno
+    while tries<5 
+      and errno==NOPOLL_EWOULDBLOCK
+      and nopoll_conn_pending_write_bytes(conn)>0 do
+        -- ok, unable to write all data but that data is waiting to be flushed
+        -- you can return here and then make your application to retry again or
+        -- try it right now, but with a little pause before continue
+        sleep(0.01) -- lets wait 10ms
+        -- flush and check if write operation completed
+        if nopoll_conn_complete_pending_write(conn)==0 then
+            return len
+        end if        
+        -- limit loop
+        tries +=1
+    end while
+        
+    -- failure, return error code reported by the first call or the last retry
+    return  bytes_written
+end function
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>--DEV not tested!
+</i></font><font color="#008080">include</font><font color="#000000"> nopoll.e
+
+</font><font color="#008080">function</font><font color="#000000"> websocket_write</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> conn</font><font color="#0000FF">,</font><font color="#004080"> string</font><font color="#000000"> content</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>    -- FIRST PART: normal send operation
+</i></font><font color="#004080">    integer</font><font color="#000000"> tries</font><font color="#0000FF"> =</font><font color="#000000"> 0</font><font color="#0000FF">, 
+</font><font color="#000000">            bytes_written</font><font color="#0000FF">,
+</font><font color="#000000">            len</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">content</font><font color="#0000FF">)
+</font><font color="#000080"><i>    -- do write operation and check
+</i></font><font color="#000000">    bytes_written</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_conn_send_text</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">,</font><font color="#000000"> content</font><font color="#0000FF">,</font><font color="#000000"> len</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> bytes_written</font><font color="#0000FF">==</font><font color="#000000">len</font><font color="#008080"> then
+</font><font color="#000080"><i>        -- operation completed, just return bytes written
+</i></font><font color="#008080">        return</font><font color="#000000"> bytes_written
+</font><font color="#008080">    end if
+
+</font><font color="#000080"><i>    -- SECOND PART: retry in the case of failure
+    --  some failure found, check errno
+</i></font><font color="#008080">    while</font><font color="#000000"> tries</font><font color="#0000FF">&lt;</font><font color="#000000">5 
+</font><font color="#008080">      and</font><font color="#000000"> errno</font><font color="#0000FF">==</font><font color="#000000">NOPOLL_EWOULDBLOCK
+</font><font color="#008080">      and</font><font color="#5E005E"> nopoll_conn_pending_write_bytes</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">)&gt;</font><font color="#000000">0</font><font color="#008080"> do
+</font><font color="#000080"><i>        -- ok, unable to write all data but that data is waiting to be flushed
+        -- you can return here and then make your application to retry again or
+        -- try it right now, but with a little pause before continue
+</i></font><font color="#7060A8">        sleep</font><font color="#0000FF">(</font><font color="#000000">0.01</font><font color="#0000FF">)</font><font color="#000080"><i> -- lets wait 10ms
+        -- flush and check if write operation completed
+</i></font><font color="#008080">        if</font><font color="#5E005E"> nopoll_conn_complete_pending_write</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">)==</font><font color="#000000">0</font><font color="#008080"> then
+            return</font><font color="#000000"> len
+</font><font color="#008080">        end if        
+</font><font color="#000080"><i>        -- limit loop
+</i></font><font color="#000000">        tries</font><font color="#0000FF"> +=</font><font color="#000000">1
+</font><font color="#008080">    end while
+</font><font color="#C0C0C0">        
+</font><font color="#000080"><i>    -- failure, return error code reported by the first call or the last retry
+</i></font><font color="#008080">    return </font><font color="#000000"> bytes_written
+</font><font color="#008080">end function</font>
+</pre>
+            <br>
+            As we can see, the example tries to first write the content and then check for errors, 
+            trying to complete write in the case of errno == NOPOLL_EWOULDBLOCK, but, before going 
+            ahead retrying, the function sleeps a bit.
+            <br>
+            <br>
+            A very important note to consider is that this isn&rsquo;t by far the best way to do this. <br>
+            This example is just to demonstrate the concept. <br>
+            The "ideal" implementation would be not to do any retry here (second part) but let the engine loop
+            and waiting for this WebSocket to retry later, letting the overall application to keep on doing other 
+            things meanwhile (like writing or handling I/O in other connections) rather than locking the caller (as the example do).
+            <br>
+            <br>
+            Knowing this, if you want a ready to use function that implements concept (for the second part), you can directly use:
+            <a href="nopoll_conn_flush_writes.htm">nopoll_conn_flush_writes</a>().<br>
+            With it, a fairly complete and efficient write operation would be:
+<!--eucode>
+    -- do write operation 
+    bytes_written = nopoll_conn_send_text(conn, content)
+    -- complete pending write by flushing and limitting operation for 2 seconds
+    -- pass to the function bytes_written as returned by nopoll_conn_send_text
+    bytes_written = nopoll_conn_flush_writes(conn, 2000000, bytes_written)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>    -- do write operation 
+</i></font><font color="#000000">    bytes_written</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_conn_send_text</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">,</font><font color="#000000"> content</font><font color="#0000FF">)
+</font><font color="#000080"><i>    -- complete pending write by flushing and limitting operation for 2 seconds
+    -- pass to the function bytes_written as returned by nopoll_conn_send_text
+</i></font><font color="#000000">    bytes_written</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_conn_flush_writes</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">,</font><font color="#000000"> 2000000</font><font color="#0000FF">,</font><font color="#000000"> bytes_written</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            PL: note that errno is defined (in C) as WSAGetLastError(), not (yet) available via nopoll.e
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+<!-- maybe:
+References NOPOLL_TEXT_FRAME
+-->
+          <a href="nopoll_conn_is_ok.htm">nopoll_conn_is_ok</a>,
+          <a href="nopoll_conn_is_ready.htm">nopoll_conn_is_ready</a>,
+        
+          <a href="nopoll_conn_pending_write_bytes.htm">nopoll_conn_pending_write_bytes</a>,
+          <a href="nopoll_conn_complete_pending_write.htm">nopoll_conn_complete_pending_write</a>,
+          <a href="nopoll_conn_flush_writes.htm">nopoll_conn_flush_writes</a>,
+          <a href="nopoll_conn_send_text_fragment.htm">nopoll_conn_send_text_fragment</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,91 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">nopoll_loop_wait</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include nopoll.e
+          <br>
+          <br>
+          <a href="integer.htm">integer</a> res = nopoll_loop_wait(<a href="atom.htm">atom</a> ctx, <a href="integer.htm">integer</a> timeout)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Implement a wait over all connections registered under the provided context during the provided timeout until something 
+            is detected meaningful to the user, calling to the action handler defined, optionally receving the user data pointer.
+            <br>
+            <br>
+            ctx: The context object where the wait will be implemented.<br>
+            timeout: The timeout to wait for changes. If no changes happens, the function returns. <br>
+            The function will block the caller until a call to <a href="nopoll_loop_stop.htm">nopoll_loop_stop</a>() is done 
+            in the case timeout passed is 0.
+            <br>
+            <br>
+            Returns: The function returns 0 when finished without error or -2 in the case ctx is NULL or timeout is negative. <br>
+            Function returns -3 if timeout was reached. <br>
+            Function returns -4 in the case ctx->io_engine->wait failed to implement wait or it reported error.
+            <br>
+            <br>
+            Recovering from IO Wait failure (return code -4):
+            <br>
+            <br>
+            In the case I/O wait mechanism fails, this function will return -4. <br>
+            In can catch that error code and recover (keep on waiting), log the error or implement some other policy.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+while true do
+    -- wait for ever
+    integer error_code = nopoll_loop_wait(ctx, 0)
+
+    if error_code==-4 then
+        printf(1,"Log here you had an error cause by the io waiting mechanism, errno=%d\n", errno)
+        -- recover by just calling io wait engine
+        -- try to limit recoveries to avoid infinite loop
+    else
+...
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">while</font><font color="#004600"> true</font><font color="#008080"> do
+</font><font color="#000080"><i>    -- wait for ever
+</i></font><font color="#004080">    integer</font><font color="#000000"> error_code</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_loop_wait</font><font color="#0000FF">(</font><font color="#000000">ctx</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">)
+
+</font><font color="#008080">    if</font><font color="#000000"> error_code</font><font color="#0000FF">==-</font><font color="#000000">4</font><font color="#008080"> then
+</font><font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Log here you had an error cause by the io waiting mechanism, errno=%d\n"</font><font color="#0000FF">,</font><font color="#000000"> errno</font><font color="#0000FF">)
+</font><font color="#000080"><i>        -- recover by just calling io wait engine
+        -- try to limit recoveries to avoid infinite loop
+</i></font><font color="#008080">    else
+</font><font color="#0000FF">...</font>
+</pre>
+            <br>
+            PL: note that errno is defined (in C) as WSAGetLastError(), not (yet) available via nopoll.e
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
