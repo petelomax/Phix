@@ -268,7 +268,7 @@ end procedure -- (for Edita/CtrlQ)
 procedure :%pNewStack(:%)
 end procedure -- (for Edita/CtrlQ)
 --*/
-:%pNewStack     -- (called from :>initStack, :%opInterp, task_yield, and CreateThread [DEV])
+:%pNewStack     -- (called from :>initStack, :%opInterp, task_yield, and CreateThread [DEV]) [20/1/18 now also cbhand.e]
 ----------
     [32]
         -- first, create a dummy vsb_root (vsb_next,vsb_prev@=0) on the stack
@@ -352,6 +352,9 @@ end procedure -- (for Edita/CtrlQ)
         mov [pArg],eax
     [64]
         call :%pNewStack
+
+--DEV (spotted in passing) wot, no pSetSaveEBP?
+
 --EXCEPT
 --X     mov qword[rbp+32],:Exit0    -- return address (0)
         mov qword[rbp+56],:Exit0    -- return address (0)

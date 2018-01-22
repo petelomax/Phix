@@ -162,7 +162,9 @@ end procedure -- (for Edita/CtrlQ)
         shr eax,cl
         cmp eax,esi
         --jge showerror -- used as test for rand(128) and rand(1024).
-        jge :rslim
+--21/1/18:
+--      jge :rslim
+        jae :rslim
         add eax,1
         pop ecx
 --      cmp eax,h4
@@ -282,7 +284,9 @@ or rax,rcx
         shr rax,cl
         cmp rax,rsi
         --jge showerror -- used as test for rand(128) and rand(1024).
-        jge :rslim
+--21/1/18:
+--      jge :rslim
+        jae :rslim
         add rax,1
         pop rcx
 --      cmp rax,r15
@@ -293,9 +297,21 @@ or rax,rcx
 --          add rsp,8
 --          jmp :%pStoreFlt
       ::opRandStore
+--      push rax
+--      fild qword[rsp]
+--      add rsp,8
+--21/1/18:
+        -- to load unsigned, right shift rax by 1, save odd bit in rcx, then *2+[0|1]
+        mov rcx,rbx
+        shr rax,1           -- /2
+        rcl rcx,1           -- save carry
         push rax
+        push rcx
         fild qword[rsp]
-        add rsp,8
+        fild qword[rsp+8]
+        add rsp,16
+        fadd st0,st0        -- *2
+        faddp               -- +0|1
         jmp :%pStoreFlt
 
       ::opRand1

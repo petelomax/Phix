@@ -110,7 +110,7 @@ integer e14code
             jmp :e01tcfst0rdi
 -- courtesy of Thomas Grysztar ( https://board.flatassembler.net/topic.php?p=198279#198279 )
         ::int128_to_float80
-            -- in: rdx:rax = singed 128-bit integer 
+            -- in: rdx:rax = signed 128-bit integer 
             -- out: dx:rax = 80-bit float 
             test rdx,rdx 
             jns :uint128_to_float80 

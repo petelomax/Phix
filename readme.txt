@@ -28,6 +28,10 @@ very useful. But it is now all open source.
 
 Version 0.7.8
 =============
+21/01/2018: BUGFIX: rand() effectively preserved the high bit for ranges over
+            #7FFFFFFF. Changed a jge (signed jump) to jae (unsigned). 
+            Also changed the 64-bit store to deal with 64-bit results above
+            #7FFF_FFFF_FFFF_FFFF correctly.
 
 Version 0.7.5
 =============

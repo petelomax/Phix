@@ -109,7 +109,8 @@ constant vm_names = {
                                     "%opLnp",
                                     "%opLnpt"}},
                      -- group 3: probably mandatory
-                     {"pHeap.e",    {"%pGetpGtcb",  -- (diagnostics only)
+                     {"pHeap.e",    {"%pGetTCB",
+                                     "%pGetpGtcb",  -- (diagnostics only)
 --                                   "%pClearpGtcb",
 --                                   "%pRestorepGtcb",
                                      "%pNewGtcbChain",

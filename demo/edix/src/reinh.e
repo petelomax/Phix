@@ -195,6 +195,7 @@ else
             end if
             if text[idx-1]='/'
             or tagname="br"
+            or tagname="wbr"
             or tagname="hr" then
                 if flags=CLOSING then
                     errormsg = "self-closing closing tag found!? (eg </p/>)"

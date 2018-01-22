@@ -18,6 +18,12 @@ include builtins\VM\pHeap.e         -- :%pStoreFlt etc
 include builtins\VM\pStack.e        -- :%opFrame etc
 include builtins\VM\pUnassigned.e   -- opCallOnceYeNot etc
 
+--DEV temp:
+--include builtins\VM\puts1.e
+--string ns = "calling newstack\n"
+--string gp = "calling GetPool\n"
+--string fp = "calling FreePool\n"
+
 --/*
 procedure :%cbhandler(:%)
 end procedure -- (for Edita/CtrlQ)
@@ -45,6 +51,27 @@ end procedure -- (for Edita/CtrlQ)
                 -- (same for both STDCALL and CDECL, cmiiw)
 
                 xor ebx,ebx
+-- 20/1/2018: (no help)
+--call :%pGetTCB
+--test esi,esi
+--jnz @f
+--  mov edi,[ns]
+--  call :%puts1
+--  call :%pNewStack
+--  -- and force newcttcb
+--  mov edi,[gp]
+--  call :%puts1
+--  mov ecx,1
+--  call :%pGetPool
+--  push eax
+--  push edx
+--  mov edi,[fp]
+--  call :%puts1
+----    mov ecx,edx
+--  pop ecx
+--  pop eax
+--  call :%pFreePool
+--@@:
                 -- restore ebp (from last call()/c_func()/c_proc())
                 xor edx,edx             -- edx:=0
                 call :%pSetSaveEBP      -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)

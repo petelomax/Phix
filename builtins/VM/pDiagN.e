@@ -711,6 +711,8 @@ constant msgs =
     --  have any code to deal with a sequence argument, and 
     --  even if it did, a typecheck on i would occur anyway.
  "argument to rand() must be >= 1\n",                           -- e27atrmbge1
+    -- (Acutally this only triggers for 0; -1 is treated as
+    --  MAXUINT, which has turned out to be quite handy.)
  "argument to %s() must be an atom (use sq_%s?)\n",             -- e28NNatXmbausq
  "argument to set_rand() must be an atom\n",                    -- e29atsrmba
  "fatal exception %s at #%08x\n",                               -- e30ume

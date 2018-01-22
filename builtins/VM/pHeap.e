@@ -1137,7 +1137,7 @@ pop rdi
 procedure ::pGetTCB(::)
 end procedure -- (for Edita/CtrlQ)
 --*/
-    ::pGetTCB
+    :%pGetTCB
 --------------
         -- local routine for pSetSaveEBP; could also be used by pGetPool?
         -- (esi:=pTCB/4; most regs trashed)
@@ -1156,15 +1156,18 @@ end procedure -- (for Edita/CtrlQ)
         mov rsi,[pGtcb]
         test rsi,rsi
     []
-        jnz gettcbloop
+        jnz :gettcbloop
             int3
       ::gettcbloop
     [32]
         mov esi,dword[ebx+esi*4+8]          -- tcb:=tcb.pNxtcb
         test esi,esi
-        jnz @f
-            int3
-      @@:
+        jz :tcbnotfound
+--      jnz @f
+--SUG return 0...
+--          int3
+--          ret
+--    @@:
         cmp dword[ebx+esi*4],#00424354      -- dwMagicT ("TCB\0")
         je @f
             int3
@@ -1173,9 +1176,11 @@ end procedure -- (for Edita/CtrlQ)
     [64]
         mov rsi,qword[rbx+rsi*4+8]          -- tcb:=tcb.pNxtcb
         test rsi,rsi
-        jnz @f
-            int3
-      @@:
+        jz :tcbnotfound
+--      jnz @f
+----            int3
+--          ret
+--    @@:
         cmp dword[rbx+rsi*4],#00424354      -- dwMagicT ("TCB\0")
         je @f
             int3
@@ -1184,6 +1189,7 @@ end procedure -- (for Edita/CtrlQ)
     []
         jne :gettcbloop
 
+      ::tcbnotfound
         ret
 
 -- Callback handling
@@ -1205,7 +1211,7 @@ end procedure -- (for Edita/CtrlQ)
 --  prev_ebp4, in call()/c_func()/c_proc(), use the trick of storing a dword-aligned 
 --  value /4 in an integer, and that takes care of any nesting, to any depth. 
 --  Logically, I suppose, pSetSaveEBP belongs in pStack.e - but making pGetTCB global is 
---  not really justifiable, especially not just for this trivial little thing.
+--  not really justifiable, especially not just for this trivial little thing.          --DEV done anyway...
 --
 --  call/c_func/proc should: 
 --                              mov edx,ebp
@@ -1252,7 +1258,7 @@ end procedure
         -- (eax<-pTCB.SaveEBP<-edx, all regs trashed)
 --push esi
         -- (factored out as a prelude to using it elsewhere:)
-        call :pGetTCB           -- (esi:=pTCB/4; most regs trashed)
+        call :%pGetTCB          -- (esi:=pTCB/4; most regs trashed)
 --pop edi
     [32]
         mov eax,[ebx+esi*4+264]     -- SaveEBP
