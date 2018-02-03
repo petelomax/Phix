@@ -4299,7 +4299,7 @@ mov r13,rdi
 --              mov [rbx+r12*4+FEND64],rbx --(0)
 --              mov [rbx+r12*4+RPOS64],rax
                 mov rsi,r12
-mov edi,r13
+mov rdi,r13
             [64]
                 jmp @f
           ::clearbuff
