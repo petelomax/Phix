@@ -2669,7 +2669,6 @@ end function
 
 include builtins\VM\optable.e
 
---http://www.t-zones.co.uk/apps/ebdc/en/purchase
 --global sequence e2optable
 --with trace
 procedure DumpSymTab()

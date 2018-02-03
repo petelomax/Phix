@@ -67,7 +67,7 @@ procedure t_init()
 --           C_PTR},    --  LPDWORD  lpThreadId         // address of returned thread identifier 
 --          C_PTR)      -- HANDLE
 
-        xGetExitCodeThread = define_c_func(kernel32,"xGetExitCodeThread",
+        xGetExitCodeThread = define_c_func(kernel32,"GetExitCodeThread",
             {C_PTR,     --  _In_     HANDLE hThread
              C_PTR},    --  _Out_  LPDWORD lpExitCode
             C_INT)      -- BOOL        
@@ -466,16 +466,22 @@ global procedure exit_thread(integer ecode)
            }
 end procedure
 
+constant W = machine_word()
+
 global function get_thread_exitcode(atom hThread)
 atom pExitCode, dwExitCode
     if not init then t_init() end if
     if platform()=WINDOWS then
-        pExitCode = allocate(4)
-        if c_func(xGetExitCodeThread,{hThread,pExitCode})=0 then
+--      pExitCode = allocate(4)
+        pExitCode = allocate(W)
+        pokeN(pExitCode,0,W)
+        bool res = c_func(xGetExitCodeThread,{hThread,pExitCode})
+        if res=0 then
             dwExitCode = c_func(xGetLastError,{}) --[only WAIT_FAILED]
             ?9/0
         end if
-        dwExitCode = peek4u(pExitCode)
+--      dwExitCode = peek4u(pExitCode)
+        dwExitCode = peekNS(pExitCode,W,0)
         free(pExitCode)
     else
         #ilASM{

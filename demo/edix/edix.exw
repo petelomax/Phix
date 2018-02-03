@@ -978,6 +978,7 @@ global procedure setRtnList()
         sequence rcn = routines[currfile][rtnNAMES]
         for i=1 to length(rcn) do
 --          IupSetAttributeId(toolb_rtns, "", i, rcn[i])
+--          string rcni = rcn[i]
 --DEV (temp) [fix the bug in scanfor...]
             sequence rcni = rcn[i]
             if not string(rcni) then
@@ -3322,6 +3323,8 @@ atom n
         d = d[1]
         ld = length(d)
         if ld then
+--28/1/18:
+            if not string(d) then d = utf32_to_utf8(d) end if
             c = d
             n = 0
             signed = 0
@@ -4629,7 +4632,8 @@ string filename = ""
 --      if 0 then
 --          res = newGetOpenFileName(hWnd,filters,{2,"exw"})
 --      else
-            res = newGetOpenFileName(hWnd,buildFileFilter2(),{2,"exw"},{filepaths[c]})
+--          res = newGetOpenFileName(hWnd,buildFileFilter2(),{2,"exw"},{filepaths[c]})
+            res = newGetOpenFileName(hWnd,buildFileFilter2(),NULL,{filepaths[c]})
 --      end if
         if sequence(res) then
             {encoding,filename} = res
@@ -5297,6 +5301,7 @@ global function jumpToErrorInFile(sequence oneline, integer prompt)
 integer k,l,cY
 --5/1/18:
 --...included by C:\Program Files (x86)\Phix\demo\libcurl\test.exw, line 4
+    if not string(oneline) then oneline = utf32_to_utf8(oneline) end if
     if match("... called from ",oneline)=1 then
         oneline = oneline[17..length(oneline)]
     elsif match("...included by ",oneline)=1 then
@@ -7381,7 +7386,10 @@ function tabkey(integer ctrl, shift, alt)
         addAction(UNINDENT,unindent(K_TAB))
     else
         if not deleteSelection() then
-            string oneline = filetext[currfile][CursorY+1]
+--26/1/18: (decided against the utf call)
+--          string oneline = filetext[currfile][CursorY+1]
+            sequence oneline = filetext[currfile][CursorY+1]
+--          if not string(oneline) then oneline = utf32_to_utf8(oneline) end if
             integer k = MapToByte(oneline,CursorX)
             if k then
                 if not insertMode then

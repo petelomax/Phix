@@ -1628,7 +1628,8 @@ end if
 
 --(DEV: delete once all types are handled)
 --DEV inline, proper error[?]
-    if not find(return_type,{
+--  if not find(return_type,{
+    integer k = find(return_type,{
 --                           C_CHAR,        -- #01000001
                              C_UCHAR,       -- #02000001
                              C_SHORT,       -- #01000002
@@ -1652,7 +1653,9 @@ end if
 --                               P_SEQUENCE,    -- #040C0004     /  to creating them that is!)
 --                               P_OBJECT,      -- #040F0004    /
 --                           ""}) then      -- (dummy entry)
-                             $}) then       -- (dummy entry)
+--                           $}) then       -- (dummy entry)
+                             $})
+    if k=0 then
 --      printf(1,"c_func: return type %08x not yet coded/tested\n",return_type)
         ?9/0    -- return type not yet coded/tested!
 --DEV e15?

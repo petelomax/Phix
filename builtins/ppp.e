@@ -332,8 +332,10 @@ function graphic(object cl)
 --DEV fixme:
 --  and cl<=iff(platform()=LINUX?#7E:255)
 --  and cl<=maxgraphic
-    and ((platform()=LINUX and cl<=#7E) or
-         (platform()=WINDOWS and cl<=255))
+--30/1/18:
+--  and ((platform()=LINUX and cl<=#7E) or
+--       (platform()=WINDOWS and cl<=255))
+    and cl<=#7E
     and ascii[cl] then
         return 1
     end if
@@ -510,6 +512,9 @@ object chint
             or ppp_StrFmt=-2
             or ppp_StrFmt=-3 then
                 txt = sprintf(ppp_IntFmt,cl)
+--30/1/18:
+            elsif find(cl,escBytes) then
+                txt = sprintf("%d'\\%s'",{cl,cl})
             else
                 txt = sprintf("%d'%s'",{cl,cl})
             end if

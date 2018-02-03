@@ -1024,8 +1024,17 @@ end if
             end while
         elsif ctype!=Comment then                       syntaxClass = Other
         end if
+--27/1/18:
+if 0 then
 --DEV test added 22/2/16...
-if chidx2-1<=lt then
+ if chidx2-1<=lt then
+        textC[chidx..chidx2-1] = ColourTab[syntaxClass]
+        attrC[chidx..chidx2-1] = StyleTab[syntaxClass]
+ end if
+else
+        if chidx2-1>lt then
+            chidx2=lt+1
+        end if
         textC[chidx..chidx2-1] = ColourTab[syntaxClass]
         attrC[chidx..chidx2-1] = StyleTab[syntaxClass]
 end if

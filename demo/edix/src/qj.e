@@ -81,8 +81,9 @@ integer k
 end function
 
 function populateRoutineList()
---sequence Ftext, name
-string Ftext, name
+--27/1/18:
+sequence Ftext, name
+--string Ftext, name
 integer tally, ind
 
     setScope()
@@ -104,10 +105,18 @@ integer tally, ind
     Ftext = lower(IupGetAttribute(Filter,"VALUE"))
     for i=1 to length(routinenames) do
         name = routinenames[i]
+
+--27/1/18: (bit of an expedient bugfix...)
+        if not string(name) then name = utf32_to_utf8(name) end if
+
         if length(Ftext)=0 or match(Ftext,lower(name)) then
             if inScope(i) then
                 if sequence(routineparams[i]) then
                     name &= routineparams[i]
+--27/1/18: (ditto)
+--if name={-1} then name = {-1} end if  -- compiler bugfix?? [no help]
+--                  if not string(name) then name = utf32_to_utf8(name) end if
+                    if not string(name) then name = utf32_to_utf8(name,+1) end if
                 end if
                 if length(name)>512 then name = name[1..512] end if -- added 19/11/2013
 --              {} = insertItem(ROUTINELIST,name,0)
@@ -443,6 +452,8 @@ integer ch
 object incpath, path
 integer semicolon
 --trace(1)
+--24/1/18:
+    if not string(line) then line = utf32_to_utf8(line) end if
     while idx<=length(line) and find(line[idx]," \t") do
         idx += 1
     end while
@@ -1092,7 +1103,9 @@ integer rend, start, bcount, tally
 --                      else
 --                          void = insertItem(HelpList,ExpandTabs(text[j]),0)
 --                      end if
-                        string tj = text[j]
+--29/1/18:
+--                      string tj = text[j]
+                        sequence tj = text[j]
                         if doConvTab then
                             tj = ConvertTabs(tj,8,0)
                         else
@@ -1101,6 +1114,8 @@ integer rend, start, bcount, tally
                         tally += 1
 --20/12/17:
 --                      IupSetAttributeId(ROUTINELIST, "", tally, tj)
+--29/1/18:
+                        if not string(tj) then tj = utf32_to_utf8(tj) end if
                         IupSetAttributeId(HelpList, "", tally, tj)
                     end for
                     exit
@@ -1569,6 +1584,8 @@ global procedure openChm(sequence filename, object word)
             atom ak = allocate_struct(idHH_AKLINK)
             set_struct_field(idHH_AKLINK,ak,"cbStruct",get_struct_size(idHH_AKLINK))
             set_struct_field(idHH_AKLINK,ak,"fReserved",false)
+--27/1/18:
+            if not string(word) then word = utf32_to_utf8(word) end if
             set_struct_field(idHH_AKLINK,ak,"pszKeywords",IupRawStringPtr(word))
             set_struct_field(idHH_AKLINK,ak,"pszUrl",NULL)
             set_struct_field(idHH_AKLINK,ak,"pszMsgText",NULL)

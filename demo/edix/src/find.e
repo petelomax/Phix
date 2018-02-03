@@ -192,7 +192,10 @@ procedure set_find_selection()
     if sequence(sel) and length(sel)=1 then
 --      str = join(str,'\n')
 --      IupSetStrAttribute(find_txt, "VALUE", stringify(str));
-        string str = sel[1]
+--25/1/2018:
+--      string str = sel[1]
+        sequence str = sel[1]
+        if not string(str) then str = utf32_to_utf8(str) end if
         IupSetStrAttribute(find_txt, "VALUE", str);
     end if
 end procedure

@@ -1294,7 +1294,10 @@ global procedure find_in_files()
 
     object sel = getSelection(SEL_COPY)
     if sequence(sel) and length(sel)=1 then
-        string str = sel[1]
+--24/1/18:
+--      string str = sel[1]
+        sequence str = sel[1]
+        if not string(str) then str = utf32_to_utf8(str) end if
         IupSetStrAttribute(find_text, "VALUE", str);
     end if
 

@@ -4131,6 +4131,8 @@ end procedure
 --SEEK_CUR              =       1
 --SEEK_END              =       2
                 mov eax,140         -- sys_llseek
+--2/2/18:
+push edi
                 push esi            -- save
                 mov ebx,[esi+HNDL]  -- fd
                 mov ecx,[esi+POSH]  -- offset_high
@@ -4140,6 +4142,7 @@ end procedure
                 int 0x80
                 xor ebx,ebx         -- (common requirement after int 0x80)
                 pop esi             -- restore
+pop edi
             [32]
                 pop edx -- restore
                 jmp @f
@@ -4277,6 +4280,8 @@ end procedure
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
 --8     sys_lseek               unsigned int fd         off_t offset                    unsigned int origin
                 mov r12,rsi
+--2/2/18:
+mov r13,rdi
                 mov rax,8                           -- sys_lseek
                 mov rsi,[rsi+RPOS64]                -- offset
                 mov rdx,0                           -- SEEK_SET
@@ -4294,6 +4299,7 @@ end procedure
 --              mov [rbx+r12*4+FEND64],rbx --(0)
 --              mov [rbx+r12*4+RPOS64],rax
                 mov rsi,r12
+mov edi,r13
             [64]
                 jmp @f
           ::clearbuff
