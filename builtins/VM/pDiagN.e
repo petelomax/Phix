@@ -8,7 +8,7 @@ constant diagdiag = 0   -- show progress messages for debugging this source.
                         --  (0=none, 1=all, 2=almost all, ... N=last only.)
 constant show_bad_era = 01
 
-constant show_low_level_diagnostics = 0
+constant show_low_level_diagnostics = 01
 
 -- Technical note:
 --  This should be coded as defensively as possible, rather than relying on

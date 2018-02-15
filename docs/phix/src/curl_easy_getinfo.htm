@@ -16,7 +16,7 @@
             include builtins\libcurl.e
             <br>
             <br>
-            <a href="object.htm">object</a> res = curl_easy_getinfo(<a href="atom.htm">atom</a> curl, <a href="integer.htm">integer</a> option)
+            {<a href="integer.htm">integer</a> curlcode, <a href="object.htm">object</a> res} = curl_easy_getinfo(<a href="atom.htm">atom</a> curl, <a href="integer.htm">integer</a> option)
          </td>
         </tr>
         <tr>
@@ -41,15 +41,6 @@ RETURN VALUE
 
 If the operation was successful, <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> is returned. Otherwise an appropriate error code will be returned.
 -->
-            <br>
-            <a name="easy_info_res"></a>
-            <br>
-            The true error code is left in the global easy_info_res, which is particularly useful for cases where you cannot 
-            otherwise determine whether res is a successful result or an error code, although in many cases you can easily do
-            that with eg <code>if string(res)</code>. Simply test whether easy_info_res=CURLE_OK or not.<br>
-            Note however that field is not thread safe, however it is perfectly reasonable to enter a critical section around 
-            the curl_easy_getinfo() call, at least much more so than it would be around a 
-            <a href="curl_easy_perform.htm">curl_easy_perform</a>() call.
          </td>
         </tr>
         <tr>
@@ -78,7 +69,7 @@ If the operation was successful, <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> is
             Get the last received response code.
             <br>
             <br>
-            Synopsis: <a href="atom.htm">atom</a> res = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
+            Synopsis: {<a href="integer.htm">integer</a> curlcode, <a href="atom.htm">atom</a> res} = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
             <br>
             <br>
             Retrieves the last received HTTP, FTP or SMTP response code. <br>
@@ -110,9 +101,9 @@ atom curl = curl_easy_init()
 curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
 atom res = curl_easy_perform(curl)
 if res=CURLE_OK then
-    atom response_code = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
-    if easy_info_res!=CURLE_OK then
-        ?{"error",easy_info_res}
+    {integer curlcode, atom response_code} = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE)
+    if curlcode!=CURLE_OK then
+        ?{"error",curlcode,curl_easy_strerror(curlcode)}
     else
         ?{"response code",response_code}
     end if
@@ -124,9 +115,9 @@ curl_easy_cleanup(curl)
 </font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
 </font><font color="#004080">atom</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
 </font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
-</font><font color="#004080">    atom</font><font color="#000000"> response_code</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_RESPONSE_CODE</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#004600"> easy_info_res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
-</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#004600">easy_info_res</font><font color="#0000FF">}
+</font><font color="#0000FF">    {</font><font color="#004080">integer</font><font color="#000000"> curlcode</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> response_code</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_RESPONSE_CODE</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#5E005E">curl_easy_strerror</font><font color="#800000">(</font><font color="#000000">curlcode</font><font color="#800000">)</font><font color="#0000FF">}
 </font><font color="#008080">    else
 </font><font color="#0000FF">        ?{</font><font color="#008000">"response code"</font><font color="#0000FF">,</font><font color="#000000">response_code</font><font color="#0000FF">}
 </font><font color="#008080">    end if
@@ -140,9 +131,8 @@ end if
             Availability: Added in 7.10.8. CURLINFO_HTTP_CODE was added in 7.4.1.
             <br>
             <br>
-            Return value: Returns a response code if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.<br>
-            Note that to distinguish the latter from a valid response code, check whether <a href="#easy_info_res">easy_info_res</a> is 
-            <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> or not.
+            Return value: Returns <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> (and NULL) if the option is not supported, 
+            otherwise <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> and a response code.
             <br>
             <br>
             See also: curl_easy_setopt, CURLINFO_HTTP_CONNECTCODE
@@ -260,7 +250,7 @@ end if
             Get the URL a redirect would go to, had you enabled redirects.
             <br>
             <br>
-            Synopsis: <a href="object.htm">object</a> res = curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL)
+            Synopsis: {<a href="integer.htm">integer</a> curlcode, <a href="object.htm">object</a> res} = curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL)
             <br>
             <br>
             Retrieve the URL a redirect would take you to if you would enable CURLOPT_FOLLOWLOCATION. <br>
@@ -289,10 +279,11 @@ end if
 <!--eucode>
 atom curl = curl_easy_init()
 curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
-CURLcode res = curl_easy_perform(curl)
-if res=CURLE_OK then
-    object url = curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL)
-    if string(url) then
+integer curlcode = curl_easy_perform(curl)
+if curlcode=CURLE_OK then
+    object url
+    {curlcode,url} = curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL)
+    if curlcode=CURLE_OK then
       printf(1,"Redirect to: %s\n", {url})
     end if
 end if
@@ -301,10 +292,11 @@ curl_easy_cleanup(curl)
 <pre>
 <font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
 </font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
-</font><font color="#5E005E">CURLcode</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
-</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
-</font><font color="#004080">    object</font><font color="#000000"> url</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_REDIRECT_URL</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">url</font><font color="#0000FF">)</font><font color="#008080"> then
+</font><font color="#004080">integer</font><font color="#000000"> curlcode</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> curlcode</font><font color="#0000FF">=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#004080">    object</font><font color="#000000"> url
+</font><font color="#0000FF">    {</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#000000">url</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_REDIRECT_URL</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> curlcode</font><font color="#0000FF">=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
 </font><font color="#5E005E">      printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Redirect to: %s\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">url</font><font color="#800000">}</font><font color="#0000FF">)
 </font><font color="#008080">    end if
 end if
@@ -317,7 +309,8 @@ end if
             Availability: Added in 7.18.2
             <br>
             <br>
-            Return value: Returns a string if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            Return value: Returns <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> (and "") if the option is not supported,
+            otherwise <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> and a string.
             <br>
             <br>
             See also: curl_easy_setopt
@@ -485,7 +478,7 @@ end if
             Get the Content-Type header.
             <br>
             <br>
-            Synopsis: <a href="object.htm">object</a> res = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
+            Synopsis: {<a href="integer.htm">integer</a> curlcode, <a href="string.htm">string</a> res} = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
             <br>
             <br>
 <!-- (done internally)
@@ -524,13 +517,14 @@ include builtins\libcurl.e
 curl_global_init()
 atom curl = curl_easy_init()
 curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
-object res = curl_easy_perform(curl);
-if res!=CURLE_OK then
+integer curlcode = curl_easy_perform(curl);
+if curlcode!=CURLE_OK then
     ?"error"
 else
-    res = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
-    if atom(res) then
-        ?{"error",res}
+    string res
+    {curlcode,res} = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE)
+    if curlcode!=CURLE_OK then
+        ?{"error",curlcode,curl_easy_strerror(curlcode)}
     else
         printf(1, "We received Content-Type: %s\n", {res})
     end if
@@ -543,13 +537,14 @@ curl_global_cleanup()
 </font><font color="#5E005E">curl_global_init</font><font color="#0000FF">()
 </font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
 </font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
-</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">);
-</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#004080">integer</font><font color="#000000"> curlcode</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">);
+</font><font color="#008080">if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
 </font><font color="#0000FF">    ?</font><font color="#008000">"error"
 </font><font color="#008080">else
-</font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_CONTENT_TYPE</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#004080"> atom</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> then
-</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</font><font color="#004080">    string</font><font color="#000000"> res
+</font><font color="#0000FF">    {</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_CONTENT_TYPE</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#5E005E">curl_easy_strerror</font><font color="#800000">(</font><font color="#000000">curlcode</font><font color="#800000">)</font><font color="#0000FF">}
 </font><font color="#008080">    else
 </font><font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "We received Content-Type: %s\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">res</font><font color="#800000">}</font><font color="#0000FF">)
 </font><font color="#008080">    end if
@@ -564,7 +559,8 @@ end if
             Availability: Added in 7.9.4
             <br>
             <br>
-            Return value: returns a string if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            Return value: returns <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> (and "") if the option is not supported,
+            otherwise <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> and a string.
             <br>
             <br>
             See also: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>
@@ -660,7 +656,7 @@ end if
             Get a list of all known cookies.
             <br>
             <br>
-            Synopsis: <a href="object.htm">object</a> res = curl_easy_getinfo(curl, CURLINFO_COOKIELIST)
+            Synopsis: {<a href="integer.htm">integer</a> curlcode, <a href="object.htm">object</a> res} = curl_easy_getinfo(curl, CURLINFO_COOKIELIST)
             <br>
             <br>
             Returns a list of all cookies curl knows (expired ones, too). <br>
@@ -692,14 +688,15 @@ atom curl = curl_easy_init()
 curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
 -- enable the cookie engine with a non-existing file:
 curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "-")
-object res = curl_easy_perform(curl);
-if res!=CURLE_OK then
+integer curlcode = curl_easy_perform(curl)
+if curlcode!=CURLE_OK then
     ?"error"
 else
     /* extract all known cookies */
-    res = curl_easy_getinfo(curl, CURLINFO_COOKIELIST)
-    if atom(res) then
-        ?{"error",res}
+    object cookies
+    {curlcode,cookies} = curl_easy_getinfo(curl, CURLINFO_COOKIELIST)
+    if curlcode!=CURLE_OK then
+        ?{"error",curlcode,curl_easy_strerror(curlcode)}
     else
         ?cookies
     end if
@@ -714,14 +711,15 @@ curl_global_cleanup()
 </font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
 </font><font color="#000080"><i>-- enable the cookie engine with a non-existing file:
 </i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_COOKIEFILE</font><font color="#0000FF">,</font><font color="#008000"> "-"</font><font color="#0000FF">)
-</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">);
-</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#004080">integer</font><font color="#000000"> curlcode</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
 </font><font color="#0000FF">    ?</font><font color="#008000">"error"
 </font><font color="#008080">else
 </font><font color="#000080"><i>    /* extract all known cookies */
-</i></font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_COOKIELIST</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#004080"> atom</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> then
-</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</i></font><font color="#004080">    object</font><font color="#000000"> cookies
+</font><font color="#0000FF">    {</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#000000">cookies</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_COOKIELIST</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#5E005E">curl_easy_strerror</font><font color="#800000">(</font><font color="#000000">curlcode</font><font color="#800000">)</font><font color="#0000FF">}
 </font><font color="#008080">    else
 </font><font color="#0000FF">        ?</font><font color="#000000">cookies
 </font><font color="#008080">    end if
@@ -739,8 +737,8 @@ end if
             Availability: Added in 7.14.1
             <br>
             <br>
-            Return value: Returns <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, and 
-            <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            Return value: Returns <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> (and NULL) if the option is not supported, 
+            otherwise <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> and a sequence of cookies (as strings).
             <br>
             <br>
             See also: curl_easy_setopt, <a href="CURLoption.htm#CURLOPT_COOKIELIST">CURLOPT_COOKIELIST</a>
@@ -755,7 +753,7 @@ end if
             Get the last socket used.
             <br>
             <br>
-            Synopsis: atom socket = curl_easy_getinfo(curl, CURLINFO_LASTSOCKET)
+            Synopsis: {<a href="integer.htm">integer</a> curlcode, <a href="atom.htm">atom</a> socket} = curl_easy_getinfo(curl, CURLINFO_LASTSOCKET)
             <br>
             <br>
             Deprecated since 7.45.0. Use <a href="#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a> instead.
@@ -794,16 +792,17 @@ atom curl = curl_easy_init()
 curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
 -- Do not do the transfer - only connect to host
 curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, true)
-object res = curl_easy_perform(curl)
-if res!=CURLE_OK then
+integer curlcode = curl_easy_perform(curl)
+if curlcode!=CURLE_OK then
     ?"error"
 else
     -- Extract the socket from the curl handle
-    res = curl_easy_getinfo(curl, CURLINFO_LASTSOCKET)
-    if easy_info_res!=CURLE_OK then
-        ?{"error",easy_info_res}
+    atom socket
+    {curlcode,socket} = curl_easy_getinfo(curl, CURLINFO_LASTSOCKET)
+    if curlcode!=CURLE_OK then
+        ?{"error",curlcode,curle_easy_strerror(curlcode)}
     else
-        ?{"socket",res}
+        ?{"socket",socket}
     end if
 end if
 curl_easy_cleanup(curl)
@@ -816,16 +815,17 @@ curl_global_cleanup()
 </font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
 </font><font color="#000080"><i>-- Do not do the transfer - only connect to host
 </i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_CONNECT_ONLY</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
-</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
-</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#004080">integer</font><font color="#000000"> curlcode</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
 </font><font color="#0000FF">    ?</font><font color="#008000">"error"
 </font><font color="#008080">else
 </font><font color="#000080"><i>    -- Extract the socket from the curl handle
-</i></font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_LASTSOCKET</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#004600"> easy_info_res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
-</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#004600">easy_info_res</font><font color="#0000FF">}
+</i></font><font color="#004080">    atom</font><font color="#000000"> socket
+</font><font color="#0000FF">    {</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#000000">socket</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_LASTSOCKET</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#000000">curle_easy_strerror</font><font color="#800000">(</font><font color="#000000">curlcode</font><font color="#800000">)</font><font color="#0000FF">}
 </font><font color="#008080">    else
-</font><font color="#0000FF">        ?{</font><font color="#008000">"socket"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</font><font color="#0000FF">        ?{</font><font color="#008000">"socket"</font><font color="#0000FF">,</font><font color="#000000">socket</font><font color="#0000FF">}
 </font><font color="#008080">    end if
 end if
 </font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
@@ -838,9 +838,8 @@ end if
             Availability: Added in 7.15.2
             <br>
             <br>
-            Return value: Returns a socket if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.<br>
-            Note that to distinguish the latter from a valid socket, check whether <a href="#easy_info_res">easy_info_res</a> is 
-            <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> or not.
+            Return value: Returns <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> (and NULL) if the option is not supported,
+            otherwise <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> and a socket.
             <br>
             <br>
             See also: curl_easy_getinfo, curl_easy_setopt, <a href="#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a>
@@ -855,7 +854,7 @@ end if
             Get the session&rsquo;s active socket.
             <br>
             <br>
-            Synopsis: atom socket = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET)
+            Synopsis: {<a href="integer.htm">integer</a> curlcode, <a href="atom.htm">atom</a> socket} = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET)
             <br>
             <br>
             Retrieve the active socket used by this curl session. <br>
@@ -890,16 +889,17 @@ atom curl = curl_easy_init()
 curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
 -- Do not do the transfer - only connect to host
 curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, true)
-object res = curl_easy_perform(curl)
-if res!=CURLE_OK then
+integer curlcode = curl_easy_perform(curl)
+if curlcode!=CURLE_OK then
     ?"error"
 else
     -- Extract the socket from the curl handle
-    res = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET)
-    if easy_info_res!=CURLE_OK then
-        ?{"error",easy_info_res}
+    atom socket
+    {curlcode,socket} = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET)
+    if curlcode!=CURLE_OK then
+        ?{"error",curlcode,curl_easy_strerror(curlcode)}
     else
-        ?{"socket",res}
+        ?{"socket",socket}
     end if
 end if
 curl_easy_cleanup(curl)
@@ -912,16 +912,17 @@ curl_global_cleanup()
 </font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
 </font><font color="#000080"><i>-- Do not do the transfer - only connect to host
 </i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_CONNECT_ONLY</font><font color="#0000FF">,</font><font color="#004600"> true</font><font color="#0000FF">)
-</font><font color="#004080">object</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
-</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#004080">integer</font><font color="#000000"> curlcode</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
 </font><font color="#0000FF">    ?</font><font color="#008000">"error"
 </font><font color="#008080">else
 </font><font color="#000080"><i>    -- Extract the socket from the curl handle
-</i></font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_ACTIVESOCKET</font><font color="#0000FF">)
-</font><font color="#008080">    if</font><font color="#004600"> easy_info_res</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
-</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#004600">easy_info_res</font><font color="#0000FF">}
+</i></font><font color="#004080">    atom</font><font color="#000000"> socket
+</font><font color="#0000FF">    {</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#000000">socket</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_ACTIVESOCKET</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> curlcode</font><font color="#0000FF">!=</font><font color="#004600">CURLE_OK</font><font color="#008080"> then
+</font><font color="#0000FF">        ?{</font><font color="#008000">"error"</font><font color="#0000FF">,</font><font color="#000000">curlcode</font><font color="#0000FF">,</font><font color="#5E005E">curl_easy_strerror</font><font color="#800000">(</font><font color="#000000">curlcode</font><font color="#800000">)</font><font color="#0000FF">}
 </font><font color="#008080">    else
-</font><font color="#0000FF">        ?{</font><font color="#008000">"socket"</font><font color="#0000FF">,</font><font color="#000000">res</font><font color="#0000FF">}
+</font><font color="#0000FF">        ?{</font><font color="#008000">"socket"</font><font color="#0000FF">,</font><font color="#000000">socket</font><font color="#0000FF">}
 </font><font color="#008080">    end if
 end if
 </font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
@@ -934,9 +935,8 @@ end if
             Availability: Added in 7.45.0
             <br>
             <br>
-            Return value: Returns a socket if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.<br>
-            Note that to distinguish the latter from a valid socket, check whether <a href="#easy_info_res">easy_info_res</a> is 
-            <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> or not.
+            Return value: Returns <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> (and NULL) if the option is not supported,
+            otherwise <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> and a socket.
             <br>
             <br>
             See also: curl_easy_setopt, <a href="#CURLINFO_LASTSOCKET">CURLINFO_LASTSOCKET</a>
@@ -1013,8 +1013,9 @@ curl = curl_easy_init();
             Added in 7.19.1
             <br>
             <br>
-            Return value: Returns a nested sequence, one for each certificate in the chain, with each subsequence being strings describing that
-            certificate, if the option is supported, and <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not.
+            Return value: Returns <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> (and NULL) if the option is not supported,
+            otherwise <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> and a nested sequence, one for each certificate in the chain, with each subsequence 
+            being strings describing that certificate.
             <br>
             <br>
             See also: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>

@@ -493,7 +493,7 @@ procedure Tinit()
 end procedure
 --if not tinit then Tinit() end if  -- (not necessary)
 
-global function define_c_func(object lib, object fname, sequence args, atom return_type)
+global function define_c_func(object lib, object fname, object args, atom return_type)
 --
 -- Define the characteristics of either:
 --  * a C function in a dll or .so file, or
@@ -565,6 +565,7 @@ atom addr
 integer res
 integer level = 2+(return_type=0)
 
+    if not sequence(args) then ?9/0 end if
     convention = STDCALL
     if platform()!=WINDOWS then
         convention = CDECL
@@ -626,6 +627,12 @@ integer level = 2+(return_type=0)
     table = append(table,{name,addr,args,return_type,convention})
     tmax = length(table)
     res = tmax
+--15/2/18:
+    name = 0
+    fname = 0
+    addr = 0
+    args = 0
+    return_type = 0
     leave_cs(tcs)
     return res
 end function
@@ -939,14 +946,14 @@ constant FUNC = 1, PROC = 0
 function c_common(integer rid, sequence args, integer flag)
 -- common code for c_func and c_proc (validate and process args)
 --  flag is FUNC or PROC accordingly.
-sequence argdefs
+object argdefs
 integer argdefi
 integer convention
 integer la, lad
 object argi
 integer return_type
 object name -- for debugging only
-sequence tr -- table[rid], ie {name,addr,args,return_type,convention}
+object tr -- table[rid], ie {name,addr,args,return_type,convention}
 atom addr
 --DEV/temp:
 --/*
@@ -1036,11 +1043,12 @@ integer esp4
 --          mov [tr],rsi
 --        }
     name = tr[T_name]
+--DEV 12/2/18: type check failure, addr is 1079399234.0 here???:
     addr = tr[T_address]
     argdefs = tr[T_args]
     return_type = tr[T_return_type]
     convention = tr[T_convention]
-    tr = {}
+    tr = 0
     leave_cs(tcs)
 
     --20/8/15: (ensure shadow space and align)
@@ -1598,11 +1606,27 @@ end if
         end if
     end for
 --DEV/SUG??
---  enter_cs(tcs)
---  name = 0
---  argdefs = 0 -- {}
---  leave_cs(tcs)
-    return {return_type,addr,esp4}
+--15/2/18:
+    atom addr2  -- (avoid shared refcounts!)
+    #ilASM{ 
+        [32]
+            lea esi,[addr]
+            call :%pLoadFlt     -- st0:=[esi]
+            lea edi,[addr2]
+            call :%pStoreFlt    -- [edi]:=st0, as integer if possible
+        [64]
+            lea rsi,[addr]
+            call :%pLoadFlt     -- st0:=[rsi]
+            lea rdi,[addr2]
+            call :%pStoreFlt    -- [rdi]:=st0, as integer if possible
+        []
+          }
+    enter_cs(tcs)
+    name = 0
+    addr = 0
+    argdefs = 0
+    leave_cs(tcs)
+    return {return_type,addr2,esp4}
 end function
 
 --DEV clutching at straws... (not thread safe) [did not help]

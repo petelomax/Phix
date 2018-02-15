@@ -10775,10 +10775,17 @@ integer lprev
         Abork("type error (sequence expected)",opsidx)
     end if
     tmp = opstack[opsidx]
+--8/2/18:
     if not get_from_stack then
+--  if emitON and not get_from_stack then
         tmpN = 0
         opsidx -= 1
-        if allequal and symtab[tmp][S_Name]=-1 and symtab[tmp][S_NTyp]!=S_Const then
+--8/2/18:
+--      if not emitON and tmp=0 then
+        if emitON and tmp=0 then ?9/0 end if
+--      elsif allequal and symtab[tmp][S_Name]=-1 and symtab[tmp][S_NTyp]!=S_Const then
+--      if allequal and symtab[tmp][S_Name]=-1 and symtab[tmp][S_NTyp]!=S_Const then
+        if allequal and tmp!=0 and symtab[tmp][S_Name]=-1 and symtab[tmp][S_NTyp]!=S_Const then
 --10/11/15:
             -- find an lhs element we can use...
             for i=length(assignset) to 1 by -1 do

@@ -438,7 +438,9 @@ end procedure -- (for Edita/CtrlQ)
             sub ecx,eax
             jz :opRepsPop6
             mov eax,[esp+4]         -- slice length
-            lea esi,[esi+eax*4-4]
+--15/2/18:
+--          lea esi,[esi+eax*4-4]
+            lea esi,[esi+eax*4]
           ::opRepsSeqMRAtomAfterLoop
                 lodsd                       -- mov eax,[esi], esi+=4
                 stosd                       -- mov [edi],eax, edi+=4
@@ -1254,7 +1256,9 @@ end procedure -- (for Edita/CtrlQ)
             mov rax,[rsp+8]         -- slice length
 --29/12/15:
 --          lea rsi,[rsi+rax*4-8]
-            lea rsi,[rsi+rax*8-8]
+--15/2/18:
+--          lea rsi,[rsi+rax*8-8]
+            lea rsi,[rsi+rax*8]
           ::opRepsSeqMRAtomAfterLoop64
                 lodsq                       -- mov rax,[rsi], rsi+=8
                 stosq                       -- mov [rdi],rax, rdi+=8
