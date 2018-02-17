@@ -383,6 +383,7 @@ object data
         if c_func(RegQueryValueExA,{key_id2,Value,0,lpType,0,lpcbData})=0
         and find(peek4u(lpType),{REG_SZ,REG_EXPAND_SZ}) then
             data_len = peek4u(lpcbData)
+if data_len<=0 then ?9/0 end if
             lpData = allocate(data_len)
             -- then get actual data:
             while 1 do
@@ -395,11 +396,17 @@ object data
             end while
             if res=0 then
                 data_len = peek4u(lpcbData)
-                while 1 do
+--              while 1 do
+                while data_len>0 do
                     data_len -= 1
                     if peek(lpData+data_len-1)!=0 then exit end if
                 end while
-                data = peek({lpData,data_len})
+--              data = peek({lpData,data_len})
+                if data_len<=0 then
+                    data  = ""
+                else
+                    data = peek({lpData,data_len})
+                end if
             end if
             free(lpData)
         end if

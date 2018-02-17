@@ -191,6 +191,7 @@ function setCharClass()
 sequence charClass = repeat(ILLEGAL,255)
     charClass['\"'] = DQUOTE
     charClass[','] = SYMBOL
+    charClass['-'] = SYMBOL
     charClass['.'] = DOT
     charClass['0'..'9'] = DIGIT
     charClass[':'] = SYMBOL
@@ -402,6 +403,15 @@ object res
                 if equal(token,"]") then exit end if
                 Match(",")
             end while
+        end if
+    elsif toktype=SYMBOL and equal(token,"-") then
+        Match("-")
+        if toktype=DIGIT then
+            res = -tokint
+        elsif toktype=FLOAT then
+            res = -tokatm
+        elsif invalid=0 then
+            invalid = 2
         end if
     elsif toktype=DQUOTE then
         res = token
