@@ -786,15 +786,17 @@ integer y, m, d, dsrule, tz, stz
     if delta!=0 then
         td[1..7] = seconds_to_timedate(timedate_to_seconds(td)+delta)
     end if
-    if length(td)>=DT_DOW then
+--4/3/18 don't clobber DT_MSECS!
+--  if length(td)>=DT_DOW then
 --      td[DT_DOW] = day_of_week(td)
-        {y,m,d} = td
-        td[DT_DOW] = day_of_week(y,m,d)
+--      {y,m,d} = td
+--      td[DT_DOW] = day_of_week(y,m,d)
         if length(td)>=DT_DOY then
+            {y,m,d} = td
 --          td[DT_DOY] = day_of_year(td)
             td[DT_DOY] = day_of_year(y,m,d)
         end if
-    end if
+--  end if
     return td
 end function
 
@@ -858,12 +860,10 @@ global function change_timezone(timedate td, string newtz)
 --      ..}         \
 --      ..,0}        }=no timezone (assume UTC/GMT)
 --      ..,0,?}     /
---      ..,tz},         \
---      ..,tz,0}         }=single timezone, tzadjs[tz] applied
---      ..,dstz,dstz}   /
---      ..,tz,dstz}     - (dstz!=0 and dstz!=tz) - tzsdjs[tz] should be 0.
---
--- the last case is "daylight savings out-of-season".
+--      ..,tz},         \=single timezone, tzadjs[tz] applied
+--      ..,tz,0}        /
+--      ..,dstz,dstz}   - daylight savings in-season
+--      ..,tz,dstz}     - daylight savings out-of-season
 --
 integer tz, prevtz
 atom hourdelta = 0
@@ -877,9 +877,10 @@ atom hourdelta = 0
             hourdelta -= tzadjs[prevtz]
             td[DT_TZ] = tz
             if length(td)>=DT_DSTZ then
-                if not find(td[DT_DSTZ],{0,prevtz}) then
-                    if tzadjs[prevtz]!=0 then ?9/0 end if   -- sanity check
-                end if
+-- removed 20/2/18:
+--              if not find(td[DT_DSTZ],{0,prevtz}) then
+--                  if tzadjs[prevtz]!=0 then ?9/0 end if   -- sanity check
+--              end if
                 td[DT_DSTZ] = tz
             end if
         end if
