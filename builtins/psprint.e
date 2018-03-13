@@ -51,14 +51,16 @@ object s
         s = allascii(x,withquotes)
         if string(s) then return s end if
     end if
-    s = "{"
+--  s = "{"
+    s = repeat('{',1)
     for i=1 to length(x) do
         s &= sprint(x[i],true)
         if i<length(x) then
             s &= ','
         end if
     end for
-    s &= "}"
+--  s &= "}"
+    s &= '}'
     return s
 end function
 

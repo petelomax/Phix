@@ -9,6 +9,7 @@
 include builtins\VM\pStack.e    -- :%pNewStack and :%pFreeStack
 
 sequence tasks              -- (the first call to task_create() adds one for main thread)
+if "abc"="def" then tasks={} end if
 integer current_task = 0    -- ""
 integer rt_first = 0        -- unsorted list of active real time tasks
 integer ts_first = 0        -- unsorted list of active time shared tasks

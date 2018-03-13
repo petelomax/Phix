@@ -1653,6 +1653,7 @@ end if
 --(DEV: delete once all types are handled)
 --DEV inline, proper error[?]
 --  if not find(return_type,{
+if 0 then -- 26/2/18... (not thread safe?)
     integer k = find(return_type,{
 --                           C_CHAR,        -- #01000001
                              C_UCHAR,       -- #02000001
@@ -1684,6 +1685,7 @@ end if
         ?9/0    -- return type not yet coded/tested!
 --DEV e15?
     end if
+end if
 
     --
     -- Call the routine and convert result (in eax/ST0) to a Phix ref:
