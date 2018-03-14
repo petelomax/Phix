@@ -1,0 +1,53 @@
+--
+-- demo/pGUI/plot2.exw
+-- ===================
+--
+
+--#withtype Ihandle
+--#withtype Ihandles
+--#withtype cdCanvas
+
+include pGUI.e
+include builtins\timedate.e
+
+constant factor = 1e-6,
+         dayone = parse_date_string("1/1/1999",{"D/M/YYYY"}),
+         oneday = timedelta(days:=1)
+
+procedure main()
+    IupOpen()
+
+    Ihandle plot = IupPlot("GRID=YES, MARGIN=80, AXS_XTICKROTATENUMBER=YES, MARGINRIGHT=80")
+    
+    IupPlotBegin(plot,1)
+    for i=1 to 7000 do
+        timedate td = adjust_timedate(dayone,oneday*i)
+        IupPlotAddStr(plot, format_timedate(td,"DD/MM/YYYY"), factor*i*i*i+0.2)
+    end for
+    {} = IupPlotEnd(plot)
+
+--/*
+--actually, this works just as well:
+--  IupPlotBegin(plot,1)
+    IupPlotBegin(plot,0)
+    for i=1 to 7000 do
+--      timedate td = adjust_timedate(dayone,oneday*i)
+        integer j = 7000-i
+--      IupPlotAddStr(plot, format_timedate(td,"DD/MM/YYYY"), factor*j*j*j+0.2)
+        IupPlotAdd(plot, i, factor*j*j*j+0.2)
+    end for
+    {} = IupPlotEnd(plot)
+--*/
+
+    Ihandle dlg = IupDialog(plot)
+    IupSetAttributes(dlg, "RASTERSIZE=640x480")
+    IupSetAttribute(dlg, "TITLE", "temperature/moisture")
+    IupCloseOnEscape(dlg)
+    IupShow(dlg)
+
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

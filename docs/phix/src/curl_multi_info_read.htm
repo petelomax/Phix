@@ -1,0 +1,149 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">curl_multi_info_read</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\libcurl.e
+            <br>
+            <br>
+            {<a href="atom.htm">atom</a> easy_handle,
+             <a href="CURLcode.htm">CURLcode</a> res,
+             <a href="integer.htm">integer</a> msgs_in_queue}
+            = curl_multi_info_read(<a href="atom.htm">atom</a> mcurl)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Read multi stack informationals.
+            <br>
+            <br>
+            mcurl: the multi_handle to be queried.
+            <br>
+            <br>
+            Ask the multi handle if there are any messages/informationals from the individual transfers. <br>
+            Messages may include informationals such as an error code from the transfer or just the fact that a transfer is completed. <br>
+            More details on these should be written down as well.
+            <br>
+            <br>
+            Repeated calls to this function will return a new easy_handle and result code each time, until a NULL is returned (in 
+            easy_handle, at which point res will be a meaningless <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>) as a signal that 
+            there are no more to get at this point. <br>
+            The integer msgs_in_queue will contain the number of remaining messages after this function was called.
+            <br>
+            <br>
+            When you fetch a message using this function, it is removed from the internal queue so calling this function again will not 
+            return the same message again. It will instead return new messages at each new invoke until the queue is emptied.
+<!-- 
+            <br>
+            <br>
+-- (libcurl.e extracts everything from it immediately anyway:)
+WARNING: The data the returned pointer points to will not survive calling curl_multi_cleanup, curl_multi_remove_handle or curl_easy_cleanup.
+The 'CURLMsg' struct is very simple and only contains very basic information. If more involved information is wanted, the particular "easy handle" 
+is present in that struct and can be used in subsequent regular curl_easy_getinfo calls (or similar):
+
+ struct CURLMsg {
+   CURLMSG msg;       /* what this message means */
+   CURL *easy_handle; /* the handle it concerns */
+   union {
+     void *whatever;    /* message-specific data */
+     CURLcode result;   /* return code for transfer */
+   } data;
+ };
+When msg is CURLMSG_DONE, the message identifies a transfer that is done, and then result contains the return code for the easy handle that just completed.
+
+At this point, there are no other msg types defined. (-- hence libcurl.e does not define CURLMSG_DONE as global)
+
+RETURN VALUE
+A pointer to a filled-in struct, or NULL if it failed or ran out of structs. It also writes the number of messages left in the queue (after this read) in the integer the second argument points to.
+-->
+            <br>
+            <br>
+            Return value: A sequence containing an easy_handle, a result code, and the number of remaining messages.<br>
+            The result code is that of an individual transfer, hence it [genuinely] is a <a href="CURLcode.htm">CURLcode</a> 
+            rather than a <a href="CURLcode.htm#CURLMcode">CURLMcode</a>.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+/* call curl_multi_perform or curl_multi_socket_action first, then loop
+   through and check if there are any transfers that have completed */
+
+-- (This is not a complete runnable sample)
+ 
+while 1 do
+    {atom easy_handle, CURLcode res, integer nmsgs} = curl_multi_info_read(multi_handle)
+    if easy_handle=NULL then exit end if
+    curl_multi_remove_handle(multi_handle,easy_handle)
+--  {curlcode,res} = curl_easy_getinfo(easy_handle,??) -- (etc)
+    transfers -= 1
+    curl_easy_cleanup(easy_handle)
+end while
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>/* call curl_multi_perform or curl_multi_socket_action first, then loop
+   through and check if there are any transfers that have completed */
+
+-- (This is not a complete runnable sample)
+</i></font><font color="#C0C0C0"> 
+</font><font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do
+</font><font color="#0000FF">    {</font><font color="#004080">atom</font><font color="#000000"> easy_handle</font><font color="#0000FF">,</font><font color="#5E005E"> CURLcode</font><font color="#000000"> res</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> nmsgs</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_multi_info_read</font><font color="#0000FF">(</font><font color="#000000">multi_handle</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> easy_handle</font><font color="#0000FF">=</font><font color="#004600">NULL</font><font color="#008080"> then exit end if
+</font><font color="#5E005E">    curl_multi_remove_handle</font><font color="#0000FF">(</font><font color="#000000">multi_handle</font><font color="#0000FF">,</font><font color="#000000">easy_handle</font><font color="#0000FF">)
+</font><font color="#000080"><i>--  {curlcode,res} = curl_easy_getinfo(easy_handle,??) -- (etc)
+</i></font><font color="#000000">    transfers</font><font color="#0000FF"> -=</font><font color="#000000"> 1
+</font><font color="#5E005E">    curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">easy_handle</font><font color="#0000FF">)
+</font><font color="#008080">end while</font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="curl_multi_init.htm">curl_multi_init</a>,
+          <a href="curl_easy_cleanup.htm">curl_multi_cleanup</a>,
+          <a href="curl_multi_perform.htm">curl_multi_perform</a>,
+          <a href="CURLcode.htm">CURLcode</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,223 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">curl_multi_perform</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\libcurl.e
+            <br>
+            <br>
+            {<a href="CURLcode.htm#CURLMcode">CURLMcode</a> res,
+             <a href="integer.htm">integer</a> running_handles}
+             = curl_multi_perform(<a href="atom.htm">atom</a> mcurl)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Reads/writes available data from each easy handle
+            <br>
+            <br>
+            This function handles transfers on all the added handles that need attention in an non-blocking fashion.
+            <br>
+            <br>
+            When an application has found out there&rsquo;s data available for the multi_handle or a timeout has elapsed, 
+            the application should call this function to read/write whatever there is to read or write right now etc. <br>
+            curl_multi_perform returns as soon as the reads/writes are done. <br>
+            This function does not require that there actually is any data available for reading or that data can be written, 
+            it can be called just in case. <br>
+            It also returns the number of handles that still transfer data.
+            <br>
+            <br>
+            If the amount of running_handles is changed from the previous call (or is less than the amount of easy handles 
+            you&rsquo;ve added to the multi handle), you know that there is one or more transfers less "running". <br>
+            You can then call <a href="curl_multi_info_read.htm">curl_multi_info_read</a>() to get information about each individual 
+            completed transfer, and that returned info includes a <a href="CURLcode.htm">CURLcode</a> and more. <br>
+            If an added handle fails very quickly, it may never be counted as a running_handle.
+            <br>
+            <br>
+            When running_handles is set to zero (0) on the return of this function, there are no longer any transfers in progress.
+            <br>
+            <br>
+            Return value: <a href="CURLcode.htm#CURLMcode">CURLMcode</a> type, general libcurl multi interface error code.
+            <br>
+            <br>
+            Before version 7.20.0: If you receive <a href="CURLcode.htm#CURLM_CALL_MULTI_PERFORM">CURLM_CALL_MULTI_PERFORM</a>, 
+            this basically means that you should call curl_multi_perform again, before you select() on more actions. <br>
+            You don&rsquo;t have to do it immediately, but the return code means that libcurl may have more data available to return or that 
+            there may be more data to send off before it is "satisfied". <br>
+            Do note that curl_multi_perform will return <a href="CURLcode.htm#CURLM_CALL_MULTI_PERFORM">CURLM_CALL_MULTI_PERFORM</a> 
+            only when it wants to be called again immediately. <br>
+            When things are fine and there is nothing immediate it wants done, it&rsquo;ll return <a href="CURLcode.htm#CURLM_OK">CURLM_OK</a>
+            and you need to wait for "action" and then call this function again.
+            <br>
+            <br>
+            This function only returns errors etc regarding the whole multi stack. <br>
+            Problems still might have occurred on individual transfers even when this function returns <a href="CURLcode.htm#CURLM_OK">CURLM_OK</a>. <br>
+            Use <a href="curl_multi_info_read.htm">curl_multi_info_read</a>() to figure out how individual transfers did.
+            <br>
+            <br>
+            Typical usage: Most applications will use curl_multi_fdset to get the multi_handle&rsquo;s file descriptors, and 
+            curl_multi_timeout to get a suitable timeout period, then it&rsquo;ll wait for action on the file descriptors using select(3). <br>
+            As soon as one or more file descriptor is ready, curl_multi_perform gets called.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+--DEV not translated!
+--/*
+#ifdef _WIN32
+#define SHORT_SLEEP Sleep(100)
+#else
+#define SHORT_SLEEP usleep(100000)
+#endif
+ 
+fd_set fdread;
+fd_set fdwrite;
+fd_set fdexcep;
+int maxfd = -1;
+ 
+long curl_timeo;
+ 
+curl_multi_timeout(multi_handle, &curl_timeo);
+if(curl_timeo < 0)
+  curl_timeo = 1000;
+ 
+timeout.tv_sec = curl_timeo / 1000;
+timeout.tv_usec = (curl_timeo % 1000) * 1000;
+ 
+FD_ZERO(&fdread);
+FD_ZERO(&fdwrite);
+FD_ZERO(&fdexcep);
+ 
+/* get file descriptors from the transfers */
+mc = curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+ 
+if(maxfd == -1) {
+  SHORT_SLEEP;
+  rc = 0;
+}
+else
+  rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
+ 
+switch(rc) {
+case -1:
+  /* select error */
+  break;
+case 0:
+default:
+  /* timeout or readable/writable sockets */
+  curl_multi_perform(multi_handle, &still_running);
+  break;
+}
+ 
+/* if there are still transfers, loop! */
+--*/
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>--DEV not translated!
+--/*
+#ifdef _WIN32
+#define SHORT_SLEEP Sleep(100)
+#else
+#define SHORT_SLEEP usleep(100000)
+#endif
+ 
+fd_set fdread;
+fd_set fdwrite;
+fd_set fdexcep;
+int maxfd = -1;
+ 
+long curl_timeo;
+ 
+curl_multi_timeout(multi_handle, &amp;curl_timeo);
+if(curl_timeo &lt; 0)
+  curl_timeo = 1000;
+ 
+timeout.tv_sec = curl_timeo / 1000;
+timeout.tv_usec = (curl_timeo % 1000) * 1000;
+ 
+FD_ZERO(&amp;fdread);
+FD_ZERO(&amp;fdwrite);
+FD_ZERO(&amp;fdexcep);
+ 
+/* get file descriptors from the transfers */
+mc = curl_multi_fdset(multi_handle, &amp;fdread, &amp;fdwrite, &amp;fdexcep, &amp;maxfd);
+ 
+if(maxfd == -1) {
+  SHORT_SLEEP;
+  rc = 0;
+}
+else
+  rc = select(maxfd+1, &amp;fdread, &amp;fdwrite, &amp;fdexcep, &amp;timeout);
+ 
+switch(rc) {
+case -1:
+  /* select error */
+  break;
+case 0:
+default:
+  /* timeout or readable/writable sockets */
+  curl_multi_perform(multi_handle, &amp;still_running);
+  break;
+}
+ 
+/* if there are still transfers, loop! */
+--*/</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+SEE ALSO
+, , , curl_multi_fdset, , 
+
+          <a href="curl_multi_init.htm">curl_multi_init</a>,
+          <a href="curl_easy_cleanup.htm">curl_multi_cleanup</a>,
+          <a href="curl_multi_wait.htm">curl_multi_wait</a>,
+
+          <a href="curl_easy_cleanup.htm">curl_multi_info_read</a>,
+          <a href="CURLcode.htm">CURLcode</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

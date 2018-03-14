@@ -11356,7 +11356,9 @@ integer SNtyp
 -- "constant object", which means "no type check; infer the type as best you can".
                 elsif SNtyp=S_Type then
                     skipSpacesAndComments()
-                    if Ch!=-1 and chartype=LETTER then
+--6/3/18:
+--                  if Ch!=-1 and chartype=LETTER then
+                    if Ch!=-1 and (chartype=LETTER or Ch='{') then
                         Ntype = N
                         getToken()
                     else
@@ -11763,13 +11765,14 @@ end function
 --DEV not documented
 --with trace
 procedure DoEnum()
-integer nxt
+integer nxt, prev
 integer wasttidx, N, O
 integer wastokcol, rtntokcol, rtntokline
 integer slink, glink, scope, state
 sequence symtabN, symtabO   -- copies of symtab[x]
 integer step = 1, mul = 0, typeid = 0, tmp, pN, typesetN
 sequence typeset
+bool prevset = false
 
     nxt = 1
     MatchString(T_enum)
@@ -11850,8 +11853,10 @@ sequence typeset
             MatchChar('=',float_valid:=true)
             if mapEndToMinusOne='$' and toktype=DIGIT and TokN=-1 then  -- ...,x=$ case
                 -- (mapEndToMinusOne of '$' used as a flag later on)
---DEV may need a prev (spotted in passing)
-                O = addUnnamedConstant(nxt-1, T_integer)
+--DEV may need a prev (spotted in passing) [FIXED]
+--              O = addUnnamedConstant(nxt-1, T_integer)
+                if not prevset then Aborp("no prior value") end if
+                O = addUnnamedConstant(prev, T_integer)
                 symtabO = symtab[O]
             else
                 mapEndToMinusOne = 0
@@ -11947,19 +11952,22 @@ sequence typeset
 --          end if
         end if
 
-        if mul then
-            nxt *= step
-        else
-            nxt += step
-        end if
-
         symtabN[S_ErrV] = wastokcol
         symtab[N] = symtabN
 
         if mapEndToMinusOne='$' then -- ..,x=$ case
             mapEndToMinusOne = 0
             getToken()
-            exit
+-- removed 24/2/18:
+--          exit
+        else
+            prev = nxt
+            prevset = true
+            if mul then
+                nxt *= step
+            else
+                nxt += step
+            end if
         end if
         if toktype!=',' then exit end if
         mapEndToMinusOne = -2

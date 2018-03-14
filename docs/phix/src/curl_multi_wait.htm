@@ -1,0 +1,210 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">curl_multi_wait</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\libcurl.e
+            <br>
+            <br>
+            {<a href="CURLcode.htm#CURLMcode">CURLMcode</a> curlmcode, <a href="integer.htm">integer</a> numfds} = 
+            curl_multi_wait(<a href="atom.htm">atom</a> curlm, 
+                            <a href="atom.htm">atom</a> p_extra_fds,
+                            <a href="integer.htm">integer</a> nextra_fds,
+                            <a href="integer.htm">integer</a> timeout_ms)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Polls on all easy handles in a multi handle.
+            <br>
+            <br>
+            curl_multi_wait polls all file descriptors used by the curl easy handles contained in the given multi handle set. <br>
+            It will block until activity is detected on at least one of the handles or timeout_ms has passed.<br>
+            Alternatively, if the multi handle has a pending internal timeout that has a shorter expiry time than timeout_ms, 
+            that shorter time will be used instead to make sure timeout accuracy is reasonably kept.
+            <br>
+            <br>
+            The calling application may pass additional curl_waitfd structures which are similar to poll(2)&rsquo;s pollfd structure 
+            to be waited on in the same call.
+            <br>
+            <br>
+            On completion it also returns the total number of file descriptors on which interesting events occurred. <br>
+            This number can include both libcurl internal descriptors as well as descriptors provided in extra_fds.
+            <br>
+            <br>
+            If no extra file descriptors are provided and libcurl has no file descriptor to offer to wait for, this function will return immediately.
+            <br>
+            <br>
+            This function is encouraged to be used instead of select(3) when using the multi interface to allow applications to easier 
+            circumvent the common problem with 1024 maximum file descriptors.
+            <br>
+            <br>
+            The curl_waitfd structure is defined as follows (if in use, p_extra_fds should be allocated and initialised memory of this size,
+            times nextra_fds):
+ <pre>
+struct curl_waitfd {
+  curl_socket_t fd;
+  short events;
+  short revents;
+};
+ </pre>
+            and the following bit flags apply to curl_waitfd.events:
+            <br>
+            <br>
+            CURL_WAIT_POLLIN: indicates the socket should poll on read events such as new data received.<br>
+            CURL_WAIT_POLLPRI: indicates the socket should poll on high priority read events such as out of band data.<br>
+            CURL_WAIT_POLLOUT: indicates the socket should poll on write events such as the socket being clear to write without blocking.
+            <br>
+            <br>
+            Return value: <a href="CURLcode.htm#CURLMcode">CURLMcode</a> type, general libcurl multi interface error code.
+            <br>
+            <br>
+            Availability: This function was added in libcurl 7.28.0.
+         </td>
+        </tr>
+
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+-- (This is not a complete runnable example)
+
+atom easy_handle
+atom multi_handle
+ 
+/* add the individual easy handle */
+curl_multi_add_handle(multi_handle, easy_handle)
+ 
+while 1 do
+    CURLMcode mc
+    integer still_running, numfds, repeats=0
+ 
+    {mc,still_running} = curl_multi_perform(multi_handle)
+
+    -- DEV/SUG: if still_running!=was_still_running then ??? end if
+    
+    if still_running=0 then exit end if
+ 
+    if mc=CURLM_OK then
+        /* wait for activity, timeout or "nothing" */
+        {mc,numfds} = curl_multi_wait(multi_handle, NULL, 0, 1000)
+    end if
+ 
+    if mc!=CURLM_OK then
+        printf(2, "curl_multi failed, code %d.n", {mc})
+        exit
+    end if
+ 
+    --
+    -- numfds being zero means either a timeout or no file descriptors to wait for. 
+    -- Try timeout on first occurrence, then assume no file descriptors and no file 
+    -- descriptors to wait for means wait for 100 milliseconds.
+    --
+    if numfds=0 then
+        repeats += 1 /* count number of repeated zero numfds */
+        if repeats>1 then
+            sleep(0.1) /* sleep 100 milliseconds */
+        end if
+    else
+        repeats = 0
+    end if
+end while
+ 
+curl_multi_remove_handle(multi_handle, easy_handle)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- (This is not a complete runnable example)
+
+</i></font><font color="#004080">atom</font><font color="#000000"> easy_handle
+</font><font color="#004080">atom</font><font color="#000000"> multi_handle
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* add the individual easy handle */
+</i></font><font color="#5E005E">curl_multi_add_handle</font><font color="#0000FF">(</font><font color="#000000">multi_handle</font><font color="#0000FF">,</font><font color="#000000"> easy_handle</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do
+</font><font color="#5E005E">    CURLMcode</font><font color="#000000"> mc
+</font><font color="#004080">    integer</font><font color="#000000"> still_running</font><font color="#0000FF">,</font><font color="#000000"> numfds</font><font color="#0000FF">,</font><font color="#000000"> repeats</font><font color="#0000FF">=</font><font color="#000000">0
+</font><font color="#C0C0C0"> 
+</font><font color="#0000FF">    {</font><font color="#000000">mc</font><font color="#0000FF">,</font><font color="#000000">still_running</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_multi_perform</font><font color="#0000FF">(</font><font color="#000000">multi_handle</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>    -- DEV/SUG: if still_running!=was_still_running then ??? end if
+</i></font><font color="#C0C0C0">    
+</font><font color="#008080">    if</font><font color="#000000"> still_running</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if
+</font><font color="#C0C0C0"> 
+</font><font color="#008080">    if</font><font color="#000000"> mc</font><font color="#0000FF">=</font><font color="#004600">CURLM_OK</font><font color="#008080"> then
+</font><font color="#000080"><i>        /* wait for activity, timeout or "nothing" */
+</i></font><font color="#0000FF">        {</font><font color="#000000">mc</font><font color="#0000FF">,</font><font color="#000000">numfds</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_multi_wait</font><font color="#0000FF">(</font><font color="#000000">multi_handle</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> 1000</font><font color="#0000FF">)
+</font><font color="#008080">    end if
+</font><font color="#C0C0C0"> 
+</font><font color="#008080">    if</font><font color="#000000"> mc</font><font color="#0000FF">!=</font><font color="#004600">CURLM_OK</font><font color="#008080"> then
+</font><font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "curl_multi failed, code %d.n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">mc</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">        exit
+    end if
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>    --
+    -- numfds being zero means either a timeout or no file descriptors to wait for. 
+    -- Try timeout on first occurrence, then assume no file descriptors and no file 
+    -- descriptors to wait for means wait for 100 milliseconds.
+    --
+</i></font><font color="#008080">    if</font><font color="#000000"> numfds</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then
+</font><font color="#000000">        repeats</font><font color="#0000FF"> +=</font><font color="#000000"> 1</font><font color="#000080"><i> /* count number of repeated zero numfds */
+</i></font><font color="#008080">        if</font><font color="#000000"> repeats</font><font color="#0000FF">&gt;</font><font color="#000000">1</font><font color="#008080"> then
+</font><font color="#7060A8">            sleep</font><font color="#0000FF">(</font><font color="#000000">0.1</font><font color="#0000FF">)</font><font color="#000080"><i> /* sleep 100 milliseconds */
+</i></font><font color="#008080">        end if
+    else
+</font><font color="#000000">        repeats</font><font color="#0000FF"> =</font><font color="#000000"> 0
+</font><font color="#008080">    end if
+end while
+</font><font color="#C0C0C0"> 
+</font><font color="#5E005E">curl_multi_remove_handle</font><font color="#0000FF">(</font><font color="#000000">multi_handle</font><font color="#0000FF">,</font><font color="#000000"> easy_handle</font><font color="#0000FF">)</font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+See also: curl_multi_fdset, 
+          <a href="curl_multi_cleanup.htm">??</a>,
+          <a href="curl_multi_perform.htm">curl_multi_perform</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

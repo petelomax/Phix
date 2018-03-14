@@ -1,0 +1,201 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">LiteZip</h1>
+      <div id="mainSection">
+        A wrapper for LiteZip, a free and easy-to-use zip file handler, as originally published at
+        <a id="ext777" style="color:#9B5565" 
+        href="javascript:ExternalLink('ext777','https://www.codeproject.com/Articles/13370/LiteZip-and-LiteUnzip');">
+        https://www.codeproject.com/Articles/13370/LiteZip-and-LiteUnzip</a>.
+        <br>
+        <br>
+        Allows the creation of and extraction from standard zip archives.
+        <br>
+        <br>
+        The emphasis is very much on the ability to extract from compatible archives automatically, as opposed to the 
+        ability to extract from any old weird format archive.<br>
+        If something (from afar) does not work, you are expected to pull it apart by hand and reconstruct it (perhaps
+        with a different tool) into something that does work.<br>
+        All the files that I have created with 7-Zip have, so far, proved perfectly compatible.
+        <br>
+        <br>
+        One use of this, of particular importance for me, is software distribution. 
+        <br>
+        <br>
+        Requires LiteUnZip.dll (44K) and/or LiteZip.dll (40K) to be installed/distributed, but either may be absent, as 
+        long as only a subset of these routines are actually invoked.<br>
+        They can be left in the builtins\ directory, or copied to the application directory.
+        <br>
+        <br>
+        Note: Currently 32-bit Windows only. However it is open source, I assume 64-bit and/or linux .so files could 
+        probably be built from it reasonably easily.<br>
+        All versions of linux have an &lsquo;unzip&rsquo; command line utility, which can be used instead, however, 
+        no such luck on Windows.
+        <br>
+        <br>
+        Fully-fledged utilities such as 7-Zip produce slightly smaller archives, and in my tests they were about 2 or 3% 
+        smaller (personally I had always planned to use those anyway).<br>
+        In reality the compression routines are provided for completeness only, however in theory the decompression 
+        routines might work better when the same code base originally did the compression, not that I have any direct 
+        evidence of that. On the plus side, the compression routines (as well as the decompression routines) are really 
+        rather easy to use, perhaps even easier than any other way.
+<!--
+        <br>
+        <br>
+        While builtins\libcurl.e (not an autoinclude) is distributed as part of the standard Phix
+        distribution, the dynamic library it needs may already be installed on linux, but on windows
+        must be separately downloaded from 
+          <a id="ext757" style="color:#9B5565" 
+            href="javascript:ExternalLink('ext757','https://curl.haxx.se/download.html');">
+            https://curl.haxx.se/download.html
+          </a>
+        or, for win32/64, I selected the 7.57.0 builds by Stefan Kanthak from that page and made a copy here:
+          <a id="ext767" style="color:#9B5565" 
+            href="javascript:ExternalLink('ext767','http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Libcurldlls');">
+            http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Libcurldlls
+          </a>
+-->
+        <br>
+        <br>
+        <h3>Example 1:</h3>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-z63b-4765-123h-8b2483c92846');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_18b74j93-z63b-4765-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include builtins\LiteZip.e
+
+atom hzip = UnzipOpenFile("phix.0.7.7.1.zip")
+
+ZIPENTRY ze = new_ZIPENTRY()
+integer numitems = UnzipGetItems(hzip,ze)
+?{"numitems",numitems}  -- prints {"numitems",1156}
+
+UnzipSetBaseDir(hzip,current_dir()&"\\test")
+
+?UnzipFindItem(hzip,ze,"readme.txt")    -- prints 0 (ZR_OK)
+?UnzipGetFileName(ze) -- prints current_dir()&"\\test\\readme.txt"
+
+for i=1 to numitems do
+    integer res = UnzipGetItem(hzip, ze, i-1)
+    res = UnzipItemToFile(hzip, ze)
+    printf(1,"\r%2d%%",{(i/numitems)*100})
+end for
+
+UnzipClose(hzip)
+puts(1,"\ndone\n")
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
+
+</font><font color="#004080">atom</font><font color="#000000"> hzip</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipOpenFile</font><font color="#0000FF">(</font><font color="#008000">"phix.0.7.7.1.zip"</font><font color="#0000FF">)
+
+</font><font color="#5E005E">ZIPENTRY</font><font color="#000000"> ze</font><font color="#0000FF"> =</font><font color="#5E005E"> new_ZIPENTRY</font><font color="#0000FF">()
+</font><font color="#004080">integer</font><font color="#000000"> numitems</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipGetItems</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">)
+?{</font><font color="#008000">"numitems"</font><font color="#0000FF">,</font><font color="#000000">numitems</font><font color="#0000FF">} </font><font color="#000080"><i> -- prints {"numitems",1156}
+
+</i></font><font color="#5E005E">UnzipSetBaseDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#5E005E">current_dir</font><font color="#800000">()</font><font color="#0000FF">&amp;</font><font color="#008000">"\\test"</font><font color="#0000FF">)
+
+?</font><font color="#5E005E">UnzipFindItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#008000">"readme.txt"</font><font color="#0000FF">)   </font><font color="#000080"><i> -- prints 0 (ZR_OK)
+</i></font><font color="#0000FF">?</font><font color="#5E005E">UnzipGetFileName</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints current_dir()&amp;"\\test\\readme.txt"
+
+</i></font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> numitems</font><font color="#008080"> do
+</font><font color="#004080">    integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipGetItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000"> ze</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">)
+</font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipItemToFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000"> ze</font><font color="#0000FF">)
+</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\r%2d%%"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">(</font><font color="#000000">i</font><font color="#0000FF">/</font><font color="#000000">numitems</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">end for
+
+</font><font color="#5E005E">UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)
+</font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)</font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+
+        <h3>Example 2:</h3>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j94-z63b-4765-127j-8b2483c92846');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_18b74j94-z63b-4765-127j-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include builtins\LiteZip.e
+
+atom hzip = ZipCreateFile("test.zip")
+integer res
+res = ZipAddFile(hzip,"LiteZip.dll")
+res = ZipAddFile(hzip,"LiteUnzip.dll")
+res = ZipAddDir(hzip,"test\\LiteZip",5)
+res = ZipAddFolder(hzip,"empty")
+ZipClose(hzip)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
+
+</font><font color="#004080">atom</font><font color="#000000"> hzip</font><font color="#0000FF"> =</font><font color="#5E005E"> ZipCreateFile</font><font color="#0000FF">(</font><font color="#008000">"test.zip"</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> res
+res</font><font color="#0000FF"> =</font><font color="#5E005E"> ZipAddFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"LiteZip.dll"</font><font color="#0000FF">)
+</font><font color="#000000">res</font><font color="#0000FF"> =</font><font color="#5E005E"> ZipAddFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"LiteUnzip.dll"</font><font color="#0000FF">)
+</font><font color="#000000">res</font><font color="#0000FF"> =</font><font color="#5E005E"> ZipAddDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"test\\LiteZip"</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)
+</font><font color="#000000">res</font><font color="#0000FF"> =</font><font color="#5E005E"> ZipAddFolder</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"empty"</font><font color="#0000FF">)
+</font><font color="#5E005E">ZipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+        It does not get any simpler than that. You may prefer to declare res as an object, and test it for string after each step.
+        <br>
+        <br>
+        Not [yet] attempted:
+        <br>
+        <br>
+         UnzipItemToBuffer<br>
+         UnzipItemToHandle<br>
+         UnzipOpenBuffer[Raw]<br>
+         UnzipOpenFileRaw<br>
+         UnzipOpenHandle[Raw]
+        <br>
+        <br>
+         ZipAddBuffer[Raw]<br>
+         ZipAddFileRaw<br>
+         ZipAddHandle[Raw]<br>
+         ZipAddPipe[Raw]<br>
+         ZipCreateHandle<br>
+         ZipCreateBuffer<br>
+         ZipGetMemory<br>
+         ZipResetMemory<br>
+         ZipOptions (options are TZIP_OPTION_GZIP and TZIP_OPTION_ABORT only anyway)
+        <br>
+        <br>
+        None of those are particularly important for dealing with real files and real .zip files, but may have uses for eg 
+        <a href="ipc.htm">ipc</a> or embedded resources.
+        <br>
+        <br>
+        Note this wrapper uses an internal ZR_MESSAGES constant instead of (Unz|Z)ipFormatMessage().
+        <br>
+        <br>
+        I have also deliberately omitted support for passwords, but adding that should not be difficult, if ever needed,
+        though that I frankly doubt, given how many programs now exist that can easily crack them.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

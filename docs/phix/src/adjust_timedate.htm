@@ -24,7 +24,7 @@
           <b>Description:</b>
          </td>
          <td>
-            returns a <a href="timedatetype.htm">timedate</a> adjusted by the specified delta in seconds
+            returns a <a href="timedatetype.htm">timedate</a> adjusted by the specified delta in seconds.
          </td>
         </tr>
         <tr>
@@ -35,12 +35,14 @@
             The delta parameter is normally the result of a call to <code><a href="timedelta.htm">timedelta</a>()</code>.
             <br>
             <br>
-            If the <a href="timedatetype.htm">timedate</a> has a timezone with a daylight savings rule, 
-            it automatically toggles on or off as the date crosses the start and end dates, with the 
-            appropriate (additional) time shift.
+            If the <a href="timedatetype.htm">timedate</a> has a timezone with a daylight savings rule, it automatically toggles on or off 
+            as the date crosses the start and end dates, with the appropriate (additional) time shift.
             <br>
             <br>
-            Likewise the day of week and day of year are automatically recalculated.
+            While the day of year is automatically recalculated, note however this routine assumes that td[<a href="date.htm">DT_DOW</a>] is 
+            actually td[<a href="date.htm">DT_MSEC</a>] and applies any fraction of a second in delta accordingly. As per the example below, 
+            while format_timedate() does not actually use or believe the content of td[<a href="date.htm">DT_DOW</a>], you might need that 
+            commented out line, or similar, if you are using it directly.
          </td>
         </tr>
         <tr>
@@ -51,9 +53,12 @@
 <!--eucode>
 include builtins\timedate.e
 timedate td = parse_date_string("1/1/2015",{"D/M/YYYY"})
-td = adjust_timedate(td,timedelta(days:=4))
 ?format_timedate(td,"Dddd, Mmmm dst, yyyy")
--- displays "Friday, January 5th, 2015"
+-- displays "Thursday, January 1st, 2015"
+td = adjust_timedate(td,timedelta(days:=4))
+--td[DT_DOW] = day_of_week(td[DT_YEAR],td[DT_MONTH],td[DT_DAY])
+?format_timedate(td,"Dddd, Mmmm dst, yyyy")
+-- displays "Monday, January 5th, 2015"
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\timedate.e

@@ -871,6 +871,7 @@ end function
 -- See Also:
 -- [[:peek_string]]
 
+--/*
 public function peek_wstring(atom addr)
 atom ptr
     ptr = addr
@@ -881,6 +882,7 @@ atom ptr
 
     return peek2u({addr, (ptr-addr)/2})
 end function
+--*/
 
 --****
 -- === Memory disposal

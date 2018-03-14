@@ -11,7 +11,7 @@ sequence dot
 sequence t
 --  --   t={ 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }           -- now done in init (forward refs).
 
-atom kernel32, xGetLocalTime
+atom kernel32, xGetLocalTime, xGetSystemTime
 integer dinit = 0
 
 procedure initd()
@@ -20,6 +20,7 @@ procedure initd()
     if platform()=WINDOWS then
         kernel32 = open_dll("kernel32.dll")
         xGetLocalTime = define_c_proc(kernel32,"GetLocalTime",{C_PTR})
+        xGetSystemTime = define_c_proc(kernel32,"GetSystemTime",{C_PTR})
     end if
     dot = {0,31,59,90,120,151,181,212,243,273,304,334}
     t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
@@ -108,6 +109,8 @@ global constant
 (   DT_MSEC   = 7, )
     DT_DOY    = 8
 --*/
+--DEV (temp, now in psym.e)
+constant DT_GMT=-1
 
 global function date(bool bMsecs = false)
 --
@@ -132,7 +135,11 @@ sequence res
     if not dinit then initd() end if
     if platform()=WINDOWS then
         xSystemTime = allocate(STsize)
-        c_proc(xGetLocalTime,{xSystemTime})
+        if bMsecs=DT_GMT then
+            c_proc(xGetSystemTime,{xSystemTime})
+        else
+            c_proc(xGetLocalTime,{xSystemTime})
+        end if
         year = peek2u(xSystemTime+STwYear)
 --      ys1900 = year-1900
         month = peek2u(xSystemTime+STwMonth)
@@ -144,13 +151,18 @@ sequence res
         dow = peek2u(xSystemTime+STwDayOfWeek)+1
         free(xSystemTime)
     elsif platform()=LINUX then
+--      integer opcode = iff(machine_bits()=32?iff(bMsecs=DT_GMT?25:13)     -- 25=sys_stime, 13=sys_time
+--                                            :iff(bMsecs=DT_GMT?25:201))   -- 25=sys_stime, 201=sys_time
         #ilASM{
             [ELF32]
 --#     Name                        Registers                                                                                                               Definition
 --                                  eax     ebx                     ecx                     edx                     esi                     edi
 -->13   sys_time                    0x0d    time_t *tloc            -                       -                       -                       -               kernel/posix-timers.c:855
+--no! this is set system time!
+--25    sys_stime                   0x19    time_t *tptr            -                       -                       -                       -               kernel/time.c:81
                 xor ebx,ebx
-                mov eax,13      -- sys_time
+                mov eax,13          -- sys_time
+--              mov eax,[opcode]    -- sys_time/sys_stime
                 int 0x80
                 xor ebx,ebx
                 push ebx
@@ -172,7 +184,66 @@ sequence res
                 call :%pStoreFlt    -- (also sets r15 to h4)
             []
               }
-        msecs = 0 --DEV (use sys_clock_gettime as per pTime.e)
+        msecs = 0 --DEV (use sys_clock_gettime as per pTime.e) [or sys_gettimeofday?]
+--/*
+78      sys_gettimeofday            0x4e    struct timeval *tv      struct timezone *tz     -                       -                       -               kernel/time.c:101
+
+Arguments
+
+eax     78
+ebx     Pointer to a timeval structure (this parameter can be 0): 
+struc timeval
+{
+tv_sec  rd 1 ; seconds 
+tv_usec rd 1 ; microseconds 
+}
+ecx     Pointer to a timezone structure (this parameter can be 0): 
+struc timezone
+{
+tz_minuteswest rd 1 
+tz_dsttime     rd 1 
+}
+
+timezone members:
+
+tz_minuteswest
+Number of minutes west of UTC.
+tz_dsttime
+Contains a symbolic constant (values are given below) that indicates in which part of the year Daylight Saving Time is in force. 
+(Note: its value is constant throughout the year: it does not indicate that DST is in force, it just selects an algorithm.) 
+The daylight saving time algorithms defined are as follows :
+DST_NONE    - not on dst
+DST_USA     - USA style dst 
+DST_AUST    - Australian style dst 
+DST_WET     - Western European dst 
+DST_MET     - Middle European dst 
+DST_EET     - Eastern European dst 
+DST_CAN     - Canada 
+DST_GB      - Great Britain and Eire 
+DST_RUM     - Rumania 
+DST_TUR     - Turkey 
+DST_AUSTALT - Australian style with shift in 1986
+
+Return values
+
+If the system call succeeds the return value is 0.
+If the system call fails the return value is one of the following errno values:
+
+-EFAULT One of ecx or edx pointed outside the accessible address space.
+-EINVAL Timezone (or something else) is invalid.
+    
+#define DST_NONE        0       /* not on dst */
+#define DST_USA         1       /* USA style dst */
+#define DST_AUST        2       /* Australian style dst */
+#define DST_WET         3       /* Western European dst */
+#define DST_MET         4       /* Middle European dst */
+#define DST_EET         5       /* Eastern European dst */
+#define DST_CAN         6       /* Canada */
+#define DST_GB          7       /* Great Britain and Eire */
+#define DST_RUM         8       /* Rumania */
+#define DST_TUR         9       /* Turkey */
+#define DST_AUSTALT     10      /* Australian style with shift in 1986 */
+--*/
         secs = remainder(xSystemTime,60)
         xSystemTime = floor(xSystemTime/60)
         mins = remainder(xSystemTime,60)

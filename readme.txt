@@ -28,10 +28,37 @@ very useful. But it is now all open source.
 
 Version 0.7.8
 =============
+10/01/2018: BUGFIX: when the file/directory is not found, apply get_proper_path() 
+            recursively to the parent directory.
 21/01/2018: BUGFIX: rand() effectively preserved the high bit for ranges over
             #7FFFFFFF. Changed a jge (signed jump) to jae (unsigned). 
             Also changed the 64-bit store to deal with 64-bit results above
             #7FFF_FFFF_FFFF_FFFF correctly.
+03/02/2018: Corrected definition of xGetExitCodeThread.
+15/02/2018: New LiteZip wrapper and documentation added.
+15/02/2018: BUGFIX: Slice replacement was out-by-one, eg
+                s = { 1,2,3,4,5,6 } 
+                s[1..1] = 9
+            was incorrectly {9,1,2,3,4,5}, now yields {9,2,3,4,5,6}.
+            Thanks to Tom for finding this. 
+17/02/2018: Bugfix: parse_json() did not cope with negative numbers.
+17/02/2018: Bugfix: setup.ew crashed for registry keys of length 0.
+20/02/2018: Removed spurious sanity check in change_timezone().
+24/02/2018: =$ can now be used anywhere except the first in an enum.
+            Previously =$ only worked for delta==+1, but DoEnum() 
+            now has a prev var, so that any "by delta" now works.
+28/02/2018: Added peek_wstring() and poke_wstring().
+04/03/2018: adjust_timedate() no longer clobbers DT_MSEC aka DT_DOW.
+05/03/2018: timedate.e: added "ms" to extract/print milliseconds.
+            (not thoroughly tested, possible ambiguity issue noticed)
+06/03/2018: constant integer {a,b} = <expr> style syntax now supported.
+06/03/2018: date(DT_GMT) now returns the GMT (==UTC) time, irrespective 
+            of location, with milliseconds. 
+14/03/2018: Fixed potential thread safety issue in sprint().
+14/03/2018: Upgraded to IUP 3.24. Three routines have been removed:
+            IupColorbar, IupColorBrowser, and IupDial.
+
+
 
 Version 0.7.5
 =============

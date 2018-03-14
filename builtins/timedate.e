@@ -449,6 +449,7 @@ enum LITERAL,
      HOUR,
      MINUTE,
      SECOND,
+     MSEC,
      AM,
      TZ,
      TH
@@ -917,6 +918,7 @@ constant edescs = {"literal character mismatch",    -- 1
                    "incomplete input",              -- 19
                    "month next to hour/second",     -- 20
                    "minute next to year/day",       -- 21
+                   "invalid milliseconds",          -- 22
                    $}
 
 object ecxtra = 0
@@ -1008,6 +1010,13 @@ integer closequote
                         fsize = i
                     end for
                     if not fcase 
+                    and fsize=1
+--                  and ch='s' then
+                    and nxtch(fmt,fmtdx,'s',fcase,1) then
+                        ftyp = MSEC
+                        fmtdx += 1
+                        fsize = 2
+                    elsif not fcase 
                     and fsize<=2 then
                         ftyp = MINUTE
                     else
@@ -1184,6 +1193,7 @@ integer sdx = 0,    -- chars processed in s
         hour = 0,
         minute = 0,
         second = 0,
+        msecs = 0,  -- (returned in dayofweek)
         pm = 0,     -- 1=am, 2=pm
         dayofweek = 0,
         dayofyear = 0,
@@ -1358,6 +1368,15 @@ integer sdx = 0,    -- chars processed in s
                         exit
                     end if
                 end if
+            case MSEC:
+                {ecode,sdx,msecs} = get_number(s,sdx,3)
+                if ecode=0 then
+                    if msecs<0 or msecs>999 then
+                        ecode = 22
+                        exit
+                    end if
+                end if
+                dayofweek = msecs
             case AM:
                 if pftyp=MONTH then
                     ecode = 20
@@ -1572,6 +1591,7 @@ integer fmtdx = 0,
         dayofyear,
         minute,
         second,
+        msecs,
         tz,
         pftyp = -1
 object x
@@ -1667,15 +1687,16 @@ object x
                         ?9/0    -- should never happen
                 end switch
             case DOW:
-                dayofweek = td[DT_DOW]
-                if dayofweek=0 then
+--5/3/18 td[DT_DOW] may contain miliseconds...
+--              dayofweek = td[DT_DOW]
+--              if dayofweek=0 then
                     year  = td[DT_YEAR]
                     month = td[DT_MONTH]
                     if month=0 then ecode = 5 exit end if
                     day   = td[DT_DAY]
                     if day=0 then ecode = 6 exit end if
                     dayofweek = day_of_week(year,month,day)
-                end if
+--              end if
                 switch fsize do
                     case 3,4:
                         x = days[currlang][dayofweek]
@@ -1742,6 +1763,9 @@ object x
                     default:
                         ?9/0    -- should never happen
                 end switch
+            case MSEC:
+                msecs = td[DT_MSEC]
+                x = sprintf("%03d",msecs)
             case AM:
                 if pftyp=MONTH then
                     ecode = 20

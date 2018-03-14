@@ -445,3 +445,14 @@ global function parse_json(string s)
     return parse_json_rec()
 end function
 
+global function extract_json_field(sequence json_object, string name, object dflt="?9/0")
+    if json_object[1]!=JSON_OBJECT then ?9/0 end if
+    for i=2 to length(json_object) do
+        if json_object[i][1]=name then
+            return json_object[i][2]
+        end if
+    end for
+    if dflt="?9/0" then ?9/0 end if
+    return dflt
+end function
+

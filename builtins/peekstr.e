@@ -300,3 +300,28 @@ end function
 --  @@:
 --  ret
 --
+
+global function peek_wstring(atom addr)
+atom ptr
+    ptr = addr
+
+    while peek2u(ptr) do
+        ptr += 2
+    end while
+
+    return peek2u({addr, (ptr-addr)/2})
+end function
+
+--/* or maybe...
+global function peek_wstring(atom addr)
+integer wch
+sequence res = {}
+    while 1 do
+        wch = peek2u(addr)
+        if wch=0 then exit end if
+        res &= wch
+        addr += 2
+    end while
+    return res
+end function
+--*/

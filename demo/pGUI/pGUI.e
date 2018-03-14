@@ -339,7 +339,10 @@ end function
 procedure iup_poke_string_pointer_array(atom ptr, sequence strings)
     for i=1 to length(strings) do
         string si = strings[i]
-        pokeN(ptr,si,machine_word())
+--DEV (spotted in passing) one of these next two lines is certainly wrong anyway...
+-- I suspect it should read IupRawStringPtr(si) - changed w/o any testing.
+--      pokeN(ptr,si,machine_word())
+        pokeN(ptr,IupRawStringPtr(si),machine_word())
         ptr += machine_word()
     end for
 end procedure
@@ -1232,9 +1235,9 @@ atom
     xIupControlsOpen,
     
     xIupCells,
-    xIupColorbar,
-    xIupColorBrowser,
-    xIupDial,
+--  xIupColorbar,       -- removed in 3.24
+--  xIupColorBrowser,   -- removed in 3.24
+--  xIupDial,           -- removed in 3.24
     xIupMatrix,
 --  xIupMatSetAttribute,
 --  xIupMatStoreAttribute,
@@ -1581,9 +1584,9 @@ end if
 
     xIupControlsOpen        = iup_c_proc(iupControls, "IupControlsOpen", {})
     xIupCells               = iup_c_func(iupControls, "IupCells", {},P)
-    xIupColorbar            = iup_c_func(iupControls, "IupColorbar", {},P)
-    xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)
-    xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)
+--  xIupColorbar            = iup_c_func(iupControls, "IupColorbar", {},P)      -- removed in 3.24
+--  xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)  -- removed in 3.24
+--  xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)         -- removed in 3.24
     xIupMatrix              = iup_c_func(iupControls, "IupMatrix", {P},P)
 --  xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
 --  xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
@@ -2793,7 +2796,8 @@ integer r
 end procedure
 
 global procedure IupShowXY(Ihandle ih, integer x=IUP_CURRENT, integer y=IUP_CURRENT)
-    if c_func(xIupShowXY, {ih, x, y})!=IUP_NOERROR then ?9/0 end if
+    integer err = c_func(xIupShowXY, {ih, x, y})
+    if err!=IUP_NOERROR then ?9/0 end if
 end procedure
 
 global procedure IupHide(Ihandle ih)
@@ -3377,32 +3381,35 @@ global function IupCells(string attributes="", dword_seq data={})
     return ih
 end function
 
-global function IupColorbar(string attributes="", dword_seq data={})
-    IupControlsOpen()
-    Ihandle ih = c_func(xIupColorbar, {})
-    if length(attributes) then
-        IupSetAttributes(ih, attributes, data)
-    end if
-    return ih
-end function
+-- removed in 3.24:
+--global function IupColorbar(string attributes="", dword_seq data={})
+--  IupControlsOpen()
+--  Ihandle ih = c_func(xIupColorbar, {})
+--  if length(attributes) then
+--      IupSetAttributes(ih, attributes, data)
+--  end if
+--  return ih
+--end function
 
-global function IupColorBrowser(string attributes="", dword_seq data={})
-    IupControlsOpen()
-    Ihandle ih = c_func(xIupColorBrowser, {})
-    if length(attributes) then
-        IupSetAttributes(ih, attributes, data)
-    end if
-    return ih
-end function
+-- removed in 3.24:
+--global function IupColorBrowser(string attributes="", dword_seq data={})
+--  IupControlsOpen()
+--  Ihandle ih = c_func(xIupColorBrowser, {})
+--  if length(attributes) then
+--      IupSetAttributes(ih, attributes, data)
+--  end if
+--  return ih
+--end function
 
-global function IupDial(string orientation, string attributes="", dword_seq data={})
-    IupControlsOpen()
-    Ihandle ih = c_func(xIupDial, {orientation})
-    if length(attributes) then
-        IupSetAttributes(ih, attributes, data)
-    end if
-    return ih
-end function
+-- removed in 3.24:
+--global function IupDial(string orientation, string attributes="", dword_seq data={})
+--  IupControlsOpen()
+--  Ihandle ih = c_func(xIupDial, {orientation})
+--  if length(attributes) then
+--      IupSetAttributes(ih, attributes, data)
+--  end if
+--  return ih
+--end function
 
 global function IupMatrix(string attributes="", sequence data={})
     IupControlsOpen()

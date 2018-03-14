@@ -161,11 +161,13 @@ procedure rPrint(object a)
     end if
 end procedure
 
-ifdef UNIX then
-    public constant PRETTY_DEFAULT = {1, 2, 1, 78, "%d", "%.10g", 32, 126, 1000000000, 1}
-elsedef
-    public constant PRETTY_DEFAULT = {1, 2, 1, 78, "%d", "%.10g", 32, 127, 1000000000, 1}
-end ifdef
+--ifdef UNIX then
+--  public constant PRETTY_DEFAULT = {1, 2, 1, 78, "%d", "%.10g", 32, 126, 1000000000, 1}
+--elsedef
+--  public constant PRETTY_DEFAULT = {1, 2, 1, 78, "%d", "%.10g", 32, 127, 1000000000, 1}
+--end ifdef
+constant Max_ASCII = iff(platform()=LINUX?126:127)
+global constant PRETTY_DEFAULT = {1, 2, 1, 78, "%d", "%.10g", 32, Max_ASCII, 1000000000, 1}
 
 public enum
     DISPLAY_ASCII = 1,

@@ -1,0 +1,142 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">curl_multi_timeout</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\libcurl.e
+            <br>
+            <br>
+            {<a href="CURLcode.htm#CURLMcode">CURLMcode</a> res,
+             <a href="integer.htm">integer</a> timeout}
+            = curl_multi_timeout(<a href="atom.htm">atom</a> mcurl)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            How long to wait for action before proceeding.
+            <br>
+            <br>
+            An application using the libcurl multi interface should call curl_multi_timeout to figure out how long it should wait for 
+            socket actions - at most - before proceeding.
+            <br>
+            <br>
+            Proceeding means either doing the socket-style timeout action: call the curl_multi_socket_action function with the sockfd argument 
+            set to CURL_SOCKET_TIMEOUT, or call <a href="curl_multi_perform.htm">curl_multi_perform</a>() if you&rsquo;re using the simpler and 
+            older multi interface approach.
+            <br>
+            <br>
+            The timeout value returned is in number of milliseconds at this very moment. <br>
+            If 0, it means you should proceed immediately without waiting for anything. 
+            If it returns -1, there&rsquo;s no timeout at all set.
+            <br>
+            <br>
+            An application that uses the multi_socket API SHOULD NOT use this function, but SHOULD instead use 
+            curl_multi_setopt and its CURLMOPT_TIMERFUNCTION option for proper and desired behavior.
+            <br>
+            <br>
+            Note: if libcurl returns a -1 timeout here, it just means that libcurl currently has no stored timeout value. <br>
+            You must not wait too long (more than a few seconds perhaps) before you call <a href="curl_multi_perform.htm">curl_multi_perform</a>() again.
+            <br>
+            <br>
+            Return value: The standard <a href="CURLcode.htm#CURLMcode">CURLMcode</a> for multi interface error codes.
+            <br>
+            <br>
+            Typical usage: Call curl_multi_timeout, then wait for action on the sockets. <br>
+            You figure out which sockets to wait for by calling curl_multi_fdset or by a previous call to curl_multi_socket.
+            <br>
+            <br>
+            Availability: This function was added in libcurl 7.15.4.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-q854-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+
+-- (This is not a complete runnable sample)
+
+CURLMcode m
+integer timeout
+ 
+{m,timeout} = curl_multi_timeout(multi_handle)
+if m!=CURLM_OK then ?"???" end if
+if timeout<0 then 
+  /* no set timeout, use a default */
+  timeo = 980
+end if
+ 
+/* wait for activities no longer than the set timeout */
+-- (see socket.e)
+{ret_code, {read_set, write_set, error_set}} = select(read_set, write_set, error_set, timeout)
+</eucode-->
+<pre>
+<font color="#000000">
+</font><font color="#000080"><i>-- (This is not a complete runnable sample)
+
+</i></font><font color="#5E005E">CURLMcode</font><font color="#000000"> m
+</font><font color="#004080">integer</font><font color="#000000"> timeout
+</font><font color="#C0C0C0"> 
+</font><font color="#0000FF">{</font><font color="#000000">m</font><font color="#0000FF">,</font><font color="#000000">timeout</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_multi_timeout</font><font color="#0000FF">(</font><font color="#000000">multi_handle</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> m</font><font color="#0000FF">!=</font><font color="#004600">CURLM_OK</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#008000">"???"</font><font color="#008080"> end if
+if</font><font color="#000000"> timeout</font><font color="#0000FF">&lt;</font><font color="#000000">0</font><font color="#008080"> then 
+</font><font color="#000080"><i>  /* no set timeout, use a default */
+</i></font><font color="#000000">  timeo</font><font color="#0000FF"> =</font><font color="#000000"> 980
+</font><font color="#008080">end if
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* wait for activities no longer than the set timeout */
+-- (see socket.e)
+</i></font><font color="#0000FF">{</font><font color="#000000">ret_code</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">read_set</font><font color="#0000FF">,</font><font color="#000000"> write_set</font><font color="#0000FF">,</font><font color="#000000"> error_set</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#000000"> select</font><font color="#0000FF">(</font><font color="#000000">read_set</font><font color="#0000FF">,</font><font color="#000000"> write_set</font><font color="#0000FF">,</font><font color="#000000"> error_set</font><font color="#0000FF">,</font><font color="#000000"> timeout</font><font color="#0000FF">)</font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+SEE ALSO
+curl_multi_fdset, , curl_multi_socket, 
+          <a href="curl_multi_init.htm">?</a>,
+          <a href="curl_multi_info_read.htm">curl_multi_info_read</a>,
+
+          <a href="curl_multi_setopt.htm">curl_multi_setopt</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

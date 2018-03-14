@@ -560,6 +560,8 @@ integer ch, n
     -- (or maybe parse C constants/enums/#defines?)
     if equal(txt,"LF_FACESIZE") then
         n = 32
+    elsif equal(txt,"MAX_PATH") then
+        n = 260
     else
         n = 0
         for i=1 to length(txt) do

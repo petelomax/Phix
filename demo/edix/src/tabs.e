@@ -58,6 +58,7 @@ integer tab
     while 1 do
         tab = find(#0C,text)
         if not tab then exit end if
+--DEV/SUG if string(text) then... (same several times)
         text[tab] = #A7                 -- form feed (page break)
 --      text[tab..tab] = "\xC2\xA7"     -- form feed (page break)
     end while

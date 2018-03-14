@@ -1773,6 +1773,7 @@ atom pi, inf, nan
     initialConstant("DT_DOW",           7)
     initialConstant("DT_MSEC",          7)
     initialConstant("DT_DOY",           8)
+    initialConstant("DT_GMT",          -1)
 
 --  -- from get.e:
     initialConstant("GET_SUCCESS",      0)
@@ -2536,6 +2537,7 @@ end if
     initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("poke_string",     S_Func,"FNIP",  "pokestr.e",0,E_other)
+    initialAutoEntry("poke_wstring",    S_Func,"FNIP",  "pokestr.e",0,E_other)
     initialAutoEntry("prompt_number",   S_Func,"FSP",   "get.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("rnd",             S_Func,"F",     "prnd.e",0,E_none)
@@ -2584,8 +2586,8 @@ end if
     initialAutoEntry("canonical_path",  S_Func,"FSII",  "pgetpath.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
 --end if
-    initialAutoEntry("prompt_string",   S_Func,"FS",    "get.e",0,E_other)
     initialAutoEntry("peek_string",     S_Func,"FN",    "peekstr.e",0,E_none)
+    initialAutoEntry("prompt_string",   S_Func,"FS",    "get.e",0,E_other)
 if newEmit then
     initialAutoEntry("sprintf",         S_Func,"FPO",   "VM\\pprntfN.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2655,10 +2657,11 @@ end if
     initialAutoEntry("int_to_bits",     S_Func,"FNI",   "machine.e",0,E_none)
     initialAutoEntry("match_replace",   S_Func,"FOPOI", "matchrepl.e",0,E_none)
     symtab[symlimit][S_ParmN] = 3
-    initialAutoEntry("pad_head",        S_Func,"FPIO", "pseqc.e",0,E_none)
+    initialAutoEntry("pad_head",        S_Func,"FPIO",  "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
-    initialAutoEntry("pad_tail",        S_Func,"FPIO", "pseqc.e",0,E_none)
+    initialAutoEntry("pad_tail",        S_Func,"FPIO",  "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("peek_wstring",    S_Func,"FN",    "peekstr.e",0,E_none)
     initialAutoEntry("permute",         S_Func,"FIP",   "permute.e",0,E_none)
     initialAutoEntry("prime_factors",   S_Func,"FNI",   "pfactors.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1

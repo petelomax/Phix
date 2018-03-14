@@ -1400,7 +1400,13 @@ integer tally = 0
                 end if
 --              void = insertItem(HelpList,ExpandTabs(text[i]),0)
                 tally += 1
-                IupSetAttributeId(HelpList, "", tally, ExpandTabs(text[i]))
+--22/2/18:
+--              IupSetAttributeId(HelpList, "", tally, ExpandTabs(text[i]))
+                sequence line = ExpandTabs(text[i])
+                if not string(line) then
+                    line = utf32_to_utf8(line)
+                end if
+                IupSetAttributeId(HelpList, "", tally, line)
             end if
         end for
     end if
@@ -1844,6 +1850,8 @@ integer lw
                 if targetLine > 0 then
                     if HelpWin=NULL then ?9/0 end if
 --                  setText(HelpWin,xl("Local definition/uses of ")&startWord&xl(" in this source"))
+--11/3/18:
+                    if not string(startWord) then startWord = utf32_to_utf8(startWord) end if
                     IupSetStrAttribute(HelpWin,"TITLE","Local definition/uses of "&startWord&" in this source")
                 else
                     setKeyHelpText()

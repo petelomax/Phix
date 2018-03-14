@@ -1,0 +1,145 @@
+--
+-- list3.exw
+--
+--  More experiments with IupList()
+--
+sequence data
+    data = {"BCN-BTC","BELA-BTC","BLK-BTC","BTCD-BTC","BTM-BTC","BTS-BTC","BURST-BTC","CLAM-BTC","DASH-BTC","DGB-BTC",
+            "DOGE-BTC","EMC2-BTC","FLDC-BTC","FLO-BTC","GAME-BTC","GRC-BTC","HUC-BTC","LTC-BTC","MAID-BTC","OMNI-BTC","NAV-BTC",
+            "NEOS-BTC","NMC-BTC","NXT-BTC","PINK-BTC","POT-BTC","PPC-BTC","RIC-BTC","STR-BTC","SYS-BTC","VIA-BTC","XVC-BTC",
+            "VRC-BTC","VTC-BTC","XBC-BTC","XCP-BTC","XEM-BTC","XMR-BTC","XPM-BTC","XRP-BTC","BTC-USDT","DASH-USDT","LTC-USDT",
+            "NXT-USDT","STR-USDT","XMR-USDT","XRP-USDT","BCN-XMR","BLK-XMR","BTCD-XMR","DASH-XMR","LTC-XMR","MAID-XMR",
+            "NXT-XMR","ETH-BTC","ETH-USDT","SC-BTC","BCY-BTC","EXP-BTC","FCT-BTC","RADS-BTC","AMP-BTC","DCR-BTC","LSK-BTC",
+            "LSK-ETH","LBC-BTC","STEEM-BTC","STEEM-ETH","SBD-BTC","ETC-BTC","ETC-ETH","ETC-USDT","REP-BTC","REP-USDT","REP-ETH",
+            "ARDR-BTC","ZEC-BTC","ZEC-ETH","ZEC-USDT","ZEC-XMR","STRAT-BTC","NXC-BTC","PASC-BTC","GNT-BTC","GNT-ETH","GNO-BTC",
+            "GNO-ETH","BCH-BTC","BCH-ETH","BCH-USDT","ZRX-BTC","ZRX-ETH","CVC-BTC","CVC-ETH","OMG-BTC","OMG-ETH","GAS-BTC",
+            "GAS-ETH","STORJ-BTC"}
+
+include pGUI.e
+
+--#withtype Ihandle
+--#withtype Ihandln
+
+Ihandln dlg = NULL
+Ihandle pairname
+Ihandle filter
+
+string filter_text = ""
+
+procedure set_title(integer pair)
+string text = "None (0)"
+    if pair!=0 then
+        text = IupGetAttributeId(pairname,"",pair)
+--DEV broken:
+--      text = sprintf("%s (%d)",{text,find(text,data)})
+        integer idx = find(text,data)
+        text = sprintf("%s (%d)",{text,idx})
+    end if
+    IupSetAttribute(dlg,"TITLE",text)
+end procedure
+
+--/*
+The Pair dropdown uses a character-driven filter, showing the count of matches, eg DASH (3)
+which means the dropdown will have just 3 entries. When the window first opens, you should
+see " (nn)" which is the full unfiltered count of pairs.
+
+As graphic characters are entered it extends the filter (to the right), but if that would 
+result in zero matches, it trims from the left. Hence entering "DA" might list 3 entries, 
+then keying 'M' might find no matches, and trim it to list those that contain "AM".
+Backspace and delete trim the filter from the right as you would normally expect.
+Any lower case letters are automatically converted to upper case letters.
+Fairly obviously there is a difference between filters of "BTC", BTC-", and "-BTC".
+Should there be exactly one match it is auto-selected, in that way you can (almost) treat 
+the Pair field as a normal text input and enter eg "BTC-USD" directly (in any case).
+
+Note that auto-selection is also going on quietly behind the scenes in the IupList, by
+leftmost letter. For instance if you enter BTC then it may auto-select the first entry
+of the filtered list that begins with 'C'. Obviously there is no such ambiguity when
+you see "(1)", as the count, after the filter text.
+
+If you select the pair ABC-DEF, then obviously BUY is disabled when the balance of DEF
+is zero and SELL is disabled when the balance of ABC is zero. The exclude zeroes box
+hides any pairs for which both balances are zero, but is itself disabled if all your
+balances are zero.
+--*/
+
+procedure set_filter(integer s)
+bool count = 0
+    if s!=0 then
+        filter_text &= s
+    end if
+    IupSetAttribute(pairname,"1",NULL)  -- clear
+    IupSetAttribute(pairname,"SHOWDROPDOWN","NO")
+    while count=0 do
+        for i=1 to length(data) do
+            if length(filter_text)=0
+            or match(filter_text,data[i]) then
+                count += 1
+                IupSetAttributeId(pairname,"",count,data[i])
+            end if
+        end for
+        if count then exit end if
+        filter_text = filter_text[2..$]
+    end while
+    IupSetStrAttribute(filter,"TITLE","%s (%d)",{filter_text,count})
+    if count=1 then
+        IupSetInt(pairname, "VALUE", 1)
+        set_title(1)
+    end if
+end procedure
+
+function pair_valuechanged_cb(Ihandle /*pairname*/)
+    integer pair = IupGetInt(pairname, "VALUE")
+    set_title(pair)
+    return IUP_DEFAULT
+end function
+constant cb_pair_valuechanged = Icallback("pair_valuechanged_cb")
+
+function key_cb(Ihandle ih, atom c)
+    if ih=pairname then
+        if iup_isprint(c) then
+            set_filter(upper(c))
+        elsif c=K_BS or c=K_DEL then
+            if length(filter_text) then
+                filter_text = filter_text[1..$-1]
+                set_filter(0)
+            end if
+        end if
+    end if
+    if c=K_ESC then IupHide(dlg) end if
+    return IUP_DEFAULT
+end function
+constant cb_key = Icallback("key_cb")
+
+function close_cb(Ihandle /*bt_close*/)
+    IupHide(dlg) -- do not destroy, just hide
+    return IUP_DEFAULT
+end function
+constant cb_close = Icallback("close_cb")
+
+procedure create_order_dialog()
+    Ihandle pairlbl = IupLabel("Pair","PADDING=0x4")
+    pairname = IupList("VISIBLECOLUMNS=12, DROPDOWN=YES, VISIBLEITEMS=20")
+    IupSetCallback(pairname, "VALUECHANGED_CB", cb_pair_valuechanged)
+    IupSetCallback(pairname, "K_ANY", cb_key);
+
+    filter = IupLabel("xxxxxxxxxxxxxxxxxxxx")
+
+    Ihandle box = IupHbox({pairlbl,pairname,filter},"MARGIN=10x10, GAP=5")
+
+    dlg = IupDialog(box)
+
+    IupSetCallback(dlg, "CLOSE_CB", cb_close);
+    IupSetAttribute(dlg, "TITLE", "Trade Maker");
+    IupSetCallback(dlg, "K_ANY", cb_key);
+
+end procedure
+
+IupOpen()
+create_order_dialog()
+IupShow(dlg)
+IupSetAttribute(filter, "TITLE", "");
+set_filter(0)
+IupMainLoop()
+IupClose()
+
