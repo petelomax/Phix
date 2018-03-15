@@ -42,8 +42,11 @@ Version 0.7.8
             was incorrectly {9,1,2,3,4,5}, now yields {9,2,3,4,5,6}.
             Thanks to Tom for finding this. 
 17/02/2018: Bugfix: parse_json() did not cope with negative numbers.
+            Thanks to Chris for finding this. 
 17/02/2018: Bugfix: setup.ew crashed for registry keys of length 0.
+            Thanks to Kat for finding this. 
 20/02/2018: Removed spurious sanity check in change_timezone().
+            Thanks to Chris for finding this. 
 24/02/2018: =$ can now be used anywhere except the first in an enum.
             Previously =$ only worked for delta==+1, but DoEnum() 
             now has a prev var, so that any "by delta" now works.

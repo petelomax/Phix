@@ -71,13 +71,15 @@ function link_c_proc(atom dll, sequence name, sequence args)
     return rid
 end function
 
+constant W = machine_word()
+
 -- Note: peek_pointer() on OE is a wrapper for peek4u() -- !!! ffs, jfc !!!
 -- Also note that testing for NULL is meant to be a libcurl-specific thing,
 -- fine by me if you wanna test before all calls instead, and/or make some
 -- nulls (but probably not all) trigger a fatal error.
 function peek_pointer(object pMem)
     if pMem=NULL then return NULL end if
-    return peekNS(pMem,machine_word(),false)
+    return peekNS(pMem,W,false)
 end function
 
 function peek_strings(atom pMem)
@@ -86,7 +88,7 @@ sequence res = {}
         atom pString = peek_pointer(pMem)
         if pString=NULL then exit end if
         res = append(res,peek_string(pString))
-        pMem += machine_word()
+        pMem += W
     end while
     return res
 end function
@@ -106,7 +108,7 @@ global constant
   CURLE_FAILED_INIT              =  2,  -- 2
 --/*
   CURLE_URL_MALFORMAT            =  3,  -- 3
-  CURLE_NOT_BUILT_IN             =  4,  -- 4
+  CURLE_NOT_BUILT_IN             =  4,  -- 4 -- (was CURLE_URL_MALFORMAT_USER?)
   CURLE_COULDNT_RESOLVE_PROXY    =  5,  -- 5
   CURLE_COULDNT_RESOLVE_HOST     =  6,  -- 6
   CURLE_COULDNT_CONNECT          =  7,  -- 7
@@ -114,60 +116,67 @@ global constant
   CURLE_REMOTE_ACCESS_DENIED     =  9,  -- 9 a service was denied by the server
                                  --     --   due to lack of access - when login fails
                                  --     --   this is not returned.
-  CURLE_FTP_ACCEPT_FAILED        = 10,  -- 10
+  CURLE_FTP_ACCEPT_FAILED        = 10,  -- 10   -- (was CURLE_FTP_USER_PASSWORD_INCORRECT?)
   CURLE_FTP_WEIRD_PASS_REPLY     = 11,  -- 11
   CURLE_FTP_ACCEPT_TIMEOUT       = 12,  -- 12 - timeout occurred accepting server
+                                              -- (was CURLE_FTP_WEIRD_USER_REPLY?)
   CURLE_FTP_WEIRD_PASV_REPLY     = 13,  -- 13
   CURLE_FTP_WEIRD_227_FORMAT     = 14,  -- 14
   CURLE_FTP_CANT_GET_HOST        = 15,  -- 15
   CURLE_HTTP2                    = 16,  -- 16 - A problem in the http2 framing layer.
-  CURLE_FTP_COULDNT_SET_TYPE     = 17,  -- 17
+                                              -- (was CURLE_FTP_CANT_RECONNECT?)
+  CURLE_FTP_COULDNT_SET_TYPE     = 17,  -- 17 -- (was CURLE_FTP_COULDNT_SET_BINARY?)
   CURLE_PARTIAL_FILE             = 18,  -- 18
   CURLE_FTP_COULDNT_RETR_FILE    = 19,  -- 19
-  CURLE_OBSOLETE20               = 20,  -- 20 - NOT USED
+  CURLE_OBSOLETE20               = 20,  -- 20 - NOT USED (was CURLE_FTP_WRITE_ERROR?)
   CURLE_QUOTE_ERROR              = 21,  -- 21 - quote command failure
 --*/
-  CURLE_HTTP_RETURNED_ERROR      = 22,  -- 22
+  CURLE_HTTP_RETURNED_ERROR      = 22,  -- 22   -- (was CURLE_HTTP_NOT_FOUND?)
 --/*
   CURLE_WRITE_ERROR              = 23,  -- 23
-  CURLE_OBSOLETE24               = 24,  -- 24 - NOT USED
+  CURLE_OBSOLETE24               = 24,  -- 24 - NOT USED (was CURLE_MALFORMAT_USER?)
   CURLE_UPLOAD_FAILED            = 25,  -- 25 - failed upload "command"
+                                              -- (was CURLE_FTP_COULDNT_STOR_FILE?)
   CURLE_READ_ERROR               = 26,  -- 26 - couldn't open/read from file
   CURLE_OUT_OF_MEMORY            = 27,  -- 27
   -- Note: CURLE_OUT_OF_MEMORY may sometimes indicate a conversion error
   --         instead of a memory allocation error if CURL_DOES_CONVERSIONS
   --         is defined
   CURLE_OPERATION_TIMEDOUT       = 28,  -- 28 - the timeout time was reached
-  CURLE_OBSOLETE29               = 29,  -- 29 - NOT USED
+                                              --  (was CURLE_OPERATION_TIMEOUTED?)
+  CURLE_OBSOLETE29               = 29,  -- 29 - NOT USED (was CURLE_FTP_COULDNT_SET_ASCII?)
   CURLE_FTP_PORT_FAILED          = 30,  -- 30 - FTP PORT operation failed
   CURLE_FTP_COULDNT_USE_REST     = 31,  -- 31 - the REST command failed
-  CURLE_OBSOLETE32               = 32,  -- 32 - NOT USED
+  CURLE_OBSOLETE32               = 32,  -- 32 - NOT USED (was CURLE_FTP_COULDNT_GET_SIZE)
   CURLE_RANGE_ERROR              = 33,  -- 33 - RANGE "command" didn't work
+                                              -- (was CURLE_HTTP_RANGE_ERROR)
   CURLE_HTTP_POST_ERROR          = 34,  -- 34
   CURLE_SSL_CONNECT_ERROR        = 35,  -- 35 - wrong when connecting with SSL
   CURLE_BAD_DOWNLOAD_RESUME      = 36,  -- 36 - couldn't resume download
   CURLE_FILE_COULDNT_READ_FILE   = 37,  -- 37
   CURLE_LDAP_CANNOT_BIND         = 38,  -- 38
   CURLE_LDAP_SEARCH_FAILED       = 39,  -- 39
-  CURLE_OBSOLETE40               = 40,  -- 40 - NOT USED
+  CURLE_OBSOLETE40               = 40,  -- 40 - NOT USED (was CURLE_LIBRARY_NOT_FOUND?)
   CURLE_FUNCTION_NOT_FOUND       = 41,  -- 41
   CURLE_ABORTED_BY_CALLBACK      = 42,  -- 42
   CURLE_BAD_FUNCTION_ARGUMENT    = 43,  -- 43
-  CURLE_OBSOLETE44               = 44,  -- 44 - NOT USED
+  CURLE_OBSOLETE44               = 44,  -- 44 - NOT USED (was CURLE_BAD_CALLING_ORDER?)
   CURLE_INTERFACE_FAILED         = 45,  -- 45 - CURLOPT_INTERFACE failed
-  CURLE_OBSOLETE46               = 46,  -- 46 - NOT USED
+                                              -- (was CURLE_HTTP_PORT_FAILED?)
+  CURLE_OBSOLETE46               = 46,  -- 46 - NOT USED (was CURLE_BAD_PASSWORD_ENTERED?)
   CURLE_TOO_MANY_REDIRECTS       = 47,  -- 47 - catch endless re-direct loops
 --*/
   CURLE_UNKNOWN_OPTION           = 48,  -- 48 - User specified an unknown option
+                                              -- (was CURLE_UNKNOWN_TELNET_OPTION?)
 --/*
   CURLE_TELNET_OPTION_SYNTAX     = 49,  -- 49 - Malformed telnet option
   CURLE_OBSOLETE50               = 50,  -- 50 - NOT USED
   CURLE_PEER_FAILED_VERIFICATION = 51,  -- 51 - peer's certificate or fingerprint
                                         --    -- wasn't verified fine
+                                              -- (was CURLE_SSL_PEER_CERTIFICATE?)
   CURLE_GOT_NOTHING              = 52,  -- 52 - when this is a specific error
   CURLE_SSL_ENGINE_NOTFOUND      = 53,  -- 53 - SSL crypto engine not found
-  CURLE_SSL_ENGINE_SETFAILED     = 54,  -- 54 - can not set SSL crypto engine as
-                                        --    -- default
+  CURLE_SSL_ENGINE_SETFAILED     = 54,  -- 54 - can not set SSL crypto engine as default
   CURLE_SEND_ERROR               = 55,  -- 55 - failed sending network data
   CURLE_RECV_ERROR               = 56,  -- 56 - failure in receiving network data
   CURLE_OBSOLETE57               = 57,  -- 57 - NOT IN USE
@@ -203,8 +212,10 @@ global constant
                                         --    -- generic so the error message will be of
                                         --    -- interest when this has happened
   CURLE_SSL_SHUTDOWN_FAILED      = 80,  -- 80 - Failed to shut down the SSL connection
+--*/
   CURLE_AGAIN                    = 81,  -- 81 - socket is not ready for send/recv = ,
                                         --    -- wait till it's ready and try again
+--/*
   CURLE_SSL_CRL_BADFILE          = 82,  -- 82 - could not load CRL file = , missing or
                                         --    -- wrong format
   CURLE_SSL_ISSUER_ERROR         = 83,  -- 83 - Issuer check failed.
@@ -257,6 +268,7 @@ global constant
   CURLSHE_INVALID      = 3,  -- 3
   CURLSHE_NOMEM        = 4,  -- 4 out of memory
   CURLSHE_NOT_BUILT_IN = 5   -- 5 feature not present in lib
+
 constant
   CURLSHE_LAST         = 6   -- never use
 
@@ -264,13 +276,14 @@ global type CURLSHcode(integer n)
   return ((n>=CURLSHE_OK) and (n<CURLSHE_LAST))
 end type
 
-global constant
+--global 
+constant
   CURLINFO_STRING   = #100000,
   CURLINFO_LONG     = #200000,
   CURLINFO_DOUBLE   = #300000,
   CURLINFO_SLIST    = #400000,
   CURLINFO_SOCKET   = #500000,
-  CURLINFO_MASK     = #0FFFFF,
+--  CURLINFO_MASK   = #0FFFFF,
   CURLINFO_TYPEMASK = #F00000
 
 global constant
@@ -337,12 +350,36 @@ global constant
 
 --------------------------------------------------------------------------------
 
+-- the kind of data that is passed to information_callback
+global constant
+  CURLINFO_TEXT         = 0,
+  CURLINFO_HEADER_IN    = 1,  -- 1
+  CURLINFO_HEADER_OUT   = 2,  -- 2
+  CURLINFO_DATA_IN      = 3,  -- 3
+  CURLINFO_DATA_OUT     = 4,  -- 4
+  CURLINFO_SSL_DATA_IN  = 5,  -- 5
+  CURLINFO_SSL_DATA_OUT = 6,  -- 6
+  CURLINFO_END          = 7
+
+--global type curl_infotype(integer n)
+--  return ((n >= CURLINFO_TEXT) and (n <= CURLINFO_END))
+--end type
+
+-- typedef int (*curl_debug_callback)
+--        (CURL *handle,      -- the handle/transfer this concerns
+--         curl_infotype type, -- what kind of data
+--         char *data,        -- points to the data
+--         size_t size,       -- size of the data pointed to
+--         void *userptr);    -- whatever the user please
+
+--------------------------------------------------------------------------------
+
 atom xcurl_easy_strerror = NULL
-global function curl_easy_strerror(CURLcode code)
+global function curl_easy_strerror(CURLcode error)
     if xcurl_easy_strerror=NULL then
         xcurl_easy_strerror = link_c_func(libcurl, "curl_easy_strerror", {C_INT}, C_PTR)
     end if
-    atom pRes = c_func(xcurl_easy_strerror, {code})
+    atom pRes = c_func(xcurl_easy_strerror, {error})
     string res = peek_string(pRes)
     return res
 end function
@@ -717,6 +754,9 @@ end procedure
 --
 global constant
   CURLOPT_WRITEDATA                 = 10001,    -- This is the FILE * or void * the regular output should be written to.
+--/*
+  CURLOPT_FILE                      = 10001,    -- name changed in 7.9.7
+--*/
   CURLOPT_URL                       = 10002,    -- The full URL to get/put
 --/*
   CURLOPT_PORT                      =     3,    -- Port number to connect to, if other than default.
@@ -891,7 +931,9 @@ global constant
                                                 -- DEPRECATED, do not use!
   CURLOPT_DNS_CACHE_TIMEOUT         =    92,    -- DNS cache timeout
   CURLOPT_PREQUOTE                  = 10093,    -- send linked-list of pre-transfer QUOTE commands
+--*/
   CURLOPT_DEBUGFUNCTION             = 20094,    -- set the debug global function
+--/*
   CURLOPT_DEBUGDATA                 = 10095,    -- set the data for the debug global function
   CURLOPT_COOKIESESSION             =    96,    -- mark this as start of a cookie session
   CURLOPT_CAPATH                    = 10097,    -- The CApath directory used to validate the peer certificate
@@ -900,8 +942,8 @@ global constant
   CURLOPT_NOSIGNAL                  =    99,    -- Instruct libcurl to not use any signal/alarm handlers, even when using
                                                 -- timeouts. This option is useful for multi-threaded applications.
                                                 -- See libcurl-the-guide for more background information.
-  CURLOPT_SHARE                     = 10100,    -- Provide a CURLShare for mutexing non-ts data
 --*/
+  CURLOPT_SHARE                     = 10100,    -- Provide a CURLShare for mutexing non-ts data
   CURLOPT_PROXYTYPE                 =   101,    -- indicates type of proxy. accepted values are CURLPROXY_HTTP (default,
                                                 -- CURLPROXY_SOCKS4, CURLPROXY_SOCKS4A and CURLPROXY_SOCKS5.
 --/*
@@ -1186,6 +1228,7 @@ atom xcurl_easy_setopt = NULL
 global function curl_easy_setoptf(atom curl, CURLoption option, object param)
 CURLcode res -- CURLE_OK..CURL_LAST-1
     if xcurl_easy_setopt=NULL then
+        if libcurl=NULL then ?9/0 end if -- (the curl param cannot possibly be valid)
         xcurl_easy_setopt = link_c_func(libcurl, "curl_easy_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
     end if
     --
@@ -1204,12 +1247,13 @@ CURLcode res -- CURLE_OK..CURL_LAST-1
     else
         ?9/0
     end if
-    -- hmm... (earlier version of the above)
+    -- hmm... (earlier version of the above, may as well leave it here)
     if sequence(param) and not string(param) then
         ?9/0    -- placeholder for more code...
     end if
     -- specific fixups (of things I deem a bit daft)
     if option=CURLOPT_SSL_VERIFYHOST then
+        -- replace a deprecated debug option (treat true as 2):
         if param=1 then param=2 end if
     end if
     res = c_func(xcurl_easy_setopt, {curl, option, param})
@@ -1220,51 +1264,30 @@ global procedure curl_easy_setopt(atom curl, CURLoption option, object param)
     CURLcode res = curl_easy_setoptf(curl, option, param)
     if res!=CURLE_OK then ?9/0 end if
 end procedure
--------------------------------
----- curl_easy_setopt
--------------------------------
---integer my_curl_easy_setopt
---my_curl_easy_setopt = link_func(LibCurlLib, "curl_easy_setopt",
---                    {C_PTR, C_INT, C_PTR}, C_INT)
---global function curl_easy_setopt(atom curl, atom opt, object param)
---   if sequence(param) then
---    return c_func(my_curl_easy_setopt,{curl, opt, add_string_tab(param)})
---   else
---    return c_func(my_curl_easy_setopt,{curl, opt, param})
---   end if
---end function
 
 --------------------------------------------------------------------------------
--- CURL_EXTERN CURLcode curl_easy_perform(CURL *curl);
 atom xcurl_easy_perform = NULL
 global function curl_easy_perform(atom curl)
---?curl
     if xcurl_easy_perform=NULL then
         xcurl_easy_perform = link_c_func(libcurl, "curl_easy_perform", {C_PTR}, C_INT)
     end if
     CURLcode res = c_func(xcurl_easy_perform, {curl})
---?{curl}
     return res
 end function
------------------------------
--- curl_easy_perform
------------------------------
---integer my_curl_easy_perform
---my_curl_easy_perform = link_func(LibCurlLib, "curl_easy_perform", {C_PTR}, C_INT)
---global function curl_easy_perform(atom curl)
---   return c_func(my_curl_easy_perform,{curl})
---end function
 
 --------------------------------------------------------------------------------
 
-sequence curl_easy_buffer   -- for curl_easy_perform_ex() only
+sequence curl_easy_buffers = {} -- for curl_easy_perform_ex() only
+integer ceb_cs = init_cs()      -- make "" thread-safe
 
 ------------------------------
 -- curl_easy_write_callback
 ------------------------------
-function curl_easy_write_callback(atom pData, integer size, integer nmemb, atom /*pUserdata*/)
+function curl_easy_write_callback(atom pData, integer size, integer nmemb, integer slot_no)
     integer bytes_written = size*nmemb
-    curl_easy_buffer &= peek({pData,bytes_written})
+    enter_cs(ceb_cs)
+    curl_easy_buffers[slot_no] &= peek({pData,bytes_written})
+    leave_cs(ceb_cs)
     return bytes_written
 end function
 constant write_cb = call_back({'+',routine_id("curl_easy_write_callback")})
@@ -1273,18 +1296,38 @@ constant write_cb = call_back({'+',routine_id("curl_easy_write_callback")})
 -- curl_easy_perform_ex
 -----------------------------
 global function curl_easy_perform_ex(atom curl)
--- NB not thread safe! (due to curl_easy_buffer)
+    enter_cs(ceb_cs)
+    integer slot_no = 0
+    for i=1 to length(curl_easy_buffers) do
+        if integer(curl_easy_buffers[i]) then
+            curl_easy_buffers[i] = ""
+            slot_no = i
+            exit
+        end if
+    end for
+    if slot_no=0 then
+        curl_easy_buffers = append(curl_easy_buffers,"")
+        slot_no = length(curl_easy_buffers)
+    end if
+    leave_cs(ceb_cs)
+
     -- set callback function to receive data
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, slot_no)
 
     -- get file
-    curl_easy_buffer = ""
     integer ret = curl_easy_perform(curl)
+
+    enter_cs(ceb_cs)
+    string res = curl_easy_buffers[slot_no]
+    curl_easy_buffers[slot_no] = 0  -- (can now be reused)
+    leave_cs(ceb_cs)
+
     if ret!=CURLE_OK then
         return ret
-    else
-        return curl_easy_buffer
     end if
+
+    return res
 end function
 
 function curl_easy_write_fn_callback(atom pData, integer size, integer nmemb, integer fn)
@@ -1312,6 +1355,7 @@ global function curl_easy_send(atom curl, object buffer, integer buflen=length(b
         xcurl_easy_send = link_c_func(libcurl, "curl_easy_send", {C_PTR, C_PTR, C_UINT, C_PTR}, C_INT)
     end if
     atom addr = allocate(4)
+    poke4(addr,0)
     CURLcode ret = c_func(xcurl_easy_send, {curl, buffer, buflen, addr})
     integer len = peek4s(addr)
     free(addr)
@@ -1333,11 +1377,12 @@ global function curl_easy_recv(atom curl, atom buffer, integer buflen)
     if xcurl_easy_recv=NULL then
         xcurl_easy_recv = link_c_func(libcurl, "curl_easy_recv", {C_PTR, C_PTR, C_UINT, C_PTR}, C_INT)
     end if
-    atom addr = addr = allocate(4)
+    atom addr = allocate(4)
+    poke4(addr,0)
     CURLcode ret = c_func(xcurl_easy_recv, {curl, buffer, buflen, addr})
     integer len = peek4s(addr)
     free(addr)
-    return {ret, buffer, len}
+    return {ret, len}
 end function
 
 --------------------------------------------------------------------------------
@@ -1381,6 +1426,7 @@ global function curl_slist_append(atom slist, string s)
         xcurl_slist_append = link_c_func(libcurl, "curl_slist_append", {C_PTR, C_PTR}, C_PTR)
     end if
     slist = c_func(xcurl_slist_append, {slist, s})
+    if slist=NULL then ?9/0 end if
     return slist
 end function
 
@@ -1458,11 +1504,9 @@ id_certinfo = define_struct(t_certinfo)
 --/
 -- CURL_EXTERN CURLcode curl_easy_getinfo(CURL *curl, CURLINFO info, ...);
 atom xcurl_easy_getinfo = NULL
-global atom easy_info_res = 0   -- note: not thread-safe (see docs)
 
 global function curl_easy_getinfo(atom curl, integer option)
 atom param
---res is CURLcode? or (CURLcode or -1)? or ret??
 object o, res
     if xcurl_easy_getinfo=NULL then
         xcurl_easy_getinfo = link_c_func(libcurl, "curl_easy_getinfo", {C_PTR, C_INT, C_PTR}, C_INT)
@@ -1479,23 +1523,24 @@ object o, res
     elsif option_type=CURLINFO_SOCKET then
 --DEV??
 --      param = allocate(4)
-        param = allocate(machine_word())
+        param = allocate(W)
     elsif option_type=CURLINFO_STRING then
 --      param = allocate_string("")     -- ???
-        param = allocate(machine_word())
+        param = allocate(W)
     else
         ?9/0    -- unknown option_type
     end if
   
-    res = c_func(xcurl_easy_getinfo, {curl, option, param})
-    easy_info_res = res
+    integer curlcode = c_func(xcurl_easy_getinfo, {curl, option, param})
+
 --  analyzeObject(ret, "ret", f_debug, 0)
   
-    if res=CURLE_UNKNOWN_OPTION then
-        res = CURLE_UNKNOWN_OPTION
---/* SUG...
-if not find(option_type,{CURLINFO_STRING,CURLINFO_SLIST}) then res = {res} end if
---*/
+    if curlcode=CURLE_UNKNOWN_OPTION then
+        if option_type=CURLINFO_STRING then
+            res = ""
+        else
+            res = NULL
+        end if
 --?9/0 --[DEV]
 --      o = findID(GETINFO_OPTIONS, option, 1)
 --      if atom(o) then
@@ -1503,30 +1548,25 @@ if not find(option_type,{CURLINFO_STRING,CURLINFO_SLIST}) then res = {res} end i
 --      else
 --          warnError(sprintf("Unknown option '%s'", {o[2]}), 1)
 --      end if
-    elsif res!=CURLE_OK then
+    elsif curlcode!=CURLE_OK then
         printf(1, "Curl curl_easy_getinfo failed: (%d) %s\n",
-                  {res, curl_easy_strerror(res)})
+                  {curlcode, curl_easy_strerror(curlcode)})
 ?9/0 -- DEV (should never happen??)
     elsif option_type=CURLINFO_STRING then
         atom pstr = peek_pointer(param)
         if pstr=NULL then
---          res = NULL
             res = ""
         else
             res = peek_string(pstr)
         end if
---      free(param) -- (nb /not/ free(pstr)... as per the docs)
     elsif option_type=CURLINFO_SOCKET then
 --DEV??
 --      res = peek4u(param)
         res = peek_pointer(param)
---      free(param)
     elsif option_type=CURLINFO_DOUBLE then
         res = float64_to_atom(peek({param,8}))  -- peek8s(param)
---      free(param)
     elsif option_type=CURLINFO_LONG then
         res = peek4s(param)
---      free(param)
     elsif option=CURLINFO_CERTINFO then  -- struct curl_certinfo *
 --DEV
 if 0 then
@@ -1543,7 +1583,7 @@ else
         res = {}
         for i=1 to ncerts do
             res = append(res,peek_curl_slist(peek_pointer(pcerts)))
-            pcerts += machine_word()
+            pcerts += W
         end for
 end if
 
@@ -1563,6 +1603,314 @@ end if
         free(param)
     end if
 
+    return {curlcode,res}
+end function
+
+atom xcurl_multi_init = NULL
+global function curl_multi_init()
+    if xcurl_multi_init=NULL then
+        if libcurl=NULL then curl_init() end if
+        xcurl_multi_init = link_c_func(libcurl, "curl_multi_init", {}, C_PTR)
+    end if
+    atom mcurl = c_func(xcurl_multi_init, {})
+    if mcurl=NULL then ?9/0 end if
+    return mcurl
+end function
+
+constant 
+    CURLM_LONG      =     0,
+    CURLM_OBJECT    = 10000,
+    CURLM_FUNCTION  = 20000,
+    CURLM_OFF_T     = 30000
+
+global constant
+    CURLMOPT_SOCKETFUNCTION              = CURLM_FUNCTION + 1,  /* This is the socket callback function pointer */
+    CURLMOPT_SOCKETDATA                  =   CURLM_OBJECT + 2,  /* This is the argument passed to the socket callback */
+    CURLMOPT_PIPELINING                  =     CURLM_LONG + 3,  /* set to 1 to enable pipelining for this multi handle */
+    CURLMOPT_TIMERFUNCTION               = CURLM_FUNCTION + 4,  /* This is the timer callback function pointer */
+    CURLMOPT_TIMERDATA                   =   CURLM_OBJECT + 5,  /* This is the argument passed to the timer callback */
+    CURLMOPT_MAXCONNECTS                 =     CURLM_LONG + 6,  /* maximum number of entries in the connection cache */
+    CURLMOPT_MAX_HOST_CONNECTIONS        =     CURLM_LONG + 7,  /* maximum number of (pipelining) connections to one host */
+    CURLMOPT_MAX_PIPELINE_LENGTH         =     CURLM_LONG + 8,  /* maximum number of requests in a pipeline */
+    CURLMOPT_CONTENT_LENGTH_PENALTY_SIZE =    CURLM_OFF_T + 9,  /* a connection with a content-length longer than this will not be considered for pipelining */
+    CURLMOPT_CHUNK_LENGTH_PENALTY_SIZE   =    CURLM_OFF_T + 10, /* a connection with a chunk length longer than this will not be considered for pipelining */
+    CURLMOPT_PIPELINING_SITE_BL          =   CURLM_OBJECT + 11, /* a list of site names(+port) that are blacklisted from pipelining */
+    CURLMOPT_PIPELINING_SERVER_BL        =   CURLM_OBJECT + 12, /* a list of server types that are blacklisted from pipelining */
+    CURLMOPT_MAX_TOTAL_CONNECTIONS       =     CURLM_LONG + 13, /* maximum number of open connections in total */
+    CURLMOPT_PUSHFUNCTION                = CURLM_FUNCTION + 14, /* This is the server push callback function pointer */
+    CURLMOPT_PUSHDATA                    =   CURLM_OBJECT + 15  /* This is the argument passed to the server push callback */
+
+global type CURLMoption(integer i)
+    integer rem = remainder(i,10000)
+    return ((rem>=1) and (rem<=15))
+end type
+
+atom xcurl_pushheader_bynum = NULL
+global function curl_pushheader_bynum(atom p_curl_pushheaders, integer num)
+    if xcurl_pushheader_bynum=NULL then
+        xcurl_pushheader_bynum = link_c_func(libcurl, "curl_pushheader_bynum", {C_PTR, C_INT}, C_PTR)
+    end if
+    atom ptr = c_func(xcurl_pushheader_bynum, {p_curl_pushheaders, num})
+    return ptr
+end function
+
+atom xcurl_pushheader_byname = NULL
+global function curl_pushheader_byname(atom p_curl_pushheaders, string name)
+    if xcurl_pushheader_byname=NULL then
+        xcurl_pushheader_byname = link_c_func(libcurl, "curl_pushheader_byname", {C_PTR, C_PTR}, C_PTR)
+    end if
+    atom ptr = c_func(xcurl_pushheader_byname, {p_curl_pushheaders, name})
+    return ptr
+end function
+
+--as/copy of IupRawStringPtr:
+function raw_string_ptr(string s)
+--
+-- Returns a raw string pointer for s, somewhat like allocate_string(s), but using the existing memory.
+-- NOTE: The return is only valid as long as the value passed as the parameter remains in scope.
+--       In particular, callbacks must make a semi-permanent copy somewhere other than locals/temps.
+--
+atom res
+    #ilASM{
+        [32]
+            mov eax,[s]
+            lea edi,[res]
+            shl eax,2
+        [64]
+            mov rax,[s]
+            lea rdi,[res]
+            shl rax,2
+        []
+            call :%pStoreMint
+          }
+    return res
+end function
+
+function make_string_array(sequence strings)
+--atom res = allocate((length(strings)+1)*W,cleanup:=true)
+atom res = allocate((length(strings)+1)*W,true),
+     ptr = res
+    for i=1 to length(strings) do
+        string si = strings[i]
+        pokeN(ptr,raw_string_ptr(si),W)
+        ptr += W
+    end for
+    pokeN(ptr,NULL,W)
+    return res
+end function
+
+
+atom xcurl_multi_setopt = NULL
+global function curl_multi_setopt(atom mcurl, CURLMoption option, object param)
+    if xcurl_multi_setopt=NULL then
+        xcurl_multi_setopt = link_c_func(libcurl, "curl_multi_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
+    end if
+    atom params
+    if option=CURLMOPT_PIPELINING_SITE_BL
+    or option=CURLMOPT_PIPELINING_SERVER_BL then
+        params = make_string_array(param) -- (hosts or servers)
+    else
+--      if not atom(param) then ?9/0 end if -- (caught next anyway)
+        params = param
+    end if
+    CURLMcode res = c_func(xcurl_multi_setopt, {mcurl, option, params})
+    return res
+end function
+
+atom xcurl_multi_remove_handle = NULL
+global procedure curl_multi_remove_handle(atom mcurl, curl)
+    if xcurl_multi_remove_handle=NULL then
+        xcurl_multi_remove_handle = link_c_func(libcurl, "curl_multi_remove_handle", {C_PTR, C_PTR}, C_INT)
+    end if
+    CURLMcode res = c_func(xcurl_multi_remove_handle, {mcurl,curl})
+    if res!=CURLM_OK then ?9/0 end if
+end procedure
+
+atom xcurl_multi_perform = NULL
+global function curl_multi_perform(atom mcurl)
+    if xcurl_multi_perform=NULL then
+        xcurl_multi_perform = link_c_func(libcurl, "curl_multi_perform", {C_PTR, C_PTR}, C_INT)
+    end if
+    atom p_running_handles = allocate(W)
+    CURLMcode result = c_func(xcurl_multi_perform, {mcurl, p_running_handles})
+    integer running_handles = peekNS(p_running_handles,W,true)
+    free(p_running_handles)
+    return {result,running_handles}
+end function
+
+global constant CURL_WAIT_POLLIN  = 0x0001,
+                CURL_WAIT_POLLPRI = 0x0002,
+                CURL_WAIT_POLLOUT = 0x0004
+
+atom xcurl_multi_wait = NULL
+global function curl_multi_wait(atom mcurl, extra_fds, integer nextra_fds, timeout_ms)
+    if xcurl_multi_wait=NULL then
+        xcurl_multi_wait = link_c_func(libcurl, "curl_multi_wait", {C_PTR, C_PTR, C_INT, C_INT, C_PTR}, C_INT)
+    end if
+    atom p_numfds = allocate(W)
+    CURLMcode result = c_func(xcurl_multi_wait, {mcurl, extra_fds, nextra_fds, timeout_ms, p_numfds})
+    integer numfds = peekNS(p_numfds,W,true)
+    free(p_numfds)
+    return {result,numfds}
+end function
+
+atom xcurl_multi_timeout = NULL
+global function curl_multi_timeout(atom mcurl)
+    if xcurl_multi_timeout=NULL then
+        xcurl_multi_timeout = link_c_func(libcurl, "curl_multi_timeout", {C_PTR, C_PTR}, C_INT)
+    end if
+    atom p_timeout = allocate(W)
+    CURLMcode result = c_func(xcurl_multi_timeout, {mcurl, p_timeout})
+    integer timeout = peekNS(p_timeout,W,true)
+    free(p_timeout)
+    return {result,timeout}
+end function
+
+--/*
+struct CURLMsg {
+   CURLMSG msg;       /* what this message means */
+   CURL *easy_handle; /* the handle it concerns */
+   union {
+     void *whatever;    /* message-specific data */
+     CURLcode result;   /* return code for transfer */
+   } data;
+ };
+--*/
+--global 
+constant CURLMSG_DONE = 1
+
+atom xcurl_multi_info_read = NULL
+global function curl_multi_info_read(atom mcurl)
+    if xcurl_multi_info_read=NULL then
+        xcurl_multi_info_read = link_c_func(libcurl, "curl_multi_info_read", {C_PTR, C_PTR}, C_PTR)
+    end if
+    atom pnmsgs = allocate(W)
+    atom pMsg = c_func(xcurl_multi_info_read, {mcurl, pnmsgs})
+    atom easy_handle = NULL
+    CURLcode result = CURLE_OK
+    if pMsg!=NULL then
+        integer msg = peekNS(pMsg,W,true)
+        easy_handle = peekNS(pMsg+W,W,false)
+        result = peekNS(pMsg+2*W,W,true)
+        if msg!=CURLMSG_DONE then ?9/0 end if   -- sanity check
+    end if
+    integer nmsgs = peekNS(pnmsgs,W,true)
+    free(pnmsgs)
+    return {easy_handle,result,nmsgs}
+end function
+
+atom xcurl_multi_cleanup = NULL
+global function curl_multi_cleanup(atom mcurl)
+    if xcurl_multi_cleanup=NULL then
+        xcurl_multi_cleanup = link_c_func(libcurl, "curl_easy_cleanup", {C_PTR}, C_INT)
+    end if
+    CURLMcode curlmcode = c_func(xcurl_multi_cleanup, {mcurl})
+    return curlmcode
+end function
+
+atom xcurl_multi_strerror = NULL
+global function curl_multi_strerror(CURLMcode error)
+    if xcurl_multi_strerror=NULL then
+        -- aside: permit eg curl_multi_strerror(CURLM_BAD_EASY_HANDLE), as
+        --  opposed to only allowing results from a real call to libcurl.
+        if libcurl=NULL then curl_init() end if
+        xcurl_multi_strerror = link_c_func(libcurl, "curl_multi_strerror", {C_INT}, C_PTR)
+    end if
+    atom pRes = c_func(xcurl_multi_strerror, {error})
+    string res = peek_string(pRes)
+    return res
+end function
+
+atom xcurl_share_init = NULL
+global function curl_share_init()
+    if xcurl_share_init=NULL then
+        if libcurl=NULL then curl_init() end if
+        xcurl_share_init = link_c_func(libcurl, "curl_share_init", {}, C_PTR)
+    end if
+    atom curlshare = c_func(xcurl_share_init, {})
+    if curlshare=NULL then ?9/0 end if
+    return curlshare
+end function
+
+
+-- Setup defines, protos etc for the sharing stuff.
+
+-- Different data locks for a single share
+global constant
+--  CURL_LOCK_DATA_NONE      = 0,
+--  CURL_LOCK_DATA_SHARE     = 1,
+  CURL_LOCK_DATA_COOKIE      = 2,
+  CURL_LOCK_DATA_DNS         = 3,
+  CURL_LOCK_DATA_SSL_SESSION = 4,
+  CURL_LOCK_DATA_CONNECT     = 5
+
+global type curl_share_data(integer i)
+    return ((i>=CURL_LOCK_DATA_COOKIE) and (i<=CURL_LOCK_DATA_CONNECT))
+end type
+
+-- Different lock access types
+global constant
+--  CURL_LOCK_ACCESS_NONE   = 0, -- unspecified action
+  CURL_LOCK_ACCESS_SHARED = 1, -- for read perhaps
+  CURL_LOCK_ACCESS_SINGLE = 2  -- for write perhaps
+--  CURL_LOCK_ACCESS_LAST   = 4  -- never use
+
+global type curl_lock_access(integer i)
+    return ((i>=CURL_LOCK_ACCESS_SHARED) and (i<=CURL_LOCK_ACCESS_SINGLE))
+end type
+--/*
+
+-- typedef void (*curl_lock_function)(CURL *handle,
+--                                 -- curl_share_data data,
+--                                 -- curl_lock_access locktype,
+--                                 -- void *userptr);
+-- typedef void (*curl_unlock_function)(CURL *handle,
+--                                 --   curl_share_data data,
+--                                 --   void *userptr);
+
+
+--*/
+global constant 
+  CURLSHOPT_SHARE      = 1,  -- specify a data type to share
+  CURLSHOPT_UNSHARE    = 2,  -- specify which data type to stop sharing
+  CURLSHOPT_LOCKFUNC   = 3,  -- pass in a 'curl_lock_function' pointer
+  CURLSHOPT_UNLOCKFUNC = 4,  -- pass in a 'curl_unlock_function' pointer
+  CURLSHOPT_USERDATA   = 5   -- pass in a user data pointer used in the lock/unlock
+                             -- callback functions
+
+global type CURLSHoption(integer i)
+    return ((i>=CURLSHOPT_SHARE) and (i<=CURLSHOPT_USERDATA))
+end type
+
+-- CURL_EXTERN CURLSHcode curl_share_setopt(CURLSH *, CURLSHoption option, ...);
+atom xcurl_share_setopt = NULL
+global function curl_share_setopt(atom curlshare, CURLSHoption share_option, atom param)
+    if xcurl_share_setopt=NULL then
+        if libcurl=NULL then curl_init() end if
+        xcurl_share_setopt = link_c_func(libcurl, "curl_share_setopt", {C_PTR, C_INT, C_PTR}, C_INT)
+    end if
+    CURLSHcode res = c_func(xcurl_share_setopt, {curlshare,share_option,param})
+    return res
+end function
+
+atom xcurl_share_cleanup = NULL
+global function curl_share_cleanup(atom curlshare)
+    if xcurl_share_cleanup=NULL then
+        if libcurl=NULL then curl_init() end if
+        xcurl_share_cleanup = link_c_func(libcurl, "curl_share_cleanup", {C_PTR}, C_INT)
+    end if
+    CURLSHcode res = c_func(xcurl_share_cleanup, {curlshare})
+    return res
+end function
+
+atom xcurl_share_strerror = NULL
+global function curl_share_strerror(CURLSHcode error)
+    if xcurl_share_strerror=NULL then
+        if libcurl=NULL then curl_init() end if
+        xcurl_share_strerror = link_c_func(libcurl, "curl_share_strerror", {C_INT}, C_PTR)
+    end if
+    atom pRes = c_func(xcurl_share_strerror, {error})
+    string res = peek_string(pRes)
     return res
 end function
 
@@ -1619,13 +1967,11 @@ constant GETINFO_OPTIONS = {
 }
 
 
-include dll.e
---include machine.e
-include misc.e
-include myLibs/myDebug.e
-include myLibs/common.e
---include std/machine.e
-include std/eumem.e
+--include dll.e
+--include misc.e
+--include myLibs/myDebug.e
+--include myLibs/common.e
+--include std/eumem.e
 --
 -- If you have libcurl problems, all docs and details are found here:
 --   https://curl.haxx.se/libcurl/
@@ -1649,30 +1995,17 @@ constant
   C_SIZE_T    = C_UINT --,
 --  C_DWORDLONG = C_DOUBLE
 
-global integer error_code
-error_code = 0
+global integer error_code = 0
 
-global sequence error_msg
-error_msg = ""
+global sequence error_msg = ""
 
 global atom slist = NULL
 
 --atom libcurl
 
-procedure not_found(sequence name)
-  warnError("Couldn't find " & name, 1)
-end procedure
-
--- dynamically link a C routine as a Euphoria function
---function link_c_func(atom dll, sequence name, sequence args, atom result)
---  integer handle
---
---  handle = define_c_func(dll, "+" & name, args, result)
---  if handle = -1 then
---  not_found(name)
---  end if
---  return handle
---end function
+--procedure not_found(sequence name)
+--  warnError("Couldn't find " & name, 1)
+--end procedure
 
 --function link_c_var(atom dll, sequence name)
 --  atom address
@@ -1684,25 +2017,6 @@ end procedure
 --  return address
 --end function
 
---------------------------------------------------------------------------------
-
---/*
--- copy of w32or_all() from w32utils.e
---global function or_all( object pData )
---  atom lResult
---
---  if atom(pData) then return pData end if
---  if length(pData) = 0 then return 0 end if
---  if length(pData) = 1 then return or_all(pData[1]) end if
---
---  lResult = or_bits(pData[1], pData[2])
---  for i = 3 to length(pData) do
---  lResult = or_bits(lResult, pData[i])
---  end for
---
---  return lResult
---end function
---*/
 --------------------------------------------------------------------------------
 
 object dll_, uname_
@@ -1798,9 +2112,9 @@ global constant
   CURLFILETYPE_DOOR         = 7, -- is possible only on Sun Solaris now
   CURLFILETYPE_UNKNOWN      = 8  -- should never occur
 
-global type curlfiletype(integer n)
-  return ((n >= CURLFILETYPE_FILE) and (n <= CURLFILETYPE_UNKNOWN))
-end type
+--global type curlfiletype(integer n)
+--  return ((n >= CURLFILETYPE_FILE) and (n <= CURLFILETYPE_UNKNOWN))
+--end type
 
 global constant
   CURLFINFOFLAG_KNOWN_FILENAME   =   1,
@@ -1910,20 +2224,20 @@ global constant CURL_READFUNC_PAUSE = #10000001
 ------------------------------
 -- curl_read_callback
 ------------------------------
-global function curl_read_callback(atom bufferp, integer size, integer nitems, atom instream)
-  instream = instream -- stop warning
-  poke(bufferp, ??curl_easy_buffer??)
-  return size * nitems
-end function
+--global function curl_read_callback(atom bufferp, integer size, integer nitems, atom instream)
+--  instream = instream -- stop warning
+--  poke(bufferp, ??curl_easy_buffer??)
+--  return size * nitems
+--end function
 
 global constant
   CURLSOCKTYPE_IPCXN  = 0,  -- socket created for a specific IP connection
   CURLSOCKTYPE_ACCEPT = 1,  -- socket created by accept() call
   CURLSOCKTYPE_LAST   = 2   -- never use
 
-global type curlsocktype(integer n)
-  return ((n >= CURLSOCKTYPE_IPCXN) and (n <= CURLSOCKTYPE_LAST))
-end type
+--global type curlsocktype(integer n)
+--  return ((n >= CURLSOCKTYPE_IPCXN) and (n <= CURLSOCKTYPE_LAST))
+--end type
 
 -- The return code from the sockopt_callback can signal information back
 --    to libcurl:
@@ -1961,44 +2275,23 @@ global constant
   CURLIOE_FAILRESTART = 2,  -- failed to restart the read
   CURLIOE_LAST        = 3   -- never use
 
-global type curlioerr(integer n)
-  return ((n >= CURLIOE_OK) and (n <= CURLIOE_LAST))
-end type
+--global type curlioerr(integer n)
+--  return ((n >= CURLIOE_OK) and (n <= CURLIOE_LAST))
+--end type
 
 global constant
   CURLIOCMD_NOP         = 0,  -- no operation
   CURLIOCMD_RESTARTREAD = 1,  -- restart the read stream from start
   CURLIOCMD_LAST        = 2   -- never use
 
-global type curliocmd(integer n)
-  return ((n >= CURLIOCMD_NOP) and (n <= CURLIOCMD_LAST))
-end type
+--global type curliocmd(integer n)
+--  return ((n >= CURLIOCMD_NOP) and (n <= CURLIOCMD_LAST))
+--end type
 
 -- typedef curlioerr (*curl_ioctl_callback)(CURL *handle,
 --                                 --       int cmd,
 --                                 --       void *clientp);
 
--- the kind of data that is passed to information_callback
-global constant
-  CURLINFO_TEXT         = 0,
-  CURLINFO_HEADER_IN    = 1,  -- 1
-  CURLINFO_HEADER_OUT   = 2,  -- 2
-  CURLINFO_DATA_IN      = 3,  -- 3
-  CURLINFO_DATA_OUT     = 4,  -- 4
-  CURLINFO_SSL_DATA_IN  = 5,  -- 5
-  CURLINFO_SSL_DATA_OUT = 6,  -- 6
-  CURLINFO_END          = 7
-
-global type curl_infotype(integer n)
-  return ((n >= CURLINFO_TEXT) and (n <= CURLINFO_END))
-end type
-
--- typedef int (*curl_debug_callback)
---        (CURL *handle,      -- the handle/transfer this concerns
---         curl_infotype type, -- what kind of data
---         char *data,        -- points to the data
---         size_t size,       -- size of the data pointed to
---         void *userptr);    -- whatever the user please
 
 global constant
   -- Previously obsolete error code re-used in 7.38.0
@@ -2059,7 +2352,6 @@ global constant
   CURLE_ALREADY_COMPLETE = 99999,
 
   -- Provide defines for really old option names
-  CURLOPT_FILE        = 10001,  -- name changed in 7.9.7
   CURLOPT_INFILE      = 10009,  -- name changed in 7.9.7
   CURLOPT_WRITEHEADER = 10029,
 
@@ -2127,11 +2419,9 @@ global constant
   CURLKHTYPE_RSA     = 2,
   CURLKHTYPE_DSS     = 3
 
---/*
-type curl_khtype(integer x)
-  return (x >= CURLKHTYPE_UNKNOWN) and (x <= CURLKHTYPE_DSS)
-end type
---*/
+--type curl_khtype(integer x)
+--  return (x >= CURLKHTYPE_UNKNOWN) and (x <= CURLKHTYPE_DSS)
+--end type
 
 -- struct curl_khkey {
 --   const char *key; -- points to a zero-terminated string encoded with base64
@@ -2151,12 +2441,6 @@ global constant
                           --   connection will be left intact etc
   CURLKHSTAT_LAST   = 4   -- not for use, only a marker for last-in-list
 
---/*
-type curl_khstat(integer x)
-  return (x >= CURLKHSTAT_FINE_ADD_TO_FILE) and (x <= CURLKHSTAT_LAST)
-end type
---*/
-
 -- this is the set of status codes pass in to the callback
 global constant
   CURLKHMATCH_OK       = 0,  -- match
@@ -2164,11 +2448,9 @@ global constant
   CURLKHMATCH_MISSING  = 2,  -- no matching host/key found
   CURLKHMATCH_LAST     = 3   -- not for use, only a marker for last-in-list
 
---/*
-type curl_khmatch(integer x)
-  return (x >= CURLKHMATCH_OK) and (x <= CURLKHMATCH_LAST)
-end type
---*/
+--type curl_khmatch(integer x)
+--  return (x >= CURLKHMATCH_OK) and (x <= CURLKHMATCH_LAST)
+--end type
 
 -- typedef int
 --   (*curl_sshkeycallback) (CURL *easy,     -- easy handle
@@ -2185,9 +2467,9 @@ global constant
   CURLUSESSL_ALL     = 3,  -- SSL for all communication or fail
   CURLUSESSL_LAST    = 4   -- not an option, never use
 
-global type curl_usessl(integer x)
-  return (x >= CURLUSESSL_NONE) and (x <= CURLUSESSL_LAST)
-end type
+--global type curl_usessl(integer x)
+--  return (x >= CURLUSESSL_NONE) and (x <= CURLUSESSL_LAST)
+--end type
 
 -- Definition of bits for the CURLOPT_SSL_OPTIONS argument:
 
@@ -2219,20 +2501,12 @@ global constant
   CURLFTPSSL_CCC_ACTIVE  = 2,  -- Initiate the shutdown
   CURLFTPSSL_CCC_LAST    = 3   -- not an option, never use
 
-global type curl_ftpccc(integer x)
-  return (x >= CURLFTPSSL_CCC_NONE) and (x <= CURLFTPSSL_CCC_LAST)
-end type
-
 -- parameter for the CURLOPT_FTPSSLAUTH option
 global constant
   CURLFTPAUTH_DEFAULT = 0,  -- let libcurl decide
   CURLFTPAUTH_SSL     = 1,  -- use "AUTH SSL"
   CURLFTPAUTH_TLS     = 2,  -- use "AUTH TLS"
   CURLFTPAUTH_LAST    = 3   -- not an option, never use
-
-global type curl_ftpauth(integer x)
-  return (x >= CURLFTPAUTH_DEFAULT) and (x <= CURLFTPAUTH_LAST)
-end type
 
 -- parameter for the CURLOPT_FTP_CREATE_MISSING_DIRS option
 global constant
@@ -2244,10 +2518,6 @@ global constant
                                  -- again even if MKD failed!
   CURLFTP_CREATE_DIR_LAST  = 3   -- not an option, never use
 
-global type curl_ftpcreatedir(integer x)
-  return (x >= CURLFTP_CREATE_DIR_NONE) and (x <= CURLFTP_CREATE_DIR_LAST)
-end type
-
 -- parameter for the CURLOPT_FTP_FILEMETHOD option
 global constant
   CURLFTPMETHOD_DEFAULT   = 0, -- let libcurl pick
@@ -2256,9 +2526,9 @@ global constant
   CURLFTPMETHOD_SINGLECWD = 3, -- one CWD to full dir, then work on file
   CURLFTPMETHOD_LAST      = 4  -- not an option, never use
 
-global type curl_ftpmethod(integer x)
-  return (x >= CURLFTPMETHOD_DEFAULT) and (x <= CURLFTPMETHOD_LAST)
-end type
+--global type curl_ftpmethod(integer x)
+--  return (x >= CURLFTPMETHOD_DEFAULT) and (x <= CURLFTPMETHOD_LAST)
+--end type
 
 -- bitmask defines for CURLOPT_HEADEROPT
 global constant CURLHEADER_UNIFIED  = 0
@@ -2295,13 +2565,6 @@ global constant
   CURLPROTO_SMB    = #4000000,
   CURLPROTO_SMBS   = #8000000,
   CURLPROTO_ALL    = not 0  -- enable everything
-
-global type CURLoption(integer n)
-  integer rem
-
-  rem = remainder(n, 1000)
-  return ((rem >= 1) and (rem <= 245))
-end type
 
 global constant CURLOPT_XFERINFODATA            = CURLOPT_PROGRESSDATA
 global constant CURLOPT_SERVER_RESPONSE_TIMEOUT = CURLOPT_FTP_RESPONSE_TIMEOUT
@@ -2382,10 +2645,6 @@ global constant
                             -- will be queried.
   CURL_NETRC_LAST     = 3
 
-global type CURL_NETRC_OPTION(integer n)
-  return ((n >= CURL_NETRC_IGNORED) and (n <= CURL_NETRC_LAST))
-end type
-
 global constant
   CURL_SSLVERSION_DEFAULT = 0,
   CURL_SSLVERSION_TLSv1   = 1,  -- TLS 1.x
@@ -2400,10 +2659,6 @@ global constant
   CURL_TLSAUTH_NONE = 0,
   CURL_TLSAUTH_SRP  = 1,
   CURL_TLSAUTH_LAST = 2  -- never use, keep last
-
-global type CURL_TLSAUTH(integer n)
-  return ((n >= CURL_TLSAUTH_NONE) and (n <= CURL_TLSAUTH_LAST))
-end type
 
 -- symbols to use with CURLOPT_POSTREDIR.
 --   CURL_REDIR_POST_301, CURL_REDIR_POST_302 and CURL_REDIR_POST_303
@@ -2424,46 +2679,41 @@ global constant
   CURL_TIMECOND_LASTMOD      = 3,
   CURL_TIMECOND_LAST         = 4
 
-global type curl_TimeCond(integer n)
-  return ((n >= CURL_TIMECOND_NONE) and (n <= CURL_TIMECOND_LAST))
-end type
-
-
 --------------------------------------------------------------------------------
 
 -- curl_strequal() and curl_strnequal() are subject for removal in a future
 --   libcurl, see lib/README.curlx for details
 -- CURL_EXTERN int (curl_strequal)(const char *s1, const char *s2);
-constant xcurl_strequal = link_c_func(libcurl, "curl_strequal",
-                            {C_PTR, C_PTR}, C_INT)
-global function curl_strequal(sequence s1, sequence s2)
-  atom addr_s1, addr_s2
-  integer ret
-
-  addr_s1 = allocate_string(s1)
-  addr_s2 = allocate_string(s2)
-  ret = c_func(xcurl_strequal, {addr_s1, addr_s2})
-  free(addr_s1)
-  free(addr_s2)
-  return ret
-end function
+--constant xcurl_strequal = link_c_func(libcurl, "curl_strequal",
+--                          {C_PTR, C_PTR}, C_INT)
+--global function curl_strequal(sequence s1, sequence s2)
+--  atom addr_s1, addr_s2
+--  integer ret
+--
+--  addr_s1 = allocate_string(s1)
+--  addr_s2 = allocate_string(s2)
+--  ret = c_func(xcurl_strequal, {addr_s1, addr_s2})
+--  free(addr_s1)
+--  free(addr_s2)
+--  return ret
+--end function
 
 --------------------------------------------------------------------------------
 
 -- CURL_EXTERN int (curl_strnequal)(const char *s1, const char *s2, size_t n);
-constant xcurl_strnequal = link_c_func(libcurl, "curl_strnequal",
-                             {C_PTR, C_PTR, C_SIZE_T}, C_INT)
-global function curl_strnequal(sequence s1, sequence s2, atom n)
-  atom addr_s1, addr_s2
-  integer ret
-
-  addr_s1 = allocate_string(s1)
-  addr_s2 = allocate_string(s2)
-  ret = c_func(xcurl_strnequal, {addr_s1, addr_s2, n})
-  free(addr_s1)
-  free(addr_s2)
-  return ret
-end function
+--constant xcurl_strnequal = link_c_func(libcurl, "curl_strnequal",
+--                           {C_PTR, C_PTR, C_SIZE_T}, C_INT)
+--global function curl_strnequal(sequence s1, sequence s2, atom n)
+--  atom addr_s1, addr_s2
+--  integer ret
+--
+--  addr_s1 = allocate_string(s1)
+--  addr_s2 = allocate_string(s2)
+--  ret = c_func(xcurl_strnequal, {addr_s1, addr_s2, n})
+--  free(addr_s1)
+--  free(addr_s2)
+--  return ret
+--end function
 
 --------------------------------------------------------------------------------
 
@@ -2491,9 +2741,9 @@ global constant
   CURLFORM_CONTENTLEN     = 20, -- added in 7.46.0, provide a curl_off_t length
   CURLFORM_LASTENTRY      = 21  -- the last unused
 
-global type CURLformoption(integer n)
-  return ((n >= CURLFORM_NOTHING) and (n <= CURLFORM_LASTENTRY))
-end type
+--global type CURLformoption(integer n)
+--  return ((n >= CURLFORM_NOTHING) and (n <= CURLFORM_LASTENTRY))
+--end type
 
 -- structure to be used as parameter for CURLFORM_ARRAY
 --
@@ -2529,9 +2779,9 @@ global constant
   CURL_FORMADD_DISABLED       = 7, -- libcurl was built with this disabled
   CURL_FORMADD_LAST           = 8  -- last
 
-global type CURLFORMcode(integer n)
-  return ((n >= CURL_FORMADD_OK) and (n <= CURL_FORMADD_LAST))
-end type
+--global type CURLFORMcode(integer n)
+--  return ((n >= CURL_FORMADD_OK) and (n <= CURL_FORMADD_LAST))
+--end type
 
 --------------------------------------------------------------------------------
 
@@ -2594,18 +2844,18 @@ end type
 -- complete. DEPRECATED - see lib/README.curlx
 --/
 -- CURL_EXTERN char *curl_getenv(const char *variable);
-constant xcurl_getenv = link_c_func(libcurl, "curl_getenv",
-                          {C_PTR}, C_PTR)
-global function curl_getenv(sequence variable)
-  atom addr, ret
-  sequence s
-
-  addr = allocate_string(variable)
-  ret = c_func(xcurl_getenv, {addr})
-  s = peek_string(ret)
-  free(addr)
-  return s
-end function
+--constant xcurl_getenv = link_c_func(libcurl, "curl_getenv",
+--                        {C_PTR}, C_PTR)
+--global function curl_getenv(sequence variable)
+--  atom addr, ret
+--  sequence s
+--
+--  addr = allocate_string(variable)
+--  ret = c_func(xcurl_getenv, {addr})
+--  s = peek_string(ret)
+--  free(addr)
+--  return s
+--end function
 
 --------------------------------------------------------------------------------
 
@@ -2619,23 +2869,23 @@ end function
 -- error occurred.
 --/
 -- CURL_EXTERN char *curl_easy_escape(CURL *handle, const char *string, int length);
-constant xcurl_easy_escape = link_c_func(libcurl, "curl_easy_escape",
-                               {C_PTR, C_PTR, C_INT}, C_PTR)
-global function curl_easy_escape(atom handle, string s) 
-  atom ret = c_func(xcurl_easy_escape, {handle, s, length(s)})
-  return peek_string(ret)
-end function
+--constant xcurl_easy_escape = link_c_func(libcurl, "curl_easy_escape",
+--                             {C_PTR, C_PTR, C_INT}, C_PTR)
+--global function curl_easy_escape(atom handle, string s) 
+--  atom ret = c_func(xcurl_easy_escape, {handle, s, length(s)})
+--  return peek_string(ret)
+--end function
 
 --------------------------------------------------------------------------------
 
 -- the previous version:
 -- CURL_EXTERN char *curl_escape(const char *string, int length);
-constant xcurl_escape = link_c_func(libcurl, "curl_escape",
-                          {C_PTR, C_INT}, C_PTR)
-global function curl_escape(string s)
-  atom ret = c_func(xcurl_escape, {s, length(s)})
-  return peek_string(ret)
-end function
+--constant xcurl_escape = link_c_func(libcurl, "curl_escape",
+--                        {C_PTR, C_INT}, C_PTR)
+--global function curl_escape(string s)
+--  atom ret = c_func(xcurl_escape, {s, length(s)})
+--  return peek_string(ret)
+--end function
 
 --------------------------------------------------------------------------------
 
@@ -2651,25 +2901,25 @@ end function
 --/
 -- CURL_EXTERN char *curl_easy_unescape(CURL *handle, const char *string,
 --                                 --   int length, int *outlength);
-constant xcurl_easy_unescape = link_c_func(libcurl, "curl_easy_unescape",
-                                 {C_PTR, C_PTR, C_INT, C_PTR},
-                                 C_PTR)
-global function curl_easy_unescape(atom handle, string s)
-  atom len = allocate(4,1),
-       ret = c_func(xcurl_easy_unescape, {handle, s, length(s), len})
-  return peek_string(ret)
-end function
+--constant xcurl_easy_unescape = link_c_func(libcurl, "curl_easy_unescape",
+--                               {C_PTR, C_PTR, C_INT, C_PTR},
+--                               C_PTR)
+--global function curl_easy_unescape(atom handle, string s)
+--  atom len = allocate(4,1),
+--     ret = c_func(xcurl_easy_unescape, {handle, s, length(s), len})
+--  return peek_string(ret)
+--end function
 
 --------------------------------------------------------------------------------
 
 -- the previous version
 -- CURL_EXTERN char *curl_unescape(const char *string, int length);
-constant xcurl_unescape = link_c_func(libcurl, "curl_unescape",
-                            {C_PTR, C_INT}, C_PTR)
-global function curl_unescape(string s)
-  atom ret = c_func(xcurl_unescape, {s, length(s)})
-  return peek_string(ret)
-end function
+--constant xcurl_unescape = link_c_func(libcurl, "curl_unescape",
+--                          {C_PTR, C_INT}, C_PTR)
+--global function curl_unescape(string s)
+--  atom ret = c_func(xcurl_unescape, {s, length(s)})
+--  return peek_string(ret)
+--end function
 
 --------------------------------------------------------------------------------
 
@@ -2681,11 +2931,11 @@ end function
 -- allocation. Added in libcurl 7.10
 --/
 -- CURL_EXTERN void curl_free(void *p);
-constant xcurl_free = link_c_proc(libcurl, "curl_free",
-                        {C_PTR})
-global procedure curl_free(atom p)
-  c_proc(xcurl_free, {p})
-end procedure
+--constant xcurl_free = link_c_proc(libcurl, "curl_free",
+--                      {C_PTR})
+--global procedure curl_free(atom p)
+--  c_proc(xcurl_free, {p})
+--end procedure
 
 --------------------------------------------------------------------------------
 
@@ -2720,12 +2970,12 @@ end procedure
 -- and should be set to NULL.
 --/
 -- CURL_EXTERN time_t curl_getdate(const char *p, const time_t *unused);
-constant xcurl_getdate = link_c_func(libcurl, "curl_getdate",
-                           {C_PTR, C_PTR}, C_PTR)
-global function curl_getdate(string s)
-  atom ret = c_func(xcurl_getdate, {s, NULL})
-  return ret
-end function
+--constant xcurl_getdate = link_c_func(libcurl, "curl_getdate",
+--                         {C_PTR, C_PTR}, C_PTR)
+--global function curl_getdate(string s)
+--  atom ret = c_func(xcurl_getdate, {s, NULL})
+--  return ret
+--end function
 
 --------------------------------------------------------------------------------
 
@@ -2754,9 +3004,9 @@ global constant
   CURLSSLBACKEND_AXTLS     = 10,
   CURLSSLBACKEND_MBEDTLS   = 11
 
-global type curl_sslbackend(integer n)
-  return ((n >= CURLSSLBACKEND_NONE) and (n <= CURLSSLBACKEND_MBEDTLS))
-end type
+--global type curl_sslbackend(integer n)
+--  return ((n >= CURLSSLBACKEND_NONE) and (n <= CURLSSLBACKEND_MBEDTLS))
+--end type
 
 -- aliases for library clones and renames
 global constant
@@ -2787,71 +3037,6 @@ global constant
   CURLCLOSEPOLICY_CALLBACK            = 5,
   CURLCLOSEPOLICY_LAST                = 6  -- last, never use this
 
-global type curl_closepolicy(integer n)
-  return ((n >= CURLCLOSEPOLICY_NONE) and (n <= CURLCLOSEPOLICY_LAST))
-end type
-
---------------------------------------------------------------------------------
-
--- Setup defines, protos etc for the sharing stuff.
---/
-
--- Different data locks for a single share
-global constant
-  CURL_LOCK_DATA_NONE        = 0,
-  --  CURL_LOCK_DATA_SHARE is used internally to say that
-                                 --             --  the locking is just made to change the internal state of the share
-                                 --             --  itself.
-                                 --             --/
-  CURL_LOCK_DATA_SHARE       = 1,
-  CURL_LOCK_DATA_COOKIE      = 2,
-  CURL_LOCK_DATA_DNS         = 3,
-  CURL_LOCK_DATA_SSL_SESSION = 4,
-  CURL_LOCK_DATA_CONNECT     = 5,
-  CURL_LOCK_DATA_LAST        = 6
-
-global type curl_lock_data(integer n)
-  return ((n >= CURL_LOCK_DATA_NONE) and (n <= CURL_LOCK_DATA_LAST))
-end type
-
--- Different lock access types
-global constant
-  CURL_LOCK_ACCESS_NONE   = 0, -- unspecified action
-  CURL_LOCK_ACCESS_SHARED = 1, -- for read perhaps
-  CURL_LOCK_ACCESS_SINGLE = 2, -- for write perhaps
-  CURL_LOCK_ACCESS_LAST   = 4  -- never use
-
-global type curl_lock_access(integer n)
-  return ((n >= CURL_LOCK_ACCESS_NONE) and (n <= CURL_LOCK_ACCESS_LAST))
-end type
-
--- typedef void (*curl_lock_function)(CURL *handle,
---                                 -- curl_lock_data data,
---                                 -- curl_lock_access locktype,
---                                 -- void *userptr);
--- typedef void (*curl_unlock_function)(CURL *handle,
---                                 --   curl_lock_data data,
---                                 --   void *userptr);
-
-
-global constant 
-  CURLSHOPT_NONE       = 0,  -- don't use
-  CURLSHOPT_SHARE      = 1,  -- specify a data type to share
-  CURLSHOPT_UNSHARE    = 2,  -- specify which data type to stop sharing
-  CURLSHOPT_LOCKFUNC   = 3,  -- pass in a 'curl_lock_function' pointer
-  CURLSHOPT_UNLOCKFUNC = 4,  -- pass in a 'curl_unlock_function' pointer
-  CURLSHOPT_USERDATA   = 5,  -- pass in a user data pointer used in the lock/unlock
-                             -- callback functions
-  CURLSHOPT_LAST       = 6   -- never use
-
-global type CURLSHoption(integer n)
-  return ((n >= CURLSHOPT_NONE) and (n <= CURLSHOPT_LAST))
-end type
---
--- CURL_EXTERN CURLSH *curl_share_init(void);
--- CURL_EXTERN CURLSHcode curl_share_setopt(CURLSH *, CURLSHoption option, ...);
--- CURL_EXTERN CURLSHcode curl_share_cleanup(CURLSH *);
-
 --------------------------------------------------------------------------------
 
 -- NAME curl_share_strerror()
@@ -2876,12 +3061,12 @@ end type
 --
 --/
 -- CURL_EXTERN CURLcode curl_easy_pause(CURL *handle, int bitmask);
-constant xcurl_easy_pause = link_c_func(libcurl, "curl_easy_pause",
-                              {C_PTR, C_INT}, C_INT)
-global function curl_easy_pause(atom handle, integer bitmask)
-    CURLcode res = c_func(xcurl_easy_pause, {handle, bitmask})
-    return res
-end function
+--constant xcurl_easy_pause = link_c_func(libcurl, "curl_easy_pause",
+--                            {C_PTR, C_INT}, C_INT)
+--global function curl_easy_pause(atom handle, integer bitmask)
+--  CURLcode res = c_func(xcurl_easy_pause, {handle, bitmask})
+--  return res
+--end function
 
 global constant CURLPAUSE_RECV      = 1
 global constant CURLPAUSE_RECV_CONT = 0
@@ -2894,142 +3079,8 @@ global constant CURLPAUSE_CONT = or_bits(CURLPAUSE_RECV_CONT, CURLPAUSE_SEND_CON
 
 --------------------------------------------------------------------------------
 
--- CURL_EXTERN CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...);
---constant xcurl_easy_setopt = link_c_func(libcurl, "curl_easy_setopt",
---                             {C_PTR, C_INT, C_PTR}, C_INT)
---global function curl_easy_setopt(atom curl, integer option, object param)
---  atom ptr
---  CURLcode res
---
---  if find(option, {
---  CURLOPT_ACCEPT_ENCODING, CURLOPT_CAINFO, CURLOPT_CAPATH, CURLOPT_COOKIE,
---  CURLOPT_COOKIEFILE, CURLOPT_COOKIEJAR, CURLOPT_COOKIELIST,
---  CURLOPT_COPYPOSTFIELDS, CURLOPT_CRLFILE, CURLOPT_CUSTOMREQUEST,
---  CURLOPT_DEFAULT_PROTOCOL, CURLOPT_DNS_INTERFACE, CURLOPT_DNS_LOCAL_IP4,
---  CURLOPT_DNS_LOCAL_IP6, CURLOPT_DNS_SERVERS, CURLOPT_EGDSOCKET,
---  CURLOPT_ERRORBUFFER, CURLOPT_FTP_ACCOUNT, CURLOPT_FTP_ALTERNATIVE_TO_USER,
---  CURLOPT_FTPPORT, CURLOPT_INTERFACE, CURLOPT_ISSUERCERT, CURLOPT_KEYPASSWD,
---  CURLOPT_KRBLEVEL, CURLOPT_LOGIN_OPTIONS, CURLOPT_MAIL_AUTH,
---  CURLOPT_MAIL_FROM, CURLOPT_NETRC_FILE, CURLOPT_NOPROXY, CURLOPT_PASSWORD,
---  CURLOPT_PINNEDPUBLICKEY, CURLOPT_POSTFIELDS, CURLOPT_PREQUOTE,
---  CURLOPT_PROXY, CURLOPT_PROXY_SERVICE_NAME, CURLOPT_PROXYPASSWORD,
---  CURLOPT_PROXYUSERNAME, CURLOPT_PROXYUSERPWD, CURLOPT_RANDOM_FILE,
---  CURLOPT_RANGE, CURLOPT_REFERER, CURLOPT_RTSP_SESSION_ID,
---  CURLOPT_RTSP_STREAM_URI, CURLOPT_RTSP_TRANSPORT, CURLOPT_SERVICE_NAME,
---  CURLOPT_SOCKS5_GSSAPI_SERVICE, CURLOPT_SSH_HOST_PUBLIC_KEY_MD5,
---  CURLOPT_SSH_KNOWNHOSTS, CURLOPT_SSH_PRIVATE_KEYFILE,
---  CURLOPT_SSH_PUBLIC_KEYFILE, CURLOPT_SSL_CIPHER_LIST, CURLOPT_SSLCERT,
---  CURLOPT_SSLCERTTYPE, CURLOPT_SSLENGINE, CURLOPT_SSLKEY,
---  CURLOPT_SSLKEYTYPE, CURLOPT_TLSAUTH_PASSWORD, CURLOPT_TLSAUTH_TYPE,
---  CURLOPT_TLSAUTH_USERNAME, CURLOPT_UNIX_SOCKET_PATH, CURLOPT_URL,
---  CURLOPT_USERAGENT, CURLOPT_USERNAME, CURLOPT_USERPWD,
---  CURLOPT_XOAUTH2_BEARER}
---  ) then  -- char *
---  ptr = allocate_string(param)
---  res = c_func(xcurl_easy_setopt, {curl, option, ptr})
---  free(ptr)
---  return res
---  
---  elsif find(option, {
---  CURLOPT_CHUNK_BGN_FUNCTION, CURLOPT_CHUNK_END_FUNCTION,
---  CURLOPT_CLOSESOCKETFUNCTION, CURLOPT_CONV_FROM_NETWORK_FUNCTION,
---  CURLOPT_CONV_FROM_UTF8_FUNCTION, CURLOPT_CONV_TO_NETWORK_FUNCTION,
---  CURLOPT_DEBUGFUNCTION, CURLOPT_FNMATCH_FUNCTION, CURLOPT_HEADERFUNCTION,
---  CURLOPT_INTERLEAVEFUNCTION, CURLOPT_IOCTLFUNCTION,
---  CURLOPT_OPENSOCKETFUNCTION, CURLOPT_PROGRESSFUNCTION,
---  CURLOPT_READFUNCTION, CURLOPT_SEEKFUNCTION, CURLOPT_SOCKOPTFUNCTION,
---  CURLOPT_SSH_KEYFUNCTION, CURLOPT_SSL_CTX_FUNCTION, CURLOPT_WRITEFUNCTION,
---  CURLOPT_XFERINFOFUNCTION}
---  ) then  -- callback
-----      return c_func(xcurl_easy_setopt, {curl, option, call_back(param)})
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  elsif find(option, {
---  CURLOPT_STREAM_DEPENDS, CURLOPT_STREAM_DEPENDS_E}
---  ) then  -- CURL *
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  elsif find(option, {
---  CURLOPT_INFILESIZE_LARGE, CURLOPT_MAX_RECV_SPEED_LARGE,
---  CURLOPT_MAX_SEND_SPEED_LARGE, CURLOPT_MAXFILESIZE_LARGE,
---  CURLOPT_POSTFIELDSIZE_LARGE, CURLOPT_RESUME_FROM_LARGE}
---  ) then  -- curl_off_t
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  elsif option = CURLOPT_SHARE then   -- CURLSH *
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  elsif option = CURLOPT_STDERR then  -- FILE *
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  elsif find(option, {
---  CURLOPT_ACCEPTTIMEOUT_MS, CURLOPT_ADDRESS_SCOPE, CURLOPT_APPEND,
---  CURLOPT_AUTOREFERER, CURLOPT_BUFFERSIZE, CURLOPT_CERTINFO,
---  CURLOPT_CONNECT_ONLY, CURLOPT_CONNECTTIMEOUT, CURLOPT_CONNECTTIMEOUT_MS,
---  CURLOPT_COOKIESESSION, CURLOPT_CRLF, CURLOPT_DIRLISTONLY,
---  CURLOPT_DNS_CACHE_TIMEOUT, CURLOPT_DNS_USE_GLOBAL_CACHE,
---  CURLOPT_EXPECT_100_TIMEOUT_MS, CURLOPT_FAILONERROR, CURLOPT_FILETIME,
---  CURLOPT_FOLLOWLOCATION, CURLOPT_FORBID_REUSE, CURLOPT_FRESH_CONNECT,
---  CURLOPT_FTP_CREATE_MISSING_DIRS, CURLOPT_FTP_FILEMETHOD,
---  CURLOPT_FTP_RESPONSE_TIMEOUT, CURLOPT_FTP_SKIP_PASV_IP,
---  CURLOPT_FTP_SSL_CCC, CURLOPT_FTP_USE_EPRT, CURLOPT_FTP_USE_EPSV,
---  CURLOPT_FTP_USE_PRET, CURLOPT_FTPSSLAUTH, CURLOPT_GSSAPI_DELEGATION,
---  CURLOPT_HEADER, CURLOPT_HEADEROPT, CURLOPT_HTTP_CONTENT_DECODING,
---  CURLOPT_HTTP_TRANSFER_DECODING, CURLOPT_HTTP_VERSION, CURLOPT_HTTPAUTH,
---  CURLOPT_HTTPGET, CURLOPT_HTTPPROXYTUNNEL, CURLOPT_IGNORE_CONTENT_LENGTH,
---  CURLOPT_INFILESIZE, CURLOPT_IPRESOLVE, CURLOPT_LOCALPORT,
---  CURLOPT_LOCALPORTRANGE, CURLOPT_LOW_SPEED_LIMIT, CURLOPT_LOW_SPEED_TIME,
---  CURLOPT_MAXCONNECTS, CURLOPT_MAXFILESIZE, CURLOPT_MAXREDIRS,
---  CURLOPT_NETRC, CURLOPT_NEW_DIRECTORY_PERMS, CURLOPT_NEW_FILE_PERMS,
---  CURLOPT_NOBODY, CURLOPT_NOPROGRESS, CURLOPT_NOSIGNAL, CURLOPT_PATH_AS_IS,
---  CURLOPT_PIPEWAIT, CURLOPT_PORT, CURLOPT_POST, CURLOPT_POSTFIELDSIZE,
---  CURLOPT_POSTREDIR, CURLOPT_PROTOCOLS, CURLOPT_PROXY_TRANSFER_MODE,
---  CURLOPT_PROXYAUTH, CURLOPT_PROXYPORT, CURLOPT_PROXYTYPE, CURLOPT_PUT,
---  CURLOPT_REDIR_PROTOCOLS, CURLOPT_RESUME_FROM, CURLOPT_RTSP_CLIENT_CSEQ,
---  CURLOPT_RTSP_REQUEST, CURLOPT_RTSP_SERVER_CSEQ, CURLOPT_SASL_IR,
---  CURLOPT_SOCKS5_GSSAPI_NEC, CURLOPT_SSH_AUTH_TYPES,
---  CURLOPT_SSL_ENABLE_ALPN, CURLOPT_SSL_ENABLE_NPN, CURLOPT_SSL_FALSESTART,
---  CURLOPT_SSL_OPTIONS, CURLOPT_SSL_SESSIONID_CACHE, CURLOPT_SSL_VERIFYHOST,
---  CURLOPT_SSL_VERIFYPEER, CURLOPT_SSL_VERIFYSTATUS,
---  CURLOPT_SSLENGINE_DEFAULT, CURLOPT_SSLVERSION, CURLOPT_STREAM_WEIGHT,
---  CURLOPT_TCP_FASTOPEN, CURLOPT_TCP_KEEPALIVE, CURLOPT_TCP_KEEPIDLE,
---  CURLOPT_TCP_KEEPINTVL, CURLOPT_TCP_NODELAY, CURLOPT_TFTP_BLKSIZE,
---  CURLOPT_TFTP_NO_OPTIONS, CURLOPT_TIMECONDITION, CURLOPT_TIMEOUT,
---  CURLOPT_TIMEOUT_MS, CURLOPT_TIMEVALUE, CURLOPT_TRANSFER_ENCODING,
---  CURLOPT_TRANSFERTEXT, CURLOPT_UNRESTRICTED_AUTH, CURLOPT_UPLOAD,
---  CURLOPT_USE_SSL, CURLOPT_VERBOSE, CURLOPT_WILDCARDMATCH}
---  ) then  -- long
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  elsif option = CURLOPT_HTTPPOST then    -- struct curl_httppost *
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  elsif find(option, {
---  CURLOPT_CONNECT_TO, CURLOPT_HTTP200ALIASES, CURLOPT_HTTPHEADER,
---  CURLOPT_MAIL_RCPT, CURLOPT_POSTQUOTE, CURLOPT_PROXYHEADER,
---  CURLOPT_QUOTE, CURLOPT_RESOLVE, CURLOPT_TELNETOPTIONS}
---  ) then  -- struct curl_slist *
---  slist = curl_slist_append(slist, param)
---  res = c_func(xcurl_easy_setopt, {curl, option, slist})
---  return res
---
---  elsif find(option, {
---  CURLOPT_CHUNK_DATA, CURLOPT_CLOSESOCKETDATA, CURLOPT_DEBUGDATA,
---  CURLOPT_FNMATCH_DATA, CURLOPT_HEADERDATA, CURLOPT_INTERLEAVEDATA,
---  CURLOPT_IOCTLDATA, CURLOPT_OPENSOCKETDATA, CURLOPT_PRIVATE,
---  CURLOPT_PROGRESSDATA, CURLOPT_READDATA, CURLOPT_SEEKDATA,
---  CURLOPT_SOCKOPTDATA, CURLOPT_SSH_KEYDATA, CURLOPT_SSL_CTX_DATA,
---  CURLOPT_WRITEDATA, CURLOPT_XFERINFODATA}
---  ) then  -- void *
---  return c_func(xcurl_easy_setopt, {curl, option, param})
---
---  end if
---end function
-
---------------------------------------------------------------------------------
-
 ===============================================================================================================
-procedure euLibCurl(****************************************************************************) end procedure
+--procedure euLibCurl(****************************************************************************) end procedure
 --
 -- euLibCurl version 0.2 (29-Aug-2002)
 --
@@ -3041,7 +3092,7 @@ procedure euLibCurl(************************************************************
 --*************************************************
 -- Includes
 --*************************************************
-include wrapper.ew
+--include wrapper.ew
 
 
 
@@ -3049,103 +3100,14 @@ include wrapper.ew
 -- Globals
 --*************************************************
 
-atom LibCurlLib
-LibCurlLib = link_dll("libcurl.dll")
+--atom LibCurlLib = link_dll("libcurl.dll")
 
 -- string_tab holds all option string data
 -- It is built automatically but requires easy_curl__cleanup to de-allocate
-sequence string_tab
-string_tab = {}
+sequence string_tab = {}
 
 -- memory allocated to convert to atoms to an 8 byte C double
 atom a2dp -- atom_2_double_pointer
-
-
---*************************************************
--- Constants
---*************************************************
-
-global constant
-   CURLE_OK = 0,
-   CURLE_UNSUPPORTED_PROTOCOL = 1,
-   CURLE_FAILED_INIT = 2,
-   CURLE_URL_MALFORMAT = 3,
-   CURLE_URL_MALFORMAT_USER = 4,
-   CURLE_COULDNT_RESOLVE_PROXY = 5,
-   CURLE_COULDNT_RESOLVE_HOST = 6,
-   CURLE_COULDNT_CONNECT = 7,
-   CURLE_FTP_WEIRD_SERVER_REPLY = 8,
-   CURLE_FTP_ACCESS_DENIED = 9,
-   CURLE_FTP_USER_PASSWORD_INCORRECT = 10,
-   CURLE_FTP_WEIRD_PASS_REPLY = 11,
-   CURLE_FTP_WEIRD_USER_REPLY = 12,
-   CURLE_FTP_WEIRD_PASV_REPLY = 13,
-   CURLE_FTP_WEIRD_227_FORMAT = 14,
-   CURLE_FTP_CANT_GET_HOST = 15,
-   CURLE_FTP_CANT_RECONNECT = 16,
-   CURLE_FTP_COULDNT_SET_BINARY = 17,
-   CURLE_PARTIAL_FILE = 18,
-   CURLE_FTP_COULDNT_RETR_FILE = 19,
-   CURLE_FTP_WRITE_ERROR = 20,
-   CURLE_FTP_QUOTE_ERROR = 21,
-   CURLE_HTTP_NOT_FOUND = 22,
-   CURLE_WRITE_ERROR = 23,
-   CURLE_MALFORMAT_USER = 24,         -- user name is illegally specified
-   CURLE_FTP_COULDNT_STOR_FILE = 25,  -- failed FTP upload
-   CURLE_READ_ERROR = 26,             -- could open/read from file
-   CURLE_OUT_OF_MEMORY = 27,
-   CURLE_OPERATION_TIMEOUTED = 28,    -- the timeout time was reached
-   CURLE_FTP_COULDNT_SET_ASCII = 29,  -- TYPE A failed
-   CURLE_FTP_PORT_FAILED = 30,        -- FTP PORT operation failed
-   CURLE_FTP_COULDNT_USE_REST = 31,   -- the REST command failed
-   CURLE_FTP_COULDNT_GET_SIZE = 32,   -- the SIZE command failed
-   CURLE_HTTP_RANGE_ERROR = 33,       -- RANGE "command" didn't work
-   CURLE_HTTP_POST_ERROR = 34,
-   CURLE_SSL_CONNECT_ERROR = 35,      -- wrong when connecting with SSL
-   CURLE_FTP_BAD_DOWNLOAD_RESUME = 36,-- couldn't resume download
-   CURLE_FILE_COULDNT_READ_FILE = 37,
-   CURLE_LDAP_CANNOT_BIND = 38,
-   CURLE_LDAP_SEARCH_FAILED = 39,
-   CURLE_LIBRARY_NOT_FOUND = 40,
-   CURLE_FUNCTION_NOT_FOUND = 41,
-   CURLE_ABORTED_BY_CALLBACK = 42,
-   CURLE_BAD_FUNCTION_ARGUMENT = 43,
-   CURLE_BAD_CALLING_ORDER = 44,
-   CURLE_HTTP_PORT_FAILED = 45,       -- HTTP Interface operation failed
-   CURLE_BAD_PASSWORD_ENTERED = 46,   -- my_getpass() returns fail
-   CURLE_TOO_MANY_REDIRECTS = 47,     -- catch endless re-direct loops
-   CURLE_UNKNOWN_TELNET_OPTION = 48,  -- User specified an unknown option
-   CURLE_TELNET_OPTION_SYNTAX = 49,   -- Malformed telnet option
-   CURLE_OBSOLETE = 50,               -- removed after 7.7.3
-   CURLE_SSL_PEER_CERTIFICATE = 51,   -- peer's certificate wasn't ok
-   CURLE_GOT_NOTHING = 52,            -- when this is a specific error
-   CURLE_SSL_ENGINE_NOTFOUND = 53,    -- SSL crypto engine not found
-   CURLE_SSL_ENGINE_SETFAILED = 54,   -- can not set SSL crypto engine as default
-   CURLE_SEND_ERROR = 55,             -- failed sending network data
-   CURLE_RECV_ERROR = 56
-
-
-
-global constant
-   CURLOPT_TIMEOUT = 13,
-   CURLOPT_RESUME_FROM = 21,
-   CURLOPT_HEADER = 42,
-   CURLOPT_NOPROGRESS = 43,             -- (done)
-   CURLOPT_FAILONERROR = 45,            -- (done)
-   CURLOPT_FOLLOWLOCATION = 52,
-   CURLOPT_TRANSFERTEXT = 53,
-   CURLOPT_MAXREDIRS = 68,
-   CURLOPT_FILE = 10001,
-   CURLOPT_URL = 10002,                 -- (done)
-   CURLOPT_PROXY = 10004,               -- (done)
-   CURLOPT_USERPWD = 10005,             -- (done)
-   CURLOPT_PROXYUSERPWD = 10006,
-   CURLOPT_RANGE = 10007,
-   CURLOPT_ERRORBUFFER = 10010,         -- (done)
-   CURLOPT_PROGRESSDATA = 10057,
-   CURLOPT_WRITEFUNCTION = 20011,       -- (done)
-   CURLOPT_PROGRESSFUNCTION = 20056,
-   CURLOPT_HEADERFUNCTION = 20079       -- (done)
 
 
 --*************************************************
@@ -3158,20 +3120,9 @@ global constant
 ------------------------------
 -- converts to atoms to a float64
 -- thanks to Matt Lewis
-global function atoms_to_double( atom a, atom b)
-    poke4( a2dp, {a,b} )
-    return float64_to_atom( peek( {a2dp,8} ) )
-end function
-
-
-------------------------------
--- add_string_tab
-------------------------------
--- internal routine to allocate null terminated strings
-function add_string_tab(sequence str)
-   string_tab = append(string_tab, allocate_string(str))
-   return string_tab[length(string_tab)]
-end function
-
+--global function atoms_to_double( atom a, atom b)
+--  poke4( a2dp, {a,b} )
+--  return float64_to_atom( peek( {a2dp,8} ) )
+--end function
 
 --*/

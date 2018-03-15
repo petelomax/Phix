@@ -5,10 +5,13 @@ echo Create phix.exe Windows Installer for phix.
 echo ===========================================
 echo  (please remember to change the version!)
 echo.
-set v=0.7.7
+set v=0.7.8
+:: (and the one in pglobals.e and the one in banner.htm)
 pause
 echo on
 
+p -c p
+pause
 p -c -norun p32.exu
 p -c -norun p64.exu
 
