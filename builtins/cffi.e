@@ -649,37 +649,42 @@ string mname
                     mtype = "u"&stoken()
                 end if
                 k = find(mtype,SizeNames)
-                if k=0 then
-                    err("unknown size "&mtype)
-                end if
                 mname = stoken()
-                if equal(mtype,"long") then
-                    if equal(mname,"int") then          -- "long int" -> "long"
-                        mname = stoken()
-                    elsif equal(mname,"long") then      -- "long long" -> "int64"
-                        mtype = "int64"
-                        k = as_int64
-                        mname = stoken()
-                        if equal(mname,"int") then      -- "long long int" -> int64"
+                if k=0 then
+                    if mname!="*" then
+                        err("unknown size "&mtype)
+                    end if
+                else
+                    if equal(mtype,"long") then
+                        if equal(mname,"int") then          -- "long int" -> "long"
+                            mname = stoken()
+                        elsif equal(mname,"long") then      -- "long long" -> "int64"
+                            mtype = "int64"
+                            k = as_int64
+                            mname = stoken()
+                            if equal(mname,"int") then      -- "long long int" -> int64"
+                                mname = stoken()
+                            end if
+                        elsif equal(mname,"double") then
+                            err("not supported (size=10/8/12/16?, align=8/2/4/16?!! !! !!)")
+                        end if
+                    elsif equal(mtype,"short") then
+                        if equal(mname,"int") then          -- "short int" -> "short"
                             mname = stoken()
                         end if
-                    elsif equal(mname,"double") then
-                        err("not supported (size=10/8/12/16?, align=8/2/4/16?!! !! !!)")
-                    end if
-                elsif equal(mtype,"short") then
-                    if equal(mname,"int") then          -- "short int" -> "short"
-                        mname = stoken()
                     end if
                 end if
             end if
         end if
-        if convert_types then       -- (can be set via set_unicode)
-            mtype = SizeNames[k]    -- (replaces eg "LONG" with "long")
+        if k!=0 then
+            if convert_types then       -- (can be set via set_unicode)
+                mtype = SizeNames[k]    -- (replaces eg "LONG" with "long")
+            end if
+--<         size = Sizes[k][machine]
+            size = Sizes[k][machine/32]
+            align = size
+            signed = SizeSigns[k]
         end if
---<     size = Sizes[k][machine]
-        size = Sizes[k][machine/32]
-        align = size
-        signed = SizeSigns[k]
     end if
     if equal(mname,"*") then    -- "&"? (would need '&' adding twice in stoken())
         mname = stoken()
