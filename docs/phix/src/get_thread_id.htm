@@ -1,0 +1,129 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">get_thread_id</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+         <a href="atom.htm">atom</a> thread_id = get_thread_id()
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Obtain a unique identifier for the currently executing thread.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            Can be used to distinguish calls originating in a background worker thread from those made by the main (gui) thread.<br>
+            Only the main thread should ever update the gui directly.
+            <br>
+            <br>
+            The returned value bears no resemblance to the thread handles returned by <a href="create_thread.htm">create_thread</a>().
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+constant main_thread = get_thread_id(),
+         logcs = init_cs()
+sequence loggit_stack = {}
+
+global procedure loggit(string text)
+-- (this can be called by any code, in any thread)
+    if get_thread_id()=main_thread then
+        -- show text in gui
+    else
+        enter_cs(logcs)
+        loggit_stack = append(loggit_stack,text)
+        leave_cs(logcs)
+    end if
+end procedure
+
+function timer_cb(Ihandle /*ih*/)
+-- (this is only ever invoked by the main thread)
+    -- process any stacked background thread loggit()s in a thread-safe way
+    enter_cs(logcs)
+    sequence ls = loggit_stack
+    loggit_stack = {}
+    leave_cs(logcs)
+    for i=1 to length(ls) do
+        loggit(ls[i])
+    end for
+    return IUP_DEFAULT
+end function    
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> main_thread</font><font color="#0000FF"> =</font><font color="#5E005E"> get_thread_id</font><font color="#0000FF">(),
+</font><font color="#000000">         logcs</font><font color="#0000FF"> =</font><font color="#5E005E"> init_cs</font><font color="#0000FF">()
+</font><font color="#004080">sequence</font><font color="#000000"> loggit_stack</font><font color="#0000FF"> = {}
+
+</font><font color="#008080">global procedure</font><font color="#000000"> loggit</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> text</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- (this can be called by any code, in any thread)
+</i></font><font color="#008080">    if</font><font color="#5E005E"> get_thread_id</font><font color="#0000FF">()=</font><font color="#000000">main_thread</font><font color="#008080"> then
+</font><font color="#000080"><i>        -- show text in gui
+</i></font><font color="#008080">    else
+</font><font color="#5E005E">        enter_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
+</font><font color="#000000">        loggit_stack</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">loggit_stack</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#0000FF">)
+</font><font color="#5E005E">        leave_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
+</font><font color="#008080">    end if
+end procedure
+
+function</font><font color="#000000"> timer_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*ih*/</i></font><font color="#0000FF">)
+</font><font color="#000080"><i>-- (this is only ever invoked by the main thread)
+    -- process any stacked background thread loggit()s in a thread-safe way
+</i></font><font color="#5E005E">    enter_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
+</font><font color="#004080">    sequence</font><font color="#000000"> ls</font><font color="#0000FF"> =</font><font color="#000000"> loggit_stack
+    loggit_stack</font><font color="#0000FF"> = {}
+</font><font color="#5E005E">    leave_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
+</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">ls</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#000000">        loggit</font><font color="#0000FF">(</font><font color="#000000">ls</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#008080">    end for
+    return</font><font color="#004600"> IUP_DEFAULT
+</font><font color="#008080">end function    </font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\VM\pThreadN.e (an autoinclude) for details of the actual implementation.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="create_thread.htm">create_thread</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

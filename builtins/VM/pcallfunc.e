@@ -109,7 +109,8 @@ constant S_NTyp     = 2,
 function call_common(object rid, object params, integer isProc)
 -- common code for call_proc/call_func (validate and process args)
 -- isProc is 0 from call_func, 1 from call_proc.
-sequence symtab
+--sequence symtab
+object symtab
 object si               -- copy of symtab[i], speedwise
 integer sNtyp,
         minparams,
@@ -123,6 +124,7 @@ object res
 
     -- get copy of symtab. NB read only! may contain nuts! (unassigned vars)
 --  si = 1  -- callstack not rqd
+enter_cs()
     #ilASM{
         [32]
             lea edi,[symtab]
@@ -138,6 +140,12 @@ object res
     or rid<T_const1
     or rid>length(symtab) then
 --      fatalN(3,e72iri,rid)
+        si = 0
+    else
+        si = symtab[rid]
+    end if
+leave_cs()
+    if si=0 then
         fatalN(2,e72iri,rid)
     end if
 
@@ -147,8 +155,6 @@ object res
 --      fatalN(3,e71cfppe,rid)
         fatalN(2,e71cfppe,rid)
     end if
-
-    si = symtab[rid]
 
     sNtyp = si[S_NTyp]
     if sNtyp<S_Type
@@ -166,14 +172,26 @@ object res
     end if
 
     minparams = si[S_ParmN]
-    maxparams = length(si[S_sig])-1
     noofparams = length(params)
+    nooflocals = si[S_Ltot]         -- (total no of params + local vars + temps)
+--DEV 26/02/2012 (we want something similar on si, maybe object sicopy?)
+--put back, 21/9/14 (keep ex.err simpler):
+--  symtab = {} -- 1/10/14: spannered self-host on newEmit=0, so I made the same un-change here for now [DEV, re-test when newEmit=1 self host works!]
+-- added 21/9/14:
+    si_il = si[S_il]
+
+    enter_cs()
+    maxparams = length(si[S_sig])-1
+    si = 0
+    symtab = 0
+    leave_cs()
+
 --  if noofparams<minparams then fatalN(3,e81ipicfp) end if -- insufficient parameters in call_func/proc()
     if noofparams<minparams then fatalN(2,e81ipicfp) end if -- insufficient parameters in call_func/proc()
 --  if noofparams>maxparams then fatalN(3,e89tmpicfp) end if -- too many parameters in call_func/proc()
     if noofparams>maxparams then fatalN(2,e89tmpicfp) end if -- too many parameters in call_func/proc()
 --  if noofparams>maxparams then fatalN(1,e89tmpicfp) end if -- too many parameters in call_func/proc()
-    nooflocals = si[S_Ltot]         -- (total no of params + local vars + temps)
+
     if string(params) then
         params &= -1    -- (force conversion to dword-sequence)
         --  Of course call_proc(N,"fred") is probably an error,
@@ -184,12 +202,7 @@ object res
         --  fact effectively the same as call_proc(N,"AAAAA"),
         --  since repeat(ch,N) creates a string, as it should.
     end if
---DEV 26/02/2012 (we want something similar on si, maybe object sicopy?)
---put back, 21/9/14 (keep ex.err simpler):
---  symtab = {} -- 1/10/14: spannered self-host on newEmit=0, so I made the same un-change here for now [DEV, re-test when newEmit=1 self host works!]
--- added 21/9/14:
-    si_il = si[S_il]
-    si = 0
+
     #ilASM{ e_all                                   -- set "all side_effects"
         [32]
             mov ecx,[nooflocals]                    -- (si[S_Ltot])

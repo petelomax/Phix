@@ -1,0 +1,171 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">thread_safe_string</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+         <a href="string.htm">string</a> res = thread_safe_string(<a href="string.htm">string</a> s)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Create a thread-safe version of the passed string.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            Effectively creates a private reference count that the thread can freely incref and decref without locking.
+            <br>
+            <br>
+            Result is only thread safe when it is stored in a variable that only one thread uses.
+            <br>
+            <br>
+            As you can see below, there are many possible variations: you just need to choreograph a dance whereby 
+            no-one steps on anybody else&rsquo;s toes. As mentioned previously, one of the hardest things about using
+            multithreading in phix is figuring out where these hidden reference counts are, and ensuring they are not 
+            shared/updated in an unsafe fashion.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+constant string FLOAT = thread_safe_string("%f") -- for use in process_ticker() only
+
+procedure process_ticker()
+    atom {{price}} = scanf(pricestr,FLOAT)
+    ...
+end procedure
+
+atom hThread = create_thread(routine_id("process_ticker"),{})
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#004080"> string</font><font color="#000000"> FLOAT</font><font color="#0000FF"> =</font><font color="#5E005E"> thread_safe_string</font><font color="#0000FF">(</font><font color="#008000">"%f"</font><font color="#0000FF">)</font><font color="#000080"><i> -- for use in process_ticker() only
+
+</i></font><font color="#008080">procedure</font><font color="#000000"> process_ticker</font><font color="#0000FF">()
+</font><font color="#004080">    atom</font><font color="#0000FF"> {</font><font color="#800000">{</font><font color="#000000">price</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#5E005E"> scanf</font><font color="#0000FF">(</font><font color="#000000">pricestr</font><font color="#0000FF">,</font><font color="#000000">FLOAT</font><font color="#0000FF">)
+    ...
+</font><font color="#008080">end procedure
+
+</font><font color="#004080">atom</font><font color="#000000"> hThread</font><font color="#0000FF"> =</font><font color="#5E005E"> create_thread</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"process_ticker"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{}</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            The above assumes only one instance of process_ticker is initiated, however the main thread and other
+            background threads may be using "%f", but that must not be the same one (refcount) being used here.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+procedure process_ticker(string fltfmt)
+    atom {{price}} = scanf(pricestr,fltfmt)
+    ...
+end procedure
+
+for i=1 to MAX_TICKERS do
+    atom hThread = create_thread(routine_id("process_ticker"),{thread_safe_string("%f")})
+end for
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> process_ticker</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> fltfmt</font><font color="#0000FF">)
+</font><font color="#004080">    atom</font><font color="#0000FF"> {</font><font color="#800000">{</font><font color="#000000">price</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#5E005E"> scanf</font><font color="#0000FF">(</font><font color="#000000">pricestr</font><font color="#0000FF">,</font><font color="#000000">fltfmt</font><font color="#0000FF">)
+    ...
+</font><font color="#008080">end procedure
+
+</font><font color="#004080">atom</font><font color="#000000"> hThread</font><font color="#0000FF"> =</font><font color="#5E005E"> create_thread</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"process_ticker"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">thread_safe_string</font><font color="#800080">(</font><font color="#008000">"%f"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            This allows you to create multiple process_ticker threads, and give each one a thread-safe "%f".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+constant string FLOAT = thread_safe_string("%f") -- a lockable version
+constant fltcs = init_cs()
+
+procedure process_ticker()
+    enter_cs(fltcs)
+    string fltfmt = thread_safe_string(FLOAT)
+    leave_cs(fltcs)
+    ...
+    atom {{price}} = scanf(pricestr,fltfmt)
+    ...
+end procedure
+
+for i=1 to MAX_TICKERS do
+    atom hThread = create_thread(routine_id("process_ticker"),{})
+end for
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#004080"> string</font><font color="#000000"> FLOAT</font><font color="#0000FF"> =</font><font color="#5E005E"> thread_safe_string</font><font color="#0000FF">(</font><font color="#008000">"%f"</font><font color="#0000FF">)</font><font color="#000080"><i> -- a lockable version
+</i></font><font color="#008080">constant</font><font color="#000000"> fltcs</font><font color="#0000FF"> =</font><font color="#5E005E"> init_cs</font><font color="#0000FF">()
+
+</font><font color="#008080">procedure</font><font color="#000000"> process_ticker</font><font color="#0000FF">()
+</font><font color="#5E005E">    enter_cs</font><font color="#0000FF">(</font><font color="#000000">fltcs</font><font color="#0000FF">)
+</font><font color="#004080">    string</font><font color="#000000"> fltfmt</font><font color="#0000FF"> =</font><font color="#5E005E"> thread_safe_string</font><font color="#0000FF">(</font><font color="#000000">FLOAT</font><font color="#0000FF">)
+</font><font color="#5E005E">    leave_cs</font><font color="#0000FF">(</font><font color="#000000">fltcs</font><font color="#0000FF">)
+    ...
+</font><font color="#004080">    atom</font><font color="#0000FF"> {</font><font color="#800000">{</font><font color="#000000">price</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#5E005E"> scanf</font><font color="#0000FF">(</font><font color="#000000">pricestr</font><font color="#0000FF">,</font><font color="#000000">fltfmt</font><font color="#0000FF">)
+    ...
+</font><font color="#008080">end procedure
+
+for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> MAX_TICKERS</font><font color="#008080"> do
+</font><font color="#004080">    atom</font><font color="#000000"> hThread</font><font color="#0000FF"> =</font><font color="#5E005E"> create_thread</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"process_ticker"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{}</font><font color="#0000FF">)
+</font><font color="#008080">end for</font>
+</pre>
+            <br>
+            This allows multiple process_ticker threads, with each one creating its own thread-safe copy.<br>
+            Note that the main thread may be using "%f" while a background thread is trying to make a copy
+            of it (mess with its refcount), hence the lockable version.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\VM\pThreadN.e (an autoinclude) for details of the actual implementation.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="create_thread.htm">create_thread</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

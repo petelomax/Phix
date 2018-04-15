@@ -112,18 +112,21 @@ global function routine_id(sequence s)
 --          may be wierd and disconcerting, but have always been perfectly valid.
 --
 
-sequence symtab         -- yup, we (routine_id) is symtab[188], give or take...
-object  si              -- copy of symtab[i], speedwise
+object symtab,          -- yup, we (routine_id) is symtab[188], give or take...
+       si,              -- copy of symtab[i], speedwise
+       si_name          -- copy of symtab[i][S_name], speedwise/thread-sfaety
 integer rtn,            -- routine number of callee, from callstack
         cFno,           -- calling fileno. Any namespace *must* be in this file.
         tFno,           -- target fileno, or 0 if no namespace specified
         siFno,          -- copy of si[S_FPno], speedwise
         clink,          -- for skipping down namespace/routine chains
+        state,          -- copy of si[S_State]
         isGlobal,       -- K_gbl or 0, from si[S_State].
         res             -- the one and only global, or -2
 sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
 
     -- get copy of symtab. NB read only! may contain nuts! (unassigned vars)
+    enter_cs()
 --  si = 1  -- callstack not rqd
     #ilASM{
         [32]
@@ -152,6 +155,7 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
     cFno = symtab[rtn][S_FPno]      -- fileno of callee (whether routine or toplevel)
 --?{rtn,cFno}
     tFno = find(':',s)
+    res = -1
     if tFno then
         name_space = s[1..tFno-1]
         s = s[tFno+1..length(s)]
@@ -160,50 +164,69 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
         while clink do
             si = symtab[clink]
             siFno = si[S_FPno]
-            if siFno=cFno                   -- local namespace in callee file...
-            and si[S_Name]=name_space then
-                tFno = si[S_vtype]          -- ...pointing at target fileno
-                exit
+            if siFno=cFno then              -- local namespace in callee file...
+                si_name = si[S_Name]
+                if si_name=name_space then
+                    tFno = si[S_vtype]      -- ...pointing at target fileno
+                    exit
+                end if
             end if
             clink = si[S_Slink]
         end while
-        if tFno=0 then return -3 end if     -- no such namespace
+        if tFno=0 then                  -- no such namespace
+            res = -3
+        end if
     end if
 
-    clink = symtab[T_maintls][S_Slink]      -- follow the (special) routines chain, speedwise
-    while clink do
---?clink
-        si = symtab[clink]
---?si
---?si[S_Name]
---if getc(0) then end if
-        if si[S_Name]=s then
-            isGlobal = and_bits(si[S_State],K_gbl)
-            siFno = si[S_FPno]
-            if tFno=0 then -- no namespace
-                if siFno=cFno then return clink end if -- callee file wins
-                if isGlobal then
+    if res!=-3 then
+        clink = symtab[T_maintls][S_Slink]      -- follow the (special) routines chain, speedwise
+        while clink do
+            si = symtab[clink]
+            si_name = si[S_Name]
+            if si_name=s then
+                state = si[S_State]
+                isGlobal = and_bits(state,K_gbl)
+                siFno = si[S_FPno]
+                if tFno=0 then -- no namespace
+                    if siFno=cFno then          -- callee file wins
+                        res = clink
+                        exit
+                    end if
+                    if isGlobal then
+                        res = clink
+                        while 1 do  -- scan for duplicates or one in callee file
+                            clink = si[S_Slink]
+                            if not clink then exit end if
+                            si = symtab[clink]
+                            si_name = si[S_Name]
+                            if si_name=s then
+                                siFno = si[S_FPno]
+                                if siFno=cFno then  -- callee file wins
+                                    res = clink
+                                    exit
+                                end if
+                                if and_bits(si[S_State],K_gbl) then
+                                    res = -2    -- more than one global (and no namespace)
+                                end if          -- carry on scan for callee file wins cases
+                            end if
+                        end while
+--                      return res  -- the one and only global not in callee file, or -2
+                        exit
+                    end if
+                elsif siFno=tFno and isGlobal then
+--                  return clink
                     res = clink
-                    while 1 do  -- scan for duplicates or one in callee file
-                        clink = si[S_Slink]
-                        if not clink then exit end if
-                        si = symtab[clink]
-                        if si[S_Name]=s then
-                            siFno = si[S_FPno]
-                            if siFno=cFno then return clink end if -- callee file wins
-                            if and_bits(si[S_State],K_gbl) then
-                                res = -2    -- more than one global (and no namespace)
-                            end if          -- carry on scan for callee file wins cases
-                        end if
-                    end while
-                    return res  -- the one and only global not in callee file, or -2
+                    exit
                 end if
-            elsif siFno=tFno and isGlobal then
-                return clink
             end if
-        end if
-        clink = si[S_Slink]
-    end while
-    return -1
+            clink = si[S_Slink]
+        end while
+    end if
+    si_name = 0
+    si = 0
+    symtab = 0
+    leave_cs()
+--  return -1
+    return res
 end function
 

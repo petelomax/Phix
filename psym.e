@@ -2570,10 +2570,6 @@ end if
     Alias("pathname", symlimit)
     initialAutoEntry("get_file_extension",S_Func,"FS",  "pfile.e",0,E_none)
     Alias("fileext", symlimit)
---if newEmit then
---  initialAutoEntry("get_proper_pathN", S_Func,"FPO",  "VM\\pgetpathN.e",0,E_none)
---  symtab[symlimit][S_ParmN] = 1
---else
     initialAutoEntry("get_file_name",   S_Func,"FS",    "pfile.e",0,E_none)
 --removed 25/11/16
 --  Alias("filename", symlimit)
@@ -2585,13 +2581,10 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("canonical_path",  S_Func,"FSII",  "pgetpath.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
---end if
     initialAutoEntry("peek_string",     S_Func,"FN",    "peekstr.e",0,E_none)
     initialAutoEntry("prompt_string",   S_Func,"FS",    "get.e",0,E_other)
-if newEmit then
     initialAutoEntry("sprintf",         S_Func,"FPO",   "VM\\pprntfN.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
---  initialAutoEntry("sprint",          S_Func,"FO",    "VM\\psprintN.e",0,E_none)
     initialAutoEntry("sprint",          S_Func,"FOII",  "VM\\psprintN.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("substitute",      S_Func,"FSSS",  "substitute.e",0,E_none)
@@ -2599,12 +2592,6 @@ if newEmit then
     initialAutoEntry("atom_to_float32", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("atom_to_float64", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("atom_to_float80", S_Func,"FN",    "VM\\pFloatN.e",0,E_none)
-else
-    initialAutoEntry("atom_to_float80", S_Func,"FN",    "pfloat.e",0,E_none)
-    initialAutoEntry("sprintf",         S_Func,"FPO",   "pprntf.e",0,E_none)
-    symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("sprint",          S_Func,"FO",    "psprint.e",0,E_none)
-end if
     initialAutoEntry("to_string",       S_Func,"FOII",  "to_str.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("utf16_to_utf8",   S_Func,"FP",    "utfconv.e",0,E_none)
@@ -2615,11 +2602,7 @@ end if
     IAEType = T_sequence
 
     initialAutoEntry("columnize",       S_Func,"FPOO",  "pcolumn.e",0,E_none)
---if newEmit then
     initialAutoEntry("command_line",    S_Func,"F",     "VM\\pcmdlnN.e",0,E_none)   T_command_line = symlimit
---else
---  initialAutoEntry("command_line",    S_Func,"F",     "pcmdln.e",0,E_none)        T_command_line = symlimit
---end if
     initialAutoEntry("date",            S_Func,"FI",    "pdate.e",0,E_none)         Z_command_line = 0
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("db_table_list",   S_Func,"F",     "database.e",0,E_none)
@@ -2644,13 +2627,13 @@ end if
     initialAutoEntry("get_bytes",       S_Func,"FII",   "get.e",0,E_other)
     initialAutoEntry("head",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-if newEmit then
+--if newEmit then
     initialAutoEntry("include_paths",   S_Func,"FI",    "pincpathN.e",0,E_none)
     symtab[symlimit][S_ParmN] = 0
-else
-    initialAutoEntry("include_paths",   S_Func,"FI",    "pincpath.e",0,E_none)
-    symtab[symlimit][S_ParmN] = 0
-end if
+--else
+--  initialAutoEntry("include_paths",   S_Func,"FI",    "pincpath.e",0,E_none)
+--  symtab[symlimit][S_ParmN] = 0
+--end if
     initialAutoEntry("insert",          S_Func,"FPOI",  "pseqc.e",0,E_none)
     initialAutoEntry("int_to_bytes",    S_Func,"FNI",   "machine.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2914,21 +2897,10 @@ elsif hllfileio then
     initialAutoEntry("position",            S_Proc,"PII",   "pfileio.e",0,E_other)
     initialAutoEntry("puts",                S_Proc,"PIO",   "pfileio.e",0,E_other)
 end if
-if newEmit then
     initialAutoEntry("printf",              S_Proc,"PIPO",  "VM\\pprntfN.e",0,E_other)
     symtab[symlimit][S_ParmN] = 2
---  initialAutoEntry("print",               S_Proc,"PIO",   "VM\\psprintN.e",0,E_other)
     initialAutoEntry("print",               S_Proc,"PIOI",  "VM\\psprintN.e",0,E_other)         T_print = symlimit
     symtab[symlimit][S_ParmN] = 2
---  initialAutoEntry("ppN",                 S_Proc,"PO",    "VM\\pppN.e",0,E_other)
---  initialAutoEntry("ppOptN",              S_Proc,"PP",    "VM\\pppN.e",0,E_other)
---  initialAutoEntry("ppExN",               S_Proc,"POP",   "VM\\pppN.e",0,E_other)
-else
-    initialAutoEntry("printf",              S_Proc,"PIPO",  "pprntf.e",0,E_other)
-    symtab[symlimit][S_ParmN] = 2
-    initialAutoEntry("print",               S_Proc,"PIO",   "psprint.e",0,E_other)              T_print = symlimit
-end if
---  initialAutoEntry("pp",                  S_Proc,"PO",    "ppp.e",0,E_other)
     initialAutoEntry("pp",                  S_Proc,"POP",   "ppp.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("ppOpt",               S_Proc,"PP",    "ppp.e",0,E_other)

@@ -229,7 +229,10 @@ if format_timedate(s)!="Today is Tuesday, January 4th, 2000" then ?9/0 end if
 
 set_timedate_formats({"Dddd, Mmmm dth, YYYY, h:mmpm"})
    s=parse_date_string("Tuesday, January 4th, 2000, 7:30pm")        if s!={2000,1,4,19,30,0,3,0,0} then ?9/0 end if
-s = adjust_timedate(s,timedelta(hours:=7.5))                        if s!={2000,1,5, 3, 0,0,4,5,0} then ?9/0 end if
+--22/3/18
+--s = adjust_timedate(s,timedelta(hours:=7.5))                      if s!={2000,1,5, 3, 0,0,4,5,0} then ?9/0 end if
+s = adjust_timedate(s,timedelta(hours:=7.5))        s[DT_MSEC] = 0  if s!={2000,1,5, 3, 0,0,0,5,0} then ?9/0 end if
+
 if format_timedate(s,"Ddd, Mmm dth, YYYY, h:mmpm")!="Wed, Jan 5th, 2000, 3:00am" then ?9/0 end if
 
 --s = parse_date_string("January 9, 2001, 15:12:54",{"Mmmm d, yyyy, hh:mm:ss"})
@@ -239,21 +242,20 @@ if format_timedate(s,"Ddd, Mmm dth, YYYY, h:mmpm")!="Wed, Jan 5th, 2000, 3:00am"
 set_timedate_formats({"Ddd, Mmm dth, YYYY, h:mmpm tz"})
 if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am UTC" then ?9/0 end if
 s = set_timezone(s,"BST")   -- this should NOT change the time!
-                                                                    if s!={2000,1,5,3,0,0,4,  5,tzGMT,tzBST} then ?9/0 end if -- (out-of season)
+                                                                    if s!={2000,1,5,3,0,0,0,  5,tzGMT,tzBST} then ?9/0 end if -- (out-of season)
 if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am GMT" then ?9/0 end if
-s = change_timezone(s,"GMT")                                        if s!={2000,1,5,3,0,0,4,  5,tzGMT,tzGMT} then ?9/0 end if
+s = change_timezone(s,"GMT")                                        if s!={2000,1,5,3,0,0,0,  5,tzGMT,tzGMT} then ?9/0 end if
 if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am GMT" then ?9/0 end if
-s = change_timezone(s,"BST")                                        
-if s!={2000,1,5,3,0,0,4,  5,tzGMT,tzBST} then ?9/0 end if
+s = change_timezone(s,"BST")                                        if s!={2000,1,5,3,0,0,0,  5,tzGMT,tzBST} then ?9/0 end if
 if format_timedate(s)!="Wed, Jan 5th, 2000, 3:00am GMT" then ?9/0 end if
 
-s = adjust_timedate(s,timedelta(weeks:=26,days:=1))                 if s!={2000,7,6,4,0,0,5,188,tzBST,tzBST} then ?9/0 end if
+s = adjust_timedate(s,timedelta(weeks:=26,days:=1))                 if s!={2000,7,6,4,0,0,0,188,tzBST,tzBST} then ?9/0 end if
 if format_timedate(s)!="Thu, Jul 6th, 2000, 4:00am BST" then ?9/0 end if
-s = change_timezone(s,"GMT")                                        if s!={2000,7,6,3,0,0,5,188,tzGMT,tzGMT} then ?9/0 end if
+s = change_timezone(s,"GMT")                                        if s!={2000,7,6,3,0,0,0,188,tzGMT,tzGMT} then ?9/0 end if
 if format_timedate(s)!="Thu, Jul 6th, 2000, 3:00am GMT" then ?9/0 end if
-s = change_timezone(s,"BST")                                        if s!={2000,7,6,4,0,0,5,188,tzBST,tzBST} then ?9/0 end if
+s = change_timezone(s,"BST")                                        if s!={2000,7,6,4,0,0,0,188,tzBST,tzBST} then ?9/0 end if
 if format_timedate(s)!="Thu, Jul 6th, 2000, 4:00am BST" then ?9/0 end if
-s = adjust_timedate(s,timedelta(weeks:=26,days:=1))                 if s!={2001,1,5,3,0,0,6,  5,tzGMT,tzBST} then ?9/0 end if
+s = adjust_timedate(s,timedelta(weeks:=26,days:=1))                 if s!={2001,1,5,3,0,0,0,  5,tzGMT,tzBST} then ?9/0 end if
 if format_timedate(s)!="Fri, Jan 5th, 2001, 3:00am GMT" then ?9/0 end if
 
 
@@ -263,13 +265,13 @@ if tzGMT!=3 then ?"oops, tsGMT!=3" end if   -- change the 3 and update following
 
 set_timedate_formats({"D/M/YYYY hpm TZ"})
  s = parse_date_string("1/8/2015 9am GMT")                          if s!={2015, 8,1, 9,0,0,0,  0,tzGMT} then ?9/0 end if
-s = change_timezone(s,"BST")                                        if s!={2015, 8,1,10,0,0,7,213,tzBST} then ?9/0 end if   --(7 is dow, 213 is doy)
+s = change_timezone(s,"BST")                                        if s!={2015, 8,1,10,0,0,0,213,tzBST} then ?9/0 end if   --(7 is dow, 213 is doy)
 if format_timedate(s)!="1/8/2015 10am BST" then ?9/0 end if
 
-s = adjust_timedate(s,timedelta(days:=4*31-2))                      if s!={2015,12,1, 9,0,0,3,335,tzGMT,tzBST} then ?9/0 end if
+s = adjust_timedate(s,timedelta(days:=4*31-2))                      if s!={2015,12,1, 9,0,0,0,335,tzGMT,tzBST} then ?9/0 end if
 if format_timedate(s)!="1/12/2015 9am GMT" then ?9/0 end if
 
-s = adjust_timedate(s,timedelta(days:=6*31-3))                      if s!={2016, 6,1,10,0,0,4,153,tzBST,tzBST} then ?9/0 end if
+s = adjust_timedate(s,timedelta(days:=6*31-3))                      if s!={2016, 6,1,10,0,0,0,153,tzBST,tzBST} then ?9/0 end if
 if format_timedate(s)!="1/6/2016 10am BST" then ?9/0 end if
 
 -- allow_partial controls whether eg parse("3am EDT","hpm") fails, with the

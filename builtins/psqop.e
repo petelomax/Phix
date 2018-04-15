@@ -255,6 +255,8 @@ end function
 
 -- If sq_atom()/sq_seq() used recursion, you would just get a 
 -- "tree of 1's"/"tree of 0's" of the exact same size/shape.
+-- [ie sum(sq_atom(x)) would be === length(flatten(x)), and
+--  sum(sq_seq(x)) would always be 0, for any and all x]
 -- It may be that these routines deserve a "nest" parameter
 -- (possibly defaulted to 1), ditto for sq_int/sq_str.
 -- OTOH, there are NO known uses of the above routines, anywhere!
@@ -350,7 +352,7 @@ global function sq_div(object a, object b)
 end function
 
 global function sq_floor_div(object a, object b)
--- (equivalent to floor(sq_div(a,b)) but much faster.)
+-- (equivalent to sq_floor(sq_div(a,b)) but much faster.)
     if atom(a) then
         if atom(b) then return floor(a/b) end if
         for i=1 to length(b) do

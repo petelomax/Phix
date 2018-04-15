@@ -3,8 +3,14 @@
 --
 --  Phix implementation of abs(), round(), ceil(), sign(), min(), max()
 --
--- Note: there is no automatic-substitution-with-warning of sq_abs etc,
---       like there is with floor->sq_floor, *->sq_mul, etc
+-- Note: There is no automatic-substitution-with-warning, as yet, of 
+--       sq_abs, sq_round, sq_ceil, sq_sign, sq_mod, or sq_trunc.
+--       Not that I have any particular objection to such, or even
+--       just deleting the ones in psqop.e in favour of enhancing
+--       the routines in here, to cope with sequence parameters.
+--
+--       There are no sq_xx versions of exp, min, max or atan2;
+--       while sq_exp could be made, the other 3 c/should not.
 --
 -- This is an auto-include file; there is no need to manually include
 --  it, unless you want a namespace.
@@ -77,17 +83,13 @@ global function mod(atom x, atom y)
     return x - y * floor(x / y)
 end function
 
---global function trunc(atom x)
---  return sign(x)*floor(abs(x))
---end function
 global function trunc(atom x)
+--  return sign(x)*floor(abs(x))
     if x<0 then
         return -floor(-x)
     end if
     return floor(x)
 end function
-
---constant HALFPI = PI/2
 
 global function atan2(atom y, atom x)
     if x>0 then
@@ -99,10 +101,8 @@ global function atan2(atom y, atom x)
             return arctan(y/x) + PI
         end if
     elsif y>0 then
---      return HALFPI
         return PI/2
     elsif y<0 then
---      return -(HALFPI)
         return -(PI/2)
     else
         return 0

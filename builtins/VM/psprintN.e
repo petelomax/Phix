@@ -17,7 +17,7 @@ include pprntfN.e
 
 --constant tnr = "tnr"
 --constant tnr = "tnr\\\"\'\0"
-constant tnr = "tnr\\\"\'0e"
+--constant tnr = "tnr\\\"\'0e"
 
 --function allascii(string x, bool withquotes)
 function allascii(string x)
@@ -28,14 +28,21 @@ integer c
         c = x[i]
 --31/1/15:
 --      if c<' ' then
-        if c<' ' or c>#FF or find(c,"\\\"\'") then
+--      if c<' ' or c>#FF or find(c,"\\\"\'") then
+        if c='\\' or c='\"'or c='"' then
+            x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
+        elsif c<' ' or c>#FF then
 --          c = find(c,"\t\n\r")
-            c = find(c,"\t\n\r\\\"\'\0\e")
-            if c then
-                x[i..i] = '\\'&tnr[c]   -- NB does not work on RDS Eu/OpenEuphoria
+--          c = find(c,"\t\n\r\\\"\'\0\e")
+            if c='\t' then c='t'
+            elsif c='\n' then c='n'
+            elsif c='\r' then c='r'
+            elsif c='\0' then c='0'
+            elsif c='\e' then c='e'
             else
                 return 0
             end if
+            x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
         end if
     end for
 --  if withquotes then
@@ -53,8 +60,9 @@ global function sprint(object x, integer maxlen=-1, integer nest=0)
 object s, xi
 
     if atom(x) then
---      return sprintf("%.10g", x)
-        s = sprintf("%.10g", x)
+--      s = sprintf("%.10g", x)
+        string fmt = '%'&'.'&'1'&'0'&'g'
+        s = sprintf(fmt,x)
         if not integer(x)
 --removed 3/11/15 (so that eg 2000000000 gets the ".0")
 --      and integer(floor(x))
@@ -63,7 +71,9 @@ object s, xi
         and not find('n',s) then    -- (inf/nan)
             -- make sure you can tell 5 and 5.00000000001 
             --  apart in ex.err, trace, ?x, and the like.
-            s &= ".0"
+--          s &= ".0"
+            s &= '.'
+            s &= '0'
         end if
         return s
     end if
@@ -81,7 +91,12 @@ object s, xi
 --      if string(x) and length(x)>4 then
 --          s = allascii(x[1..maxlen-4],true)
             s = allascii(x[1..maxlen-4])
-            if string(s) then return s&".." end if
+--          if string(s) then return s&".." end if
+            if string(s) then
+                s &= '.'
+                s &= '.'
+                return s
+            end if
         end if
     elsif string(x) then
 --      s = allascii(x,nest!=0)
@@ -103,7 +118,9 @@ object s, xi
             if length(s)>=maxlen then
                 if nest=0 then
                     s = s[1..maxlen-2]
-                    s &= ".."
+--                  s &= ".."
+                    s &= '.'
+                    s &= '.'
                 else
                     s = s[1..maxlen]
                 end if

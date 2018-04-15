@@ -1845,6 +1845,7 @@ sequence flatsym2
 --          C:\Programs\xxx.e:147 xxx (local)
 
 --integer oops2shown = -1
+integer oopsshown = 0
 integer oops2shown = 0
 function ReconstructIds(sequence name, integer node)
 integer slink
@@ -1868,7 +1869,10 @@ object prev
         if slink>length(symtab) then
 --      if slink>length(symtab) 
 --      or not sequence(symtab[slink]) then
-            printf(1,"oops in ReconstructIds(%s)\n",{name})
+            if oopsshown=0 then
+                printf(1,"oops in ReconstructIds(%s)\n",{name})
+                oopsshown = 1
+            end if
             exit
         end if
         prev = symtab[slink]

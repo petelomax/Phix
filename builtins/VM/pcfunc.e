@@ -704,7 +704,7 @@ global function call_back(object id)
 --  to "push push jmp", although "popx push push pushx jmp" might be ok.
 --
 integer k, siNTyp, sigi, noofparams
-sequence symtab, sig
+object symtab, sig
 object si
 atom r
 integer convention
@@ -732,6 +732,8 @@ integer convention
             id = id[2]
         end if
 --      si = 1  -- callstack not rqd
+
+        enter_cs()
         #ilASM{
             [32]
                 lea edi,[symtab]
@@ -744,10 +746,20 @@ integer convention
         if not integer(id)
         or id<=T_const1             -- (no real routines that far down there mate!)
         or id>length(symtab) then   -- (nor any "" "" after the end of the symtab!)
-            fatalN(2,e72iri,id)
+            si = 0
+        else
+            si = symtab[id]
+            if sequence(si)
+            and length(si)>=S_sig then
+                sig = si[S_sig]
+            else
+                sig = 0
+            end if
         end if
-        si = symtab[id]
-        if atom(si) then
+        leave_cs()
+
+        if atom(si)
+        or not sequence(sig) then
             fatalN(2,e72iri,id)
         end if
         siNTyp = si[S_NTyp]
@@ -755,7 +767,9 @@ integer convention
         and siNTyp!=S_Type then
             fatalN(2,e72iri,id)
         end if
-        sig = si[S_sig]
+--DEV possibly not thread safe... - now moved up above, into the cs.
+--      sig = si[S_sig]
+--/DEV
         for i=2 to length(sig) do
             sigi = sig[i]
             if sigi>T_atom then
@@ -798,6 +812,12 @@ integer convention
 if platform()=LINUX then
     if noofparams>6 then ?9/0 end if
 end if
+
+        enter_cs()
+        sig = 0
+        si = 0
+        symtab = 0
+        leave_cs()
 
 --DEV Needs DEP handling. [test]
         r = allocate(16)    -- STDCALL needs 13 bytes, CDECL 11 (round up to 4 dwords):

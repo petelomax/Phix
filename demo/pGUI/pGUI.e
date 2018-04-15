@@ -1309,6 +1309,7 @@ procedure iup_init1(nullable_string dll_root)
 --else
     sequence s = include_paths()
     string dll_dir = sprintf("%s%d",{dirs[libidx],machine_bits()})
+--  string dll_dir = sprintf("%s%d",{dirs[libidx],machine_bits()})&"z"
     for i=1 to length(s) do
         sequence sip = split_path(s[i])
         if sip[$]="pGUI" then
@@ -2834,6 +2835,14 @@ global procedure IupMessage(nullable_string title=NULL, nullable_string msg=NULL
     if iup=NULL then iup_init1(NULL) end if
     if length(data) then
         msg = sprintf(msg, data)
+    end if
+    if find('\n',msg) then
+        -- make each paragraph a single line, improves wordwrap
+        -- (note: this may be a windows only thing, not yet tested on lnx)
+        msg = substitute(msg,"\n\n","\r\r")
+        msg = substitute(msg,"\n"," ")
+        msg = substitute(msg,"  "," ")
+        msg = substitute(msg,"\r\r","\n\n")
     end if
     c_proc(xIupMessage, {title,msg})
 end procedure

@@ -722,13 +722,17 @@ constant day_in_seconds = 24*60*60  -- (=86400)
 
 function timedate_to_seconds(timedate td)
 -- returns an atom
-    return timedate_to_julian_day(td)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+--22/3/18:
+--  return timedate_to_julian_day(td)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+    return (timedate_to_julian_day(td)-2440588)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
 end function
 
 function seconds_to_timedate(atom seconds)
 integer days, minutes, hours, milliseconds
 
-    days = floor(seconds/day_in_seconds)
+--22/3/18:
+--  days = floor(seconds/day_in_seconds)
+    days = floor(seconds/day_in_seconds)+2440588
     seconds = remainder(seconds, day_in_seconds)
 
     hours = floor(seconds/3600)
@@ -746,7 +750,9 @@ end function
 
 global function adjust_timedate(sequence td, atom delta)
 integer y, m, d, dsrule, tz, stz
-    td[1..7] = seconds_to_timedate(timedate_to_seconds(td)+delta)
+    atom secs = timedate_to_seconds(td)
+    secs += delta
+    td[1..7] = seconds_to_timedate(secs)
     delta = 0
     if length(td)=DT_DSTZ then
         dsrule = get_DST_rule(td,DT_DSTZ)

@@ -171,8 +171,9 @@ integer l
 end function
 
 global function command_line()
---/**/sequence symtab,tmp2
-sequence plainstr,res,tmp
+--/**/object symtab,tmp2
+sequence plainstr,res
+object tmp
 --object current
 integer chfirst, chlast, l, lr
 integer pArg4,W,N
@@ -379,7 +380,7 @@ integer pArg4,W,N
                 -- (pdiag.e wants symtab at error point, which is oft not the
                 --  one pdiag.e is actually executing in, whereas here we are
                 --  after the one currently running, hence this flag)
-
+--/**/  enter_cs()
 --/**/  #ilASM{
 --/**/      [32]
 --/**/          lea edi,[symtab]
@@ -422,6 +423,10 @@ integer pArg4,W,N
 --/**/  elsif and_bits(l,1) then            -- pre-compiled (by Phix) executable running:
 --/**/      res = prepend(res,res[1])       --   eg {"t.exe",..} ==> {"t.exe","t.exe",..}
 --/**/  end if
+--/**/  tmp2 = 0
+--/**/  tmp = 0
+--/**/  symtab = 0
+--/**/  leave_cs()
 
 --/* Not Phix:
     if lr=1 then

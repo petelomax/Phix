@@ -3320,6 +3320,8 @@ end if
         else -- K_wdb
             if sNTyp<S_Type then
                 put2(sprintf("pDiagN.e line 3300: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
+?"sleep(5)..."
+sleep(5)
 --          else
 --              put2(sprintf("diag.e: symtab[%d] skipped (no debug)\n",{rtn}))
             end if

@@ -16,17 +16,18 @@ global constant newBase = 2 -- 0 = old style, with base @ ref*4-20 on seq/str
 
 global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 
---global constant phixversion = {0,6,8} -- 0.6.8
---global constant phixversion = {0,6,9} -- 0.6.9    -- 25/04/16
---global constant phixversion = {0,7,0} -- 0.7.0    -- 09/09/16
---global constant phixversion = {0,7,1} -- 0.7.1    -- 04/12/16
---global constant phixversion = {0,7,2} -- 0.7.2    -- 10/02/17
---global constant phixversion = {0,7,3} -- 0.7.3    -- 12/02/17 (internal)
---global constant phixversion = {0,7,4} -- 0.7.4    -- 15/02/17 (internal, misnamed)
---global constant phixversion = {0,7,5} -- 0.7.5    -- 22/02/17 (internal)
+--global constant phixversion = {0,6,8}     -- 0.6.8
+--global constant phixversion = {0,6,9}     -- 0.6.9    -- 25/04/16
+--global constant phixversion = {0,7,0}     -- 0.7.0    -- 09/09/16
+--global constant phixversion = {0,7,1}     -- 0.7.1    -- 04/12/16
+--global constant phixversion = {0,7,2}     -- 0.7.2    -- 10/02/17
+--global constant phixversion = {0,7,3}     -- 0.7.3    -- 12/02/17 (internal)
+--global constant phixversion = {0,7,4}     -- 0.7.4    -- 15/02/17 (internal, misnamed)
+--global constant phixversion = {0,7,5}     -- 0.7.5    -- 22/02/17 (internal)
 --global constant phixversion = {0,7,6},    -- 0.7.6    -- 30/06/17
 --global constant phixversion = {0,7,7},    -- 0.7.7    -- 09/01/18
-global constant phixversion = {0,7,8},  -- 0.7.8    -- 13/03/18
+--global constant phixversion = {0,7,8},    -- 0.7.8    -- 13/03/18
+global constant phixversion = {0,7,9},      -- 0.7.9    -- 13/04/18
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...

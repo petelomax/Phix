@@ -1141,6 +1141,7 @@ end procedure -- (for Edita/CtrlQ)
 --------------
         -- local routine for pSetSaveEBP; could also be used by pGetPool?
         -- (esi:=pTCB/4; most regs trashed)
+        -- (also, eax/rax contains the thread-id on exit)
     [32]
         -- <no parameters>
         -- on exit, pTCB/4 in esi

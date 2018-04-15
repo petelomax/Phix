@@ -29,15 +29,18 @@ global function include_paths(integer convert=0)
 --  the machine where the compiled program was installed/is currently running on.
 --
 
-sequence symtab
+object symtab
 sequence filepaths      -- result variable
 
     if convert then end if  -- parameter not used
 
     -- get copy of symtab. NB read only! may contain nuts! (unassigned vars)
+    enter_cs()
     #ilASM{ lea edi,[symtab]
             call :%opGetST }    -- [edi]=symtab
     filepaths = symtab[T_pathset]
+    symtab = 0
+    leave_cs()
     return filepaths
 end function
 

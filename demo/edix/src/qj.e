@@ -1136,7 +1136,12 @@ integer rend, start, bcount, tally
 --          else
 --              void = insertItem(HelpList,ExpandTabs(text[i]),0)
 --          end if
-            string ti = text[i]
+
+--3/4/18:
+--          string ti = text[i]
+            sequence ti = text[i]
+            if not string(ti) then ti = utf32_to_utf8(ti) end if
+
             if doConvTab then
                 ti = ConvertTabs(ti,8,0)
             else

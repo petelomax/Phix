@@ -23,7 +23,7 @@ string minus = "", secs, mins, hours, days
     end if
     m = floor(s/60)
     s = remainder(s,60)
-    secs = sprintf(iff(integer(s)?"%ds":"%3.2fs"),s)
+    secs = sprintf(iff(integer(s)?"%ds":"%3.1fs"),s)
     if m=0 then
         return sprintf("%s%s",{minus,secs})
     end if

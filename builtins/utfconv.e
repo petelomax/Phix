@@ -98,7 +98,8 @@ global function utf8_to_utf32(string utf8, integer fail_flag=0)
 --  #80 or above, even if said character is still below #FF.
 -- by default, invalid/long form characters embed #FFFD in the result.
 --
-sequence utf32 = ""
+--sequence utf32 = ""
+sequence utf32 = repeat(' ',0)
 integer  utf8len, i, headb, bytes, c
 
     utf8len = length(utf8)
@@ -196,7 +197,8 @@ global function utf32_to_utf8(sequence utf32, integer fail_flag=0)
 -- by default, invalid unicode points embed "\#EF\#BF\#BD" in the result.
 --
 object chr
-string utf8 = ""
+--string utf8 = ""
+string utf8 = repeat(' ',0)
 integer u
 
     if fail_flag=0 then

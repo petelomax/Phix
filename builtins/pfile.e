@@ -117,16 +117,25 @@ global enum
 --*/
 
 global function get_file_type(string filename)
-object d
-    if find('*', filename) or find('?', filename) then return FILETYPE_UNDEFINED end if
+    if find('*', filename) 
+    or find('?', filename) then 
+        return FILETYPE_UNDEFINED 
+    end if
 
     if length(filename)=2 and filename[2]=':' then
         filename &= "\\"
     end if
 
-    d = dir(filename)
+    object d = dir(filename)
     if sequence(d) then
-        if find('d', d[1][2]) or (length(filename)=3 and filename[2]=':') then
+        --
+        -- Note that a directory will get the full list (ugh),
+        -- and the following tests the "." entry, or for top
+        -- level directories, which have neither "." nor "..",
+        -- at least on windows, that is.
+        --
+        if find('d', d[1][2])
+        or (length(filename)=3 and filename[2]=':') then
             return FILETYPE_DIRECTORY
         else
             return FILETYPE_FILE
@@ -137,7 +146,10 @@ object d
 end function
 
 global function get_file_size(string filename)
-object d = dir(filename)
+    -- (aside: directories get a length(d) of >=2, 
+    --         ie "." and ".." and whatever else,
+    --         and in that way this yields -1.)
+    object d = dir(filename)
     return iff(atom(d) or length(d)!=1 ? -1 : d[1][D_SIZE])
 end function
 

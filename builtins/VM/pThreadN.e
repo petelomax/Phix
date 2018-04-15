@@ -466,6 +466,22 @@ global procedure exit_thread(integer ecode)
            }
 end procedure
 
+global function get_thread_id()
+atom res
+    #ilASM{
+                call :%pGetTCB
+                -- (aside: while pGetTCB is documented/intended to set esi/rsi, it
+                --         also leaves a thread_id in eax/rax, just what we want.)
+            [32]
+                lea edi,[res]
+            [64]
+                lea rdi,[res]
+            []
+                call :%pStoreMint
+          }
+    return res
+end function
+
 constant W = machine_word()
 
 global function get_thread_exitcode(atom hThread)
@@ -533,6 +549,17 @@ atom pExitCode, dwExitCode
     return dwExitCode
 end function
 
+global function thread_safe_string(string s)
+-- create a thread-safe version of the passed string.
+-- result is only thread safe when it is stored in a 
+-- variable that only one thread uses and refcounts.
+    if length(s)=0 then
+        s = repeat(' ',0)
+    else
+        s[1] = s[1]     -- (force a clone)
+    end if
+    return s
+end function
 
 --DEV remaining routines are untested (and undocumented)
 

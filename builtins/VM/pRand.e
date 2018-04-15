@@ -4,6 +4,9 @@
 --
 --  implements :%opSetRand, :%opRand
 --
+--DEV this should probably be re-implemented as a standard include (builtins\rand.e, up one level), and removed from the optable.
+-- (with :>Rand0 ---> integer rinit=0)
+--
 --DEV/SUG:
 --atom rseed
 -- The original rseed was a "dd 0" in the fasm stub source; I think I went with [ds+4] to avoid issues of >31-bit ints <=> floats,
