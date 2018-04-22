@@ -2652,7 +2652,7 @@ X               mov qword[rbp+32],:rbidsret
             x6 = peek({or_era,6})
 --catch e
 ----  if e[E_CODE]!=#C0000005 then  -- maybe...
---  ?{"warning: peek failure pDiagN.e line 2639",e,or_era}
+--  ?{"warning: peek failure pDiagN.e line 2655",e,or_era}
 --  x6 = "123456"
 --end try
     --      --  inc dword[ebx+src*4-8]      377104 2s3 F8
@@ -3056,11 +3056,12 @@ bool error_handler
         fn = open("ex.err","w")
     end if
 --puts(1,"ex.err open\n")
+--?{"rtn",rtn}
     msg2 = ""
     while 1 do
 --?rtn
         if rtn<1 or rtn>length(symtab) then -- See note at top
-            printf(1,"pDiagN.e line 3041: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
+            printf(1,"pDiagN.e line 3064: oops, rtn[=%d] out of range[1..%d]\n",{rtn,length(symtab)})
 --          exit
 --      end if
             rtype = 0   -- (added 15/4/16, at the time we had the wrong symtab... then again it was a bug in pTrace.e)
@@ -3278,14 +3279,14 @@ else
                 tidx = 0    --DEV can we not use [S_Tidx]??
                 while p do
                     if p<1 or p>length(symtab) then
-                        printf(1,"oops, p(%d) out of bounds(1..%d), pDiagN.e line 3259\n",{p,length(symtab)})
+                        printf(1,"oops, p(%d) out of bounds(1..%d), pDiagN.e line 3281\n",{p,length(symtab)})
                         exit
                     end if
                     sp = symtab[p]
 --?{sp}
 --SUG: or si[S_NTyp]!=S_TVar3
                     if atom(sp) then
-                        printf(1,"oops, atom(symtab[%d]), pDiagN.e line 3266\n",p)
+                        printf(1,"oops, atom(symtab[%d]), pDiagN.e line 3288\n",p)
                         exit
                     end if
                     name = sp[S_Name]
@@ -3319,7 +3320,7 @@ end if
             end if  -- lineno!=-1
         else -- K_wdb
             if sNTyp<S_Type then
-                put2(sprintf("pDiagN.e line 3300: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
+                put2(sprintf("pDiagN.e line 3322: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
 ?"sleep(5)..."
 sleep(5)
 --          else
@@ -3410,7 +3411,7 @@ end if
                 msg2 = ""
             end if
             if rtype=1 then -- skip (lineno=-1)
-                printf(1,"pDiagN.e line 3355: oops, lineno=-1/e92/not retD(), era=#%08x\n",or_era)
+                printf(1,"pDiagN.e line 3413: oops, lineno=-1/e92/not retD(), era=#%08x\n",or_era)
             end if
             exit
         end if
@@ -4788,7 +4789,7 @@ end procedure -- (for Edita/CtrlQ)
 
     diag()
     -- control does not return... [DEV]
-puts(1,"uh? (pdiagN.e line 3496)\n")
+puts(1,"uh? (pdiagN.e line 4791)\n")
 --DEV standard problem... must fix this one day...
     msg_id += 1
     batchmode = 1

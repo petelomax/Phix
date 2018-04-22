@@ -1435,7 +1435,9 @@ integer fileno
     else
         --DEV more...
         screenLines = 25
+        screenCols = 80
         blankScreen = {}
+        consoleSize = {screenLines,screenCols}
     end if
 --puts(1,"debug called...\n")
 --?{fileno,line,tracelevel}

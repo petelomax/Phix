@@ -1225,6 +1225,7 @@ global constant T_catch         = 5224  tt_stringF("catch",T_catch)
 --global constant T_throw       = 5240  tt_stringF("throw",T_throw)     -- does not belong here!
 global constant T_bsr           = 5232  tt_stringF("bsr",T_bsr)
 global constant T_shrd          = 5240  tt_stringF("shrd",T_shrd)
+global constant T_EU4_0         = 5248  tt_stringF("EU4_0",T_EU4_0)
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then

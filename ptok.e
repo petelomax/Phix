@@ -2536,6 +2536,7 @@ sequence name
                 elsif ttidx=T_SAFE
                    or ttidx=T_DATA_EXECUTE
                    or ttidx=T_UCSTYPE_DEBUG
+                   or ttidx=T_EU4_0
                    or ttidx=T_EU4_1
                    or ttidx=T_OSX
                    or ttidx=T_FREEBSD
