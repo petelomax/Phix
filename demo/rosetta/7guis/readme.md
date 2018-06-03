@@ -1,6 +1,6 @@
 To run these demos, you need to install Phix - which can be done in less than 60 seconds.
 
-Download from: http://phix.x10.mx/downloads.php
+Download from: http://phix.x10.mx/download.php
 
 On windows, a single 16MB download contains everything needed. I recommend the 32-bit version, which works fine on a 64-bit OS.
 
