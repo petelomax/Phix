@@ -11,22 +11,29 @@ and press that there "run" button thing - simples.
 Screenshots:
 
 Counter
+
 ![Scheme](images/7guis_Counter.png)
 
 Temperature Converter
+
 ![Scheme](images/7guis_TemperatureConverter.png)
 
 Flight Booker
+
 ![Scheme](images/7guis_Booker.png)
 
 Timer
+
 ![Scheme](images/7guis_Timer.png)
 
 CRUD
+
 ![Scheme](images/7guis_CRUD.png)
 
 Circle Drawer
+
 ![Scheme](images/7guis_CircleDraw.png)
 
 Cells
+
 ![Scheme](images/7guis_Cells.png)
