@@ -407,11 +407,30 @@ bool negated
 --trace(1) -- seems OK...
                     ch = src[idx]
                     integer k = find(ch,"dswDSW")
-                    if negated!=(k>3) then
-                        Abort("invalid escape (negation mismatch)", src, idx)
-                        return {0,{}}
+--PL 4/7/18 allow eg [^\s]
+-- old (and ugly) code:
+--                  if negated!=(k>3) then
+--                      Abort("invalid escape (negation mismatch)", src, idx)
+--                      return {0,{}}
+--                  end if
+--                  k -= 3*negated
+-- new code:
+                    if k>3 then
+                        -- eg [^\S] ==> [\s], or [\S] ==> [^\s]
+                        -- note that eg [^\s-] is valid, but [^\S-] is not
+                        -- (we cannot flip negated if any pre/post exists)
+                        -- likewise note that say [\S\D] must be written 
+                        -- as [^\s\d], and [^\S\D] as [\s\d].
+                        if pairs!=""
+                        or idx=length(src)
+                        or src[idx+1]!=']' then
+                            Abort("invalid escape (negation mismatch)", src, idx)
+                            return {0,{}}
+                        end if
+                        k -= 3
+                        negated = not negated
                     end if
-                    k -= 3*negated
+-- </new code>
                     pairs &= {"09","  \n\n\r\r\t\t","azAZ09__"}[k]
 --                  idx += 1
                     {idx, ch} = nextch(src, idx, true)
@@ -430,13 +449,16 @@ bool negated
                         pairs &= ch -- 'a'->'aa' (range of 1)
                         ch = ch2
                     end if
-                    if ch=']' then exit end if
                 end if
+                if ch=']' then exit end if
             end while
             if and_bits(options,RE_CASEINSENSITIVE) then
+--SUG (untested)
+--              pairs = upper(substitute(pairs,"azAZ","AZ"))
                 pairs = upper(pairs)
             end if
             res = {CLASS, negated, pairs}
+--?res
             idx += 1
             return {idx,res}
         elsif ch='\\' then
