@@ -242,7 +242,7 @@ IupLink (note below)                                                            
 IupSpinBox                                                                                                          [plade_spin.png]
 IupDetachBox                                                                                                        [plade_detach[2].png]
 IupExpander                                                                                                         [plade_expand.png]
-IupDial                                                                                                             [plade_dial.png]
+--IupDial   -- (removed in 3.24)                                                                                                        [plade_dial.png]
 IupCells                                                                                                            [plade_cells.png]
 IupCalendar                                                                                                         [plade_calendar.png]
 IupDatePick                                                                                                         [plade_date_picker.png]
@@ -406,7 +406,7 @@ constant IupFuncs = {"IupDialog",
                      "IupConfig",       -- (not really)
                      "IupDatePick",
                      "IupDetachBox",
-                     "IupDial",
+--                   "IupDial",         -- (removed in 3.24)
                      "IupExpander",
                      "IupFill",
                      "IupFileDlg",      -- (not really)
@@ -567,16 +567,17 @@ string src = ""
 --src = "demo\\pGUI\\text.exw"
 --OK (in samples) --img1,img2:
 --src = "demo\\pGUI\\toggle.exw"
---src = "demo\\pGUI\\triangle.exw"              -- OK but dull
---src = "demo\\pGUI\\vol_fog.exw"               -- OK but dull
---src = "demo\\pGUI\\webbrowser.exw"            -- OK
---src = "demo\\rosetta\\7guis\\Counter.exw"     -- OK
---src = "demo\\rosetta\\7guis\\Booker.exw"      -- OK
---src = "demo\\rosetta\\7guis\\Cells.exw"       -- OK
---src = "demo\\rosetta\\7guis\\CircleDraw.exw"  -- OK
---src = "demo\\rosetta\\7guis\\Converter.exw"   -- OK
---src = "demo\\rosetta\\7guis\\CRUD.exw"        -- OK
---src = "demo\\rosetta\\7guis\\Timer.exw"       -- OK
+--src = "demo\\pGUI\\triangle.exw"                  -- OK but dull
+--src = "demo\\pGUI\\vol_fog.exw"                   -- OK but dull
+--src = "demo\\pGUI\\webbrowser.exw"                -- OK
+-- aside: "&" added so that plade.exw does not appear when filtering for these in pdemo
+--src = "demo\\rosetta\\7"&"guis\\Counter.exw"      -- OK
+--src = "demo\\rosetta\\7"&"guis\\Booker.exw"       -- OK
+--src = "demo\\rosetta\\7"&"guis\\Cells.exw"        -- OK
+--src = "demo\\rosetta\\7"&"guis\\CircleDraw.exw"   -- OK
+--src = "demo\\rosetta\\7"&"guis\\Converter.exw"    -- OK
+--src = "demo\\rosetta\\7"&"guis\\CRUD.exw"         -- OK
+--src = "demo\\rosetta\\7"&"guis\\Timer.exw"        -- OK
 --DEV IupNormalizer:
 --src = "demo\\libcurl\\manual_order.e"
 
@@ -2656,10 +2657,11 @@ constant {iupnamerids, cem, sigs, icons, attrs, callbacks} = columnize({
                                  "plade_detach.png",
                                  {"DETACH","ORIENTATION","RESTORE"},
                                  {"DETACHED_CB"}},
-         {nr("IupDial"),         'E',"[O]AD",
-                                 "plade_dial.png",
-                                 {},
-                                 {}},
+--removed in 3.24:
+--       {nr("IupDial"),         'E',"[O]AD",
+--                               "plade_dial.png",
+--                               {},
+--                               {}},
          {nr("IupDialog"),       'C',"[H]AD",           --D
                                  "application.png",
 --DEV RESIZE is creation only...
@@ -2823,7 +2825,7 @@ constant {aliases,alias} = columnize({{"IupSubMenu","IupSubmenu"}})
 --          ("IupCbox"),         "[P]AD",       -- (p)
 --          ("IupCells"),        "AD",
 --          ("IupDetachBox"),    "[H]AFAD",     -- one-only (p)
---          ("IupDial"),         "[O]AD",
+--  XXXX    ("IupDial"),         "[O]AD",       -- (REMOVED IN 3.24)
 --          ("IupDialog"),       "[H]AD",       -- one-only [p]
 --          ("IupExpander"),     "[H]AD",       -- one-only (p)
 --          ("IupFill"),         "AD",
@@ -2864,7 +2866,7 @@ constant {aliases,alias} = columnize({{"IupSubMenu","IupSubmenu"}})
 -- "[TT]" - URL[1]/TITLE[2]
 -- "[TH]" - TITLE[1]/Ihandle/n  (single)
 -- "[P]" - Ihandles
--- "[O]" - ORIENTATION[1] (nullable string. [HORIZONTAL/VERTICAL/CIRCULAR(IupDial only)])
+-- "[O]" - ORIENTATION[1] (nullable string. [HORIZONTAL/VERTICAL/CIRCULAR(IupDial only)])   --*** REMOVED IN 3.24 ***
 
 --erm:
 --"ACTIVE=YES,NO,Yes"
@@ -3793,7 +3795,7 @@ if 0 then
 "IupCbox"
 "IupCells"
 "IupDetachBox"
-"IupDial"
+"IupDial"           -- REMOVED IN 3.24
 "IupGridBox"
 "IupHbox"
 "IupList"
@@ -4709,10 +4711,77 @@ function exit_cb(Ihandle /*ih*/)
 end function
 constant cb_exit = Icallback("exit_cb")
 
+function make_more_readable(sequence data)
+--(temp)
+    object d1 = data[1]
+    if sequence(d1) then
+        for i=1 to length(data) do
+            data[i] = make_more_readable(data[i])
+        end for
+    else
+        if d1=FUNC then         -- 20
+--          data[1] = "call_func"
+--          if length(data[7]) then
+--              data[7] = make_more_readable(data[7])
+--          end if
+            string res = ""
+--          sequence res = ""
+            if data[8]!=0 then
+--              data[8] = make_more_readable(data[8])
+                if data[8][1]!=IDENT then ?9/0 end if
+                res = data[8][2] & " = "
+            end if
+            res &= data[2]&"("
+            if length(data[7]) then
+--              res &= make_more_readable(data[7])
+--              res = {res,join(make_more_readable(data[7]))}
+                res &= join(make_more_readable(data[7]),",")
+            end if
+            res &= ")"
+            return res
+        elsif d1=PROC then      -- 21
+            string res = data[2]&"("
+--          data[1] = "call_proc"
+--          data[7] = make_more_readable(data[7])
+--          res = {res,join(make_more_readable(data[7])),")"}
+            res &= join(make_more_readable(data[7]),",")&")"
+            return res
+        elsif d1=IDENT then     -- 10
+--          data[1] = "ident"
+            return data[2]
+        elsif d1=DQUOTE then    -- 2
+--          data[1] = "string"
+            return "\""&substitute(data[2],"\"","\\\"")&"\""
+        elsif d1=SYMBOL then    -- 1
+--          data[1] = "symbol"
+            return data[2]
+        elsif d1=SEQ then       -- -5
+--          data[1] = "seq"
+--          data[7] = make_more_readable(data[7])
+            string res = "{"&join(make_more_readable(data[7]),"")--&"}"
+            return res
+        else
+            ?9/0
+        end if
+    end if
+    return data
+end function
+
 function test_cb(Ihandle /*ih*/)
 --DEV (create pguide_test.exw, with mods, and run it)
-?9/0
-    IupMessage("test","not implemented")
+--?9/0
+    string filename = initialcurrentdir&"pguide_test.exw"
+    integer fn = open(filename,"w")
+    sequence parse_tree = make_more_readable(parse_data)
+--DEV the final version will not use pp() at all...
+--  pp(parse_tree,{pp_File,fn,pp_StrFmt,-2})
+--  pp(parse_tree,{pp_File,fn,pp_StrFmt,-2,pp_Nest,10}) -- no..
+    for i=1 to length(parse_tree) do
+        printf(fn,"%s\n",{parse_tree[i]})
+    end for
+    close(fn)
+    IupMessage("test",filename&" written")
+--  IupMessage("test","not implemented")
     return IUP_CONTINUE
 end function
 
@@ -5494,7 +5563,8 @@ integer pid
             sequence nochild = {"IupButton","IupFlatButton","IupCalendar",
 --                              "IupDatePick","IupCanvas","IupGLCanvas","IupCells",
                                 "IupDatePick","IupCanvas","IupCells",
-                                "IupDial","IupFill","IupLabel","IupLink",
+--                              "IupDial",  -- (removed in 3.24)
+                                "IupFill","IupLabel","IupLink",
                                 "IupList","IupMatrix","IupMenuItem",
                                 "IupSeparator","IupProgressBar","IupPlot",
                                 "IupToggle","IupText","IupTree",
@@ -6195,13 +6265,14 @@ constant {samp_names,samp_descs} = columnize({
         {"demo\\pGUI\\simple_paint.exw","Simple paint application (3 windows)"},
         {"demo\\pGUI\\tabs.exw","IupTabs() - NB dynamic ones are usually blank!"},
         {"demo\\pGUI\\toggle.exw","IupToggle() - note images are not shown"},
-        {"demo\\rosetta\\7guis\\Counter.exw","Simple counter example"},
-        {"demo\\rosetta\\7guis\\Booker.exw","Flight booking example"},
-        {"demo\\rosetta\\7guis\\Cells.exw","Simple spreadsheet"},
-        {"demo\\rosetta\\7guis\\CircleDraw.exw","Simple drawing example"},
-        {"demo\\rosetta\\7guis\\Converter.exw","Temperature conversion example"},
-        {"demo\\rosetta\\7guis\\CRUD.exw","Create, Read, Update, Delete example"},
-        {"demo\\rosetta\\7guis\\Timer.exw","Simple timer example"}})
+        -- aside: "&" added so that plade.exw does not appear when filtering for these in pdemo
+        {"demo\\rosetta\\7"&"guis\\Counter.exw","Simple counter example"},
+        {"demo\\rosetta\\7"&"guis\\Booker.exw","Flight booking example"},
+        {"demo\\rosetta\\7"&"guis\\Cells.exw","Simple spreadsheet"},
+        {"demo\\rosetta\\7"&"guis\\CircleDraw.exw","Simple drawing example"},
+        {"demo\\rosetta\\7"&"guis\\Converter.exw","Temperature conversion example"},
+        {"demo\\rosetta\\7"&"guis\\CRUD.exw","Create, Read, Update, Delete example"},
+        {"demo\\rosetta\\7"&"guis\\Timer.exw","Simple timer example"}})
 
 --forward procedure sample_selection()
 
