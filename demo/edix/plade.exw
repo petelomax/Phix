@@ -4712,19 +4712,41 @@ end function
 constant cb_exit = Icallback("exit_cb")
 
 function make_more_readable(sequence data)
---(temp)
+--(temp?)
+sequence res
+    if data={} then
+        -- known examples:
+        --  p[1][1] in demo\\rosetta\\7guis\\Converter.exw
+        --  data[i] in demo\\rosetta\\7guis\\CRUD.exw
+        return "<<??? (unsupported)>>"
+    end if
     object d1 = data[1]
     if sequence(d1) then
-        for i=1 to length(data) do
-            data[i] = make_more_readable(data[i])
-        end for
+        if d1="-" and length(data)=5 then
+            res = d1&join(make_more_readable(data[2]),"")
+        elsif find(d1,{"=","!=",">","<","+","-","/","*","and"}) then
+            if length(d1)>1 and d1[1]>='a' then     -- "and, "or" etc
+                d1 = sprintf(" %s ",{d1})           --   need spaces
+            end if
+            if length(data)!=3 then ?9/0 end if
+            res = join(make_more_readable(data[2]),"")&
+                  d1&
+                  join(make_more_readable(data[3]),"")
+        elsif d1="iff" then
+            res = sprintf("iff(%s?%s:%s)",make_more_readable(data[7]))
+        else
+            for i=1 to length(data) do
+                data[i] = make_more_readable(data[i])
+            end for
+            res = data
+        end if
     else
         if d1=FUNC then         -- 20
 --          data[1] = "call_func"
 --          if length(data[7]) then
 --              data[7] = make_more_readable(data[7])
 --          end if
-            string res = ""
+            res = ""
 --          sequence res = ""
             if data[8]!=0 then
 --              data[8] = make_more_readable(data[8])
@@ -4738,33 +4760,36 @@ function make_more_readable(sequence data)
                 res &= join(make_more_readable(data[7]),",")
             end if
             res &= ")"
-            return res
         elsif d1=PROC then      -- 21
-            string res = data[2]&"("
+            res = data[2]&"("
 --          data[1] = "call_proc"
 --          data[7] = make_more_readable(data[7])
 --          res = {res,join(make_more_readable(data[7])),")"}
             res &= join(make_more_readable(data[7]),",")&")"
-            return res
         elsif d1=IDENT then     -- 10
 --          data[1] = "ident"
-            return data[2]
+            res = data[2]
         elsif d1=DQUOTE then    -- 2
 --          data[1] = "string"
-            return "\""&substitute(data[2],"\"","\\\"")&"\""
+            res = "\""&substitute(data[2],"\"","\\\"")&"\""
         elsif d1=SYMBOL then    -- 1
 --          data[1] = "symbol"
-            return data[2]
+            res = data[2]
         elsif d1=SEQ then       -- -5
 --          data[1] = "seq"
 --          data[7] = make_more_readable(data[7])
-            string res = "{"&join(make_more_readable(data[7]),"")--&"}"
-            return res
+            if data[7]={} then
+                res = "{}"
+            else
+                res = "{"&join(make_more_readable(data[7]),"")--&"}"
+            end if
+        elsif d1=DIGIT then     -- 7
+            res = sprintf("%d",data[2])
         else
             ?9/0
         end if
     end if
-    return data
+    return res
 end function
 
 function test_cb(Ihandle /*ih*/)
@@ -6392,6 +6417,7 @@ function dump_pd_cb(Ihandle /*ih*/)
 string filename = initialcurrentdir&"parse_data.txt"
 integer fn = open(filename,"w")
     pp(parse_data,{pp_File,fn,pp_StrFmt,-2})
+    pp(text,{pp_File,fn,pp_StrFmt,-2,pp_Nest,1})
     close(fn)
     IupMessage("Done",filename&" written")
     return IUP_DEFAULT
