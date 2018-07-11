@@ -5,10 +5,9 @@
 -- Author Pete Lomax, March 2017
 --
 -- Port of animate_pendulum.exw from arwen to pGUI
--- As with the original, the pendulum can go a bit mad 
--- when you resize, as if it carries over a momentum
--- which is inappropriate for the new size. Beyond
--- that suggesion, I'm not sure.
+--
+-- With help from lesterb, updates now in timer_cb not redraw_cb,
+-- variables better named, and velocity problem sorted, July 2018.
 --
 include pGUI.e
 
@@ -16,35 +15,44 @@ Ihandle dlg, canvas, timer
 cdCanvas cddbuffer, cdcanvas
 
 constant g = 50
- 
-atom alpha = PI/2,
-     omega = 0
+
+atom angle = PI/2,
+     velocity = 0
+integer w, h, len = 0
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
-    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
-    -- new suspension point and length
+    -- new suspension point:
     integer sX = floor(w/2)
     integer sY = floor(h/8)
-    integer len = sX-30
-    atom dt = 1/w
-    -- move:
-    atom epsilon = -len*sin(alpha)*g
-    omega += dt*epsilon
-    alpha += dt*omega
     -- repaint:
-    integer eX = floor(len*sin(alpha)+sX)
-    integer eY = floor(len*cos(alpha)+sY)
+    integer eX = floor(len*sin(angle)+sX)
+    integer eY = floor(len*cos(angle)+sY)
     cdCanvasSetForeground(cddbuffer, CD_DARK_GREY)
     cdCanvasLine(cddbuffer, sX, h-sY, eX, h-eY)
     cdCanvasSetForeground(cddbuffer, CD_BLACK)
-    cdCanvasSector(cddbuffer, eX, h-eY, 35, 35, 0, 360) 
+    cdCanvasSector(cddbuffer, eX, h-eY, 35, 35, 0, 360)
     cdCanvasFlush(cddbuffer)
     return IUP_DEFAULT
 end function
 
 function timer_cb(Ihandle /*ih*/)
+    integer newlen = floor(w/2)-30
+    if newlen!=len then
+        len = newlen
+        if angle>=PI/2
+        or angle<=-PI/2 then
+            velocity = 0    -- (avoid getting nan)
+        else
+            velocity = sqrt(2*g*len*(cos(angle)))*sign(velocity)
+        end if
+    end if
+    atom dt = 0.2/w
+    atom delta = -len*sin(angle)*g
+    velocity += dt*delta
+    angle += dt*velocity
     IupUpdate(canvas)
     return IUP_IGNORE
 end function
