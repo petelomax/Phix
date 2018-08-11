@@ -3004,9 +3004,10 @@ end if
                or ttidx=T_rcr
                or ttidx=T_shl
                or ttidx=T_shr
-               or ttidx=T_sar then
+               or ttidx=T_sar
+               or ttidx=T_bt then
 --if emitON then trace(1) end if
-                mod = find(ttidx,{T_rol,T_ror,T_rcl,T_rcr,T_shl,T_shr,-1,T_sar})-1  -- (0..7)
+                mod = find(ttidx,{T_rol,T_ror,T_rcl,T_rcr,T_shl,T_shr,-1,T_sar,T_bt})-1 -- (0..7)
                 {p1type,p1size,p1details} = get_operand(P_REG)
                 reg = p1details-1
                 if p1type!=P_REG then ?9/0 end if -- sanity check (or are there 8/16 bit register shifts?)
@@ -3035,35 +3036,56 @@ end if
                         if rex then
                             s5 &= rex
                         end if
-                        xrm = 0o300+mod*8+reg
-                        if p2details=1 then
-                            -- 0o321 0o31r      -- ror reg,1
-                            -- 0o321 0o34r      -- shl reg,1
-                            -- 0o321 0o35r      -- shr reg,1
---                          s5 &= {0o321,xrm}
-                            if p1size=1 then
-                                s5 &= 0o320
-                            else
-                                if p1size=2 then
-                                    s5 &= #66
-                                end if
-                                s5 &= 0o321
+                        if mod=8 then -- T_bt
+                            xrm = 0o340+reg
+--/*
+bt ecx,30       0FBAE11E    (0o017 0o272 0o341 #1E)
+shr ecx,30      C1E91E      (0o301 0o351 #1E)
+rol eax,5       C1C005      (0o301 0o300 #05)
+bt eax,5        0FBAE005    (0o017 0o272 0o340 #05)
+0047901D     66:0FBAE1 03   BT CX,3  (#66 0o017 0o272 0o341 3)
+--*/
+                            if p1size=1 then Aborp("invalid") end if
+                            if p1size=2 then
+                                s5 &= #66
                             end if
-                            s5 &= xrm
+                            s5 &= {0o017,0o272,xrm,and_bits(p2details,#FF)}
                         else
-                            -- 0o301 0o31r imm8 -- ror reg,imm8
-                            -- 0o301 0o34r imm8 -- shl reg,imm8
-                            -- 0o301 0o35r imm8 -- shr reg,imm8
---                          s5 &= {0o301,xrm,and_bits(p2details,#FF)}
-                            if p1size=1 then
-                                s5 &= 0o300
-                            else
-                                if p1size=2 then
-                                    s5 &= #66
+                            xrm = 0o300+mod*8+reg
+                            if p2details=1 then
+                                -- 0o321 0o31r      -- ror reg,1
+                                -- 0o321 0o34r      -- shl reg,1
+                                -- 0o321 0o35r      -- shr reg,1
+--                              s5 &= {0o321,xrm}
+                                if p1size=1 then
+                                    if mod=8 then -- T_bt
+                                        s5 &= 0o320
+                                    else
+                                        s5 &= 0o320
+                                    end if
+                                else
+                                    if p1size=2 then
+                                        s5 &= #66
+                                    end if
+                                    s5 &= 0o321
                                 end if
-                                s5 &= 0o301
+                                s5 &= xrm
+                            else
+                                -- 0o301 0o31r imm8 -- ror reg,imm8
+                                -- 0o301 0o34r imm8 -- shl reg,imm8
+                                -- 0o301 0o35r imm8 -- shr reg,imm8
+--                              s5 &= {0o301,xrm,and_bits(p2details,#FF)}
+                                if p1size=1 then
+                                    s5 &= 0o300
+                                else
+                                    if p1size=2 then
+                                        s5 &= #66
+                                    end if
+                                    s5 &= 0o301
+                                end if
+                                s5 &= {xrm,and_bits(p2details,#FF)}
                             end if
-                            s5 &= {xrm,and_bits(p2details,#FF)}
+
                         end if
                     elsif p2type=P_REG then
 --                      if p2size!=1 or p2details!=ecx then
@@ -4836,6 +4858,38 @@ movdqu... (64 bit only?)
                         ?9/0 -- placehoder for more code
                     end if
                 end if
+            elsif ttidx=T_rdrand then
+--; rdrand eax      0FC7F0      (0o017 0o307 0o360)
+--; rdrand ecx      0FC7F1      (0o017 0o307 0o361)
+--; rdrand rax      480FC7F0    (#48 0o017 0o307 0o360)
+--; rdrand dx       660FC7F2    (#66 0o017 0o307 0o362)
+                {p1type,p1size,p1details} = get_operand(P_REG)
+                if emitON then
+                    rex = 0
+                    if p1size=8 then
+                        rex = #48
+                    end if
+                    if p1type=P_REG then
+                        reg = p1details-1
+                        if reg>8 then
+                            ?9/0 -- (erm)
+--                          rex = or_bits(rex,?9/0)
+                        end if
+                        if rex then
+                            s5 &= rex
+                        end if
+                        if p1size=2 then
+                            s5 &= #66
+                        end if
+                        -- 0o017 0o307 036r         -- rdrand reg
+                        xrm = 0o360+reg
+                        s5 &= {0o017,0o307,xrm}
+                    else
+                        ?9/0
+                    end if
+                end if
+
+
             elsif ttidx=T_frndint then
                 if emitON then
                     s5 &= {0o331,0o374}

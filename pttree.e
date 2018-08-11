@@ -1226,6 +1226,8 @@ global constant T_catch         = 5224  tt_stringF("catch",T_catch)
 global constant T_bsr           = 5232  tt_stringF("bsr",T_bsr)
 global constant T_shrd          = 5240  tt_stringF("shrd",T_shrd)
 global constant T_EU4_0         = 5248  tt_stringF("EU4_0",T_EU4_0)
+global constant T_bt            = 5256  tt_stringF("bt",T_bt)
+global constant T_rdrand        = 5276  tt_stringF("rdrand",T_rdrand)
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then
