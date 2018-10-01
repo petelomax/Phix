@@ -281,14 +281,16 @@ integer tokstart, tokend
         tokend = sidx-1
     end if
     skipspaces(0)
+--?{"stoken",s[tokstart..tokend]}
     return s[tokstart..tokend]
 end function
 
 --<global constant S32=1, S64=2
 
 -- a "long" is 32 bits on Windows64, but 64 bits on Linux64 (!!)
-constant L = iff(platform()=WINDOWS?4:8)
---integer L = 4
+--DEV
+--constant L = iff(platform()=WINDOWS?4:8)
+integer L = 4
 --if platform()=LINUX then
 --  L = 8
 --end if
@@ -297,234 +299,21 @@ constant L = iff(platform()=WINDOWS?4:8)
 --  (this table is my own choice of the minimal/core types)
 --constant {SizeNames,SizeSigns,Sizes} = columnize({
 sequence SizeNames,SizeSigns,Sizes
-    {SizeNames,SizeSigns,Sizes} = columnize({
-                                                  {"char",      1,{1,1}},
-                                                  {"uchar",     0,{1,1}},
-                                                  {"short",     1,{2,2}},
-                                                  {"ushort",    0,{2,2}},
-                                                  {"int",       1,{4,4}},
-                                                  {"uint",      0,{4,4}},
-                                                  {"long",      1,{4,L}},
-                                                  {"ulong",     0,{4,L}},
-                                                  {"float",     1,{4,4}},
-                                                  {"double",    1,{8,8}},       -- (4-byte aligned on 32-bit linux, unless -malign-double specified)
-                                                  {"int64",     1,{8,8}},       -- aka long long (windows only?)
-                                                  {"uint64",    0,{8,8}},
---                                                {"longdouble",1,{8,8}},       -- ambiguous!!!, see below
---                                                {"flt80",     1,{10,10}},     -- maybe?
--- made signed 28/12/16 (*2):
-                                                  {"ptr",       1,{4,8}},       -- (no point having ptr/uptr that I can think of)
-                                                  {"size_t",    1,{4,8}},
-                                                  $})
 
+integer as_char,  -- = find("char",SizeNames)
+        as_uchar, -- = find("uchar",SizeNames)
+        as_int,   -- = find("int",SizeNames)
+        as_uint,  -- = find("uint",SizeNames)
+        as_ptr,   -- = find("ptr",SizeNames)
+        as_short, -- = find("short",SizeNames)
+        as_ushort,-- = find("ushort",SizeNames)
+        as_long,  -- = find("long",SizeNames)
+        as_ulong, -- = find("ulong",SizeNames)
+        as_float, -- = find("float",SizeNames)
+        as_int64, -- = find("int64",SizeNames)
+        as_uint64 -- = find("uint64",SizeNames)
 
---A partial definition of long double from wikipedia( https://en.wikipedia.org/wiki/Data_structure_alignment ):
--- on 32 bit:
---A long double (ten bytes with C++Builder and DMC, eight bytes with Visual C++, twelve bytes with GCC) will be 
---  8-byte aligned with C++Builder, 2-byte aligned with DMC, 8-byte aligned with Visual C++ and 4-byte aligned with GCC.
--- on 64 bit:
---A long double (eight bytes with Visual C++, sixteen bytes with GCC) will be 8-byte aligned with Visual C++ and 16-byte aligned with GCC.
--- (PL: Note that Windows64 is an LLP64 data model, not LP64 which the above article seems to be writing about.)
---
---For more information, be sure to read "calling_conventions.pdf" by Agner Fog, especially table 1 on page 6 ("Data Sizes").
---
---And here's another gratuitous link: https://en.wikipedia.org/wiki/Long_double
---
---If you ask me, life would be simpler if float/double/longdouble were instead more explicitly named say flt32/flt64/flt80.
---
---Might I suggest trying flt80 for any long doubles you happen to run into, not that I have any evidence that will work.
---
-
-constant as_char = find("char",SizeNames)
-constant as_uchar = find("uchar",SizeNames)
-constant as_int = find("int",SizeNames)
-constant as_uint = find("uint",SizeNames)
-constant as_ptr = find("ptr",SizeNames)
-constant as_short = find("short",SizeNames)
-constant as_ushort = find("ushort",SizeNames)
-constant as_long = find("long",SizeNames)
-constant as_ulong = find("ulong",SizeNames)
-constant as_float = find("float",SizeNames)
-constant as_int64 = find("int64",SizeNames)
-constant as_uint64 = find("uint64",SizeNames)
-
--- From MSDN. Suspect items are commented out, please check results carefully if you uncomment them.
---              (not that there is any warranty that the others are all perfect!)
---sequence {AltNames,AltSize} = columnize({
 sequence AltNames,AltSize
-    {AltNames,AltSize} = columnize({
-                                         {"PWORD",          as_ptr},
-                                         {"PDWORD",         as_ptr},
---m                                      {"LPWORD",         as_ptr},    -- now covered by match("LP",mtype)=1
---m                                      {"LPBYTE",         as_ptr},
-                                         {"PBYTE",          as_ptr},
-                                         {"PBOOLEAN",       as_ptr},
-                                         {"HANDLE",         as_ptr},
-                                         {"HACCEL",         as_ptr},
-                                         {"HBITMAP",        as_ptr},
-                                         {"HBRUSH",         as_ptr},
-                                         {"HCOLORSPACE",    as_ptr},
-                                         {"HCONV",          as_ptr},
-                                         {"HCONVLIST",      as_ptr},
-                                         {"HDC",            as_ptr},
-                                         {"HDDEDATA",       as_ptr},
-                                         {"HDESK",          as_ptr},
-                                         {"HDROP",          as_ptr},
-                                         {"HDWP",           as_ptr},
-                                         {"HENHMETAFILE",   as_ptr},
-                                         {"HFONT",          as_ptr},
-                                         {"HGDIOBJ",        as_ptr},
-                                         {"HGLOBAL",        as_ptr},
-                                         {"HHOOK",          as_ptr},
-                                         {"HICON",          as_ptr},
-                                         {"HCURSOR",        as_ptr},
-                                         {"HINSTANCE",      as_ptr},
-                                         {"HKEY",           as_ptr},
-                                         {"HKL",            as_ptr},
-                                         {"HLOCAL",         as_ptr},
-                                         {"HMENU",          as_ptr},
-                                         {"HMETAFILE",      as_ptr},
-                                         {"HMODULE",        as_ptr},
-                                         {"HMONITOR",       as_ptr},
-                                         {"HPALETTE",       as_ptr},
-                                         {"HPEN",           as_ptr},
-                                         {"HRGN",           as_ptr},
-                                         {"HRSRC",          as_ptr},
-                                         {"HSZ",            as_ptr},
-                                         {"HWINSTA",        as_ptr},
-                                         {"HWND",           as_ptr},
---m                                      {"LPBOOL",         as_ptr},
---m                                      {"LPCOLORREF",     as_ptr},
---m                                      {"LPCSTR",         as_ptr},
---m                                      {"LPCTSTR",        as_ptr},
---m                                      {"LPCVOID",        as_ptr},
---m                                      {"LPCWSTR",        as_ptr},
---m                                      {"LPDWORD",        as_ptr},
---m                                      {"LPHANDLE",       as_ptr},
---m                                      {"LPINT",          as_ptr},
---m                                      {"LPLONG",         as_ptr},
---m                                      {"LPSTR",          as_ptr},
---m                                      {"LPVOID",         as_ptr},
---m                                      {"LPWSTR",         as_ptr},
-                                         {"PBOOL",          as_ptr},
-                                         {"PCHAR",          as_ptr},
-                                         {"PCSTR",          as_ptr},
-                                         {"PCTSTR",         as_ptr},
-                                         {"PCWSTR",         as_ptr},
-                                         {"PDWORDLONG",     as_ptr},
-                                         {"PDWORD_PTR",     as_ptr},
-                                         {"PDWORD32",       as_ptr},
-                                         {"PDWORD64",       as_ptr},
-                                         {"PFLOAT",         as_ptr},
---                                       {"PHALF_PTR",      as_ptr},
-                                         {"PHANDLE",        as_ptr},
-                                         {"PHKEY",          as_ptr},
-                                         {"PINT",           as_ptr},
-                                         {"PINT_PTR",       as_ptr},
-                                         {"PINT8",          as_ptr},
-                                         {"PINT16",         as_ptr},
-                                         {"PINT32",         as_ptr},
-                                         {"PINT64",         as_ptr},
-                                         {"PLCID",          as_ptr},
-                                         {"PLONG",          as_ptr},
-                                         {"PLONGLONG",      as_ptr},
-                                         {"PLONG_PTR",      as_ptr},
-                                         {"PLONG32",        as_ptr},
-                                         {"PLONG64",        as_ptr},
-                                         {"PSHORT",         as_ptr},
---                                       {"PPSIZE_T",       as_ptr},
---                                       {"PSSIZE_T",       as_ptr},
-                                         {"PSTR",           as_ptr},
-                                         {"PTBYTE",         as_ptr},
-                                         {"PTCHAR",         as_ptr},
-                                         {"PTSTR",          as_ptr},
-                                         {"PUCHAR",         as_ptr},
---                                       {"PUHALF_PTR",     as_ptr},
-                                         {"PUINT",          as_ptr},
-                                         {"PUINT_PTR",      as_ptr},
-                                         {"PUINT8",         as_ptr},
-                                         {"PUINT16",        as_ptr},
-                                         {"PUINT32",        as_ptr},
-                                         {"PUINT64",        as_ptr},
-                                         {"PULONG",         as_ptr},
-                                         {"PULONGLONG",     as_ptr},
-                                         {"PULONG_PTR",     as_ptr},
-                                         {"PULONG32",       as_ptr},
-                                         {"PULONG64",       as_ptr},
-                                         {"PUSHORT",        as_ptr},
-                                         {"PVOID",          as_ptr},
-                                         {"PWCHAR",         as_ptr},
-                                         {"PWSTR",          as_ptr},
---                                       {"SC_HANDLE",      as_ptr},
---                                       {"SC_LOCK",        as_ptr},
---                                       {"SERVICE_STATUS_HANDLE",as_ptr},
---                                       {"UHALF_PTR",      as_ptr},
-                                         {"UINT_PTR",       as_ptr},
-                                         {"WPARAM",         as_ptr},
-                                         {"LONG_PTR",       as_ptr},
---                                       {"LPARAM",         as_ptr},
-                                         {"LRESULT",        as_ptr},
---                                       {"SSIZE_T",        as_ptr},
---                                       {"SIZE_T",         as_ptr},
-                                         {"DWORD_PTR",      as_ptr},
-                                         {"ULONG_PTR",      as_ptr},
-                                         {"INT_PTR",        as_ptr},
---                                       {"POINTER_SIGNED", as_ptr},
---                                       {"POINTER_UNSIGNED",as_ptr},
---                                       {"HALF_PTR",       as_ptr?},
---                                       {"POINTER_32",     as_ptr?},
---                                       {"POINTER_64",     as_ptr?},
-                                         {"WNDPROC",        as_ptr},
-                                         {"BYTE",           as_char},
-                                         {"BOOLEAN",        as_char},
-                                         {"CCHAR",          as_char},
-                                         {"CHAR",           as_char},
-                                         {"INT8",           as_char},
---                                       {"int8_t",         as_[u]char},
-                                         {"UCHAR",          as_uchar},
-                                         {"UINT8",          as_uchar},
-                                         {"WORD",           as_short},
-                                         {"ATOM",           as_short},
-                                         {"LANGID",         as_short},
-                                         {"INT16",          as_short},
-                                         {"SHORT",          as_short},
---                                       {"int16_t",        as_[u]short},
-                                         {"UINT16",         as_ushort},
-                                         {"USHORT",         as_ushort},
-                                         {"WCHAR",          as_ushort},
-                                         {"BOOL",           as_int},
-                                         {"HFILE",          as_int},        -- (obsolete)
-                                         {"INT",            as_int},
-                                         {"INT32",          as_int},
-                                         {"LONG32",         as_int},
---                                       {"int32_t",        as_[u]int},
-                                         {"REGSAM",         as_int},        -- assumes C enums are signed ints
-                                         {"DWORD32",        as_uint},
-                                         {"UINT",           as_uint},
-                                         {"UINT32",         as_uint},
-                                         {"ULONG32",        as_uint},
-                                         {"LONG",           as_long},
-                                         {"HRESULT",        as_long},
-                                         {"DWORD",          as_ulong},
-                                         {"COLORREF",       as_ulong},
-                                         {"LCID",           as_ulong},
-                                         {"LCTYPE",         as_ulong},
-                                         {"LGRPID",         as_ulong},
-                                         {"ULONG",          as_ulong},
---                                       {"float",          as_float},
-                                         {"FLOAT",          as_float},
-                                         {"INT64",          as_int64},
-                                         {"LONGLONG",       as_int64},
-                                         {"LONG64",         as_int64},
---                                       {"USN",            as_int64},
---                                       {"int64_t",        as_[u]int64},
-                                         {"DWORDLONG",      as_uint64},
-                                         {"DWORD64",        as_uint64},
-                                         {"QWORD",          as_uint64},
-                                         {"UINT64",         as_uint64},
-                                         {"ULONGLONG",      as_uint64},
-                                         {"ULONG64",        as_uint64},
-                                         $})
 
 integer unicode = -1    -- -1 = unknown
                         --  0 = ansi
@@ -532,12 +321,8 @@ integer unicode = -1    -- -1 = unknown
 
 -- (this ended up a bit overkill, nevermind)
 sequence UnicodeNames,UnicodeAs
-    {UnicodeNames,UnicodeAs} = columnize({
-                                              {"TBYTE",{as_char,as_ushort}},
-                                              {"TCHAR",{as_char,as_ushort}},
-                                              $})
 
-constant AW = "AW" -- index with[unicode+1] (errors if set_unicode not called)
+--constant AW = "AW" -- index with[unicode+1] (errors if set_unicode not called)
 
 integer convert_types = 0   -- 1 = convert eg "LONG" to "long", ie reduce
                             --      the no of types from five dozen or so
@@ -573,10 +358,10 @@ integer ch, n
     return n
 end function
 
-sequence structs = {},
-         stsizes = {},
-         saligns = {},
-         smembers = {}
+sequence structs,
+         stsizes,
+         saligns,
+         smembers
 
 function add_struct(sequence res)
 -- internal routine
@@ -780,54 +565,58 @@ sequence res
             widest = subsize
             sizeofS += subsize
         else
+--9/5/18 support eg "int x,y;" (not just/vs only "int x;")
+            while 1 do
+                {mname,substruct,mtype,size,align,signed} = do_type(mtype,machine)
 
-            {mname,substruct,mtype,size,align,signed} = do_type(mtype,machine)
-
-            if equal(mname,";") then err("member name expected") end if
-            mult = 1
-            if ch='[' then
-                nch()
-                if ch=']' then
-                    if not equal(mtype,"ptr") then
-                        mult = 0
+                if equal(mname,";") then err("member name expected") end if
+                mult = 1
+                if ch='[' then
+                    nch()
+                    if ch=']' then
+                        if not equal(mtype,"ptr") then
+                            mult = 0
+                        end if
+                    else
+--                      if mtype="ptr" then
+--                          {} = stoken()
+--                      else
+                            mult = toInt(stoken())
+--                      end if
                     end if
+                    if ch!=']' then err("] expected") end if
+                    nch()
+                    if ch='[' then err("multi-dimensional arrays are not (yet) supported") end if
+                elsif ch=':' then
+                    err("bitfields are not (yet) supported")
+                end if
+                token = stoken()
+--              if not equal(token,";") then err("; expected") end if
+                if size>widest then
+                    widest = size
+                end if
+                if struct then
+                    k = remainder(sizeofS,align)
+                    if k then
+                        sizeofS += align-k
+                    end if
+                end if
+                if substruct then
+                    {submembernames,submembers} = smembers[substruct]
+                    for i=1 to length(submembernames) do
+                        subname = mname&"."&submembernames[i]
+                        {mtype,subsize,offset,signed} = submembers[i]
+                        members = append(members,{subname,{mtype,subsize,offset+base+sizeofS,signed}})
+                    end for
                 else
---                  if mtype="ptr" then
---                      {} = stoken()
---                  else
-                        mult = toInt(stoken())
---                  end if
+                    members = append(members,{mname,{mtype,size,base+sizeofS,signed}})
                 end if
-                if ch!=']' then err("] expected") end if
-                nch()
-                if ch='[' then err("multi-dimensional arrays are not (yet) supported") end if
-            elsif ch=':' then
-                err("bitfields are not (yet) supported")
-            end if
-            token = stoken()
+                if struct then
+                    sizeofS += size*mult
+                end if
+                if not equal(token,",") then exit end if
+            end while
             if not equal(token,";") then err("; expected") end if
-            if size>widest then
-                widest = size
-            end if
-            if struct then
-                k = remainder(sizeofS,align)
-                if k then
-                    sizeofS += align-k
-                end if
-            end if
-            if substruct then
-                {submembernames,submembers} = smembers[substruct]
-                for i=1 to length(submembernames) do
-                    subname = mname&"."&submembernames[i]
-                    {mtype,subsize,offset,signed} = submembers[i]
-                    members = append(members,{subname,{mtype,subsize,offset+base+sizeofS,signed}})
-                end for
-            else
-                members = append(members,{mname,{mtype,size,base+sizeofS,signed}})
-            end if
-            if struct then
-                sizeofS += size*mult
-            end if
         end if
         if ch='}' then exit end if
     end while
@@ -860,118 +649,258 @@ sequence res
     return res
 end function
 
---<?
---global function define_struct(string struct_str, integer machine=0, integer add=1)
-global function define_struct(string struct_str, integer machine=machine_bits(), integer add=1)
---
--- The struct_str parameter is eg "typedef struct{LONG left; .. } RECT;"
---  - note that without a "typedef", nothing gets stored permanantly.
--- The machine parameter can be set to 32 or 64, for testing purposes.
--- The add parameter is set to 0 for testing (override/ignore "typedef")
---
--- If add is 1 and struct_str contains "typedef", the return value is a
---  small integer id that can be used in calls to get/set_struct_value.
---
--- Otherwise full details of the structure are returned, which you can
---  display, use to write a little help file, or perhaps even directly 
---  use the sizes and offsets etc. For details see parse_c_struct().
---
-string token
-integer typedef = 0
-sequence res
---  if machine=0 then
-----<       if machine_bits()=32 then
-----            machine = S32
-----        else
-----            machine = S64
-----        end if
---      machine = machine_bits()
---  end if
-    s = struct_str
-    sidx = 1
-    ch = s[1]
-    skipspaces()
-    token = stoken()
-    if equal(token,"typedef") then
-        typedef = 1
-        token = stoken()
-    end if
-    if not equal(token,"struct") then err("struct expected") end if
-    res = parse_c_struct(1,machine,0)
-    if add and typedef then
-        return add_struct(res)
-    end if
-    return res
-end function
+sequence dll_names,
+         dll_addrs
 
-global function get_struct_size(integer id)
-    return stsizes[id]
-end function
-
-global function allocate_struct(integer id)
--- remember to free() the result once done.
-integer size = stsizes[id]
-atom res = allocate(size)
-    mem_set(res,0,size)
-    return res
-end function
-
-global procedure set_struct_field(integer id, atom pStruct, string fieldname, atom v)
---sequence {membernames,details} = smembers[id]
-sequence membernames,details
---integer k = find(fieldname,membernames)
-integer k
-integer size, offset
-    {membernames,details} = smembers[id]
-    k = find(fieldname,membernames)
-    {?,size,offset} = details[k]
-    pokeN(pStruct+offset,v,size)
-end procedure
-
-global function get_struct_field(integer id, atom pStruct, string fieldname)
---sequence {membernames,details} = smembers[id]
-sequence membernames,details
-integer k
-integer size, offset, signed
-    {membernames,details} = smembers[id]
-    k = find(fieldname,membernames)
-    {?,size,offset,signed} = details[k]
-    return peekNS(pStruct+offset,size,signed)
-end function
-
-global function get_field_details(integer id, string fieldname)
---sequence {membernames,details} = smembers[id]
-sequence membernames,details
-integer k
-integer size, offset, sign
-    {membernames,details} = smembers[id]
-    k = find(fieldname,membernames)
-    {?,size,offset,sign} = details[k]
-    return {offset,size,sign}
-end function
-
-sequence dll_names = {},
-         dll_addrs = {}
-
-function open_lib(object lib)
--- internal caching wrapper to open_dll()
-integer k
-    if string(lib) then
-        k = find(lib,dll_names)
-        if k=0 then
-            dll_names = append(dll_names,lib)
-            lib = open_dll(lib)
-            dll_addrs = append(dll_addrs,lib)
-        else
-            lib = dll_addrs[k]
-        end if
-    end if
-    if lib=0 then ?9/0 end if
-    return lib
-end function
-
---constant {C_SIZES,C_CONSTS} = columnize({
 sequence C_SIZES,C_CONSTS
+
+bool cffi_init = false
+
+procedure init_cffi()
+
+    if platform()=LINUX then
+        L = 8
+    end if
+
+    {SizeNames,SizeSigns,Sizes} = columnize({
+                                                  {"char",      1,{1,1}},
+                                                  {"uchar",     0,{1,1}},
+                                                  {"short",     1,{2,2}},
+                                                  {"ushort",    0,{2,2}},
+                                                  {"int",       1,{4,4}},
+                                                  {"uint",      0,{4,4}},
+                                                  {"long",      1,{4,L}},
+                                                  {"ulong",     0,{4,L}},
+                                                  {"float",     1,{4,4}},
+                                                  {"double",    1,{8,8}},       -- (4-byte aligned on 32-bit linux, unless -malign-double specified)
+                                                  {"int64",     1,{8,8}},       -- aka long long (windows only?)
+                                                  {"uint64",    0,{8,8}},
+--                                                {"longdouble",1,{8,8}},       -- ambiguous!!!, see below
+--                                                {"flt80",     1,{10,10}},     -- maybe?
+-- made signed 28/12/16 (*2):
+                                                  {"ptr",       1,{4,8}},       -- (no point having ptr/uptr that I can think of)
+                                                  {"size_t",    1,{4,8}},
+                                                  $})
+
+
+--A partial definition of long double from wikipedia( https://en.wikipedia.org/wiki/Data_structure_alignment ):
+-- on 32 bit:
+--A long double (ten bytes with C++Builder and DMC, eight bytes with Visual C++, twelve bytes with GCC) will be 
+--  8-byte aligned with C++Builder, 2-byte aligned with DMC, 8-byte aligned with Visual C++ and 4-byte aligned with GCC.
+-- on 64 bit:
+--A long double (eight bytes with Visual C++, sixteen bytes with GCC) will be 8-byte aligned with Visual C++ and 16-byte aligned with GCC.
+-- (PL: Note that Windows64 is an LLP64 data model, not LP64 which the above article seems to be writing about.)
+--
+--For more information, be sure to read "calling_conventions.pdf" by Agner Fog, especially table 1 on page 6 ("Data Sizes").
+--
+--And here's another gratuitous link: https://en.wikipedia.org/wiki/Long_double
+--
+--If you ask me, life would be simpler if float/double/longdouble were instead more explicitly named say flt32/flt64/flt80.
+--
+--Might I suggest trying flt80 for any long doubles you happen to run into, not that I have any evidence that will work.
+--
+
+    as_char = find("char",SizeNames)
+    as_uchar = find("uchar",SizeNames)
+    as_int = find("int",SizeNames)
+    as_uint = find("uint",SizeNames)
+    as_ptr = find("ptr",SizeNames)
+    as_short = find("short",SizeNames)
+    as_ushort = find("ushort",SizeNames)
+    as_long = find("long",SizeNames)
+    as_ulong = find("ulong",SizeNames)
+    as_float = find("float",SizeNames)
+    as_int64 = find("int64",SizeNames)
+    as_uint64 = find("uint64",SizeNames)
+
+-- From MSDN. Suspect items are commented out, please check results carefully if you uncomment them.
+--              (not that there is any warranty that the others are all perfect!)
+    {AltNames,AltSize} = columnize({
+                                         {"PWORD",          as_ptr},
+                                         {"PDWORD",         as_ptr},
+--m                                      {"LPWORD",         as_ptr},    -- now covered by match("LP",mtype)=1
+--m                                      {"LPBYTE",         as_ptr},
+                                         {"PBYTE",          as_ptr},
+                                         {"PBOOLEAN",       as_ptr},
+                                         {"HANDLE",         as_ptr},
+                                         {"HACCEL",         as_ptr},
+                                         {"HBITMAP",        as_ptr},
+                                         {"HBRUSH",         as_ptr},
+                                         {"HCOLORSPACE",    as_ptr},
+                                         {"HCONV",          as_ptr},
+                                         {"HCONVLIST",      as_ptr},
+                                         {"HDC",            as_ptr},
+                                         {"HDDEDATA",       as_ptr},
+                                         {"HDESK",          as_ptr},
+                                         {"HDROP",          as_ptr},
+                                         {"HDWP",           as_ptr},
+                                         {"HENHMETAFILE",   as_ptr},
+                                         {"HFONT",          as_ptr},
+                                         {"HGDIOBJ",        as_ptr},
+                                         {"HGLOBAL",        as_ptr},
+                                         {"HHOOK",          as_ptr},
+                                         {"HICON",          as_ptr},
+                                         {"HCURSOR",        as_ptr},
+                                         {"HINSTANCE",      as_ptr},
+                                         {"HKEY",           as_ptr},
+                                         {"HKL",            as_ptr},
+                                         {"HLOCAL",         as_ptr},
+                                         {"HMENU",          as_ptr},
+                                         {"HMETAFILE",      as_ptr},
+                                         {"HMODULE",        as_ptr},
+                                         {"HMONITOR",       as_ptr},
+                                         {"HPALETTE",       as_ptr},
+                                         {"HPEN",           as_ptr},
+                                         {"HRGN",           as_ptr},
+                                         {"HRSRC",          as_ptr},
+                                         {"HSZ",            as_ptr},
+                                         {"HWINSTA",        as_ptr},
+                                         {"HWND",           as_ptr},
+--m                                      {"LPBOOL",         as_ptr},
+--m                                      {"LPCOLORREF",     as_ptr},
+--m                                      {"LPCSTR",         as_ptr},
+--m                                      {"LPCTSTR",        as_ptr},
+--m                                      {"LPCVOID",        as_ptr},
+--m                                      {"LPCWSTR",        as_ptr},
+--m                                      {"LPDWORD",        as_ptr},
+--m                                      {"LPHANDLE",       as_ptr},
+--m                                      {"LPINT",          as_ptr},
+--m                                      {"LPLONG",         as_ptr},
+--m                                      {"LPSTR",          as_ptr},
+--m                                      {"LPVOID",         as_ptr},
+--m                                      {"LPWSTR",         as_ptr},
+                                         {"PBOOL",          as_ptr},
+                                         {"PCHAR",          as_ptr},
+                                         {"PCSTR",          as_ptr},
+                                         {"PCTSTR",         as_ptr},
+                                         {"PCWSTR",         as_ptr},
+                                         {"PDWORDLONG",     as_ptr},
+                                         {"PDWORD_PTR",     as_ptr},
+                                         {"PDWORD32",       as_ptr},
+                                         {"PDWORD64",       as_ptr},
+                                         {"PFLOAT",         as_ptr},
+--                                       {"PHALF_PTR",      as_ptr},
+                                         {"PHANDLE",        as_ptr},
+                                         {"PHKEY",          as_ptr},
+                                         {"PINT",           as_ptr},
+                                         {"PINT_PTR",       as_ptr},
+                                         {"PINT8",          as_ptr},
+                                         {"PINT16",         as_ptr},
+                                         {"PINT32",         as_ptr},
+                                         {"PINT64",         as_ptr},
+                                         {"PLCID",          as_ptr},
+                                         {"PLONG",          as_ptr},
+                                         {"PLONGLONG",      as_ptr},
+                                         {"PLONG_PTR",      as_ptr},
+                                         {"PLONG32",        as_ptr},
+                                         {"PLONG64",        as_ptr},
+                                         {"PSHORT",         as_ptr},
+--                                       {"PPSIZE_T",       as_ptr},
+--                                       {"PSSIZE_T",       as_ptr},
+                                         {"PSTR",           as_ptr},
+                                         {"PTBYTE",         as_ptr},
+                                         {"PTCHAR",         as_ptr},
+                                         {"PTSTR",          as_ptr},
+                                         {"PUCHAR",         as_ptr},
+--                                       {"PUHALF_PTR",     as_ptr},
+                                         {"PUINT",          as_ptr},
+                                         {"PUINT_PTR",      as_ptr},
+                                         {"PUINT8",         as_ptr},
+                                         {"PUINT16",        as_ptr},
+                                         {"PUINT32",        as_ptr},
+                                         {"PUINT64",        as_ptr},
+                                         {"PULONG",         as_ptr},
+                                         {"PULONGLONG",     as_ptr},
+                                         {"PULONG_PTR",     as_ptr},
+                                         {"PULONG32",       as_ptr},
+                                         {"PULONG64",       as_ptr},
+                                         {"PUSHORT",        as_ptr},
+                                         {"PVOID",          as_ptr},
+                                         {"PWCHAR",         as_ptr},
+                                         {"PWSTR",          as_ptr},
+--                                       {"SC_HANDLE",      as_ptr},
+--                                       {"SC_LOCK",        as_ptr},
+--                                       {"SERVICE_STATUS_HANDLE",as_ptr},
+--                                       {"UHALF_PTR",      as_ptr},
+                                         {"UINT_PTR",       as_ptr},
+                                         {"WPARAM",         as_ptr},
+                                         {"LONG_PTR",       as_ptr},
+--                                       {"LPARAM",         as_ptr},
+                                         {"LRESULT",        as_ptr},
+--                                       {"SSIZE_T",        as_ptr},
+--                                       {"SIZE_T",         as_ptr},
+                                         {"DWORD_PTR",      as_ptr},
+                                         {"ULONG_PTR",      as_ptr},
+                                         {"INT_PTR",        as_ptr},
+--                                       {"POINTER_SIGNED", as_ptr},
+--                                       {"POINTER_UNSIGNED",as_ptr},
+--                                       {"HALF_PTR",       as_ptr?},
+--                                       {"POINTER_32",     as_ptr?},
+--                                       {"POINTER_64",     as_ptr?},
+                                         {"WNDPROC",        as_ptr},
+                                         {"BYTE",           as_char},
+                                         {"BOOLEAN",        as_char},
+                                         {"CCHAR",          as_char},
+                                         {"CHAR",           as_char},
+                                         {"INT8",           as_char},
+--                                       {"int8_t",         as_[u]char},
+                                         {"UCHAR",          as_uchar},
+                                         {"UINT8",          as_uchar},
+                                         {"WORD",           as_short},
+                                         {"ATOM",           as_short},
+                                         {"LANGID",         as_short},
+                                         {"INT16",          as_short},
+                                         {"SHORT",          as_short},
+--                                       {"int16_t",        as_[u]short},
+                                         {"UINT16",         as_ushort},
+                                         {"USHORT",         as_ushort},
+                                         {"WCHAR",          as_ushort},
+                                         {"BOOL",           as_int},
+                                         {"HFILE",          as_int},        -- (obsolete)
+                                         {"INT",            as_int},
+                                         {"INT32",          as_int},
+                                         {"LONG32",         as_int},
+--                                       {"int32_t",        as_[u]int},
+                                         {"REGSAM",         as_int},        -- assumes C enums are signed ints
+                                         {"DWORD32",        as_uint},
+                                         {"UINT",           as_uint},
+                                         {"UINT32",         as_uint},
+                                         {"ULONG32",        as_uint},
+                                         {"LONG",           as_long},
+                                         {"HRESULT",        as_long},
+                                         {"DWORD",          as_ulong},
+                                         {"COLORREF",       as_ulong},
+                                         {"LCID",           as_ulong},
+                                         {"LCTYPE",         as_ulong},
+                                         {"LGRPID",         as_ulong},
+                                         {"ULONG",          as_ulong},
+--                                       {"float",          as_float},
+                                         {"FLOAT",          as_float},
+                                         {"INT64",          as_int64},
+                                         {"LONGLONG",       as_int64},
+                                         {"LONG64",         as_int64},
+--                                       {"USN",            as_int64},
+--                                       {"int64_t",        as_[u]int64},
+                                         {"DWORDLONG",      as_uint64},
+                                         {"DWORD64",        as_uint64},
+                                         {"QWORD",          as_uint64},
+                                         {"UINT64",         as_uint64},
+                                         {"ULONGLONG",      as_uint64},
+                                         {"ULONG64",        as_uint64},
+                                         $})
+
+    {UnicodeNames,UnicodeAs} = columnize({
+                                              {"TBYTE",{as_char,as_ushort}},
+                                              {"TCHAR",{as_char,as_ushort}},
+                                              $})
+
+    structs = {}
+    stsizes = {}
+    saligns = {}
+    smembers = {}
+
+    dll_names = {}
+    dll_addrs = {}
     {C_SIZES,C_CONSTS} = columnize({
                                          {{2,1},C_WORD},    -- (=== C_SHORT)
                                          {{4,0},C_DWORD},   -- (=== C_PTR, C_HWND, etc)
@@ -992,6 +921,124 @@ sequence C_SIZES,C_CONSTS
 --  initialConstant("C_QWORD",      #02000008)  -- (a 64 bit unsigned integer)
 --  initialConstant("C_FLOAT",      #03000004)
 --*/
+
+    cffi_init = true
+end procedure
+
+--<?
+--global function define_struct(string struct_str, integer machine=0, integer add=1)
+global function define_struct(string struct_str, integer machine=machine_bits(), integer add=1)
+--
+-- The struct_str parameter is eg "typedef struct{LONG left; .. } RECT;"
+--  - note that without a "typedef", nothing gets stored permanantly.
+-- The machine parameter can be set to 32 or 64, for testing purposes.
+-- The add parameter is set to 0 for testing (override/ignore "typedef")
+--
+-- If add is 1 and struct_str contains "typedef", the return value is a
+--  small integer id that can be used in calls to get/set_struct_value.
+--
+-- Otherwise full details of the structure are returned, which you can
+--  display, use to write a little help file, or perhaps even directly 
+--  use the sizes and offsets etc. For details see parse_c_struct().
+--
+string token
+integer typedef = 0
+sequence res
+    if not cffi_init then init_cffi() end if
+--  if machine=0 then
+----<       if machine_bits()=32 then
+----            machine = S32
+----        else
+----            machine = S64
+----        end if
+--      machine = machine_bits()
+--  end if
+    s = struct_str
+    sidx = 1
+    ch = s[1]
+    skipspaces()
+    token = stoken()
+    if equal(token,"typedef") then
+        typedef = 1
+        token = stoken()
+    end if
+    if not equal(token,"struct") then err("struct expected") end if
+--?"pcs"
+    res = parse_c_struct(1,machine,0)
+--?"pcs ret"
+    if add and typedef then
+        return add_struct(res)
+    end if
+    return res
+end function
+
+global function get_struct_size(integer id)
+    if not cffi_init then ?9/0 end if
+    return stsizes[id]
+end function
+
+global function allocate_struct(integer id)
+-- remember to free() the result once done.
+    if not cffi_init then ?9/0 end if
+    integer size = stsizes[id]
+    atom res = allocate(size)
+    mem_set(res,0,size)
+    return res
+end function
+
+global procedure set_struct_field(integer id, atom pStruct, string fieldname, atom v)
+--sequence {membernames,details} = smembers[id]
+sequence membernames,details
+--integer k = find(fieldname,membernames)
+integer k
+integer size, offset
+    if not cffi_init then ?9/0 end if
+    {membernames,details} = smembers[id]
+    k = find(fieldname,membernames)
+    {?,size,offset} = details[k]
+    pokeN(pStruct+offset,v,size)
+end procedure
+
+global function get_struct_field(integer id, atom pStruct, string fieldname)
+--sequence {membernames,details} = smembers[id]
+sequence membernames,details
+integer k
+integer size, offset, signed
+    if not cffi_init then ?9/0 end if
+    {membernames,details} = smembers[id]
+    k = find(fieldname,membernames)
+    {?,size,offset,signed} = details[k]
+    return peekNS(pStruct+offset,size,signed)
+end function
+
+global function get_field_details(integer id, string fieldname)
+--sequence {membernames,details} = smembers[id]
+sequence membernames,details
+integer k
+integer size, offset, sign
+    if not cffi_init then ?9/0 end if
+    {membernames,details} = smembers[id]
+    k = find(fieldname,membernames)
+    {?,size,offset,sign} = details[k]
+    return {offset,size,sign}
+end function
+
+function open_lib(object lib)
+-- internal caching wrapper to open_dll()
+integer k
+    if string(lib) then
+        k = find(lib,dll_names)
+        if k=0 then
+            dll_names = append(dll_names,lib)
+            lib = open_dll(lib)
+            dll_addrs = append(dll_addrs,lib)
+        else
+            lib = dll_addrs[k]
+        end if
+    end if
+    if lib=0 then ?9/0 end if
+    return lib
+end function
 
 function define_c(object lib, string cdef, integer func, integer machine)
 --
@@ -1018,6 +1065,7 @@ sequence args
 integer substruct, size, align, signed, return_type, ptype
 integer rid
 
+    if not cffi_init then init_cffi() end if
     args = {}
 --  if machine=0 then
 ----<       if machine_bits()=32 then
@@ -1083,7 +1131,8 @@ integer rid
         rid = define_c_proc(lib,name,args)
     end if
     if rid=-1 then
-        name &= AW[unicode+1] -- (errors out if unicode still -1)
+--      name &= AW[unicode+1] -- (errors out if unicode still -1)
+        name &= "AW"[unicode+1] -- (errors out if unicode still -1)
         if func then
             rid = define_c_func(lib,name,args,return_type)
         else
