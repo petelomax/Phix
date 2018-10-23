@@ -193,9 +193,15 @@ global function int_to_bytes(atom x, integer size = 4)
 --  x = floor(x/#100)
 --  d = remainder(x, #100)
 --  return {a,b,c,d}
-atom mem = allocate(size,1)
+--
+--23/10/18 problems with delete_routine() in a dll[??]
+--atom mem = allocate(size,1)
+atom mem = allocate(size)
     pokeN(mem,x,size)
-    return peek({mem,size})
+--  return peek({mem,size})
+    sequence res = peek({mem,size})
+    free(mem)
+    return res
 end function
 
 --17/05/2010 (avoids opCallOnce)
