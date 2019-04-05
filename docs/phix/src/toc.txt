@@ -33,6 +33,7 @@ language
   strings
  phixvscl
   phixvsfl
+  phixcomp
  comments
   perrec
  expressions
@@ -116,6 +117,7 @@ library
   trim
   columnize
   vslice
+   extract
   tagset
   substitute
    substitute_all
@@ -162,6 +164,7 @@ library
   PI
   rand
    set_rand
+   get_rand
    rnd
   sum
   gcd
@@ -351,15 +354,22 @@ library
   to_string
   find_any
   vlookup
+  pretty_print
   machine_func
   machine_proc
 otherlibs
+ base64
+  encode_base64
+  decode_base64
  bigatom
   bigatom_type
   ba_new
   ba_scale
   ba_sprintf
   ba_round
+  ba_mul
+  ba_div
+  ba_mod_exp
  cffi
   define_struct
   allocate_struct
@@ -402,6 +412,7 @@ otherlibs
    getd_index
    getd_by_index
    getd_partial_key
+   getd_all_keys
   deld
   dict_size
   traverse_dict
@@ -462,6 +473,7 @@ otherlibs
    ZipAddDir
    ZipAddFolder
    ZipClose
+ mpfr
  pGUI
   iupcred
   iuptypes
@@ -522,6 +534,8 @@ otherlibs
      IupGLSizeBox
      IupGLToggle
      IupGLValuator
+    IupDraw
+   IupDial
    IupFlatButton
    IupImage
     IupLoadImage
@@ -584,6 +598,7 @@ otherlibs
    IupSpinBox
    IupSplit
    IupTabs
+   IupUser
    IupZbox
    IupGetDialog
     IupGetBrother
@@ -607,6 +622,7 @@ otherlibs
      IupGetFocus
     IupHide
     IupConvertXYToPos
+   IupLoad
    IupMap
     IupUnmap
    IupMainLoop
@@ -634,20 +650,22 @@ otherlibs
     IupConfigDialogShow
   iupcd
    cdCreateCanvas
+   cdCanvasSetAttribute
+   cdCanvasGetAttribute
    cdCanvasActivate
+    cdCanvasDeactivate
    cdCanvasClear
-   cdCanvasFlush
+   cdCanvasClip
    cdCanvasArc
    cdCanvasBegin
    cdCanvasVertex
+    cdCanvasPathSet
    cdCanvasEnd
    cdCanvasBox
     cdCanvasRoundedBox
    cdCanvasFont
    cdCanvasGetFont
    cdCanvasGetFontDim
-   cdCanvasGetAttribute
-   cdCanvasSetAttribute
    cdCanvasGetColorPlanes
    cdCanvasGetContext
    cdCanvasGetImageRGB
@@ -663,16 +681,20 @@ otherlibs
    cdCanvasLineWidth
    cdCanvasLineStyle
    cdCanvasMM2Pixel
-   cdCanvasPixel2MM
+    cdCanvasPixel2MM
    cdCanvasMultiLineVectorText
    cdCanvasPixel
+   cdCanvasPlay
+    cdContextRegisterCallback
    cdCanvasPutImageRectRGB
    cdCanvasPutImImage
    cdCanvasRect
     cdCanvasRoundedRect
+   cdCanvasRegionCombineMode
    cdCanvasSector
    cdCanvasSetForeground
    cdCanvasSetNativeFont
+   cdCanvasSimulate
    cdCanvasText
    cdCanvasTextAlignment
    cdCanvasTransform
@@ -684,7 +706,6 @@ otherlibs
    cdGetScreenColorPlanes
    cdGetScreenSize
    cdVersion
-   cdVersionDate
    wdCanvasWindow
    wdCanvasGetWindow
    wdCanvasViewport
@@ -726,6 +747,69 @@ otherlibs
   ppOpt
   pp
   ppf
+ pSQLite
+  sqlconst
+  sqlite3_open
+  sqlite3_exec
+  sqlite3_get_table
+  sqlite3_advanced
+   sqlite3_libversion
+   sqlite3_open_dll
+   sqlite3_get_autocommit
+   sqlite3_prepare
+    sqlite3_bind
+    sqlite3_step
+    sqlite3_column
+    sqlite3_reset
+    sqlite3_finalize
+   sqlite3_last_insert_rowid
+   sqlite3_changes
+   sqlite3_lang
+    sqlite3_omitted
+    sqlite3_lang_keywords
+    sqlite3_syntaxdiagrams
+    sqlite3_lang_aggfunc
+    sqlite3_lang_altertable
+    sqlite3_lang_analyze
+    sqlite3_lang_attach
+    sqlite3_lang_transaction
+    sqlite3_lang_comment
+    sqlite3_lang_corefunc
+    sqlite3_lang_createindex
+    sqlite3_lang_createtable
+    sqlite3_lang_createtrigger
+    sqlite3_lang_createview
+    sqlite3_lang_createvtab
+    sqlite3_lang_datefunc
+    sqlite3_lang_delete
+    sqlite3_lang_detach
+    sqlite3_lang_dropindex
+    sqlite3_lang_droptable
+    sqlite3_lang_droptrigger
+    sqlite3_lang_dropview
+    sqlite3_lang_explain
+    sqlite3_lang_expr
+    sqlite3_lang_indexedby
+    sqlite3_lang_insert
+    sqlite3_lang_conflict
+    sqlite3_pragma
+    sqlite3_lang_reindex
+    sqlite3_lang_savepoint
+    sqlite3_lang_replace
+    sqlite3_lang_select
+    sqlite3_lang_update
+    sqlite3_lang_vacuum
+    sqlite3_lang_with
+    sqlite3_partialindex
+    sqlite3_foreignkeys
+    sqlite3_lang_naming
+    sqlite3_datatype3
+    sqlite3_expridx
+    sqlite3_withoutrowid
+    sqlite3_autoinc
+    sqlite3_rowvalue
+  sqlite3_close
+  SQLcheat
  regex.e
   regex_syntax
   regex_options
@@ -755,6 +839,7 @@ otherlibs
   utf32_to_utf8
   utf16_to_utf32
   utf32_to_utf16
+ xml
  deprecated
   arwen
    arwen.Introduction
@@ -892,6 +977,7 @@ rectools
  wrectools
 internals
  lowlevel
+ opCallOnceYeNot
  pGetPool
  pFreePool
  pLoadFlt
@@ -1017,7 +1103,7 @@ poke_long, peek_longu, peek_longs, sizeof, poke8m, poke8u, poke8s, poke_pointer,
 
 Incompatibilites with RDS Eu/OpenEuphoria
 
-Attempting to acheive 100% compatibility is a fool&rsquo;s errand. It would mean that no new features could be added to Phix, 
+Attempting to acheive 100% compatibility is a fool&rsquo;s errand. It would mean that no new features could be added to phix, 
 and slavish reproduction of every wart, gotcha, and bug in OpenEuphoria. It is somewhere in the high 99% area, and
 that is good enough for me. Obviously the compiler generates warning messages wherever possible, do not ignore them.
 
@@ -1032,15 +1118,15 @@ that is good enough for me. Obviously the compiler generates warning messages wh
         s = sq_add(s,{1,2,3})
     You simply cannot have both direct comparison and implicit seqence ops in a
     viable/unambiguous language, and it is quite abundantly clear that comparison 
-    occurs far more often than sequence maths. One day, perhaps, Phix will have 
+    occurs far more often than sequence maths. One day, perhaps, phix will have 
     explicit infix sequence ops, eg s @+= {1,2,3}, but it does not have them yet.
-    In some cases the Phix compiler will automatically assume an sq_xxx operation,
+    In some cases the phix compiler will automatically assume an sq_xxx operation,
     when it knows with absolute certainty that such is needed, and issue a warning
     to that effect, If you get 
         s += {1,2,3}
           ^ warning: sq_add() assumed
     You should replace it with
---/**/  s = sq_add(s,{1,2,3})   --/* -- Phix
+--/**/  s = sq_add(s,{1,2,3})   --/* -- phix
         s += {1,2,3}            --*/ -- RDS
     that is, if you are gunning for source code compatible with both compilers.
 3.  Variable length slice substitution, for example
@@ -1061,17 +1147,17 @@ that is good enough for me. Obviously the compiler generates warning messages wh
         ext = s[-4..-1]
     sets ext to ".exw". Admittedly not a significant gain over the RDS Eu/OpenEuphoria
         ext = s[$-3..$]
-    which also works just fine on Phix, but I know which I prefer.
-5.  Nested $ do not always work as you might perhaps hope on Phix, eg
+    which also works just fine on phix, but I know which I prefer.
+5.  Nested $ do not always work as you might perhaps hope on phix, eg
         lines[rand($)]
     is simply equivalent to
         lines[rand(-1)]
-    (because Phix trivially implements "$" as "-1", and it crashes) rather than
+    (because phix trivially implements "$" as "-1", and it crashes) rather than
         lines[rand(length(lines))]
     which is the way such code behaves on RDS Eu/OpenEuphoria (the latter works in the
-    way you probably wanted on both Phix and RDS/Open Eu). In practice this has not yet
+    way you probably wanted on both phix and RDS/Open Eu). In practice this has not yet
     been observed in any real-world code (flw).
-5.  Multiple [nested/subscripted] assignments are fully supported in Phix, for example
+5.  Multiple [nested/subscripted] assignments are fully supported in phix, for example
         {this,{that,theother[j]}} = table[i]
     I understand work on a similar feature in OpenEuphoria is in progress, however I personally
     doubt that full support for nested, subscripted, or @= forms of multiple assignments will 
@@ -1090,14 +1176,14 @@ that is good enough for me. Obviously the compiler generates warning messages wh
 10. Automatic includes. If you want to use sort() you no longer have to remember to "include
     sort.e" somewhere earlier in the file, instead the compiler knows (see psym.e/syminit())
     where to find such things.
-11. Limited parameter defaults. Currently Phix only supports literal constants, plain constant
+11. Limited parameter defaults. Currently phix only supports literal constants, plain constant
     and variable names, and length() and command_line(). It does not support general expressions,
     no maths, comparisons, subscripting/slicing, concatenation, non-entirely-constant-literal
     sequence creation (such as {1,0,v}), or any other function call other than the two mentioned 
     above. See pmain.e/getOneDefault() for more details - with 20/20 hindsight I would have made
     it call increaseScope(), add parameter symtab entries, and emit opTchk code earlier, but as
     things stand it covers all my needs, and I have no immediate plans to remodel that code.
-12. Unicode (UTF8) source files are properly supported by the Phix compiler. By the time you
+12. Unicode (UTF8) source files are properly supported by the phix compiler. By the time you
     read this, the same may or may not be true for the lastest version of OpenEuphoria.
 13. sprintf("%016x",-1) produces "FFFFFFFFFFFFFFFF" not "00000000FFFFFFFF".
 14. printf(1,"%s\n","Pete") displays "Pete", not "P" (via a simple mini-fudge).
@@ -1109,7 +1195,7 @@ that is good enough for me. Obviously the compiler generates warning messages wh
     preprocessing was specified in the source file much like a !# line, I might be a little 
     less derisory, but probably no more enthusiastic.
 17. Phix is properly self-hosted, requiring no other tools to be installed, and rebuilds itself
-    in a matter of seconds - 12 at the last count, although if I add the Phix directory to the 
+    in a matter of seconds - 12 at the last count, although if I add the phix directory to the 
     exclusion list of my AntiVirus (temporarily, of course) it completes in less than 6 seconds.
     Oh, I should qualify that is just the executable that I can run, not the full installer that 
     I can upload, because takes another 5 seconds, and building a linux version as well might
@@ -1131,7 +1217,7 @@ that is good enough for me. Obviously the compiler generates warning messages wh
 
 favourites
 ===========
-The features of Phix I am proudest of, in order, are:
+The features of phix I am proudest of, in order, are:
 1) multiple assignment, eg {type,size,{scale,idx,base,offset}} = get_operand(P_MEM)
 2) improved include system, eg include ..\arwen\arwen.ew -- just works, w/o EUINC|eu.cfg etc
 3) additional compile-time type checking 
@@ -1190,7 +1276,7 @@ Automatic internal memory leak checking
 Self-hosted, no need for Watcon/Borland/gcc. 
 No DOS or Linux versions. 
 peekNo floating point for loops 
-There are plenty of things in 4.0 that have not made it into Phix. 
+There are plenty of things in 4.0 that have not made it into phix. 
 <
 
 printfs third argument is now optional. printf(1, "Hello\n", {}) is no longer needed, 
@@ -1354,7 +1440,7 @@ other than that, the benefits of the second algorithm apply equally to both.
 
 Optional semicolons
 ===================
-All statements in Phix can optionally be terminated with a semicolon (;).
+All statements in phix can optionally be terminated with a semicolon (;).
 It is entirely a matter of personal choice, however in one case I had
 
             frealposn -= fend
@@ -1534,7 +1620,7 @@ Then a straightforward compilation error would have saved me those 3 days.
                 findit(table:=xtable, step:=2, what:=x)
             
             In particular, the middle example is, I hope, much better than say 
-            "findit(x,table,,,,2)", which Phix does not support and I have no 
+            "findit(x,table,,,,2)", which phix does not support and I have no 
             intention of ever implementing.
 
 Inline Assembly
@@ -1549,7 +1635,7 @@ that will be hair-raisingly complicated stuff, and in fact almost always is, to 
 But it is just code, and with a little bit of patience, application, and determination, you 
 too can be a low-level coding god (or godess).
 
-The first thing to accept is that the Phix inline assembler is quite deliberately incomplete.
+The first thing to accept is that the phix inline assembler is quite deliberately incomplete.
 There is no point whatsoever trying to implement all of eg http://ref.x86asm.net/index.html
 at least, that is, not without proper detailed testing of each and every new instruction.
 A better idea is to make it as easy as possible to fill in the gaps as and when needed.
@@ -1572,7 +1658,7 @@ and a quite helpful little community on the flatassembler message board.
 If you were expecting me to explain what mov/lea/add/fyl2x/lgdt/psllw/stmxcsr/pmulhrsw
 or whatever do, be sadly mistaken. See docs/fasm.txt, or your favourite search engine.
 
-What I will do, however, is give a few quick examples and explain Phix-specific aspects.
+What I will do, however, is give a few quick examples and explain phix-specific aspects.
 
     #ilASM{
         [32]
@@ -1629,13 +1715,13 @@ be quietly optimised away. This behaviour can be avoided either by /never/ setti
 c in hll code or by setting it to a range of dummy values somewhere/how, to force 
 the compiler to load it.
 
-Refer to builtins\VM\pHeap.e for the low-level details about Phix hll variables.
+Refer to builtins\VM\pHeap.e for the low-level details about phix hll variables.
 Also, ::pGetMem in that file contains a summary of the various calling conventions.
 
 labels,
 
 
-At heart, Phix takes the terms "reinvent the wheel" and "not invented here" to a
+At heart, phix takes the terms "reinvent the wheel" and "not invented here" to a
 whole new level.
 
 
@@ -1676,12 +1762,12 @@ potentially in addition to all of the above. This is typically more difficult th
 
 Matt
 
-Technical issues using a 32-bit version of Phix to generate 64-bit applications.
+Technical issues using a 32-bit version of phix to generate 64-bit applications.
 ===============================================================================
-Of course it is paramount that a 32-bit version of Phix can create a 64-bit version of Phix (and vice versa),
-so the source code of Phix itself carefully avoids anything that might cause problems. In particular, the 32bit
-version of Phix uses 64bit floats with 53 bits of precision whereas the 64bit version uses 80bit floats, with 
-64 bits of precision. As an example, the 32-bit version of Phix will treat the constant #80000000000000001 as 
+Of course it is paramount that a 32-bit version of phix can create a 64-bit version of phix (and vice versa),
+so the source code of phix itself carefully avoids anything that might cause problems. In particular, the 32bit
+version of phix uses 64bit floats with 53 bits of precision whereas the 64bit version uses 80bit floats, with 
+64 bits of precision. As an example, the 32-bit version of phix will treat the constant #80000000000000001 as 
 if it were #80000000000000000
 
 
@@ -1775,10 +1861,10 @@ Provided the development coordinator has a medium at least as good as the Intern
 Abstraction is a wonderful thing - but it should be "skip details" not "tie both hands behind their back, chop the legs off at the knees, and make them deaf and blind".
 
 I have added Listdir.bat and Listdir.reg to generate directory listings, originally taken from https://support.microsoft.com/en-us/kb/321379 but adjusted 
-to use the Phix directory instead of %windir%, which hopefully avoids some additional permission denied errors. If you merge the .reg file then a new option
+to use the phix directory instead of %windir%, which hopefully avoids some additional permission denied errors. If you merge the .reg file then a new option
 should be available on the right click drop-down in Explorer. Use Ctrl A to select all and Ctrl C to copy, then paste it somewhere more permanent.
 
-Despite my own fondness for inline assembly, it is used quite sparingly within the sources of Phix:
+Despite my own fondness for inline assembly, it is used quite sparingly within the sources of phix:
 p.exw for "SetBatchMode" and "interpret"
 pEmit2.e for a few raw addresses/refs, rebuild_callback, and copying the optable
 psym.e for s5thunk (a type-safe hack for setting/swapping s5)
@@ -1868,7 +1954,7 @@ same way that hll application code does (and/or it wouldn&rsquo;t help if they d
 
 SUG:
 lambda()
-In Phix, a lambda is simply an un-named and un-typed function. For example:
+In phix, a lambda is simply an un-named and un-typed function. For example:
  ... ,lambda((integer x, integer y) return factorial(x-y)), ...
 is equivalent to:
  function tmp895(integer x, integer y) return factorial(x-y) end function

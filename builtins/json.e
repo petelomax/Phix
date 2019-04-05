@@ -288,7 +288,8 @@ end procedure
 procedure getToken()
 integer nxtCh
 integer tokstart
-    if Ch=-1 then
+--  if Ch=-1 then
+    if Ch<=0 then
         if invalid=0 then
             invalid = 2
         end if

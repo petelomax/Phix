@@ -1,0 +1,729 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">SQL Cheat Sheet</h1>
+      <div id="mainSection">
+       <table align="center">
+        <!-- cellspacing="3" -->
+        <tr>
+         <td colspan="3" class="titleMain">SQL&nbsp;(Structured&nbsp;Query&nbsp;Language)&nbsp;in&nbsp;one&nbsp;page
+         &nbsp;&nbsp;&nbsp;&nbsp;(<a id="ext437" style="color:#9B5565" 
+         href="javascript:ExternalLink('ext437','http://www.cheat-sheets.org/sites/sql.su/');">credit/original</a>)
+         &nbsp;&nbsp;&nbsp;&nbsp;nb not (originally) SQLite-specific.
+        </td>
+        </tr>
+        <tr>
+         <td colspan="3" class="contents">
+             <b>Table of contents:</b> <a href="#database_manipulation">Database Manipulation (CREATE, DROP DATABASE)</a>,
+             <a href="#table_manipulation">Table Manipulation (CREATE, ALTER, DROP TABLE, Data Types)</a>,
+             <a href="#index_manipulation">Index Manipulation (CREATE, DROP INDEX)</a>,
+             <a href="#data_manipulation">Data Manipulation (INSERT, UPDATE, DELETE, TRUNCATE TABLE)</a>,
+             <a href="#select">Select (SELECT, FROM, WHERE, ORDER BY, GROUP BY, HAVING, Operators, Aggregate functions)</a>,
+             <a href="#alias">Alias</a>,
+             <a href="#join">JOIN</a>,
+             <a href="#union">UNION</a>,
+             <a href="#into">SELECT INTO/IN</a>,
+             <a href="#view">CREATE VIEW</a>.
+         </td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="database_manipulation">&nbsp;</a>Database Manipulation </td>
+        </tr>
+        <tr>
+         <td class="code">CREATE DATABASE
+          <span class="inputData">database_name</span>
+         </td>
+         <td class="description">Create a database [nb: <b>not</b> SQLite, use <a href="sqlite3_open.htm">sqlite3_open</a>]</td>
+         <td class="example">CREATE DATABASE My_First_Database</td>
+        </tr>
+        <tr>
+         <td class="code">DROP DATABASE
+          <span class="inputData">database_name</span>
+         </td>
+         <td class="description">Delete a database [nb: <b>not</b> SQLite, use <a href="delete_file.htm">delete_file</a>]</td>
+         <td class="example">DROP DATABASE My_First_Database</td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="table_manipulation">&nbsp;</a>Table Manipulation</td>
+        </tr>
+        <tr>
+         <td rowspan="2" class="code">CREATE TABLE "
+          <span class="inputData">table_name</span>"<br />("
+          <span class="inputData">column_1</span>" "
+          <span class="inputData">data_type_for_column_1</span>",<br />"
+          <span class="inputData">column_2</span>" "
+          <span class="inputData">data_type_for_column_2</span>",<br />... )
+         </td>
+         <td class="description">Create a table in a database.
+         </td>
+         <td rowspan="2" class="example"><a href="sqlite3_lang_createtable.htm">CREATE TABLE</a> Person
+          (LastName varchar,
+           FirstName varchar,
+           Address varchar,
+           Age int)
+         </td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <td class="description">
+          <table cellspacing="0" class="tableDescription">
+           <caption>Data Types (see also <a href="sqlite3_datatype3.htm">Datatypes In SQLite Version 3</a>)</caption>
+           <tr>
+            <th>Data Type</th>
+            <th>Description</th>
+           </tr>
+           <tr>
+            <td>integer(size)</td>
+            <td rowspan="4">Hold integers only. The maximum number of digits are specified in parenthesis.</td>
+           </tr>
+           <tr>
+            <td>int(size)</td>
+            <!--1 cell-->
+           </tr>
+           <tr>
+            <td>smallint(size)</td>
+            <!--1 cell-->
+           </tr>
+           <tr>
+            <td>tinyint(size)</td>
+            <!--1 cell-->
+           </tr>
+           <tr>
+            <td>decimal(size,d)</td>
+            <td rowspan="2">Hold numbers with fractions. The maximum number of digits are specified in "size". 
+             The maximum number of digits to the right of the decimal is specified in "d".</td>
+           </tr>
+           <tr>
+            <td>numeric(size,d)</td>
+            <!--1 cell-->
+           </tr>
+           <tr>
+            <td>char(size)</td>
+            <td>Holds a fixed length string (can contain letters, numbers, and special characters). The fixed size is specified in parenthesis.</td>
+           </tr>
+           <tr>
+            <td>varchar(size)</td>
+            <td>Holds a variable length string (can contain letters, numbers, and special characters). The maximum size is specified in parenthesis.</td>
+           </tr>
+           <tr>
+            <td>date(yyyymmdd)</td>
+            <td>Holds a date</td>
+           </tr>
+          </table>
+         </td>
+         <!--1 cell-->
+        </tr>
+        <tr>
+         <td class="code">ALTER TABLE
+          <span class="inputData">table_name</span> ADD
+          <span class="inputData">column_name</span>
+          <span class="inputData">datatype</span>
+         </td>
+         <td class="description">Add columns in an existing table.</td>
+         <td class="example"><a href='sqlite3_lang_altertable.htm'>ALTER TABLE</a> Person ADD Sex char(6)</td>
+        </tr>
+        <tr>
+         <td class="code">ALTER TABLE
+          <span class="inputData">table_name</span> DROP
+          <span class="inputData">column_name</span>
+          <span class="inputData">datatype</span>
+         </td>
+         <td class="description">Delete columns in an existing table. 
+          [nb: SQLite <a href="sqlite3_omitted.htm">does not implement DROP COLUMN</a>.]
+         </td>
+         <td class="example">ALTER TABLE Person DROP Sex char(6)</td>
+        </tr>
+        <tr>
+         <td class="code">DROP TABLE
+          <span class="inputData">table_name</span>
+         </td>
+         <td class="description">Delete a table.</td>
+         <td class="example"><a href='sqlite3_lang_droptable.htm'>DROP TABLE</a> Person</td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="index_manipulation">&nbsp;</a>Index Manipulation</td>
+        </tr>
+        <tr>
+         <td class="code">CREATE INDEX
+          <span class="inputData">index_name</span>
+          <br />ON
+          <span class="inputData">table_name</span> (
+          <span class="inputData">column_name_1</span>,
+          <span class="inputData">column_name_2</span>, ...)
+         </td>
+         <td class="description">Create a simple index.</td>
+         <td class="example"><a href='sqlite3_lang_createindex.htm'>CREATE INDEX</a> PersonIndex
+          <br />ON Person (LastName, FirstName)
+         </td>
+        </tr>
+        <tr>
+         <td class="code">CREATE UNIQUE INDEX
+          <span class="inputData">index_name</span>
+          <br />ON
+          <span class="inputData">table_name</span> (
+          <span class="inputData">column_name_1</span>,
+          <span class="inputData">column_name_2</span>, ...)
+         </td>
+         <td class="description">Create a unique index.</td>
+         <td class="example">CREATE UNIQUE INDEX PersonIndex
+          <br />ON Person (LastName DESC)
+         </td>
+        </tr>
+        <tr>
+         <td class="code">DROP INDEX
+          <span class="inputData">table_name.index_name</span>
+         </td>
+         <td class="description">Delete an index.</td>
+         <td class="example"><a href='sqlite3_lang_dropindex.htm'>DROP INDEX</a> Person.PersonIndex</td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="data_manipulation">&nbsp;</a>Data Manipulation</td>
+        </tr>
+        <tr>
+         <td class="code">INSERT INTO
+          <span class="inputData">table_name</span>
+          <br />VALUES (
+          <span class="inputData">value_1</span>,
+          <span class="inputData">value_2</span>,....)
+         </td>
+         <td rowspan="2" class="description">Insert new rows into a table.</td>
+         <td class="example"><a href='sqlite3_lang_insert.htm'>INSERT</a> INTO Persons
+          <br />VALUES('Hussein', 'Saddam', 'White House')
+         </td>
+        </tr>
+        <tr>
+         <td class="code">INSERT INTO
+          <span class="inputData">table_name</span> (
+          <span class="inputData">column1</span>,
+          <span class="inputData">column2</span>,...)
+          <br />VALUES (
+          <span class="inputData">value_1</span>,
+          <span class="inputData">value_2</span>,....)
+         </td>
+         <!--1 cell-->
+         <td class="example">INSERT INTO Persons (LastName, FirstName, Address)
+          <br />VALUES('Hussein', 'Saddam', 'White House')
+         </td>
+        </tr>
+        <tr>
+         <td class="code">UPDATE
+          <span class="inputData">table_name</span>
+          <br />SET
+          <span class="inputData">column_name_1</span> =
+          <span class="inputData">new_value_1</span>,
+          <span class="inputData">column_name_2</span> =
+          <span class="inputData">new_value_2</span>
+          <br />WHERE
+          <span class="inputData">column_name</span> =
+          <span class="inputData">some_value</span>
+         </td>
+         <td class="description">Update one or several columns in rows.</td>
+         <td class="example"><a href='sqlite3_lang_update.htm'>UPDATE</a> Person
+          <br />SET Address = 'ups'
+          <br />WHERE LastName = 'Hussein'
+         </td>
+        </tr>
+        <tr>
+         <td class="code">DELETE FROM
+          <span class="inputData">table_name</span>
+          <br />WHERE
+          <span class="inputData">column_name</span> =
+          <span class="inputData">some_value</span>
+         </td>
+         <td class="description">Delete rows in a table.</td>
+         <td class="example"><a href='sqlite3_lang_delete.htm'>DELETE</a> FROM Person WHERE LastName = 'Hussein'</td>
+        </tr>
+        <tr>
+         <td class="code">TRUNCATE TABLE
+          <span class="inputData">table_name</span>
+         </td>
+         <td class="description">Deletes the data inside the table. [nb: <b>not</b> SQLite (use 
+          <a href="sqlite3_lang_delete.htm#truncateopt">"DELETE FROM table_name;"</a>)]
+         </td>
+         <td class="example">TRUNCATE TABLE Person</td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="select">&nbsp;</a>SELECT</td>
+        </tr>
+        <tr>
+         <td class="code">SELECT
+          <span class="inputData">column_name(s)</span> FROM
+          <span class="inputData">table_name</span>
+         </td>
+         <td class="description">Select data from a table.</td>
+         <td class="example"><a href='sqlite3_lang_select.htm'>SELECT</a> LastName, FirstName FROM Persons</td>
+        </tr>
+        <tr>
+         <td class="code">SELECT * FROM
+          <span class="inputData">table_name</span>
+         </td>
+         <td class="description">Select all data from a table.</td>
+         <td class="example">SELECT * FROM Persons</td>
+        </tr>
+        <tr>
+         <td class="code">SELECT DISTINCT
+          <span class="inputData">column_name(s)</span> FROM
+          <span class="inputData">table_name</span>
+         </td>
+         <td class="description">Select only distinct (different) data from a table.</td>
+         <td class="example">SELECT DISTINCT LastName, FirstName FROM Persons</td>
+        </tr>
+        <tr>
+         <td rowspan="8" class="code">SELECT
+          <span class="inputData">column_name(s)</span> FROM
+          <span class="inputData">table_name</span>
+          <br />
+            WHERE
+          <span class="inputData">column</span>
+          <span class="inputData">operator</span>
+          <span class="inputData">value</span>
+          <br />
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;AND
+          <span class="inputData">column</span>
+          <span class="inputData">operator</span>
+          <span class="inputData">value</span>
+          <br />
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;OR
+          <span class="inputData">column</span>
+          <span class="inputData">operator</span>
+          <span class="inputData">value</span>
+          <br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;AND (... OR ...)
+          <br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...
+         </td>
+         <td class="description">Select only certain data from a table.</td>
+         <td class="example">SELECT * FROM Persons WHERE sex='female'</td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <td rowspan="7" class="description">
+          <table cellspacing="0" class="tableDescription">
+           <caption>Operators</caption>
+           <tr>
+            <th>Operator</th>
+            <th>Description</th>
+           </tr>
+           <tr>
+            <td>=</td>
+            <td>Equal</td>
+           </tr>
+           <tr>
+            <td>&lt;&gt;</td>
+            <td>Not equal</td>
+           </tr>
+           <tr>
+            <td>&gt;</td>
+            <td>Greater than</td>
+           </tr>
+           <tr>
+            <td>&lt;</td>
+            <td>Less than</td>
+           </tr>
+           <tr>
+            <td>&gt;=</td>
+            <td>Greater than or equal</td>
+           </tr>
+           <tr>
+            <td>&lt;=</td>
+            <td>Less than or equal</td>
+           </tr>
+           <tr>
+            <td>BETWEEN</td>
+            <td>Between an inclusive range</td>
+           </tr>
+           <tr>
+            <td>LIKE</td>
+            <td>Search for a pattern.
+             <br />A "%" sign can be used to define wildcards (missing letters in the pattern) both before and after the pattern.
+            </td>
+           </tr>
+          </table>
+         </td>
+         <td class="example">SELECT * FROM Persons WHERE Year>1970</td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT * FROM Persons
+          <br />WHERE FirstName='Saddam'
+          <br />AND LastName='Hussein'
+         </td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT * FROM Persons
+          <br />WHERE FirstName='Saddam'
+          <br />OR LastName='Hussein'
+         </td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT * FROM Persons WHERE
+          <br />(FirstName='Tove' OR FirstName='Stephen')
+          <br />AND LastName='Svendson'
+         </td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT * FROM Persons WHERE FirstName LIKE 'O%'</td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT * FROM Persons WHERE FirstName LIKE '%a'</td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT * FROM Persons WHERE FirstName LIKE '%la%'</td>
+        </tr>
+        <tr>
+         <td class="code">SELECT
+          <span class="inputData">column_name(s)</span> FROM
+          <span class="inputData">table_name</span>
+          <br />
+        WHERE
+          <span class="inputData">column_name</span> IN (
+          <span class="inputData">value1</span>,
+          <span class="inputData">value2</span>, ...)
+         </td>
+         <td class="description">The IN operator may be used if you know the exact value you want to return for at least one of the columns.</td>
+         <td class="example">SELECT * FROM Persons
+          <br />WHERE LastName IN ('Hansen','Pettersen')
+         </td>
+        </tr>
+        <tr>
+         <td rowspan="3" class="code">SELECT
+          <span class="inputData">column_name(s)</span> FROM
+          <span class="inputData">table_name</span>
+          <br />ORDER BY
+          <span class="inputData">row_1</span>,
+          <span class="inputData">row_2</span> DESC,
+          <span class="inputData">row_3</span> ASC, ...
+         </td>
+         <td rowspan="3" class="description">Select data from a table with sort the rows.
+          <br />
+          <br />
+          Note:<br />
+          ASC (ascend) is a alphabetical and numerical order (optional)<br />
+          DESC (descend) is a reverse alphabetical and numerical order
+         </td>
+         <td class="example">SELECT * FROM Persons
+          <br />ORDER BY LastName
+         </td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT FirstName, LastName FROM Persons
+          <br />ORDER BY LastName DESC
+         </td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <!--1 cell-->
+         <td class="example">SELECT Company, OrderNumber FROM Orders
+          <br />ORDER BY Company DESC, OrderNumber ASC
+         </td>
+        </tr>
+        <tr>
+         <td rowspan="2" class="code">SELECT
+          <span class="inputData">column_1</span>, ..., SUM(
+          <span class="inputData">group_column_name</span>)
+          <br />
+         FROM
+          <span class="inputData">table_name</span>
+          <br />GROUP BY
+          <span class="inputData">group_column_name</span>
+         </td>
+         <td class="description">GROUP BY... was added to SQL because aggregate functions (like SUM) return the aggregate of all column values 
+            every time they are called, and without the GROUP BY function it was impossible to find the sum for each individual group of column values.</td>
+         <td rowspan="2" class="example">SELECT Company, SUM(Amount)
+          <br />FROM Sales
+          <br />GROUP BY Company
+         </td>
+        </tr>
+        <tr>
+         <!--1 cell-->
+         <td class="description">
+          <table cellspacing="0" class="tableDescription">
+           <caption>Some aggregate functions</caption>
+           <tr>
+            <th>Function</th>
+            <th>Description</th>
+           </tr>
+           <tr>
+            <td>AVG(column)</td>
+            <td>Returns the average value of a column</td>
+           </tr>
+           <tr>
+            <td>COUNT(column)</td>
+            <td>Returns the number of rows (without a NULL value) of a column</td>
+           </tr>
+           <tr>
+            <td>MAX(column)</td>
+            <td>Returns the highest value of a column</td>
+           </tr>
+           <tr>
+            <td>MIN(column)</td>
+            <td>Returns the lowest value of a column</td>
+           </tr>
+           <tr>
+            <td>SUM(column)</td>
+            <td>Returns the total sum of a column</td>
+           </tr>
+          </table>
+         </td>
+         <!--1 cell-->
+        </tr>
+        <tr>
+         <td class="code">SELECT
+          <span class="inputData">column_1</span>,  ..., SUM(
+          <span class="inputData">group_column_name</span>)
+          <br />
+         FROM
+          <span class="inputData">table_name</span>
+          <br />GROUP BY
+          <span class="inputData">group_column_name</span>
+          <br />HAVING SUM(
+          <span class="inputData">group_column_name</span>)
+          <span class="inputData">condition</span>
+          <span class="inputData">value</span>
+         </td>
+         <td class="description">
+            HAVING... was added to SQL because the WHERE keyword could not be used against aggregate functions (like SUM), and 
+            without HAVING... it would be impossible to test for result conditions.</td>
+         <td class="example">SELECT Company, SUM(Amount)
+          <br />FROM Sales
+          <br />GROUP BY Company
+          <br />HAVING SUM(Amount)>10000
+         </td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="alias">&nbsp;</a>Alias</td>
+        </tr>
+        <tr>
+         <td class="code">SELECT
+          <span class="inputData">column_name</span> AS
+          <span class="inputData">column_alias</span> FROM
+          <span class="inputData">table_name</span>
+         </td>
+         <td class="description">Column name alias</td>
+         <td class="example">SELECT LastName AS Family, FirstName AS Name
+          <br />FROM Persons
+         </td>
+        </tr>
+        <tr>
+         <td class="code">SELECT
+          <span class="inputData">table_alias.column_name</span> FROM
+          <span class="inputData">table_name</span> AS
+          <span class="inputData">table_alias</span>
+         </td>
+         <td class="description">Table name alias</td>
+         <td class="example">SELECT LastName, FirstName
+          <br />FROM Persons AS Employees
+         </td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="join">&nbsp;</a>JOIN</td>
+        </tr>
+        <tr>
+         <td class="code">
+             SELECT
+          <span class="inputData">column_1_name</span>,
+          <span class="inputData">column_2_name</span>, ...
+          <br />
+             FROM
+          <span class="inputData">first_table_name</span>
+          <br />
+             INNER JOIN
+          <span class="inputData">second_table_name</span>
+          <br />
+             ON
+          <span class="inputData">first_table_name.keyfield</span> =
+          <span class="inputData">second_table_name.foreign_keyfield</span>
+         </td>
+         <td class="description">
+             The INNER JOIN returns all rows from both tables where there is a match. 
+             If there are rows in first table that do not have matches in second table, those rows will not be listed.
+         </td>
+         <td class="example">
+             SELECT Employees.Name, Orders.Product
+          <br />
+             FROM Employees
+          <br />
+             INNER JOIN Orders
+          <br />
+             ON Employees.Employee_ID=Orders.Employee_ID
+         </td>
+        </tr>
+        <tr>
+         <td class="code">
+             SELECT
+          <span class="inputData">column_1_name</span>,
+          <span class="inputData">column_2_name</span>, ...
+          <br />
+             FROM
+          <span class="inputData">first_table_name</span>
+          <br />
+             LEFT JOIN
+          <span class="inputData">second_table_name</span>
+          <br />
+             ON
+          <span class="inputData">first_table_name.keyfield</span> =
+          <span class="inputData">second_table_name.foreign_keyfield</span>
+         </td>
+         <td class="description">
+             The LEFT JOIN returns all the rows from the first table, even if there are no matches in the second table. 
+             If there are rows in first table that do not have matches in second table, those rows also will be listed.
+         </td>
+         <td class="example">
+             SELECT Employees.Name, Orders.Product
+          <br />
+             FROM Employees
+          <br />
+             LEFT JOIN Orders
+          <br />
+             ON Employees.Employee_ID=Orders.Employee_ID
+         </td>
+        </tr>
+        <tr>
+         <td class="code">
+             SELECT
+          <span class="inputData">column_1_name</span>,
+          <span class="inputData">column_2_name</span>, ...
+          <br />
+             FROM
+          <span class="inputData">first_table_name</span>
+          <br />
+             RIGHT JOIN
+          <span class="inputData">second_table_name</span>
+          <br />
+             ON
+          <span class="inputData">first_table_name.keyfield</span> =
+          <span class="inputData">second_table_name.foreign_keyfield</span>
+         </td>
+         <td class="description">
+             The RIGHT JOIN returns all the rows from the second table, even if there are no matches in the first table. 
+             If there had been any rows in second table that did not have matches in first table, those rows also would have been listed.<br>
+             [nb: SQLite <a href="sqlite3_omitted.htm">does not implement RIGHT OUTER JOIN or FULL OUTER JOIN</a>.]
+         </td>
+         <td class="example">
+             SELECT Employees.Name, Orders.Product
+          <br />
+             FROM Employees
+          <br />
+             RIGHT JOIN Orders
+          <br />
+             ON Employees.Employee_ID=Orders.Employee_ID
+         </td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="union">&nbsp;</a>UNION</td>
+        </tr>
+        <tr>
+         <td class="code">
+          <span class="inputData">SQL_Statement_1</span>
+          <br />UNION
+          <br />
+          <span class="inputData">SQL_Statement_2</span>
+         </td>
+         <td class="description">Select all different values from
+          <span class="inputData">SQL_Statement_1</span> and
+          <span class="inputData">SQL_Statement_2</span>
+         </td>
+         <td class="example">SELECT E_Name FROM Employees_Norway
+          <br />UNION
+          <br />SELECT E_Name FROM Employees_USA
+         </td>
+        </tr>
+        <tr>
+         <td class="code">
+          <span class="inputData">SQL_Statement_1</span>
+          <br />UNION ALL
+          <br />
+          <span class="inputData">SQL_Statement_2</span>
+         </td>
+         <td class="description">Select all values from
+          <span class="inputData">SQL_Statement_1</span> and
+          <span class="inputData">SQL_Statement_2</span>
+         </td>
+         <td class="example">SELECT E_Name FROM Employees_Norway
+          <br />UNION
+          <br />SELECT E_Name FROM Employees_USA
+         </td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="into">&nbsp;</a>SELECT INTO/IN</td>
+        </tr>
+        <tr>
+         <td class="code">SELECT
+          <span class="inputData">column_name(s)</span>
+          <br />INTO
+          <span class="inputData">new_table_name</span>
+          <br />FROM
+          <span class="inputData">source_table_name</span>
+          <br />WHERE
+          <span class="inputData">query</span>
+         </td>
+         <td class="description">Select data from table(S) and insert it into another table.</td>
+         <td class="example">SELECT * INTO Persons_backup FROM Persons</td>
+        </tr>
+        <tr>
+         <td class="code">SELECT
+          <span class="inputData">column_name(s)</span>
+          <br />IN
+          <span class="inputData">external_database_name</span>
+          <br />FROM
+          <span class="inputData">source_table_name</span>
+          <br />WHERE
+          <span class="inputData">query</span>
+         </td>
+         <td class="description">Select data from table(S) and insert it in another database.</td>
+         <td class="example">SELECT Persons.* INTO Persons IN 'Backup.db' FROM Persons WHERE City='Sandnes'</td>
+        </tr>
+        <tr>
+         <td colspan="3" class="titleChapter"><a name="view"></a>&nbsp;CREATE VIEW </td>
+        </tr>
+        <tr>
+         <td class="code">
+             CREATE VIEW
+          <span class="inputData">view_name</span> AS
+          <br />
+             SELECT
+          <span class="inputData">column_name(s)</span>
+          <br />
+             FROM
+          <span class="inputData">table_name</span>
+          <br />
+             WHERE
+          <span class="inputData">condition</span>
+         </td>
+         <td class="description">Create a virtual table based on the result-set of a SELECT statement.<br>
+            [nb: SQLite <a href="sqlite3_omitted.htm">views are read-only</a>.]
+         </td>
+         <td class="example">
+             <a href="sqlite3_lang_createview.htm">CREATE VIEW</a> [Current Product List] AS
+          <br />
+             SELECT ProductID, ProductName
+          <br />
+             FROM Products
+          <br />
+             WHERE Discontinued=No
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

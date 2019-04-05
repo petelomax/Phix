@@ -1,0 +1,129 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ANALYZE</h1>
+      <div id="mainSection">
+       <p>
+        <b>
+         <a href="sqlite3_syntaxdiagrams.htm#analyze-stmt">analyze-stmt:</a>
+        </b>
+        <button id='x783' onclick='hideorshow("x783","x784")'>hide</button>
+       </p>
+       <div id='x784' class='imgcontainer'>
+        <img alt="syntax diagram analyze-stmt" src="images/syntax/analyze-stmt.gif" />
+       </div>
+       <p>
+        The ANALYZE command gathers statistics about tables and indices and stores the collected information
+        in internal tables of the database where the query optimizer can
+        access the information and use it to help make better query planning choices.
+        If no arguments are given, all attached databases are
+        analyzed.  If a schema name is given as the argument, then all tables
+        and indices in that one database are analyzed.  
+        If the argument is a table name, then only that table and the
+        indices associated with that table are analyzed.  If the argument
+        is an index name, then only that one index is analyzed.
+       </p>
+       <p>
+        The default implementation stores all statistics in a single
+        table named sqlite_stat1.  If SQLite is compiled with the
+        SQLITE_ENABLE_STAT3 option and without the SQLITE_ENABLE_STAT4
+        option, then additional histogram data is collected and stored in sqlite_stat3.
+        If SQLite is compiled with the SQLITE_ENABLE_STAT4 option, then additional histogram data is
+        collected and stored in sqlite_stat4.
+        Older versions of SQLite would make use of the sqlite_stat2 table
+        when compiled with SQLITE_ENABLE_STAT2 but all recent versions of
+        SQLite ignore the sqlite_stat2 table.
+        Future enhancements may create additional internal tables with the same name pattern except with
+        final digit larger than "4".
+        All of these tables are collectively referred to as "statistics tables".
+       </p>
+       <p>
+        The content of the statistics tables can be queried using <a href="sqlite3_lang_select.htm">SELECT</a>
+        and can be changed using the <a href="sqlite3_lang_delete.htm">DELETE</a>, <a href="sqlite3_lang_insert.htm">INSERT</a>, and 
+        <a href="sqlite3_lang_update.htm">UPDATE</a> commands.
+        The <a href="sqlite3_lang_droptable.htm">DROP TABLE</a> command works on statistics tables
+        as of SQLite version 3.7.9. (2011-11-01)
+        The <a href="sqlite3_lang_altertable.htm">ALTER TABLE</a> command does not work on statistics tables.
+        Appropriate care should be used when changing the content of the statistics
+        tables as invalid content can cause SQLite to select inefficient
+        query plans.  Generally speaking, one should not modify the content of
+        the statistics tables by any mechanism other than invoking the
+        ANALYZE command.  
+<!--
+        See [a href="optoverview.htm?#manctrl"]Manual Control Of Query Plans Using SQLITE_STAT Tables[/a] for
+        further information.
+-->
+       </p>
+       <p>
+        Statistics gathered by ANALYZE are not automatically updated as
+        the content of the database changes.  If the content of the database
+        changes significantly, or if the database schema changes, then one should
+        consider rerunning the ANALYZE command in order to update the statistics.
+       </p>
+       <p>
+        The query planner loads the content of the statistics tables
+        into memory when the schema is read.  Hence, when an application
+        changes the statistics tables directly, SQLite will not immediately
+        notice the changes. An application
+        can force the query planner to reread the statistics tables by running
+        <b>ANALYZE sqlite_master</b>.
+       </p>
+
+        <a name="autoanalyze"></a>
+       <h2>Automatically Running ANALYZE</h2>
+       <p>
+        The <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a> command will automatically run ANALYZE on individual
+        tables on an as-needed basis.  The recommended practice is for applications
+        to invoke the <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a> statement just before closing each database
+        connection.
+       </p>
+       <p>
+        Each SQLite database connection records cases when the query planner would
+        benefit from having accurate results of ANALYZE at hand.  These records
+        are held in memory and accumulate over the life of a database connection.
+        The <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a> command looks at those records and runs ANALYZE on only
+        those tables for which new or updated ANALYZE data seems likely to be useful.
+        In most cases <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a> will not run ANALYZE, but it will occasionally
+        do so either for tables that have never before been analyzed, or for tables
+        that have grown significantly since they were last analyzed.
+       </p>
+       <p>
+        Since the actions of <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a> are determined to some extent by
+        prior queries that have been evaluated on the same database connection, it
+        is recommended that <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a> be deferred until the database connection
+        is closing and has thus had an opportunity to accumulate as must usage information
+        as possible.  It is also reasonable to set a timer to run <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a>
+        every few hours, or every few days, for database connections that stay open for a long time.
+       </p>
+       <p>
+        Applications that desire more control can run <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize(0x03)</a> to 
+        obtain a list of ANALYZE commands that SQLite thinks are appropriate to run,
+        but without actually running those commands.  If the returned set is 
+        non-empty, the application can then make a decision about whether or not
+        to run the suggested ANALYZE commands, perhaps after prompting the user
+        for guidance.
+       </p>
+       <p>
+        The <a href="sqlite3_pragma.htm#pragma_optimize">PRAGMA optimize</a> command was first introduced with 
+        SQLite 3.18.0 (2017-03-28) and is a no-op for all prior releases of SQLite.
+       </p>
+       <h2>Anticipated Future Enhancements</h2>
+       <p>
+        All existing versions of SQLite do a full table scan for ANALYZE.  This can be
+        slow for multi-gigabyte and larger databases.  Future versions of SQLite might
+        use random sampling rather than a full table scan to obtain estimates for the
+        database shape, especially on larger tables.  The results would approximate, but 
+        will be close enough for query planning purposes.  As of 2017-03-20, this
+        concept has been tested in experimental branches and appears to work well, but
+        has not been folded into an official release.
+       </p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

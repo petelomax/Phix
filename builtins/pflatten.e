@@ -60,7 +60,9 @@ integer nmax = n
         -- auto-widthwise partial<=step:
 --      res = append(res,join(s,iff(length(s)<=step?step_pad:n_pad))&n_pad)
     end if
-    return join(res,n_pad)
+--12/10/18:
+--  return join(res,n_pad)
+    return join(res,iff(step_pad=""?"":n_pad))
 end function
 
 global function join_path(sequence path_elements, integer trailsep=0)

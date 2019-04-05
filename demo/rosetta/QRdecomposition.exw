@@ -1,0 +1,397 @@
+--
+-- demo/rosettacode/QRdecomposition.exw
+--
+
+--http://rosettacode.org/wiki/Matrix_multiplication#Phix
+function matrix_mul(sequence a, sequence b)
+sequence c
+    if length(a[1]) != length(b) then
+        return 0 -- (or ?9/0)
+    else
+        c = repeat(repeat(0,length(b[1])),length(a))
+        for i=1 to length(a) do
+            for j=1 to length(b[1]) do
+                for k=1 to length(a[1]) do
+                    c[i][j] += a[i][k]*b[k][j]
+                end for
+            end for
+        end for
+        return c
+    end if
+end function
+
+function vtranspose(sequence v)
+-- transpose a vector of length m into an mx1 matrix, 
+--                       eg {1,2,3} -> {{1},{2},{3}}
+    for i=1 to length(v) do v[i] = {v[i]} end for
+    return v
+end function
+
+function mat_col(sequence a, integer col)
+sequence res = repeat(0,length(a))
+    for i=col to length(a) do
+        res[i] = a[i,col]
+    end for
+    return res
+end function
+
+function mat_norm(sequence a)
+    atom res = 0
+    for i=1 to length(a) do
+        res += a[i]*a[i]
+    end for
+    res = sqrt(res)
+    return res
+end function
+
+function mat_ident(integer n)
+    sequence res = repeat(repeat(0,n),n)
+    for i=1 to n do
+        res[i,i] = 1
+    end for
+    return res
+end function
+
+function QRHouseholder(sequence a)
+integer columns = length(a[1]),
+        rows = length(a),
+        m = max(columns,rows),
+        n = min(rows,columns)
+sequence q, I = mat_ident(m), Q = I, u, v
+
+--
+-- Programming note: The code of this main loop was not as easily
+-- written as the first glance might suggest. Explicitly setting 
+-- to 0 any a[i,j] [etc] that should be 0 but have inadvertently 
+-- gotten set to +/-1e-15 or thereabouts may be advisable. The
+-- commented-out code was retrieved from a backup and should be
+-- treated as an example and not be trusted (iirc, it made no
+-- difference to the test cases used, so I deleted it, and then
+-- had second thoughts a few days later).
+--
+    for j=1 to min(m-1,n) do
+        u = mat_col(a,j)
+        u[j] -= mat_norm(u)
+        v = sq_div(u,mat_norm(u))
+        q = sq_sub(I,sq_mul(2,matrix_mul(vtranspose(v),{v})))
+        a = matrix_mul(q,a)
+--      for row=j+1 to length(a) do
+--          a[row][j] = 0
+--      end for
+        Q = matrix_mul(Q,q)
+    end for
+
+    -- Get the upper triangular matrix R.
+    sequence R = repeat(repeat(0,n),m)
+    for i=1 to n do -- (logically 1 to m(>=n), but no need)
+        for j=i to n do
+            R[i,j] = a[i,j]
+        end for
+    end for
+        
+    return {Q,R}
+end function
+
+sequence a = {{12, -51,   4},
+              { 6, 167, -68},
+              {-4,  24, -41}}
+
+--constant a = {{12,-51,  4},
+--            { 6,167,-68},
+--            {-4, 24,-41},
+--            {-1,  1,  0},
+--            { 2,  0,  3}}
+
+--constant a = {{3,1},
+--            {4,3}}
+
+--constant a = {{2,1,2},
+--            {2,2,1},
+--            {1,2,2}}
+
+--constant a = {{1,-4},
+--            {2,3},
+--            {2,2}}
+--
+sequence {q,r} = QRHouseholder(a)
+
+?"A"        pp(a,{pp_Nest,1})
+?"Q"        pp(q,{pp_Nest,1})
+?"R"        pp(r,{pp_Nest,1})
+?"Q * R"    pp(matrix_mul(q,r),{pp_Nest,1})
+
+--<lang Phix>
+--using matrix_transpose from [[Matrix_transposition#Phix]]
+function matrix_transpose(sequence in)
+sequence out = repeat(repeat(0,length(in)),length(in[1]))
+    for n=1 to length(in) do
+        for m=1 to length(in[1]) do
+            out[m][n] = in[n][m]
+        end for
+    end for
+    return out
+end function
+
+procedure least_squares()
+    sequence x = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+             y = {1, 6, 17, 34, 57, 86, 121, 162, 209, 262, 321},
+             a = repeat(repeat(0,3),length(x))
+    for i=1 to length(x) do
+        for j=1 to 3 do
+            a[i,j] = power(x[i],j-1)
+        end for
+    end for
+    {q,r} = QRHouseholder(a)
+    sequence t = matrix_transpose(q),
+             b = matrix_mul(t,vtranspose(y)),
+             z = repeat(0,3)
+    for k=3 to 1 by -1 do
+        atom s = 0
+        if k<3 then
+            for j = k+1 to 3 do
+                s += r[k,j]*z[j]
+            end for
+        end if
+        z[k] = (b[k][1]-s)/r[k,k]
+    end for
+    ?{"Least-squares solution:",z}
+end procedure
+least_squares()
+
+puts(1, "Done!\n") 
+
+{} = wait_key()
+--without warning
+abort(0)
+
+"started"
+"A"
+{{12,-51,4},
+ {6,167,-68},
+ {-4,24,-41}}
+"Q"
+{{0.8571428571,-0.3942857143,0.3314285714},
+ {0.4285714286,0.9028571429,-0.03428571429},
+ {-0.2857142857,0.1714285714,0.9428571429}}
+"R"
+{{14,21,-14},
+ {0,175,-70},
+ {0,0,-35}}
+"Q * R"
+{{12,-51,4},
+ {6,167,-68},
+ {-4,24,-41}}
+{"Least-squares solution:",{1.0,2.0,3.0}}
+Done!
+
+
+--/*
+
+
+--function about_equal(object a, b)
+--  if sequence(a) then
+--      for i=1 to length(a) do
+--          if not about_equal(a[i],b[i]) then return false end if
+--      end for
+--      return true
+--  end if
+--  if abs(a-b)>1e15 then return false end if
+--  return true
+--end function
+
+--printf(1,"q[%d]\n",j)
+--pp(q[j],{pp_Nest,1})
+if j=1 then
+--t = {{6/7,3/7,-2/7},
+--  {3/7,-2/7,6/7},
+--  {-2/7,6/7,3/7}}
+--if about_equal(q[j],t) then
+--  ?"good"
+--else
+--  pp(t,{pp_Nest,1})
+--end if
+elsif j=2 then
+--?{{1,0,0},
+--  {0,-7/25,24/25},
+--  {0,24/25,7/25}}
+else
+--  ?{{{"3+"}}}
+end if  
+
+if 0 then
+        atom norm = 0
+        for i=j to rows do
+--?a[i,j]
+            norm += power(a[i,j],2)
+        end for
+        norm = sqrt(norm)
+if j=1 and norm!=14 then ?9/0 end if    -- (3x3)
+--?norm -- init 14, good...
+ 
+        atom v1 = a[j,j] + sign(a[j,j])*norm,
+             scalar = 1
+ 
+        for i=j+1 to rows do
+            a[i,j] = a[i,j]/v1
+            scalar += power(a[i,j],2)
+        end for
+ 
+        tau[j] = 2/scalar
+ 
+        sequence w = repeat(0,columns)
+ 
+        -- First calculate w = v_j^T * A.
+        for i=j to columns do
+            w[i] = a[j,i]
+            for k=j+1 to rows do
+                w[i] += a[k,j]*a[k,i]*iff(i=j?v1:1)
+            end for
+ 
+            a[j,i] -= tau[j]*w[i]
+            if i>j then
+                for k=j+1 to rows do
+                    a[k,i] -= tau[j]*a[k,j]*w[i]
+                end for
+            end if
+        end for
+end if
+
+if 0 then
+sequence t = matrix_mul(q,matrix_transpose(q))
+?"Q * transpose(Q)"
+pp(t,{pp_Nest,1,pp_FltFmt,"%3.2f"})
+--pp(t,{pp_Nest,1})
+
+?"transpose(Q) * A"
+t = matrix_mul(matrix_transpose(q),a)
+--trace(1)
+pp(t,{pp_Nest,1,pp_FltFmt,"%3.2f",pp_StrFmt,1})
+--pp(t,{pp_Nest,1})
+
+?"Q*t"
+t = matrix_mul(q,t)
+pp(t,{pp_Nest,1,pp_FltFmt,"%3.2f",pp_StrFmt,1})
+--pp(t,{pp_Nest,1})
+end if
+
+--Tcl: (ok)
+--q = {{-0.857143,  0.394286,  0.331429 },
+--   {-0.428571, -0.902857, -0.034286 },
+--   { 0.285714, -0.171429,  0.942857 }}
+--r = {{-14.0,  -21.0,  14.0},
+--   {  0.0, -175.0,  70.0},
+--   {  0.0,     0.0, -35.0}}
+--Stata: (ok)
+--q = {{ -.8571428571,    .3942857143,    .3314285714},
+--   { -.4285714286,   -.9028571429,     -.0342857143},
+--   {  .2857142857,   -.1714285714,      .9428571429}}
+--r = {{    -14,    -21,       14},
+--   {    0,   -175,       70},
+--   {    0,     0,   -35}}
+--SequenceL: (ok)
+--q = {{-0.857143,0.394286,0.331429},
+--   {-0.428571,-0.902857,-0.034286},
+--   {0.285714,-0.171429,0.942857}}
+--r = {{-14.0,-21.0,14.0},
+--   {-0.0,-175.0,70.0},
+--   {0.0,0.0,-35.0}}
+--SAS (ok)
+--q = {{-0.857143, 0.3942857, -0.331429},
+--   {-0.428571, -0.902857, 0.0342857},
+--   {0.2857143, -0.171429, -0.942857}}
+--r = {{      -14,      -21,       14},
+--   {      0,     -175,       70},
+--   {      0,        0,       35}}
+--Racket (ok)
+--q = {{6/7, 69/175, -58/175},
+--   {3/7, -158/175, 6/175},
+--   {-2/7, -6/35, -33/35}}
+--r = {{14, 21, -14},
+--   {0, -175, 70},
+--   {0, 0, 35}}
+--python: (ok)
+--q = {{-0.857143,  0.394286,   0.331429},
+--   {-0.428571, -0.902857, -0.034286},
+--   { 0.285714, -0.171429,  0.942857}}
+--r = {{ -14,  -21, 14},
+--   {   0, -175,   70},
+--   {   0,    0,  -35}}
+--matlab: (ok)
+--q = {{ 0.857143,  -0.394286,  -0.331429},
+--     { 0.428571,   0.902857,   0.034286},
+--   {-0.285714,   0.171429,    -0.942857}}
+--r = {{14,   21,   -14},
+--   {0,     175,   -70},
+--   {0,       0,   35}}
+--mathematica: (no!)
+--q = {{6/7, 3/7, -2/7},
+--   {-69/175, 158/175, 6/35},
+--   {-58/175, 6/175, -33/35}}
+--r = {{14, 21, -14},
+--   { 0, 175, -70},
+--   { 0,  0,  35}}
+--Maple: (ok)
+--q = {{-0.857142857142857,   0.394285714285714,     0.331428571428571},
+--   {-0.428571428571429,  -0.902857142857143,  -0.0342857142857143},
+--   { 0.285714285714286,  -0.171428571428571,   0.942857142857143}}
+--r = {{-14,     -21,  14},
+--   {  0,  -175,  70},
+--   {  0,     0, -35}}
+--Julia: (ok)
+--q = {{ -0.857143,  0.394286,  0.331429 },
+--   { -0.428571,   -0.902857,  -0.0342857},
+--   {  0.285714,   -0.171429,  0.942857}}
+--r = {{ -14.0,  -21.0,  14.0},
+--   {   0.0,   -175.0,  70.0},
+--   {   0.0,      0.0, -35.0}}
+--Java (ok)
+--q = {{-0.857143,  0.394286, -0.331429},
+--   {-0.428571, -0.902857,  0.034286},
+--   { 0.285714, -0.171429, -0.942857}}
+--r = {{-14.000000,  -21.000000, 14.000000},
+--   {  0.000000, -175.000000, 70.000000},
+--   {  0.000000,    0.000000, 35.000000}}
+--Go: (ok)
+--q = {{-0.857143,  0.394286,  0.331429},
+--   {-0.428571, -0.902857, -0.034286},
+--   { 0.285714, -0.171429, 0.942857}}
+--r = {{ -14,  -21, 14},
+--   {   0, -175,   70},
+--   {   0,   0,  -35}}
+--D: (ok)
+--q = {{-0.857, 0.394, 0.331},
+--   {-0.429, -0.903, -0.034},
+--   {0.286, -0.171, 0.943}}
+--r = {{-14.000, -21.000, 14.000},
+--   {0.000, -175.000, 70.000},
+--   {0.000, -0.000, -35.000}}
+--CL (ok)
+--q = {{-0.85,  0.39,  0.33},
+--   {-0.42, -0.90, -0.03},
+--   { 0.28, -0.17,  0.94}}
+--r = {{-14.0,-21.0,  14.0},
+--   {  0.0, -175.0,  70.0},
+--   {  0.0,    0.0, -35.0}}
+--C# (ok)
+--q = {{-0.857143,  0.394286,  -0.331429},
+--   {-0.428571,  -0.902857,  0.0342857},
+--   { 0.285714,  -0.171429,  -0.942857}}
+--r = {{-14,  -21,  14},
+--   {  0, -175,  70},
+--   {  0,  0,  35}}
+--Ada (ok)
+--q = {{    0.8571,  -0.3943,  -0.3314},
+--   {  0.4286,   0.9029,   0.0343},
+--   { -0.2857,   0.1714,  -0.9429}}
+--r = {{ 14.0000,    21.0000,  -14.0000},
+--   { -0.0000, 175.0000,  -70.0000},
+--   { -0.0000,   0.0000,   35.0000}}
+
+--zkl: (ok-ish)
+--q = {{ -0.86,      0.47,     -0.22},
+--   { -0.43,   -0.88,     -0.20},
+--   { -0.29,   -0.08,      0.95}}
+--r = {{-14.00,    -34.71,     37.43},
+--   {  0.00,   -172.80,       65.07},
+--   {  0.00,    0.00,    -26.19}}
+

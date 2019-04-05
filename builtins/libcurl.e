@@ -32,6 +32,9 @@ procedure curl_init(string dll_name="", bool fatal=true)
         end if
         libcurl = open_dll(curl_dll_name)
         if libcurl=NULL then
+            libcurl = open_dll(join_path({"builtins",curl_dll_name}))
+        end if
+        if libcurl=NULL then
             if fatal then
                 Abort("cannot open "&curl_dll_name)
             end if

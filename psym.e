@@ -1295,7 +1295,7 @@ global sequence sq6         -- sqAble but for opJcc
 --          (No measurable gain would be had from removing it, and you
 --           never know, it might come in useful for something one day.)
 
-procedure initialAutoEntry(sequence name, integer Stype, sequence sig, sequence filename, integer opcode, integer sideeffects)
+procedure initialAutoEntry(sequence name, integer Stype, sequence sig, sequence filename, integer opcode, sideeffects, minparm=-1)
 integer void, fno
 --DEV MARKTYPES/S_Type?
     if Stype=S_Func then
@@ -1317,6 +1317,9 @@ integer void, fno
         else
             sqAble[opcode] = symlimit
         end if
+    end if
+    if minparm!=-1 then
+        symtab[symlimit][S_ParmN] = minparm
     end if
 end procedure
 
@@ -1728,6 +1731,7 @@ atom pi, inf, nan
     initialConstant("PI",3.141592653589793238)
     initialConstant("E",2.7182818284590452)
     initialConstant("INVLN10",0.43429448190325182765)
+--  initialConstant("INVLN2",1.44269504088896340739)
 --sug:  Phi (the golden ratio, = 1.618033988749895)
 
     -- from file.e:
@@ -1844,7 +1848,7 @@ atom pi, inf, nan
     initialConstant("DB_LOCK_NO",            0)
     initialConstant("DB_LOCK_SHARED",        1)
     initialConstant("DB_LOCK_EXCLUSIVE",     2)
-    initialConstant("DB_LOCK_READ_ONLY",     1) -- Cover Eu4 stupidty
+    initialConstant("DB_LOCK_READ_ONLY",     3)
 
     -- from ppp.e:
     initialConstant("pp_File",       1)
@@ -1903,11 +1907,12 @@ atom pi, inf, nan
     -- from pfileio3.e[?]
     initialConstant("SEEK_OK",      0)
 
-    -- for pfileioN.e/get_text():
-    initialConstant("GT_WHOLE_FILE",-2)     -- as one string, plus '\n' if rqd
-    initialConstant("GT_LF_STRIPPED",-1)    -- '\n'-stripped lines
-    initialConstant("GT_LF_LEFT",0)         -- '\n' left on
-    initialConstant("GT_LF_LAST",1)         -- '\n' left on, plus '\n' if rqd
+    -- for pfile.e/get_text():
+    initialConstant("GT_WHOLE_FILE", 0)     -- as one string, plus '\n' if rqd
+    initialConstant("GT_LF_STRIPPED",1)     -- '\n'-stripped lines
+    initialConstant("GT_LF_LEFT",    2)     -- '\n' left on
+    initialConstant("GT_LF_LAST",    4)     -- '\n' left on, plus '\n' if rqd
+    initialConstant("GT_KEEP_BOM",   8)     -- do not strip utf8 bom
 
     -- from VM/pThreadN.e:
     initialConstant("CREATE_SUSPENDED", #00000004)
@@ -2012,9 +2017,6 @@ atom pi, inf, nan
 --
 ----    initialSymEntry("upper",            S_Func,"FO",    opUpper,    E_none) -- now in pcase.e
 ----    initialSymEntry("lower",            S_Func,"FO",    opLower,    E_none) -- ""
---  if asmfileio then
---      initialSymEntry("gets",         S_Func,"FO",    opGets,     E_other)    -- Phix allows gets({fn,-1|2}) forms [DEV?] [not newEmit; -> get_text]
---  end if
 --  initialSymEntry("peek",             S_Func,"FO",    opPeek,     E_none)
 --  initialSymEntry("peek4s",           S_Func,"FO",    opPeek4s,   E_none)
 --  initialSymEntry("peek4u",           S_Func,"FO",    opPeek4u,   E_none)
@@ -2322,8 +2324,9 @@ if newEmit then
     AutoAsm("peekNS",           S_Func,"FOII",  "VM\\pMem.e",       opPeekNS,   "%opPeekNx",    E_none, T_object)
 --DEV/SUG:
 --  AutoAsm("get_text",         S_Func,"FI[I]", "VM\\pfileioN.e",   opGetText,  "%opGetText",   E_none, T_object)   T_get_text = symlimit
-    AutoAsm("get_text",         S_Func,"FII",   "VM\\pfileioN.e",   opGetText,  "%opGetText",   E_none, T_object)   T_get_text = symlimit
+    AutoAsm("get_textn",        S_Func,"FII",   "VM\\pfileioN.e",   opGetText,  "%opGetText",   E_none, T_object)
     symtab[symlimit][S_ParmN] = 1
+--  Alias("get_textn", symlimit)    --DEV temp...
 
     -- the remainder are procedures:
 
@@ -2390,15 +2393,15 @@ end if
     initialAutoEntry("chdir",           S_Func,"FP",    "pchdir.e",0,E_other)
     initialAutoEntry("check_break",     S_Func,"F",     "pbreak.e",0,E_other)
 --  initialAutoEntry("copy_file",       S_Func,"FSSI",  "pcopyfile.e",0,E_other)
-    initialAutoEntry("copy_file",       S_Func,"FSSI",  "pfile.e",0,E_other)
-    symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("copy_file",       S_Func,"FSSI",  "pfile.e",0,E_other, 2)
+--  symtab[symlimit][S_ParmN] = 2
 --DEV/SUG:
 --  initialAutoEntry("clear_directory", S_Func,"FS[I]", "pfile.e",0,E_other)
-    initialAutoEntry("clear_directory", S_Func,"FSI",   "pfile.e",0,E_other)
-    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("clear_directory", S_Func,"FSI",   "pfile.e",0,E_other, 1)
+--  symtab[symlimit][S_ParmN] = 1
 --  initialAutoEntry("create_directory",S_Func,"FS[II]","pfile.e",0,E_other)
-    initialAutoEntry("create_directory",S_Func,"FSII",  "pfile.e",0,E_other)
-    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("create_directory",S_Func,"FSII",  "pfile.e",0,E_other, 1)
+--  symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("db_create",       S_Func,"FPI",   "database.e",0,E_other)
     initialAutoEntry("db_open",         S_Func,"FPI",   "database.e",0,E_other)
     initialAutoEntry("db_select",       S_Func,"FP",    "database.e",0,E_other)
@@ -2448,7 +2451,7 @@ end if
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("message_box",     S_Func,"FSSIN", "msgbox.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
-    initialAutoEntry("new_dict",        S_Func,"FPI",   "dict.e",0,E_other)
+    initialAutoEntry("new_dict",        S_Func,"FOI",   "dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 0
     initialAutoEntry("remove_directory",S_Func,"FSI",   "pfile.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2529,11 +2532,15 @@ end if
     initialAutoEntry("choose",          S_Func,"FII",   "factorial.e",0,E_none)
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
     initialAutoEntry("gcd",             S_Func,"FON",   "gcd.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("get_file_size",   S_Func,"FS",    "pfile.e",0,E_none)
     Alias("file_length", symlimit)
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
     initialAutoEntry("k_perm",          S_Func,"FII",   "factorial.e",0,E_none)
+    initialAutoEntry("lcm",             S_Func,"FON",   "gcd.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("log10",           S_Func,"FN",    "log10.e",0,E_none)
+    initialAutoEntry("log2",            S_Func,"FN",    "log10.e",0,E_none)
     initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
     initialAutoEntry("poke_string",     S_Func,"FNIP",  "pokestr.e",0,E_other)
@@ -2560,6 +2567,9 @@ end if
 --  initialAutoEntry("current_dirN",    S_Func,"F",     "VM\\pcurrdirN.e",0,E_none)
     initialAutoEntry("decode_flags",    S_Func,"FPNS",  "pdecodeflags.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("decode_base64",   S_Func,"FP",    "base64.e",0,E_none)
+    initialAutoEntry("encode_base64",   S_Func,"FPI",   "base64.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("elapsed",         S_Func,"FN",    "pelapsed.e",0,E_none)
     initialAutoEntry("elapsed_short",   S_Func,"FN",    "pelapsed.e",0,E_none)
     initialAutoEntry("get_file_base",   S_Func,"FS",    "pfile.e",0,E_none)
@@ -2603,9 +2613,17 @@ end if
 
     initialAutoEntry("columnize",       S_Func,"FPOO",  "pcolumn.e",0,E_none)
     initialAutoEntry("command_line",    S_Func,"F",     "VM\\pcmdlnN.e",0,E_none)   T_command_line = symlimit
-    initialAutoEntry("date",            S_Func,"FI",    "pdate.e",0,E_none)         Z_command_line = 0
+                                                                                    Z_command_line = 0
+--DEV Eu4 has another 2 optional params..
+--  initialAutoEntry("custom_sort",     S_Func,"FIP",   "sort.e",0,E_none)
+    initialAutoEntry("custom_sort",     S_Func,"FOPOI", "sort.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
+    initialAutoEntry("sort_columns",    S_Func,"FPP",   "sort.e",0,E_none)
+    initialAutoEntry("date",            S_Func,"FI",    "pdate.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("db_table_list",   S_Func,"F",     "database.e",0,E_none)
+    initialAutoEntry("extract",         S_Func,"FPPI",  "pextract.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("factors",         S_Func,"FNI",   "pfactors.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("find_replace",    S_Func,"FOPOI", "findrepl.e",0,E_none)
@@ -2628,6 +2646,7 @@ end if
     initialAutoEntry("head",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
 --if newEmit then
+    initialAutoEntry("include_path",    S_Func,"FP",    "pincpathN.e",0,E_none, 0)
     initialAutoEntry("include_paths",   S_Func,"FI",    "pincpathN.e",0,E_none)
     symtab[symlimit][S_ParmN] = 0
 --else
@@ -2648,6 +2667,7 @@ end if
     initialAutoEntry("permute",         S_Func,"FIP",   "permute.e",0,E_none)
     initialAutoEntry("prime_factors",   S_Func,"FNI",   "pfactors.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("reinstate",       S_Func,"FPPPI", "pextract.e",0,E_none, 3)
     initialAutoEntry("remove",          S_Func,"FPNN",  "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 2
     initialAutoEntry("remove_all",      S_Func,"FOP",   "premoveall.e",0,E_none)
@@ -2667,7 +2687,7 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("split_path",      S_Func,"FPI",   "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("tagset",          S_Func,"FIII",  "ptagset.e",0,E_none)
+    initialAutoEntry("tagset",          S_Func,"FIIII", "ptagset.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("tail",            S_Func,"FPN",   "pseqc.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2675,8 +2695,6 @@ end if
     initialAutoEntry("utf8_to_utf16",   S_Func,"FP",    "utfconv.e",0,E_none)
     initialAutoEntry("utf16_to_utf32",  S_Func,"FP",    "utfconv.e",0,E_none)
     initialAutoEntry("utf32_to_utf16",  S_Func,"FP",    "utfconv.e",0,E_none)
---DEV Eu4 has another 2 optional params..
-    initialAutoEntry("custom_sort",     S_Func,"FIP",   "sort.e",0,E_none)
 --  initialAutoEntry("ppf",             S_Func,"FO",    "ppp.e",0,E_other)
     initialAutoEntry("ppf",             S_Func,"FOP",   "ppp.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
@@ -2706,6 +2724,8 @@ else
     initialAutoEntry("delete_routine",  S_Func,"FOI",   "pdelete.e",0,E_other)
 end if
     initialAutoEntry("dir",             S_Func,"FP",    "pdir.e",0,E_none)
+    initialAutoEntry("get_text",        S_Func,"FOI",   "pfile.e",0,E_none)
+    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("getd",            S_Func,"FOI",   "dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("getd_by_index",   S_Func,"FII",   "dict.e",0,E_other)
@@ -2754,6 +2774,7 @@ end if
     initialAutoEntry("shift_bits",      S_Func,"FOI",   "shift_bits.e",0,E_none)
     initialAutoEntry("largest",         S_Func,"FPI",   "psmall.e",0,E_none)
     initialAutoEntry("smallest",        S_Func,"FPI",   "psmall.e",0,E_none)
+    initialAutoEntry("set_file_size",   S_Func,"FSN",   "pfile.e",0,E_none)
 
     --DEV 23/3 we do /not/ want these 10 auto-converted to sq_xxx()...
     --29/4/2010 but keep elsewhere
@@ -2802,10 +2823,13 @@ end if
     initialAutoEntry("sq_arctan",       S_Func,"FO",    "psqop.e",opArcTan,E_none)
     initialAutoEntry("sq_log",          S_Func,"FO",    "psqop.e",opLog,E_none)
     initialAutoEntry("sq_log10",        S_Func,"FO",    "psqop.e",0,E_none)
+    initialAutoEntry("sq_log2",         S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_power",        S_Func,"FOO",   "psqop.e",opPow,E_none)
     initialAutoEntry("sq_sqrt",         S_Func,"FO",    "psqop.e",opSqrt,E_none)
     initialAutoEntry("sq_upper",        S_Func,"FO",    "psqop.e",0,E_none)
     initialAutoEntry("sq_lower",        S_Func,"FO",    "psqop.e",0,E_none)
+    initialAutoEntry("sq_min",          S_Func,"FOO",   "psqop.e",0,E_none)
+    initialAutoEntry("sq_max",          S_Func,"FOO",   "psqop.e",0,E_none)
 
     initialAutoEntry("to_number",       S_Func,"FSO",   "scanf.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
@@ -2913,7 +2937,6 @@ end if
     symtab[symlimit][S_ParmN] = 2
     Alias("putd", symlimit)
     initialAutoEntry("setd_default",        S_Proc,"POI",   "dict.e",0,E_other)
-    symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("system",              S_Proc,"PSI",   "syswait.ew",0,E_other)
     symtab[symlimit][S_ParmN] = 1
 --  initialAutoEntry("sysproc",             S_Proc,"PS",    "syswait.ew",0,E_other)
@@ -3079,7 +3102,10 @@ sequence msg
         spNTyp = sp[S_NTyp]
         fno = sp[S_FPno]
         if fno=fileno then
-            if spNTyp=S_TVar then
+--25/5/18:
+--          if spNTyp=S_TVar then
+            if spNTyp=S_TVar 
+            or (returnvar=-1 and spNTyp=S_GVar2) then
                 if fatal then   -- 26/2
                     u = sp[S_State]
                     if not and_bits(u,S_used) then

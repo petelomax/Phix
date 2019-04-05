@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-          setd_default(<a href="object.htm">object</a> o, <a href="integer.htm"> tid=1)
+          setd_default(<a href="object.htm">object</a> o, <a href="integer.htm">integer</a> tid)
          </td>
         </tr>
         <tr>
@@ -25,7 +25,7 @@
             <br>
             <br>
             o: the new default value, can be any valid object.<br>
-            tid: a result from <a href="new_dict.htm">new_dict</a>(), or if omitted it uses the one common dictionary.
+            tid: a result from <a href="new_dict.htm">new_dict</a>() - nb the usual default of 1 is omitted.
          </td>
         </tr>
         <tr>
@@ -34,14 +34,20 @@
          </td>
          <td>
             Since it is legal to store any valid object as the data, there may be no default that unequivocably means 
-            "missing key" when returned by <a href="getd.htm">getd</a>(), in which case you must use 
-            <code><a href="getd_index.htm">getd_index</a>()==0</code> instead. In other words this routine is only
-            useful when the existing default of 0 is getting in the way, and you have a valid alternative that will
-            <i>never</i> clash with anything else that you might store.
+            "missing key" when returned by <a href="getd.htm">getd</a>(), in which case you must test whether the 
+            result of <a href="getd_index.htm">getd_index</a>() is zero instead. 
             <br>
             <br>
-            The default can only be set per-dictionary (ideally as created), since obviously any blanket alterations 
-            to the defaults could easily cripple otherwise perfectly working third party components, that rely on 0s.
+            In other words this routine is only useful when the existing default of 0 is getting in the way, but you 
+            have a valid/better alternative, that will <i>never</i> clash with anything else that you might store.
+            <br>
+            <br>
+            The default can only be set per-dictionary (ideally as created), as obviously any blanket alterations to
+            the defaults could easily cripple otherwise perfectly working third party components that rely on NULL.
+            Likewise changing the default on dictionary 1 will obviously cause problems if any other component in a 
+            large application either also invokes setd_default on that with a different o, or tests results for NULL.
+            Hence in this one particular case the usual default of 1 for tid has been deliberately omitted. While it
+            remains legal to explicitly specify 1, ideally that should only be done in trivial/throw-away programs.
          </td>
         </tr>
         <tr>
@@ -51,12 +57,14 @@
          <td>
 <!--eucode>
 integer patterns = new_dict()
-setd(-1,patterns)
+?getd("?",patterns) -- prints 0
+setd_default(-1,patterns)
 ?getd("?",patterns) -- prints -1
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> patterns</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">()
-</font><font color="#5E005E">setd</font><font color="#0000FF">(-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">patterns</font><font color="#0000FF">)
+?</font><font color="#5E005E">getd</font><font color="#0000FF">(</font><font color="#008000">"?"</font><font color="#0000FF">,</font><font color="#000000">patterns</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 0
+</i></font><font color="#5E005E">setd_default</font><font color="#0000FF">(-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">patterns</font><font color="#0000FF">)
 ?</font><font color="#5E005E">getd</font><font color="#0000FF">(</font><font color="#008000">"?"</font><font color="#0000FF">,</font><font color="#000000">patterns</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints -1</i></font>
 </pre>
          </td>

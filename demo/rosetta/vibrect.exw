@@ -1,0 +1,77 @@
+--
+-- demo\rosetta\vibrect.exw
+-- ========================
+--
+--  Draws concentric rectangles in random colours to simulate vibration.
+--  Press +/- to increase/decrease the number of rectangles being drawn.
+--  Resizing the window, as it turns out, achieves much the same effect 
+--  as +/-, only much quicker (by increasing/decreasing the spacing).
+--
+integer numrects = 125  -- (max non-touching for a height of 500)
+
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    integer {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom dw = w/(numrects*2+1),
+         dh = h/(numrects*2+1)
+
+    cdCanvasActivate(cddbuffer)
+    for i=1 to numrects do
+        cdCanvasSetForeground(cddbuffer,rand(#FFFFFF))
+        atom wd = i*dw,
+             hd = i*dh
+        cdCanvasRect(cddbuffer, wd, w-wd, hd, h-hd) 
+    end for 
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c='+' or (c='-' and numrects>3) then
+        numrects -= c-','
+        cdCanvasClear(cddbuffer)
+        IupUpdate(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "602x502") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Vibrating Rectangles")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    Ihandle timer = IupTimer(Icallback("timer_cb"), 40)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

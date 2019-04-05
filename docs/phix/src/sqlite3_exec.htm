@@ -1,0 +1,238 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">sqlite3_exec</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pSQLite.e
+            <br>
+            <br>
+            <a href="integer.htm">integer</a> res = sqlite3_exec(<a href="sqlconst.htm#types">sqlite3</a> db,
+                                                                 <a href="string.htm">string</a> cmd,
+                                                                 <a href="integer.htm">integer</a> rid=0,
+                                                                 <a href="atom.htm">atom</a> user_data=NULL)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Zero or more SQL statements specified in the second parameter are compiled and executed.
+            <br>
+            <br>
+            db: an open database, a result from <a href="sqlite3_open.htm">sqlite3_open</a>().<br>
+            cmd: the SQL to be executed.<br>
+            rid: the routine_id of a function, see example 2 below.<br>
+            user_data: will be passed as the third parameter to rid.
+            <br>
+            <br>
+            The return value is <a href="sqlconst.htm#SQLITE_OK">SQLITE_OK</a> if there are no errors and some other return code if there is an error.<br>
+            The particular return value depends on the type of error.
+            <br>
+            <br>
+            If the SQL statement could not be executed because a database file is locked or busy, then this function returns 
+            <a href="sqlconst.htm#SQLITE_BUSY">SQLITE_BUSY</a>.
+<!-- [not implemented]
+            <br>
+            (This behavior can be modified somewhat using the sqlite3_busy_handler() and sqlite3_busy_timeout() functions.) 
+-->
+            <br>
+            <br>
+            If rid is specified and the SQL command is a query, it will call that function with details of each row retrieved. <br>
+            Should it return a non-zero value, then the sqlite3_exec() call in turn returns 
+            <a href="sqlconst.htm#SQLITE_ABORT">SQLITE_ABORT</a> immediately, without processing any more rows.
+
+<!--
+//returns <a href="sqlconst.htm#SQLITE_OK">SQLITE_OK</a>, 
+<a href="sqlconst.htm#SQLITE_ABORT">SQLITE_ABORT</a> or 
+<a href="sqlconst.htm#SQLITE_BUSY">SQLITE_BUSY</a>
+global function sqlite3_exec(sqlite3 db, string cmd)
+   typedef int (*sqlite_callback)(void*,int,char**, char**);
+   int sqlite3_exec(sqlite3*, const char *sql, sqlite_callback, void*, char**);
+
+In SQLite version 3, the sqlite3_exec routine is just a wrapper around calls to the prepared statement interface.
+int sqlite3_exec(
+  sqlite3*,                     /* An open database */
+  const char *sql,              /* SQL to be executed */
+  sqlite_callback,              /* Callback function */
+  void *,                       /* 1st argument to callback function */
+  char **errmsg                 /* Error msg written here */
+);
+
+A function to executes one or more statements of SQL.
+
+If one or more of the SQL statements are queries, then the callback function specified by the 3rd parameter is invoked once for each row of the query result.
+This callback should normally return 0.
+If the callback returns a non-zero value then the query is aborted, all subsequent SQL statements are skipped and the sqlite3_exec() function returns the 
+<a href="sqlconst.htm#SQLITE_ABORT">SQLITE_ABORT</a>.
+
+The 4th parameter is an arbitrary pointer that is passed to the callback function as its first parameter.
+
+The 2nd parameter to the callback function is the number of columns in the query result.
+The 3rd parameter to the callback is an array of strings holding the values for each column.
+The 4th parameter to the callback is an array of strings holding the names of each column.
+
+The callback function may be NULL, even for queries.
+A NULL callback is not an error.
+It just means that no callback will be invoked.
+
+If an error occurs while parsing or evaluating the SQL (but not while executing the callback) then an appropriate error message is written into memory obtained from 
+malloc() and *errmsg is made to point to that message.
+The calling function is responsible for freeing the memory that holds the error message.
+Use sqlite3_free() for this.
+If errmsg==NULL, then no error message is ever written.
+
+--------------------------------------------------------------------------------
+-->
+
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include pSQLite.e
+sqlite3 db = sqlite3_open("log.sqlite")
+integer res = sqlite3_exec(db,"CREATE TABLE test (id,desc);")
+res = sqlite3_exec(db,"INSERT INTO test VALUES (1,'one');")
+sqlite3_close(db)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pSQLite.e
+</font><font color="#004080">sqlite3</font><font color="#000000"> db</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_open</font><font color="#0000FF">(</font><font color="#008000">"log.sqlite"</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_exec</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"CREATE TABLE test (id,desc);"</font><font color="#0000FF">)
+</font><font color="#000000">res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_exec</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"INSERT INTO test VALUES (1,'one');"</font><font color="#0000FF">)
+</font><font color="#5E005E">sqlite3_close</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">)</font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include pSQLite.e
+sqlite3 db = sqlite3_open("test.sqlite")
+
+procedure db_exec(string cmd, bool fatal=true)
+    integer res = sqlite3_exec(db,cmd)
+    if fatal and res!=SQLITE_OK then ?9/0 end if
+end procedure
+
+function process_one_row(sequence data, cols, atom user_data)
+    ?{"process_row",data,cols,user_data}
+    return 0    -- (any other value raises SQLITE_ABORT)
+end function
+constant r_row = routine_id("process_one_row")
+
+db_exec("BEGIN TRANSACTION;")
+db_exec("DROP TABLE test;",fatal:=false)
+db_exec("CREATE TABLE test(id, desc);")
+db_exec("INSERT INTO test VALUES(1, 'one');")
+db_exec("INSERT INTO test VALUES(2, 'two');")
+integer res = sqlite3_exec(db,"SELECT * FROM test;",r_row,34)
+if res!=SQLITE_OK then
+    if res!=SQLITE_ABORT then ?9/0 end if
+    ?"SQLITE_ABORT"
+end if
+db_exec("DROP TABLE test;")
+db_exec("END TRANSACTION;")
+sqlite3_close(db)
+
+-- output:
+--  {"process_row",{"1","one"},{"id","desc"},34}
+--  {"process_row",{"2","two"},{"id","desc"},34}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pSQLite.e
+</font><font color="#004080">sqlite3</font><font color="#000000"> db</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_open</font><font color="#0000FF">(</font><font color="#008000">"test.sqlite"</font><font color="#0000FF">)
+
+</font><font color="#008080">procedure</font><font color="#000000"> db_exec</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> cmd</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> fatal</font><font color="#0000FF">=</font><font color="#004600">true</font><font color="#0000FF">)
+</font><font color="#004080">    integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_exec</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#000000">cmd</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> fatal</font><font color="#008080"> and</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">SQLITE_OK</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+end procedure
+
+function</font><font color="#000000"> process_one_row</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> data</font><font color="#0000FF">,</font><font color="#000000"> cols</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> user_data</font><font color="#0000FF">)
+    ?{</font><font color="#008000">"process_row"</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">cols</font><font color="#0000FF">,</font><font color="#000000">user_data</font><font color="#0000FF">}
+</font><font color="#008080">    return</font><font color="#000000"> 0   </font><font color="#000080"><i> -- (any other value raises SQLITE_ABORT)
+</i></font><font color="#008080">end function
+constant</font><font color="#000000"> r_row</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"process_one_row"</font><font color="#0000FF">)
+
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"BEGIN TRANSACTION;"</font><font color="#0000FF">)
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"DROP TABLE test;"</font><font color="#0000FF">,</font><font color="#000000">fatal</font><font color="#0000FF">:=</font><font color="#004600">false</font><font color="#0000FF">)
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"CREATE TABLE test(id, desc);"</font><font color="#0000FF">)
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"INSERT INTO test VALUES(1, 'one');"</font><font color="#0000FF">)
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"INSERT INTO test VALUES(2, 'two');"</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_exec</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"SELECT * FROM test;"</font><font color="#0000FF">,</font><font color="#000000">r_row</font><font color="#0000FF">,</font><font color="#000000">34</font><font color="#0000FF">)
+</font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">SQLITE_OK</font><font color="#008080"> then
+    if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">SQLITE_ABORT</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+</font><font color="#0000FF">    ?</font><font color="#008000">"SQLITE_ABORT"
+</font><font color="#008080">end if
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"DROP TABLE test;"</font><font color="#0000FF">)
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"END TRANSACTION;"</font><font color="#0000FF">)
+</font><font color="#5E005E">sqlite3_close</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- output:
+--  {"process_row",{"1","one"},{"id","desc"},34}
+--  {"process_row",{"2","two"},{"id","desc"},34}</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+            Of course the 34 is a meaningless value for user_data in this example, but it could be a pointer, or an index, or something similar.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="sqlite3_open.htm">sqlite3_open</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

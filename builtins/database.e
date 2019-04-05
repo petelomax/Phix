@@ -64,7 +64,8 @@ include builtins\machine.e
 include builtins\file.e
 --*/
 --/**/include builtins\get.e
---/**/include builtins\misc.e -- pretty_print
+--!/**/include builtins\misc.e -- pretty_print
+--/**/include builtins\pretty.e -- pretty_print
 
 --/* Not required for Phix (defined in psym.e)
 -- ERROR STATUS
@@ -79,7 +80,7 @@ global constant DB_OK = 0,
 global constant DB_LOCK_NO = 0,         -- don't bother with file locking 
                 DB_LOCK_SHARED = 1,     -- read the database
                 DB_LOCK_EXCLUSIVE = 2,  -- read and write the database
-                DB_LOCK_READ_ONLY = DB_LOCK_SHARED -- (Cover Eu4 stupidity)
+                DB_LOCK_READ_ONLY = 3   -- as DB_LOCK_NO but read-only
 --*/
 
 constant DB_MAGIC = 77
@@ -631,7 +632,10 @@ integer db
     if db=-1 then
         return DB_OPEN_FAIL
     end if
+--DEV
     if lock_method=DB_LOCK_SHARED then
+--    if lock_method=DB_LOCK_SHARED
+--    or lock_method=DB_LOCK_READ_ONLY then
         -- shared lock doesn't make sense for create
         lock_method = DB_LOCK_NO
     end if
@@ -678,8 +682,8 @@ global function db_open(sequence path, integer lock_method)
 -- If the lock fails, the caller should wait a few seconds 
 -- and then call again. 
 -- lock_method should be one of DB_LOCK_NO, DB_LOCK_SHARED,
--- or DB_LOCK_EXCLUSIVE.
--- result is DB_OPEN_FAIL, DB_LOCK_FAIL, or DB_OK
+-- DB_LOCK_READ_ONLY, or DB_LOCK_EXCLUSIVE.
+-- result is DB_OPEN_FAIL, DB_LOCK_FAIL, DB_FATAL_FAIL, or DB_OK
 
 integer db, magic
 sequence openmode
@@ -694,13 +698,19 @@ sequence openmode
         -- get read and write access, "ub"
         openmode = "ub"
     else
-        -- DB_LOCK_SHARED
+        -- DB_LOCK_SHARED or DB_LOCK_READ_ONLY
         openmode = "rb"
     end if
     db = open(path, openmode)
     if db=-1 then
         return DB_OPEN_FAIL
     end if
+
+    if platform()=WINDOWS
+    and lock_method = DB_LOCK_SHARED then 
+        lock_method = DB_LOCK_EXCLUSIVE 
+    end if
+
     if lock_method=DB_LOCK_EXCLUSIVE then
         if not lock_file(db, LOCK_EXCLUSIVE, {}) then
             close(db)
@@ -718,10 +728,14 @@ sequence openmode
 --     maybe the case should be if db_open=FAIL then if db_create=ALREADY EXISTS => BAD_MAGIC?
     if magic!=DB_MAGIC then
         close(db)
-        return DB_OPEN_FAIL
+--      return DB_OPEN_FAIL
+        return DB_FATAL_FAIL
     end if
     current_db = db
     current_table = -1
+    if lock_method = DB_LOCK_READ_ONLY then
+        lock_method = DB_LOCK_NO
+    end if
     current_lock = lock_method
     db_names = append(db_names, path)
     db_lock_methods = append(db_lock_methods, lock_method)

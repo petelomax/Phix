@@ -1,0 +1,145 @@
+--
+-- demo\rosetta\Bitmap_Median_filter.exw
+-- =====================================
+--
+-- Author Pete Lomax, 9/2018
+--
+--  {{Trans|Go}}
+--  Requires read_ppm() from [[Bitmap/Read_a_PPM_file#Phix|Read_a_PPM_file]], write_ppm() from [[Bitmap/Write_a_PPM_file#Phix|Write_a_PPM_file]],
+--  which are both now part of demo\rosetta\ppm.e. Results may be verified with demo\rosetta\viewppm.exw
+free_console()
+?"started"
+
+include ppm.e
+
+constant neigh = {{-1,-1},{0,-1},{1,-1},
+                  {-1, 0},{0, 0},{1, 0},
+                  {-1, 1},{0, 1},{1, 1}}
+
+--constant neigh = {{-2,-2},{-1,-2},{0,-2},{1,-2},{2,-2},
+--                {-2,-1},{-1,-1},{0,-1},{1,-1},{2,-1},
+--                {-2, 0},{-1, 0},{0, 0},{1, 0},{2, 0},
+--                {-2, 1},{-1, 1},{0, 1},{1, 1},{2, 1},
+--                {-2, 2},{-1, 2},{0, 2},{1, 2},{2, 2}}
+
+sequence kn = repeat(0,length(neigh))
+
+function median(sequence image)
+    integer h = length(image),
+            w = length(image[1])
+    for i=1 to length(image) do
+        for j=1 to length(image[i]) do
+            integer n = 0, c, p, x, y
+            for k=1 to length(neigh) do
+                x = i+neigh[k][1]
+                y = j+neigh[k][2]
+                if  x>=1 and x<=h
+                and y>=1 and y<=w then
+                    n += 1
+                    c = image[x,j]
+                    p = n
+                    while p>1 do
+                        if c>kn[p-1] then exit end if
+                        kn[p] = kn[p-1]
+                        p -= 1
+                    end while
+                    kn[p] = c
+                end if
+            end for
+            if and_bits(n,1) then
+                c = kn[(n+1)/2]
+            else
+                c = floor((kn[n/2]+kn[n/2+1])/2)
+            end if
+            image[i,j] = c
+        end for
+    end for
+    return image
+end function
+
+sequence img = read_ppm("Lena.ppm")
+    img = median(img)
+    write_ppm("LenaMedian.ppm",img)
+
+?"done"
+{} = wait_key()
+
+--/* Go
+var g0, g1 *raster.Grmap
+var ko [][]int
+var kc []uint16
+var mid int
+ 
+func init() {
+    // hard code box of 9 pixels
+    ko = [][]int{
+        {-1, -1}, {0, -1}, {1, -1},
+        {-1,  0}, {0,  0}, {1,  0},
+        {-1,  1}, {0,  1}, {1,  1}}
+    kc = make([]uint16, len(ko))
+    mid = len(ko) / 2
+}
+ 
+func main() {
+    // Example file used here is Lenna50.jpg from the task "Percentage
+    // difference between images" converted with with the command
+    // convert Lenna50.jpg -colorspace gray Lenna50.ppm
+    // It shows very obvious compression artifacts when viewed at higher
+    // zoom factors.
+    b, err := raster.ReadPpmFile("Lenna50.ppm")
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    g0 = b.Grmap()
+    w, h := g0.Extent()
+    g1 = raster.NewGrmap(w, h)
+    for y := 0; y < h; y++ {
+        for x := 0; x < w; x++ {
+            g1.SetPx(x, y, median(x, y))
+        }
+    }
+    // side by side comparison with input file shows compression artifacts
+    // greatly smoothed over, although at some loss of contrast.
+    err = g1.Bitmap().WritePpmFile("median.ppm")
+    if err != nil {
+        fmt.Println(err)
+    }
+}
+ 
+func median(x, y int) uint16 {
+    var n int
+    // construct sorted list as pixels are read.  insertion sort can't be
+    // beat for a small number of items, plus there would be lots of overhead
+    // just to get numbers in and out of a library sort routine.
+    for _, o := range ko {
+        // read a pixel of the kernel
+        c, ok := g0.GetPx(x+o[0], y+o[1])
+        if !ok {
+            continue
+        }
+        // insert it in sorted order
+        var i int
+        for ; i < n; i++ {
+            if c < kc[i] {
+                for j := n; j > i; j-- {
+                    kc[j] = kc[j-1]
+                }
+                break
+            }
+        }
+        kc[i] = c
+        n++
+    }
+    // compute median from sorted list
+    switch {
+    case n == len(kc): // the usual case, pixel with complete neighborhood
+        return kc[mid]
+    case n%2 == 1: // edge case, odd number of pixels
+        return kc[n/2]
+    }
+    // else edge case, even number of pixels
+    m := n / 2
+    return (kc[m-1] + kc[m]) / 2
+}
+--*/

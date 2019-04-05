@@ -1,5 +1,5 @@
 --
--- eareinh.ew
+-- edix\src\reinh.e
 --
 -- Note: this only works on Phix; should you be running Edita on RDS/OpenEu,
 --                           this file should not be included (see earein.ew,
@@ -204,7 +204,8 @@ else
                 end if
                 flags = SELF_CLOSING
             end if
-            if not find(tagname,{"strong","em"}) then   -- (prolly good idea for i,b,etc. too)
+--          if not find(tagname,{"strong","em"}) then   -- (prolly good idea for i,b,etc. too)
+            if not find(tagname,{"strong","em","b","i","li","a"}) then  -- (prolly good idea for i,b,etc. too)
                 link = length(tagstack)                 -- (just for the following "pre" test)
                 if tagname!="span"                      -- (do not indent <span> within <pre>)
 --              if find(tagname,{"font","span"})=0      -- (do not indent <font/span> within <pre>)

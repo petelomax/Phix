@@ -2903,6 +2903,7 @@ sequence symtabN    -- copy of symtab[opstack[opsidx]]
 integer wasMapEndToMinusOne = mapEndToMinusOne
 --sequence isRID --DEV temp
 integer VAmask = 0
+sequence vaset = {}
 integer wasSideEffects = SideEffects
     SideEffects = 0
     len = 0
@@ -2926,6 +2927,7 @@ integer wasSideEffects = SideEffects
         and tidx!=0
         and symtab[tidx][S_NTyp]=S_GVar2 then
             VAmask = or_bits(VAmask,power(2,remainder(tidx,29)))
+vaset &= tidx
         end if
         if allconst then
             if opTopIsOp or opsltrl[opsidx]!=1 then
@@ -2996,12 +2998,20 @@ end if
 --end if
 --      if and_bits(VAmask,SideEffects)
 --      and SideEffects!=E_all then
+--removed 16/10/18 (over a ba_sprint call.../just too difficult to fix right now)
+--/*
         if and_bits(VAmask,SideEffects) then
             if lint 
             or SideEffects!=E_all then
+--if fileno=1 then
+--  printf(1,"VAmask:%08x, SideEffects:%08x\n",{VAmask,SideEffects})
+--  ?vaset
+--  ?symtab[vaset[1]]
+--end if
                 Warn("suspect evaluation order",tokline,tokcol,0)
             end if
         end if
+--*/
     end if
     SideEffects = or_bits(SideEffects,wasSideEffects)
     MatchChar('}')
@@ -3152,6 +3162,8 @@ string emsg
             Aborp("invalid routine name (this is a "&emsg)
         end if
 
+--4/12/18:
+ if Q_Routine>T_Asm then
 --emitON? (or is that covered by Q_Routine!=0)
 if 01 then
         Or_K_ridt(Q_Routine, S_used+K_ridt)
@@ -3164,6 +3176,7 @@ end if
 --      getToken()
 --      MatchChar(')')
         return 1
+ end if
     end if
     Q_Routine = 0
     return 0
@@ -4520,12 +4533,12 @@ end if
 --              PushFactor(T_const0,1,T_integer)    -- default cs to 0
 --              actsig &= T_integer
 --              sigidx += 1
-            elsif wasRoutineNo=T_get_text
-              and sigidx=2 then
-                k = addUnnamedConstant(-2,T_integer)
-                PushFactor(k,1,T_integer)           -- default option to -2
-                actsig &= T_integer
-                sigidx += 1
+--          elsif wasRoutineNo=T_get_text
+--            and sigidx=2 then
+--              k = addUnnamedConstant(-2,T_integer)
+--              PushFactor(k,1,T_integer)           -- default option to -2
+--              actsig &= T_integer
+--              sigidx += 1
             elsif wasRoutineNo=T_throw
               and sigidx=2 then
                 k = addUnnamedConstant({},T_Dsq)
@@ -5172,12 +5185,19 @@ integer wasSideEffects
 integer iftop, ctrlink, ctrltyp
 --integer scode, wasEmit2
 integer iffvar
+integer wasExprBP,
+        wasScBP
 
 --added 18/5/16:
     if opTopIsOp then PopFactor() end if
     saveFunctionResultVars(opsidx,INTSTOO)
 
-    if exprBP!=0 then ?9/0 end if   -- [we may yet have a problem with "if iff() then" [or "while iff() do"], when enough and/or/() get involved] [DEV]
+--29/1/19:
+--  if exprBP!=0 then ?9/0 end if   -- [we may yet have a problem with "if iff() then" [or "while iff() do"], when enough and/or/() get involved] [DEV]
+    wasExprBP = exprBP
+    wasScBP = scBP
+    exprBP = 0
+    scBP = 0
 
     saveIchain = Ichain
     Ichain = -1
@@ -5262,7 +5282,9 @@ integer iffvar
 
     iffvar = newTempVar(T_object,Shared)
 
-    Expr(0,0)
+--DEV (untried, see pEmit2.e bool doit)
+--  Expr(0,0)
+    Expr(0,asBool)
 
     RHStype = T_object
     if not opTopIsOp and opsidx=1 then
@@ -5319,7 +5341,9 @@ integer iffvar
     if exprBP!=0 then ?9/0 end if
     oktoinit = 0
 
-    Expr(0,0)
+--DEV (untried, see pEmit2.e bool doit)
+--  Expr(0,0)
+    Expr(0,asBool)
 
     RHStype = T_object
     if not opTopIsOp and opsidx=1 then
@@ -5362,6 +5386,12 @@ integer iffvar
 
 --DEV merge RHStypes:
     PushFactor(iffvar,0,T_object)
+
+--29/1/19:
+    if exprBP!=0 then ?9/0 end if
+    if scBP!=0 then ?9/0 end if
+    exprBP = wasExprBP
+    scBP = wasScBP
 
 end procedure
 
@@ -5502,12 +5532,15 @@ integer wasreturnvar = returnvar    -- (NESTEDFUNC)
 --end if
     MatchString(T_topset[Rtype])
 
-    if toktype!=LETTER then
+--15/01/19 (fudge...)
+--  if toktype!=LETTER then
+    if toktype!=LETTER or ttidx=T_end then
         Aborp("a name is expected here")
     end if
 
     rtnttidx = ttidx
 --?rtnttidx
+--if ttidx=T_end then trace(1) end if
 
     if NOLT=0 or bind or lint then
         ltclear(0)  -- (hanging onto file-level localtypes over a 
@@ -5696,7 +5729,13 @@ end if
 --      symtab[N][S_FPno] = fileno  -- ??
     else
         if Rtype=R_Func or Rtype=R_Type then
-            returnvar = newTempVar(T_object,FuncRes)
+--24/8/18:
+--          returnvar = newTempVar(T_object,FuncRes)
+            if Rtype=R_Func then
+                returnvar = newTempVar(T_object,FuncRes)
+            elsif Rtype=R_Type then
+                returnvar = newTempVar(T_integer,FuncRes)
+            end if
 if newEBP then
 --          TIDX = 1
             LIDX = 1
@@ -6198,10 +6237,14 @@ sequence sig
     end if
 
     if rType=S_Func then
-        N = newTempVar(T_object,Private) -- allocate return var
+--24/08/18
+--      N = newTempVar(T_object,Private) -- allocate return var
+        N = newTempVar(T_object,FuncRes)
+--?symtab[N]
 --DEV 4/8/14:
     elsif rType=S_Type then
-        N = newTempVar(T_integer,Private) -- allocate return var
+--      N = newTempVar(T_integer,Private) -- allocate return var
+        N = newTempVar(T_integer,FuncRes) -- allocate return var
     end if
 
     rtnttidx = ttidx
@@ -9288,8 +9331,14 @@ integer cnTyp
 --          Aborp("illegal use of a reserved word")
         if cnTyp=S_Const or cnTyp>S_TVar then
             Aborp("already declared as a "&NTdesc[cnTyp])
-        elsif symtab[CN][S_vtype]!=T_integer then
-            Aborp("type error (for loop control variable must be an INTEGER)")
+--25/5/18:
+--      elsif symtab[CN][S_vtype]!=T_integer then
+        else
+            integer cnvtyp = symtab[CN][S_vtype]
+            if cnvtyp>T_object
+            or not and_bits(cnvtyp,T_integer) then
+                Aborp("type error (for loop control variable must be an INTEGER)")
+            end if
         end if
         N = CN
         state = symtab[N][S_State]
@@ -9320,6 +9369,8 @@ integer cnTyp
     if toktype=':' and Ch='=' then MatchChar(':',false) end if
     MatchChar('=',float_valid:=true)
     if opsidx!=0 then ?9/0 end if -- leave in (ie outside if DEBUG then)
+--  ?? = tokline
+--  ?? = tokcol
     Expr(0,asBool)
     flags = 0
     if opTopIsOp then
@@ -9381,7 +9432,12 @@ integer cnTyp
     end if
     if opsidx!=1 then ?9/0 end if -- leave in
     ftyp = opstype[1]
-    if not and_bits(ftyp,T_integer) then Abork("illegal expression type",opsidx) end if
+    if not and_bits(ftyp,T_integer) then
+--      tokline = >opsline[k]
+--      tokcol  = ?opstcol[k]
+--      Abork("illegal expression type",opsidx)
+        Abork("illegal expression type",1)
+    end if
 
     MatchString(T_to,float_valid:=true)
     Expr(0,asBool)
@@ -10221,6 +10277,8 @@ end if
 
 end procedure
 
+constant try_ltype = true
+
 procedure DoTry()
 --SideEffects??
 integer prev, tlnk, savettidx, E, tryBP, esp4,
@@ -10231,6 +10289,25 @@ integer was_loopage = loopage
 --  opName("opTryend",opTryend,5)       -- opTryend,mergeSet(0),tgt,link,tlnk
 --  opName("opCatch",opCatch,3)         -- opCatch,tlnk,e
 --  opName("opThrow",opThrow,3)         -- opThrow,e,user
+--25/2/19:
+integer saveIchain = Ichain,
+        wasSideEffects = SideEffects,
+        waslMask = lMask,
+        thispt
+
+    Ichain = -1
+if try_ltype then
+    SideEffects = E_none
+    lMask = E_none
+
+    if emitON then
+        if NOLT=0 or bind or lint then
+            apnds5({opLoopTop,E_vars,E_vars,0}) -- opLoopTop,lmask,gmask,end
+            thispt = length(s5)+1
+            ltlooptop(thispt-4)
+        end if -- NOLT
+    end if
+end if
 
     in_try += 1
     try_loopage = loopage
@@ -10242,11 +10319,81 @@ integer was_loopage = loopage
         esp4 = newTempVar(T_integer,Shared)
         apnds5({opTry,prev,0,esp4})
         tlnk = length(s5)-3
+--/*
+opCtrl
+
+        if NOLT=0 or bind or lint then
+            if s5[thispt-4]!=opLoopTop then ?9/0 end if
+            s5[thispt-3] = lMask
+            s5[thispt-2] = SideEffects
+        end if -- NOLT
+
+    SideEffects = or_bits(SideEffects,wasSideEffects)
+    lMask = or_bits(lMask,waslMask)
+
+--or... [NO]
+integer iftop, ctrlink, ctrltyp
+
+    ctrlink = 0
+    if emitON then
+        apnds5({opCtrl,IF,0,emitline})
+        iftop = length(s5)-1    -- patched at/pointed to the end if
+        ctrlink = iftop         -- where to point next elsif/else/endif
+        if NOLT=0 or bind or lint then
+            ltCtrl(iftop)
+        end if -- NOLT
+    end if
+
+    if ttidx=T_elsif then
+        ctrltyp = ELSIF
+    else
+        if ttidx!=T_else then exit end if
+        ctrltyp = ELSE
+    end if
+
+    if emitON then
+        s5 &= {opCtrl,ctrltyp,ctrlink,emitline}
+        ctrlink = length(s5)-1
+        if NOLT=0 or bind or lint then
+            ltCtrl(ctrlink)
+        end if -- NOLT
+    end if
+
+    if ctrlink then
+        s5 &= {opCtrl,END+IF,ctrlink,emitline}
+        ctrlink = length(s5)-1
+        s5[iftop] = ctrlink
+        if NOLT=0 or bind or lint then
+            ltCtrl(ctrlink)
+        end if -- NOLT
+    end if
+
+
+--*/
     end if
 
     Block()
 
     emitON = wasEmit
+
+    clearIchain(-1)
+
+if try_ltype then
+    if emitON then
+        if NOLT=0 or bind or lint then
+            if s5[thispt-4]!=opLoopTop then ?9/0 end if
+            s5[thispt-3] = lMask
+            s5[thispt-2] = SideEffects
+            s5 &= {opCtrl,END+LOOP,thispt-3,emitline}
+            s5[thispt-1] = length(s5)-1
+            ltCtrl(length(s5)-1)
+
+--          apnds5({opLoopTop,E_vars,E_vars,0}) -- opLoopTop,lmask,gmask,end
+--          thispt = length(s5)+1
+--          ltlooptop(thispt-4)
+        end if -- NOLT
+    end if
+end if
 
     MatchString(T_catch)
 
@@ -10291,6 +10438,15 @@ integer was_loopage = loopage
         -- ... and the actual catch itself on the catch line.
         emitline = line
         tryBP = length(s5)-1
+
+if try_ltype then
+        if NOLT=0 or bind or lint then
+            apnds5({opLoopTop,E_vars,E_vars,0}) -- opLoopTop,lmask,gmask,end
+            thispt = length(s5)+1
+            ltlooptop(thispt-4)
+        end if -- NOLT
+end if
+
         -- opCatch,tlnk,e
         apnds5({opCatch,tlnk,E})
     end if
@@ -10307,6 +10463,21 @@ integer was_loopage = loopage
         Block()
     end if
 
+--  clearIchain(-1)
+--  clearIchain(saveIchain)
+if try_ltype then
+    if emitON then
+        if NOLT=0 or bind or lint then
+            if s5[thispt-4]!=opLoopTop then ?9/0 end if
+            s5[thispt-3] = lMask
+            s5[thispt-2] = SideEffects
+            s5 &= {opCtrl,END+LOOP,thispt-3,emitline}
+            s5[thispt-1] = length(s5)-1
+            ltCtrl(length(s5)-1)
+        end if -- NOLT
+    end if
+end if
+
     if newScope then
         -- hide non-pre-declared exception variable
         tt[savettidx+EQ] = symtab[E][S_Nlink]
@@ -10321,7 +10492,10 @@ integer was_loopage = loopage
     MatchString(T_end)
     MatchString(T_try)
 --??
---  clearIchain(saveIchain)
+    clearIchain(saveIchain)
+    SideEffects = or_bits(SideEffects,wasSideEffects)
+    lMask = or_bits(lMask,waslMask)
+
 end procedure
 
 --without trace

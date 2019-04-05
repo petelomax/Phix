@@ -6,36 +6,299 @@
 --  apparently 19729 digits, and any above, are beyond (the CPU/FPU hardware) and this.
 --  (replaced ack(atom,atom) with ack(int,int) since the former fares no better.)
 
-function ack(integer m, integer n)
-    if m=0 then
-        return n+1
-    elsif m=1 then
-        return n+2
-    elsif m=2 then
-        return 2*n+3
-    elsif m=3 then
-        return power(2,n+3)-3
-    elsif m>0 and n=0 then
-        return ack(m-1,1)
+--DEV The go version completes almost instantly... Clearly I should study the innards
+--      of C:\Go\src\math\big and improve builtins/bigint.e to match, especially the
+--      bi_sprint() since that takes ~88% on the (3,1e6) case.
+
+--Note: The Go version completes almost instantly whereas this seriously struggles on
+--      the ack(1,1e6) test - to the tune of about 37 minutes! Clearly I should study 
+--      the innards of C:\Go\src\math\big and improve builtins/bigint.e to match, esp
+--      for a better bi_sprint(), since that (alone) takes ~88% in the (3,1e6) case.
+
+include bigint.e
+--include bigatom.e
+
+--/*
+function ba_bitlength(object n)
+--
+-- In the absence of a proper one in bigatom...
+-- obviously not very efficient on large numbers, but
+-- off-hand I cannot think of anything better to do.
+-- note the n>#FFFFFFFF fudge, to approximate any bits
+-- dropped due to 53(/64) bits of precision in IEEE-754.
+--
+    if atom(n) then
+        n = abs(floor(n))
     else
-        return ack(m-1,ack(m,n-1))
+        n = bigatom_to_atom(ba_abs(ba_floor(ba_new(n))))
     end if
+    integer nb = 0
+    while n!=0 do
+        nb += 1
+        n = floor((n+(n>#FFFFFFFF))/2)
+    end while
+    return nb
+end function
+--*/
+
+--function ack(integer m, integer n)
+--function ack(object m, n)
+-- m,n may be integer or bigint
+--  if integer(m) then m=bi_new(m) end if
+--  if integer(n) then n=bi_new(n) end if
+--integer cache = new_dict()
+--,ch = 0, ac = 0
+function ack(integer m, object n)
+-- (n may be integer or bigint)
+-- retsult is always a bigint
+--ac += 1
+--  sequence key = {m,n}
+--  integer node = getd_index(key,cache)
+--  if node!=null then ch += 1; return getd_by_index(node,cache) end if
+--?{ac,m,bi_sprint(n)}
+--if ac=46 then trace(1) end if
+    if m=0 then
+--      return n+1
+        n = bi_add(n,1)
+--      n = ba_add(n,1)
+    elsif m=1 then
+--      return n+2
+--      return bi_add(n,2)
+        n = bi_add(n,2)
+--      n = ba_add(n,2)
+    elsif m=2 then
+--      return 2*n+3
+--      return bi_add(bi_mul(2,n),3)
+        n = bi_add(bi_mul(2,n),3)
+--      n = ba_add(ba_mul(2,n),3)
+--else
+--  sequence key = {m,n}
+--  integer node = getd_index(key,cache)
+--  if node!=null then ch += 1; return getd_by_index(node,cache) end if
+    elsif m=3 then
+--      return power(2,n+3)-3
+--      return bi_sub(bi_power(2,bi_add(n,3)),3)
+        integer bn = bi_bitlength(n)
+--      integer bn = ba_bitlength(n)
+--?{"bitlength",bn,ba_sprint(n)}
+        if bn>=machine_bits() then
+            -- As per Go: 2^MAXINT would most certainly run out of memory.
+            -- It would actually require twice the total addressable space,
+            -- and is something like MAXATOM^4, so if IEEE-754 gave up on
+            -- /approximating/ values that big a long time ago, not much 
+            -- chance of creating an exact bigint for it, now is there?
+            throw(sprintf("A(m,n) had n of %d bits; too large",bn))
+        end if
+        -- (separated out for debug/trace/profile_time:)
+--      n = bi_sub(bi_power(2,bi_add(n,3)),3)
+--?{"add",ba_sprint(n),3}
+        n = bi_add(n,3)
+--      n = ba_add(n,3)
+--?{"power",2,ba_sprint(n)}
+        n = bi_power(2,n)
+--      n = ba_power(2,n)
+--?{"sub",ba_sprint(n),3}
+        n = bi_sub(n,3)
+--      n = ba_sub(n,3)
+--  elsif m>0 and n=0 then
+    elsif m>0 and bi_compare(n,0)=0 then
+--  elsif m>0 and ba_compare(n,0)=0 then
+--      return ack(m-1,1)
+        n = ack(m-1,1)
+    else
+--      return ack(m-1,ack(m,n-1))
+--      return ack(m-1,ack(m,bi_sub(n,1)))
+        n = ack(m-1,ack(m,bi_sub(n,1)))
+--      n = ack(m-1,ack(m,ba_sub(n,1)))
+    end if
+--  setd(key,n,cache)
+--end if
+    return n
 end function
 
 procedure Ackermann()
+--  printf(1,"      0    1    2    3    4    5    6    7    8    9   10\n")
+    printf(1,"m     n:0")
+    for j=1 to 10 do
+        printf(1,"%7d",j)
+    end for
+    printf(1,"\n")
     for i=0 to 3 do
+        printf(1,"%d:",i)
         for j=0 to 10 do
-            printf(1,"%5d",ack(i,j))
+--          printf(1,"%5d",ack(i,j))
+            printf(1,"%7s",bi_sprint(ack(i,j)))
+--          printf(1,"%7s",ba_sprint(ack(i,j)))
         end for
         puts(1,"\n")
     end for
-    printf(1,"ack(4,1) %5d\n",ack(4,1))
+--  printf(1,"ack(4,1) %5d\n",ack(4,1))
+    printf(1,"\nack(3,100) %5s\n",bi_sprint(ack(3,100)))
+--  printf(1,"\nack(3,100) %5s\n",ba_sprint(ack(3,100)))
+    -- too big, sorry
+--atom t6 = time()
+--  bigint b31e6 = ack(3,1e6)
+--  bigatom b31e6 = ack(3,1e6)  -- worse!
+--?elapsed(time()-t6)
+--  string a31e6 = bi_sprint(b31e6)
+--  string a31e6 = ba_sprint(b31e6)
+--?elapsed(time()-t6)
+--  integer l31e6 = length(a31e6)
+--  a31e6[21..-21] = "..."
+--  printf(1,"ack(3,1e6) %5s (%d digits)\n",{a31e6,l31e6})
+
+    printf(1,"ack(4,0) %5s\n",bi_sprint(ack(4,0)))
+--  printf(1,"ack(4,0) %5s\n",ba_sprint(ack(4,0)))
+    printf(1,"ack(4,1) %5s\n",bi_sprint(ack(4,1)))
+--  printf(1,"ack(4,1) %5s\n",ba_sprint(ack(4,1)))
 --  printf(1,"ack(4,2) %5d\n",ack(4,2)) -- power function overflow
+--atom t42 = time()
+if 0 then
+    bigint b42 = ack(4,2)
+--  bigatom b42 = ack(4,2)
+--?elapsed(time()-t42)  --1.1s
+    string a42 = bi_sprint(b42)
+--  string a42 = ba_sprint(b42)
+--  string a42 = bi_sprint10(b42)   -- 50.1 vs 8.3, 6x slower!
+--?elapsed(time()-t42)  --9.4s
+    integer l42 = length(a42)
+    a42[21..-21] = "..."
+    printf(1,"ack(4,2) %5s (%d digits)\n",{a42,l42})
+    try
+        bigint a43 = ack(4,3)
+--      bigatom a43 = ack(4,3)
+    catch e
+        ?e[E_USER]
+    end try
+end if
 --  if getc(0) then end if
+--  printf(1,"cache size: %d, hits:%d, calls:%d\n",{dict_size(cache),ch,ac})
 end procedure
 
 atom t0 = time()
     Ackermann()
-    printf(1,"%3.2f",time()-t0)
+--  printf(1,"%3.2f",time()-t0)
+?elapsed(time()-t0)
     {} = wait_key()
+
+--/*
+    1    2    3    4    5    6    7    8    9   10   11
+    2    3    4    5    6    7    8    9   10   11   12
+    3    5    7    9   11   13   15   17   19   21   23
+    5   13   29   61  125  253  509 1021 2045 4093 8189
+ack(4,1) 65533
+0.22
+
+    1    2    3    4    5    6    7    8    9   10   11
+    2    3    4    5    6    7    8    9   10   11   12
+    3    5    7    9   11   13   15   17   19   21   23
+    5   13   29   61  125  253  509 1021 2045 4093 8189
+ack(4,1) 65533
+ack(4,2) 200352...156733 (19729 digits)
+12.72
+
+A(0, 0) = 1
+A(1, 2) = 4
+A(2, 4) = 11
+A(3, 100) = 10141204801825835211973625643005
+A(3, 1000000) = 301031 digits starting/ending with: 79205249834367186005...39107225301976875005
+A(4, 1) = 65533
+A(4, 2) = 19729 digits starting/ending with: 20035299304068464649...45587895905719156733
+A(4, 3) = Error: A(m,n) had n of 65536 bits; too large
+
+ack(3,100) 10141204801825835211973625643005
+{46,3,"1000000"}
+"add"
+"power"
+{1,{7,41249}}
+{1,{3,53392}}
+{1,{1,59464}}
+{1,{62500}}
+{1,{31250}}
+{1,{15625}}
+{1,{7812}}
+{1,{3906}}
+{1,{1953}}
+{1,{976}}
+{1,{488}}
+{1,{244}}
+{1,{122}}
+{1,{61}}
+{1,{30}}
+{1,{15}}
+{1,{7}}
+{1,{3}}
+{1,{1}}
+"sub"
+ack(3,1e6) 18441409299701262732...39107225301976875005
+ack(4,0)    13
+ack(4,1) 65533
+ack(4,2) 20035299304068464649...45587895905719156733 (19729 digits)
+"A(m,n) had n of 65536 bits; too large"
+2273.44
+
+      0    1    2    3    4    5    6    7    8    9   10
+0:    1    2    3    4    5    6    7    8    9   10   11
+1:    2    3    4    5    6    7    8    9   10   11   12
+2:    3    5    7    9   11   13   15   17   19   21   23
+3:    5   13   29   61  125  253  509 1021 2045 4093 8189
+
+ack(3,100) 10141204801825835211973625643005
+"add"
+"power"
+"sub"
+"done"
+"5 minutes"
+"37 minutes and 10s" - jikes, a single bi_sprint() takes 32:10...
+ack(3,1e6) 18441409299701262732...39107225301976875005 (301022 digits)
+ack(4,0)    13
+ack(4,1) 65533
+ack(4,2) 20035299304068464649...45587895905719156733 (19729 digits)
+"A(m,n) had n of 65536 bits; too large"
+"37 minutes and 20s"
+
+--A$(3,13):65533
+--A$(3,14):131069
+--A$(4,1):65533
+
+--AckFormula$(4,1):65533
+--AckFormula$(4,2):2003529930406846464979072351560255750447825475569751419265016973.....22087777506072339445587895905719156733
+
+--A(4, 2) = (19729 digits)
+--2003529930406846464979072351560255750447825475569751419265016973710894059556311
+--...
+--4717124577965048175856395072895337539755822087777506072339445587895905719156733
+
+--  0      1     2     3     4     5     6     7     8     9    10    11
+--  1   2     3     4     5     6     7     8     9    10    11    12
+--  2   3     5     7     9    11    13    15    17    19    21    23
+--  3   5    13    29    61   125   253   509  1021  2045  4093  8189
+--  4    13
+
+--A(0, 0) = 1
+--A(1, 2) = 4
+--A(2, 4) = 11
+--A(3, 100) = 10141204801825835211973625643005
+--A(3, 1000000) = 301031 digits starting/ending with: 79205249834367186005...39107225301976875005
+--A(4, 1) = 65533
+--A(4, 2) = 19729 digits starting/ending with: 20035299304068464649...45587895905719156733
+--A(4, 3) = Error: A(m,n) had n of 65536 bits; too large
+
+Ack:
+m     n:0      1      2      3      4      5      6      7      8      9     10
+0:      1      2      3      4      5      6      7      8      9     10     11
+1:      2      3      4      5      6      7      8      9     10     11     12
+2:      3      5      7      9     11     13     15     17     19     21     23
+3:      5     13     29     61    125    253    509   1021   2045   4093   8189
+
+ack(3,100) 10141204801825835211973625643005
+ack(3,1e6) 79205249834367186005...39107225301976875005 (301031 digits)
+
+ack(4,0) 13
+ack(4,1) 65533
+ack(4,2) 20035299304068464649...45587895905719156733 (19729 digits)
+"A(m,n) had n of 65537 bits; too large"
+
+
+--*/
 

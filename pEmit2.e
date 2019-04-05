@@ -1,5 +1,5 @@
 --
--- pemit2.e
+-- pEmit2.e
 -- ========
 --
 --constant TRAP = #1144
@@ -554,7 +554,8 @@ sequence s5sizes, s5v
 
 integer thisCSsize
 
-integer vi      -- index into symtab
+--integer vi        -- index into symtab
+integer vi_active       -- index into symtab
 
 integer opbyte, i3
 
@@ -2595,17 +2596,22 @@ sequence si
 --      end if
 --end if
         flatsym2[rlink] = si
+if NEWGSCAN then
+        rlink = g_scan[rlink]
+        if rlink=-1 then exit end if
+else
         rlink = si[S_Slink]
+end if
     end while
-    for i=T_integer to T_object do
-        si = flatsym2[i]
-        flatsym2[i] = 0 -- kill ref count
+    for i_to_o =T_integer to T_object do
+        si = flatsym2[i_to_o]
+        flatsym2[i_to_o] = 0 -- kill ref count
         tt_sequence(si[S_sig])
 --      si[S_sig] = tt[ttidx+EQ]    -- leave this comment in for searches
         tEQ = ttidx+EQ
         si[S_Nlink] = tt[tEQ]
-        tt[tEQ] = i
-        flatsym2[i] = si
+        tt[tEQ] = i_to_o
+        flatsym2[i_to_o] = si
     end for
     Signatures = {}
     SigLinks = {}
@@ -2845,6 +2851,8 @@ end if
             end if
 if bind and mapsymtab then
                 k = si[S_Slink]         if k!=0 then si[S_Slink] = symtabmap[k] end if
+--temp: (triggers lots!)
+--if NEWGSCAN then if k!=0 then ?"pEmit2.e line 2854 (k!=0)" end if end if
                 k = si[S_Nlink]         if k!=0 then si[S_Nlink] = symtabmap[k] end if
                 if siNTyp>=S_Type then
                     k = si[S_Parm1]     if k!=0 then si[S_Parm1] = symtabmap[k] end if
@@ -3035,6 +3043,9 @@ integer p, maxparams, useplus1
     --
     if and_bits(flags,K_ridt)=0 then ?9/0 end if    -- sanity check
     symtab[symidx][S_State] = or_bits(symtab[symidx][S_State],flags)
+--if NEWGSCAN then  --DEV??
+--  kridt_scan[symidx] = ???
+--end if
     --
     -- ...and mark all parameters as used to avoid warnings:
     --
@@ -3306,13 +3317,36 @@ end if
 --DEV I think this can go:
     vmax = -TIDX
 --?vmax
-    vi = 0
+--  vi = 0
+    vi_active = 0
+if NEWGSCAN then
+    kridt_scan = repeat(0,length(symtab))
+--  vi_active = T_maintls
+--  kridt_scan[T_maintls] = T_maintls   -- (circular loop [so we can test if last is on it])
+--  kridt_scan[T_maintls] = -1
+--  kridt_scan[T_maintls] = -9          -- (nick existing processing (??)) [doh, that's not here anyway and means "NOT in S_Slink"...]
+    vi_active = -1
+end if
     for v=1 to symlimit do
 --tryme (MARKTYPES)
 --  for v=T_Asm+1 to symlimit do
         sv = symtab[v]
         if sequence(sv) then
             nTyp = sv[S_NTyp]
+if NEWGSCAN then
+  if v!=T_maintls then
+            if (nTyp>=S_Type and and_bits(sv[S_State],K_used+K_ridt) and sequence(sv[S_il]) and length(sv[S_il])) -- top level and K_ridt subs
+            or (v=T_command_line and Z_command_line) then -- link up T_command_line if rqd
+-- instead of using S_Slink:
+--SUG: force K_used on sv[S_State]??
+--              kridt_scan[v] = kridt_scan[T_maintls]
+--              kridt_scan[T_maintls] = v
+--erm, or ?? (and the final "" below)
+                kridt_scan[v] = vi_active
+                vi_active = v
+            end if
+  end if
+else
 --MARKTYPES...
             if (nTyp=S_Type and v>T_Asm)                            -- user defined types
 --          if (MARKTYPES=0 and nTyp=S_Type and v>T_Asm)            -- user defined types
@@ -3322,7 +3356,7 @@ end if
 --      we also kill all opCallOnce to it (or merge to one dummy). Not that you'd ever be
 --      able to measure the savings...
                 --
-                -- We do this because we don't track opCallOnce or opTchk in the
+                -- We do this because we don't track opCallOnce or opTchk in the	[DEV NEWGSCAN for opTchk]
                 -- same way that we do with opFrame (see scanforShortJmp).
                 -- True, there may be some udt processed that are not strictly
                 -- needed, but they are usually quite small, compared to say
@@ -3334,10 +3368,20 @@ end if
 ----DEV temp!
 --printf(1,"pemit.e line 2088: linking symtab[%d] on vi chain\n",v)
                 sv = 0
-                symtab[v][S_Slink] = vi
+--              symtab[v][S_Slink] = vi
+                symtab[v][S_Slink] = vi_active
+--DEV/SUG (28/02/19, inline)
+--                          Or_K_ridt(i,K_used+K_ridt)
 --20/12/15:
+--28/02/19:
+--              symtab[v][S_State] = or_bits(symtab[v][S_State],K_used)
+if K_RIDT_UDTS and nTyp=S_Type and v>T_Asm then
+                symtab[v][S_State] = or_bits(symtab[v][S_State],K_used+K_ridt)
+else
                 symtab[v][S_State] = or_bits(symtab[v][S_State],K_used)
-                vi = v
+end if
+--              vi = v
+                vi_active = v
             elsif nTyp>S_Type then
 --          elsif nTyp>S_Type or (MARKTYPES and nTyp=S_Type and v>T_Asm) then
 --this should work, when MARKTYPES=1: (or c/should we T_Asm[+1]..symlimit?? - yes)
@@ -3346,10 +3390,19 @@ end if
 --          elsif nTyp>=S_Type then
                 symtab[v][S_Slink] = -9     -- (not on symtab[T_maintls][S_Slink] chain)
             end if
+end if -- NEWGSCAN
         end if
     end for
 
-    symtab[T_maintls][S_Slink] = vi -- more entries will be dynamically added to this chain...
+if NEWGSCAN then
+    --DEV test this on an empty file (both interpret and compile[-nodiag])
+    if vi_active=T_maintls then ?9/0 end if -- sanity check... (circular loop?)
+--  if vi_active=-1 then ?9/0 end if    -- sanity check... (empty/broken loop?)
+    kridt_scan[T_maintls] = vi_active
+else
+--  symtab[T_maintls][S_Slink] = vi -- more entries will be dynamically added to this chain...
+    symtab[T_maintls][S_Slink] = vi_active -- more entries will be dynamically added to this chain...
+end if
 
 --DEV test code (seems fine):
 --  u = 0
@@ -3371,14 +3424,18 @@ end if
 
 --  check_symtab()          -- ... some in here, the rest in scanforShortJmp.
 
+--DEV/SUG can we not just do this in psym.e?
     for i=1 to T_object do
         si = symtab[i]
         if sequence(si) then
-            symtab[i] = 0           -- kill refcount
             u = si[S_State]
+if not and_bits(u,K_used) then
+--  ?"setting K_used line 3433 pEmit2.e"
             u = or_bits(u,K_used)
+            symtab[i] = 0           -- kill refcount
             si[S_State] = u
             symtab[i] = si
+end if
         end if
     end for
 
@@ -3389,8 +3446,10 @@ end if
             si = symtab[i]
             if sequence(si)
 --MARKTYPES
-            and si[S_NTyp]>S_Type then  -- ie func or proc
+--          and si[S_NTyp]>S_Type then  -- ie func or proc
+            and si[S_NTyp]>S_Type-NEWGSCAN then -- ie (func or proc) or [NEWGSCAN] (type or func or proc)
 --          and si[S_NTyp]>=S_Func-MARKTYPES then   -- ie func or proc
+--NEWGSCAN:
 --          and si[S_NTyp]>=S_Type then -- ie type or func or proc
                 u = si[S_State]
 --DEV 20/09/2013 try pulling this tooth then... (solves problem of [indirect] routineid("open_dll") getting -1)
@@ -3401,14 +3460,26 @@ end if
 -- while fixing this, try an inner "if atom(si[S_il]) then ?9/0 end if -- sanity check"
 -- (5/7/13: in 4.0.5 you can procedure p(integer rid=routine_id("fred")) and it will
 --          resolve to a fred declared in the caller, not the callee... ittwima)
+--DEV f=0 only applies to T_integer..T_object, I think...
+if f=0 then ?9/0 end if
                     if and_bits(u,K_gbl)
 --                  or (not atom(si[S_il]) and f and unresolved_routine_ids[f]) then
                     or (f and unresolved_routine_ids[f]) then
                         if not and_bits(u,K_used) then  -- not top_level_sub
                             si = 0
                             Or_K_ridt(i,K_used+K_ridt)
+if NEWGSCAN then
+--                          Or_K_ridt(i,K_ridt) -- (sug)
+--  ?9/0 -- (or just a "not NEWGSCAN" here, if Or_K_ridt() is going to manage?... [NAH])
+--                          if kridt_scan[i]!=0 then ?9/0 end if    -- (or if==0 then next two?)
+                            if kridt_scan[i]=0 then
+                                kridt_scan[i] = kridt_scan[T_maintls]
+                                kridt_scan[T_maintls] = i
+                            end if
+else
                             symtab[i][S_Slink] = symtab[T_maintls][S_Slink]
                             symtab[T_maintls][S_Slink] = i
+end if
                         end if
                     end if
                 end if
@@ -3435,11 +3506,18 @@ end if
                         symtab[i] = si
                     end if
                 end if
+if not NEWGSCAN then
                 k = si[S_value]     -- the routine number
                 si = symtab[k]
                 u = si[S_State]
                 if not and_bits(u,K_used) 
-                and si[S_NTyp]>S_Type then
+--erm...
+--              and si[S_NTyp]>S_Type then
+                and si[S_NTyp]>S_Type-NEWGSCAN then
+if NEWGSCAN then printf(1,"9/0 line 3516 pEmit2.e (symtab[%d], state=%x)\n",{i,u}) showmapsymtab = i end if -- (why not already K_ridt'd?) [or just skip k=si[S_value] and everything after?]
+--symtabmap[i]
+--      showmapsymtab = i
+
 --              and si[S_NTyp]>=S_Func-MARKTYPES then
 --              and si[S_NTyp]>=S_Type then
 --DEV new routine, AddToSlink(i,K_used), also marks all params etc as "in use"...?
@@ -3451,7 +3529,12 @@ end if
                     si[S_Slink] = symtab[T_maintls][S_Slink]
                     symtab[k] = si
                     symtab[T_maintls][S_Slink] = k
+--28/02/19 let's see how often this is done... (?? routines still in symtab that were never 0'd ??)
+--?{"pEmit2.e line 3467: S_Slink'd",k,si}
+--on my test case: pAlloc.e:free, sort.e:tagsort and column_compare. All had a routine_id, though
+--were not actually called (directly). [OK]
                 end if
+end if --(NEWGSCAN)
             end if
         end if
     end for
@@ -3477,21 +3560,53 @@ end if
         rescancount = 0
 
         while 1 do  -- while gvar_scan improves matters
-            vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
-            while vi do
-                s5thunk(symtab[vi][S_il]) -- sets s5
-                symtab[vi][S_il] = 0    -- kill refcount
-                gvar_scan(vi)
-                symtab[vi][S_il] = s5
-                vi = symtab[vi][S_Slink]
+if NEWGSCAN then
+            g_scan = kridt_scan
+end if
+--          vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+            vi_active = T_maintls   -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+--          while vi do
+            while vi_active do
+--              s5thunk(symtab[vi][S_il]) -- sets s5
+                s5thunk(symtab[vi_active][S_il]) -- sets s5
+--              symtab[vi][S_il] = 0    -- kill refcount
+                symtab[vi_active][S_il] = 0 -- kill refcount
+--              gvar_scan(vi)
+                gvar_scan(vi_active)
+--              symtab[vi][S_il] = s5
+                symtab[vi_active][S_il] = s5
+if NEWGSCAN then
+                vi_active = g_scan[vi_active]
+                if vi_active=-1 then exit end if
+else
+--              vi = symtab[vi][S_Slink]
+                vi_active = symtab[vi_active][S_Slink]
+end if
             end while
         
             -- kill any gvar info gathered for parameters of routines that could be
             --  invoked via call_proc/call_func/call_back (targets of routine_id),
             --  since that will not include any values/types/etc from such calls.
-            vi = T_maintls  -- hop down all routines again
-            while vi do
-                u = symtab[vi][S_State]
+--if NEWGSCAN then
+--          -- temp? (as below) [NB:P this replace of g_scan with kridt is, erm, silly...]
+--          for i=1 to length(g_scan) do
+--              if g_scan[i]!=0 
+--              and kridt_scan[i]=0 then
+--                  if and_bits(symtab[i][S_State],K_ridt) then ?9/0 end if
+--              end if                  
+--          end for
+--          g_scan = kridt_scan     --erm, or use it direct here?
+--                                  -- (actually, it doesn't matter, if we rebuild every time, including the last)
+--          -- (one thing we could do is check nowt in g_scan not in kridt_scan has K_ridt, maybe/separately..[as above])
+--end if
+--          vi = T_maintls  -- hop down all routines again
+            vi_active = T_maintls   -- hop down all routines again
+--          while vi do
+            while vi_active do  
+--DEV/SUG NEWGSCAN:
+--          while true do
+--              u = symtab[vi][S_State]
+                u = symtab[vi_active][S_State]
                 isKridt = and_bits(u,K_ridt)    -- known routine_id target?
 --DEV 20/09/2013 no idea why this lot was commented out, put back in:
 --      "" (ah-ha: we are scanning the K_used chain here... no good)
@@ -3513,8 +3628,10 @@ end if
                     -- so destroy any gvar info gathered by gvar_scan for the 
                     --  routine parameters (since that will not include any 
                     --  values from call_proc/call_func/call_back)
-                    p = symtab[vi][S_Parm1]
-                    maxparams = length(symtab[vi][S_sig]) - 1
+--                  p = symtab[vi][S_Parm1]
+                    p = symtab[vi_active][S_Parm1]
+--                  maxparams = length(symtab[vi][S_sig]) - 1
+                    maxparams = length(symtab[vi_active][S_sig]) - 1
                     while maxparams do
                         if DEBUG then
                             if symtab[p][S_NTyp]!=S_TVar then ?9/0 end if
@@ -3526,7 +3643,14 @@ end if
                         maxparams -= 1
                     end while
                 end if
-                vi = symtab[vi][S_Slink]
+if NEWGSCAN then
+                vi_active = g_scan[vi_active]
+--              if vi_active=T_maintls then exit end if
+                if vi_active=-1 then exit end if
+else
+--              vi = symtab[vi][S_Slink]
+                vi_active = symtab[vi_active][S_Slink]
+end if
             end while
 
             rescan = 0
@@ -3561,6 +3685,7 @@ if not equal(sv,-1) then
                                     k = symtab[i][S_FPno]
 --                                  string mapi = iff(bind and mapsymtab and 
 --                                  printf(1,"xType=0 on symtab[%d(=%s)] (%s in %s)\n",{i,mapi,getname(sv,-2),filenames[k][2]})
+--DEV (this should get much rarer under NEWGSCAN...  find those cases i've put workarounds in for this [in builtins, eg/ie "abc"="def"/DEV])
                                     printf(1,"xType=0 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
 end if
 --                                  xType = rootType(vtype)
@@ -3669,6 +3794,10 @@ end if
 
 --puts(1,"finalfixups2 line 4097\n")
 
+if NEWGSCAN then
+        g_scan = kridt_scan
+end if
+
         if showfileprogress then
             rescancount = -1
         end if
@@ -3682,12 +3811,22 @@ end if
 
 --puts(1,"finalfixups2 line 4110\n")
 
-        vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
-        while vi do
+--      vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+        vi_active = T_maintls   -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+--      while vi do
+        while vi_active do
 --?vi
-            s5thunk(symtab[vi][S_il])   -- set s5
-            gvar_scan_nobind(vi)
-            vi = symtab[vi][S_Slink]
+--          s5thunk(symtab[vi][S_il])   -- set s5
+            s5thunk(symtab[vi_active][S_il])    -- set s5
+--          gvar_scan_nobind(vi)
+            gvar_scan_nobind(vi_active)
+if NEWGSCAN then
+            vi_active = g_scan[vi_active]
+            if vi_active=-1 then exit end if
+else
+--          vi = symtab[vi][S_Slink]
+            vi_active = symtab[vi_active][S_Slink]
+end if
         end while
         if dumpil then
 --if 01 then
@@ -3723,31 +3862,41 @@ end if
     end if
 
 --trace(1)
-    vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+--  vi = T_maintls  -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
+    vi_active = T_maintls   -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
 
 --DEV setup a gvar mapping thing now, patch in ilxlate()...
 
-    while vi do
-        sv = symtab[vi]
-        symtab[vi] = 0                              -- kill refcount
+--  while vi do
+    while vi_active do
+--      sv = symtab[vi]
+        sv = symtab[vi_active]
+--      symtab[vi] = 0                              -- kill refcount
+        symtab[vi_active] = 0                               -- kill refcount
         s5thunk(sv[S_il])   -- set s5
         sv[S_il] = CSvsize
         LineTab = {}    -- build a new one!
         ltline = 0
-        symtab[vi] = sv
+--      symtab[vi] = sv
+        symtab[vi_active] = sv
         sv = sv[S_Name]                             -- save name for debug, also kills refcount
-        ilxlate(vi)
+--      ilxlate(vi)
+        ilxlate(vi_active)
 --sv = getname(sv,-2)
 --puts(1,sv&'\n')
-        scanforShortJmp(vi)
+--      scanforShortJmp(vi)
+        scanforShortJmp(vi_active)
         if length(LineTab) then
-            symtab[vi][S_ltab] = LineTab
+--          symtab[vi][S_ltab] = LineTab
+            symtab[vi_active][S_ltab] = LineTab
         else
-            symtab[vi][S_ltab] = 0
+--          symtab[vi][S_ltab] = 0
+            symtab[vi_active][S_ltab] = 0
         end if
         s5sets = append(s5sets,s5)
         s5sizes = append(s5sizes,thisCSsize)
-        s5v = append(s5v,vi)
+--      s5v = append(s5v,vi)
+        s5v = append(s5v,vi_active)
         CSvsize += thisCSsize
 --      if debug then
 --          if equal(sv,-1) then    -- a top_level_sub (no name)
@@ -3763,8 +3912,19 @@ end if
 --              CSvsize += 5
 --          end if
 --      end if
-        vi = symtab[vi][S_Slink]
+if NEWGSCAN then
+        vi_active = g_scan[vi_active]
+        if vi_active=-1 then exit end if
+else
+--      vi = symtab[vi][S_Slink]
+        vi_active = symtab[vi_active][S_Slink]
+end if
     end while
+
+    if x86showmapsymtab!=0 then
+        showmapsymtab = x86showmapsymtab
+        x86showmapsymtab = 0
+    end if
 
     if countTransTmpFer then
         opshow()
@@ -3777,6 +3937,7 @@ end if
     end if
 
 --puts(1,"finalfixups2 line 4196\n")
+--?{"symtab[1]",symtab[1]}
 
 --if Z_ridN!=0 then -- still OK...
 --  ?symtab[Z_ridN]
@@ -3788,11 +3949,27 @@ end if
         sv = symtab[v]
         if sequence(sv) then
             nTyp = sv[S_NTyp]
-            u = sv[S_State]
+            u = sv[S_State]     -- DEV can't see this is used (cleanup first!)
+--/*
             if nTyp>S_Type      -- types are not properly marked as used... yet.
 --          if nTyp>=S_Func-MARKTYPES
 --          if nTyp>=S_Type
             and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
+--DEV (NEWGSCAN)
+            if nTyp>=S_Type
+            and g_scan[v]==0 then
+--*/
+--DEV: ?9/0 in DoIff()... (suggested but untried fix therein)
+--          bool doit = iff(NEWGSCAN ? nTyp>=S_Type and g_scan[v]==0
+--                                   : nTyp>S_Type and sv[S_Slink]=-9 )
+            bool doit
+            if NEWGSCAN then
+--              doit = nTyp>=S_Type and g_scan[v]==0
+                doit = v>T_object and nTyp>=S_Type and g_scan[v]==0
+            else
+                doit = nTyp>S_Type and sv[S_Slink]=-9
+            end if
+            if doit then
 -- 17/3/15:
 if bind or listing then
 
@@ -3821,8 +3998,9 @@ if bind or listing then
 --                  if v>T_Bin then
                     if v>T_Asm then
 --MARKTYPES
-                        if nTyp=S_Func then
+--                      if nTyp=S_Func then
 --                      if nTyp=S_Func or (MARKTYPES and nTyp=S_Type) then
+                        if nTyp=S_Func or (NEWGSCAN and nTyp=S_Type) then -- (use next, when clearing NEWGSCAN)
 --                      if nTyp<=S_Func then
 --if not show_full_symtab then
 --  if v-1=Z_ridN then ?9/0 end if
@@ -4211,11 +4389,27 @@ end if
         and sv[S_State]!=0 then
             nTyp = sv[S_NTyp]
             u = sv[S_State]
+--/*
 --MARKTYPES
             if nTyp>S_Type      -- types are not properly marked as used... yet.
 --          if nTyp>=S_Func-MARKTYPES
 --          if nTyp>=S_Type
             and sv[S_Slink]=-9 then -- (not on symtab[T_maintls][S_Slink] chain)
+--DEV (NEWGSCAN)
+            if nTyp>=S_Type
+            and g_scan[v]==0 then
+--*/
+--DEV as aboive,...
+--          bool doit = iff(NEWGSCAN ? nTyp>=S_Type and g_scan[v]==0
+--                                   : nTyp>S_Type and sv[S_Slink]=-9 )
+            bool doit
+            if NEWGSCAN then
+--              doit = nTyp>=S_Type and g_scan[v]==0
+                doit = v>T_object and nTyp>=S_Type and g_scan[v]==0
+            else
+                doit = nTyp>S_Type and sv[S_Slink]=-9
+            end if
+            if doit then
 --if not show_full_symtab then
 if bind or listing then -- 17/3/15
                 ?9/0 -- should have been removed earlier!
@@ -4356,6 +4550,7 @@ end if
         end if
 
         flatsym2 = symtab
+
         if not listing then
             symtab = {}
 -- 1/8/14:
@@ -4377,8 +4572,13 @@ end if
                 end if
             end for
 --DEV also when interpreted?...
+if NEWGSCAN then
+            slink = g_scan[T_maintls]
+else
             slink = symtab[T_maintls][S_Slink]
-            while slink!=0 do
+end if
+--          while slink!=0 do
+            while slink>0 do
                 si = symtab[slink]
                 if si[S_Name]=-1 
                 and si[S_NTyp]=S_Proc
@@ -4391,7 +4591,11 @@ end if
 --DEV: <tls for xxx>
                     symtab[slink][S_Name] = "<tls>"
                 end if
+if NEWGSCAN then
+                slink = g_scan[slink]
+else
                 slink = symtab[slink][S_Slink]
+end if
             end while
         end if
 

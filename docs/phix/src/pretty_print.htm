@@ -1,0 +1,336 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">pretty_print</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+         include builtins\pretty.e  -- (also included by builtins\misc.e)
+         <br>
+         <br>
+         pretty_print(<a href="integer.htm">integer</a> fn, <a href="object.htm">object</a> x, <a href="sequence.htm">sequence</a> options = PRETTY_DEFAULT)
+         <br>
+         <i>-- or --</i>
+         <br>
+         <a href="string.htm">string</a> o = pretty_sprint(<a href="object.htm">object</a> x, <a href="sequence.htm">sequence</a> options = PRETTY_DEFAULT)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+          Note that <a href="ppp.htm">Pete&rsquo;s Pretty Print</a> was written to address many of the percieved limitations of this routine
+          and is recommended for all new code, rather than this, and/or convert to using that routine rather than waste time trying to fix
+          any problems that might arise with this one.
+          <br>
+          <br>
+          Print an object to a file or device, using braces { , , , }, indentation, and multiple lines to show the structure.
+          <br>
+          <br>
+          fn: an integer, the file/device number to write to.<br>
+          x: the object to display/convert to printable form.<br>
+          options: a sequence of up to length 10, with the following defaults and meanings:
+          <br>
+          <br>
+          <table>
+           <tr>
+            <th>Element</th>
+            <th>Default</th>
+            <th>Meaning</th>
+           </tr>
+           <tr>
+            <td>
+             DISPLAY_ASCII (1)
+            </td>
+            <td>
+             1
+            </td>
+            <td>
+             display ASCII characters:<br>
+             0 -- never<br>
+             1 -- alongside any integers in printable ASCII range (default)<br>
+             2 --  display as "string" when all integers of a sequence are in ASCII range<br>
+             3 -- show strings, and quoted characters (only) for any integers in ASCII range as well as the characters: \t \r \n
+            </td>
+           </tr>
+            <td>
+             INDENTATION (2)
+            </td>
+            <td>
+             2
+            </td>
+            <td>
+             amount to indent for each level of sequence nesting (was INDENT in OpenEuphoria, but that clashed with eaundo.ew)
+            </td>
+           </tr>
+           <tr>
+            <td>
+             START_COLUMN (3)
+            </td>
+            <td>
+             1
+            </td>
+            <td>
+             column we are starting at
+            </td>
+           </tr>
+           <tr>
+            <td>
+             WRAP (4)
+            </td>
+            <td>
+             78
+            </td>
+            <td>
+             approximate column to wrap at
+            </td>
+           </tr>
+           <tr>
+            <td>
+             INT_FORMAT (5)
+            </td>
+            <td>
+             "%d"
+            </td>
+            <td>
+             format to use for integers
+            </td>
+           </tr>
+           <tr>
+            <td>
+             FP_FORMAT (6)
+            </td>
+            <td>
+             "%.10g"
+            </td>
+            <td>
+             format to use for floating-point numbers
+            </td>
+           </tr>
+           <tr>
+            <td>
+             MIN_ASCII (7)
+            </td>
+            <td>
+             32
+            </td>
+            <td>
+             The smallest printable ascii character. Defaults to 32 (space).
+            </td>
+           </tr>
+           <tr>
+            <td>
+             MAX_ASCII (8)
+            </td>
+            <td>
+             126+W
+            </td>
+            <td>
+             The largest printable asciii character. Defaults to 126 (#7E) on Linux, 127 (#7F) on Windows.
+            </td>
+           </tr>
+           <tr>
+            <td>
+             MAX_LINES (9)
+            </td>
+            <td>
+             1000000000
+            </td>
+            <td>
+             maximum number of lines to output 
+            </td>
+           </tr>
+           <tr>
+            <td>
+             LINE_BREAKS (10)
+            </td>
+            <td>
+             1
+            </td>
+            <td>
+             line breaks between elements:<br>
+             1 = default (yes)<br>
+             0 = no line breaks<br>
+            -1 = line breaks to wrap only
+            </td>
+           </tr>
+          </table>
+          <br>
+          &nbsp;
+          <br>
+          Pass {} in options to select all the defaults. If the length is less than 10, unspecified options at 
+          the end of the sequence will keep the default values, for example {0, 5} will choose "never display ASCII"
+          plus 5-character indentation, with defaults for everything else.
+          <br>
+          <br>
+          The display will start at the current cursor position. Normally you will want to call 
+          pretty_print() when the cursor is in column 1 (after printing a <code>\n</code> character). 
+          <br>
+          <br>
+          If you want to start in a different column, you should call position() and specify a value 
+          for option [3]. This will ensure that the first and last braces in a sequence line up 
+          vertically.
+          <br>
+          <br>
+          When specifying the format to use for integers and floating-point numbers, you can add 
+          some decoration, e.g. "(%d)" or "$ %.2f" 
+          <br>
+          <br>
+          The pretty_sprint() function formats outputs the same as pretty_print(), but returns the sequence obtained instead of sending it to some file.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            As this is a simple compatibility shim for OpenEuphoria, the constants DISPLAY_ASCII..LINE_BREAKS and PRETTY_DEFAULT are declared
+            in builtins\pretty.e, rather than psym.e, and cannot be used before the include statement.
+            <br>
+            <br>
+            The file builtins\pretty.e is included by builtins\misc.e, for legacy code that expects it is (still) declared in that file.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+pretty_print(1, "ABC", {})   
+-- {65'A',66'B',67'C'}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">pretty_print</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "ABC"</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)   
+</font><font color="#000080"><i>-- {65'A',66'B',67'C'}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+pretty_print(1, {{1,2,3}, {4,5,6}}, {}) 
+-- {
+--   {1,2,3},
+--   {4,5,6}
+-- }
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">pretty_print</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080"> {</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">) 
+</font><font color="#000080"><i>-- {
+--   {1,2,3},
+--   {4,5,6}
+-- }</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+pretty_print(1, {"Euphoria", "Programming", "Language"}, {2})  
+-- {
+--   "Euphoria",
+--   "Programming",
+--   "Language"
+-- }
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">pretty_print</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"Euphoria"</font><font color="#0000FF">,</font><font color="#008000"> "Programming"</font><font color="#0000FF">,</font><font color="#008000"> "Language"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">)  
+</font><font color="#000080"><i>-- {
+--   "Euphoria",
+--   "Programming",
+--   "Language"
+-- }</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 4:</b>
+         </td>
+         <td>
+<!--eucode>
+puts(1, "word_list = ") -- moves cursor to column 13
+pretty_print(1, {{"Euphoria", 8, 5.3}, 
+                 {"Programming", 11, -2.9}, 
+                 {"Language", 8, 9.8}}, 
+                {2, 4, 13, 78, "%03d", "%.3f"}) -- first 6 of 8 options
+-- word_list = {
+--     {
+--         "Euphoria",
+--         008,
+--         5.300
+--     },
+--     {
+--         "Programming",
+--         011,
+--         -2.900
+--     },
+--     {
+--         "Language",
+--         008,
+--         9.800
+--     }
+-- }
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "word_list = "</font><font color="#0000FF">)</font><font color="#000080"><i> -- moves cursor to column 13
+</i></font><font color="#5E005E">pretty_print</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#800080">{</font><font color="#008000">"Euphoria"</font><font color="#0000FF">,</font><font color="#000000"> 8</font><font color="#0000FF">,</font><font color="#000000"> 5.3</font><font color="#800080">}</font><font color="#0000FF">, 
+</font><font color="#800080">                 {</font><font color="#008000">"Programming"</font><font color="#0000FF">,</font><font color="#000000"> 11</font><font color="#0000FF">, -</font><font color="#000000">2.9</font><font color="#800080">}</font><font color="#0000FF">, 
+</font><font color="#800080">                 {</font><font color="#008000">"Language"</font><font color="#0000FF">,</font><font color="#000000"> 8</font><font color="#0000FF">,</font><font color="#000000"> 9.8</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">, 
+</font><font color="#800000">                {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000"> 13</font><font color="#0000FF">,</font><font color="#000000"> 78</font><font color="#0000FF">,</font><font color="#008000"> "%03d"</font><font color="#0000FF">,</font><font color="#008000"> "%.3f"</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- first 6 of 8 options
+-- word_list = {
+--     {
+--         "Euphoria",
+--         008,
+--         5.300
+--     },
+--     {
+--         "Programming",
+--         011,
+--         -2.900
+--     },
+--     {
+--         "Language",
+--         008,
+--         9.800
+--     }
+-- }</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="print.htm">print</a>,
+          <a href="sprint.htm">sprint</a>,
+          <a href="printf.htm">printf</a>,
+          <a href="sprintf.htm">sprintf</a>,
+          <a href="ppp.htm">ppp</a>
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

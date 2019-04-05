@@ -11,10 +11,12 @@
 --      --/**/include pincpaths.e as incpaths
 --  (with the "--/**/" causing RDS Eu to ignore the line)
 --
-without debug
+--without debug
 
 -- As per psym.e/pglobals.e:
 constant T_pathset = 16
+--       T_fileset = 17
+
 
 global function include_paths(integer convert=0)
 --
@@ -39,8 +41,25 @@ sequence filepaths      -- result variable
     #ilASM{ lea edi,[symtab]
             call :%opGetST }    -- [edi]=symtab
     filepaths = symtab[T_pathset]
+--  f1 = symtab[T_fileset][1][1]
     symtab = 0
     leave_cs()
     return filepaths
+end function
+
+global function include_path(sequence d = "builtins")
+-- d can have several segements, eg {"builtins","VM"} or "builtins\\VM".
+    string res = ""
+    sequence s = include_paths(), sp
+    if string(d) then d = split_path(d) end if
+    integer ld = length(d)
+    for p=1 to length(s) do
+        sp = split_path(s[p])
+        if sp[-ld..$]=d then
+            res = s[p]
+            exit
+        end if
+    end for
+    return res
 end function
 

@@ -1,0 +1,267 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">sqlite3_prepare</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pSQLite.e
+            <br>
+            <br>
+            <a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt = sqlite3_prepare(<a href="sqlconst.htm#types">sqlite3</a> db, <a href="string.htm">string</a> cmd)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            The sqlite3_prepare interface compiles a single SQL statement into byte code for later execution.<br>
+            This interface is now the preferred way of accessing the database [but see comments].
+            <br>
+            <br>
+            db: an open database, a result from <a href="sqlite3_open.htm">sqlite3_open</a>().<br>
+            cmd: An SQL statement (a UTF-8 string) to be prepared. Only the first SQL statement in the input string is compiled.
+<!--
+The fourth parameter is filled in with a pointer to the next (uncompiled) SQLite statement in the input string, if any. (we always pass NULL)
+-->
+            <br>
+            <br>
+            Returns NULL if the cmd string contained no SQL (an empty string or a comment), otherwise
+            it returns an opaque pointer to an internal structure as used by the routines mentioned below.
+            <br>
+            <br>
+            Non-atom values may be returned if <a href="sqlconst.htm#ehand">SQLITE3_NON_FATAL</a> or a similar
+            user provided error handler routine is in force.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+            To execute an SQL query, it must first be compiled into a byte-code program using sqlite3_prepare().<br>
+            That happens automatically within <a href="sqlite3_exec.htm">sqlite3_exec</a>() and
+            <a href="sqlite3_get_table.htm">sqlite3_get_table</a>(). <br>
+            You can probably do everything you need with those routines, and live a long and happy life without knowing that 
+            sqlite3_prepare() even exists.
+            <br>
+            <br>
+            If the sqlite3_prepare() process seems much more complicated, that&rsquo;s because it is - you should only use 
+            it if the ability to set and extract individual fields somehow simplifies whatever it is you are trying to do. 
+            There may be a performance gain when compiling very large and complex SQL statements once rather than repeatedly, 
+            but for most, say less that 250 characters, any such gain is probably neglible. On the other hand, constructing 
+            thousands of 250+ character strings, as well as then parsing/compiling them, is likely to be a more significant 
+            overhead, compared to using the <a href="sqlite3_bind.htm">sqlite3_bind</a>() routines. I might also hazard
+            (without any proof) that sqlite3_prepare() is more likely to offer savings on large numbers of write operations
+            rather than read operations, but that judgement may be clouded by preconceived notions of typical usage patterns.
+            <br>
+            <br>
+            The SQL statement may contain tokens of the form "?" or "?nnn" or ":nnn:" where "nnn" is an integer, or ":AAA" where AAA is an alphanumeric name.<br>
+            You can also use/may encounter "@AAA", and "$AAA", as a hangover from SQLite&rsquo;s Tcl origins, which behave similarly to ":AAA".<br>
+            Such tokens represent unspecified literal values (or wildcards) to be filled in later by the <a href="sqlite3_bind.htm">sqlite3_bind</a> interface.<br>
+            Each wildcard has an associated number given by the "nnn" that follows the "?".<br>
+            If the "?" is not followed by an integer, then it is numbered one more than the number of prior wildcards in the same SQL statement.<br>
+            It is allowed for the same wildcard to occur more than once in the same SQL statement, in which case all instances of that wildcard 
+            will be filled in with the same value.<br>
+            Unbound wildcards have a value of NULL.
+            <br>
+            <br>
+            The mixing of named, numbered and un-numbered wildcards is undertaken at your own risk. There are no detailed specifications or guarantees
+            for how such things might actually work out, however there are almost certainly cases such as values for the last 72 hours, best handled 
+            by locating [1] by name, and using offsets from that for the anonymous [2..72].<br>
+            [PL: were it down to me, I&rsquo;d make say ?4 a fatal error were it neither the 4th field, nor a second/later reference to an already defined ?4.]<br>
+            Obviously named wildcards promise the best clarity and lowest maintenance costs, followed by numbered, and unnumbered should only be used 
+            when to do otherwise is simply just too tedious. Of course named wildcards also get assigned a number, but it is sheer madness, on anything 
+            not utterly trivial, to use hard-coded numeric literals in the subsequent code, or squint at an SQL statement tying to guess the numbers and
+            meanings of un-named things.
+            <br>
+            <br>
+            After an SQL statement has been prepared and optionally <a href="sqlite3_bind.htm">bound</a>, it is executed using 
+            <a href="sqlite3_step.htm">sqlite3_step</a>(pStmt).
+            <br>
+            <br>
+            The <a href="sqlite3_reset.htm">sqlite3_reset</a>() routine resets a prepared SQL statement so that it can be executed again.<br>
+            The <a href="sqlite3_finalize.htm">sqlite3_finalize</a>() routine deallocates a prepared SQL statement.<br>
+            All prepared statements must be finalized before the database can be closed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include pSQLite.e
+
+?sqlite3_libversion()
+
+sqlite3 db = sqlite3_open("test.sqlite")
+integer res
+
+procedure db_exec(string cmd, bool fatal=true)
+    res = sqlite3_exec(db,cmd)
+    if fatal and res!=SQLITE_OK then ?9/0 end if
+end procedure
+
+-- nb "IF NOT EXISTS" is only supported in 3.3.0 and later (2006-01-11)
+--db_exec("CREATE TABLE IF NOT EXISTS test(id INTEGER, desc TEXT);")
+--db_exec("DELETE FROM test;")
+-- whereas this approach works fine on earlier versions:
+db_exec("DROP TABLE test;",fatal:=false)
+db_exec("CREATE TABLE test(id INTEGER, desc TEXT);")
+
+constant descs = {"one","two","three"}
+
+sqlite3_stmt pStmt = sqlite3_prepare(db,"INSERT INTO test VALUES(:id, :desc);")
+constant k_id   = sqlite3_bind_parameter_index(pStmt, ":id"),
+         k_desc = sqlite3_bind_parameter_index(pStmt, ":desc")
+db_exec("BEGIN TRANSACTION;")
+for i=1 to 3 do
+    sqlite3_bind_int(pStmt, k_id, i)
+    sqlite3_bind_text(pStmt,k_desc, descs[i])
+    res = sqlite3_step(pStmt)
+    if res!=SQLITE_DONE then ?9/0 end if
+    sqlite3_reset(pStmt)
+end for
+if sqlite3_finalize(pStmt)!=SQLITE_OK then ?9/0 end if
+db_exec("END TRANSACTION;")
+
+pStmt = sqlite3_prepare(db,"SELECT id,desc FROM test;")
+while 1 do
+    res = sqlite3_step(pStmt)
+    if res=SQLITE_DONE then exit end if
+    if res!=SQLITE_ROW then ?9/0 end if
+    ?"row:"
+    for c=1 to sqlite3_column_count(pStmt) do
+        integer ctype = sqlite3_column_type(pStmt,c)
+        string name = sqlite3_column_name(pStmt,c)
+        if ctype=SQLITE_INTEGER then
+            ?{"SQLITE_INTEGER",name,sqlite3_column_int(pStmt,c)}
+        elsif ctype=SQLITE_TEXT then
+            ?{"SQLITE_TEXT",name,sqlite3_column_text(pStmt,c)}
+        else
+            ?9/0
+        end if
+    end for
+end while
+if sqlite3_finalize(pStmt)!=SQLITE_OK then ?9/0 end if
+sqlite3_close(db)
+
+-- output:
+--  "3.23.1"
+--  "row:"
+--  {"SQLITE_INTEGER","id",1}
+--  {"SQLITE_TEXT","desc","one"}
+--  "row:"
+--  {"SQLITE_INTEGER","id",2}
+--  {"SQLITE_TEXT","desc","two"}
+--  "row:"
+--  {"SQLITE_INTEGER","id",3}
+--  {"SQLITE_TEXT","desc","three"}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pSQLite.e
+
+</font><font color="#0000FF">?</font><font color="#5E005E">sqlite3_libversion</font><font color="#0000FF">()
+
+</font><font color="#004080">sqlite3</font><font color="#000000"> db</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_open</font><font color="#0000FF">(</font><font color="#008000">"test.sqlite"</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> res
+
+</font><font color="#008080">procedure</font><font color="#000000"> db_exec</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> cmd</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> fatal</font><font color="#0000FF">=</font><font color="#004600">true</font><font color="#0000FF">)
+</font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_exec</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#000000">cmd</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> fatal</font><font color="#008080"> and</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">SQLITE_OK</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+end procedure
+
+</font><font color="#000080"><i>-- nb "IF NOT EXISTS" is only supported in 3.3.0 and later (2006-01-11)
+--db_exec("CREATE TABLE IF NOT EXISTS test(id INTEGER, desc TEXT);")
+--db_exec("DELETE FROM test;")
+-- whereas this approach works fine on earlier versions:
+</i></font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"DROP TABLE test;"</font><font color="#0000FF">,</font><font color="#000000">fatal</font><font color="#0000FF">:=</font><font color="#004600">false</font><font color="#0000FF">)
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"CREATE TABLE test(id INTEGER, desc TEXT);"</font><font color="#0000FF">)
+
+</font><font color="#008080">constant</font><font color="#000000"> descs</font><font color="#0000FF"> = {</font><font color="#008000">"one"</font><font color="#0000FF">,</font><font color="#008000">"two"</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">}
+
+</font><font color="#004080">sqlite3_stmt</font><font color="#000000"> pStmt</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_prepare</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"INSERT INTO test VALUES(:id, :desc);"</font><font color="#0000FF">)
+</font><font color="#008080">constant</font><font color="#000000"> k_id  </font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_bind_parameter_index</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#008000"> ":id"</font><font color="#0000FF">),
+</font><font color="#000000">         k_desc</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_bind_parameter_index</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#008000"> ":desc"</font><font color="#0000FF">)
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"BEGIN TRANSACTION;"</font><font color="#0000FF">)
+</font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 3</font><font color="#008080"> do
+</font><font color="#5E005E">    sqlite3_bind_int</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#000000"> k_id</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">)
+</font><font color="#5E005E">    sqlite3_bind_text</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#000000">k_desc</font><font color="#0000FF">,</font><font color="#000000"> descs</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_step</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">SQLITE_DONE</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+</font><font color="#5E005E">    sqlite3_reset</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">)
+</font><font color="#008080">end for
+if</font><font color="#5E005E"> sqlite3_finalize</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">)!=</font><font color="#004600">SQLITE_OK</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+</font><font color="#000000">db_exec</font><font color="#0000FF">(</font><font color="#008000">"END TRANSACTION;"</font><font color="#0000FF">)
+
+</font><font color="#000000">pStmt</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_prepare</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"SELECT id,desc FROM test;"</font><font color="#0000FF">)
+</font><font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do
+</font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_step</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> res</font><font color="#0000FF">=</font><font color="#004600">SQLITE_DONE</font><font color="#008080"> then exit end if
+    if</font><font color="#000000"> res</font><font color="#0000FF">!=</font><font color="#004600">SQLITE_ROW</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+</font><font color="#0000FF">    ?</font><font color="#008000">"row:"
+</font><font color="#008080">    for</font><font color="#000000"> c</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#5E005E"> sqlite3_column_count</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#004080">        integer</font><font color="#000000"> ctype</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_column_type</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#000000">c</font><font color="#0000FF">)
+</font><font color="#004080">        string</font><font color="#000000"> name</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_column_name</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#000000">c</font><font color="#0000FF">)
+</font><font color="#008080">        if</font><font color="#000000"> ctype</font><font color="#0000FF">=</font><font color="#004600">SQLITE_INTEGER</font><font color="#008080"> then
+</font><font color="#0000FF">            ?{</font><font color="#008000">"SQLITE_INTEGER"</font><font color="#0000FF">,</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#5E005E">sqlite3_column_int</font><font color="#800000">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#000000">c</font><font color="#800000">)</font><font color="#0000FF">}
+</font><font color="#008080">        elsif</font><font color="#000000"> ctype</font><font color="#0000FF">=</font><font color="#004600">SQLITE_TEXT</font><font color="#008080"> then
+</font><font color="#0000FF">            ?{</font><font color="#008000">"SQLITE_TEXT"</font><font color="#0000FF">,</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#5E005E">sqlite3_column_text</font><font color="#800000">(</font><font color="#000000">pStmt</font><font color="#0000FF">,</font><font color="#000000">c</font><font color="#800000">)</font><font color="#0000FF">}
+</font><font color="#008080">        else
+</font><font color="#0000FF">            ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0
+</font><font color="#008080">        end if
+    end for
+end while
+if</font><font color="#5E005E"> sqlite3_finalize</font><font color="#0000FF">(</font><font color="#000000">pStmt</font><font color="#0000FF">)!=</font><font color="#004600">SQLITE_OK</font><font color="#008080"> then</font><font color="#0000FF"> ?</font><font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font><font color="#008080"> end if
+</font><font color="#5E005E">sqlite3_close</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- output:
+--  "3.23.1"
+--  "row:"
+--  {"SQLITE_INTEGER","id",1}
+--  {"SQLITE_TEXT","desc","one"}
+--  "row:"
+--  {"SQLITE_INTEGER","id",2}
+--  {"SQLITE_TEXT","desc","two"}
+--  "row:"
+--  {"SQLITE_INTEGER","id",3}
+--  {"SQLITE_TEXT","desc","three"}</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+            Note that the first loop calls <a href="sqlite3_reset.htm">sqlite3_reset</a>() because it is executing an INSERT three times,
+            whereas the second does not, because it is executing the SELECT statement only once, albeit getting three rows out of it, with
+            two columns in each of those.
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

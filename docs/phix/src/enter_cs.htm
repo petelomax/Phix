@@ -34,8 +34,10 @@
             If two (or more) threads update a shared variable simultaneously the result will not be as desired. 
             While there are some atomic (lock) operations, you would certainly not want to run normal software
             using them where they are not needed, as they can easily be 30 times slower than the equivalent
-            non-locked instructions. Modern pipelined processors offer hugh performance benefits over those of
-            a decade or more ago, but that means a read-update-write gets spread out over more clock cycles. 
+            non-locked instructions. Modern pipelined processors offer huge performance benefits over those of
+            a decade or more ago, but that means a read-update-write [such as i+=1, ie load i, add 1, store i,
+            and you should understand that a single instruction such as add [i],1 actually gets decomposed into 
+            similar microinstructions by the cpu itself] gets spread out over more clock cycles. 
             Without any locking, if one thread increments an integer at the same time as another decrements it, 
             or more accurately the 14 or more clock cycles such instructions spend in their pipelines overlap,
             the result could easily be +/-1 the original value rather than the desired net effect of 0.
@@ -119,6 +121,14 @@ leave_cs(todo_cs)
             In contrast the worker thread is the sole owner (only reference) to the newtask by the time it reaches the leave_cs().
             You may also need similar lines in the main thread to remove other references to elements of newtask, which would be
             valid any time before the leave_cs() and indeed before the enter_cs(), if you were to prefer that.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            via :%pEnterCS in builtins\VM\pHeap.e (an autoinclude). 
          </td>
         </tr>
         <tr>

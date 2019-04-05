@@ -249,6 +249,7 @@ global constant
 --*/
 
 global function dir(sequence path)
+--global function dir(string path)
 --global function dir(sequence path,integer list_directory=1) --DEV: (just an idea, see below)
 --
 -- Returns a list of files that match the specified path.

@@ -111,195 +111,205 @@ sequence s
 end function
 --*/
 
--- pretty print variables
-integer pretty_end_col, pretty_chars, pretty_start_col, pretty_level,
-    pretty_file, pretty_ascii, pretty_indent, pretty_ascii_min,
-    pretty_ascii_max
-sequence pretty_fp_format, pretty_int_format, pretty_line
-
-
-procedure pretty_out(object text)
--- output text, keeping track of line length    
--- buffering lines speeds up Windows console    
-    pretty_line &= text
-    if equal(text, '\n') then
-        puts(pretty_file, pretty_line)
-        pretty_line = ""
-    end if
-    if atom(text) then
-        pretty_chars += 1
-    else
-        pretty_chars += length(text)
-    end if
-end procedure
-
-procedure cut_line(integer n)
--- check for time to do line break
-    if pretty_chars+n>pretty_end_col then
-        pretty_out('\n')
-        pretty_chars = 0
-    end if
-end procedure
-
-procedure indent()
--- indent the display of a sequence
-    if pretty_chars>0 then
-        pretty_out('\n')
-        pretty_chars = 0
-    end if
-    pretty_out(repeat(' ', (pretty_start_col-1)+
-                      pretty_level*pretty_indent))
-end procedure
-
-procedure rPrint(object a)
--- recursively print a Euphoria object  
-sequence sbuff
-integer multi_line, all_ascii
-object ai
-
-    if atom(a) then
-        if integer(a) then
-        -- By Al Getz 26/5 2004: replace the above line with this to print 32-bit ints
-        --  if a-floor(a)=0 and -#FFFFFFFF<=a and a<=#FFFFFFFF then
-            sbuff = sprintf(pretty_int_format, a)
-            if pretty_ascii
-            and a>=pretty_ascii_min
-            and a<=pretty_ascii_max then
-                if pretty_ascii>2 then
-                    sbuff = '\'' & a & '\''
-                else
-                    sbuff &= '\'' & a & '\''
-                end if
-            end if
-        else
-            sbuff = sprintf(pretty_fp_format, a)
-        end if
-        pretty_out(sbuff)
-
-    else
-        -- sequence 
-        cut_line(1)
-        multi_line = 0
-        all_ascii = pretty_ascii>1
-        for i=1 to length(a) do
-            ai = a[i]
-            if sequence(ai) and length(ai)>0 then
-                multi_line = 1
-                all_ascii = 0
-                exit
-            end if
-            if not integer(ai)
-            or ai<pretty_ascii_min
-            or ai>pretty_ascii_max then
-                all_ascii = 0
-            end if
-        end for
-
-        if all_ascii then
-            pretty_out('\"')
-        else
-            pretty_out('{')
-        end if
-        pretty_level += 1
-        for i=1 to length(a) do
-            if multi_line then
-                indent()
-            end if
-            if all_ascii then
-                pretty_out(a[i])
-            else
-                rPrint(a[i])
-            end if
-            if i!=length(a) and not all_ascii then
-                pretty_out(',')
-                cut_line(6)
-            end if
-        end for
-        pretty_level -= 1
-        if multi_line then
-            indent()
-        end if
-        if all_ascii then
-            pretty_out('\"')
-        else
-            pretty_out('}')
-        end if
-    end if
-end procedure
-
-
-global procedure pretty_print(integer fn, object x, sequence options)
--- Print any Euphoria object x, to file fn, in a form that shows 
--- its structure.
+-- now in builtins/pretty.e:
+include builtins\pretty.e
+---- pretty print variables
+--integer pretty_end_col,   -- max width, default 78 (options[4])
+--      pretty_chars,       -- line length
+--      pretty_start_col,   -- start column, default 1 (options[3])
+--      pretty_level,       -- nesting level
+--      pretty_file,        -- file number
+--      pretty_ascii,       -- as ascii, default 1 (options[1])
+--      pretty_indent,      -- indentation, default 2 (options[2])
+--      pretty_ascii_min,   -- default 32 (options[7])
+--      pretty_ascii_max    -- default 127 (options[8])
 --
--- argument 1: file number to write to
--- argument 2: the object to display
--- argument 3: is an (up to) 8-element options sequence:
---   Pass {} to select the defaults, or set options as below:
---   [1] display ASCII characters:
---       0: never
---       1: alongside any integers in printable ASCII range (default)
---       2: display as "string" when all integers of a sequence 
---          are in ASCII range
---       3: show strings, and quoted characters (only) for any integers 
---          in ASCII range
---   [2] amount to indent for each level of sequence nesting - default: 2
---   [3] column we are starting at - default: 1
---   [4] approximate column to wrap at - default: 78
---   [5] format to use for integers - default: "%d"
---   [6] format to use for floating-point numbers - default: "%.10g"
---   [7] minimum value for printable ASCII - default 32
---   [8] maximum value for printable ASCII - default 127
--- 
--- If the length is less than 8, unspecified options at 
--- the end of the sequence will keep the default values.    
--- e.g. {0, 5} will choose "never display ASCII", 
--- plus 5-character indentation, with defaults for everything else  
-integer n
-
-    -- set option defaults 
-    pretty_ascii = 1           --[1] 
-    pretty_indent = 2          --[2]
-    pretty_start_col = 1       --[3]
-    pretty_end_col = 78        --[4]
-    pretty_int_format = "%d"   --[5]
-    pretty_fp_format = "%.10g" --[6]
-    pretty_ascii_min = 32      --[7]
-    pretty_ascii_max = 127     --[8]
-
-    n = length(options)
-    if n>=1 then
-        pretty_ascii = options[1]
-        if n>=2 then
-            pretty_indent = options[2]
-            if n>=3 then
-                pretty_start_col = options[3]
-                if n>=4 then
-                    pretty_end_col = options[4]
-                    if n>=5 then
-                        pretty_int_format = options[5]
-                        if n>=6 then
-                            pretty_fp_format = options[6]
-                            if n>=7 then
-                                pretty_ascii_min = options[7]
-                                if n>=8 then
-                                    pretty_ascii_max = options[8]
-                                end if
-                            end if
-                        end if
-                    end if
-                end if
-            end if
-        end if
-    end if
-
-    pretty_chars = pretty_start_col
-    pretty_file = fn
-    pretty_level = 0
-    pretty_line = ""
-    rPrint(x)
-    puts(pretty_file, pretty_line)
-end procedure
+--sequence pretty_fp_format,    -- default "%.10g" (options[6])
+--       pretty_int_format, -- default "%d" (options[5])
+--       pretty_line        -- current line
+--
+--procedure pretty_out(object text)
+---- output text, keeping track of line length  
+---- buffering lines speeds up Windows console  
+--  pretty_line &= text
+--  if equal(text, '\n') then
+--      puts(pretty_file, pretty_line)
+--      pretty_line = ""
+--  end if
+--  if atom(text) then
+--      pretty_chars += 1
+--  else
+--      pretty_chars += length(text)
+--  end if
+--end procedure
+--
+--procedure cut_line(integer n)
+---- check for time to do line break
+--  if pretty_chars+n>pretty_end_col then
+--      pretty_out('\n')
+--      pretty_chars = 0
+--  end if
+--end procedure
+--
+--procedure indent()
+---- indent the display of a sequence
+--  if pretty_chars>0 then
+--      pretty_out('\n')
+--      pretty_chars = 0
+--  end if
+--  pretty_out(repeat(' ', (pretty_start_col-1)+
+--                    pretty_level*pretty_indent))
+--end procedure
+--
+--procedure rPrint(object a)
+---- recursively print a Euphoria object    
+--sequence sbuff
+--integer multi_line, all_ascii
+--object ai
+--
+--  if atom(a) then
+--      if integer(a) then
+--      -- By Al Getz 26/5 2004: replace the above line with this to print 32-bit ints
+--      --  if a-floor(a)=0 and -#FFFFFFFF<=a and a<=#FFFFFFFF then
+--          sbuff = sprintf(pretty_int_format, a)
+--          if pretty_ascii
+--          and a>=pretty_ascii_min
+--          and a<=pretty_ascii_max then
+--              if pretty_ascii>2 then
+--                  sbuff = '\'' & a & '\''
+--              else
+--                  sbuff &= '\'' & a & '\''
+--              end if
+--          end if
+--      else
+--          sbuff = sprintf(pretty_fp_format, a)
+--      end if
+--      pretty_out(sbuff)
+--
+--  else
+--      -- sequence 
+--      cut_line(1)
+--      multi_line = 0
+--      all_ascii = pretty_ascii>1
+--      for i=1 to length(a) do
+--          ai = a[i]
+--          if sequence(ai) and length(ai)>0 then
+--              multi_line = 1
+--              all_ascii = 0
+--              exit
+--          end if
+--          if not integer(ai)
+--          or ai<pretty_ascii_min
+--          or ai>pretty_ascii_max then
+--              all_ascii = 0
+--          end if
+--      end for
+--
+--      if all_ascii then
+--          pretty_out('\"')
+--      else
+--          pretty_out('{')
+--      end if
+--      pretty_level += 1
+--      for i=1 to length(a) do
+--          if multi_line then
+--              indent()
+--          end if
+--          if all_ascii then
+--              pretty_out(a[i])
+--          else
+--              rPrint(a[i])
+--          end if
+--          if i!=length(a) and not all_ascii then
+--              pretty_out(',')
+--              cut_line(6)
+--          end if
+--      end for
+--      pretty_level -= 1
+--      if multi_line then
+--          indent()
+--      end if
+--      if all_ascii then
+--          pretty_out('\"')
+--      else
+--          pretty_out('}')
+--      end if
+--  end if
+--end procedure
+--
+--
+--global procedure pretty_print(integer fn, object x, sequence options)
+---- Print any Euphoria object x, to file fn, in a form that shows 
+---- its structure.
+----
+---- argument 1: file number to write to
+---- argument 2: the object to display
+---- argument 3: is an (up to) 8-element options sequence:
+----     Pass {} to select the defaults, or set options as below:
+----     [1] display ASCII characters:
+----         0: never
+----         1: alongside any integers in printable ASCII range (default)
+----         2: display as "string" when all integers of a sequence 
+----            are in ASCII range
+----         3: show strings, and quoted characters (only) for any integers 
+----            in ASCII range
+----     [2] amount to indent for each level of sequence nesting - default: 2
+----     [3] column we are starting at - default: 1
+----     [4] approximate column to wrap at - default: 78
+----     [5] format to use for integers - default: "%d"
+----     [6] format to use for floating-point numbers - default: "%.10g"
+----     [7] minimum value for printable ASCII - default 32
+----     [8] maximum value for printable ASCII - default 127
+---- 
+---- If the length is less than 8, unspecified options at 
+---- the end of the sequence will keep the default values.  
+---- e.g. {0, 5} will choose "never display ASCII", 
+---- plus 5-character indentation, with defaults for everything else    
+--integer n
+--
+--  -- set option defaults 
+--  pretty_ascii = 1           --[1] 
+--  pretty_indent = 2          --[2]
+--  pretty_start_col = 1       --[3]
+--  pretty_end_col = 78        --[4]
+--  pretty_int_format = "%d"   --[5]
+--  pretty_fp_format = "%.10g" --[6]
+--  pretty_ascii_min = 32      --[7]
+--  pretty_ascii_max = 127     --[8]
+--
+--  n = length(options)
+--  if n>=1 then
+--      pretty_ascii = options[1]
+--      if n>=2 then
+--          pretty_indent = options[2]
+--          if n>=3 then
+--              pretty_start_col = options[3]
+--              if n>=4 then
+--                  pretty_end_col = options[4]
+--                  if n>=5 then
+--                      pretty_int_format = options[5]
+--                      if n>=6 then
+--                          pretty_fp_format = options[6]
+--                          if n>=7 then
+--                              pretty_ascii_min = options[7]
+--                              if n>=8 then
+--                                  pretty_ascii_max = options[8]
+--                              end if
+--                          end if
+--                      end if
+--                  end if
+--              end if
+--          end if
+--      end if
+--  end if
+--
+--  pretty_chars = pretty_start_col
+--  pretty_file = fn
+--  pretty_level = 0
+--  pretty_line = ""
+--  rPrint(x)
+--  puts(pretty_file, pretty_line)
+--end procedure
 
 
 -- trig formulas provided by Larry Gregg

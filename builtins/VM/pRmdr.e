@@ -58,9 +58,11 @@ end procedure -- (for Edita/CtrlQ)
         jge :opRmdrIN
         test ecx,ecx
         jz :e103atgrondb0esp    -- attempt to get remainder of a number divided by 0
-        mov edx,eax
+--DEV should use cdq instead?
+--      cdq                 -- <-- (add)
+        mov edx,eax         -- <-- (remove)
         mov esi,[edi]
-        sar edx,31
+        sar edx,31          -- <-- (remove)
         idiv ecx
         mov [edi],edx
         mov edx,esi

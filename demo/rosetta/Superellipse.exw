@@ -1,0 +1,78 @@
+--
+-- demo\rosetta\Superellipse.exw
+-- ===============================
+--
+atom n = 2.5        -- '+' and '-' increase/decrease in steps of 0.1
+integer a = 200,    -- resize window to set this from canvas width
+        b = 200     -- resize window to set this from canvas height
+
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+
+    integer {hw, hh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
+    a = max(10,hw-100)  -- (initially 200, from 602x   )
+    b = max(10,hh-50)   -- (initially 200, from    x502)
+    sequence y = b&repeat(0,a)
+    for x=1 to a-1 do
+        y[x+1] = floor(exp(log(1-power(x/a,n))/n)*b)
+    end for
+
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    cdCanvasBegin(cddbuffer, CD_OPEN_LINES) 
+    cdCanvasVertex(cddbuffer, hw, hh-b) -- starting point
+    for x=1 to a-1     do cdCanvasVertex(cddbuffer, hw+x, hh-y[x+1]) end for
+    for x=a to 0 by -1 do cdCanvasVertex(cddbuffer, hw+x, hh+y[x+1]) end for
+    for x=0 to a       do cdCanvasVertex(cddbuffer, hw-x, hh+y[x+1]) end for
+    for x=a to 0 by -1 do cdCanvasVertex(cddbuffer, hw-x, hh-y[x+1]) end for
+    cdCanvasEnd(cddbuffer)
+    cdCanvasFlush(cddbuffer)
+
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c='+' then
+        n = min(130,n+0.1) -- (otherwise [>130] power overflow)
+        IupUpdate(canvas)
+    elsif c='-' then
+        n = max(0.1,n-0.1) -- (otherwise [=0.0] divide by zero)
+        IupUpdate(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "602x502") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Superellipse")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

@@ -1,0 +1,763 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">types and constants</h1>
+      <div id="mainSection">
+
+          <a name=types></a>
+        The following types are used solely to improve clarity, and are otherwise equivalent to <a href="atom.htm">atom</a>.
+        <br>
+        <br>
+
+          <table>
+           <col style="width: 5%"/>
+           <tr>
+            <th>Types</th>
+            <th></th>
+           </tr>
+           <tr>
+            <td>
+             sqlite3
+            </td>
+            <td>
+              An opaque pointer/database handle, from <a href="sqlite3_open.htm">sqlite3_open</a>().
+             <br>
+             <br>
+                Each open SQLite database is represented by a pointer to an instance of the opaque structure named "sqlite3". <br>
+                It is created with 
+                <a href="sqlite3_open.htm">sqlite3_open</a>() and destroyed with 
+                <a href="sqlite3_close.htm">sqlite3_close</a>().<br>
+                Many other interfaces such as 
+                <a href="sqlite3_exec.htm">sqlite3_exec</a>(), 
+                <a href="sqlite3_get_table.htm">sqlite3_get_table</a>(), and 
+                <a href="sqlite3_prepare.htm">sqlite3_prepare</a>(), to name but three, 
+                perform futher actions on an sqlite3 object.
+             <br>
+            </td>
+           </tr>
+           <tr>
+            <td>
+             sqlite3_stmt
+            </td>
+            <td>
+             An opaque pointer to a prepared statement, from <a href="sqlite3_prepare.htm">sqlite3_prepare</a>().
+             <br>
+             <br>
+             An instance of this object represents a single SQL statement that has been compiled into binary form and is ready to be evaluated.
+             <br>
+             <br>
+             Think of each SQL statement as a separate computer program. The original SQL text is source code. <br>
+             A prepared statement object is the compiled object code. <br>
+             All SQL must be converted into a prepared statement before it can be run.<br>
+             The functions <a href="sqlite3_exec.htm">sqlite3_exec</a>() and 
+             <a href="sqlite3_get_table.htm">sqlite3_get_table</a>() do this automatically, but they also do it every time. 
+             <br>
+             <br>
+             The life-cycle of a prepared statement object (including inside the above-mentioned routines) usually goes like this:
+             <br>
+             <br>
+             <ol>
+              <li>Create the prepared statement object using <a href="sqlite3_prepare.htm">sqlite3_prepare</a>().
+              <li>Bind values to parameters, if any, using the <a href="sqlite3_bind.htm">sqlite3_bind</a> interfaces.
+              <li>Run the SQL by calling <a href="sqlite3_step.htm">sqlite3_step</a>() one or more times.
+              <li>Zero or more times, reset the prepared statement using <a href="sqlite3_reset.htm">sqlite3_reset</a>() and go back to step 2.
+              <li>Destroy the object using <a href="sqlite3_finalize.htm">sqlite3_finalize().
+             </ol>
+            </td>
+           </tr>
+          </table>
+          <br>
+          &nbsp;
+          <br>
+
+        <table>
+         <col style="width: 15%"/>
+         <tr>
+            <th valign=top>Error codes</th>
+            <th>
+            <a name=SQLITE_OK></a>
+            </th>
+         </tr>
+         <tr>
+          <td>
+            0 - SQLITE_OK
+          </td>
+          <td>
+            Successful result
+            <br>
+            <br>
+            The SQLITE_OK result code means that the operation was successful and that there were no errors. Most other result codes indicate an error.
+            <a name=SQLITE_ERROR></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            1 - SQLITE_ERROR
+          </td>
+          <td>
+                SQL error or missing database 
+                <br>
+                <br>
+                The SQLITE_ERROR result code is a generic error code that is used when no other more specific error code is available.
+          </td>
+         </tr>
+         <tr>
+          <td>
+            2 - SQLITE_INTERNAL
+          </td>
+          <td>
+                An internal logic error in SQLite 
+          </td>
+         </tr>
+         <tr>
+          <td>
+            3 - SQLITE_PERM
+          </td>
+          <td>
+                Access permission denied 
+          <a name=SQLITE_ABORT></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            4 - SQLITE_ABORT
+          </td>
+          <td>
+                Callback routine requested an abort 
+                <br>
+                <br>
+                The SQLITE_ABORT result code indicates that an operation was aborted prior to completion, usually be application request. 
+                See also: <a href="#SQLITE_INTERRUPT">SQLITE_INTERRUPT</a>.
+                <br>
+                <br>
+                If the callback function to sqlite3_exec() returns non-zero, then sqlite3_exec() will return SQLITE_ABORT.
+                <br>
+                <br>
+                If a ROLLBACK operation occurs on the same database connection as a pending read or write, then the pending read or write 
+                may fail with an SQLITE_ABORT or SQLITE_ABORT_ROLLBACK error.
+                <br>
+                <br>
+                In addition to being a result code, the SQLITE_ABORT value is also used as a conflict resolution mode returned from the 
+                sqlite3_vtab_on_conflict() interface.
+                <br>
+                <br>
+                Also: SQLITE_ABORT_ROLLBACK (516, ie 4+#200):
+                The SQLITE_ABORT_ROLLBACK error code is an extended error code for SQLITE_ABORT indicating that an SQL statement aborted 
+                because the transaction that was active when the SQL statement first started was rolled back. Pending write operations 
+                always fail with this error when a rollback occurs. A ROLLBACK will cause a pending read operation to fail only if the 
+                schema was changed within the transaction being rolled back.
+          <a name=SQLITE_BUSY></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            5 - SQLITE_BUSY
+          </td>
+          <td>
+                The database file is locked 
+                <br>
+                <br>
+                The SQLITE_BUSY result code indicates that the database file could not be written (or in some cases read) 
+                because of concurrent activity by some other database connection, usually a database connection in a separate process.
+                <br>
+                <br>
+                For example, if process A is in the middle of a large write transaction and at the same time process B attempts to 
+                start a new write transaction, process B will get back an SQLITE_BUSY result because SQLite only supports one writer at a time. <br>
+                Process B will need to wait for process A to finish its transaction before starting a new transaction. <br>
+<!-- [not implemented]
+                The sqlite3_busy_timeout() and sqlite3_busy_handler() interfaces and the busy_timeout pragma are available to process B 
+                to help it deal with SQLITE_BUSY errors.
+-->
+                <br>
+                <br>
+                An SQLITE_BUSY error can occur at any point in a transaction: when the transaction is first started, during any write or 
+                update operations, or when the transaction commits. <br>
+                To avoid encountering SQLITE_BUSY errors in the middle of a transaction, the application can use BEGIN IMMEDIATE instead of 
+                just BEGIN to start a transaction. <br>
+                The BEGIN IMMEDIATE command might itself return SQLITE_BUSY, but if it succeeds, then SQLite guarantees that no subsequent 
+                operations on the same database through the next COMMIT will return SQLITE_BUSY.
+                <br>
+                <br>
+                See also: SQLITE_BUSY_RECOVERY and SQLITE_BUSY_SNAPSHOT.
+                <br>
+                <br>
+                The SQLITE_BUSY result code differs from SQLITE_LOCKED in that SQLITE_BUSY indicates a conflict with a separate database 
+                connection, probably in a separate process, whereas SQLITE_LOCKED indicates a conflict within the same database connection 
+                (or sometimes a database connection with a shared cache).
+          </td>
+         </tr>
+         <tr>
+          <td>
+            6 - SQLITE_LOCKED
+          </td>
+          <td>
+                A table in the database is locked 
+          <a name=SQLITE_NOMEM></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            7 - SQLITE_NOMEM
+          </td>
+          <td>
+                A malloc() failed 
+                <br>
+                <br>
+                The SQLITE_NOMEM result code indicates that SQLite was unable to allocate all the memory it needed to complete the operation. <br>
+                In other words, an internal call to sqlite3_malloc() or sqlite3_realloc() has failed in a case where the memory being allocated 
+                was required in order to continue the operation.
+          </td>
+         </tr>
+         <tr>
+          <td>
+            8 - SQLITE_READONLY
+          </td>
+          <td>
+                Attempt to write a readonly database 
+          <a name=SQLITE_INTERRUPT></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            9 - SQLITE_INTERRUPT
+          </td>
+          <td>
+                Operation terminated by sqlite_interrupt() 
+                <br>
+                <br>
+                The SQLITE_INTERRUPT result code indicates that an operation was interrupted by the sqlite3_interrupt() interface. <br>
+                See also: <a href="#SQLITE_ABORT">SQLITE_ABORT</a>.
+          <a name=SQLITE_IOERR></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            10 - SQLITE_IOERR
+          </td>
+          <td>
+                Some kind of disk I/O error occurred
+                <br>
+                <br>
+                The SQLITE_IOERR result code says that the operation could not finish because the operating system reported an I/O error.
+                <br>
+                <br>
+                A full disk drive will normally give an SQLITE_FULL error rather than an SQLITE_IOERR error.
+                <br>
+                <br>
+                There are many different extended result codes for I/O errors that identify the specific I/O operation that failed.
+          </td>
+         </tr>
+         <tr>
+          <td>
+            11 - SQLITE_CORRUPT
+          </td>
+          <td>
+                The database disk image is malformed 
+          </td>
+         </tr>
+         <tr>
+          <td>
+            12 - SQLITE_NOTFOUND
+          </td>
+          <td>
+                (Internal Only) Table or record not found 
+            <a name=SQLITE_FULL></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            13 - SQLITE_FULL
+          </td>
+          <td>
+                Insertion failed because database is full
+                <br>
+                <br>
+                The SQLITE_FULL result code indicates that a write could not complete because the disk is full. <br>
+                Note that this error can occur when trying to write information into the main database file, or 
+                it can also occur when writing into temporary disk files.
+                <br>
+                <br>
+                Sometimes applications encounter this error even though there is an abundance of primary disk space because 
+                the error occurs when writing into temporary disk files on a system where temporary files are stored on a 
+                separate partition with much less space that the primary disk.
+          </td>
+         </tr>
+         <tr>
+          <td>
+            14 - SQLITE_CANTOPEN
+          </td>
+          <td>
+                Unable to open the database file 
+          </td>
+         </tr>
+         <tr>
+          <td>
+            15 - SQLITE_PROTOCOL
+          </td>
+          <td>
+                Database lock protocol error 
+          </td>
+         </tr>
+         <tr>
+          <td>
+            16 - SQLITE_EMPTY
+          </td>
+          <td>
+                (Internal Only) Database table is empty 
+            <a name=SQLITE_SCHEMA></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            17 - SQLITE_SCHEMA
+          </td>
+          <td>
+                The database schema changed 
+                <br>
+                <br>
+                The SQLITE_SCHEMA result code indicates that the database schema has changed. <br>
+                This result code can be returned from 
+                <a href="sqlite3_step.htm">sqlite3_step</a>() for a prepared statement that was generated using 
+                <a href="sqlite3_prepare.htm">sqlite3_prepare</a>(). <br>
+                If the database schema was changed by some other process in between the time that the statement was prepared 
+                and the time the statement was run, this error can result.
+                <br>
+                <br>
+                If a prepared statement is generated from sqlite3_prepare_v2() [it is] then the statement is automatically re-prepared if the schema changes, 
+                up to SQLITE_MAX_SCHEMA_RETRY times (default: 50). The 
+                <a href="sqlite3_step.htm">sqlite3_step</a>() interface will only return SQLITE_SCHEMA back to the application 
+                if the failure persists after these many retries.
+          </td>
+         </tr>
+         <tr>
+          <td>
+            18 - SQLITE_TOOBIG
+          </td>
+          <td>
+                Too much data for one row of a table 
+            <a name=SQLITE_CONSTRAINT></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            19 - SQLITE_CONSTRAINT
+          </td>
+          <td>
+                Abort due to constraint violation 
+                <br>
+                <br>
+                The SQLITE_CONSTRAINT error code means that an SQL constraint violation occurred while trying to process an SQL statement. <br>
+                Additional information about the failed constraint can be found by consulting the accompanying error message (returned via 
+                sqlite3_errmsg()) or by looking at the extended error code.
+          </td>
+         </tr>
+         <tr>
+          <td>
+            20 - SQLITE_MISMATCH
+          </td>
+          <td>
+                Data type mismatch 
+            <a name=SQLITE_MISUSE></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            21 - SQLITE_MISUSE
+          </td>
+          <td>
+                Library used incorrectly
+                <br>
+                <br>
+                The SQLITE_MISUSE return code might be returned if the application uses any SQLite interface in a way that is undefined or unsupported. <br>
+                For example, using a prepared statement after that prepared statement has been finalized might result in an SQLITE_MISUSE error.
+                <br>
+                <br>
+                SQLite tries to detect misuse and report the misuse using this result code. <br>
+                However, there is no guarantee that the detection of misuse will be successful. <br>
+                Misuse detection is probabilistic. Applications should never depend on an SQLITE_MISUSE return value.
+                <br>
+                <br>
+                If SQLite ever returns SQLITE_MISUSE from any interface, that means that the application is incorrectly coded and needs to be fixed. <br>
+                Do not ship an application that sometimes returns SQLITE_MISUSE from a standard SQLite interface because that application contains potentially serious bugs.
+          </td>
+         </tr>
+         <tr>
+          <td>
+            22 - SQLITE_NOLFS
+          </td>
+          <td>
+                Uses OS features not supported on host
+          </td>
+         </tr>
+         <tr>
+          <td>
+            23 - SQLITE_AUTH
+          </td>
+          <td>
+                Authorization denied
+            <a name=SQLITE_ROW></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            100 - SQLITE_ROW
+          </td>
+          <td>
+                sqlite_step() has another row ready
+                <br>
+                <br>
+                The SQLITE_ROW result code returned by 
+                <a href="sqlite3_step.htm">sqlite3_step</a>() indicates that another row of output is available.
+            <a name=SQLITE_DONE></a>
+          </td>
+         </tr>
+         <tr>
+          <td>
+            101 - SQLITE_DONE
+          </td>
+          <td>
+                sqlite_step() has finished executing
+                <br>
+                <br>
+                The SQLITE_DONE result code indicates that an operation has completed. <br>
+                The SQLITE_DONE result code is most commonly seen as a return value from 
+                <a href="sqlite3_step.htm">sqlite3_step</a>() indicating that the SQL statement 
+                has run to completion. <br>
+                But SQLITE_DONE can also be returned by other multi-step interfaces such as sqlite3_backup_step().
+          </td>
+         </tr>
+<!--
+         <tr>
+          <td>
+            0 - SQLITE_STATIC
+          </td>
+          <td>
+                
+          </td>
+         </tr>
+         <tr>
+          <td>
+            -1 - SQLITE_TRANSIENT
+          </td>
+          <td>
+          </td>
+         </tr>
+-->
+        </table>
+        <br>
+        &nbsp;
+        <br>
+        Obviously the actual values may be useful when debugging, which is the only reason they are included here, but source code should always use the human-readable names.
+        <br>
+        <a name=ehand></a>
+        <br>
+        <table>
+         <col style="width: 15%"/>
+         <tr>
+            <th valign=top>Error handlers</th>
+            <th></th>
+         </tr>
+         <tr>
+          <td>
+            SQLITE3_FATAL,<br>
+            SQLITE3_NON_FATAL
+          </td>
+          <td>
+            Standard error handlers, that can be switched between by invoking <b>sqlite3_set_fatal_id</b>(integer rid), or you can provide your
+            own, as long as it conforms to the following signature: function handler(string cmd, integer err_no, string err_desc). The default
+            is SQLITE3_FATAL, which produces a proper diagnostic report and call stack, whereas the non-fatal version simply returns the 
+            triplet {err_no, err_desc, cmd}, however you will probably also need to store the results of routines such as 
+            <a href="sqlite3_exec.htm">sqlite3_exec</a>() in an object to avoid typecheck errors.
+          </td>
+         </tr>
+        </table>
+        <br>
+        &nbsp;
+        <br>
+<!--
+6. Result Code Meanings
+The meanings for all $nResCode result code values are shown below, in numeric order.
+
+//(0) SQLITE_OK
+//(1) SQLITE_ERROR
+(2) SQLITE_INTERNAL
+The SQLITE_INTERNAL result code indicates an internal malfunction. In a working version of SQLite, an application should never see this result code. If application does encounter this result code, it shows that there is a bug in the database engine.
+
+SQLite does not currently generate this result code. However, application-defined SQL functions or virtual tables, or VFSes, or other extensions might cause this result code to be returned.
+
+(3) SQLITE_PERM
+The SQLITE_PERM result code indicates that the requested access mode for a newly created database could not be provided.
+
+//(4) SQLITE_ABORT
+//(5) SQLITE_BUSY
+(6) SQLITE_LOCKED
+The SQLITE_LOCKED result code indicates that a write operation could not continue because of a conflict within the same database connection or a conflict with a different database connection that uses a shared cache.
+
+For example, a DROP TABLE statement cannot be run while another thread is reading from that table on the same database connection because dropping the table would delete the table out from under the concurrent reader.
+
+The SQLITE_LOCKED result code differs from SQLITE_BUSY in that SQLITE_LOCKED indicates a conflict on the same database connection (or on a connection with a shared cache) whereas SQLITE_BUSY indicates a conflict with a different database connection, probably in a different process.
+
+//(7) SQLITE_NOMEM
+(8) SQLITE_READONLY
+The SQLITE_READONLY result code is returned when an attempt is made to alter some data for which the current database connection does not have write permission.
+
+//(9) SQLITE_INTERRUPT
+//(10) SQLITE_IOERR
+(11) SQLITE_CORRUPT
+The SQLITE_CORRUPT result code indicates that the database file has been corrupted. See the How To Corrupt Your Database Files for further discussion on how corruption can occur.
+
+(12) SQLITE_NOTFOUND
+The SQLITE_NOTFOUND result code is used in two contexts. SQLITE_NOTFOUND can be returned by the sqlite3_file_control() interface to indicate that the file control opcode passed as the third argument was not recognized by the underlying VFS. SQLITE_NOTFOUND can also be returned by the xSetSystemCall() method of an sqlite3_vfs object.
+
+The SQLITE_NOTFOUND result code is also used internally by the SQLite implementation, but those internal uses are not exposed to the application.
+
+//(13) SQLITE_FULL
+
+(14) SQLITE_CANTOPEN
+The SQLITE_CANTOPEN result code indicates that SQLite was unable to open a file. The file in question might be a primary database file or on of several temporary disk files.
+
+(15) SQLITE_PROTOCOL
+The SQLITE_PROTOCOL result code indicates a problem with the file locking protocol used by SQLite. The SQLITE_PROTOCOL error is currently only returned when using WAL mode and attempting to start a new transaction. There is a race condition that can occur when two separate database connections both try to start a transaction at the same time in WAL mode. The loser of the race backs off and tries again, after a brief delay. If the same connection loses the locking race dozens of times over a span of multiple seconds, it will eventually give up and return SQLITE_PROTOCOL. The SQLITE_PROTOCOL error should appear in practice very, very rarely, and only when there are many separate processes all competing intensely to write to the same database.
+
+(16) SQLITE_EMPTY
+The SQLITE_EMPTY result code is not currently used.
+
+//(17) SQLITE_SCHEMA
+(18) SQLITE_TOOBIG
+The SQLITE_TOOBIG error code indicates that a string or BLOB was too large. The default maximum length of a string or BLOB in SQLite is 1,000,000,000 bytes. This maximum length can be changed at compile-time using the SQLITE_MAX_LENGTH compile-time option, or at run-time using the sqlite3_limit(db,SQLITE_LIMIT_LENGTH,...) interface. The SQLITE_TOOBIG error results when SQLite encounters a string or BLOB that exceeds the compile-time or run-time limit.
+
+The SQLITE_TOOBIG error code can also result when an oversized SQL statement is passed into one of the sqlite3_prepare_v2() interfaces. The maximum length of an SQL statement defaults to a much smaller value of 1,000,000 bytes. The maximum SQL statement length can be set at compile-time using SQLITE_MAX_SQL_LENGTH or at run-time using sqlite3_limit(db,SQLITE_LIMIT_SQL_LENGTH,...).
+
+//(19) SQLITE_CONSTRAINT
+(20) SQLITE_MISMATCH
+The SQLITE_MISMATCH error code indicates a datatype mismatch.
+
+SQLite is normally very forgiving about mismatches between the type of a value and the declared type of the container in which that value is to be stored. For example, SQLite allows the application to store a large BLOB in a column with a declared type of BOOLEAN. But in a few cases, SQLite is strict about types. The SQLITE_MISMATCH error is returned in those few cases when the types do not match.
+
+The rowid of a table must be an integer. Attempt to set the rowid to anything other than an integer (or a NULL which will be automatically converted into the next available integer rowid) results in an SQLITE_MISMATCH error.
+
+//(21) SQLITE_MISUSE
+(22) SQLITE_NOLFS
+The SQLITE_NOLFS error can be returned on systems that do not support large files when the database grows to be larger than what the filesystem can handle. "NOLFS" stands for "NO Large File Support".
+
+(23) SQLITE_AUTH
+The SQLITE_AUTH error is returned when the authorizer callback indicates that an SQL statement being prepared is not authorized.
+
+(24) SQLITE_FORMAT
+The SQLITE_FORMAT error code is not currently used by SQLite.
+
+(25) SQLITE_RANGE
+The SQLITE_RANGE error indices that the parameter number argument to one of the sqlite3_bind routines or the column number in one of the sqlite3_column routines is out of range.
+
+(26) SQLITE_NOTADB
+When attempting to open a file, the SQLITE_NOTADB error indicates that the file being opened does not appear to be an SQLite database file.
+
+(27) SQLITE_NOTICE
+The SQLITE_NOTICE result code is not returned by any C/C++ interface. However, SQLITE_NOTICE (or rather one of its extended error codes) is sometimes used as the first argument in an sqlite3_log() callback to indicate that an unusual operation is taking place.
+
+(28) SQLITE_WARNING
+The SQLITE_WARNING result code is not returned by any C/C++ interface. However, SQLITE_WARNING (or rather one of its extended error codes) is sometimes used as the first argument in an sqlite3_log() callback to indicate that an unusual and possibly ill-advised operation is taking place.
+
+//(100) SQLITE_ROW
+//(101) SQLITE_DONE
+(256) SQLITE_OK_LOAD_PERMANENTLY
+The sqlite3_load_extension() interface loads an extension into a single database connection. The default behavior is for that extension to be automatically unloaded when the database connection closes. However, if the extension entry point returns SQLITE_OK_LOAD_PERMANENTLY instead of SQLITE_OK, then the extension remains loaded into the process address space after the database connection closes. In other words, the xDlClose methods of the sqlite3_vfs object is not called for the extension when the database connection closes.
+
+The SQLITE_OK_LOAD_PERMANENTLY return code is useful to loadable extensions that register new VFSes, for example.
+
+(257) SQLITE_ERROR_MISSING_COLLSEQ
+The SQLITE_ERROR_MISSING_COLLSEQ result code means that an SQL statement could not be prepared because a collating sequence named in that SQL statement could not be located.
+
+Sometimes when this error code is encountered, the sqlite3_prepare_v2() routine will convert the error into SQLITE_ERROR_RETRY and try again to prepare the SQL statement using a different query plan that does not require the use of the unknown collating sequence.
+
+(261) SQLITE_BUSY_RECOVERY
+The SQLITE_BUSY_RECOVERY error code is an extended error code for SQLITE_BUSY that indicates that an operation could not continue because another process 
+is busy recovering a WAL mode database file following a crash. The SQLITE_BUSY_RECOVERY error code only occurs on WAL mode databases.
+
+(262) SQLITE_LOCKED_SHAREDCACHE
+The SQLITE_LOCKED_SHAREDCACHE error code is an extended error code for SQLITE_LOCKED indicating that the locking conflict has occurred due to contention 
+with a different database connection that happens to hold a shared cache with the database connection to which the error was returned. 
+For example, if the other database connection is holding an exclusive lock on the database, then the database connection that receives this error will be 
+unable to read or write any part of the database file unless it has the read_uncommitted pragma enabled.
+
+The SQLITE_LOCKED_SHARECACHE error code works very much like the SQLITE_BUSY error code except that SQLITE_LOCKED_SHARECACHE is for separate database connections 
+that share a cache whereas SQLITE_BUSY is for the much more common case of separate database connections that do not share the same cache. 
+Also, the sqlite3_busy_handler() and sqlite3_busy_timeout() interfaces do not help in resolving SQLITE_LOCKED_SHAREDCACHE conflicts.
+
+(264) SQLITE_READONLY_RECOVERY
+The SQLITE_READONLY_RECOVERY error code is an extended error code for SQLITE_READONLY. The SQLITE_READONLY_RECOVERY error code indicates that a WAL mode database cannot be opened because the database file needs to be recovered and recovery requires write access but only read access is available.
+
+(266) SQLITE_IOERR_READ
+The SQLITE_IOERR_READ error code is an extended error code for SQLITE_IOERR indicating an I/O error in the VFS layer while trying to read from a file on disk. This error might result from a hardware malfunction or because a filesystem came unmounted while the file was open.
+
+(267) SQLITE_CORRUPT_VTAB
+The SQLITE_CORRUPT_VTAB error code is an extended error code for SQLITE_CORRUPT used by virtual tables. A virtual table might return SQLITE_CORRUPT_VTAB to indicate that content in the virtual table is corrupt.
+
+(270) SQLITE_CANTOPEN_NOTEMPDIR
+The SQLITE_CANTOPEN_NOTEMPDIR error code is no longer used.
+
+(275) SQLITE_CONSTRAINT_CHECK
+The SQLITE_CONSTRAINT_CHECK error code is an extended error code for SQLITE_CONSTRAINT indicating that a CHECK constraint failed.
+
+(283) SQLITE_NOTICE_RECOVER_WAL
+The SQLITE_NOTICE_RECOVER_WAL result code is passed to the callback of sqlite3_log() when a WAL mode database file is recovered.
+
+(284) SQLITE_WARNING_AUTOINDEX
+The SQLITE_WARNING_AUTOINDEX result code is passed to the callback of sqlite3_log() whenever automatic indexing is used. This can serve as a warning to application designers that the database might benefit from additional indexes.
+
+(513) SQLITE_ERROR_RETRY
+The SQLITE_ERROR_RETRY is used internally to provoke sqlite3_prepare_v2() (or one of its sibling routines for creating prepared statements) to try again to prepare a statement that failed with an error on the previous attempt.
+
+(517) SQLITE_BUSY_SNAPSHOT
+The SQLITE_BUSY_SNAPSHOT error code is an extended error code for SQLITE_BUSY that occurs on WAL mode databases when a database connection tries to promote a read transaction into a write transaction but finds that another database connection has already written to the database and thus invalidated prior reads.
+
+The following scenario illustrates how an SQLITE_BUSY_SNAPSHOT error might arise:
+
+Process A starts a read transaction on the database and does one or more SELECT statement. Process A keeps the transaction open.
+Process B updates the database, changing values previous read by process A.
+Process A now tries to write to the database. But process A's view of the database content is now obsolete because process B has modified the database file after process A read from it. Hence process A gets an SQLITE_BUSY_SNAPSHOT error.
+(520) SQLITE_READONLY_CANTLOCK
+The SQLITE_READONLY_CANTLOCK error code is an extended error code for SQLITE_READONLY. The SQLITE_READONLY_CANTLOCK error code indicates that SQLite is unable to obtain a read lock on a WAL mode database because the shared-memory file associated with that database is read-only.
+
+(522) SQLITE_IOERR_SHORT_READ
+The SQLITE_IOERR_SHORT_READ error code is an extended error code for SQLITE_IOERR indicating that a read attempt in the VFS layer was unable to obtain as many bytes as was requested. This might be due to a truncated file.
+
+(526) SQLITE_CANTOPEN_ISDIR
+The SQLITE_CANTOPEN_ISDIR error code is an extended error code for SQLITE_CANTOPEN indicating that a file open operation failed because the file is really a directory.
+
+(531) SQLITE_CONSTRAINT_COMMITHOOK
+The SQLITE_CONSTRAINT_COMMITHOOK error code is an extended error code for SQLITE_CONSTRAINT indicating that a commit hook callback returned non-zero that thus caused the SQL statement to be rolled back.
+
+(539) SQLITE_NOTICE_RECOVER_ROLLBACK
+The SQLITE_NOTICE_RECOVER_ROLLBACK result code is passed to the callback of sqlite3_log() when a hot journal is rolled back.
+
+(776) SQLITE_READONLY_ROLLBACK
+The SQLITE_READONLY_ROLLBACK error code is an extended error code for SQLITE_READONLY. The SQLITE_READONLY_ROLLBACK error code indicates that a database cannot be opened because it has a hot journal that needs to be rolled back but cannot because the database is readonly.
+
+(778) SQLITE_IOERR_WRITE
+The SQLITE_IOERR_WRITE error code is an extended error code for SQLITE_IOERR indicating an I/O error in the VFS layer while trying to write into a file on disk. This error might result from a hardware malfunction or because a filesystem came unmounted while the file was open. This error should not occur if the filesystem is full as there is a separate error code (SQLITE_FULL) for that purpose.
+
+(782) SQLITE_CANTOPEN_FULLPATH
+The SQLITE_CANTOPEN_FULLPATH error code is an extended error code for SQLITE_CANTOPEN indicating that a file open operation failed because the operating system was unable to convert the filename into a full pathname.
+
+(787) SQLITE_CONSTRAINT_FOREIGNKEY
+The SQLITE_CONSTRAINT_FOREIGNKEY error code is an extended error code for SQLITE_CONSTRAINT indicating that a foreign key constraint failed.
+
+(1032) SQLITE_READONLY_DBMOVED
+The SQLITE_READONLY_DBMOVED error code is an extended error code for SQLITE_READONLY. The SQLITE_READONLY_DBMOVED error code indicates that a database cannot be modified because the database file has been moved since it was opened, and so any attempt to modify the database might result in database corruption if the processes crashes because the rollback journal would not be correctly named.
+
+(1034) SQLITE_IOERR_FSYNC
+The SQLITE_IOERR_FSYNC error code is an extended error code for SQLITE_IOERR indicating an I/O error in the VFS layer while trying to flush previously written content out of OS and/or disk-control buffers and into persistent storage. In other words, this code indicates a problem with the fsync() system call in unix or the FlushFileBuffers() system call in windows.
+
+(1038) SQLITE_CANTOPEN_CONVPATH
+The SQLITE_CANTOPEN_CONVPATH error code is an extended error code for SQLITE_CANTOPEN used only by Cygwin VFS and indicating that the cygwin_conv_path() system call failed while trying to open a file. See also: SQLITE_IOERR_CONVPATH
+
+(1043) SQLITE_CONSTRAINT_FUNCTION
+The SQLITE_CONSTRAINT_FUNCTION error code is not currently used by the SQLite core. However, this error code is available for use by extension functions.
+
+(1288) SQLITE_READONLY_CANTINIT
+The SQLITE_READONLY_CANTINIT result code originates in the xShmMap method of a VFS to indicate that the shared memory region used by WAL mode exists buts its content is unreliable and unusable by the current process since the current process does not have write permission on the shared memory region. (The shared memory region for WAL mode is normally a file with a "-wal" suffix that is mmapped into the process space. If the current process does not have write permission on that file, then it cannot write into shared memory.)
+
+Higher level logic within SQLite will normally intercept the error code and create a temporary in-memory shared memory region so that the current process can at least read the content of the database. This result code should not reach the application interface layer.
+
+(1290) SQLITE_IOERR_DIR_FSYNC
+The SQLITE_IOERR_DIR_FSYNC error code is an extended error code for SQLITE_IOERR indicating an I/O error in the VFS layer while trying to invoke fsync() on a directory. The unix VFS attempts to fsync() directories after creating or deleting certain files to ensure that those files will still appear in the filesystem following a power loss or system crash. This error code indicates a problem attempting to perform that fsync().
+
+(1299) SQLITE_CONSTRAINT_NOTNULL
+The SQLITE_CONSTRAINT_NOTNULL error code is an extended error code for SQLITE_CONSTRAINT indicating that a NOT NULL constraint failed.
+
+(1544) SQLITE_READONLY_DIRECTORY
+The SQLITE_READONLY_DIRECTORY result code indicates that the database is read-only because process does not have permission to create a journal file in the same directory as the database and the creation of a journal file is a prerequisite for writing.
+
+(1546) SQLITE_IOERR_TRUNCATE
+The SQLITE_IOERR_TRUNCATE error code is an extended error code for SQLITE_IOERR indicating an I/O error in the VFS layer while trying to truncate a file to a smaller size.
+
+(1555) SQLITE_CONSTRAINT_PRIMARYKEY
+The SQLITE_CONSTRAINT_PRIMARYKEY error code is an extended error code for SQLITE_CONSTRAINT indicating that a PRIMARY KEY constraint failed.
+
+(1802) SQLITE_IOERR_FSTAT
+The SQLITE_IOERR_FSTAT error code is an extended error code for SQLITE_IOERR indicating an I/O error in the VFS layer while trying to invoke fstat() (or the equivalent) on a file in order to determine information such as the file size or access permissions.
+
+(1811) SQLITE_CONSTRAINT_TRIGGER
+The SQLITE_CONSTRAINT_TRIGGER error code is an extended error code for SQLITE_CONSTRAINT indicating that a RAISE function within a trigger fired, causing the SQL statement to abort.
+
+(2058) SQLITE_IOERR_UNLOCK
+The SQLITE_IOERR_UNLOCK error code is an extended error code for SQLITE_IOERR indicating an I/O error within xUnlock method on the sqlite3_io_methods object.
+
+(2067) SQLITE_CONSTRAINT_UNIQUE
+The SQLITE_CONSTRAINT_UNIQUE error code is an extended error code for SQLITE_CONSTRAINT indicating that a UNIQUE constraint failed.
+
+(2314) SQLITE_IOERR_RDLOCK
+The SQLITE_IOERR_UNLOCK error code is an extended error code for SQLITE_IOERR indicating an I/O error within xLock method on the sqlite3_io_methods object while trying to obtain a read lock.
+
+(2323) SQLITE_CONSTRAINT_VTAB
+The SQLITE_CONSTRAINT_VTAB error code is not currently used by the SQLite core. However, this error code is available for use by application-defined virtual tables.
+
+(2570) SQLITE_IOERR_DELETE
+The SQLITE_IOERR_UNLOCK error code is an extended error code for SQLITE_IOERR indicating an I/O error within xDelete method on the sqlite3_vfs object.
+
+(2579) SQLITE_CONSTRAINT_ROWID
+The SQLITE_CONSTRAINT_ROWID error code is an extended error code for SQLITE_CONSTRAINT indicating that a rowid is not unique.
+
+(2826) SQLITE_IOERR_BLOCKED
+The SQLITE_IOERR_BLOCKED error code is no longer used.
+
+(3082) SQLITE_IOERR_NOMEM
+The SQLITE_IOERR_NOMEM error code is sometimes returned by the VFS layer to indicate that an operation could not be completed due to the inability to allocate sufficient memory. This error code is normally converted into SQLITE_NOMEM by the higher layers of SQLite before being returned to the application.
+
+(3338) SQLITE_IOERR_ACCESS
+The SQLITE_IOERR_ACCESS error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xAccess method on the sqlite3_vfs object.
+
+(3594) SQLITE_IOERR_CHECKRESERVEDLOCK
+The SQLITE_IOERR_CHECKRESERVEDLOCK error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xCheckReservedLock method on the sqlite3_io_methods object.
+
+(3850) SQLITE_IOERR_LOCK
+The SQLITE_IOERR_LOCK error code is an extended error code for SQLITE_IOERR indicating an I/O error in the advisory file locking logic. Usually an SQLITE_IOERR_LOCK error indicates a problem obtaining a PENDING lock. However it can also indicate miscellaneous locking errors on some of the specialized VFSes used on Macs.
+
+(4106) SQLITE_IOERR_CLOSE
+The SQLITE_IOERR_ACCESS error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xClose method on the sqlite3_io_methods object.
+
+(4362) SQLITE_IOERR_DIR_CLOSE
+The SQLITE_IOERR_DIR_CLOSE error code is no longer used.
+
+(4618) SQLITE_IOERR_SHMOPEN
+The SQLITE_IOERR_SHMOPEN error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xShmMap method on the sqlite3_io_methods object while trying to open a new shared memory segment.
+
+(4874) SQLITE_IOERR_SHMSIZE
+The SQLITE_IOERR_SHMSIZE error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xShmMap method on the sqlite3_io_methods object while trying to resize an existing shared memory segment.
+
+(5130) SQLITE_IOERR_SHMLOCK
+The SQLITE_IOERR_SHMLOCK error code is no longer used.
+
+(5386) SQLITE_IOERR_SHMMAP
+The SQLITE_IOERR_SHMMAP error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xShmMap method on the sqlite3_io_methods object while trying to map a shared memory segment into the process address space.
+
+(5642) SQLITE_IOERR_SEEK
+The SQLITE_IOERR_SEEK error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xRead or xWrite methods on the sqlite3_io_methods object while trying to seek a file descriptor to the beginning point of the file where the read or write is to occur.
+
+(5898) SQLITE_IOERR_DELETE_NOENT
+The SQLITE_IOERR_DELETE_NOENT error code is an extended error code for SQLITE_IOERR indicating that the xDelete method on the sqlite3_vfs object failed because the file being deleted does not exist.
+
+(6154) SQLITE_IOERR_MMAP
+The SQLITE_IOERR_MMAP error code is an extended error code for SQLITE_IOERR indicating an I/O error within the xFetch or xUnfetch methods on the sqlite3_io_methods object while trying to map or unmap part of the database file into the process address space.
+
+(6410) SQLITE_IOERR_GETTEMPPATH
+The SQLITE_IOERR_GETTEMPPATH error code is an extended error code for SQLITE_IOERR indicating that the VFS is unable to determine a suitable directory in which to place temporary files.
+
+(6666) SQLITE_IOERR_CONVPATH
+The SQLITE_IOERR_CONVPATH error code is an extended error code for SQLITE_IOERR used only by Cygwin VFS and indicating that the cygwin_conv_path() system call failed. See also: SQLITE_CANTOPEN_CONVPATH
+-->
+
+        <br>
+        <br>
+
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

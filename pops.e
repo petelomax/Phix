@@ -1040,6 +1040,7 @@ global constant
 --       "Technical notes")
 --      The largest existing example of #ilASM can currently be found in pfileioN.e. --DEV builtins\VM
 --
+--UPDATE: #ilASM, technically still a lang-within-lang, I find perfectly acceptable...
 -- I accept that ilasm is a language-within-a-language; a concept I generally find rather
 --  obscene, however it seems a necessary evil, and hopefully one most users will avoid.
 --  Perhaps in time it can be eliminated, but right now I (really) cannot even begin to 
@@ -1080,11 +1081,28 @@ global constant
 --  to -1, hence the result of getc is always -1, hence always exits. The
 --  "fix" is to add a "ch = 255" somewhere in getc(). I cannot think of a
 --  practical way for ilASM() to affect ilxlate [isGscan=0] in pilx86.e; 
+--UPDATE: DUH/DEV You need a flag on symtab[N][S_State], akin to K_aod/
+--                K_noclr/K_rtn/K_Fres/K_ridt/K_dlft/?... which means
+--                "this var touched by ilASM: do NOT propagate values".
+--                (and analyse which asm ins. modify var, in pilasm.e)
+--                (which is probably a get_operand(bool first) thing,
+--                 or maybe we can restrict it to P1TYPE=MEMORY(?).]
+--                Oh, lea reg,[hll] should assume the worst, period.
+--                (if you are setting, or just examining, a hll var
+--                 in asm, it is reasonable to assume there is little
+--                 or no performance-critical hll code that uses it.)
+--                Note that modifying a hll var in #ilASM (and with 
+--                 lea reg,[hll] assuming the worst) prevents compiler 
+--                 optimisations such as type and value propagation on 
+--                 that variable. Albeit unlikely, it is theoretically 
+--                 possible to slow the whole thing down by speeding 
+--                 one bit up.
 --  adding opLset, a "set" version of opLchk, is a possibility, but not 
 --  really an improvement on the "ch = 255" solution. At least for now, 
 --  you must carefully inspect listing files of all #ilasm you write.
 --  In other words, avoid #ilASM unless you really really really need it.
 --
+--DEV re-check this handling, I think it is now fixed.
 -- Another quirk: if you code mov [hllvar],ax then the hll heritage of the inline
 --  assembler will kick in, see "[hllvar]" and go "dword" (or "qword" on 64-bit),
 --  then either (if you are lucky) emit a compiler error because ax is the wrong

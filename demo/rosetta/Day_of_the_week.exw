@@ -5,30 +5,17 @@
 -- Author Pete Lomax, August 2015
 
 include builtins\pdate.e
---/*
-constant t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
-
-function day_of_week(integer d, integer m, integer y)
--- day of week function (Sakamoto) returns 1..7 (Sun..Sat)
-integer l
-    y -= m<3
-    l = floor(y/4)-floor(y/100)+floor(y/400)
-    d += y+l+t[m]
-    return remainder(d,7)+1
-end function
---*/
 
 sequence res = {}
 for y=2008 to 2121 do
---  if day_of_week(25,12,y)=1 then
-    if day_of_week(y,12,25)=1 then
+    if day_of_week(y,12,25)=1 then  -- (1=sunday)
         res = append(res,y)
     end if
 end for
 
 ?res
 
--- alternative method, using windows API:
+-- alternative method, using windows API (not worth posting to rc):
 include builtins\cffi.e
 
 constant tST="""
@@ -60,29 +47,31 @@ BOOL WINAPI FileTimeToSystemTime(
   _In_   const FILETIME *lpFileTime,
   _Out_  LPSYSTEMTIME lpSystemTime
 );
-""",
-idST = define_struct(tST),
-pST = allocate_struct(idST),
-idFT = define_struct(tFT),
-pFT = allocate_struct(idFT),
-k32 = open_dll("kernel32.dll"),
---DEV update rc:
-xSTtoFT = define_cffi_func(k32,tSTtoFT),
-xFTtoST = define_cffi_func(k32,tFTtoST)
+"""
+if platform()=WINDOWS then
+    atom idST = define_struct(tST),
+         pST = allocate_struct(idST),
+         idFT = define_struct(tFT),
+         pFT = allocate_struct(idFT),
+         k32 = open_dll("kernel32.dll"),
+         xSTtoFT = define_cffi_func(k32,tSTtoFT),
+         xFTtoST = define_cffi_func(k32,tFTtoST)
 
-res = {}
+    res = {}
 
-set_struct_field(idST,pST,"wMonth",12)
-set_struct_field(idST,pST,"wDay",25)
-for y=2008 to 2121 do
-    set_struct_field(idST,pST,"wYear",y)
-    {} = c_func(xSTtoFT,{pST,pFT})
-    {} = c_func(xFTtoST,{pFT,pST})
-    if get_struct_field(idST,pST,"wDayOfWeek")=0 then
-        res = append(res,y)
-    end if
-end for
-?res
+    set_struct_field(idST,pST,"wMonth",12)
+    set_struct_field(idST,pST,"wDay",25)
+    for y=2008 to 2121 do
+        set_struct_field(idST,pST,"wYear",y)
+        {} = c_func(xSTtoFT,{pST,pFT})
+        {} = c_func(xFTtoST,{pFT,pST})
+        if get_struct_field(idST,pST,"wDayOfWeek")=0 then
+            -- (0==sunday)
+            res = append(res,y)
+        end if
+    end for
+    ?res
+end if
 
 {} = wait_key()
 

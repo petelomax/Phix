@@ -768,7 +768,7 @@ if batchmode then return end if
         Undefined()
 --8/7/2013: (for test/terror)
 --  elsif batchmode then
---MARKTYPES??
+--MARKTYPES?? (NEWGSCAN, are unused types fatal??)
     elsif batchmode or siNTyp=S_Type then
         fromWarnU = 1   -- don't re-do tokline/tokcol
         Abort(msg)

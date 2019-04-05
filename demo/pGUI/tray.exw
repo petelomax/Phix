@@ -1,0 +1,106 @@
+--
+-- demo\pGUI\tray.exw
+--
+include pGUI.e
+
+constant pixmap =
+{
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,1,2,3,3,3,3,3,3,3,2,1,0,0,0,
+ 0,0,2,1,2,3,3,3,3,3,2,1,2,0,0,0,
+ 0,0,3,2,1,2,3,3,3,2,1,2,3,0,0,0,
+ 0,0,3,3,2,1,2,3,2,1,2,3,3,0,0,0,
+ 0,0,3,3,3,2,1,2,1,2,3,3,3,0,0,0,
+ 0,0,3,3,3,3,2,1,2,3,3,3,3,0,0,0,
+ 0,0,3,3,3,2,1,2,1,2,3,3,3,0,0,0,
+ 0,0,3,3,2,1,2,3,2,1,2,3,3,0,0,0,
+ 0,0,3,2,1,2,3,3,3,2,1,2,3,0,0,0,
+ 0,0,2,1,2,3,3,3,3,3,2,1,2,0,0,0,
+ 0,0,1,2,3,3,3,3,3,3,3,2,1,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+}
+
+Ihandle dlg
+
+function exit_cb(Ihandle /*ih*/)
+    IupDestroy(dlg)
+    return IUP_IGNORE
+end function
+
+function hide_cb(Ihandle /*ih*/)
+    IupSetAttribute(dlg, "HIDETASKBAR", "YES")
+    return IUP_DEFAULT
+end function
+
+function show_cb(Ihandle /*ih*/)
+    IupSetAttribute(dlg, "HIDETASKBAR", "NO")
+    return IUP_DEFAULT
+end function
+
+procedure showmenu()
+Ihandle menu = IupMenu({IupItem("Show", Icallback("show_cb")),
+                        IupItem("Hide", Icallback("hide_cb")),
+                        IupItem("Exit", Icallback("exit_cb"))})
+    IupPopup(menu, IUP_MOUSEPOS, IUP_MOUSEPOS)
+    IupDestroy(menu)
+end procedure
+
+function k_esc(Ihandle ih)
+    IupDestroy(ih)
+    return IUP_DEFAULT
+end function
+
+function close_cb(Ihandle ih)
+    IupSetAttribute(ih, "HIDETASKBAR", "YES")
+    return IUP_IGNORE
+end function
+
+function trayclick_cb(Ihandle ih, int button, int pressed, int dclick)
+    printf(1,"trayclick_cb(button=%d, pressed=%d, dclick=%d)\n", {button, pressed, dclick})
+    if (button==1 and pressed) then
+        IupSetAttribute(ih, "HIDETASKBAR", "NO")
+    elsif (button==3 and pressed) then
+        showmenu()
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure TrayTest()
+    Ihandle img = IupImage(16, 16, pixmap)
+    IupSetAttribute(img, "0", "BGCOLOR")
+    IupSetAttribute(img, "1", "255 255 0")
+    IupSetAttribute(img, "2", "255 0 0")
+    IupSetAttribute(img, "3", "255 255 0")
+    IupSetHandle("img", img)
+
+    dlg = IupDialog(NULL)
+
+    IupSetAttribute(dlg, "TITLE", "Tray Test")
+    IupSetAttribute(dlg, "TRAY", "YES")
+--  IupSetAttribute(dlg, "TRAYTIPBALLOON", "Yes")
+--  IupSetAttribute(dlg, "TRAYTIPBALLOONTITLE", "Test Title")
+--  IupSetAttribute(dlg, "TRAYTIPBALLOONTITLEICON", "1")
+    IupSetAttribute(dlg, "TRAYTIP", "Tip at Tray")
+    IupSetAttribute(dlg, "TRAYIMAGE", "img")
+    IupSetAttribute(dlg, "SIZE", "100x100")
+    IupSetCallback(dlg, "TRAYCLICK_CB", Icallback("trayclick_cb"))
+    IupSetCallback(dlg, "CLOSE_CB", Icallback("close_cb"))
+    IupSetCallback(dlg, "K_ESC", Icallback("k_esc"))
+
+    IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
+
+    /* start only the task bar icon */
+--  IupSetAttribute(dlg, "HIDETASKBAR", "YES")
+end procedure
+
+procedure main()
+    IupOpen()
+    TrayTest()
+    IupMainLoop()
+    IupClose()
+end procedure
+main()
+

@@ -26,6 +26,119 @@ Please note the following entries are probably more for my benefit than yours,
 and contain some references to the low level back end which you may not find 
 very useful. But it is now all open source.
 
+Version 0.8.0
+=============
+17/08/2018: BUGFIX: delete_routine() was not setting refcounts or even storing 
+            the result correctly. res = delete_routine(res,rid) would work, but
+            tmp = {a,b}; res = delete_routine(tmp,rid) (and the same when tmp 
+            was an unnamed temporary variable due to inlining the {a,b}) would
+            leave res either completely unassigned or with its prior value.
+24/08/2018: BUGFIX: DoForwardDef() was declaring function returns as Private
+            rather than FuncRes, leading to saveFunctionResultVars() not being
+            called for routines (such as ba_sub) that had an explicit forward
+            definition, producing garbage results. Trivial fix, once found.
+02/12/2018: BUGFIX: sprintf("%f",2e-77*1e100) yeilded "1:000...". The ':' is
+            from '9'+1, it is kind of trying to print 19999... (which is fine,
+            if we end up with >5 left over we run back down, rounding up), but
+            instead of a 9 for the 2nd digit it got a 10. Clearly such values 
+            are quite rare, eg the apparently equivalent 2e23 does not exhibit
+            the same problem. Added a second test "if digit=10 then exit" and 
+            an "or digit=10" to round_str().
+12/01/2019: Added %v to [s]printf(), which is %s with a sprint(), and can
+            therefore be used to print [almost] anything. Note however that
+            bigatoms will show the bcd-internals, and bigints the base-65536 
+            internals, etc, so it ain't perfect [yet...].
+29/01/2019: "and board[i+direction][j+move] == iff(move=0?'.':opponent) then"
+            failed in pmain.e/DoIff() as exprBP was not zero, as already noted 
+            in the comment which read "we may yet have a problem..." next to
+            it. Trivial fix, just save/restore exprBP (and scBP, why not).
+15/02/2019: BUG: the type text_point() in builtins/pscreen.e was checking for
+            {300,500}, inherited from a {200,500} as found in OE's image.e,
+            however I had at some point resized my terminal to {500,271}. It
+            now checks for {65535,65535}. However, the problem was originally
+            triggered via a trace(1) in pilx86.e when running "p p -d e01",
+            ie typecheck within pTrace.e as compiled into p.exe, which simply
+            confused the bejesus out of pDiagN.e, as none of the addresses 
+            corresponded to the symtab of p.exw... and it still would ...
+            What I think it needs to do is check for addresses in the region 
+            of symtab[20=optable] or something like that, and (temporarily) 
+            use a "lower-level" symtab from symtab[T_EBP][3] (as set in p.exw,
+            potentially recursively), or somesuch. [DEV/TODO]
+25/02/2019: BUGFIX: the try statement had absolutely no localtype handling, as illustrated 
+            by the following code which compares said against an if construct:
+
+                integer q, q11, q22, q12, r, r11, r22, r12
+                if rand(2)=1 then
+                    q = 1
+                    q11 = q
+                else
+                    q = 2
+                    q22 = q
+                end if
+                q12 = q
+                ?q
+
+                try
+                    r = 1
+                    r11 = r
+                catch e
+                    r = 2
+                    r22 = r
+                end try
+                r12 = r
+                ?r
+
+                #isginfo{q,integer,1,2,object,-1}
+                #isginfo{q11,integer,1,1,object,-1}
+                #isginfo{q22,integer,2,2,object,-1}
+                #isginfo{q12,integer,1,2,object,-1}     -- good!
+
+                #isginfo{r,integer,1,2,object,-1}
+                #isginfo{r11,integer,1,1,object,-1}
+                #isginfo{r22,integer,2,2,object,-1}
+                --#isginfo{r12,integer,1,2,object,-1}
+                #isginfo{r12,integer,2,2,object,-1}     -- oops!
+
+            If you ran that code, r would always be shown as 2, despite no exception ever occuring
+            (and in fact an ex.err would contain 1, but the compiler still insists it must be 2).
+            The above code is now permanently part of test/t49ginfo.exw, with "if r12=2 then ?9/0".
+
+            The localtype information (which includes min/max as well as type) was not being properly
+            reset at "catch" and merged at "end try", in the same way it is at "else" and "end if",
+            and obviously similar mechanisms also exist for "for/while" .. "end for/while", which
+            turned out to be the more suitable to repurpose when fixing this particular issue.
+
+            Note that the il now generated re-uses opLoopTop and opCtrl,END+LOOP, something like:
+
+                try
+                --  opLoopTop,lmask,gmask,elnk
+                --  opTry,tmp,tgt
+                    ...
+                --  opCtrl,END+LOOP,link,emitline
+                --  opTryend,0,149,0,96,
+                catch
+                --  opLoopTop,lmask,gmask,elnk
+                --  opCatch,tlnk,e
+                    ...
+                --  opCtrl,END+LOOP,link,emitline
+                end try
+                --  opLabel,mergeSet,0/x86loc,link
+
+            (obviously I have used poetic licence and moved "catch" down two lines for clarity)
+            (and obviously them not loops, just blocks that need the same reset/merge handling)
+            Apart from the "that's always 2", the actual machine code is otherwise unchanged.
+            There is an untried and commented-out TRY constant in pltype.e, but replicating
+            opLoopTop as, I dunno, say, OpTryBlock seems like far too much effort for the 
+            rather scant reward of slightly easier to read ildump.txt files.
+            I also added clearIchain() to DoTry(), to reset any "known to be initialised" flags.
+
+08/03/2019  BUGFIX: Crash in pmain.e/DoIff() compiling the following:
+                integer i = rand(10)
+                bool doit = iff( false ? i>=5 and i<7 : i>5 and i<=7 )
+            Turns out it had never handled any and/or inside an iff() expression properly.
+            Simple fix was just Expr(0,0) ==>> Expr(0,asBool), times two, in DoIff().
+
+
 Version 0.7.8
 =============
 10/01/2018: BUGFIX: when the file/directory is not found, apply get_proper_path() 

@@ -1,0 +1,61 @@
+--
+-- demo\rosetta\Parametrized_SQL_statement.exw
+-- ===========================================
+-- 
+include pSQLite.e
+ 
+sqlite3 db = sqlite3_open(":memory:")
+
+constant {coltypes,colfmts,colrids} = columnize({
+    {SQLITE_INTEGER,"%4d",routine_id("sqlite3_column_int")},
+    {SQLITE_FLOAT,"%4g",routine_id("sqlite3_column_double")},
+    {SQLITE_TEXT,"%-20s",routine_id("sqlite3_column_text")}})
+
+procedure show(string what)
+    printf(1,"%s:\n",{what})
+    sqlite3_stmt pStmt = sqlite3_prepare(db,"SELECT * FROM players;")
+    while 1 do
+        integer res = sqlite3_step(pStmt)
+        if res=SQLITE_DONE then exit end if
+        if res!=SQLITE_ROW then ?9/0 end if
+        string text = ""
+        for c=1 to sqlite3_column_count(pStmt) do
+            integer ctype = sqlite3_column_type(pStmt,c),
+                    cdx = find(ctype,coltypes),
+                    rid = colrids[cdx]
+            string name = sqlite3_column_name(pStmt,c),
+                   data = sprintf(colfmts[cdx],call_func(rid,{pStmt,c}))
+            text &= sprintf("  %s:%s",{name,data})
+        end for
+        printf(1,"%s\n",{text})
+    end while
+    if sqlite3_finalize(pStmt)!=SQLITE_OK then ?9/0 end if
+end procedure
+
+integer res = sqlite3_exec(db,`create table players (name, score, active, jerseyNum)`)
+res = sqlite3_exec(db,`insert into players values ('Roethlisberger, Ben', 94.1, 1, 7 )`)
+res = sqlite3_exec(db,`insert into players values ('Smith, Alex',         85.3, 1, 11)`)
+res = sqlite3_exec(db,`insert into players values ('Doe, John',             15, 0, 99)`)
+res = sqlite3_exec(db,`insert into players values ('Manning, Payton',     96.5, 0, 123)`)
+
+show("Before")
+--pp({"Before",sqlite3_get_table(db, "select * from players")},{pp_Nest,2})
+
+-- ordinarily I would prefer named parameters and sqlbind_parameter_index() calls:
+sqlite3_stmt pStmt = sqlite3_prepare(db, `update players set name=?, score=?, active=? where jerseyNum=?`) 
+sqlite3_bind_text(pStmt,1,"Smith, Steve")
+sqlite3_bind_double(pStmt,2,42)
+sqlite3_bind_int(pStmt,3,true)
+sqlite3_bind_int(pStmt,4,99)
+res = sqlite3_step(pStmt);
+if res!=SQLITE_DONE then ?9/0 end if
+if sqlite3_finalize(pStmt)!=SQLITE_OK then ?9/0 end if
+
+show("After")
+--pp({"After",sqlite3_get_table(db, "select * from players")},{pp_Nest,2})
+
+sqlite3_close(db)
+
+{} = wait_key()
+abort(0)
+

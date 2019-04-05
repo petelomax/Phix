@@ -7,7 +7,7 @@
 
 include VM\pFPU.e   -- :%down53 etc
 
-constant onebillion = 1000_000_000
+constant onebillion = 1_000_000_000     -- (for fimul/fild)
 
 #ilASM{ jmp :%opRetf
 

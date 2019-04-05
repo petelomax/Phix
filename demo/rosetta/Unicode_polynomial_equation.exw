@@ -1,0 +1,493 @@
+--
+-- demo\rosetta\Unicode_polynomial_equation.exw
+-- ============================================
+--
+-- To simplify this task I first created a test file (save as utf8):
+--  <see Unicode_polynomial_equation.txt>
+-- Explanation: On finding a line beginning with "==> ", parse the previous line and check 
+--              that the output matches the rest of the line.
+--              Lines beginning "===> " contain alternative (valid) representations of the
+--              previous line, for use when uni_frac is false. Note these equivalences can
+--              then be used further on, eg the result on line 5 maps to line 3 via 2, not
+--              that it matters should the same equivalent be defined twice, and also note 
+--              that "==> " should always be the unicode version and "===> " the ascii one.
+--
+-- Obviously this is not well tested and //will// fail on the next thing thrown at it, but
+--  it shows the basic approach. Error handling omitted using that good ol' standby excuse
+--  "for clarity".
+--
+-- Note that space is not skipped when getting exponents, otherwise it might wrongly treat
+--  say "x + 2" as "x^2", since we /are/ allowing exponentiation symbols to be omitted. At
+--  the start of parse() we strip spaces around '^' (etc) to help with that.
+--
+-- Processing the input in utf32 form is a complete no-brainer; whereas constructing utf8 
+--  output is a little more subtle, but avoids creating a utf32 "string" just because all
+--  bytes happen to be less than 255, which would not necessarily be valid utf8/32.
+--
+constant uni_frac = false   -- if true output unicode superscripts and vulgar fractions
+
+constant UTF8BOM = {#EF,#BB,#BF},
+         SPTWO = #00B2,         -- superscript two
+         STHRE = #00B3,         -- superscript three
+         MIDOT = #00B7,         -- middle dot
+         SPONE = #00B9,         -- superscript one
+         QUART = #00BC,         -- one quarter
+         AHALF = #00BD,         -- one half
+         THQTR = #00BE,         -- three quarters
+         MULTY = #00D7,         -- multiplication sign
+         DIVDE = #2044,         -- division sign
+         SZERO = #2070,         -- superscript zero
+         SFOUR = #2074,         -- superscript four
+         SFIVE = #2075,         -- superscript five
+         SPSIX = #2076,         -- superscript six
+         SSEVN = #2077,         -- superscript seven
+         SEGHT = #2078,         -- superscript eight
+         SNINE = #2079,         -- superscript nine
+         SPLUS = #207A,         -- superscript plus
+         SMNUS = #207B,         -- superscript minus
+         SVNTH = #2150,         -- one seventh
+         NINTH = #2151,         -- one ninth
+         TENTH = #2152,         -- one tenth
+         THIRD = #2153,         -- one third
+         TWTHD = #2154,         -- two thirds
+         FIFTH = #2155,         -- one fifth
+         TWFTH = #2156,         -- two fifths
+         THFTH = #2157,         -- three fifths
+         FRFTH = #2158,         -- four fifths
+         SIXTH = #2159,         -- one sixth
+         FVSIX = #215A,         -- five sixths
+         EIGTH = #215B,         -- one eigth
+         THEGH = #215C,         -- three eigths
+         FVEGH = #215D,         -- five eigths
+--       ZTHRD = #2189,         -- zero thirds[??]
+         UPARW = #2191,         -- uparrow
+         BASET = #23E8,         -- base 10
+         SPACE = ' ',           -- space
+             T = 10,            -- align nxt tbl
+$
+
+constant {vulgar_fractions,unicode_vulgar_fractions} = columnize({{{1,4},QUART},
+                                                                  {{1,2},AHALF},
+                                                                  {{3,4},THQTR},
+                                                                  {{1,7},SVNTH},
+                                                                  {{1,9},NINTH},
+                                                                  {{1,T},TENTH},
+                                                                  {{1,3},THIRD},
+                                                                  {{2,3},TWTHD},
+                                                                  {{1,5},FIFTH},
+                                                                  {{2,5},TWFTH},
+                                                                  {{3,5},THFTH},
+                                                                  {{4,5},FRFTH},
+                                                                  {{1,6},SIXTH},
+                                                                  {{5,6},FVSIX},
+                                                                  {{1,8},EIGTH},
+                                                                  {{3,8},THEGH},
+                                                                  {{5,8},FVEGH}})
+
+constant EXPONENTS = {SZERO,SPONE,SPTWO,STHRE,SFOUR,SFIVE,SPSIX,SSEVN,SEGHT,SNINE}
+
+function skip(sequence s, integer sdx, sequence set)
+    while sdx<=length(s) 
+      and find(s[sdx],set) do
+        sdx += 1
+    end while
+    return sdx
+end function
+
+function get_sign(sequence s, integer sdx, bool allow_superscripts)
+integer sgn = +1, ch
+    for sdx=sdx to length(s) do
+        ch = s[sdx]
+        if allow_superscripts then
+            ch = iff(ch=SPLUS?'+':
+                 iff(ch=SMNUS?'-':
+                 iff(ch=SPACE?'?':ch))) -- (do not skip spaces, see note)
+        end if
+        if ch!='+'
+        and ch!=' ' then
+            if ch!='-' then exit end if
+            sgn *= -1
+        end if
+    end for
+    return {sgn,sdx}
+end function
+
+function get_num(sequence s, integer sdx, atom n=0, bool allow_superscripts=false, as_fraction=false)
+integer sgn = +1, ch, f, e10, d = 1
+atom p10 = 10
+bool none = not as_fraction -- (cope with "x" == "1x^1" and != "0x^0")
+                            -- (but not when processing the "34" of "12.34", obvs)
+    if not as_fraction then
+        {sgn,sdx} = get_sign(s,sdx,allow_superscripts)
+    end if
+    if not allow_superscripts then
+        sdx = skip(s,sdx,{' '}) 
+    end if
+    for sdx=sdx to length(s) do
+        ch = s[sdx]
+        if ch>='0' and ch<='9' then
+            if as_fraction then
+                n += (ch-'0')/p10
+                p10 *= 10
+            else
+                n = n*10+ch-'0'
+            end if
+            none = false
+        elsif allow_superscripts then
+            f = find(ch,EXPONENTS)
+            if f=0 then exit end if
+            n = n*10+f-1
+            none = false
+        elsif not find(ch," ,") then
+            exit
+        end if
+    end for
+    if not allow_superscripts then
+        if find(ch,{'e','E',BASET}) then
+            {e10,f,sdx} = get_num(s,sdx+1)
+            if f!=1 then ?9/0 end if
+            n *= power(10,e10)
+        elsif ch='.' then
+            if as_fraction then ?9/0 end if
+            {n,f,sdx} = get_num(s,sdx+1,n,as_fraction:=true)
+            if f!=1 then ?9/0 end if
+            none = false
+        else
+            f = find(ch,unicode_vulgar_fractions)
+            if f!=0 then
+                if as_fraction then ?9/0 end if
+                integer {vfn,vfd} = vulgar_fractions[f]
+                if uni_frac then
+                    n = n*vfd + vfn
+                    if d!=1 then ?9/0 end if
+                    d = vfd
+                else
+                    n += vfn/vfd
+                end if
+                sdx += 1
+                none = false
+            end if
+        end if
+    end if
+    if none then n = 1 end if
+    n *= sgn
+    return {n,d,sdx}
+end function
+
+function get_term(sequence s, integer sdx)
+integer last_sdx = sdx, -- (infinite loop check/prevent)
+        e = 0
+atom c, d = 1, f
+bool sdiv = false
+    {c,d,sdx} = get_num(s,sdx)
+    sdx = skip(s,sdx,{' ',MIDOT,MULTY})
+    if sdx<=length(s) 
+    and (s[sdx]='/' or
+         s[sdx]=DIVDE) then
+        sdx += 1
+        if sdx<=length(s) and s[sdx]!='x' then
+            {d,f,sdx} = get_num(s,sdx)
+            if f!=1 then ?9/0 end if
+            if not uni_frac then
+                c /= d
+                d = 1
+            end if
+        else
+            sdiv = true
+        end if
+    end if
+    if sdx<=length(s) and s[sdx]='x' then
+        sdx = skip(s,sdx+1,{'^','*',SPLUS,UPARW})
+        {e,f,sdx} = get_num(s,sdx,allow_superscripts:=true)
+        if f!=1 then ?9/0 end if
+        if sdiv then e = -e end if
+    else
+        if sdiv then ?9/0 end if
+    end if
+    if sdx<=length(s) 
+    and (s[sdx]='/' or
+         s[sdx]=DIVDE) then
+        if d!=1 then ?9/0 end if
+        {d,f,sdx} = get_num(s,sdx+1)
+        if f!=1 then ?9/0 end if
+        if not uni_frac then
+            c /= d
+            d = 1
+        end if
+    end if
+    if sdx=last_sdx then ?9/0 end if
+    return {e,c,d,sdx}
+end function
+
+function unicode_superscripts(integer e)
+-- display helper
+string res = ""
+    if e>9 then
+        res = unicode_superscripts(floor(e/10))
+        e = remainder(e,10)
+    end if
+    res &= utf32_to_utf8({EXPONENTS[e+1]})
+    return res
+end function
+
+enum EXP, COEF, FRAC    -- contents of terms[i]
+
+function poly(sequence terms)
+-- display helper
+string r = ""
+    for t=length(terms) to 1 by -1 do
+        {integer e, atom c, integer f} = terms[t]
+        if c!=0 then
+            if c=1 and f=1 and e!=0 then
+                r &= iff(r=""? "":" + ")
+            elsif c=-1 and f=1 and e!=0 then
+                r &= iff(r=""?"-":" - ")
+            else
+                if r!="" then
+                    r &= iff(c<0?" - ":" + ")
+                    c = abs(c)
+                end if
+                if f!=1 then    -- (hence/only when uni_frac==true)
+                    integer k = find({remainder(c,f),f},vulgar_fractions)
+                    if k then
+                        c = floor(c/f)
+                        if c!=0 then r &= sprintf("%d",c) end if
+                        r &= utf32_to_utf8({unicode_vulgar_fractions[k]})
+                    else
+                        r &= sprintf("%g",c/f)
+                    end if
+                else
+                    r &= sprintf("%g",c)
+                end if
+            end if
+            if e!=0 then
+                r &= 'x'
+                if e!=1 then
+                    if uni_frac then
+                        if e<0 then
+                            r &= utf32_to_utf8({SMNUS})
+                            e = -e
+                        end if
+                        r &= unicode_superscripts(e)
+                    else
+                        r &= sprintf("^%d",e)
+                    end if
+                end if
+            end if
+        end if
+    end for
+    if r="" then r="0" end if
+    return r
+end function
+
+function parse(sequence s)
+sequence terms = {}
+integer sdx = 1, e, f
+atom c
+    s = match_replace("<sup>",s,"^")
+    s = match_replace("</sup>",s,"")
+    s = match_replace("**",s,"^")
+    s = match_replace(" ^",s,"^")
+    s = match_replace("^ ",s,"^")
+    s = match_replace({' ',SPLUS},s,{SPLUS})
+    s = match_replace({' ',SMNUS},s,{SMNUS})
+    for i=1 to length(EXPONENTS) do
+        e = EXPONENTS[i]
+        s = match_replace({' ',e},s,{e})
+    end for 
+    while sdx<=length(s) do
+        {e,c,f,sdx} = get_term(s,sdx)
+        if c!=0 then -- (aside: +5 -5 may yet leave c==0)
+            terms = append(terms,{e,c,f})
+        end if
+    end while
+    terms = sort(terms)
+    -- merge, eg "10x^2 + 10x^2" -> 20x^2
+    for i=length(terms) to 2 by -1 do
+        if terms[i][EXP] = terms[i-1][EXP] then
+            if terms[i-1][FRAC]!=terms[i][FRAC] then
+                ?9/0 -- placeholder for more code
+            else
+                terms[i-1][COEF] += terms[i][COEF]
+            end if
+            terms[i..i] = {} -- (delete 2nd)
+        end if
+    end for
+    return poly(terms)
+end function
+
+sequence alts = {},     -- (unicode versions)
+         altn = {},     -- (idx of ascii equivalents)
+         lines = read_lines("Unicode_polynomial_equation.txt")
+
+if lines[1][1..3] = UTF8BOM then
+    -- remove/ignore any utf8 byte order mark
+    lines[1] = lines[1][4..$]
+end if
+
+for i=2 to length(lines) do
+    if length(lines[i])>5 
+    and lines[i][1..5] = "===> " then
+        alts = append(alts,lines[i-1][5..$])
+        altn = append(altn,i)
+    end if
+end for
+
+for i=2 to length(lines) do
+    if length(lines[i])>4 
+    and lines[i][1..4] = "==> " then
+        sequence line = utf8_to_utf32(lines[i-1])
+        sequence res = parse(line)
+        sequence expected = lines[i][5..$]
+        if res=expected then
+            -- (res is the unicode version)
+            if platform()!=WINDOWS or res="0" then
+                printf(1,"%2d: %40s   ok\n",{i-1,res})
+            else
+                -- (unicode output on windows consoles is fiddly...)
+                printf(1,"%2d: ok\n",i-1)
+            end if
+        else
+            integer k = find(expected,alts)
+            if k and res=lines[altn[k]][6..$] then
+                -- (res is the ascii equivalent)
+                printf(1,"%2d: %40s   ok\n",{i-1,res})
+            else
+                printf(1,"%d: error - %s\n",{i-1,res})
+            end if
+        end if
+    end if
+end for
+
+?"done"
+{} = wait_key()
+
+
+--/*
+{{out}}
+uni_frac = false
+<pre>
+ 1:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+ 4:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+ 6:                                        0   ok
+ 8:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+10:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+12:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+14:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+16:       1 + 40x^-1 + 42x^-3 - 2x^-4 + x^-5   ok
+19:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+21:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+23:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+25:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+27: x^5 - 0.5x^4 + 101.25x^3 + 100.75x + 2.5   ok
+30: x^5 - 0.5x^4 + 101.25x^3 + 100.75x + 2.5   ok
+32:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+34:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+36:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+38:             x^5 - 2x^4 + 42x^3 + 40x + 1   ok
+</pre>
+uni_frac = true (linux only)
+-- see Unicode_polynomial_equation.txt
+<pre>
+</pre>
+
+"started"
+1: ok
+4: ok(2)
+6: ok
+8: ok(2)
+10: ok(2)
+12: ok(2)
+14: ok(2)
+16: ok
+19: ok(2)
+21: ok(2)
+23: ok(2)
+25: error
+
+function get_coeff(sequence s)
+integer ch, csign = +1, c = 0
+    if length(s) and s[$]=MIDOT then
+        s = s[1..$-1]
+    end if
+    while length(s) do
+        ch = s[1]
+        if ch!=' ' and ch!='+' then
+            if ch='-' then
+                csign *= -1
+            else
+                exit
+            end if
+        end if
+        s = s[2..$]
+    end while
+    for i=1 to length(s) do
+        ch = s[i]
+        if ch>='0' and ch<='9' then
+            c = c*10+ch-'0'
+        elsif ch='.' then
+            integer p10 = 10
+            for j=i+1 to length(s) do
+                ch = s[j]
+                if ch!=' '
+                and ch!=',' then
+                    if ch>='0' and ch<='9' then
+                        c += (ch-'0')/p10
+                    else
+                        ?9/0
+                    end if
+                    p10 *= 10
+                end if
+            end for
+        elsif ch='e' then
+            integer e10 = get_coeff(s[i+1..$])
+            c*=power(10,e10)
+            exit
+--      elsif ch!=SPLUS then
+        elsif ch!=','
+          and ch!=' ' then
+            ?9/0
+        end if
+    end for
+    return c*csign
+end function
+
+function get_exp(sequence s)
+integer ch, esign = +1, e = 0, sdx = 0
+--?s
+    while sdx<=length(s) do
+        ch = s[sdx+1]
+        if ch!=' ' 
+        and ch!='+'
+        and ch!='*'
+        and ch!='^'
+        and ch!=SPLUS then
+            if ch='-'
+            or ch=SMNUS then
+                esign *= -1
+            else
+                exit
+            end if
+        end if
+--      s = s[2..$]
+        sdx += 1
+    end while
+    for i=sdx+1 to length(s) do
+        ch = s[i]
+        if ch>='0' and ch<='9' then
+            e = e*10+ch-'0'
+        elsif ch=SZERO
+           or (ch>=SFOUR and ch<=SNINE) then
+            e = e*10+(ch-SZERO)
+        elsif ch=SPONE then
+            e = e*10+1
+        else
+            exit
+        end if
+        sdx = i
+    end for
+    return {e*esign,s[sdx+1..$]}
+end function
+--*/
+
+

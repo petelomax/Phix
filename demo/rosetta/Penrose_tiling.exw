@@ -1,0 +1,133 @@
+--
+-- demo\rosetta\Penrose_tiling.exw
+-- ===============================
+--
+--  Resizeable. Press space to iterate/subdivide, C to toggle colour scheme
+--
+bool yellow_orange = true   -- false = magenta on black, outlines only
+
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+include builtins\complex.e
+ 
+constant golden_ratio = (1 + sqrt(5)) / 2
+
+function subdivide(sequence triangles)
+    sequence result = {}
+    integer colour
+    complex A, B, C, P, Q, R
+    for i=1 to length(triangles) do
+        {colour, A, B, C} = triangles[i]
+        if colour == 0 then
+            -- Subdivide orange triangle
+            P = complex_add(A,complex_div(complex_sub(B,A),golden_ratio))
+            result &= {{0, C, P, B}, {1, P, C, A}}
+        else
+            -- Subdivide yellow triangle
+            Q = complex_add(B,complex_div(complex_sub(A,B),golden_ratio))
+            R = complex_add(B,complex_div(complex_sub(C,B),golden_ratio))
+            result &= {{1, R, C, A}, {1, Q, R, B}, {0, R, Q, A}}
+        end if
+    end for
+    return result
+end function
+
+function initial_wheel()
+-- Create an initial wheel of yellow triangles around the origin
+    sequence triangles = {}
+    complex B, C
+    atom phi
+    for i=0 to 9 do
+        phi = (2*i-1)*PI/10
+        B = {cos(phi),sin(phi)}
+        phi = (2*i+1)*PI/10
+        C = {cos(phi),sin(phi)}
+        if mod(i,2)==0 then
+            {B, C} = {C, B}  -- mirror every second triangle
+        end if
+        triangles &= {{0, {0,0}, B, C}}
+    end for
+    return subdivide(triangles) -- ... and iterate once
+end function
+
+sequence triangles = initial_wheel()
+
+integer hw, hh, h
+
+procedure draw_one(sequence triangle, integer colour, mode)
+    if yellow_orange then
+        cdCanvasSetForeground(cddbuffer, colour)
+    end if
+    cdCanvasBegin(cddbuffer, mode)
+    for i=2 to 4 do
+        atom {x,y} = triangle[i]
+        cdCanvasVertex(cddbuffer, x*h+hw, y*h+hh) 
+    end for
+    cdCanvasEnd(cddbuffer)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    {hw, hh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
+    h = min(hw,hh)
+    if yellow_orange then
+        cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    else
+        cdCanvasSetBackground(cddbuffer, CD_BLACK)
+        cdCanvasSetForeground(cddbuffer, CD_MAGENTA)
+    end if
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    for i=1 to length(triangles) do
+        sequence triangle = triangles[i]
+        if yellow_orange then
+            integer colour = iff(triangle[1]?CD_ORANGE:CD_YELLOW)
+            draw_one(triangle,colour,CD_FILL)
+        end if
+        draw_one(triangle,CD_DARK_GREY,CD_CLOSED_LINES)
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=' ' then
+        triangles = subdivide(triangles)
+        IupUpdate(canvas)
+    elsif upper(c)='C' then
+        yellow_orange = not yellow_orange
+        IupUpdate(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "600x600") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Penrose tiling")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

@@ -66,7 +66,12 @@
             values triggering an internal invocation of this very routine).<br>
             Likewise the IupSetAtt function has been removed, see example 2 below, though admittedly when a non-null name has
             been provided that may require extra <a href="IupSetHandle.htm">IupSetHandle</a>() calls (which, btw, is equivalent
-            to making the handle global, and therefore a recipe for disaster in my book).
+            to making the handle global, and therefore potentially troublesome).<br>
+            C code that uses nested IupSetAtt[ributes[f]]() calls should normally be converted into a single 
+            <a href="paranormal.htm">paranormalised function</a> call when possible, otherwise be broken down into consecutive 
+            statements that all get passed the same ih, and/or explicit variables created (suitably/sensibly/nicely named) for 
+            any (previously anonymous) inner elements. Sometimes that can be a bit of a drag, but more often than not the code
+            ends up both easier to read and easier to modify at some later date.
          </td>
         </tr>
         <tr>
@@ -82,18 +87,14 @@
          </td>
          <td>
 <!--eucode>
-if bOpen then
-    IupSetAttributes(filedlg, "DIALOGTYPE=OPEN, TITLE=Open")
-else
-    IupSetAttributes(filedlg, "DIALOGTYPE=SAVE, TITLE=Save")
-end if
+string dlgtype = iff(bOpen?"DIALOGTYPE=OPEN, TITLE=Open"
+                          :"DIALOGTYPE=SAVE, TITLE=Save")
+IupSetAttributes(filedlg, dlgtype)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">if</font><font color="#000000"> bOpen</font><font color="#008080"> then
-</font><font color="#5E005E">    IupSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#008000"> "DIALOGTYPE=OPEN, TITLE=Open"</font><font color="#0000FF">)
-</font><font color="#008080">else
-</font><font color="#5E005E">    IupSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#008000"> "DIALOGTYPE=SAVE, TITLE=Save"</font><font color="#0000FF">)
-</font><font color="#008080">end if</font>
+<font color="#000000"></font><font color="#004080">string</font><font color="#000000"> dlgtype</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">bOpen</font><font color="#0000FF">?</font><font color="#008000">"DIALOGTYPE=OPEN, TITLE=Open"
+</font><font color="#0000FF">                          :</font><font color="#008000">"DIALOGTYPE=SAVE, TITLE=Save"</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#000000"> dlgtype</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -125,7 +126,9 @@ Ihandle list = IupList("VALUE=3, 1=Brazil, 2=USA, 3=Japan, 4=France")
           <b>Example 3:</b>
          </td>
          <td>
-            Enable or disable several buttons and menu entries simultaneously.
+            Enable or disable several buttons and/or menu entries simultaneously (you could equivalently use 
+            <a href="IupSetStrAttribute.htm#utility">IupSetInt</a> and a 
+            <a href="integer.htm#bool">bool</a>, not that it would make any significant difference).
          </td>
         </tr>
         <tr>
@@ -150,9 +153,6 @@ IupSetAttributes({b_cut,b_copy,b_delete,m_cut,m_copy,m_delete}, "ACTIVE", active
           <a href="IupGetAttribute.htm">IupGetAttribute</a>,
           <a href="IupSetAttribute.htm">IupSetAttribute</a>,
           <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>,
-          <a href="IupCanvas.htm">IupCanvas</a>,
-          <a href="IupDialog.htm">IupDialog</a>,
-          <a href="IupHBox.htm">IupHBox</a>,
           <a href="IupList.htm">IupList</a>
          </td>
         </tr>

@@ -1,0 +1,68 @@
+--
+-- demo\rosetta\Sunflower.exw
+-- ==========================
+--
+constant numberofseeds = 3000
+
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+procedure cdCanvasCircle(cdCanvas cddbuffer, atom x, y, r)
+    cdCanvasArc(cddbuffer,x,y,r,r,0,360)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+
+    integer {hw, hh} = sq_floor_div(IupGetIntInt(canvas, "DRAWSIZE"),2)
+    atom s = min(hw,hh)/150,
+         f = min(hw,hh)*8/125
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    atom c = (sqrt(5)+1)/2
+    for i=0 to numberofseeds do
+        atom r = power(i,c)/numberofseeds,
+             angle = 2*PI*c*i,
+             x = s*r*sin(angle)+hw,
+             y = s*r*cos(angle)+hh
+        cdCanvasCircle(cddbuffer,x,y,i/numberofseeds*f)
+    end for 
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "602x502") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Sunflower")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

@@ -582,6 +582,7 @@ integer lc
 --end if
 --trace(1)
 --if chovline!=0 then trace(1) end if
+--if lineno=162 then trace(1) end if
     lt = length(text)
     lc = length(comment)
 --  if not lt then return {} end if     18/7
@@ -821,7 +822,9 @@ end if
                 end if
             end if
         elsif ctype=TokenChar
-           or (ch='.' and chidx2<=length(text) and text[chidx2]>='0' and text[chidx2]<='9') then
+--17/8/18
+--         or (ch='.' and chidx2<=length(text) and text[chidx2]>='0' and text[chidx2]<='9') then
+           or (ch='.' and chidx2<=length(text) and text[chidx2]>='0' and text[chidx2]<='9' and bcomm=0) then
             allNumbers = (ch>='0' and ch<='9') or ch='.'
             while chidx2<=length(text) do
                 ch = text[chidx2]

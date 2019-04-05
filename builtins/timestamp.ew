@@ -228,26 +228,28 @@ string datestring, timestring
     return {datestring,timestring}
 end function
 
-global function GetLastAccessTime(string filename)
-atom hFile
-atom pAccessTime
-atom res
+global enum CREATION_TIME = 2, LAST_ACCESS_TIME = 3, MODIFICATION_TIME = 4
+
+--global function GetLastAccessTime(string filename)
+global function GetFileTime(string filename, integer which=LAST_ACCESS_TIME)
+    atom res = 0
 
     if tsinit=0 then initts() end if
-    hFile = c_func(xCreateFile,{filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+    atom hFile = c_func(xCreateFile,{filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
     if hFile == INVALID_HANDLE_VALUE then
         printf(1,"CreateFile(p.ini) failed\n")-- with %d\n", c_func(xGetLastError,{}))
-        return 0
-    end if
-    pAccessTime = allocate(sizeofFILETIME)
-    if c_func(xGetFileTime,{hFile, NULL, pAccessTime, NULL})=0 then
-        printf(1,"GetFileTime(p.ini) failed\n")
-        res = 0
     else
-        res = FILETIMEtoDateTimeStamp(pAccessTime)
+        atom pTime = allocate(sizeofFILETIME)
+        sequence args = {hFile, NULL, NULL, NULL}
+        args[which] = pTime
+        if c_func(xGetFileTime,args)=0 then
+            printf(1,"GetFileTime(p.ini) failed\n")
+        else
+            res = FILETIMEtoDateTimeStamp(pTime)
+        end if
+        if c_func(xCloseHandle,{hFile}) then end if
+        free(pTime)
     end if
-    if c_func(xCloseHandle,{hFile}) then end if
-    free(pAccessTime)
     return res
 end function
 

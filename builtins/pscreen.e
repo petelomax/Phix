@@ -218,14 +218,20 @@ end procedure
 
 -- copied from image.e:
 type text_point(sequence p)
-object w
-    if length(p)!=2 then return 0 end if
-    w = p[1]
+--object w
+    if length(p)!=2 then return false end if
+--  w = p[1]
 --9/5/15:
 --  if not integer(w) or w<1 or w>200 then return 0 end if
-    if not integer(w) or w<1 or w>300 then return 0 end if
-    w = p[2]
-    return integer(w) and w>=1 and w<=500
+--  if not integer(w) or w<1 or w>300 then return 0 end if
+--  if not integer(w) or w<1 or w>500 then return 0 end if
+--  w = p[2]
+--  return integer(w) and w>=1 and w<=500
+--15/2/19: (see readme.txt)
+-- 65535 based on the x+y*#10000 thing/must be 16-bit words...
+    object {x,y} = p
+    return integer(x) and x>=1 and x<=65535
+       and integer(y) and y>=1 and y<=65535
 end type
 
 global function save_text_image(text_point top_left, text_point bottom_right)

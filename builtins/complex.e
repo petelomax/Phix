@@ -6,6 +6,8 @@
 -- Note: some uses on http://rosettacode.org/wiki/Arithmetic/Complex suggest that
 --       norm==magnitude (aka abs), whereas complex_norm() is abs^2 in this lib.
 --
+global constant I = {0,1}   -- i
+
 constant REAL = 1,
          IMAG = 2
 
@@ -16,9 +18,11 @@ end type
 
 --
 -- The following type allows complex or atom arguments, the latter are treated as
---  /immediately converted to {a,0}. All functions return a complex, except a few 
---  which always return atom[1], and obviously complex_sprint returns a string; 
---  no routine here ever returns (this/a complexn) "either".
+--  and usually immediately converted to {a,0} [ie an imaginary part of 0]. 
+-- All functions return a complex, except a few which always return atom[1], and 
+--  obviously complex_sprint returns a string: no routine here ever returns one
+--  of these, by which I mean the type complexn of "either", so theoretically
+--  you shouldn't ever need this, unless you are writing mini-shim "wrappers".
 --  [1]: complex_real, complex_imag, complex_norm, complex_abs, complex_arg
 --       complex_theta (~=complex_arg), and complex_rho (==complex_abs).
 --
@@ -287,15 +291,28 @@ global function complex_cos(complexn a)
     return res
 end function
 
-global function complex_sprint(complexn a)
+global function complex_round(complex a, atom inverted_precision=1)
+    if atom(a) then a = {a,0} end if
+    a[REAL] = round(a[REAL],inverted_precision)
+    a[IMAG] = round(a[IMAG],inverted_precision)
+    return a
+end function
+
+global function complex_sprint(complexn a, bool both=false)
+--
+-- if both is true then 0 -> "0+0i"
+--                 else 0 -> "0", and 
+-- likewise {1,0} -> "1+0i" vs. "1",
+--          {0,1} -> "0+i" vs. "i"
+--
 sequence s = ""
 atom ar, ai
     {ar, ai} = iff(atom(a)?{a,0}:a)
-    if ar!=0 then
+    if ar!=0 or both then
         s = sprintf("%g",ar)
     end if
  
-    if ai!=0 then
+    if ai!=0 or both then
         if ai=1 then
             if length(s) then
                 s &= "+i"

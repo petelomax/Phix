@@ -21,6 +21,11 @@
         may have to resort to multithreading, whereas if you use multithreading unnecessarily, well that&rsquo;s just plain foolish.
        <br>
        <br>
+        Actually, in some cases there is one other benefit: multiple threads can utilise multiple cores and therefore get the job done
+        faster. Note however that each thread deserves its own private copy of any data it is working on - I would recommend using 
+        <a href="serialize.htm">serialize</a>() and <a href="deserialize.htm">deserialize</a>() to set things up.
+       <br>
+       <br>
         Multithreading is widely considered the most difficult general purpose thing a programmer ever has to master, though there are 
         of course far harder domain-specific problems. The following rules apply when programming with threads.
        <ul>
@@ -73,6 +78,23 @@
         In contrast, multitasking would have been completely ineffective, since each task would stall inside blocked i/o, without 
         being able to invoke task_yield() to let other things carry on, or at the very least the program would be significantly 
         complicated by attempts to use asynchronous i/o, which is effectively the same thing as multithreading anyway.
+       <br>
+       <br>
+        Another time I wrote some code to handle websockets. Background threads were used to wait for incoming messages, which 
+        worked fine, however at first the background threads also processed each message as it arrived, and that code ended up 
+        being modified on a regular basis. While it was technically possible to fix any problems that arose, they were almost
+        inevitably far more difficult to fix than average, and it turned out much better for the background threads to simply 
+        stack the messages, and the main thread to actually process them. The basic idea is illustrated in the example for 
+        <a href="get_thread_id.htm">get_thread_id</a>(), however in this case each background thread knew it ought to stack 
+        and did so without using that routine. The result was that you could modify the processing code quite naturally, without 
+        worrying about thread safety, or introducing often quite nasty bugs at every twist and turn. 
+        The lesson here is to put the absolute bare minimum code in the threads, and once it works leave it well alone.
+       <br>
+       <br>
+        If there is some significant processing that needs doing, think multitasking with reasonably frequent task_yields,
+        whereas to wait for events efficiently, think multithreading using the minimum possible code to deal with (just) 
+        the stalled states. Design your application such that code in background threads rarely needs modifying, in contrast
+        modifying code in the main thread or background tasks is likely to cause far fewer unexpected problems.
        <br>
        <br>
         The files demo\rosetta\AtomicUrpdates.exw and demo\rosetta\DiningPhilosophers.exw contain examples of use.

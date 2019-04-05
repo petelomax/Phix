@@ -1,22 +1,16 @@
 --
 -- builtins\base64.e
 -- =================
+--
 --   Base 64 Encoding and Decoding
+--
+--   Author: Pete Lomax  Jul 3 2002
 --
 --   Base64 is used to encode binary data into an ASCII string; this allows
 --   binary data to be transmitted using media designed to transmit text data only.
 --   See http://en.wikipedia.org/wiki/Base64 and the RFC 2045 standard for more
 --   information.
 --
-
-constant aleph = {'A','B','C','D','E','F','G','H','I','J','K','L','M',
-                  'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-                  'a','b','c','d','e','f','g','h','i','j','k','l','m',
-                  'n','o','p','q','r','s','t','u','v','w','x','y','z',
-                  '0','1','2','3','4','5','6','7','8','9','+','/'}
-
---#
---# - see also ccha in which inverted decode table is built.
 --#
 --# Pad character is '=' (61)
 --#
@@ -40,9 +34,6 @@ constant aleph = {'A','B','C','D','E','F','G','H','I','J','K','L','M',
 --# out[3]=in[2] rem 16 * 4 + in[3]/64
 --# out[4]=in[3] rem 64 * 1 
 --#
-constant ediv = {4, 16, 64,  0}
-constant erem = {0,  4, 16, 64}
-constant emul = {0, 16,  4,  1}
 --#
 --# When decoding the last four characters,
 --# if byte(3) = pad then length = 1 
@@ -56,19 +47,29 @@ constant emul = {0, 16,  4,  1}
 --# out[2]=in[2] rem 16 * 16 + in[3]/4   
 --# out[3]=in[3] rem  4 * 64 + in[4]
 --#
-constant drem = {64, 16,  4}
-constant dmul = { 4, 16, 64}
-constant ddiv = {16,  4,  1}
 
---# Some constants for smart looping
-
-constant nc4   = {2, 3, 4, 1} --# 1234123412341234...
-constant next  = {1, 1, 1, 0} --# increment by 3 every 4 iterations
-constant nc3   = {3, 1, 2}  --# 321321321321...
-constant ldrop = {2, 1, 1}  --# to drop len by 4 every 3 output
+bool binit = false
+sequence aleph
+sequence ccha   -- inverted decode table
 
 
-global function encode_base64(sequence in, integer wrap_column = 0)
+procedure initb()
+    aleph = {'A','B','C','D','E','F','G','H','I','J','K','L','M',
+             'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+             'a','b','c','d','e','f','g','h','i','j','k','l','m',
+             'n','o','p','q','r','s','t','u','v','w','x','y','z',
+             '0','1','2','3','4','5','6','7','8','9','+','/'}
+    --#
+    --# invert aleph to a decode table
+    --#
+    ccha = repeat(0, 256)
+    for i=1 to 64 do
+        ccha[aleph[i]] = i-1
+    end for
+    binit = true
+end procedure
+
+global function encode_base64(sequence in, integer wrap_column=0)
 --
 -- encodes to base64.
 --
@@ -76,14 +77,20 @@ global function encode_base64(sequence in, integer wrap_column = 0)
 -- The result should be broken into lines of no more than 76 characters before transmission.
 --
 integer len, oidx, prev, case4, tmp, inch
-sequence result
+string result
+sequence ediv = {4, 16, 64,  0},
+         erem = {0,  4, 16, 64},
+         emul = {0, 16,  4,  1},
+         nc4  = {2,  3,  4,  1}, --# 1234123412341234...
+         next = {1,  1,  1,  0} --# increment by 3 every 4 iterations
 
-    len = length(in)
+    if not binit then initb() end if
 
     --#
     --# start with a full-length sequence of pads;
     --# then decrement oidx to leave rqd pads in place
     --#
+    len = length(in)
     oidx = floor((len+2)/3)*4
     result = repeat('=', oidx)
     if remainder(len,3)!=0 then
@@ -105,7 +112,9 @@ sequence result
         --#
         tmp = 0
         if ediv[case4]>0 and inch<=len then
-            tmp = floor(in[inch]/ediv[case4])
+            integer ch = in[inch]
+            if ch<0 or ch>#FF then ?9/0 end if  -- bytes only!
+            tmp = floor(ch/ediv[case4])
         end if
         if erem[case4]>0 then
             tmp += remainder(prev, erem[case4])*emul[case4]
@@ -118,18 +127,23 @@ sequence result
         case4 = nc4[case4]
     end for
 
-    if wrap_column>0
-    and length(result)>wrap_column then
-        sequence chunks = {}
-        while 1 do
-            if length(result)<=wrap_column then
-                chunks = append(chunks,result)
-                exit
-            end if
-            chunks = append(chunks,result[1..wrap_column])
-            result = result[wrap_column+1..$]
-        end while
-        result = join(chunks, "\r\n")
+    if wrap_column>0 then
+        len = length(result)
+        integer start = 1
+        if len>wrap_column then
+            sequence chunks = {}
+            while 1 do
+                if len<=wrap_column then
+                    chunks = append(chunks,result[start..$])
+                    exit
+                end if
+                tmp = start
+                start += wrap_column
+                chunks = append(chunks,result[tmp..start-1])
+                len -= wrap_column
+            end while
+            result = join(chunks, "\r\n")
+        end if
     end if
 
     return result
@@ -142,23 +156,32 @@ global function decode_base64(sequence in)
 --
 -- The in parameter should be a string or sequence of characters with a length 
 --  which is a multiple of 4 between 4 and 76 (inclusive).
--- Note: As per RFC2045, lines should not exceed 76 characters. Rather than
---  join recieved encoded lines and pass the lot to decode() in one go, you
---  should pass individual lines and join the results from decode(). This
---  routine will not fare well if passed a string with embedded linebreaks.
+--
+-- The result is a string, but it may contain binary rather than text.
+--
+-- Note: As per RFC2045, lines should not exceed 76 characters.
+--  Joining received encoded lines and passing the lot to decode() in one go
+--  should be expected to be a little slower than passing individual lines 
+--  and joining the results from decode() - simply because the decoded form 
+--  is 3/4 or 75% of the size of the encoded form. However there may be cases
+--  such as splitting an already joined line, that tip things the other way.
 --
 integer len, oidx, case3, tmp
-sequence result
-sequence ccha
+string result
+sequence drem = {64, 16,  4},
+         dmul = { 4, 16, 64},
+         ddiv = {16,  4,  1},
+         nc3  = { 3,  1,  2},   --# 321321321321...
+         ldrop = {2,  1,  1}    --# to drop len by 4 every 3 output
 
---  in = substitute(in,"\r\n","")
---  in = substitute(in,"\r","")
---  in = substitute(in,"\n","")
+    if not binit then initb() end if
+
+    in = substitute(in,"\r\n","")
+    in = substitute(in,"\r","")
+    in = substitute(in,"\n","")
 
     len = length(in)
-    if remainder(len, 4)!=0 then
-        return -1
-    end if
+    if remainder(len, 4)!=0 then ?9/0 end if
 
     oidx = (len/4)*3
     case3 = 3
@@ -169,14 +192,6 @@ sequence ccha
         len -= 1
     end while
 
-    --#
-    --# invert aleph to a decode table
-    --#
-    ccha = repeat(0, 256)
-    for i=1 to 64 do
-        ccha[aleph[i]] = i-1
-    end for
-
     result = repeat('?', oidx)
     for i=oidx to 1 by -1 do
         --#
@@ -184,9 +199,9 @@ sequence ccha
         --# out[2]=in[2] rem 16 * 16 + in[3]/4   
         --# out[3]=in[3] rem  4 * 64 + in[4]
         --#
-        --# drem = {64,16,4}
-        --# dmul = {4,16,64}
-        --# ddiv = {16,4,1}
+        --# drem = {64,16, 4}
+        --# dmul = { 4,16,64}
+        --# ddiv = {16, 4, 1}
         --#
         tmp = remainder(ccha[in[len-1]], drem[case3])*dmul[case3]
         tmp += floor(ccha[in[len]]/ddiv[case3])
@@ -197,3 +212,22 @@ sequence ccha
 
     return result
 end function
+
+--/*
+just some quick tests:
+sequence s, e, d
+s = sq_sub(sq_rand(repeat(256,10000)),1)    -- NB: 0..255 only
+e = encode_base64(s,76)
+d = decode_base64(e)
+if d!=s then ?9/0 end if
+e = encode_base64(tagset(54))
+?e
+?length(e)
+
+for i=1 to 57 do
+    s = tagset(i)
+    e = encode_base64(s)
+    d = decode_base64(e)
+    if d!=s then ?9/0 end if
+end for
+--*/

@@ -1,0 +1,88 @@
+--
+-- demo\rosetta\Colour_wheel.exw
+-- =============================
+--
+--  Note: Shipped with distro solely because hsv_to_rgb() may be helpful.
+--        As-is, w*h calls to cdCanvasPixel() make this far too slow for
+--        use in a real application, using say IupImageRGB() might be a
+--        much better option instead.
+--
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+function hsv_to_rgb(atom h, s, v)
+    atom r,g,b
+    if s=0 then
+        {r,g,b} @= v
+    else
+        integer i = floor(h*6)
+        atom f = h*6-i,
+             p = v*(1-s),
+             q = v*(1-s*f),
+             t = v*(1-s*(1-f))
+        switch i do
+            case 0,
+                 6: {r,g,b} = {v, t, p}
+            case 1: {r,g,b} = {q, v, p}
+            case 2: {r,g,b} = {p, v, t}
+            case 3: {r,g,b} = {p, q, v}
+            case 4: {r,g,b} = {t, p, v}
+            case 5: {r,g,b} = {v, p, q}
+        end switch
+    end if
+    return cdEncodeColor(r*255, g*255, b*255)
+end function
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    integer radius = floor(min(w,h)/2)
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+
+    for x=1 to w do
+        for y=1 to h do
+            integer rx = x - cx,
+                    ry = y - cy
+            atom s = sqrt(rx*rx+ry*ry) / radius
+            if s <= 1.0 then
+                atom hue = ((atan2(ry, rx) / PI) + 1.0) / 2.0
+                cdCanvasPixel(cddbuffer, x, h-y, hsv_to_rgb(hue, s, 1)) 
+            end if 
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_MAGENTA)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "400x400") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Colour wheel")
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    IupCloseOnEscape(dlg)
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

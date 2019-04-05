@@ -1860,21 +1860,19 @@ integer idx
 
                 case "[]" then
                     for a=1 to length(source) do
-                        if compare(source[a], userdata[1])>=0 then
-                            if compare(source[a], userdata[2])<=0 then
-                                idx += 1
-                                dest[idx] = source[a]
-                            end if
+                        if  compare(source[a], userdata[1])>=0
+                        and compare(source[a], userdata[2])<=0 then
+                            idx += 1
+                            dest[idx] = source[a]
                         end if
                     end for
 
                 case "[)" then
                     for a=1 to length(source) do
-                        if compare(source[a], userdata[1])>=0 then
-                            if compare(source[a], userdata[2])<0 then
-                                idx += 1
-                                dest[idx] = source[a]
-                            end if
+                        if compare(source[a], userdata[1])>=0 and
+                           compare(source[a], userdata[2])<0 then
+                            idx += 1
+                            dest[idx] = source[a]
                         end if
                     end for
                 case "(]" then
@@ -1963,9 +1961,13 @@ integer idx
     return dest[1..idx]
 end function
 
-function filter_alpha(object elem, object ud)
-    if object(ud) then end if   -- suppress warnings
-    return t_alpha(elem)
+--function filter_alpha(object elem, object ud)
+function filter_alpha(integer ch, object /*userdata*/)
+--  if object(ud) then end if   -- suppress warnings
+--  return t_alpha(elem)
+--  Defined_Sets[CS_Alphabetic  ] = {{'a', 'z'}, {'A', 'Z'}}
+    return (ch>='a' and ch<='z')
+        or (ch>='A' and ch<='Z')
 end function
 
 --**

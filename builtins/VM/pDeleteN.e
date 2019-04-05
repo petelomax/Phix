@@ -516,12 +516,6 @@ end procedure -- (for Edita/CtrlQ)
 
     :%opDelRtn
 --------------
-        --
-        --  This is the "glue" needed to allow delete_routine() to be put in the optable.
-        --  Sure, I could rewrite it as pure #ilASM, but it was much easier to
-        --  write (and test) as a (global) hll routine; plus writing something 
-        --  like x=s[i] in assembler gets real tedious real fast, trust me.
-        --
         [32]
             -- calling convention
             --  lea edi,[res]       -- result location
@@ -533,29 +527,46 @@ end procedure -- (for Edita/CtrlQ)
                 -- integer, promote to atom:
                 fild dword[edi]
                 fldpi                   -- (any non-integer value would do)
-                call :%pStoreFlt        -- (preserves eax)
+                call :%pStoreFlt        -- (preserves all registers)
                 mov esi,[edi]
                 fstp qword[ebx+esi*4]
---              mov ecx,[ebx+esi*4-4]
---              or eax,ecx  -- (combine rid and type byte)
---              mov [ebx+edx*4-4],eax
-                or [ebx+esi*4-4],eax
+                or [ebx+esi*4-4],eax    -- (combine rid and type byte)
                 ret
           @@:
-                mov ecx,[ebx+esi*4-4]
-                cmp eax,-1
+                mov ecx,[ebx+esi*4-4]   -- type/delete_routine
+                cmp eax,-1              -- nb 0 is allowed
                 jne @f
-                    -- :e??iri  (invalid routine id)
+                    -- :e72iri(edi)     -- (invalid routine id)
+                    pop edx
+                    mov al,72           -- e72iri(edi)
+                    mov edi,eax
+                    sub edx,1
+                    jmp :!iDiag
                     int3
               @@:
-                or [ebx+esi*4-4],eax
-                and ecx,0x00FFFFFF
+--              and ecx,0x00FFFFFF
+                test ecx,0x00FFFFFF
                 jz @f
---                      :e??dras    -- (delete routine already set)
-                    int3
+                    cmp eax,0
+                    je @f
+                        -- e123dras     -- (delete routine already set)
+                        pop edx
+                        mov al,123      -- e123dras
+                        sub edx,1
+                        jmp :!iDiag
+                        int3
               @@:
---              or ecx,eax  -- (combine rid and type byte)
+                or [ebx+esi*4-4],eax    -- (combine rid and type byte)
+--              or ecx,eax              -- (combine rid and type byte)
 --              mov [ebx+esi*4-4],ecx
+                mov edx,[edi]
+                add dword[ebx+esi*4-8],1    -- incref
+                mov [edi],esi
+                cmp edx,h4
+                jle @f
+                    sub dword[ebx+edx*4-8],1
+                    jz :%pDealloc
+              @@:
                 ret
         [64]
             -- calling convention
@@ -569,7 +580,7 @@ end procedure -- (for Edita/CtrlQ)
                 -- integer, promote to atom:
                 fild qword[rdi]
                 fldpi                   -- (any non-integer value would do)
-                call :%pStoreFlt        -- (preserves rax)
+                call :%pStoreFlt        -- (preserves most registers)
                 mov rsi,[rdi]
                 fstp tbyte[rbx+rsi*4]
 --              mov rax,[rbx+rsi*4-8]
@@ -578,29 +589,43 @@ end procedure -- (for Edita/CtrlQ)
                 or [rbx+rsi*4-8],rax
                 ret
           @@:
-                mov rcx,[rbx+rsi*4-8]
-                cmp rax,-1
+                mov rcx,[rbx+rsi*4-8]   -- type/delete_routine
+                cmp rax,-1              -- nb 0 is allowed
                 jne @f
-                    -- :e??iri  (invalid routine id)
+                    -- :e72iri(edi)     -- (invalid routine id)
+                    pop rdx
+                    mov al,72           -- e72iri(edi)
+                    mov rdi,rax
+                    sub rdx,1
+                    jmp :!iDiag
                     int3
               @@:
-                or [rbx+rsi*4-8],rax
                 shl rcx,8
---              or rcx,rsi  -- (combine rid and type byte)
---              shr rcx,8
                 jz @f
---                  :e??dras
-                    int3
+                    cmp rax,0
+                    je @f
+                        -- e123dras     -- (delete routine already set)
+                        pop rdx
+                        mov al,123      -- e123dras
+                        sub rdx,1
+                        jmp :!iDiag
+                        int3
               @@:
---              mov [rbx+rdx*4-8],rax
---              ...
+                or [rbx+rsi*4-8],rax    -- (combine rid and type byte)
+                mov rdx,[rdi]
+                add qword[rbx+rsi*4-16],1   -- incref
+                mov r15,h4
+                mov [rdi],rsi
+                cmp rdx,r15
+                jle @f
+                    sub qword[rbx+rdx*4-16],1
+                    jz :%pDealloc
+              @@:
                 ret
 --  return o
 --end function
 --<
         []
-          @@:
-            ret
 
 --DEV obviously this becomes the backend entry point!!
 --procedure fdelete(object o)
@@ -617,7 +642,7 @@ end procedure -- (for Edita/CtrlQ)
             --  call :%opDelete     -- delete(eax)
             cmp eax,h4
             jl @f
-                add dword[ebx+eax*4-8],1
+                add dword[ebx+eax*4-8],1        -- incref
           @@:
             push eax                            --[1] o
             mov edx,routine_id(fdelete)         -- mov edx,imm32 (sets K_ridt)

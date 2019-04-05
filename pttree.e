@@ -1228,6 +1228,7 @@ global constant T_shrd          = 5240  tt_stringF("shrd",T_shrd)
 global constant T_EU4_0         = 5248  tt_stringF("EU4_0",T_EU4_0)
 global constant T_bt            = 5256  tt_stringF("bt",T_bt)
 global constant T_rdrand        = 5276  tt_stringF("rdrand",T_rdrand)
+global constant T_bsf           = 5284  tt_stringF("bsf",T_bsf)
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then

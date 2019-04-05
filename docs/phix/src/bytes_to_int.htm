@@ -21,21 +21,24 @@
           <b>Description:</b>
          </td>
          <td>Convert a <a href="sequence.htm">sequence</a> of byte values to an <a href="atom.htm">atom</a>.<br>
-             The elements of s should be in the order expected on the 386+, i.e. least-significant byte first.
+             The elements of s should be in the order expected, i.e. little-endian/least-significant byte first on an x86-based machine.
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Comments:</b>
          </td>
-         <td>The result could be greater than the integer type allows, so you should
-             assign it to an <a href="atom.htm">atom</a>.
+         <td>The result could be greater than the integer type allows, so you should assign it to an <a href="atom.htm">atom</a>.
           <br>
           <br>
             s would normally contain positive values that have been read
             using <a href="peek.htm">peek</a>() from 1, 2, 4, or 8 consecutive memory locations.<br>
             By default the result will be a signed integer, honouring the sign bit, 
-            but you can treat it as unsigned by passing 0 (false) as the second parameter.
+            but you can treat it as unsigned by passing 0 (false) as the second parameter.<br>
+            This routine can be used for byte/word/dword/qword conversion, and is just a simple wrapper for <a href="peek.htm">peekNS</a>().<br>
+            An error occurs if s contains any non-atom elements, or the length is not one of 1, 2, 4, or 8 (unlike OpenEuphoria, which pads/trims it to length 4).<br>
+            Better performance may be achived by using <a href="peek.htm">peekNS</a>() (or any other variant of peek) directly, unless s is a 
+            slice of a much larger peek, or manually constructed, etc.
          </td>
         </tr>
         <tr>
@@ -46,13 +49,21 @@
 <!--eucode>
 atom int32
 int32 = bytes_to_int({37,1,0,0})
--- int32 is 37 + 256*1 = 293
+-- int32 is 37 + #100*1 = 293
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> int32
 int32</font><font color="#0000FF"> =</font><font color="#5E005E"> bytes_to_int</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">37</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- int32 is 37 + 256*1 = 293</i></font>
+</font><font color="#000080"><i>-- int32 is 37 + #100*1 = 293</i></font>
 </pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\machine.e (an autoinclude) for details of the actual implementation.
          </td>
         </tr>
         <tr>

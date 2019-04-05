@@ -27,7 +27,8 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant phixversion = {0,7,6},    -- 0.7.6    -- 30/06/17
 --global constant phixversion = {0,7,7},    -- 0.7.7    -- 09/01/18
 --global constant phixversion = {0,7,8},    -- 0.7.8    -- 13/03/18
-global constant phixversion = {0,7,9},      -- 0.7.9    -- 13/04/18
+--global constant phixversion = {0,7,9},    -- 0.7.9    -- 13/04/18
+global constant phixversion = {0,8,0},      -- 0.8.0    -- 05/04/19
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...
@@ -348,6 +349,7 @@ global constant gType = 1,  -- T_integer..T_object, or 0 for "we don't know yet"
 --  Later on it has four other purposes:
 --  *   Final var-idx for S_Const and S_Gvar entries is stored here,
 --      see the start[DEV] of finalfixups() in pemit.e.
+--(Erm, NEWGSCAN:)
 --  *   The "routine_to_do_list" for pemit.e is built in S_Slink, see
 --      finalfixups() and scanforShortJmp() in pemit.e.
 --  *   Namespaces are linked together in pemit.e - while compile-time
@@ -488,7 +490,7 @@ global constant gType = 1,  -- T_integer..T_object, or 0 for "we don't know yet"
 --      On a Tvar, it indicates the variable is a routine parameter. If a normal
 --      variable is set but not used, no matter, eg void=xxx(), whereas for params 
 --      (which are set whenever there is a call), you should get an unused warning.
---      On a routine, it initially indicates a top-level-sub, and is later used to 
+--      On a routine, it initially indicates a top-level-sub, and is later used to      [DEV latter not NEWGSCAN (search&destroy?)]
 --      link up all reachable routines during the bind phase.
 --  Used in pmain.e (once), psym.e (once), pgscan(four times), and pemit.e (lots).
 --  UPDATE: 05/07/2013. Also used in pmain.e/Assignment, when assigning a literal
@@ -641,7 +643,7 @@ global integer T_ASeq           T_ASeq = 0
 global integer T_compare        T_compare = 0       -- map "if compare(a,b)<relop>-1/0/1" to "if a<relop>b"
 global integer T_find           T_find = 0          -- for defaulting 3rd param to 1
 global integer T_match          T_match = 0         -- for defaulting 3rd param to 1
-global integer T_get_text       T_get_text = 0      -- for defaulting 2nd param to -2
+--global integer T_get_text     T_get_text = 0      -- for defaulting 2nd param to -2
 global integer T_throw          T_throw = 0     -- for defaulting 2nd param to {}
 global integer T_equal          T_equal = 0         -- map "if equal(a,b)" to "if a=b"
 global integer T_length         T_length = 0        -- map s[..length(s)] to s[..-1]
@@ -919,6 +921,11 @@ global sequence rs_version
 constant default_rs_manifest = 
 "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n"&
 "<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\" manifestVersion=\"1.0\">\r\n"&
+ "<application xmlns=\"urn:schemas-microsoft-com:asm.v3\">\r\n"&
+  "<windowsSettings>\r\n"&
+   "<dpiAware xmlns=\"http://schemas.microsoft.com/SMI/2005/WindowsSettings\">True</dpiAware>\r\n"&
+  "</windowsSettings>\r\n"&
+ "</application>\r\n"&
 -- "<assemblyIdentity name=\"x.x.x\" processorArchitecture=\"x86\" version=\"5.1.0.0\" type=\"win32\"/>\r\n"&
  "<assemblyIdentity name=\"phix\" processorArchitecture=\"x86\" version=\"5.1.0.0\" type=\"win32\"/>\r\n"&
 -- "<description>no</description>\r\n"&

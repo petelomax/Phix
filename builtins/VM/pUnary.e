@@ -43,7 +43,19 @@ include VM\pFPU.e   -- :%down53 etc
                 int3
     [32]
         ::e111bolt32besp
-            int3
+            [32]
+                add esp,8
+                pop edx
+                mov al,111  -- e111bolt32besp
+                sub edx,1
+            [64]
+                add rsp,8   -- (8 not 16)
+                pop rdx
+                mov al,111  -- e111bolt32besp
+                sub rdx,1
+            []
+                jmp :!iDiag
+                int3
     []
 
 --/*

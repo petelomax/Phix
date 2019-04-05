@@ -8,19 +8,18 @@
 without trace
 without debug
 
-global function find(object x, sequence s, integer start=1)
-    if start<0 then start += length(s)+1 end if
-    for i=start to length(s) do
-        if x=s[i] then return i end if
+global function find(object needle, sequence haystack, integer start=1)
+    if start<0 then start += length(haystack)+1 end if
+    for i=start to length(haystack) do
+        if needle=haystack[i] then return i end if
     end for
     return 0
 end function
 
-global function rfind(object x, sequence s, integer start=-1)
---  if start=-1 then start = length(s) end if
-    if start<0 then start += length(s)+1 end if
+global function rfind(object needle, sequence haystack, integer start=-1)
+    if start<0 then start += length(haystack)+1 end if
     for i=start to 1 by -1 do
-        if x=s[i] then return i end if
+        if needle=haystack[i] then return i end if
     end for
     return 0
 end function

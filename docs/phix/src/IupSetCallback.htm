@@ -16,15 +16,15 @@
             include pGUI.e
             <br>
             <br>
-            IupSetCallback(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="Icallback.htm">cbfunc</a> func)
+            IupSetCallback(<a href="Ihandle.htm">Ihandles</a> ih, <a href="string.htm">string</a> name, <a href="Icallback.htm">cbfunc</a> func)
             <br>
             <i>-- or --</i>
             <br>
-            <a href="Ihandle.htm">Ihandle</a> ih = IupSetCallbackf(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> name, <a href="Icallback.htm">cbfunc</a> func)
+            IupSetCallbacks(<a href="Ihandle.htm">Ihandles</a> ih, <a href="sequence.htm">sequence</a> namefuncpairs)
             <br>
             <i>-- or --</i>
             <br>
-            <a href="Ihandle.htm">Ihandle</a> ih = IupSetCallbacks(<a href="Ihandle.htm">Ihandle</a> ih, <a href="sequence.htm">sequence</a> namefuncpairs)
+            <a href="Ihandle.htm">Ihandles</a> ih = IupSetCallbackf(<a href="Ihandle.htm">Ihandles</a> ih, <a href="string.htm">string</a> name, <a href="Icallback.htm">cbfunc</a> func)
          </td>
         </tr>
         <tr>
@@ -34,8 +34,8 @@
          <td>Associates a callback to an event.
             <br>
             <br>
-            ih: identifier of the interface element. <br>
-            name: name of the callback. <br>
+            ih: identifier of the interface element(s) [can be a single Ihandle or a (flat) sequence of them]. <br>
+            name: name of the callback, see the documentation of each specific interface element for a list of valid/meaningful names. <br>
             func: a callback address (atom) from <a href="Icallback.htm">Icallback</a>(<i>"name"</i>), or NULL. If NULL removes the association.<br>
             namefuncpairs: a flat <a href="sequence.htm">sequence</a>, where the odd elements are <a href="string.htm">string</a> names and even elements 
             <a href="Icallback.htm">cbfunc</a> callbacks. Length must be even.
@@ -46,6 +46,10 @@
           <b>Notes:</b>
          </td>
          <td>
+            All <a href="paranormal.htm">paranormalised functions</a> permit an implit invocation of IupSetCallback, as per the paragraph starting
+            "If any of this troubles you" half way down that page.
+            <br>
+            <br>
             This function replaces the deprecated combination:
 <!--eucode>
 IupSetFunction(global_name, func)
@@ -73,7 +77,27 @@ IupSetAttribute(ih, name, global_name)
             IupSetCallback(ih,name,func) routine yields a less helpful return value (which is ignored in all the C samples I have studied, and explains why the Phix 
             version is a procedure).<br>
             When translating C code to Phix such calls can/should be replaced with IupSetCallback[f](ih,name,func), in preference to IupSetCallbacks(ih,{name,func}), 
-            not that there should ever be a significant difference.
+            not that there should ever be a significant difference (other than IupSetCallbackf being a function rather than a procedure).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+IupSetCallback(canvas1,"ACTION",Icallback("redraw_cb"))
+IupSetCallback({canvas1,canvas2},"ACTION",Icallback("redraw_cb"))
+IupSetCallbacks({canvas1,canvas2},{"ACTION",Icallback("redraw_cb"),"MAP_CB",Icallback("map_cb")})
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">IupSetCallback</font><font color="#0000FF">(</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#008000">"ACTION"</font><font color="#0000FF">,</font><font color="#5E005E">Icallback</font><font color="#800000">(</font><font color="#008000">"redraw_cb"</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetCallback</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"ACTION"</font><font color="#0000FF">,</font><font color="#5E005E">Icallback</font><font color="#800000">(</font><font color="#008000">"redraw_cb"</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#5E005E">IupSetCallbacks</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"ACTION"</font><font color="#0000FF">,</font><font color="#5E005E">Icallback</font><font color="#800080">(</font><font color="#008000">"redraw_cb"</font><font color="#800080">)</font><font color="#0000FF">,</font><font color="#008000">"MAP_CB"</font><font color="#0000FF">,</font><font color="#5E005E">Icallback</font><font color="#800080">(</font><font color="#008000">"map_cb"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            <small>(set one callback on one interface element / the same callback on two elements / two callbacks on both elements)</small>
+          <br>
          </td>
         </tr>
         <tr>

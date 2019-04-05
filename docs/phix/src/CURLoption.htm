@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-          include pGUI.e
+          include builtins\libcurl.e
           <br>
           <br>
           CURLoption
@@ -257,7 +257,8 @@ constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</f
           <!--
             EXAMPLE
 
-A common technique is to use this callback to store the incoming data into a dynamically growing allocated buffer. Like in the getinmemory example: https://curl.haxx.se/libcurl/c/getinmemory.html
+A common technique is to use this callback to store the incoming data into a dynamically growing allocated buffer. 
+Like in the getinmemory example: https://curl.haxx.se/libcurl/c/getinmemory.html
             <br>
           <br>
 -->
@@ -2436,7 +2437,8 @@ ldap://ldap.example.com/?rootDomainNamingContext - [3]
           <br>
           <br>
             For users who think the existing location following is too naive, too simple or just lacks features, it is very easy to instead implement 
-            your own redirect follow logic with the use of curl_easy_getinfo&rsquo;s CURLINFO_REDIRECT_URL option instead of using CURLOPT_FOLLOWLOCATION.
+            your own redirect follow logic with the use of <a href="curl_easy_getinfo.htm">curl_easy_getinfo</a>()&rsquo;s 
+            CURLINFO_REDIRECT_URL option instead of using CURLOPT_FOLLOWLOCATION.
           <br>
           <br>
             Default: false (0), disabled
@@ -4289,8 +4291,9 @@ curl_easy_cleanup(curl)
           <br>
           <br>
             The option can be used to simply test a connection to a server, but is more useful when used with the
-          <a href="curl_easy_getinfo.htm#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a> option 
-            to curl_easy_getinfo as the library can set up the connection and then the application can obtain the most recently used socket for special data transfers.
+            <a href="curl_easy_getinfo.htm#CURLINFO_ACTIVESOCKET">CURLINFO_ACTIVESOCKET</a> option to
+            <a href="curl_easy_getinfo.htm">curl_easy_getinfo</a>() as the library can set up the connection and 
+            then the application can obtain the most recently used socket for special data transfers.
           <br>
           <br>
             Default: false(0)
@@ -4886,7 +4889,8 @@ curl_slist_free_all(hosts)
           <br>
             With this enabled, libcurl will extract lots of information and data about the certificates in the certificate chain used in the SSL connection.
           <br>
-            This data may then be retrieved after a transfer using curl_easy_getinfo and its option CURLINFO_CERTINFO.
+            This data may then be retrieved after a transfer using 
+            <a href="curl_easy_getinfo.htm">curl_easy_getinfo</a>() and its option CURLINFO_CERTINFO.
           <br>
           <br>
             Default: false (0)
@@ -5071,6 +5075,7 @@ curl_slist_free_all(hosts)
           <b>OTHER OPTIONS</b>
          </td>
          <td>
+            <small><br><a name="CURLOPT_PRIVATE"></a></small>
          </td>
         </tr>
         <tr>
@@ -5078,7 +5083,86 @@ curl_slist_free_all(hosts)
           CURLOPT_PRIVATE
          </td>
          <td>
-            Private pointer to store. See CURLOPT_PRIVATE
+            Private pointer to store.
+          <br>
+          <br>
+            Synopsis: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_PRIVATE, 
+                                                                          <a href="atom.htm">atom</a> pointer)
+          <br>
+          <br>
+            Pass an atom pointer as parameter, pointing to data that should be associated with this curl handle. <br>
+            The pointer can subsequently be retrieved using 
+            <a href="curl_easy_getinfo.htm">curl_easy_getinfo</a>() with the 
+            <a href="curl_easy_getinfo.htm#CURLINFO_PRIVATE">CURLINFO_PRIVATE</a> option. <br>
+            libcurl itself never does anything with this data.
+          <br>
+          <br>
+            Default: NULL
+          <br>
+          <br>
+            Protocols: All
+          <br>
+          <br>
+            Example:
+          <br>
+          <br>
+          <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+           <div class="codeSnippetContainerCodeContainer">
+            <div class="codeSnippetToolBar">
+             <div class="codeSnippetToolBarText">
+              <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_1b435j95-1111-4273-986j-8b2483c92846');">Copy</a>
+             </div>
+            </div>
+            <div id="CodeSnippetContainerCode_1b435j95-1111-4273-986j-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+             <div style="color:Black;">
+<!--eucode>
+atom curl = curl_easy_init()
+atom private = NULL
+
+curl_easy_setopt(curl, CURLOPT_URL, "http://example.com")
+ 
+/* store a pointer to our private struct */
+curl_easy_setopt(curl, CURLOPT_PRIVATE, private)
+ 
+atom res = curl_easy_perform(curl)
+ 
+/* we can extract the private pointer again too */
+{res,private} = curl_easy_getinfo(curl, CURLINFO_PRIVATE)
+
+/* always cleanup */
+curl_easy_cleanup(curl)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">atom</font><font color="#000000"> curl</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_init</font><font color="#0000FF">()
+</font><font color="#004080">atom</font><font color="#000000"> private</font><font color="#0000FF"> =</font><font color="#004600"> NULL
+
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* store a pointer to our private struct */
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#000000"> CURLOPT_PRIVATE</font><font color="#0000FF">,</font><font color="#000000"> private</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#004080">atom</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
+</font><font color="#C0C0C0"> 
+</font><font color="#000080"><i>/* we can extract the private pointer again too */
+</i></font><font color="#0000FF">{</font><font color="#000000">res</font><font color="#0000FF">,</font><font color="#000000">private</font><font color="#0000FF">} =</font><font color="#5E005E"> curl_easy_getinfo</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLINFO_PRIVATE</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>/* always cleanup */
+</i></font><font color="#5E005E">curl_easy_cleanup</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)</font>
+</pre>
+             </div>
+            </div>
+           </div>
+          </div>
+            Availability: Added in 7.10.3
+          <br>
+          <br>
+            Return value: curl_easy_setoptf() returns
+          <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> if the option is supported, and
+          <a href="CURLcode.htm#CURLE_UNKNOWN_OPTION">CURLE_UNKNOWN_OPTION</a> if not,
+            whereas curl_easy_setopt() terminates in error if the option is not supported.
+          <br>
+          <br>
+            See also: CURLOPT_VERBOSE, CURLOPT_STDERR
             <small><br><a name="CURLOPT_SHARE"></a></small>
          </td>
         </tr>

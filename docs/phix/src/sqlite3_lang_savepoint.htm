@@ -1,0 +1,138 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">SAVEPOINT</h1>
+      <div id="mainSection">
+       <p><b><a href="sqlite3_syntaxdiagrams.htm#savepoint-stmt">savepoint-stmt:</a></b>
+        <button id='x821' onclick='hideorshow("x821","x822")'>hide</button>
+       </p>
+       <div id='x822' class='imgcontainer'>
+        <img alt="syntax diagram savepoint-stmt" src="images/syntax/savepoint-stmt.gif" />
+       </div>
+       <p><b><a href="sqlite3_syntaxdiagrams.htm#release-stmt">release-stmt:</a></b>
+        <button id='x823' onclick='hideorshow("x823","x824")'>hide</button>
+       </p>
+       <div id='x824' class='imgcontainer'>
+        <img alt="syntax diagram release-stmt" src="images/syntax/release-stmt.gif" />
+       </div>
+       <p><b><a href="sqlite3_syntaxdiagrams.htm#rollback-stmt">rollback-stmt:</a></b>
+        <button id='x825' onclick='hideorshow("x825","x826")'>hide</button>
+       </p>
+       <div id='x826' class='imgcontainer'>
+        <img alt="syntax diagram rollback-stmt" src="images/syntax/rollback-stmt.gif" />
+       </div>
+       <p> SAVEPOINTs are a method of creating transactions, similar to
+        <a href="sqlite3_lang_transaction.htm">BEGIN</a> and <a href="sqlite3_lang_transaction.htm">COMMIT</a>, except that the SAVEPOINT and RELEASE commands
+        are named and may be nested.
+       </p>
+       <p> The SAVEPOINT command starts a new transaction with a name.
+        The transaction names need not be unique.
+        A SAVEPOINT can be started either within or outside of
+        a <a href="sqlite3_lang_transaction.htm">BEGIN</a>...<a href="sqlite3_lang_transaction.htm">COMMIT</a>.  When a SAVEPOINT is the outer-most savepoint
+        and it is not within a <a href="sqlite3_lang_transaction.htm">BEGIN</a>...<a href="sqlite3_lang_transaction.htm">COMMIT</a> then the behavior is the
+        same as BEGIN DEFERRED TRANSACTION.
+       </p>
+       <p>The ROLLBACK TO command reverts the state of the database back to what
+        it was just after the corresponding SAVEPOINT.  Note that unlike that
+        plain <a href="sqlite3_lang_transaction.htm">ROLLBACK</a> command (without the TO keyword) the ROLLBACK TO command
+        does not cancel the transaction.  Instead of cancelling the transaction,
+        the ROLLBACK TO command restarts the transaction again at the beginning.
+        All intervening SAVEPOINTs are canceled, however.
+       </p>
+       <p>The RELEASE command is like a <a href="sqlite3_lang_transaction.htm">COMMIT</a> for a SAVEPOINT.
+        The RELEASE command causes all savepoints back to and including the 
+        most recent savepoint with a matching name to be removed from the 
+        transaction stack.  The RELEASE of an inner transaction
+        does not cause any changes to be written to the database file; it merely
+        removes savepoints from the transaction stack such that it is
+        no longer possible to ROLLBACK TO those savepoints.
+        If a RELEASE command releases the outermost savepoint, so
+        that the transaction stack becomes empty, then RELEASE is the same
+        as <a href="sqlite3_lang_transaction.htm">COMMIT</a>.
+        The <a href="sqlite3_lang_transaction.htm">COMMIT</a> command may be used to release all savepoints and
+        commit the transaction even if the transaction was originally started
+        by a SAVEPOINT command instead of a <a href="sqlite3_lang_transaction.htm">BEGIN</a> command.
+       </p>
+       <p>If the savepoint-name in a RELEASE command does not match any
+        savepoint currently in the transaction stack, then no savepoints are
+        released, the database is unchanged, and the RELEASE command returns
+        an error.
+       </p>
+       <p>Note that an inner transaction might commit (using the RELEASE command)
+        but then later have its work undone by a ROLLBACK in an outer transaction.
+        A power failure or program crash or OS crash will cause the outer-most
+        transaction to rollback, undoing all changes that have occurred within
+        that outer transaction, even changes that have supposedly been "committed"
+        by the RELEASE command.  Content is not actually committed on the disk 
+        until the outermost transaction commits.
+       </p>
+       <p>There are several ways of thinking about the RELEASE command:</p>
+       <ul>
+        <li>
+        <p>
+        Some people view RELEASE as the equivalent of COMMIT for a SAVEPOINT.
+        This is an acceptable point of view as long as one remembers that the
+        changes committed by an inner transaction might later be undone by a
+        rollback in an outer transaction.
+        </p></li>
+
+        <li>
+        <p>
+        Another view of RELEASE is that it merges a named transaction into its
+        parent transaction, so that the named transaction and its parent become
+        the same transaction.  After RELEASE, the named transaction and its parent
+        will commit or rollback together, whatever their fate may be.
+        </p></li>
+
+        <li>
+        <p>
+        One can also think of savepoints as
+        "marks" in the transaction timeline.  In this view, the SAVEPOINT command
+        creates a new mark, the ROLLBACK TO command rewinds the timeline back
+        to a point just after the named mark, and the RELEASE command
+        erases marks from the timeline without actually making any
+        changes to the database.
+        </p></li>
+       </ul>
+       <h3>Transaction Nesting Rules</h3>
+       <p>The last transaction started will be the first
+        transaction committed or rolled back.
+       </p>
+       <p>The <a href="sqlite3_lang_transaction.htm">BEGIN</a> command only works if the transaction stack is empty, or
+        in other words if there are no pending transactions.  If the transaction
+        stack is not empty when the <a href="sqlite3_lang_transaction.htm">BEGIN</a> command is invoked, then the command
+        fails with an error.
+       </p>
+       <p>The <a href="sqlite3_lang_transaction.htm">COMMIT</a> command commits all outstanding transactions and leaves
+        the transaction stack empty.
+       </p>
+       <p>The RELEASE command starts with the most recent addition to the
+        transaction stack and releases savepoints backwards 
+        in time until it releases a savepoint with a matching savepoint-name.
+        Prior savepoints, even savepoints with matching savepoint-names, are
+        unchanged.
+        If the RELEASE command causes the
+        transaction stack to become empty (if the RELEASE command releases the
+        outermost transaction from the stack) then the transaction commits.
+       </p>
+       <p>The <a href="sqlite3_lang_transaction.htm">ROLLBACK</a> command without a TO clause rolls backs all transactions
+        and leaves the transaction stack empty.
+       </p>
+       <p>The ROLLBACK command with a TO clause rolls back transactions going
+        backwards in time back to the most recent SAVEPOINT with a matching name.
+        The SAVEPOINT with the matching name remains on the transaction stack,
+        but all database changes that occurred after that SAVEPOINT was created
+        are rolled back.  If the savepoint-name in a ROLLBACK TO command does not
+        match any SAVEPOINT on the stack, then the ROLLBACK command fails with an
+        error and leaves the state of the database unchanged.
+       </p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

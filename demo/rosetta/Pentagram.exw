@@ -1,0 +1,92 @@
+--
+-- demo\rosetta\Pentagram.exw
+-- ==========================
+--
+-- Start/stop rotation by pressing space. Resizeable.
+-- ZXYV stop any rotation and orient up/down/left/right.
+--
+--free_console()
+include pGUI.e
+
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+integer rot = 0
+enum FILL,BORDER
+constant colours = {CD_BLUE,CD_RED},
+         modes = {CD_FILL,CD_CLOSED_LINES}
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE"),
+            cx = floor(w/2),
+            cy = floor(h/2),
+            radius = floor(min(cx,cy)*0.9)
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    {} = cdCanvasFillMode(cddbuffer, CD_WINDING)    --DEV doc
+    cdCanvasLineWidth(cddbuffer, round(radius/100)+1) 
+    for mode=FILL to BORDER do
+        cdCanvasSetForeground(cddbuffer,colours[mode])
+        cdCanvasBegin(cddbuffer,modes[mode])
+        for a=90 to 666 by 144 do
+            atom r = (a+rot)*CD_DEG2RAD,
+                 x = radius*cos(r)+cx,
+                 y = radius*sin(r)+cy
+            cdCanvasVertex(cddbuffer, x, y)
+        end for
+        cdCanvasEnd(cddbuffer)
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    rot = mod(rot+359,360)
+    IupRedraw(canvas)
+    return IUP_IGNORE
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    c = upper(c)
+    if c=' ' then
+        IupSetInt(timer,"RUN",not IupGetInt(timer,"RUN"))
+    else
+        c = find(c,"ZYXV")
+        if c then
+            IupSetInt(timer,"RUN",false)
+            rot = (c-1)*90
+            IupRedraw(canvas)
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "640x640")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Pentagram")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    timer = IupTimer(Icallback("timer_cb"), 80, active:=false)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

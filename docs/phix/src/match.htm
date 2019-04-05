@@ -13,16 +13,29 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> i = match(<a href="sequence.htm">sequence</a> s1, <a href="sequence.htm">sequence</a> s2, 
-                                                      <a href="integer.htm">integer</a> start=1, <a href="integer.htm#bool">bool</a> case_insensitive=false)
+          <a href="integer.htm">integer</a> i = match(<a href="sequence.htm">sequence</a> needle, 
+                                                      <a href="sequence.htm">sequence</a> haystack, 
+                                                      <a href="integer.htm">integer</a> start=1,
+                                                      <a href="integer.htm#bool">bool</a> case_insensitive=false)
+        <br>
+          <i>-- or --</i>
+        <br>
+          <a href="integer.htm">integer</a> i = rmatch(<a href="sequence.htm">sequence</a> needle,
+                                                       <a href="sequence.htm">sequence</a> haystack, 
+                                                       <a href="integer.htm">integer</a> start=length(haystack),
+                                                       <a href="integer.htm#bool">bool</a> case_insensitive=false)
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>Try to match s1 against some slice of s2. If successful, return the element number of s2 where the (first) matching slice begins,
-             at start or later (if specified), else return 0.
+         <td>
+            Try to match needle against some slice of haystack. If successful, return the element number of haystack where the (first) matching 
+            slice begins, at start or later (if specified), else return 0.
+            <br>
+            <br>
+            The rmatch() routine is similar but works from the end of haystack, less length(needle), down to 1.
             <br>
             <br>
             By default match is case sensitive, so "the" will <i>not</i> match "THE", however this can be changed by supplying true (1 or
@@ -43,10 +56,10 @@
          </td>
          <td>
 <!--eucode>
-location = match("hi", "Phix") -- location is set to 2
+integer location = match("hi", "Phix") -- location is set to 2
 </eucode-->
 <pre>
-<font color="#000000">location</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"hi"</font><font color="#0000FF">,</font><font color="#008000"> "Phix"</font><font color="#0000FF">)</font><font color="#000080"><i> -- location is set to 2</i></font>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> location</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"hi"</font><font color="#0000FF">,</font><font color="#008000"> "Phix"</font><font color="#0000FF">)</font><font color="#000080"><i> -- location is set to 2</i></font>
 </pre>
          </td>
         </tr>
@@ -56,11 +69,11 @@ location = match("hi", "Phix") -- location is set to 2
          </td>
          <td>
 <!--eucode>
-location = match("the", "the cat sat on the mat", 4)
+integer location = match("the", "the cat sat on the mat", 4)
 -- location is set to 16, not 1, because a start index of 4 was specified
 </eucode-->
 <pre>
-<font color="#000000">location</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000"> "the cat sat on the mat"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">)
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> location</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000"> "the cat sat on the mat"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">)
 </font><font color="#000080"><i>-- location is set to 16, not 1, because a start index of 4 was specified</i></font>
 </pre>
          </td>
@@ -79,6 +92,54 @@ line = line[1..match("--",line)-1]  -- remove comment
 <font color="#000000">line</font><font color="#0000FF"> =</font><font color="#000000"> line</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">..</font><font color="#7060A8">match</font><font color="#800000">(</font><font color="#008000">"--"</font><font color="#0000FF">,</font><font color="#000000">line</font><font color="#800000">)</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">] </font><font color="#000080"><i> -- remove comment
 -- A nifty clever clogs trick: if match returns 0 then line is unaltered, 
 -- (ie line:=line[1..-1]), otherwise only the text before "--" is kept.</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 4:</b>
+         </td>
+         <td>
+            The following illustrates the correct use of the start parameter for match() and rmatch():
+<!--eucode>
+string mm = "the cat sat on the mat"
+integer tt = 1
+sequence mr = {"fwd"}
+while 1 do
+    tt = match("the",mm,tt)
+    mr = append(mr,tt)
+    if tt=0 then exit end if
+    tt += 1
+end while
+mr = append(mr,"rev")
+tt = length(mm)
+while 1 do
+    tt = rmatch("the",mm,tt)
+    mr = append(mr,tt)
+    if tt=0 then exit end if
+    tt -= 1
+end while
+?mr -- outputs {"fwd",1,16,0,"rev",16,1,0}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">string</font><font color="#000000"> mm</font><font color="#0000FF"> =</font><font color="#008000"> "the cat sat on the mat"
+</font><font color="#004080">integer</font><font color="#000000"> tt</font><font color="#0000FF"> =</font><font color="#000000"> 1
+</font><font color="#004080">sequence</font><font color="#000000"> mr</font><font color="#0000FF"> = {</font><font color="#008000">"fwd"</font><font color="#0000FF">}
+</font><font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do
+</font><font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
+</font><font color="#000000">    mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> tt</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if
+</font><font color="#000000">    tt</font><font color="#0000FF"> +=</font><font color="#000000"> 1
+</font><font color="#008080">end while
+</font><font color="#000000">mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#008000">"rev"</font><font color="#0000FF">)
+</font><font color="#000000">tt</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">mm</font><font color="#0000FF">)
+</font><font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do
+</font><font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> rmatch</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
+</font><font color="#000000">    mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> tt</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if
+</font><font color="#000000">    tt</font><font color="#0000FF"> -=</font><font color="#000000"> 1
+</font><font color="#008080">end while
+</font><font color="#0000FF">?</font><font color="#000000">mr</font><font color="#000080"><i> -- outputs {"fwd",1,16,0,"rev",16,1,0}</i></font>
 </pre>
          </td>
         </tr>

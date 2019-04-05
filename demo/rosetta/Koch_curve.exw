@@ -1,0 +1,86 @@
+--
+-- demo\rosetta\Koch_curve.exw
+-- ===========================
+--
+-- DEV/todo: the commented-out code draws a full snowflake - but:
+--  1) it is not properly centred
+--  2) it warps on resize, a min(w,h) or similar is required
+--
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+procedure koch(atom x1, y1, x2, y2, integer iter)
+    atom angle = -PI/3, -- -60 degrees
+         x3 := (x1*2 + x2) / 3,
+         y3 := (y1*2 + y2) / 3,
+         x4 := (x1 + x2*2) / 3,
+         y4 := (y1 + y2*2) / 3,
+         x5 := x3 + (x4-x3)*cos(angle) + (y4-y3)*sin(angle),
+         y5 := y3 - (x4-x3)*sin(angle) + (y4-y3)*cos(angle)
+    if iter>0  then
+        iter -= 1
+        koch(x1, y1, x3, y3, iter)
+        koch(x3, y3, x5, y5, iter)
+        koch(x5, y5, x4, y4, iter)
+        koch(x4, y4, x2, y2, iter)
+    else
+        cdCanvasVertex(cddbuffer, x1, y1)
+        cdCanvasVertex(cddbuffer, x3, y3)
+        cdCanvasVertex(cddbuffer, x5, y5)
+        cdCanvasVertex(cddbuffer, x4, y4)
+        cdCanvasVertex(cddbuffer, x2, y2)
+    end if
+end procedure
+ 
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+--  atom {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
+--  atom {x,y} = {w*0.05+w/6,h*0.05+h/6}
+--  {w,h} = {w*0.6,h*0.6}
+    cdCanvasActivate(cddbuffer)
+    cdCanvasBegin(cddbuffer, CD_OPEN_LINES)  
+    koch(0,0,width,height,4)    
+--  koch(x,y,x+w/2,y+h,4)
+--  koch(x+w/2,y+h,x+w,y,4)
+--  koch(x+w,y,x,y,4)
+    cdCanvasEnd(cddbuffer)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "512x512") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Koch curve")
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL) -- release the minimum limitation
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

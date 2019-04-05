@@ -9,6 +9,11 @@
 -- With help from lesterb, updates now in timer_cb not redraw_cb,
 -- variables better named, and velocity problem sorted, July 2018.
 --
+constant full = false   -- set true for full swing to near-vertical.
+                        -- false performs swing to horizontal only.
+                        -- (adjusts the starting angle, pivot point,
+                        --  and canvas size, only.)
+
 include pGUI.e
 
 Ihandle dlg, canvas, timer
@@ -16,9 +21,9 @@ cdCanvas cdcanvas
 
 constant g = 50
 
-atom angle = PI/2,
+atom angle = iff(full?PI-0.01:PI/2),  -- (near_vertical | horiz)
      velocity = 0
-integer w, h, len = 0
+integer w = 0, h = 0, len = 0
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
@@ -26,7 +31,7 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     cdCanvasClear(cdcanvas)
     -- new suspension point:
     integer sX = floor(w/2)
-    integer sY = floor(h/16)
+    integer sY = floor(h/iff(full?2:16))  -- (mid | top)
     -- repaint:
     integer eX = floor(len*sin(angle)+sX)
     integer eY = floor(len*cos(angle)+sY)
@@ -41,17 +46,19 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
 end function
 
 function timer_cb(Ihandle /*ih*/)
-    integer newlen = floor(w/2)-30
-    if newlen!=len then
-        len = newlen
-        atom tmp = 2*g*len*(cos(angle))
-        velocity = iff(tmp<0?0:sqrt(tmp)*sign(velocity))
+    if w!=0 then
+        integer newlen = floor(w/2)-30
+        if newlen!=len then
+            len = newlen
+            atom tmp = 2*g*len*(cos(angle))
+            velocity = iff(tmp<0?0:sqrt(tmp)*sign(velocity))
+        end if
+        atom dt = 0.2/w
+        atom acceleration = -len*sin(angle)*g
+        velocity += dt*acceleration
+        angle += dt*velocity
+        IupUpdate(canvas)
     end if
-    atom dt = 0.2/w
-    atom delta = -len*sin(angle)*g
-    velocity += dt*delta
-    angle += dt*velocity
-    IupUpdate(canvas)
     return IUP_IGNORE
 end function
 
@@ -79,7 +86,7 @@ procedure main()
     IupOpen()
 
     canvas = IupGLCanvas()
-    IupSetAttribute(canvas, "RASTERSIZE", "640x380")
+    IupSetAttribute(canvas, "RASTERSIZE", iff(full?"640x640":"640x340")) -- (fit 360|180)
     IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
     IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))

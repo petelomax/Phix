@@ -1,0 +1,653 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">mpfr / gmp</h1>
+      <div id="mainSection">
+        Arbitrary Precision Arithmetic: mpir is a fork of gmp (gnu multiple precision), and mpfr is a floating-point extension of that.
+        <br>
+        <br>
+        It has been wrapped/is available for many programs languages, including Ada, C++, Fortran, Haskell, Java, Julia, 
+        Lisp, .NET, OCaml, Perl, PHP, Pike, Prolog, Python, R, Racket, Ruby, Rust, Scheme, and now Phix - which means
+        there should be no shortage of examples.
+        <br>
+        <br>
+        I have seen some performance improvements in my time, but this absolutely has to take the (chocolate covered triple-choc) biscuit. <br>
+        For demo\rosetta\Ackermann, translating the Go code to calculate ack(3,1e6), which has over 300,000 digits:<br>
+        Using bigatom.e (as originally submitted by cargoan) took so long that I just had to kill it....<br>
+        Using bigint.e (wot I wrote meself): 5 minutes to calculate and then 32 minutes to print (gulp).<br>
+        Using gmp: 0.1s for the lot! (Do I feel humiliated and then some or what?!)
+        <br>
+        <br>
+        Included in the distribution as builtins\mpfr.e (not an autoinclude), but you have to download the dlls from
+        <a id="ext273" style="color:#9B5565" 
+        href="javascript:ExternalLink('ext273','http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Mpfr');">PCAN</a> or perhaps
+        <a id="ext272" style="color:#9B5565" 
+        href="javascript:ExternalLink('ext272','http://www.atelierweb.com/mpir-and-mpfr');">http://www.atelierweb.com/mpir-and-mpfr</a><br>
+        You should get a readable and straightforward error message when the required dlls cannot be opened. <br>
+        It is entirely up to you whether to install (simple copy) them to system32/syswow64, builtins, or the application directory. <br>
+        A future release of phix may offer to download and install them (to builtins) as part of installation, however you would still 
+        be responsible for shipping them along with a finished application.<br>
+        Let me know if any newer pre-built dlls are uploaded to atelierweb, or elsewhere.
+        <br>
+        <br>
+        Version: mpfr: 3.1.5, mpir:2.7.2, two dlls, 733K (32 bit, 308K zipped), 936K (64 bit, 373K zipped)<br>
+        Version 3.1.0-p3 was already installed my Ubuntu box, though I also needed to install mpfr-dev, in order to compile the 
+        recommended version check, which was just the one click via the ubuntu software centre, at least after typing "mpfr" 
+        into the search box and picking the one that I needed.
+        <br>
+        <br>
+        Be warned: mpfr/mpir/gmp are built for speed and are generally very unforgiving, hanging or 
+        terminating silently without any clues as to what went wrong - good old-fashioned C for ya!<br>
+        Making (for example) mpfr_clear() private/internal, and wrapping the C mpfr_init() functions and hence 
+        effectively making them non-optional is the least/best I could do to help.
+        <br>
+        <br>
+        Use the mpfr_xxx() routines for your ridiculously accurate floats (with ridiculously big exponents).<br>
+        Use the mpz_xxx() routines for your ridiculously big (and perfectly exact) integers.
+        <br>
+        <br>
+        Once you understand how to create and display mpfr/mpz variables, the rest is all pretty straightforward.
+        <br>
+        <h3>Example:</h3>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-qx54-4765-123h-8b2483c92846');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_18b74j93-qx54-4765-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include mpfr.e
+
+mpz n = mpz_init()
+for e = 1 to 3 do
+    mpz_ui_pow_ui(n, 10, e*30)
+    mpz_sub_ui(n, n, 1)
+    printf(1, "10^%d-1 = %s\n",{e*30,mpz_get_str(n,comma_fill:=true)})
+end for
+n = mpz_clear(n)
+
+-- output:
+--  10^30-1 = 999,999,999,999,999,999,999,999,999,999
+--  10^60-1 = 999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999
+--  10^90-1 = 999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> mpfr.e
+
+</font><font color="#5E005E">mpz</font><font color="#000000"> n</font><font color="#0000FF"> =</font><font color="#5E005E"> mpz_init</font><font color="#0000FF">()
+</font><font color="#008080">for</font><font color="#000000"> e</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#008080"> to</font><font color="#000000"> 3</font><font color="#008080"> do
+</font><font color="#5E005E">    mpz_ui_pow_ui</font><font color="#0000FF">(</font><font color="#000000">n</font><font color="#0000FF">,</font><font color="#000000"> 10</font><font color="#0000FF">,</font><font color="#000000"> e</font><font color="#0000FF">*</font><font color="#000000">30</font><font color="#0000FF">)
+</font><font color="#5E005E">    mpz_sub_ui</font><font color="#0000FF">(</font><font color="#000000">n</font><font color="#0000FF">,</font><font color="#000000"> n</font><font color="#0000FF">,</font><font color="#000000"> 1</font><font color="#0000FF">)
+</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "10^%d-1 = %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">e</font><font color="#0000FF">*</font><font color="#000000">30</font><font color="#0000FF">,</font><font color="#5E005E">mpz_get_str</font><font color="#800080">(</font><font color="#000000">n</font><font color="#0000FF">,</font><font color="#000000">comma_fill</font><font color="#0000FF">:=</font><font color="#004600">true</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">end for
+</font><font color="#000000">n</font><font color="#0000FF"> =</font><font color="#5E005E"> mpz_clear</font><font color="#0000FF">(</font><font color="#000000">n</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- output:
+--  10^30-1 = 999,999,999,999,999,999,999,999,999,999
+--  10^60-1 = 999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999
+--  10^90-1 = 999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999,999</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+        For comparision, here is the (accurate to &tilde;15/17dp) behaviour of the standard builtin <a href="atom.htm">atom</a>:
+        (<small>Manually re-aligned. Aside: 10^60 has seven more digits of accuracy than expected on 32 bit, no idea why, or even how.</small>)
+        <br>
+        <br>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-atom-4765-177h-8b2483c92846');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_18b74j93-atom-4765-177h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+for e = 1 to 3 do
+    printf(1, "10^%d-1 = %,d\n",{e*30,power(10,e*30)-1})
+end for
+
+-- output (32-bit):
+--  10^30-1 = 1,000,000,000,000,000,424,684,240,284,426
+--  10^60-1 = 1,000,000,000,000,000,000,000,082,442,268,486,026,840,024,008,840,604,006,400,824
+--  10^90-1 =   999,999,999,999,999,686,426,868,868,000,042,200,008,468,264,024,420,280,668,688,280,420,208,406,626,688,068,446,402,024
+-- output (64-bit):
+--  10^30-1 =   999,999,999,999,999,998,264,846,264,264
+--  10^60-1 =   999,999,999,999,999,996,186,866,828,000,402,842,426,462,280,408,402,286,040,882
+--  10^90-1 = 1,000,000,000,000,000,004,244,424,008,082,284,008,804,242,048,002,866,280,462,022,042,286,202,060,886,602,048,286,628,466
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">for</font><font color="#000000"> e</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#008080"> to</font><font color="#000000"> 3</font><font color="#008080"> do
+</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "10^%d-1 = %,d\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">e</font><font color="#0000FF">*</font><font color="#000000">30</font><font color="#0000FF">,</font><font color="#7060A8">power</font><font color="#800080">(</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">*</font><font color="#000000">30</font><font color="#800080">)</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">end for
+
+</font><font color="#000080"><i>-- output (32-bit):
+--  10^30-1 = 1,000,000,000,000,000,424,684,240,284,426
+--  10^60-1 = 1,000,000,000,000,000,000,000,082,442,268,486,026,840,024,008,840,604,006,400,824
+--  10^90-1 =   999,999,999,999,999,686,426,868,868,000,042,200,008,468,264,024,420,280,668,688,280,420,208,406,626,688,068,446,402,024
+-- output (64-bit):
+--  10^30-1 =   999,999,999,999,999,998,264,846,264,264
+--  10^60-1 =   999,999,999,999,999,996,186,866,828,000,402,842,426,462,280,408,402,286,040,882
+--  10^90-1 = 1,000,000,000,000,000,004,244,424,008,082,284,008,804,242,048,002,866,280,462,022,042,286,202,060,886,602,048,286,628,466</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+        Many operations are performed in-situ via procedure calls, eg mpfr_mul(x,y,z) sets x to y*z. <br>
+        Source and targets may overlay, eg mpfr_mul(x,x,x) etc is perfectly fine and sets x to x*x.
+        <br>
+        <br>
+        Since phix does not have unsigned integers, if an _ui routine has an _si variant it should be used instead. 
+        It also makes sense to utilise the standard integer typechecking within the mpfr.e wrapper, hence some of the _ui 
+        routines are syntax coloured illegal/red and linked to their _si counterparts, and where no such exists in C the
+        _ui name is kept, but with fatal errors for args&lt;0.<br>
+        In the rare case some code actually uses an unsigned value above the normal 30 bit integer limit of 1GB, it
+        must be changed to use xxx_d or xxx_str. <br>
+        Also take heed of the -1GB..+1GB vs 0..1GB below (obviously not technically accurate for 64-bit, but still a necessity 
+        for any 32 and 64 bit compatible code).<br>
+        As ever, this document is just a quick cribsheet: for specific details refer to the mpfr.e source code and/or the 
+        official mpfr/mpir/gmp documentation.
+        <br>
+        <br>
+        Types mpfr and mpz and randstate are optional, you can just use atom if preferred, though when debug_types is 
+        true (it is) these also perform some extra anti-corruption checks.
+        <br>
+        <br>
+<!--
+        <a href="bigatom_type.htm">bigatom</a> - the bigatom type
+        <br>
+        <a href="ba_scale.htm">sequence prev = ba_scale(object decs=-1, integer mode=-1)</a> - set library precision and/or mode
+        <br>
+dl {
+    border: 3px double #ccc;
+    padding: 0.5em;
+  }
+  dt {
+    float: left;
+    clear: left;
+    width: 100px;
+    text-align: right;
+    font-weight: bold;
+    color: green;
+  }
+  dt::after {
+    content: ":";
+  }
+  dd {
+    margin: 0 0 0 110px;
+    padding: 0 0 0.5em 0;
+  }
+          dd .div1 {padding-left:.5em;border-left:1px solid #333;font-size:.9em;clear:both;}
+          dd .div2 {color:#900;font-size:.76em;margin-top:.5em;margin-bottom:.5em;clear:both;}
+--DEV did not work:
+          table,td {padding:0;border-style:none;}
+            <td align="right" class="nob">
+          td.nob {padding:0;border-style:none;}
+-->
+        <a name=mpfr></a>
+        <h3>mpfr (floating point)</h3>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:8em;}
+        </style>
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            string res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpir_open_dll</b>(string dll_name="", bool mpir_only=false) - optional: returns the name of a dll/so file it cannot open, or "" on success. <br>
+            </dt><dd class="pad">
+            If only using mpz routines, you can get by with only opening/distributing the mpir dll(s), and should set the optional flag to true, and in that
+            case mpir_open_dll() becomes non-optional. Conversely, attempts to load the mpfr dll/so, without loading the mpir one first, fail at the OS level.<br>
+            If dll/so are missing, and you have not used this, any and all of the following routines below will terminate with a fatal error (including mpz_&rsquo;s).
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            sequence res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpfr_get_versions</b>(bool bAsNumSeq=false) - 
+            yields a 3-element sequence of three versions (mpfr, mpir, and gmp), eg {"3.1.5","2.7.2","5.1.3"} or {{3,1,5},{2,7,2},{5,1,3}}.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>integer precision =</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_get_default_prec</b>() - yields the default floating point precision in bits, initially 53 to match IEEE-754.
+            </dt><dd class="pad">
+            <b>mpfr_set_default_prec</b>(integer precision) - set the default precision in bits.<br>
+            You can determine the required precision using <a href="log.htm">log2</a>(), or perhaps, probably in some prior test run:<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;string nines = repeat('9',<i><small>&lt;number_of_decimal_digits_required&gt;</small></i>)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;mpz ndp = mpz_init(nines)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;integer precision = mpz_sizeinbase(ndp,2)
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            integer rounding =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_get_default_rounding_mode</b>() - yields MPFR_RNDx where x is N/Z/U/D/A (0..4, initially N==0) for nearest/toward zero/+inf/-inf/away from zero.
+            </dt><dd class="pad">
+            <b>mpfr_set_default_rounding_mode</b>(integer rounding) - sets the rounding mode, as above.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            mpfr res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_init</b>(object v=0, integer precision=default_precision, rounding=default_rounding) - Initialise to integer/atom/string.
+            </dt><dd class="pad">
+            Covers the C functions mpfr_init, mpfr_init2, mpfr_init_set_si, mpfr_init_set_d, and mpfr_init_set_str 
+            (note the latter three <i>can</i> take a precision in mpfr.e, and that comes <i>before</i> the rounding mode),
+            however it does not cover mpfr_inits or mpfr_inits2, and it must <i>not</i> be used for mpfr_init_set(mpfr), 
+            ie init from another existing mpfr, see next. <br>
+            Note that (as per v=0) the default is to initialise to 0, unlike the C api which creates variables set to nan (not a number).<br>
+            mpfr res = <b>mpfr_init_set</b>(mpfr src, integer rounding=default_rounding) - Initialise to some prior mpfr, 
+            eg <small><i>(mpfr x = mpfr_init(...);)</i></small> mpfr y = mpfr_init_set(x).<br>
+            Passing an mpfr directly to mpfr_init() is a similar error to using pPtr when peek4u(pPtr) is required, 
+            and likewise there is no practical way to guard against that.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            integer precision =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_get_prec</b>(mpfr x) - retrieve the current precision of a specific variable.
+            </dt><dd class="pad">
+            <b>mpfr_set_prec</b>(mpfr x, integer precision) - precision is the number of bits required for the mantissa, see mpfr_set_default_prec above.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_set</b>(mpfr tgt, src, integer rounding=default_rounding) - set x from an existing mpfr variable.
+            </dt><dd class="pad">
+            <b>mpfr_set_si</b>(mpfr x, integer v, rounding=default_rounding) - set x from a (machine-word-sized) integer.<br>
+            In mpfr.e, v is (deliberately) limited to +/-1 billion, rather than trying to extend the range a bit by using an atom parameter.<br>
+            <b>mpfr_set_d</b>(mpfr x, atom v, integer rounding=default_rounding) - set x from a normal phix atom.<br>
+            <b>mpfr_set_str</b>(mpfr x, string s, integer base=0, rounding=default_rounding) - set x from a string.<br>
+            If base is zero, bases 2 and 16 can be auto-detected (after a leading +/-) by '0b', '0B', '0x' or '0X', otherwise base 10 is assumed.<br>
+            The exponent prefix can be 'e' or 'E' for bases up to 10, or '@' in any base, or 'p' or 'P' for bases 2 and 16.<br>
+            The value of an exponent is always written in base 10. A '.' is always accepted as a decimal point (as well as the current locale).
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_const_pi</b>(mpfr x, integer rounding=default_rounding) - x := PI
+            </dt><dd class="pad">
+            As precise as needed/specified in some prior mpfr_set_prec(x) or the x = mpfr_init() call.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <i>mpfr_clear[s]</i>() - use mpfr_free() instead (which clears all memory alocated by mpfr/mpir.dll <i>and</i> mpfr.e).
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            object x =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_free</b>(object x) - Clear and deallocate any variables created from mpfr_init(), eg x = mpfr_free(x) or {y,z} = mpfr_free({y,z})
+            </dt><dd class="pad">
+            NB: lhs==rhs intentionally. Should you forget to invoke this routine, mpfr.e will do so automatically.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <i>mpfr_free_str</i>() - invoked automatically within mpfr_get_str() and hence not publically available (there is no need for it to be).
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            sequence res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_get_str</b>(mpfr x, integer base=10, n=0, rounding=default_rounding) -- print x in the specified base to precision n(0=full).
+            </dt><dd class="pad">
+            res is {string digits, integer exponent}. Does <b>not</b> print a decimal point; mpfr_sprintf() [see next] may be a better choice. <br>
+            Also note the parameters are quite different, C: mpfr_get_str(?, ?, b, n, x, r) ==&gt; phix: mpfr_get_str(x, b, n, r).<br>
+            For the obvious reason of a FILE* argument, use this or mpfr_sprintf instead of mpfr_out_str.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            string res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_sprintf</b>(string fmt, mpfr_or_mpz x) - formatted print using 'R', eg mpfr_sprintf(x,"%.1000Rf") prints x to 1000 d.p.
+            </dt><dd class="pad">
+            Code using mpfr_Xprintf() where X!="s" must be changed to use mpfr_sprintf, and any C-style length modifiers (eg h, ll) removed.<br>
+            Since x is typechecked to be of type mpfr_or_mpz, only a single 'R' or 'Z' conversion specification is supported. <br>
+            An 'R' can be followed by an optional rounding mode (one of NZUDA), and then it must be followed by one of abefgAEFG. <br>
+            A 'Z' should be followed by one of "dxX", or possibly (untested) one of "aceEfigGo".<br>
+            Currently the only other routine of similar note that has been wrapped is mpz_get_str(), which can be used as an alternative for 
+            'Z' conversion specifications.<br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_printf</b>(integer fn, string fmt, mpfr_or_mpz x) - formatted print to file.
+            </dt><dd class="pad">
+            Note this differs from the C function of the same name, in having a file number as the first parameter (like C&rsquo;s mpfr_fprintf),
+            plus the phix version only accepts/permits a single mpfr or mpz variable at a time.<br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_add</b>(mpfr rop, op1, op2, integer rounding=default_rounding) - rop := op1+op2 with specified rounding
+            </dt><dd class="pad">
+            <b>mpfr_add_si</b>(mpfr rop, op1, integer op2, integer rounding=default_rounding) - "" except op2 is a phix integer, -1GB..+1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_sub</b>(mpfr rop, op1, op2, integer rounding=default_rounding) - rop := op1-op2 with specified rounding
+            </dt><dd class="pad">
+            <b>mpfr_sub_si</b>(mpfr rop, op1, integer op2, integer rounding=default_rounding) - "" except op2 is a phix integer, -1GB..+1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_mul</b>(mpfr rop, op1, op2, integer rounding=default_rounding) - rop := op1*op2 with specified rounding
+            </dt><dd class="pad">
+            <b>mpfr_mul_si</b>(mpfr rop1, op1, integer op2, integer rounding=default_rounding) - "" except op2 is a phix integer, -1GB..+1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpfr_div</b>(mpfr rop, op1, op2, integer rounding=default_rounding) - rop := op1/op2 with specified rounding
+            </dt><dd class="pad">
+            <b>mpfr_div_si</b>(mpfr rop, op1, integer op2, integer rounding=default_rounding) - ""  except op2 is a phix integer, -1GB..+1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpfr_sqr</b>(mpfr rop, op, integer rounding=default_rounding) - rop := op squared with specified rounding
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpfr_sin</b>(mpfr rop, op, integer rounding=default_rounding) - rop := sin(op) with specified rounding
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            atom res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpfr_get_si</b>(mpfr op, integer rounding=default_rounding) -- res := op as a machine-word-sized signed integer.
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+
+        <a name=mpz></a>
+        <h3>mpz (integer)</h3>
+
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            mpz res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_init</b>(object v=0, integer bitcount=0) - Initialise. v can be integer/atom/string.
+            </dt><dd class="pad">
+            Covers the C functions mpz_init, mpz_init2, mpz_init_set_d, mpz_init_set_si, and mpz_init_set_str 
+            (note the latter three <i>can</i> take a bitcount in mpfr.e),
+            however it must <i>not</i> be used for mpz_init_set(mpz), ie init from another existing mpz, see next.<br>
+            (Aside: unlike mpfr_init(), the defaulted v=0 matches the C api.)<br>
+            The bitcount is only the initial space, ie/eg mpz_init(1) happily stores it in one dword, a later 
+            store of 2^16000 reallocates it to 16000 bits (about/whatever 500 dwords). A non-zero bitcount
+            makes it possible to avoid such reallocations if a maximum size is known in advance.<br>
+            You could use mpz_sizeinbase(x,2), in some prior test run, to determine a suitable (initial) bitcount
+            (and see whether or not it actually makes the thing any faster).<br>
+            mpz res = <b>mpz_init_set</b>(mpz src) - usage eg <small><i>(mpz x = mpz_init(...);)</i></small> mpz y = mpz_init_set(x).<br>
+            Passing an mpz directly to mpz_init() is a similar error to using pPtr when peek4u(pPtr) is required, 
+            and likewise there is no practical way to guard against that.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            object x =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_clear</b>(object x) - Clear and deallocate any variables created using mpz_init[_set](), eg x = mpz_clear(x)
+            or {y,z} = mpz_clear({y,z}).
+            </dt><dd class="pad">
+            NB: lhs==rhs intentionally. Also covers the C mpz_clears() routine. Should you forget to invoke this
+            routine, mpfr.e will do so automatically.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_set</b>(mpz rop, op) -- rop := op. See also mpz_init_set.
+            </dt><dd class="pad">
+            <b>mpz_set_si</b>(mpz rop, integer op) -- "" except op is a phix integer, -1GB..+1GB.<br>
+            <b>mpz_set_d</b>(mpz rop, atom op) -- "" except op is a phix atom.<br>
+            <b>mpz_set_str</b>(mpz rop, string s, integer base=10) -- set x from s in the specified base. See also mpz_init.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_add</b>(mpz rop, op1, op2) - rop := op1 + op2
+            </dt><dd class="pad">
+            <b>mpz_add_ui</b>(mpz rop, op1, integer op2) - "" except op2 is a phix integer, 0..1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_sub</b>(mpz rop, op1, op2) - rop := op1 - op2
+            </dt><dd class="pad">
+            <b>mpz_sub_ui</b>(mpz rop, op1, integer op2) - "" except op2 is a phix integer, 0..1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_mul</b>(mpz rop, op1, op2) - rop := op1 * op2
+            </dt><dd class="pad">
+            <b>mpz_mul_si</b>(mpz rop, op1, integer op2) - "" except op2 is a phix integer, -1GB..+1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_mul_2exp</b>(mpz rop, op1, integer op2) - rop := op1 * 2^op2. This operation can also be defined as a left shift by op2 bits.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_fdiv_q_2exp</b>(mpz q, n, integer bit_count) - bitwise right shift, arithmetic if n -ve.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_mod</b>(mpz r, n, d) - r := mod(n,d)
+            </dt><dd class="pad">
+            <b>mpz_mod_ui</b>(mpz r, n, integer d) - "" except op2 is a phix integer, 0..1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            integer res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_cmp</b>(mpz op1, op2) - Compare op1 and op2. Return a positive value if op1 > op2, zero if op1 = op2, or a negative
+            value if op1 < op2.<br>
+            </dt><dd class="pad">
+            integer res = <b>mpz_cmp_si</b>(mpz op1, integer op2) - "", except op2 is a phix integer, -1GB..+1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>integer res =</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_tstbit</b>(mpz op, integer bit_index) - Test bit bit_index in op and return 0 or 1 accordingly.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_powm</b>(mpz rop, base, exponent, modulus) - rop := mod(base^exponent,modulus)
+            </dt><dd class="pad">
+            <b>mpz_powm_ui</b>(mpz rop, base, integer exponent, mpz modulus) - "", except exponent and modulus are a phix integers, 0..+1GB
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_ui_pow_ui</b>(mpz rop, integer base, exponent) - rop := base^exponent. The case 0^0 yields 1.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            bool res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_fits_slong_p</b>(mpz op) - Return non-zero iff the value of op fits in a (signed) long, otherwise, return zero.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            bool res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_fits_ulong_p</b>(mpz op) - Return non-zero iff the value of op fits in an unsigned long, otherwise, return zero.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            atom res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_get_si</b>(mpz op) - Return op as an machine-word-sized signed integer. Use mpz_fits_slong_p() to find out if
+            the value will fit/be meaningful.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            atom res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_get_ui</b>(mpz op) - Return op as an machine-word-sized unsigned integer. Use mpz_fits_ulong_p() to find out if
+            the value will fit/be meaningful.
+          </td></tr>
+<!-- (removed as not of much practical use)
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            integer res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            mpz_size(mpz op) - Return the size of op measured in number of limbs. If op is zero, the returned value will be zero.
+          </td></tr>
+-->
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            integer res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_sizeinbase</b>(mpz op, integer base) - Return the size of op measured in number of digits in the given base.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            string res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_get_str</b>(mpz x, integer base=10, bool comma_fill=false) - Return x as a string in the specified base. 
+            </dt><dd class="pad">
+            Note that mpz_free_string() is taken care of automatically for you by mpfr.e.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            bool res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_probable_prime_p</b>(mpz n, randstate state, integer prob=5, div=0)
+            </dt><dd class="pad">
+            Determine whether n is a probable prime with the chance of error being at most 1 in 2^prob.<br>
+            The return value is 1 if n is probably prime, or 0 if n is definitely composite.<br>
+            This function does some trial divisions to speed up the average case, then some probabilistic
+            primality tests to achieve the desired level of error.<br>
+            div can be used to inform the function that trial division up to div has already been performed
+            on n and so n has NO divisors &lt;= div.<br>
+            (The default of 0 informs the function that no trial division has been done.)<br>
+            The variable state must have been initialized by calling one of the gmp_randinit functions.<br>
+            This function interface is preliminary and may change in the future.
+            </dd></dl>
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+
+        <a name=mpzrand></a>
+        <h3>random integers</h3>
+
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>randstate state =</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>gmp_randinit_mt</b>() - Initialize state for a Mersenne Twister algorithm, and invokes gmp_randseed on it (with a NULL mpz_seed).
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>gmp_randseed</b>(randstate state, atom mpz_seed=NULL) - Set an initial seed value into state.
+            </dt><dd class="pad">
+            If mpz_seed is NULL then a random 200-digit seed is generated internally (and properly disposed of after use),
+            otherwise mpz_seed must be a valid/init mpz variable (and absolutely <i>not</i> a phix integer/atom/string).<br>
+            Just like <a href="set_rand.htm">set_rand</a>(), using a fixed value gives repeatable results.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            randstate state = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>gmp_randclear</b>(randstate state) - Free all memory occupied by state.
+            Should you forget to invoke this routine, mpfr.e will do so automatically.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_urandomm</b>(mpz rop, randstate state, mpz n) - Generate a uniform random integer in the range 0 to n-1 inclusive, and store it in rop.
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+<!--
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+
+            </dt><dd class="pad">
+
+            </dd></dl>
+          </td></tr>
+-->
+        <br>
+        More routines (many more) will be added as needed - there are several hundred of them and, at least in my opinion, it is just simply 
+        not worthwhile without something that actually uses and therefore tests them.
+        <br>
+        <br>
+        Note that mpfr_clear() is <i>not</i> publically available, use mpfr_free() instead (which frees both mpfr.dll and mpfr.e allocated memory).
+        Since mpfr_clear() has a different calling convention (to mpfr_free), it is syntax coloured illegal (and linked here). In contrast,
+        mpr_free_str() is invoked internally for you so when translating code you can just delete that statement.<br>
+        Also note that all mpf_xxx functions have deliberately been expunged in favour of mpfr_ ones.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

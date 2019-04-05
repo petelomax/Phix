@@ -451,7 +451,17 @@ global constant cb_ext = Icallback("ext_cb")
 
 global function getExtRunWith(string ext)
     if extensions={} then load_extensions() end if
-    integer k = find(ext,extensions)
-    return iff(k=0?"",runwiths[k])
+    string res
+--1/10/18:
+--  integer k = find(ext,extensions)
+--  return iff(k=0?"",runwiths[k])
+    while 1 do
+        integer k = find(ext,extensions)
+        if k=0 then res = "" exit end if
+        res = runwiths[k]
+        if length(res)=0 or res[1]!='=' then exit end if
+        ext = res[2..$]
+    end while
+    return res
 end function
 

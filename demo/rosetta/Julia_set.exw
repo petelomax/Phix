@@ -1,0 +1,154 @@
+--
+-- demo\rosetta\Julia_set.exw
+-- ==========================
+--
+-- Interactive gui (zoom/pan incomplete).
+--
+include pGUI.e
+
+constant title = "Julia set"
+Ihandle dlg, cxv, cxl, cyv, cyl, ispin, pspin, clrzn, label, bb, redraw
+
+atom cX = -0.7,
+     cY = -0.353777
+integer iter = 255,
+        pwr = 2,
+        zoom = 1,       -- (not yet used/to do)
+        moveX = 0,      -- drag?? (to do)
+        moveY = 0
+
+constant clrzns = {{8,32,16},
+                   {2,4,8},
+                   {1,1,8}}
+
+sequence colourisation = clrzns[1]
+
+function julia(integer width, integer height)
+    atom tpt25 = time()+0.25
+    sequence img = repeat(repeat(0,width),height)
+    for x=1 to width do
+        for y=1 to height do
+            atom zx := 1.5*((x-1)-width/2)/(0.5*zoom*width)+moveX,
+                 zy := 1.0*((y-1)-height/2)/(0.5*zoom*height)+moveY;
+            integer i := iter;
+            while ((zx*zx+zy*zy)<4) and (i>1) do
+                atom pn = power(zx*zx+zy*zy,pwr/2),
+                     pa = pwr*atan2(zy, zx)
+                zx = pn*cos(pa)+cX
+                zy = pn*sin(pa)+cY
+                i -= 1;
+            end while
+--          img[y,x] = {i*2,i*4,i*8}        -- (experiment thusly)
+            img[y,x] = sq_mul(i,colourisation)
+        end for
+        if time()>tpt25 then
+            IupSetStrAttribute(dlg, "TITLE", "%s (generating - %3.2f%%)",{title,x/width*100})
+            IupFlush()
+            tpt25 = time()+0.25
+        end if
+    end for
+    img = flatten(img)
+    Ihandle new_img = IupImageRGB(width, height, img)
+    return new_img
+end function
+
+function redraw_cb(Ihandln /*redraw*/)
+    Ihandln image = IupGetAttributeHandle(label, "IMAGE")
+    IupSetAttributeHandle(label, "IMAGE", NULL)
+    if image!=NULL then IupDestroy(image) end if
+    IupSetAttribute(redraw,"ACTIVE","NO")
+    IupRefreshChildren(bb)
+    integer {w,h} = IupGetIntInt(bb, "RASTERSIZE")
+    image = julia(w,h)
+    IupSetAttribute(redraw,"ACTIVE","YES")
+    IupUnmap(label)
+    IupSetAttribute(label,"RASTERSIZE",NULL)
+    IupSetAttributeHandle(label, "IMAGE", image)
+    IupMap(label)
+    IupRefresh(label)
+    IupSetStrAttribute(dlg, "TITLE", title)
+    return IUP_DEFAULT
+end function
+constant cb_redraw = Icallback("redraw_cb")
+
+function valuechanged_cb(Ihandle ih)
+    atom a = IupGetFloat(ih, "VALUE")
+    switch ih do
+        case cxv:   cX = a  IupSetStrAttribute(cxl,"TITLE","cY: %f",{cX})
+        case cyv:   cY = a  IupSetStrAttribute(cyl,"TITLE","cY: %f",{cY})
+        case ispin: iter = a
+        case pspin: pwr = a
+        case clrzn: colourisation = clrzns[a]
+    end switch
+    return IUP_DEFAULT
+end function
+constant cb_valuechanged = Icallback("valuechanged_cb")
+
+procedure create_dlg()
+
+    Ihandle lx1 = IupLabel("+")
+            cxl = IupLabel(sprintf("cX: %f",cX))
+    Ihandle lx2 = IupLabel("-"),
+            hx1 = IupHbox({lx1, IupFill(), cxl, IupFill(), lx2})
+            cxv = IupValuator(NULL,"MIN=-2.5, MAX=+1")
+    Ihandle bxv = IupVbox({hx1, cxv})
+
+    Ihandle ly1 = IupLabel("+")
+            cyl = IupLabel(sprintf("cY: %f",cY))
+    Ihandle ly2 = IupLabel("-"),
+            hx2 = IupHbox({ly1, IupFill(), cyl, IupFill(), ly2})
+            cyv = IupValuator(NULL,"MIN=-1, MAX=+1")
+    Ihandle byv = IupVbox({hx2, cyv})
+
+    IupSetCallback(cxv, "VALUECHANGED_CB", cb_valuechanged)
+    IupSetCallback(cyv, "VALUECHANGED_CB", cb_valuechanged)
+    IupSetFloat(cxv, "VALUE", cX)
+    IupSetFloat(cyv, "VALUE", cY)
+
+    Ihandle ilbl = IupLabel("iter'ns:","PADDING=0x3")
+            ispin = IupText("VALUECHANGED_CB", cb_valuechanged,
+                            "SPIN=Yes, SPINMIN=1, SPINMAX=500, RASTERSIZE=48x")
+    IupSetInt(ispin,"VALUE",iter)
+    Ihandle ibox = IupHbox({IupFill(),ilbl,ispin,IupFill()})
+
+    Ihandle plbl = IupLabel("power:","PADDING=0x3")
+            pspin = IupText("VALUECHANGED_CB", cb_valuechanged,
+                            "SPIN=Yes, SPINMIN=2, SPINMAX=6, RASTERSIZE=48x")
+    IupSetInt(pspin,"VALUE",pwr)
+    Ihandle pbox = IupHbox({IupFill(),plbl,pspin,IupFill()})
+
+    Ihandle clbl = IupLabel("colourization:","PADDING=0x3")
+    clrzn = IupList("DROPDOWN=YES")
+    for i=1 to length(clrzns) do
+        IupSetStrAttributeId(clrzn,"",i,sprint(clrzns[i]))
+    end for
+    IupSetInt(clrzn,"VISIBLEITEMS",length(clrzns)+1)
+    IupSetInt(clrzn,"VALUE",1)
+    IupSetCallback(clrzn, "VALUECHANGED_CB", cb_valuechanged)
+    Ihandle cbox = IupHbox({IupFill(),IupVbox({clbl,clrzn}),IupFill()})
+
+    redraw = IupButton("redraw",cb_redraw)
+    Ihandle rbox = IupHbox({IupFill(),redraw,IupFill()},"EXPAND=YES, MARGIN=10x20")
+
+    Ihandle params = IupVbox({bxv,byv,ibox,pbox,cbox,rbox},
+                              "GAP=5, EXPAND=NO, EXPANDCHILDREN=YES, MARGIN=3x3")
+
+    label = IupLabel("please wait...","ALIGNMENT=ACENTER:ACENTER, RASTERSIZE=800x600")
+    bb = IupBackgroundBox(IupHbox({IupVbox({label,IupFill()}),IupFill()}),"EXPAND=YES, SHRINK=YES")
+
+    dlg = IupDialog(IupHbox({params,bb}))
+    IupSetAttribute(dlg, "TITLE", title)
+    IupCloseOnEscape(dlg)
+end procedure
+
+procedure main()
+    IupOpen()
+    create_dlg()
+    IupShow(dlg)
+    {} = redraw_cb(NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

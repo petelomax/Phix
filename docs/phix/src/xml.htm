@@ -1,0 +1,370 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">xml</h1>
+      <div id="mainSection">
+        The file builtins/xml.e (not an autoinclude) allows conversion of xml (text) <--> DOM (nested structure).
+        <br>
+        <br>
+        Deliberately kept as simple as possible, to simplify modification. (I fully expect problems the first time this is used in anger!)
+        <br>
+        <br>
+        Does not use/validate against DTDs (Document Type Definitions) or XSLs (eXtensible Stylesheet Language).
+        <br>
+        <br>
+        Comments are only supported after the XMLdeclaration (if present) and either before or after the top-level element, not within it.
+        <br>
+        <br>
+        Unicode handling: via utf-8. I have tested this on some fairly outlandish-looking samples without any problems. <br>
+        However it contains very little code to actually deal with unicode, instead relying on utf8 to <i><b>not</b></i> embed any critical 
+        control characters (such as '&lt;') within any multibyte encodings (and even wrote a quick test ditty).
+        <br>
+        <br>
+        Should you need to process utf-16 (or utf-32) then it must be converted to utf-8 beforehand, and possibly the output back.<br>
+        One thing it does actually do is skip a utf-8 BOM at the start of the xml input (string/file), however there is nothing in
+        here to help with writing one back, not that prefixing one on the output [externally] should in any way prove difficult.
+        <br>
+        <br>
+        Note: <a href="json.htm">json</a> is widely considered a better choice for data transfer.<br>
+        It is of course more efficient, but also less descriptive and does not support comments or any form of self-validation, 
+        and may prove more brittle, unless the provider has the common sense to include a field that adequately specifies the 
+        precise version/format being sent (but in my experience they rarely do). The bottom line is you should use xml in cases 
+        where you really benefit from it, which is <i>not</i> everywhere, eg: use xml for config-type-data, but json for bulk data.
+<!--
+--ERM:...
+--  It is important to note that builtins/xml.e currently only supports XPath minimally.
+--  (currently a very early work in progress/draft library; design comments welcome)
+-->
+
+        <h3>Example:</h3>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-qx54-4765-123h-8b2483c92846');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_18b74j93-qx53-4765-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include xml.e
+constant eg1 = """
+<?xml version="1.0" ?>
+<root>
+  <element>Some text here</element>
+</root>
+"""
+pp(xml_parse(eg1),{pp_Nest,5,pp_Pause,0})
+-- output:
+--          {"document",                    -- XML_DOCUMENT
+--           {"<?xml version=\"1.0\" ?>"},  -- XML_PROLOGUE
+--           {"root",                       -- XML_CONTENTS[XML_TAGNAME]
+--            {},                           --  XML_ATTRIBUTES
+--            {{"element",                  --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Some text here"}}},        --   XML_CONTENTS
+--           {}}                            -- XML_EPILOGUE
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> xml.e
+</font><font color="#008080">constant</font><font color="#000000"> eg1</font><font color="#0000FF"> =</font><font color="#008000"> """
+&lt;?xml version="1.0" ?&gt;
+&lt;root&gt;
+  &lt;element&gt;Some text here&lt;/element&gt;
+&lt;/root&gt;
+"""
+</font><font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#5E005E">xml_parse</font><font color="#800000">(</font><font color="#000000">eg1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">pp_Nest</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#004600">pp_Pause</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- output:
+--          {"document",                    -- XML_DOCUMENT
+--           {"&lt;?xml version=\"1.0\" ?&gt;"},  -- XML_PROLOGUE
+--           {"root",                       -- XML_CONTENTS[XML_TAGNAME]
+--            {},                           --  XML_ATTRIBUTES
+--            {{"element",                  --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Some text here"}}},        --   XML_CONTENTS
+--           {}}                            -- XML_EPILOGUE</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+            Note the three uses of XML_CONTENTS. The first is the one and only top-level element, the second is a sequence of elements, 
+            which happens to be one long, and the third is a string of the "string, or sequence of nested tags" fame. 
+            The difference between the first two of those cannot be stressed enough: top-level has precisely one '{' before it, whereas 
+            any and all more deeply nested elements always have two, ie "{{", except of course like in the third use above, where it is 
+            actually just the lowest-level string contents, rather than a further nested element.<br>
+            Obviously in the above XML_CONTENTS[XML_TAGNAME] means that XML_CONTENTS is a sequence of length 3 starting at that point, 
+            and XML_TAGNAME is the first element of that.
+
+        <h3>Another:</h3>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-qx54-4765-123h-8b2483c92846');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_18b74j93-qx53-4765-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include xml.e
+constant eg2 = """
+<Address>
+  <Number Flat="b">2</Number>
+  <Street>Erdzinderand Beat</Street>
+  <District>Stooingder</District>
+  <City>Bush</City>
+</Address>
+"""
+pp(xml_parse(eg2),{pp_Nest,5,pp_Pause,0})
+-- output:
+--          {"document",                    -- XML_DOCUMENT
+--           {},                            -- XML_PROLOGUE
+--           {"Address",                    -- XML_CONTENTS[XML_TAGNAME]
+--            {},                           --  XML_ATTRIBUTES
+--            {{"Number",                   --  XML_CONTENTS[XML_TAGNAME]
+--              {{"Flat"},                  --   XML_ATTRIBUTES[XML_ATTRNAMES]
+--               {"b"}},                    --    XML_ATTRVALUES
+--              "2"},                       --   XML_CONTENTS
+--             {"Street",                   --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Erdzinderand Beat"},       --   XML_CONTENTS
+--             {"District",                 --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Stooingder"},              --   XML_CONTENTS
+--             {"City",                     --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Bush"}}},                  --   XML_CONTENTS
+--           {}}                            -- XML_EPILOGUE
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> xml.e
+</font><font color="#008080">constant</font><font color="#000000"> eg2</font><font color="#0000FF"> =</font><font color="#008000"> """
+&lt;Address&gt;
+  &lt;Number Flat="b"&gt;2&lt;/Number&gt;
+  &lt;Street&gt;Erdzinderand Beat&lt;/Street&gt;
+  &lt;District&gt;Stooingder&lt;/District&gt;
+  &lt;City&gt;Bush&lt;/City&gt;
+&lt;/Address&gt;
+"""
+</font><font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#5E005E">xml_parse</font><font color="#800000">(</font><font color="#000000">eg2</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">pp_Nest</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#004600">pp_Pause</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- output:
+--          {"document",                    -- XML_DOCUMENT
+--           {},                            -- XML_PROLOGUE
+--           {"Address",                    -- XML_CONTENTS[XML_TAGNAME]
+--            {},                           --  XML_ATTRIBUTES
+--            {{"Number",                   --  XML_CONTENTS[XML_TAGNAME]
+--              {{"Flat"},                  --   XML_ATTRIBUTES[XML_ATTRNAMES]
+--               {"b"}},                    --    XML_ATTRVALUES
+--              "2"},                       --   XML_CONTENTS
+--             {"Street",                   --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Erdzinderand Beat"},       --   XML_CONTENTS
+--             {"District",                 --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Stooingder"},              --   XML_CONTENTS
+--             {"City",                     --  XML_CONTENTS[XML_TAGNAME]
+--              {},                         --   XML_ATTRIBUTES
+--              "Bush"}}},                  --   XML_CONTENTS
+--           {}}                            -- XML_EPILOGUE</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+
+        <br>
+        <br>
+        <a name=constants></a>
+        <h3>constants</h3>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:12em;}
+        </style>
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td colspan=2 align="left" style="padding: 0; border-style: none;">
+            Note the precise content of the resulting xml structure is not documented beyond these constants; the programmer is 
+            expected to examine the ouput from increasingly more complex, but still valid xml, until they understand the structure 
+            and how to use the XML_XXX constants, all quite straightforward really, once you get used to it.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>The examples above should get you started.</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            At this point in time the structure is quite likely to change with each new release as more fuctionality is added, and
+            of course more contants and routines are also quite likely to be added with each new release.<br><br>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>global enum XML_DOCUMENT, </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- must be "document"
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_PROLOGUE,   
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- {} or eg {doctype,comments}
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_CONTENTS,   
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- (must be a single element)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_EPILOGUE,   
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- {} or {final_comments}
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_DOCLEN&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+             = $ -- 4<br><br>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            global enum XML_TAGNAME,    
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- eg "Students"
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_ATTRIBUTES, 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- {XML_ATTRNAMES,XML_ATTRVALUES}, or {}
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+--          XML_CONTENTS    
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- (string, or sequence of nested tags)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_ELEMLEN     
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- 3<br><br>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            global enum XML_ATTRNAMES,  
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- eg {"Name","Gender",...}
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_ATTRVALUES  
+          </td><td align="left" style="padding: 0; border-style: none;">
+            -- eg {"Alan","M",...}<br><br>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            global constant XML_DECODE&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+             = #0001, -- convert eg &amp;gt; to '&gt;' in attribute values
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            XML_ENCODE&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+             = #0002&nbsp; -- reverse "" (in xml_sprint)
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+
+        <a name=routines></a>
+        <h3>routines</h3>
+
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            string s = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>xml_decode</b>(string s) -- convert all eg &amp;lt; to '&lt;', but leaving any CDATA as-is.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            string s = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>xml_encode</b>(string s) -- Inverse of xml_decode, but without any CDATA handling or any 
+            re-coding of anything except the five critical entities (&lt;&gt;&amp;&apos;&quot;).
+            </dt><dd class="pad">
+            Obviously there is no attempt to preserve CDATA on a round trip.<br>
+            (These two are really internal routines that are sometimes useful directly.)
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>sequence res = </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>xml_parse</b>(string xml, integer options=NULL) -- Convert an xml string into a nested structure. options may be XML_DECODE
+            </dt><dd class="pad">
+            Returns {-1,"message",...} if xml could not be parsed. <br>
+            Success can be determined by checking whether result[1] is a string, or -1, or better yet =="document".
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            string res = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>xml_sprint</b>(sequence xml, integer options=NULL) -- convert xml structure to a string. options may be XML_ENCODE
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            sequence res = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>xml_new_doc</b>(sequence contents={}, prolog=std_prolog, epilog={}) -- create a new xml structure.
+            </dt><dd class="pad">
+            note: the default contents is not legal until res[XML_CONTENTS] gets an xml_new_element().
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            seqeunce elem = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>xml_new_element</b>(string tagname, sequence contents) -- returns {tagname,{},contents},
+            where {} represents an empty set of attributes
+            </dt><dd class="pad">
+            contents should be a string or a sequence of nested elements
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            string res = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>xml_get_attribute</b>(sequence elem, string name) -- returns attribute value or "" if it does not exist
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            sequemce elem = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>xml_set_attribute</b>(sequence elem, string attrib_name, attrib_value) -- set or remove (attrib_value of "") an attribute
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            sequence res = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>xml_get_nodes</b>(sequence xml, string tagname) - return a sequence of all nodes matching tagname
+            </dt><dd class="pad">
+            xml can be an entire document or an individual element (but not a sequence of elements)
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>sequence xml = </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>xml_add_comment</b>(sequence xml, string comment, bool as_prolog=true) -- add a comment to the prolog or epilog
+            </dt><dd class="pad">
+            note that comments on individual elements are not supported, xml must be the entire top-level document.
+            </dd></dl>
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        Everything apart from xml_parse() and xml_sprint() are all pretty trivial and could easily be accomplished directly.
+        <br>
+        <br>
+        Note that none of these routines have yet undergone any significant real-world testing, but should be easy to fix/enhance as needed.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

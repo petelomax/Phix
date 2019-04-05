@@ -1,0 +1,158 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Indexes On Expressions</h1>
+      <div id="mainSection">
+       <p>
+        Normally, an SQL index references columns of a table.  But an index
+        can also be formed on expressions involving table columns.
+       </p>
+       <p>
+        As an example, consider the following table that tracks
+        dollar-amount changes on various "accounts":
+       </p>
+       <div class="codeblock"><pre>CREATE TABLE account_change(
+          chng_id INTEGER PRIMARY KEY,
+          acct_no INTEGER REFERENCES account,
+          location INTEGER REFERENCES locations,
+          amt INTEGER,  -- in cents
+          authority TEXT,
+          comment TEXT
+        );
+        CREATE INDEX acctchng_magnitude ON account_change(acct_no, abs(amt));
+        </pre>
+       </div>
+       <p>
+        Each entry in the account_change table records a deposit or a withdrawal
+        into an account.  Deposits have a positive "amt" and withdrawals have
+        a negative "amt".
+       </p>
+       <p>
+        The acctchng_magnitude index is over the account number ("acct_no") and
+        on the absolute value of the amount.  This index allows one to do 
+        efficient queries over the magnitude of a change to the account.
+        For example, to list all changes to account number $xyz that are
+        more than $100.00, one can say:
+       </p>
+       <div class="codeblock"><pre>SELECT * FROM account_change WHERE acct_no=$xyz AND abs(amt)>=10000;
+        </pre>
+       </div>
+       <p>
+        Or, to list all changes to one particular account ($xyz) in order of
+        decreasing magnitude, one can write:
+       </p>
+       <div class="codeblock"><pre>SELECT * FROM account_change WHERE acct_no=$xyz
+         ORDER BY abs(amt) DESC;
+        </pre>
+       </div>
+       <p>
+        Both of the above example queries would work fine without the
+        acctchng_magnitude index.
+        The acctchng_magnitude index index merely helps the queries to run
+        faster, especially on databases where there are many entries in
+        the table for each account.
+       </p>
+       <h1 id="how_to_use_indexes_on_expressions">
+        <span>1. </span>How To Use Indexes On Expressions
+       </h1>
+       <p>
+        Use a <a href="sqlite3_lang_createindex.htm">CREATE INDEX</a> statement to create a new index on one or more
+        expressions just like you would to create an index on columns.  The only
+        difference is that expressions are listed as the elements to be indexed
+        rather than column names.
+       </p>
+       <p>
+        The SQLite query planner will consider using an index on an expression
+        when the expression that is indexed appears in the WHERE clause or in
+        the ORDER BY clause of a query, <i>exactly</i> as it is written in the
+        CREATE INDEX statement.  The query planner does not do algebra.  In order
+        to match WHERE clause constraints and ORDER BY terms to indexes, SQLite
+        requires that the expressions be the same, except for minor syntactic
+        differences such as white-space changes.  So if you have:
+       </p>
+       <div class="codeblock"><pre>CREATE TABLE t2(x,y,z);
+        CREATE INDEX t2xy ON t2(x+y);
+        </pre>
+       </div>
+       <p>
+        And then you run the query:
+       </p>
+       <div class="codeblock"><pre>SELECT * FROM t2 WHERE y+x=22;
+        </pre>
+       </div>
+       <p>
+        Then the index will
+        <u>not</u> be used because 
+        the expression on the CREATE INDEX
+        statement (x+y) is not the same as the expression as it appears in the 
+        query (y+x).  The two expressions might be mathematically equivalent, but
+        the SQLite query planner insists that they be the same, not merely
+        equivalent.  Consider rewriting the query thusly:
+       </p>
+       <div class="codeblock"><pre>SELECT * FROM t2 WHERE x+y=22;
+        </pre>
+       </div>
+       <p>
+        This second query will likely use the index because now the expression
+        in the WHERE clause (x+y) matches the expression in the index exactly.
+       </p>
+       <h1 id="restrictions">
+        <span>2. </span>Restrictions
+       </h1>
+       <p>
+        There are certain reasonable restrictions on expressions that appear in
+        CREATE INDEX statements:
+       </p>
+       <ol>
+        <li>
+        <p>
+        Expressions in CREATE INDEX statements
+        may only refer to columns of the table being indexed, not to
+        columns in other tables.
+        </p></li><li>
+        <p>
+        Expressions in CREATE INDEX statements
+        may contain function calls, but only to functions whose output
+        is always determined completely by its input parameters (a.k.a.: deterministic functions).  Obviously, functions like 
+        <a href="sqlite3_lang_corefunc.htm#random">random()</a> will not work well in an index. But also functions like 
+        <a href="sqlite3_lang_corefunc.htm#sqlite_version">sqlite_version()</a>, though
+        they are constant across any one database connection, are not constant
+        across the life of the underlying database file, and hence may not be
+        used in a CREATE INDEX statement.
+        </p>
+        <!--
+        [p]
+        Note that [a href="c3ref/create_function.htm?"]application-defined SQL functions[/a] [not implemented] are by default considered
+        non-deterministic and may not be used in a CREATE INDEX statement unless
+        the [a href="c3ref/c_deterministic.htm?"]SQLITE_DETERMINISTIC[/a] [not implemented] flag is used when the function is registered.
+        [/p]
+        -->
+        </li><li>
+        <p>
+        Expressions in CREATE INDEX statements may not use subqueries.
+        </p></li><li>
+        <p>
+        Expressions may only be used in CREATE INDEX statements, not within
+        <a href="sqlite3_lang_createtable.htm#uniqueconst">UNIQUE</a> or 
+        <a href="sqlite3_lang_createtable.htm#primkeyconst">PRIMARY KEY</a> constraints within the 
+        <a href="sqlite3_lang_createtable.htm">CREATE TABLE</a> statement.
+        </p></li>
+       </ol>
+       <h1 id="compatibility">
+        <span>3. </span>Compatibility
+       </h1>
+       <p>
+        The ability to index expressions was added to SQLite with 
+        version 3.9.0 (2015-10-14).  A database that uses an index on
+        expressions will not be usable by earlier versions of SQLite.
+       </p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

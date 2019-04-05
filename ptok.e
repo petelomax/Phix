@@ -12,8 +12,6 @@ integer fn
 ---- fn should be set on entry to an open filename (as found by
 ---- scanning EUDIR,EUINC, etc). It is closed on exit.
 --
-----/**/ text=gets({fn,-2}) -- only supported on Phix
---------/**/ pp(text)
 ----/* RDS compatible code:
 --integer textlen
 --integer lllen
@@ -39,32 +37,6 @@ integer fn
 --  fn = -1
 --end procedure
 
---
---  In Phix , gets() also accepts an {fn,mode} parameter:
---    {fn,-2} reads the entire file as a single string.
---    Note that \r are left unaltered whether the file is
---    opened in binary mode or not. (cf {fn,1})
---    {fn,-1} and {fn,0} are reserved for future use. (At
---    the moment they probably work the same as {fn,1}.)
---^^DEV see e119fninaiofnc in pdiag.e^^
---    {fn,1} reads the entire file as a table of lines.
---    Note that \r are stripped whether the file is opened
---    in binary mode of not. (cf {fn,-2}) For more details
---    see also expandIntoLines() as defined below.
---  Both the above fail if fn has write permission (or has
---  anything in the write buffer). Both also read the entire 
---  file from start to finish, regardless of whether or not
---  a seek() or previous read has set the file position, and
---  (for test reasons) leave the file position at 0/start.
---  Also, in both cases the last line is guaranteed to end
---  in \n. These modes were added for the benefit of the 
---  compiler, since it is obviously much faster to allocate 
---  a single string than one for each and every source line.
---  {fn,1} was implemented at the same time, for comparison
---  purposes mainly, but remains available for general use;
---  as you can see it is much easier than above(/RDS) code.
---
-
 global --DEV 1/11/09 for psym.e
 integer ltl         -- length(text)
         ltl = -1
@@ -78,20 +50,13 @@ string msg
 -- scanning EUDIR,EUINC, etc). It is closed on exit.
 --
 
---DEV may need to be changed, if hllfileio in psym.e is 1, see
---      builtins/pfileio.e (not used if hllfileio is 0)
 --/**/  -- Phix version (see notes above re gets()):
---/**/  if newEmit then
---/**/      text = get_text(fn,-2) -- -2=GT_WHOLE_FILE
---/**/  else
---!/**/     text = gets({fn,-2})
---/**/      ?9/0
---/**/  end if
+--/**/  text = get_text(fn,GT_WHOLE_FILE)
 --/**/  ltl = length(text)
 
 --/* -- RDS compatible code:
 --  (btw: The sheer number of calls made by RDS Eu to getc() makes 
---        this significantly slower than the Phix single gets call.
+--        this significantly slower than the Phix single get_text.
 --        RDS Eu would fare much better if it built a table of lines
 --        using gets, 0.5.9 had the constant oneString which has now
 --        been removed.)
@@ -435,7 +400,8 @@ end if
 if showfileprogress then
     ?"rooted"
 end if
-        fn = open(file,"rb")
+--      fn = open(file,"rb")
+        fn = open(file,"r")
         thispath = ""
     else
         for i=length(filepaths) to 1 by -1 do
@@ -444,7 +410,8 @@ end if
             or (activepaths[i] and not autoInclude) then
 --          or (i<=length(activepaths) and activepaths[i] and not autoInclude) then
                 thispath = filepaths[i]
-                fn = open(thispath&file,"rb")
+--              fn = open(thispath&file,"rb")
+                fn = open(thispath&file,"r")
                 if fn!=-1 then exit end if
                 triedpaths = append(triedpaths,thispath)
             end if
@@ -473,7 +440,8 @@ end if
                             thispath = path
                         end if
                         if not find(thispath,filepaths) then
-                            fn = open(thispath&file,"rb")
+--                          fn = open(thispath&file,"rb")
+                            fn = open(thispath&file,"r")
                             if fn!=-1 then exit end if
                             if not find(thispath,triedpaths) then
                                 triedpaths = append(triedpaths,thispath)    -- for error reporting
@@ -489,7 +457,8 @@ end if
         if fn=-1 and find(SLASH,file) then
             thispath = ""
 --          fn = open(file,"r")
-            fn = open(file,"rb")
+--          fn = open(file,"rb")
+            fn = open(file,"r")
         end if
     end if
     if fn!=-1 then

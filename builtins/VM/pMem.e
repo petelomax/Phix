@@ -28,6 +28,15 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
     ::e41fatpmba
         int3
     ::e43atpmbaoso2a
+        [32]
+            mov edx,[esp+12]
+            sub edx,1
+        [64]
+            mov rdx,[rsp+24]
+            sub rdx,1
+        []
+        mov al,43           -- argument to peek must be atom or sequence of 2 atoms
+        jmp :!iDiag
         int3
     ::e110opPeekiSeq
         int3
@@ -42,6 +51,15 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
     ::e40atmsmba
         int3
     ::epeeksize
+        [32]
+            mov edx,[esp+8]
+            sub edx,1
+        [64]
+            mov rdx,[rsp+16]
+            sub rdx,1
+        []
+        mov al,44           -- e44psmb1248 - peek size must be 1|2|4|8
+        jmp :!iDiag
         int3
 
 --/*

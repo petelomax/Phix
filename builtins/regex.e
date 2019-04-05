@@ -474,9 +474,26 @@ bool negated
                 res = {CLASS, negated, "  \n\n\r\r\t\t"}
                 idx += 1
                 return {idx, res}
+            elsif ch='h' or ch='H' then
+                negated = ch='H'
+                -- Unicode space separator?
+                res = {CLASS, negated, "  \t\t"}
+                idx += 1
+                return {idx, res}
+            elsif ch='v' or ch='V' then
+                negated = ch='V'
+                -- vertical tab, form feed, paragraph or line separator?
+                res = {CLASS, negated, "\n\n\r\r"}
+                idx += 1
+                return {idx, res}
+            -- not (yet) handled: \R - one line break (\r\n pair) + all \v...
             elsif ch='w' or ch='W' then
                 negated = ch='W'
                 res = {CLASS, negated, "azAZ09__"}
+                idx += 1
+                return {idx, res}
+            elsif ch='z' then
+                res = {EOL}
                 idx += 1
                 return {idx, res}
             elsif ch>='1' and ch<='9' then

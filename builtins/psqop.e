@@ -221,17 +221,17 @@ global function sq_int(object a)
     if atom(a) then return integer(a) end if
     if string(a) then return 0 end if
     for i=1 to length(a) do
-        a[i] = sq_int(a[i])
+--      a[i] = sq_int(a[i])
+        a[i] = integer(a[i])    -- NB no recursion! (see note below)
     end for
     return a
 end function
 
 global function sq_atom(object a)
     if atom(a) then return 1 end if
---DEV (added 7/8/2010, but commented out before saving/testing anything)
---  if string(a) then return 0 end if
+    if string(a) then return 0 end if
     for i=1 to length(a) do
-        a[i] = atom(a[i])   -- NB no recursion! (see note below)
+        a[i] = atom(a[i])       -- NB no recursion! (see note below)
     end for
     return a
 end function
@@ -240,13 +240,15 @@ global function sq_str(object a)
     if atom(a) then return 0 end if
     if string(a) then return 1 end if
     for i=1 to length(a) do
-        a[i] = sq_str(a[i])
+--      a[i] = sq_str(a[i])
+        a[i] = string(a[i])     -- NB no recursion! (see note below)
     end for
     return a
 end function
 
 global function sq_seq(object a)
     if atom(a) then return 0 end if
+    if string(a) then return 1 end if
     for i=1 to length(a) do
         a[i] = sequence(a[i])   -- NB no recursion! (see note below)
     end for
@@ -260,6 +262,7 @@ end function
 -- It may be that these routines deserve a "nest" parameter
 -- (possibly defaulted to 1), ditto for sq_int/sq_str.
 -- OTOH, there are NO known uses of the above routines, anywhere!
+-- update: recursion removed for sq_int/sq_str, as per docs.
 
 global function sq_abs(object o)
     if atom(o) then
@@ -719,6 +722,14 @@ global function sq_log10(object a)
     return a
 end function
 
+global function sq_log2(object a)
+    if atom(a) then return log2(a) end if
+    for i=1 to length(a) do
+        a[i] = sq_log2(a[i])
+    end for
+    return a
+end function
+
 global function sq_power(object a, object b)
     if atom(a) then
         if atom(b) then return power(a,b) end if
@@ -774,4 +785,45 @@ global function sq_lower(object a)
 --DEV tryme:
 --  return pcase:lower(a)
 end function
+
+global function sq_min(object a, b)
+    if atom(a) then
+        if atom(b) then return min(a,b) end if
+        for i=1 to length(b) do
+            b[i] = min(a,b[i])
+        end for
+        return b
+    elsif atom(b) then
+        for i=1 to length(a) do
+            a[i] = min(a[i],b)
+        end for
+        return a
+    end if
+    if length(a)!=length(b) then fatal(a,b) end if
+    for i=1 to length(a) do
+        a[i] = min(a[i],b[i])
+    end for
+    return a
+end function
+
+global function sq_max(object a, b)
+    if atom(a) then
+        if atom(b) then return max(a,b) end if
+        for i=1 to length(b) do
+            b[i] = max(a,b[i])
+        end for
+        return b
+    elsif atom(b) then
+        for i=1 to length(a) do
+            a[i] = max(a[i],b)
+        end for
+        return a
+    end if
+    if length(a)!=length(b) then fatal(a,b) end if
+    for i=1 to length(a) do
+        a[i] = max(a[i],b[i])
+    end for
+    return a
+end function
+
 

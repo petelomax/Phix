@@ -1,0 +1,68 @@
+--
+-- demo\rosetta\hilbert_curve.exw
+-- ==============================
+--
+--  Draws a hilbert curve.
+--
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+constant width = 64
+
+sequence points = {}
+
+procedure hilbert(integer x, y, lg, i1, i2)
+    if lg=1 then
+        integer px := (width-x) * 10,
+                py := (width-y) * 10
+        points = append(points, {px, py})
+        return
+    end if
+    lg /= 2
+    hilbert(x+i1*lg, y+i1*lg, lg, i1, 1-i2)
+    hilbert(x+i2*lg, y+(1-i2)*lg, lg, i1, i2)
+    hilbert(x+(1-i1)*lg, y+(1-i1)*lg, lg, i1, i2)
+    hilbert(x+(1-i2)*lg, y+i2*lg, lg, 1-i1, i2)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    cdCanvasActivate(cddbuffer)
+    cdCanvasBegin(cddbuffer, CD_OPEN_LINES)  
+    for i=1 to length(points) do
+        integer {x,y} = points[i]
+        cdCanvasVertex(cddbuffer, x, y) 
+    end for 
+    cdCanvasEnd(cddbuffer)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_MAGENTA)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    hilbert(0, 0, width, 0, 0)
+    IupOpen()
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "655x655")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Hilbert Curve")
+    IupSetAttribute(dlg, "DIALOGFRAME", "YES")  -- no resize here
+    IupCloseOnEscape(dlg) 
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    IupMap(dlg)
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

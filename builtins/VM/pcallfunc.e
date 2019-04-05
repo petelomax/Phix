@@ -65,6 +65,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             xor esi,esi         -- ep2 unused
             sub edx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         [64]
             mov rcx,[level]
@@ -79,6 +80,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             xor rsi,rsi         -- ep2 unused
             sub rdx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         []
           }

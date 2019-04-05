@@ -9,6 +9,8 @@
 --  (29/10/17 all done to IupColorbar, ~line 3309)
 --  (22/11/17 all done to IupWebBrowser, ~line 3675)
 --  (07/01/18 all done to IupDrawGetImageInfo, ~line 3843)
+--  (02/05/18 all done to cdCanvasSimulate, ~line 5788)
+--  (17/05/18 all done to cdCanvasMark, ~line 6169)
 --  (none of which are used in any of the demos, and some of which may get culled)
 --  (IupLayoutDialog skipped for now)
 
@@ -36,7 +38,7 @@ global type cbfunc(atom cb)
     return cb=NULL or find(cb,callbacks)!=0
 end type
 
-global function Icallback(string name, atom rid = routine_id(name))
+global function Icallback(string name, integer rid = routine_id(name))
     atom cb = call_back({'+', rid})
     integer k = find(cb,callbacks)
     if k=0 then
@@ -252,11 +254,22 @@ global function rand_range(integer lo, integer hi)
     return lo+rand(hi-lo)
 end function
 
+constant W = machine_word()
+
 -- (This is an example of an application-specific variation of OpenEuphoria's allocate_pointer_array)
-function iup_ptr_array(Ihandles pointers)
+--function iup_ptr_array(Ihandles pointers)
+type atoms(object o)
+    if atom(o) then return o!=NULL end if
+    for i=1 to length(o) do
+        if not atom(o[i]) or o[i]=NULL then return 0 end if
+    end for
+    return 1
+end type
+
+function iup_ptr_array(atoms pointers)
 sequence p0 = pointers & 0
-atom pList = allocate(length(p0)*machine_word())
-    pokeN(pList, p0, machine_word())
+atom pList = allocate(length(p0)*W)
+    pokeN(pList, p0, W)
     return pList
 end function
 
@@ -304,11 +317,11 @@ function iup_peek_string_pointer_array(atom ptr, integer n)
 sequence strings = {}
 atom pstr
     while length(strings)<n do
-        pstr = peekNS(ptr,machine_word(),0)
+        pstr = peekNS(ptr,W,0)
         if pstr=NULL then exit end if
         strings = append(strings, peek_string(pstr))
 --      if length(strings)=n then exit end if
-        ptr += machine_word()
+        ptr += W
     end while
     return strings
 end function
@@ -341,9 +354,9 @@ procedure iup_poke_string_pointer_array(atom ptr, sequence strings)
         string si = strings[i]
 --DEV (spotted in passing) one of these next two lines is certainly wrong anyway...
 -- I suspect it should read IupRawStringPtr(si) - changed w/o any testing.
---      pokeN(ptr,si,machine_word())
-        pokeN(ptr,IupRawStringPtr(si),machine_word())
-        ptr += machine_word()
+--      pokeN(ptr,si,W)
+        pokeN(ptr,IupRawStringPtr(si),W)
+        ptr += W
     end for
 end procedure
 
@@ -405,6 +418,34 @@ global function iup_XkeySys( atom _c)
     return or_bits( _c, 0x80000000)
 end function
 --*/
+
+global function alpha(atom color)
+    color = and_bits(color, #FF000000)
+    color = floor(color/#1000000)
+    return 255-color
+end function
+
+global function red(atom color)
+    return floor(and_bits(color, #FF0000)/#10000)
+end function
+
+global function green(atom color)
+    return floor(and_bits(color, #FF00)/#100)
+end function
+
+global function blue(atom color)
+    return remainder(color, #100)
+end function
+
+global function rgb(atom r, atom g, atom b)
+--  return and_bits(r,#FF) + and_bits(g,#FF)*#100 + and_bits(b,#FF)*#10000
+    return and_bits(r,#FF)*#10000 + and_bits(g,#FF)*#100 + and_bits(b,#FF)
+end function
+
+global function to_rgb(atom colour)
+    return {red(colour),green(colour),blue(colour)}
+end function    
+
 
 global constant
     -- Common Flags and Return Values
@@ -973,9 +1014,15 @@ procedure iup_link_error(sequence name)
 end procedure
 
 global -- for iup_layoutdlg.e
-function iup_c_func(atom dll, sequence name, sequence args, atom result)
+function iup_c_func(atom dll, sequence name, sequence args, atom result, bool allow_fail=false)
     integer handle = define_c_func(dll, name, args, result)
-    if handle = -1 then iup_link_error(name) end if
+    if handle = -1 then
+        if allow_fail then
+            handle = NULL
+        else
+            iup_link_error(name)
+        end if
+    end if
     return handle
 end function
 
@@ -1000,8 +1047,10 @@ string path = libs[libidx]
 atom res
     if platform()=WINDOWS then
         string curr_dir = current_dir()
-        if chdir(dll_path)=0 then ?9/0 end if
-        path = current_dir()&SLASH&path
+--4/7/18:
+--      if chdir(dll_path)=0 then ?9/0 end if
+        if dll_path!="" and chdir(dll_path)=0 then ?9/0 end if
+--      path = current_dir()&SLASH&path
         res = open_dll(path)
         if chdir(curr_dir)=0 then ?9/0 end if
     elsif platform()=LINUX then
@@ -1030,8 +1079,6 @@ atom
 atom
     xIupOpen,
     xIupClose,
---  xIupLoad,
---  xIupLoadBuffer,
 --  xIupSetLanguage,
 --  xIupGetLanguage,
 --DEV these are documented in elements...
@@ -1120,6 +1167,7 @@ atom
     xIupZboxv,
     xIupRadio,
     xIupNormalizerv,
+    xiupObjectCheck,
     xIupCboxv,
     xIupSbox,
     xIupSplit,
@@ -1237,7 +1285,7 @@ atom
     xIupCells,
 --  xIupColorbar,       -- removed in 3.24
 --  xIupColorBrowser,   -- removed in 3.24
---  xIupDial,           -- removed in 3.24
+    xIupDial,           -- removed in 3.24
     xIupMatrix,
 --  xIupMatSetAttribute,
 --  xIupMatStoreAttribute,
@@ -1328,7 +1376,9 @@ procedure iup_init1(nullable_string dll_root)
     if s!={} then
         -- allow pGUI in the app dir, with a win/lnx,32/64 sub-dir:
         for i=1 to length(s) do
-            string dll_path = join_path({s[i],dll_dir})
+--4/5/18...
+--          string dll_path = join_path({s[i],dll_dir})
+            dll_path = join_path({s[i],dll_dir})
             if get_file_type(dll_path)=FILETYPE_DIRECTORY then
                 s = {}
                 exit
@@ -1336,17 +1386,27 @@ procedure iup_init1(nullable_string dll_root)
         end for
     end if
     if s!={} then
-        string dll_path = join_path({dll_root,dll_dir})
+--4/5/18...
+--      string dll_path = join_path({dll_root,dll_dir})
+--9/1/19:
+--      dll_path = join_path({dll_root,dll_dir})
+        if dll_root=NULL then
+            dll_path = dll_dir
+        else
+            dll_path = join_path({dll_root,dll_dir})
+        end if
         if get_file_type(dll_path)=FILETYPE_DIRECTORY then
             s = {}
         end if
     end if
     if s!={} then
-if platform()=WINDOWS then  -- DEV (while manually installed on lnx)
-        printf(1,"unable to locate %s directory\n",dll_dir)
-        {} = wait_key()
-        ?9/0
-end if
+--4/7/18:
+--if platform()=WINDOWS then    -- DEV (while manually installed on lnx)
+--      printf(1,"unable to locate %s directory\n",dll_dir)
+--      {} = wait_key()
+--      ?9/0
+--end if
+        dll_path = ""
     end if
         
 --end if
@@ -1359,7 +1419,9 @@ end if
         --        don't blame me if that gets you an even more cryptic error message.
         --        (This all depends on how the pre-built binaries were built, natch.)
         string curr_dir = current_dir()
-        if chdir(dll_path)=0 then ?9/0 end if
+--4/7/18:
+--      if chdir(dll_path)=0 then ?9/0 end if
+        if dll_path!="" and chdir(dll_path)=0 then ?9/0 end if
         if open_dll("msvcr120.dll")=0 then
             puts(1,"fatal error: msvcr120.dll could not be loaded\n")
             puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
@@ -1378,8 +1440,6 @@ end if
     -- Control
     xIupOpen            = iup_c_func(iup, "IupOpen", {I,P}, I)
     xIupClose           = iup_c_proc(iup, "IupClose", {})
---  xIupLoad            = iup_c_func(iup, "IupLoad", {P},P)
---  xIupLoadBuffer      = iup_c_func(iup, "IupLoadBuffer", {P}, P)
 --  xIupSetLanguage     = iup_c_proc(iup, "IupSetLanguage", {P})
 --  xIupGetLanguage     = iup_c_func(iup, "IupGetLanguage", {}, P)
 --DEV these are documented in elements...
@@ -1468,6 +1528,7 @@ end if
     xIupZboxv           = iup_c_func(iup, "IupZboxv", {P}, P)
     xIupRadio           = iup_c_func(iup, "IupRadio", {P}, P)
     xIupNormalizerv     = iup_c_func(iup, "IupNormalizerv", {P}, P)
+    xiupObjectCheck     = iup_c_func(iup, "iupObjectCheck", {P}, P)
     xIupCboxv           = iup_c_func(iup, "IupCboxv", {P}, P)
     xIupSbox            = iup_c_func(iup, "IupSbox", {P}, P)
     xIupSplit           = iup_c_func(iup, "IupSplit", {P,P}, P)
@@ -1513,7 +1574,9 @@ end if
     xIupGetText         = iup_c_func(iup, "IupGetText", {P,P}, I)
     xIupListDialog      = iup_c_func(iup, "IupListDialog", {I,P,I,P,I,I,I,P}, I)
     xIupLayoutDialog    = iup_c_func(iup, "IupLayoutDialog", {P}, P)
-    xIupProgressDlg     = iup_c_func(iup, "+IupProgressDlg", {}, P)
+--5/5/18:
+--  xIupProgressDlg     = iup_c_func(iup, "+IupProgressDlg", {}, P)
+    xIupProgressDlg     = iup_c_func(iup, "IupProgressDlg", {}, P)
 
     xIupButton                  = iup_c_func(iup, "IupButton", {P,P}, P)
     xIupCanvas                  = iup_c_func(iup, "IupCanvas", {P}, P)
@@ -1588,6 +1651,7 @@ end if
 --  xIupColorbar            = iup_c_func(iupControls, "IupColorbar", {},P)      -- removed in 3.24
 --  xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)  -- removed in 3.24
 --  xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)         -- removed in 3.24
+    xIupDial                = iup_c_func(iup, "IupDial", {P},P)         -- moved in 3.24
     xIupMatrix              = iup_c_func(iupControls, "IupMatrix", {P},P)
 --  xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
 --  xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
@@ -1657,22 +1721,17 @@ global procedure IupClose()
     did_iup_controls_open = 0
 end procedure
 
---deprecated? (it is an LED file)
---global function IupLoad(string filename)
---atom pError = c_func(xIupLoad, {filename})
---  if pError!=0 then
---      return peek_string(pError)
---  end if
---  return 1
---end function
---
---global function IupLoadBuffer(string buffer)
---atom pError = c_func(xIupLoadBuffer, {buffer})
---  if pError!=0 then
---      return peek_string(pError)
---  end if
---  return 1
---end function
+global function IupLoad(string filename)
+    atom pError = c_func(xIupLoad, {filename})
+    nullable_string res = iff(pError?peek_string(pError):NULL)
+    return res
+end function
+
+global function IupLoadBuffer(string buffer)
+    atom pError = c_func(xIupLoadBuffer, {buffer})
+    nullable_string res = iff(pError?peek_string(pError):NULL)
+    return res
+end function
 
 --global procedure IupSetLanguage(string language)
 --  c_proc(xIupSetLanguage, {language})
@@ -1839,7 +1898,7 @@ global procedure IupSetAttribute(Ihandln ih, string name, atom_string v)
 end procedure
 
 global procedure IupSetAttributePtr(Ihandln ih, string name, atom v)
-    if name!=upper(name) then ?9/0 end if
+--  if name!=upper(name) then ?9/0 end if
     c_proc(xIupSetAttribute, {ih, name, v})
 end procedure
 
@@ -2142,8 +2201,8 @@ end function
 
 global function IupGetAllAttributes(Ihandle ih)
 integer n = c_func(xIupGetAllAttributes, {ih,NULL,0})
-    atom ptr = allocate(machine_word()*n*8, 1)
-    mem_set(ptr,0,machine_word()*n) -- (not strictly necessary)
+    atom ptr = allocate(W*n*8, 1)
+    mem_set(ptr,0,W*n) -- (not strictly necessary)
     -- (aside: n may shrink here, as (ih,NULL,0) returns a count that includes
     --         internal attributes, which are filtered out in this return.)
     n = c_func(xIupGetAllAttributes, {ih,ptr,n})
@@ -2268,22 +2327,28 @@ global function IupGetGlobal(string name)
     return peek_string(ptr)
 end function
 
-global procedure IupSetCallback(Ihandle ih, string name, cbfunc func)
-    atom prev = c_func(xIupSetCallback, {ih, name, func})
+global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
+    if sequence(ih) then
+        for i=1 to length(ih) do
+            Ihandle ihi = ih[i]     -- (typecheck deliberate)
+            IupSetCallback(ihi,name,func)
+        end for
+    else
+        atom prev = c_func(xIupSetCallback, {ih, name, func})
+    end if
 end procedure
 
-global function IupSetCallbackf(Ihandle ih, string name, cbfunc func)
+global function IupSetCallbackf(Ihandles ih, string name, cbfunc func)
     IupSetCallback(ih, name, func)
     return ih
 end function
 
-global function IupSetCallbacks(Ihandle ih, sequence namefuncpairs)
+global procedure IupSetCallbacks(Ihandles ih, sequence namefuncpairs)
     if and_bits(length(namefuncpairs),1) then ?9/0 end if
     for i=1 to length(namefuncpairs) by 2 do
         IupSetCallback(ih,namefuncpairs[i],namefuncpairs[i+1])
     end for
-    return ih
-end function
+end procedure
 
 global function IupGetCallback(Ihandle ih, string name)
 atom func = c_func(xIupGetCallback, {ih, name})
@@ -2573,6 +2638,12 @@ global function IupNormalizer(Ihandles ih_list, string attributes="", sequence d
     return ih
 end function
 
+-- only used by IupView.exw, and deliberately not documented.
+global function iupObjectCheck(Ihandle ih)
+    bool res = c_func(xiupObjectCheck,{ih})
+    return res
+end function
+
 global function IupNormaliser(Ihandles ih_list, string attributes="", sequence data={})
     return IupNormalizer(ih_list, attributes, data)
 end function
@@ -2726,8 +2797,14 @@ end function
 --  xIupRedraw          = iup_c_proc(iup, "IupRedraw", {P,I}),
 --  xIupConvertXYToPos  = iup_c_func(iup, "IupConvertXYToPos", {P,I,I}, I)
 --
-global procedure IupRefresh(Ihandle ih)
-    c_proc(xIupRefresh, {ih})
+global procedure IupRefresh(Ihandles ih)
+    if sequence(ih) then
+        for i=1 to length(ih) do
+            IupRefresh(ih[i])
+        end for
+    else
+        c_proc(xIupRefresh, {ih})
+    end if
 end procedure
 
 global procedure IupRefreshChildren(Ihandle ih)
@@ -2823,8 +2900,7 @@ end procedure
 --  xIupGetParamv       = iup_c_func(iup, "IupGetParamv", {P,P,P,P,I,I,P}, I),
 --  xIupGetText         = iup_c_func(iup, "IupGetText", {P,P}, I),
 --  xIupListDialog      = iup_c_func(iup, "IupListDialog", {I,P,I,P,I,I,I,P}, I),
---  xIupLayoutDialog    = iup_c_func(iup, "IupLayoutDialog", {P}, P),
---  xIupProgressDlg     = iup_c_func(iup, "+IupProgressDlg", {}, P)
+--  xIupLayoutDialog    = iup_c_func(iup, "IupLayoutDialog", {P}, P)
 --
 
 global function IupAlarm(string title, string msg, string b1, nullable_string b2=NULL, nullable_string b3=NULL)
@@ -3010,7 +3086,7 @@ end function
 
 global function IupListDialog(integer seltype, string title, sequence options, integer isel, integer maxCols, integer maxLines)
 integer size = length(options), result
-atom pOptions = allocate(machine_word()*size),
+atom pOptions = allocate(W*size),
      pMark = NULL
 sequence pOptAry = {}, marked, selected = {}
 
@@ -3021,7 +3097,7 @@ sequence pOptAry = {}, marked, selected = {}
     poke4(pOptions, pOptAry)
     if seltype=2 then
         -- multiple selection
-        pMark = allocate(4*size)    --DEV machine_word()? [test on 64 bit]
+        pMark = allocate(4*size)    --DEV W? [test on 64 bit]
         mem_set(pMark,0,4*size)
     end if
     result = c_func(xIupListDialog, {seltype, title, size, pOptions, isel, maxCols, maxLines, pMark})
@@ -3096,6 +3172,8 @@ global function IupCanvas(object action=NULL, object func=NULL, sequence attribu
     return ih
 end function
 
+--DEV: IupFlatFrame
+
 global function IupFrame(Ihandle child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupFrame, {child})
     if length(attributes) then
@@ -3103,6 +3181,8 @@ global function IupFrame(Ihandle child=NULL, string attributes="", sequence data
     end if
     return ih
 end function
+
+--DEV: IupAnimatedLabel
 
 --global function IupLabel(nullable_string title=NULL, string attributes="", sequence data={})
 --global function IupLabel(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
@@ -3307,10 +3387,12 @@ global procedure IupConfigSetVariableDoubleId(Ihandle config, string group, stri
 end procedure
 
 global procedure IupConfigSetVariableStr(Ihandle config, string group, string key, nullable_string v)
+    if v="" then v=NULL end if
     c_proc(xIupConfigSetVariableStr, {config,group,key,v})
 end procedure
 
 global procedure IupConfigSetVariableStrId(Ihandle config, string group, string key, integer id, nullable_string v)
+    if v="" then v=NULL end if
     c_proc(xIupConfigSetVariableStrId, {config,group,key,id,v})
 end procedure
 
@@ -3354,17 +3436,39 @@ global procedure IupConfigRecentUpdate(Ihandle config, string filename)
     c_proc(xIupConfigRecentUpdate, {config,filename})
 end procedure
 
-global procedure IupConfigDialogShow(Ihandle config, Ihandle dialog, string name, bool maximised=0)
+--DEV revert to this if needed:
+global procedure IupConfigDialogShow0(Ihandle config, Ihandle dialog, string name, bool maximised=false)
+--integer w = IupConfigGetVariableInt(config, name, "Width", NULL)
 --integer m = IupConfigGetVariableInt(config, name, "Maximized", maximised)
 integer m = IupConfigGetVariableInt(config, name, "MaxiSized", maximised)
 --  IupConfigSetVariableInt(config, name, "Maximized", m)
     IupConfigSetVariableInt(config, name, "MaxiSized", m)
+--if m or w then
     c_proc(xIupConfigDialogShow, {config,dialog,name})
     if m then
         c_proc(xIupHide,{dialog})
         c_proc(xIupSetAttribute,{dialog,"PLACEMENT","MAXIMIZED"})
+--      c_proc(xIupSetAttribute,{dialog,"PLACEMENT",iff(m?"MAXIMIZED":"NORMAL")})
+--end if
         if c_func(xIupShow,{dialog})!=IUP_NOERROR then ?9/0 end if
     end if
+end procedure
+
+global procedure IupConfigDialogShow(Ihandle config, Ihandle dialog, string name, bool maximised=false)
+integer w = IupConfigGetVariableInt(config, name, "Width", NULL)
+--integer m = IupConfigGetVariableInt(config, name, "Maximized", maximised)
+integer m = IupConfigGetVariableInt(config, name, "MaxiSized", maximised)
+--  IupConfigSetVariableInt(config, name, "Maximized", m)
+    IupConfigSetVariableInt(config, name, "MaxiSized", m)
+    if m or w then
+        c_proc(xIupConfigDialogShow, {config,dialog,name})
+        if m then
+            c_proc(xIupHide,{dialog})
+            c_proc(xIupSetAttribute,{dialog,"PLACEMENT","MAXIMIZED"})
+--          c_proc(xIupSetAttribute,{dialog,"PLACEMENT",iff(m?"MAXIMIZED":"NORMAL")})
+        end if
+    end if
+    if c_func(xIupShow,{dialog})!=IUP_NOERROR then ?9/0 end if
 end procedure
 
 global procedure IupConfigDialogClosed(Ihandle config, Ihandle dialog, string name)
@@ -3411,14 +3515,14 @@ end function
 --end function
 
 -- removed in 3.24:
---global function IupDial(string orientation, string attributes="", dword_seq data={})
---  IupControlsOpen()
---  Ihandle ih = c_func(xIupDial, {orientation})
---  if length(attributes) then
---      IupSetAttributes(ih, attributes, data)
---  end if
---  return ih
---end function
+global function IupDial(string orientation, string attributes="", dword_seq data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupDial, {orientation})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
 
 global function IupMatrix(string attributes="", sequence data={})
     IupControlsOpen()
@@ -3745,6 +3849,22 @@ atom
     xIupImage,
     xIupImageRGB,
     xIupImageRGBA,
+    xiupImageStockLoadAll,
+    xIupDrawBegin,
+    xIupDrawEnd,
+    xIupDrawSetClipRect,
+    xIupDrawResetClip,
+    xIupDrawParentBackground,
+    xIupDrawLine,
+    xIupDrawRectangle,
+    xIupDrawArc,
+    xIupDrawPolygon,
+    xIupDrawText,
+    xIupDrawImage,
+    xIupDrawSelectRect,
+    xIupDrawFocusRect,
+    xIupDrawGetSize,
+    xIupDrawGetTextSize,
     xIupDrawGetImageInfo,
     xIupLoadImage,
     xIupSaveImage,
@@ -3793,6 +3913,22 @@ procedure iup_image_init()
         xIupImage                   = iup_c_func(iup, "IupImage", {I,I,P}, P)
         xIupImageRGB                = iup_c_func(iup, "IupImageRGB", {I,I,P}, P)
         xIupImageRGBA               = iup_c_func(iup, "IupImageRGBA", {I,I,P}, P)
+        xiupImageStockLoadAll       = iup_c_proc(iup, "iupImageStockLoadAll", {})
+        xIupDrawBegin               = iup_c_proc(iup, "IupDrawBegin",{P})
+        xIupDrawEnd                 = iup_c_proc(iup, "IupDrawEnd",{P})
+        xIupDrawSetClipRect         = iup_c_proc(iup, "IupDrawSetClipRect",{P,I,I,I,I})
+        xIupDrawResetClip           = iup_c_proc(iup, "IupDrawResetClip",{P})
+        xIupDrawParentBackground    = iup_c_proc(iup, "IupDrawParentBackground",{P})
+        xIupDrawLine                = iup_c_proc(iup, "IupDrawLine",{P,I,I,I,I})
+        xIupDrawRectangle           = iup_c_proc(iup, "IupDrawRectangle",{P,I,I,I,I})
+        xIupDrawArc                 = iup_c_proc(iup, "IupDrawArc",{P,I,I,I,I,D,D})
+        xIupDrawPolygon             = iup_c_proc(iup, "IupDrawPolygon",{P,P,I})
+        xIupDrawText                = iup_c_proc(iup, "IupDrawText",{P,P,I,I,I})
+        xIupDrawImage               = iup_c_proc(iup, "IupDrawImage",{P,P,I,I,I})
+        xIupDrawSelectRect          = iup_c_proc(iup, "IupDrawSelectRect",{P,I,I,I,I})
+        xIupDrawFocusRect           = iup_c_proc(iup, "IupDrawFocusRect",{P,I,I,I,I})
+        xIupDrawGetSize             = iup_c_proc(iup, "IupDrawGetSize",{P,P,P})
+        xIupDrawGetTextSize         = iup_c_proc(iup, "IupDrawGetTextSize",{P,P,P,P})
         xIupDrawGetImageInfo        = iup_c_proc(iup, "IupDrawGetImageInfo",{P,P,P,P})
         xIupLoadImage               = iup_c_func(iupIm, "IupLoadImage", {P}, P)
         xIupSaveImage               = iup_c_func(iupIm, "IupSaveImage", {P,P,P}, I)
@@ -3857,14 +3993,113 @@ atom pPixels = allocate(length(pixels))
     return ih
 end function
 
---DEV doc (done to here)
---void IupDrawGetImageInfo(const char* name, int *w, int *h, int *bpp)
+-- only used by IupView.exw (and deliberately not documented)
+global procedure iupImageStockLoadAll()
+    iup_image_init()
+    c_proc(xiupImageStockLoadAll,{})
+end procedure
+
+--DEV not tested (*14):
+global procedure IupDrawBegin(Ihandle ih)
+    iup_image_init()
+    c_proc(xIupDrawBegin,{ih})
+end procedure
+
+global procedure IupDrawEnd(Ihandle ih)
+    iup_image_init()
+    c_proc(xIupDrawEnd,{ih})
+end procedure
+
+global procedure IupDrawSetClipRect(Ihandle ih, integer x1, y1, x2, y2)
+    iup_image_init()
+    c_proc(xIupDrawSetClipRect,{ih,x1,y1,x2,y2})
+end procedure
+
+global procedure IupDrawResetClip(Ihandle ih)
+    iup_image_init()
+    c_proc(xIupDrawResetClip,{ih})
+end procedure
+
+global procedure IupDrawParentBackground(Ihandle ih)
+    iup_image_init()
+    c_proc(xIupDrawParentBackground,{ih})
+end procedure
+
+global procedure IupDrawLine(Ihandle ih, integer x1, y1, x2, y2)
+    iup_image_init()
+    c_proc(xIupDrawLine,{ih,x1,y1,x2,y2})
+end procedure
+
+global procedure IupDrawRectangle(Ihandle ih, integer x1, y1, x2, y2)
+    iup_image_init()
+    c_proc(xIupDrawRectangle,{ih,x1,y1,x2,y2})
+end procedure
+
+global procedure IupDrawArc(Ihandle ih, integer x1, y1, x2, y2, atom a1, a2)
+    iup_image_init()
+    c_proc(xIupDrawArc,{ih,x1,y1,x2,y2,a1,a2})
+end procedure
+
+global procedure IupDrawPolygon(Ihandle ih, sequence points)
+    iup_image_init()
+    integer count = length(points)
+    atom pPoints = allocate(4*count)
+    poke4(pPoints, points)
+    c_proc(xIupDrawPolygon,{ih,pPoints,count})
+    free(pPoints)
+end procedure
+
+global procedure IupDrawText(Ihandle ih, string text, integer x, y)
+    iup_image_init()
+    integer len = length(text)
+    c_proc(xIupDrawText,{ih,text,len,x,y})
+end procedure
+
+global procedure IupDrawImage(Ihandle ih, string name, bool make_inactive, integer x, y)
+    iup_image_init()
+    c_proc(xIupDrawImage,{ih,name,make_inactive,x,y})
+end procedure
+
+global procedure IupDrawSelectRect(Ihandle ih, integer x1, y1, x2, y2)
+    iup_image_init()
+    c_proc(xIupDrawSelectRect,{ih,x1,y1,x2,y2})
+end procedure
+
+global procedure IupDrawFocusRect(Ihandle ih, integer x1, y1, x2, y2)
+    iup_image_init()
+    c_proc(xIupDrawFocusRect,{ih,x1,y1,x2,y2})
+end procedure
+
+global function IupDrawGetSize(Ihandle ih)
+    iup_image_init()
+    atom p_w = allocate(4, 1),
+         p_h = allocate(4, 1)
+    c_proc(xIupDrawGetSize,{ih,p_w,p_h})
+    integer width = peek4s(p_w),
+            height = peek4s(p_h)
+    return {width,height}
+end function
+
+global function IupDrawGetTextSize(Ihandle ih, string str)
+    iup_image_init()
+    atom p_w = allocate(4, 1),
+         p_h = allocate(4, 1)
+    c_proc(xIupDrawGetTextSize,{ih,str,p_w,p_h})
+    integer width = peek4s(p_w),
+            height = peek4s(p_h)
+    return {width,height}
+end function
+
 global function IupDrawGetImageInfo(string name)
-atom p_w = allocate(4, 1),
-     p_h = allocate(4, 1),
-     p_bpp = allocate(4, 1)
+    iup_image_init()
+    atom p_w = allocate(4, 1),
+         p_h = allocate(4, 1),
+         p_bpp = allocate(4, 1)
     c_proc(xIupDrawGetImageInfo,{name,p_w,p_h,p_bpp})
-    return {peek4s(p_w),peek4s(p_h),peek4s(p_bpp)}
+    integer width = peek4s(p_w),
+            height = peek4s(p_h),
+            bpp = peek4s(p_bpp)
+    return {width,height,bpp}
 end function
 
 global function IupLoadImage(string filename)
@@ -3875,35 +4110,34 @@ end function
 
 global function IupSaveImage(Ihandle ih, string file_name, string fmt)
 --  iup_image_init()
---  integer result = c_func(xIupSaveImage, {ih,file_name,fmt})
---  return result
-    if c_func(xIupSaveImage, {ih,file_name,fmt})=0 then
+    integer result = c_func(xIupSaveImage, {ih,file_name,fmt})
+    if result=0 then
         return IupGetGlobal("IUPIM_LASTERROR")
     end if
-    return 1
+    return result
 end function
 
 global function IupSaveImageAsText(Ihandle ih, string filename, string fmt, nullable_string name=NULL)
 --  iup_image_init()
     integer result = c_func(xIupSaveImageAsText, {ih, filename, fmt, name})
-    return result   -- 0=failure
+    if result=0 then
+        return IupGetGlobal("IUPIM_LASTERROR")
+    end if
+    return result
 end function
 
---imImage* IupGetNativeHandleImage(void* handle);
 global function IupGetNativeHandleImage(atom handle)
 --  iup_image_init()
     imImage result = c_func(xIupGetNativeHandleImage, {handle})
     return result
 end function
 
---void* IupGetImageNativeHandle(const imImage* image);
 global function IupGetImageNativeHandle(imImage image)
 --  iup_image_init()
     atom result = c_func(xIupGetImageNativeHandle, {image})
     return result
 end function
 
---Ihandle* IupImageFromImImage(const imImage* image);
 global function IupImageFromImImage(imImage image)
 --  iup_image_init()
     Ihandle ih = c_func(xIupImageFromImImage, {image})
@@ -4076,7 +4310,10 @@ end procedure
 --/*
 imImage* imImageCreate(int width, int height, int color_space, int data_type)
 Creates a new image. See also imDataType and imColorSpace. Image data is cleared as imImageClear. 
-In Lua the IM image metatable name is "imImage". When converted to a string will return "imImage(%p) [width=%d,height=%d,color_space=%s,data_type=%s,depth=%d]" where p is replaced by the userdata address, and other values are replaced by the respective attributes. If the image is already destroyed by im.ImageDestroy, then it will return also the suffix "-destroyed".
+In Lua the IM image metatable name is "imImage". 
+When converted to a string will return "imImage(%p) [width=%d,height=%d,color_space=%s,data_type=%s,depth=%d]" 
+where p is replaced by the userdata address, and other values are replaced by the respective attributes. 
+If the image is already destroyed by im.ImageDestroy, then it will return also the suffix "-destroyed".
 --*/
 global function imImageCreate(integer width, integer height, integer color_space, integer data_type)
     iup_image_init()
@@ -4130,6 +4367,15 @@ global procedure imImageDestroy(imImage image)
     c_proc(ximImageDestroy,{image})
 end procedure
 
+--/*
+void* imImageGetOpenGLData(const imImage *image, int *glformat)
+Returns an OpenGL compatible data buffer. Also returns the correspondent pixel format. 
+The memory allocated is stored in the attribute "GLDATA" with BYTE type. And it will exists while the image exists. 
+It can be cleared by setting the attribute to NULL. 
+MAP images are converted to RGB, and BINARY images are converted to GRAY. 
+Alpha channel is considered and Transparency* attributes are converted to alpha channel. 
+So calculate depth from glformat, not from image depth.
+--*/
 global procedure imImageGetOpenGLData(imImage image, atom pRes)
     c_proc(ximImageGetOpenGLData,{image,pRes})
 end procedure
@@ -4182,18 +4428,57 @@ global function im_color_space(imImage image)
 end function
 
 global function im_data(imImage image)
-    atom dataptr = peekNS(image+40,machine_word(),0)
+    atom dataptr = peekNS(image+40,W,0)
     return dataptr
 end function
 
+--global function im_palette(imImage image)
+--  atom palette_ptr = peekNS(image+40+W,W,0)
+--  integer palette_count = peekNS(image+40+2*W,W,0)
+--  sequence pal = peek4u({palette_ptr,palette_count}
+--  for i=1 to length(pal) do
+--      pal[i] = to_rgb(pal[i])
+--  end for
+--  return pal
+--end function
+
 global function im_pixel(imImage image, integer x, integer y)
+    if im_color_space(image)!=IM_RGB then ?9/0 end if   --DEV fixme!
+    -- (I cribbed this from simple_paint, which converts to IM_RGB on load)
+    -- [IupImageFromImImage() in iup_im.c is probly a fair place to start]
+--  integer r,g,b
     atom data_ptr = im_data(image)
-    integer offset = y*im_width(image)+x
-    atom {rptr,gptr,bptr} = sq_add(peekNS({data_ptr,3},machine_word(),0),offset)
+    integer offset
+--if im_color_space(image)=IM_RGB then
+    offset = y*im_width(image)+x
+    atom {rptr,gptr,bptr} = sq_add(peekNS({data_ptr,3},W,0),offset)
     integer r = peek(rptr),
             g = peek(gptr),
             b = peek(bptr)
     return {r,g,b}
+--/* I tried...
+  else
+--  for (i = 0; i < image->palette_count; i++)
+--  {
+--    unsigned char r, g, b;
+--    imColorDecode(&r, &g, &b, image->palette[i]);
+--    IupSetRGBId(iup_image, "", i, r, g, b);
+--  }
+
+--      {r,g,b} = peek({data_ptr+offset,3})
+--      im_palette()
+--      integer line_size = peek4s(image+24)
+--      offset = y*line_size+x
+        offset = y*im_width(image)+x
+        atom palette_ptr = peekNS(image+40+W,W,0)
+        integer palette_count = peekNS(image+40+2*W,W,0),
+                palette_idx = peek(data_ptr+offset)
+--      if palette_idx>palette_count then ?9/0 end if
+--      {r,g,b} = to_rgb(peek4u(palette_ptr+palette_idx))
+--      {r,g,b} = peek({palette_ptr+palette_idx*4,3})
+        return peek({palette_ptr+palette_idx*4,3})
+  end if
+--*/
 end function
 
 
@@ -4306,14 +4591,14 @@ end function
 -- 
 global function IupGetAllNames()
 integer n = c_func(xIupGetAllNames, {NULL,0})
-atom ptr = allocate_data(machine_word()*n, 1)
+atom ptr = allocate_data(W*n, 1)
     n = c_func(xIupGetAllNames, {ptr,n})
     return iup_peek_string_pointer_array(ptr, n)
 end function
 
 global function IupGetAllDialogs()
 integer n = c_func(xIupGetAllDialogs, {NULL,0})
-atom ptr = allocate_data(machine_word()*n, 1)
+atom ptr = allocate_data(W*n, 1)
     n = c_func(xIupGetAllDialogs, {ptr,n})
     return iup_peek_string_pointer_array(ptr, n)
 end function
@@ -4377,10 +4662,10 @@ end type
 --  Canvas Draw Constants
 
 global constant
---DEV F1 lookup:
     CD_QUERY = -1,
     CD_ERROR = -1,
     CD_OK = 0,
+
     --
     -- Polygon Mode Constants
     --
@@ -4390,12 +4675,30 @@ global constant
     CD_CLIP = 3,
     CD_BEZIER = 4,
     CD_REGION = 5,
-    CD_POLYCUSTOM = 10,
+    CD_PATH = 6,
+--undocumented, unused, google search yields nothing useful:
+--  CD_POLYCUSTOM = 10,
+
+    --
+    -- path actions
+    --
+    CD_PATH_NEW = 0,
+    CD_PATH_MOVETO = 1,
+    CD_PATH_LINETO = 2,
+    CD_PATH_ARC = 3,
+    CD_PATH_CURVETO = 4,
+    CD_PATH_CLOSE = 5,
+    CD_PATH_FILL = 6,
+    CD_PATH_STROKE = 7,
+    CD_PATH_FILLSTROKE = 8,
+    CD_PATH_CLIP = 9,
+
     --
     -- Bitmap Type Constants
     --
     --  These definitions are compatible with the IM library
     --
+--deprecated (see cdCreateBitmap()/init_bitmap())
     CD_RGB = 0,
     CD_MAP = 1,
     CD_RGBA = #100,
@@ -4408,6 +4711,7 @@ global constant
     CD_IALPHA = 3,
     CD_INDEX = 4,
     CD_COLORS = 5,
+--</deprecated>
     --
     -- Clip Mode Constants
     --
@@ -4425,6 +4729,7 @@ global constant
     --
     -- Fill Mode Constants
     --
+--DEV F1 lookup?: (cdCanvasFillMode)
     CD_EVENODD = 0,
     CD_WINDING = 1,
     --
@@ -4621,8 +4926,10 @@ global constant
     -- These are simply for convenience
     --
     CD_MM2PT = 2.83465,         -- Milimeters to Points (pt = CD_MM2PT * mm)
-    CD_RAD2DEG = 57.2958,       -- Radians to Degrees (deg = CD_RAD2DEG * rad)
-    CD_DEG2RAD = 0.0174533,     -- Degrees to Radians (rad = CD_DEG2RAD * deg)
+--  CD_RAD2DEG = 57.2958,       -- Radians to Degrees (deg = CD_RAD2DEG * rad)
+--  CD_DEG2RAD = 0.0174533,     -- Degrees to Radians (rad = CD_DEG2RAD * deg)
+    CD_RAD2DEG = 180/PI,        -- Radians to Degrees (deg = CD_RAD2DEG * rad)
+    CD_DEG2RAD = PI/180,        -- Degrees to Radians (rad = CD_DEG2RAD * deg)
 
     CD_IUP          = {"CD_IUP"},
     CD_PRINTER      = {"CD_PRINTER"},
@@ -4633,6 +4940,19 @@ global constant
 --  CD_NATIVEWINDOW = {"CD_NATIVEWINDOW"},
     CD_DBUFFER      = {"CD_DBUFFER"},
     CD_IMIMAGE      = {"CD_IMIMAGE"},
+    CD_PPTX         = {"CD_PPTX"},
+    CD_IMAGERGB     = {"CD_IMAGERGB"},
+    CD_DBUFFERRGB   = {"CD_DBUFFERRGB"},
+    CD_CGM          = {"CD_CGM"},
+    CD_METAFILE     = {"CD_METAFILE"},
+    CD_WMF          = {"CD_WMF"},
+    CD_EMF          = {"CD_EMF"},
+    CD_DEBUG        = {"CD_DEBUG"},
+    CD_DGN          = {"CD_DGN"},
+    CD_DXF          = {"CD_DXF"},
+--  CD_PDF          = {"CD_PDF"},
+    CD_SVG          = {"CD_SVG"},
+    CD_CLIPBOARD    = {"CD_CLIPBOARD"},
     $
 
 atom
@@ -4668,6 +4988,19 @@ atom
     xcdContextGL,
     xcdContextIupDBuffer,
     xcdContextDBuffer,
+    xcdContextImageRGB,
+    xcdContextPPTX,
+    xcdContextDBufferRGB,
+    xcdContextCGM,
+    xcdContextMetafile,
+    xcdContextWMF,
+    xcdContextEMF,
+    xcdContextDebug,
+    xcdContextDGN,
+    xcdContextDXF,
+--  xcdContextPDF,
+    xcdContextSVG,
+    xcdContextClipboard,
 
     xcdContextNativeWindow,
     xcdGetScreenSize,
@@ -4681,7 +5014,20 @@ atom
     XCD_IUPDBUFFER,
 --  XCD_NATIVEWINDOW,
     XCD_DBUFFER,
-    XCD_IMIMAGE
+    XCD_IMIMAGE,
+    XCD_PPTX,
+    XCD_IMAGERGB,
+    XCD_DBUFFERRGB,
+    XCD_CGM,
+    XCD_METAFILE,
+    XCD_WMF,
+    XCD_EMF,
+    XCD_DEBUG,
+    XCD_DGN,
+    XCD_DXF,
+--  XCD_PDF,
+    XCD_SVG,
+    XCD_CLIPBOARD
 
 sequence XCD_STR = {"CD_IUP",
                     "CD_PRINTER",
@@ -4691,7 +5037,20 @@ sequence XCD_STR = {"CD_IUP",
                     "CD_IUPDBUFFER",
 --                  "CD_NATIVEWINDOW",
                     "CD_DBUFFER",
-                    "CD_IMIMAGE"},
+                    "CD_IMIMAGE",
+                    "CD_PPTX",
+                    "CD_IMAGERGB",
+                    "CD_DBUFFERRGB",
+                    "CD_CGM",
+                    "CD_METAFILE",
+                    "CD_WMF",
+                    "CD_EMF",
+                    "CD_DEBUG",
+                    "CD_DGN",
+                    "CD_DXF",
+--                  "CD_PDF",
+                    "CD_SVG",
+                    "CD_CLIPBOARD"},
          XCDS
 
 atom 
@@ -4701,7 +5060,7 @@ atom
     xcdClear,
     xcdCanvasSaveState,
     xcdCanvasRestoreState,
-    xcdCanvasReleaseState,
+    xcdReleaseState,
     xcdCanvasSetAttribute,
     xcdCanvasGetAttribute,
 
@@ -4731,9 +5090,9 @@ atom
     -- clipping 
     --
     xcdCanvasClip,
-    xcdCanvasClipArea,
+--  xcdCanvasClipArea,
     xcdfCanvasClipArea,
-    xcdCanvasGetClipArea,
+--  xcdCanvasGetClipArea,
     xcdfCanvasGetClipArea,
 
     --
@@ -4754,6 +5113,7 @@ atom
     xcdCanvasBegin,
     xcdCanvasVertex,
     xcdCanvasEnd,
+    xcdCanvasPathSet,
     xcdCanvasRect,
     xcdCanvasBox,
     xcdCanvasArc,
@@ -4988,9 +5348,7 @@ procedure iup_init_cd()
         xcdActiveCanvas     = iup_c_func(hCd, "cdActiveCanvas", {}, P)
         xcdCanvasDeactivate = iup_c_proc(hCd, "cdCanvasDeactivate", {P})
         xcdUseContextPlus   = iup_c_proc(hCd, "cdUseContextPlus", {I})
---DEV...
---      xcdInitContextPlus  = iup_c_proc(hCd, "cdInitContextPlus", {})
-        xcdInitContextPlus  = define_c_proc(hCd, "cdInitContextPlus", {})
+        xcdInitContextPlus  = define_c_proc(hCd, "cdInitContextPlus", {})   -- (-1 is handled OK)
 
         --
         -- Context Routines
@@ -5012,6 +5370,19 @@ procedure iup_init_cd()
         xcdContextGL            = iup_c_func(hCdGL,"cdContextGL", {}, P)
         xcdContextIupDBuffer    = iup_c_func(hCdIup,"cdContextIupDBuffer", {}, P)
         xcdContextDBuffer       = iup_c_func(hCd, "cdContextDBuffer", {}, P)
+        xcdContextImageRGB      = iup_c_func(hCd, "cdContextImageRGB", {}, P)
+        xcdContextDBufferRGB    = iup_c_func(hCd, "cdContextDBufferRGB", {}, P)
+        xcdContextPPTX          = iup_c_func(hCd, "cdContextPPTX", {}, P, allow_fail:=true)
+        xcdContextCGM           = iup_c_func(hCd, "cdContextCGM", {}, P)
+        xcdContextMetafile      = iup_c_func(hCd, "cdContextMetafile", {}, P)
+        xcdContextWMF           = iup_c_func(hCd, "cdContextWMF", {}, P)
+        xcdContextEMF           = iup_c_func(hCd, "cdContextEMF", {}, P)
+        xcdContextDebug         = iup_c_func(hCd, "cdContextDebug", {}, P)
+        xcdContextDGN           = iup_c_func(hCd, "cdContextDGN", {}, P)
+        xcdContextDXF           = iup_c_func(hCd, "cdContextDXF", {}, P)
+--      xcdContextPDF           = iup_c_func(hCd, "cdContextPDF", {}, P)
+        xcdContextSVG           = iup_c_func(hCd, "cdContextSVG", {}, P)
+        xcdContextClipboard     = iup_c_func(hCd, "cdContextClipboard", {}, P)
 
 --DEV..
 if platform()=WINDOWS then
@@ -5021,11 +5392,11 @@ if platform()=WINDOWS then
 end if
 
 
---DEV/doc:
+--doc: (done)
 -- Note: The constants CD_IUP etc are initialised with abtruse values: by "abtruse" (not a real word) I mean a value designed to trigger an error 
---      if used directly, that makes some sense when debugging said error, and is substituted (within the pGUI wrapper) by a proper value, ie/eg 
---      CD_IUP is {"CD_IUP"}, which is automatically replaced with the result of cdContextIup(). Should you need the proper values outside pGUI,
---      use the corresponding function call (search the source of pGUI.e to determine what that is [try "abtruse"!]).
+--  if used directly, that makes some sense when debugging said error, and is substituted (within the pGUI wrapper) by a proper value, ie/eg 
+--  CD_IUP is {"CD_IUP"}, which is automatically replaced with the result of cd_context({"CD_IUP"}). Should you need the proper values outside 
+--  of pGUI, just use eg cd_context(CD_IUP).
 
         XCD_IUP          = c_func(xcdContextIup, {})
         XCD_PRINTER      = c_func(xcdContextPrinter, {})
@@ -5036,6 +5407,19 @@ end if
 --      XCD_NATIVEWINDOW = c_func(xcdContextNativeWindow, {})
         XCD_DBUFFER      = c_func(xcdContextDBuffer, {})
         XCD_IMIMAGE      = c_func(xcdContextImImage,{})
+        XCD_PPTX         = iff(xcdContextPPTX=NULL?NULL:c_func(xcdContextPPTX,{}))
+        XCD_IMAGERGB     = c_func(xcdContextImageRGB,{})
+        XCD_DBUFFERRGB   = c_func(xcdContextDBufferRGB,{})
+        XCD_CGM          = c_func(xcdContextCGM,{})
+        XCD_METAFILE     = c_func(xcdContextMetafile,{})
+        XCD_WMF          = c_func(xcdContextWMF,{})
+        XCD_EMF          = c_func(xcdContextEMF,{})
+        XCD_DEBUG        = c_func(xcdContextDebug,{})
+        XCD_DGN          = c_func(xcdContextDGN,{})
+        XCD_DXF          = c_func(xcdContextDXF,{})
+--      XCD_PDF          = c_func(xcdContextPDF,{})
+        XCD_SVG          = c_func(xcdContextSVG,{})
+        XCD_CLIPBOARD    = c_func(xcdContextClipboard,{})
 
         XCDS = {XCD_IUP,
                 XCD_PRINTER,
@@ -5045,7 +5429,20 @@ end if
                 XCD_IUPDBUFFER,
 --              XCD_NATIVEWINDOW,
                 XCD_DBUFFER,
-                XCD_IMIMAGE}
+                XCD_IMIMAGE,
+                XCD_PPTX,
+                XCD_IMAGERGB,
+                XCD_DBUFFERRGB,
+                XCD_CGM,
+                XCD_METAFILE,
+                XCD_WMF,
+                XCD_EMF,
+                XCD_DEBUG,
+                XCD_DGN,
+                XCD_DXF,
+--              XCD_PDF,
+                XCD_SVG,
+                XCD_CLIPBOARD}
 
         --
         -- control
@@ -5056,7 +5453,7 @@ end if
         xcdClear                = iup_c_proc(hCd, "cdClear", {})
         xcdCanvasSaveState      = iup_c_func(hCd, "cdCanvasSaveState", {P},P)
         xcdCanvasRestoreState   = iup_c_proc(hCd, "cdCanvasRestoreState", {P,P})
-        xcdCanvasReleaseState   = iup_c_proc(hCd, "cdReleaseState", {P})
+        xcdReleaseState         = iup_c_proc(hCd, "cdReleaseState", {P})
         xcdCanvasSetAttribute   = iup_c_proc(hCd, "cdCanvasSetAttribute", {P,P,P})
         xcdCanvasGetAttribute   = iup_c_func(hCd, "cdCanvasGetAttribute", {P,P},P)
 
@@ -5089,9 +5486,9 @@ end if
         --   clipping 
         --
         xcdCanvasClip           = iup_c_func(hCd, "cdCanvasClip", {P,I},I)
-        xcdCanvasClipArea       = iup_c_proc(hCd, "cdCanvasClipArea", {P,I,I,I,I})
+--      xcdCanvasClipArea       = iup_c_proc(hCd, "cdCanvasClipArea", {P,I,I,I,I})
         xcdfCanvasClipArea      = iup_c_proc(hCd, "cdfCanvasClipArea", {P,D,D,D,D})
-        xcdCanvasGetClipArea    = iup_c_func(hCd, "cdCanvasGetClipArea", {P,P,P,P,P},I)
+--      xcdCanvasGetClipArea    = iup_c_func(hCd, "cdCanvasGetClipArea", {P,P,P,P,P},I)
         xcdfCanvasGetClipArea   = iup_c_func(hCd, "cdfCanvasGetClipArea", {P,P,P,P,P},I)
 
         --
@@ -5105,20 +5502,21 @@ end if
         --
         -- drawing primitives
         --
-        xcdCanvasPixel  = iup_c_proc(hCd, "cdCanvasPixel", {P,I,I,I})
-        xcdCanvasMark   = iup_c_proc(hCd, "cdCanvasMark", {P,I,I})
-        xcdCanvasLine   = iup_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I})
-        xcdLine         = iup_c_proc(hCd, "cdLine", {I,I,I,I})
-        xcdCanvasBegin  = iup_c_proc(hCd, "cdCanvasBegin", {P,I})
-        xcdCanvasVertex = iup_c_proc(hCd, "cdCanvasVertex", {P,I,I})
-        xcdCanvasEnd    = iup_c_proc(hCd, "cdCanvasEnd", {P})
-        xcdCanvasRect   = iup_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I})
-        xcdCanvasBox    = iup_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I})
-        xcdCanvasArc    = iup_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D})
-        xcdCanvasSector = iup_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D})
-        xcdCanvasChord  = iup_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D})
-        xcdCanvasText   = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P})
-        xcdText         = iup_c_proc(hCd, "cdText", {I,I,P})
+        xcdCanvasPixel      = iup_c_proc(hCd, "cdCanvasPixel", {P,I,I,I})
+        xcdCanvasMark       = iup_c_proc(hCd, "cdCanvasMark", {P,I,I})
+        xcdCanvasLine       = iup_c_proc(hCd, "cdCanvasLine", {P,I,I,I,I})
+        xcdLine             = iup_c_proc(hCd, "cdLine", {I,I,I,I})
+        xcdCanvasBegin      = iup_c_proc(hCd, "cdCanvasBegin", {P,I})
+        xcdCanvasVertex     = iup_c_proc(hCd, "cdCanvasVertex", {P,I,I})
+        xcdCanvasEnd        = iup_c_proc(hCd, "cdCanvasEnd", {P})
+        xcdCanvasPathSet    = iup_c_proc(hCd, "cdCanvasPathSet", {P,I})
+        xcdCanvasRect       = iup_c_proc(hCd, "cdCanvasRect", {P,I,I,I,I})
+        xcdCanvasBox        = iup_c_proc(hCd, "cdCanvasBox", {P,I,I,I,I})
+        xcdCanvasArc        = iup_c_proc(hCd, "cdCanvasArc", {P,I,I,I,I,D,D})
+        xcdCanvasSector     = iup_c_proc(hCd, "cdCanvasSector", {P,I,I,I,I,D,D})
+        xcdCanvasChord      = iup_c_proc(hCd, "cdCanvasChord", {P,I,I,I,I,D,D})
+        xcdCanvasText       = iup_c_proc(hCd, "cdCanvasText", {P,I,I,P})
+        xcdText             = iup_c_proc(hCd, "cdText", {I,I,P})
 
         --
         -- primitives with double as arguments instead of integer
@@ -5343,11 +5741,6 @@ end function
 --  xcdContextGL            = iup_c_func(hCdGL,"cdContextGL", {}, P),
 --  xcdContextIupDBuffer    = iup_c_func(hCdIup,"cdContextIupDBuffer", {}, P)
 --
-----DEV/doc:
----- Note: The constants CD_IUP etc are initialised with abtruse values: by "abtruse" (not a real word) I mean a value designed to trigger an error 
-----        if used directly, that makes some sense when debugging said error, and is substituted (within the pGUI wrapper) by a proper value, ie/eg 
-----        CD_IUP is {"CD_IUP"}, which is automatically replaced with the result of cdContextIup(). Should you need the proper values outside pGUI,
-----        use the corresponding function call (search the source of pGUI.e to determine what that is).
 --global constant
 --  CD_IUP          = c_func(xcdContextIup, {}),
 --  CD_PRINTER      = c_func(xcdContextPrinter, {}),
@@ -5356,13 +5749,23 @@ end function
 --  CD_GL           = c_func(xcdContextGL, {}),
 --  CD_IUPDBUFFER   = c_func(xcdContextIupDBuffer, {})
 --
-global function cdContextIup()
+--global function cdContextIup()    -- removed 2/5/18: replace with cd_context(CD_IUP)
+--  iup_init_cd()
+--  return XCD_IUP
+--end function
+
+global function cd_context(object context)
+-- translates eg {"CD_IUP"} to an atom, in that case from c_func(xcdContextIup, {})
     iup_init_cd()
-    return XCD_IUP
+    if sequence(context) then
+        context = XCDS[find(context[1],XCD_STR)]
+    end if
+    return context
 end function
 
---DEV more of the same...
-
+global type cdContext(object context)
+    return cd_context(context)!=NULL
+end type
 
 ----ifdef WINDOWS then
 --constant
@@ -5412,21 +5815,15 @@ end function
 --  xcdActiveCanvas     = iup_c_func(hCd, "cdActiveCanvas", {}, P),
 --  xcdCanvasDeactivate = iup_c_proc(hCd, "cdCanvasDeactivate", {P}),
 --  xcdUseContextPlus   = iup_c_proc(hCd, "cdUseContextPlus", {I}),
-----DEV...
-----    xcdInitContextPlus  = iup_c_proc(hCd, "cdInitContextPlus", {})
---  xcdInitContextPlus  = define_c_proc(hCd, "cdInitContextPlus", {})
---
+
 --DEV docs (and cdCanvan)
 --global function cdCreateCanvas(atom hCdContext, atom_string data, sequence params={})
 global function cdCreateCanvas(object hCdContext, atom_string data, sequence params={})
     iup_init_cd()
-    if sequence(hCdContext) then
-        hCdContext = XCDS[find(hCdContext[1],XCD_STR)]
-    end if
     if length(params) then
         data = sprintf(data,params)
     end if
-    cdCanvan hCdCanvas = c_func(xcdCreateCanvas,{hCdContext,data})
+    cdCanvan hCdCanvas = c_func(xcdCreateCanvas,{cd_context(hCdContext),data})
     return hCdCanvas
 end function
 
@@ -5434,9 +5831,10 @@ global procedure cdKillCanvas(cdCanvas hCdCanvas)
     c_proc(xcdKillCanvas, {hCdCanvas})
 end procedure
 
-global function cdCanvasGetContext(cdCanvas hCdCanvas)
-    atom hCdContext = c_func(xcdCanvasGetContext, {hCdCanvas})
-    return hCdContext
+global function cdCanvasGetContext(cdCanvas canvas)
+    object context = c_func(xcdCanvasGetContext, {canvas})
+    context = XCD_STR[find(context,XCDS)]
+    return context
 end function
 
 global procedure cdCanvasActivate(cdCanvas hCdCanvas)
@@ -5449,7 +5847,7 @@ global function cdActiveCanvas()
     return res
 end function
 
-global procedure cavas_deactivate(cdCanvas hCdCanvas)
+global procedure cdCanvasDeactivate(cdCanvas hCdCanvas)
     c_proc(xcdCanvasDeactivate, {hCdCanvas})
 end procedure
 
@@ -5460,7 +5858,9 @@ end procedure
 
 global procedure cdInitContextPlus()
     iup_init_cd()
-    c_proc(xcdInitContextPlus, {})
+    if xcdInitContextPlus!=-1 then
+        c_proc(xcdInitContextPlus, {})
+    end if
 end procedure
 
 ----****
@@ -5472,22 +5872,19 @@ end procedure
 --  xcdContextCaps              = iup_c_func(hCd, "cdContextCaps", {P}, UL),
 --  xcdCanvasPlay               = iup_c_func(hCd, "cdCanvasPlay", {P,P,I,I,I,I,P}, I)
 --
-global function context_register_callback(atom hCdContext, integer cb, integer cbFunc)
-    return c_func(xcdContextRegisterCallback, {hCdContext, cb, cbFunc})
+global function cdCanvasPlay(cdCanvas canvas, cdContext context, integer xmin, xmax, ymin, ymax, atom_string data)
+    integer res = c_func(xcdCanvasPlay, {canvas, cd_context(context), xmin, xmax, ymin, ymax, data})
+    return res
 end function
 
---DEV doc: (atom->object)
-global function cdContextCaps(object hCdContext)
+--global function context_register_callback(atom hCdContext, integer cb, integer cbFunc)
+global function cdContextRegisterCallback(cdContext context, integer cb, atom cbFunc)
+    return c_func(xcdContextRegisterCallback, {cd_context(context), cb, cbFunc})
+end function
+
+global function cdContextCaps(cdContext context)
     iup_init_cd()
-    if sequence(hCdContext) then
-        hCdContext = XCDS[find(hCdContext[1],XCD_STR)]
-    end if
-    return c_func(xcdContextCaps, {hCdContext})
-end function
-
--- ??????
-global function canvas_play(cdCanvas hCdCanvas, atom hCdContext, integer xmin, integer xmax, integer ymin, integer ymax, atom_string data)
-    integer res = c_func(xcdCanvasPlay, {hCdCanvas, hCdContext, xmin, xmax, ymin, ymax, data})
+    atom res = c_func(xcdContextCaps, {cd_context(context)})
     return res
 end function
 
@@ -5507,11 +5904,11 @@ end function
 --end procedure
 --
 --cdContext* cdContextImImage(void)
-global function cdContextImImage()
-    iup_init_cd()
---  return c_func(xcdContextImImage,{})
-    return XCD_IMIMAGE
-end function
+--global function cdContextImImage()    -- use cd_context(CD_IMIMAGE) instead.
+--  iup_init_cd()
+----    return c_func(xcdContextImImage,{})
+--  return XCD_IMIMAGE
+--end function
 
 --global constant CD_IMIMAGE = cdContextImImage()
 
@@ -5530,47 +5927,42 @@ end procedure
 ---- control
 ----
 -------------------------------------------------------------------------------------------
---constant
---  xcdCanvasSimulate       = iup_c_func(hCd, "cdCanvasSimulate", {P,I},I),
---  xcdCanvasFlush          = iup_c_proc(hCd, "cdCanvasFlush", {P}),
---  xcdCanvasClear          = iup_c_proc(hCd, "cdCanvasClear", {P}),
---  xcdCanvasSaveState      = iup_c_func(hCd, "cdCanvasSaveState", {P},P),
---  xcdCanvasRestoreState   = iup_c_proc(hCd, "cdCanvasRestoreState", {P,P}),
---  xcdCanvasReleaseState   = iup_c_proc(hCd, "cdReleaseState", {P}),
---  xcdCanvasSetAttribute   = iup_c_proc(hCd, "cdCanvasSetAttribute", {P,P,P}),
---  xcdCanvasGetAttribute   = iup_c_func(hCd, "cdCanvasGetAttribute", {P,P},P)
 
-global function canvas_simulate(cdCanvas hCdCanvas, integer mode)
-    return c_func(xcdCanvasSimulate, {hCdCanvas, mode})
+--global function canvas_simulate(cdCanvas hCdCanvas, integer mode)
+global function cdCanvasSimulate(cdCanvas hCdCanvas, integer mode)
+    integer prev_mode = c_func(xcdCanvasSimulate, {hCdCanvas, mode})
+    return prev_mode
 end function
 
-global procedure cdCanvasFlush(cdCanvas hCdCanvas)
-    c_proc(xcdCanvasFlush, {hCdCanvas})
+global procedure cdCanvasClear(cdCanvas canvas)
+    c_proc(xcdCanvasClear, {canvas})
 end procedure
 
-global procedure cdCanvasClear(cdCanvas hCdCanvas)
-    c_proc(xcdCanvasClear, {hCdCanvas})
+global procedure cdCanvasFlush(cdCanvas canvas)
+    c_proc(xcdCanvasFlush, {canvas})
 end procedure
 
 global procedure cdClear()
     c_proc(xcdClear,{})
 end procedure
 
-global function canvas_save_state(cdCanvas hCdCanvas)
-    return c_func(xcdCanvasSaveState, {hCdCanvas})
+--global function canvas_save_state(cdCanvas hCdCanvas)
+global function cdCanvasSaveState(cdCanvas canvas)
+    atom pCdState = c_func(xcdCanvasSaveState, {canvas})
+    return pCdState
 end function
 
-global procedure canvas_restore_state(cdCanvas hCdCanvas, atom hCdState)
-    c_proc(xcdCanvasRestoreState, {hCdCanvas, hCdState})
+--global procedure canvas_restore_state(cdCanvas hCdCanvas, atom hCdState)
+global procedure cdCanvasRestoreState(cdCanvas canvas, atom pCdState)
+    c_proc(xcdCanvasRestoreState, {canvas, pCdState})
 end procedure
 
-global procedure canvas_release_state(cdCanvas hCdState)
-    c_proc(xcdCanvasReleaseState, {hCdState})
+--global procedure canvas_release_state(cdCanvas hCdState)
+global procedure cdReleaseState(atom pCdState)
+    c_proc(xcdReleaseState, {pCdState})
 end procedure
 
---void     cdCanvasSetfAttribute(cdCanvas* canvas, const char* name, const char* format, ...);
---DEV (doc) cdCanvasSetfAttribute (same)
-global procedure cdCanvasSetAttribute(cdCanvas hCdCanvas, string name, string val, sequence data={})
+global procedure cdCanvasSetAttribute(cdCanvas hCdCanvas, string name, nullable_string val, sequence data={})
     if length(data) then
         val = sprintf(val, data)
     end if
@@ -5640,10 +6032,10 @@ end function
 --global function cdCanvasUpdateYAxis(cdCanvas hCdCanvas, integer y)
 --atom pY
 --integer newy
---  pY = allocate(machine_word())
---  pokeN(pY, y, machine_word())
+--  pY = allocate(W)
+--  pokeN(pY, y, W)
 --  newy = c_func(xcdCanvasUpdateYAxis, {hCdCanvas, pY})
---  if newy!=peekNS(pY,machine_word(),1) then ?9/0 end if
+--  if newy!=peekNS(pY,W,1) then ?9/0 end if
 --  free(pY)
 --  return newy
 --end function
@@ -5673,10 +6065,10 @@ end function
 global function cdCanvasMM2Pixel(cdCanvas hCdCanvas, atom mm_dx, atom mm_dy)
 atom pDx, pDy
 sequence dx_dy
-    pDx = allocate(machine_word()*2)
-    pDy = pDx+machine_word()
+    pDx = allocate(W*2)
+    pDy = pDx+W
     c_proc(xcdCanvasMM2Pixel, {hCdCanvas, mm_dx, mm_dy, pDx, pDy})
-    dx_dy = peekNS({pDx, 2},machine_word(),1)
+    dx_dy = peekNS({pDx, 2},W,1)
     free(pDx)
     return dx_dy
 end function
@@ -5728,7 +6120,7 @@ end procedure
 --atom pX, pY
 --sequence origin
 --
---  pX = allocate(8)    -- machine_word()?
+--  pX = allocate(8)    -- W?
 --  pY = pX+4
 --  c_proc(xcdCanvasGetOrigin, {hCdCanvas, pX, pY})
 --  origin = peek4s({pX, 2})
@@ -5791,7 +6183,7 @@ end procedure
 --global function cdCanvasTransformPoint(cdCanvas hCdCanvas, atom x, atom y)
 --atom pX, pY
 --sequence tx_ty
---  pX = allocate(8)    -- machine_word()?
+--  pX = allocate(8)    -- W?
 --  pY = pX+4
 --  c_proc(xcdCanvasTransformPoint, {hCdCanvas, x, y, pX, pY})
 --  tx_ty = peek4s({pX, 2})
@@ -5815,49 +6207,49 @@ end function
 ----     clipping 
 ----
 --------------------------------------------------------------------------------------------
---constant
---  xcdCanvasClip           = iup_c_func(hCd, "cdCanvasClip", {P,I},I),
---  xcdCanvasClipArea       = iup_c_proc(hCd, "cdCanvasClipArea", {P,I,I,I,I}),
---  xcdfCanvasClipArea      = iup_c_proc(hCd, "cdfCanvasClipArea", {P,D,D,D,D}),
---  xcdCanvasGetClipArea    = iup_c_func(hCd, "cdCanvasGetClipArea", {P,P,P,P,P},I),
---  xcdfCanvasGetClipArea   = iup_c_func(hCd, "cdfCanvasGetClipArea", {P,P,P,P,P},I)
 
-global function canvas_clip(cdCanvas hCdCanvas, integer mode)
-    return c_func(xcdCanvasClip, {hCdCanvas, mode})
+--global function canvas_clip(cdCanvas hCdCanvas, integer mode)
+global function cdCanvasClip(cdCanvas canvas, integer mode)
+    integer prev_mode = c_func(xcdCanvasClip, {canvas, mode})
+    return prev_mode
 end function --cdCanvasClip
 
-global procedure canvas_clip_area(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
-    c_proc(xcdCanvasClipArea, {hCdCanvas, xmin, xmax, ymin, ymax})
+--global procedure canvas_clip_area(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+--global procedure cdCanvasClipArea(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+--  c_proc(xcdCanvasClipArea, {hCdCanvas, xmin, xmax, ymin, ymax})
+--end procedure
+
+--global procedure f_canvas_clip_area(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+--global procedure cdfCanvasClipArea(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+global procedure cdCanvasClipArea(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax)
+    c_proc(xcdfCanvasClipArea, {canvas, xmin, xmax, ymin, ymax})
 end procedure
 
-global procedure f_canvas_clip_area(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
-    c_proc(xcdfCanvasClipArea, {hCdCanvas, xmin, xmax, ymin, ymax})
-end procedure
+--global function canvas_get_clip_area(cdCanvas hCdCanvas)
+--global function cdCanvasGetClipArea(canvas hCdCanvas)
+--atom pXmin, pXmax, pYmin, pYmax
+--  pXmin = allocate(16)
+--  pXmax = pXmin+4
+--  pYmin = pXmax+4
+--  pYmax = pYmin+4
+--  integer mode = c_func(xcdCanvasGetClipArea, {canvas, pXmin, pXmax, pYmin, pYmax})
+--  sequence res = mode & peek4s({pXmin, 4})
+--  free(pXmin)
+--  return res
+--end function
 
-global function canvas_get_clip_area(cdCanvas hCdCanvas)
+--global function f_canvas_get_clip_area(cdCanvas hCdCanvas)
+--global function cdfCanvasGetClipArea(cdCanvas hCdCanvas)
+global function cdCanvasGetClipArea(cdCanvas canvas)
 atom pXmin, pXmax, pYmin, pYmax
-sequence area
-    pXmin = allocate(16)
-    pXmax = pXmin+4
-    pYmin = pXmax+4
-    pYmax = pYmin+4
-    c_proc(xcdCanvasGetClipArea, {hCdCanvas, pXmin, pXmax, pYmin, pYmax})
-    area = peek4s({pXmin, 4})
-    free(pXmin)
-    return area
-end function
-
-global function f_canvas_get_clip_area(cdCanvas hCdCanvas)
-atom pXmin, pXmax, pYmin, pYmax
-sequence area
     pXmin = allocate(32)
     pXmax = pXmin+8
     pYmin = pXmax+8
     pYmax = pYmin+8
-    c_proc(xcdfCanvasGetClipArea, {hCdCanvas, pXmin, pXmax, pYmin, pYmax})
-    area = iup_peek_double({pXmin, 4})
+    integer mode = c_func(xcdfCanvasGetClipArea, {canvas, pXmin, pXmax, pYmin, pYmax})
+    sequence res = mode & iup_peek_double({pXmin, 4})
     free(pXmin)
-    return area
+    return res
 end function
 
 ------------------------------------------------------------------------------------------
@@ -5871,15 +6263,18 @@ end function
 --  xcdCanvasGetRegionBox       = iup_c_proc(hCd, "cdCanvasGetRegionBox", {P,P,P,P,P,P}),
 --  xcdCanvasRegionCombineMode  = iup_c_func(hCd, "cdCanvasRegionCombineMode", {P,I},I)
 
-global function canvas_is_point_in_region(cdCanvas hCdCanvas, atom x, atom y)
+--global function canvas_is_point_in_region(cdCanvas hCdCanvas, atom x, atom y)
+global function cdCanvasIsPointInRegion(cdCanvas hCdCanvas, atom x, atom y)
     return c_func(xcdCanvasIsPointInRegion, {hCdCanvas, x, y})
 end function
 
-global procedure canvas_offset_region(cdCanvas hCdCanvas, atom x, atom y)
+--global procedure canvas_offset_region(cdCanvas hCdCanvas, atom x, atom y)
+global procedure cdCanvasOffsetRegion(cdCanvas hCdCanvas, atom x, atom y)
     c_proc(xcdCanvasOffsetRegion, {hCdCanvas, x, y})
 end procedure
 
-global function canvas_get_region_box(cdCanvas hCdCanvas)
+--global function canvas_get_region_box(cdCanvas hCdCanvas)
+global function cdCanvasGetRegionBox(cdCanvas hCdCanvas)
 atom pXmin, pXmax, pYmin, pYmax
 sequence box
 
@@ -5893,8 +6288,9 @@ sequence box
     return box
 end function
 
-global procedure canvas_region_combine_mode(cdCanvas hCdCanvas, integer mode)
-    c_proc(xcdCanvasRegionCombineMode, {hCdCanvas, mode})
+--global procedure canvas_region_combine_mode(cdCanvas hCdCanvas, integer mode)
+global procedure cdCanvasRegionCombineMode(cdCanvas hCdCanvas, integer mode)
+    {} = c_func(xcdCanvasRegionCombineMode, {hCdCanvas, mode})
 end procedure
 
 --------------------------------------------------------------------------------------------
@@ -5922,7 +6318,9 @@ global procedure cdCanvasPixel(cdCanvas hCdCanvas, atom x, atom y, integer color
     c_proc(xcdCanvasPixel, {hCdCanvas, x, y, color})
 end procedure
 
-global procedure canvas_mark(cdCanvas hCdCanvas, atom x, atom y)
+--DEV doc (done to here)
+--global procedure canvas_mark(cdCanvas hCdCanvas, atom x, atom y)
+global procedure cdCanvasMark(cdCanvas hCdCanvas, atom x, atom y)
     c_proc(xcdCanvasMark, {hCdCanvas, x, y})
 end procedure
 
@@ -5946,6 +6344,10 @@ global procedure cdCanvasEnd(cdCanvas hCdCanvas)
     c_proc(xcdCanvasEnd, {hCdCanvas})
 end procedure
 
+global procedure cdCanvasPathSet(cdCanvas hCdCanvas, integer action)
+    c_proc(xcdCanvasPathSet, {hCdCanvas, action})
+end procedure
+
 global procedure cdCanvasRect(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xcdCanvasRect, {hCdCanvas, xmin, xmax, ymin, ymax})
 end procedure
@@ -5956,6 +6358,10 @@ end procedure
 
 global procedure cdCanvasArc(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
     c_proc(xcdCanvasArc, {hCdCanvas, xc, yc, w, h, a1, a2})
+end procedure
+
+global procedure cdCanvasCircle(cdCanvas hCdCanvas, atom x, y, r)
+    cdCanvasArc(hCdCanvas,x,y,r,r,0,360)
 end procedure
 
 global procedure cdCanvasSector(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom angle1, atom angle2)
@@ -5998,7 +6404,8 @@ global procedure cdCanvasRoundedRect(cdCanvas canvas, atom xmin, atom xmax, atom
     cdCanvasArc(canvas, xmax-width,ymax-height,width*2,height*2,0,90)
 end procedure
 
-global procedure canvas_chord(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+--global procedure canvas_chord(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+global procedure cdCanvasChord(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
     c_proc(xcdCanvasChord, {hCdCanvas, xc, yc, w, h, a1, a2})
 end procedure
 
@@ -6026,10 +6433,12 @@ end procedure
 --  xcdfCanvasText      = iup_c_proc(hCd, "cdfCanvasText", {P,D,D,P})
 
 global procedure f_canvas_line(cdCanvas hCdCanvas, atom x1, atom y1, atom x2, atom y2)
+--global procedure cdfCanvasLine(cdCanvas hCdCanvas, atom x1, atom y1, atom x2, atom y2)
     c_proc(xcdfCanvasLine, {hCdCanvas, x1, y1, x2, y2})
 end procedure
 
 global procedure f_canvas_vertex(cdCanvas hCdCanvas, atom x1, atom y1)
+--global procedure cdfCanvasVertex(cdCanvas hCdCanvas, atom x1, atom y1)
     c_proc(xcdfCanvasVertex, {hCdCanvas, x1, y1})
 end procedure
 
@@ -6127,11 +6536,13 @@ global function cdGetBackground()
     return cdCanvasGetBackground(cdActiveCanvas())
 end function
 
-global function canvas_back_opacity(cdCanvas hCdCanvas, atom opacity)
+--global function canvas_back_opacity(cdCanvas hCdCanvas, atom opacity)
+global function cdCanvasBackOpacity(cdCanvas hCdCanvas, atom opacity)
     return c_func(xcdCanvasBackOpacity, {hCdCanvas, opacity})
 end function
 
-global function canvas_write_mode(cdCanvas hCdCanvas, atom mode)
+--global function canvas_write_mode(cdCanvas hCdCanvas, atom mode)
+global function cdCanvasWriteMode(cdCanvas hCdCanvas, atom mode)
     return c_func(xcdCanvasWriteMode, {hCdCanvas, mode})
 end function
 
@@ -6195,11 +6606,13 @@ global function cdCanvasInteriorStyle(cdCanvas hCdCanvas, integer style)
     return prev
 end function
 
-global function canvas_hatch(cdCanvas hCdCanvas, atom style)
+--global function canvas_hatch(cdCanvas hCdCanvas, atom style)
+global function cdCanvasHatch(cdCanvas hCdCanvas, atom style)
     return c_func(xcdCanvasHatch, {hCdCanvas, style})
 end function
 
-global procedure canvas_stipple(cdCanvas hCdCanvas, atom width, atom height, sequence stipple)
+--global procedure canvas_stipple(cdCanvas hCdCanvas, atom width, atom height, sequence stipple)
+global procedure cdCanvasStipple(cdCanvas hCdCanvas, atom width, atom height, sequence stipple)
 atom pStipple
 
     pStipple = allocate(length(stipple))
@@ -6208,7 +6621,8 @@ atom pStipple
     free(pStipple)
 end procedure
 
-global function canvas_get_stipple(cdCanvas hCdCanvas)
+--global function canvas_get_stipple(cdCanvas hCdCanvas)
+global function cdCanvasGetStipple(cdCanvas hCdCanvas)
 atom fnVal, pW, pH
 sequence w_h, stipple
     pW = allocate(8)
@@ -6220,7 +6634,8 @@ sequence w_h, stipple
     return {{w_h}, stipple}
 end function
 
-global procedure canvas_pattern(cdCanvas hCdCanvas, atom width, atom height, sequence pattern)
+--global procedure canvas_pattern(cdCanvas hCdCanvas, atom width, atom height, sequence pattern)
+global procedure cdCanvasPattern(cdCanvas hCdCanvas, atom width, atom height, sequence pattern)
 atom pPattern
 
     pPattern = allocate(4*length(pattern))
@@ -6229,7 +6644,8 @@ atom pPattern
     free(pPattern)
 end procedure
 
-global function canvas_get_pattern(cdCanvas hCdCanvas)
+--global function canvas_get_pattern(cdCanvas hCdCanvas)
+global function cdCanvasGetPattern(cdCanvas hCdCanvas)
 atom fnVal, pW, pH
 sequence w_h, pattern
     pW = allocate(8)
@@ -6241,7 +6657,8 @@ sequence w_h, pattern
     return {{w_h}, pattern}
 end function
 
-global function canvas_fill_mode(cdCanvas hCdCanvas, atom mode)
+--global function canvas_fill_mode(cdCanvas hCdCanvas, atom mode)
+global function cdCanvasFillMode(cdCanvas hCdCanvas, atom mode)
     return c_func(xcdCanvasFillMode, {hCdCanvas, mode})
 end function
 
@@ -6293,15 +6710,18 @@ global function cdTextAlignment(integer alignment)
     return prev_alignment
 end function
 
-global function canvas_text_orientation(cdCanvas hCdCanvas, atom angle)
+--global function canvas_text_orientation(cdCanvas hCdCanvas, atom angle)
+global function cdCanvasTextOrientation(cdCanvas hCdCanvas, atom angle)
     return c_func(xcdCanvasTextOrientation, {hCdCanvas, angle})
 end function
 
-global function canvas_mark_type(cdCanvas hCdCanvas, atom mtype)
+--global function canvas_mark_type(cdCanvas hCdCanvas, atom mtype)
+global function cdCanvasMarkType(cdCanvas hCdCanvas, atom mtype)
     return c_func(xcdCanvasMarkType, {hCdCanvas, mtype})
 end function
 
-global function canvas_mark_size(cdCanvas hCdCanvas, atom msize)
+--global function canvas_mark_size(cdCanvas hCdCanvas, atom msize)
+global function cdCanvasMarkSize(cdCanvas hCdCanvas, atom msize)
     return c_func(xcdCanvasMarkSize, {hCdCanvas, msize})
 end function
 
@@ -6314,7 +6734,8 @@ end function
 --  xcdCanvasVectorText             = iup_c_proc(hCd, "cdCanvasVectorText", {P,I,I,P}),
 --  xcdCanvasMultiLineVectorText    = iup_c_proc(hCd, "cdCanvasMultiLineVectorText", {P,I,I,P})
 
-global procedure canvas_vector_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+--global procedure canvas_vector_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+global procedure cdCanvasVectorText(cdCanvas hCdCanvas, atom x, atom y, string text)
     c_proc(xcdCanvasVectorText, {hCdCanvas, x, y, text})
 end procedure
 
@@ -6344,7 +6765,8 @@ global procedure cdCanvasVectorTextDirection(cdCanvas hCdCanvas, integer x1, int
     c_proc(xcdCanvasVectorTextDirection, {hCdCanvas, x1, y1, x2, y2})
 end procedure
 
-global function canvas_vector_text_transform(cdCanvas hCdCanvas, sequence matrix)
+--global function canvas_vector_text_transform(cdCanvas hCdCanvas, sequence matrix)
+global function cdCanvasVectorTextTransform(cdCanvas hCdCanvas, sequence matrix)
 atom fnVal, pMatrix
 
     pMatrix = allocate(8*6)
@@ -6375,7 +6797,8 @@ global procedure cdCanvasVectorTextSize(cdCanvas hCdCanvas, atom w, atom h, stri
     c_proc(xcdCanvasVectorTextSize, {hCdCanvas, w, h, text})
 end procedure
 
-global function canvas_vector_char_size(cdCanvas hCdCanvas, atom size)
+--global function canvas_vector_char_size(cdCanvas hCdCanvas, atom size)
+global function cdCanvasVectorCharSize(cdCanvas hCdCanvas, atom size)
     return c_func(xcdCanvasVectorCharSize, {hCdCanvas, size})
 end function
 
@@ -6506,12 +6929,15 @@ end function
 --constant
 --  xcdCanvasPalette = iup_c_proc(hCd, "cdCanvasPalette", {P,I,P,I})
 
-global procedure canvas_palette(cdCanvas hCdCanvas, sequence palette, integer mode)
+--global procedure canvas_palette(cdCanvas hCdCanvas, sequence palette, integer mode)
+global procedure cdCanvasPalette(cdCanvas hCdCanvas, sequence palette, integer mode)
 atom pPalette
 
     pPalette = allocate(4*length(palette))
     poke4(pPalette, palette)
     c_proc(xcdCanvasPalette, {hCdCanvas, length(palette), pPalette, mode})
+--added 5/5/18: (check when updting the docs)
+    free(pPalette)
 end procedure
 
 -----------------------------------------------------------------------------------------
@@ -6540,13 +6966,17 @@ sequence r,g,b
     return {r,g,b}
 end function
 
-global procedure cdCanvasPutImageRectRGB(cdCanvas hCdCanvas, atom iw, atom ih, sequence rgb3, atom x, atom y,
-                                         atom w, atom h, atom xmin, atom xmax, atom ymin, atom ymax)
-atom pR, pG, pB
-
-    pR = allocate(3*length(rgb3[1]))
-    pG = pR+length(rgb3[1])
-    pB = pG+length(rgb3[1])
+global procedure cdCanvasPutImageRectRGB(cdCanvas hCdCanvas, atom iw, ih, sequence rgb3, 
+                                         atom x=0, y=0, w=0, h=0, xmin=0, xmax=0, ymin=0, ymax=0)
+    integer l = length(rgb3[1])
+    if length(rgb3)!=3
+    or length(rgb3[2])!=l
+    or length(rgb3[3])!=l then
+        ?9/0
+    end if
+    atom pR = allocate(3*l),
+         pG = pR+l,
+         pB = pG+l
     poke(pR, rgb3[1])
     poke(pG, rgb3[2])
     poke(pB, rgb3[3])
@@ -6558,7 +6988,13 @@ global procedure cdCanvasPutImageRectRGBA(cdCanvas hCdCanvas, atom iw, atom ih, 
                                           atom w, atom h, atom xmin, atom xmax, atom ymin, atom ymax)
 atom pR, pG, pB, pA
 
-    pR = allocate(4*length(rgba[1]))
+    integer l = length(rgba[1])
+    if l!=length(rgba[2])
+    or l!=length(rgba[3])
+    or l!=length(rgba[4]) then
+        ?9/0
+    end if
+    pR = allocate(4*l)
     pG = pR+length(rgba[1])
     pB = pG+length(rgba[1])
     pA = pB+length(rgba[1])
@@ -6571,9 +7007,10 @@ atom pR, pG, pB, pA
 end procedure
 
 
-global procedure canvas_put_image_rect_map(cdCanvas hCdCanvas, atom iw, atom ih, sequence index, sequence colors,
-                                           atom x, atom y, atom w, atom h, 
-                                           atom xmin, atom xmax, atom ymin, atom ymax)
+--global procedure canvas_put_image_rect_map(cdCanvas hCdCanvas, atom iw, atom ih, sequence index, sequence colors,
+global procedure cdCanvasPutImageRectMap(cdCanvas hCdCanvas, atom iw, atom ih, sequence index, sequence colors,
+                                         atom x, atom y, atom w, atom h, 
+                                         atom xmin, atom xmax, atom ymin, atom ymax)
 atom pIndex, pColors
     pColors = allocate(4*256+length(index))
     pIndex = pColors+4*256
@@ -6595,24 +7032,29 @@ end procedure
 --  xcdCanvasPutImageRect   = iup_c_proc(hCd, "cdCanvasPutImageRect", {P,P,I,I,I,I,I,I}),
 --  xcdCanvasScrollArea     = iup_c_proc(hCd, "cdCanvasScrollArea", {P,I,I,I,I,I,I})
 
-global function canvas_create_image(cdCanvas hCdCanvas, atom w, atom h)
+--global function canvas_create_image(cdCanvas hCdCanvas, atom w, atom h)
+global function cdCanvasCreateImage(cdCanvas hCdCanvas, atom w, atom h)
     return c_func(xcdCanvasCreateImage, {hCdCanvas, w, h})
 end function
 
-global procedure kill_image(atom hCdImage)
+--global procedure kill_image(atom hCdImage)
+global procedure cdKillImage(atom hCdImage)
     c_proc(xcdKillImage, {hCdImage})
 end procedure
 
-global procedure canvas_get_image(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y)
+--global procedure canvas_get_image(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y)
+global procedure cdCanvasGetImage(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y)
     c_proc(xcdCanvasGetImage, {hCdCanvas, hCdImage, x, y})
 end procedure
 
-global procedure canvas_put_image_rect(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y,
+--global procedure canvas_put_image_rect(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y,
+global procedure cdCanvasPutImageRect(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y,
         atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xcdCanvasPutImageRect, {hCdCanvas, hCdImage, x, y, xmin, xmax, ymin, ymax})
 end procedure
 
-global procedure canvas_scroll_area(cdCanvas hCdCanvas, atom xmin, atom xmax,
+--global procedure canvas_scroll_area(cdCanvas hCdCanvas, atom xmin, atom xmax,
+global procedure cdCanvasScrollArea(cdCanvas hCdCanvas, atom xmin, atom xmax,
         atom ymin, atom ymax, atom dx, atom dy)
     c_proc(xcdCanvasScrollArea, {hCdCanvas, xmin, xmax, ymin, ymax, dx, dy})
 end procedure
@@ -6635,7 +7077,135 @@ end procedure
 --  xcdCanvasGetBitmap  = iup_c_proc(hCd, "cdCanvasGetBitmap", {P,P,I,I}),
 --  xcdBitmapRGB2Map    = iup_c_proc(hCd, "cdBitmapRGB2Map", {P,P})
 
-global function canvas_create_bitmap(atom w, atom h, integer btype)
+--DEV doc:
+--/*
+Extras (Deprecated - use imImage)
+The following functions are used only for encapsulating the several types of client images from the library in a single structure, simplifying their treatment. 
+
+For such, a public structure was created, called cdBitmap, which will store the image. From this structure, the following fields are officially defined:
+
+cdBitmap:
+  int w      -image width                              bitmap:Width() -> w: number   [in Lua]
+  int h      -image heigth                             bitmap:Height() -> h: number   [in Lua]
+  int type   -image type: CD_RGBA, CD_RGB or CD_MAP    bitmap:Type() -> type: number   [in Lua]
+
+cdBitmap* cdCreateBitmap(int w, int h, int type); [in C]
+
+cd.CreateBitmap(w, h, type: number) -> (bitmap: cdBitmap) [in Lua]
+Creates an image with width w, and height h and of type type. The type can be CD_RGBA, CD_RGB or CD_MAP. 
+However, CD_MAP only means that the image will have 256 colors if type is greater than 0. 
+It is assumed that the image will be MAP with the same number of colors in the palette as type. 
+Internally, the color palette is always allocated with 256 entries, which may or may not be totally fulfilled. 
+In this case, the value of type can be changed as wished.
+
+cdBitmap* cdInitBitmap(int w, int h, int type, ...); [in C]
+
+[There is no equivalent in Lua]
+Similar to cdCreateBitmap, but it accepts the data area already allocated by the user. The parameters vary according to the image type.
+
+CD_RGBA - (unsigned char* red, unsigned char* green, unsigned char* blue, unsigned char* alpha)
+CD_RGB - (unsigned char* red, unsigned char* green, unsigned char* blue)
+CD_MAP - (unsigned char* index, lont int* colors)
+
+void cdKillBitmap(cdBitmap* image); [in C]
+
+cd.KillBitmap(bitmap: cdBitmap) [in Lua]
+Liberates the memory allocated for the image. If this function is not called in Lua, the garbage collector will call it.
+
+unsigned char* cdBitmapGetData(cdBitmap* image, int dataptr); [in C]
+
+cd.BitmapGetData(bitmap: cdBitmap; dataptr: number) -> (data: cdImageChannel) [in Lua]
+
+Returns a pointer to the image's data area according to dataptr. The following values are defined for dataptr:
+
+CD_IRED - red component of an RGB image. cdImageChannel in Lua.
+CD_IGREEN - green component of an RGB image. cdImageChannel in Lua.
+CD_IBLUE - blue component of an RGB image. cdImageChannel in Lua.
+CD_IALPHA - alpha component of an RGBA image. cdImageChannel in Lua.
+CD_INDEX - indices of a MAP image. cdImageChannel in Lua.
+CD_COLORS - color table of a MAP image. In this case, a type conversion must be made to (long int*).  cdPalette in Lua.
+In Lua, channels are also available as tables, see Data Access.  
+
+void cdBitmapSetRect(cdBitmap* image, int xmin, int xmax, int ymin, int ymax); [in C]
+
+cd.BitmapSetRect(bitmap: cdBitmap; xmin, xmax, ymin, ymax: number) [in Lua]
+Allows specifying a region of interest inside the image to be used by the function cdPutBitmap. 
+If no region was defined, the whole image is used, that is, (0, w-1, 0, h-1).
+
+void cdCanvasPutBitmap(cdCanvas* canvas, cdBitmap* image, int x, int y, int w, int h); [in C]
+void wdCanvasPutBitmap(cdCanvas* canvas, cdBitmap* image, double x, double y, double w, double h); (WC) [in C]
+
+canvas:PutBitmap(image: cdBitmap; x, y, w, h: number) [in Lua]
+canvas:wPutBitmap(bitmap: cdBitmap; x, y, w, h: number) (WC) [in Lua]
+Draws the  image in the position (x,y), changing the scale. 
+It encapsulates cdPutImageRectRGB, cdPutImageRectRGBA and cdPutImageRectMap. 
+The region of the image drawn depends on the rectangle defined by cdBitmapSetRect. 
+If no rectangle was defined, then the whole image is used.
+
+The parameters w and h allow scaling the image, increasing or decreasing its dimensions when drawn. 
+If w and/or h are 0, then no scale change is assumed. 
+
+void cdCanvasGetBitmap(cdCanvas* canvas, cdBitmap* image, int x, int y); [in C]
+
+canvas:GetBitmap(bitmap: cdBitmap; x, y: number) [in Lua]
+Encapsulates cdGetImageRGB. Nothing happens if the image is MAP.
+
+void cdBitmapRGB2Map(cdBitmap* image_rgb, cdBitmap* image_map); [in C]
+
+cd.BitmapRGB2Map(bitmap_rgb: cdBitmap, bitmap_map: cdBitmap) [in Lua]
+Encapsulates cdRGB2Map. The images must be of types RGB(A) and MAP, respectively.
+
+Extras in Lua (Deprecated)
+cd.CreateImageRGB(width, height: number) -> (imagergb: cdImageRGB)
+Creates an RGB image in Lua. Deprecated use cd.CreateBitmap.
+
+cd.KillImageRGB(imagergb: cdImageRGB)
+Destroys the created RGB image and liberates allocated memory. 
+If this function is not called in Lua, the garbage collector will call it. Deprecated use cd.KillBitmap.
+
+cd.CreateImageRGBA(width, height: number) -> (imagergba: cdImageRGBA)
+Creates an RGBA image in Lua. Deprecated use cd.CreateBitmap.
+
+cd.KillImageRGBA(imagergba: cdImageRGBA)
+Destroys the created RGBA image and liberates allocated memory. 
+If this function is not called in Lua, the garbage collector will call it. Deprecated use cd.KillBitmap.
+
+cd.CreateImageMap(width, height: number) -> (imagemap: cdImageMap)
+Creates a Map image in Lua. Deprecated use cd.CreateBitmap.
+
+cd.KillImageMap(imagemap: cdImageMap)
+Destroys the created Map image and liberates allocated memory. 
+If this function is not called in Lua, the garbage collector will call it. Deprecated use cd.KillBitmap.
+
+Data Access
+Data access in Lua is done directly using the operator "[y*width + x]" in image channels. 
+Each channel works as a value table which should be consulted or modified in the following way:
+
+image = cd.CreateBitmap(100, 200)
+...
+image.r[y*100 + x] = 255
+image.g[y*100 + x] = 128
+image.b[y*100 + x] = 0
+...
+green = image.g[y*100 + x] -- it will return 128
+The order of the tables is important, so that image[n].r has no meaning to CDLua and the expression will cause an error. 
+Finally, the user could expect the value of image[n] to be of type lightuserdata. 
+Unfortunately, this is not the case, and such expression will cause the same error.
+
+In the old cdImageMap images, the channel must be not specified: imagemap[y*100+x].
+
+Known channel names are:
+
+r - red channel of RGB or RGBA images.
+g - gree channel of RGB or RGBA images.
+b - blue channel of RGB or RGBA images.
+a - alpha channel of RGBA images.
+m - indices channel of MAP images (valid only for cdBitmap objects).
+p - colors table of MAP images (valid only for cdBitmap objects). It is a cdPalette object.
+--*/
+
+--global function canvas_create_bitmap(atom w, atom h, integer btype)
+global function cdCreateBitmap(atom w, atom h, integer btype)
     return c_func(xcdCreateBitmap, {w, h, btype})
 end function
 
@@ -6674,27 +7244,33 @@ atom hCdBitmap, pR, pG, pB, pA, pIndex, pColors
     return hCdBitmap
 end function
 
-global procedure kill_bitmap(atom hCdBitmap)
+--global procedure kill_bitmap(atom hCdBitmap)
+global procedure cdKillBitmap(atom hCdBitmap)
     c_proc(xcdKillBitmap, {hCdBitmap})
 end procedure
 
-global function bitmap_get_data(atom hCdBitmap, integer dataptr)
+--global function bitmap_get_data(atom hCdBitmap, integer dataptr)
+global function cdBitmapGetData(atom hCdBitmap, integer dataptr)
     return c_func(xcdBitmapGetData, {hCdBitmap, dataptr})
 end function
 
-global procedure bitmap_set_rect(atom hCdBitmap, atom xmin, atom xmax, atom ymin, atom ymax)
+--global procedure bitmap_set_rect(atom hCdBitmap, atom xmin, atom xmax, atom ymin, atom ymax)
+global procedure cdBitmapSetRect(atom hCdBitmap, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xcdBitmapSetRect, {hCdBitmap, xmin, xmax, ymin, ymax})
 end procedure
 
-global procedure canvas_put_bitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y, atom w, atom h)
+--global procedure canvas_put_bitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y, atom w, atom h)
+global procedure cdCanvasPutBitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y, atom w, atom h)
     c_proc(xcdCanvasPutBitmap, {hCdCanvas, hCdBitmap, x, y, w, h})
 end procedure
 
-global procedure canvas_get_bitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y)
+--global procedure canvas_get_bitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y)
+global procedure cdCanvasGetBitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y)
     c_proc(xcdCanvasGetBitmap, {hCdCanvas, hCdBitmap, x, y})
 end procedure
 
-global procedure bitmap_rgb_2_map(atom hCdBitmapRGB, atom hCdBitmapMAP)
+--global procedure bitmap_rgb_2_map(atom hCdBitmapRGB, atom hCdBitmapMAP)
+global procedure cdBitmapRGB2Map(atom hCdBitmapRGB, atom hCdBitmapMAP)
     c_proc(xcdBitmapRGB2Map, {hCdBitmapRGB, hCdBitmapMAP})
 end procedure
 
@@ -6715,50 +7291,32 @@ global function cdEncodeColor(atom red, atom green, atom blue)
     return color
 end function
 
-global function decode_color(atom color)
+--global function decode_color(atom color)
+global function cdDecodeColor(atom color)
 atom pR, pG, pB
 sequence rgb_tuple
-    pR = allocate(12)
-    pG = pR+4
-    pB = pG+4
+    pR = allocate(4)
+    pG = pR+1
+    pB = pG+1
     c_proc(xcdDecodeColor, {color, pR, pG, pB})
     rgb_tuple = peek({pR, 3})
     free(pR)
     return rgb_tuple
 end function
 
-global function decode_alpha(atom color)
+--global function decode_alpha(atom color)
+global function cdDecodeAlpha(atom color)
+--DEV untested, as above unlikely to be right??
     return c_func(xcdDecodeAlpha, {color})
 end function
 
-global function encode_alpha(atom color, integer alpha)
+--global function encode_alpha(atom color, integer alpha)
+global function cdEncodeAlpha(atom color, integer alpha)
     return c_func(xcdEncodeAlpha, {color, alpha})
 end function
 
-global function alpha(atom color)
-    color = and_bits(color, #FF000000)
-    color = floor(color/#1000000)
-    return 255-color
-end function
-
-global function red(atom color)
-    return floor(and_bits(color, #FF0000)/#10000)
-end function
-
-global function green(atom color)
-    return floor(and_bits(color, #FF00)/#100)
-end function
-
-global function blue(atom color)
-    return remainder(color, #100)
-end function
-
-global function rgb(atom r, atom g, atom b)
---  return and_bits(r,#FF) + and_bits(g,#FF)*#100 + and_bits(b,#FF)*#10000
-    return and_bits(r,#FF)*#10000 + and_bits(g,#FF)*#100 + and_bits(b,#FF)
-end function
-
-global function rgb_2_map(atom w, atom h, sequence rgb, integer pal_size)
+--global function rgb_2_map(atom w, atom h, sequence rgb, integer pal_size)
+global function cdRGB2Map(atom w, atom h, sequence rgb, integer pal_size)
 atom pR, pG, pB, pI, pC
 sequence smap
 
@@ -6831,7 +7389,8 @@ sequence wdViewport
     return wdViewport
 end function
 
-global function wd_canvas_world2_canvas(cdCanvas hCdCanvas, atom xw, atom yw)
+--global function wd_canvas_world2_canvas(cdCanvas hCdCanvas, atom xw, atom yw)
+global function wdCanvasWorld2Canvas(cdCanvas hCdCanvas, atom xw, atom yw)
 atom pX, pY
 sequence xy
 
@@ -6844,7 +7403,8 @@ sequence xy
     return xy
 end function
 
-global function wd_canvas_world2_canvas_size(cdCanvas hCdCanvas, atom ww, atom hw)
+--global function wd_canvas_world2_canvas_size(cdCanvas hCdCanvas, atom ww, atom hw)
+global function wdCanvasWorld2CanvasSize(cdCanvas hCdCanvas, atom ww, atom hw)
 atom pW, pH
 sequence wh
 
@@ -6857,7 +7417,8 @@ sequence wh
     return wh
 end function
 
-global function wd_canvas_canvas2_world(cdCanvas hCdCanvas, atom xv, atom yv)
+--global function wd_canvas_canvas2_world(cdCanvas hCdCanvas, atom xv, atom yv)
+global function wdCanvasCanvas2World(cdCanvas hCdCanvas, atom xv, atom yv)
 atom pWx, pWy
 sequence xy
 
@@ -6883,11 +7444,13 @@ end function
 --  xwdCanvasGetRegionBox       = iup_c_proc(hCd, "wdCanvasGetRegionBox", {P,P,P,P,P}),
 --  xwdCanvasHardcopy           = iup_c_proc(hCd, "wdCanvasHardcopy", {P,P,P,P})
 
-global procedure wd_canvas_clip_area(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+--global procedure wd_canvas_clip_area(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
+global procedure wdCanvasClipArea(cdCanvas hCdCanvas, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasClipArea, {hCdCanvas, xmin, xmax, ymin, ymax})
 end procedure
 
-global function wd_canvas_get_clip_area(cdCanvas hCdCanvas)
+--global function wd_canvas_get_clip_area(cdCanvas hCdCanvas)
+global function wdCanvasGetClipArea(cdCanvas hCdCanvas)
 atom pXmin, pXmax, pYmin, pYmax
 integer clipping_status
 sequence area
@@ -6902,15 +7465,18 @@ sequence area
     return clipping_status & area
 end function
 
-global function wd_canvas_is_point_in_region(cdCanvas hCdCanvas, atom x, atom y)
+--global function wd_canvas_is_point_in_region(cdCanvas hCdCanvas, atom x, atom y)
+global function wdCanvasIsPointInRegion(cdCanvas hCdCanvas, atom x, atom y)
     return c_func(xwdCanvasIsPointInRegion, {hCdCanvas, x, y})
 end function
 
-global procedure wd_canvas_offset_region(cdCanvas hCdCanvas, atom x, atom y)
+--global procedure wd_canvas_offset_region(cdCanvas hCdCanvas, atom x, atom y)
+global procedure wdCanvasOffsetRegion(cdCanvas hCdCanvas, atom x, atom y)
     c_proc(xwdCanvasOffsetRegion, {hCdCanvas, x, y})
 end procedure
 
-global function wd_canvas_get_region_box(cdCanvas hCdCanvas)
+--global function wd_canvas_get_region_box(cdCanvas hCdCanvas)
+global function wdCanvasGetRegionBox(cdCanvas hCdCanvas)
 atom pXmin, pXmax, pYmin, pYmax
 sequence box
 
@@ -6924,7 +7490,8 @@ sequence box
     return box
 end function
 
-global procedure wd_canvas_hardcopy(cdCanvas hCdCanvas, atom hCdContext, atom pData, atom cbFct)
+--global procedure wd_canvas_hardcopy(cdCanvas hCdCanvas, atom hCdContext, atom pData, atom cbFct)
+global procedure wdCanvasHardcopy(cdCanvas hCdCanvas, atom hCdContext, atom pData, atom cbFct)
     c_proc(xwdCanvasHardcopy, {hCdCanvas, hCdContext, pData, cbFct})
 end procedure
 
@@ -6945,43 +7512,53 @@ end procedure
 --  xwdCanvasChord  = iup_c_proc(hCd, "wdCanvasChord", {P,D,D,D,D,D,D}),
 --  xwdCanvasText   = iup_c_proc(hCd, "wdCanvasText", {P,D,D,P})
 
-global procedure wd_canvas_pixel(cdCanvas hCdCanvas, atom x, atom y)
+--global procedure wd_canvas_pixel(cdCanvas hCdCanvas, atom x, atom y)
+global procedure wdCanvasPixel(cdCanvas hCdCanvas, atom x, atom y)
     c_proc(xwdCanvasPixel, {hCdCanvas, x, y})
 end procedure
 
-global procedure wd_canvas_mark(cdCanvas hCdCanvas, atom x, atom y)
+--global procedure wd_canvas_mark(cdCanvas hCdCanvas, atom x, atom y)
+global procedure wdCanvasMark(cdCanvas hCdCanvas, atom x, atom y)
     c_proc(xwdCanvasMark, {hCdCanvas, x, y})
 end procedure
 
-global procedure wd_canvas_line(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
+--global procedure wd_canvas_line(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
+global procedure wdCanvasLine(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
     c_proc(xwdCanvasLine, {hCdCanvas, minX, minY, maxX, maxY})
 end procedure
 
-global procedure wd_canvas_vertex(cdCanvas hCdCanvas, atom x, atom y)
+--global procedure wd_canvas_vertex(cdCanvas hCdCanvas, atom x, atom y)
+global procedure wdCanvasVertex(cdCanvas hCdCanvas, atom x, atom y)
     c_proc(xwdCanvasVertex, {hCdCanvas, x, y})
 end procedure
 
-global procedure wd_canvas_rect(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
+--global procedure wd_canvas_rect(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
+global procedure wdCanvasRect(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
     c_proc(xwdCanvasRect, {hCdCanvas, minX, minY, maxX, maxY})
 end procedure
 
-global procedure wd_canvas_box(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
+--global procedure wd_canvas_box(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
+global procedure wdCanvasBox(cdCanvas hCdCanvas, atom minX, atom minY, atom maxX, atom maxY)
     c_proc(xwdCanvasBox, {hCdCanvas, minX, minY, maxX, maxY})
 end procedure
 
-global procedure wd_canvas_arc(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+--global procedure wd_canvas_arc(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+global procedure wdCanvasArc(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
     c_proc(xwdCanvasArc, {hCdCanvas, xc, yc, w, h, a1, a2})
 end procedure
 
-global procedure wd_canvas_sector(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+--global procedure wd_canvas_sector(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+global procedure wdCanvasSector(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
     c_proc(xwdCanvasSector, {hCdCanvas, xc, yc, w, h, a1, a2})
 end procedure
 
-global procedure wd_canvas_chord(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+--global procedure wd_canvas_chord(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
+global procedure wdCanvasChord(cdCanvas hCdCanvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
     c_proc(xwdCanvasChord, {hCdCanvas, xc, yc, w, h, a1, a2})
 end procedure
 
-global procedure wd_canvas_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+--global procedure wd_canvas_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+global procedure wdCanvasText(cdCanvas hCdCanvas, atom x, atom y, string text)
     c_proc(xwdCanvasText, {hCdCanvas, x, y, text})
 end procedure
 
@@ -6997,15 +7574,17 @@ end procedure
 --  xwdCanvasPutImageRectMap    = iup_c_proc(hCd, "wdCanvasPutImageRectMap", {P,I,I,P,P,D,D,D,D,D,D,D,D}),
 --  xwdCanvasPutBitmap          = iup_c_proc(hCd, "wdCanvasPutBitmap", {P,P,D,D,D,D})
 
-global procedure wd_canvas_put_image_rect(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y,
-        atom xmin, atom xmax, atom ymin, atom ymax)
+--global procedure wd_canvas_put_image_rect(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y,
+global procedure wdCanvasPutImageRect(cdCanvas hCdCanvas, atom hCdImage, atom x, atom y,
+                                      atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasPutImageRect, {hCdCanvas, hCdImage, x, y, xmin, xmax, ymin, ymax})
 end procedure
 
-global procedure wd_canvas_put_image_rect_rgb(cdCanvas hCdCanvas, atom iw, atom ih,
-        sequence rgb, atom x, atom y,
-        atom w, atom h, atom xmin, atom xmax,
-        atom ymin, atom ymax)
+--global procedure wd_canvas_put_image_rect_rgb(cdCanvas hCdCanvas, atom iw, atom ih,
+global procedure wdCanvasPutImageRectRGB(cdCanvas hCdCanvas, atom iw, atom ih,
+                                         sequence rgb, atom x, atom y,
+                                         atom w, atom h, atom xmin, atom xmax,
+                                         atom ymin, atom ymax)
 atom pR, pG, pB
 
     pR = allocate(3*length(rgb[1]))
@@ -7018,10 +7597,11 @@ atom pR, pG, pB
     free(pR)
 end procedure
 
-global procedure wd_canvas_put_image_rect_rgba(cdCanvas hCdCanvas, atom iw, atom ih,
-        sequence rgba, atom x, atom y,
-        atom w, atom h, atom xmin, atom xmax,
-        atom ymin, atom ymax)
+--global procedure wd_canvas_put_image_rect_rgba(cdCanvas hCdCanvas, atom iw, atom ih,
+global procedure wdCanvasPutImageRectRGBA(cdCanvas hCdCanvas, atom iw, atom ih,
+                                          sequence rgba, atom x, atom y,
+                                          atom w, atom h, atom xmin, atom xmax,
+                                          atom ymin, atom ymax)
 
 atom pR, pG, pB, pA
 
@@ -7037,11 +7617,12 @@ atom pR, pG, pB, pA
     free(pR)
 end procedure
 
-global procedure wd_canvas_put_image_rect_map(cdCanvas hCdCanvas, atom iw, atom ih,
-        sequence index, sequence colors,
-        atom x, atom y, atom w, atom h,
-        atom xmin, atom xmax,
-        atom ymin, atom ymax)
+--global procedure wd_canvas_put_image_rect_map(cdCanvas hCdCanvas, atom iw, atom ih,
+global procedure wdCanvasPutImageRectMap(cdCanvas hCdCanvas, atom iw, atom ih,
+                                         sequence index, sequence colors,
+                                         atom x, atom y, atom w, atom h,
+                                         atom xmin, atom xmax,
+                                         atom ymin, atom ymax)
 
 atom pIndex, pColors
     pColors = allocate(4*256+length(index))
@@ -7052,7 +7633,8 @@ atom pIndex, pColors
     free(pColors)
 end procedure
 
-global procedure wd_canvas_put_bitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y, atom w, atom h)
+--global procedure wd_canvas_put_bitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y, atom w, atom h)
+global procedure wdCanvasPutBitmap(cdCanvas hCdCanvas, atom hCdBitmap, atom x, atom y, atom w, atom h)
     c_proc(xwdCanvasPutBitmap, {hCdCanvas, hCdBitmap, x, y, w, h})
 end procedure
 
@@ -7073,7 +7655,8 @@ end procedure
 --  xwdCanvasStipple        = iup_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
 --  xwdCanvasPattern        = iup_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
 
-global function wd_canvas_line_width(cdCanvas hCdCanvas, atom width)
+--global function wd_canvas_line_width(cdCanvas hCdCanvas, atom width)
+global function wdCanvasLineWidth(cdCanvas hCdCanvas, atom width)
     return c_func(xwdCanvasLineWidth, {hCdCanvas, width})
 end function
 
@@ -7081,7 +7664,8 @@ global procedure wdCanvasFont(cdCanvas hCdCanvas, nullable_string font, integer 
     c_proc(xwdCanvasFont, {hCdCanvas, font, style, size})
 end procedure
 
-global function wd_canvas_get_font(cdCanvas hCdCanvas)
+--global function wd_canvas_get_font(cdCanvas hCdCanvas)
+global function wdCanvasGetFont(cdCanvas hCdCanvas)
 atom pFont, pSize, pStyle
 sequence font
     pStyle = allocate(1024)
@@ -7106,7 +7690,8 @@ sequence font_metrics
     return font_metrics -- {width, height, ascent, descent}
 end function
 
-global function wd_canvas_mark_size(cdCanvas hCdCanvas, atom msize)
+--global function wd_canvas_mark_size(cdCanvas hCdCanvas, atom msize)
+global function wdCanvasMarkSize(cdCanvas hCdCanvas, atom msize)
     return c_func(xwdCanvasMarkSize, {hCdCanvas, msize})
 end function
 
@@ -7145,19 +7730,17 @@ sequence bounds
     return bounds
 end function
 
-global procedure wd_canvas_stipple(cdCanvas hCdCanvas, atom width, atom height, sequence stipple)
-atom pStipple
-
-    pStipple = allocate(length(stipple))
+--global procedure wd_canvas_stipple(cdCanvas hCdCanvas, atom width, atom height, sequence stipple)
+global procedure wdCanvasStipple(cdCanvas hCdCanvas, atom width, atom height, sequence stipple)
+    atom pStipple = allocate(length(stipple))
     poke(pStipple, stipple)
     c_proc(xwdCanvasStipple, {hCdCanvas, width, height, pStipple})
     free(pStipple)
 end procedure
 
-global procedure wd_canvas_pattern(cdCanvas hCdCanvas, atom width, atom height, sequence pattern, atom width_mm, atom height_mm)
-atom pPattern
-
-    pPattern = allocate(4*length(pattern))
+--global procedure wd_canvas_pattern(cdCanvas hCdCanvas, atom width, atom height, sequence pattern, atom width_mm, atom height_mm)
+global procedure wdCanvasPattern(cdCanvas hCdCanvas, atom width, atom height, sequence pattern, atom width_mm, atom height_mm)
+    atom pPattern = allocate(4*length(pattern))
     poke4(pPattern, pattern)
     c_proc(xwdCanvasPattern, {hCdCanvas, width, height, pPattern, width_mm, height_mm})
     free(pPattern)
@@ -7177,19 +7760,23 @@ end procedure
 --  xwdCanvasMultiLineVectorText    = iup_c_proc(hCd, "wdCanvasMultiLineVectorText", {P,D,D,P}),
 --  xwdCanvasGetVectorTextBounds    = iup_c_proc(hCd, "wdCanvasGetVectorTextBounds", {P,P,D,D,P})
 
-global procedure wd_canvas_vector_text_direction(cdCanvas hCdCanvas, atom x1, atom y1, atom x2, atom y2)
+--global procedure wd_canvas_vector_text_direction(cdCanvas hCdCanvas, atom x1, atom y1, atom x2, atom y2)
+global procedure wdCanvasVectorTextDirection(cdCanvas hCdCanvas, atom x1, atom y1, atom x2, atom y2)
     c_proc(xwdCanvasVectorTextDirection, {hCdCanvas, x1, y1, x2, y2})
 end procedure
 
-global procedure wd_canvas_vector_text_size(cdCanvas hCdCanvas, atom w, atom h, string text)
+--global procedure wd_canvas_vector_text_size(cdCanvas hCdCanvas, atom w, atom h, string text)
+global procedure wdCanvasVectorTextSize(cdCanvas hCdCanvas, atom w, atom h, string text)
     c_proc(xwdCanvasVectorTextSize, {hCdCanvas, w, h, text})
 end procedure
 
-global function wd_canvas_vector_char_size(cdCanvas hCdCanvas, atom size)
+--global function wd_canvas_vector_char_size(cdCanvas hCdCanvas, atom size)
+global function wdCanvasVectorCharSize(cdCanvas hCdCanvas, atom size)
     return c_func(xwdCanvasVectorCharSize, {hCdCanvas, size})
 end function
 
-global function wd_canvas_get_vector_text_size(cdCanvas hCdCanvas, string text)
+--global function wd_canvas_get_vector_text_size(cdCanvas hCdCanvas, string text)
+global function wdCanvasGetVectorTextSize(cdCanvas hCdCanvas, string text)
 atom pX, pY
 sequence x_y
 
@@ -7211,12 +7798,13 @@ sequence rect
     return rect
 end function
 
-
-global procedure wd_canvas_vector_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+--global procedure wd_canvas_vector_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+global procedure wdCanvasVectorText(cdCanvas hCdCanvas, atom x, atom y, string text)
     c_proc(xwdCanvasVectorText, {hCdCanvas, x, y, text})
 end procedure
 
-global procedure wd_canvas_multi_line_vector_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+--global procedure wd_canvas_multi_line_vector_text(cdCanvas hCdCanvas, atom x, atom y, string text)
+global procedure wdCanvasMultiLineVectorText(cdCanvas hCdCanvas, atom x, atom y, string text)
     c_proc(xwdCanvasMultiLineVectorText, {hCdCanvas, x, y, text})
 end procedure
 
@@ -7462,7 +8050,7 @@ atom pY = allocate(count*8)
 end procedure
 
 global procedure IupPlotInsertStrSamples(Ihandle ih, integer index, integer sample_index, sequence xstrings, sequence y, integer count)
-atom pX = allocate(count*machine_word())
+atom pX = allocate(count*W)
 atom pY = allocate(count*8)
     iup_poke_string_pointer_array(pX, xstrings)
     iup_poke_double(pY, y)
@@ -7482,7 +8070,7 @@ atom pY = allocate(count*8)
 end procedure
 
 global procedure IupPlotAddStrSamples(Ihandle ih, integer index, sequence xstrings, sequence y, integer count)
-atom pX = allocate(count*machine_word())
+atom pX = allocate(count*W)
 atom pY = allocate(count*8)
     iup_poke_string_pointer_array(pX, xstrings)
     iup_poke_double(pY, y)
@@ -7554,11 +8142,11 @@ end function
 
 --int IupPlotFindSample(Ihandle* ih, double cnv_x, double cnv_y, int *ds_index, int *sample_index);
 global function IupPlotFindSample(Ihandle ih, atom x, atom y)
-atom p_ds_index = allocate(machine_word())
-atom p_sample_index = allocate(machine_word())
+atom p_ds_index = allocate(W)
+atom p_sample_index = allocate(W)
     if c_func(xIupPlotFindSample, {ih, x, y, p_ds_index, p_sample_index}) then return 0 end if
-    integer ds_index = peekNS(p_ds_index,machine_word(),0)
-    integer sample_index = peekNS(p_sample_index,machine_word(),0)
+    integer ds_index = peekNS(p_ds_index,W,0)
+    integer sample_index = peekNS(p_sample_index,W,0)
     free(p_ds_index)
     free(p_sample_index)
     return {ds_index, sample_index}
@@ -7715,7 +8303,8 @@ procedure ole_open()
     c_proc(xIupOleControlOpen, {})
 end procedure
 
-global function control(string prog_id="", string attributes="", sequence data={})
+--global function control(string prog_id="", string attributes="", sequence data={})
+global function IupOleControl(string prog_id="", string attributes="", sequence data={})
     if not did_ole_open then
         ole_open()
     end if
@@ -8084,8 +8673,6 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --      xIupRefresh                       = iup_c_proc(iup, "+IupRefresh", {P}),
 --      xIupRefreshChildren               = iup_c_proc(iup, "+IupRefreshChildren", {P}),
 --      xIupHelp                          = iup_c_func(iup, "+IupHelp", {P}, I),
---      xIupLoad                          = iup_c_func(iup, "+IupLoad", {P}, P),
---      xIupLoadBuffer                    = iup_c_func(iup, "+IupLoadBuffer", {P}, P),
 --      xIupVersion                       = iup_c_func(iup, "+IupVersion", {}, P),
 --      xIupVersionDate                   = iup_c_func(iup, "+IupVersionDate", {}, P),
 --      xIupVersionNumber                 = iup_c_func(iup, "+IupVersionNumber", {}, I),
@@ -8245,7 +8832,6 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --      xIupFileDlg                       = iup_c_func(iup, "+IupFileDlg", {}, P),
 --      xIupMessageDlg                    = iup_c_func(iup, "+IupMessageDlg", {}, P),
 --      xIupFontDlg                       = iup_c_func(iup, "+IupFontDlg", {}, P),
---      xIupProgressDlg                   = iup_c_func(iup, "+IupProgressDlg", {}, P),
 --      xIupGetFile                       = iup_c_func(iup, "+IupGetFile", {P}, I),
 --      xIupMessage                       = iup_c_proc(iup, "+IupMessage", {P,P}),
 --      xIupAlarm                         = iup_c_func(iup, "+IupAlarm", {P,P,P,P,P}, I),
@@ -8556,6 +9142,11 @@ end procedure
 /*                      Pre-defined dialogs                           */
 /************************************************************************/
 --Ihandle* IupProgressDlg(void);
+-- Creates a progress dialog element. It is a predefined dialog for displaying
+-- the progress of an operation.
+-- The dialog is meant to be shown with the show functions IupShow or IupShowXY.
+--
+-- Returns: the identifier of the created element, or NULL if an error occurs.
 global function IupProgressDlg()
     Ihandle ih = c_func(xIupProgressDlg, {})
     return ih
@@ -8765,7 +9356,6 @@ end function
     hIupColorDlg = define_c_func(iuplib, "IupColorDlg", {}, C_INT),
     hIupGetFile = define_c_func(iuplib, "IupGetFile", {C_POINTER}, C_INT),
     hIupGetText = define_c_func(iuplib, "IupGetText", {C_POINTER, C_POINTER}, C_INT),
-    hIupProgressDlg = define_c_func(iuplib, "IupProgressDlg", {}, C_INT),
 
 -- Associates several callbacks to an event.
 -- To define each rid use the function Icallback.
@@ -8811,9 +9401,9 @@ end function
 --
 -- IupClose()
 -- </eucode>
-global function IupColorDlg()
-    return c_func(hIupColorDlg, {})
-end function
+--global function IupColorDlg()
+--  return c_func(hIupColorDlg, {})
+--end function
 
 -- Shows a modal dialog of the native interface system to select a filename.
 -- Uses the IupFileDlg element.
@@ -8877,15 +9467,6 @@ end function
 --
 -- main()
 -- </eucode>
-
--- Creates a progress dialog element. It is a predefined dialog for displaying
--- the progress of an operation.
--- The dialog is meant to be shown with the show functions IupShow or IupShowXY.
---
--- Returns: the identifier of the created element, or NULL if an error occurs.
-global function IupProgressDlg()
-    return c_func(hIupProgressDlg, {})
-end function
 
 --*/
 
@@ -9226,8 +9807,8 @@ iupLineFileReadLine
 IupLink
 IupList
 IupListDialog
-IupLoad
-IupLoadBuffer
+--IupLoad
+--IupLoadBuffer
 IupLoopStep
 IupLoopStepWait
 IupMainLoop
@@ -9479,7 +10060,7 @@ cdCanvasBox
 cdCanvasChord
 cdCanvasClear
 cdCanvasClip
-cdCanvasClipArea
+--cdCanvasClipArea
 cdCanvasCreateImage
 cdCanvasDeactivate
 cdCanvasEnd
@@ -9575,18 +10156,18 @@ cdClear
 cdClip
 cdClipArea
 cdContextCaps
-cdContextCGM
-cdContextClipboard
+--cdContextCGM
+--cdContextClipboard
 cdContextDBuffer
 cdContextDBufferRGB
-cdContextDebug
-cdContextDGN
-cdContextDXF
-cdContextEMF
+--cdContextDebug
+--cdContextDGN
+--cdContextDXF
+--cdContextEMF
 cdContextImage
 cdContextImageRGB
 cdContextIsPlus
-cdContextMetafile
+--cdContextMetafile
 cdContextNativeWindow
 cdContextPicture
 cdContextPrinter
@@ -9594,7 +10175,7 @@ cdContextPS
 cdContextRegisterCallback
 cdContextSVG
 cdContextType
-cdContextWMF
+--cdContextWMF
 cdCreateBitmap
 cdCreateCanvas
 cdCreateCanvasf

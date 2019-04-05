@@ -3499,6 +3499,11 @@ end procedure -- (for Edita/CtrlQ)
         test eax,eax
 --      jz :memoryallocationfailure
         jnz @f
+--          mov edx,[esp+32]                -- era
+            mov edx,[esp+20]                -- era (was in edx)
+            mov al,33   -- e33maf
+            sub edx,1
+            jmp :!iDiag
             int3
       @@:
         mov [eax],ebx                   -- set slack (=0)

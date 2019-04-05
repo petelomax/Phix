@@ -153,6 +153,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             jg @b
             sub edx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         [64]
             mov rcx,[level]
@@ -169,6 +170,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             jg @b
             sub rdx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         []
           }

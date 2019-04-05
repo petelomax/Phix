@@ -1,0 +1,170 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">BEGIN TRANSACTION</h1>
+      <div id="mainSection">
+       <p><b><a href="sqlite3_syntaxdiagrams.htm#begin-stmt">begin-stmt:</a></b>
+        <button id='x815' onclick='hideorshow("x815","x816")'>hide</button>
+       </p>
+       <div id='x816' class='imgcontainer'>
+        <img alt="syntax diagram begin-stmt" src="images/syntax/begin-stmt.gif" />
+       </div>
+       <p><b><a href="sqlite3_syntaxdiagrams.htm#commit-stmt">commit-stmt:</a></b>
+        <button id='x817' onclick='hideorshow("x817","x818")'>hide</button>
+       </p>
+       <div id='x818' class='imgcontainer'>
+        <img alt="syntax diagram commit-stmt" src="images/syntax/commit-stmt.gif" />
+       </div>
+       <p><b><a href="sqlite3_syntaxdiagrams.htm#rollback-stmt">rollback-stmt:</a></b>
+        <button id='x819' onclick='hideorshow("x819","x820")'>hide</button>
+       </p>
+       <div id='x820' class='imgcontainer'>
+        <img alt="syntax diagram rollback-stmt" src="images/syntax/rollback-stmt.gif" />
+       </div>
+       <p>
+        No changes can be made to the database except within a transaction.
+        Any command that changes the database (basically, any SQL command
+        other than <a href="sqlite3_lang_select.htm">SELECT</a>) will automatically start a transaction if
+        one is not already in effect.  Automatically started transactions
+        are committed when the last query finishes.
+       </p>
+       <p>
+        Transactions can be started manually using the BEGIN
+        command.  Such transactions usually persist until the next
+        COMMIT or ROLLBACK command.  But a transaction will also 
+        ROLLBACK if the database is closed or if an error occurs
+        and the ROLLBACK conflict resolution algorithm is specified.
+        See the documentation on the <a href="sqlite3_lang_conflict.htm">ON CONFLICT</a>
+        clause for additional information about the ROLLBACK
+        conflict resolution algorithm.
+       </p>
+       <p>
+        END TRANSACTION is an alias for COMMIT.
+       </p>
+       <p>
+        Transactions created using BEGIN...COMMIT do not nest.
+        For nested transactions, use the <a href="sqlite3_lang_savepoint.htm">SAVEPOINT</a> and <a href="sqlite3_lang_savepoint.htm">RELEASE</a> commands.
+        The TO SAVEPOINT <span class='yyterm'>name</span> clause of the ROLLBACK command shown
+        in the syntax diagram above is only applicable to <a href="sqlite3_lang_savepoint.htm">SAVEPOINT</a>
+        transactions.  An attempt to invoke the BEGIN command within
+        a transaction will fail with an error, regardless of whether
+        the transaction was started by <a href="sqlite3_lang_savepoint.htm">SAVEPOINT</a> or a prior BEGIN.
+        The COMMIT command and the ROLLBACK command without the TO clause
+        work the same on <a href="sqlite3_lang_savepoint.htm">SAVEPOINT</a> transactions as they do with transactions
+        started by BEGIN.
+       </p>
+
+        <a name="immediate"></a>
+       <p>
+        Transactions can be deferred, immediate, or exclusive.  
+        The default transaction behavior is deferred.
+        Deferred means that no locks are acquired
+        on the database until the database is first accessed.  Thus with a
+        deferred transaction, the BEGIN statement itself does nothing to the
+        filesystem.  Locks
+        are not acquired until the first read or write operation.  The first read
+        operation against a database creates a SHARED lock and the first
+        write operation creates a RESERVED lock.   Because the acquisition of
+        locks is deferred until they are needed, it is possible that another
+        thread or process could create a separate transaction and write to
+        the database after the BEGIN on the current thread has executed.
+        If the transaction is immediate, then RESERVED locks
+        are acquired on all databases as soon as the BEGIN command is
+        executed, without waiting for the
+        database to be used.  After a BEGIN IMMEDIATE, 
+        no other database connection will be able to write to the database or
+        do a BEGIN IMMEDIATE or BEGIN EXCLUSIVE.  Other processes can continue
+        to read from the database, however.  An exclusive transaction causes
+        EXCLUSIVE locks to be acquired on all databases.  After a BEGIN
+        EXCLUSIVE, no other database connection except for 
+        <a href="sqlite3_pragma.htm#pragma_read_uncommitted">read_uncommitted</a>
+        connections will be able to read the database and no other connection without
+        exception will be able to write the database until the transaction is complete.
+       </p>
+       <p>
+        An implicit transaction (a transaction that is started automatically,
+        not a transaction started by BEGIN) is committed automatically when
+        the last active statement finishes.  A statement finishes when its
+        prepared statement is <a href="sqlite3_reset.htm">reset</a> or
+        <a href="sqlite3_finalize.htm">finalized</a>.
+<!--
+        An open [a href="c3ref/blob.htm?"]sqlite3_blob[/a] [not implemented] used for
+        incremental BLOB I/O counts as an unfinished statement.  The [a href="c3ref/blob.htm?"]sqlite3_blob[/a]
+        finishes when it is [a href="c3ref/blob_close.htm?"]closed[/a].
+-->
+       </p>
+       <p>
+        The explicit COMMIT command runs immediately, even if there are
+        pending <a href="sqlite3_lang_select.htm">SELECT</a> statements.  However, if there are pending
+        write operations, the COMMIT command will fail with an error code 
+        <a href="sqlconst.htm#SQLITE_BUSY">SQLITE_BUSY</a>.
+       </p>
+       <p>
+        An attempt to execute COMMIT might also result in an 
+        <a href="sqlconst.htm#SQLITE_BUSY">SQLITE_BUSY</a> return code
+        if an another thread or process has a shared lock on the database
+        that prevented the database from being updated.  When COMMIT fails in this
+        way, the transaction remains active and the COMMIT can be retried later
+        after the reader has had a chance to clear.
+       </p>
+       <p>
+        In very old versions of SQLite (before version 3.7.11 - 2012-03-20) the ROLLBACK will fail with an error code 
+        <a href="sqlconst.htm#SQLITE_BUSY">SQLITE_BUSY</a> if there are any pending queries.  In more recent
+        versions of SQLite, the ROLLBACK will proceed and pending statements
+        will often be aborted, causing them to return an 
+        <a href="sqlconst.htm#SQLITE_ABORT">SQLITE_ABORT</a> or
+        <a href="sqlconst.htm#SQLITE_ABORT">SQLITE_ABORT_ROLLBACK</a> error.
+        In SQLite version 3.8.8 (2015-01-16) and later,
+        a pending read will continue functioning
+        after the ROLLBACK as long as the ROLLBACK does not modify the database schema.
+       </p>
+       <p>
+        If <a href="sqlite3_pragma.htm#pragma_journal_mode">PRAGMA journal_mode</a> is set to OFF (thus disabling the rollback journal
+        file) then the behavior of the ROLLBACK command is undefined.
+       </p>
+       <h3>Response To Errors Within A Transaction</h3>
+       <p>
+        If certain kinds of errors occur within a transaction, the
+        transaction may or may not be rolled back automatically.  The
+        errors that can cause an automatic rollback include:
+       </p>
+       <ul>
+        <li> <a href="sqlconst.htm#SQLITE_FULL">SQLITE_FULL</a>: database or disk full
+        <li> <a href="sqlconst.htm#SQLITE_IOERR">SQLITE_IOERR</a>: disk I/O error
+        <li> <a href="sqlconst.htm#SQLITE_BUSY">SQLITE_BUSY</a>: database in use by another process
+        <li> <a href="sqlconst.htm#SQLITE_NOMEM">SQLITE_NOMEM</a>: out or memory
+       </ul>
+       <p>
+        For all of these errors, SQLite attempts to undo just the one statement
+        it was working on and leave changes from prior statements within the
+        same transaction intact and continue with the transaction.  However, 
+        depending on the statement being evaluated and the point at which the
+        error occurs, it might be necessary for SQLite to rollback and
+        cancel the entire transaction.  An application can tell which
+        course of action SQLite took by using the
+        <a href="sqlite3_get_autocommit.htm">sqlite3_get_autocommit()</a> C-language interface.
+       </p>
+       <p>
+        It is recommended that applications respond to the errors
+        listed above by explicitly issuing a ROLLBACK command.  If the 
+        transaction has already been rolled back automatically
+        by the error response, then the ROLLBACK command will fail with an
+        error, but no harm is caused by this.
+       </p>
+       <p>
+        Future versions of SQLite may extend the list of errors which
+        might cause automatic transaction rollback.  Future versions of
+        SQLite might change the error response.  In particular, we may
+        choose to simplify the interface in future versions of SQLite by
+        causing the errors above to force an unconditional rollback.
+       </p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

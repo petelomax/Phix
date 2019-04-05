@@ -7,8 +7,14 @@
 
 --#withtype bool
 
-atom finit = 0, W, SLASH, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, xCreateDirectory, 
-     xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType
+atom finit = 0, W, SLASH, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, 
+     xCreateDirectory, xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType, 
+     xCreateFileA, xSetFilePointer, xSetEndOfFile, xCloseHandle, xGetLastError
+
+--Windows only constants for MoveFileEx:
+constant MOVEFILE_REPLACE_EXISTING  = #01,  -- (Not allowed for directories)
+         MOVEFILE_COPY_ALLOWED      = #02,  -- (Simulate move to another volume)
+         MOVEFILE_WRITE_THROUGH     = #08   -- (Only return once actually moved)
 
 procedure initf()
     W = (platform()=WINDOWS)
@@ -18,7 +24,7 @@ procedure initf()
     atom lib = open_dll(iff(W?"kernel32":"libc.so"))
     xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT)
                                    :define_c_func(lib, "access", {C_POINTER, C_INT}, C_INT))
-    xMoveFile               = iff(W?define_c_func(lib, "MoveFileA", {C_POINTER, C_POINTER}, C_BOOL)
+    xMoveFile               = iff(W?define_c_func(lib, "MoveFileExA", {C_POINTER, C_POINTER, C_INT}, C_BOOL)
                                    :define_c_func(lib, "rename", {C_POINTER, C_POINTER}, C_INT))
     xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_POINTER}, C_BOOL)
                                    :define_c_func(lib, "unlink", {C_POINTER}, C_INT))
@@ -32,6 +38,16 @@ procedure initf()
                                    :-1)             -- (just yield "\")
     xGetDriveType           = iff(W?define_c_func(lib, "GetDriveTypeA", {C_PTR}, C_UINT)
                                    :-1)             -- (just yield "\",DRIVE_FIXED)
+    xCreateFileA            = iff(W?define_c_func(lib, "CreateFileA", {C_PTR,C_INT,C_INT,C_PTR,C_INT,C_INT,C_PTR}, C_PTR)
+                                   :-1)             -- (all done by truncate, next)
+    xSetFilePointer         = iff(W?define_c_func(lib, "SetFilePointer", {C_PTR, C_LONG, C_PTR, C_INT}, C_BOOL)
+                                   :-1)             -- (all done by truncate, next)
+    xSetEndOfFile           = iff(W?define_c_func(lib, "SetEndOfFile", {C_POINTER}, C_BOOL)
+                                   :define_c_func(lib, "truncate", {C_POINTER,C_LONG}, C_BOOL))
+    xCloseHandle            = iff(W?define_c_func(lib, "CloseHandle", {C_POINTER}, C_BOOL)
+                                   :-1)             -- (not used)
+    xGetLastError           = iff(W?define_c_func(lib, "GetLastError", {}, C_INT)
+                                   :-1)             -- (windows only)
     leave_cs()
     finit = 1
 end procedure
@@ -127,7 +143,8 @@ global function get_file_type(string filename)
     end if
 
     object d = dir(filename)
-    if sequence(d) then
+    if sequence(d)
+    and length(d)>0 then
         --
         -- Note that a directory will get the full list (ugh),
         -- and the following tests the "." entry, or for top
@@ -145,13 +162,81 @@ global function get_file_type(string filename)
     end if
 end function
 
-global function get_file_size(string filename)
+integer sw = -1 -- (+1 really)
+string bfmt,    -- no d.p, no suffix (size in bytes)    default: "%1.0f"
+       sfmt,    -- no d.p, but with suffix              default: "%1.0f%s"
+       dpsfmt   -- with decimal places and suffix       default: "%1.2f%s"
+
+global function file_size_k(atom size, integer width=sw)
+--
+-- Trivial routine to convert a size in bytes to a human-readable string, such as "2GB".
+-- The width setting is also "sticky", ie whatever is set becomes the new default.
+--
+    if width!=sw or sw=-1 then
+        sw = max(width,1)
+        bfmt = sprintf("%%%d.0f%%s",sw)         -- eg "%11.0f%s" (the %s gets ""...)
+        if sw>=3 then sw -= 2 end if
+        sfmt = sprintf("%%%d.0f%%s",sw)         -- eg "%9.0f%s" (this %s gets eg "KB")
+        dpsfmt = sprintf("%%%d.2f%%s",sw)       -- eg "%9.2f%s" (        ""          )
+    end if
+    string res, fmt = bfmt, suffix = ""
+    integer fdx = 0
+    while fdx<=3 do
+        atom rsize = round(size/1024,100)       -- (to 2 d.p.)
+        if rsize<1 then exit end if
+        size = rsize
+        fdx += 1
+        suffix = "KMGT"[fdx]&'B'
+        fmt = sfmt
+    end while
+    if size!=trunc(size) then fmt = dpsfmt end if
+    res = sprintf(fmt, {size,suffix})
+    return res
+end function
+
+global function get_file_size(string filename, bool asStringK=false, integer width=sw)
     -- (aside: directories get a length(d) of >=2, 
     --         ie "." and ".." and whatever else,
     --         and in that way this yields -1.)
     object d = dir(filename)
-    return iff(atom(d) or length(d)!=1 ? -1 : d[1][D_SIZE])
+    if atom(d) or length(d)!=1 then return -1 end if
+    atom size = d[1][D_SIZE]
+    if asStringK then return file_size_k(size,width) end if
+    return size
 end function
+
+global function set_file_size(string filename, atom size)
+
+    object res = true
+    if not finit then initf() end if
+       
+    if get_file_type(filename)!=FILETYPE_FILE then return "not found" end if
+
+    if platform()=WINDOWS then
+
+        atom GENERIC_WRITE = #40000000,
+             INVALID_HANDLE_VALUE = #FFFFFFFF
+        integer OPEN_EXISTING = 3,
+                FILE_BEGIN = 0
+        atom fh = c_func(xCreateFileA,{filename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL})
+        if (fh == INVALID_HANDLE_VALUE) then return "cannot open" end if
+        if c_func(xSetFilePointer,{fh, size, NULL, FILE_BEGIN})=0
+        or c_func(xSetEndOfFile,{fh})=0 then res = "cannot set size" end if
+        {} = c_func(xCloseHandle,{fh})
+
+    elsif platform()=LINUX then
+
+        res = not c_func(xSetEndOfFile,{filename, size})
+
+    else
+
+        ?9/0    -- unknown platform
+
+    end if
+
+    return res
+end function
+ 
 
 --/* Now defined in psym.e:
 global constant DRIVE_UNKNOWN       = 0,    -- The drive type cannot be determined.
@@ -187,7 +272,8 @@ sequence res
     return res
 end function
 
-global function rename_file(string src, string dest, integer overwrite=0)
+global function rename_file(string src, string dest, bool overwrite=false)
+atom ret
     if not finit then initf() end if
     if not overwrite then
         if file_exists(dest) then
@@ -207,14 +293,28 @@ global function rename_file(string src, string dest, integer overwrite=0)
         dest = dest[1..$-1]
     end if
 
-    atom ret = c_func(xMoveFile, {src, dest})
-    if platform()=LINUX then
-        ret = not ret
+    if platform()=WINDOWS then
+
+        integer flags = or_bits(MOVEFILE_COPY_ALLOWED,MOVEFILE_WRITE_THROUGH)
+        if get_file_type(src)!=FILETYPE_DIRECTORY then
+            flags = or_bits(flags,MOVEFILE_REPLACE_EXISTING)
+        end if
+        ret = c_func(xMoveFile, {src, dest, flags})
+
+    elsif platform()=LINUX then
+
+        ret = not c_func(xMoveFile, {src, dest})
+
+    else
+
+        ?9/0 -- unknown platform
+
     end if
+
     return ret
 end function
 
-global function copy_file(string src, string dest, integer overwrite=0)
+global function copy_file(string src, string dest, bool overwrite=false)
 integer success
     if not finit then initf() end if
 
@@ -255,7 +355,7 @@ integer success
     return success
 end function
 
-global function move_file(string src, string dest, integer overwrite=0)
+global function move_file(string src, string dest, bool overwrite=false)
 atom ret
 
     if not file_exists(src)
@@ -263,19 +363,35 @@ atom ret
         return 0
     end if
 
-    if platform()=LINUX
-    and not equal(get_proper_dir(src),get_proper_dir(dest)) then
-        ret = copy_file(src, dest, overwrite)
-        if ret then
-            ret = delete_file(src)
+    if platform()=WINDOWS then
+
+        integer flags = or_bits(MOVEFILE_COPY_ALLOWED,MOVEFILE_WRITE_THROUGH)
+        if get_file_type(src)!=FILETYPE_DIRECTORY then
+            flags = or_bits(flags,MOVEFILE_REPLACE_EXISTING)
         end if
-        return (not ret)
-    end if
+        ret = c_func(xMoveFile, {src, dest, flags})
 
-    ret = c_func(xMoveFile, {src, dest})
+--if ret=0 then
+--  if platform()=WINDOWS then
+--      ?{"error (ret=0)",c_func(xGetLastError,{})}
+--  end if
+--end if
 
-    if platform()=LINUX then
-        ret = not ret
+    elsif platform()=LINUX then
+
+        if not equal(get_proper_dir(src),get_proper_dir(dest)) then
+            ret = copy_file(src, dest, overwrite)
+            if ret then
+                ret = delete_file(src)
+            end if
+            return (not ret)
+        end if
+        ret = not c_func(xMoveFile, {src, dest})
+
+    else
+
+        ?9/0    -- unknown platform
+
     end if
 
     return ret
@@ -320,9 +436,13 @@ bool ret
     end if
 
     if platform()=LINUX then
+
         ret = not c_func(xCreateDirectory, {name, mode})
+
     elsif platform()=WINDOWS then
+
         ret = c_func(xCreateDirectory, {name, 0})
+
     end if
 
     return ret
@@ -450,7 +570,131 @@ object files
     return ret
 end function
 
+function addline(sequence res, integer i, integer start, integer option, integer filesize, string src)
+--
+-- Internal routine. Bolt another line onto res.
+-- All six of the variables i, start, option, src,
+-- filesize, and res must be set by the callee(!!)
+-- Factored out so we can call it both when we
+-- find a \r or \n, and also at end of file.
+-- The "(use a shared constant)" fairly obviously
+-- makes multiple references to one object rather
+-- than multiple such things with ref counts of 1.
+--
+sequence oneline
+integer lend
+    lend = i-1
+--  if option=-1 then   -- GT_LF_STRIPPED
+    if option=GT_LF_STRIPPED then
+        if start>lend then
+            oneline = ""    -- (use a shared constant)
+        else
+            oneline = src[start..lend]
+        end if
+    else
+        if start>lend then
+            oneline = "\n"  -- (use a shared constant)
+        elsif i<=filesize then
+            src[i] = '\n'   -- \r\n --> \n
+            oneline = src[start..i]
+        else -- eof case
+            oneline = src[start..filesize]
+        end if
+    end if
+    res = append(res,oneline)
+    return res
+end function
+
 --DEV not yet documented/autoincluded
+global function get_text(object file, integer options=GT_WHOLE_FILE)
+    integer fn = iff(string(file)?open(file,"rb"):file)
+    if fn=-1 then return -1 end if
+--(may not need to do this...)
+--  bool keep_bom = false
+--  if options>6 then
+--  if and_bits(options,GT_KEEP_BOM) then
+--      keep_bom = true
+--      options -= GT_KEEP_BOM
+--  end if
+--  sequence res = get_text(fn,options)
+--  sequence res = get_text(fn,and_bits(options,0b111))
+--  sequence res = get_textn(fn,options)
+    sequence res = get_textn(fn,options+10) -- (temp)
+--  sequence res = get_text(fn,options+10)  -- (temp)
+    if string(file) then close(fn) end if
+--... [DEV] and move what we can from pfileioN.e to here...
+    if options<8    -- ie not +GT_KEEP_BOM
+--  if not keep_bom
+--  if not and_bits(options,GT_KEEP_BOM)
+    and length(res)>=3
+    and res[1..3] = x"EFBBBF" then
+        res = res[4..$]
+    end if
+--DEV (tmp)
+--  if options!=GT_WHOLE_FILE 
+    if options!=0
+    and options!=-2
+    and string(res) then
+        string src = res
+        res = {}
+        integer i = 1,
+                start = 1,
+                filesize = length(src)
+        while i<=filesize do
+            integer ch = src[i]
+            if ch='\r' or ch='\n' then
+                res = addline(res,i,start,options,filesize,src)
+--DEV tryme
+--              res = append(res,addline(i,start,option,filesize,src))
+                ch = xor_bits(ch,0b0111)    -- '\n' <==> '\r'
+                i += 1
+                if i<=filesize and src[i]=ch then
+                    i += 1
+                end if
+                start = i
+            else
+                i += 1
+            end if
+        end while
+        if start<=filesize then
+            res = addline(res,i,start,options,filesize,src)
+        end if
+    end if
+
+    return res
+end function
+
+--/*
+--SUG: (replaces/removes read_file.e from distro)
+--global constant BINARY_MODE = 1, TEXT_MODE = 2    -- now in psym.e [**NOT YET!**]
+
+--global 
+function read_file(object file, integer as_text = BINARY_MODE)
+    string text = get_text(file)
+    if as_text=TEXT_MODE then
+        text = substitute(text,"\r","")
+    end if
+--integer fn
+--object line
+--string text = ""
+--  if sequence(file) then
+--      fn = open(file,iff(as_text=BINARY_MODE?"rb":"r"))
+--  else
+--      fn = file
+--  end if
+--  if fn = -1 then return -1 end if
+--  while 1 do
+--      line = gets(fn)
+--      if atom(line) then exit end if
+--      text &= line
+--  end while
+--  if sequence(file) then
+--      close(fn)    
+--  end if
+    return text
+end function
+--*/
+
 --**
 -- Write a sequence of lines to a file.
 --
@@ -822,7 +1066,7 @@ end function
 -- Convert all encoded entities to their decoded counter parts
 -- 
 -- Parameters:
---   # ##what##: what value to decode
+--   # ##url##: the url to decode
 --   
 -- Returns:
 --   A decoded sequence
@@ -839,42 +1083,38 @@ end function
 --   [[:encode_url]]
 --   
 
-global function decode_url(string what)
+global function decode_url(string url)
 integer k = 1
 
-    while k<=length(what) do
-        if what[k]='+' then
-            what[k] = ' ' -- space is a special case, converts into +
-        elsif what[k]='%' then
-            if k=length(what) then
+    while k<=length(url) do
+        if url[k]='+' then
+            url[k] = ' ' -- space is a special case, converts into +
+        elsif url[k]='%' then
+            if k=length(url) then
                 -- strip empty percent sign
-                what = what[1..k-1] & what[k+1..$]
-            elsif k+1=length(what) then
---      what[k] = stdget:value("#0" & decode_upper(what[k+1]))
---      what[k] = what[k][2]
-                integer ch = upper(what[k+1])-'0'
-                if ch>9 then ch -= 7 end if
-                what[k] = ch
-                what = what[1..k] & what[k+2..$]
+                url = url[1..$-1]
             else
---      what[k] = stdget:value("#" & decode_upper(what[k+1..k+2]))
---      what[k] = what[k][2]
-                integer ch = upper(what[k+1])-'0'
+                integer ch = upper(url[k+1])-'0'
                 if ch>9 then ch -= 7 end if
-                what[k] = ch*16
-                ch = upper(what[k+2])-'0'
-                if ch>9 then ch -= 7 end if
-                what[k] += ch
-                what = what[1..k] & what[k+3..$]
+                if k+1=length(url) then
+                    url[k] = ch
+                    url = url[1..k]
+                else
+                    url[k] = ch*16
+                    ch = upper(url[k+2])-'0'
+                    if ch>9 then ch -= 7 end if
+                    url[k] += ch
+                    url = url[1..k] & url[k+3..$]
+                end if
             end if
-        else
+--      else
         -- do nothing if it is a regular char ('0' or 'A' or etc)
         end if
 
         k += 1
     end while
 
-    return what
+    return url
 end function
 
 

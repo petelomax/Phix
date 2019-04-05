@@ -38,17 +38,36 @@ end function
 sequence nametags = custom_sort(routine_id("by_name"),tagset(length(Names)))
 
 integer ti
-    for i=1 to length(yeartags) do
-        ti = yeartags[i]
-        printf(1,"Year: %d, Name: %s\n",{Years[ti],Names[ti]})
-    end for
-    for i=1 to length(nametags) do
-        ti = nametags[i]
-        printf(1,"Name: %s, Year: %d\n",{Names[ti],Years[ti]})
-    end for
+printf(1,"By name:\n")
+for i=1 to length(nametags) do
+    ti = nametags[i]
+    printf(1,"Name: %s, Year: %d\n",{Names[ti],Years[ti]})
+end for
+printf(1,"By year:\n")
+for i=1 to length(yeartags) do
+    ti = yeartags[i]
+    printf(1,"Year: %d, Name: %s\n",{Years[ti],Names[ti]})
+end for
+
+--Alternative (non-tagsort) using sort_columns (new in 0.8.0):
+sequence ny = {{"C. C. Catch",1985},
+               {"Army of Lovers",1987},
+               {"Boney M.",1975},
+               {"Dschinghis Khan",1979}}
+
+--printf(1,"Alternative by name:\n")
+--?sort_columns(ny,{1,2})
+--?sort(ny) -- same as ""
+printf(1,"Alternative by year:\n")
+pp(sort_columns(ny,{2,1}),{pp_Nest,1})
+
 
 --Another Example:
+--old:
+--/*
 -- Obviously significantly faster than lower(twice) on each comparison.
+-- Here, case_insensitive() is invoked 5 times, meaning a total of 10 
+-- calls to lower(), as opposed to one (resursive) initial set of 4.
 
 sequence Cases = {"Case 3", "caSe 1", "cAse 4", "casE 2"}
 
@@ -59,11 +78,21 @@ end function
 
 cases = lower(Cases) -- take a modified copy, may warrant loop/string tests.
 --cases = Cases      -- result is 3412, as expected with 'Z' < 'a'.
---cases = upper(Cases) -- same result (1234) as using lower, obviously.
+--cases = upper(Cases) -- same result (2413) as using lower, obviously.
 sequence casetags = custom_sort(routine_id("case_insensitive"),tagset(length(cases)))
 
 for i=1 to length(casetags) do
     printf(1,"%s\n",{Cases[casetags[i]]})
+end for
+--*/
+--new (0.8.0+):
+sequence cases = {"Case 3", "caSe 1", "cAse 4", "casE 2"}
+
+sequence casetags = custom_sort(lower(cases),tagset(length(cases)))
+
+printf(1,"\nCase insensitive tag sort:\n")
+for i=1 to length(casetags) do
+    printf(1,"%s\n",{cases[casetags[i]]})
 end for
 
 if getc(0) then end if

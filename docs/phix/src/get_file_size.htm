@@ -13,7 +13,9 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="atom.htm">atom</a> filesize = get_file_size(<a href="string.htm">string</a> filename)
+          <a href="atom.htm">atom</a> filesize = get_file_size(<a href="string.htm">string</a> filename,
+                                                               <a href="integer.htm#bool">bool</a> asStringK=false,
+                                                               <a href="integer.htm">integer</a> width=sw)
          </td>
         </tr>
         <tr>
@@ -24,10 +26,12 @@
             Get the size of a file in bytes.
             <br>
             <br>
-            filename: the name of the file to query.
+            filename: the name of the file to query.<br>
+            asStringK: if true, automatically invoke the auxillary file_size_k() function, with the given width 
+            if specified, see below.
             <br>
             <br>
-            Returns an atom, the file size, or -1 if file is not found or a directory.
+            Returns an atom, the file size, or -1 if file is not found or a directory (or the string result from file_size_k()).
          </td>
         </tr>
         <tr>
@@ -38,10 +42,53 @@
             This function does not compute the total size for a directory, and returns -1 instead.
             <br>
             <br>
-            You will also get -1 if a wildcard is passed (see <a href="dir.htm">dir</a)) that matches >1 file.
+            You will also get -1 if a wildcard is passed that matches more than one file, see <a href="dir.htm">dir</a>().
             <br>
             <br>
             Both forwardslash ('/') and backslash ('\\') are handled for all platforms.
+            <a name=file_size_k></a>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Auxillary function:</b>
+         </td>
+         <td>
+            <a href="string.htm">string</a> res = file_size_k(<a href="atom.htm">atom</a> size,
+                                                              <a href="integer.htm">integer</a> width=sw)
+            <br>
+            <br>
+            Trivial routine to convert a size in bytes to the most appropriate (approximately equivalent) 
+            human-readable string, for example 2147483600 ==&gt; "2GB".
+            <br>
+            <br>
+            Sensible rounding occurs - the trailing 00 (instead of 48) above was deliberate, and that result 
+            is far more accurate than "1.99GB" would have been.
+            <br>
+            <br>
+            Obviously a result of "1000KB" <i>is</i> fine, as would be "1018KB" (deemed <i>preferable</i> 
+            to "0.99MB"), whereas 1019K..1023K are rounded up to "1MB". Should you require a different 
+            rounding strategy, or more suffixes that KB/MB/GB/TB, then likewise obviously you would have to 
+            roll your own routine.
+            <br>
+            <br>
+            The optional width parameter is intended to simplify alignment, but will not shorten anything that 
+            needs more digits, that is, beyond what naturally happens - were you to throw 1e308 at this, you 
+            would get a 298-character string back, irrespective of any width setting less than 298.
+            The width setting is also "sticky", ie whatever is set becomes the new default.
+            <br>
+            <br>
+            This routine can be invoked independently, for instance on the [D_SIZE] elements of the result 
+            from <a href="dir.htm">dir</a>(), or automatically as part of get_file_size() - note however 
+            that the latter can still yield -1 even when asStringK is true.
+            <br>
+            <br>
+            There is also a matching <a href="object.htm">object</a> res = <i><b>set_file_size</b></i>(<a 
+            href="string.htm">string</a> filename, <a href="atom.htm">atom</a> size) function that, obviously 
+            enough, allows you to set a specific file size (padding or truncating as rqd), returning true when 
+            it succeeds without error, otherwise an error string - see builtins/pfile.e for the full set.
+         </td>
+        </tr>
         <tr>
          <td valign=top>
           <b>Example:</b>

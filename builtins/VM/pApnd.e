@@ -45,7 +45,6 @@ end procedure -- (for Edita/CtrlQ)
         mov ecx,[ecx]           -- ref of p3
     ::opApndA   -- (entry point for p1=p2&p3 -> p1=append(p2,p3) when p3 atom.)
         cmp esi,h4
---      jl e55fatambs           -- first argument to append must be sequence (remove me)
         jl :ApndNewSeq2
     :%opPpndSA  -- (entry point for p1=p2&p3 -> p1=prepend(p3,p2) when p2 atom, see ppMap below.)
                 -- exception here mapped to e93vhnbaav(edi)
@@ -97,7 +96,6 @@ end procedure -- (for Edita/CtrlQ)
     ::opApndA   -- (entry point for p1=p2&p3 -> p1=append(p2,p3) when p3 atom.)
         mov r15,h4
         cmp rsi,r15
---      jl e55fatambs           -- first argument to append must be sequence (remove me)
         jl :ApndNewSeq2
     :%opPpndSA  -- (entry point for p1=p2&p3 -> p1=prepend(p3,p2) when p2 atom, see ppMap below.)
                 -- exception here mapped to e93vhnbaav(rdi)

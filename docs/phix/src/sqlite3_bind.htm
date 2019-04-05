@@ -1,0 +1,141 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">sqlite3_bind</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pSQLite.e
+            <br>
+            <br>
+            <a href="integer.htm">integer</a> ret = sqlite3_bind_parameter_count(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt)
+            <br>
+            <i>-- or --</i>
+            <br>
+            <a href="integer.htm">integer</a> ret = sqlite3_bind_parameter_index(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt,
+                                                                                 <a href="string.htm">string</a> zName)
+            <br>
+            <i>-- or --</i>
+            <br>
+            <a href="string.htm">string</a> res = sqlite3_bind_parameter_name(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt,
+                                                                              <a href="integer.htm">integer</a> idx)
+            <br>
+            <br>
+            <i>-- and --</i>
+            <br>
+            <br>
+            sqlite3_bind_int(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt,
+                             <a href="integer.htm">integer</a> idx,
+                             <a href="integer.htm">integer</a> val)
+            <br>
+            <i>-- or --</i>
+            <br>
+            sqlite3_bind_double(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt,
+                                <a href="integer.htm">integer</a> idx,
+                                <a href="atom.htm">atom</a> val)
+            <br>
+            <i>-- or --</i>
+            <br>
+            sqlite3_bind_text(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt,
+                              <a href="integer.htm">integer</a> idx,
+                              <a href="string.htm">string</a> val)
+            <br>
+            <i>-- or --</i>
+            <br>
+            sqlite3_bind_blob(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt,
+                              <a href="integer.htm">integer</a> idx,
+                              <a href="object.htm">object</a> val)
+            <br>
+            <i>-- or --</i>
+            <br>
+            sqlite3_bind_null(<a href="sqlconst.htm#types">sqlite3_stmt</a> pStmt,
+                              <a href="integer.htm">integer</a> idx)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            The sqlite3_bind routines are used to assign values to wildcards in a prepared SQL statement.
+            <br>
+            <br>
+            In the SQL strings input to <a href="sqlite3_prepare.htm">sqlite3_prepare</a>(), one or more fields can be 
+            a wildcard "?" or "?nnn" or ":nnn:" or ":AAA", where AAA is an alphanumeric identifier.<br>
+            The value of these wildcard literals (also called "host parameter names") can be set using these routines.
+            <br>
+            <br>
+            pStmt: A pointer to the sqlite3_stmt structure returned from <a href="sqlite3_prepare.htm">sqlite3_prepare</a>().<br>
+            zName: an alphanumeric identifier (AAA above, UTF-8 encoded)<br>
+            idx: the index of the wildcard. The first wildcard has an index of 1.<br>
+            val: the integer/atom/string/object value to assign to the specified wildcard.
+            <br>
+            <br>
+            The sqlite3_bind_*() routines must be called after <a href="sqlite3_prepare.htm">sqlite3_prepare</a>() or 
+            <a href="sqlite3_reset.htm">sqlite3_reset</a>() and before <a href="sqlite3_step.htm">sqlite3_step</a>().<br>
+            Bindings are not reset by <a href="sqlite3_reset.htm">sqlite3_reset</a>() - ie you are not forced to re-write the same 
+            value every time, but wildcards can be rebound to new values after an <a href="sqlite3_reset.htm">sqlite3_reset</a>().<br>
+            Unbound wildcards are interpreted as NULL. 
+            <br>
+            <br>
+            Returns:<br>
+            sqlite3_bind_parameter_count() returns the number of wildcards in the precompiled statement given as the argument.<br>
+            sqlite3_bind_parameter_index() returns the index of the wildcard with the given name. The name must match exactly.<br>
+            &nbsp;If there is no wildcard with the given name, returns 0.<br>
+            sqlite3_bind_parameter_name() returns the name of the n-th wildcard in the precompiled statement.<br>
+            &nbsp;Wildcards of the form ":AAA" have a name which is the string ":AAA".<br>
+            &nbsp;Wildcards of the form "?" or "?NNN" have no name, "" is returned, ditto if idx out of range.
+            <br>
+            <br>
+            sqlite3_bind_int(), sqlite3_bind_double(), sqlite3_bind_text(), sqlite3_bind_blob(), and sqlite3_bind_null() 
+            do not return a value.
+            <br>
+            <br>
+            After all wildcards have been appropriately assigned, the statement can be executed using 
+            <a href="sqlite3_step.htm">sqlite3_step</a>(pStmt).
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Comments:</b>
+         </td>
+         <td>
+<!--
+-- sqlite3_bind_text: You don't have to put text into ' quotes.
+-->
+            The sqlite3_bind_blob() routine uses <a href="serialize.htm">serialize</a>(val), and <a href="sqlite3_column.htm">sqlite3_column_blob</a>() 
+            uses <a href="deserialize.htm">deserialize</a>() to retrieve it.<br>
+            Use sqlite3_bind_null() to explicitly unset a wildcard, when needed in a loop, since <a href="sqlite3_reset.htm">sqlite3_reset</a>() does not.<br>
+            Internally, these routines rely on SQLITE_TRANSIENT, so that SQLite makes its own private copy of any data.
+            <br>
+            <br>
+            Note that sqlite3_bind_text() does not have to worry about quotation marks etc in the text, and similarly but internally with sqlite3_bind_blob(),
+            whereas that could be an issue for <a href="sqlite3_exec.htm">sqlite3_exec</a>() and <a href="sqlite3_get_table.htm">sqlite3_get_table</a>().
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+            See <a href="sqlite3_prepare.htm">sqlite3_prepare</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

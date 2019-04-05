@@ -1725,6 +1725,7 @@ end procedure
 --end procedure
 
 procedure Aborc(sequence msg)
+--DEV make this a subroutine in pmsg.e?
     if equal(expandedYet[fileno],0) then
         text = allfiles[fileno]
         exptext[fileno] = expandIntoLines()
@@ -1804,6 +1805,8 @@ sequence bj, bj1, bjz, pdone
                     end if
                     cidx = bjz[2]
                     if symtab[rtn][S_il][cidx]!=-9 then ?9/0 end if
+--object dbg = symtab[rtn]  --{-1,8,1,2304,0,0,"P",0,0,0,0,0,1,0}
+--                  if symtab[rtn][S_il][cidx]!=-9 then Aborc("uh?") end if
                     if pidx>nParams then
                         fileno = bj1[2]
                         tokcol = bjz[1]
@@ -1881,6 +1884,7 @@ if not newEmit then
     if debugleak and repl=0 then    -- (all official releases should have debugleak set to 0, btw)
         if not LastStatementWasAbort then
             if listing or dumpil or bind then
+--DEV make this a subroutine in pmsg.e?
                 if equal(expandedYet[1],0) then
                     text = allfiles[fileno]
                     exptext[1] = expandIntoLines()
@@ -3315,6 +3319,9 @@ if length(symtab[dest])>=S_ltype then
 --?1
 --end if
         ltAdd(SET,dest,symtab[dest][S_ltype],sltype,pc-1)
+--15/2/19:
+else
+        ltAdd(SET,dest,dtype,sltype,pc-1)
 end if
     end if
 --if from_opRepCh then
@@ -4209,11 +4216,16 @@ procedure jinit(integer mpc)
     end if
 end procedure
 
+--global
+integer isGscan
+        isGscan = 0
+
 procedure detach(integer list, integer item)
 --
 -- "unlink" an item(a jump) from a linked list.
 --
 integer next
+--if not isGscan then -- (hail mary)    -- NEWGSCAN?
     while 1 do
         next = s5[list]
         if next=item then
@@ -4222,7 +4234,10 @@ integer next
             exit
         end if
         list = next
+--error 36 loop...
+--if list=0 then ?"pilx86.2 line 4237: detach/exit" exit end if
     end while
+--end if
 end procedure
 
 --  opJif = 26,         -- if b then
@@ -4284,8 +4299,7 @@ function jskip()
 integer skip, noofitems
 --, jtgt
 integer skiptgt, mergeSet
-integer waspc, xpc
-    waspc = pc
+integer waspc = pc, xpc
     while 1 do
         nextop = s5[pc]
 --28/7/17
@@ -4310,8 +4324,6 @@ integer waspc, xpc
 --      pc += 4
 --  end if
                 return 1
--- 26/8/2012
---          elsif s5[pc+3] then -- label which has been referenced
             elsif s5[pc+3]  -- label which has been referenced
                or (s5[pc+4]=opCtrl and and_bits(s5[pc+5],SWITCH)) then
                 if NOLT=0 or bind or lint then
@@ -4319,9 +4331,6 @@ integer waspc, xpc
                         ltskip(pc,waspc)
                     end if
                 end if -- NOLT
-if 0 then -- 17/11/09 old code:
-                return 0
-else -- new code:
                 -- while we cannot "skip" them, don't actually emit
                 --  a jump over a bunch of opLabels and opCtrls...
                 --  (ie stop incrementing pc, use the temporary
@@ -4355,14 +4364,13 @@ else -- new code:
 --              end for
                 end while
                 return 1
-end if
             end if
             pc += 4
 --          pc += 5
 --          pc += 6
 
 --25/10/17:
---/!* --(nope)
+--/* --(nope)
         elsif nextop=opEndFor
           and s5[waspc+1] = exitMerge
           and pc = tgt-6 then
@@ -4388,7 +4396,7 @@ end if
 --          end if -- NOLT
 ----            return 1
 --          return 0
---*!/
+--*/
         else
             skip = opSkip[nextop]
             if skip>0 then
@@ -4402,7 +4410,9 @@ end if
                         -- detach any skipped jumps:
                         skiptgt = s5[pc+2]
                         if skiptgt>pc then      -- ignore end whiles (backward jumps)
+--if not isGscan then --(hail mary)
                             detach(skiptgt,pc+3)
+--end if
                         end if
                     end if
                 end if
@@ -4468,6 +4478,7 @@ sequence jcode
         pc += ilen
         if tmpv then    -- always taken:
             if mergeSet=isOpCode then
+if not isGscan then
                 if sched then
                     -- hmm:
                     -- a: would be done by opLabel rsn anyways,
@@ -4479,6 +4490,7 @@ if suppressopRetf then
     puts(1,"pilx86.e line 4218 (jend/opRetf)\n")
 end if
                 emitHex5jmpG(opRetf)                        -- jmp opRetf
+end if
                 opcode = opRetf
                 tgt = -1    -- let jskip fall off end of code
                 if jskip() then return 1 end if -- if "", all done --> end while
@@ -4487,6 +4499,7 @@ end if
                     opcode = lastop
                     detach(tgt,npc+3)
                 else
+if not isGscan then
                     if sched then
                         -- hmm:
                         -- a: would be done by opLabel anyways,
@@ -4499,17 +4512,21 @@ end if
                     emitHex5j(0)                -- jmp xxx (backpatched later)
                     opcode = opJmp
                     s5[npc+2] = length(x86)
+end if
                 end if
             end if
         else -- tmpv=0/never taken
             opcode = lastop
             if mergeSet!=isOpCode then
+--if not isGscan then -- (hail mary)
                 detach(tgt,npc+3)
+--end if
             end if
         end if
 
     else -- not tmpd, must test:
 
+if not isGscan then
         k = ccde[bcode][2]
         jcode = {#0F,k}
         if mergeSet=isOpCode then
@@ -4538,14 +4555,12 @@ end if
             emitHex6j(jcode,0)                  -- jcc xxx (to be backpatched)
             s5[pc+2] = length(x86)
         end if
+end if
         pc += ilen
     end if -- tmpd
     return 0    -- (not an opRetf skipping the rest of the code)
 end function
 
---global
-integer isGscan
-        isGscan = 0
 --SUG: s5->x86, elsewhere replace s5 with ilcode, delete "s5","code"
 
 sequence opTyp0
@@ -4588,6 +4603,7 @@ constant false=(1=0), true=(1=1)
 --      trapme=0
 
 --integer zzcount = 0
+global integer x86showmapsymtab = 0
 
 global procedure ilxlate(integer vi)
 integer p1, p2, p4, pc3, pc6,
@@ -4759,6 +4775,8 @@ end if
         emitline = symtabN[S_1stl]
         pfileno = symtabN[S_FPno]   -- for lineinfo()
         opLnv = 0
+--TEMP:
+else pfileno = symtab[vi][S_FPno]
     end if
 
     -- Check for parameter opTchk at the start:
@@ -4831,7 +4849,7 @@ end if
             emitline = s5[pc+1]
             pc += 2
 --if not isGscan then
---  if emitline=14 then trace(1) end if
+--  if emitline=4 then trace(1) end if
 --end if
 
 --            opcode=opMove             -- 1
@@ -5574,6 +5592,16 @@ end if
             gmask = symk[S_Efct]    -- (save for the opCall)
             pc += 2
             if isGscan then
+if NEWGSCAN then
+                if symk[S_NTyp]>=S_Type
+                and g_scan[routineNo]==0 then
+--if pfileno=1 and symtab[routineNo][S_FPno]=1 then
+--?{"pilx86.e line 5587 (opFrame), adding",routineNo,vi}
+--end if
+                    g_scan[routineNo] = g_scan[vi]
+                    g_scan[vi] = routineNo
+                end if
+else
                 u = symk[S_State]
                 if not and_bits(u,K_used) then
                     symtab[routineNo] = 0       -- kill refcount (prevent pointless clone)
@@ -5594,6 +5622,7 @@ end if
                     end if
                     symtab[routineNo] = symk
                 end if
+end if
                 -- DEV flag opFrame as being "do nowt" (ie/eg as opLn) before second pass.
             else -- (not isGscan)
                 first = symk[S_Parm1]
@@ -6355,7 +6384,13 @@ end if
                         tokline = emitline
                         tokcol = linestarts[tokline]+match("switch",exptext[fileno][tokline])-1
                         -- (we may be able to generate more helpful messages than this...)
-                        Abort(sprintf("cannot create jump table[swecode=%d,npc=%d,opcode=%d(%s)]",{swecode,npc,opcode,opNames[opcode]}))
+                        string details
+                        if swecode=8 then
+                            details = "[default not at end]"
+                        else
+                            details = sprintf("[swecode=%d,npc=%d,opcode=%d(%s)]",{swecode,npc,opcode,opNames[opcode]})
+                        end if                              
+                        Abort("cannot create jump table "&details)
                     end if
 
 --      :  opLn,2,                               --: if i=1 or i=2 then
@@ -6895,7 +6930,7 @@ end if
             if pDefault then
                 if not isGscan then
                     reg = loadReg(src)                  -- mov reg,[src]
-                    cmp_h4(reg)                         -- cmp reg,h4
+                    cmp_h4(reg)                         -- cmp reg,h4 (ie is unassigned/omitted param?)
                     emitHex6j(jne_rel32,0)              -- jne @f [sj NOT ok]
                     dbpos = length(x86)
                     -- nb: reg must be preserved over defaulting, until the typechecking code after it
@@ -7050,6 +7085,7 @@ end if
                         getDest()
                         src = pDefault  -- (src is restored/unclobber'd later)
                         getSrc()
+--if pfileno=1 then printf(1,"pilx86.e line 7086 (opTchk pDefault>0): slroot=%04b (dest=%d,src=%d)\n",{slroot,dest,src}) end if
                         gtypeonly = 1
                         storeDest()
                     end if
@@ -7141,6 +7177,8 @@ end if
 --              dbpos=length(x86)
             end if  -- pDefault
             getSrc()
+--if pfileno=1 then printf(1,"pilx86.e line 7179 (opTchk): slroot=%04b (src=%d)\n",{slroot,src}) end if
+
             if wasOptTypeCheck then
                 if sudt>T_object then
 --18/9/15 no: follow the chain!
@@ -7158,16 +7196,18 @@ end if
                     gtypeonly = 1
                     storeDest()
 --MARKTYPES
-if MARKTYPES then
-?9/0
-                    if isGscan
-                    and sudt>T_object then
+if MARKTYPES then ?9/0 end if
+if NEWGSCAN then
+--                  if isGscan
+                    if sudt>T_object then
                         symk = symtab[sudt]
                         u = symk[S_State]
                         if not and_bits(u,K_used) then
                             symtab[sudt] = 0        -- kill refcount (prevent pointless clone)
                             u += K_used
                             symk[S_State] = u
+--erm...
+                        end if
                             if symk[S_NTyp]!=S_Type then ?9/0 end if    -- sanity check
                             if sudt=vi then ?9/0 end if                 -- sanity check
                                                 -- alternatively: linkup opTchks here.
@@ -7176,10 +7216,18 @@ if MARKTYPES then
 ----DEV temp!
 --printf(1,"pilx86.e line 3369: S_linking symtab[%d]\n",vi)
 --printf(1,"pilx86.e line 3370: S_linking symtab[%d]\n",routineNo)
-                            symk[S_Slink] = symtab[vi][S_Slink]
-                            symtab[vi][S_Slink] = routineNo
+--                          symk[S_Slink] = symtab[vi][S_Slink]
+--                          symtab[vi][S_Slink] = routineNo
+                            if g_scan[sudt]=0 then
+--if pfileno=1 then
+if pfileno=1 and symk[S_FPno]=1 then
+?{"pilx86.e line 7206 (opTchk), adding",sudt,vi}
+end if
+                                g_scan[sudt] = g_scan[vi]
+                                g_scan[vi] = sudt
+                            end if
                             symtab[sudt] = symk
-                        end if
+--                      end if
                     end if
 end if
                 end if
@@ -7393,18 +7441,24 @@ end if
 --  trace(1)
 -- end if
 --end if
-            src = 0
-            src2 = 0
+--          src = 0
+--          src2 = 0
+            src = s5[pc+4]
+            src2 = s5[pc+5]
             waspc = pc
+            tii = s5[pc+6]  -- twoInitialisedInts   [re-check with gvar]
+            bothInit = s5[pc+7]
+--if pfileno=1 then ?{isGscan,symtab[src]} end if
 
             if isGscan then
                 -- if bothInit and not tii, yet analysis reveals p2,p3 are in fact ints then tii=1:
-                tii = s5[pc+6]  -- twoInitialisedInts   [re-check with gvar]
+--              tii = s5[pc+6]  -- twoInitialisedInts   [re-check with gvar]
                 if not tii then
-                    isInit = s5[pc+7]   -- both Init            (for """")
-                    if isInit then
+--                  isInit = s5[pc+7]   -- both Init            (for """")
+--                  if isInit then
+                    if bothInit then
 --                  dest = -1   -- avoid any mimicry
-                        src = s5[pc+4]
+--                      src = s5[pc+4]
                         getSrc()
 --if tmpd then
 --  trace(1)
@@ -7413,37 +7467,85 @@ end if
                         -- either will do
 --DEV do we want to be using rootType here?? (*4)
                             if slroot=T_integer then
-                                s5[pc+6] = 1    -- tii
+--                              s5[pc+6] = 1    -- tii
+                                tii = 1
                             else
-                                src2 = s5[pc+5]
+--                              src2 = s5[pc+5]
                                 getSrc2()
                                 if slroot2=T_integer then
-                                    s5[pc+6] = 1    -- tii
+--                                  s5[pc+6] = 1    -- tii
+                                    tii = 1
                                 end if
                             end if
                         elsif slroot=T_integer then
                             -- need both
-                            src2 = s5[pc+5]
+--                          src2 = s5[pc+5]
                             getSrc2()
                             if slroot2=T_integer then
-                                s5[pc+6] = 1    -- tii
+--                              s5[pc+6] = 1    -- tii
+                                tii = 1
                             end if
                         end if
+                        s5[pc+6] = tii
                     end if
                 end if
+if NEWGSCAN then
+--if pfileno=1 then ?{"pilx86.e line 7473, pc=",pc} end if
+                jinit(pc+1) -- DEV param can go, I think
+                bcode = find(opcode,Bcde)
+                if tmpd then ?9/0 end if    -- bug in transtmpfer?
+                if tii or bothInit then
+--if pfileno=1 then trace(1) end if
+                    if SetCC(Scde[bcode],-1) then end if -- but no common setup, use the opcode instead
+                else
+                    src = 0
+                    src2 = 0
+                end if
+
+--if pfileno=1 then ?{"pilx86.e line 7478, tmpd=",tmpd} end if
+--                  ?9/0
+--              else
+--                  ?9/0
+--              end if
+                -- Jcc:
+                if jend(8) then exit end if -- an opRetf fell off end of code, --> end while
+--              tmpd = 0 (done by above)
+--/*
                 pc += 8
+--if pfileno=1 then ?{"pilx86.e line 7487, pc=",pc} end if
+                if tmpd then
+                    tmpd = 0
+                    if tmpv then    -- always taken:
+                        if mergeSet=isOpCode then
+                            tgt = -1    -- let jskip fall off end of code
+--                          if jskip() then return 1 end if -- if "", all done --> end while
+--                      else
+--                          if jskip() then
+--                              opcode = lastop
+--                              detach(tgt,npc+3)
+--                          end if
+                        end if
+                        if jskip() then end if
+                    end if
+                end if
+--if pfileno=1 then ?{"pilx86.e line 7503, pc=",pc} end if
+--*/
+else
+                pc += 8
+end if
             else -- not isGscan
                 --if opcode=opJeq then trace(1) end if
                 -- Jcc,mergeSet,tgt,link,src,src2,tii,bothInit
-                src = s5[pc+4]
-                src2 = s5[pc+5]
+--              src = s5[pc+4]
+--              src2 = s5[pc+5]
 --if vi=1525 and src=303 and src2=1521 then
 --?symtab[src]
 --?symtab[src2]
 --  trace(1)
 --end if
-                tii = s5[pc+6]
-                bothInit = s5[pc+7] -- (used in pgscan)
+--              tii = s5[pc+6]
+--              bothInit = s5[pc+7] -- (used in pgscan)
+--if pfileno=1 then ?{"pilx86.e line 7522, pc=",pc} end if
                 jinit(pc+1) -- DEV param can go, I think
                 bcode = find(opcode,Bcde)
                 if tii then         -- twoInitInts (Jne/Jeq do EITHER, rest need BOTH).
@@ -7572,9 +7674,11 @@ end if
                     end if
 
                 end if
+--if pfileno=1 then ?{"pilx86.e line 7651, pc=",pc} end if
                 -- Jcc:
                 if jend(8) then exit end if -- an opRetf fell off end of code, --> end while
-            end if
+--if pfileno=1 then ?{"pilx86.e line 7654, pc=",pc} end if
+            end if -- (not isGscan)
 
 if NOLT=0 or bind or lint then
             if opcode=opJne then
@@ -9786,6 +9890,9 @@ end if
             if ltype>T_object then ?9/0 end if
             sltype2 = ltype
             getSrc()
+--yep, already 0 here...
+--if slroot=0 then printf(1,"pilx86.e line 9882 (opJtyp): slroot=0 (src=%d)\n",src) x86showmapsymtab = src end if
+
 if NOLT=0 or bind or lint then
             if not and_bits(state1,K_Fres) then
                 if not invert then
@@ -9803,7 +9910,8 @@ if NOLT=0 or bind or lint then
             end if  -- K_Fres
 end if -- NOLT
 
-            if isGscan then
+--          if isGscan then
+            if isGscan and not NEWGSCAN then
                 pc += 10
             else
                 --
@@ -9837,11 +9945,16 @@ end if -- NOLT
                 --  general library routines, which the current program does 
                 --  not need, but others might.
                 --
+-->slroot==0???
+--DEV/temp/ugh... (15/2/19)
+--if slroot=0 then printf(1,"pilx86.e line 9936 (opJtyp): slroot=0 (src=%d)\n",src) x86showmapsymtab = src end if
+--if slroot!=0 then
                 if not and_bits(ltype,slroot) then
                     flag = 1
                 elsif not and_bits(lmask,slroot) then
                     flag = 0
                 end if
+--end if
                 if sched then
 --      if mergeSet=isOpCode then   ? (seems far too messy to schedule this lot anyways)
                     sch00n = schoon
@@ -9851,6 +9964,7 @@ end if -- NOLT
                 end if
                 backpatch = 0
                 if flag=-1 then
+if not isGscan then
                     -- we must test
 --DEV and ltype!=T_object?
                     if not isInit then -- non-init param
@@ -9994,6 +10108,7 @@ end if -- NOLT
                             end if
                         end if
                     end if -- isInit
+end if -- (not isGscan)
                 else    -- flag!=-1
                     tmpd = 1                -- known
                     tmpv = (invert=flag)    -- taken/not taken
@@ -11195,7 +11310,10 @@ end if
 --DEV 25/8/15: (crash compiling demo\rosetta\Average_loop_length.exw)
 --if smax2=MAXINT then
 --8/10/15: rosetta/perfect numbers.. (limit found by binary chop of a test loop for power(2,i))
-if smax2>=1024 then
+--7/11/18:
+--if smax2>=1024 then
+if smax2>=1024
+or smax>=MAXINT then
     nMax = MAXINT+1
 else
                 nMax = power(smax,smax2)
@@ -11221,7 +11339,12 @@ end if
                             k -= 1                      -- even-ize
                         end if
                     end if
+--7/11/18:
+if smin=MININT then
+                    w = MAXINT+1
+else
                     w = power(smin,k)
+end if
                     if w>nMax then
                         nMax = w
                     end if
@@ -15562,7 +15685,7 @@ end procedure
 --      --    mean it has a gtype of atom and therefore meaningful min/max.
 
 
---GVAR_SCAN:
+--GVAR_SCAN: (DEV use a second param to ilxlate?)
 global procedure gvar_scan(integer vi)
     isGscan = 1
     ilxlate(vi)
@@ -15658,7 +15781,8 @@ string options
 --  jdesc[opMfree] = "opMfree,addr\n"
 --  jdesc[opXxx] = "res\n"
     jdesc[opTry] = "opTry,tmp,tgt\n"
-    jdesc[opCatch] = "opCatch,mergeSet(0),tgt,link,tlnk,e\n"
+--  jdesc[opCatch] = "opCatch,mergeSet(0),tgt,link,tlnk,e\n"
+    jdesc[opCatch] = "opCatch,tlnk,e\n"
     jdesc[opThrow] = "opThrow,e,user\n"
 
 -- Other descriptions can be added here as needed, or possibly this lot could be moved into pops.e
@@ -15980,6 +16104,15 @@ integer lastop, lastln
                         symtab[routineNo] = 0       -- kill refcount (prevent pointless clone)
                         u += K_used
                         symk[S_State] = u
+if NEWGSCAN then
+--(fingers crossed this is ok inside the K_used check)
+                        if symk[S_NTyp]>=S_Type
+                        and g_scan[routineNo]==0 then
+--?{"pilx86.e line 16102 (opFrame/gvar_scan_nobind), adding",routineNo,vi}
+                            g_scan[routineNo] = g_scan[vi]
+                            g_scan[vi] = routineNo
+                        end if
+else
 --MARKTYPES (or opTchk...??)
                         if symk[S_NTyp]>S_Type then     -- all S_Type are already on the list; [DEV!!!]
 --BUG:: (MARKTYPES 29/7/17)
@@ -15994,6 +16127,7 @@ integer lastop, lastln
                             symk[S_Slink] = symtab[vi][S_Slink]
                             symtab[vi][S_Slink] = routineNo
                         end if
+end if
                         symtab[routineNo] = symk
                     end if
                 elsif opcode=opRetf             -- 14

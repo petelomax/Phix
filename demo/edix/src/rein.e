@@ -456,6 +456,7 @@ integer onelen, k, l
                     if col+2<onelen
                     and oneline[col+2]='/'
                     and oneline[col+3]='*' then
+--DEV re-test (/**/ vs /*/...*/, I think)
 --                      col += 3
                         col += 4
                         SkipBlockComment()
@@ -519,6 +520,7 @@ integer onelen, k, l
             elsif Ch='/' then
                 if col<onelen
                 and oneline[col+1]='*' then
+--DEV ditto, re-test this
 --                  col += 1
                     col += 2
                     SkipBlockComment()
@@ -787,6 +789,32 @@ integer r_completeifdef
 
 bool fromsubss = false
 
+--with trace
+function escape(sequence oneline, integer col)
+    integer len = length(oneline)
+    integer ch = 0
+    if col<len then
+        ch = oneline[col]
+        if find(ch,"nrtb\"\'\\0eE") then    -- eg \n
+            ch = 1
+        elsif find(ch,"#x") then            -- eg \xFF
+            ch = 3
+        elsif ch='u' then                   -- eg \uHHHH
+            ch = 5
+        elsif ch='U' then                   -- eg \UHHHHHHHH
+            ch = 9
+        else
+            Abort("unrecognised escape character")
+            ch = 0
+        end if
+    end if
+    if col+ch>len then
+        Abort("missing closing quote")
+        return 0
+    end if
+    return ch
+end function
+
 procedure getToken(bool float_valid=false)
 integer nxtCh, lenTC, k, tmpch
 sequence oneline
@@ -990,7 +1018,8 @@ sequence oneline
             end if
             nxtCh = oneline[col]
             if nxtCh='\\' then
-                col += 1
+--              col += 1
+                col += escape(oneline,col+1)
             elsif nxtCh='\"' then
                 col += 1
                 exit
@@ -1025,7 +1054,10 @@ sequence oneline
         nextCh()
     elsif toktype=SQUOTE then
         if nxtCh='\\' then
-            col += 4
+--          col += 4
+--trace(1)
+--DEV are '\uHHHH' and '\UHHHHHHHH' actually valid?? (would they yeild strings/compilation error?)
+            col += escape(oneline,col+2)+3
         else
             col += 3
         end if
@@ -1374,7 +1406,7 @@ integer wastokline, wastokstart, wastokend
                                    "SUNOS","OPENBSD","OSX","UNIX",
                                    "WIN32_GUI","WIN32_CONSOLE",
                                    "SAFE","DATA_EXECUTE","UCSTYPE_DEBUG",
-                                   "CRASH","EU4_1"}) then
+                                   "CRASH","EU4_1","BITS32"}) then
                     if not find(token,withdefs) then
 --                      errtext &= "idfef "&token&xl(" unrecognised, and no \"--#withdef\" for it")
 --trace(1)
@@ -2439,6 +2471,8 @@ procedure DoIlasmEtc()
     end while
 end procedure
 
+bool allow_dollar = false
+
 procedure Assignment2(bool allowsubscripts)
 integer wasNest
 integer wasinexpression
@@ -2457,6 +2491,16 @@ integer wasinexpression
         return
     end if
     insertspaces = 1
+-- 9/5/18:
+    if allow_dollar and Ch='$' then
+        integer wasMapEndToMinusOne = mapEndToMinusOne
+        mapEndToMinusOne = 1
+        getToken()
+        mapEndToMinusOne = wasMapEndToMinusOne
+        getToken()
+        return
+    end if
+
     getToken(true)
     wasinexpression = inexpression
     inexpression = 1
@@ -2585,8 +2629,10 @@ end if
     stripleading = 1
     Match(")")
     if fwd then return end if
---  also = {0,4}
-    also = {}
+    also = {0,4}
+--19/5/18: (undone [above allows indented local vars at the start of a routine, when no preceding column-1 comments])
+--  also = {}
+--  also = {4}
     while toktype=LETTER do
         if not find(token,vartypes) then    -- see Note1
             if find(token,ifforwhileetc) then exit end if
@@ -2696,6 +2742,10 @@ integer k
         if k then
 --1/2/17:
 --          also = {}
+--7/10/18:
+            if returnexpr=-1 then
+                also = {0}
+            end if
             if parser_tokno=1 then Indent(isTabWidth) end if
             if k=1 then DoIf()
             elsif k=2 then DoFor()
@@ -2920,7 +2970,9 @@ integer fwd = 0
             if t then
                 if parser_tokno=1 then Indent(0) end if
                 also = {ExpLength(filetext[currfile][CurrLine][1..col-1])}
+                allow_dollar = (token=="enum")
                 TopDecls()
+                allow_dollar = false
                 if not find(0,also) then
                     also = prepend(also,0)
                 end if

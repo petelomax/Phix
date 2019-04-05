@@ -77,6 +77,8 @@ integer ATOM_DIGS
     else
         ATOM_DIGS = 15
     end if
+--DEV/SUG (needs a compiler optimisation):
+--constant ATOM_DIGS = iff(machine_bits()=64?19:15)
 
 
 -- structure of a bigatom
@@ -93,12 +95,14 @@ type t_sign(object s)
     return integer(s) and (s=SG_NOVALUE or s=SG_MINUS or s=SG_ZERO or s=SG_PLUS)
 end type
 
-constant tdigits = {0,1,2,3,4,5,6,7,8,9}
+--constant tdigits = {0,1,2,3,4,5,6,7,8,9}
 
 type t_digits(object x)
     if sequence(x) then
         for i=1 to length(x) do
-            if not find(x[i], tdigits) then
+--          if not find(x[i], tdigits) then
+            object xi = x[i]
+            if not integer(xi) or xi<0 or xi>9 then
                 return 0
             end if
         end for
@@ -107,12 +111,26 @@ type t_digits(object x)
     return 0
 end type
 
+-- NO_VALUE: not a real number.
+-- back when a result is undefined, indeterminate, complex, ...
+-- eg.  division by zero, logarithm of zero or negative, following a negative ...
+constant NO_VALUE = {SG_NOVALUE, 0, {}}
+
+bool allow_NOVALUE = false
+
+global procedure allow_novalue(bool flag)
+    allow_NOVALUE = flag
+end procedure
+
 global type bigatom(object x)
     if sequence(x)
     and length(x)=DIGITS
     and t_digits(x[DIGITS])
     and t_sign(x[SIGN])
-    and integer(x[EXPONENT]) then
+--25/8/18:
+--  and integer(x[EXPONENT]) then
+    and integer(x[EXPONENT])
+    and (allow_NOVALUE or x!=NO_VALUE) then
         return 1
     end if
     return 0
@@ -124,17 +142,11 @@ end type
 integer SCALE = 25    -- number of decimal places (positions or digits)
 integer SC_MODE = 1   -- 0 positions are not 0 are digits
 
--- NO_VALUE: not a real number.
--- back when a result is undefined, indeterminate, complex, ...
--- eg.  division by zero, logarithm of zero or negative, following a negative ...
-constant NO_VALUE = {SG_NOVALUE, 0, {}}
-
--- definition of zero
-global 
-constant BA_ZERO = {SG_ZERO, -1, {}}  -- BA_ZERO = normalize({0,0,{0}})
+-- definition of zero   ( {SIGN, EXPONENT, DIGITS} )
+global constant BA_ZERO = {SG_ZERO, -1, {}}  -- BA_ZERO = normalize({0,0,{0}})
 -- useful in some places
-global 
-constant BA_ONE  = {SG_PLUS, 0, {1}}  -- BA_ONE  = ba_new(1)
+global constant BA_ONE  = {SG_PLUS, 0, {1}}  -- BA_ONE  = ba_new(1)
+global constant BA_TWO  = {SG_PLUS, 0, {2}}  -- BA_TWO  = ba_new(2)
 
 -- characters allowed in the entry
 constant SPACE     = ' '    -- space character
@@ -191,30 +203,19 @@ sequence prev = {SCALE, SC_MODE}
 end function
 --
 
-
---
--- Returns the scale of a bigatom
--- (the number of decimals)
---
-global function ba_scale_of(bigatom N)
-integer decs = length(N[DIGITS])-N[EXPONENT]-1
-    return decs*(decs>0)
-end function
---
-
 --
 -- Standardizes a bigatom.
 -- Reduces your bigatom to a shorter form, eliminating superfluous zeroes and adjusting the exponent.
 --
-function normalize(sequence N)
+function normalize(sequence n)
 sequence mantissa
 integer first, last
 
-    if N[SIGN]<SG_MINUS or N[SIGN]>SG_PLUS then
+    if n[SIGN]<SG_MINUS or n[SIGN]>SG_PLUS then
         return NO_VALUE
     end if
 
-    mantissa = N[DIGITS]
+    mantissa = n[DIGITS]
     first = 1
     last = length(mantissa)
     while last and mantissa[last]=0 do
@@ -224,14 +225,14 @@ integer first, last
         first += 1
     end while
 
-    if first>last or not N[SIGN] then
-        N = BA_ZERO
+    if first>last or not n[SIGN] then
+        n = BA_ZERO
     else
-        N[DIGITS]  = mantissa[first..last]
-        N[EXPONENT] -= first-1
+        n[DIGITS]  = mantissa[first..last]
+        n[EXPONENT] -= first-1
     end if
 
-    return N
+    return n
 end function
 --
 
@@ -248,19 +249,20 @@ end function
 --global 
 function int_value(sequence str)
 integer digit
-integer sign
+integer sgn
 atom ival = 0
 
     if not length(str) then
         return 0
     end if
 
-    sign = str[1]
-    sign = (sign=SPLUS)-(sign=SMINUS)
-    if sign then
+    sgn = str[1]
+--  sgn = (sgn=SPLUS)-(sgn=SMINUS)
+    sgn = (sgn='+')-(sgn='-')
+    if sgn!=0 then
         str = str[2..$]
     else
-        sign = 1
+        sgn = 1
     end if
 
     for i=1 to length(str) do
@@ -275,7 +277,7 @@ atom ival = 0
         end if
     end for
 
-    return sign*ival
+    return sgn*ival
 end function
 --
 
@@ -283,17 +285,17 @@ end function
 -- Returns a bigatom with the value of an integer (integer)
 --
 function int_to_bigatom(integer i)
-integer sign = SG_PLUS
+integer sgn = SG_PLUS
 sequence s
     if i<0 then
-        sign = SG_MINUS
+        sgn = SG_MINUS
     end if
     s = sprintf("%+d", i)
     s[1] = -1   -- (force expansion to dword-sequence)
     s = s[2..$]
     s = sq_sub(s,'0')
 
-    return normalize({sign, length(s)-1, s})
+    return normalize({sgn, length(s)-1, s})
 end function
 --
 
@@ -322,7 +324,7 @@ end function
 --      "- 231.2345hola", "- 231.2345e-23hola", "__ -231.2345 e-12e++..--Eholae"
 --
 --with trace
-global function ba_new(object n)
+global function ba_new(object N)
 integer exponent, len, ndigits
 sequence snum
 sequence big
@@ -330,36 +332,36 @@ sequence big
 object c
 integer pos = 0, sflag = 0
 
-    if bigatom(n) then
-        return n
-    elsif atom(n) then
-        if integer(n) then
-            return int_to_bigatom(n)
+    if bigatom(N) then
+        return N
+    elsif atom(N) then
+        if integer(N) then
+            return int_to_bigatom(N)
         end if
 
 --PL I assume this is/was meant to be eu:log not b_a_log...
-        ndigits = -floor(-log(abs(n))/log(10))  -- enough
+        ndigits = -floor(-log(abs(N))/log(10))  -- enough
         if ndigits>=0 then
             if ndigits>ATOM_DIGS then
                 ndigits = ATOM_DIGS
             end if
-            n = sprintf(sprintf("%%+.%df", ATOM_DIGS-ndigits), n)
-            len = find('.', n)
+            N = sprintf(sprintf("%%+.%df", ATOM_DIGS-ndigits), N)
+            len = find('.', N)
             if not len then
-                len = length(n)-1
+                len = length(N)-1
             end if
             if len>ATOM_DIGS then
-                n = int_value(n[1..ATOM_DIGS+1])
-                n = sprintf("%+.f", n)
-                n &= repeat('0', len-length(n)+1)
+                N = int_value(N[1..ATOM_DIGS+1])
+                N = sprintf("%+.f", N)
+                N &= repeat('0', len-length(N)+1)
             end if
         else
-            snum = sprintf("%.e", n)
+            snum = sprintf("%.e", N)
             exponent = find('e', snum)
             if exponent then
                 exponent = int_value(snum[exponent+1..$])
             end if
-            n = sprintf(sprintf("%%+.%df", ATOM_DIGS-exponent), n)
+            N = sprintf(sprintf("%%+.%df", ATOM_DIGS-exponent), N)
         end if
     end if
 
@@ -367,65 +369,68 @@ integer pos = 0, sflag = 0
 
     -- eliminates valid separators (underline)
     -- any invalid character causes NO_VALUE to be returned
-    for i=1 to length(n) do
-        c = n[i]
+    for i=1 to length(N) do
+        c = N[i]
         if not integer(c) then return NO_VALUE end if
         if find(c, "+-") then
             if sflag then
-                if i<length(n) then return NO_VALUE end if
+                if i<length(N) then return NO_VALUE end if
                 exit
             end if
             pos += 1
-            n[pos] = c
+            N[pos] = c
             sflag = 1
         elsif find(c, ".0123456789") then
             pos += 1
-            n[pos] = c
+            N[pos] = c
         elsif find(c, "eE") then
+            -- see 1e5e50 note below (might be best handled here)...
             pos += 1
-            n[pos] = 'e'
+            N[pos] = 'e'
             sflag = 0
         elsif c!=UNDERLINE then
             return NO_VALUE
         end if
     end for
-    if pos=0 or find(n[pos],"+-.e") then return NO_VALUE end if
-    n = n[1..pos]
+    if pos=0 or find(N[pos],"+-.e") then return NO_VALUE end if
+    N = N[1..pos]
 
+--DEV (spotted in passing) this probably does not handle eg "1e5e50" elegantly... (same result as "1e5"??)
+--      (in this context, a fatal crash is "more elegant" than a wrong result)
     -- floating point
-    pos = find('e', n)
+    pos = find('e', N)
     if pos then
---    big = ba_new(n[1..pos-1])
---    big[EXPONENT] += int_value(n[pos+1..$])
+--    big = ba_new(N[1..pos-1])
+--    big[EXPONENT] += int_value(N[pos+1..$])
 --    return normalize(big)
         -- PL
-        big[EXPONENT] = int_value(n[pos+1..$])
-        n = n[1..pos-1]
+        big[EXPONENT] = int_value(N[pos+1..$])
+        N = N[1..pos-1]
     end if
 
     -- fixed point
 --  if length(n) then
-    if n[1]=SMINUS then
+    if N[1]=SMINUS then
         big[SIGN] = SG_MINUS
-        n = n[2..$]
+        N = N[2..$]
     else
         big[SIGN] = SG_PLUS
-        if n[1]=SPLUS then
-            n = n[2..$]
+        if N[1]=SPLUS then
+            N = N[2..$]
         end if
     end if
 
-    pos = find('.',n)
+    pos = find('.',N)
     if pos then
-        n[pos..pos] = ""
+        N[pos..pos] = ""
         big[EXPONENT] += pos-2
     else
-        big[EXPONENT] += length(n)-1
+        big[EXPONENT] += length(N)-1
     end if
     -- (PL ensure it is a dword-sequence, not a "string" of '\0'..'\t'!)
-    snum = repeat(0,length(n))
-    for i=1 to length(n) do
-        snum[i] = n[i]-'0'
+    snum = repeat(0,length(N))
+    for i=1 to length(N) do
+        snum[i] = N[i]-'0'
     end for
     big[DIGITS] = snum
 --  end if
@@ -434,21 +439,38 @@ integer pos = 0, sflag = 0
 end function
 --
 
+--
+-- Returns the scale of a bigatom
+-- (the number of decimals)
+--
+global function ba_scale_of(object N)
+    if not bigatom(N) then N = ba_new(N) end if
+    integer decs = length(N[DIGITS])-N[EXPONENT]-1
+    return decs*(decs>0)
+end function
+--
 
 --
 -- Compares two bigatoms
 -- (NO_VALUE is smaller than any number)
 --
-global function ba_compare(bigatom A, bigatom B)
-integer cmp = compare(A, B)
-
+--15/9/18:
+--global function ba_compare(bigatom A, bigatom B)
+global function ba_compare(object A, B)
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
+    integer cmp = compare(A, B)
     if A[SIGN]=SG_MINUS and B[SIGN]=SG_MINUS then
         cmp = -cmp
     end if
-
     return cmp
 end function
---
+
+--global function ba_sign(bigatom a)
+global function ba_sign(object N)
+--  if not bigatom(N) then N = ba_new(N) end if
+    return ba_compare(N,BA_ZERO)
+end function
 
 --
 -- adds two sequences of digits
@@ -457,7 +479,7 @@ end function
 --
 function digits_add(sequence a, sequence b)
 integer len = length(a), lenb = length(b)
-sequence result
+--sequence result
 integer carry = 0, digit
 
     if len<lenb then
@@ -467,21 +489,26 @@ integer carry = 0, digit
         b = repeat(0, len-lenb) & b
     end if
 
-    result = sq_add(a,b)
+--  result = sq_add(a,b)
+--  result = a
 
     for i=len to 1 by -1 do
-        digit = result[i]+carry
+--      digit = result[i]+carry
+        digit = a[i]+b[i]+carry
         carry = digit>9
         if carry then
             digit -= 10
         end if
-        result[i] = digit
+--      result[i] = digit
+        a[i] = digit
     end for
     if carry then
-        result = prepend(result, carry)
+--      result = prepend(result, carry)
+        a = prepend(a, carry)
     end if
 
-    return {carry, result}
+--  return {carry, result}
+    return {carry, a}
 end function
 --
 
@@ -493,7 +520,7 @@ end function
 --
 function digits_sub(sequence a, sequence b)
 integer len = length(a), lenb = length(b)
-sequence result
+--sequence result
 integer digit, neg = 0
 
     if len<lenb then
@@ -503,24 +530,31 @@ integer digit, neg = 0
         b = repeat(0, len-lenb) & b
     end if
 
-    result = sq_sub(a,b)
+--  result = sq_sub(a,b)
+--  result = a
 
     for i=len to 1 by -1 do
-        digit = result[i]-neg
+--      digit = result[i]-neg
+        digit = a[i]-b[i]-neg
         neg = digit<0
         if neg then
             digit += 10
         end if
-        result[i] = digit
+--      result[i] = digit
+        a[i] = digit
     end for
     -- if negative complement is 10
     if neg then
-        result = sq_sub(9,result)      -- supplement 9
-        result = digits_add(result, {1}) -- plus 1
-        result = result[2]
+--      result = sq_sub(9,result)      -- supplement 9
+--      result = digits_add(result, {1}) -- plus 1
+--      result = result[2]
+        a = sq_sub(9,a)    -- supplement 9
+        a = digits_add(a, {1}) -- plus 1
+        a = a[2]
     end if
 
-    return {neg, result}
+--  return {neg, result}
+    return {neg, a}
 end function
 --
 
@@ -624,7 +658,7 @@ integer dp
     last = exponent+1+decs
     if decs<decsN then
         if digits[last+1]>=5 then
-         -- rounds the last decimal
+            -- rounds the last decimal
             digits = digits_add(digits[1..last], {1})
             exponent += digits[1]
             digits = digits[2]
@@ -682,8 +716,10 @@ end function
 --
 -- Returns the complete string representation of a bigatom
 --
-global function ba_sprint(bigatom N)
-sequence str = make_string(N)
+--global function ba_sprint(bigatom N)
+global function ba_sprint(object N)
+    if not bigatom(N) then N = ba_new(N) end if
+    sequence str = make_string(N)
     if str[1]=SZERO then
         str = str[2..$]
     end if
@@ -694,7 +730,7 @@ end function
 --
 -- Outputs the complete representation of a bigatom to file
 -- (1 = STDOUT, 2 = STDERR)
-global procedure ba_print(integer file, bigatom N)
+global procedure ba_print(integer file, object N)
     puts(file, ba_sprint(N))
 end procedure
 
@@ -733,7 +769,9 @@ end procedure
 
 --
 --
--- fmt = '%' ['+'] [fchar] [size] [['.'] ['0'] [decs] ['a' | [char] 'c']  ['e'|'E'] ] 'B'
+-- fmt = '%' [','] ['+'] [fchar] [size] [['.'] ['0'] [decs] ['a' | [char] 'c']  ['e'|'E'] ] 'B'
+--
+--          [,] comma-separate, eg "1,000,000"
 --
 --          [+] always put sign (*)
 --
@@ -765,7 +803,7 @@ sequence header, trailer
 integer fpos
 sequence ifmt, dfmt
 integer decs, dp
-integer c, sg = 0, size = 0, fchar = SPACE
+integer c, showcommas = 0, sg = 0, size = 0, fchar = SPACE
 integer zsign = 0, all = 0, exponent, expfmt = 0
 sequence str
 integer len
@@ -808,6 +846,8 @@ integer len
         c = ifmt[1]
         if not sg and c=SPLUS then
             sg = 1
+        elsif c=',' then
+            showcommas = 1
         elsif c<'1' or c>'9' then
             if fchar=SPACE then
                 fchar = c
@@ -903,6 +943,15 @@ integer len
             str = repeat(fchar, len) & str
         end if
     end if
+--02/12/18:
+    if showcommas then
+        showcommas = find('.',str)
+        if showcommas=0 then showcommas = length(str)+1 end if
+        while showcommas>4 do
+            showcommas -= 3
+            str = str[1..showcommas-1]&','&str[showcommas..length(str)]
+        end while
+    end if
     if expfmt>1 then
         str &= 'E' & sprintf("%+d", exponent)
     elsif expfmt then
@@ -931,7 +980,7 @@ end procedure
 -- the digits of the two numbers.
 -- Equating the exponents and the same number of digits in both mantissas.
 --
-function align(sequence A, sequence B)
+function align(sequence A, B)
 integer expA, expB, offset
 sequence digsA, digsB
 integer last
@@ -977,28 +1026,19 @@ end function
 -- #################################
 
 
-forward global function ba_sub(object A, object B)
+forward global function ba_sub(object A, B)
 
 --
 -- Returns a bigatom with the result of the sum of two numbers.
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_add(object A, object B)
-integer signA, signB
-integer sign
-integer exponent
-sequence res
+global function ba_add(object A, B)
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
 
-    if not bigatom(A) then
-        A = ba_new(A)
-    end if
-    if not bigatom(B) then
-        B = ba_new(B)
-    end if
-
-    signA = A[SIGN]
-    signB = B[SIGN]
+    integer signA = A[SIGN],
+            signB = B[SIGN]
     if signA=SG_ZERO then
         return B
     elsif signB=SG_ZERO then
@@ -1007,9 +1047,9 @@ sequence res
         return NO_VALUE
     end if
 
-    sign = SG_PLUS
+    integer sgn = SG_PLUS
     if signA=signB then
-        sign = signA
+        sgn = signA
     elsif signA=SG_MINUS then
         A[SIGN] = SG_PLUS
         return ba_sub(B, A)
@@ -1020,12 +1060,12 @@ sequence res
 
     {A, B} = align(A, B)
 
-    exponent = A[EXPONENT]
-    res = digits_add(A[DIGITS], B[DIGITS])
-    if res[1] then
+    integer exponent = A[EXPONENT]
+    sequence res = digits_add(A[DIGITS], B[DIGITS])
+    if res[1] then -- carry
         exponent += 1
     end if
-    res = {sign, exponent, res[2]}
+    res = {sgn, exponent, res[2]}
 
     return normalize(res)
 end function
@@ -1036,43 +1076,37 @@ end function
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_sub(object A, object B)
-integer signA, signB
-sequence res
-integer sign
+global function ba_sub(object A, B)
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
 
-    if not bigatom(A) then
-        A = ba_new(A)
-    end if
-    if not bigatom(B) then
-        B = ba_new(B)
-    end if
-
-    signA = A[SIGN]
-    signB = B[SIGN]
+    integer signA = A[SIGN],
+            signB = B[SIGN]
     if signA=SG_ZERO then
         B[SIGN] = -signB
         return B
     elsif signB=SG_ZERO then
         return A
-    elsif signA=SG_NOVALUE or B[SIGN]=SG_NOVALUE then
+    elsif signA=SG_NOVALUE
+       or signB=SG_NOVALUE then
         return NO_VALUE
     end if
 
-    if signA=SG_MINUS or signB=SG_MINUS then
+    if signA=SG_MINUS 
+    or signB=SG_MINUS then
         B[SIGN] = -signB
         return ba_add(A, B)
     end if
 
     {A, B} = align(A, B)
 
-    res = digits_sub(A[DIGITS], B[DIGITS])
-    sign = SG_PLUS
-    if res[1] then
-        sign = SG_MINUS
+    sequence res = digits_sub(A[DIGITS], B[DIGITS])
+    integer sgn = SG_PLUS
+    if res[1] then  -- carry
+        sgn = SG_MINUS
     end if
 
-    return normalize({sign, A[EXPONENT], res[2]})
+    return normalize({sgn, A[EXPONENT], res[2]})
 end function
 --
 
@@ -1101,34 +1135,25 @@ end function
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_multiply(object A, object B, integer bRound = 0)
-integer signA, signB
-integer signR
-sequence res, digsA, digsB
-integer expA, expB, expR
-integer ndecs, len
+global function ba_mul(object A, B, bool bRound=false)
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
 
-    if not bigatom(A) then
-        A = ba_new(A)
-    end if
-    if not bigatom(B) then
-        B = ba_new(B)
-    end if
-
-    signA = A[SIGN]
-    signB = B[SIGN]
+    integer signA = A[SIGN],
+            signB = B[SIGN]
     if signA=SG_ZERO or signB=SG_ZERO then
         return BA_ZERO
     elsif signA=SG_NOVALUE or signB=SG_NOVALUE then
         return NO_VALUE
     end if
 
-    signR = signA*signB
-    digsA = A[DIGITS]
-    digsB = B[DIGITS]
-    expA = A[EXPONENT]
-    expB = B[EXPONENT]
-    expR = expA+expB
+    integer signR = signA*signB
+    sequence digsA = A[DIGITS],
+             digsB = B[DIGITS],
+             res
+    integer expA = A[EXPONENT],
+            expB = B[EXPONENT],
+            expR = expA+expB
     if equal({1}, digsA) then      -- power of 10
         res = {signR, expR, digsB}
     elsif equal({1}, digsB) then    -- power of 10
@@ -1139,6 +1164,7 @@ integer ndecs, len
     end if
 
     -- decimal limit
+    integer ndecs
     if SC_MODE and res[EXPONENT]<0 then
         ndecs = SCALE+1
     else
@@ -1148,7 +1174,7 @@ integer ndecs, len
         if bRound then
             res = round_digits(res, ndecs)
         else
-            len = length(res[DIGITS])
+            integer len = length(res[DIGITS])
             if len>ndecs then
                 res[DIGITS] = remove(res[DIGITS], ndecs, len)
             end if
@@ -1160,21 +1186,22 @@ integer ndecs, len
 
     return res
 end function
---
+
+global function ba_multiply(object A, B, bool bRound=false)
+    return ba_mul(A, B, bRound)
+end function
+
 
 --
 -- returns the integer part of a bigatom
 --
-global function ba_trunc(bigatom N)
-integer start, stop
-    if N[SIGN]=SG_NOVALUE then
-        return NO_VALUE
-    elsif N[EXPONENT]<0 then
-        return BA_ZERO
-    end if
+global function ba_trunc(object N)
+    if not bigatom(N) then N = ba_new(N) end if
+    if N[SIGN]=SG_NOVALUE then return NO_VALUE end if
+    if N[EXPONENT]<0      then return BA_ZERO end if
 
-    start = N[EXPONENT]+2
-    stop = length(N[DIGITS])
+    integer start = N[EXPONENT]+2,
+            stop = length(N[DIGITS])
 --PL 19/11/15
 --  if stop>start then
     if stop>=start then
@@ -1188,14 +1215,11 @@ end function
 --
 -- rounded to integer equal to or less immediately
 --
-global function ba_floor(bigatom N)
-sequence I
+global function ba_floor(object N)
+    if not bigatom(N) then N = ba_new(N) end if
+    if N[SIGN]=SG_NOVALUE then return NO_VALUE end if
 
-    if N[SIGN]=SG_NOVALUE then
-        return NO_VALUE
-    end if
-
-    I = ba_trunc(N)
+    sequence I = ba_trunc(N)
     if N[SIGN]=SG_MINUS and compare(N, I) then
         I = ba_sub(I, BA_ONE)
     end if
@@ -1211,23 +1235,14 @@ end function
 --
 -- The numbers are truncated before making division
 --
-global function ba_idivide(object A, object B)
-integer signA, signB
-sequence res, digsA
-sequence quotient = {}, partial = {SG_PLUS,-1,{}}   -- +0
-integer signR, expR = -1
-
-    if not bigatom(A) then
-        A = ba_new(A)
-    end if
-    if not bigatom(B) then
-        B = ba_new(B)
-    end if
+global function ba_idiv(object A, B)
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
 
     {A, B} = {ba_trunc(A), ba_trunc(B)}
 
-    signA = A[SIGN]
-    signB = B[SIGN]
+    integer signA = A[SIGN],
+            signB = B[SIGN]
     if signB=SG_ZERO 
     or signB=SG_NOVALUE 
     or signA=SG_NOVALUE then
@@ -1236,7 +1251,8 @@ integer signR, expR = -1
         return BA_ZERO
     end if
 
-    signR = A[SIGN]*B[SIGN]
+    integer signR = A[SIGN]*B[SIGN]
+    sequence res
     if equal({1}, B[DIGITS]) then   -- power of 10
         res = {signR, A[EXPONENT]-B[EXPONENT], A[DIGITS]}
     else
@@ -1244,7 +1260,12 @@ integer signR, expR = -1
         B[SIGN] = SG_PLUS
 
         A = expand(A)
-        digsA = A[DIGITS]
+
+        sequence quotient = {}, 
+                 partial = {SG_PLUS,-1,{}}, -- +0
+                 digsA = A[DIGITS]
+        integer expR = -1
+
         for i=1 to length(digsA) do
             partial[DIGITS] &= digsA[i]
             partial[EXPONENT] += 1
@@ -1263,7 +1284,10 @@ integer signR, expR = -1
 
     return ba_floor(res)
 end function
---
+
+global function ba_idivide(object A, B)
+    return ba_idiv(A, B)
+end function
 
 
 --
@@ -1271,22 +1295,12 @@ end function
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_divide(object A, object B, integer bRound = 0)
-integer signA, signB
-sequence res
-integer decsB, ndecs
-integer expA, expB
-integer mult, len
+global function ba_divide(object A, B, bool bRound=false)
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
 
-    if not bigatom(A) then
-        A = ba_new(A)
-    end if
-    if not bigatom(B) then
-        B = ba_new(B)
-    end if
-
-    signA = A[SIGN]
-    signB = B[SIGN]
+    integer signA = A[SIGN],
+            signB = B[SIGN]
     if signB=SG_ZERO 
     or signB=SG_NOVALUE
     or signA=SG_NOVALUE then
@@ -1295,8 +1309,11 @@ integer mult, len
         return BA_ZERO
     end if
 
-    expA = A[EXPONENT]
-    expB = B[EXPONENT]
+    integer expA = A[EXPONENT],
+            expB = B[EXPONENT],
+            ndecs, decsB
+    sequence res
+
     if equal({1}, B[DIGITS]) then
         A[EXPONENT] -= expB
         A[SIGN] *= signB
@@ -1308,7 +1325,7 @@ integer mult, len
             ndecs = decsB
         end if
 
-        mult = SCALE+1  -- an extra one to rounding
+        integer mult = SCALE+1  -- an extra one to rounding
         if SC_MODE then
             if expA>expB then
                 mult += expA-expB
@@ -1332,7 +1349,7 @@ integer mult, len
         if bRound then
             res = round_digits(res, ndecs)
         else
-            len = length(res[DIGITS])
+            integer len = length(res[DIGITS])
             if len>ndecs then
                 res[DIGITS] = remove(res[DIGITS], ndecs, len)
 --DEV/sug:
@@ -1348,18 +1365,33 @@ integer mult, len
 end function
 --
 
+--DEV can/should we do this as an alias in psym.e??
+global function ba_div(object A, B, bool bRound=false)
+    return ba_divide(A, B, bRound)
+end function
+
 --
 -- returns the absolute value of a bigatom
 --
-global function ba_abs(bigatom N)
+global function ba_abs(object N)
+    if not bigatom(N) then N = ba_new(N) end if
     if N[SIGN]=SG_MINUS then
         N[SIGN] = SG_PLUS
     end if
-
     return N
 end function
 --
 
+
+--
+-- returns the unary minus value of a bigatom
+--
+global function ba_uminus(object N)
+    if not bigatom(N) then N = ba_new(N) end if
+    N[SIGN] *= -1
+    return N
+end function
+--
 
 -- -------------------------------------------------------------------------------------------
 
@@ -1374,15 +1406,8 @@ end function
 -- Supports Atoms, bigatoms or strings that represent numbers
 --
 global function ba_remainder(object A, object B)
-sequence res = BA_ZERO
-integer cmp
-
-    if not bigatom(A) then
-        A = ba_new(A)
-    end if
-    if not bigatom(B) then
-        B = ba_new(B)
-    end if
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
 
     if A[SIGN]=SG_NOVALUE
     or B[SIGN]=SG_NOVALUE
@@ -1390,7 +1415,8 @@ integer cmp
         return NO_VALUE
     end if
 
-    cmp = compare(ba_abs(A), ba_abs(B))
+    bigatom res = BA_ZERO
+    integer cmp = compare(ba_abs(A), ba_abs(B))
     if cmp>0 then
         res = ba_trunc(ba_divide(A, B))
         res = ba_multiply(res, B)
@@ -1403,18 +1429,29 @@ integer cmp
 end function
 --
 
+global function ba_mod(object A, B)
+    if not bigatom(A) then A = ba_new(A) end if
+    if not bigatom(B) then B = ba_new(B) end if
+    if ba_sign(A)=ba_sign(B) then
+        return ba_remainder(A,B)
+    end if
+    return ba_sub(A,ba_multiply(B,ba_floor(ba_divide(A,B))))
+end function
+
 --
 -- rounded to the immediate integer equal to or greater
 -- (ceil(x) = -floor(-x) )
-global function ba_ceil(bigatom N)
+global function ba_ceil(object N)
+    if not bigatom(N) then N = ba_new(N) end if
 
-    if N[SIGN]=SG_NOVALUE then
+    integer nsign = N[SIGN]
+    if nsign=SG_NOVALUE then
         return NO_VALUE
     end if
 
-    N[SIGN] = -N[SIGN]
+    N[SIGN] = -nsign
     N = ba_floor(N)
-    N[SIGN] = -N[SIGN]
+    N[SIGN] =  nsign
 
     return N
 end function
@@ -1426,15 +1463,8 @@ end function
 --    -0.5 --> -1 instead of -0.5 --> 0
 --
 global function ba_round(object N, atom precision = 1, integer mode = 0)
-sequence res
-
-    if not bigatom(N) then
-        N = ba_new(N)
-    end if
-
-    if N[SIGN]=SG_NOVALUE then
-        return NO_VALUE
-    end if
+    if not bigatom(N) then N = ba_new(N) end if
+    if N[SIGN]=SG_NOVALUE then return NO_VALUE end if
 
     if not precision then
         precision = 1
@@ -1442,6 +1472,7 @@ sequence res
         precision = -1/precision
     end if
 
+    sequence res
     if mode>0 then
         -- n = ceil(n * precision) / precision
         res = ba_ceil(ba_multiply(N, precision))
@@ -1464,12 +1495,11 @@ end function
 --
 -- returns the fractional part of a bigatom
 --
-global function ba_frac(bigatom N)
-    if N[SIGN]=SG_NOVALUE then
-        return NO_VALUE
-    end if
+global function ba_frac(object N)
+    if not bigatom(N) then N = ba_new(N) end if
+    if N[SIGN]=SG_NOVALUE then return NO_VALUE end if
 
-    if N[EXPONENT]<0 then
+    if N[EXPONENT]<0 then 
         return N
     end if
     N[DIGITS] = remove(N[DIGITS], 1, N[EXPONENT]+1)
@@ -1562,12 +1592,12 @@ atom fact, res
 
     if x<0 then
         neg = 1
-        x    = -x
+        x = -x
     end if
 
     while x>1 do
         mult += 1
-        x     /= 2
+        x /= 2
     end while
 
     inc = 2
@@ -1578,13 +1608,13 @@ atom fact, res
     while curr do
         xpow *= x
         fact *= inc
-        curr    = xpow/fact
-        res  += curr
-        inc  += 1
+        curr = xpow/fact
+        res += curr
+        inc += 1
     end while
 
     while mult do
-        res  *= res
+        res *= res
         mult -= 1
     end while
 
@@ -1647,46 +1677,37 @@ constant BLIMIT = {1,0,{1,1}}   -- 1.1
 -- adapted from bigfixedmath.e (Lucius L. Hilley III) euphoria file
 -- (the one that has best taken with bigatoms)
 --
-global function ba_log(object x, integer bRound = 0)
-sequence sc = ba_scale(SCALE+4, 0)
---sequence limit, ln_limit
-sequence ln_limit
-sequence res, curr, prev, inc
+global function ba_log(object N, bool bRound=false)
+    if not bigatom(N) then N = ba_new(N) end if
+    if N[SIGN]<SG_PLUS then return NO_VALUE end if
 
-integer start,stop
+    sequence sc = ba_scale(SCALE+4, 0)
+    sequence res, curr, prev, inc
 
-    if not bigatom(x) then
-        x = ba_new(x)
-    end if
-
-    if x[SIGN]<SG_PLUS then
-        return NO_VALUE
-    end if
-
-    if compare(BA_ONE, x)=SG_PLUS then
-        res = ba_log(ba_divide(BA_ONE, x))
+    if compare(BA_ONE, N)=SG_PLUS then
+        res = ba_log(ba_divide(BA_ONE, N))
         res[SIGN] = -res[SIGN]
-    elsif compare(x, BLIMIT)=SG_PLUS then
-        res    = BA_ZERO
-        ln_limit = ba_log(BLIMIT)
-        while compare(x, BLIMIT)=SG_PLUS do
-            x    = ba_divide(x, BLIMIT)
+    elsif compare(N, BLIMIT)=SG_PLUS then
+        res = BA_ZERO
+        sequence ln_limit = ba_log(BLIMIT)
+        while compare(N, BLIMIT)=SG_PLUS do
+            N = ba_divide(N, BLIMIT)
             res = ba_add(res, ln_limit)
         end while
-        res = ba_add(res, ba_log(x))
+        res = ba_add(res, ba_log(N))
     else
-      -- ln(x) = x - x^2/2 + x^3/3 - x^4/4 + x^5/5 - ...
-        prev = x
-        x    = ba_sub(x, BA_ONE)
-        curr = x
-        res  = x
+        -- ln(x) = x - x^2/2 + x^3/3 - x^4/4 + x^5/5 - ...
+        prev = N
+        N = ba_sub(N, BA_ONE)
+        curr = N
+        res  = N
         inc  = {1, 0, {2}}  -- 2
         while compare(prev, res) do
             prev = res
-            curr = ba_multiply(curr, x)
+            curr = ba_multiply(curr, N)
             res  = ba_sub(res, ba_divide(curr, inc))
             inc  = ba_add(inc, BA_ONE)
-            curr = ba_multiply(curr, x)
+            curr = ba_multiply(curr, N)
             res  = ba_add(res, ba_divide(curr, inc))
             inc  = ba_add(inc, BA_ONE)
         end while
@@ -1697,8 +1718,8 @@ integer start,stop
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
     else
-        start = res[EXPONENT]+2+SCALE
-        stop = length(res[DIGITS])
+        integer start = res[EXPONENT]+2+SCALE,
+                stop = length(res[DIGITS])
         if stop>start then
             res[DIGITS] = remove(res[DIGITS],start,stop)
         end if
@@ -1846,42 +1867,35 @@ end function
 --
 -- adapted from the library bc
 --
-global function ba_exp(object x, integer bRound = 0)
-integer neg = 0, mult = 0
---sequence sc, limit, inc = {1, 0, {2}}
-sequence sc, inc = {1, 0, {2}}
-sequence xpow, curr, res, fact
+global function ba_exp(object N, bool bRound=false)
+    if not bigatom(N) then N = ba_new(N) end if
 
-integer start,stop
-
-    if not bigatom(x) then
-        x = ba_new(x)
-    end if
-
-    if equal(x, BA_ONE) then
+    if equal(N, BA_ONE) then
         return ba_euler(SCALE, 1)   -- much faster
     end if
 
-    if x[SIGN]=SG_MINUS then
+    integer neg = 0, mult = 0
+    if N[SIGN]=SG_MINUS then
         neg = 1
-        x[SIGN] = -x[SIGN]
+        N[SIGN] = -N[SIGN]
     end if
 
-    sc = ba_scale(SCALE+2, 0)
+    sequence sc = ba_scale(SCALE+2, 0),
+             inc = {1, 0, {2}}
 
-    while compare(x, BA_ONE)=SG_PLUS do
+    while compare(N, BA_ONE)=SG_PLUS do
         mult += 1
-        x = ba_divide(x, {1, 0, {2}})
+        N = ba_divide(N, {1, 0, {2}})
     end while
 
-    curr = x
-    xpow = x
-    res = ba_add(x, BA_ONE)
-    fact = BA_ONE
+    sequence curr = N,
+             npow = N,
+             res = ba_add(N, BA_ONE),
+             fact = BA_ONE
     while curr[SIGN] do
-        xpow = ba_multiply(xpow, x)
+        npow = ba_multiply(npow, N)
         fact = ba_multiply(fact, inc)
-        curr = ba_divide(xpow, fact)
+        curr = ba_divide(npow, fact)
         res  = ba_add(res, curr)
         inc  = ba_add(inc, BA_ONE)
     end while
@@ -1899,8 +1913,8 @@ integer start,stop
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
     else
-        start = res[EXPONENT]+2+SCALE
-        stop = length(res[DIGITS])
+        integer start = res[EXPONENT]+2+SCALE,
+                stop = length(res[DIGITS])
         if stop>start then
             res[DIGITS] = remove(res[DIGITS],start,stop)
         end if
@@ -1962,15 +1976,28 @@ end function
 -- raise bigatom to an integer power (one to one)
 --
 function ipower(sequence A, integer exponent)
-sequence res
-    if exponent=0 then
-        return BA_ONE
-    else
-        res = A
-        for i=2 to exponent do
-            res = ba_multiply(A, res)
-        end for
-    end if
+
+    if exponent=0 then return BA_ONE end if
+
+--17/2/19:
+--/*
+    sequence res = A
+    for i=2 to exponent do
+        res = ba_multiply(A, res)
+    end for
+--*/
+
+    sequence res = BA_ONE
+    while exponent!=0 do
+--?{"ipower",exponent}
+        if mod(exponent,2)=1 then -- odd
+            res = ba_mul(res,A)
+        end if
+--      A = ba_mul(A,A)
+        exponent = floor(exponent/2)
+        if exponent=0 then exit end if
+        A = ba_mul(A,A)
+    end while
 
     return res
 end function
@@ -2028,6 +2055,7 @@ sequence factrs
             res[SIGN] = A[SIGN]
         end if
     elsif equal({1}, A[DIGITS]) then
+--DEV surely -1 squared is +1... (mod(exponent,2)=0...)
         res = A
         res[EXPONENT] *= exponent
     else
@@ -2047,41 +2075,44 @@ end function
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_power(object x, object exponent, integer bRound = 0)
+global function ba_power(object N, exponent, bool bRound=false)
 sequence res
 
-    if not bigatom(x) then
-        if atom(x) and atom(exponent) then
-            if floor(exponent)=exponent then
-                res = intf_power(ba_new(x), exponent)
+    if not bigatom(N) then
+        if atom(N) and atom(exponent) then
+--          if floor(exponent)=exponent then
+            if integer(exponent) then
+                res = intf_power(ba_new(N), exponent)
             elsif exponent>0 then
-                res = ba_exp(ba_multiply(ba_log(x), exponent), bRound)
+                res = ba_exp(ba_multiply(ba_log(N), exponent), bRound)
             elsif exponent then
-                res = ba_divide(BA_ONE, ba_exp(ba_multiply(ba_log(x), -exponent), bRound))
+                res = ba_divide(BA_ONE, ba_exp(ba_multiply(ba_log(N), -exponent), bRound))
             else
                 res = BA_ONE
             end if
 
             return res
         end if
-        x = ba_new(x)
+        N = ba_new(N)
     end if
 
-    if atom(exponent) and floor(exponent)=exponent then
-        return intf_power(x, exponent)
+--  if atom(exponent) and floor(exponent)=exponent then
+    if integer(exponent) then
+        return intf_power(N, exponent)
     end if
 
-    if not bigatom(exponent) then
-        exponent = ba_new(exponent)
-    end if
+    if not bigatom(exponent) then exponent = ba_new(exponent) end if
 
-    if equal(ba_floor(exponent), exponent) then
-        res = intf_power(x, bigatom_to_atom(exponent))
+--15/9/18:
+--  if equal(ba_floor(exponent), exponent) then
+    if equal(ba_floor(exponent), exponent)
+    and ba_compare(exponent,#3FFFFFFF)<0 then
+        res = intf_power(N, bigatom_to_atom(exponent))
     elsif exponent[SIGN]=SG_PLUS then
-        res = ba_exp(ba_multiply(ba_log(x), exponent), bRound)
+        res = ba_exp(ba_multiply(ba_log(N), exponent), bRound)
     elsif exponent[SIGN]=SG_MINUS then
         exponent[SIGN] = -exponent[SIGN]
-        res = ba_divide(BA_ONE, ba_exp(ba_multiply(ba_log(x), exponent)), bRound)
+        res = ba_divide(BA_ONE, ba_exp(ba_multiply(ba_log(N), exponent)), bRound)
     else
         res = BA_ONE
     end if
@@ -2096,25 +2127,19 @@ end function
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_sqrt(object x, integer bRound = 0)
---23/3/17
---sequence res, res1 = BA_ZERO
-sequence res, res1 = BA_ZERO, res2 = BA_ZERO
-integer cmp
-integer start,stop
-
-    if not bigatom(x) then
-        x = ba_new(x)
-    end if
-
-    if x[SIGN]<0 then
+global function ba_sqrt(object N, bool bRound=false)
+    if not bigatom(N) then N = ba_new(N) end if
+    if N[SIGN]=SG_ZERO then return BA_ZERO end if
+    if N[SIGN]<0 then
         -- is not a real, imaginary (= sqrt(-x)*i)
         return NO_VALUE
-    elsif x[SIGN]=SG_ZERO then
-        return BA_ZERO
     end if
 
-    cmp = compare(x, BA_ONE)
+--23/3/17
+--  sequence res, res1 = BA_ZERO
+    sequence res, res1 = BA_ZERO, res2 = BA_ZERO
+
+    integer cmp = compare(N, BA_ONE)
     if not cmp then
         return BA_ONE
     elsif cmp<1 then
@@ -2122,7 +2147,7 @@ integer start,stop
         res = BA_ONE
     else
         -- if x > 1 start in 10^(exp/2) = 10^(exp*0.5)
-        res1 = ba_floor(ba_multiply(x[EXPONENT]+1, {1,-1,{5}}))
+        res1 = ba_floor(ba_multiply(N[EXPONENT]+1, {1,-1,{5}}))
         res  = ba_power({1,1,{1}}, res1)
     end if
 
@@ -2132,7 +2157,7 @@ integer start,stop
       and compare(res, res2) do
         res2 = res1
         res1 = res
-        res  = ba_divide(x, res)
+        res  = ba_divide(N, res)
         res  = ba_add(res, res1)
         res  = ba_multiply(res, {1,-1,{5}}) -- 0.5
     end while
@@ -2140,8 +2165,8 @@ integer start,stop
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
     else
-        start = res[EXPONENT]+2+SCALE
-        stop = length(res[DIGITS])
+        integer start = res[EXPONENT]+2+SCALE,
+                stop = length(res[DIGITS])
         if stop>start then
             res[DIGITS] = remove(res[DIGITS],start, stop)
         end if
@@ -2157,24 +2182,24 @@ end function
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_root(object x, object exponent, integer bRound = 0)
+global function ba_root(object N, exponent, bool bRound=false)
 sequence res
 sequence sc = ba_scale(SCALE+1)
 
 integer start,stop
 
-    if not bigatom(x) then
-        if atom(x) and atom(exponent) then
-            if x<0 or not exponent then
+    if not bigatom(N) then
+        if atom(N) and atom(exponent) then
+            if N<0 or not exponent then
                 res =  NO_VALUE
             elsif exponent>0 then
                 if exponent=2 then
-                    res = ba_sqrt(x)  -- very common and much faster
+                    res = ba_sqrt(N)  -- very common and much faster
                 else
-                    res = ba_power(x, 1/exponent)
+                    res = ba_power(N, 1/exponent)
                 end if
             else
-                res = ba_divide(BA_ONE, ba_power(x, 1/ -exponent), bRound)
+                res = ba_divide(BA_ONE, ba_power(N, 1/ -exponent), bRound)
             end if
 
             {} = ba_scale(sc)   -- (restore original settings)
@@ -2187,12 +2212,12 @@ integer start,stop
 
             return normalize(res)
         end if
-        x = ba_new(x)
+        N = ba_new(N)
     end if
 
     if not bigatom(exponent) then
         if atom(exponent) and exponent=2 then
-            res = ba_sqrt(x)
+            res = ba_sqrt(N)
 
             {} = ba_scale(sc)   -- (restore original settings)
 
@@ -2212,15 +2237,15 @@ integer start,stop
         exponent = ba_new(exponent)
     end if
 
-    if x[SIGN]!=SG_PLUS
+    if N[SIGN]!=SG_PLUS
     or exponent[SIGN]=SG_NOVALUE
     or not exponent[SIGN] then
         res = NO_VALUE
     elsif exponent[SIGN]=SG_PLUS then
-        res = ba_power(x, ba_divide(BA_ONE, exponent))
+        res = ba_power(N, ba_divide(BA_ONE, exponent))
     else
         exponent[SIGN] = -exponent[SIGN]
-        res = ba_divide(BA_ONE, ba_power(x, ba_divide(BA_ONE, exponent)))
+        res = ba_divide(BA_ONE, ba_power(N, ba_divide(BA_ONE, exponent)))
     end if
 
     {} = ba_scale(sc)   -- (restore original settings)
@@ -2241,16 +2266,12 @@ end function
 
 
 --/*
-global function ba_log10_2(object x, integer bRound = 0)
-integer exponent
-sequence res
-    if not bigatom(x) then
-        x = ba_new(x)
-    end if
+global function ba_log10_2(object x, bool bRound=false)
+    if not bigatom(x) then x = ba_new(x) end if
 
-    exponent = x[EXPONENT] 
-    x[EXPONENT] = 0
-    res = ba_logb(x, 10, round)
+    integer exponent = x[EXPONENT] 
+                       x[EXPONENT] = 0
+    sequence res = ba_logb(x, 10, round)
 
     return ba_add(res, exponent)
 end function
@@ -2262,17 +2283,13 @@ end function
 --
 -- Supports Atoms, bigatoms and representation of numbers in a string
 --
-global function ba_logb(object x, object base = 10, integer bRound = 0)
-    if not bigatom(x) then
-        x = ba_new(x)
-    end if
-    if not bigatom(base) then
-        base = ba_new(base)
-    end if
+global function ba_logb(object N, base=10, bool bRound=false)
+    if not bigatom(N)    then N    = ba_new(N)    end if
+    if not bigatom(base) then base = ba_new(base) end if
     base[SIGN] = SG_PLUS
     base = ba_ceil(base)
 
-    return ba_divide(ba_log(x), ba_log(base), bRound)
+    return ba_divide(ba_log(N), ba_log(base), bRound)
 end function
 --
 
@@ -2287,25 +2304,18 @@ end function
 -- ... the logarithm of a small number and a sum
 -- I'm surprised not to have fallen before, so simple and so effective.
 --
-global function ba_log10(object x, integer bRound = 0)
-integer exponent
-sequence res
+global function ba_log10(object N, bool bRound=false)
+    if not bigatom(N) then N = ba_new(N) end if
 
-integer start, stop
-
-    if not bigatom(x) then
-        x = ba_new(x)
-    end if
-
-    exponent = x[EXPONENT]+1
-    x[EXPONENT] = -1
-    res = ba_logb(x, 10, bRound)
+    integer exponent = N[EXPONENT]+1
+                       N[EXPONENT] = -1
+    sequence res = ba_logb(N, 10, bRound)
     res = ba_add(res, exponent)          -- the sum ignores the scale
     if bRound then
         res = round_digits(res, res[EXPONENT]+2+SCALE)
     else
-        start = res[EXPONENT]+2+SCALE
-        stop = length(res[DIGITS])
+        integer start = res[EXPONENT]+2+SCALE,
+                stop = length(res[DIGITS])
         if stop>start then
             res[DIGITS] = remove(res[DIGITS],start,stop)
         end if
@@ -2318,6 +2328,202 @@ end function
 -- -------------------------------------------------------------------------------------------
 -- end bigatom.e
 -- -------------------------------------------------------------------------------------------
+
+--some possible additions:
+global function ba_gcd(object m, n)
+    m = ba_floor(ba_abs(m))
+    n = ba_floor(ba_abs(n))
+    while ba_compare(n,BA_ZERO)!=0 do
+--      {m,n} = {n,ba_mod(m,n)}
+        {m,n} = {n,ba_remainder(m,n)}
+    end while
+    return m
+end function
+
+--function ba_gcd(bigatom u, bigatom v)
+--bigatom t
+--  u = ba_floor(ba_abs(u))
+--  v = ba_floor(ba_abs(v))
+--  while v!=BA_ZERO do
+--      t = u
+--      u = v
+--      v = ba_remainder(t, v)
+--?     {u,v} = {v,ba_remainder(u,v)}
+--  end while
+--  return u
+--end function
+
+global function ba_lcm(object m, n)
+    return ba_mul(ba_idivide(m,ba_gcd(m,n)),n)
+end function
+
+--function ba_mod_exp(object base, exponent, modulus)
+---- base/exponent/modulus can be integer/string/bigatom
+---- returns mod(power(base,exponent),modulus), but in bigatoms and faster.
+--  bigatom res
+--  if ba_compare(exponent,1)=0 then
+--      res = ba_new(base)
+--  else
+--      bool odd = (ba_compare(ba_mod(exponent,2),0)!=0)
+--      if odd then
+--          exponent = ba_sub(exponent,1)
+--      end if
+--      exponent = ba_divide(exponent,2)
+--      res = ba_mod_exp(base,exponent,modulus)
+--      res = ba_multiply(res,res)
+--      if odd then
+--          res = ba_multiply(res,base)
+--      end if
+--  end if
+--  res = ba_mod(res,modulus)
+--  return res
+--end function
+
+--slightly faster:
+global function ba_mod_exp(object base, exponent, modulus)
+--
+-- base/exponent/modulus can be integer/string/bigatom.
+-- returns ba_mod(ba_power(base,exponent),modulus), aka 
+-- (base^exponent)%modulus, but //much// faster, eg
+--  base=123456789, exponent=1234, modulus=12 takes this
+--  ~0s but ba_mod(ba_power(..)) about 8.6s, and if you
+--  increase the exponent to 12345 you will simply give
+--  up on the longhand method (or run out of memory),
+--  whereas this still finishes near-instantly.
+--
+    bigatom res = BA_ONE
+    base = ba_mod(base,modulus)
+    while ba_compare(exponent,0)!=0 do
+        if ba_mod(exponent,2)=BA_ONE then -- odd
+            res = ba_mod(ba_multiply(res,base),modulus)
+        end if
+        base = ba_mod(ba_multiply(base,base),modulus)
+        exponent = ba_idivide(exponent,2)
+    end while
+    return res
+end function
+
+integer finit = 0
+sequence fcache
+
+global function ba_factorial(integer n)
+--
+-- Standard iterative factorial function, with memoisation.
+-- eg            n : 0 1 2 3 4  5   6   7    8
+--  ba_factorial(n): 1 1 2 6 24 120 720 5040 40320 
+--
+-- Note that n must be integer (it indexes fcache, for one thing).
+--
+atom res = 1
+    if n>0 then
+        if not finit then
+            fcache = {BA_ONE}
+            finit = 1
+        end if
+        for i=length(fcache)+1 to n do
+            fcache = append(fcache,ba_mul(fcache[$],i))
+        end for
+        res = fcache[n]
+    end if 
+    return res
+end function
+
+
+--/*
+
+function ba_factor(object n)
+-- eg ba_factor(1000) -> {{2,3},{5,3}}, ie power(2,3)*power(5,3) == 8*125 == 1000.
+--  (note that each res[i] is {bigatom|integer,integer})
+    if ba_compare(n,BA_ZERO)=0 then return {} end if
+    sequence pf = {}
+    integer e = 0
+    while ba_mod(n,2)=BA_ZERO do
+        n = ba_idivide(n,2)
+        e += 1
+    end while
+    if e>0 then
+        pf = {{2,e}}
+    end if
+    bigatom s = ba_sqrt(n),
+            d = ba_new(3)
+    while ba_compare(n,BA_ONE)>0 do
+        if ba_compare(d,s)>0 then
+            d = ba_new(n)
+        end if
+        e = 0
+        while true do
+            bigatom r = ba_mod(n,d)
+            if r!=BA_ZERO then exit end if
+            n = ba_idivide(n,d)
+            e += 1
+        end while
+        if e>0 then
+            pf = append(pf,{d,e})
+            s = ba_sqrt(n)
+        end if
+        d = ba_add(d,2)
+    end while
+    return pf
+end function
+
+global function ba_factors(object n, bool include1=false)
+-- returns a list of all integer factors of n
+--  if include1 is 0 (the default), result does not contain either 1 or n
+--  if include1 is 1, and n>1, the result contains 1 and n
+--  if include1 is -1, and n>1, the result contains 1 but not n
+sequence lfactors = {}, hfactors = {}
+bigatom hfactor,
+        lim = ba_floor(ba_sqrt(n))
+integer p = 2
+
+--  if n<1 or n!=floor(n) then ?9/0 end if  --DEV crash("first argument to factors() must be a positive integer",{},2)
+--  n = ba_floor(n)
+    if ba_compare(n,1)<0 then ?9/0 end if
+    if ba_compare(n,ba_floor(n))!=0 then ?9/0 end if
+    
+    if ba_compare(n,1)!=0 and include1 then
+        lfactors = {1}
+        if include1=1 then
+            hfactors = {n}
+        end if
+    end if
+--  while p<=lim do
+    while ba_compare(p,lim)<=0 do
+        if ba_remainder(n,p)=BA_ZERO then
+            lfactors = append(lfactors,p)
+            hfactor = ba_idivide(n,p)
+            if ba_compare(hfactor,p)=0 then exit end if
+            hfactors = prepend(hfactors,hfactor)
+        end if
+        p += 1
+    end while 
+    return lfactors & hfactors
+end function
+
+function ba_rand(object low, high)
+-- generate a random integer between low and high (inclusive)
+-- low and high can be passed in as integer/string/bigatom
+-- (both low and high get given the ba_round(int) treatment)
+    low = ba_sub(ba_round(low),1)
+    high = ba_round(high)           -- just in case...
+    bigatom hz = ba_sub(high,low)   -- convert range to 0..hz
+    string hs = ba_sprint(hz)       -- get length
+    integer l = length(hs)
+    string rs = repeat('9',l)
+    while 1 do
+        -- generate "000..." .. "999..." in blocks of up to 9
+        for p=1 to length(rs) by 9 do
+            integer cl = min(l-p+1,9)
+            string fmt = sprintf("%%0%dd",cl) -- "%01d".."%09d"
+            string chunk = sprintf(fmt,rand(power(10,cl))-1)
+            rs[p..p+cl-1] = chunk
+        end for
+        if length(rs)!=length(hs) then ?9/0 end if -- sanity
+        if rs<=hs then exit end if
+    end while
+    return ba_add(ba_new(rs),low)
+end function
+--*/
 
 
 /*
@@ -2355,7 +2561,8 @@ if 0 then
     decs = 843
     {} = ba_scale(decs)
     ba = ba_exp("1")
-    printf(1, "And that 'e' with %d decimals is:\n\t%s\n", {decs, ba_sprint(ba)})
+    string edec = ba_sprint(ba)
+    printf(1, "And that 'e' with %d decimals is:\n\t%s\n", {decs, edec})
 --end ifdef
 
 --ifdef TEST2 then

@@ -1,0 +1,158 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">sqlite3_get_table</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pSQLite.e
+            <br>
+            <br>
+            <a href="object.htm">object</a> data = sqlite3_get_table(<a href="sqlconst.htm#types">sqlite3</a> db,
+                                                                     <a href="string.htm">string</a> cmd)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Perform an SQL query.
+            <br>
+            <br>
+            This differs from <a href="sqlite3_exec.htm">sqlite3_exec</a>() in that it returns the complete data set.
+<!--
+            , and from the
+            <a href="sqlite3_prepare.htm">sqlite3_prepare</a>() route, which allows fields to be changed and the SQL statement to 
+            be performed several times.
+-->
+            <br>
+            <br>
+            db: an open database, a result from <a href="sqlite3_open.htm">sqlite3_open</a>().<br>
+            cmd: the SQL to be executed.
+            <br>
+            <br>
+            It is in fact perfectly legal to execute non-queries via sqlite3_get_table(), however the result of success will always be {}, and
+            unlike <a href="sqlite3_exec.htm">sqlite3_exec</a>(), only a single SQL statement is allowed.
+            <br>
+            <br>
+            If the query could not be executed because a database file is locked or busy, then this function returns 
+            <a href="sqlconst.htm#SQLITE_BUSY">SQLITE_BUSY</a> or perhaps 
+            <a href="sqlconst.htm#SQLITE_ABORT">SQLITE_ABORT</a>.
+<!-- [not implemented]
+            <br>
+            (This behavior can be modified somewhat using the sqlite3_busy_handler() and sqlite3_busy_timeout() functions.) 
+-->
+            <br>
+            <br>
+            On successful completion, data will be a <a href="sequence.htm">sequence</a>.
+            <br>
+            <br>
+            For example, given the table
+            <pre>
+                Name        | Age
+                -----------------------
+                Alice       | 43
+                Bob         | 28
+                Cindy       | 21
+            </pre>
+            The result might be
+<!--eucode>
+                {{"Name","Age"},
+                 {"Alice","43"},
+                 {"Bob","28"},
+                 {"Cindy","21"}}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">                {</font><font color="#800000">{</font><font color="#008000">"Name"</font><font color="#0000FF">,</font><font color="#008000">"Age"</font><font color="#800000">}</font><font color="#0000FF">,
+</font><font color="#800000">                 {</font><font color="#008000">"Alice"</font><font color="#0000FF">,</font><font color="#008000">"43"</font><font color="#800000">}</font><font color="#0000FF">,
+</font><font color="#800000">                 {</font><font color="#008000">"Bob"</font><font color="#0000FF">,</font><font color="#008000">"28"</font><font color="#800000">}</font><font color="#0000FF">,
+</font><font color="#800000">                 {</font><font color="#008000">"Cindy"</font><font color="#0000FF">,</font><font color="#008000">"21"</font><font color="#800000">}</font><font color="#0000FF">}</font>
+</pre>
+            <br>
+            Notice that there is an extra row of data containing the column headers.
+            <br>
+            <br>
+            The sqlite3_free_table() routine is in fact wrapped and used internally, but not made publicly available.<br>
+            (By the time this function returns, it has in fact already been invoked, on the C-string table that is.)
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_13a75j95-j4bj-8273-976j-3d5492d71468" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include pSQLite.e
+sqlite3 db = sqlite3_open("test.sqlite")
+integer res = sqlite3_exec(db,"CREATE TABLE table1(id INTEGER, desc TEXT);")
+pp(sqlite3_get_table(db,"PRAGMA table_info(table1);"),{pp_Nest,1})
+pp(sqlite3_get_table(db,"SELECT * FROM sqlite_master;"),{pp_Nest,1})
+sqlite3_close(db)
+
+-- output:
+--{{"cid", "name", "type", "notnull", "dflt_value", "pk"},
+-- {"0", "id", "INTEGER", "0", {}, "0"},
+-- {"1", "desc", "TEXT", "0", {}, "0"}}
+--{{"type", "name", "tbl_name", "rootpage", "sql"},
+-- {"table", "test", "test", "2", "CREATE TABLE test(id INTEGER, desc TEXT)"}}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> pSQLite.e
+</font><font color="#004080">sqlite3</font><font color="#000000"> db</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_open</font><font color="#0000FF">(</font><font color="#008000">"test.sqlite"</font><font color="#0000FF">)
+</font><font color="#004080">integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> sqlite3_exec</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"CREATE TABLE table1(id INTEGER, desc TEXT);"</font><font color="#0000FF">)
+</font><font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#5E005E">sqlite3_get_table</font><font color="#800000">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"PRAGMA table_info(table1);"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">pp_Nest</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#5E005E">sqlite3_get_table</font><font color="#800000">(</font><font color="#000000">db</font><font color="#0000FF">,</font><font color="#008000">"SELECT * FROM sqlite_master;"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">pp_Nest</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#5E005E">sqlite3_close</font><font color="#0000FF">(</font><font color="#000000">db</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- output:
+--{{"cid", "name", "type", "notnull", "dflt_value", "pk"},
+-- {"0", "id", "INTEGER", "0", {}, "0"},
+-- {"1", "desc", "TEXT", "0", {}, "0"}}
+--{{"type", "name", "tbl_name", "rootpage", "sql"},
+-- {"table", "test", "test", "2", "CREATE TABLE test(id INTEGER, desc TEXT)"}}</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+                For more details of that special instruction and the results, see <a href="sqlite3_pragma.htm#pragma_table_info">PRAGMA table_info</a>.<br>
+                The "sqlite_master" is a special control database that contains details of all the other databases that the database contains (!) - for
+                more information you will probably have to fire up and start typing into your favourite search engine.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="sqlite3_open.htm">sqlite3_open</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,194 @@
+--
+-- SciFiPlotCreator.exw : From a codeproject article by Steve Bryndin using Stanislaw Lem algorithm.
+--                          https://www.codeproject.com/Tips/1277729/Sci-Fi-Plot-Compiler
+--
+-- Just a bit of fun. I made it always create random stories, see prompt at start of main.
+-- I love it that "remains unscathed" is //always// followed by "[almost] everyone dies".
+
+string plot = ""
+string choices = ""
+--constant Protagonists = {"Scientist(s)","Political faction","Military","Civilians","Government","Children","Anarchists"}
+
+bool g_bRandom = false
+
+procedure Display(sequence m)
+    if string(m) then
+        printf(1,"%s\n",{m})
+    else
+if not g_bRandom then
+        for i=1 to length(m) do
+            printf(1,"%d. %s\n",{i,m[i]})
+        end for
+end if
+    end if
+end procedure
+
+function GetChoice(sequence m)
+integer x = length(m)
+    Display(m)
+    if g_bRandom then
+        x = rand(x)
+    else
+        x = prompt_number("\nenter choice:",{1,x})
+    end if
+if not g_bRandom then
+    choices &= sprintf("%d,",x)
+    printf(1,"Choice :%d\n",x)
+end if
+    plot &= m[x]&"\n"
+    return x
+end function
+
+procedure FinalEveryoneDies()
+    integer x = GetChoice({"Everyone dies","Almost everyone dies"})
+    plot &= "The End\n"
+end procedure
+
+procedure CollidesWith()
+    plot &= "With\n"
+    sequence m = {"Comet",
+                  "Asteroid",
+                  "Moon",
+                  "Black hole",
+                  "Derelict enormous ship",
+                  "Extra dimensional entity",
+                  "Drifting arsenal of WMDs"}
+    integer x = GetChoice(m)
+    plot &= "And\n"
+    m = {"Explodes",
+         "Remains unscathed",
+         "Remains unscathed but"}
+    x = GetChoice(m)
+    FinalEveryoneDies()
+end procedure
+
+procedure Outcome()
+    sequence m = {"Suddenly die",
+                  "Fly away",
+                  "Turn into an ugly fungus",
+                  "Marry and live long and happy life",
+                  "Contract a local disease and die",
+                  "Kill us all",
+                  "Consume us as food",
+                  "Install a dictatorship",
+                  "Killed"}
+
+    integer x = GetChoice(m)
+end procedure
+
+procedure Countermeasure()
+    sequence m = {"Scientists invent a new weapon",
+                  "Smart citizen convinces them that people are good",
+                  "Priest tells them a story about God",
+                  "Fall in love with a beautiful person"}
+    integer x = GetChoice(m)
+    if x=1 then
+        plot &= "Which\n"
+        m = {"Malfunctions",
+             "Destroys them all",
+             "Turns them into an ugly fungus"}
+        x = GetChoice(m)
+        if x=1 then
+            plot &= "They\n"
+            Outcome()
+        end if
+    else
+        plot &= "And they\n"
+        Outcome()
+    end if
+    plot &= "The End\n"
+end procedure
+
+procedure DefeatedBy(bool bCan)
+    sequence m = {"Mob crowd with torches",
+                  "Army, Navy, Air Force, Marines, Coast Guard, SEALs, Green Berets",
+                  "Nuclear weapon"}
+    integer x = GetChoice(m)
+    if bCan then
+        plot &= "And they\n"
+        Outcome()
+        plot &= "The End\n"
+    else
+        plot &= "But\n"
+        Countermeasure()
+    end if
+end procedure
+
+procedure WhoAre()
+    plot &= "And who are\n"
+    integer x = GetChoice({"Radioactive","Nonradioactive"})
+    plot &= "And\n"
+    x = GetChoice({"Cannot be defeated","Can be defeated"})
+    plot &= "By\n"
+    DefeatedBy(x=2)
+end procedure
+
+procedure Desire()
+    integer x = GetChoice({"They kidnap a few and disappear"})
+    plot &= "The End\n"
+end procedure
+
+procedure Behave()
+    plot &= "Who\n"
+    sequence m = {"Desire our women, men, or trans gender, or all",
+                  "Treating us well",
+                  "Treating us well but nobody understands them",
+                  "Do not understand us",
+                  "Perfectly understands us",
+                  "Interpret us as food only"}
+    integer x = GetChoice(m)
+    switch x do
+        case 1: Desire()
+        case 2: plot &= "The End\n"
+        case 3:
+        case 4:
+        case 5: WhoAre()
+        case 6: plot &= "And consume us as food\nThe End\n"
+    end switch
+end procedure
+
+procedure Creations()
+    sequence m = {"Insects","Robots","Reptilians","Alien life forms","Strange entities"}
+    integer x = GetChoice(m)
+    Behave()
+end procedure
+
+procedure Size(string part)
+    plot &= part
+    integer x = GetChoice({"Small","Huge"})
+    Creations()
+end procedure
+
+procedure Discovery()
+    integer x = GetChoice({"Create","Discover"})
+    Size("")
+end procedure
+
+procedure main()
+    printf(1,"SciFi plot compiler 2019.\n\n")
+        
+--  g_bRandom = upper(prompt_string("Run random (Y/N)?:"))=="Y"
+    g_bRandom = true
+    integer x = GetChoice({"Earth","Mercury","Venus","Mars",
+                           "Jupiter","Saturn","Neptune",
+                           "Another planet or celestial body"})
+    x = GetChoice({"Scientists","Collides","Invaded",
+                   "Burns, Freezes, or falls towards the Sun or star"})
+    switch x do
+        case 1: Discovery()
+        case 2: CollidesWith()
+        case 3: Size("By\n")
+        case 4: FinalEveryoneDies()
+    end switch
+
+    printf(1,"\n\nPlot summary:\n")
+if not g_bRandom then
+    printf(1,"Choices: %s\n",{choices})
+end if
+    printf(1,"**********************\n%s\n",{plot})
+end procedure
+main()
+
+?"done"
+{} = wait_key() 
+

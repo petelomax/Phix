@@ -1941,7 +1941,8 @@ integer ImageBase
 integer newRVA
 
 if use_pini_time then
-    TimeDateStamp = GetLastAccessTime("p.ini")
+--  TimeDateStamp = GetLastAccessTime("p.ini")
+    TimeDateStamp = GetFileTime("p.ini",LAST_ACCESS_TIME)
 else
     TimeDateStamp = SYSTEMTIMEtoDateTimeStamp()
 end if

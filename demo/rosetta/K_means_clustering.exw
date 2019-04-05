@@ -1,0 +1,413 @@
+--
+-- demo\rosetta\K_means_clustering.exw
+-- ===================================
+--
+--  Press F5 to restart
+--
+--  Probably the hardest part of handling more than 2 dimensions would be deleteing all
+--  the GUI code, or modifying it to produce an n-dimensional representation. Obviously 
+--  you would need Pz and Cz, or replace them with n-tuples, and to replace rand_xy().
+--
+--{{trans|XPL0}}
+--{{trans|Go}}
+--  I nicked the initial dataset creation from Go, as an alternative
+--
+include pGUI.e
+
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+constant TITLE = "K-means++ clustering"
+
+constant useGoInitialData = false       -- (not very well centered)
+
+constant N = 30000,                     -- number of points
+         K = 16                         -- number of clusters
+
+sequence {Px, Py, Pc} @= repeat(0,N),   -- coordinates of points and their cluster
+         {Cx, Cy} @= repeat(0,K)        -- coordinates of centroid of cluster
+
+constant colours = {CD_RED, CD_DARK_RED, CD_BLUE, CD_DARK_BLUE, CD_CYAN, CD_DARK_CYAN, 
+                    CD_GREEN, CD_DARK_GREEN, CD_MAGENTA, CD_DARK_MAGENTA, CD_YELLOW,
+                    CD_DARK_YELLOW, CD_DARK_ORANGE, CD_INDIGO, CD_PURPLE, CD_DARK_GREY}
+if length(colours)<K then ?9/0 end if
+ 
+function Centroid()
+-- Find new centroids of points grouped with current centroids
+bool change = false
+    for c=1 to K do                         -- for each centroid...
+        integer x=0, y=0, count:= 0;        -- find new centroid
+        for i=1 to N do                     -- for all points
+            if Pc[i] = c then               -- grouped with current centroid...
+                x += Px[i]
+                y += Py[i]
+                count += 1
+            end if
+        end for
+        if count!=0 then
+            x = floor(x/count)
+            y = floor(y/count)
+            if Cx[c]!=x
+            or Cy[c]!=y then
+                Cx[c] = x
+                Cy[c] = y
+                change:= true
+            end if
+        end if
+    end for
+    return change
+end function
+ 
+function sq(atom x) return x*x end function
+
+procedure Voronoi()             -- Group points with their nearest centroid
+    integer d2,                 -- distance squared, 
+            min_d2              -- minimum distance squared
+    for i=1 to N do             -- for each point...
+        min_d2 := #3FFFFFFF     -- find closest centroid
+        for c=1 to K do
+            d2 := sq(Px[i]-Cx[c]) + sq(Py[i]-Cy[c])
+            if d2<min_d2 then
+                min_d2 := d2
+                Pc[i] := c      -- update closest centroid
+            end if
+        end for
+    end for
+end procedure
+ 
+function rand_xy()              -- Return random X,Y biased for polar coordinates
+    atom d := rand(240)-1,              -- distance: 0..239
+         a := rnd()*2*PI                -- angle:    0..2pi
+    integer x:= floor(d*cos(a))+320,    -- rectangular coords centered on screen
+            y:= floor(d*sin(a))+240     --     (that is, assuming 640x480)
+    return {x,y}
+end function
+
+--This little bit is copied from/based on Go:
+constant k = K,
+         nPoints = N,
+         xBox = 300,
+         yBox = 200,
+         stdv = 30
+
+function genECData()
+    sequence orig = repeat({0,0}, k),
+             data = repeat({0,0,0}, nPoints)
+    integer n = 0, nk = k
+    for i=1 to k do
+        integer x := rand(xBox)+320,
+                y := rand(yBox)+240
+        orig[i] = {x, y}
+        for j=1 to floor((nPoints-n)/nk) do
+            n += 1
+            atom d := rand(stdv)-1,             -- distance: 0..239
+                 a := rnd()*2*PI                -- angle:    0..2pi
+            integer nx:= floor(d*cos(a))+x, -- rectangular coords centered on screen
+                    ny:= floor(d*sin(a))+y  --     (that is, assuming 640x480)
+            data[n] = {nx,ny,i}
+        end for
+        nk -= 1
+    end for
+    if n!=nPoints then ?9/0 end if
+    return {orig, data}
+end function
+--</Go ends>
+ 
+integer iteration = 0
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    if iteration=0 then
+        if useGoInitialData then
+            sequence {origins,data} = genECData()
+            {Px, Py, Pc} = columnize(data)
+            {Cx, Cy} = columnize(origins)
+        else
+            for i=1 to N do {Px[i],Py[i]} = rand_xy() end for   -- random set of points
+            for i=1 to K do {Cx[i],Cy[i]} = rand_xy() end for   -- random set of cluster centroids
+        end if
+    end if
+    sequence {r,g,b} @ = repeat(0,w*h)
+    Voronoi()
+    bool change := Centroid()
+    for i=1 to N do
+        integer idx = Px[i]+(Py[i]-1)*w
+        {r[idx],g[idx],b[idx]} = cdDecodeColor(colours[Pc[i]])
+    end for
+    for i=1 to K do
+        integer idx = Cx[i]+(Cy[i]-1)*w
+        {r[idx],g[idx],b[idx]} = cdDecodeColor(CD_WHITE)
+    end for
+    cdCanvasPutImageRectRGB(cddbuffer, w, h, {r,g,b})
+    cdCanvasFlush(cddbuffer)
+    if change then
+        iteration += 1
+        IupSetStrAttribute(dlg, "TITLE", "%s (iteration %d)",{TITLE,iteration})
+    else
+        IupSetInt(timer,"RUN",0)                -- (stop timer)
+        IupSetStrAttribute(dlg, "TITLE", TITLE)
+    end if
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=K_F5 then
+        iteration = 0
+        IupSetInt(timer,"RUN",1)                -- (restart timer)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    timer = IupTimer(Icallback("timer_cb"), 100)
+
+    dlg = IupDialog(canvas,"DIALOGFRAME=YES")
+    IupSetAttribute(dlg, "TITLE", TITLE)
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+
+
+--/*
+--{{trans|Go}}  [incomplete/untested, initial data bit already taken]
+--DEV make this a builtin?:
+function hypot(atom a,b) return sqrt(a*a+b*b) end function
+
+---- parameters for extra credit exercises
+--type ecParam struct {
+--  k          int
+--  nPoints    int
+--  xBox, yBox int
+--  stdv       int
+--}
+-- 
+--  ec := &ecParam{6, 30000, 300, 200, 30}
+constant k = 6,
+         nPoints = 30000,
+         xBox = 300,
+         yBox = 200,
+         stdv = 30
+
+--type r2 struct {
+--  x, y float64
+--}
+-- 
+--type r2c struct {
+--  r2
+--  c int -- cluster number
+--}
+enum x,y,c
+ 
+-- nearest finds the nearest mean to a given point.
+-- return values are the index of the nearest mean, and the distance from
+-- the point to the mean.
+func nearest(sequence p, mean, bool bIndex)
+    integer iMin := 1,
+            dMin2 := sq(p[x]-mean[1][x])+sq(p[y]-mean[1][y])
+    for i=2 to length(mean) do
+        integer d2 := sq(p[x]-mean[i][x])+sq(p[y]-mean[i][y])
+        if d2 < dMin2 then
+            dMin2 = d2
+            iMin = i
+        end if
+    end for
+    return iff(bIndex?iMin:dMin)
+end function
+
+-- kMeans algorithm.  Lloyd's
+function kMeans(sequence data, mean)
+    integer ld = length(data),
+            lm = length(mean)
+    -- initial assignment
+    for i=1 to ld do
+        data[i][c] = nearest(data[i], mean, true)
+    end for
+    sequence mLen := repeat(0, lm)
+--PL note: compare this loop with use of change flag in redraw_cb anove
+    while true do
+        -- update means
+        mean = repeat({0,0},lm)
+        mLen := repeat(0, lm)
+        for i=1 to ld do
+            integer {dx,dy,cx} = data[i]
+            mean[cx][x] += dx
+            mean[cx][y] += dy
+            mLen[cx] += 1
+        end for
+        for i=1 to lm do
+            atom inv := 1 / mLen[i]
+            mean[i][x] *= inv
+            mean[i][y] *= inv
+        end for
+        -- make new assignments, count changes
+        integer changes = 0
+        for i=1 to ld do
+            cMin := nearest(data[i], mean, true)
+            if cMin!=data[i][c] then
+                changes += 1
+                data[i][c] = cMin
+            end if
+        end for
+        if changes == 0 then exit end if
+    end while
+    return data
+end function
+
+-- kmppSeeds is the ++ part.
+-- It generates the initial means for the k-means algorithm.
+function kmppSeeds(sequence data)
+    if length(data)!=nPoints then ?9/0 end if
+    sequence s := repeat(0,k)
+    s[1] = data[rand(nPoints)][x..y]
+    d2 := repeat(0, nPoints)
+    for i=2 to k do
+        atom total = 0
+        for j=1 to nPoints do
+            dMin2 := nearest(data[j], s[1..i-1], false)
+            d2[j] = dMin2
+            total += dMin2
+        end for
+        target := rnd() * total
+        j := 1
+        total = d2[1]
+        while total < target do
+            j += 1
+            total += d2[j]
+        end while
+        s[i] = data[j][x..y]
+    end for
+    return s
+end function
+
+-- kmpp implements K-means++, satisfying the basic task requirement
+procedure kmpp(sequence data)
+    kMeans(data, kmppSeeds(data))
+end procedure
+ 
+-- genECData generates random data for extra credit tasks.
+-- k origin points are randomly selected in a bounding box.
+-- nPoints/k coordinates are then generated for each origin point.
+--  (PL: in the original, k divided into nPoints exactly; here
+--       for say k=6, I do 1/6th, then 1/5th of the rest, etc.)
+-- The x and y coordinates of the data are normally distributed
+-- with standard deviation stdv.  Thus data coordinates are not
+-- constrained to the origin box; they can range to +/- max float64.
+--/*
+-- SEE VERSION ABOVE
+function genECData()    
+<snip>
+end function
+--*/
+
+-- extra credit 1 and 2:
+--func main() {
+ 
+    sequence {origins, data} := genECData()
+--  vis(data, "origin")
+    printf(1,"Data set origins:\n")
+    printf(1,"    x      y\n")
+    for i=1 to length(origins) do
+        printf(1,"%5.1f  %5.1f\n", origins[i])
+    end for
+ 
+    data = kmpp(data)
+ 
+    printf(1,"\nCluster centroids, mean distance from centroid, number of points:\n")
+    printf(1,"    x      y  distance  points")
+    sequence cent := repeat({0,0}, k),
+             cLen := repeat(0, k),
+             inv := repeat(0, k)
+    for i=1 to length(data) do
+        integer cx = data[i][c]
+        cent[cx][x] += data[i][x]
+        cent[cx][y] += data[i][y]
+        cLen[cx] += 1
+    end for
+    for i=1 to length(cLen) do
+        inv[i] = 1 / cLen[i]
+        cent[i].x *= inv[i]
+        cent[i].y *= inv[i]
+    end for
+    sequence dist = repeat(0, k)
+    for i=1 to length(data) do
+        integer {dx,dy,dc} = data[i]
+        dist[dc] += hypot(dx-cent[dc][x], dy-cent[dc][y])
+    end for
+    for i=1 to length(cLen) do
+        printf(1,"%5.1f  %5.1f  %8.1f  %6d\n",
+         {cent[i][x], cent[i][y], dist[i]*inv[i], cLen[i]})
+    end for
+--  vis(ec, data, "clusters")
+--}
+ 
+---- vis writes a .png for extra credit 2.
+--func vis(ec *ecParam, data []r2c, fn string) {
+--  colors := make([]color.NRGBA, ec.k)
+--  for i := range colors {
+--      i3 := i * 3
+--      third := i3 / ec.k
+--      frac := uint8((i3 % ec.k) * 255 / ec.k)
+--      switch third {
+--      case 0:
+--          colors[i] = color.NRGBA{frac, 255 - frac, 0, 255}
+--      case 1:
+--          colors[i] = color.NRGBA{0, frac, 255 - frac, 255}
+--      case 2:
+--          colors[i] = color.NRGBA{255 - frac, 0, frac, 255}
+--      }
+--  }
+--  bounds := image.Rect(-ec.stdv, -ec.stdv, ec.xBox+ec.stdv, ec.yBox+ec.stdv)
+--  im := image.NewNRGBA(bounds)
+--  draw.Draw(im, bounds, image.NewUniform(color.White), image.ZP, draw.Src)
+--  fMinX := float64(bounds.Min.X)
+--  fMaxX := float64(bounds.Max.X)
+--  fMinY := float64(bounds.Min.Y)
+--  fMaxY := float64(bounds.Max.Y)
+--  for _, p := range data {
+--      imx := math.Floor(p.x)
+--      imy := math.Floor(float64(ec.yBox) - p.y)
+--      if imx >= fMinX && imx < fMaxX && imy >= fMinY && imy < fMaxY {
+--          im.SetNRGBA(int(imx), int(imy), colors[p.c])
+--      }
+--  }
+--  f, err := os.Create(fn + ".png")
+--  if err != nil {
+--      fmt.Println(err)
+--      return
+--  }
+--  err = png.Encode(f, im)
+--  if err != nil {
+--      fmt.Println(err)
+--  }
+--  err = f.Close()
+--  if err != nil {
+--      fmt.Println(err)
+--  }
+--}
+--*/

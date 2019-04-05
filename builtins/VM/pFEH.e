@@ -33,7 +33,7 @@ integer finit = 0
 #ilASM{ jmp :!opCallOnceYeNot
 
   :>initFEH                         -- same as :<exch64 on PE64, and /not/ called at startup in that case
-                                    -- (I needed "" in the optable, but it only exists on PE64)
+-----------                         -- (I needed "" in the optable, but it only exists on PE64)
     [PE32,ELF32,ELF64]
         cmp [finit],0
         jne :dont_do_everything_twice
@@ -242,6 +242,7 @@ integer finit = 0
 
     [PE64]
   :<exch64
+----------
 --DEV you should be able to debug this with fdbg no problem... (trap and use Ctrl F12 to pass exception to handler)
 --  qword[r8+248] == context.Rip
 --typedef EXCEPTION_DISPOSITION

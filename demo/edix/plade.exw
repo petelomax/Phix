@@ -4712,19 +4712,28 @@ end function
 constant cb_exit = Icallback("exit_cb")
 
 function make_more_readable(sequence data)
---(temp?)
+--(temp?) [DOH/DEV - turns out this just recreates the original!!]
 sequence res
     if data={} then
         -- known examples:
-        --  p[1][1] in demo\\rosetta\\7guis\\Converter.exw
-        --  data[i] in demo\\rosetta\\7guis\\CRUD.exw
+        --  p[1][1] in demo\\rosetta\\7guis\\Converter.exw  [since replaced]
+        --  data[i] in demo\\rosetta\\7guis\\CRUD.exw       [since replaced]
+        -- (of course you could support subscripts, but then
+        --  you'd want slices, concatenation, all the builtins,
+        --  and probably user defined function calls, etc...
+        --  Better/simpler to force/encourage the developer to
+        --  replace an inline a&b with x=a&b and then use x.
+        --  Since plade has no business modifying expressions,
+        --  handling and comprehension of them should be just 
+        --  enough to "not drive you nuts", and no more.)
         return "<<??? (unsupported)>>"
     end if
     object d1 = data[1]
     if sequence(d1) then
         if d1="-" and length(data)=5 then
             res = d1&join(make_more_readable(data[2]),"")
-        elsif find(d1,{"=","!=",">","<","+","-","/","*","and"}) then
+        -- "not" like above?? [with a space]
+        elsif find(d1,{"=","!=","<>",">","<","<=",">=","+","-","/","*","and","or","xor"}) then
             if length(d1)>1 and d1[1]>='a' then     -- "and, "or" etc
                 d1 = sprintf(" %s ",{d1})           --   need spaces
             end if
@@ -4781,6 +4790,7 @@ sequence res
             if data[7]={} then
                 res = "{}"
             else
+                -- (note that parse_data SEQ contain the ","s)
                 res = "{"&join(make_more_readable(data[7]),"")--&"}"
             end if
         elsif d1=DIGIT then     -- 7
@@ -6446,6 +6456,10 @@ integer fn = open(filename,"w")
 end function
 constant cb_dump_updates = Icallback("dump_updates_cb")
 
+--function crash_cb(Ihandle /*ih*/)
+--  return 9/0
+--end function
+--constant cb_crash = Icallback("crash_cb")
 
 procedure main()
 Ihandle file_menu, dev_menu, test_menu, help_menu, main_menu, vboxp
@@ -6464,6 +6478,8 @@ Ihandle file_menu, dev_menu, test_menu, help_menu, main_menu, vboxp
                         IupMenuItem("Write &parse_data.txt",cb_dump_pd),
                         IupMenuItem("Write pGUI-IDE.&log",cb_dump_log),
                         IupMenuItem("Write &updates.lst",cb_dump_updates)})
+--                      IupMenuItem("Write &updates.lst",cb_dump_updates),
+--                      IupMenuItem("Crash",cb_crash)})
     file_menu = IupMenu({IupMenuItem("&Cancel"),
 --                       IupMenuItem("&Save"),
                          IupSeparator(),

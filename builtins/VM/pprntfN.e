@@ -27,9 +27,10 @@
 --      here; use "with debug" and/or "-nodiag" to get a listing.
 
 without trace -- ditto, plus important this be off when running trace(3)
+--with trace
 
 -- Bugfix history:
---  14/01/06. Did not handle negative numbers ("sign" added).
+--  14/01/06. Did not handle negative numbers ("sgn" added).
 --  09/03/06. printed 2700000000 as "27".
 --  22/05/06. precision errors on big numbers.
 --  19/08/07. nzdigitprinted flag added. [ummm?]
@@ -37,14 +38,14 @@ without trace -- ditto, plus important this be off when running trace(3)
 --  20/03/09. moved exp to end for K_noclr reasons.
 --  05/03/12. made thread-safe (no file-level vars) [DEV multiple returns rqd?]
 
-include builtins\VM\pUnassigned.e   -- :%pRTErn (DEV/temp)
+--include builtins\VM\pUnassigned.e -- :%pRTErn (DEV/temp)
 include builtins\VM\pPower.e
 
 --/* Not required for Phix (string is builtin):
 type string(object o) return sequence(o) end type
 --*/
 
-function round(string result, atom f, integer exponent, integer charflag, integer digit)--, integer minfieldwidth)
+function round_str(string result, atom f, integer exponent, integer charflag, integer digit)--, integer minfieldwidth)
 --
 -- Apply rounding to partially printed float, if required
 --
@@ -55,7 +56,9 @@ integer one = iff(result[1]='-'?2:1)
     if exponent>=1 then
         f /= power(10,exponent)
     end if
-    if f>5 or (f=5 and remainder(digit,2)=1) then
+--2/12/18:
+--  if f>5 or (f=5 and remainder(digit,2)=1) then
+    if f>5 or (f=5 and remainder(digit,2)=1) or digit=10 then
         for i=length(result) to one by -1 do
             dot = result[i]
             if dot='9' then
@@ -238,7 +241,7 @@ end for
                     digit = floor(f)
                 end if
 --12/7/16:
-if digit=10 then exit end if
+                if digit=10 then exit end if
                 result &= digit+'0'
                 expadj += 1
             end for
@@ -250,7 +253,7 @@ if digit=10 then exit end if
             end if
         end if
         exponent -= expadj
-        result = round(result,f,exponent,charflag,digit)--,minfieldwidth)
+        result = round_str(result,f,exponent,charflag,digit)--,minfieldwidth)
         k = find('!',result)
         if k then
             if k=length(result) then
@@ -347,6 +350,8 @@ if digit=10 then exit end if
                 digit = floor(f)
                 f = (f-digit)*10
             end if
+--2/12/18!
+if digit=10 then exit end if
             result &= digit+'0'
             if digit then
                 nzdigitprinted = 1
@@ -366,7 +371,7 @@ if digit=10 then exit end if
 --          result = "0"
             result = repeat('0',1)
         end if
-        result = round(result,f,exponent,charflag,digit)--,minfieldwidth)
+        result = round_str(result,f,exponent,charflag,digit)--,minfieldwidth)
         k = find('!',result)
         if k then
             if k=length(result) then
@@ -395,7 +400,16 @@ procedure badfmt()
 --      sub edx,1
 --      jmp :!iDiag
 --      int3
---/**/          call :%pRTErn } -- fatal error  -- Phix
+--!/**/         call :%pRTErn } -- fatal error  -- Phix
+        -- calling convention
+        --  mov ecx,imm32       -- no of frames to pop to obtain an era (>=1)
+        --  mov al,imm          -- error code [1..length(msgs)-1, currently 122]
+        --  mov edi,ep1         -- [optional] (opUnassigned)
+        --  mov esi,ep2         -- [optional] (opUnassigned) [used for 110/ecx]
+        --  jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
+--/**/          mov ecx,3                       -- Phix
+--/**/          jmp :!fatalN                    -- Phix
+--/**/          int3 }                          -- Phix
 --/**/                                  --/*    -- Phix
         puts(1,"error in format string\n")      -- RDS
         if getc(0) then end if                  -- RDS
@@ -425,6 +439,9 @@ end function
 string hexchar
 sequence bases
 
+--integer r_len = 0
+bool unicode_align = false
+
 --without trace
 function sprintf_(sequence fmt, object args)
 integer i, fi, fidx
@@ -432,11 +449,12 @@ integer nxt
 string result, r1
 object o, oj
 atom work
-integer base, sign, r1len, hc
+integer base, sgn, r1len, hc
 integer lowerHex
 --?result   --DOH, infinite loop! (use puts(1,<string>) instead!)
 integer zerofill
 integer leftjustify
+integer centre
 integer showplus
 integer showcommas
 integer minfieldwidth
@@ -490,18 +508,37 @@ integer tmp
             else
                 zerofill = 0
                 leftjustify = 0
+                centre = 0
                 showplus = 0
                 showcommas = 0
+                -- Note that -=| are mutually exclusive, and cannot co-exist with 0. 
+                -- Likewise 0 and + are also mutually exclusive, however a + can
+                -- co-exist with -=| as long as it is specified first, and , can be
+                -- used in combination with any, as long as it is specified last.
                 if fi='0' then
                     zerofill = 1
                     i += 1
-                elsif fi='-' then
-                    leftjustify = 1
-                    i += 1
-                elsif fi='+' then
-                    showplus = 1
-                    i += 1
-                elsif fi=',' then
+                else
+                    if fi='+' then
+                        showplus = 1
+                        i += 1
+                        if i>length(fmt) then badfmt() end if
+                        fi = fmt[i]
+                    end if
+                    if fi='-' then
+                        leftjustify = 1
+                        i += 1
+                    elsif fi='=' then
+                        centre = 1
+                        i += 1
+                    elsif fi='|' then
+                        centre = 2
+                        i += 1
+                    end if
+                end if
+                if i>length(fmt) then badfmt() end if
+                fi = fmt[i]
+                if fi=',' then
                     showcommas = 3
                     i+=1
                 end if
@@ -530,8 +567,9 @@ integer tmp
 
                 lowerHex = 0
                 -- 23/2/10 'b' added
-                fidx = find(fi,"dxobscefgEXG")
-                if fidx=11 then -- 'X'
+                -- 12/1/19 'v' added
+                fidx = find(fi,"dxobscvefgEXG")
+                if fi='X' then
                     --
                     -- Yup, I know it's a wee bit confusing, but for compatibility
                     --  reasons, %x is upper case hex and %X is lower case hex!
@@ -554,7 +592,10 @@ integer tmp
 --!/**/                     xor edi,edi         -- ep1 unused   -- Phix
 --!/**/                     xor esi,esi         -- ep2 unused   -- Phix
 --!/**/                 [64]
---/**/                      call :%pRTErn }     -- fatal error  -- Phix
+--!/**/                     call :%pRTErn }     -- fatal error  -- Phix
+--/**/                      mov ecx,2                           -- Phix
+--/**/                      jmp :!fatalN                        -- Phix
+--/**/                      int3 }                              -- Phix
 --/**/                                                  --/*    -- Phix
                     puts(1,"insufficient values for sprintf\n") -- RDS
                     if getc(0) then end if                      -- RDS
@@ -579,9 +620,9 @@ integer tmp
                         end if
                     end if
                     if work then
-                        sign = 0
+                        sgn = 0
                         if work<0 then
-                            sign = 1
+                            sgn = 1
                             if base=10 then
                                 work = 0-work
                             else
@@ -614,18 +655,18 @@ integer tmp
                             --  base 16/10/8/2 (just less chars get used).
                             work = floor(work/base)
                         end while
-                        if sign then
-if base=10 then
-                            r1 = append(r1,'-')
-elsif minfieldwidth>length(r1) then
-                            r1 &= repeat(hexchar[base],minfieldwidth-length(r1))
-end if
+                        if sgn then
+                            if base=10 then
+                                r1 = append(r1,'-')
+                            elsif minfieldwidth>length(r1) then
+                                r1 &= repeat(hexchar[base],minfieldwidth-length(r1))
+                            end if
                         elsif showplus then
-if base=10 then
-                            r1 = append(r1,'+')
-elsif minfieldwidth>length(r1) then
-                            r1 &= repeat('0',minfieldwidth-length(r1))
-end if
+                            if base=10 then
+                                r1 = append(r1,'+')
+                            elsif minfieldwidth>length(r1) then
+                                r1 &= repeat('0',minfieldwidth-length(r1))
+                            end if
                         end if
                         r1len = length(r1)
                         -- as promised, reverse it:
@@ -652,16 +693,24 @@ end if
                             r1 = repeat('0',1)
                         end if
                     end if
-                elsif fidx<=6 then  -- 's' or 'c'
+                elsif fidx<=7 then  -- 's' or 'c' or 'v'
+                    if showplus then badfmt() end if
                     if atom(args) then
                         o = args
 --12/9/15:
 --                  elsif useFlatString(args,nxt,fmt,i) then
-                    elsif fidx!=6 and useFlatString(args,nxt,fmt,i) then -- (not %c (ie %s) and useFlat..)
+--12/1/19:
+--                  elsif fidx!=6 and useFlatString(args,nxt,fmt,i) then -- (not %c (ie %s) and useFlat..)
+                    elsif fi='s' and useFlatString(args,nxt,fmt,i) then -- (not %c (ie %s) and useFlat..)
                         o = args
                         args = {}
                     else
                         o = args[nxt]
+                    end if
+                    if fi='v' then
+                        o = sprint(o)
+                        -- aside: in the following if construct, only the  
+                        -- last (ie precision) branch is revelant to %v.
                     end if
                     if atom(o) then
                         r1 = " "
@@ -670,7 +719,10 @@ end if
 --/**/                  #ilASM{ mov al,76                           -- Phix
 --!/**/                         xor edi,edi         -- ep1 unused   -- Phix
 --!/**/                         xor esi,esi         -- ep2 unused   -- Phix
---/**/                          call :%pRTErn }     -- fatal error  -- Phix
+--!/**/                         call :%pRTErn }     -- fatal error  -- Phix
+--/**/                          mov ecx,2                           -- Phix
+--/**/                          jmp :!fatalN                        -- Phix
+--/**/                          int3 }                              -- Phix
 --/**/                                                      --/*    -- Phix
                         puts(1,"%c requires an atom value\n")       -- RDS
                         if getc(0) then end if                      -- RDS
@@ -688,7 +740,10 @@ end if
 --/**/                          #ilASM{ mov al,65                               -- Phix
 --!/**/                                 xor edi,edi         -- ep1 unused       -- Phix
 --!/**/                                 xor esi,esi         -- ep2 unused       -- Phix
---/**/                                  call :%pRTErn }     -- fatal error      -- Phix
+--!/**/                                 call :%pRTErn }     -- fatal error      -- Phix
+--/**/                                  mov ecx,2                               -- Phix
+--/**/                                  jmp :!fatalN                            -- Phix
+--/**/                                  int3 }                                  -- Phix
 --/**/                                                                  --/*    -- Phix
                                 puts(1,"sequence found in character string\n")  -- RDS
                                 if getc(0) then end if                          -- RDS
@@ -731,6 +786,7 @@ end if
                     end if
                     r1 = sprintf2(o,fi,showplus,minfieldwidth,precision)
                     if showcommas then -- ('f' only)
+                        if fidx!=9 then badfmt() end if
                         showcommas = find('.',r1)
                         if showcommas=0 then showcommas = length(r1)+1 end if
                         while showcommas>4 do
@@ -741,12 +797,23 @@ end if
                 end if
 -- replaced 19/10/17:
 --              minfieldwidth -= length(r1)
-                minfieldwidth -= length(utf8_to_utf32(r1))
+--              minfieldwidth -= length(utf8_to_utf32(r1))
+--DEV/SUG:
+--              minfieldwidth -= length(iff(r_len!=0?call_func(r_len,{r1}):r1))
+                minfieldwidth -= length(iff(unicode_align?utf8_to_utf32(r1):r1))
                 if minfieldwidth>0 then
                     if zerofill then
                         r1 = repeat('0',minfieldwidth)&r1
                     elsif leftjustify then
                         r1 = r1&repeat(' ',minfieldwidth)
+--DEV/SUG:
+                    elsif centre then
+                        integer mh = floor(minfieldwidth/2)
+                        if centre=1 then    -- '=', split 3:4
+                            r1 = repeat(' ',mh)&r1&repeat(' ',minfieldwidth-mh)
+                        else                -- '|', split 4:3
+                            r1 = repeat(' ',minfieldwidth-mh)&r1&repeat(' ',mh)
+                        end if
                     else
                         r1 = repeat(' ',minfieldwidth)&r1
                     end if
@@ -787,7 +854,22 @@ end function
 --DEV move this (once newEmit is done) [better yet put itin the optable]
 -- note: printf is now defined in pfileioN.e
 global procedure printf(integer fn, sequence fmt, object args={})
-    puts(fn,sprintf_(fmt,args))
+--DEV/SUG:
+    if fn=0 and fmt="" then
+--      -- args is settings-pairs, eg {"r_len",routine_id("utf8_to_utf32")}
+        -- args is settings-pairs, eg printf(0,"",{"unicode_align",true})
+        if remainder(length(args),2) then throw("must be even length") end if
+        for i=1 to length(args) by 2 do
+            string setting = args[i]
+            switch setting do
+--              case "r_len": r_len = args[i+1]
+                case "unicode_align": unicode_align = args[i+1]
+                default: throw("unknown printf setting")
+            end switch
+        end for
+    else
+        puts(fn,sprintf_(fmt,args))
+    end if
 end procedure
 
 

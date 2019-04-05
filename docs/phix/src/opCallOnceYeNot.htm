@@ -1,0 +1,125 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">opCallOnceYeNot</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td valign=top>
+          <b>Syntax:</b>
+         </td>
+         <td>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+           <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_12a63b96-f7ab-4178-936c-8d2496d81946');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_12a63b96-f7ab-4178-936c-8d2496d81946" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+#ilASM{ jmp :!opCallOnceYeNot
+        ...
+      }
+</eucode-->
+<pre>
+<font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> jmp</font><font color="#0000FF"> :</font><font color="#FF0000">!</font><font color="#000000">opCallOnceYeNot
+</font><font color="#0000FF">        ...
+      }</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Description:</b>
+         </td>
+         <td>
+            Ensures a builtins\VM component has compiled correctly.
+            <br>
+            <br>
+            Suppose you have a (normal, hll) file my_include.e as follows:
+<!--eucode>
+puts(1,"Hi\n")
+global procedure bye()
+    puts(1,"Bye\n")
+end procedure
+puts(1,"There\n")
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Hi\n"</font><font color="#0000FF">)
+</font><font color="#008080">global procedure</font><font color="#000000"> bye</font><font color="#0000FF">()
+</font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Bye\n"</font><font color="#0000FF">)
+</font><font color="#008080">end procedure
+</font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"There\n"</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            And a litte test program:
+<!--eucode>
+include my_include.e
+bye()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> my_include.e
+bye</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            Obviously you would expect the "Hi" (and "There") to be displayed before the "Bye". Each file generates a hidden top-level 
+            subroutine, which the compiler invokes, but only when it needs to. There are hundreds of files in builtins\VM so the last 
+            thing we want is to call hundreds of empty top-level subroutines that do nothing, when each and every program starts.
+            <br>
+            <br>
+            The definition of :!opCallOnceYeNot is simply just an int3 statement, and there is not much point making that a more
+            human-readable error with a source code line number, since jumping to that definition is not actually very helpful,
+            and jumping to the point of cause, especially for an auto-include, wouldn&rsquo;t be either.
+            <br>
+            <br>
+            An example of something that can trigger this error is adding say
+<!--eucode>
+constant something = somefunc()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> something</font><font color="#0000FF"> =</font><font color="#000000"> somefunc</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            to a builtins\VM source file (above the jmp). Of course that sort of thing&rsquo;s fine if really needed, in which case 
+            you probably want to replace the jmp :!opCallOnceYeNot with
+<!--eucode>
+#ilASM{ jmp :fin
+        ...
+        ::fin
+      }
+</eucode-->
+<pre>
+<font color="#000000">#</font><font color="#008080">ilASM</font><font color="#0000FF">{</font><font color="#000000"> jmp</font><font color="#0000FF"> :</font><font color="#000000">fin
+</font><font color="#0000FF">        ...
+        ::</font><font color="#000000">fin
+</font><font color="#0000FF">      }</font>
+</pre>
+            <br>
+            However, in most cases it is probably better to defer such initialisation until it is actually needed.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Defined in:</b>
+         </td>
+         <td>builtins\VM\pUnassigned.e
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

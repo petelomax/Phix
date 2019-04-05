@@ -16,8 +16,6 @@
 --    prime_factors(720) is {2,3,5}
 --    prime_factors(12345) is {3,5,823}
 --
--- Note that prime_factors() always returns {} when passed a prime number.
---
 
 global function factors(atom n, integer include1=0)
 -- returns a list of all integer factors of n
@@ -51,9 +49,22 @@ end function
 global function prime_factors(atom n, bool duplicates=false)
 sequence pfactors = {}
 integer p = 2, 
+        step = 1,
         lim = floor(sqrt(n))
 
-    if n<1 or n!=floor(n) then ?9/0 end if      --DEV crash("argument to prime_factors() must be a positive integer",{},2)
+    if n<1 or n!=floor(n) then
+        crash("argument to prime_factors() must be a positive integer")
+    elsif n>power(2,iff(machine_bits()=32?53:64)) then
+        -- n above power(2,53|64) is pointless, since IEE 754 floats drop 
+        -- low-order bits. As per the manual, on 32-bit atoms can store 
+        -- exact integers up to 9,007,199,254,740,992, however between
+        -- that and 18,014,398,509,481,984 you can only store even nos,
+        -- then upto 36,028,797,018,963,968, you can only store numbers 
+        -- divisible by 4, etc. Hence were you to ask for the prime
+        -- factors of 9,007,199,254,740,995 you might be surprised when
+        -- it does not list 5, since this gets 9,007,199,254,740,994.
+        crash("argument to prime_factors() exceeds maximum precision")
+    end if
     while p<=lim do
         if remainder(n,p)=0 then
             pfactors = append(pfactors,p)
@@ -67,7 +78,8 @@ integer p = 2,
             if n<=p then exit end if
             lim = floor(sqrt(n))
         end if
-        p += 1
+        p += step   -- (p:=2,3,5,7,9,11, etc)
+        step = 2
     end while 
     if n>1 and (length(pfactors)!=0 or duplicates) then
         pfactors = append(pfactors,n)

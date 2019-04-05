@@ -1,0 +1,1129 @@
+--
+-- demo\rosetta\rubik_single.exw    (experimental)
+-- =============================
+--
+--  single stage, different scoring approach...
+--
+-- Uses brute-force (width/highscore-first) Fridrich-steps (ie cross,f2l,oll,pll).
+-- Decent but less than optimal solution (~50 moves), some obvious reasons are:
+--  Brute force rarely achieves results that will rival intelligent design.
+--  Any scoring system probably favours unhelpful-but-non-damaging moves.
+--  Optimal path likely contains lower interim scores this does not pursue.
+--  In this model centres are fixed, with no middle rotates about any axis.
+--  The Fridrich method was never intended to deliver optimal solutions.
+--  Always does white cross - some other colour would often prove better.
+--  Yields first found, does not try any other same-length stages or eg a 
+--  slightly longer f2l stage that might result in a much shorter oll step.
+--  Does not optimise eg last move of oll being immediately undone by pll.
+--  A Thistlethwaite solution would almost certainly beat this hands down,
+--  and furthermore do so in a tiny fraction of the time this thing takes.
+--  I have aimed for readable code in preference to the perfect solution.
+--
+-- I brute-forced the cross, cos that's pretty much how I do it anyway, 
+--  and totally happy with that (it is near-optimal, afaik) then got a 
+--  bit carried away... OK with F2l, I guess, quite pleased with OLL,
+--  but PLL stage results are decidedly the ones I am least happy with.
+--
+-- Each stage uses a workspace of moves tried so far, ranked by score.
+-- We repeatedly take the best scoring so far and try more moves, storing
+-- those results in a second/new workspace. The THRESHOLD value below
+-- determines the minimum number we should examine before discarding a
+-- workspace and switching to the new (one move longer) one. We only ever
+-- switch on change of score, and obviously the first workspace is empty,
+-- and the next new workspace has a maximum of 12 entries (+/-90 by 6), 
+-- both of which will force earlier switches.
+--
+--DEV to go...
+--constant THRESHOLD = 100000 -- 100000 -- very slow (100s), best results
+                            --  10000 -- slow (10s), reasonable results
+                            --   1000 -- fast (1s), fairly poor results
+                            --    100 -- (counter-productive/slower)
+
+bool single_stage = true
+--bool single_stage = false
+
+--DEV "collect" stages, eg after 6 moves, collect all cross (and only cross?),
+--                      and after 6+28 moves, collect all f2l, etc
+--bool collect_stages = single_stage
+--bool collect_stages = false
+
+
+string init ="""
+_____________---YYY--------
+             ---YYY--------
+             ---YYY--------
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+-- numbering:
+--  1..15:   ---456--------\n
+--  16..30:  ---901--------\n   -- U
+--  31..45:  ---456--------\n
+--  46..60:  678901234567--\n
+--  61..75:  123456789012--\n   -- LFRB
+--  76..90:  678901234567--\n
+--  91..105: ------789-----\n
+--  106..120:------234-----\n   -- D
+--  121..136:------789-----\n\n
+
+if length(init)!=136 then ?9/0 end if
+
+--
+-- TIP: Wrap a cube with blank paper, and write
+--      the numbers on it, to derive these sets.
+--
+constant centres = {20,62,65,68,71,113}
+
+--constant edges = {{  4,  5,  6,57,56,55}, -- ie YYY/OOO
+--                {  6, 21, 36,54,53,52},   --    YYY/GGG
+--                { 34, 35, 36,49,50,51},   --    YYY/RRR
+--                {  4, 19, 34,46,47,48},   --    YYY/BBB
+--                { 51, 66, 81,52,67,82},   --    RRR/GGG
+--                { 54, 69, 84,55,70,85},   --    GGG/OOO
+--                { 57, 72, 87,46,61,76},   --    OOO/BBB
+--                { 48, 63, 78,49,64,79},   --    BBB/RRR
+--                { 97, 98, 99,82,83,84},   --    WWW/GGG
+--                { 99,114,129,85,86,87},   --    WWW/OOO
+--                {127,128,129,78,77,76},   --    WWW/BBB
+--                { 97,112,127,81,80,79}}   --    WWW/RRR
+
+--constant corners = {{ 4, 57,46},{34,48, 49},{36,51,52},{ 6,54,55},
+--              --   YOB/UBL     YBR/UFL     YRG/UFR    YGO/UBL
+--                  {76,129,87},{78,79,127},{81,82,97},{84,85,99}}
+--              --   BWO/DBL     BRW/DFL     RGW/DFR    GOW/DFL
+
+constant facing_corners = {-16,-14,16,14}, -- (nb not 14,16)
+         facing_edges   = {-15,  1,15,-1},
+--       fce = facing_corners&facing_edges,
+         rotations = {
+                      -- up (clockwise):
+                      {{57,54,51,48},   -- clockwise corners
+                       {46,55,52,49},   -- anticlockwise corners
+                       {47,56,53,50}},  -- middle edges
+                      -- left
+                      {{ 4,49,127, 87},
+                       {57,34, 79,129},
+                       {19,64,128, 72}},
+                      -- front
+                      {{34,52, 97, 78},
+                       {48,36, 82,127},
+                       {35,67,112, 63}},
+                      -- right
+                      {{36,55,99,81},
+                       {51, 6,85,97},
+                       {21,70,98,66}},
+                      -- back
+                      {{ 6,46,129,84},
+                       {54, 4, 76,99},
+                       { 5,61,114,69}},
+                      -- down
+                      {{82,85,76,79},
+                       {81,84,87,78},
+                       {83,86,77,80}}}
+
+-- Routines to convert between my 136-character cube and reid notation:
+
+--                  "UF", "UR", "UB", "UL", "DF",  "DR", "DB",  "DL",  "FR", "FL", "BR", "BL", 
+constant reidmap = {35,50,21,53, 5,56,19,47,112,80,98,83,114,86,128,77,66,67,64,63,70,69,72,61,
+--                  "UFR",   "URB",  "UBL",  "ULF",   "DRF",   "DFL",    "DLB",    "DBR"
+                    36,51,52,6,54,55,4,57,46,34,48,49,97,82,81,127,79,78,129,76,87,99,85,84}
+
+function reid_to_cube(string reid)
+string cube = init
+--  cube = substitute_all(cube,"YBRGOW","ybrgow")   -- (test)
+    reid = substitute(reid," ","")
+    for i=1 to length(reid) do
+        cube[reidmap[i]] = "YBRGOW"[find(reid[i],"ULFRBD")]
+    end for
+    return cube
+end function
+
+if 0 then
+    puts(1,reid_to_cube("UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR"))
+end if
+
+function cube_to_reid(string cube)
+string res = ""
+    for i=1 to length(reidmap) do
+        if i<=25 then
+            if i>1 and mod(i,2)=1 then res &= ' ' end if
+        elsif mod(i,3)=1 then
+            res &= ' '
+        end if
+        res &= "ULFRBD"[find(cube[reidmap[i]],"YBRGOW")]
+    end for
+    return res
+end function
+
+if 0 then
+    ?cube_to_reid(reid_to_cube("UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR"))
+    --"UF UR UB UL DF DR DB DL FR FL BR BL UFR URB UBL ULF DRF DFL DLB DBR" (tick)
+end if
+
+enum U=1,L=2,F=3,R=4,B=5,D=6,Dbl=#08,Shift=#10
+constant U2 = U+Dbl, L2 = L+Dbl, F2 = F+Dbl, R2 = R+Dbl, B2 = B+Dbl, D2 = D+Dbl,
+         Us = U+Shift, Fs = F+Shift, Bs = B+Shift, Rs = R+Shift, Ds = D+Shift
+
+--enum CROSS,F2L,OLL,PLL
+
+--integer f2l = 0       -- (28==done)
+--integer edge_score = 0    -- (0..12 for f2l [as U cleared],
+                        --  0..24 for oll and pll stages)
+
+--function score(string cube, integer stage)
+--integer res = 0, c, cc, k
+--  f2l = 0
+--  for i=1 to length(centres) do
+--      c = centres[i]
+--      cc = cube[c]
+--      for j=1 to length(fce) do -- (the 8 next to c)
+--          k = c+fce[j]
+--          if cube[k]=cc then
+--              res += 1
+--              f2l += (stage>CROSS and k>=61)
+--          end if
+--      end for
+--  end for
+--  -- give extra credit for edges paired with corners
+--  edge_score = 0  -- += (0|1|2) for the 12 edges:
+--  if stage>CROSS then
+--      for i=1 to length(edges) do
+--          sequence ei = edges[i]  -- as 123
+--          --                      --    456
+--          -- then if {1,4}=={2,5} then edge_score += 1, 
+--          -- plus if {2,5}=={3,6} then edge_score += 1.
+--          edge_score += (cube[ei[1]]=cube[ei[2]] and
+--                         cube[ei[4]]=cube[ei[5]]) +
+--                        (cube[ei[2]]=cube[ei[3]] and
+--                         cube[ei[5]]=cube[ei[6]])
+--      end for
+--  end if
+--  return res
+--end function
+
+--(DEV) new scoring system:
+--function pairmap(sequence spairx, sface)
+----    sequence spairs = spairx
+--  sequence spairs = {}
+--  for i=1 to length(spairx) do
+----        for j=1 to length(spairx[i][j]) do
+----            spairs[i][j] = sface[spairx[i][j]]
+----        end for
+----        spairs[i][1] = sface[spairx[i][1]]
+----        spairs[i][2] = sface[spairx[i][2]]
+--      integer {s1,s2} = spairx[i]
+----X       spairs[i][1] = sface[s1]
+----X       spairs[i][2] = sface[s2]
+----X       spairs[i] = {sface[s1],sface[s2]}
+--      spairs = append(spairs,{sface[s1],sface[s2]})
+--  end for
+--  return spairs
+--end function
+
+--function tripmap(sequence stripx, sface)
+--  sequence strips = {}
+--  for i=1 to length(stripx) do
+--      integer {s1,s2,s3} = stripx[i]
+--      sequence s123 = {sface[s1],sface[s2],sface[s3]}
+--      strips = append(strips,s123)
+--  end for
+--  return strips
+--end function
+--
+--constant sface = {-16,-15,-14,
+--                 -1,  0,  1,
+--                 14, 15, 16},
+----         spairx = {{1,2},{2,5},{2,3},
+----                   {3,6},{6,5},{6,9},
+----                   {9,8},{8,5},{8,7},
+----                   {7,4},{4,5},{4,1}},
+--       stripx = {{1,2,3},
+--                 {3,6,9},
+--                 {9,8,7},
+--                 {7,4,1}},
+----         spairs = pairmap(spairx,sface)
+--       strips = tripmap(stripx,sface)
+
+-- or just:
+--?spairs
+-- {{-16,-15},{-15, 0},{-15,-14},
+--  {-14,  1},{  1, 0},{  1, 16},
+--  { 16, 15},{ 15, 0},{ 15, 14},
+--  { 14, -1},{ -1, 0},{ -1,-16}}
+--?strips
+-- {{-16,-15,-14},
+--  {-14,  1, 16},
+--  { 16, 15, 14},
+--  { 14, -1,-16}}
+
+        
+
+--/!*
+--DEV new builtin??
+--[DOC] Of course for any and all sequence s, subscripts(s,tagset(length(s)) is equal to s.
+--OE:
+--      8.16.5.13 extract
+--      include std/sequence.e
+--      namespace stdseq
+--      public function extract(sequence source, sequence indexes)
+--      Picks out from a sequence a set of elements according to the supplied set of indexes.
+--
+--      Parameters:
+--      source : the sequence from which to extract elements
+--      indexes : a sequence of atoms, the indexes of the elements to be fetched in source.
+--      Returns:
+--      A sequence, of the same length as indexes.
+--
+--      Example 1:
+--      s = extract({11,13,15,17},{3,1,2,1,4})
+--      -- s is {15,11,13,11,17}
+--      See Also:
+--
+--function subscripts(sequence s, idx)
+--  sequence res = {}
+--  for i=1 to length(idx) do
+--      res = append(res,s[idx[i]])
+--  end for
+--  return res
+--end function
+--*!/
+
+--function score2(string cube)
+--integer res = 0
+--  for i=1 to length(centres) do
+--      integer c = centres[i],
+--              cc = cube[c]
+--      for j=1 to length(strips) do
+----            integer {c1,c2,c3} = sq_add(c,strips[j])
+----            c1 = cube[c1]
+----            c2 = cube[c2]
+----            c3 = cube[c3]
+--          sequence c123 = sq_add(c,strips[j])
+--          integer {c1,c2,c3} = subscripts(cube,c123)
+--          res += (c1=c2) + (c2=c3) + (c2=cc)
+--      end for
+--  end for
+----    61..75:  123456789012--\n   -- LFRB
+----    76..90:  678901234567--\n
+----    91..105: ------789-----\n
+----    for i=91 to 61 by -15 do
+--  for i=76 to 61 by -15 do
+--      if cube[i..$]!=init[i..$] then exit end if
+--      res += 1+(i=61)
+--  end for
+--  return res
+--end function
+
+--function score2(string cube)
+--integer res = 0--, c, c1, c2
+--  for i=1 to length(centres) do
+--      integer c = centres[i]
+--      for j=1 to length(spairs) do
+----            c1 = cube[c+spairs[j][1]]
+----            c2 = cube[c+spairs[j][2]]
+----            if c1=c2 then
+----                res += 1
+----            end if
+--          integer {c1,c2} = spairs[j]
+--          c1 = cube[c+c1]
+--          c2 = cube[c+c2]
+--          res += c1=c2
+--      end for
+--  end for
+--  return res
+--end function
+
+-- numbering:
+--  1..15:   ---456--------\n
+--  16..30:  ---901--------\n   -- U
+--  31..45:  ---456--------\n
+--  46..60:  678901234567--\n
+--  61..75:  123456789012--\n   -- LFRB
+--  76..90:  678901234567--\n
+--  91..105: ------789-----\n
+--  106..120:------234-----\n   -- D
+--  121..136:------789-----\n\n
+--constant sp = {{{4,5},{57,56}},
+--             {{5,20},{56,71}},
+--             {{5,6},{56,55}},
+--{  4,  5,  6,57,56,55},   -- ie YYY/OOO
+--  constant ep = 
+--constant centres = {20,62,65,68,71,113}
+
+constant edges = {{  4,  5,  6, 20,57,56,55,71},    -- ie YYY/OOO
+                  {  6, 21, 36, 20,54,53,52,68},    --    YYY/GGG
+                  { 34, 35, 36, 20,49,50,51,65},    --    YYY/RRR
+                  {  4, 19, 34, 20,46,47,48,62},    --    YYY/BBB
+                  { 51, 66, 81, 65,52,67,82,68},    --    RRR/GGG
+                  { 54, 69, 84, 68,55,70,85,71},    --    GGG/OOO
+                  { 57, 72, 87, 71,46,61,76,62},    --    OOO/BBB
+                  { 48, 63, 78, 62,49,64,79,65},    --    BBB/RRR
+                  { 97, 98, 99,113,82,83,84,68},    --    WWW/GGG
+                  { 99,114,129,113,85,86,87,71},    --    WWW/OOO
+                  {129,128,127,113,76,77,78,62},    --    WWW/BBB
+                  {127,112, 97,113,79,80,81,65}}    --    WWW/RRR
+,
+        ep = {{{1,2},{5,6}},
+              {{2,4},{6,8}},
+              {{2,3},{6,7}}}
+
+function nextract(sequence s, object idx)
+--extracts elements of s, keeping the same structure as idx
+-- eg nextract("ABC",{{1,2},{2,3}}) -> {{'A','B'},{'B','C'}}
+    object res
+    if integer(idx) then
+        res = s[idx]
+    else
+        res = {}
+        for i=1 to length(idx) do
+            res = append(res,nextract(s,idx[i]))
+        end for
+    end if
+    return res
+end function
+
+                  
+function score3(string cube)
+integer res = 0
+    for i=1 to length(edges) do
+        sequence edge = edges[i],
+                 e = nextract(edge,ep),
+                 c = nextract(cube,e)
+        for j=1 to length(c) do
+--          bool both_equal
+            res += (c[j][1,1]=c[j][1,2]) and (c[j][2,1]=c[j][2,2])
+        end for
+    end for
+--  61..75:  123456789012--\n   -- LFRB
+--  76..90:  678901234567--\n
+--  91..105: ------789-----\n
+--  for i=91 to 61 by -15 do
+--/*
+    for i=76 to 61 by -15 do
+        if cube[i..$]!=init[i..$] then exit end if
+        res += 1+(i=61)
+    end for
+--*/
+    return res
+end function
+
+
+--function oll_score(string cube)
+---- (should only be invoked if f2l==28)
+--integer res = 0   -- (true if res=8)
+--integer cu = centres[U]
+--  if cube[cu]!='Y' then ?9/0 end if
+--  for i=1 to length(fce) do
+--      integer fcei = fce[i]
+--      res += (cube[cu+fcei]='Y')
+--  end for
+--  return res
+--end function
+
+function rotate_face(string cube, integer face)
+--
+-- face is 1..6 for clockwise (ULFRBD), 
+-- plus #08(Dbl) for a 180 (clockwise),
+-- plus #10(Shift) for anti-clockwise.
+--
+-- Technical note: while all rotations are declared
+-- in a clockwise fashion, this actually performs a
+-- {12,3,6,9} = {3,6,9,12}, which is anti-clockwise.
+-- Hence bool cw may be inverse of that expected,
+-- but overall it achieves exactly what it should.
+--
+    integer dbl = 1+(and_bits(face,Dbl)=Dbl)
+    bool cw = 1-floor(face/Shift)
+    face = remainder(face,Dbl)
+    integer cf = centres[face]
+    sequence rf = {sq_add(facing_corners,cf),
+                   sq_add(facing_edges,cf)}
+                  &rotations[face]
+    for d=1 to dbl do
+        for i=1 to length(rf) do
+            sequence rfi = rf[i]
+            if cw then rfi = reverse(rfi) end if
+            integer rfi1 = cube[rfi[1]]
+            for j=1 to 3 do
+                cube[rfi[j]] = cube[rfi[j+1]]
+            end for
+            cube[rfi[4]] = rfi1
+        end for
+    end for
+    return cube
+end function
+
+--Since we know gods number is 20, we can eliminate:
+--  all 19-moves that score less than 60
+--  all 18-moves that score less than 48
+--  all 17-moves that score less than 36
+--  all 16-moves that score less than 24
+--  all 15-moves that score less than 12
+--?score2(init) --72
+--?score2(rotate_face(init,1)) --60
+
+--?score3(init) -- 36
+--?score3(rotate_face(init,1)) -- 28 (,20,12,4)
+--{} = wait_key()
+--abort(0)
+
+--sequence eliminate = repeat(0,14)&tagset(72,12,12)
+--sequence eliminate = repeat(0,14)&tagset(75,15,12)
+sequence eliminate = repeat(0,16)&tagset(36,4,8)
+--?eliminate
+--?length(eliminate)
+
+procedure elim(integer n)
+    for i=20 to n by -1 do
+--      eliminate[i] = 72
+--      eliminate[i] = 75
+        eliminate[i] = 36
+    end for
+--  for i=60 to 12 by -12 do
+    for i=28 to 4 by -8 do
+        n -= 1
+--      eliminate[n] = i
+--      eliminate[n] = i+3
+        eliminate[n] = i
+    end for
+end procedure
+
+--elim(19)
+--?eliminate
+--elim(18)
+--?eliminate
+--elim(16)
+--?eliminate
+--{} = wait_key()
+--{0,0,0,0,0,0,0,0,0,0,0,0,0,0,12,24,36,48,60,72}
+--20
+--{0,0,0,0,0,0,0,0,0,0,0,0,0,12,24,36,48,60,72,72}
+--{0,0,0,0,0,0,0,0,0,0,0,0,12,24,36,48,60,72,72,72}
+--{0,0,0,0,0,0,0,0,0,0,12,24,36,48,60,72,72,72,72,72}
+
+
+function apply_moves(string cube, sequence moves)
+    for i=1 to length(moves) do
+        cube = rotate_face(cube,moves[i])
+    end for
+    return cube
+end function
+
+function moves_to_string(sequence moves)
+-- convert eg {1,20,11} to "UR'F2"
+string res = ""
+integer l = min(length(moves),60)
+    for i=1 to l do
+        integer face = moves[i]
+        integer dbl = and_bits(face,Dbl)=Dbl
+        bool anticlockwise = floor(face/Shift)
+        face = remainder(face,Dbl)
+        res &= "ULFRBD"[face]
+        if dbl then
+            res &= '2'
+        elsif anticlockwise then
+            res &= '\''
+        end if
+    end for
+    if l<length(moves) then
+        res &= "..."
+        l = length(moves)
+    end if
+--  res &=sprintf("  (%d move%s)     ",{l,iff(l=1?"":"s")})
+    res &=sprintf("  (%d move%s)",{l,iff(l=1?"":"s")})
+    return res
+end function
+
+--
+-- The seen dictionary.
+--  Without this, since it uses a breadth/highscore-first
+--  algorithm, after f2l (for instance) it would probably
+--  just do U and U' as the new high scores, forever.
+--  (The THRESHOLD constant mitigates that to some extent)
+--
+integer seen = new_dict()
+
+integer ll = 0
+string icube
+atom t0
+procedure show_cube(sequence moves, workspace, bool reposition=true)
+--sequence m0 = moves
+    integer l,c,s,lm
+    string cube = apply_moves(icube,moves)
+--  s = score2(cube)
+    s = score3(cube)
+--?{"show_cube",moves,s}
+    if reposition then
+        {l,c} = get_position()
+        position(3,1)
+    end if
+--  moves = moves_to_string(moves)&sprintf("  (score:%d/72)",s)
+--  moves = moves_to_string(moves)&sprintf("  (score:%d/75)",s)
+    moves = moves_to_string(moves)&sprintf("  (score:%d/36)",s)
+    lm = length(moves)
+    ll -= lm
+    string padding = iff(ll>0?repeat(' ',ll):"")
+    ll = lm
+    printf(1,"%s%s\n",{moves,padding})
+    integer ws = 0
+    for i=1 to length(workspace) do
+        if sequence(workspace[i]) then
+            ws += length(workspace[i])
+        end if
+    end for
+    s = dict_size(seen)
+    string e = elapsed(time()-t0)
+    printf(1,"workspace:%d, seen %d (%s)\n",{ws,s,e})
+    puts(1,substitute(cube,"-"," "))
+--puts(1,"key")
+--if wait_key()='q' then ?9/0 end if
+--puts(1,"\r   \r")
+    if reposition then position(l,c) end if
+end procedure
+        
+function insert_moves(sequence s, moves)
+    integer lm = length(moves),
+            ls = length(s)
+    while ls>0 and length(s[ls])>lm do ls -= 1 end while
+--?{s,moves}
+    s[ls+1..ls] = {moves}
+--?s
+--{} = wait_key()
+    return s
+end function
+
+--DEV/erm...
+-- A solved cube scores 48. It is not mathematically possible to score 47 or 46;
+--  using a workspace of length 46 (holding scores 0..45) which will crash if
+--  given a cube with one edge flipped seems sensible. However a single corner
+--  rotation or other invalid/unsolveable cubes will lead to an infinite loop,
+--  or more accurately it will run out of memory, and probably fairly quickly.
+--  (That was written before edge and oll scores were used, but still applies 
+--   to the wslen settings (>CROSS) below.)
+
+bool aborted = false
+
+function solve_cube(string cube)
+atom t1 = time()+1
+string moves = "", moves2
+sequence workspace, --w2,
+         init
+integer wslen, high = 1,
+        s
+bool done
+--integer achieved_stage=0
+sequence answers = repeat(0,20)
+
+--  wslen = 72
+--  wslen = 75
+    wslen = 36+1
+--icube = cube
+--  s = score2(cube)
+    s = score3(cube)
+--  done = (s=72)
+--  done = (s=75)
+    done = (s=36)
+    if not done then
+        workspace = repeat({},wslen)
+--      w2 = workspace
+        init = cube
+        workspace[high] = {""}
+--if not single_stage??
+        destroy_dict(seen,justclear:=1)
+        integer move_count = 1
+integer best_score = 0
+sequence best_moves
+        while 1 do
+            while workspace[high]={} do high -= 1 end while
+            moves = workspace[high][1]
+            workspace[high] = workspace[high][2..$]
+            cube = apply_moves(init,moves)
+            for face=U to D do
+--DEV??
+                -- (originally this loop did 180s as well, but that
+                --  gave them far too much dominance, esp during pll.
+                --  instead we now coalese those that survive a 90.)
+--              for m=0 to Shift by Shift do
+                for m=0 to Shift by Dbl do
+                    integer mi = face+m
+                    sequence cube2 = rotate_face(cube,mi)
+--                  s = score2(cube2)
+                    s = score3(cube2)
+                    if s>=eliminate[length(moves)+1]
+                    and getd_index(cube2,seen)=0 then
+                        putd(cube2,0,seen)
+--                      done = (s=72)
+--                      done = (s=75)
+                        done = (s=36)
+                        moves2 = moves
+                        if length(moves2) and moves2[$]=mi then
+                            moves2[$] = face+Dbl
+                        else
+                            moves2 &= mi
+                        end if
+                        if done then
+--?9/0
+--DEV resurrect this??
+--                          if s=48 or single_stage then
+--                          if 0 then
+--                              destroy_dict(seen,justclear:=1)
+                                integer l = length(moves2)
+                                answers[l] = moves2
+                                elim(l)
+--                              best_score = 72
+--                              best_score = 75
+                                best_score = 36
+                                best_moves = moves2
+
+--                              return moves2
+--                          end if
+--if collect_stages then
+--  if not best_score then
+--      w2 = repeat({},wslen)
+--  end if
+--end if
+--                      end if
+                        else
+                            if s>best_score then
+                                best_score = s
+                                best_moves = moves2
+--?{"best",s,best_moves}
+                            end if
+--if s<48 then
+--if s<48 and ((not collect_stages) or done or best_score=0) then
+--                      s += 1+edge_score*2+o
+--NO!!
+--  if s<=length(w2) then
+--  while s>length(w2) do ?"&0" w2&=0 high = length(w2) end while
+--  while s>length(w2) do ?"&0" w2&=0 end while
+--                      w2[s] = append(w2[s],moves2)
+--                      workspace[s] = append(workspace[s],moves2)
+s += 1
+                            workspace[s] = insert_moves(workspace[s],moves2)
+                            if s>high then high = s end if
+--  end if
+--end if
+--                      c2c += 1
+                        end if
+                    end if
+                end for
+            end for
+            if time()>t1 then
+                show_cube(best_moves,workspace)
+--              printf(1,"working... %d moves, %d positions (high=%d/%d)\r",{move_count,dict_size(seen),high,length(w2)+1})
+--              printf(1,"working... %d moves, %d positions (best=%d)\r",{move_count,dict_size(seen),best_score})
+                t1 = time()+1
+                if get_key()=#1B then aborted=true exit end if
+            end if
+        end while   
+    end if
+    return ""   -- (already solved case)
+--  return ""   -- (already solved or over limit case)
+end function
+        
+--constant stage_desc = { "make cross",
+--                      "solve first two layers",
+--                      "orientate last layer",
+--                      "permute last layer",
+--                      "single stage" }
+
+procedure main()
+string cube
+sequence moves
+integer total_moves = 0
+--atom t0 = time()
+t0 = time()
+
+if 01 then
+    if 0 then
+        moves = sq_rand(repeat(6,1000)) -- (would be perfectly fine...)
+    elsif 01 then
+        -- but this costs nothing really (<<0.015s anyway)
+        moves = shuffle(       sq_rand(repeat(6,1000))&
+                        sq_add(sq_rand(repeat(6,500)),Shift)&
+                        sq_add(sq_rand(repeat(6,100)),Dbl))
+        moves = moves[1..20] -- (helpful when testing)
+        moves = moves[1..10] -- (helpful when testing)
+    elsif 0 then
+        moves = {}   -- (tests the "already solved" case)
+    elsif 01 then
+        -- "hardest case" from http://www.cube20.org/ 
+        moves = {F, Us, F2, Ds, B, U, Rs, Fs, L, Ds, 
+                 Rs, Us, L, U, Bs, D2, Rs, F, U2, D2}
+--threshold 100000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: FUL'R'FLRF'LRB'R'U'BU'B'U'B  (18 moves)
+--orientate last layer: R'F'U'FUR  (6 moves)
+--permute last layer: RU'L'UR'U2LU'L'U2LU'  (12 moves)
+--solution of 42 total moves found in 81.95s
+--threshold 100000(ss):
+--single stage: UFDLBU'RFLD'BDBDB'DBD'U2F2U2BD'L'DLB'  (27 moves)
+--solution of 27 moves found in 111.97s                                 <<**
+--threshold 100000(cs):
+--<<crashed after ~83 moves>>
+--threshold 10000(ss):
+--single stage: FDLBU'RFUDB'U'BUDR'BD2LFU'L'U2LF'D'LDL'FLF'D'LDFL'F'L'FL2F'D'LDL'  (45 moves)
+--solution of 45 moves found in 15.47s
+--threshold 10000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: U'RB'U2R'UL'B'LBR'U'RL'ULU'FU'F'  (20 moves)
+--orientate last layer: R'F'U'FUR  (6 moves)
+--permute last layer: F'LDFD'L'FU'RUR'DR'D'R'DR2D'F'RFR'  (22 moves)
+--solution of 54 total moves found in 11.39s
+--threshold 10000(cs):
+--single stage: FDLBU'RFUDB'U'BUDR'BD2LFU'L'U2LF'D'LDLD'L'DLD'B'L2BDL2U'F2UFU'F'UFUL'U'LFU'R'UF2D'F'DF2U'RUF2D'L'DF2B'UBUB'U2BLU'L'U    (78 moves)
+--solution of 78 moves found in 34.08s
+--threshold 1000(ms): (slightly helpful)
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: U'B'L'U'LU'RU'R'UB'UB'U'BU2BLU'LUL'U'L2ULU'L'  (28 moves)
+--orientate last layer: (0 moves)
+--permute last layer: U2R'U2RL'B'LB'U'LUL'UBUR'U2F'U'FR  (21 moves)
+--solution of 55 total moves found in 1.81s
+--thistlethwaite(FU RU BU LU FD RD BD LD RB LB RF LF BLU LFU FRU RBU BDL RDB FDR LDF)
+--  FRBU'L'D'FU2B2UF2LUF2RU2L2UL2U2F2U'R2DR2B2R2D2F2U2R2U2B2L2B2 (35 moves)     [ beaten by 100000ss ]
+
+    elsif 0 then
+--broken on single_stage, max threshold...
+        -- "superflip", also from http://www.cube20.org/
+        moves = {R, L, U2, F, Us, D, F2, R2, B2, L, 
+                 U2, Fs, Bs, U, R2, D, F2, U, R2, U}
+--threshold 100000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: U'BL'UB'L'FD'B'DL'F2LF'L'UL'  (17 moves)
+--orientate last layer: FUF'L'U'LUFU2F'  (10 moves)
+--permute last layer: L'U'L'UL2U'L'F'L'FL2F'L'FL'  (15 moves)
+--solution of 48 total moves found in 111.05s                       <<** (!!)
+--threshold 100000(ss): error
+--threshold 100000(cs): (much better [than ss]!)
+--single stage: UL'B'F'R'D'L'B'D2L2D2L2U'LUBUB'UB2R2B'R'B'RB'DB'D'BD'R2DR'D'R2DRD'R'DBR'B'RBR'B'RB'LB2L'B2U'LULU'L'UL'B'UBU'    (66 moves)
+--solution of 66 moves found in 338.83s
+--threshold 10000(ss):
+--single stage: UD'LDF'U'F2<snip>BL2B'U2FUF'U  (289 moves)
+--solution of 289 moves found in 227.09s
+--threshold 10000(cs): (also much better!)
+--single stage: UD'L'U'FDF2R'F'UFB'L'B2U2RF'BD'F'R2F2R'UFUF'U'RU'R'FR'F'RL'U2LUL'U'LU'FUFUF'U'F'UL2D'L'DFL'FU'F2
+--              UFU'F'UF2RF2R'D2F'D2BR2B'R'BRB'R'B'DBD'B'DBD'R'D'RDR'D'R2DB2U'B2UR'URU'B'U'BURB'R'B'RBR'BUR'U'R  (120 moves)
+--solution of 120 moves found in 63.34s
+--threshold 10000(ms):
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: UR2FR'F'RFR'F'ULU'L'F'LFL'U2B'U'B  (21 moves)
+--orientate last layer: RB'R'BU2R2FRF'R  (10 moves)
+--permute last layer: FRUR'U'F'UFURU'R'F2LFL'BL'B'L'BL2B'U'LUL'  (27 moves)
+--solution of 64 total moves found in 16.45s
+--threshold 1000(ms): (slightly helpful)
+--make cross: DLBRFL    (6 moves)
+--solve first two layers: UR2FR'F'RFR'UF'LUL'U'LUL'UFU2F'UL'U'LUL'U'LU'L'UL  (33 moves)
+--orientate last layer: R'U2RU'BU2B'R'U'RBU'B'U2BU2B'  (17 moves)
+--permute last layer: F'U2FB'R'BR'U'BUB'URURU'R'U2  (18 moves)
+--solution of 74 total moves found in 2.31s
+--thistlethwaite(FU RU BU LU FD RD BD LD RF LF RB LB UFR URB UBL ULF DRF DFL DLB DBR)
+--FRBU'L'D'FRB2RD2RF2UL2U'F2UR2DF2L2U2R2F2L2B2U2B2U2L2 (31 moves)   [ beaten by 100000ms ]
+    elsif 01 then
+-- from https://en.wikibooks.org/wiki/How_to_Solve_the_Rubik%27s_Cube
+        moves = {U,Bs,R2,Ds,Us,R,U2,B,Rs,B2,L2,R,F2,R2,U2,R,B,U2,F2,L2,F2,D,R,B2,R2}
+--threshold 100000(ms):
+--make cross: UFLF'R  (5 moves)
+--solve first two layers: BR'B'RU'BRL'B'ULB'U'F'LFUL'  (18 moves)
+--orientate last layer: F'L'U'LU'FU'RURB'R'BR'  (14 moves)
+--permute last layer: F2L'U'LF2R'DR'D'R2  (10 moves)
+--solution of 47 total moves found in 106.19s
+--threshold 100000(ss):
+--single stage: RUF'RUR'UL2R'FD'FU'F'DRUFRF'U'F'UFR'    (25 moves)
+--solution of 25 moves found in 82.75s                                  **<<
+--threshold 100000(cs):
+--single stage: BD'B'ULF'RD'BDFLU'F'L'F'ULU'DFD'BLB'U'L'ULBL2B'L'  (33 moves)
+--solution of 33 moves found in 120.25s
+--?threshold 100000(ss):
+--?single stage: FU'L'FR'L'UFLD2BF2L2F'D2F'D2BL'D'LB'U'L'UB2D'B2DF'DFDF'D'FD'L'FLF' (41 moves)
+--?solution of 41 moves found in 15.36s (vs the 54 shown)
+--threshold 10000(ms):
+--with a threshold of 10000:
+--make cross: UFLF'R  (5 moves)
+--solve first two layers: D'R2DB'U'LB'LBL2B'LUB'U'BL'B'L  (19 moves)
+--orientate last layer: F'L'U'LUF  (6 moves)
+--permute last layer: R'F'U'FURF'U'L'ULF2R'F'RB'RBRB'R2BUR'U'R  (26 moves)
+--solution of 56 total moves found in 13.00s
+--threshold 10000(cs):
+--single stage: FU'L'FR'L'UFLD2BF2L2F'D2F'D2BL'D'LB'U'L'UB2D'B2DF'DFDF'D'FD'L'FLF'  (41 moves)
+--solution of 41 moves found in 15.30s
+--threshold 10000(ss):
+--solution of 144 total moves found in 5.34s
+--threshold 1000(ms): (no help)
+--solution of 144 total moves found in 5.51s
+--thistlethwaite(FD UR FR LU LD BU DB LF LB RB DR FU LFU URB FLD LBD RUF DBR LUB FDR)
+--  FR'UD'BU'R2URD2RD2LR2UR2U'F2UR2U'F2L2U2R2D2B2R2U2F2 (30 moves)							<<** (DEV overtaken!)
+    else
+        ?9/0    -- to set moves, one branch above must be taken!
+    end if
+    cube = apply_moves(init,moves)
+--?cube_to_reid(cube)
+    if length(moves)<=40 then
+        printf(1,"scramble: %s\n",{moves_to_string(moves)})
+        printf(1,"(%s)\n",{cube_to_reid(cube)})
+    else
+        printf(1,"\n\n")
+    end if
+elsif 0 then
+      cube = """
+_____________---OYO--------
+             ---YYY--------
+             ---YYY--------
+             YBBRRRGGYGOB--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: LFL'BLF'L'B'    (8 moves)
+--permute last layer: B'R'L'BLB'RBL'B'LB    (12 moves)
+--solution of 20 total moves found in 30.59s
+--threshold 100000(cs):
+--single stage: BLB2R'BL'B'RU'BLBL'B'U  (15 moves)
+--solution of 15 moves found in 36.48s                      <<** (==1)
+--threshold 100000(ss):
+--single stage: BLB2R'BL'B'RU'BLBL'B'U  (15 moves)
+--solution of 15 total moves found in 35.41s                <<** (==1)
+--threshold 10000(ms):
+--orientate last layer: B'R'URBUB'U'BLU2L'U'BL'B'L  (17 moves)
+--permute last layer: U2R'U2RB2L'B2LF'LFLF'L2FUL'U'L    (19 moves)
+--solution of 36 total moves found in 9.88s
+--threshold 10000(ss):
+--single stage: BD'BDB'L'B'LBL'B'L'U'L2ULU'L'U  (19 moves)
+--solution of 19 moves found in 4.59s
+--threshold 10000(cs):
+--single stage: BL'B'LBL2B'L'U'L'ULU'L'U'FUF'U  (19 moves)
+--solution of 19 moves found in 4.69s   (no help)
+--threshold 1000(ms):
+--solution of 130 total moves found in 5.58s    (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL UFR BUR BLU ULF DRF DFL DLB DBR)
+--RURDR'U'RU'R2UB2U'R2UB2DL2F2U2L2F2U2F2U2D2 (25 moves)     [ beaten by 10000ss ]
+
+elsif 0 then
+      cube = """
+_____________---YYO--------
+             ---YYY--------
+             ---YYR--------
+             BBBRRGYGYGOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: UFU2B'UF'U'BR'UFUF'U'R  (15 moves)
+--solution of 15 total moves found in 35.75s                    <<** (==1)
+--threshold 100000(ss):
+--single stage: UFU2B'UF'U'BR'UFUF'U'R  (15 moves)
+--solution of 15 total moves found in 35.61s                    <<** (==1)
+--threshold 100000(cs):
+--<<killed after 74 moves>>
+--threshold 10000(ms):
+--orientate last layer: U'L'B'UBLU2L'U'LUL'U'LFU2F'  (17 moves)
+--permute last layer: FU2F'L2BL2B'U'B'URBR'U'BL'UB2D'B'DB2U'LUB2D'R'DB2F'UFUF'U2FRU'R'U  (41 moves)
+--solution of 58 total moves found in 19.44s
+--threshold 10000(ss):
+--single stage: UL'ULU'F'U'FUF'U'F'R'F2RFR'F'R  (19 moves)
+--solution of 19 moves found in 4.61s
+--threshold 10000(cs):
+--single stage: UL'ULU'F'U'FUF'U'F'R'F2RFR'F'R  (19 moves)
+--solution of 19 moves found in 4.78s   (so so)
+--threshold 1000(ms):
+--solution of 236 total moves found in 14.92s (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL FRU BUR UBL ULF DRF DFL DLB DBR)
+--F2URU'L2UR'U'R2UR2U'L2UR2U'R2F2 (18 moves)			[ beaten by 100000ms ]
+
+elsif 0 then
+      cube = """
+_____________---YYG--------
+             ---YYY--------
+             ---YYG--------
+             BBBRRYRGOYOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: BLB'RBL'B'R'    (8 moves)
+--permute last layer: R'F'B'RBR'FRB'R'BR    (12 moves)
+--solution of 20 total moves found in 30.59s
+--threshold 100000(ss):
+--single stage: RBR2F'RB'R'FU'RBRB'R'U  (15 moves)          <<** (==1)
+--solution of 15 total moves found in 35.55s
+--threshold 100000(cs):
+--single stage: RBR2F'RB'R'FU'RBRB'R'U  (15 moves)
+--solution of 15 moves found in 40.36s                      <<** (==1)
+--threshold 10000(ms):
+--orientate last layer: R'F'UFRUR'U'RBU2B'U'RB'R'B  (17 moves)
+--permute last layer: U2F'U2FR2B'R2BL'BLBL'B'LB'U'LUL'  (20 moves)
+--solution of 37 total moves found in 9.84s
+--threshold 10000(ss):
+--single stage: RD'RDR'B'R'BRB'R'B'U'B2UBU'B'U  (19 moves)
+--solution of 19 moves found in 4.56s
+--threshold 10000(cs):
+--single stage: RB'R'BRB2R'B'U'B'UBU'B'U'LUL'U  (19 moves)
+--solution of 19 moves found in 4.70s   (so so)
+--threshold 1000(ms):
+--solution of 131 total moves found in 5.56s (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL RUF RBU UBL ULF DRF DFL DLB DBR)
+--F2ULD'R2DLR2U'L2U'R2UL2U'L2U'F2U2L2B2L2F2D2F2 (25 moves)	[ beaten by 100000ss ]
+
+elsif 0 then
+      cube = """
+_____________---YYY--------
+             ---YYY--------
+             ---RYR--------
+             BBYBRGYGGOOO--
+             BBBRRRGGGOOO--
+             BBBRRRGGGOOO--
+             ------WWW-----
+             ------WWW-----
+             ------WWW-----
+             
+             """
+--threshold 100000(ms):
+--orientate last layer: RBR'FRB'R'F'    (8 moves)
+--permute last layer: F'L'R'FRF'LFR'F'RF    (12 moves)
+--solution of 20 total moves found in 30.64s
+--threshold 100000(ss):
+--single stage: FRF2L'FR'F'LU'FRFR'F'U  (15 moves)
+--solution of 15 total moves found in 35.62s                <<** (==1)
+--threshold 100000(cs):
+--single stage: FRF2L'FR'F'LU'FRFR'F'U  (15 moves)
+--solution of 15 moves found in 36.77s                      <<** (==1)
+--threshold 10000(ms):
+--orientate last layer: F'L'ULFUF'U'FRU2R'U'FR'F'R  (17 moves)
+--permute last layer: U2L'U2LF2R'F2RB'RBRB'R2BUR'U'R    (19 moves)
+--solution of 36 total moves found in 9.86s
+--threshold 10000(ss):
+--single stage: FD'FDF'R'F'RFR'F'R'U'R2URU'R'U  (19 moves)
+--solution of 19 moves found in 4.58s
+--threshold 10000(cs):
+--single stage: FR'F'RFR2F'R'U'R'URU'R'U'BUB'U  (19 moves)
+--solution of 19 moves found in 4.74s   (so so)
+--threshold 1000(ms):
+--solution of 131 total moves found in 5.55s (not very helpful)
+--thistlethwaite(UF UR UB UL DF DR DB DL FR FL BR BL FRU URB UBL FUL DRF DFL DLB DBR)
+--R2ULU'R2ULR2U'F2U'L2UF2U'R2UD2R2D2F2L2F2R2U2L2 (26 moves) [ beaten by 100000ss ]
+
+elsif 01 then
+    cube = reid_to_cube("UL UF DR LB DF UR RB DL BU FL FR BD ULF RBU DRF LBD LUB DFL RDB UFR")
+--100000ms
+--make cross: UBR2  (3 moves)
+--solve first two layers: R2B'R2B  (4 moves)
+--solution of 7 total moves found in 2.56s
+--100000ss
+--single stage: UR2B    (3 moves)
+--solution of 3 moves found in 0.08s                <<**
+--100000cs
+--<<killed after 25 moves>>
+--  "UL UF DR LB DF UR RB DL BU FL FR BD ULF RBU DRF LBD LUB DFL RDB UFR",  "R2UBU'LF2UF2U'LF2L2F2R2F2U'F2R2F2U2B2R2B2", -- (23 moves)
+--  --                                                                      "UBR2 R2B'R2B"  (7 moves by CFOP!)
+elsif 01 then
+    cube = reid_to_cube("UF FR UB BL DB DL DF FL DR UL UR BR FDR FRU DBR BLU DLB FUL URB DFL")
+--100000(ms)
+--make cross: D2R'  (2 moves)
+--solve first two layers: LB2L'B2L'  (5 moves)
+--solution of 7 total moves found in 5.39s
+--100000(ss)
+--single stage: L'D2R'  (3 moves)
+--solution of 3 moves found in 0.05s
+--100000(cs)
+--<<killed after 40 moves>>
+--  "UF FR UB BL DB DL DF FL DR UL UR BR FDR FRU DBR BLU DLB FUL URB DFL",  "R'B2LU2R2F2R2U2L2B2", -- (10 moves)
+    --                                                                      "D2R' LB2L'B2L'"  (7 moves by CFOP!)
+else
+    -- grab from args...
+--  cube = reid_to_cube(args[1])
+    cube = reid_to_cube("UL DL RF UB FD BR DB UF DR UR BL FL FDR BLU DLB URB RUF FLD BRD FUL")
+--threshold 100000(ms):
+--make cross: R'F2ULF'  (5 moves)
+--solve first two layers: LF'RD'R'L'UFB'L'UB'LBUB'U'L'B'L  (20 moves)
+--orientate last layer: R'U'F'UFU'F'UFR  (10 moves)
+--permute last layer: F2RUR'F2LD'LDL2  (10 moves)
+--solution of 45 total moves found in 120.94s
+--threshold 100000(ss):
+--single stage: D'B2L2DR'LU2F2LFU'FU2F2U'F'U'F2UFU'F  (22 moves)
+--solution of 22 moves found in 113.30s                                             <<**
+--threshold 100000(cs):
+--(??appears to take 18 moves to solve the cross...)
+--single stage: ULD'BUL'DR'F'UL'U'L'ULF2R'F2RU'B'U'BLUL'U'B'U2B  (30 moves)
+--solution of 30 moves found in 108.73s
+--threshold 10000(ms):
+--make cross: R'F2ULF'  (5 moves)
+--solve first two layers: FL'FLF'LB'U'RB'R'B'U'RUR'UB'U2B'U2B2U'B'  (24 moves)
+--orientate last layer: B'R'U'RUBU2F'LF'L'F2RU2R'  (15 moves)
+--permute last layer: UL'UL'U'L2UBL'B'L2BL'B'L2FLF'DF'R'FD2B'D'BD2F'RFD2B'L'BD2U'FUFU'F'UF'L'ULU'  (47 moves)
+--solution of 91 total moves found in 29.28s
+--threshold 10000(ss):
+--single stage: R'UDFUFD'BUB'LR'F'RUFU2FR'F'D'F'DF'R'F'RFRF'  (30 moves)
+--solution of 30 moves found in 8.53s
+--threshold 10000(cs):
+--<<killed after 350 moves>>
+--threshold 1000(ms):
+--solution of 60 total moves found in 2.05s (not really helpful)
+--thistlethwaite
+--"UF'R'FB2R2B2LD2L2DLR2U'F2UF2U2F2L2UF2DF2U2R2U2R2B2D2R2F2L2B2D2", -- (35 moves)
+end if
+
+    icube = cube
+    show_cube({},{},false)
+--  puts(1,substitute(cube,"-"," "))
+    printf(1,"(%s)\n",{cube_to_reid(cube)})
+
+    aborted = false
+--  for stage=CROSS to PLL do
+--  for stage=iff(single_stage?PLL:CROSS) to PLL do
+        moves = solve_cube(cube)
+        total_moves += length(moves)
+        cube = apply_moves(cube,moves)
+--      string sd = stage_desc[iff(single_stage?5:stage)]
+--      string sd = "single stage"
+--      printf(1,"%s: %s     \n",{sd,moves_to_string(moves)})
+--      if length(moves) then
+--          puts(1,substitute(cube,"-"," "))
+----        elsif aborted then
+----            exit
+--      end if
+--  end for
+    if not aborted then
+--      printf(1,"\nsolution of %d total moves found in %3.2fs\n",{total_moves,time()-t0})
+        printf(1,"\nsolution of %d %smoves found in %3.2fs\n",{total_moves,iff(single_stage?"","total "),time()-t0})
+    end if
+end procedure
+main()
+
+{} = wait_key()
+
+-- some test results:
+--/*
+string init ="""
+---ORR--------
+---GYY--------
+---GRB--------
+WOOYWRYBWGYG--
+YBWGRBOGWOOO--
+BYRYWWOBBORW--
+------BRY-----
+------BWG-----
+------GGR-----
+
+"""
+--*/
+--  100,000 : 62 secs, 18 moves
+--   10,000 : 6 secs, 22 moves
+--    1,000 : .7 secs, 24 moves
+--      100 : 1 sec, 191 moves
+

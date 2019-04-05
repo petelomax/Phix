@@ -14,7 +14,8 @@
          </td>
          <td>
           <code>
-             <a href="sequence.htm">sequence</a> r = get_text(<a href="integer.htm">integer</a> fn, <a href="integer.htm">integer</a> option=-2)
+             <a href="object.htm">object</a> res = get_text(<a href="object.htm">object</a> fn, 
+                                                            <a href="integer.htm">integer</a> options=GT_WHOLE_FILE)
           </code>
          </td>
         </tr>
@@ -23,73 +24,81 @@
           <b>Description:</b>
          </td>
          <td>
-            Reads an entire file into memory. Suitable for relatively small text files, for
-            example configuration (ini) files, and most of the files used by editors and
-            compilers, at least the text ones that is. It is not suitable for large files, 
-            over say 5MB, or any form of binary file (database, video, executable etc).
+            Reads an entire file into memory.
             <br>
             <br>
-            This routine is deliberately limited to 1GB - the absolute maximum string length 
-            is 1,610,612,711 characters, on 32-bit, see pHeap.e, so that is about 66% of the 
-            maximum possible theoretical limit.
+            Suitable for relatively small text files, for example configuration (ini) files, and most of the files used by editors and
+            compilers, at least the text ones that is. It is not suitable for large files, over say 5MB, or most forms of binary file 
+            (database, video, executable etc - no absolute bar though). This routine is deliberately limited to 1GB (see technicalia).
             <br>
             <br>
-            Larger files should be processed [one char/byte/line at a time] by 
-            getc/gets/seek/puts, which have a (predicted) limit of 8192 TB, thousands 
-            of times larger than the biggest currently available hard drives.
+            Larger files should be processed [one char/byte/line at a time] by getc/gets/seek/puts, which have a (predicted) limit of 
+            8192 TB, thousands of times larger than the biggest currently available hard drives.
           <br>
           <br>
-            fn should be an open file with read access (it does not actually matter whether 
-            it was opened in binary or text mode)
+            If fn is an integer it should be an open file with read access (slight difference for binary/text mode and GT_WHOLE_FILE).<br>
+            If fn is a string the file is opened (in binary mode) and closed automatically, with -1 returned on failure.
           <br>
           <br>
             The following constants are automatically defined in psym.e/syminit():
           <br>
           <br>
           <table>
-           <col style="width: 5%"/>
            <tr>
             <th>Constant</th>
-            <th>Value</th>
+            <th><center>Value</center></th>
             <th>Description</th>
            </tr>
            <tr>
             <td>GT_WHOLE_FILE</td>
-            <td>-2</td>
-            <td>get whole file as one long string, plus final '\n' if missing.</td>
+            <td align=center>0</td>
+            <td>get whole file as one long string, plus a final '\n' if missing and fn is a file handle opened in text mode.</td>
            </tr>
            <tr>
             <td>GT_LF_STRIPPED</td>
-            <td>-1</td>
-            <td>returns an array of '\n'-stripped lines.</td>
+            <td align=center>1</td>
+            <td>returns a sequence of '\n'-stripped lines.</td>
            </tr>
            <tr>
             <td>GT_LF_LEFT</td>
-            <td>0</td>
-            <td>'\n' left on lines.</td>
+            <td align=center>2</td>
+            <td>returns a sequence of lines with '\n' left on.</td>
            </tr>
            <tr>
             <td>GT_LF_LAST</td>
-            <td>+1</td>
-            <td>'\n' left on lines, and put on last line if missing.</td>
+            <td align=center>4</td>
+            <td>returns a sequence of lines with '\n' left on, and put on last if missing.</td>
+           </tr>
+           <tr>
+            <td>GT_KEEP_BOM</td>
+            <td align=center>8</td>
+            <td>Retain leading utf8 byte order mark, see notes below.</td>
            </tr>
           </table>
           <br>
             &nbsp;
           <br>
-            GT_WHOLE_FILE (-2) leaves any embedded CR,LF,CRLF,LFCR as-is, whereas 
-            no CR are returned from the other options. GT_WHOLE_FILE is however the
-            fastest way to read a large file (GT_WHOLE_FILE is what p.exw uses).
+            GT_WHOLE_FILE leaves any embedded CR,LF,CRLF,LFCR as-is, whereas no CR are returned from the other options. 
+            GT_WHOLE_FILE is however the fastest way to read a large file (GT_WHOLE_FILE is what p.exw uses). 
           <br>
           <br>
-            GT_LF_LEFT is the only way to tell if the original file had a trailing 
-            blank line, should that be in any way important.
+            There is no way to determine whether the original file had a trailing \n when using GT_LF_STRIPPED, GT_LT_LAST, 
+            or (GT_WHOLE_FILE plus a file handle opened in text mode), should that be in any way important.
           <br>
           <br>
-            Note: after get_text(fn[,option]), the result of where(fn) is formally undefined. The (platform-specific part of the) implementation
-            is at liberty to set the current file pointer to the end of file, rewind to the start of file, or even leave the builtins\VM notion
-            of file position inconsistent with the underlying OS notion of said. Should an application attempt anything else with fn other than 
-            close it, a seek() will be required.
+            GT_KEEP_BOM: by default a leading utf8 byte order mark is automatically removed, as most applications do not need to treat utf8
+            any differently to ascii (all bytes below #80 have identical meaning, and no multi-byte encoding contains any bytes &lt;#80). 
+            If however you need to preserve/write it back/display things differently/etc, then you should specify GT_KEEP_BOM and test 
+            for/handle the thing yourself. Note that no such handling occurs for utf16(be/le), utf32, or any other byte order marks, 
+            quite deliberately, as those will always require very different treatment to plain ascii files.<br>
+            Note that GT_KEEP_BOM is meant to be added to one of the other constants; GT_KEEP_BOM on its own obviously therefore happens 
+            to behave (for no special reason/by accident only) exactly the same as GT_WHOLE_FILE+GT_KEEP_BOM.
+            <br>
+            <br>
+            Note: after get_text(integer fn[,option]), the result of where(fn) is formally undefined. The (platform-specific part of the) 
+            implementation is at liberty to set the current file pointer to the end of file, rewind to the start of file, or even leave the 
+            builtins\VM notion of file position inconsistent with the underlying OS notion of said. Should an application attempt anything 
+            else with fn other than close it, a seek() will be required.
          </td>
         </tr>
         <tr>
@@ -114,7 +123,9 @@ close(fn)
           <b>Implementation:</b>
          </td>
          <td>
-              via :%opGetText / fget_text() in builtins\VM\pfileioN.e (an autoinclude) - be warned however it is low-level complicated stuff that you do not need to know.
+            via :%opGetText / fget_text() in builtins\VM\pfileioN.e (an autoinclude) - be warned however it is low-level complicated stuff that you do not need to know.
+            <br>
+            Update: this routine has been split, with an outer wrapper in builtins\pfile.e, and the now slightly smaller internal fget_text() remaining in pfileioN.e
          </td>
         </tr>
         <tr>
@@ -124,15 +135,56 @@ close(fn)
          <td>
             There is no equivalent routine in RDS Eu.
           <br>
+          <br>
             OpenEuphoria has a <a href="read_lines.htm">read_lines</a>() routine offering somewhat similar functionality, which is partly replicated.
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td valign=top>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Originally this routine was entirely in VM/pfileioN.e however that has been renamed as get_textn() and a new shim added to builtins/pfile.e 
+            which allows a string as the first parameter, automatically opening and closing that file. At the same time, some of the option processing 
+            was also moved out of pfileioN.e into pfile.e (to avoid it being an unnecessary fixed overhead in applications that did not use it - the 
+            code that remains in pfileioN.e must be there for direct low-level access to its private file table), and at the same time the GT_KEEP_BOM 
+            processing/option was added and the other GT_XXX constants renumbered from -2/-1/0/1 to the saner 0/1/2/4.
+            <br>
+            <br>
+            Theoretically you could invoke get_textn() directly, as pfile.e does, however there is very little point and it is not officially supported.
+<!-- [DONE, I think...]
+            <br>
+            <br>
+            For various technical reasons, renaming a builtin is quite tricky, and has to be done
+            in several small incremental steps, plus I keep four copies of the compiler around so
+            that a change does not suddenly break everything. Rather than force it through, I am
+            just letting each step trickle through naturally, so there is a chance this will not
+            be entirely complete when 0.8.0 is released. Each small step retains compatibility, 
+            however at the time of writing GT_KEEP_BOM (removal) is not yet fully functional. <br>
+            I am also considering changing the GT_XXX constants to 0/1/2/4/8, if I can, which 
+            may add dozens of additional small incremental steps to the process, eg/ie +1 ->
+            +1 or 4 -> 4 only, 0 -> 0 or 2 -> 2 only, -1 -> -1 or 1 -> 1 only, and -2 -> -2 or
+            0 -> 0 only (tedious, innit).<br>
+            I will remove this notice when all the necessary stages have worked their way through.
+-->
+            <br>
+            <br>
+            This routine is deliberately limited to 1GB: the absolute maximum string length is 1,610,612,711 characters, on 32-bit, see pHeap.e, so 
+            that is about 66% of the maximum possible theoretical limit, and besides, once you have a string which occupies more than 50% of available 
+            memory (ie 1GB), you are severely hindered in what you can do with it: breaking it into lines, for instance, unless you discard each one 
+            before creating the next, would obviously run out of memory immediately. In fact, a full 1GB file probably only works with GT_WHOLE_FILE,
+            and will fail with said problem for any of the other options.
           <br>
           <br>
-            Should you require a routine that is compatible across Phix, RDS Eu, and OpenEuphoria, may I 
-            suggest that you might want to copy/rename/adapt the older builtins\pfileio.e\h_get_text(), 
-            in a new and separate file, and probably accept a filename rather than a filenumber. <!--DEV-->
+            Should you require a routine that is compatible across Phix, RDS Eu, and OpenEuphoria, roll your own using getc() or similar: the optimisation
+            of just one OS-level read that this routine embodies makes it a wholly unsuitable basis for such, and if I were you I wouldn&rsquo;t even look
+            at the source, with the possible exception of addline() from pfile.e.
          </td>
         </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
       </div>
      </stripped>
     </get>

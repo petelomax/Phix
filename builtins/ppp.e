@@ -41,7 +41,8 @@
 --   Lines are wrapped at 78 characters.
 --   Display is paused every 23 lines.
 --   Strings are printed as double-quoted ascii, eg "abc".
---    Values in the range #20 to #7F are treated as ascii.
+--<   Values in the range #20 to #7F are treated as ascii.
+--    Values in the range #20 to #7D are treated as ascii.
 --   Integers are printed using a "%d" format.
 --   Floating point numbers are printed using a "%g" format.
 --   Date handling is turned off by default.
@@ -111,7 +112,7 @@
 --          pp_FltFmt       Float format, default "%.10g"
 --                          Both pp_IntFmt and pp_FltFmt can contain extra text,
 --                          eg "#%08x (integer)", "%04.1 km", or "%.2f US$"
---          pp_Ascii        Min/max ascii character, default {' ',#7F}
+--          pp_Ascii        Min/max ascii character, default {' ',#7D}
 --                          If sequences are passed, they define ranges.
 --                          Eg, for ISO 8859-1, use {{#20,#A0},{#7E,#FF}},
 --                          since characters 0..31 and 127..159 are system codes.
@@ -221,7 +222,7 @@ integer ppp_StrFmt      -- 0=text as strings, -1 without quotes,
 integer ppp_Init   ppp_Init    =  0
 
 object  ppp_Ascii       -- low ascii [ranges]
---      ppp_Ascii={#20,#7F}
+--      ppp_Ascii={#20,#7D}
 sequence ppp_IntFmt     -- integer display format
 --       ppp_IntFmt="%d"
 sequence ppp_FltFmt     -- float display format
@@ -328,14 +329,16 @@ sequence constants
 function graphic(object cl)
     if integer(cl)
     and cl>=1
---  and cl<=255
+--  and cl>=' '
+    and cl<=255
 --DEV fixme:
 --  and cl<=iff(platform()=LINUX?#7E:255)
 --  and cl<=maxgraphic
 --30/1/18:
 --  and ((platform()=LINUX and cl<=#7E) or
 --       (platform()=WINDOWS and cl<=255))
-    and cl<=#7E
+--  and cl<=#7E
+--  and cl<='}'
     and ascii[cl] then
         return 1
     end if
@@ -362,10 +365,6 @@ object chint
 
             for i=1 to length(cl) do
                 chint = cl[i]
-                if not graphic(chint) then
-                    aschar = 0
-                    exit
-                end if
 -- 15/3/2010:
 ----                if ppp_StrFmt=0 then
 --              if chint<' ' then   -- "\r\n\t" or escape chars "&'
@@ -390,6 +389,9 @@ object chint
                         end if
                     end if
                 elsif chint<' ' then
+                    aschar = 0
+                    exit
+                elsif not graphic(chint) then
                     aschar = 0
                     exit
                 end if
@@ -518,8 +520,10 @@ object chint
             else
                 txt = sprintf("%d'%s'",{cl,cl})
             end if
-        elsif cl<0 then
-            -- we may want eg -$14.99, not $-14.99
+--3/12/18:
+--      elsif cl<0 then
+        elsif cl<0 and ppp_IntFmt[1]!='%' then
+            -- we may want eg -$14, not $-14
             txt = '-'&sprintf(ppp_IntFmt,-cl)
         else
             txt = sprintf(ppp_IntFmt,cl)
@@ -529,6 +533,12 @@ object chint
         if k then
             k += 1
             txt = constants[k]
+--25/11/18:
+--      elsif cl<0 then
+--      elsif cl<0 and ppp_FltFmt[2]='.' then
+        elsif cl<0 and ppp_FltFmt[1]!='%' then
+            -- we may want eg -$14.99, not $-14.99
+            txt = '-'&sprintf(ppp_FltFmt,-cl)
         else
             txt = sprintf(ppp_FltFmt,cl)
         end if
@@ -570,7 +580,8 @@ procedure pp_Init()
 --DEV/SUG
 --  if platform()=LINUX then
 --      ppp_Ascii = {{#20,#A0},{#7E,#FF}}
-        ppp_Ascii = {#20,#7F}
+--      ppp_Ascii = {#20,#7F}
+        ppp_Ascii = {#20,#7D}
 --  end if
     ppp_IntFmt = "%d"
     ppp_FltFmt = "%.10g"
@@ -664,7 +675,7 @@ global procedure ppOpt(sequence options)
 --                      Both pp_IntFmt and pp_FltFmt can contain extra text,
 --                      eg "#%08x (integer)", "%04.1 km", or "%.2f US$"
 --
---      pp_Ascii        min/max ascii character, default {' ',#7F}
+--      pp_Ascii        min/max ascii character, default {' ',#7D}
 --                      if sequences are passed, they define ranges.
 --                      Eg, for ISO 8859-1, use {{#20,#A0},{#7E,#FF}},
 --                      since characters 0..31 and 127..159 are system codes.

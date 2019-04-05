@@ -6,11 +6,11 @@
 --DEV need saving/restoring over opInterp: fdtbl/fdmax/freelist/(finit) [use bang labels!]
 --DEV wrap/scroll/text_rows/bk_color/text_color/clear_screen/free_console/position
 
-include builtins\VM\pUnassigned.e   -- :%pRTErn (DEV/temp)
+--include builtins\VM\pUnassigned.e -- :%pRTErn (DEV/temp)
 --
 --  Phix implementation of fast buffered and thread safe file i/o, namely the 
 --  routines open/puts/getc/gets/seek/where/flush/close, and also the related
---  get_text/wrap/scroll/text_rows/bk_color/text_color/position/free_console/
+--  get_textn/wrap/scroll/text_rows/bk_color/text_color/position/free_console/
 --  clear_screen.
 --
 --  This is an auto-include file; there is no need to manually include it, unless 
@@ -715,6 +715,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             jg @b
             sub edx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         [64]
             mov rcx,[level]
@@ -728,6 +729,7 @@ procedure fatalN(integer level, integer errcode, integer ep1=0, integer ep2=0)
             jg @b
             sub rdx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         []
           }
@@ -6649,6 +6651,7 @@ pop edi     -- ditto
 ----    res = c_func(xUnlockFile,params)
 --end procedure
 
+--/* -- now in pfile.e:
 function addline(sequence res, integer i, integer start, integer option, integer filesize, string src)
 --
 -- Internal routine. Bolt another line onto res.
@@ -6663,7 +6666,7 @@ function addline(sequence res, integer i, integer start, integer option, integer
 sequence oneline
 integer lend
     lend = i-1
-    if option=-1 then   -- GT_LF_STRIPPED
+    if option=GT_LF_STRIPPED then
         if start>lend then
             oneline = ""    -- (use a shared constant)
         else
@@ -6682,58 +6685,36 @@ integer lend
     res = append(res,oneline)
     return res
 end function
+--*/
 
 --DEV e119 to go (has been replaced with 58/59/get_text)
 -- ( "file number is not an integer or {fn,c}\n",                   -- e119fninaiofnc)
---DEV :%opGetText
---global function get_text(integer fn, integer option=-2) -- = GT_WHOLE_FILE)
-function fget_text(integer fn, integer option) --(option gets a default of -2 in pmain.e)
---
---  Read entire file into memory. Suitable for relatively small text files, for
---  example configuration (ini) files, and most of the files used by editors and
---  compilers, at least the text ones that is. It is absolutely NOT suitable for
---  large files, over say 5MB, or any form of binary file (database, video, etc).
---  (Technically GT_WHOLE_FILE might work on small binaries, but you are pushing 
---   limits and bending the definition of a string, caveat emptor and all that.)
---  This routine, unlike the others in this source file, is deliberately limited 
---  to 1GB, producing the error e78atgtgt1gbf, "attempt to get_text() >1GB file", 
---  if breached. Larger files should be processed [one char/byte/line at a time] 
---  by getc/gets/seek/puts, which have a (predicted) limit of 8192 TB (thousands 
---  of times larger than the biggest available hard drives).
---
---  fn should be an open file with read-only access (it does not matter whether
---      it was opened in binary or text mode)
---  option is one of:
---  -2: (GT_WHOLE_FILE) get whole file as one long string, plus final '\n' if missing.
---      GT_WHOLE_FILE (-2) leaves any embedded CR,LF,CRLF,LFCR as-is, whereas 
---      no CR are returned from the other options. GT_WHOLE_FILE is however the
---      fastest way to read a large file (GT_WHOLE_FILE is what p.exw uses). [DEV?]
---       (tests: "a\nb\n" from both "a\nb" and "a\nb\n")
---  -1: (GT_LF_STRIPPED) '\n'-stripped lines
---       (eg: {"a","b"} from both "a\nb" and "a\nb\n")
---       (tests: {"a","b"} from "a\nb", "a\nb\n", "a\r\nb", "a\r\nb\r\n", "a\n\rb\n\r", "a\rb", "a\rb\r")
---   0: (GT_LF_LEFT) '\n' left on lines,
---       (tests: {"a\n","b"} from "a\nb" but {"a\n","b\n"} from "a\nb\n")
---  +1: (GT_LF_LAST) '\n' left on lines, and put on last line if missing.
---       (tests: {"a\n","b\n"} from both "a\nb" and "a\nb\n")
---
---  The constants GT_WHOLE_FILE, GT_LF_STRIPPED, GT_LF_LEFT, and GT_LF_LAST are 
---  automatically defined in psym.e/syminit().
---
---  It should make no difference if fn is open in binary or text mode.
---
+function fget_text(integer fn, integer option)
 integer fidx, ch
 integer fmode
 --atom fhandle
-integer i
+--integer i
 object res
-integer start
+--integer start
 integer filesize
 string src
 --atom frealposn
 --atom this
 integer iThis
 
+--DEV/temp:
+bool from_hll = false
+if option>8 then
+    from_hll = true
+    option -= 10        -- (temp) [-2/-1/0/1 <--> 8/9/10/11]
+end if
+
+--  if string(fn) then
+--      integer fn2 = open(fn,"rb")
+--      src = fget_text(fn2,option)
+--      close(fn2)
+--      return src
+--  end if
     fidx = fn-2
     fmode = 0
     if finit and fidx>=1 and fidx<=fdmax then
@@ -6788,7 +6769,8 @@ integer iThis
 
 --DEV e119?
 --  if option<-2 or option>1 then return -1 end if
-    if option<-2 or option>1 then ?9/0 end if
+--  if option<-2 or option>1 then ?9/0 end if
+    if option<0 or option>8 then ?9/0 end if
 
 --DEV newsize [PE32] machine_bits()
 --  if machine_bits()=32 then
@@ -6905,14 +6887,18 @@ integer iThis
             mov [filesize],rcx
           }
     if filesize=0 then
-        if option=-2 then   -- GT_WHOLE_FILE
+        if option=GT_WHOLE_FILE then
             return "\n"
         else
             return {}
         end if
     end if
-    if option=0 then    -- GT_LF_LEFT
+--DEV or binary mode?? (spotted in passing)
+--  if option=0 then    -- GT_LF_LEFT
+    if option=GT_LF_LEFT
+    or (option=GT_WHOLE_FILE and and_bits(fmode,F_BINARY)) then
         src = repeat('\n',filesize)
+        option = GT_LF_LEFT -- (avoid adjust below, in the bin/whole case)
     else
         src = repeat('\n',filesize+1)       -- add/plant "safety lf"
     end if
@@ -6999,7 +6985,9 @@ integer iThis
 --DEV as above.. (why bother?)
 --  frealposn = c_func(xSetFilePointer,{fhandle,0,NULL,FILE_BEGIN})
 
-    if option!=0 then   -- not GT_LF_LEFT
+--  if option!=0 then   -- not GT_LF_LEFT
+    if option!=GT_LF_LEFT then -- (nor whole/bin)
+        -- remove that safety \n when it is not being helpful
         ch = src[filesize]
         if ch='\n' then
             -- "...\n<safety\n>" ==> "...\n"
@@ -7016,10 +7004,14 @@ integer iThis
         end if
     end if
 
-    if option=-2 then   -- GT_WHOLE_FILE
+--DEV temp, until the rename is finished...
+--  if option=-2 then   -- GT_WHOLE_FILE
+--  if option=-2 or from_hll then   -- GT_WHOLE_FILE
+--  if option=-2 or option=0 or from_hll then   -- GT_WHOLE_FILE
         return src
-    end if
+--  end if
 
+--/*
     res = {}
     i = 1
     start = 1
@@ -7042,6 +7034,7 @@ integer iThis
     if start<=filesize then
         res = addline(res,i,start,option,filesize,src)
     end if
+--*/
  #ilASM{ ::retZ2 }
     return res
 end function
@@ -7056,17 +7049,17 @@ end function
 --  if res!=expected then ?9/0 end if
 --end procedure
 --if 01 then
-----    -2: (GT_WHOLE_FILE) get whole file as one long string, plus final '\n' if missing.
+----    (GT_WHOLE_FILE) get whole file as one long string, plus final '\n' if missing.
 ----         (tests: "a\nb\n" from both "a\nb" and "a\nb\n")
---  flag = -2
+--  flag = GT_WHOLE_FILE
 --  expected = "a\nb\n"
 --  test("a\nb")
 --  test("a\nb\n")
 --
-----    -1: (GT_LF_STRIPPED) cr-stripped lines
+----    (GT_LF_STRIPPED) cr-stripped lines
 ----         (eg: {"a","b"} from both "a\nb" and "a\nb\n")
 ----         (tests: {"a","b"} from "a\nb", "a\nb\n", "a\r\nb", "a\r\nb\r\n", "a\n\rb\n\r", "a\rb", "a\rb\r")
---  flag = -1
+--  flag = GT_LF_STRIPPED
 --  expected = {"a","b"}
 --  test("a\nb")
 --  test("a\nb\n")
@@ -7083,11 +7076,11 @@ end function
 --  test("a\n\r\n\r")
 --  test("a\r\n\r\n")
 --
-----     0: (GT_LF_LEFT) '\n' left on lines,
+----     (GT_LF_LEFT) '\n' left on lines,
 ----         (tests: {"a\n","b"} from "a\nb" but {"a\n","b\n"} from "a\nb\n")
 ----        (it should be clear from these tests that being fussy about the
 ----         last line probably just complicates things unnecessarily.)
---  flag = 0
+--  flag = GT_LF_LEFT
 --  expected = {"a\n","b"}
 --  test("a\nb")
 --  test("a\r\nb")
@@ -7111,9 +7104,9 @@ end function
 --  test("a\n\r\n\r")
 --  test("a\r\n\r\n")
 --
-----    +1: (GT_LF_LAST) '\n' left on lines, and put on last line if missing.
+----    (GT_LF_LAST) '\n' left on lines, and put on last line if missing.
 ----         (tests: {"a\n","b\n"} from both "a\nb" and "a\nb\n")
---  flag = +1
+--  flag = GT_LF_LAST
 --  expected = {"a\n","b\n"}
 --  test("a\nb")
 --  test("a\nb\n")
@@ -8609,7 +8602,7 @@ end procedure -- (for Edita/CtrlQ)
         []
 --          ret
 
---global function get_text(integer fn, integer option=-2) -- = GT_WHOLE_FILE)
+--global function get_text(integer fn, integer option=GT_WHOLE_FILE)
 --function fget_text(integer fn, integer option) (option gets a default of -2 in pmain.e)
 --/*
 procedure :%opGetText(:%)
@@ -8617,13 +8610,13 @@ end procedure -- (for Edita/CtrlQ)
 --*/
     :%opGetText
 --------------
-        --  The "glue" needed to allow get_text() to be put in the optable.
+        --  The "glue" needed to allow get_textn() to be put in the optable.
         [32]
             -- calling convention
             --  lea edi,[res]       -- result location
             --  mov eax,[fn]        -- file number (opUnassigned, integer)
             --  mov ecx,[option]    -- option (opUnassigned, integer, =-2 in pmain.e)
-            --  call :%opGetText    -- [edi]:=get_text(eax,ecx)
+            --  call :%opGetText    -- [edi]:=get_textn(eax,ecx)
             cmp eax,h4
             jl @f
 --              add dword[ebx+eax*4-8],1
@@ -8662,7 +8655,7 @@ end procedure -- (for Edita/CtrlQ)
             --  lea rdi,[res]       -- result location
             --  mov rax,[fn]        -- file number (opUnassigned, integer)
             --  mov rcx,[option]    -- option (opUnassigned, integer, =-2 in pmain.e)
-            --  call :%opGetText    -- [rdi]:=get_text(rax,rcx)
+            --  call :%opGetText    -- [rdi]:=get_textn(rax,rcx)
             mov r15,h4
             cmp rax,r15
             jl @f

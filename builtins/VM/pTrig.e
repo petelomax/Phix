@@ -81,14 +81,24 @@
   :%opSqrt
 ----------
         call :LoadFlt
-    --DEV check for -ve numbers:
-    --(untried)
-    --  fldz
-    --  fcomp
-    --  fnstsw ax
-    --  test ah,0x01
-    --  jnz e??atsmnbn      -- argument to sqrt must not be negative (C=1 for jb)
-                            -- or attempt to get square root of negative number
+        fldz
+        fcomp
+        fnstsw ax
+        sahf
+--      jb @f
+        jbe @f
+            -- e45atgsqronn: attempt to get square root of negative number
+            [32]
+                mov edx,[esp]
+                sub edx,1
+            [64]
+                mov rdx,[rsp]
+                sub rdx,1
+            []
+                mov al,45       -- e45atgsqronn
+                jmp :!iDiag
+                int3
+      @@:
         fsqrt               -- st0=sqrt(st0)
         jmp :%pStoreFlt
 

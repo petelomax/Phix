@@ -1,0 +1,339 @@
+--
+-- demo/rosetta/Extensible_prime_generator.exw
+--
+--  Allows a new (and discard-able) sieve block to extend the list of already known primes. 
+--  By starting with 1..10 done, we can then filter properly up to 100, so the next(/first) 
+--  sieve cannot be larger than 90, then it goes 9900, with 99990000 logically next, but 
+--  that blew 32-bit limits, besides capping it at 400k gave the best performance.
+
+--  Unfortunately we lose the p2 check because we are not necessarily looking at that, on 
+--  the plus side this completely avoids all marking/checking of even numbers.
+--  This could almost certainly be further improved by halving the size of the sieve block.
+
+--  I investigated the use of so-called "wheels", beguiled by the claim that "a 2-3-5-7 
+--  wheel saves 77%", until I realised the breakdown was 2: 50%, 3: 16%, 5: 7%, 7: 4% - 
+--  it is unthinkable not to exclude even numbers, the added complexity (and subscripting) 
+--  of a 30- or 210- element wheel does not seem worthwhile. While it would be trivial to 
+--  unroll a 2-3 wheel, it seems far better just to avoid even numbers altogether (hence, 
+--  I believe, this achieves 66 of those 77% savings).
+
+free_console()
+sequence primes = {2,3,5,7}
+atom sieved = 10
+ 
+procedure add_block()
+integer N = min((sieved-1)*sieved,400000)
+sequence sieve = repeat(1,N)    -- sieve[i] is really i+sieved
+    for i=2 to length(primes) do -- (evens filtered on output)
+        atom p = primes[i], p2 = p*p
+        if p2>sieved+N then exit end if
+        if p2<sieved+1 then
+            p2 += ceil((sieved+1-p2)/p)*p
+        end if
+        p2 -= sieved
+        if and_bits(p2,1)=0 then p2 += p end if
+--      if sieve[p2] then           -- dang!
+            for k=p2 to N by p*2 do
+                sieve[k] = 0
+            end for
+--      end if
+    end for
+    for i=1 to N by 2 do
+        if sieve[i] then
+            primes &= i+sieved
+        end if
+    end for
+    sieved += N
+end procedure
+ 
+function is_prime(integer n)
+    while sieved<n do
+        add_block()
+    end while
+    return binary_search(n,primes)>0
+end function
+ 
+atom t0 = time()
+while length(primes)<20 do add_block() end while
+printf(1,"The first 20 primes are: ")   ?primes[1..20]
+while sieved<150 do add_block() end while
+sequence s = {}
+for k=abs(binary_search(100,primes)) to length(primes) do
+    integer p = primes[k]
+    if p>150 then exit end if
+    s &= p
+end for
+printf(1,"The primes between 100 and 150 are: ")    ?s
+s = {}
+for i=7700 to 8000 do
+    if is_prime(i) then s&=i end if
+end for
+printf(1,"There are %d primes between 7700 and 8000.\n",length(s))
+for i=1 to 8 do
+    integer k = power(10,i)
+    while length(primes)<k do
+        add_block()
+    end while
+    printf(1,"The %,dth prime is : %d\n",{k,primes[k]})
+end for
+?time()-t0
+{} = wait_key()
+--/*
+output:
+The first 20 primes are: {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71}
+The primes between 100 and 150 are: {101,103,107,109,113,127,131,137,139,149}
+There are 30 primes between 7700 and 8000.
+The 10th prime is : 29
+The 100th prime is : 541
+The 1,000th prime is : 7919
+The 10,000th prime is : 104729
+The 100,000th prime is : 1299709
+The 1,000,000th prime is : 15485863
+The 10,000,000th prime is : 179424673
+The 100,000,000th prime is : 2038074743
+31.141
+--In the end I decided /not/ to post this little inflammatory gem on rosettacode:
+Timing info: This took 31s to calculate the 100,000,000th prime. On the same day 
+on the same box the python iterative sieve entry took 7m 15s to calculate the 
+100,000th prime, making it 15 times slower to do 1/1000th of the work ;-).
+Mind you, the phix timing is apparently matched or bettered by some of the other 
+entries on http://rosettacode.org/wiki/Extensible_prime_generator
+--*/
+
+--/*
+I put these here 'cos I lost them, yet again... 
+(Still sure there was a better one out there somewhere [that "square test"])
+
+1) from (various) euphoria\demo\bench\sieve8k.ex:
+
+sequence sieve
+
+procedure create_sieve(integer size)
+    sieve = repeat(true, size)
+    integer pos = 2
+    while pos<=size do
+        pos = find(true, sieve, pos)
+        if pos=0 then exit end if
+        integer i2 = pos + pos
+        for k=i2 to size by pos do
+            sieve[k] = false
+        end for
+        pos += 1
+    end while
+end procedure
+
+2) see also Phix\demo\sieve.exw
+
+3) [since I am here...]
+Go[edit]
+Basic sieve of array of booleans[edit]
+package main
+import "fmt"
+ 
+func main() {
+    const limit = 201 // means sieve numbers < 201
+ 
+    // sieve
+    c := make([]bool, limit) // c for composite.  false means prime candidate
+    c[1] = true              // 1 not considered prime
+    p := 2
+    for {
+        // first allowed optimization:  outer loop only goes to sqrt(limit)
+        p2 := p * p
+        if p2 >= limit {
+            break
+        }
+        // second allowed optimization:  inner loop starts at sqr(p)
+        for i := p2; i < limit; i += p {
+            c[i] = true // it's a composite
+ 
+        }
+        // scan to get next prime for outer loop
+        for {
+            p++
+            if !c[p] {
+                break
+            }
+        }
+    }
+ 
+    // sieve complete.  now print a representation.
+    for n := 1; n < limit; n++ {
+        if c[n] {
+            fmt.Print("  .")
+        } else {
+            fmt.Printf("%3d", n)
+        }
+        if n%20 == 0 {
+            fmt.Println("")
+        }
+    }
+}
+
+4) hmm? (also Go)
+Sieve Tree[edit]
+A fairly odd sieve tree method:
+
+package main
+import "fmt"
+ 
+type xint uint64
+type xgen func()(xint)
+ 
+func primes() func()(xint) {
+        pp, psq := make([]xint, 0), xint(25)
+ 
+        var sieve func(xint, xint)xgen
+        sieve = func(p, n xint) xgen {
+                m, next := xint(0), xgen(nil)
+                return func()(r xint) {
+                        if next == nil {
+                                r = n
+                                if r <= psq {
+                                        n += p
+                                        return
+                                }
+ 
+                                next = sieve(pp[0] * 2, psq) // chain in
+                                pp = pp[1:]
+                                psq = pp[0] * pp[0]
+ 
+                                m = next()
+                        }
+                        switch {
+                        case n < m: r, n = n, n + p
+                        case n > m: r, m = m, next()
+                        default:    r, n, m = n, n + p, next()
+                        }
+                        return
+                }
+        }
+ 
+        f := sieve(6, 9)
+        n, p := f(), xint(0)
+ 
+        return func()(xint) {
+                switch {
+                case p < 2: p = 2
+                case p < 3: p = 3
+                default:
+                        for p += 2; p == n; {
+                                p += 2
+                                if p > n {
+                                        n = f()
+                                }
+                        }
+                        pp = append(pp, p)
+                }
+                return p
+        }
+}
+ 
+func main() {
+        for i, p := 0, primes(); i < 100000; i++ {
+                fmt.Println(p())
+        }
+}
+
+5) Javascript - RUBBISH!
+/*
+ function sieve(max) {
+        var D = [], primes = [];
+        for (var q=2; q<max; q++) {
+                if (D[q]) {
+                        for (var i=0; i<D[q].length; i++) {
+                                 var p = D[q][i];
+                                 if (D[p+q]) D[p+q].push(p);
+                                 else D[p+q]=[p];
+                        }
+                        delete D[q];
+                } else {
+                        primes.push(q);
+                        if (q*q<max) D[q*q]=[q];
+                }
+        }
+        return primes;
+ }
+ sieve(100)
+*/
+
+constant D = new_dict()
+
+sequence primes = {}
+integer q = 2
+
+procedure sieve(integer n)
+-- extend primes until it contains at least n entries
+    while length(primes)<n do
+        integer node = getd_index(q,D)
+        if node!=NULL then
+            sequence dq = getd_by_index(node,D)
+            for i=1 to length(dq) do
+                integer p = dq[i]
+                node = getd_index(p+q,D)
+                setd(p+q,iff(node?getd_by_index(node,D)&p:{p}),D)
+            end for
+            deld(q,D)
+        else
+            primes = append(primes,q)
+            setd(q*q,{q},D)
+        end if
+        q += 1
+    end while
+end procedure
+
+atom t0 = time()
+sieve(100)
+?primes[1..100]
+sieve(10_000)   -- 3.3s, oh dear...
+--sieve(100_000)    -- 52.7s, oh dear...
+?e0lapsed(time()-t0)
+?dict_size(D)   -- 9986/99966
+
+
+6) last one, I promise...
+function create_sieve(integer limit)
+    sequence sieve = repeat(true,limit)
+    sieve[1] = false
+    integer step = 1
+    for p=2 to floor(sqrt(limit)) do
+        integer p2 = p*p
+        if sieve[p2] then
+            for k=p2 to limit by p*step do
+                sieve[k] = false
+            end for
+        end if
+        step = 2
+    end for
+    return sieve
+end function
+
+don't be silly, this is surely better (do a timing test):
+
+function create_sieve(integer limit)
+    sequence sieve = repeat(true,limit)
+    sieve[1] = false
+    for i=4 to limit by 2 do
+        sieve[i] = false
+    end for
+    for p=3 to floor(sqrt(limit)) by 2 do
+        integer p2 = p*p
+        if sieve[p2] then
+            for k=p2 to limit by p*2 do
+                sieve[k] = false
+            end for
+        end if
+    end for
+    return sieve
+end function
+
+constant sieve = create_sieve(1000)
+
+sequence primes = {}
+for i=1 to 100-0 do
+    if sieve[i] then primes &= i end if
+end for
+?length(primes)
+?primes
+
+--*/

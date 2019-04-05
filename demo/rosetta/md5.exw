@@ -139,6 +139,35 @@ function md5(sequence message)
            int_to_bytes(words[2])&
            int_to_bytes(words[3])&
            int_to_bytes(words[4])
+--DEV/SUG:
+--  atom mem = allocate(16,true)
+--  poke(mem,words)
+--  string res = peek(mem,16)
+--  return res
+-- or
+--  return peek(allocate({C_DWORD,words},true),16)
+-- where:
+--  allocate(object o) becomes:
+--  allocate(integer n) -> existing usage
+--  allocate(atom n) -> "", ie error (if not an exact and non-negative integer,
+--                                    such as, on 32-bit, #40000000..#5FFFFFF8).
+--  allocate(string s) -> as per allocate_string
+--  allocate(sequence s) -> where s is {integer wordsize, sequence data},
+--      and wordsize must be 1|2|4|8 or one of the predefined constants
+--      C_BYTE/C_WORD/C_DWORD/C_QWORD or their unsigned equivalents, or
+--      C_FLOAT/C_DOUBLE, for packed floating point arrays.
+--      (use and_bits(wordsize,#FCFFFFFF)?)
+-- and
+--  allocate_string(): Deprecated/equivalent to allocate(string) or allocate({C_BYTE,s}).
+--  This routine is unlikely to be removed since it is very widely used in legacy code.
+--  You should also note that, on Phix but not OpenEuphoria, strings can be passed to
+--  c_func/proc directly, hence most uses of allocate_string() are unnecessary anyway.
+--  There was also a short-lived allocate_wstring(), which /has/ now been removed - use
+--  allocate({C_WORD,s}[,cleanup]) instead.
+
+-- allocate_string() is now deprecated, though unlikely to ever be fully removed, and
+--  the allocate() function has been enhanced to provide that same functionality as
+--  allocate(string), plus much more besides (word/dword/qword integer/float arrays).
 
 end function
 

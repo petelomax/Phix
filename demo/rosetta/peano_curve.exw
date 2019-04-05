@@ -1,0 +1,135 @@
+--
+-- demo\rosetta\peano_curve.exw
+-- ============================
+--
+--  Draws a peano curve. Space key toggles between switchback and meander curves.
+--
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+bool meander = false    -- space toggles (false==draw switchback curve)
+constant width = 81
+
+sequence points = {}
+
+-- switchback peano:
+--
+-- There are (as per wp) four shapes to draw:
+--
+--  1: +-v ^     2: ^ v-+     3: v ^-+     2: +-^ v
+--     | | |        | | |        | | |        | | |  
+--     ^ v-+        +-v ^        +-^ v        v ^-+
+--   
+-- 1 starts bottom left, ends top right
+-- 2 starts bottom right, ends top left
+-- 3 starts top left, ends bottom right
+-- 4 starts top right, ends bottom left
+--
+-- given the centre point (think {1,1}), and using {0,0} as the bottom left:
+--
+constant shapes = {{{-1,-1},{-1,0},{-1,+1},{0,+1},{0,0},{0,-1},{+1,-1},{+1,0},{+1,+1}},
+                   {{+1,-1},{+1,0},{+1,+1},{0,+1},{0,0},{0,-1},{-1,-1},{-1,0},{-1,+1}},     -- (== sq_mul(shapes[1],{-1,0}))
+                   {{-1,+1},{-1,0},{-1,-1},{0,-1},{0,0},{0,+1},{+1,+1},{+1,0},{+1,-1}},     -- (== reverse(shapes[2]))
+                   {{+1,+1},{+1,0},{+1,-1},{0,-1},{0,0},{0,+1},{-1,+1},{-1,0},{-1,-1}}}     -- (== reverse(shapes[1]))
+
+constant subshapes = {{1,2,1,3,4,3,1,2,1},
+                      {2,1,2,4,3,4,2,1,2},      -- == sq_sub({3,3,3,7,7,7,3,3,3},subshapes[1])
+                      {3,4,3,1,2,1,3,4,3},      -- == sq_sub(5,subshapes[2])
+                      {4,3,4,2,1,2,4,3,4}}      -- == sq_sub(5,subshapes[1])
+
+-- As noted, it should theoretically be possible to simplify/shorten/remove/inline those tables
+
+procedure switchback_peano(integer x, y, level, shape)
+-- (written from scratch, with a nod to the meander algorithm [below])
+    if level<=1 then
+        points = append(points, {x*10, y*10})
+        return
+    end if
+    level /= 3
+    for i=1 to 9 do
+        integer {dx,dy} = shapes[shape][i]
+        switchback_peano(x+dx*level,y+dy*level,level,subshapes[shape][i])
+    end for
+end procedure
+
+procedure meander_peano(integer x, y, lg, i1, i2)
+-- (translated from Go)
+    if lg=1 then
+        integer px := (width-x) * 10,
+                py := (width-y) * 10
+        points = append(points, {px, py})
+        return
+    end if
+    lg /= 3
+    meander_peano(x+2*i1*lg, y+2*i1*lg, lg, i1, i2)
+    meander_peano(x+(i1-i2+1)*lg, y+(i1+i2)*lg, lg, i1, 1-i2)
+    meander_peano(x+lg, y+lg, lg, i1, 1-i2)
+    meander_peano(x+(i1+i2)*lg, y+(i1-i2+1)*lg, lg, 1-i1, 1-i2)
+    meander_peano(x+2*i2*lg, y+2*(1-i2)*lg, lg, i1, i2)
+    meander_peano(x+(1+i2-i1)*lg, y+(2-i1-i2)*lg, lg, i1, i2)
+    meander_peano(x+2*(1-i1)*lg, y+2*(1-i1)*lg, lg, i1, i2)
+    meander_peano(x+(2-i1-i2)*lg, y+(1+i2-i1)*lg, lg, 1-i1, i2)
+    meander_peano(x+2*(1-i2)*lg, y+2*i2*lg, lg, 1-i1, i2)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    if length(points)=0 then
+        if meander then
+            meander_peano(0, 0, width, 0, 0)
+        else
+            switchback_peano(41, 41, width, 1)
+        end if
+    end if
+    cdCanvasActivate(cddbuffer)
+    cdCanvasBegin(cddbuffer, CD_OPEN_LINES)  
+    for i=1 to length(points) do
+        integer {x,y} = points[i]
+        cdCanvasVertex(cddbuffer, x, y) 
+    end for 
+    cdCanvasEnd(cddbuffer)
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_MAGENTA)
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if c=' ' then
+        meander = not meander
+        points = {}
+        cdCanvasClear(cddbuffer)
+        IupUpdate(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "822x822") -- initial size
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Peano Curve")
+    IupSetAttribute(dlg, "DIALOGFRAME", "YES")  -- no resize here
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    IupMap(dlg)
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

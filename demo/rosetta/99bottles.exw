@@ -48,9 +48,73 @@ string that = "Take one down, pass it around,\n"
         this = bob(i-1)
         puts(1,that&this&" on the wall.\n\n")
     end for
-    if getc(0) then end if
 end procedure
 
-ninetyninebottles()
+if 01 then
+    ninetyninebottles()
+end if
 
+--{{trans|Go}}
+
+constant smalls = {"one", "two", "three", "four", "five", "six", "seven", 
+    "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", 
+    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"},
+         tens = {"ones", "ten", "twenty", "thirty", "forty",
+            "fifty", "sixty", "seventy", "eighty", "ninety"}
+
+function numberName(integer n)
+    if n<20 then return iff(n=0?"no":smalls[n]) end if
+    string t = tens[floor(n/10)+1]
+    n = mod(n,10)
+    if n>0 then t &= " " & smalls[n] end if
+    return t
+end function
+
+function pluralizeFirst(string s, integer n)
+-- pluralize first word of s by adding an s, but only if n is not 1.
+    if n!=1 then
+        n = find(' ',s)
+        s[n..n-1] = "s"
+    end if
+    return s
+end function
+
+-- p is string to slur, d is drunkenness, from 0 to 99
+function slur(string p, integer d)
+    -- shuffle only interior letters
+    -- adapted from Knuth shuffle task.
+    -- shuffle letters with probability d/100.
+    for i=length(p)-1 to 3 by -1 do
+        if rand(99)>d then
+            integer j = rand(i)+1
+            {p[i], p[j]} = {p[j], p[i]}
+        end if
+    end for
+    return substitute(p,"  "," ")
+end function
+
+procedure main()
+    for i=99 to 1 by -1 do
+        printf(1,"%s %s %s\n",
+                 {slur(numberName(i), i),
+                  pluralizeFirst(slur("bottle of", i), i),
+                  slur("beer on the wall", i)})
+        printf(1,"%s %s %s\n",
+                 {slur(numberName(i), i),
+                  pluralizeFirst(slur("bottle of", i), i),
+                  slur("beer", i)})
+        printf(1,"%s %s %s\n",
+                 {slur("take one", i),
+                  slur("down", i),
+                  slur("pass it around", i)})
+        printf(1,"%s %s %s\n",
+                 {slur(numberName(i-1), i),
+                  pluralizeFirst(slur("bottle of", i), i-1),
+                  slur("beer on the wall", i)})
+    end for
+end procedure
+ 
+if 0 then
+    main()
+end if
 {} = wait_key()

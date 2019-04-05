@@ -292,6 +292,8 @@ global constant END = #1,       -- 0b000000001
 --              EE = #4,        -- 0b000000100 -- elsif/else
 --              EEE = #5,       -- 0b000000101 -- elsif/else/end
                 LOOP = #10,     -- 0b000010000
+--25/2/19...?
+--              TRY = #18,      -- 0b000011000
                 SWITCH = #20,   -- 0b000100000 -- (used by ilxlate(), should not be passed here[?])
                 FALLTHRU = #40, -- 0b001000000 -- ""
                 SWTABLE = #80,  -- 0b010000000 -- the "switch with warning" flag, see below.
@@ -447,6 +449,10 @@ sequence desc
         stmt -= IF
         desc &= "IF"
     end if
+--  if and_bits(stmt,TRY)=TRY then
+--      stmt -= TRY
+--      desc &= "TRY"
+--  end if
     if and_bits(stmt,LOOP) then
         stmt -= LOOP
         desc &= "LOOP"
@@ -666,9 +672,10 @@ integer ldx
     if DEBUG then
         dltyp = symtab[v][S_ltype]
         if dltyp!=ptyp then
-            ?9/0
-            ?"9/0"
-            if diag then
+--          ?9/0
+            ?"9/0 (pltype.e line 676)"
+--          if diag then
+            if 1 then
                 dprintf("*** S_ltype[%d]!=ptyp[%d] on var %d ***\n",{dltyp,ptyp,v})
 --          else
 --              ?"9/0"

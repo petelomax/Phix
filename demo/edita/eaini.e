@@ -364,6 +364,7 @@ integer x,y,w,h
 --      prevfiles = {"C:\\P2\\new\\EUCount\\database.e"}
 --      prevfiles = {"C:\\p5\\demo\\Win32Demo\\Tooltip.EXW"}
 --      prevfiles = {"C:\\Program Files\\Phix\\demo\\win32lib\\win32lib.ew"}
+--      prevfiles = {"C:\\Program Files (x86)\\Phix\\e01.exw"}
         prevcursel = ""
         isSingleInstance = False
     end if

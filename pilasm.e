@@ -995,7 +995,7 @@ integer state
             N = InTable(InAny)
             if N<=0 then Undefined() end if
             symtabN = symtab[N]
-            if N=T_routine then
+            if N=T_routine then     -- (SUG: rename as T_routine_id?)
                 if not and_bits(permitted,P_RID) then
                     Aborp("not permitted")
 --NESTEDFUNC:
@@ -4605,7 +4605,13 @@ movdqu... (64 bit only?)
                         ?9/0
                     end if
                 end if
-            elsif ttidx=T_bsr then
+            elsif ttidx=T_bsf
+               or ttidx=T_bsr then
+                if ttidx=T_bsf then
+                    xrm = #BC
+                else
+                    xrm = #BD
+                end if
 -->#4C 0o17 0o275 0o302 bsr r8,rdx
 --      0F      BD              r       03+     D 30                            BSR     r16/32/64       r/m16/32/64                                     o..szapc        ....z...        o..s.apc                Bit Scan Reverse
 --; 127             bsr     r8,rdx 
@@ -4642,9 +4648,12 @@ movdqu... (64 bit only?)
                         if rex then
                             s5 &= rex
                         end if
+                        s5 &= #0F
+                        s5 &= xrm
 --                      xrm = 0o300+(p2details-1)*8+reg -- 0o3rm
                         xrm = 0o300+reg*8+(p2details-1) -- 0o3rm
-                        s5 &= {#0F,#BD,xrm}
+--                      s5 &= {#0F,#BD,xrm}
+                        s5 &= xrm
                     end if
                 else
                     ?9/0    -- placeholder?

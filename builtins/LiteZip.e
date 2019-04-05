@@ -310,7 +310,7 @@ global function ZipAddFile(atom hzip, string dest, string src=dest)
 end function
 
 atom xZipAddDir = NULL
-global function ZipAddDir(atom hzip, string destname, integer offset)
+global function ZipAddDir(atom hzip, string destname, integer offset=0)
 -- offset specifes that part of destname that should be omitted from the zip, eg
 --  ZipAddDir(hz,"test\\LiteZip",5) stores the files in a "LiteZip" subdir, so
 --  in that specific case it will effectively omit destname[1..5], ie "test\\".

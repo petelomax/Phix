@@ -290,6 +290,7 @@ end if
 --
     while 1 do
         consoleSize = {screenLines,screenCols}
+--?{"pTrace.e dinit() line 293, consoleSize:",consoleSize}
         dScreen = save_text_image({1,1},consoleSize)
         if sequence(dScreen) then
             dbgScreen = dScreen
@@ -302,6 +303,7 @@ end if
         ?consoleSize
         if getc(0) then end if
     end if
+--?{"pTrace.e dinit() line 305, consoleSize:",consoleSize}
 
 --
 -- Although we save the entire screen buffer, base display on the number of visible lines.
@@ -920,6 +922,7 @@ integer lf  -- length(ff) [scratch var]
         --
         blatit = 1
         if length(blankScreen)=0 then
+--if not initD then ?9/0 end if -- 14/2/19
             clear_screen()
             blankScreen = save_text_image({1,1},consoleSize)
         end if
@@ -1256,6 +1259,12 @@ end procedure
 
 procedure abort_trace()
 --DEV... see FatalN, do we need to restore ebp4/[ds+8]?
+        -- calling convention
+        --  mov ecx,imm32       -- no of frames to pop to obtain an era (>=1)
+        --  mov al,imm          -- error code [1..length(msgs)-1, currently 122]
+--      --  mov edi,ep1         -- [optional] (opUnassigned)
+--      --  mov esi,ep2         -- [optional] (opUnassigned) [used for 110/ecx]
+        --  jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
 --  ?9/0
 --  e12pa
     #ilASM{
@@ -1271,6 +1280,7 @@ procedure abort_trace()
             jg @b
             sub edx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         [64]
             mov rcx,2
@@ -1284,6 +1294,7 @@ procedure abort_trace()
             jg @b
             sub rdx,1
             jmp :!iDiag         -- fatal error (see pdiagN.e)
+--          jmp :!fatalN        -- fatal error (see pdiagN.e)
             int3
         []
           }
@@ -1373,7 +1384,7 @@ integer fileno
             call :%opGetST      -- [rdi]:=symtab (see pStack.e)
             mov rsi,[ebp4]
             lea rdi,[vsb_root]
-            mov rdx,[rbx+rax*4+16]      -- rtn
+            mov rdx,[rbx+rsi*4+16]      -- rtn
             mov rax,[rbx+rsi*4+48]      -- vsb_root
             mov [active_routine],rdx
             call :%pStoreMint
@@ -1382,8 +1393,9 @@ integer fileno
 
     -- (we have no use here for crashmsg/crashfile, but it costs nowt)
 
---printf(1,"active_routine = %d\n",active_routine)
+--printf(1,"active_routine = %d\n",active_routine)  -- 30/3/19: 0 (64 bit)
     fileno = symtab[active_routine][S_FPno]
+--printf(1,"fileno = %d\n",fileno)
 --?9/0 --DEV get this from prev_ebp...
 --  s8 = symtab[T_callstk]  -- {ep1,ep2,era,etd,ern,ebp,vsb_root,dcount} (see pdiag.e for full details)
                             --   0   0   0                         0     (zero because of the si=1, btw) [DEV?]

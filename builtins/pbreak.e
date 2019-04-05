@@ -8,6 +8,7 @@ without trace
 
 integer binit = 0
 integer AllowBreak = true
+--atom cb_handler = NULL    -- (failed attempt)
 integer cc_count = 0
 
 constant CTRL_C_EVENT       = 0,
@@ -23,37 +24,6 @@ constant SIGINT = 2
         push :my_signal_handler     -- address of handler function
         call "kernel32.dll","SetConsoleCtrlHandler"
         ret
-  ::my_signal_handler
-        xor ebx,ebx                 -- important!
-        mov eax,[esp+4]
-        push ecx
-        push edx
-        cmp eax,CTRL_C_EVENT
-        je @f
-        cmp eax,CTRL_BREAK_EVENT
-        jne :retz
-          @@:
---DEV fixme!
-            cmp [AllowBreak],ebx
---00429B01   391D 6C2A4000  CMP DWORD PTR DS:[402A6C],EBX
---00429B07   3905 6C2A4000  CMP DWORD PTR DS:[402A6C],EAX
---          mov eax,[AllowBreak]
---          cmp eax,ebx
-            jne :retz
-            mov eax,1   -- handled
---          add [cc_count],eax
-            add [cc_count],1
---          mov ecx,[cc_count]
---          add ecx,eax
---          mov [cc_count],ecx
-            pop edx
-            pop ecx
-            ret 4
-  ::retz
-        pop edx
-        pop ecx
-        xor eax,eax     -- not handled
-        ret 4
     [PE64]
         mov rcx,rsp -- put 2 copies of rsp onto the stack...
         push rsp
@@ -64,27 +34,6 @@ constant SIGINT = 2
         mov rcx,:my_signal_handler      -- address of handler function
         call "kernel32.dll","SetConsoleCtrlHandler"
         mov rsp,[rsp+8*5]
-        ret
-  ::my_signal_handler
-        xor rbx,rbx                 -- important!
-        cmp rcx,CTRL_C_EVENT
-        je @f
-        cmp rcx,CTRL_BREAK_EVENT
-        jne retz
-          @@:
-            cmp [AllowBreak],rbx
---          mov rax,[AllowBreak]
---          cmp rax,rbx
-            jne :retz
-            mov rax,1   -- handled
-            add [cc_count],rax
---          add [cc_count],1
---          mov rcx,[cc_count]
---          add rcx,rax
---          mov [cc_count],rcx
-            ret
-  ::retz
-        xor rax,rax     -- not handled
         ret
     [ELF32]
 --#     Name                        Registers                                                                                                               Definition
@@ -101,9 +50,6 @@ constant SIGINT = 2
         int 0x80                -- sigaction(SIGINT, &sigact, 0)
         add esp,16
         xor ebx,ebx             -- (common requirement after int 0x80)
-        ret
-      ::my_signal_handler
-        add [cc_count],1
         ret
     [ELF64]
 --%rax  System call             %rdi                    %rsi                            %rdx                    %rcx                    %r8                     %r9
@@ -134,13 +80,81 @@ constant SIGINT = 2
       ::restorer
         mov rax,15 -- NR_rt_sigreturn
         syscall
+        int3
+
+    []
 
       ::my_signal_handler
+
+    [PE32]
+        xor ebx,ebx                 -- important!
+--      mov eax,[cb_handler]
+--      cmp eax,ebx
+--      jz @f
+--          jmp eax
+--    @@:
+        mov eax,[esp+4]
+        push ecx
+        push edx
+        cmp eax,CTRL_C_EVENT
+        je @f
+        cmp eax,CTRL_BREAK_EVENT
+        jne :retz
+          @@:
+            cmp [AllowBreak],ebx
+            jne :retz
+            mov eax,1   -- handled
+            add [cc_count],1
+            pop edx
+            pop ecx
+            ret 4
+  ::retz
+        pop edx
+        pop ecx
+        xor eax,eax     -- not handled
+        ret 4
+    [PE64]
+        xor rbx,rbx                 -- important!
+--      mov rax,[cb_handler]
+--      cmp rax,rbx
+--      jz @f
+--          jmp rax
+--    @@:
+        cmp rcx,CTRL_C_EVENT
+        je @f
+        cmp rcx,CTRL_BREAK_EVENT
+        jne retz
+          @@:
+            cmp [AllowBreak],rbx
+            jne :retz
+            mov rax,1   -- handled
+            add [cc_count],rax
+            ret
+  ::retz
+        xor rax,rax     -- not handled
+        ret
+    [ELF32]
+        xor ebx,ebx                 -- important!
+--      mov eax,[cb_handler]
+--      cmp eax,ebx
+--      jz @f
+--          jmp eax
+--    @@:
+        add [cc_count],1
+        ret
+    [ELF64]
+        xor rbx,rbx                 -- important!
+--      mov rax,[cb_handler]
+--      cmp rax,rbx
+--      jz @f
+--          jmp rax
+--    @@:
         add [cc_count],1
         ret
       }
 
 global procedure allow_break(bool bAllow)
+--global procedure allow_break(bool bAllow, atom handler=NULL)
 -- Determine whether control-c/control-break terminate the program. 
 -- If bAllow is TRUE then allow that, else/FALSE, don't.
 -- Initially those keystrokes *will* terminate the program, but
@@ -149,6 +163,7 @@ global procedure allow_break(bool bAllow)
         #ilASM{call :%initB}
     end if
     AllowBreak = bAllow
+--  cb_handler = handler
 end procedure
 
 global function check_break()

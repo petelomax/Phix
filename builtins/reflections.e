@@ -4,7 +4,8 @@
 --
 --  Experimental implementation of a reflect() function.
 --
---  For demonstration purposes only. Not documented.
+--  For demonstration purposes only. 
+--  Not documented, not properly tested, and not an auto-include.
 --
 
 -- Obviously these must all be kept in step with pglobals.e:
@@ -36,8 +37,14 @@ global function reflect(string s)
     integer rid = routine_id(s)
     if rid<=0 then return -1 end if
     sequence symtab
-    #ilASM{ lea edi,[symtab]
-            call :%opGetST }    -- [edi]=symtab
+    #ilASM{ 
+            [32]
+                lea edi,[symtab]
+            [64]
+                lea rdi,[symtab]
+            []
+                call :%opGetST      -- [e/rdi]=symtab
+          }
     sequence si = symtab[rid]
     integer fno = si[S_FPno]
     string file = symtab[T_fileset][fno][2]

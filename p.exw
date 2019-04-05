@@ -14,6 +14,20 @@
 --global constant NEWRETSLOT = 01       -- nb toggle in tandem with pStack/opRetf
 
 global constant MARKTYPES = 0
+global constant K_RIDT_UDTS = true  -- added 28/02/19
+global constant NEWGSCAN = false -- added 01/03/19 (note: if set, K_RIDT_UDTS is ignored, check MARKTYPES as well)
+-- (for NEWGSCAN; move these to pglobals.e when done:)
+global sequence g_scan, kridt_scan
+-- g_scan is created as repeat(0,length(symtab)) on each iteration (actually kridt_scan, see below).
+--  As we encounter each opFrame/opTchk, in routine vi [initially T_maintls==21], if g_scan[rtn]=0 
+--  then insert into chain, ie g_scan[rtn]:=g_scan[vi]; g_scan[vi]:=rtn.
+-- However some "scannables" need to be more permanent, specifically when K_ridt is set on them.
+-- The same principle is applied to (both g_scan and) kridt_scan, and in fact we re-initialise
+--  g_scan from kridt_scan at the start of each iteration, rather than all-zero it.
+-- This replaces (some) prior use of [S_Slink] and fixes the type-routine issue, as well as 
+--  doing a much better job of excluding routines due to constant propagtion effects.
+-- Note that g_scan[T_maintls] (ditto kridt_scan) is initially "-1" as the chain terminator.
+--  (It uses a string to prevent any chance of accidentally treating it as symtab[$].)
 
 global constant NEWCATCH = 01
 
@@ -1921,6 +1935,7 @@ end if
             outfile = mainfile
             for i=length(mainfile) to 1 by -1 do
                 if mainfile[i]='.' then
+--DEV 7/1/19: removing this broke linux hosting... ???
                     if PE or DLL then
                         outfile = mainfile[1..i]&iff(DLL?iff(PE?"dll":"so"):"exe")
                     else
@@ -1929,6 +1944,11 @@ end if
                     exit
                 end if
             end for
+            if PE or DLL then
+                if not find('.',outfile) then
+                    outfile &= iff(DLL?iff(PE?".dll":".so"):".exe")
+                end if
+            end if
 --14/4/18
             if OptConsole=-1 then
                 OptConsole = (find('w',cl1)==0)
@@ -2429,9 +2449,19 @@ procedure REPL()
 object savepath
 --integer local_ebp
 object line
+integer CSvaddr4
+integer ebp4,   -- saved ebp, /4 as it shd be dword-aligned, then fits in an integer
+        esp4,   -- saved esp, ""
+        pst4    -- saved symtabptr, aka [ds+8] (via :%pGetSymPtr), ""
+--      ntcb4   -- saved pGtcb.pNxtcb
+--      frst4   -- saved pGtcb.pFirst (/4, which is done by pNew/RestoreGtcbChain)
+--,sym4,level
+object wasEBP   -- integer(0) = compiled, else ({ebp4,esp4,pst4}) = interpreted
 
     t = time()
 
+tt_save_init()
+while 1 do  -- main loop
     fileno=0
     resetOptions()
     initFilePathSet()
@@ -2446,7 +2476,7 @@ object line
 --      the same should also be true after atom s=1 - re-declaration/overwrite should re-h4 s.
 --      (the help system is tied into Edix, not the repl, but you could easily add "help xxx")
 --      no point sending repl errors to Edita/Edix...
-while 1 do  -- main loop
+--while 1 do    -- main loop
     puts(1,"\n>")
     text = ""
     while 1 do  -- read line loop
@@ -2516,8 +2546,125 @@ while 1 do  -- main loop
         symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
 
 --if newEmit then
-            ?9/0 -- (repl)  -- crib from main() [again]
+--          ?9/0 -- (repl)  -- crib from main() [again]
                             -- might be better to rewrite this as main(integer repl)
+
+            close(-9)
+            symtab[T_cmdlnflg] = 2 -- in command_line(), get stuff from symtab[T_fileset]
+            wasEBP = symtab[T_EBP]
+            #ilASM{
+                -- set ebp4,esp4,pst4 (from ebp,esp,symtabptr)
+                [32]
+                    mov eax,ebp
+                    mov ecx,esp
+--14/8/15:
+--                  mov edx,[ds+8]
+                    call :%pGetSymPtr
+                    shr eax,2
+                    shr ecx,2
+--                  shr edx,2
+                    shr esi,2
+                    mov [ebp4],eax
+                    mov [esp4],ecx
+--                  mov [pst4],edx
+                    mov [pst4],esi
+                [64]
+                    mov rax,rbp
+                    mov rcx,rsp
+--                  mov rdx,[ds+8]
+                    call :%pGetSymPtr
+                    shr rax,2
+                    shr rcx,2
+--                  shr rdx,2
+                    shr rsi,2
+                    mov [ebp4],rax
+                    mov [esp4],rcx
+--                  mov [pst4],rdx
+                    mov [pst4],rsi
+                  }
+--  ?       symtab[T_EBP] = {ebp4,esp4,level}
+            -- (note that esp4 is also used in builtins\VM\Stack.e\opAbort) [DEV]
+            symtab[T_EBP] = {ebp4,esp4,pst4}
+--if bind then
+            -- added 28/5/15:
+            if not dumpil
+            and not listing 
+            and not some_unresolved_rtnids then
+                rbldrqd = 1
+            end if
+--end if
+--if newEmit then
+--          ?9/0
+            CSvaddr4 = floor(CSvaddr/4)
+--          call(CSvaddr)
+            #ilASM{
+                [32]
+                    mov esi,[symtab]
+                    mov ecx,[CSvaddr4]
+                    shl esi,2
+                    shl ecx,2
+                    call :%pSetSymPtr
+                    push ecx
+                    call :%pNewStack
+--DEV (diagnostics)
+--                  pop ecx
+mov ecx,[esp]
+                    call ecx
+pop ecx
+                    call :%pGetSymPtr
+                    mov edx,[esi+21*4]      -- symtab[T_EBP=22]
+                    -- in case it helps, the next two lines should work just as well:
+    --              mov eax,[symtab]
+    --              mov edx,[ebp+eax*4+84]  -- symtab[T_EBP]
+                    mov eax,[ebx+edx*4]     -- symtab[T_EBP][1] = ebp4
+                    mov ecx,[ebx+edx*4+4]   -- symtab[T_EBP][2] = esp4
+                    mov esi,[ebx+edx*4+8]   -- symtab[T_EBP][3] = pst4
+                    shl eax,2
+                    shl ecx,2
+                    shl esi,2
+                    mov ebp,eax             -- restore ebp
+                    mov esp,ecx             -- restore esp
+                    call :%pSetSymPtr
+                [64]
+                    mov rsi,[symtab]
+                    mov rcx,[CSvaddr4]
+                    shl rsi,2
+                    shl rcx,2
+                    call :%pSetSymPtr
+                    push rcx
+                    call :%pNewStack
+--DEV (diagnostics)
+--                  pop rcx
+mov rcx,[rsp]
+                    call rcx
+pop rcx
+
+                    call :%pGetSymPtr
+                    mov rdx,[rsi+21*8]          -- symtab[T_EBP=22]
+                    -- in case it helps, the next two lines should work just as well:
+    --              mov rax,[symtab]
+    --              mov rdx,[rbp+rax*4+21*8]    -- symtab[T_EBP]
+                    mov rax,[rbx+rdx*4]         -- symtab[T_EBP][1] = ebp4
+                    mov rcx,[rbx+rdx*4+8]       -- symtab[T_EBP][2] = esp4
+                    mov rsi,[rbx+rdx*4+16]      -- symtab[T_EBP][3] = pst4
+                    shl rax,2
+                    shl rcx,2
+                    shl rsi,2
+                    mov rbp,rax                 -- restore rbp
+                    mov rsp,rcx                 -- restore rsp
+                    call :%pSetSymPtr
+                []
+                  }
+
+--puts1("returned from call(CSvaddr)!\n")
+            symtab[T_EBP] = wasEBP
+            errorcode = 0   --DEV
+--DEV also elsewhere?
+            free(CSvaddr)
+            free(DSvaddr)
+--added 29/10/16: (probbly not rqd)
+            close(-9)
+
 --else
 ----if 0 then -- helpful to skip this when profiling the compiler [esp under -test]
 ----/**/        #ilASM{ call :%save_ebp         -- (see pcfunc.e)
@@ -2547,6 +2694,10 @@ while 1 do  -- main loop
         symtab[T_pathset] = -999
         symtab[T_fileset] = -999
     end if -- length(text)=0
+
+    tt_init()
+    ResetResourceSectionDefaults()
+
 end while
 g0close()
 end procedure

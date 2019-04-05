@@ -175,8 +175,8 @@ constant MAXLINELEN = 129   -- approximate screen/printer width
 --       as it (p.exe) struggles to give birth to some monster ex.err files, and
 --       would fully expect exponential slowdown as things get even bigger.
 --
---constant MAXLENN = 20000 -- longest string/sequence you will ever really need
 constant MAXLENN = 20000 -- longest string/sequence you will ever really need
+--constant MAXLENN = 1000000 -- longest string/sequence you will ever really need
 
 -- Note: The following may not honor MAXLENN like it should/used to (which is, if 
 --       anything, a problem in ppp.e rather than here). You may want this if, in 
@@ -233,8 +233,8 @@ function allascii(string x)
 integer c
     for i=length(x) to 1 by -1 do
         c = x[i]
---      if c<' ' or c>#7E or find(c,"\\\"\'") then
-        if c<' ' or c>#FE or find(c,"\\\"\'") then
+        if c<' ' or c>#7E or find(c,"\\\"\'") then
+--      if c<' ' or c>#FE or find(c,"\\\"\'") then
             c = find(c,"\t\n\r\\\"\'\0\e")
             if c then
                 x[i..i] = '\\'&tnr[c]   -- NB does not work on RDS Eu/OpenEuphoria
@@ -769,10 +769,9 @@ constant msgs =
     -- is mapped to throw(42,"abort(%d)").
     -- Note that e87acmbi may be triggered first.
  "argument to peek() must be atom or sequence of two atoms\n",  -- e43atpmbaoso2a
--- "argument to peek4s() must be atom or sequence of two atoms\n", -- e44atpmbaoso2a
- -1,
--- "argument to peek4u() must be atom or sequence of two atoms\n", -- e45atpmbaoso2a
- -1,
+ "peek size must be 1|2|4|8\n",                                 -- e44psmb1248
+ "attempt to get square root of negative number\n",             -- e45atgsqronn
+
  "argument to float32_to_atom() must be sequence of length 4\n", -- e46atf32tambsol4
  "argument to float64_to_atom() must be sequence of length 8\n", -- e47atf64tambsol8
     -- btw, the above messages occur for an unassigned argument, rather
@@ -873,6 +872,7 @@ constant msgs =
     -- symtab[i] is not a type, function, or procedure. Usually 
     -- occurs after a previous call to routine_id, define_c_func, 
     -- etc returned -1.
+    -- Also invoked directly from delete_routine() aka :%opDelRtn.
 --DEV++
  "argument to open_dll() must be string\n",                     -- e73atodmbs
     -- Either the parameter is not a sequence, or some element
@@ -1030,6 +1030,7 @@ constant msgs =
     -- then it is because 1,700,000,000 is > 1,073,741,823.
     -- NB: ep1 is limit value, ep2 is step value (no var nos)
  "invalid poke size\n",                                         -- e122ips
+ "delete_routine already set\n",                                -- e123dras
  -1}
 
                                                                 -- e14soa(edi:)
@@ -3321,6 +3322,7 @@ end if
         else -- K_wdb
             if sNTyp<S_Type then
                 put2(sprintf("pDiagN.e line 3322: symtab[%d] bad S_NTyp[%d]\n",{rtn,sNTyp}))
+?sr
 ?"sleep(5)..."
 sleep(5)
 --          else
@@ -3996,6 +3998,7 @@ end procedure -- (for Edita/CtrlQ)
         -- calling convention
         --  mov ecx,imm32       -- no of frames to pop to obtain an era (>=1)
         --  mov al,imm          -- error code [1..length(msgs)-1, currently 122]
+        -- (note: 64bit **//can//** use ecx/al above, but needs rdi/rsi below)
         --  mov edi,ep1         -- [optional] (opUnassigned)
         --  mov esi,ep2         -- [optional] (opUnassigned) [used for 110/ecx]
         --  jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
@@ -4017,7 +4020,8 @@ end procedure -- (for Edita/CtrlQ)
 --          mov rdx,[rbp+56]    -- era
             mov rdx,[rbp+24]    -- called from address
             mov rbp,[rbp+40]    -- (nb no local vars after this!)
-            sub rcx,1
+--          sub rcx,1
+            sub ecx,1
             jg @b
             sub rdx,1
             mov rcx,rsi

@@ -8,6 +8,7 @@
 --  (I stripped the comments here because no way am I maintaining them in parallel...)
 -- Unlike the above, this allows multiple dictionaries ([tid] has appeared everwhere).
 --
+--without debug -- showing a massive "trees" in ex.err files is not normally helpful!
 
 enum KEY = 0,
      DATA,
@@ -15,14 +16,14 @@ enum KEY = 0,
      HEIGHT,    -- (NB +/-1 gives RIGHT/LEFT)
      RIGHT
 
-sequence trees
-sequence treenames
-sequence roots
-sequence sizes
-sequence defaults
-sequence freelists
-integer free_trees = 0
-integer initd = 0
+sequence trees,
+         treenames,
+         roots,
+         sizes,
+         defaults,
+         freelists
+integer free_trees = 0,
+        initd = 0
 
 procedure dinit()
     trees = {{}}
@@ -40,11 +41,11 @@ end procedure
 --end type
 
 global function is_dict(object tid)
-    return initd and integer(tid) and tid>=1 and tid<=length(roots) and sequence(trees[tid])
+    return tid=1 or (initd and integer(tid) and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
 end function
 
 procedure check(integer tid)
-    if tid!=1 and not is_dict(tid) then
+    if not is_dict(tid) then
         #ilASM{ mov ecx,2           -- no of frames to pop to obtain an era (>=2)
                 mov al,56           -- e56idi (invalid dictionary id)
                 jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
@@ -143,7 +144,7 @@ end procedure
 --  roots[tid] = insertNode(roots[tid], key, data, tid)
 --end procedure
 
-global procedure setd_default(object o, integer tid=1)
+global procedure setd_default(object o, integer tid)
     defaults[tid] = o
 end procedure
 
@@ -302,13 +303,48 @@ function gpk_visitor(object key, object /*data*/, object /*pkey*/, object /*user
 end function
 constant r_gpkv = routine_id("gpk_visitor")
 
+function traverser(sequence res, integer node, bool partial, object pkey, integer tid, bool rev)
+sequence tt = trees[tid]
+object key = tt[node+KEY],
+       data = tt[node+DATA]
+integer left = tt[node+LEFT],
+        right = tt[node+RIGHT]
+integer c = iff(partial?compare(key,pkey):0)
+    if rev then
+        {left,right} = {right,left}
+    end if
+    if left!=NULL then
+        res = traverser(res, left, partial, pkey, tid, rev)
+    end if  
+    if c>=0 and (not partial or length(res)=0) then
+        res = append(res,key)
+    end if
+    if right!=NULL and (not partial or length(res)=0) then
+        res = traverser(res, right, partial, pkey, tid, rev)
+    end if
+    return res
+end function
+
 global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
     check(tid)
+if 0 then
     gpk = defaults[tid]
     if roots[tid]!=0 then
         {} = traverse_key(roots[tid], r_gpkv, pkey, NULL, tid, rev)
     end if
     return gpk
+end if
+    object res = traverser({}, roots[tid], true, pkey, tid, rev)
+    if length(res) then
+        res = res[1]
+    else
+        res = defaults[tid]
+    end if
+    return res
+end function
+
+global function getd_all_keys(integer tid=1)
+    return traverser({}, roots[tid], false, NULL, tid, false)
 end function
 
 global function dict_size(integer tid=1)
@@ -321,7 +357,13 @@ global function dict_name(integer tid=1)
     return treenames[tid]
 end function
 
-global function new_dict(sequence kd_pairs = {}, integer pool_only=0)
+----DEV temp: (didn't help...)
+--function f(object o) return o end function
+--if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
+
+global function new_dict(object kd_pairs = {}, integer pool_only=0)
+--kd_pairs = f(kd_pairs)
+--pool_only = f(pool_only)
     if not initd then dinit() end if
     integer tid = free_trees
     if tid!=0 then
@@ -341,7 +383,8 @@ global function new_dict(sequence kd_pairs = {}, integer pool_only=0)
         freelists &= 0
         tid = length(trees)
     elsif pool_only>1 then
-        if length(kd_pairs) then ?9/0 end if
+--      if length(kd_pairs) then ?9/0 end if
+        if kd_pairs!={} then ?9/0 end if
         for i=1 to pool_only do
 --25/8/16 (spotted in passing!)
 --          trees = append(trees,{})
@@ -356,12 +399,23 @@ global function new_dict(sequence kd_pairs = {}, integer pool_only=0)
     end if
     if string(kd_pairs) then
         treenames[tid] = kd_pairs
-    else
+    elsif sequence(kd_pairs) then
         for i=1 to length(kd_pairs) do
             if length(kd_pairs[i])!=2 then ?9/0 end if
             object {key,data} = kd_pairs[i]
             setd(key,data,tid)
         end for
+    else
+        integer copy_tid = kd_pairs
+        check(copy_tid)     
+        trees[tid] = trees[copy_tid]
+        freelists[tid] = freelists[copy_tid]
+        -- programming note: the above is not really a copy, but 
+        --                   of course the cow-semantics of phix
+        --                   leaves one tree/freelist pair as-is
+        --                   when the other pair is modified.
+        roots[tid] = roots[copy_tid]
+        sizes[tid] = sizes[copy_tid]
     end if
     return tid
 end function

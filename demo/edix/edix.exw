@@ -729,6 +729,11 @@ integer uniskip
             return 0
         end if
     end if
+--  if unicodeflag=ANSI
+--  and get_file_extension(name)="p6" then
+--      unicodeflag = UTF8
+--      uniskip = 0
+--  end if
     if unicodeflag!=ANSI then
         -- gets() returns L"Hello" as "H\0e\0l\0l\0o\o" and makes a complete mess 
         -- of \r\0\n\0 handling, iyswim. So read it a (wide)char at a time.
@@ -1497,6 +1502,8 @@ object selend
 integer cY, sX, sY
     if not selON or (selX=CursorX and selY=CursorY) then return 0 end if
     filelen = length(filetext[currfile])
+--5/5/18:
+    if selY>=filelen then return 0 end if
 --#without reformat
     --
     -- First make cX/Y top left & sX/Y lower right
@@ -1647,7 +1654,9 @@ include src/qj.e    -- currProjFileSet("")
 
 procedure update_statusbar()
 integer k
-    if currfile then
+--26/9/18...
+--  if currfile then
+    if currfile and currfile<=length(filetext) then
         IupSetStrAttribute(sbline,"TITLE","Line %d of %d, Column %d",{CursorY+1,length(filetext[currfile]),CursorX+1})
         string imode = iff(insertMode?"INS":"OVR")
         string chstr = "   "
@@ -2241,7 +2250,9 @@ integer revision
             else
                 -- write a BOM (Byte Order Mark)
                 if unicodeflag=UTF8 then
+--if get_file_extension(filename)!="p6" then
                     puts(fn,{#EF,#BB,#BF})
+--end if
                 elsif unicodeflag=UTF16LE then
                     puts(fn,{#FF,#FE})
                 elsif unicodeflag=UTF16BE then

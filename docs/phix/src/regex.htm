@@ -33,11 +33,16 @@
             <br>
             <br>
             Returns: an even-length <a href="sequence.htm">sequence</a> of group indexes, or {} if no match could be found.
+            <br>
+            <br>
+            The results, corresponding to \0, \1, \2, etc of regular expression afficionado parlance, are start/end+1 pairs, 
+            ie the (odd-numbered) starting indexes can be used directly, however the (even-numbered) ending indexes need a 1 
+            subtracting, as per the example below.
          </td>
         </tr>
         <tr>
          <td valign=top>
-          <b>Example:</b>
+          <b>Example 1:</b>
          </td>
          <td>
 <!--eucode>
@@ -47,9 +52,43 @@
 <font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">regex</font><font color="#0000FF">(</font><font color="#008000">`(a)(bc)`</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">)</font><font color="#000080"><i> -- yields {1,4, 1,2, 2,4}</i></font>
 </pre>
             <br>
-            The result is 3 pairs of start/end+1 indexes, which can be read as {"abc"[1..4-1],"a"[1..2-1],"bc"[2..4-1]}.
+            The result is 3 pairs of start/end+1 indexes, which can be read as {target[1..4-1],target[1..2-1],target[2..4-1]} 
+            which in this case is {"abc","a","bc"}.
             The first element, aka `\0` is the entire match, the second aka `\1` from `(a)` is "a", and obviously the
             third aka `\2` from `(bc)` is "bc".
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+string target = "abc"
+sequence res = regex(`(a)(bc)`,target) -- res is {1,4, 1,2, 2,4}
+if res!={} then
+    sequence capture_groups = {}
+    for i=1 to length(res) by 2 do
+        integer {s,e} = res[i..i+1]
+        capture_groups = append(capture_groups,target[s..e-1])
+    end for
+    -- capture_groups is now {"abc","a","bc"}
+end if
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">string</font><font color="#000000"> target</font><font color="#0000FF"> =</font><font color="#008000"> "abc"
+</font><font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> regex</font><font color="#0000FF">(</font><font color="#008000">`(a)(bc)`</font><font color="#0000FF">,</font><font color="#000000">target</font><font color="#0000FF">)</font><font color="#000080"><i> -- res is {1,4, 1,2, 2,4}
+</i></font><font color="#008080">if</font><font color="#000000"> res</font><font color="#0000FF">!={}</font><font color="#008080"> then
+</font><font color="#004080">    sequence</font><font color="#000000"> capture_groups</font><font color="#0000FF"> = {}
+</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> by</font><font color="#000000"> 2</font><font color="#008080"> do
+</font><font color="#004080">        integer</font><font color="#0000FF"> {</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">} =</font><font color="#000000"> res</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">..</font><font color="#000000">i</font><font color="#0000FF">+</font><font color="#000000">1</font><font color="#0000FF">]
+</font><font color="#000000">        capture_groups</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">capture_groups</font><font color="#0000FF">,</font><font color="#000000">target</font><font color="#800000">[</font><font color="#000000">s</font><font color="#0000FF">..</font><font color="#000000">e</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)
+</font><font color="#008080">    end for
+</font><font color="#000080"><i>    -- capture_groups is now {"abc","a","bc"}
+</i></font><font color="#008080">end if</font>
+</pre>
+            <br>
+            Obviously, in most cases, only one capture group exists or only one is of any interest, and such a loop would be overkill.
          </td>
         </tr>
         <tr>

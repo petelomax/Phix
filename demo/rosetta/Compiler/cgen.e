@@ -72,8 +72,12 @@ integer size = 0
                 size += gen_size(t[2])
                 size += gen_size(t[3])
                 size += 10
-            case tk_add:
             case tk_and:
+            case tk_or:
+                size += gen_size(t[2])
+                size += gen_size(t[3])
+                size += 15
+            case tk_add:
             case tk_sub:
                 size += gen_size(t[2])
                 size += gen_size(t[3])
@@ -180,13 +184,25 @@ procedure gen_rec(object t)
                           0o071,0o321,                          -- cmp ecx,edx
                           0o017,xrm,0o300,                      -- setcc al
                           0o120}                                -- push eax
-            case tk_add:
             case tk_or:
             case tk_and:
+                gen_rec(t[2])
+                gen_rec(t[3])
+                integer op = find(n_type,{tk_or,0,0,tk_and})
+                op *= 0o010
+                code &= { 0o130,                                -- pop eax
+                          0o131,                                -- pop ecx
+                          0o205,0o300,                          -- test eax,eax
+                          0o017,0o225,0o300,                    -- setne al
+                          0o205,0o311,                          -- test ecx,ecx
+                          0o017,0o225,0o301,                    -- setne cl
+                          op,0o310,                             -- or/and al,cl
+                          0o120}                                -- push eax
+            case tk_add:
             case tk_sub:
                 gen_rec(t[2])
                 gen_rec(t[3])
-                integer op = find(n_type,{tk_add,tk_or,0,0,tk_and,tk_sub})
+                integer op = find(n_type,{tk_add,0,0,0,0,tk_sub})
                 op = 0o001 + (op-1)*0o010
                 code &= { 0o130,                                -- pop eax
                           op,0o004,0o044}                       -- add/or/and/sub [esp],eax

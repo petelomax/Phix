@@ -1,0 +1,86 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">VACUUM</h1>
+      <div id="mainSection">
+       <p><b><a href="sqlite3_syntaxdiagrams.htm#vacuum-stmt">vacuum-stmt:</a></b>
+        <button id='x1441' onclick='hideorshow("x1441","x1442")'>hide</button>
+       </p>
+       <div id='x1442' class='imgcontainer'>
+        <img alt="syntax diagram vacuum-stmt" src="images/syntax/vacuum-stmt.gif" />
+       </div>
+       <p>
+        The VACUUM command rebuilds the database file, repacking it into a minimal
+        amount of disk space. There are several reasons an application might do this:
+       </p>
+       <ul>
+      <li>
+        <p> Unless SQLite is running in "auto_vacuum=FULL" mode, when a large
+         amount of data is deleted from the database file it leaves behind empty
+         space, or "free" database pages. This means the database file might
+         be larger than strictly necessary. Running VACUUM to rebuild the 
+         database reclaims this space and reduces the size of the database file.
+        </p>
+
+      <li>
+        <p> Frequent inserts, updates, and deletes can cause the database file
+         to become fragmented - where data for a single table or index is scattered 
+         around the database file. Running VACUUM ensures that each table and
+         index is largely stored contiguously within the database file. In some
+         cases, VACUUM may also reduce the number of partially filled pages in
+         the database, reducing the size of the database file further.
+        </p>
+
+      <li>
+        <p> Normally, the database <a href="sqlite3_pragma.htm#pragma_page_size">page_size</a> and whether or not the database
+         supports <a href="sqlite3_pragma.htm#pragma_auto_vacuum">auto_vacuum</a> must be configured before the database file is
+         actually created. However, when not in write-ahead log mode, the 
+         <a href="sqlite3_pragma.htm#pragma_page_size">page_size</a> and/or <a href="sqlite3_pragma.htm#pragma_auto_vacuum">auto_vacuum</a> properties of an existing database may be
+         changed by using the <a href="sqlite3_pragma.htm#pragma_page_size">page_size</a>  and/or 
+         <a href="sqlite3_pragma.htm#pragma_auto_vacuum">pragma auto_vacuum</a> pragmas and then immediately VACUUMing
+         the database. When in write-ahead log mode, only the <a href="sqlite3_pragma.htm#pragma_auto_vacuum">auto_vacuum</a>
+         support property can be changed using VACUUM.
+        </p>
+       </ul>
+       <p>By default, VACUUM only works only on the main database.
+        <a href="sqlite3_lang_attach.htm">Attached databases</a> can be vacuumed by appending the appropriate
+        <span class='yyterm'>schema-name</span> to the VACUUM statement.
+       </p>
+       <p><b>Compatibility Warning:</b> The ability to vacuum attached databases was
+        added in version 3.15.0 (2016-10-14).  Prior to that, a
+        <span class='yyterm'>schema-name</span> added to the
+        VACUUM statement would be silently ignored and the "main" schema would be
+        vacuumed.
+       </p>
+       <p>The VACUUM command works by copying the contents of the database into
+        a temporary database file and then overwriting the original with the 
+        contents of the temporary file. When overwriting the original, a rollback
+        journal or write-ahead log WAL file is used just as it would be for any
+        other database transaction. This means that when VACUUMing a database, 
+        as much as twice the size of the original database file is required in free
+        disk space.
+       </p>
+       <p>The VACUUM command may change the <a href="sqlite3_lang_createtable.htm#rowid">ROWIDs</a> of entries in any
+        tables that do not have an explicit <a href="sqlite3_lang_createtable.htm#rowid">INTEGER PRIMARY KEY</a>.
+       </p>
+       <p>A VACUUM will fail if there is an open transaction, or if there are one or
+        more active SQL statements when it is run.
+       </p>
+       <p>An alternative to using the VACUUM command to
+        reclaim space after data has been deleted is auto-vacuum mode, enabled using
+        the <a href="sqlite3_pragma.htm#pragma_auto_vacuum">auto_vacuum</a> pragma. When <a href="sqlite3_pragma.htm#pragma_auto_vacuum">auto_vacuum</a> is enabled for a database
+        free pages may be reclaimed after deleting data, causing the file to shrink,
+        without rebuilding the entire database using VACUUM.  However, using
+        <a href="sqlite3_pragma.htm#pragma_auto_vacuum">auto_vacuum</a> can lead to extra database file fragmentation.  And <a href="sqlite3_pragma.htm#pragma_auto_vacuum">auto_vacuum</a>
+        does not compact partially filled pages of the database as VACUUM does.
+       </p>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

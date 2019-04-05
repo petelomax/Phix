@@ -58,4 +58,17 @@ function changeImageT(img) {
         img.src = img.src.replace("close", "open");
     }
 }
+/* Used by the Hide/Show button beside syntax diagrams, to toggle the */
+function hideorshow(btn,obj){
+var x = document.getElementById(obj);
+var b = document.getElementById(btn);
+    if( x.style.display!='none' ){
+        x.style.display = 'none';
+        b.innerHTML='show';
+    }else{
+        x.style.display = '';
+        b.innerHTML='hide';
+    }
+    return false;
+}
 

@@ -1,0 +1,112 @@
+--
+-- demo/rosetta/Miller_Rabin_primality_test.exw
+--
+free_console()
+include bigatom.e
+
+function ba_rand(object low, high)
+-- generate a random integer between low and high (inclusive)
+-- low and high can be passed in as integer/string/bigatom
+-- (both low and high get given the ba_round(int) treatment)
+    low = ba_sub(ba_round(low),1)
+    high = ba_round(high)           -- just in case...
+    bigatom hz = ba_sub(high,low)   -- convert range to 0..hz
+    string hs = ba_sprint(hz)       -- get length
+    integer l = length(hs)
+    string rs = repeat('9',l)
+    while 1 do
+        -- generate "000..." .. "999..." in blocks of up to 9
+        for p=1 to length(rs) by 9 do
+            integer cl = min(l-p+1,9)
+            string fmt = sprintf("%%0%dd",cl) -- "%01d".."%09d"
+            string chunk = sprintf(fmt,rand(power(10,cl))-1)
+            rs[p..p+cl-1] = chunk
+        end for
+        if length(rs)!=length(hs) then ?9/0 end if -- sanity
+        if rs<=hs then exit end if
+    end while
+    return ba_add(ba_new(rs),low)
+end function
+
+--ba_mod_exp() based on FastExp() in the Liberty BASIC submission (and boy did this need it!).
+--/*
+function ba_mod_exp(object base, exponent, modulus) -- **now part of bigatom.e**
+-- base/exponent/modulus can be integer/string/bigatom
+-- returns mod(power(base,exponent),modulus), but in bigatoms and faster.
+    bigatom res
+    if ba_compare(exponent,1)=0 then
+        res = base
+    else
+        bool odd = (ba_compare(ba_mod(exponent,2),0)!=0)
+        if odd then
+            exponent = ba_sub(exponent,1)
+        end if
+        exponent = ba_divide(exponent,2)
+        res = ba_mod_exp(base,exponent,modulus)
+        res = ba_multiply(res,res)
+        if odd then
+            res = ba_multiply(res,base)
+        end if
+    end if
+    res = ba_mod(res,modulus)
+    return res
+end function
+--*/
+
+constant COMPOSITE      = 0,
+         PROBABLY_PRIME = 1
+
+function Miller_Rabin(object n, integer k=10)
+-- n can be integer/string/bigatom
+    bigatom nm1 = ba_sub(n,1), d=nm1, x
+    integer s = 0
+    if ba_compare(n,2)=0 then
+        return PROBABLY_PRIME
+    elsif ba_mod(n,2)=0 or ba_compare(n,2)<0 then
+        return COMPOSITE
+    end if
+    while ba_mod(d,2)=0 do
+        d = ba_divide(d,2)
+        s += 1
+    end while
+    integer res = PROBABLY_PRIME
+    for i=1 to k do
+printf(1,"working (%d/%d)...\r",{i,k})
+        x = ba_mod_exp(ba_rand(2,nm1),d,n)
+        if ba_compare(x,1)!=0
+        and ba_compare(x,nm1)!=0 then
+            for r=1 to s-1 do
+--              x = ba_mod(ba_multiply(x,x),n)  -- (far too slow!)
+                x = ba_mod_exp(x,2,n)
+                if ba_compare(x,1)=0 then res = COMPOSITE exit end if
+                if ba_compare(x,nm1)=0 then exit end if
+            end for
+            if ba_compare(x,nm1)!=0 then res = COMPOSITE end if
+        end if
+        if res=COMPOSITE then exit end if
+    end for
+printf(1,"                      \r")
+    return res
+end function
+
+atom t0 = time()    -- (takes approx 25s for this set)
+?Miller_Rabin(17) --1
+?Miller_Rabin(21) --0
+?Miller_Rabin("4547337172376300111955330758342147474062293202868155909489") --1
+?Miller_Rabin("4547337172376300111955330758342147474062293202868155909393") --0
+?Miller_Rabin("13092430647736190817303130065827539") --1
+?Miller_Rabin("1088303707153521644968345559987") --1
+?Miller_Rabin("615419590422100474355767356763") --1
+?Miller_Rabin("34068645705927662447286191") --1
+?Miller_Rabin("357686312646216567629137") --1
+?Miller_Rabin("14005650767869") --1
+?Miller_Rabin("2276005673") --1
+?Miller_Rabin("812751503") --1
+?Miller_Rabin(817337) --1
+?Miller_Rabin(7817) --1
+?Miller_Rabin(4091) --1
+printf(1,"%s\n",{elapsed(time()-t0)})
+
+?"done"
+{} = wait_key()
+

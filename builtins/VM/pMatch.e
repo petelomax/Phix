@@ -6,10 +6,10 @@
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
 --
 
-global function match(object s1, sequence s2, integer start=1, bool case_insensitive=false)
+global function match(object needle, sequence haystack, integer start=1, bool case_insensitive=false)
 --
--- Try to match s1 against some slice of s2.
--- If successful, return the element number of s2 where the (first) matching slice begins,
+-- Try to match needle against some slice of haystack.
+-- If successful, return the element number of haystack where the (first) matching slice begins,
 -- else return 0.  
 
 -- This is the closest way to express the back-end algorithm in hll.
@@ -29,75 +29,154 @@ global function match(object s1, sequence s2, integer start=1, bool case_insensi
 -- Changes to the functionality of match() noted below arose from a 
 -- protracted discussion on EuForum in 2002.
 --
-integer res, s2idx, ls1, ls2
-object s1i, s2i
+integer res, hdx, ln, lh
+object ni, hi
+    if case_insensitive then
+        needle = lower(needle)
+        haystack = lower(haystack)
+    end if
     -- This line, and first parameter being object not sequence, is not RDS compliant.
     --  (RDS gives error "first argument of match() must be a sequence")
-    if atom(s1) then return find(s1,s2,start) end if
+    if atom(needle) then
+        return find(needle,haystack,start)
+    end if
     res = start
-    ls1 = length(s1)
+    ln = length(needle)
     -- This line is also not RDS compliant
     --  (RDS gives error "first argument of match() must be a non-empty sequence")
-    if ls1=0 then return 0 end if
+    if ln=0 then return 0 end if
     if start<1 then return 0 end if
-    ls2 = length(s2)
---  if ls1 > ls2 then return 0 end if -- see below
+    lh = length(haystack)
+--  if ln > lh then return 0 end if -- see below
     while 1 do
-        if res+ls1-1>ls2 then return 0 end if
-        for i=1 to ls1 do
-            s1i = s1[i]
-            if case_insensitive then s1i = lower(s1i) end if
-            s2idx = i+res-1
---          if s2idx>ls2 then return 0 end if -- see above
-            s2i = s2[s2idx]
-            if case_insensitive then s2i = lower(s2i) end if
---          if not quick_equal(sli,s2i) then    -- asm variant
-            if not equal(s1i,s2i) then
---              if integer(sli) and not integer(s2i) then -- maybe?
---              if integer(sli) and not equal(s1i,s2i) then -- maybe?
-                if integer(s1i) then
-                    -- scan for sli later on in s2
-                    -- eg s1=13131...,
-                    --    s2=1313x31...
-                    -- with s1[5]=1, scanning fwd two places to s2[7]=1
+        if res+ln-1>lh then return 0 end if
+        for i=1 to ln do
+            ni = needle[i]
+            hdx = i+res-1
+--          if hdx>lh then return 0 end if -- see above
+            hi = haystack[hdx]
+--          if case_insensitive then ni = lower(ni)
+--                                   hi = lower(hi) end if
+--          if not quick_equal(ni,hi) then  -- asm variant
+            if not equal(ni,hi) then
+--              if integer(ni) and not integer(hi) then -- maybe?
+--              if integer(ni) and not equal(ni,hi) then -- maybe?
+                if integer(ni) then
+                    -- scan for ni later on in haystack
+                    -- eg needle=13131...,
+                    --    haystack=1313x31...
+                    -- with needle[5]=1, scanning fwd two places to haystack[7]=1
                     -- gives the earliest point worth re-starting from.
-                    -- if s1i does not occur anywhere later in s2, then
+                    -- if ni does not occur anywhere later in haystack, then
                     -- clearly there will be no match anywhere.
-                    for j=s2idx+1 to ls2+1 do
+                    for j=hdx+1 to lh+1 do
                         res += 1
---                      s2idx = i+res-1
---                      s2idx += 1
---                      if s2idx>ls2 then return 0 end if
-                        if j>ls2 then return 0 end if
-                        s2i = s2[j]
-                        if case_insensitive then s2i = lower(s2i) end if
-                        if equal(s1i,s2i) then exit end if
+--                      hdx = i+res-1
+--                      hdx += 1
+--                      if hdx>lh then return 0 end if
+                        if j>lh then return 0 end if
+                        hi = haystack[j]
+--                      if case_insensitive then hi = lower(hi) end if
+                        if equal(ni,hi) then exit end if
                     end for
                     exit
-                elsif integer(s2i) then
-                    -- scan for s2i earlier on in s1
-                    -- eg s1=131313x...,
-                    --    s2=1313131...
-                    -- with s2[7]=1, scanning back two places to s1[5]=1
+                elsif integer(hi) then
+                    -- scan for hi earlier on in needle
+                    -- eg needle=131313x...,
+                    --    haystack=1313131...
+                    -- with haystack[7]=1, scanning back two places to needle[5]=1
                     -- gives the earliest point worth re-starting from.
-                    -- if s2[7] does not occur anywhere earlier in s1,
-                    -- then clearly we should restart from s2[8].
+                    -- if haystack[7] does not occur anywhere earlier in needle,
+                    -- then clearly we should restart from haystack[8].
                     for j=i-1 to 0 by -1 do
                         res += 1
                         if j=0 then exit end if
-                        s1i = s1[j]
-                        if case_insensitive then s1i = lower(s1i) end if
-                        if equal(s2i,s1i) then exit end if
+                        ni = needle[j]
+--                      if case_insensitive then ni = lower(ni) end if
+                        if equal(hi,ni) then exit end if
                     end for
                     exit
---              elsif not equal(s1i,s2i) then   -- deep_equal() here in asm
+--              elsif not equal(ni,hi) then -- deep_equal() here in asm
                 else
                     res += 1
                     exit
                 end if
             end if
-            if i=ls1 then return res end if
+            if i=ln then return res end if
         end for
     end while
 end function
+
+--**
+-- Try to match a needle against some slice of a haystack in reverse order.
+--
+-- Parameters:
+--   # ##needle## : a sequence to search for
+--   # ##haystack## : a sequence to search in
+--   # ##start## : an integer, the starting index position (defaults to length(##haystack##))
+--
+-- Returns:
+--   An **integer**, either 0 if no slice of ##haystack## starting before 
+--   ##start## equals ##needle##, else the highest lower index of such a slice.
+--
+-- Comments:
+--   If ##start## is less than 1, it will be added once to length(##haystack##)
+--   to designate a position counted backwards. Thus, if ##start## is -1, the
+--   first element to be queried in ##haystack## will be ##haystack##[$-1],
+--   then ##haystack##[$-2] and so on.
+--
+-- Example 1:
+-- <eucode>
+-- location = rmatch("the", "the dog ate the steak from the table.")
+-- -- location is set to 28 (3rd 'the')
+-- location = rmatch("the", "the dog ate the steak from the table.", -11)
+-- -- location is set to 13 (2nd 'the')
+-- </eucode>
+--
+-- See Also:
+--     [[:rfind]], [[:match]]
+
+global function rmatch(sequence needle, sequence haystack, integer start=length(haystack), bool case_insensitive=false)
+
+integer ln = length(needle),
+        lh = length(haystack)
+
+    if ln=0
+    or start=0
+    or start>lh
+    or lh+start<1 then
+        return 0
+    end if
+
+    if case_insensitive then
+        needle = lower(needle)
+        haystack = lower(haystack)
+    end if
+
+    if start<1 then
+        start = lh+start
+    end if
+
+    if start+ln-1>lh then
+        start = lh-ln+1
+    end if
+
+    ln -= 1
+
+    for i=start to 1 by -1 do
+--      if equal(needle, haystack[i..i+ln]) then
+--          return i
+--      end if
+        for j=1 to ln do
+--          object nj = needle[j]
+--          object hj = haystack[i+j-1]
+--          if nj!=hj then exit end if  
+            if needle[j]!=haystack[i+j-1] then exit end if  
+            if j=ln then return i end if
+        end for
+    end for
+
+    return 0
+end function
+
 

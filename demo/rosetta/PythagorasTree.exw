@@ -2,17 +2,16 @@
 -- demo\rosetta\PythagorasTree.exw
 -- ===============================
 --
+-- updated 28/9/18 to draw leaves last (extra arg dd) for better symmetry
 
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
 
-function rgb(integer r, integer g, integer b)
-    return r*#10000 + g*#100 + b
-end function
+enum FILL, BORDER
 
-procedure drawTree(atom x1, atom y1, atom x2, atom y2, integer depth)
+procedure drawTree(atom x1, y1, x2, y2, integer depth, dd)
 atom dx = x2 - x1
 atom dy = y1 - y2
 
@@ -23,47 +22,38 @@ atom y4 = y1 - dx
 atom x5 = x4 + 0.5 * (dx - dy)
 atom y5 = y4 - 0.5 * (dx + dy)
  
-integer r = 250-depth*20
+    if depth=dd then
+        integer r = 250-depth*20
 
-    cdCanvasSetForeground(cddbuffer, rgb(r,#FF,0))
-    cdCanvasBegin(cddbuffer,CD_FILL)
-    cdCanvasVertex(cddbuffer, x1, 640-y1)
-    cdCanvasVertex(cddbuffer, x2, 640-y2)
-    cdCanvasVertex(cddbuffer, x3, 640-y3)
-    cdCanvasVertex(cddbuffer, x4, 640-y4)
-    cdCanvasEnd(cddbuffer)
- 
-    cdCanvasSetForeground(cddbuffer, CD_GRAY)
-    cdCanvasBegin(cddbuffer,CD_CLOSED_LINES)
-    cdCanvasVertex(cddbuffer, x1, 640-y1)
-    cdCanvasVertex(cddbuffer, x2, 640-y2)
-    cdCanvasVertex(cddbuffer, x3, 640-y3)
-    cdCanvasVertex(cddbuffer, x4, 640-y4)
-    cdCanvasEnd(cddbuffer)
- 
-    cdCanvasSetForeground(cddbuffer, rgb(r-depth*10,#FF,0))
-    cdCanvasBegin(cddbuffer,CD_FILL)
-    cdCanvasVertex(cddbuffer, x3, 640-y3)
-    cdCanvasVertex(cddbuffer, x4, 640-y4)
-    cdCanvasVertex(cddbuffer, x5, 640-y5)
-    cdCanvasEnd(cddbuffer)
-
-    cdCanvasSetForeground(cddbuffer, CD_GRAY)
-    cdCanvasBegin(cddbuffer,CD_CLOSED_LINES)
-    cdCanvasVertex(cddbuffer, x3, 640-y3)
-    cdCanvasVertex(cddbuffer, x4, 640-y4)
-    cdCanvasVertex(cddbuffer, x5, 640-y5)
-    cdCanvasEnd(cddbuffer)
-
-    if depth<8 then
-        drawTree(x4, y4, x5, y5, depth + 1)
-        drawTree(x5, y5, x3, y3, depth + 1)
+        for draw=FILL to BORDER do
+            -- one square... 
+            cdCanvasSetForeground(cddbuffer, iff(draw=FILL?rgb(r,#FF,0):CD_GRAY))
+            cdCanvasBegin(cddbuffer,iff(draw=FILL?CD_FILL:CD_CLOSED_LINES))
+            cdCanvasVertex(cddbuffer, x1, 640-y1)
+            cdCanvasVertex(cddbuffer, x2, 640-y2)
+            cdCanvasVertex(cddbuffer, x3, 640-y3)
+            cdCanvasVertex(cddbuffer, x4, 640-y4)
+            cdCanvasEnd(cddbuffer)
+            -- ...and the attached triangle
+            if draw=FILL then 
+                cdCanvasSetForeground(cddbuffer, rgb(r-depth*10,#FF,0))
+            end if
+            cdCanvasVertex(cddbuffer, x3, 640-y3)
+            cdCanvasVertex(cddbuffer, x4, 640-y4)
+            cdCanvasVertex(cddbuffer, x5, 640-y5)
+            cdCanvasEnd(cddbuffer)
+        end for
+    elsif depth<dd then
+        drawTree(x4, y4, x5, y5, depth + 1, dd)
+        drawTree(x5, y5, x3, y3, depth + 1, dd)
     end if
 end procedure
 
-function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, /*posy*/)
     cdCanvasActivate(cddbuffer)
-    drawTree(275, 500, 375, 500, 0)
+    for i=0 to 7 do -- (draw leaves last)
+        drawTree(275, 500, 375, 500, 0, i)
+    end for
     cdCanvasFlush(cddbuffer)
     return IUP_DEFAULT
 end function

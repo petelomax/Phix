@@ -13,27 +13,31 @@
           <b>Definition:</b>
          </td>
          <td>
-          printf(<a href="integer.htm">integer</a> fn, <a href="string.htm">string</a> st, <a href="object.htm">object</a> x={})
+          printf(<a href="integer.htm">integer</a> fn, <a href="string.htm">string</a> fmt, <a href="object.htm">object</a> args={})
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Description:</b>
          </td>
-         <td>Print x, to file or device fn, using format string st. <br>
-            If x is an <a href="atom.htm">atom</a> then all formats from st are applied to it. <br>
-            If x is a <a href="sequence.htm">sequence</a>, then formats from st are applied to
-          <b>
-           <i>successive elements</i>
-          </b> of x.<br>
+         <td>
+            fn: a file or device, typically 1 (stdout) for console apps, or a result from <a href="open.htm">open</a>().<br>
+            fmt: a format string, eg "Hello %s\n".<br>
+            args: the object(s) to be printed.
+            <br>
+            <br>
+            If args is an <a href="atom.htm">atom</a> then all formats in fmt are applied to it. <br>
+            If args is a <a href="sequence.htm">sequence</a>, then formats in fmt are applied to successive elements.<br>
             Thus printf() always takes exactly 3 arguments. However the length of
             the last argument, containing the values to be printed, can vary. <br>
             The basic formats are:
           <br>
           <br>
- %s - print a sequence as a string of characters, or print an atom as a single character
+ %s - print a utf-8 or ansi string or sequence as a string of characters, or print an atom as a single character
           <br>
  %c - print an atom as a single character (nb not unicode)
+          <br>
+ %v - print the string result from <a href="sprint.htm">sprint</a>(args[i])
           <br>
  %d - print an atom as a decimal integer
           <br>
@@ -58,45 +62,85 @@
  %% - print the '%' character itself
           <br>
           <br>
-            Field widths can be added to the basic formats, e.g. %5d, %8.2f,
-            %10.4s. The number before the decimal point is the minimum field
-            width to be used. The number after the decimal point is the
-            precision to be used.
+            Field widths can be added to the basic formats, e.g. %5d, %8.2f, %10.4s. <br>
+            The number before the decimal point is the minimum field width to be used. <br>
+            The number after the decimal point is the precision to be used.
           <br>
           <br>
-            For %f and %e, the precision specifies how many digits follow the
-            decimal point character, whereas for %g, the precision specifies 
-            how many significant digits to print, and for %s the precision
-            specifies how many characters to print.
+            For %f and %e, the precision specifies how many digits follow the decimal point character, whereas <br>
+            for %g, the precision specifies how many significant digits to print, and <br>
+            for %s the precision specifies how many (the maximum number of) characters to print.
           <br>
           <br>
-            If the field width is negative, e.g. %-5d then the value will be
-            left-justified within the field. Normally it will be right-justified.
-            If the field width starts with a leading 0, e.g. %08d
-            then leading zeros will be supplied to fill up the field. If the
-            field width starts with a '+' e.g. %+7d then a plus sign will be
-            printed for positive values.
-            If the field width starts with a ',' (%d and %f only) then commas 
-            are inserted every third character (phix-specific).
+            If the field width starts with a leading 0, e.g. %08d then leading zeros will be supplied to fill up the field. <br>
+            If the field width starts with a '+' (not %s, %c, or %v) e.g. %+7d then a plus sign will be printed for positive values.<br>
+            If the field width starts with a '-' e.g. %-5d then the value will be left-justified within the field. Normally it will be right-justified.<br>
+            If the field width starts with '=' e.g. %=8s then it will be centred. A '|' is similar except it splits odd padding (eg) 4:3 whereas '=' splits it 3:4.<br>
+            If the field width starts with a ',' (%d and %f only) then commas are inserted every third character (phix-specific).<br>
+            The 'starts with' is not entirely accurate. Note that '-=|' (and none) are mutually exclusive, and cannot co-exist with 0. <br>
+            Likewise '0' and '+' are also mutually exclusive, however '+' can co-exist with '-=|' as long as it is specified first, 
+            whereas ',' can be used with any ('0+-=|') , as long as it is specified last.<br>
+            You can actually zero-fill the string formats ('s','c', and 'v') if you want, not that I can think of any good reason to.
          </td>
         </tr>
         <tr>
          <td valign=top>
           <b>Comments:</b>
          </td>
-         <td>A statement such as printf(1,"%s","John Smith") should by rights just print 'J', as the
-            %s should apply to the first element of x, which in this case is 'J'. 
-            The correct statement is printf(1,"%s",{"John Smith"}) where no such confusion can arise. 
-            However this is such an easy mistake to make that in phix it is caught specially and the 
-            full name printed. Note however that RDS Eu and OpenEuphoria will both just print 'J'.
+         <td>
+            A statement such as printf(1,"%s","John Smith") should by rights just print 'J', as the
+            %s should apply to the first element of x, which in this case is 'J'. <br>
+            The correct statement is printf(1,"%s",{"John Smith"}) where no such confusion can arise. <br>
+            However this is such an easy mistake to make that in phix it is caught specially (args is
+            <i>a</i> string and fmt has only one %-format, ignoring any %%) and the full name printed. <br>
+            Note however that RDS Eu and OpenEuphoria will both just print 'J'.
           <br>
           <br>
-            Unicode is supported via UTF8 strings, which this routine treats exactly the same as
-            ansi. %c does <i><b>not</b></i> support the printing of single unicode characters, but
-            instead performs and_bits(a,#FF) and prints it as a standard ascii character.
+            Unicode is supported via utf-8 strings, which this routine treats exactly the same as ansi. <br>
+            %c does <i><b>not</b></i> support the printing of single unicode characters, but instead performs 
+            <a href="and_bits.htm">and_bits</a>(a,#FF) and prints it as a standard ascii character. <br>
+            To print a single unicode character, held in the integer uchar, I recommend using %s on the 
+            result from <a href="utf32_to_utf8.htm">utf32_to_utf8</a>({uchar}).<br>
+            To print a utf-32 or utf-16 sequence it should first be passed through 
+            <a href="utf32_to_utf8.htm">utf32_to_utf8</a>() or
+            <a href="utf16_to_utf8.htm">utf16_to_utf8</a>() respectively.
           <br>
           <br>
             Lastly, %x and %X are "the wrong way round" for historical/compatibility reasons.
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          <b>Settings:</b>
+         </td>
+         <td>
+            [Phix only, there is no equivalent for RDS Eu or OpenEuphoria]<br>
+            If called with fn of 0 (stdin, which cannot be printed to anyway) and a fmt of "" (so
+            there wouldn&rsquo;t be any output anyway), then args is treated as a pair-list of settings,
+            eg 
+<!--eucode>
+            printf(0,"",{"unicode_align",true})
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">            printf</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"unicode_align"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+<br>
+            "unicode_align" expects a bool and controls whether <a href="utf8_to_utf32.htm">utf8_to_utf32</a>()
+            is invoked when padding to the minimum field width, which obviously makes a big difference when
+            aligning unicode strings being displayed to a console/terminal, but is a completely unnecessary
+            overhead in legacy/ansi-only code. In fact, making the default false significantly sped up some 
+            of the listing and ex.err file generation in the phix compiler itself.
+            <br>
+            <br>
+            At the moment that is the only option implemented. A fatal error occurs if the odd element is
+            not a recognised string or the even element is the wrong type.
+            <br>
+            <br>
+            Note that settings are not thread-safe (as in setting it on/off applies instantly to all threads,
+            and if one is already in progress it could end up getting done half on/half off). 
+            Then again, while I have tried my best to make printf() as thread-safe as possible, it should 
+            probably be avoided in a background worker thread if at all possible, or perhaps only performed 
+            under the protection of a critical section.
          </td>
         </tr>
         <tr>

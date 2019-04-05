@@ -1,0 +1,66 @@
+                   ---------------------------
+                   -- Prime Sieve Benchmark --
+                   ---------------------------
+-- with profile
+-- with profile_time
+
+without type_check -- makes no difference
+
+constant BATCH = 50
+constant BENCH_TIME = 2 -- 15
+
+constant SIZE = 500  -- finds primes up to SIZE*2+1
+                     -- (only tests odd numbers)
+constant ON = 1, OFF = 0
+
+sequence flags 
+
+atom t = time(), cycles = 0
+
+-- Technical notes (PL):
+--  Writing "prime = 2*i; prime += 1" is faster than "prime = 2*i+1" because it
+--  does not have to allocate and later decref a temp for "2*i", ditto for the
+--  "start = prime + i" not being inlined into the for statement. Of course the
+--  differences are tiny, but tiny can be a measurable chunk of 8.25ms!
+
+procedure sieve()
+    integer prime, start
+
+    flags = repeat(ON, SIZE)
+    for i=1 to SIZE do
+        if flags[i] then -- (still prime)
+            prime = 2 * i
+            prime += 1
+            start = prime + i
+            for k=start to SIZE by prime do
+                flags[k] = OFF
+            end for 
+        end if
+    end for
+end procedure
+
+puts(1, "prime sieve benchmark ...\n")
+while time()<t + BENCH_TIME do
+    for iter=1 to BATCH do
+        sieve()
+    end for
+    cycles += BATCH
+end while
+t = time() - t
+printf(1, "%6.1f sieves per second (each sieve of %d numbers takes %3.2f millionths of a second)\n",
+          {cycles/t,SIZE*2,(t/cycles)*1e6})
+
+-- display results
+--puts(1, "   2") -- 2 is also a prime
+sequence primes = {2}
+for i = 1 to SIZE do
+    if flags[i] then
+--      printf(1, " %3d", i*2+1)
+        primes &= i*2+1
+    end if
+end for
+?primes
+if length(primes)!=168 then puts(1, "whoops!\n") end if
+
+puts(1,"\n\ndone")
+{} = wait_key()
