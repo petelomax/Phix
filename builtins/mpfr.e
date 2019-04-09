@@ -1031,6 +1031,36 @@ global function mpz_tstbit(mpz op, integer bit_index)
     return res
 end function
 
+integer x_mpz_scan0 = NULL
+
+global function mpz_scan0(mpz op, integer starting_bit)
+--Find first 0 in op >= starting_bit.
+--Scan op, starting from bit starting bit, towards more significant bits, until the first 0 or 1 bit
+--(respectively) is found. Return the index of the found bit.
+--If the bit at starting bit is already what's sought, then starting bit is returned.
+--If there's no bit found, then the largest possible mp_bitcnt_t is returned. This will happen
+--in mpz_scan0 past the end of a positive number, or mpz_scan1 past the end of a nonnegative
+--number.
+    if op=NULL then ?9/0 end if
+    if x_mpz_scan0=NULL then
+        x_mpz_scan0 = link_c_func(mpir_dll, "+__gmpz_scan0", {P,I},I)
+    end if
+    integer res = c_func(x_mpz_scan0,{op,starting_bit})
+    return res
+end function
+
+integer x_mpz_scan1 = NULL
+
+global function mpz_scan1(mpz op, integer starting_bit)
+--Find first 1 in op >= starting_bit.
+    if op=NULL then ?9/0 end if
+    if x_mpz_scan1=NULL then
+        x_mpz_scan1 = link_c_func(mpir_dll, "+__gmpz_scan1", {P,I},I)
+    end if
+    integer res = c_func(x_mpz_scan1,{op,starting_bit})
+    return res
+end function
+
 integer x_mpz_powm = NULL
 
 global procedure mpz_powm(mpz rop, base, exponent, modulus)
@@ -2094,8 +2124,8 @@ __gmpz_remove
 __gmpz_root
 __gmpz_rootrem
 __gmpz_rrandomb
-__gmpz_scan0
-__gmpz_scan1
+--__gmpz_scan0
+--__gmpz_scan1
 --__gmpz_set
 --__gmpz_set_d
 __gmpz_set_q
@@ -5080,14 +5110,14 @@ operands, which is the number of bit positions where op1 and op2 have different 
 If one operand is >= 0 and the other < 0 then the number of bits different is infinite, and the
 return value is the largest possible imp_bitcnt_t.
 40 MPIR 2.7.2
-mp_bitcnt_t mpz_scan0 (mpz_t op, mp_bitcnt_t starting_bit) 
-mp_bitcnt_t mpz_scan1 (mpz_t op, mp_bitcnt_t starting_bit) 
-Scan op, starting from bit starting bit, towards more significant bits, until the first 0 or 1 bit
-(respectively) is found. Return the index of the found bit.
-If the bit at starting bit is already what's sought, then starting bit is returned.
-If there's no bit found, then the largest possible mp_bitcnt_t is returned. This will happen
-in mpz_scan0 past the end of a positive number, or mpz_scan1 past the end of a nonnegative
-number.
+--mp_bitcnt_t mpz_scan0 (mpz_t op, mp_bitcnt_t starting_bit) 
+--mp_bitcnt_t mpz_scan1 (mpz_t op, mp_bitcnt_t starting_bit) 
+--Scan op, starting from bit starting bit, towards more significant bits, until the first 0 or 1 bit
+--(respectively) is found. Return the index of the found bit.
+--If the bit at starting bit is already what's sought, then starting bit is returned.
+--If there's no bit found, then the largest possible mp_bitcnt_t is returned. This will happen
+--in mpz_scan0 past the end of a positive number, or mpz_scan1 past the end of a nonnegative
+--number.
 void mpz_setbit (mpz_t rop, mp_bitcnt_t bit_index) 
 Set bit bit_index in rop.
 void mpz_clrbit (mpz_t rop, mp_bitcnt_t bit_index) 

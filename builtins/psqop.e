@@ -722,6 +722,8 @@ global function sq_log10(object a)
     return a
 end function
 
+include builtins\log10.e    -- (temp, for log2)
+
 global function sq_log2(object a)
     if atom(a) then return log2(a) end if
     for i=1 to length(a) do
