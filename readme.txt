@@ -138,6 +138,49 @@ Version 0.8.0
             Turns out it had never handled any and/or inside an iff() expression properly.
             Simple fix was just Expr(0,0) ==>> Expr(0,asBool), times two, in DoIff().
 
+20/04/2019: Other changes in the 0.8.0 release:
+            Installation now in three parts, phix.0.8.0.setup.exe, phix.0.8.0.1.zip, and
+            phix.0.8.0.2.zip. The setup.exe automatically downloads (unless it can find them) 
+            and extracts the two .zip files (via demo/pGUI/pdemo/installation.e).
+            NEWGSCAN (disabled for now)
+            GetLastAccessTime() renamed as GetFileTime() in builtins/timestamp.ew
+            get_text() now supports GT_KEEP_BOM, and GT_WHOLE_FILE now only adds a trailing \n 
+            when the file has been opened in text mode (ptok.e changed to do that to match).
+            log2() added
+            de/encode_base64() documented and builtins/base64.e made an auto-include.
+            custom_sort() enhanced to support inline tagsorts w/out custom comparison routine, 
+            and now also supports both ascending and descending modes.
+            sort_columns() added
+            extract() and reinstate() added
+            include_path() added (without an s) to complement/filter include_paths()
+            set_file_size() added, and get_file_size() can now return a KB/GB/TB string result.
+            sq_min(), sq_max(), and sq_log2() added
+            allow_novalue() added to bigatom.e
+            ba_sprintf() can now comma-separate the integer part of the result, like sprintf().
+            New aliases ba_div, ba_idiv, ba_mul for ba_divide, ba_idivide, and ba_multiply.
+            New routines ba_factorial, ba_gcd, ba_lcm, ba_mod, ba_mod_exp, ba_sign, and ba_uminus.
+            pretty_print() moved to builtins/pretty.e and documented (was in misc.e)
+            new_dict() can now make a fast copy of an existing dictionary
+            factorial() now iterative (and hence slightly faster, was recursive)
+            lcm() added to complement gcd()
+            builtins\xml.e added, for converting xml text <==> nested structure, and documented.
+            builtins\mpfr.e, a wrapper for gmp, for fast [very fast] arbitrary precision maths.
+             (^note the dlls still need to be downloaded manually for now, but I have a plan..)
+            builtins\pSQLite.e added, see (extensive) new documentation under Other Libraries.
+            regex now supports h/v/z for horizontal whitespace, vertical whitespace, and eof.
+            [s]printf() now has text centering, v for sprint(), unicode alignment now optional.
+            new error "attempt to get square root of negative number" in the sqrt() builtin.
+            builtins\prnd.e is not yet used and should be ignored for now.
+            rmatch() added to complement match(), as per OE, matches from the other end.
+            proper() added to builtins/pcase.e - not yet documented.
+            builtins\complex.e added for complex number handling - not yet documented.
+            builtins\pfrac.e added for rational fraction handling - not yet documented.
+            builtins\pqueue.e added for priority queue handling - not yet documented.
+            OE compatibility routines lookup(), keyvalues(), text_format() and begins() added 
+            to builtins/pvlookup.e, not yet documented.
+            builtins now has ripemd160.e and sha256.e, not documented, not likely to ever be.
+            ditto builtins/unicode_console.e
+
 
 Version 0.7.8
 =============

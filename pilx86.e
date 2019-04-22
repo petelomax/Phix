@@ -3320,7 +3320,7 @@ if length(symtab[dest])>=S_ltype then
 --end if
         ltAdd(SET,dest,symtab[dest][S_ltype],sltype,pc-1)
 --15/2/19:
-else
+elsif NEWGSCAN then
         ltAdd(SET,dest,dtype,sltype,pc-1)
 end if
     end if
@@ -4370,7 +4370,7 @@ integer waspc = pc, xpc
 --          pc += 6
 
 --25/10/17:
---/* --(nope)
+--/!* --(nope)
         elsif nextop=opEndFor
           and s5[waspc+1] = exitMerge
           and pc = tgt-6 then
@@ -4396,7 +4396,7 @@ integer waspc = pc, xpc
 --          end if -- NOLT
 ----            return 1
 --          return 0
---*/
+--*!/
         else
             skip = opSkip[nextop]
             if skip>0 then
@@ -7199,7 +7199,9 @@ end if
 if MARKTYPES then ?9/0 end if
 if NEWGSCAN then
 --                  if isGscan
-                    if sudt>T_object then
+                    if isGscan
+--                  if sudt>T_object then
+                    and sudt>T_object then
                         symk = symtab[sudt]
                         u = symk[S_State]
                         if not and_bits(u,K_used) then
@@ -7216,8 +7218,7 @@ if NEWGSCAN then
 ----DEV temp!
 --printf(1,"pilx86.e line 3369: S_linking symtab[%d]\n",vi)
 --printf(1,"pilx86.e line 3370: S_linking symtab[%d]\n",routineNo)
---                          symk[S_Slink] = symtab[vi][S_Slink]
---                          symtab[vi][S_Slink] = routineNo
+--if NEWGSCAN then
                             if g_scan[sudt]=0 then
 --if pfileno=1 then
 if pfileno=1 and symk[S_FPno]=1 then
@@ -7226,6 +7227,10 @@ end if
                                 g_scan[sudt] = g_scan[vi]
                                 g_scan[vi] = sudt
                             end if
+--else
+--                          symk[S_Slink] = symtab[vi][S_Slink]
+--                          symtab[vi][S_Slink] = routineNo
+--end if
                             symtab[sudt] = symk
 --                      end if
                     end if
@@ -7441,6 +7446,8 @@ end if
 --  trace(1)
 -- end if
 --end if
+--20/4/19:
+if 0 then   -- new, failed...
 --          src = 0
 --          src2 = 0
             src = s5[pc+4]
@@ -7464,7 +7471,7 @@ end if
 --  trace(1)
 --end if
                         if opcode=opJeq or opcode=opJne then
-                        -- either will do
+                            -- either will do
 --DEV do we want to be using rootType here?? (*4)
                             if slroot=T_integer then
 --                              s5[pc+6] = 1    -- tii
@@ -7729,6 +7736,241 @@ if NOLT=0 or bind or lint then
                 end if
             end if -- opJne
 end if -- NOLT
+else -- 20/4/19
+            src = 0
+            src2 = 0
+            waspc = pc
+
+            if isGscan then
+                -- if bothInit and not tii, yet analysis reveals p2,p3 are in fact ints then tii=1:
+                tii = s5[pc+6]  -- twoInitialisedInts   [re-check with gvar]
+                if not tii then
+                    isInit = s5[pc+7]   -- both Init            (for """")
+                    if isInit then
+--                  dest = -1   -- avoid any mimicry
+                        src = s5[pc+4]
+                        getSrc()
+--if tmpd then
+--  trace(1)
+--end if
+                        if opcode=opJeq or opcode=opJne then
+                        -- either will do
+--DEV do we want to be using rootType here?? (*4)
+                            if slroot=T_integer then
+                                s5[pc+6] = 1    -- tii
+                            else
+                                src2 = s5[pc+5]
+                                getSrc2()
+                                if slroot2=T_integer then
+                                    s5[pc+6] = 1    -- tii
+                                end if
+                            end if
+                        elsif slroot=T_integer then
+                            -- need both
+                            src2 = s5[pc+5]
+                            getSrc2()
+                            if slroot2=T_integer then
+                                s5[pc+6] = 1    -- tii
+                            end if
+                        end if
+                    end if
+                end if
+                pc += 8
+            else -- not isGscan
+                --if opcode=opJeq then trace(1) end if
+                -- Jcc,mergeSet,tgt,link,src,src2,tii,bothInit
+                src = s5[pc+4]
+                src2 = s5[pc+5]
+--if vi=1525 and src=303 and src2=1521 then
+--?symtab[src]
+--?symtab[src2]
+--  trace(1)
+--end if
+                tii = s5[pc+6]
+                bothInit = s5[pc+7] -- (used in pgscan)
+                jinit(pc+1) -- DEV param can go, I think
+                bcode = find(opcode,Bcde)
+                if tii then         -- twoInitInts (Jne/Jeq do EITHER, rest need BOTH).
+                    -- if result predictable set tmpv to 0/1 and tmpd to -1
+                    k = 0
+                    if sched then
+                        if mergeSet!=isOpCode then
+                            k = lastJmp -- equivalent to schoon or 0 (can schedule non-last jumps)
+                        end if
+                    end if
+                    if SetCC(Scde[bcode],k) then
+                        -- we must do a compare:
+                        mod = m_cmp
+                        if tmpd=-1 then
+                            regimm365(smin2)                            -- cmp reg,imm
+                        else
+                            if sched then
+                                rb = regbit[reg+1]
+                                rw = regbit[wrk+1]
+                                schedule(rb+rw,0,0,pUV,1,0)
+                            end if
+                            if X64 then
+                                emitHex1(#48)
+                            end if
+                            op1 = mod+1         -- 0o071
+--if vi=1525 then
+--  ?{wrk,reg,1525}
+--end if
+--                          if wrk=reg then ?9/0 end if -- sanity check (added 31/8/15)
+if wrk=reg then
+    printf(1,"wrk=reg! line 7465 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
+end if
+                            xrm = #C0+wrk*8+reg -- 0o3wr
+                            emitHex2(op1,xrm)                           -- cmp reg,wrk
+                        end if
+                        tmpd = 0
+                    end if -- not setCC (compare not rqd, tmpd==-1)
+                else -- not twoInitialisedInts
+                    if tmpd then ?9/0 end if    -- bug in transtmpfer?
+-- 21/2/09:
+                    if bothInit then
+                        -- if result predictable set tmpv to 0/1 and tmpd to -1
+                        if SetCC(Scde[bcode],-1) then end if -- but no common setup, use the opcode instead
+                    end if
+                    if not tmpd then
+                        if sched then
+--                  if schidx then
+                            schend()    -- [esp]-15/-9
+--                  end if
+                        end if
+if not bothInit then
+    getSrc()
+    getSrc2()
+end if
+-- 3/10/10: (breaks p t18 and p p t13)
+--if bind and ssNTyp2=S_Const and and_bits(state2,K_noclr) then
+if ssNTyp2=S_Const and and_bits(state2,K_noclr) then
+--if 0 then
+        if slroot2=T_integer then
+            if and_bits(state2,K_rtn) then ?9/0 end if
+            if smin2!=smax2 then ?9/0 end if
+            if smin2 then
+--                      emitHex5w(mov_edi_imm32,smin2)              -- mov edi,imm32
+                        movRegImm32(edi,smin2)                      -- mov edi,imm32
+            else
+                        if X64 then
+                            emitHex1(#48)
+                        end if
+                        emitHex2s(xor_edi_edi)                      -- xor edi,edi
+            end if
+        else
+if newEmit then
+                        loadToReg(edi,src2,CLEAR)                   -- mov edi,[src2]
+else
+                        emitHex5cr(mov_edi_imm32,src2)              -- mov edi,constref
+end if
+        end if
+                        clearReg(edi)
+--                      doNotXor = 0
+else
+                        loadToReg(edi,src2,CLEAR)                   -- mov edi,[src2]
+                        --
+                        -- ensure src2 can be had from [esp]-14 in this (not bothInit) case.
+                        --  (really only matters whether src2 is init, but close enough...)
+                        --
+--DEV this can now go...
+--                      doNotXor = not bothInit
+end if
+-- 3/10/10: (breaks t18)
+--if bind and ssNTyp1=S_Const and and_bits(state1,K_noclr) then
+if ssNTyp1=S_Const and and_bits(state1,K_noclr) then
+--if 0 then
+        if slroot=T_integer then
+            if and_bits(state1,K_rtn) then ?9/0 end if
+            if smin!=smax then ?9/0 end if
+--          if smin or doNotXor then
+            if smin then
+--                      emitHex5w(mov_eax_imm32,smin)               -- mov eax,imm32
+                        movRegImm32(eax,smin)                       -- mov eax,imm32
+            else
+                        if X64 then
+                            emitHex1(#48)
+                        end if
+                        emitHex2s(xor_eax_eax)                      -- xor eax,eax
+            end if
+        else
+if newEmit then
+                        loadToReg(eax,src)                          -- mov eax,[src]
+else
+                        emitHex5cr(mov_eax_imm32,src)               -- mov eax,constref
+end if
+        end if
+else -- not S_Const, K_noclr
+                        loadToReg(eax,src)                          -- mov eax,[src]
+end if
+                        movRegVno(esi,src2)                         -- mov e/rsi,src2 (var no)
+                        movRegVno(edx,src)                          -- mov e/rdx,src (var no)
+                        emitHex5callG(opcode)                       -- call :%opJcc/JccE
+                        -- NB: src/2 obtained from [esp]-9/-14 on error.
+                        reginfo = 0 -- all regs trashed
+                    end if
+--DEV this should be else'd, I think...
+                    if not bothInit then
+                        src = 0
+                        src2 = 0
+                    end if
+
+                end if
+                -- Jcc:
+                if jend(8) then exit end if -- an opRetf fell off end of code, --> end while
+            end if
+
+if NOLT=0 or bind or lint then
+            if opcode=opJne then
+--trace(1)
+                --
+                -- In say 'if h=4 then', since p2 is an integer, p1 must be one too
+                -- Naturally a similar thing is due for 'if name="pete" then', also
+                -- '4=h' and '"pete"=name' affecting p2 from p1, plus 'if a=b then'
+                -- possibly altering types of both p1 and p2, with any and all such
+                -- settings being undone at the appropriate opLabel.
+                --
+                -- Now if h is defined as an atom or an object, then 'integer' is a
+                -- better thing, whereas should h be say the udt 'hour', then leave
+                -- it alone (since not calling hour far outweighs a few cmp h4).
+                --
+                if src=0 then
+                    src = s5[waspc+4]
+                    getSrc()
+                end if
+                if src2=0 then
+                    src2 = s5[waspc+5]
+                    getSrc2()
+                end if
+                if sltype!=sltype2
+                and sltype<=T_object
+                and sltype2<=T_object then
+                    lmask = and_bits(sltype,sltype2)
+                    if and_bits(sltype,T_sequence)      -- Since {'a'}=="a", convert
+                    and and_bits(sltype2,T_sequence) then -- any combo of 01xx/10xx/11xx
+                        lmask = or_bits(lmask,T_sequence)   -- ==> 11xx
+                    end if
+                    ltype = and_bits(sltype,lmask)
+                    if ltype and sltype!=ltype then
+                        Lmin = smin
+                        Lmax = smax
+                        Letyp = setyp
+                        Lslen = slen
+                        ltAdd(TEST,src,sltype,ltype,waspc)
+                    end if
+                    ltype = and_bits(sltype2,lmask)
+                    if ltype and sltype2!=ltype then
+                        Lmin = smin2
+                        Lmax = smax2
+                        Letyp = setyp2
+                        Lslen = slen2
+                        ltAdd(TEST,src2,sltype2,ltype,waspc)
+                    end if
+                end if
+            end if -- opJne
+end if -- NOLT
+
+end if -- 20/4/19
 
         elsif opcode=opJmp then
 

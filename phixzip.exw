@@ -1,0 +1,134 @@
+--
+-- phixzip.exw
+-- ===========
+--
+constant v = version(),
+         num_zips = 2
+
+printf(1,"Build using version %s?(Y/N):",{v})
+integer ch = upper(getc(0))
+printf(1,"%c\n",ch)
+if ch!='Y' then sleep(1) abort(1) end if
+
+for m=32 to 64 by 32 do
+    string lc = sprintf("p -c -norun p%d.exu",{m})
+    ?lc
+    integer c_res = system_exec(lc)
+    if c_res!=0 then
+        printf(1,"Error, %s failed with error code %d\n",{lc,c_res})
+    end if
+end for
+
+include builtins\LiteZip.e
+
+--sequence phix7zip = get_text("sfx/phix7zip.lst",GT_LF_STRIPPED)
+sequence phix7zip = remove_all("",get_text("sfx/phix7zip.lst",GT_LF_STRIPPED))
+integer l = length(phix7zip)
+printf(1,"phix7zip.lst contains %d entries\n",l)
+
+integer last_lm = 0
+procedure progress(object m)
+    if not string(m) then
+        if m='\n' then puts(1,"\n") end if
+        last_lm = 0
+    else
+        puts(1,m&repeat(' ',max(0,last_lm-length(m)))&"\r")
+        last_lm = length(m)
+    end if
+end procedure
+
+function in_file(string zi)
+    if zi="" then ?"zi=\"\"" return 0 end if
+    if zi="bench\\Big_e" then return 0 end if
+--  if zi!="copyright.txt" then return 0 end if
+
+    if match("bench",zi)=1
+    or match("demo",zi)=1 then
+        if (match("demo\\Arwen",zi)!=1 or
+            match("demo\\Arwen32dibdemo",zi)=1)
+        and match("demo\\edita",zi)!=1
+        and (match("demo\\pGUI",zi)!=1 or
+             match("demo\\pGUI\\win64",zi)=1) then
+            return 2
+        end if
+    elsif match("docs",zi)=1 then
+        return 3
+    end if
+    return 1
+end function
+
+atom hzip, t1 = time()+1
+object res
+sequence hzips = {}, 
+         hznames = {sprintf("sfx/phix.%s.zip",{v})}
+    for i=1 to num_zips do
+        hznames = append(hznames,sprintf("sfx/phix.%s.%d.zip",{v,i}))
+    end for
+    for i=1 to length(hznames) do
+        hzip = ZipCreateFile(hznames[i])
+        hzips = append(hzips,hzip)
+    end for
+
+for i=1 to l do
+    string zi = phix7zip[i]
+    if zi="sfx\\phix\\Phix\\*" then
+        -- I think I had a problem with 7-zip here... 
+        --  hopefully not a problem with LiteZip.
+        res = ZipAddDir(hzips[1],"sfx\\phix\\Phix")
+        if res!=ZR_OK then ?9/0 end if
+    else
+        integer fileno = in_file(zi)
+        if time()>t1 or i=l then
+            progress(sprintf("adding file %d of %d (%3.2f%%) - %s",{i,l,i/l*100,zi}))
+            t1 = time()+1
+        end if
+        if fileno!=0 then
+            res = ZipAddFile(hzips[fileno],zi)
+            if res!=ZR_OK then ?9/0 end if
+        end if
+    end if
+end for
+progress('\n')
+ZipClose(hzips)
+
+constant makesfx = `sfx\makesfx.exe /zip="sfx\phix.%s.zip" /sfx="sfx\phix.%s.setup.exe" `&
+                   `/title="Install Phix" /website="http://phix.x10.mx" `&
+                   `/intro="This program installs the Phix Programming Language, version %s" `&
+                   `/defaultpath="$programfiles$\Phix" /exec="$targetdir$\ppw.bat" /overwrite `
+
+puts(1,"makesfx:\n")
+res = system_exec(sprintf(makesfx,{v,v,v}))
+if res!=1 then
+    printf(1,"Error, makesfx failed with error code %d\n",res)
+end if
+
+hznames = append(hznames,sprintf("sfx/phix.%s.setup.exe",{v}))
+
+constant doczip = sprintf("sfx/phix.docs.%s.zip",{v})
+printf(1,"creating %s (for the web docs upload)\n",{doczip})
+if not copy_file("docs\\phix\\Combined.css","docs\\phix\\html\\Combined.css",true) then ?9/0 end if
+if not copy_file("docs\\phix\\Common.js","docs\\phix\\html\\Common.js",true) then ?9/0 end if
+hzip = ZipCreateFile(doczip)
+--(note: this replaces a separate sfx/docs.lst)
+res = ZipAddFile(hzip,"docs\\phix\\Combined.css")       if res!=ZR_OK then ?9/0 end if
+res = ZipAddFile(hzip,"docs\\phix\\Common.js")          if res!=ZR_OK then ?9/0 end if
+res = ZipAddFile(hzip,"docs\\phix\\header_01.jpg")      if res!=ZR_OK then ?9/0 end if
+res = ZipAddFile(hzip,"docs\\phix\\header_02.jpg")      if res!=ZR_OK then ?9/0 end if
+res = ZipAddFile(hzip,"docs\\phix\\phix.htm")           if res!=ZR_OK then ?9/0 end if
+res = ZipAddFile(hzip,"docs\\phix\\phix.txt")           if res!=ZR_OK then ?9/0 end if
+progress("adding images")
+res = ZipAddDir(hzip,"docs\\phix\\images")              if res!=ZR_OK then ?9/0 end if
+progress("adding html")
+res = ZipAddDir(hzip,"docs\\phix\\html")                if res!=ZR_OK then ?9/0 end if
+progress("")
+ZipClose(hzip)
+hznames = append(hznames,doczip)
+
+--DEV/SUG list properly, with file sizes (in K), dates etc.
+printf(1,"Finished. See %v\n",{hznames})
+--sfx/phix.%v%.zip[and .001/2] and sfx/phix.%v%.setup.exe
+
+?"done"
+{} = wait_key()
+--abort(0)
+

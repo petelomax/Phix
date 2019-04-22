@@ -3921,9 +3921,13 @@ else
 end if
     end while
 
+--?"ff2 line 3924"
     if x86showmapsymtab!=0 then
         showmapsymtab = x86showmapsymtab
         x86showmapsymtab = 0
+    elsif ltAddshowmapsymtab!=0 then
+        showmapsymtab = ltAddshowmapsymtab
+        ltAddshowmapsymtab = 0
     end if
 
     if countTransTmpFer then

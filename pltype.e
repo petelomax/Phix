@@ -603,6 +603,9 @@ global atom    Lmax     Lmax = 0
 global integer Letyp    Letyp = 0
 global integer Lslen    Lslen = 0
 
+--DEV (temp)
+global integer ltAddshowmapsymtab = 0
+
 integer dltyp
 global procedure ltAdd(integer flag, integer v, integer ptyp, integer ntyp, integer s5idx)
 --
@@ -672,8 +675,9 @@ integer ldx
     if DEBUG then
         dltyp = symtab[v][S_ltype]
         if dltyp!=ptyp then
---          ?9/0
+            ?9/0
             ?"9/0 (pltype.e line 676)"
+ltAddshowmapsymtab = v
 --          if diag then
             if 1 then
                 dprintf("*** S_ltype[%d]!=ptyp[%d] on var %d ***\n",{dltyp,ptyp,v})

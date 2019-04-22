@@ -858,13 +858,17 @@ global procedure printf(integer fn, sequence fmt, object args={})
     if fn=0 and fmt="" then
 --      -- args is settings-pairs, eg {"r_len",routine_id("utf8_to_utf32")}
         -- args is settings-pairs, eg printf(0,"",{"unicode_align",true})
-        if remainder(length(args),2) then throw("must be even length") end if
+--DEV 20/4/19 broke p -c -test:
+--      if remainder(length(args),2) then throw("must be even length") end if
+        if remainder(length(args),2) then ?9/0 end if
         for i=1 to length(args) by 2 do
             string setting = args[i]
             switch setting do
 --              case "r_len": r_len = args[i+1]
                 case "unicode_align": unicode_align = args[i+1]
-                default: throw("unknown printf setting")
+--20/4/19:
+--              default: throw("unknown printf setting")
+                default: ?9/0
             end switch
         end for
     else

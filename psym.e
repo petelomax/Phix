@@ -2533,7 +2533,7 @@ end if
     initialAutoEntry("factorial",       S_Func,"FN",    "factorial.e",0,E_none)
     initialAutoEntry("gcd",             S_Func,"FON",   "gcd.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("get_file_size",   S_Func,"FS",    "pfile.e",0,E_none)
+    initialAutoEntry("get_file_size",   S_Func,"FSII",  "pfile.e",0,E_none,1)
     Alias("file_length", symlimit)
     initialAutoEntry("get_thread_exitcode", S_Func,"FN","VM\\pThreadN.e",0,E_none)
     initialAutoEntry("k_perm",          S_Func,"FII",   "factorial.e",0,E_none)

@@ -101,7 +101,7 @@
           CURLOPT_NOPROGRESS
          </td>
          <td>
-            Shut off the progress meter.
+            Shut off or Turn on the progress meter.
           <br>
           <br>
           Synopsis: <a href="curl_easy_setopt.htm">curl_easy_setopt</a>(<a href="atom.htm">atom</a> curl, CURLOPT_NOPROGRESS,
@@ -110,9 +110,7 @@
           <br>
             If onoff is set to true(1), it tells the library to shut off the progress meter completely for requests done with this handle.
           <br>
-            It will also prevent the
-          <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a> or
-          <a href="#CURLOPT_PROGRESSFUNCTION">CURLOPT_PROGRESSFUNCTION</a> from getting called.
+            It will also prevent the <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a> from getting called.
           <br>
           <br>
             Default: true(1), meaning it normally runs without a progress meter.
@@ -124,10 +122,8 @@
             Availability: Always
           <br>
           <br>
-            See also:
-          <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a>,
-          <a href="#CURLOPT_PROGRESSFUNCTION">CURLOPT_PROGRESSFUNCTION</a>,
-          <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>
+            See also: <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a>,
+                      <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>
          </td>
         </tr>
         <tr>
@@ -422,7 +418,22 @@ Like in the getinmemory example: https://curl.haxx.se/libcurl/c/getinmemory.html
           CURLOPT_PROGRESSFUNCTION
          </td>
          <td>
-            OBSOLETE callback for progress meter.
+            OBSOLETE callback for progress meter: use <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a> instead.<br>
+            (Should you really need to use this, be advised that dltotal .. ulnow are/were doubles (64-bit floats) and will require
+             similar treatment (to that shown in <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a>), albeit with 
+             something like <a href="poke.htm">poke8</a>(m,dltotal) [64-bit] or 
+             <a href="poke.htm">poke4</a>(m,{dltotal,dltotal_hi}) [32-bit] and 
+             s8 = <a href="peek.htm">peek</a>({m,8}) and
+             dltotal = <a href="floatNN_to_atom.htm">float64_to_atom</a>(s8), noticably messier, especially on 64-bit.)
+            <small><br><a name="CURLOPT_PROGRESSDATA"></a></small>
+         </td>
+        </tr>
+        <tr>
+         <td valign=top>
+          CURLOPT_PROGRESSDATA
+         </td>
+         <td>
+            Custom data pointer to pass to the progress meter callback.
           <br>
           <br>
             Synopsis/Example:
@@ -432,137 +443,100 @@ Like in the getinmemory example: https://curl.haxx.se/libcurl/c/getinmemory.html
            <div class="codeSnippetContainerCodeContainer">
             <div class="codeSnippetToolBar">
              <div class="codeSnippetToolBarText">
-              <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-a4bk-4273-986j-8b2483c92846');">Copy</a>
+              <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-q9jw-6745-333j-8b2483c22724');">Copy</a>
              </div>
             </div>
-            <div id="CodeSnippetContainerCode_13a75j95-a4bk-4273-986j-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+            <div id="CodeSnippetContainerCode_13a75j95-q9jw-6745-333j-8b2483c22724" class="codeSnippetContainerCode" dir="ltr">
              <div style="color:Black;">
 <!--eucode>
 include builtins\libcurl.e
  
--- *** NB *** / needs checking on 64 bit... [DEV]
---int progress_callback(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow);
-function curl_progress_callback(atom clientp,
-                                atom dltotal1, atom dltotal2,
-                                atom dlnow1, atom dlnow2,
-                                atom ultotal1, atom ultotal2, 
-                                atom ulnow1, atom ulnow2)
-    atom f64 = allocate(8), dltotal, dlnow, ultotal, ulnow
-
-    -- convert to float64
-    poke4(f64,{dltotal1, dltotal2})     dltotal = float64_to_atom(peek({f64,8}))
-    poke4(f64,{dlnow1,   dlnow2})       dlnow   = float64_to_atom(peek({f64,8}))
-    poke4(f64,{ultotal1, ultotal2})     ultotal = float64_to_atom(peek({f64,8}))
-    poke4(f64,{ulnow1,   ulnow2})       ulnow   = float64_to_atom(peek({f64,8}))
-    free(f64)
-
-    atom pcnt = iff(dltotal=0?0:dlnow*100/dltotal)
-    printf(1, "Current=%d kb  Total=%d kb (%d%%)\n  ", {dlnow/1024, dltotal/1024, pcnt})
-
-    return 0 -- signify success
-end function
-constant progress_cb = call_back({'+', routine_id("curl_progress_callback")})
-
-curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, progress_cb)
+user_data = allocate_string(filename) -- (for instance)
+curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, user_data)
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
 </font><font color="#C0C0C0"> 
-</font><font color="#000080"><i>-- *** NB *** / needs checking on 64 bit... [DEV]
---int progress_callback(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow);
-</i></font><font color="#008080">function</font><font color="#000000"> curl_progress_callback</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> clientp</font><font color="#0000FF">,
-</font><font color="#004080">                                atom</font><font color="#000000"> dltotal1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> dltotal2</font><font color="#0000FF">,
-</font><font color="#004080">                                atom</font><font color="#000000"> dlnow1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> dlnow2</font><font color="#0000FF">,
-</font><font color="#004080">                                atom</font><font color="#000000"> ultotal1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> ultotal2</font><font color="#0000FF">, 
-</font><font color="#004080">                                atom</font><font color="#000000"> ulnow1</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> ulnow2</font><font color="#0000FF">)
-</font><font color="#004080">    atom</font><font color="#000000"> f64</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">),</font><font color="#000000"> dltotal</font><font color="#0000FF">,</font><font color="#000000"> dlnow</font><font color="#0000FF">,</font><font color="#000000"> ultotal</font><font color="#0000FF">,</font><font color="#000000"> ulnow
-
-</font><font color="#000080"><i>    -- convert to float64
-</i></font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">dltotal1</font><font color="#0000FF">,</font><font color="#000000"> dltotal2</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000000"> dltotal</font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">dlnow1</font><font color="#0000FF">,  </font><font color="#000000"> dlnow2</font><font color="#800000">}</font><font color="#0000FF">)      </font><font color="#000000"> dlnow  </font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">ultotal1</font><font color="#0000FF">,</font><font color="#000000"> ultotal2</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000000"> ultotal</font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#7060A8">    poke4</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">ulnow1</font><font color="#0000FF">,  </font><font color="#000000"> ulnow2</font><font color="#800000">}</font><font color="#0000FF">)      </font><font color="#000000"> ulnow  </font><font color="#0000FF"> =</font><font color="#7060A8"> float64_to_atom</font><font color="#0000FF">(</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#800080">{</font><font color="#000000">f64</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#7060A8">    free</font><font color="#0000FF">(</font><font color="#000000">f64</font><font color="#0000FF">)
-
-</font><font color="#004080">    atom</font><font color="#000000"> pcnt</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">dltotal</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">?</font><font color="#000000">0</font><font color="#0000FF">:</font><font color="#000000">dlnow</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#0000FF">/</font><font color="#000000">dltotal</font><font color="#0000FF">)
-</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Current=%d kb  Total=%d kb (%d%%)\n  "</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">dlnow</font><font color="#0000FF">/</font><font color="#000000">1024</font><font color="#0000FF">,</font><font color="#000000"> dltotal</font><font color="#0000FF">/</font><font color="#000000">1024</font><font color="#0000FF">,</font><font color="#000000"> pcnt</font><font color="#800000">}</font><font color="#0000FF">)
-
-</font><font color="#008080">    return</font><font color="#000000"> 0</font><font color="#000080"><i> -- signify success
-</i></font><font color="#008080">end function
-constant</font><font color="#000000"> progress_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#5E005E"> routine_id</font><font color="#800080">(</font><font color="#008000">"curl_progress_callback"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
-
-</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_PROGRESSFUNCTION</font><font color="#0000FF">,</font><font color="#000000"> progress_cb</font><font color="#0000FF">)</font>
+</font><font color="#000000">user_data</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_string</font><font color="#0000FF">(</font><font color="#000000">filename</font><font color="#0000FF">)</font><font color="#000080"><i> -- (for instance)
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_PROGRESSDATA</font><font color="#0000FF">,</font><font color="#000000"> user_data</font><font color="#0000FF">)</font>
 </pre>
              </div>
             </div>
            </div>
           </div>
-            Note the routine actually gets passed a pointer and four doubles (64-bit floats).
-            Callbacks get 32-bit args on 32-bit, which must be stitched back together into 64 bit floats.
-          <br>
-          <br>
-            Pass a pointer to your callback function, which should match the prototype shown above.
-          <br>
-          <br>
-            We encourage users to use the newer
-          <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a> instead, if you can.
-          <br>
-          <br>
-            This function gets called by libcurl instead of its internal equivalent with a frequent interval.
-          <br>
-            While data is being transferred it will be called very frequently, and during slow periods like when nothing is being transferred 
-            it can slow down to about one call per second.
-          <br>
-          <br>
-            clientp is the pointer set with CURLOPT_PROGRESSDATA, it is not used by libcurl but is only passed along from the application to the callback.
-          <br>
-          <br>
-            The callback gets told how much data libcurl will transfer and has transferred, in number of bytes.
-          <br>
-            dltotal is the total number of bytes libcurl expects to download in this transfer.
-          <br>
-            dlnow is the number of bytes downloaded so far.
-          <br>
-            ultotal is the total number of bytes libcurl expects to upload in this transfer.
-          <br>
-            ulnow is the number of bytes uploaded so far.
-          <br>
-          <br>
-            Unknown/unused argument values passed to the callback will be set to zero (like if you only download data, the upload size will remain 0).
-          <br>
-            Many times the callback will be called one or more times first, before it knows the data sizes so a program must be made to handle that.
-          <br>
-          <br>
-            Returning a non-zero value from this callback will cause libcurl to abort the transfer and return CURLE_ABORTED_BY_CALLBACK.
-          <br>
-          <br>
-            If you transfer data with the multi interface, this function will not be called during periods of idleness unless 
-            you call the appropriate libcurl function that performs transfers.
-          <br>
-          <br>
-          <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a> must be set to 0 to make this function actually get called.
-          <br>
-          <br>
-            Default: By default, libcurl has an internal progress meter. That&rsquo;s rarely wanted by users.
-          <br>
-          <br>
-            Protocols: All
-          <br>
-          <br>
-            Availability: Always
-          <br>
-          <br>
-            See also:
-          <a href="#CURLOPT_VERBOSE">CURLOPT_VERBOSE</a>,
-          <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a>
+            The pointer is not used by libcurl but is passed as the first argument to the progress callback as set with 
+            <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a>.
+            <br>
+            <br>
+            CURLOPT_PROGRESSDATA is identical to <a href="#CURLOPT_XFERINFODATA">CURLOPT_XFERINFODATA</a>.
+            <br>
+            <br>
+            Default: NULL.
+            <br>
+            <br>
+            Protocols: All.
+            <br>
+            <br>
+            Availability: Always.
+            <br>
+            <br>
+            Return value (if set with <a href="curl_easy_setopt.htm">curl_easy_setoptf</a>()): CURLE_OK
+          <small><br><a name="CURLOPT_XFERINFODATA"></a></small>
          </td>
         </tr>
         <tr>
          <td valign=top>
-          CURLOPT_PROGRESSDATA
+          CURLOPT_XFERINFODATA
          </td>
          <td>
-            Data pointer to pass to the progress meter callback. See CURLOPT_PROGRESSDATA
+            Custom data pointer to pass to the progress meter callback.
+          <br>
+          <br>
+            Synopsis/Example:
+          <br>
+          <br>
+          <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+           <div class="codeSnippetContainerCodeContainer">
+            <div class="codeSnippetToolBar">
+             <div class="codeSnippetToolBarText">
+              <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-q9jw-6745-333j-8b2483c22724');">Copy</a>
+             </div>
+            </div>
+            <div id="CodeSnippetContainerCode_13a75j95-q9jw-6745-333j-8b2483c22724" class="codeSnippetContainerCode" dir="ltr">
+             <div style="color:Black;">
+<!--eucode>
+include builtins\libcurl.e
+ 
+user_data = allocate_string(filename) -- (for instance)
+curl_easy_setopt(curl, CURLOPT_XFERINFODATA, user_data)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
+</font><font color="#C0C0C0"> 
+</font><font color="#000000">user_data</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_string</font><font color="#0000FF">(</font><font color="#000000">filename</font><font color="#0000FF">)</font><font color="#000080"><i> -- (for instance)
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_XFERINFODATA</font><font color="#0000FF">,</font><font color="#000000"> user_data</font><font color="#0000FF">)</font>
+</pre>
+             </div>
+            </div>
+           </div>
+          </div>
+            The pointer is not used by libcurl but is passed as the first argument to the progress callback as set with 
+            <a href="#CURLOPT_XFERINFOFUNCTION">CURLOPT_XFERINFOFUNCTION</a>.
+            <br>
+            <br>
+            This is an alias for <a href="#CURLOPT_PROGRESSDATA">CURLOPT_PROGRESSDATA</a>.
+            <br>
+            <br>
+            Default: NULL.
+            <br>
+            <br>
+            Protocols: All.
+            <br>
+            <br>
+            Availability: 7.32.0.
+            <br>
+            <br>
+            Return value (if set with <a href="curl_easy_setopt.htm">curl_easy_setoptf</a>()): CURLE_OK
           <small><br><a name="CURLOPT_XFERINFOFUNCTION"></a></small>
          </td>
         </tr>
@@ -588,44 +562,83 @@ constant</font><font color="#000000"> progress_cb</font><font color="#0000FF"> =
              <div style="color:Black;">
 <!--eucode>
 include builtins\libcurl.e
- 
--- *** NB WRONG *** / to be filled in... [DEV]
-function write_callback(atom pData, integer size, integer nmemb, atom pUserdata);
-integer bytes_written = size*nmemb
-  ... peek(pData,bytes_processed) ...
-  return bytes_written
-end function
-constant write_cb = call_back({'+',routine_id("write_callback")})
 
-curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
---int progress_callback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, 
---                                       curl_off_t ultotal, curl_off_t ulnow);
---CURLcode curl_easy_setopt(CURL *handle, CURLOPT_XFERINFOFUNCTION, progress_callback);
+function curl_xferinfo_callback64(atom clientp, dltotal, dlnow, ultotal, ulnow)
+--
+-- On 64-bit, int64 are handled just as you might expect ...
+--
+    atom percentage = iff(dltotal=0?0:dlnow*100/dltotal)
+    string filename = peek_string(clientp)
+    printf(1, "Downloading %s:  Current=%d   Total=%d  (%d%%)\n  ", {filename, dlnow, dltotal, percentage})
+    return 0 -- signify success
+end function
+
+function curl_xferinfo_callback32(atom clientp, dltotal, dltotal_hi, dlnow, dlnow_hi,
+                                                ultotal, ultotal_hi, ulnow, ulnow_hi)
+--
+-- ... whereas on 32-bit, parameters dltotal..ulnow are passed as int64, but call_back() grabs
+--      32 bits at a time off the system stack, so we (may) need to stitch them back together.
+--      (There is no loss of precision unless downloading > 9,007,199,254,740,992 byte files!)
+--
+    if dltotal_hi!=0 then dltotal += dltotal_hi*#100000000 end if
+    if   dlnow_hi!=0 then   dlnow +=   dlnow_hi*#100000000 end if
+    if ultotal_hi!=0 then ultotal += ultotal_hi*#100000000 end if
+    if   ulnow_hi!=0 then   ulnow +=   ulnow_hi*#100000000 end if
+
+    return curl_xferinfo_callback64(clientp, dltotal, dlnow, ultotal, ulnow)
+end function
+
+constant r_xferinfo64 = routine_id("curl_xferinfo_callback64"),
+         r_xferinfo32 = routine_id("curl_xferinfo_callback32"),
+         xferinfo_cb = call_back({'+', iff(machine_bits()=64?r_xferinfo64:r_xferinfo32)})
+
+atom clientp = allocate_string(filename)
+curl_easy_setopt(curl, CURLOPT_XFERINFODATA, clientp)
+curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, xferinfo_cb)
+curl_easy_setopt(curl, CURLOPT_NOPROGRESS,false)
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\libcurl.e
-</font><font color="#C0C0C0"> 
-</font><font color="#000080"><i>-- *** NB WRONG *** / to be filled in... [DEV]
-</i></font><font color="#008080">function</font><font color="#000000"> write_callback</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> pData</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> size</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> nmemb</font><font color="#0000FF">,</font><font color="#004080"> atom</font><font color="#000000"> pUserdata</font><font color="#0000FF">);
-</font><font color="#004080">integer</font><font color="#000000"> bytes_written</font><font color="#0000FF"> =</font><font color="#000000"> size</font><font color="#0000FF">*</font><font color="#000000">nmemb
-</font><font color="#0000FF">  ...</font><font color="#7060A8"> peek</font><font color="#0000FF">(</font><font color="#000000">pData</font><font color="#0000FF">,</font><font color="#000000">bytes_processed</font><font color="#0000FF">) ...
-</font><font color="#008080">  return</font><font color="#000000"> bytes_written
-</font><font color="#008080">end function
-constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#5E005E">routine_id</font><font color="#800080">(</font><font color="#008000">"write_callback"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
 
-</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_WRITEFUNCTION</font><font color="#0000FF">,</font><font color="#000000"> write_cb</font><font color="#0000FF">)
-</font><font color="#000080"><i>--int progress_callback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, 
---                                       curl_off_t ultotal, curl_off_t ulnow);
---CURLcode curl_easy_setopt(CURL *handle, CURLOPT_XFERINFOFUNCTION, progress_callback);</i></font>
+</font><font color="#008080">function</font><font color="#000000"> curl_xferinfo_callback64</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> clientp</font><font color="#0000FF">,</font><font color="#000000"> dltotal</font><font color="#0000FF">,</font><font color="#000000"> dlnow</font><font color="#0000FF">,</font><font color="#000000"> ultotal</font><font color="#0000FF">,</font><font color="#000000"> ulnow</font><font color="#0000FF">)
+</font><font color="#000080"><i>--
+-- On 64-bit, int64 are handled just as you might expect ...
+--
+</i></font><font color="#004080">    atom</font><font color="#000000"> percentage</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">dltotal</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">?</font><font color="#000000">0</font><font color="#0000FF">:</font><font color="#000000">dlnow</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#0000FF">/</font><font color="#000000">dltotal</font><font color="#0000FF">)
+</font><font color="#004080">    string</font><font color="#000000"> filename</font><font color="#0000FF"> =</font><font color="#5E005E"> peek_string</font><font color="#0000FF">(</font><font color="#000000">clientp</font><font color="#0000FF">)
+</font><font color="#5E005E">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Downloading %s:  Current=%d   Total=%d  (%d%%)\n  "</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">filename</font><font color="#0000FF">,</font><font color="#000000"> dlnow</font><font color="#0000FF">,</font><font color="#000000"> dltotal</font><font color="#0000FF">,</font><font color="#000000"> percentage</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">    return</font><font color="#000000"> 0</font><font color="#000080"><i> -- signify success
+</i></font><font color="#008080">end function
+
+function</font><font color="#000000"> curl_xferinfo_callback32</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> clientp</font><font color="#0000FF">,</font><font color="#000000"> dltotal</font><font color="#0000FF">,</font><font color="#000000"> dltotal_hi</font><font color="#0000FF">,</font><font color="#000000"> dlnow</font><font color="#0000FF">,</font><font color="#000000"> dlnow_hi</font><font color="#0000FF">,
+</font><font color="#000000">                                                ultotal</font><font color="#0000FF">,</font><font color="#000000"> ultotal_hi</font><font color="#0000FF">,</font><font color="#000000"> ulnow</font><font color="#0000FF">,</font><font color="#000000"> ulnow_hi</font><font color="#0000FF">)
+</font><font color="#000080"><i>--
+-- ... whereas on 32-bit, parameters dltotal..ulnow are passed as int64, but call_back() grabs
+--      32 bits at a time off the system stack, so we (may) need to stitch them back together.
+--      (There is no loss of precision unless downloading &gt; 9,007,199,254,740,992 byte files!)
+--
+</i></font><font color="#008080">    if</font><font color="#000000"> dltotal_hi</font><font color="#0000FF">!=</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000000"> dltotal</font><font color="#0000FF"> +=</font><font color="#000000"> dltotal_hi</font><font color="#0000FF">*</font><font color="#000000">#100000000</font><font color="#008080"> end if
+    if  </font><font color="#000000"> dlnow_hi</font><font color="#0000FF">!=</font><font color="#000000">0</font><font color="#008080"> then  </font><font color="#000000"> dlnow</font><font color="#0000FF"> +=  </font><font color="#000000"> dlnow_hi</font><font color="#0000FF">*</font><font color="#000000">#100000000</font><font color="#008080"> end if
+    if</font><font color="#000000"> ultotal_hi</font><font color="#0000FF">!=</font><font color="#000000">0</font><font color="#008080"> then</font><font color="#000000"> ultotal</font><font color="#0000FF"> +=</font><font color="#000000"> ultotal_hi</font><font color="#0000FF">*</font><font color="#000000">#100000000</font><font color="#008080"> end if
+    if  </font><font color="#000000"> ulnow_hi</font><font color="#0000FF">!=</font><font color="#000000">0</font><font color="#008080"> then  </font><font color="#000000"> ulnow</font><font color="#0000FF"> +=  </font><font color="#000000"> ulnow_hi</font><font color="#0000FF">*</font><font color="#000000">#100000000</font><font color="#008080"> end if
+
+    return</font><font color="#000000"> curl_xferinfo_callback64</font><font color="#0000FF">(</font><font color="#000000">clientp</font><font color="#0000FF">,</font><font color="#000000"> dltotal</font><font color="#0000FF">,</font><font color="#000000"> dlnow</font><font color="#0000FF">,</font><font color="#000000"> ultotal</font><font color="#0000FF">,</font><font color="#000000"> ulnow</font><font color="#0000FF">)
+</font><font color="#008080">end function
+
+constant</font><font color="#000000"> r_xferinfo64</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"curl_xferinfo_callback64"</font><font color="#0000FF">),
+</font><font color="#000000">         r_xferinfo32</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"curl_xferinfo_callback32"</font><font color="#0000FF">),
+</font><font color="#000000">         xferinfo_cb</font><font color="#0000FF"> =</font><font color="#5E005E"> call_back</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">'+'</font><font color="#0000FF">,</font><font color="#7060A8"> iff</font><font color="#800080">(</font><font color="#7060A8">machine_bits</font><font color="#00FF00">()</font><font color="#0000FF">=</font><font color="#000000">64</font><font color="#0000FF">?</font><font color="#000000">r_xferinfo64</font><font color="#0000FF">:</font><font color="#000000">r_xferinfo32</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#004080">atom</font><font color="#000000"> clientp</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_string</font><font color="#0000FF">(</font><font color="#000000">filename</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_XFERINFODATA</font><font color="#0000FF">,</font><font color="#000000"> clientp</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_XFERINFOFUNCTION</font><font color="#0000FF">,</font><font color="#000000"> xferinfo_cb</font><font color="#0000FF">)
+</font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_NOPROGRESS</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font>
 </pre>
              </div>
             </div>
            </div>
           </div>
-            Note the above assumes curl_off_t is int64. Callbacks get 32-bit args on 32-bit, which must be stitched together into int64s.
-          <br>
-          <br>
-            Pass a pointer to your callback function, which should match (one or both of?) the prototypes shown above.
+            Pass a pointer to your callback function, which should match the prototypes shown above.
           <br>
           <br>
             This function gets called by libcurl instead of its internal equivalent with a frequent interval.
@@ -634,7 +647,8 @@ constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</f
             it can slow down to about one call per second.
           <br>
           <br>
-            clientp is the pointer set with CURLOPT_XFERINFODATA, it is not used by libcurl but is only passed along from the application to the callback.
+            clientp is the pointer set with <a href="#CURLOPT_XFERINFODATA">CURLOPT_XFERINFODATA</a>, it is not used by libcurl but is only 
+            passed along from the application to the callback.
           <br>
           <br>
             The callback gets told how much data libcurl will transfer and has transferred, in number of bytes.
@@ -653,7 +667,8 @@ constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</f
             Many times the callback will be called one or more times first, before it knows the data sizes so a program must be made to handle that.
           <br>
           <br>
-            Returning a non-zero value from this callback will cause libcurl to abort the transfer and return CURLE_ABORTED_BY_CALLBACK.
+            Returning a non-zero value from this callback will cause libcurl to abort the transfer and return 
+            <a href="CURLcode.htm#CURLE_ABORTED_BY_CALLBACK">CURLE_ABORTED_BY_CALLBACK</a>.
           <br>
           <br>
             If you transfer data with the multi interface, this function will not be called during periods of idleness unless 
@@ -663,7 +678,7 @@ constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</f
           <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a> must be set to 0 to make this function actually get called.
           <br>
           <br>
-            Default: By default, libcurl has an internal progress meter. That&rsquo;s rarely wanted by users.
+            Default: By default, libcurl has an internal progress meter, which is rarely wanted by users.
           <br>
           <br>
             Protocols: All
@@ -672,16 +687,8 @@ constant</font><font color="#000000"> write_cb</font><font color="#0000FF"> =</f
             Availability: Added in 7.32.0. This callback replaces <a href="#CURLOPT_PROGRESSFUNCTION">CURLOPT_PROGRESSFUNCTION</a>
           <br>
           <br>
-            See also: CURLOPT_XFERINFODATA,
-          <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a>
-         </td>
-        </tr>
-        <tr>
-         <td valign=top>
-          CURLOPT_XFERINFODATA
-         </td>
-         <td>
-            Data pointer to pass to the progress meter callback. See CURLOPT_XFERINFODATA
+            See also: <a href="#CURLOPT_XFERINFODATA">CURLOPT_XFERINFODATA</a>,
+                      <a href="#CURLOPT_NOPROGRESS">CURLOPT_NOPROGRESS</a>
           <small><br><a name="CURLOPT_HEADERFUNCTION"></a></small>
          </td>
         </tr>
@@ -5139,7 +5146,7 @@ curl_easy_cleanup(curl)
 </font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_URL</font><font color="#0000FF">,</font><font color="#008000"> "http://example.com"</font><font color="#0000FF">)
 </font><font color="#C0C0C0"> 
 </font><font color="#000080"><i>/* store a pointer to our private struct */
-</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#000000"> CURLOPT_PRIVATE</font><font color="#0000FF">,</font><font color="#000000"> private</font><font color="#0000FF">)
+</i></font><font color="#5E005E">curl_easy_setopt</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">,</font><font color="#004600"> CURLOPT_PRIVATE</font><font color="#0000FF">,</font><font color="#000000"> private</font><font color="#0000FF">)
 </font><font color="#C0C0C0"> 
 </font><font color="#004080">atom</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> curl_easy_perform</font><font color="#0000FF">(</font><font color="#000000">curl</font><font color="#0000FF">)
 </font><font color="#C0C0C0"> 

@@ -8,11 +8,89 @@
 --                          It was originally implemented to ease the 
 --                          pain of searching listing files rather than 
 --                          source files. (DEV fif too?)
+--/*
+--Wrap-around search algorithm
+--This proved far harder than I ever imagined possible, any improvements welcome.\\
+
+--The following is a simplified testbed.\\
+--First simplification: text is "0000".."1111" and "find" is whether or not text[1..4] is '1'.\\
+--Second simplification: we set "start" explicitly in the testing loop, maybe unlike real use.\\
+--Starting from 1..4, with N=sum of 1s, we want f3find() to get N/eof/N/eof, iyswim.\\
+--(Technically we shouldn't need to reset wrappable in this testbed, but abs. rqd. in real use)
+--The challenge is(was) to get all 64 test cases to work, then repeat searching backwards.
+
+--Anyway, a second set of eyes, before I try applying this to Edix/Edita, anything that 
+--simplifies it or makes it any easier to understand, or OE-compatible, thankx.
+
+--<eucode>
+sequence text
+integer start, current, wrappable = 1
+
+function f3find(integer direction)
+--
+-- direction should be +/-1. [existing code uses 0 to mean "from line 1"]
+-- return "next/prev" '1' in text, wrapping around relative to start.
+-- return -1 at "eof", aka "start", allowing restart. 
+--
+integer limit = iff(direction<0?1:length(text)),
+        begin = iff(direction>0?1:length(text))
+
+    current += direction
+    bool high = wrappable and compare(start,current)!=direction
+    limit = iff(high ? limit : start-(wrappable=0)*direction)
+    for i=current to limit by direction do
+        if text[i]='1' then current=i return i end if
+    end for
+    if high then
+        wrappable = 0
+        limit = start-direction
+        for i=begin to limit by direction do
+            if text[i]='1' then current=i return i end if
+        end for
+    end if
+    current = start-direction
+    wrappable = 1
+    return -1
+end function
+
+constant TRIES=4
+integer fails = 0, total = 0
+for i=0 to 15 do
+    text = sprintf("%04b",i)
+    integer N = sum(sq_eq(text,'1'))
+    ?{text,N}
+    for direction=+1 to -1 by -2 do
+        for j=1 to 4 do
+            start = j
+            current = j-direction
+            wrappable = 1
+            sequence s = {}
+            for t=1 to (N+1)*TRIES do
+                s &= f3find(direction)
+            end for
+            total += 1
+            if s[$]!=-1 or sum(sq_eq(s,-1))!=TRIES then
+                s &= {"9/0"}
+                fails += 1
+                ?{"s=",s}
+            end if
+--          ?s
+        end for         
+    end for         
+end for
+printf(1,"fails: %d, pass: %d/%d\n",{fails,total-fails,total})
+--</eucode>
+?"done"
+{} = wait_key()
+abort(0)
+
+--*/
 
 Ihandln find_dlg = NULL
 Ihandle find_txt, find_case
 
 sequence find_txts = {}
+integer find_start = 0
 
 procedure hide_find()
     if IupGetInt(find_dlg,"VISIBLE")
@@ -37,31 +115,66 @@ procedure find_text(integer direction)
         -- ((DEV) above may need utf8_to_utf32())
         if length(str_to_find)!=0 then
             -- first, maintain the text dropdown:
-            if not find(str_to_find,find_txts) then
+            integer fdx = find(str_to_find,find_txts)
+            if fdx=0 or fdx!=length(find_txts) then
+                if fdx!=0 then
+                    find_txts[fdx..fdx] = {}
+                    IupSetInt(find_txt,"REMOVEITEM",fdx)
+                end if
                 find_txts = append(find_txts,str_to_find)
                 IupSetAttribute(find_txt,sprintf("%d",length(find_txts)),str_to_find)
+--?{"find_text(), find_start(was ",find_start,"):=",iff(direction=0?0:CursorY)}
+                find_start = iff(direction=0?1:CursorY+1)
             end if
             integer casesensitive = IupGetInt(find_case, "VALUE")
-            integer pos = 0, i, fromline=iff(direction=0?1:CursorY+1)
+            integer pos = 0, i, toline,
+--           fromline
+                    fromline = iff(direction=0?1:CursorY+1)
             sequence line = filetext[currfile][fromline]
             integer start = iff(selON and selY=CursorY and compare(selX,CursorX)=direction?selX:CursorX)
             if direction=-1 then
+--              fromline = CursorY-1
+                fromline = CursorY
                 start = length(line)+1-MapToByte(line,start-1)
                 str_to_find = reverse(str_to_find)
-                for i=fromline to 1 by -1 do
+                toline = iff(fromline>find_start?find_start:1)
+                for i=fromline to toline by -1 do
                     line = filetext[currfile][i]
                     pos = match(str_to_find, reverse(line), start, casesensitive)
                     if pos!=0 then exit end if
                     start = 1
                 end for
+                if pos=0 and fromline<find_start then
+                    start = 1
+                    for i=length(filetext[currfile]) to find_start+1 by -1 do
+                        line = filetext[currfile][i]
+                        pos = match(str_to_find, reverse(line), start, casesensitive)
+                        if pos!=0 then exit end if
+                    end for
+                end if
             else
+                fromline = iff(direction=0?1:CursorY+1)
                 start = iff(direction=0?1:MapToByte(line,start))
-                for i=fromline to length(filetext[currfile]) do
+                toline = iff(fromline<find_start?find_start:length(filetext[currfile]))
+--?{"find_text(), fromline=",fromline," find_start=",find_start," toline=",toline}
+                for i=fromline to toline do
                     line = filetext[currfile][i]
                     pos = match(str_to_find, line, start, casesensitive)
                     if pos!=0 then exit end if
                     start = 1
                 end for
+                if pos=0 and fromline>=find_start then
+                    start = 1
+--?{"find_text(), 1 to ",find_start}
+--?{"find_text(), 1 to ",fromline-1}
+--                  for i=1 to find_start do
+--                  for i=1 to fromline-1 do
+                    for i=1 to find_start-1 do
+                        line = filetext[currfile][i]
+                        pos = match(str_to_find, line, start, casesensitive)
+                        if pos!=0 then exit end if
+                    end for
+                end if
             end if
             hide_find()
             if pos!=0 then
@@ -80,6 +193,8 @@ procedure find_text(integer direction)
                 -- moved to after IupPopup returns:
 --              IupMessage("End", "Search has reached end of document.");
                 eof_msg = true
+--              find_start = CursorY
+                find_start = CursorY+1  -- NO! (makes it loop)
             end if
 --          hide_find()
         end if
@@ -187,7 +302,7 @@ procedure create_find_dialog()
     IupSetAttribute(find_dlg, "TITLE", "Find");
 end procedure
 
-procedure set_find_selection()
+procedure set_find_selection(integer cY)
     object sel = getSelection(SEL_COPY)
     if sequence(sel) and length(sel)=1 then
 --      str = join(str,'\n')
@@ -196,7 +311,11 @@ procedure set_find_selection()
 --      string str = sel[1]
         sequence str = sel[1]
         if not string(str) then str = utf32_to_utf8(str) end if
-        IupSetStrAttribute(find_txt, "VALUE", str);
+        if str!=IupGetAttribute(find_txt, "VALUE") then
+            IupSetStrAttribute(find_txt, "VALUE", str);
+?{"set_find_selection(), find_start(was ",find_start,"):=",cY}
+            find_start = cY
+        end if
     end if
 end procedure
 
@@ -207,7 +326,7 @@ global procedure find_dialog()
 --
 --  set_find_replace_visibility(find_dlg, 0);
 --
-    set_find_selection()
+    set_find_selection(CursorY)
     IupConfigDialogShow(config, find_dlg, "FindDialog")
     IupPopup(find_dlg,IUP_CURRENT,IUP_CURRENT)
     eof_message()
@@ -224,7 +343,8 @@ global procedure F3find(integer ctrl, shift)
         if find_dlg=NULL then
             create_find_dialog()
         end if
-        set_find_selection()        
+--      CursorY = 0
+        set_find_selection(0)
         find_text(0)
     else
         find_text(iff(shift?-1,+1))

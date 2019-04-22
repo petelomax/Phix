@@ -348,13 +348,20 @@ global function ZipAddFolder(atom hzip, string zipname)
 end function
 
 atom xZipClose = NULL
-global procedure ZipClose(atom hzip)
+global procedure ZipClose(object hzip)
 -- terminates in error on failure
-    if xZipClose=NULL then
-        xZipClose = link_c_func(zip,"ZipClose",{C_PTR},C_INT)
+    if sequence(hzip) then
+        for i=1 to length(hzip) do
+            atom hzi = hzip[i]  -- (ensure non-nested)
+            ZipClose(hzi)
+        end for
+    else
+        if xZipClose=NULL then
+            xZipClose = link_c_func(zip,"ZipClose",{C_PTR},C_INT)
+        end if
+        integer res = c_func(xZipClose,{hzip})
+        if res!=ZR_OK then ?9/0 end if
     end if
-    integer res = c_func(xZipClose,{hzip})
-    if res!=ZR_OK then ?9/0 end if
 end procedure
 
 

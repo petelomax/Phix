@@ -28,7 +28,7 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant phixversion = {0,7,7},    -- 0.7.7    -- 09/01/18
 --global constant phixversion = {0,7,8},    -- 0.7.8    -- 13/03/18
 --global constant phixversion = {0,7,9},    -- 0.7.9    -- 13/04/18
-global constant phixversion = {0,8,0},      -- 0.8.0    -- 05/04/19
+global constant phixversion = {0,8,0},      -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...

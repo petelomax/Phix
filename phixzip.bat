@@ -1,5 +1,8 @@
-::-- Phix package script
 echo off
+echo ***NO LONGER IN USE*** - run phixzip.exw iunstead
+pause
+goto :eof
+::-- Phix package script
 echo.
 echo Create phix.exe Windows Installer for phix.
 echo ===========================================

@@ -64,7 +64,6 @@ function link_c_func(atom dll, sequence name, sequence args, atom result)
     return rid
 end function
 
--- dynamically link a C routine as a Euphoria function
 function link_c_proc(atom dll, sequence name, sequence args)
     if dll=NULL then ?9/0 end if
     integer rid = define_c_proc(dll, "+" & name, args)
@@ -181,7 +180,9 @@ global constant
   CURLE_SSL_ENGINE_NOTFOUND      = 53,  -- 53 - SSL crypto engine not found
   CURLE_SSL_ENGINE_SETFAILED     = 54,  -- 54 - can not set SSL crypto engine as default
   CURLE_SEND_ERROR               = 55,  -- 55 - failed sending network data
+--*/
   CURLE_RECV_ERROR               = 56,  -- 56 - failure in receiving network data
+--/*
   CURLE_OBSOLETE57               = 57,  -- 57 - NOT IN USE
   CURLE_SSL_CERTPROBLEM          = 58,  -- 58 - problem with the local certificate
   CURLE_SSL_CIPHER               = 59,  -- 59 - couldn't use specified cipher
@@ -311,7 +312,7 @@ global constant
   CURLINFO_CONTENT_TYPE             = CURLINFO_STRING + 18,
   CURLINFO_REDIRECT_TIME            = CURLINFO_DOUBLE + 19,
   CURLINFO_REDIRECT_COUNT           = CURLINFO_LONG   + 20,
-  CURLINFO_PRIVATE                  = CURLINFO_STRING + 21,
+  CURLINFO_PRIVATE                  = CURLINFO_LONG   + 21,         --DEV not supported??
   CURLINFO_HTTP_CONNECTCODE         = CURLINFO_LONG   + 22,
   CURLINFO_HTTPAUTH_AVAIL           = CURLINFO_LONG   + 23,
   CURLINFO_PROXYAUTH_AVAIL          = CURLINFO_LONG   + 24,
@@ -868,9 +869,8 @@ global constant
                                                 -- Function that will be called instead of the internal progress display
                                                 -- global function. This global function should be defined as the curl_progress_callback
                                                 -- prototype defines.
+  CURLOPT_PROGRESSDATA              = 10057,    -- Data passed to the CURLOPT_PROGRESSFUNCTION and CURLOPT_XFERINFOFUNCTION callbacks
 --/*
-  CURLOPT_PROGRESSDATA              = 10057,    -- Data passed to the CURLOPT_PROGRESSFUNCTION and CURLOPT_XFERINFOFUNCTION
-                                                -- callbacks
   CURLOPT_AUTOREFERER               =    58,    -- We want the referrer field set automatically when following locations
   CURLOPT_PROXYPORT                 =    59,    -- Port of the proxy, can be set in the proxy string as well with:
                                                 -- "[host]:[port]"
@@ -953,7 +953,9 @@ global constant
   CURLOPT_ACCEPT_ENCODING           = 10102,    -- Set the Accept-Encoding string. Use this to tell a server you would like
                                                 -- the response to be compressed. Before 7.21.6, this was known as
                                                 -- CURLOPT_ENCODING
+--*/
   CURLOPT_PRIVATE                   = 10103,    -- Set pointer to private data
+--/*
   CURLOPT_HTTP200ALIASES            = 10104,    -- Set aliases for HTTP 200 in the HTTP Response header
   CURLOPT_UNRESTRICTED_AUTH         =   105,    -- Continue to send authentication (user+password) when following locations,
                                                 -- even when hostname changed. This can potentially send off the name
@@ -1281,6 +1283,7 @@ end function
 --------------------------------------------------------------------------------
 
 sequence curl_easy_buffers = {} -- for curl_easy_perform_ex() only
+--sequence curl_multi_rids = {}
 integer ceb_cs = init_cs()      -- make "" thread-safe
 
 ------------------------------
@@ -1290,6 +1293,7 @@ function curl_easy_write_callback(atom pData, integer size, integer nmemb, integ
     integer bytes_written = size*nmemb
     enter_cs(ceb_cs)
     curl_easy_buffers[slot_no] &= peek({pData,bytes_written})
+--?{"curl_easy_write_callback",slot_no,bytes_written}
     leave_cs(ceb_cs)
     return bytes_written
 end function
@@ -1299,6 +1303,7 @@ constant write_cb = call_back({'+',routine_id("curl_easy_write_callback")})
 -- curl_easy_perform_ex
 -----------------------------
 global function curl_easy_perform_ex(atom curl)
+-- see also curl_multi_perform_ex, if you modify this.
     enter_cs(ceb_cs)
     integer slot_no = 0
     for i=1 to length(curl_easy_buffers) do
@@ -1310,6 +1315,7 @@ global function curl_easy_perform_ex(atom curl)
     end for
     if slot_no=0 then
         curl_easy_buffers = append(curl_easy_buffers,"")
+--      curl_multi_rids = append(curl_multi_rids,0)
         slot_no = length(curl_easy_buffers)
     end if
     leave_cs(ceb_cs)
@@ -1702,6 +1708,14 @@ atom res = allocate((length(strings)+1)*W,true),
     return res
 end function
 
+atom xcurl_multi_add_handle = NULL
+global procedure curl_multi_add_handle(atom mcurl, curl)
+    if xcurl_multi_add_handle=NULL then
+        xcurl_multi_add_handle = link_c_func(libcurl, "curl_multi_add_handle", {C_PTR, C_PTR}, C_INT)
+    end if
+    CURLMcode res = c_func(xcurl_multi_add_handle, {mcurl,curl})
+    if res!=CURLM_OK then ?9/0 end if
+end procedure
 
 atom xcurl_multi_setopt = NULL
 global function curl_multi_setopt(atom mcurl, CURLMoption option, object param)
@@ -1739,6 +1753,64 @@ global function curl_multi_perform(atom mcurl)
     integer running_handles = peekNS(p_running_handles,W,true)
     free(p_running_handles)
     return {result,running_handles}
+end function
+
+global function curl_multi_perform_ex(atom mcurl, curl)--, integer rid)
+-- see also curl_easy_perform_ex, if you modify this.
+
+    enter_cs(ceb_cs)
+    integer slot_no = 0
+    for i=1 to length(curl_easy_buffers) do
+        if integer(curl_easy_buffers[i]) then
+            curl_easy_buffers[i] = ""
+--          curl_multi_rids[i] = rid
+            slot_no = i
+            exit
+        end if
+    end for
+    if slot_no=0 then
+        curl_easy_buffers = append(curl_easy_buffers,"")
+--      curl_multi_rids = append(curl_multi_rids,rid)
+        slot_no = length(curl_easy_buffers)
+    end if
+    leave_cs(ceb_cs)
+
+    -- set callback function to receive data
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, slot_no)
+
+    -- get file
+--  integer res = 
+    curl_multi_add_handle(mcurl,curl)
+--  if res!=CURLM_OK then ?9/0 end if
+    return slot_no
+end function
+
+--global function curl_multi_complete(atom curl, integer slot_no)
+global function curl_multi_complete(integer slot_no)
+--
+-- note: slot_no is as set via CURLOPT_WRITEDATA, but I cannot 
+--       see any way to retrieve that. Hence it is necessary
+--       for the calling code to maintain that mapping.
+--       Hence keeping curl_multi_rids in here is pointless...
+--       Also note that slot_no is automatically marked as
+--       available for re-use by this routine, so you must
+--       retrieve any/all mappings, before calling this.
+--       Lastly, you should only be calling this if
+--       curl_multi_info_read() gave you a CURLE_OK.
+--
+    enter_cs(ceb_cs)
+--10/7...
+--  string res = curl_easy_buffers[slot_no]
+    object res = curl_easy_buffers[slot_no]
+    curl_easy_buffers[slot_no] = 0  -- (can now be reused)
+    leave_cs(ceb_cs)
+
+--  if ret!=CURLE_OK then
+--      return ret
+--  end if
+
+    return res
 end function
 
 global constant CURL_WAIT_POLLIN  = 0x0001,
@@ -2569,7 +2641,9 @@ global constant
   CURLPROTO_SMBS   = #8000000,
   CURLPROTO_ALL    = not 0  -- enable everything
 
+--*/
 global constant CURLOPT_XFERINFODATA            = CURLOPT_PROGRESSDATA
+--/*
 global constant CURLOPT_SERVER_RESPONSE_TIMEOUT = CURLOPT_FTP_RESPONSE_TIMEOUT
 
 -- Backwards compatibility with older names
