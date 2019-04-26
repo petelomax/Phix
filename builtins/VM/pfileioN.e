@@ -7807,120 +7807,158 @@ end procedure
 --  set_console_color(color, TEXTCOLOR)
 --end procedure
 
+--  opName("opPosition",opPosition,3)
+--global procedure position(integer line, integer col)
+procedure fposition(integer line, integer col)
+    if line<1 or line>=#4000 or col<1 or col>=#4000 then
+        fatalN(2, e83atpmbi)
+    end if
+--  #ilASM{ call :%pClearDbg }
+    if platform()=WINDOWS then
+        if not cinit then initConsole() end if
+        integer coord = and_bits(line-1,#FFFF)*#10000 + and_bits(col-1,#FFFF)
+        #ilASM{
+            [PE32]
+                push dword[coord]                           -- dwCursorPosition
+                push [stdout]                               -- hConsoleOutput
+                call "kernel32.dll","SetConsoleCursorPosition"
+                test eax,eax
+                jne @f
+                    mov [coord],-1
+              @@:
+            [PE64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
+                sub rsp,8*5
+                mov rdx,[coord]                                 -- dwCursorPosition
+                mov rcx,[stdout]                                -- hConsoleOutput
+                call "kernel32.dll","SetConsoleCursorPosition"
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+                test rax,rax
+                jne @f
+                    mov [coord],-1
+              @@:
+              }
+--DEV does not appear to be setting emitON=0 as I expected...
+--  if platform()=WINDOWS then
+        if coord=-1 then
+            #ilASM{
+                [PE32,PE64]
+                    call "kernel32.dll","GetLastError"
+                [32]
+                    mov [coord],eax
+                [64]
+                    mov [coord],rax
+                  }
+            fatalN(2,e108pe,coord)
+        end if
+    elsif platform()=LINUX then
+        printf(1,"\E[%d;%dH", {line, col})
+    end if
+end procedure
+
 --  opName("opClrScrn",opClrScrn,1)
 --global procedure clear_screen()
 procedure fclear_screen()
-    if not cinit then initConsole() end if
-    #ilASM{
-        [PE32]
-            sub esp,sizeof_CSBI
-            mov eax,[stdout]
-            mov edi,esp
-            push edi            -- lpConsoleScreenBufferInfo
-            push eax            -- hConsoleOutput
-            call "kernel32.dll","GetConsoleScreenBufferInfo"
---          test eax,eax
---          jz ??? [DEV]
-            xor eax,eax
-            xor ecx,ecx
-            mov ax,[edi+CSBI_SIZEX]
-            mov cx,[edi+CSBI_SIZEY]
-            xor edx,edx
-            imul ecx
-            mov dx,[edi+CSBI_ATTR]
-            add esp,sizeof_CSBI
-            push ebx    -- space for NumberOf(Attrs|Chars)Written
-            mov esi,esp
-            -- push params for FillConsoleOutputAttribute first (before regs get damaged)
-            push esi                                        -- lpNumberOfAttrsWritten
-            mov edi,[stdout]
-            push ebx                                        -- dwWriteCoord
-            push eax                                        -- nLength
-            push edx                                        -- wAttribute
-            push edi                                        -- hConsoleOutput
-            -- now params for FillConsoleOutputCharacter
-            push esi                                        -- lpNumberOfCharsWritten
-            push ebx                                        -- dwWriteCoord
-            push eax                                        -- nLength
-            push ' '                                        -- cCharacter
-            push edi                                        -- hConsoleOutput
-            call "kernel32.dll","FillConsoleOutputCharacterA"
-            call "kernel32.dll","FillConsoleOutputAttribute"
---          pop eax     -- discard NumberOf(Attrs|Chars)Written
---          push ebx                                        -- dwCursorPosition
-            mov [esp],ebx                                   -- dwCursorPosition
-            push [stdout]                                   -- hConsoleOutput
-            call "kernel32.dll","SetConsoleCursorPosition"
-        [PE64]
-            sub rsp,sizeof_CSBI64
-            mov rdi,rsp
---          mov rcx,rsp -- put 2 copies of rsp onto the stack...
-            push rsp
-            push rdi
-            or rsp,8    -- [rsp] is now 1st or 2nd copy:
-                        -- if on entry rsp was xxx8: both copies remain on the stack
-                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
-                        -- obviously rsp is now xxx8, whichever alignment we started with
-            sub rsp,8*7
-            mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
-            mov rcx,[stdout]                                -- hConsoleOutput
-            call "kernel32.dll","GetConsoleScreenBufferInfo"
---          test rax,rax
---          jz ??? [DEV]
-            xor rax,rax
-            xor rcx,rcx
-            mov ax,[rdi+CSBI_SIZEX]
-            mov cx,[rdi+CSBI_SIZEY]
---          xor edx,edx
-            imul rcx
-            lea r14,[rsp+40]    -- (as r14 is preserved over api calls)
-            mov r12,rax         -- (as r12 is preserved over api calls)
-            xor rdx,rdx
-            mov [rsp+32],r14                                -- lpNumberOfCharsWritten
-            mov r9,rbx                                      -- dwWriteCoord ({0,0})
-            mov r8,r12                                      -- nLength
---          mov rdx,' '                                     -- cCharacter
-            mov dl,' '                                      -- cCharacter
-            mov rcx,[stdout]                                -- hConsoleOutput
-            call "kernel32.dll","FillConsoleOutputCharacterA"
-            xor rdx,rdx
-            mov [rsp+32],r14                                -- lpNumberOfAttrsWritten
-            mov r9,rbx                                      -- dwWriteCoord ({0,0})
-            mov r8,r12                                      -- nLength
-            mov dx,[rdi+CSBI_ATTR]                          -- wAttribute
-            mov rcx,[stdout]                                -- hConsoleOutput
-            call "kernel32.dll","FillConsoleOutputAttribute"
-            mov rdx,rbx                                     -- dwCursorPosition ({0,0})
-            mov rcx,[stdout]                                -- hConsoleOutput
-            call "kernel32.dll","SetConsoleCursorPosition"
---          add rsp,8*7
---          pop rsp
-            mov rsp,[rsp+8*7]   -- equivalent to the add/pop
-            add rsp,sizeof_CSBI64
-        [ELF32]
-            --DEV not attempted
---          pop al
---void ClearScreen()
---{
---
---#ifdef EUNIX
---  // ANSI code
---  SetTColor(current_fg_color);
---  SetBColor(current_bg_color);
---  iputs("\E[2J", stdout);  // clear screen
---  iflush(stdout);
---  SetPosition(1,1);
---  Set_Image(screen_image, ' ', current_fg_color, current_bg_color);
---#endif
---
---  screen_line = 1;
---  screen_col = 1;
---}
-        [ELF64]
---          pop al
-          }
-    if platform()=LINUX then
+    if platform()=WINDOWS then
+        if not cinit then initConsole() end if
+        #ilASM{
+            [PE32]
+                sub esp,sizeof_CSBI
+                mov eax,[stdout]
+                mov edi,esp
+                push edi            -- lpConsoleScreenBufferInfo
+                push eax            -- hConsoleOutput
+                call "kernel32.dll","GetConsoleScreenBufferInfo"
+--              test eax,eax
+--              jz ??? [DEV]
+                xor eax,eax
+                xor ecx,ecx
+                mov ax,[edi+CSBI_SIZEX]
+                mov cx,[edi+CSBI_SIZEY]
+                xor edx,edx
+                imul ecx
+                mov dx,[edi+CSBI_ATTR]
+                add esp,sizeof_CSBI
+                push ebx    -- space for NumberOf(Attrs|Chars)Written
+                mov esi,esp
+                -- push params for FillConsoleOutputAttribute first (before regs get damaged)
+                push esi                                        -- lpNumberOfAttrsWritten
+                mov edi,[stdout]
+                push ebx                                        -- dwWriteCoord
+                push eax                                        -- nLength
+                push edx                                        -- wAttribute
+                push edi                                        -- hConsoleOutput
+                -- now params for FillConsoleOutputCharacter
+                push esi                                        -- lpNumberOfCharsWritten
+                push ebx                                        -- dwWriteCoord
+                push eax                                        -- nLength
+                push ' '                                        -- cCharacter
+                push edi                                        -- hConsoleOutput
+                call "kernel32.dll","FillConsoleOutputCharacterA"
+                call "kernel32.dll","FillConsoleOutputAttribute"
+--              pop eax     -- discard NumberOf(Attrs|Chars)Written
+--              push ebx                                        -- dwCursorPosition
+                mov [esp],ebx                                   -- dwCursorPosition
+                push [stdout]                                   -- hConsoleOutput
+                call "kernel32.dll","SetConsoleCursorPosition"
+            [PE64]
+                sub rsp,sizeof_CSBI64
+                mov rdi,rsp
+--              mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rdi
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whichever alignment we started with
+                sub rsp,8*7
+                mov rdx,rdi                                     -- lpConsoleScreenBufferInfo
+                mov rcx,[stdout]                                -- hConsoleOutput
+                call "kernel32.dll","GetConsoleScreenBufferInfo"
+--              test rax,rax
+--              jz ??? [DEV]
+                xor rax,rax
+                xor rcx,rcx
+                mov ax,[rdi+CSBI_SIZEX]
+                mov cx,[rdi+CSBI_SIZEY]
+--              xor edx,edx
+                imul rcx
+                lea r14,[rsp+40]    -- (as r14 is preserved over api calls)
+                mov r12,rax         -- (as r12 is preserved over api calls)
+                xor rdx,rdx
+                mov [rsp+32],r14                                -- lpNumberOfCharsWritten
+                mov r9,rbx                                      -- dwWriteCoord ({0,0})
+                mov r8,r12                                      -- nLength
+--              mov rdx,' '                                     -- cCharacter
+                mov dl,' '                                      -- cCharacter
+                mov rcx,[stdout]                                -- hConsoleOutput
+                call "kernel32.dll","FillConsoleOutputCharacterA"
+                xor rdx,rdx
+                mov [rsp+32],r14                                -- lpNumberOfAttrsWritten
+                mov r9,rbx                                      -- dwWriteCoord ({0,0})
+                mov r8,r12                                      -- nLength
+                mov dx,[rdi+CSBI_ATTR]                          -- wAttribute
+                mov rcx,[stdout]                                -- hConsoleOutput
+                call "kernel32.dll","FillConsoleOutputAttribute"
+                mov rdx,rbx                                     -- dwCursorPosition ({0,0})
+                mov rcx,[stdout]                                -- hConsoleOutput
+                call "kernel32.dll","SetConsoleCursorPosition"
+--              add rsp,8*7
+--              pop rsp
+                mov rsp,[rsp+8*7]   -- equivalent to the add/pop
+                add rsp,sizeof_CSBI64
+              }
+    elsif platform()=LINUX then
         puts(1,"\E[2J") -- clear screen
+        fposition(1, 1)
     end if
 end procedure
 
@@ -7962,86 +8000,6 @@ procedure ffree_console()
 --      free(pCHARINFO)
         cinit = 0
 --  end if
-end procedure
-
---  opName("opPosition",opPosition,3)
---global procedure position(integer line, integer col)
-procedure fposition(integer line, integer col)
-integer coord
-    if not cinit then initConsole() end if
---23/1/16:
-    if line<1 or line>=#4000 or col<1 or col>=#4000 then
-        fatalN(2, e83atpmbi)
-    end if
---  #ilASM{ call :%pClearDbg }
---  coord = and_bits(line-1,#FFFF)*#10000 + and_bits(col,#FFFF)
-    coord = and_bits(line-1,#FFFF)*#10000 + and_bits(col-1,#FFFF)
-    #ilASM{
-        [PE32]
-            push dword[coord]                           -- dwCursorPosition
-            push [stdout]                               -- hConsoleOutput
-            call "kernel32.dll","SetConsoleCursorPosition"
-            test eax,eax
-            jne @f
-                mov [coord],-1
-          @@:
-        [PE64]
-            mov rcx,rsp -- put 2 copies of rsp onto the stack...
-            push rsp
-            push rcx
-            or rsp,8    -- [rsp] is now 1st or 2nd copy:
-                        -- if on entry rsp was xxx8: both copies remain on the stack
-                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
-                        -- obviously rsp is now xxx8, whichever alignment we started with
-            sub rsp,8*5
-            mov rdx,[coord]                                 -- dwCursorPosition
-            mov rcx,[stdout]                                -- hConsoleOutput
-            call "kernel32.dll","SetConsoleCursorPosition"
---          add rsp,8*5
---          pop rsp
-            mov rsp,[rsp+8*5]   -- equivalent to the add/pop
-            test rax,rax
-            jne @f
-                mov [coord],-1
-          @@:
-        [ELF32]
-            --DEV not attepted
---void SetPosition(int line, int col)
---{
---#ifdef EUNIX
---  snprintf(buff, SP_buflen, "\E[%d;%dH", line, col);
---  iputs(buff, stdout);
---  iflush(stdout);
---#endif
---
---  screen_col = col;
---  screen_line = line;
---}
---          pop al
-        [ELF64]
---          pop al
-          }
---DEV does not appear to be setting emitON=0 as I expected...
-    if platform()=WINDOWS then
-        if coord=-1 then
-            #ilASM{
-                [PE32,PE64]
-                    call "kernel32.dll","GetLastError"
-                [ELF32]
-                    xor eax,eax
-                [ELF64]
-                    xor rax,rax
-                [32]
-                    mov [coord],eax
-                [64]
-                    mov [coord],rax
-                  }
-            fatalN(2,e108pe,coord)
-        end if
-    elsif platform()=LINUX then
-        string txt = sprintf("\E[%d;%dH", {line, col})
-        puts(1,txt)
-    end if
 end procedure
 
 #ilASM{ jmp :fin

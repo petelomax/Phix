@@ -291,7 +291,7 @@ end function
 --DEV
 --constant L = iff(platform()=WINDOWS?4:8)
 integer L = 4
---if platform()=LINUX then
+--if platform()=LINUX then  -- [moved to init_cffi()]
 --  L = 8
 --end if
 

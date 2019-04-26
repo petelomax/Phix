@@ -1,0 +1,164 @@
+--
+-- demo\rosetta\web_scrape.exw
+-- ===========================
+-- demo\rosetta\Rank_Languages.exw
+-- ===============================
+--
+include builtins\timedate.e
+include builtins\libcurl.e
+
+constant output_html = false,
+--constant output_html = true,
+         limit = 20,    -- 0 to list all (ignored if output_html is true)
+         refresh_cache = timedelta(days:=3),    -- 0 for always
+         languages = "http://rosettacode.org/wiki/Category:Programming_Languages",
+         categories = "http://www.rosettacode.org/mw/index.php?title=Special:Categories&limit=5000"
+
+function open_download(string filename, url)
+    bool refetch = true
+    if file_exists(filename) then
+        -- use existing file if <= refresh_cache (1 day) old
+        sequence last_mod = get_file_date(filename)     -- (0.8.1+)
+        atom delta = timedate_diff(last_mod,date())
+        refetch = (delta>refresh_cache)
+    end if
+    if refetch then
+        printf(1,"Downloading %s...\n",{filename})
+        CURLcode res = curl_easy_get_file(url,"",filename) -- (no proxy)
+        if res!=CURLE_OK then
+            string error = sprintf("%d",res)
+            if res=CURLE_COULDNT_RESOLVE_HOST then
+                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
+            end if
+            printf(1, "Error %s downloading file\n", error)
+            {} = wait_key()
+            abort(0)
+        end if  
+    end if
+    return get_text(filename)
+end function
+
+string langs = open_download("languages.htm",languages),
+       cats = open_download("categories.htm",categories),
+       language_name
+
+-- Note these are not merged, the output now has eg two "MiniZinc" entries.
+constant {corrupt_names,corrected_names} = columnize({{"Cach\xC3\xA9 ObjectScript","Cache ObjectScript"},
+                                                      {"D\xC3\xA9j\xC3\xA0 Vu","Deja Vu"},
+                                                      {"F\xC5\x8Drmul\xC3\xA6","Formulae"},
+                                                      {"\xCE\x9CC++","uC++"},
+                                                      {"\xD0\x9CiniZinc","MiniZinc"},
+                                                      {"\xD0\x9C\xD0\x9A-61/52","MK-61/52"},
+                                                      {"\xE0\xAE\x89\xE0\xAE\xAF\xE0\xAE\xBF\xE0\xAE\xB0\xE0\xAF\x8D/Uyir","Uyir"}})
+function correct(string language_name)
+    integer k = find(language_name,corrupt_names)
+    if k!=0 then
+        language_name = corrected_names[k]
+    end if
+    return language_name
+end function
+
+-- 1) extract languages from eg title="Category:Phix"
+constant cat_title = "title=\"Category:"
+sequence language_names = {}
+langs = langs[1..match("<div class=\"printfooter\">",langs)-1]
+integer start = match("<h2>Subcategories</h2>",langs)
+while true do
+    integer k = match(cat_title,langs,start)
+    if k=0 then exit end if
+    k += length(cat_title)
+    start = find('"',langs,k)
+    language_name = correct(langs[k..start-1])
+    language_names = append(language_names,language_name)
+end while
+
+-- 2) extract results from eg title="Category:Phix">Phix</a>?? (997 members)</li>
+--     but obviously only when we have found that language in the phase above.
+--     (note there is / ignore some wierd uncode-like stuff after the </a>...)
+sequence results = {}
+start = 1
+while true do
+    integer k = match(cat_title,cats,start)
+    if k=0 then exit end if
+    k += length(cat_title)
+    start = find('"',cats,k)
+    language_name = correct(cats[k..start-1])
+    start = match("</a>",cats,start)+4
+    if find(language_name,language_names) then
+        while not find(cats[start],"(<") do start += 1 end while -- (ignore)
+        string members = cats[start..find('<',cats,start+1)]
+        members = substitute(members,",","")
+        sequence res = scanf(members,"(%,d member%s)<")
+        results = append(results,{language_name,res[1][1]})
+    end if      
+end while
+results = sort_columns(results,{-2,1}) -- (descending 2nd column, then asc 1st)
+
+constant html_header = """
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Rosettacode Rank Languages by popularity</title>
+ </head>
+ <body>
+  <h2>Rosettacode Rank Languages by popularity</h2>
+  Generated %s<br><br>
+  <table border="1" cellpadding="4" style="border-collapse: collapse">
+   <tr><th align=right>Rank</th><th align=right>Entries</th><th align=left>Name</th></tr>
+""",
+         html_line = """
+   <tr><td align=right>%d</td><td align=right>%,d</td><td>%s</td></tr>
+""",
+         html_footer = """
+  </table>
+ </body>
+</html>
+"""
+integer fn
+if output_html then
+    fn = open("popularity.html","w")
+    printf(fn,html_header,{format_timedate(date())})
+end if
+integer count, prev = 0, rank
+for i=1 to iff(not output_html and limit?limit:length(results)) do
+    {language_name, count} = results[i]
+    if count!=prev then rank = i end if
+    prev = count
+    if output_html then
+        printf(fn,html_line,{rank,count,language_name})
+    else
+        printf(1,"%3d: %,d - %s\n",{rank,count,language_name})
+    end if
+end for
+if output_html then
+    puts(fn,html_footer)
+    close(fn)
+end if
+?"done"
+{} = wait_key()
+--/*
+--output (eg)
+
+                                      Go  1,137
+                                  Perl 6  1,075
+                                  Python  1,054
+                                  Kotlin  1,042
+                                    Perl  1,006
+                                   Julia    998
+                                    Phix    997
+                                  Racket    989
+                                       C    949
+                                       J    934
+                                     Zkl    931
+                                     Tcl    930
+                                    Java    906
+                                    REXX    902
+                                       D    875
+                                    Ruby    873
+                                 Haskell    869
+                                   Sidef    804
+                                   Scala    793
+                                PicoLisp    775
+--*/

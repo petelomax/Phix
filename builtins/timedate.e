@@ -336,7 +336,9 @@ global type timedate(object s)
 object si
 integer vmin, vmax
     if sequence(s)
-    and length(s)>=DT_DOY then
+--25/4/19:
+--  and length(s)>=DT_DOY then
+    and length(s)>=DT_SECOND then
         for i=1 to length(s) do
             si = s[i]
             if not integer(si) then return 0 end if
@@ -724,7 +726,11 @@ function timedate_to_seconds(timedate td)
 -- returns an atom
 --22/3/18:
 --  return timedate_to_julian_day(td)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
-    return (timedate_to_julian_day(td)-2440588)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+--25/4/19:
+--  return (timedate_to_julian_day(td)-2440588)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+    atom s = (td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]
+    if length(td)>=DT_MSEC then s+=td[DT_MSEC]/1000 end if
+    return (timedate_to_julian_day(td)-2440588)*day_in_seconds+s
 end function
 
 function seconds_to_timedate(atom seconds)

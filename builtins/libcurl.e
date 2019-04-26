@@ -112,7 +112,9 @@ global constant
   CURLE_URL_MALFORMAT            =  3,  -- 3
   CURLE_NOT_BUILT_IN             =  4,  -- 4 -- (was CURLE_URL_MALFORMAT_USER?)
   CURLE_COULDNT_RESOLVE_PROXY    =  5,  -- 5
+--*/
   CURLE_COULDNT_RESOLVE_HOST     =  6,  -- 6
+--/*
   CURLE_COULDNT_CONNECT          =  7,  -- 7
   CURLE_FTP_WEIRD_SERVER_REPLY   =  8,  -- 8
   CURLE_REMOTE_ACCESS_DENIED     =  9,  -- 9 a service was denied by the server

@@ -236,7 +236,15 @@ global function set_file_size(string filename, atom size)
 
     return res
 end function
- 
+
+global function get_file_date(string filename)
+-- returns last modification date, in [DT_YEAR..DT_SECOND] format, 
+--          or -1 if the file details could not be retrieved.
+    object d = dir(filename)
+    if atom(d) or length(d)!=1 then return -1 end if
+    sequence res = d[1][D_YEAR..D_SECOND]
+    return res
+end function
 
 --/* Now defined in psym.e:
 global constant DRIVE_UNKNOWN       = 0,    -- The drive type cannot be determined.
