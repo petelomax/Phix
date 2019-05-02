@@ -851,7 +851,7 @@ global function sprintf(sequence fmt, object args)
     return sprintf_(fmt,args)
 end function
 
---DEV move this (once newEmit is done) [better yet put itin the optable]
+--DEV move this (once newEmit is done) [better yet put it in the optable]
 -- note: printf is now defined in pfileioN.e
 global procedure printf(integer fn, sequence fmt, object args={})
 --DEV/SUG:

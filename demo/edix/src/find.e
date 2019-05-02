@@ -12,6 +12,8 @@
 --Wrap-around search algorithm
 --This proved far harder than I ever imagined possible, any improvements welcome.\\
 
+--DEV: start/wrappable need to be saved on a per-file basis, like current (aka CursorY)
+
 --The following is a simplified testbed.\\
 --First simplification: text is "0000".."1111" and "find" is whether or not text[1..4] is '1'.\\
 --Second simplification: we set "start" explicitly in the testing loop, maybe unlike real use.\\
@@ -124,7 +126,9 @@ procedure find_text(integer direction)
                 find_txts = append(find_txts,str_to_find)
                 IupSetAttribute(find_txt,sprintf("%d",length(find_txts)),str_to_find)
 --?{"find_text(), find_start(was ",find_start,"):=",iff(direction=0?0:CursorY)}
+--no help:
                 find_start = iff(direction=0?1:CursorY+1)
+--              find_start = iff(direction=0?1:min(length(filetext[currfile]),CursorY+1))
             end if
             integer casesensitive = IupGetInt(find_case, "VALUE")
             integer pos = 0, i, toline,
@@ -157,12 +161,15 @@ procedure find_text(integer direction)
                 start = iff(direction=0?1:MapToByte(line,start))
                 toline = iff(fromline<find_start?find_start:length(filetext[currfile]))
 --?{"find_text(), fromline=",fromline," find_start=",find_start," toline=",toline}
-                for i=fromline to toline do
+--              for i=fromline to toline do
+--if i>length(filetext[currfile]) then ?"find.e line 162" exit end if
+                for i=fromline to length(filetext[currfile]) do
                     line = filetext[currfile][i]
                     pos = match(str_to_find, line, start, casesensitive)
                     if pos!=0 then exit end if
                     start = 1
                 end for
+if 0 then
                 if pos=0 and fromline>=find_start then
                     start = 1
 --?{"find_text(), 1 to ",find_start}
@@ -175,6 +182,7 @@ procedure find_text(integer direction)
                         if pos!=0 then exit end if
                     end for
                 end if
+end if
             end if
             hide_find()
             if pos!=0 then

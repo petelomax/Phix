@@ -111,6 +111,7 @@ procedure open_mpir_dll(string dll_name="", bool mpir_only=false, fatal=true)
 -- internal: via if mpXr_dll=NULL then open_mpir_dll() end if, or
 --           from mpir_open_dll as open_mpir_dll(dll_name,mpir_only,false).
 --
+    string dll_path = include_path("builtins")
     if platform()=LINUX then
         if dll_name="" then
 -- maybe:
@@ -120,6 +121,30 @@ procedure open_mpir_dll(string dll_name="", bool mpir_only=false, fatal=true)
 --          dll_names = {"mpir.so","mpir-3.so"}
         end if
     elsif platform()=WINDOWS then
+--DEV copied from pGUI (which uses 120/2013), builtins copy not tested...
+--MSVCP100.dll/MSVCR100.dll
+        -- Aside: normally I'd expect msvcp/r100.dll to be loaded from system32/syswow64, 
+        --        but if someone puts copies in builtins, it should be alright.
+        --        You could also try deleting this test and see if it works anyway, but
+        --        don't blame me if that gets you an even more cryptic error message.
+        --        (This all depends on how the pre-built binaries were built, natch.)
+        string curr_dir = current_dir()
+        if dll_path!="" and chdir(dll_path)=0 then ?9/0 end if
+        if open_dll("msvcp100.dll")=0 then
+            puts(1,"fatal error: msvcp100.dll could not be loaded\n")
+            puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2010\n")
+            if machine_bits()=32 then
+                puts(1," from http://www.microsoft.com/en-in/download/details.aspx?id=5555 \n")
+                -- ( http://www.microsoft.com/en-in/download/details.aspx?id=5555 )
+            else
+                puts(1," from http://www.microsoft.com/en-us/download/details.aspx?id=14632 \n")
+                -- ( http://www.microsoft.com/en-us/download/details.aspx?id=14632 )
+            end if
+            {} = wait_key()
+            ?9/0
+        end if
+        if chdir(curr_dir)=0 then ?9/0 end if
+
         if dll_name="" then
             dll_name = sprintf("mpir%d.dll",machine_bits()) -- 2.7.2
 --          dll_name = "mpir.dll"       -- 2.6.0
@@ -129,7 +154,8 @@ procedure open_mpir_dll(string dll_name="", bool mpir_only=false, fatal=true)
         ?9/0 -- unknown platform
     end if
     sequence dll_names = {dll_name}
-    string dll_path = include_path("builtins")
+if mpir_dll!=NULL then ?9/0 end if
+if mpfr_dll!=NULL then ?9/0 end if
     for i=1 to length(dll_names) do
         dll_name = dll_names[i]
         mpir_dll = open_dll(dll_name)
@@ -183,7 +209,9 @@ global function mpir_open_dll(string dll_name="", bool mpir_only=false)
 -- you're using/shipping [untested]. Maybe we could fairly easily just add 
 -- mpz_open_dll(), and a flag/index to the internal open_mpir_dll() above?..
 --
-    if mpfr_dll=NULL then
+--  if mpfr_dll=NULL then
+    if mpir_dll=NULL then
+        missing_dll = ""
         open_mpir_dll(dll_name, mpir_only, false)
         return missing_dll
     end if
@@ -205,16 +233,22 @@ global function mpfr_get_versions(bool bAsNumSeq=false)
 -- There is no harm whatsoever in calling this more than once.
 --
     if x_mpfr_get_version=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_get_version = link_c_func(mpfr_dll, "+mpfr_get_version", {}, P)
+--      if mpfr_dll=NULL then open_mpir_dll() end if
+        if mpir_dll=NULL then open_mpir_dll() end if
+        if mpfr_dll!=NULL then
+            x_mpfr_get_version = link_c_func(mpfr_dll, "+mpfr_get_version", {}, P)
+        end if
         p_mpir_version = define_c_var(mpir_dll, "__mpir_version")
         p_gmp_version = define_c_var(mpir_dll, "__gmp_version")
     end if
-    sequence res = {peek_string(c_func(x_mpfr_get_version,{})),
-                    peek_string(peek4u(p_mpir_version)),
-                    peek_string(peek4u(p_gmp_version))}
+    sequence res = {iff(mpfr_dll==NULL?"mpfr_dll==NULL":peek_string(c_func(x_mpfr_get_version,{}))),
+--29/4/19:
+--                  peek_string(peek4u(p_mpir_version)),
+                    peek_string(peekNS(p_mpir_version,machine_word(),0)),
+--                  peek_string(peek4u(p_gmp_version))}
+                    peek_string(peekNS(p_gmp_version,machine_word(),0))}
     if bAsNumSeq then
-        for i=1 to length(res) do
+        for i=iff(mpfr_dll==NULL?2:1) to length(res) do
             res[i] = substitute(res[i],".","-")
             {res[i]} = scanf(res[i],"%d-%d-%d")
         end for
@@ -726,6 +760,8 @@ global procedure mpz_set_str(mpz rop, string s, integer base=10)
     end if
     c_proc(x_mpz_set_str,{rop,s,base})
 end procedure
+--DEV (NEWGSCAN)
+if "abc" = "def" then mpz_set_str(NULL,"") end if
 
 integer x_gmp_init = NULL,
         x_gmp_init2 = NULL,
@@ -946,18 +982,10 @@ global procedure mpz_mul_2exp(mpz rop, op1, integer op2)
     c_proc(x_mpz_mul_2exp,{rop,op1,op2})
 end procedure
 
---__gmpz_mod
---void mpz_mod (mpz_t r, mpz_t n, mpz_t d) 
---mpir_ui mpz_mod_ui (mpz_t r, mpz_t n, mpir_ui d) 
---Set r to n mod d. The sign of the divisor is ignored; the result is always non-negative.
---mpz_mod_ui is identical to mpz_fdiv_r_ui above, returning the remainder as well as setting
---r. See mpz_fdiv_ui above if only the return value is wanted.
---
---mpz_mod_ui
 integer x_mpz_mod = NULL
 
 global procedure mpz_mod(mpz r, n, d)
--- r = mod(n,d)
+-- r = mod(n,d) The sign of the divisor is ignored; the result is always non-negative.
     if r=NULL then ?9/0 end if
     if n=NULL then ?9/0 end if
     if d=NULL then ?9/0 end if
@@ -969,16 +997,19 @@ end procedure
 
 integer x_mpz_mod_ui = NULL
 
-global procedure mpz_mod_ui(mpz r, n, integer d)
+global function mpz_mod_ui(mpz r, n, integer d)
 -- r = mod(n,d)
+-- mpz_mod_ui is identical to mpz_fdiv_r_ui, returning the remainder as well as setting
+-- r. See mpz_fdiv_ui above if only the return value is wanted.
     if r=NULL then ?9/0 end if
     if n=NULL then ?9/0 end if
     if d<0 then ?9/0 end if
     if x_mpz_mod_ui=NULL then
-        x_mpz_mod_ui = link_c_proc(mpir_dll, "+__gmpz_mod_ui", {P,P,I})
+        x_mpz_mod_ui = link_c_func(mpir_dll, "+__gmpz_fdiv_r_ui", {P,P,I},I)
     end if
-    c_proc(x_mpz_mod_ui,{r,n,d})
-end procedure
+    integer res = c_func(x_mpz_mod_ui,{r,n,d})
+    return res
+end function
 
 
 integer x_mpz_fdiv_q_2exp = NULL
@@ -990,6 +1021,20 @@ global procedure mpz_fdiv_q_2exp(mpz q, n, integer bit_count)
         x_mpz_fdiv_q_2exp = link_c_proc(mpir_dll, "+__gmpz_fdiv_q_2exp", {P,P,I})
     end if
     c_proc(x_mpz_fdiv_q_2exp,{q,n,bit_count})
+end procedure
+
+integer x_mpz_fdiv_qr = NULL
+
+global procedure mpz_fdiv_qr(mpz q, r, n, d)
+-- {q,r} := {floor(n/d),remainder(n,d)}
+    if q=NULL then ?9/0 end if
+    if r=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if d=NULL then ?9/0 end if
+    if x_mpz_fdiv_qr=NULL then
+        x_mpz_fdiv_qr = link_c_proc(mpir_dll, "+__gmpz_fdiv_qr", {P,P,P,P})
+    end if
+    c_proc(x_mpz_fdiv_qr,{q,r,n,d})
 end procedure
 
 integer x_mpz_cmp = NULL
@@ -1093,6 +1138,19 @@ global procedure mpz_powm_ui(mpz rop, base, integer exponent, mpz modulus)
         x_mpz_powm_ui = link_c_proc(mpir_dll, "+__gmpz_powm_ui", {P,P,I,P})
     end if
     c_proc(x_mpz_powm_ui,{rop,base,exponent,modulus})
+end procedure
+
+integer x_mpz_pow_ui = NULL
+
+global procedure mpz_pow_ui(mpz rop, base, integer exponent)
+--Set rop to base^exp. The case 0^0 yields 1.
+    if rop=NULL then ?9/0 end if
+    if base=NULL then ?9/0 end if
+    if exponent<0 then ?9/0 end if
+    if x_mpz_pow_ui=NULL then
+        x_mpz_pow_ui = link_c_proc(mpir_dll, "+__gmpz_pow_ui", {P,P,I})
+    end if
+    c_proc(x_mpz_pow_ui,{rop,base,exponent})
 end procedure
 
 integer x_mpz_ui_pow_ui = NULL
@@ -1212,6 +1270,8 @@ global function mpz_get_str(mpz x, integer base=10, bool comma_fill=false)
 --      ie     C: mpz_get_str(0, 10, x)
 --      ==> phix: string s = mpz_get_str(x[,10])
 --
+--      (nb the C API does not have the comma_fill argument or anything similar)
+--
 -- Convert op to a string of digits in base base. 
 -- The base may vary from 2 to 36 or from -2 to -36.
 -- For base in the range 2..36, digits and lower-case letters are used; 
@@ -1219,21 +1279,70 @@ global function mpz_get_str(mpz x, integer base=10, bool comma_fill=false)
 --                  for 37..62, digits, upper-case letters, and lower-case letters (in
 --                                              that significance order) are used.
 --
+-- Experimentation (test code below) showed that mpz_get_str() crashed with
+-- a stack overflow at 97,882 digits on 32 bit and 104,345 digits on 64 bit. 
+-- Therefore we print numbers in blocks of <=20,000 digits and glue together.
+-- NB: Only tested to 300,000 digits (which is just 15 such blocks).
+--     I also tested that block sizes of 1,2,3,..10 work as well.
+--
     if x=NULL then ?9/0 end if
     if x_mpz_get_str=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
+        if mpir_dll=NULL then open_mpir_dll() end if
         x_mpz_get_str = link_c_func(mpir_dll, "+__gmpz_get_str", {P,I,P}, P)
     end if
     integer l = mpz_sizeinbase(x, base)
-    atom pString = allocate(l+2)
+    atom pString = allocate(min(l+2,20002))
+    sequence chunks = {}
+    if l>20000 then
+--      atom d = mpz_init("1e20000"), r = mpz_init()
+        atom d = mpz_init(), r = mpz_init()
+        mpz_ui_pow_ui(d,10,20000)
+        x = mpz_init_set(x) -- copy for modification, relies on auto-free.
+        while true do
+            mpz_fdiv_qr(x,r,x,d) -- {x,r} := {floor(x/d),remainder(x,d)}
+            pString = c_func(x_mpz_get_str,{pString,base,r})
+            chunks = prepend(chunks,peek_string(pString))
+            l -= 20000
+            if l<=20000 then exit end if
+        end while
+    end if      
     pString = c_func(x_mpz_get_str,{pString,base,x})
     string res = peek_string(pString)
     free(pString)   
+    for i=1 to length(chunks) do
+        string ci = chunks[i]
+        l = length(ci)
+        if l<20000 then
+            res &= repeat('0',20000-l)
+        end if
+        res &= ci
+    end for
     if comma_fill then
         res = reverse(join_by(reverse(res),1,3,"",","))[2..$]
     end if
     return res
 end function
+
+--/*
+-- test code mentioned above (in mpz_get_str)
+mpz res = mpz_init(9)
+integer e_size = 2, a_size
+while e_size<300000 do
+    mpz_mul_si(res,res,10)
+    mpz_add_ui(res,res,9)
+    e_size += 1
+--  if e_size>iff(machine_bits()=32?97800:104300) or mod(e_size,100)=0 then
+    if mod(e_size,1000)=0 then
+        a_size = mpz_sizeinbase(res,10) 
+        if a_size!=e_size then ?9/0 end if
+        string nines = mpz_get_str(res)
+        if length(nines)!=e_size-1 then ?9/0 end if
+        if nines!=repeat('9',e_size-1) then ?9/0 end if
+        ?{e_size,"ok"}
+    end if
+end while
+--*/
+
 
 integer x_mpz_probable_prime_p = NULL
 
@@ -2045,7 +2154,7 @@ __gmpz_fdiv_qr
 __gmpz_fdiv_qr_ui
 __gmpz_fdiv_r
 __gmpz_fdiv_r_2exp
-__gmpz_fdiv_r_ui
+--__gmpz_fdiv_r_ui
 __gmpz_fdiv_ui
 __gmpz_fib2_ui
 __gmpz_fib_ui
@@ -2111,7 +2220,7 @@ __gmpz_out_str
 __gmpz_perfect_power_p
 __gmpz_perfect_square_p
 __gmpz_popcount
-__gmpz_pow_ui
+--__gmpz_pow_ui
 --__gmpz_powm
 --__gmpz_powm_ui
 __gmpz_primorial_ui
@@ -4895,7 +5004,7 @@ void mpz_fdiv_q (mpz_t q, mpz_t n, mpz_t d)
 void mpz_fdiv_r (mpz_t r, mpz_t n, mpz_t d) 
 void mpz_fdiv_qr (mpz_t q, mpz_t r, mpz_t n, mpz_t d) 
 mpir_ui mpz_fdiv_q_ui (mpz_t q, mpz_t n, mpir_ui d) 
-mpir_ui mpz_fdiv_r_ui (mpz_t r, mpz_t n, mpir_ui d) 
+--mpir_ui mpz_fdiv_r_ui (mpz_t r, mpz_t n, mpir_ui d) 
 mpir_ui mpz_fdiv_qr_ui (mpz_t q, mpz_t r, mpz_t n, mpir_ui d) 
 mpir_ui mpz_fdiv_ui (mpz_t n, mpir_ui d) 
 void mpz_fdiv_r_2exp (mpz_t r, mpz_t n, mp_bitcnt_t b) 
@@ -4956,7 +5065,7 @@ division functions, d = 0 is accepted and following the rule it can be seen that
 considered congruent mod 0 only when exactly equal.
 Chapter 5: Integer Functions 35
 5.7 Exponentiation Functions
-void mpz_pow_ui (mpz_t rop, mpz_t base, mpir_ui exp) 
+--void mpz_pow_ui (mpz_t rop, mpz_t base, mpir_ui exp) 
 --Set rop to base^exp
 5.8 Root Extraction Functions
 int mpz_root (mpz_t rop, mpz_t op, mpir_ui n) 

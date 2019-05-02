@@ -260,8 +260,8 @@ dl {
             Note that (as per v=0) the default is to initialise to 0, unlike the C api which creates variables set to nan (not a number).<br>
             mpfr res = <b>mpfr_init_set</b>(mpfr src, integer rounding=default_rounding) - Initialise to some prior mpfr, 
             eg <small><i>(mpfr x = mpfr_init(...);)</i></small> mpfr y = mpfr_init_set(x).<br>
-            Passing an mpfr directly to mpfr_init() is a similar error to using pPtr when peek4u(pPtr) is required, 
-            and likewise there is no practical way to guard against that.
+            Passing an mpfr directly to mpfr_init() is a similar error to using pInt when say peek4u(pInt) is required, 
+            and likewise there is no practical way to guard against that, you just get meaningless results.
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
@@ -417,18 +417,19 @@ dl {
             <dl><dt>
             <b>mpz_init</b>(object v=0, integer bitcount=0) - Initialise. v can be integer/atom/string.
             </dt><dd class="pad">
-            Covers the C functions mpz_init, mpz_init2, mpz_init_set_d, mpz_init_set_si, and mpz_init_set_str 
-            (note the latter three <i>can</i> take a bitcount in mpfr.e),
-            however it must <i>not</i> be used for mpz_init_set(mpz), ie init from another existing mpz, see next.<br>
-            (Aside: unlike mpfr_init(), the defaulted v=0 matches the C api.)<br>
+            Note that a string value in v may <i>not</i> use exponentiation, such as "1e200" (as per the C api, sorry).<br>
+            Unlike the nans of C&rsquo;s mpfr_init(), the defaulted v=0 of mpz_init() matches the C api behaviour.<br>
+            Covers the C functions mpz_init(), mpz_init2(), mpz_init_set_d(), mpz_init_set_si(), and mpz_init_set_str() 
+            - note the latter three <i>can</i> take a bitcount in mpfr.e.<br>
+            However v may <i>not</a> be another existing mpz, for that use mpz_init_set(mpz) as described below.<br>
             The bitcount is only the initial space, ie/eg mpz_init(1) happily stores it in one dword, a later 
             store of 2^16000 reallocates it to 16000 bits (about/whatever 500 dwords). A non-zero bitcount
             makes it possible to avoid such reallocations if a maximum size is known in advance.<br>
             You could use mpz_sizeinbase(x,2), in some prior test run, to determine a suitable (initial) bitcount
             (and see whether or not it actually makes the thing any faster).<br>
             mpz res = <b>mpz_init_set</b>(mpz src) - usage eg <small><i>(mpz x = mpz_init(...);)</i></small> mpz y = mpz_init_set(x).<br>
-            Passing an mpz directly to mpz_init() is a similar error to using pPtr when peek4u(pPtr) is required, 
-            and likewise there is no practical way to guard against that.
+            Passing an mpz directly to mpz_init() is a similar error to using pInt when say peek4u(pInt) is required, 
+            and likewise there is no practical way to guard against that, you just get meaningless results.
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
@@ -488,6 +489,7 @@ dl {
           <tr><td align="right" style="padding: 0; border-style: none;">
             <!-- procedure -->
           </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_fdiv_qr</b>(mpz q, r, n, d) - {q,r} := {floor(n/d),remainder(n,d)}<br>
             <b>mpz_fdiv_q_2exp</b>(mpz q, n, integer bit_count) - bitwise right shift, arithmetic if n -ve.
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
@@ -496,7 +498,23 @@ dl {
             <dl><dt>
             <b>mpz_mod</b>(mpz r, n, d) - r := mod(n,d)
             </dt><dd class="pad">
-            <b>mpz_mod_ui</b>(mpz r, n, integer d) - "" except op2 is a phix integer, 0..1GB
+            <b>mpz_mod_ui</b>(mpz r, n, integer d) - "" except op2 is a phix integer, 0..1GB<br>
+            <small>(In practice mpz_mod_ui() utilises the mpz_fdiv_r_ui() C entry point.)<br></small>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>mpz_pow_ui</b>(mpz rop, base, integer exponent) - rop := base^exponent), where exponent is a phix integer, 0..+1GB.<br>
+            <b>mpz_ui_pow_ui</b>(mpz rop, integer base, exponent) - "", except base is also a phix integer. The case 0^0 yields 1.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpz_powm</b>(mpz rop, base, exponent, modulus) - rop := mod(base^exponent,modulus)
+            </dt><dd class="pad">
+            <b>mpz_powm_ui</b>(mpz rop, base, integer exponent, mpz modulus) - "", except exponent is a phix integer, 0..+1GB
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
@@ -523,20 +541,6 @@ dl {
             <nobr>integer res =</nobr>
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>mpz_scan1</b>(mpz op, integer starting_bit) - Find first 1 in op >= starting_bit.
-          </td></tr>
-          <tr><td align="right" style="padding: 0; border-style: none;">
-            <!-- procedure -->
-          </td><td align="left" style="padding: 0; border-style: none;">
-            <dl><dt>
-            <b>mpz_powm</b>(mpz rop, base, exponent, modulus) - rop := mod(base^exponent,modulus)
-            </dt><dd class="pad">
-            <b>mpz_powm_ui</b>(mpz rop, base, integer exponent, mpz modulus) - "", except exponent and modulus are a phix integers, 0..+1GB
-            </dd></dl>
-          </td></tr>
-          <tr><td align="right" style="padding: 0; border-style: none;">
-            <!-- procedure -->
-          </td><td align="left" style="padding: 0; border-style: none;">
-            <b>mpz_ui_pow_ui</b>(mpz rop, integer base, exponent) - rop := base^exponent. The case 0^0 yields 1.
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
             bool res =

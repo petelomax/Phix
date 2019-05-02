@@ -1,0 +1,200 @@
+--
+-- demo/rosetta/hexapawn_go.exw
+-- ============================
+--
+--{trans|Go}}
+-- In the following `her*` is H.E.R. or Hexapawn Educable Robot
+
+constant ROWS = 3,
+         COLS = 3,
+         verbose = true
+
+enum type spot EMPTY=' ', BLACK='B', WHITE='W' end type
+
+enum BOARD, WINNER
+
+type Hexapawn(object h)
+    return sequence(h) 
+       and length(h)=2 
+       and sequence(h[BOARD]) 
+       and spot(h[WINNER])
+end type
+ 
+function New_Hexapawn()
+    sequence board = repeat(repeat(EMPTY,COLS),ROWS)
+    board[1] = repeat(WHITE,COLS)
+    board[ROWS] = repeat(BLACK,COLS)
+    integer winner = EMPTY
+    Hexapawn res = {board,winner}
+    return res
+end function
+ 
+integer herNextMove = new_dict()
+
+Hexapawn HerGameState_h
+integer HerGameState_i      -- last "unknown" move
+
+procedure logOutput(string msg, sequence args={})
+    if verbose then
+        if length(args) then
+            msg = sprintf(msg,args)
+        end if
+        printf(1,"%s\n",msg)
+    end if
+end procedure
+
+function print_move(sequence move)
+    return sprintf("{%d,%d}->{%d,%d}",flatten(move))
+end function
+
+function print_moves(sequence moves)
+    for i=1 to length(moves) do
+        moves[i] = print_move(moves[i])
+    end for
+    return join(moves,", ")
+end function
+
+function checkMove(Hexapawn h, spot p, integer fr, fc, tr, tc)
+    if h[BOARD][fr,fc] != p then
+        return sprintf("No %c located at spot {%d,%d}", {p, fr, tc})
+    elsif h[BOARD][tr,tc] == p then
+        return sprintf("%c already occupies spot {%d,%d}", {p, tr, tc})
+    end if
+    integer delta_r := fr - tr
+    if (p == WHITE and delta_r != -1) or (p == BLACK and delta_r != 1) then
+        return "must move forward one row"
+    end if
+    integer delta_c := fc - tc
+    bool capture := h[BOARD][tr,tc] != EMPTY
+    if (capture or delta_c != 0) and (not capture or (delta_c != 1 and delta_c != -1)) then
+        return "illegal move"
+    end if
+    return NULL
+end function
+
+integer cachedMoves = new_dict()
+ 
+function possibleMoves(spot s, Hexapawn h)
+    object m := getd({s,h},cachedMoves)
+    if m = NULL then
+        m = {}
+        for fr=1 to ROWS do
+            for fc = 1 to COLS do
+                for tr=1 to ROWS do
+                    for tc = 1 to COLS do
+                        object err := checkMove(h, s, fr, fc, tr, tc)
+                        if err == NULL then
+                            m = append(m, {{fr,fc},{tr,tc}})
+                        end if
+                    end for
+                end for
+            end for
+        end for
+        setd({s,h},m,cachedMoves)
+        logOutput("caclulated possible moves for %c\n%s as %s\n", {s, join(h[BOARD]), print_moves(m)})
+    end if
+    return m
+end function
+
+function other(spot s)
+    return iff(s=BLACK?WHITE:BLACK)
+end function
+
+function doMove(Hexapawn h, spot p, sequence move)
+    integer {{fr, fc}, {tr, tc}} = move
+    object err := checkMove(h, p, fr, fc, tr, tc)
+    if err==NULL then
+        h[BOARD][fr,fc] = EMPTY
+        h[BOARD][tr,tc] = p
+        if (p == WHITE and tr == ROWS) 
+        or (p == BLACK and tr == 1) 
+        or length(possibleMoves(other(p), h)) == 0 then
+            h[WINNER] = p
+        end if
+    end if
+    return {h,err}
+end function
+
+function HerMove(Hexapawn h)
+    bool known := false
+    object moves = getd(h,herNextMove)
+    if moves == NULL then -- Lazy init
+        moves = possibleMoves(BLACK, h)
+        setd(h,moves,herNextMove)
+    elsif length(moves) == 0 then
+        -- From here all possibilities can lose
+        logOutput("no good moves left to black, picking a random looser")
+        known = true
+        moves = possibleMoves(BLACK, h)
+    end if
+    logOutput("considering %s", print_moves(moves))
+    integer i := rand(length(moves))
+    if not known then
+        HerGameState_h = h
+        HerGameState_i = i
+    end if
+    printf(1,"Computer moves %s\n", {print_move(moves[i])})
+    object err
+    {h,err} := doMove(h, BLACK, moves[i])
+    if err != NULL then
+        crash(err)
+    end if
+    return h
+end function
+
+function HumanMove(Hexapawn h)
+    printf(1,"Board:\n%s\n", {join(h[BOARD],"\n")})
+    while true do
+        string move = prompt_string("Your move: ")
+        integer lm = 0
+        for i=1 to length(move) do
+            integer d = move[i]
+            if d>='1' and d<='3' then
+                lm += 1
+                move[lm] = d-'0'
+            end if
+        end for
+        if lm!=4 then
+            printf(1,`Enter eg "1,3 to 2,3", or 1323 for short\n`)
+        else
+            integer {fr, fc, tr, tc} = move[1..lm]
+            object err
+            {h,err} := doMove(h, WHITE, {{fr, fc}, {tr, tc}})
+            if err == NULL then exit end if
+            printf(1,"%s\n",{err})
+        end if
+    end while
+    return h
+end function
+
+procedure train(integer winner)
+    if winner == WHITE then -- (else do nothing)
+        -- Throw out the last "unknown" move H.E.R. made
+        sequence moves = getd(HerGameState_h,herNextMove)
+        integer i = HerGameState_i
+        logOutput("Training:\n%s will no longer do %v\n", {join(HerGameState_h[BOARD]), moves[i]})
+        moves[i..i] = {}
+        setd(HerGameState_h,moves,herNextMove)
+        logOutput("will instead do one of: %s", {print_moves(moves)})
+    end if
+end procedure
+
+procedure main()
+    logOutput("hexapawn: ")
+    sequence wins = repeat(0,2)
+    while true do
+        Hexapawn h := New_Hexapawn()
+        bool human = true
+        while h[WINNER]==EMPTY do
+            h = iff(human?HumanMove(h):HerMove(h))
+            human = not human
+        end while
+        printf(1,"Board:\n%s is a win for %c\n", {join(h[BOARD],"\n"), h[WINNER]})
+        train(h[WINNER])
+        wins[iff(h[WINNER]=BLACK?1:2)] += 1
+        printf(1,"Wins: Black=%d, White=%d\n\n", wins)
+    end while
+end procedure
+
+main() 
+

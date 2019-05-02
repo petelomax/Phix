@@ -2286,7 +2286,9 @@ sequence msg,           -- error message, from msgs[msg_id] plus any params
 
 integer p
 
-integer N, rtn
+--DEV temp (29/4/19):
+--integer N, rtn
+atom N, rtn
 --DEV from_addr is not really used!! (if we can get away without it...)
 atom from_addr, ehand, ret_addr, prev_ebp, ebp_root
 atom vsb_prev, vsb_next, vsb_magic

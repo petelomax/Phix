@@ -1823,7 +1823,8 @@ object x
                     x = upper(x)
                 end if
             case TZ:
-                tz = td[DT_TZ]
+--              tz = td[DT_TZ]
+                tz = iff(length(td)>=DT_TZ?td[DT_TZ]:0)
                 if tz=0 then tz = 1 end if
                 if fcase then
                     x = tzdescs[tz]
