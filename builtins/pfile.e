@@ -9,7 +9,8 @@
 
 atom finit = 0, W, SLASH, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, 
      xCreateDirectory, xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType, 
-     xCreateFileA, xSetFilePointer, xSetEndOfFile, xCloseHandle, xGetLastError
+     xCreateFileA, xSetFilePointer, xSetEndOfFile, xSetFileTime, xGetSystemTime,
+     xSystemTimeToFileTime, xCloseHandle, xGetLastError
 
 --Windows only constants for MoveFileEx:
 constant MOVEFILE_REPLACE_EXISTING  = #01,  -- (Not allowed for directories)
@@ -22,18 +23,18 @@ procedure initf()
 --  atom lib = open_dll(iff(W?"kernel32":""))   -- libc.so? libc.dylib?
     enter_cs()
     atom lib = open_dll(iff(W?"kernel32":"libc.so"))
-    xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_POINTER}, C_INT)
-                                   :define_c_func(lib, "access", {C_POINTER, C_INT}, C_INT))
-    xMoveFile               = iff(W?define_c_func(lib, "MoveFileExA", {C_POINTER, C_POINTER, C_INT}, C_BOOL)
-                                   :define_c_func(lib, "rename", {C_POINTER, C_POINTER}, C_INT))
-    xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_POINTER}, C_BOOL)
-                                   :define_c_func(lib, "unlink", {C_POINTER}, C_INT))
-    xCopyFile               = iff(W?define_c_func(lib, "CopyFileA", {C_POINTER, C_POINTER, C_BOOL}, C_BOOL)
+    xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_PTR}, C_INT)
+                                   :define_c_func(lib, "access", {C_PTR, C_INT}, C_INT))
+    xMoveFile               = iff(W?define_c_func(lib, "MoveFileExA", {C_PTR, C_PTR, C_INT}, C_BOOL)
+                                   :define_c_func(lib, "rename", {C_PTR, C_PTR}, C_INT))
+    xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_PTR}, C_BOOL)
+                                   :define_c_func(lib, "unlink", {C_PTR}, C_INT))
+    xCopyFile               = iff(W?define_c_func(lib, "CopyFileA", {C_PTR, C_PTR, C_BOOL}, C_BOOL)
                                    :-1)             -- (done manually)
-    xCreateDirectory        = iff(W?define_c_func(lib, "CreateDirectoryA", {C_POINTER, C_POINTER}, C_BOOL)
-                                   :define_c_func(lib, "mkdir", {C_POINTER, C_INT}, C_INT))
+    xCreateDirectory        = iff(W?define_c_func(lib, "CreateDirectoryA", {C_PTR, C_PTR}, C_BOOL)
+                                   :define_c_func(lib, "mkdir", {C_PTR, C_INT}, C_INT))
     xRemoveDirectory        = iff(W?define_c_func(lib, "RemoveDirectoryA", {C_POINTER}, C_BOOL)
-                                   :define_c_func(lib, "rmdir", {C_POINTER}, C_INT))
+                                   :define_c_func(lib, "rmdir", {C_PTR}, C_INT))
     xGetLogicalDriveStrings = iff(W?define_c_func(lib, "GetLogicalDriveStringsA", {C_UINT,C_PTR}, C_UINT)
                                    :-1)             -- (just yield "\")
     xGetDriveType           = iff(W?define_c_func(lib, "GetDriveTypeA", {C_PTR}, C_UINT)
@@ -42,9 +43,16 @@ procedure initf()
                                    :-1)             -- (all done by truncate, next)
     xSetFilePointer         = iff(W?define_c_func(lib, "SetFilePointer", {C_PTR, C_LONG, C_PTR, C_INT}, C_BOOL)
                                    :-1)             -- (all done by truncate, next)
-    xSetEndOfFile           = iff(W?define_c_func(lib, "SetEndOfFile", {C_POINTER}, C_BOOL)
-                                   :define_c_func(lib, "truncate", {C_POINTER,C_LONG}, C_BOOL))
-    xCloseHandle            = iff(W?define_c_func(lib, "CloseHandle", {C_POINTER}, C_BOOL)
+    xSetEndOfFile           = iff(W?define_c_func(lib, "SetEndOfFile", {C_PTR}, C_BOOL)
+                                   :define_c_func(lib, "truncate", {C_PTR, C_LONG}, C_BOOL))
+    xGetSystemTime          = iff(W?define_c_proc(lib, "GetSystemTime", {C_PTR})
+--                                 :define_c_func(lib, "time", {C_PTR}, C_LONG)
+                                   :-1)
+    xSystemTimeToFileTime   = iff(W?define_c_func(lib, "SystemTimeToFileTime", {C_PTR, C_PTR}, C_INT)
+                                   :-1)
+    xSetFileTime            = iff(W?define_c_func(lib, "SetFileTime",{C_PTR, C_PTR, C_PTR, C_PTR},C_INT)
+                                   :define_c_func(lib, "utime", {C_PTR, C_PTR}, C_INT))
+    xCloseHandle            = iff(W?define_c_func(lib, "CloseHandle", {C_PTR}, C_BOOL)
                                    :-1)             -- (not used)
     xGetLastError           = iff(W?define_c_func(lib, "GetLastError", {}, C_INT)
                                    :-1)             -- (windows only)
@@ -237,12 +245,70 @@ global function set_file_size(string filename, atom size)
     return res
 end function
 
-global function get_file_date(string filename)
+global function get_file_date(string filename, integer date_type=D_MODIFICATION)
 -- returns last modification date, in [DT_YEAR..DT_SECOND] format, 
 --          or -1 if the file details could not be retrieved.
-    object d = dir(filename)
+    object d = dir(filename,date_type)
     if atom(d) or length(d)!=1 then return -1 end if
     sequence res = d[1][D_YEAR..D_SECOND]
+    return res
+end function
+
+global function set_file_date(string filename, integer date_type=D_MODIFICATION)
+-- sets the specified date_type to the current date and time.
+    object res = true
+    if not finit then initf() end if
+    if get_file_type(filename)!=FILETYPE_FILE then return "not found" end if
+
+    if platform()=WINDOWS then
+
+        atom GENERIC_WRITE = #40000000,
+             INVALID_HANDLE_VALUE = #FFFFFFFF
+        integer FILE_SHARE_READ = 1,
+                OPEN_EXISTING = 3,
+                sizeofFILETIME = 8,
+                sizeofSYSTEMTIME = 16
+
+        atom fh = c_func(xCreateFileA,{filename, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+        if (fh == INVALID_HANDLE_VALUE) then
+            res = "cannot open"
+        else
+            atom pFileTime = allocate(sizeofFILETIME),
+                 pSystemTime = allocate(sizeofSYSTEMTIME)
+            c_proc(xGetSystemTime,{pSystemTime})
+            if c_func(xSystemTimeToFileTime,{pSystemTime,pFileTime})=0 then
+                res = "SystemTimeToFileTime failed"
+            else
+                sequence args = {fh,NULL,NULL,NULL}
+                args[date_type+1] = pFileTime
+                if c_func(xSetFileTime,args)=0 then
+                    res = "SetFileTime failed"
+                end if
+            end if
+            {} = c_func(xCloseHandle,{fh})
+            free(pFileTime)
+            free(pSystemTime)
+        end if
+
+    elsif platform()=LINUX then
+
+        --note: this sets access and modification times to the current time.
+--?9/0
+--      if date_type=D_CREATION then ?9/0 end if    -- not supported
+--      atom pTimeBuf = allocate(16),
+----             pTime = pTimeBuf+iff(date_type=D_LASTACCESS?0:8)
+--           pTime = pTimeBuf+{{},0,8}[date_type]
+--      {} = c_func(xGetSystemTime,{pTime}) -- time()
+----        res = not c_func(xSetEndOfFile,{filename, size})
+--      free(pTimeBuf)
+        res = not c_func(xSetFileTime,{filename,NULL})
+        -- (obviously, errors for non-existing/read-only/no-write-permission files)
+
+    else
+
+        ?9/0    -- unknown platform
+
+    end if
     return res
 end function
 

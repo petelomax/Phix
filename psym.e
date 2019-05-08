@@ -1744,6 +1744,9 @@ atom pi, inf, nan
     initialConstant("D_HOUR",           7)
     initialConstant("D_MINUTE",         8)
     initialConstant("D_SECOND",         9)
+    initialConstant("D_CREATION",       1)
+    initialConstant("D_LASTACCESS",     2)
+    initialConstant("D_MODIFICATION",   3)
     initialConstant("LOCK_SHARED",      1)
     initialConstant("LOCK_EXCLUSIVE",   2)  -- default
     initialConstant("LOCK_WAIT",        4)
@@ -2476,6 +2479,7 @@ elsif hllfileio then
     initialAutoEntry("where",           S_Func,"FI",    "pfileio.e",0,E_other)
     initialAutoEntry("lock_file",       S_Func,"FIIP",  "pfileio.e",0,E_other)
 end if
+    initialAutoEntry("set_file_date",   S_Func,"FSI",   "pfile.e",0,E_other,1)
     initialAutoEntry("task_create",     S_Func,"FIP",   "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_self",       S_Func,"F",     "VM\\pTask.e",0,E_none)
     initialAutoEntry("task_status",     S_Func,"FI",    "VM\\pTask.e",0,E_none)
@@ -2723,7 +2727,8 @@ if newEmit then
 else
     initialAutoEntry("delete_routine",  S_Func,"FOI",   "pdelete.e",0,E_other)
 end if
-    initialAutoEntry("dir",             S_Func,"FP",    "pdir.e",0,E_none)
+    initialAutoEntry("dir",             S_Func,"FPI",   "pdir.e",0,E_none,1)
+    initialAutoEntry("get_file_date",   S_Func,"FPI",   "pfile.e",0,E_none,1)
     initialAutoEntry("get_text",        S_Func,"FOI",   "pfile.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("getd",            S_Func,"FOI",   "dict.e",0,E_other)

@@ -26,6 +26,21 @@ Please note the following entries are probably more for my benefit than yours,
 and contain some references to the low level back end which you may not find 
 very useful. But it is now all open source.
 
+Version 0.8.1
+=============
+01/05/2019: Made mpfr.e check for existence of msvcp100.dll/msvcr100.dll.
+            Also made mpfr_get_versions() 64-bit compatible and work when
+            mpir_only is in force, fixed mpz_mod_ui() [obviously it had
+            never been tested], added mpz_fdiv_qr() and fixed a bug in 
+            mpz_get_str() whereby it crashed with a stack overflow when
+            printing >~100K digits (it now prints in chunks of 20K digits
+            and stitches them together).
+01/05/2019: Minor bugfix in timedate.e for length(td)<DT_TZ.
+01/05/2019: Removed thousands of valign=top from the docs since it made
+            no difference to the chm but messed up the online docs.
+08/05/2019: Added get_file_date() and set_file_date(), and added an optional
+            date_type parameter to dir().
+
 Version 0.8.0
 =============
 17/08/2018: BUGFIX: delete_routine() was not setting refcounts or even storing 

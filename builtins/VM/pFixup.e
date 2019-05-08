@@ -133,7 +133,14 @@ include builtins\VM\pFPU.e
         mov al,10               -- slice starts past end of sequence (%d(edi) > %d(esi))
         jmp @f
       ::e10sspeosediedxN
-        int3
+--      int3
+    [32]
+        sub edi,edx
+    [64]
+        sub rdi,rdx
+    []
+        mov al,10
+        jmp @f  
       ::e11sepeosediedxN
     [32]
         sub edi,edx

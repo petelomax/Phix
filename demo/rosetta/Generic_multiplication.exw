@@ -1,0 +1,580 @@
+--
+-- demo\rosetta\Generic_multiplication.exw
+-- =======================================
+--
+-- https://rosettacode.org/wiki/Generalised_floating_point_multiplication
+--
+-- Note regarding requirement #5: While this meets my definition of "reasonably efficient", 
+-- it should not shock anyone that this kind of "string maths" which works digit-by-digit 
+-- and uses repeated addition (eg *999 performs 27 additions) could easily be 10,000 times 
+-- slower than raw hardware or a carefully optimised library such as gmp.
+--
+-- Deviation from task description:
+-- b_add() only copes with negative parameters when using balanced number bases, hence I 
+-- changed the test slightly to remove the signs, or you could just omit the b-c part of 
+-- the test by setting b to -501.7034897119342 (ie -436.436 - 65.26748971193418) and then 
+-- do a*b rather than a*(b-c), or you could fix b_add() and/or write a brand new b_sub().
+--
+constant MAX_DP = 81
+
+constant binary = "01",
+         ternary = "012",
+         balancedternary = "-0+",
+         decimal = "0123456789",
+         hexadecimal = "0123456789ABCDEF",
+         septemvigesimal = "0123456789ABCDEFGHIJKLMNOPQ",
+--       heptavintimal   = "0123456789ABCDEFGHKMNPRTVXZ", -- ??
+--       wonky_donkey_26 = "0ABCDEFGHIJKLMNOPQRSTUVWXY",
+--       wonky_donkey_27 = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+         balanced_base27 = "ZYXWVUTSRQPON0ABCDEFGHIJKLM",
+         base37 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+--
+--Note: I have seen some schemes where balanced-base-27 uses
+--====  the same character set as septemvigesimal, with 'D'
+--      representing 0, and wonky_donkey_27 with 'M'==0(!).
+--      These routines do not support that directly, except 
+--      (perhaps) via a simple mapping on all inputs/outputs.
+--      It may be possible to add a defaulted parameter such 
+--      as zero='0' - left as an exercise for the reader.
+--      Admittedly that balanced_base27 is entirely my own
+--      invention, just for this specific task.
+--
+
+function b2dec(string b, alphabet)
+--
+-- convert string b back into a normal (decimal) atom,
+--  eg b2dec("+0-",balancedternary) yields 8
+--
+    atom res = 0
+    integer base = length(alphabet),
+            zdx = find('0',alphabet)
+    bool signed = (zdx=1 and b[1]='-')
+    if signed then b = b[2..$] end if
+    integer len = length(b),
+            ndp = find('.',b)
+    if ndp!=0 then
+        b[ndp..ndp] = "" -- remove '.'
+        ndp = len-ndp
+    end if
+    for i=1 to length(b) do
+        res = base*res+find(b[i],alphabet)-zdx
+    end for
+    if ndp!=0 then res /= power(base,ndp) end if
+    if signed then res = -res end if
+    return res
+end function
+
+function negate(string b, alphabet)
+--
+-- negate b (can be balanced or unbalanced)
+--
+    if alphabet[1]='0' then
+        -- traditional: add/remove a leading '-'
+        -- eg "-123" <==> "123"
+        if b!="0" then
+            if b[1]='-' then
+                b = b[2..$]
+            else
+                b = "-"&b
+            end if
+        end if
+    else
+        -- balanced: mirror [non-0] digits
+        -- eg "-0+" (ie -8) <==> "+0-" (ie +8)
+        for i=1 to length(b) do
+            if b[i]!='.' then
+                b[i] = alphabet[-find(b[i],alphabet)]
+            end if
+        end for
+    end if
+    return b
+end function
+ 
+function b_trim(string b)
+-- (common code)
+    -- trim trailing ".000"
+    if find('.',b) then
+        b = trim_tail(trim_tail(b,'0'),'.')
+    end if
+    -- trim leading zeroes, but not "0.nnn" -> ".nnn"
+    -- [hence we cannot use the standard trim_head()]
+    while length(b)>1 and b[1]='0' and b[2]!='.' do
+        b = b[2..$]
+    end while
+    return b
+end function
+
+function b_carry(integer digit, base, idx, string n, alphabet)
+-- (common code, for balanced number systems only)
+    integer carry = iff(digit>base?+1:iff(digit<1?-1:0))
+    if carry then
+        for i=idx to 0 by -1 do
+            if n[i]!='.' then
+                integer k = find(n[i],alphabet)
+                if k<base then
+                    n[i] = alphabet[k+1]
+                    exit
+                end if
+                n[i]=alphabet[1]
+            end if
+        end for
+        digit -= base*carry
+    end if
+    return {digit,n}
+end function
+
+function b2b(string n, alphabet, alphabet2)
+--
+-- convert a string from alphabet to alphabet2, 
+--  eg b2b("8",decimal,balancedternary) yields "+0-",
+--   & b2b("+0-",balancedternary,decimal) yields "8",
+--
+    string res = "0", m = ""
+    if n!="0" then
+        integer base = length(alphabet),
+                base2 = length(alphabet2),
+                zdx = find('0',alphabet),
+                zdx2 = find('0',alphabet2),
+                carry = 0, q, r, digit
+        bool negative = (zdx=1 and n[1]='-')
+        if negative then n = n[2..$] end if
+        integer ndp = find('.',n)
+        if ndp!=0 then
+            {n,m} = {n[1..ndp-1],n[ndp+1..$]}
+        end if
+        res = ""
+        while length(n) do
+            q = 0
+            for i=1 to length(n) do
+                --
+                -- this is a digit-by-digit divide (/mod) loop
+                -- eg for hex->decimal we would want:
+                --  this loop/modrem("FFFF",10) --> "1999" rem 5,
+                --  this loop/modrem("1999",10) --> "28F" rem 3,
+                --  this loop/modrem("28F",10) --> "41" rem 5,
+                --  this loop/modrem("41",10) --> "6" rem 5,
+                --  this loop/modrem("6",10) --> "0" rem 6,
+                -- ==> res:="65535" (in 5 full iterations over n).
+                --
+                digit = find(n[i],alphabet)-zdx
+                q = q*base+digit
+                r = mod(q,base2)
+                digit = floor(q/base2)+zdx
+                if zdx!=1 then
+                    {digit,n} = b_carry(digit,base,i-1,n,alphabet)
+                end if
+                n[i] = alphabet[digit]
+                q = r
+            end for
+            r += zdx2
+            if zdx2!=1 then
+                r += carry
+                carry = iff(r>base2?+1:iff(r<1?-1:0))
+                r -= base2*carry
+            end if
+            res = alphabet2[r]&res
+            n = trim_head(n,'0')
+        end while
+        if carry then
+            res = alphabet2[carry+zdx2]&res
+        end if
+        if length(m) then
+            res &= '.'
+            ndp = 0
+            if zdx!=1 then
+                -- convert fraction to unbalanced, to simplify the (other-base) multiply.
+                integer lm = length(m)
+                string alphanew = base37[1..length(alphabet)]
+                m = b2b(m,alphabet,alphanew) -- (nb: no fractional part!)
+                m = repeat('0',lm-length(m))&m -- zero-pad if required
+                alphabet = alphanew
+                zdx = 1
+            end if
+            while length(m) and ndp<MAX_DP do
+                q = 0
+                for i=length(m) to 1 by -1 do
+                    --
+                    -- this is a digit-by-digit multiply loop
+                    -- eg for [.]"1415" decimal->decimal we
+                    -- would repeatedly multiply by 10, giving 
+                    -- 1 and "4150", then 4 and "1500", then
+                    -- 1 and "5000", then 5 and "0000". We
+                    -- strip zeroes between each output digit
+                    -- & obviously normally alphabet in!=out.
+                    --
+                    digit = find(m[i],alphabet)-zdx
+                    q += digit*base2
+                    r = mod(q,base)+zdx
+                    q = floor(q/base)
+                    m[i] = alphabet[r]
+                end for
+                digit = q + zdx2
+                if zdx2!=1 then
+                    {digit,res} = b_carry(digit,base2,length(res),res,alphabet2)
+                end if
+                res &= alphabet2[digit]
+                m = trim_tail(m,'0')
+                ndp += 1
+            end while
+        end if
+        res = b_trim(res)
+        if negative then res = negate(res,alphabet2) end if
+    end if
+    return res
+end function
+
+function atm2b(atom d, string alphabet)
+--
+-- convert d to a string in the specified base,
+--   eg atm2b(65535,hexadecimal) => "FFFF"
+--
+-- As a standard feature of phix, you can actually specify 
+-- d in any number base between 2 and 36, eg 0(13)168 is
+-- equivalent to 255 (see test\t37misc.exw for more), but
+-- not (yet) in balanced number bases, or with fractions,
+-- except (of course) for normal decimal fractions.
+--
+-- Note that eg b2b("-436.436",decimal,balancedternary) is 
+-- more acccurate that atm2b(-436.436,balancedternary) due
+-- to standard IEEE 754 floating point limitations.
+-- For integers, discrepancies only creep in for values 
+-- outside the range +/-9,007,199,254,740,992 (on 32-bit).
+-- However, this is much simpler and faster than b2b().
+--
+    integer base = length(alphabet),
+            zdx = find('0',alphabet),
+            carry = 0
+    bool neg = d<0
+    if neg then d = -d end if
+    string res = ""
+    integer whole = floor(d)
+    d -= whole
+    while true do
+        integer ch = mod(whole,base) + zdx
+        if zdx!=1 then
+            ch += carry
+            carry = iff(ch>base?+1:iff(ch<1?-1:0))
+            ch -= base*carry
+        end if
+        res = alphabet[ch]&res
+        whole = floor(whole/base)
+        if whole=0 then exit end if
+    end while
+    if carry then
+        res = alphabet[carry+zdx]&res
+        carry = 0
+    end if
+    if d!=0 then
+        res &= '.'
+        integer ndp = 0
+        while d!=0 and ndp<MAX_DP do
+            d *= base
+            integer digit = floor(d) + zdx
+            d -= digit
+            if zdx!=1 then
+                {digit,res} = b_carry(digit,base,length(res),res,alphabet)
+            end if
+            res &= alphabet[digit]
+            ndp += 1
+        end while
+    end if
+    if neg then res = negate(res,alphabet) end if
+    return res
+end function
+
+function b_add(string a, b, alphabet)
+    integer base = length(alphabet),
+            zdx = find('0',alphabet),
+            carry = 0, da, db, digit
+    if zdx=1 then
+        -- (let me know if you can fix this for me!)
+        if a[1]='-' or b[1]='-' then ?9/0 end if -- +ve only
+    end if
+    integer adt = find('.',a),
+            bdt = find('.',b)
+    if adt or bdt then
+        -- remove the '.'s and zero-pad the shorter as needed
+        --   (thereafter treat them as two whole integers)
+        -- eg "1.23"+"4.5" -> "123"+"450" (leaving adt==2)
+        if adt then adt = length(a)-adt+1;  a[-adt..-adt] = "" end if
+        if bdt then bdt = length(b)-bdt+1;  b[-bdt..-bdt] = "" end if
+        if bdt>adt then
+            a &= repeat('0',bdt-adt)
+            adt = bdt
+        elsif adt>bdt then
+            b &= repeat('0',adt-bdt)
+        end if
+    end if
+    if length(a)<length(b) then
+        {a,b} = {b,a}   -- ensure b is the shorter
+    end if
+    for i=-1 to -length(a) by -1 do
+        da = iff(i<-length(a)?0:find(a[i],alphabet)-zdx)
+        db = iff(i<-length(b)?0:find(b[i],alphabet)-zdx)
+        digit = da + db + carry + zdx
+        carry = iff(digit>base?+1:iff(digit<1?-1:0))
+        a[i] = alphabet[digit-carry*base]
+        if i<-length(b) and carry=0 then exit end if
+    end for
+    if carry then 
+        a = alphabet[carry+zdx]&a
+    end if
+    if adt then
+        a[-adt+1..-adt] = "."
+    end if
+    a = b_trim(a)
+    return a
+end function
+
+function b_mul(string a, b, alphabet)
+    integer base = length(alphabet),
+            zdx = find('0',alphabet),
+            dpa = find('.',a),
+            dpb = find('.',b),
+            ndp = 0
+    if dpa then ndp += length(a)-dpa; a[dpa..dpa] = "" end if
+    if dpb then ndp += length(b)-dpb; b[dpb..dpb] = "" end if
+    string pos = a, res = "0"
+    if zdx!=1 then
+        -- balanced number systems
+        string neg = negate(pos,alphabet)
+        for i=length(b) to 1 by -1 do
+            integer m = find(b[i],alphabet)-zdx
+            while m do
+                res = b_add(res,iff(m<0?neg:pos),alphabet)
+                m += iff(m<0?+1:-1)
+            end while
+            pos &= '0'
+            neg &= '0'
+        end for 
+    else
+        -- non-balanced (normal) number systems
+        bool negative = false
+        if a[1]='-' then a = a[2..$]; negative = true end if
+        if b[1]='-' then b = b[2..$]; negative = not negative end if
+        for i=length(b) to 1 by -1 do
+            integer m = find(b[i],alphabet)-zdx
+            while m>0 do
+                res = b_add(res,pos,alphabet)
+                m -= 1
+            end while
+            pos &= '0'
+        end for
+        if negative then res = negate(res,alphabet) end if
+    end if
+    if ndp then
+        res[-ndp..-ndp-1] = "."
+    end if
+    res = b_trim(res)
+    return res
+end function
+
+-- [note 1] not surprisingly, the decimal output is somewhat cleaner/shorter when
+--          the decimal string inputs for a and c are used, whereas tests 1/2/5/7
+--          (the 3-based ones) look much better with all ternary string inputs.
+-- [note 2] proof that b_mul() copes with negative numbers, though b_add() dis'ne.
+
+procedure test(string name, alphabet)
+--string a = b2b("523.2391403749428",decimal,alphabet),         -- [see note 1]
+string a = b2b("+-0++0+.+-0++0+",balancedternary,alphabet),
+       b = b2b("436.436",decimal,alphabet),
+--     b = b2b("+--+0++.++0-+00---+",balancedternary,alphabet),
+--     b = b2b("-501.7034897119342",decimal,alphabet),          -- [see note 2]
+--     c = b2b("65.26748971193416",decimal,alphabet),           -- [see note 1]
+       c = b2b("+-++-.+-++-",balancedternary,alphabet),
+       d = b_add(b,c,alphabet),
+       r = b_mul(a,d,alphabet)
+--     r = b_mul(a,b,alphabet)                                  -- [see note 2]
+    printf(1,"%s\n%s\n",{name,repeat('=',length(name))})
+    printf(1,"      a = %.16g  %s\n",{b2dec(a,alphabet),a})
+    printf(1,"      b = %.16g  %s\n",{b2dec(b,alphabet),b})
+    printf(1,"      c = %.16g  %s\n",{b2dec(c,alphabet),c})
+--  printf(1,"      d = %.16g  %s\n",{b2dec(d,alphabet),d})
+    printf(1,"a*(b+c) = %.16g  %s\n\n",{b2dec(r,alphabet),r})
+--  printf(1,"    a*b = %.16g  %s\n\n",{b2dec(r,alphabet),r})   -- [see note 2]
+end procedure
+test("balanced ternary", balancedternary)
+test("balanced base 27", balanced_base27)
+test("decimal", decimal)
+test("binary", binary)
+test("ternary", ternary)
+test("hexadecimal", hexadecimal)
+test("septemvigesimal", septemvigesimal)
+
+--/*
+-- The printed (decimal) output is inherently limited to IEEE 754 precision, hence I 
+-- deliberately limited output (%.16g) because it is silly to try and go any higher.
+--*/
+
+--=== multiplication table ===
+--without e notation, with hexadecimal across, septemvigesimal down, and balanced ternary contents!
+printf(1,"# |")
+for j=1 to 12 do
+    printf(1," #%s %3s |",{atm2b(j,hexadecimal),atm2b(j,balancedternary)})
+end for
+for i=1 to 27 do
+    string a = atm2b(i,balancedternary)
+    printf(1,"\n%-2s|",{atm2b(i,septemvigesimal)})
+    for j=1 to 12 do
+        if j>i then
+            printf(1,"        |")
+        else
+            string b = atm2b(j,balancedternary)
+            string m = b_mul(a,b,balancedternary)
+            printf(1," %6s |",{m})
+        end if
+    end for
+end for
+printf(1,"\n")
+    
+?"done"
+{} = wait_key()
+abort(0)
+
+Output:
+"started"
+balanced ternary
+================
+      a = 523.2391403749428  +-0++0+.+-0++0+
+      b = 436.4359999999999  +--+0++.++0-+00---+0+-+++0+-0----0++0000-00+-+-++-0+0+00++--0+-00+++-0-+---0-+0++++0--
+      c = 65.26748971193416  +-++-.+-++-
+a*(b+c) = 262510.9026799813  ++++000+0-0-.0-0+0+00+++00++0+0-++-++00+0--+000--0+000+-0-+++++---+-+0-+-0-0--0-0+--+--0-+++00----
+
+balanced base 27
+================
+      a = 523.2391403749428  AUJ.FLI
+      b = 436.436  AXD.LSQSGLFZUINATKCIKUVMWEWJMQ0COTSWNRONXBMBQYL0VGRUCDYFDFTYSMHVANGXPVXHIZJRJWZD0PBGF
+      c = 65.26748971193416  BK.GF
+a*(b+c) = 262510.9026799813  MICW.PJALDCRRAQIQCAWMKXSTPYUXYPK0LVOBZRGUSJJOGIHSNU0FRMZGOWQPEENDVDPNJZXKFGCLHKLCX0YBQHB
+
+decimal
+=======
+      a = 523.239140374943  523.239140374942844078646547782350251486053955189757658893461362597165066300868770004
+      b = 436.436  436.436
+      c = 65.26748971193415  65.267489711934156378600823045267489711934156378600823045267489711934156378600823045
+a*(b+c) = 262510.9026799814  262510.90267998140903693918986303277315826215892262734715612833785876513103053772667101895163734826631742752252837097627017862754285047634638652268078676654605120794218
+
+binary
+======
+      a = 523.2391403749427  1000001011.001111010011100001001101101110011000100001011110100101001010100100000111001000111
+      b = 436.436  110110100.011011111001110110110010001011010000111001010110000001000001100010010011011101001
+      c = 65.26748971193416  1000001.01000100011110100011010010101100110001100000111010111111101111001001001101111101
+a*(b+c) = 262510.9026799814  1000000000101101110.111001110001011000001001000001101110011111011100000100000100001000101011100011110010110001010100110111001011101001010000001110110100111110001101000000001111110101
+
+ternary
+=======
+      a = 523.2391403749428  201101.0201101
+      b = 436.4360000000001  121011.102202211210021110012111201022222000202102010100101200200110122011122101110212
+      c = 65.26748971193416  2102.02102
+a*(b+c) = 262510.9026799813  111100002121.2201010011100110022102110002120222120100001221111011202022012121122001201122110221112
+
+hexadecimal
+===========
+      a = 523.2391403749427  20B.3D384DB9885E94A90723EF9CBCB174B443E45FFC41152FE0293416F15E3AC303A0F3799ED81589C62
+      b = 436.436  1B4.6F9DB22D0E5604189374BC6A7EF9DB22D0E5604189374BC6A7EF9DB22D0E5604189374BC6A7EF9DB2
+      c = 65.26748971193416  41.447A34ACC60EBFBC937D5DC2E5A99CF8A021B641511E8D2B3183AFEF24DF5770B96A673E28086D905
+a*(b+c) = 262510.9026799814  4016E.E7160906E7DC10422DA508321819F4A637E5AEE668ED5163B12FCB17A732442F589975B7F24112B2E8F6E95EAD45803915EE26D20DF323D67CAEEC75D7BED68AA34E02F2B492257D66F028545FB398F60E
+
+septemvigesimal
+===============
+      a = 523.2391403749428  JA.6C9
+      b = 436.436  G4.BKML7C5DJ8Q0KB39AIICH4HACN02OJKGPLOPG2D1MFBQI6LJ33F645JELD7I0Q6FNHG88E9M9GE3QO276
+      c = 65.26748971193416  2B.76
+a*(b+c) = 262510.9026799813  D92G.OA1C42LM0N8N30HDAFKJNEIFEOB0BHP1DM6ILA9P797KPJ05MCE6OGMO54Q3I3NQ9DGB673C8BC2FQF1N82
+
+# | #1   + | #2  +- | #3  +0 | #4  ++ | #5 +-- | #6 +-0 | #7 +-+ | #8 +0- | #9 +00 | #A +0+ | #B ++- | #C ++0 |
+1 |      + |        |        |        |        |        |        |        |        |        |        |        |
+2 |     +- |     ++ |        |        |        |        |        |        |        |        |        |        |
+3 |     +0 |    +-0 |    +00 |        |        |        |        |        |        |        |        |        |
+4 |     ++ |    +0- |    ++0 |   +--+ |        |        |        |        |        |        |        |        |
+5 |    +-- |    +0+ |   +--0 |   +-+- |   +0-+ |        |        |        |        |        |        |        |
+6 |    +-0 |    ++0 |   +-00 |   +0-0 |   +0+0 |   ++00 |        |        |        |        |        |        |
+7 |    +-+ |   +--- |   +-+0 |   +00+ |   ++0- |  +---0 |  +--++ |        |        |        |        |        |
+8 |    +0- |   +--+ |   +0-0 |   ++-- |   ++++ |  +--+0 |  +-0+- |  +-+0+ |        |        |        |        |
+9 |    +00 |   +-00 |   +000 |   ++00 |  +--00 |  +-000 |  +-+00 |  +0-00 |  +0000 |        |        |        |
+A |    +0+ |   +-+- |   +0+0 |   ++++ |  +-0-- |  +-+-0 |  +0--+ |  +000- |  +0+00 |  ++-0+ |        |        |
+B |    ++- |   +-++ |   ++-0 |  +--0- |  +-00+ |  +-++0 |  +00-- |  +0+-+ |  ++-00 |  ++0+- |  +++++ |        |
+C |    ++0 |   +0-0 |   ++00 |  +--+0 |  +-+-0 |  +0-00 |  +00+0 |  ++--0 |  ++000 |  ++++0 | +--0-0 | +--+00 |
+D |    +++ |   +00- |   +++0 |  +-0-+ |  +-++- |  +00-0 |  +0+0+ |  ++0-- |  +++00 | +---++ | +--+0- | +-0-+0 |
+E |   +--- |   +00+ |  +---0 |  +-0+- |  +0--+ |  +00+0 |  ++-0- |  ++0++ | +---00 | +--+-- | +-0-0+ | +-0+-0 |
+F |   +--0 |   +0+0 |  +--00 |  +-+-0 |  +0-+0 |  +0+00 |  ++0-0 |  ++++0 | +--000 | +-0--0 | +-00+0 | +-+-00 |
+G |   +--+ |   ++-- |  +--+0 |  +-+0+ |  +000- |  ++--0 |  ++0++ | +---+- | +--+00 | +-00-+ | +-+--- | +-+0+0 |
+H |   +-0- |   ++-+ |  +-0-0 |  +0--- |  +00++ |  ++-+0 |  ++++- | +--00+ | +-0-00 | +-0+0- | +-+0-+ | +0---0 |
+I |   +-00 |   ++00 |  +-000 |  +0-00 |  +0+00 |  ++000 | +---00 | +--+00 | +-0000 | +-+-00 | +-++00 | +0-000 |
+J |   +-0+ |   +++- |  +-0+0 |  +0-++ |  ++--- |  +++-0 | +--0-+ | +-0-0- | +-0+00 | +-+00+ | +0--+- | +0-++0 |
+K |   +-+- |   ++++ |  +-+-0 |  +000- |  ++-0+ |  ++++0 | +--+-- | +-00-+ | +-+-00 | +-+++- | +0-0++ | +000-0 |
+L |   +-+0 |  +---0 |  +-+00 |  +00+0 |  ++0-0 | +---00 | +--++0 | +-0+-0 | +-+000 | +0--+0 | +00--0 | +00+00 |
+M |   +-++ |  +--0- |  +-++0 |  +0+-+ |  ++0+- | +--0-0 | +-0-0+ | +-+--- | +-++00 | +0-0++ | +0000- | +0+-+0 |
+N |   +0-- |  +--0+ |  +0--0 |  +0++- |  +++-+ | +--0+0 | +-000- | +-+-++ | +0--00 | +00--- | +00+0+ | +0++-0 |
+O |   +0-0 |  +--+0 |  +0-00 |  ++--0 |  ++++0 | +--+00 | +-0+-0 | +-+0+0 | +0-000 | +000-0 | +0+-+0 | ++--00 |
+P |   +0-+ |  +-0-- |  +0-+0 |  ++-0+ | +---0- | +-0--0 | +-0+++ | +-+++- | +0-+00 | +00+-+ | +0++-- | ++-0+0 |
+Q |   +00- |  +-0-+ |  +00-0 |  ++0-- | +---++ | +-0-+0 | +-+-+- | +0--0+ | +00-00 | +0+-0- | ++---+ | ++0--0 |
+10|   +000 |  +-000 |  +0000 |  ++000 | +--000 | +-0000 | +-+000 | +0-000 | +00000 | +0+000 | ++-000 | ++0000 |
+"done"
+
+
+--Algol68 (signed) output:
+--a =   +523.23914037494284407864655  +-0++0+.+-0++0+
+--b =   -436.43600000000000000000000  -++-0--.--0+-00+++-0-+---0-+0++++0--0000+00-+-+--+0-0-00--++0-+00---+0+-+++0+-0----0++
+--c =    +65.26748971193415637860082  +-++-.+-++-
+--a*(b-c) -262510.90267998140903693919  ----000-0+0+.0+0-0-00---00--0-0+--+--00-0++-000++0-000-+0+-----+++-+-0+-+0+0++0+0-++-++0+---00++++
+
+
+--old/misc (still good):
+--constant tests = {0,1,2,3,4,8,9,10,15,20,25,26,27,81,100,243,729,1000,2187,6561,10000,19683}
+--for i=1 to length(tests) do
+--  string d = atm2b(tests[i],decimal),
+--         t = atm2b(tests[i],ternary),
+--         s = atm2b(tests[i],septemvigesimal),
+--         w = atm2b(tests[i],wonky_donkey_27)
+--  printf(1,"%-7s %-10s  %-4s %-4s\n",{d,t,s,w})
+--end for
+
+--?atm2b(PI, wonky_donkey_26)
+--"C.CQRPKNKXQSQBKQFFTJAIJORQEUJQNCGKIQERYRNWMGWYDVSM"
+--?b2b("C.CQRPKNKXQSQBKQFFTJAIJORQEUJQNCGKIQERYRNWMGWYDVSM",wonky_donkey_26,decimal)
+--?atm2b(PI, decimal)
+--?b2b("3.1415",decimal,decimal)
+--?b2b("FFFF",hexadecimal,decimal)
+
+--for i=1 to 20 do
+--  string b = atm2b(1/i,balancedternary),
+----    string b = atm2b(-1/i,balancedternary),
+--         d = atm2b(1/i,decimal)
+--  printf(1,"1/%d: %g => %s (%s) => %g\n",{i,1/i,b,d,b2dec(b, balancedternary)})
+--end for
+
+--string eight = b_add("+-+","+",balancedternary)
+--?{"eight",eight}
+--?b_add("999","999",decimal)
+--?b_add("+++","+++",balancedternary)
+--?b2dec("+++",balancedternary)
+--?b2dec(b_add("+++","+++",balancedternary),balancedternary)
+--?b_add("---","---",balancedternary)
+--?b2dec("---",balancedternary)
+--?b2dec(b_add("---","---",balancedternary),balancedternary)
+
+--?b_mul("12.3","1000.01",decimal)
+
+--string a, b, c
+--?b2b("0",balancedternary,decimal)
+--?b2b("+++",balancedternary,decimal)
+--?b2b("---",balancedternary,decimal)
+--a = "+-0++0+.+-0++0+"
+--printf(1,"%.12f\n",{b2dec(a,balancedternary)})    -- 523.239140374943
+--b = "-++-0--.--0+-00+++-0-+---0-+0++++0--0000+00-+-+--+0-0-00--++0-+00---+0+-+++0+-0----0++"
+--printf(1,"%.12f\n",{b2dec(b,balancedternary)}) -- -436.436000000000
+--c = "+-++-.+-++-"
+--printf(1,"%.12f\n",{b2dec(c,balancedternary)}) -- 65.267489711934
+
+--for i=1 to 41 do
+--  string t = atm2b(i,balancedternary),
+--         t10 = atm2b(i*10,balancedternary)
+--  printf(1,"%2d: %5s, %3d: %5s\n",{i,t,i*10,t10})
+--end for
+--?"done"
+--{} = wait_key()
+--abort(0)
+
+--string half = b2b("0.5",decimal,balanced_base27)
+--?{"half",half,negate(half,balanced_base27)} -- 0.MMM,0.ZZZ

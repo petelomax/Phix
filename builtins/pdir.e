@@ -80,8 +80,28 @@ constant DT_DIR = #04   -- (the only DIRENT_TYPE setting we care about)
 --       ST_MTIME     = iff(W? 76: 72),
 --       SIZEOFSTAT64 = iff(W?144:104)
 constant ST_SIZE      = 44,
+--       ST_ATIME     = 64,     -- (guess)
          ST_MTIME     = 72,
+--       ST_CTIME     = 80,     -- (guess)
          SIZEOFSTAT64 = 104
+
+--/*
+struct stat {
+    dev_t     st_dev;     /* ID of device containing file */
+    ino_t     st_ino;     /* inode number */
+    mode_t    st_mode;    /* protection */
+    nlink_t   st_nlink;   /* number of hard links */
+    uid_t     st_uid;     /* user ID of owner */
+    gid_t     st_gid;     /* group ID of owner */
+    dev_t     st_rdev;    /* device ID (if special file) */
+    off_t     st_size;    /* total size, in bytes */
+    blksize_t st_blksize; /* blocksize for file system I/O */
+    blkcnt_t  st_blocks;  /* number of 512B blocks allocated */
+    time_t    st_atime;   /* time of last access */
+    time_t    st_mtime;   /* time of last modification */
+    time_t    st_ctime;   /* time of last status change */
+};
+--*/
 
 procedure initD()
     if platform()=WINDOWS then
@@ -248,7 +268,8 @@ global constant
     D_SECOND = 9
 --*/
 
-global function dir(sequence path)
+--global function dir(sequence path)
+global function dir(sequence path, integer date_type=D_MODIFICATION)
 --global function dir(string path)
 --global function dir(sequence path,integer list_directory=1) --DEV: (just an idea, see below)
 --
@@ -378,7 +399,9 @@ atom xSystemTime, xLocalFileTime, xFindData
         while 1 do
             this = peek_string(xFindData+FDcFileName)
             if wildcard_file(pattern,this) then
-                if c_func(xFileTimeToLocalFileTime,{xFindData+FDtLastWriteTime,xLocalFileTime}) then end if
+--              if c_func(xFileTimeToLocalFileTime,{xFindData+FDtLastWriteTime,xLocalFileTime}) then end if
+                integer date_offset = FDtLastWriteTime+{-16,-8,0}[date_type]
+                if c_func(xFileTimeToLocalFileTime,{xFindData+date_offset,xLocalFileTime}) then end if
                 if c_func(xFileTimeToSystemTime,{xLocalFileTime,xSystemTime}) then end if
                 size = peek4s(xFindData+FDnFileSizeHigh)*#100000000+peek4u(xFindData+FDnFileSizeLow)
                 attr = ConvertAttributes(peek4u(xFindData+FDwFileAttributes))
@@ -449,7 +472,9 @@ atom xSystemTime, xLocalFileTime, xFindData
                 else
                     -- Aside: this use on 32bit is noted in the docs of peek8s.
                     size    = peek8s(pBuff+ST_SIZE)
-                    atom pTime = c_func(xlocaltime,{pBuff+ST_MTIME})
+--                  atom pTime = c_func(xlocaltime,{pBuff+ST_MTIME})
+                    integer date_offset = ST_MTIME+{+8,-8,0}[date_type]
+                    atom pTime = c_func(xlocaltime,{pBuff+date_offset})
                     seconds = peek4s(pTime+TM_SECS)
                     minutes = peek4s(pTime+TM_MINS)
                     hour    = peek4s(pTime+TM_HOUR)

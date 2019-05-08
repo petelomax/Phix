@@ -13,7 +13,8 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="object.htm">object</a> res = get_file_date(<a href="string.htm">string</a> filename)
+          <a href="object.htm">object</a> res = get_file_date(<a href="string.htm">string</a> filename,
+                                                              <a href="integer.htm">integer</a> date_type=D_MODIFICATION)
          </td>
         </tr>
         <tr>
@@ -21,11 +22,23 @@
           <b>Description:</b>
          </td>
          <td>
-            filename: the name of the file to query
+            filename: the name of the file to query<br>
+            date_type: one of D_CREATION, D_LASTACCESS, or D_MODIFICATION.
             <br>
             <br>
-            Returns the last modification date, [<a href="date.htm">DT_YEAR</a>..<a href="date.htm">DT_SECOND</a>] format, 
-            or -1 if the file details could not be retrieved.
+            Returns the creation, last access, or last modification date, [<a href="date.htm">DT_YEAR</a>..<a href="date.htm">DT_SECOND</a>] format, 
+            or -1 if the file details could not be retrieved. Should you need further clarification (specifically the precise conditions under which
+            last access changes, which may for performance reasons be set to, say, max once per day, or never) please refer to your operating/file 
+            system documentation. I know for a fact there are subtle differences between FAT and NTFS file systems on windows, let alone any 
+            differences between windows and linux.
+            <br>
+            <br>
+            There is also a matching <a href="object.htm">object</a> res = <i><b>set_file_date</b></i>(<a href="string.htm">string</a> filename, 
+            <a href="integer.htm">integer</a> date_type=D_MODIFICATION) function that, obviously enough, allows you to set a specific file date to 
+            the current date, returning true when it succeeds without error, otherwise an error string - see builtins/pfile.e for the full set. 
+            On linux date_type is ignored, both the last access and modification dates are set (as per touch), and the result is just false on 
+            error (ie non-existing/read-only/no-write-permission files). As above you should not assume the consequences will be second-perfect,
+            or indeed have any affect whatsoever - and that is pretty much completely out of my hands, but basically matches, say, libc.
          </td>
         </tr>
         <tr>
@@ -75,11 +88,7 @@ printf(1,"File %s last downloaded %s ago.\n",{filename,elapsed(delta)})
             can then be treated as per the [<a href="date.htm">DT_YEAR</a>..<a href="date.htm">DT_SECOND</a>] part of a result from <a href="date.htm">date</a>().
             <br>
             <br>
-            Hence extending this routine to retrieve creation or last access times would be non-trivial, unless 
-            the same were (somehow) made possible in dir() first.
-            <br>
-            <br>
-            The vaildation criteria of the <a href="timedatetype.htm">timedate type</a> has been relaxed to permit shorter arguments. <br>
+            The validation criteria of the <a href="timedatetype.htm">timedate type</a> has been relaxed slightly to permit shorter arguments. <br>
             Previously they had to be &gt;= length 8, ie include (0) slots for <a href="date.htm">DT_DOW</a> and <a href="date.htm">DT_DOY</a>.
          </td>
         </tr>

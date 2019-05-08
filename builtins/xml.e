@@ -599,7 +599,7 @@ global function xml_sprint(sequence xml, integer options=NULL)
 --      end if
 --  end if
     res &= xml_sprint_contents(xml[XML_CONTENTS],0,options)
-    res &= aml_joint(xml[XML_EPILOGUE])
+    res &= xml_joint(xml[XML_EPILOGUE])
 --  sequence epilog = xml[XML_EPILOGUE]
 --  if epilog!={} then
 --      for i=1 to length(epilog) do

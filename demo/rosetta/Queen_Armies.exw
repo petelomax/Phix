@@ -1,0 +1,133 @@
+--
+-- demo\rosetta\Queen_Armies.exw
+-- =============================
+--
+string html = ""
+constant as_html = false
+constant queens = {``,
+                   `&#x265b;`, 
+                   `<font color="green">&#x2655;</font>`,
+                   `<span style="color:red">?</span>`}
+
+procedure showboard(integer n, sequence blackqueens, whitequeens)
+    sequence board = repeat(repeat('-',n),n)
+    for i=1 to length(blackqueens) do
+        integer {qi,qj} = blackqueens[i]
+        board[qi,qj] = 'B'
+        {qi,qj} = whitequeens[i]
+        board[qi,qj] = 'W'
+    end for
+    if as_html then
+        string out = sprintf("<br><b>## %d black and %d white queens on a %d-by-%d board</b><br>\n",
+                             {length(blackqueens),length(whitequeens),n,n}),
+               tbl = ""
+        out &= "<table style=\"font-weight:bold\">\n  "
+        for x=1 to n do
+            for y=1 to n do
+                if y=1 then tbl &= "  </tr>\n  <tr valign=\"middle\" align=\"center\">\n" end if
+                integer xw = find({x,y},blackqueens)!=0,
+                        xb = find({x,y},whitequeens)!=0,
+                        dx = xw+xb*2+1
+                string ch = queens[dx],
+                       bg = iff(mod(x+y,2)?"":` bgcolor="silver"`)
+                tbl &= sprintf("    <td style=\"width:14pt; height:14pt;\"%s>%s</td>\n",{bg,ch})
+            end for
+        end for
+        out &= tbl[11..$]
+        out &= "  </tr>\n</table>\n<br>\n"
+        html &= out
+    else
+        integer b = length(blackqueens),
+                w = length(whitequeens)
+        printf(1,"%d black and %d white queens on a %d x %d board:\n", {b, w, n, n})
+        puts(1,join(board,"\n")&"\n")
+--      ?{n,blackqueens, whitequeens}
+    end if
+end procedure 
+
+function isAttacking(sequence queen, pos)
+    integer {qi,qj} = queen, {pi,pj} = pos
+    return qi=pi or qj=pj or abs(qi-pi)=abs(qj-pj)
+end function
+
+function place(integer m, n, sequence blackqueens = {}, whitequeens = {})
+    if m == 0 then showboard(n,blackqueens,whitequeens) return true end if
+    bool placingBlack := true
+    for i=1 to n do
+        for j=1 to n do
+            sequence pos := {i, j}
+            for q=1 to length(blackqueens) do
+                sequence queen := blackqueens[q]
+                if queen == pos or ((not placingBlack) and isAttacking(queen, pos)) then
+                    pos = {}
+                    exit
+                end if
+            end for
+            if pos!={} then
+                for q=1 to length(whitequeens) do
+                    sequence queen := whitequeens[q]
+                    if queen == pos or (placingBlack and isAttacking(queen, pos)) then
+                        pos = {}
+                        exit
+                    end if
+                end for
+                if pos!={} then
+                    if placingBlack then
+                        blackqueens = append(blackqueens, pos)
+                        placingBlack = false
+                    else
+                        whitequeens = append(whitequeens, pos)
+                        if place(m-1, n, blackqueens, whitequeens) then return true end if
+                        blackqueens = blackqueens[1..$-1]
+                        whitequeens = whitequeens[1..$-1]
+                        placingBlack = true
+                    end if
+                end if
+            end if
+        end for
+    end for
+    return false
+end function
+
+for n=2 to 7 do
+    for m=1 to n-(n<5) do
+        if not place(m,n) then
+            string no = sprintf("Cannot place %d+ queen armies on a %d-by-%d board",{m,n,n})
+            if as_html then
+                html &= sprintf("<b># %s</b><br><br>\n\n",{no})
+            else
+                printf(1,"%s.\n", {no})
+            end if
+        end if
+    end for
+end for
+
+constant html_header = """
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Rosettacode Rank Languages by popularity</title>
+ </head>
+ <body>
+  <h2>queen armies</h2>
+""", -- or <div style="overflow:scroll; height:250px;">
+         html_footer = """
+ </body>
+</html>
+""" -- or </div>
+
+if as_html then
+    integer fn = open("queen_armies.html","w")
+    puts(fn,html_header)
+    puts(fn,html)
+    puts(fn,html_footer)
+    close(fn)
+    printf(1,"See queen_armies.html\n")
+end if
+
+?"done"
+{} = wait_key()
+abort(0)
+
