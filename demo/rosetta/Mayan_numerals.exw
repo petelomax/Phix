@@ -1,0 +1,342 @@
+--
+-- demo\rosetta\Mayan_numerals.exw
+-- ===============================
+--
+-- Three-way output controlled by the first two constants.
+--
+constant as_html = true,        -- false == nasty ascii
+         inline_css = true      -- also uses wiki tables ({| etc) if false
+
+string html = ""
+
+constant t_style = "border-collapse: separate; text-align: center; border-spacing: 3px 0px;",
+         c_style = "border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;"&
+                   "border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;"&
+                   "vertical-align: bottom;width: 3.25em;",
+         dot = "&#x25cf;",
+         bar = "&#x2500;&#x2500;&#x2500;",
+         zero = "&#x0398;",
+         digits = {" 0  "," .  "," .. ","... ","...."} 
+
+function to_seq(atom a)
+    sequence s = {}
+    while true do
+        s = prepend(s,remainder(a,20))
+        a = floor(a/20)
+        if a=0 then exit end if
+    end while
+    return s
+end function
+
+procedure show_mayan(atom a)
+    sequence s = to_seq(a)
+    if not as_html then
+        string tb = join(repeat('+',length(s)+1),"------"),
+               ln = join(repeat('|',length(s)+1),"      ")
+        sequence res = {tb,ln,ln,ln,ln,tb}
+        for i=1 to length(s) do
+            integer si = s[i], l = 5, m = i*7-4
+            while true do
+                res[l][m..m+3] = digits[min(si+1,5)]
+                si -= 5
+                if si<=0 then exit end if
+                l -= 1
+            end while
+        end for
+        printf(1,"%d\n%s\n\n",{a,join(res,"\n")})
+    else
+        for i=1 to length(s) do
+            sequence res = repeat("",4)
+            integer si = s[i], l = 4
+            while true do
+                res[l] = iff(si>=5?bar:iff(si?join(repeat(dot,si),""):zero))
+                si -= 5
+                if si<=0 then exit end if
+                l -= 1
+            end while
+            s[i] = join(res,"<br>")
+        end for
+        if inline_css then
+            html &= sprintf("  <table>\n   <caption>%d</caption>\n   <tr>\n",a)
+            for i=1 to length(s) do
+                html &= sprintf("    <td>%s</td>\n",{s[i]})
+            end for
+            html &= "   </tr>\n  </table>\n"
+        else
+            html &= sprintf("{| style=\"%s\"\n|+ %d\n|-\n",{t_style,a})
+            for i=1 to length(s) do
+                html &= sprintf("| style=\"%s\" | %s\n",{c_style,s[i]})
+            end for
+            html &= "|}\n"
+        end if
+    end if
+end procedure
+
+constant html_header = """
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Mayan numerals</title>
+  <style>
+    table {%s}
+    td { %s }
+  </style>
+ </head>
+ <body>
+  <h2>Mayan numerals</h2>
+""",
+wiki_header = """
+The following is intended to be pasted into the rosettacode wiki, or similar<br>
+""",
+html_footer = """
+ </body>
+</html>
+"""
+
+constant tests = {4005, 8017, 326205, 886205, 26960840421, 126524984376952}
+
+for i=1 to length(tests) do show_mayan(tests[i]) end for
+
+if as_html then
+    string filename = "Mayan_numerals.html"
+    integer fn = open(filename,"w")
+    if inline_css then
+        printf(fn,html_header,{t_style,c_style})
+    else
+        printf(fn,wiki_header)
+    end if
+    puts(fn,html)
+    if inline_css then
+        puts(fn,html_footer)
+    end if
+    close(fn)
+    if inline_css then
+        system(filename)
+    else
+        printf(1,"See %s\n",{filename})
+        {} = wait_key()
+    end if
+else
+    ?"done"
+    {} = wait_key()
+end if
+
+-- To calculate "interesting" numbers:
+--sequence s = {12,7,2,7,12,17,12,7,2,7,12}
+--atom rc = 0
+--for i=1 to length(s) do
+--  rc = rc*20+s[i]
+--end for
+--?{s,sprintf("%d",rc)}
+--{} = wait_key()
+
+
+--/*
+{{out}}
+With inline_css set to false. Note these are always height-4.
+{| style="border-collapse: separate; text-align: center; border-spacing: 3px 0px;"
+|+ 4005
+|-
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x0398;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x2500;&#x2500;&#x2500;
+|}
+{| style="border-collapse: separate; text-align: center; border-spacing: 3px 0px;"
+|+ 8017
+|-
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x0398;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x0398;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | &#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+|}
+{| style="border-collapse: separate; text-align: center; border-spacing: 3px 0px;"
+|+ 326205
+|-
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x0398;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x2500;&#x2500;&#x2500;
+|}
+{| style="border-collapse: separate; text-align: center; border-spacing: 3px 0px;"
+|+ 886205
+|-
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x2500;&#x2500;&#x2500;
+|}
+{| style="border-collapse: separate; text-align: center; border-spacing: 3px 0px;"
+|+ 26960840421
+|-
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;
+|}
+{| style="border-collapse: separate; text-align: center; border-spacing: 3px 0px;"
+|+ 126524984376952
+|-
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | &#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br><br>&#x25cf;&#x25cf;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;
+| style="border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em;" | <br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;
+|}
+{{out}}
+With inline_css set to true. As noted on the perl6 entry, this is much neater, but does not display nicely on this page.<br>
+<small>
+(These captions are centred; to exactly match the above just add a simple caption {text-align: left;} in the style section.)
+</small>
+<pre>
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Mayan numerals</title>
+  <style>
+    table {border-collapse: separate; text-align: center; border-spacing: 3px 0px;}
+    td { border: solid black 2px;background-color: #fffff0;border-bottom: double 6px;border-radius: 1em;-moz-border-radius: 1em;-webkit-border-radius: 1em;vertical-align: bottom;width: 3.25em; }
+  </style>
+ </head>
+ <body>
+  <h2>Mayan numerals</h2>
+  <table>
+   <caption>4005</caption>
+   <tr>
+    <td><br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x0398;</td>
+    <td><br><br><br>&#x2500;&#x2500;&#x2500;</td>
+   </tr>
+  </table>
+  <table>
+   <caption>8017</caption>
+   <tr>
+    <td><br><br><br>&#x25cf;</td>
+    <td><br><br><br>&#x0398;</td>
+    <td><br><br><br>&#x0398;</td>
+    <td>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+   </tr>
+  </table>
+  <table>
+   <caption>326205</caption>
+   <tr>
+    <td><br><br><br>&#x25cf;&#x25cf;</td>
+    <td><br><br><br>&#x0398;</td>
+    <td><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x2500;&#x2500;&#x2500;</td>
+   </tr>
+  </table>
+  <table>
+   <caption>886205</caption>
+   <tr>
+    <td><br><br><br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x2500;&#x2500;&#x2500;</td>
+   </tr>
+  </table>
+  <table>
+   <caption>26960840421</caption>
+   <tr>
+    <td><br><br><br>&#x25cf;</td>
+    <td><br><br><br>&#x25cf;</td>
+    <td><br><br><br>&#x25cf;</td>
+    <td><br><br><br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x25cf;</td>
+    <td><br><br><br>&#x25cf;</td>
+    <td><br><br><br>&#x25cf;</td>
+   </tr>
+  </table>
+  <table>
+   <caption>126524984376952</caption>
+   <tr>
+    <td><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x25cf;&#x25cf;</td>
+    <td><br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br><br><br>&#x25cf;&#x25cf;</td>
+    <td><br><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;</td>
+    <td><br>&#x25cf;&#x25cf;<br>&#x2500;&#x2500;&#x2500;<br>&#x2500;&#x2500;&#x2500;</td>
+   </tr>
+  </table>
+ </body>
+</html>
+</pre>
+{{out}}
+With output_html set to false.
+<pre>
+4005
++------+------+------+
+|      |      |      |
+|      |      |      |
+| .... |      |      |
+| .... |  0   | .... |
++------+------+------+
+
+8017
++------+------+------+------+
+|      |      |      |  ..  |
+|      |      |      | .... |
+|      |      |      | .... |
+|  .   |  0   |  0   | .... |
++------+------+------+------+
+
+326205
++------+------+------+------+------+
+|      |      |      |      |      |
+|      |      | .... |      |      |
+|      |      | .... | .... |      |
+|  ..  |  0   | .... | .... | .... |
++------+------+------+------+------+
+
+886205
++------+------+------+------+------+
+|      |      |      |      |      |
+|      |      | .... |      |      |
+|      | .... | .... | .... |      |
+| .... | .... | .... | .... | .... |
++------+------+------+------+------+
+
+26960840421
++------+------+------+------+------+------+------+------+------+
+|      |      |      |      |      |      |      |      |      |
+|      |      |      |      |      |      |      |      |      |
+|      |      |      |      |      |      |      |      |      |
+|  .   |  .   |  .   | .... | .... | .... |  .   |  .   |  .   |
++------+------+------+------+------+------+------+------+------+
+
+126524984376952
++------+------+------+------+------+------+------+------+------+------+------+
+|      |      |      |      |      |  ..  |      |      |      |      |      |
+|  ..  |      |      |      |  ..  | .... |  ..  |      |      |      |  ..  |
+| .... |  ..  |      |  ..  | .... | .... | .... |  ..  |      |  ..  | .... |
+| .... | .... |  ..  | .... | .... | .... | .... | .... |  ..  | .... | .... |
++------+------+------+------+------+------+------+------+------+------+------+
+</pre>
+--*/
+
+

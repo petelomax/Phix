@@ -258,6 +258,7 @@ constant vm_names = {
                                      "%opSqrt"}},
                      {"pfileioN.e", {"%opOpen",
                                      "!opClosem9",
+                                     "!SetSafeMode",
                                      "%opClose",
                                      "%opSeek",
                                      "%opWhere",

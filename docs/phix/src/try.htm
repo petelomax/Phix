@@ -63,7 +63,7 @@
         <br>
         <br>
         There is no guarantee that all exceptions can be caught: rogue code that corrupts the stack will make it impossible to even look for a suitable handler.<br>
-        The phix abort() and crash() routines now invoke throw() when an exception handler is detected, however the equivalent of the former in 
+        The abort() and crash() routines now invoke throw() when an exception handler is detected, however the equivalent of the former in 
         non-phix code (ie kernel32.dll/ExitProcess or sys_exit from a dll/so or inline assembly) cannot be caught (by any means that I know or care of).
         Also, passing invalid arguments to throw() (e not atom when user_data not {}, or wrong-type-elements) is deemed to be non-catchable.
         Apart from that I am not currently aware of any errors, or any types or classes of error, that can never be caught.<br>
@@ -74,10 +74,11 @@
         user defined types <!--(&gt;T_object) --> are <i>not</i> permitted on predeclared exception variables.
         <br>
         <br>
-        Obviously the compiler/runtime simply <i>cannot</i> distinguish &rsquo;blimey, who would think that could ever happen&rsquo; cases from 
-        &rsquo;simple typo or other glaring error&rsquo;, and must therefore treat them identically.
+        Obviously the compiler/runtime simply <i>cannot</i> distinguish the genuinely exceptional &rsquo;blimey, did not expect that&rsquo; from the 
+        mundane &rsquo;simple typo or other glaring error&rsquo;, and must therefore treat them identically - instead it is entirely the programmers
+        responsibility to make that distinction themselves in each and every application and catch clause statement therein.
         If you ever find yourself thinking that the runtime should quietly deal with those but tell you about these, then you are probably crediting it 
-        with <i>way</i> too much intelligence (unless you can also think of a very simple rule to follow, which you and not me can then encode).
+        with <i>way</i> too much intelligence. See point 1 below.
         <br>
         <br>
         The catch clause is actually opTryend (ie restore the previous exception handler, if any), then a jump to the end try, and then the actual catch
@@ -101,7 +102,8 @@
         Compilation issues "Warning: empty catch block" messages when appropriate.<br>
         A blanket "ignore all" handler in the top-level main loop of an application may sound like an easy way to make your code "robust".<br>
         However it also risks making you completely blind towards any emerging problems - which can in some cases be perfectly fine - if a
-        "jumping giraffe" game tries to draw the eyeballs off-screen, no-one cares, but a bug in the phix compiler is quite different.<br>
+        "jumping giraffe" game tries to draw the eyeballs off-screen, no-one cares (though one might well ask, "why are you throwing an execption then?"), 
+        but a bug in the compiler (say) is quite different.<br>
         At the very least you should consider something like <code>if DEBUG then ?9/0 end if</code> and in that way your live customers 
         can experience the trouble-free life you think they deserve, while your development staff are kept honest and immediately informed 
         of any developing issues, and forced to address them.
@@ -116,7 +118,7 @@
 
         <li>Write the code without a try container and see how far you get. Typically something like a subscript error can and should be
         fixed immediately, with the try statement being intended to guard against something completely different.
-        If not careful, a try statement <i>will</i> mask errors that you might much rather it did not.<br></li>
+        If not careful, a try statement <i>will</i> mask errors you would much rather it did not.<br></li>
 
         <li><sup><small>&nbsp;</small></sup>Always try and localise a try statement as much as possible, to cover the least amount of code and 
         solve a very specific problem.<br>
@@ -124,14 +126,14 @@
         <sup><small>&nbsp;</small></sup>While a catch clause can be used to "common up" error handling, don&rsquo;t go overboard.<br></li>
 
         <li><sup><small>&nbsp;</small></sup>Use try statements to deal with third-party code you cannot or would rather not modify, as 
-        opposed to permission for your own sloppily-written abomination<sup><small>&#8482;</small></sup>.<br>
+        opposed to permission for your own sloppily-written abomination<sup><small>&#8482;</small></sup>.
         <sup><small>&nbsp;</small></sup>A perfect example of the former: display "unable to play video" rather than let a corrupt file 
-        euthanise your entire application.<br>
+        euthanise your entire application.<br></li>
 
         <li><sup><small>&nbsp;</small></sup>Start a new catch clause as <code>?e</code>, then gradually add conditions and filters, with 
-        comments, for specific cases where a "do nothing" response is genuinely the best thing to do.<br>
-        Let everything you have not yet seen show up, including that bug you have just introduced, as well as the bug you probably will 
-        introduce sometime next week.</li>
+        comments, for specific cases where a "do nothing" response is genuinely the best thing to do.
+        <sup><small>&nbsp;</small></sup>Let everything you have not yet seen show up, including that bug you will probably introduce sometime 
+        next week.</li>
 
         </ol>
 <!--

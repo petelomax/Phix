@@ -1,0 +1,236 @@
+--
+-- demo\rosetta\Find_unimplemented_tasks.exw
+-- =========================================
+--
+--  Note that [[RosettaCode/Tasks_without_examples.exw#Phix]] with summary=true and
+--  Note that Tasks_without_examples.exw with summary=true and output_html=false 
+--  does much that same, only via web scraping, whereas this uses the web api.
+--
+--{{trans|Go}}
+constant language = "Phix",
+         base_query = "http://rosettacode.org/mw/api.php?action=query"&
+                      "&format=xml&list=categorymembers&cmlimit=100"
+
+include builtins\libcurl.e
+atom curl = NULL
+atom pErrorBuffer
+include builtins\xml.e
+
+function req(string url, integer rid)
+    if curl=NULL then
+        curl_global_init()
+        curl = curl_easy_init()
+        pErrorBuffer = allocate(CURL_ERROR_SIZE)
+        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
+    end if
+    curl_easy_setopt(curl, CURLOPT_URL, url)
+    object res = curl_easy_perform_ex(curl)
+    if integer(res) then
+        string error = sprintf("%d [%s]",{res,peek_string(pErrorBuffer)})
+        crash("Download error: %s\n",{error})
+    end if
+    if not string(res) then ?9/0 end if
+    object xml = xml_parse(res)[XML_CONTENTS]
+    res = xml_get_nodes(xml,"continue")
+    res = iff(res=={}?"":xml_get_attribute(res[1],"cmcontinue"))
+    xml = xml_get_nodes(xml,"query")[1]
+    xml = xml_get_nodes(xml,"categorymembers")[1]
+    xml = xml_get_nodes(xml,"cm")
+    for i=1 to length(xml) do
+        call_proc(rid,{xml_get_attribute(xml[i],"title")})
+    end for
+    return res
+end function
+
+sequence languages = {}
+procedure store_lang(string language)
+    languages = append(languages,language)
+end procedure
+constant r_store_lang = routine_id("store_lang")
+
+integer unimplemented_count = 0
+procedure print_unimplemented(string language)
+    if not find(language,languages) then
+        printf(1,"%s\n",{language})
+        unimplemented_count += 1
+    end if
+end procedure
+constant r_print = routine_id("print_unimplemented")
+
+procedure main()
+    -- get and store language members
+    string lang_query := base_query & "&cmtitle=Category:" & language,
+           continue_at := req(lang_query, r_store_lang)
+    while continue_at!="" do
+        continue_at = req(lang_query&"&cmcontinue="&continue_at, r_store_lang)
+    end while
+ 
+    -- a quick check to avoid long output
+    if length(languages)==0 then
+        printf(1,"no tasks implemented for %s\n", {language})
+        return
+    end if
+ 
+    -- get tasks, print as we go along
+    string task_query := base_query & "&cmtitle=Category:Programming_Tasks"
+    continue_at = req(task_query, r_print)
+    while continue_at!="" do
+        continue_at = req(task_query&"&cmcontinue="&continue_at, r_print)
+    end while
+    printf(1,"%d unimplemented tasks found for %s.\n",{unimplemented_count,language})
+end procedure
+main()
+
+?"done"
+{} = wait_key()
+--/*
+--output (eg)
+Abstract type
+Active Directory/Connect
+Active Directory/Search for a user
+...
+Yahoo! search interface
+78 unimplemented tasks found for Phix.
+
+Abstract type
+Active Directory/Connect
+Active Directory/Search for a user
+Add a variable to a class instance at runtime
+Anonymous recursion
+Bitmap/PPM conversion through a pipe
+Bitmap/Read an image through a pipe
+Break OO privacy
+Call an object method
+Canny edge detector
+CatmullÔÇôClark subdivision surface
+Chat server
+Classes
+Constrained genericity
+Distributed programming
+Documentation
+Echo server
+Inheritance/Multiple
+Inheritance/Single
+Interactive programming
+Joystick position
+OLE Automation
+Record sound
+Reflection/List properties
+Runtime evaluation
+Runtime evaluation/In an environment
+Sierpinski pentagon
+Simulate input/Keyboard
+Simulate input/Mouse
+Singleton
+SOAP
+Sockets
+SQL-based authentication
+Test a function
+XML/XPath
+Yahoo! search interface
+36 unimplemented tasks found for Phix.
+"done"
+
+--19/11/2019:
+(23/12: 8 to be uploaded...)
+>100 prisoners
+<<Abstract type
+Active Directory/Connect
+Active Directory/Search for a user
+<<Add a variable to a class instance at runtime
+Anonymous recursion
+Bitmap/PPM conversion through a pipe
+Bitmap/Read an image through a pipe
+<<Break OO privacy
+<<Call an object method
+Canny edge detector
+CatmullÔÇôClark subdivision surface
+Chat server
+<<Classes
+<<Constrained genericity
+>Determine if a string has all the same characters
+>Determine if a string has all unique characters
+Distributed programming
+Documentation
+Echo server
+>Functional coverage tree [DONE]
+<<Inheritance/Multiple
+<<Inheritance/Single
+Interactive programming
+>Intersecting Number Wheels
+Joystick position
+>Matrix Digital Rain
+?Native_shebang
+OLE Automation
+Record sound
+Reflection/List properties
+Runtime evaluation
+Runtime evaluation/In an environment
+Sierpinski pentagon
+Simulate input/Keyboard
+Simulate input/Mouse
+Singleton
+SOAP
+Sockets
+SQL-based authentication
+Test a function
+XML/XPath
+Yahoo! search interface
+42 unimplemented tasks found for Phix. (-6 -8)
+"done"
+
+NB above does not include draft tasks, from Tasks_without_examples.exw for Phix:
+15_Puzzle_Game_in_3D
+Audio_Overlap_Loop
+Black_Box
+Blackjack_strategy
+Check_input_device_is_a_terminal
+Check_output_device_is_a_terminal
+Chess_player/Move_generation
+Chess_player/Program_options_and_user_interface
+Chess_player/Search_and_evaluation
+Continued_fraction/Arithmetic/G(matrix_NG,_Contined_Fraction_N)
+Continued_fraction/Arithmetic/G(matrix_NG,_Contined_Fraction_N1,_Contined_Fraction_N2)
+>Determine_if_a_string_is_collapsible
+>Display_an_outline_as_a_nested_table
+>Execute_CopyPasta_Language
+>Gapful_numbers
+IPC_via_named_pipe
+IRC_gateway
+>Metallic_ratios
+Monads/List_monad
+Monads/Maybe_monad
+Monads/Writer_monad
+Multiline_shebang
+Native_shebang
+OpenGL_Pixel_Shader
+>Palindromic_gapful_numbers
+Raster_bars
+Recursive_descent_parser_generator
+Remote_agent/Agent_interface
+Remote_agent/Agent_logic
+Remote_agent/Simulation
+Rosetta_Code/List_authors_of_task_descriptions
+Rosetta_Code/Run_examples
+Rosetta_Code/Tasks_sorted_by_average_lines_of_code
+Run_as_a_daemon_or_service
+Solving_coin_problems
+>Super-d_numbers
+Tamagotchi_emulator
+Tetris
+Time-based_One-time_Password_Algorithm
+>Tree_datastructures
+Ukkonen's_Suffix_Tree_Construction
+Unit_testing
+User_defined_pipe_and_redirection_operators
+Using_a_Speech_engine_to_highlight_words
+Using_the_Meetup.com_API
+Waveform_analysis/Doh_ray_me
+Waveform_analysis/Top_and_tail
+Weather_Routing
+XML_Validation
+49 tasks (-8)
+"done"
+28+41: 69...
+
+--*/

@@ -246,7 +246,7 @@ integer SLASH
                 end if
                 if scan_subdirs then
                     abort_now = walk_dir(path_name & SLASH & di[D_NAME],
-                                         your_function, scan_subdirs)
+                                         your_function, scan_subdirs, my_dir)
 
                     if not equal(abort_now, 0) 
                     and not equal(abort_now, W_BAD_PATH) then

@@ -56,6 +56,7 @@ global function routine_id(sequence s)
 --
 -- returns a routine number (actually an index into symtab), or
 --  -1 if the routine cannot be found (anywhere/in specified namespace)
+--removed, 18/8/19:
 --  -2 if multiple conflicting instances exist (no namespace specified)
 --  -3 if the specified namespace does not exist
 -- (-2/-3 may break some legacy code that explicitly tests for -1 rather than <0.)
@@ -222,6 +223,8 @@ sequence name_space     -- eg "fred" when "fred:thing" is passed as parameter.
             clink = si[S_Slink]
         end while
     end if
+--  if res<0 then res = 0 end if    -- added 17/8/19 (and docs updated)
+    if res<0 then res = -1 end if   -- 18/8/19 (thought twice about it)
     si_name = 0
     si = 0
     symtab = 0

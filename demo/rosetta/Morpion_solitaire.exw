@@ -1,0 +1,948 @@
+--
+-- demo\rosetta\Morpion_solitaire.exw
+-- ==================================
+--
+--  I focused on a half-decent gui and playing back the 178-record.
+--  Gruntwork of searching 10^23 possible moves left as an exercise...
+--
+--  Download http://www.morpionsolitaire.com/Grid5T178Rosin.txt and
+--  save it to the current directory, if you want this to replay it.
+--
+--DEV fix/duplicate that timer unassigned bug...
+constant p178file = "Grid5T178Rosin.txt"
+--constant p178file = `demo\rosetta\Grid5T178Rosin.txt`
+
+--TO-DO:
+--  Ctrl C copy the game history to the clipboard (in text format).
+--  We don't currently maintain an origin anywhere, yet.
+--  If not found, offer to download, iff you can open libcurl dll.
+--  Some way to make a random move, play several games.
+--  Show the number of moves made so far on the history.
+--  Undo is, of course, just new_game() & replay[1..$-1], iycwim.
+--  A (right/l-click) pop-up menu is needed for ambiguous moves.
+--  adjust_moves() should redisplay the entire history.
+--  Display game_over when valid_moves=={}.
+--  You can click during playback, which will upset it: Prompt,
+--  maybe, but definiately switch off playback.
+--  Warn that invalid playback files will make it crash...
+
+--
+--  One point worth clarifying, suppose you have:
+--
+--      ?
+--      **
+--      * *
+--      *  *
+--      *   *
+--
+--  Then placing a tile at 1,1/'?' makes //**either**// a | or a \,
+--  but *not* both. In fact, your next tile could then go at either
+--  0,0 (if you made a |) or 1,0 (if you made a \), making the other
+--  one, and leaving one tile on row 5 unused (however both tiles on
+--  rows 2-4 become part of a 5-set). (Aside: the indexes just used
+--  are quite unlike the extending/double-spaced ones used below.)
+--
+
+--Load game obviously has a few scanf, and can calculate the required sizes. - nope, adjust as per 3a) [DONE]
+--1) create and display an initial board () [DONE]
+--2) find all valid moves/pick one randomly ('R'?)
+--3) load [double the numbers?] and play the 178 game, pause between each move (re-display at 1,1)      [DONE]
+--      a) subtract (initial from origin) from all moves, then extend as rqd during playback.           [DONE]
+--4) show a sample/the best game found so far.
+--5) no user play mode (yet) possible?? [put a legend around just in case, 01..999 should suffice!]
+
+constant help_text = """
+The game of Morpion Solitaire.
+
+The aim is to make as many lines of 5 tiles as you can.
+Lines may cross and share endpoints, but not overlap.
+Valid places where a new tile may be placed are shown in orange.
+
+The worst case game is 20 lines, the world record is 178.
+The play-178 button is disabled if it cannot open Grid5T178Rosin.txt 
+in the current directory. Use +/- to speed up/slow down the playback.
+"""
+
+without debug
+include pGUI.e
+include builtins\VM\pprntfN.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+include builtins\pretty.e
+include builtins\factorial.e
+include builtins\VM\pTime.e
+with debug
+--#withtype Ihandle
+--#withtype cdCanvas
+
+--DEV first is not properly caught... (when timer is left unassigned)
+Ihandle dlg, canvas, hframe, history, play178, timer
+--Ihandle dlg, canvas, hframe, history, play178
+--Ihandln timer = NULL
+
+sequence board
+--
+-- board is {string}, with odd col&row as tiles, either even as spaces/lines, eg
+--
+--       123456789012345
+--     {`...............`, 1
+--      `...............`, 2
+--      `..O-O-O.....O..`, 3
+--      `..|\|X|..../...`, 4
+--      `..O-O-O-O-O....`, 5
+--      `..|.|\|\./.....`, 6
+--      `..O-O-O-O-O....`, 7
+--      `..|.|.|X.\.....`, 8
+--      `..O-O-O-O-O....`, 9
+--      `..|.|/|..\.\...`, 10
+--      `..O-O-O-O-O.O..`, 11
+--      `...............`, 12
+--      `?..............`} 13
+--
+-- in other words if odd(col) and odd(row) then [r,c] must be one of ".O", else
+-- [r,c] must be one of ".-|\/X", for every single element/char of board[][].
+-- (It turned out pretty easy to map that to a fairly nice gui, plus of course
+--  the above proved far easier to debug than (say) a bunch of bit-settings!
+--  Likewise for debugging '.' are somewhat easier to count/follow than ' '. )
+--
+-- There is a double-space border so that tiles can be placed (ie clicked on),
+-- at which point the board is automatically extended with a new double edge.
+-- For instance, playing a tile at the spot marked '?' means we must insert
+-- two spaces at the start of every line, add two new blank lines on the end,
+-- and run through the entire history/playback adding {2,0} to everything. At
+-- {1,1}, obviously, you have to add {2,2} to everything (and nowhere else).
+
+sequence valid_moves = {}
+--sequence valid_moves = {{1,1},{1,3},{3,1},{3,1}}
+-- saved in redraw_cb(), for click testing in button_cb():
+integer r = 0, r2 = 0
+-- delay between moves in playback mode
+atom pause = 1
+
+sequence played = {},
+         playback = {}
+
+function redraw_cb(Ihandle ih, integer /*posx*/, integer /*posy*/)
+    integer {cw,ch} = IupGetIntInt(ih, "DRAWSIZE"),
+            bw = length(board[1]),
+            bh = length(board)
+    
+    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
+    IupGLMakeCurrent(ih)
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    integer mx = min(floor(cw/((bw+1)/2)),floor(ch/((bh+1)/2)))
+    r = floor(mx/2) -- save for button_cb()
+    mx = r*2    -- (prevent drift)
+    r2 = r*r
+    integer t = r+floor(r/3),
+            cy = ch-r, cx = r,
+            hr = floor(r/2)
+    -- draw grid
+    cdCanvasSetForeground(cddbuffer,CD_LIGHT_GREY)
+    while cx<cw or cy>0 do
+        cdCanvasLine(cddbuffer,cx,1,cx,ch)
+        cdCanvasLine(cddbuffer,1,cy,cw,cy)
+        cx += mx
+        cy -= mx
+    end while
+    -- draw lines
+    cdCanvasSetForeground(cddbuffer,CD_BLACK)
+    cy = ch-mx
+    for y=2 to bh do
+        cx = r
+        integer step = 1+and_bits(y,1)
+        for x=2 to bw by step do 
+            integer c = board[y][x]
+            if c!='.' then
+                if c='-' then
+                    cdCanvasLine(cddbuffer,cx,cy,cx+mx,cy)
+                elsif c='|' then
+                    cdCanvasLine(cddbuffer,cx+r,cy-r,cx+r,cy+r)
+                elsif c='\\' then
+                    cdCanvasLine(cddbuffer,cx,cy+r,cx+mx,cy-r)
+                elsif c='X' then
+                    cdCanvasLine(cddbuffer,cx,cy+r,cx+mx,cy-r)
+                    cdCanvasLine(cddbuffer,cx+mx,cy+r,cx,cy-r)
+                elsif c='/' then
+                    cdCanvasLine(cddbuffer,cx,cy-r,cx+mx,cy+r)
+                end if
+            end if
+            cx += step*r
+        end for
+        cy -= r
+    end for
+    -- draw tiles
+    cy = ch-r
+    for y=1 to bh by 2 do
+        cx = r
+        for x=1 to bw by 2 do 
+            if board[y][x]='O' then
+                cdCanvasSetForeground(cddbuffer,CD_GREY)
+                cdCanvasSector(cddbuffer, cx, cy, t, t, 0, 360)
+                cdCanvasSetForeground(cddbuffer,CD_DARK_GREY)
+                cdCanvasCircle(cddbuffer, cx, cy, t)
+            end if
+            cx += mx
+        end for
+        cy -= mx
+    end for
+    -- draw valid moves
+    cdCanvasSetForeground(cddbuffer,CD_ORANGE)
+    for i=1 to length(valid_moves) do
+        integer {x,y} = valid_moves[i]
+--temp...
+if i>1 and {x,y}=valid_moves[i-1][1..2] then
+    cdCanvasSetForeground(cddbuffer,CD_DARK_RED)
+else    
+    cdCanvasSetForeground(cddbuffer,CD_ORANGE)
+end if
+        cx = x*r
+        cy = ch-y*r
+        cdCanvasLine(cddbuffer,cx-hr,cy,cx+hr,cy)
+        cdCanvasLine(cddbuffer,cx,cy+hr,cx,cy-hr)
+    end for     
+--/*
+--  CD_RED          = #FF0000, (no)
+--  CD_DARK_RED     = #800000, (ish)
+--  CD_ORANGE       = #FFA500, (bsf)
+--  CD_DARK_ORANGE  = #FF8C00, (ish)
+--  CD_GREEN        = #00FF00, (no)
+--  CD_DARK_GREEN   = #008000, (ish)
+--  CD_BLUE         = #0000FF, (ish)
+--  CD_DARK_BLUE    = #000080, (no)
+--  CD_YELLOW       = #FFFF00, (no)
+--  CD_DARK_YELLOW  = #808000, (maybe)
+--  CD_MAGENTA      = #FF00FF, (no)
+--  CD_DARK_MAGENTA = #800080, (ish)
+--  CD_CYAN         = #00FFFF,  (NO)
+--  CD_DARK_CYAN    = #008080,  (maybe)
+--  CD_WHITE        = #FFFFFF,  (no)
+    CD_BLACK        = #000000,
+--  CD_DARK_GREY    = #808080, (ish)
+--  CD_GREY         = #C0C0C0, (new bsf)
+                      #D0D0D0   better
+                      #E0E0E0   good
+    CD_LIGHT_GREY   = #E4E4E4   we have a winner!
+                      #E8E8E8   good
+                      #F0F0F0   no
+    CD_PARCHMENT    = #FFFFE0,
+--  CD_INDIGO       = #4B0082, (ish)
+--  CD_PURPLE       = #D080D0, (new bsf)
+--  CD_VIOLET       = #EE82EE, (ok too)
+
+    Ihandle frame = IupGetParent(ih)
+--  cdCanvasSetLineWidth(cddbuffer, 1)  -- ??
+
+    if <game over> then
+        ch -= floor(mx/2)
+        {} = cdCanvasTextAlignment(cddbuffer, CD_CENTER)
+        string msg = "GAME OVER - NO MORE MOVES"
+        cdCanvasText(cddbuffer, cw/2, ch/2, msg) 
+    end if
+--*/
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    IupGLMakeCurrent(ih)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvas cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle canvas)
+    cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+--
+-- For reference only (not for rc):
+--
+--  12345678901234567890123
+--  ....................... 1
+--  ....................... 2
+--  ........O.O.O.O........ 3
+--  ....................... 4
+--  ........O.....O........ 5
+--  ....................... 6
+--  ........O.....O........ 7
+--  ....................... 8
+--  ..O.O.O.O.....O.O.O.O.. 9
+--  ....................... 0
+--  ..O.................O.. 1
+--  ....................... 2
+--  ..O.................O.. 3
+--  ....................... 4
+--  ..O.O.O.O.....O.O.O.O.. 5
+--  ....................... 6
+--  ........O.....O........ 7
+--  ....................... 8
+--  ........O.....O........ 9
+--  ....................... 0
+--  ........O.O.O.O........ 1
+--  ....................... 2
+--  ....................... 3
+--
+-- legend:  .1..2..3.
+--          ..O.O.O..
+--          ...\|/...
+--          4.O-X.O-4
+--          .........
+--          ..O.O.O..
+--          -3.-2.-1.
+--
+-- Directions 1..4 are up, -1..-4 are dn.
+-- Change from up->dn by negating [1..2].
+-- if [4]!='.' then that -> 'X'.
+--
+constant directions = {{-1,-1,'\\','/'},
+                       {-1, 0,'|','.'},
+                       {+1,-1,'/','\\'},
+                       { 0,-1,'-','.'}}
+
+function scan_d(integer y, x, dx, dy, bh, bw, xc)
+    integer count = 0
+    for i=1 to 4 do
+        x += dx
+        y += dy
+        if x=0 or y=0 or x>bw or y>bh then exit end if
+        integer link = board[y,x]
+        if link!='.' and link!=xc then exit end if
+        x += dx
+        y += dy
+        integer tile = board[y,x]
+        if tile!='O' then exit end if
+        count += 1      
+    end for
+    return count
+end function
+
+procedure find_valid_moves()
+    integer bh = length(board),
+            bw = length(board[1])
+    valid_moves = {}
+    for y=1 to bh by 2 do
+        for x=1 to bw by 2 do
+            if board[y][x]='.' then
+                for d=1 to length(directions) do
+                    -- (obviously) this is what we're looking for:
+                    -- OOOO.    -2
+                    -- OOO.O    -1
+                    -- OO.OO     0
+                    -- O.OOO    +1
+                    -- .OOOO    +2
+                    -- with lc as count left of dot, and rc right,
+                    -- the (only) "dirty trick" below is "2-lc".
+                    integer {dy, dx, nc, xc} = directions[d]
+                    integer lc = scan_d(y,x,+dx,+dy,bh,bw,xc),
+                            rc = scan_d(y,x,-dx,-dy,bh,bw,xc)
+                    while lc+rc>=4 do
+                        if lc=-1 then ?9/0 end if   -- sanity check
+                        sequence move = {x,y,nc&"",2-lc}
+                        if not find(move,valid_moves) then
+                            valid_moves = append(valid_moves,move)
+                        end if
+                        lc -= 1
+                    end while
+                end for
+            end if
+        end for
+    end for
+    valid_moves = sort(valid_moves) -- (entirely optional, helps debug)
+end procedure
+
+procedure redraw_all()
+    find_valid_moves()
+    IupUpdate(canvas)
+end procedure
+
+--DEV I might drop this...
+procedure undo_move()
+?"undo_move"
+--  sequence vmi = ??[$]
+--  ?? = ??[1..$-1]
+    redraw_all()
+end procedure
+
+procedure adjust_moves(integer dx, dy)
+--...
+    for i=1 to length(playback) do
+        playback[i][1] += dx
+        playback[i][2] += dy
+    end for
+    for i=1 to length(played) do
+        played[i][1] += dx
+        played[i][2] += dy
+    end for
+end procedure
+
+procedure make_move(integer i)
+    sequence vmi = valid_moves[i]
+    integer {x, y, {c}, d} = vmi
+    IupSetStrAttribute(history,"APPENDITEM","%v",{vmi})
+    played = append(played,vmi)
+--  place move...
+--?{"make_move",vmi}
+    board[y][x] = 'O'
+--  sequence ? = vslice(directions,3)
+--  for i=1 to length(directions) do
+--      integer {dy, dx, l, nl} = directions[i]
+        integer {dy, dx, l, nl} = directions[find(c,vslice(directions,3))]
+--      if l=c then
+            integer {ul,dr} = {d*2-3,d*2+3}
+                    -- "" are 1..7, -1..5, -3..3, -5..1, -7..-1
+                    --  for d= +2     +1      0     -1     -2,
+                    --      ie +2: .-O-O-O-O
+                    --         +1: O-.-O-O-O
+                    --          0: O-O-.-O-O
+                    --         -1: O-O-O-.-O
+                    --         -2: O-O-O-O-.
+            for j=ul to dr by 2 do -- make lines/links
+                integer ly = y-j*dy,
+                        lx = x-j*dx,
+                        nc = board[ly][lx]
+                if nc='.' then
+                    nc = l
+                elsif nc=nl then
+                    nc = 'X'
+                else
+                    ?9/0
+                end if
+                board[ly][lx] = nc
+            end for
+--          exit
+--      end if
+--  end for
+
+--/*
+C:\Program Files (x86)\Phix\demo\rosetta\Morpion_solitaire.exw:556 in procedure make_move()
+index 0 out of bounds, reading sequence length 27
+    i = 2
+    vmi = {7,3,"|",-1}
+    x = 7
+    y = 3
+    c = 124'|'
+    d = -1
+    dy = -1
+    dx = 0
+    l = 124'|'
+    nl = 46'.'
+    j = -3
+    ly = 0
+    lx = 7
+    nc = 124'|'
+--*/
+
+    -- then extend board if rqd (maintain a double-space border)
+    if x=1 then
+        -- extend left
+        for i=1 to length(board) do
+            board[i] = ".."&board[i]
+        end for
+        adjust_moves(2,0)
+    elsif x=length(board[1]) then
+        -- extend right
+        for i=1 to length(board) do
+            board[i] &= ".."
+        end for
+    end if
+    -- (copy the undamaged lines from the other end...)
+    if y=1 then
+        -- extend up
+        board = board[$-1..$]&board
+        adjust_moves(0,2)
+    elsif y=length(board) then
+        -- extend down
+        board &= board[1..2]
+    end if
+--  find_valid_moves()
+    redraw_all()
+end procedure
+
+function button_cb(Ihandle /*canvas*/, integer button, pressed, x, y, atom /*pStatus*/)
+    if button=IUP_BUTTON1 and not pressed then      -- (left button released)
+        sequence possible = {}
+        for i=1 to length(valid_moves) do
+            integer {cx,cy} = sq_sub(sq_mul(valid_moves[i][1..2],r),{x,y})
+            if (cx*cx+cy*cy)<=r2 then
+                possible &= i
+            end if
+        end for
+        if length(possible)>1 then
+            -- This needs some kind of popup... (IupPopup, IupMenu, IUP_MOUSEPOS...)
+            -- with menu entries such as:
+            --   | +2
+            --   - -2
+            --   / +1
+            --   \ 0
+            ?"ambiguous... (tbc)"
+        end if
+        if length(possible)=1 then
+            integer i = possible[1]
+            make_move(i)
+--          valid_moves[i..i] = {}
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+string title -- (temp/debug)
+procedure set_hframe_title()
+--  string title = "History"
+    title = "History"
+    if IupGetInt(play178,"ACTIVE") and IupGetInt(play178,"RUNNING") then
+        string e = elapsed(pause)
+        e = e[1..find(',',e)-1]
+        e = e[1..match(" and ",e)-1]
+        title = sprintf("Playing world record (%s/move)",{e})
+    end if
+    IupSetStrAttribute(hframe,"TITLE",title)
+end procedure
+
+procedure fill_square(integer x1, x2, y1, y2, ch)
+    for x=x1 to x2 by 2 do
+        for y=y1 to y2 by 2 do
+            board[y][x] = ch
+        end for
+    end for
+end procedure
+
+procedure new_game()
+--?"new_game"
+    board = repeat(repeat('.',23),23)
+    -- solid-fill a big '+'...
+    fill_square( 3,21, 9,15,'O')
+    fill_square( 9,15, 3,21,'O')
+    -- then vacate inner '+'
+    fill_square( 5,19,11,13,'.')
+    fill_square(11,13, 5,19,'.')
+--DEV (oh, there are never any '+'!)
+--fill_square(10,14,3,3,'-')
+--fill_square(9,9,4,8,'|')
+--fill_square(11,13,5,7,'O')
+--board[4][10] = '\\'
+--board[6][12] = 'X'
+--board[8][14] = '\\'
+--board[4][14] = '/'
+--board[8][10] = '/'
+--board[13][11] = 'O'
+--board[17][7] = 'O'
+--/*
+    puts(1,"12345678901234567890123\n")
+--  puts(1,join(board,"\n")&"\n")
+--  sequence b = board
+    for i=1 to length(board) do
+        printf(1,"%s %d\n",{board[i],mod(i,10)})
+    end for
+--*/
+--DEV/SUG:
+--  puts(1,join(board,"\n",true))
+    played = {}
+    IupSetAttribute(history,"REMOVEITEM","ALL")
+    IupSetInt(play178,"RUNNING",false)
+    find_valid_moves()
+--?valid_moves
+    set_hframe_title()
+end procedure
+
+function new_game_cb(Ihandle /*ih*/)
+    new_game()
+    redraw_all()
+    return IUP_DEFAULT
+end function
+
+function exit_cb(Ihandle /*ih*/)
+    return IUP_CLOSE
+end function
+
+function help_cb(Ihandln /*ih*/)
+    IupMessage("Morpion Solitaire",help_text)
+    return IUP_DEFAULT
+end function
+
+function play178_cb(Ihandln /*ih*/)
+    sequence text = get_text(p178file,GT_LF_STRIPPED),
+             res = {}, r
+    integer dx, dy
+    bool first = true
+    for i=1 to length(text) do
+        string ti = text[i]
+        if ti[1]!='#' then
+            r = scanf(ti,iff(first?"(%d,%d)","(%d,%d) %c %d"))
+            if length(r)!=1 then
+                IupMessage("Error","Error processing line %d (%s) [%v]",{i,ti,r})
+                return IUP_DEFAULT
+            end if
+            r = r[1]
+            r[1..2] = sq_mul(r[1..2],2)
+            if first then
+--(28,28)
+--(28,24) | +2
+--              {dy,dx} = r
+--              {dy,dx} = sq_sub(9,sq_mul(r,2))
+                {dy,dx} = sq_sub(9,r)
+--              dy = 9-dy*2
+--              dx = 9-dx*2
+--?{r,dx,dy}
+                first = false
+            else
+--              if length(r)!=4 then ?9/0 end if
+--              r[1] = r[1]*2+dy
+--              r[2] = r[2]*2+dx
+                r[1] += dy
+                r[2] += dx
+--              if length(r[3])!=1 then ?9/0 end if
+--              integer c = r[3][1]
+--              if not find(c,`\/|-`) then ?9/0 end if
+                res = append(res,r)
+            end if
+        end if
+    end for
+--?res[1..5]
+    new_game()
+    playback = res
+    IupSetInt(play178,"RUNNING",true)
+    set_hframe_title()
+--?"set"
+    IupSetInt(timer,"RUN",true)
+--?"ok"
+-->>>
+--  bool active = not IupGetInt(timer,"RUN")
+--  IupSetInt(timer,"RUN",active)
+--  IupSetAttributePtr(dlg,"timer",timer)
+--<<<
+--  IupMessage("Sorry","not yet implemented")
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+--?"timer_cb"
+    if length(playback)=0 then
+--?"dead"
+        IupSetInt(timer,"RUN",false)
+    else
+sequence move = playback[1]
+        integer p = find(move,valid_moves)
+        if p=0 then ?9/0 end if
+--      valid_moves = {playback[1]}
+        playback = playback[2..$]
+--      make_move(1)
+        make_move(p)
+    end if
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE
+    elsif c=K_F1 then return help_cb(NULL)
+    elsif find(c,{K_DEL,K_BS}) then undo_move()
+    elsif c='?' then ?valid_moves
+    elsif find(c,"+-") then
+        if c='+' and pause<250000000 then
+            pause *= 2
+        elsif c='-' and pause>0.01 then
+            pause /= 2
+        end if
+        set_hframe_title()
+        IupSetInt(timer,"TIME",round(pause*1000))
+        if IupGetInt(timer,"RUN") then
+            -- restart needed to apply new TIME
+            IupSetInt(timer,"RUN",false)
+            IupSetInt(timer,"RUN",true)
+        end if
+--SUG?
+--  elsif c='R' then
+--      autoplay = true
+    end if
+--DEV
+--  if '+' or '-' then *2 or /2 pause time.
+    --(Initially 1s/move: you cannot actually stop it, 
+    -- but 20+ makes it wait 6 days between moves,
+    -- and obviously 20- makes it finish in 0.0001s)
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+ 
+    canvas = IupGLCanvas("RASTERSIZE=200x200")
+    history = IupList("VISIBLELINES=10, EXPAND=YES")
+    hframe = IupFrame(history,"TITLE=History, PADDING=5x4")
+    play178 = IupButton("Play 178",Icallback("play178_cb"),"PADDING=5x4")
+    IupSetInt(play178,"RUNNING",false)
+    Ihandle newgame = IupButton("New Game",Icallback("new_game_cb"),"PADDING=5x4"),
+            help = IupButton("Help (F1)",Icallback("help_cb"),"PADDING=5x4"),
+            quit = IupButton("E&xit",Icallback("exit_cb"),"PADDING=5x4"),
+            buttons = IupHbox({newgame,IupFill(),help,IupFill(),play178,IupFill(),quit}),
+--IupSetAttribute(history,"APPENDITEM","some text")
+--IupSetAttribute(history,"REMOVEITEM","ALL")
+--          vbox = IupVbox({,
+--                          },"MARGIN=5x5")
+--          game_frame = IupFrame(IupHbox({game_canvas},"MARGIN=3x3"),"TITLE=Game"),
+--          option_frame = IupFrame(vbox,"TITLE=History"),
+--          colour_frame = IupFrame(canvas,"TITLE=Colours"),
+--          full = IupHbox({canvas,IupVbox({option_frame})})
+            full = IupHbox({canvas,IupVbox({hframe,buttons})})
+--          full = IupHbox({canvas,vbox})
+    IupSetInt(play178,"ACTIVE",file_exists(p178file))
+    IupSetCallbacks({canvas}, {"ACTION", Icallback("redraw_cb"),
+                               "MAP_CB", Icallback("map_cb"),
+                               "RESIZE_CB", Icallback("canvas_resize_cb"),
+                               "BUTTON_CB", Icallback("button_cb")})
+    dlg = IupDialog(IupHbox({full},"MARGIN=3x3"),`TITLE="Morpion Solitaire"`)
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+
+    new_game()
+
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupSetAttribute(dlg, "RASTERSIZE", NULL)
+    IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
+--DEV fix/duplicate...
+--  Ihandle 
+    timer = IupTimer(Icallback("timer_cb"), 1000, active:=false)
+--  timer = NULL
+    IupMainLoop()
+    IupClose()
+end procedure
+ 
+main()
+
+
+--/*
+https://rosettacode.org/wiki/Morpion_solitaire
+#include <ncurses.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
+ 
+/* option: how long a line is. Options probably should have been made into
+* commandline args, if I were not lazy.  Also, if line_len is set to 3,
+* the game may keep going indefinitely: best use auto mode. */
+int line_len = 5;
+ 
+/* option: whether two lines are allowed to be in the same direction and
+* connected end to end.  Note: two lines crossing are always ok. */
+int disjoint = 0;
+ 
+int **board = 0, width, height;
+ 
+#define for_i for(i = 0; i < height; i++)
+#define for_j for(j = 0; j < width; j++)
+enum {
+        s_blank         = 0,
+        s_occupied      = 1 << 0,
+        s_dir_ns        = 1 << 1,
+        s_dir_ew        = 1 << 2,
+        s_dir_ne_sw     = 1 << 3,
+        s_dir_nw_se     = 1 << 4,
+        s_newly_added   = 1 << 5,
+        s_current       = 1 << 6,
+};
+ 
+int irand(int n)
+{
+        int r, rand_max = RAND_MAX - (RAND_MAX % n);
+        while ((r = rand()) >= rand_max);
+        return r / (rand_max / n);
+}
+ 
+int** alloc_board(int w, int h)
+{
+        int i;
+        int **buf = calloc(1, sizeof(int *) * h + sizeof(int) * h * w);
+ 
+        buf[0] = (int*)(buf + h);
+        for (i = 1; i < h; i++)
+                buf[i] = buf[i - 1] + w;
+        return buf;
+}
+ 
+/* -1: expand low index end; 1: exten high index end */
+void expand_board(int dw, int dh)
+{
+        int i, j;
+        int nw = width + !!dw, nh = height + !!dh;
+ 
+        /* garanteed to fragment heap: not realloc because copying elements
+         * is a bit tricky */
+        int **nbuf = alloc_board(nw, nh);
+ 
+        dw = -(dw < 0), dh = -(dh < 0);
+ 
+        for (i = 0; i < nh; i++) {
+                if (i + dh < 0 || i + dh >= height) continue;
+                for (j = 0; j < nw; j++) {
+                        if (j + dw < 0 || j + dw >= width) continue;
+                        nbuf[i][j] = board[i + dh][j + dw];
+                }
+        }
+        free(board);
+ 
+        board = nbuf;
+        width = nw;
+        height = nh;
+}
+ 
+void array_set(int **buf, int v, int x0, int y0, int x1, int y1)
+{
+        int i, j;
+        for (i = y0; i <= y1; i++)
+                for (j = x0; j <= x1; j++)
+                        buf[i][j] = v;
+}
+ 
+void show_board()
+{
+        int i, j;
+        for_i for_j mvprintw(i + 1, j * 2,
+                        (board[i][j] & s_current) ? "X "
+                        : (board[i][j] & s_newly_added) ? "O "
+                        : (board[i][j] & s_occupied) ? "+ " : "  ");
+        refresh();
+}
+ 
+void init_board()
+{
+        width = height = 3 * (line_len - 1);
+        board = alloc_board(width, height);
+ 
+        array_set(board, s_occupied, line_len - 1, 1, 2 * line_len - 3, height - 2);
+        array_set(board, s_occupied, 1, line_len - 1, width - 2, 2 * line_len - 3);
+ 
+        array_set(board, s_blank, line_len, 2, 2 * line_len - 4, height - 3);
+        array_set(board, s_blank, 2, line_len, width - 3, 2 * line_len - 4);
+}
+ 
+int ofs[4][3] = {
+        {0, 1, s_dir_ns},
+        {1, 0, s_dir_ew},
+        {1, -1, s_dir_ne_sw},
+        {1, 1, s_dir_nw_se}
+};
+ 
+typedef struct { int m, s, seq, x, y; } move_t;
+ 
+/* test if a point can complete a line, or take that point */
+void test_postion(int y, int x, move_t * rec)
+{
+        int m, k, s, dx, dy, xx, yy, dir;
+        if (board[y][x] & s_occupied) return;
+ 
+        for (m = 0; m < 4; m++) { /* 4 directions */
+                dx = ofs[m][0];
+                dy = ofs[m][1];
+                dir = ofs[m][2];
+ 
+                for (s = 1 - line_len; s <= 0; s++) { /* offset line */
+                        for (k = 0; k < line_len; k++) {
+                                if (s + k == 0) continue;
+ 
+                                xx = x + dx * (s + k);
+                                yy = y + dy * (s + k);
+                                if (xx < 0 || xx >= width || yy < 0 || yy >= height)
+                                        break;
+ 
+                                /* no piece at position */
+                                if (!(board[yy][xx] & s_occupied)) break;
+ 
+                                /* this direction taken */
+                                if ((board[yy][xx] & dir)) break;
+                        }
+                        if (k != line_len) continue;
+ 
+                        /* position ok; irand() to even each option's chance of
+                           being picked */
+                        if (! irand(++rec->seq))
+                                rec->m = m, rec->s = s, rec->x = x, rec->y = y;
+                }
+        }
+}
+ 
+void add_piece(move_t *rec) {
+        int dx = ofs[rec->m][0];
+        int dy = ofs[rec->m][1];
+        int dir= ofs[rec->m][2];
+        int xx, yy, k;
+ 
+        board[rec->y][rec->x] |= (s_current | s_occupied);
+ 
+        for (k = 0; k < line_len; k++) {
+                xx = rec->x + dx * (k + rec->s);
+                yy = rec->y + dy * (k + rec->s);
+                board[yy][xx] |= s_newly_added;
+                if (k >= disjoint || k < line_len - disjoint)
+                        board[yy][xx] |= dir;
+        }
+}
+ 
+int next_move()
+{
+        int i, j;
+        move_t rec;
+        rec.seq = 0;
+ 
+        /* wipe last iteration's new line markers */
+        for_i for_j board[i][j] &= ~(s_newly_added | s_current);
+ 
+        /* randomly pick one of next legal moves */
+        for_i for_j test_postion(i, j, &rec);
+ 
+        /* didn't find any move, game over */
+        if (!rec.seq) return 0;
+ 
+        add_piece(&rec);
+ 
+        rec.x = (rec.x == width  - 1) ? 1 : rec.x ? 0 : -1;
+        rec.y = (rec.y == height - 1) ? 1 : rec.y ? 0 : -1;
+ 
+        if (rec.x || rec.y) expand_board(rec.x, rec.y);
+        return 1;
+}
+ 
+int main()
+{
+        int ch = 0;
+        int move = 0;
+        int wait_key = 1;
+ 
+        init_board();
+        srand(time(0));
+ 
+        initscr();
+        noecho();
+        cbreak();
+ 
+        do  {
+                mvprintw(0, 0, "Move %d", move++);
+                show_board();
+                if (!next_move()) {
+                        next_move();
+                        show_board();
+                        break;
+                }
+                if (!wait_key) usleep(100000);
+                if ((ch = getch()) == ' ') {
+                        wait_key = !wait_key;
+                        if (wait_key) timeout(-1);
+                        else timeout(0);
+                }
+        } while (ch != 'q');
+ 
+        timeout(-1);
+        nocbreak();
+        echo();
+ 
+        endwin();
+        return 0;
+}
+--*/

@@ -3,10 +3,16 @@
 --
 
 global function vslice(sequence source, integer column)
+--1/10/19 (make res string if possible)
+--  for i=1 to length(source) do
+--      source[i] = source[i][column]
+--  end for
+--  return source
+    sequence res = ""
     for i=1 to length(source) do
-        source[i] = source[i][column]
+        res = append(res,source[i][column])
     end for
-    return source
+    return res
 end function
 
 --SUG: (untested/undocumented)

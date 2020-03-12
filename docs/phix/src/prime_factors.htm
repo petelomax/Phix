@@ -13,8 +13,9 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="sequence.htm">sequence</a> s = prime_factors(<a href="integer.htm">integer</a> n, 
-                                                               <a href="integer.htm#bool">bool</a> duplicates=false)
+         <a href="sequence.htm">sequence</a> s = prime_factors(<a href="atom.htm">atom</a> n, 
+                                                               <a href="integer.htm#bool">bool</a> duplicates=false,
+                                                               <a href="integer.htm">integer</a> maxprime=100)
          </td>
         </tr>
         <tr>
@@ -22,14 +23,26 @@
           <b>Description:</b>
          </td>
          <td>
-            Returns a list of prime factors of n.
+            Returns a list of prime factors of n, which must be an integer (as stored in an atom) between 1 and 
+            <a href="power.htm">power</a>(2,<a href="iff.htm">iff</a>(<a href="machine_bits.htm">machine_bits</a>()=32?53:64)).
             <br>
             <br>
-            Note that, when duplicates is false, prime_factors() always returns {} when passed a prime number.
+            Note that, when duplicates is false, prime_factors() always returns {} when passed a prime number (or 1).
             <br>
             <br>
-            When duplicates is true, for all numbers >=2, returns a list such that multiplying all the elements
-            of it together produces the value n, ie a true decomposition.
+            When duplicates is true, returns a list such that multiplying all the elements of it together produces the value n, 
+            ie a true decomposition. <br>
+            In fact, prime_factors(1,true) yields {1} as a special case to fulfil that requirement, despite 1 not actually 
+            being a prime number.<br>
+            That special case is also the one and only time the result can ever contain a 1.
+            <br>
+            <br>
+            The maxprime argument limits the number of prime number factors that are checked, for more details see
+            <a href="mpfr.htm#mpzextras">mpz_prime_factors</a>(), which is also capable of handling much larger inputs.<br>
+            The <a href="is_prime.htm">get_maxprime</a>() function can be used to obtain a suitable maxprime index by performing
+            a fast <a href="bsearch.htm">binary_search</a>() for floor(sqrt(p)), which ensures all appropriate primes are 
+            checked. However that routine is unlikely to be suitable for <a href="mpfr.htm#mpzextras">mpz_prime_factors</a>()
+            for reasons outlined therein.
          </td>
         </tr>
         <tr>
@@ -43,13 +56,19 @@ s = prime_factors(720) -- s is {2,3,5}
 s = prime_factors(12345) -- s is {3,5,823}
 s = prime_factors(27) -- s is {3}
 s = prime_factors(27,duplicates:=true) -- s is {3,3,3}
+atom a = power(2*get_prime(101),2)
+s = prime_factors(a,true)       -- s is {2,2,299209}
+s = prime_factors(a,true,101)   -- s is {2,2,547,547}
 </eucode-->
 <pre>
 <font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {2,3}
 </i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">720</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {2,3,5}
 </i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">12345</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3,5,823}
 </i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3}
-</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">,</font><font color="#000000">duplicates</font><font color="#0000FF">:=</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3,3,3}</i></font>
+</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">,</font><font color="#000000">duplicates</font><font color="#0000FF">:=</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3,3,3}
+</i></font><font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF"> =</font><font color="#7060A8"> power</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">*</font><font color="#5E005E">get_prime</font><font color="#800000">(</font><font color="#000000">101</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)
+</font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)      </font><font color="#000080"><i> -- s is {2,2,299209}
+</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">101</font><font color="#0000FF">)  </font><font color="#000080"><i> -- s is {2,2,547,547}</i></font>
 </pre>
             <br>
             In contrast, <a href="factors.htm">factors</a>(720) is 
@@ -59,6 +78,16 @@ s = prime_factors(27,duplicates:=true) -- s is {3,3,3}
             <br>
             The use of a <a href="procedures.htm#namedparams">named parameter</a> when setting the duplicates flag is recommended, 
             to make the intent clear and the code easier to read.
+            <a name=square_free></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Auxillary function:</b>
+         </td>
+         <td>
+            <a href="integer.htm#bool">bool</a> res = square_free(<a href="atom.htm">atom</a> n, <a href="integer.htm">integer</a> maxprime=100)<br>
+            returns true if prime_factors(n,true,maxprime) would contain no duplicates, but without constructing an s, and quitting early on false.
          </td>
         </tr>
         <tr>
@@ -74,7 +103,11 @@ s = prime_factors(27,duplicates:=true) -- s is {3,3,3}
           <b>See Also:</b>
          </td>
          <td>
-          <a href="factors.htm">factors</a>
+          <a href="factors.htm">factors</a>,
+          <a href="power.htm">power</a>,
+          <a href="iff.htm">iff</a>,
+          <a href="machine_bits.htm">machine_bits</a>,
+          <a href="mpfr.htm#mpzextras">mpz_prime_factors</a>
          </td>
         </tr>
        </table>

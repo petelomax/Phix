@@ -352,11 +352,9 @@ end if
 end procedure
 
 function currFile()
-integer pathno
-sequence ff
-    ff = filenames[fileno]
-    pathno = ff[1]
-    return filepaths[pathno]&ff[2]
+    {integer pathno, string res} = filenames[fileno]
+    if pathno!=0 then res = filepaths[pathno]&res end if
+    return res
 end function
 
 integer fromWarnU
@@ -626,10 +624,10 @@ sequence name
 end procedure
 
 global constant SQ_WARN=1
-global procedure Warn(sequence msg, integer tokline, integer tokcol, integer class=0)
+global procedure Warn(sequence msg, integer tokline, integer tokcol, integer warn_class=0)
 sequence txtline, wi, witxt
 integer lt
-    if optset[OptWarning] or class=SQ_WARN then
+    if optset[OptWarning] or warn_class=SQ_WARN then
 --8/7/2013: (added/undone: wasn't what I needed at the time, but something similar mey yet be rqd)
 --      if batchmode then
 --          Abort(msg)
@@ -649,6 +647,7 @@ integer lt
         if tokline!=eLine then
             printf(1,"oops: see pmsgs:Warn() [tokline:%d, eLine:%d, tokcol:%d, eCol:%d]...\n",
                         {tokline,eLine,tokcol,eCol})
+?{msg,warn_class}
             tokline = eLine
         end if
         tokcol = eCol
@@ -766,10 +765,10 @@ if batchmode then return end if
     if equal(msg,-1) then
         fromWarnU = 1   -- don't re-do tokline/tokcol
         Undefined()
---8/7/2013: (for test/terror)
---  elsif batchmode then
+--8/7/2013: (for test/terror) [removed 26/11/19...]
+    elsif batchmode then
 --MARKTYPES?? (NEWGSCAN, are unused types fatal??)
-    elsif batchmode or siNTyp=S_Type then
+--  elsif batchmode or siNTyp=S_Type then
         fromWarnU = 1   -- don't re-do tokline/tokcol
         Abort(msg)
     end if

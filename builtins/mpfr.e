@@ -19,13 +19,50 @@
 --
 --  As usual, docs will be build in tandem with this wrapper.
 --
+-- DEV/SUG the current system, ie/eg:
+--
+--      integer x_mpz_cmp_si = NULL
+--      ...
+--      if x_mpz_cmp_si=NULL then
+--          x_mpz_cmp_si = link_c_func(mpir_dll, "+__gmpz_cmp_si", {P,I},I)
+--      end if
+--      integer res = c_func(x_mpz_cmp_si,{op1,op2})
+--
+-- does not properly lend itself to unit testing of a new dll. Better:
+--
+--X     constant dx_mpir_dll = mpfr_open_dll("???") -- [hmmm...]
+--      enum MPIR,MPFR
+--      sequence dll_handles = {NULL,NULL}, -- (erm)
+--               dll_links = {}
+--
+--      /*local/private*/ 
+--      function mpfr_link_c_func(integer dll, string name, sequence args, integer res)
+--          dll_links = append(dll_links,{dll,name,args,res})
+--      --  if flag then ??? end if
+--          return length(dll_links)
+--      end function
+--      ...
+--X     constant dx_mpz_cmp_si = mpfr_link_c_func(dx_mpir_dll, "+__gmpz_cmp_si", {P,I},I)
+--      constant dx_mpz_cmp_si = mpfr_link_c_func(MPIR, "+__gmpz_cmp_si", {P,I},I)
+--      ...
+--      integer res = mpfr_c_func(dx_mpz_cmp_si,{op1,op2})
+--
+--  Obviously we normally defer all opens etc until actually needed, but 
+--  we can also set an optional flag to open all asap, as a unit test.
+--
+
 include builtins\pincpathN.e -- include_path() (temp/0.8.0+)
+include builtins\ptypes.e
 
 constant W = machine_word()     -- (4 or 8)
 
 constant
          D  = C_DOUBLE, 
          I  = C_INT,
+--       I  = C_LONG,
+--       I  = iff(machine_bits()=32 or platform()=WINDOWS ? C_INT  : C_INT64),
+--       I  = iff(machine_bits()=32 ? C_INT  : C_INT64),
+--       L  = C_LONG,
          P  = C_POINTER, 
          $
 --       F  = C_FLOAT,
@@ -34,7 +71,7 @@ constant
 --       UC = C_UCHAR,
 --       UL = C_ULONG,
 
---DEV remove if slowdown is neglible...
+--DEV remove if slowdown is neglible... [DEV it is]
 constant debug_types = true
 
 function peek4(string s4)
@@ -45,33 +82,59 @@ function peek4(string s4)
     return res
 end function
 
-constant MPFR_T = peek4("mpfr"),
-         MPZ_T = peek4("mpz\0"),
-         MPZ_R = peek4("rnd\0")
+constant MPZ_T = peek4("mpz\0"),
+         MPZ_Q = peek4("mpq\0"),
+         MPZ_R = peek4("rnd\0"),
+         MPFR_T = peek4("mpfr")
 
-global type mpfr(object o)
+global type mpz(object o)
     if not atom(o) then return false end if
-    if debug_types then
---      if o!=NULL and peek4s(o+W*4)!=MPFR_T then ?9/0 end if
-        if o!=NULL and peek4s(o+W*4)!=MPFR_T then return false end if
+    if debug_types and o!=NULL then
+        try
+            if peek4s(o+W*3)!=MPZ_T then return false end if
+        catch e
+            return false
+        end try
     end if
     return true
 end type
 
-global type mpz(object o)
+global type mpz_or_string(object o)
+    return string(o) or mpz(o)
+end type
+
+global type mpq(object o)
     if not atom(o) then return false end if
-    if debug_types then
---      if o!=NULL and peek4s(o+W*3)!=MPZ_T then ?9/0 end if
-        if o!=NULL and peek4s(o+W*3)!=MPZ_T then return false end if
+    if debug_types and o!=NULL then
+        try
+            if peek4s(o+W*6)!=MPZ_Q then return false end if
+        catch e
+            return false
+        end try
     end if
     return true
 end type
 
 global type randstate(object o)
     if not atom(o) then return false end if
-    if debug_types then
---      if o!=NULL and peek4s(o+W*5)!=MPZ_R then ?9/0 end if
-        if o!=NULL and peek4s(o+W*5)!=MPZ_R then return false end if
+    if debug_types and o!=NULL then
+        try
+            if peek4s(o+W*5)!=MPZ_R then return false end if
+        catch e
+            return false
+        end try
+    end if
+    return true
+end type
+
+global type mpfr(object o)
+    if not atom(o) then return false end if
+    if debug_types and o!=NULL then
+        try
+            if peek4s(o+W*4)!=MPFR_T then return false end if
+        catch e
+            return false
+        end try
     end if
     return true
 end type
@@ -106,7 +169,7 @@ atom mpir_dll = NULL,
      mpfr_dll = NULL
 string missing_dll  -- see mpir_open_dll()
 
-procedure open_mpir_dll(string dll_name="", bool mpir_only=false, fatal=true)
+procedure open_mpir_dll(string dll_name="", boolean mpir_only=false, fatal=true)
 --
 -- internal: via if mpXr_dll=NULL then open_mpir_dll() end if, or
 --           from mpir_open_dll as open_mpir_dll(dll_name,mpir_only,false).
@@ -196,7 +259,7 @@ if mpfr_dll!=NULL then ?9/0 end if
     end if
 end procedure
 
-global function mpir_open_dll(string dll_name="", bool mpir_only=false)
+global function mpir_open_dll(string dll_name="", boolean mpir_only=false)
 --
 -- optional, returns the name of a dll/so file it cannot open, or "" on success.
 -- If dll/so are missing, all the other routines terminate with a fatal error.
@@ -222,14 +285,15 @@ integer x_mpfr_get_version = NULL   -- (aka mpfr_version)
 atom p_mpir_version = NULL,
      p_gmp_version = NULL
 
-global function mpfr_get_versions(bool bAsNumSeq=false)
+global function mpir_get_versions(boolean bAsNumSeq=false)
 --
 -- Returns a 3-element sequence of three versions (mpfr, mpir, and gmp)
--- The default of bAsNumSeq=false returns 3 strings, eg "3.1.5", whereas 
--- a true yields a triplet of triplets, eg {{3,1,5},{2,7,2},{5,1,3}}.
--- Obviously the strings are easier for info display whereas numbers may
--- offer finer-grained control, for instance assuming that you know a 
--- specific required feature was first introduced in say version 3.1.2. 
+-- The default of bAsNumSeq=false returns 3 strings, for example
+--      {"3.1.5","2.7.2","5.1.3"}
+-- whereas a true yields a triplet of triplets, for example
+--      {{3,1,5},{2,7,2},{5,1,3}}.
+-- Obviously the strings are easier to display, whereas numbers will
+-- give a better answer than comparing some "9" and "10" part might.
 -- There is no harm whatsoever in calling this more than once.
 --
     if x_mpfr_get_version=NULL then
@@ -244,475 +308,15 @@ global function mpfr_get_versions(bool bAsNumSeq=false)
     sequence res = {iff(mpfr_dll==NULL?"mpfr_dll==NULL":peek_string(c_func(x_mpfr_get_version,{}))),
 --29/4/19:
 --                  peek_string(peek4u(p_mpir_version)),
-                    peek_string(peekNS(p_mpir_version,machine_word(),0)),
+                    peek_string(peekNS(p_mpir_version,W,0)),
 --                  peek_string(peek4u(p_gmp_version))}
-                    peek_string(peekNS(p_gmp_version,machine_word(),0))}
+                    peek_string(peekNS(p_gmp_version,W,0))}
     if bAsNumSeq then
         for i=iff(mpfr_dll==NULL?2:1) to length(res) do
             res[i] = substitute(res[i],".","-")
             {res[i]} = scanf(res[i],"%d-%d-%d")
         end for
     end if
-    return res
-end function
-
--- Technical note: MPFR_PREC_MAX is really 2^31-257 (or 2^63-257 on 64 bit), but
---                 mpfr.e (delib/implicitly) limits to integer, ie 2^30-1 (2^62-1).
---                 Besides, running out of memory when trying to allocate a 2nd 
---                 variable is not very likely to be useful to anyone anyway...
---                 The default precision of 53/64 matches IEEE-754, which makes
---                 using mpfr.e instead of atom fairly pointless, except perhaps
---                 to make sure it gets (almost?) exactly the same results.
-
-integer x_mpfr_get_default_prec = NULL,
-        x_mpfr_set_default_prec = NULL,
---      default_precision = iff(W=4?53:64)
---dev FIXME? (see list.asm/ildump.txt)
-        default_precision = iff(machine_bits()=32?53:64)
-
-global function mpfr_get_default_prec()
-    if x_mpfr_get_default_prec=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_get_default_prec = link_c_func(mpfr_dll, "+mpfr_get_default_prec", {}, I)
-    end if
-    integer precision = c_func(x_mpfr_get_default_prec,{})
-    if default_precision!=precision then ?9/0 end if
-    return precision
-end function
-
-global procedure mpfr_set_default_prec(integer precision)
-    if precision<1 then ?9/0 end if
-    if x_mpfr_set_default_prec=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_set_default_prec = link_c_proc(mpfr_dll, "+mpfr_set_default_prec", {I})
-    end if
-    c_proc(x_mpfr_set_default_prec,{precision})
-    default_precision = precision
-end procedure
-
-global constant MPFR_RNDN = 0,  -- round to nearest
-                MPFR_RNDZ = 1,  -- round toward zero
-                MPFR_RNDU = 2,  -- round toward +infinity
-                MPFR_RNDD = 3,  -- round toward -infinity
-                MPFR_RNDA = 4,  -- round away from zero
---              MPFR_RNDF = 5?  -- faithful rounding. (experimental?)
-                GMP_RNDN = MPFR_RNDN,
-                GMP_RNDZ = MPFR_RNDZ,
-                GMP_RNDU = MPFR_RNDU,
-                GMP_RNDD = MPFR_RNDD
-
-integer x_mpfr_get_default_rounding_mode = NULL,    -- (aka __gmp_default_rounding_mode)
-        x_mpfr_set_default_rounding_mode = NULL,
-        default_rounding = MPFR_RNDN
-
-global function mpfr_get_default_rounding_mode()
-    if x_mpfr_get_default_rounding_mode=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_get_default_rounding_mode = link_c_func(mpfr_dll, "+mpfr_get_default_rounding_mode", {}, I)
-    end if
-    integer rounding = c_func(x_mpfr_get_default_rounding_mode,{})
-    if default_rounding!=rounding then ?9/0 end if
-    return rounding
-end function
-
-global procedure mpfr_set_default_rounding_mode(integer rounding)
--- Set the default rounding mode. The initial default rounding mode is to nearest (MPFR_RNDN).
-    if rounding<MPFR_RNDN or rounding>MPFR_RNDA then ?9/0 end if
-    if x_mpfr_set_default_rounding_mode=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_set_default_rounding_mode = link_c_proc(mpfr_dll, "+mpfr_set_default_rounding_mode", {I})
-    end if
-    c_proc(x_mpfr_set_default_rounding_mode,{rounding})
-    default_rounding = rounding
-end procedure
-
-integer x_mpfr_set_d = NULL
-
-global procedure mpfr_set_d(mpfr x, atom v, integer rounding=default_rounding)
--- set x from a phix atom
-    if x=NULL then ?9/0 end if
-    if x_mpfr_set_d=NULL then
-        x_mpfr_set_d = link_c_proc(mpfr_dll, "+mpfr_set_d", {P,D,I})
-    end if
-    c_proc(x_mpfr_set_d,{x,v,rounding})
-end procedure
-
-integer x_mpfr_set_si = NULL
-
-global procedure mpfr_set_si(mpfr x, integer v, integer rounding=default_rounding)
--- set x from a phix integer
-    if x=NULL then ?9/0 end if
-    if x_mpfr_set_si=NULL then
-        x_mpfr_set_si = link_c_proc(mpfr_dll, "+mpfr_set_si", {P,I,I})
-    end if
-    c_proc(x_mpfr_set_si,{x,v,rounding})
-end procedure
-
-integer x_mpfr_set_str = NULL
-
-global procedure mpfr_set_str(mpfr x, string s, integer base=0, rounding=default_rounding)
--- set x from a string
-    if x=NULL then ?9/0 end if
-    if x_mpfr_set_str=NULL then
-        x_mpfr_set_str = link_c_func(mpfr_dll, "+mpfr_set_str", {P,I,I},I)
-    end if
-    if c_func(x_mpfr_set_str,{x,s,base,rounding})!=0 then ?9/0 end if
-end procedure
-if "abc"="def" then mpfr_set_str(NULL,"") end if --DEV/temp
-
-integer x_mpfr_clear = NULL
-
-procedure _mpfr_clear(mpfr x)
---
--- (internal / call mpfr_free() instead)
--- Frees any mpfr-side memory associated with x, but not the phix-side
--- as was allocated within mpfr_init(). Better: mpfr_free() does both.
---
-    if x=NULL then ?9/0 end if
-    if x_mpfr_clear=NULL then
-        x_mpfr_clear = link_c_proc(mpfr_dll, "+mpfr_clear", {P})
-    end if
-    c_proc(x_mpfr_clear,{x})
-    poke4(x+4*W,NULL)
-end procedure
-
-procedure free_mpfr(atom x)
--- (internal, delete_routine)
-    if peek4s(x+W*4)=MPFR_T then _mpfr_clear(x) end if
-    free(x)
-end procedure
-constant r_free_mpfr = routine_id("free_mpfr")
-
-integer x_mpfr_init2 = NULL
-
-global function mpfr_init(object v=0, integer precision=default_precision, rounding=default_rounding)
---
--- example: mpfr x = mpfr_init()
--- Invoke x = mpfr_free(x) when the variable is no longer needed, see below.
---
-    atom res = allocate(5*W)    -- (extra dword for MPFR_T)
-    res = delete_routine(res,r_free_mpfr)
-    poke4(res+4*W,MPFR_T)
-    if x_mpfr_init2=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_init2 = link_c_proc(mpfr_dll, "+mpfr_init2", {P,I})
-    end if
-    c_proc(x_mpfr_init2,{res,precision})
-    if integer(v) then
-        -- (aside: note, as per docs, the default here /is/ 0 rather than the nan of the raw C api)
-        mpfr_set_si(res,v,rounding)
-    elsif atom(v) then
-        mpfr_set_d(res,v,rounding)
-    elsif string(v) then
-        mpfr_set_str(res,v,rounding)
-    else
-        ?9/0 -- what's v??
-    end if
-    return res  
-end function
-
-integer x_mpfr_set = NULL
-
-global procedure mpfr_set(mpfr tgt, src, integer rounding=default_rounding)
-    if tgt=NULL then ?9/0 end if
-    if src=NULL then ?9/0 end if
-    if x_mpfr_set=NULL then
-        x_mpfr_set = link_c_proc(mpfr_dll, "+mpfr_set", {P,P,I})
-    end if
-    c_proc(x_mpfr_set,{tgt,src,rounding})
-end procedure
-
-integer x_mpfr_get_prec = NULL
-
-global function mpfr_get_prec(mpfr x)
-    if x=NULL then ?9/0 end if
-    if x_mpfr_get_prec=NULL then
-        x_mpfr_get_prec = link_c_func(mpfr_dll, "+mpfr_get_prec", {P}, I)
-    end if
-    integer precision = c_func(x_mpfr_get_prec,{x})
-    return precision
-end function
-
-global function mpfr_init_set(mpfr src, integer rounding=default_rounding)
-    if src=NULL then ?9/0 end if
-    integer precision = mpfr_get_prec(src)
-    atom res = mpfr_init(0,precision,rounding)
-    mpfr_set(res,src)
-    return res  
-end function
-
-global function mpfr_free(object x)
---
--- Clear and deallocate any variables created using mpfr_init()
---
--- usage: x = mpfr_free(x)
---    or: {y,z} = mpfr_free({y,z})
---
---  (perhaps one day I'll implement var-id so that you won't 
---   have to specify everything twice in cases like this...)
---
-    if sequence(x) then
-        for i=1 to length(x) do
-            atom xi = x[i]  -- typecheck/prohibit deep nesting
-            _mpfr_clear(xi)
-            x[i] = NULL     -- see aside
-        end for
-        --
-        -- aside: The above x[i]=NULL does not immediately trigger 
-        --        the cleanup requested (ie 2nd parameter of 1 to 
-        --        allocate) in mpfr_new(); the (lhs) assignment in 
-        --        the calling code does. Just so that you know.
-        --
-        --        Notice that if we didn't set x[i] like that, the
-        --        release might be further deferred by refcounts
-        --        remaining in x/the hidden temp variable, that is
-        --        until the latter was also released/reused.
-        --
-        return x
-    end if
-    _mpfr_clear(x)
-    return NULL
-end function
-
-integer x_mpfr_set_prec = NULL
-
-global procedure mpfr_set_prec(mpfr x, integer precision)
---
--- Reset the precision of x to be exactly prec bits, and set its value to NaN. 
--- The previous value stored in x is lost. It is equivalent to a call to mpfr_clear(x) 
---  followed by a call to mpfr_init2(x, prec), but more efficient as no allocation is 
---  done in case the current allocated space for the significand of x is enough. 
--- The precision prec can be any integer between MPFR_PREC_MIN and MPFR_PREC_MAX. 
--- To keep the previous value stored in x, use mpfr_prec_round instead.
---
--- precision is the number of bits required for the mantissa
---
-    if x=NULL then ?9/0 end if
-    if x_mpfr_set_prec=NULL then
-        x_mpfr_set_prec = link_c_proc(mpfr_dll, "+mpfr_set_prec", {P,I})
-    end if
-    c_proc(x_mpfr_set_prec,{x,precision})
-end procedure
-
-integer x_mpfr_const_pi = NULL
-
-global procedure mpfr_const_pi(mpfr x, integer rounding=default_rounding)
-    if x=NULL then ?9/0 end if
-    if x_mpfr_const_pi=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_const_pi = link_c_proc(mpfr_dll, "+mpfr_const_pi", {P,I})
-    end if
-    c_proc(x_mpfr_const_pi,{x,rounding})
-end procedure
-
-integer x_mpfr_free_str = NULL
-
-procedure _mpfr_free_str(atom pString)
--- (deliberately internal-only)
-    if x_mpfr_free_str=NULL then
-        x_mpfr_free_str = link_c_proc(mpfr_dll, "+mpfr_free_str", {P})
-    end if
-    c_proc(x_mpfr_free_str,{pString})
-end procedure
-
-integer x_mpfr_get_str = NULL
-
-global function mpfr_get_str(mpfr x, integer base=10, n=0, rounding=default_rounding)
---
--- Note the arguments are in a quite different order to the C function.
--- Here, we let mpfr allocate space (and free it automatically), hence that
---  first arg of the C function gets entirely hidden from the outside world.
--- The second arg (exponent dword pointer) is likewise allocated/freed here.
--- The x argument is moved from 5th to 1st place, for default value reasons.
---
---      ie     C: mpfr_get_str(<string_ptr>, <expptr>, base, n, x, rounding)
---      ==> phix: mpfr_get_str(x, base, n, rounding)
---
--- Returns a string with an implied radix point and an integer exponent, eg
---  when x is -3.1416, mpfr_get_str(x) returns {"-31416",1}
---
--- The mpfr_sprintf() function is generally probably better/easier.
---
-    if x=NULL then ?9/0 end if
-    if x_mpfr_get_str=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_get_str = link_c_func(mpfr_dll, "+mpfr_get_str", {P,P,I,I,P,I}, P)
-    end if
-    atom pExponent = allocate(W)
-    atom pString = c_func(x_mpfr_get_str,{NULL,pExponent,base,n,x,rounding})
-    string res = peek_string(pString)
-    integer exponent = peek4u(pExponent)
-    free(pExponent)
-    _mpfr_free_str(pString)
-    return {res,exponent}
-end function
-
-integer x_mpfr_asprintf = NULL
-
-global function mpfr_sprintf(string fmt, atom x)
---
--- NB: only supports a single 'R' or 'Z' conversion specifier.
---  The R can be followed by a rounding mode:
---      U - round toward plus infinity
---      D - round toward minus infinity
---      Y - round away from zero
---      Z - round toward zero
---      N - round to nearest (with ties to even)
---  and must then be followed by one of abefg or AEFG.
---  The 'Z' must be followed by one of dxX or possibly aceEfigGo.
---  I trust it is obvious this uses the C sprintf, not the phix one.
---
---  Example: string res = mpfr_asprintf(x,"%.1000Rf") -- print to 1000 d.p.
---
---  Under the hood this actually uses mpfr_asprintf (ie allocate the output buffer).
---
-    if x=NULL or not (mpfr(x) or mpz(x)) then ?9/0 end if
-    if x_mpfr_asprintf=NULL then
-        if mpfr_dll=NULL then open_mpir_dll() end if
-        x_mpfr_asprintf = link_c_func(mpfr_dll, "+mpfr_asprintf", {P,P,P}, I)
-    end if
-    atom pString = allocate(W)
-    integer len = c_func(x_mpfr_asprintf,{pString,fmt,x})
-    atom rawString = peekNS(pString,W,false)
-    string res = peek_string(rawString)
-    _mpfr_free_str(rawString)
-    free(pString)
-    return res
-end function
-
-global procedure mpfr_printf(integer fn, string fmt, atom x)
-    puts(fn,mpfr_sprintf(fmt,x))
-end procedure
-
-integer x_mpfr_add = NULL
-
-global procedure mpfr_add(mpfr rop, op1, op2, integer rounding=default_rounding)
---rop := op1+op2
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if op2=NULL then ?9/0 end if
-    if x_mpfr_add=NULL then
-        x_mpfr_add = link_c_proc(mpfr_dll, "+mpfr_add", {P,P,P,I})
-    end if
-    c_proc(x_mpfr_add,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_add_si = NULL
-
-global procedure mpfr_add_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
---rop := op1+op2
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if x_mpfr_add_si=NULL then
-        x_mpfr_add_si = link_c_proc(mpfr_dll, "+mpfr_add_si", {P,P,I,I})
-    end if
-    c_proc(x_mpfr_add_si,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_sub = NULL
-
-global procedure mpfr_sub(mpfr rop, op1, op2, integer rounding=default_rounding)
---rop := op1-op2
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if op2=NULL then ?9/0 end if
-    if x_mpfr_sub=NULL then
-        x_mpfr_sub = link_c_proc(mpfr_dll, "+mpfr_sub", {P,P,P,I})
-    end if
-    c_proc(x_mpfr_sub,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_sub_si = NULL
-
-global procedure mpfr_sub_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
---rop := op1-op2
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if x_mpfr_sub_si=NULL then
-        x_mpfr_sub_si = link_c_proc(mpfr_dll, "+mpfr_sub_si", {P,P,I,I})
-    end if
-    c_proc(x_mpfr_sub_si,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_mul = NULL
-
-global procedure mpfr_mul(mpfr rop, op1, op2, integer rounding=default_rounding)
---rop := op1*op2
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if op2=NULL then ?9/0 end if
-    if x_mpfr_mul=NULL then
-        x_mpfr_mul = link_c_proc(mpfr_dll, "+mpfr_mul", {P,P,P,I})
-    end if
-    c_proc(x_mpfr_mul,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_mul_si = NULL
-
-global procedure mpfr_mul_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
---rop := op1*op2
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if x_mpfr_mul_si=NULL then
-        x_mpfr_mul_si = link_c_proc(mpfr_dll, "+mpfr_mul_si", {P,P,I,I})
-    end if
-    c_proc(x_mpfr_mul_si,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_div = NULL
-
-global procedure mpfr_div(mpfr rop, op1, op2, integer rounding=default_rounding)
--- rop := op1/op2
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if op2=NULL then ?9/0 end if
-    if x_mpfr_div=NULL then
-        x_mpfr_div = link_c_proc(mpfr_dll, "+mpfr_div", {P,P,P,I})
-    end if
-    c_proc(x_mpfr_div,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_div_si = NULL
-
-global procedure mpfr_div_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
-    if rop=NULL then ?9/0 end if
-    if op1=NULL then ?9/0 end if
-    if x_mpfr_div_si=NULL then
-        x_mpfr_div_si = link_c_proc(mpfr_dll, "+mpfr_div_si", {P,P,I,I})
-    end if
-    c_proc(x_mpfr_div_si,{rop,op1,op2,rounding})
-end procedure
-
-integer x_mpfr_sqr = NULL
-
-global procedure mpfr_sqr(mpfr rop, op, integer rounding=default_rounding)
-    if rop=NULL then ?9/0 end if
-    if op=NULL then ?9/0 end if
-    if x_mpfr_sqr=NULL then
-        x_mpfr_sqr = link_c_proc(mpfr_dll, "+mpfr_sqr", {P,P,I})
-    end if
-    c_proc(x_mpfr_sqr,{rop,op,rounding})
-end procedure
-
-integer x_mpfr_sin = NULL
-
-global procedure mpfr_sin(mpfr rop, op, integer rounding=default_rounding)
-    if rop=NULL then ?9/0 end if
-    if op=NULL then ?9/0 end if
-    if x_mpfr_sin=NULL then
-        x_mpfr_sin = link_c_proc(mpfr_dll, "+mpfr_sin", {P,P,I})
-    end if
-    c_proc(x_mpfr_sin,{rop,op,rounding})
-end procedure
-
-integer x_mpfr_get_si = NULL
-
-global function mpfr_get_si(mpfr op, integer rounding=default_rounding)
-    if op=NULL then ?9/0 end if
-    if x_mpfr_get_si=NULL then
-        x_mpfr_get_si = link_c_func(mpfr_dll, "+mpfr_get_si", {P,I},I)
-    end if
-    atom res = c_func(x_mpfr_get_si,{op,rounding})
     return res
 end function
 
@@ -753,15 +357,50 @@ if "abc"="def" then mpz_set_d(NULL,0) end if    --DEV/temp
 
 integer x_mpz_set_str = NULL
 
-global procedure mpz_set_str(mpz rop, string s, integer base=10)
+global procedure mpz_set_str(mpz rop, string s, integer base=0)
     if rop=NULL then ?9/0 end if
+    if base<0 or base=1 or base>62 then ?9/0 end if
     if x_mpz_set_str=NULL then
-        x_mpz_set_str = link_c_proc(mpir_dll, "+__gmpz_set_str", {P,P,I})
+        x_mpz_set_str = link_c_func(mpir_dll, "+__gmpz_set_str", {P,P,I},I)
     end if
-    c_proc(x_mpz_set_str,{rop,s,base})
+    if c_func(x_mpz_set_str,{rop,s,base})!=0 then ?9/0 end if
 end procedure
 --DEV (NEWGSCAN)
 if "abc" = "def" then mpz_set_str(NULL,"") end if
+
+integer x_mpz_import = NULL
+
+global procedure mpz_import(mpz rop, integer count, order, size, endian, nails, atom_string op)
+    if rop=NULL then ?9/0 end if
+    if count<1 then ?9/0 end if
+    if order!=1 and order!=-1 then ?9/0 end if
+    if not find(size,{1,2,4,8}) then ?9/0 end if    -- (blind stab)
+    if not find(endian,{1,0,-1}) then ?9/0 end if
+    if nails<0 then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpz_import=NULL then
+        x_mpz_import = link_c_proc(mpir_dll, "+__gmpz_import", {P,I,I,I,I,I,P})
+    end if
+    c_proc(x_mpz_import,{rop,count,order,size,endian,nails,op})
+end procedure
+
+integer x_mpz_export = NULL
+
+global function mpz_export(atom pMem, integer order, size, endian, nails, mpz op)
+    if pMem=NULL then ?9/0 end if
+    if order!=1 and order!=-1 then ?9/0 end if
+    if not find(size,{1,2,4,8}) then ?9/0 end if    -- (blind stab)
+    if not find(endian,{1,0,-1}) then ?9/0 end if
+    if nails<0 then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpz_export=NULL then
+        x_mpz_export = link_c_proc(mpir_dll, "+__gmpz_export", {P,I,I,I,I,I,P})
+    end if
+    atom pCount = allocate(W,1)
+    c_proc(x_mpz_export,{pMem,pCount,order,size,endian,nails,op})
+    integer count = peekNS(pCount,W,0)
+    return count
+end function
 
 integer x_gmp_init = NULL,
         x_gmp_init2 = NULL,
@@ -839,13 +478,33 @@ global function mpz_init(object v=0, integer bitcount=0)
 --
 --  Initialise. Covers the C functions mpz_init, mpz_int2, mpz_init_set_d, mpz_init_set_si, and mpz_init_set_str
 --
--- Invoke x = mpz_clear(x) when the variable is no longer needed, see below (will occur automatically).
+-- Invoke x = mpz_free(x) when the variable is no longer needed, see below (will occur automatically).
 --
     atom res = allocate(4*W)    -- (extra dword for MPZ_T)
     res = delete_routine(res,r_free_mpz)
     poke4(res+3*W,MPZ_T)
     _mpz_init2(res,v,bitcount)
     return res  
+end function
+
+global function mpz_inits(integer n, object v=0)
+--
+-- Eg: mpz {x,y,z} = mpz_init(3)
+--
+--  Initialise n variables to v.
+--  v may be integer, atom, string, or a sequence of length n of said.
+--  Obviously the result may be stored in a sequence.
+--
+-- Invoke {x,y,z} = mpz_free({x,y,z}) when the variables are no longer needed, see below (will occur automatically).
+--
+    sequence res = repeat(0,n)
+    if sequence(v) and not string(v) then
+        if length(v)!=n then ?9/0 end if
+        for i=1 to n do res[i] = mpz_init(v[i]) end for
+    else
+        for i=1 to n do res[i] = mpz_init(v) end for
+    end if
+    return res
 end function
 
 integer x_gmp_init_set = NULL
@@ -861,12 +520,13 @@ global function mpz_init_set(mpz src)
     return res
 end function
 
-global function mpz_clear(object x)
+--global function mpz_clear(object x)
+global function mpz_free(object x)
 --
 -- Clear and deallocate any variables created using mpz_init(). (Invoked automatically if rqd)
 --
--- usage: x = mpz_clear(x)
---    or: {y,z} = mpz_clear({y,z})
+-- usage: x = mpz_free(x)
+--    or: {y,z} = mpz_free({y,z})
 --
 --  (perhaps one day I'll implement var-id so that you won't 
 --   have to specify everything twice in cases like this...)
@@ -945,6 +605,59 @@ global procedure mpz_sub_ui(mpz rop, op1, integer op2)
     c_proc(x_mpz_sub_ui,{rop,op1,op2})
 end procedure
 
+integer x_mpz_ui_sub = NULL
+
+global procedure mpz_ui_sub(mpz rop, integer op1, mpz op2)
+-- rop = op1 - op2
+    if rop=NULL then ?9/0 end if
+    if op1<0 then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_ui_sub=NULL then
+        x_mpz_ui_sub = link_c_proc(mpir_dll, "+__gmpz_ui_sub", {P,I,P})
+    end if
+    c_proc(x_mpz_ui_sub,{rop,op1,op2})
+end procedure
+
+global procedure mpz_add_si(atom rop, op1, integer op2)
+    if op2<0 then
+        mpz_sub_ui(rop,op1,-op2)
+    else
+        mpz_add_ui(rop,op1,op2)
+    end if
+end procedure
+
+global procedure mpz_sub_si(atom rop, op1, integer op2)
+    if op2<0 then
+        mpz_add_ui(rop,op1,-op2)
+    else
+        mpz_sub_ui(rop,op1,op2)
+    end if
+end procedure
+
+integer x_mpz_abs = NULL
+
+global procedure mpz_abs(mpz rop, op)
+-- rop = abs(op)
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpz_abs=NULL then
+        x_mpz_abs = link_c_proc(mpir_dll, "+__gmpz_abs", {P,P})
+    end if
+    c_proc(x_mpz_abs,{rop,op})
+end procedure
+
+integer x_mpz_neg = NULL
+
+global procedure mpz_neg(mpz rop, op)
+-- rop = -op
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpz_neg=NULL then
+        x_mpz_neg = link_c_proc(mpir_dll, "+__gmpz_neg", {P,P})
+    end if
+    c_proc(x_mpz_neg,{rop,op})
+end procedure
+
 integer x_mpz_mul = NULL
 
 global procedure mpz_mul(mpz rop, op1, op2)
@@ -961,13 +674,38 @@ end procedure
 integer x_mpz_mul_si = NULL
 
 global procedure mpz_mul_si(mpz rop, op1, integer op2)
--- Set rop to op1 * op2.
+-- Set rop to op1 * op2, where op2 is +/-1GB.
     if rop=NULL then ?9/0 end if
     if op1=NULL then ?9/0 end if
     if x_mpz_mul_si=NULL then
         x_mpz_mul_si = link_c_proc(mpir_dll, "+__gmpz_mul_si", {P,P,I})
     end if
     c_proc(x_mpz_mul_si,{rop,op1,op2})
+end procedure
+
+mpz muld = NULL     -- (/not/ thread safe..)
+
+global procedure mpz_mul_d(mpz rop, op1, atom op2)
+-- as mpz_mul_si() except op2 is a phix atom.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+--maybe/untested:
+--if integer(op2) then
+--  mpz_mul_si(rop,op1,op2)
+--else
+    if muld=NULL then
+        muld = mpz_init(op2)
+    else
+        mpz_set_d(muld,op2)
+    end if
+    mpz_mul(rop,op1,muld)
+--end if
+end procedure
+
+global procedure mpz_si_sub(atom rop, integer op1, mpz op2)
+-- mpz_ui_sub() except op1 can be +/-1GB
+    mpz_sub_ui(rop,op2,op1)
+    mpz_mul_si(rop,rop,-1)
 end procedure
 
 integer x_mpz_mul_2exp = NULL
@@ -982,6 +720,165 @@ global procedure mpz_mul_2exp(mpz rop, op1, integer op2)
     c_proc(x_mpz_mul_2exp,{rop,op1,op2})
 end procedure
 
+integer x_mpz_fdiv_q_2exp = NULL
+
+global procedure mpz_fdiv_q_2exp(mpz q, n, integer b)
+    if q=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if x_mpz_fdiv_q_2exp=NULL then
+        x_mpz_fdiv_q_2exp = link_c_proc(mpir_dll, "+__gmpz_fdiv_q_2exp", {P,P,I})
+    end if
+    c_proc(x_mpz_fdiv_q_2exp,{q,n,b})
+end procedure
+
+integer x_mpz_fdiv_q = NULL
+
+global procedure mpz_fdiv_q(mpz q, n, d)
+-- q := floor(n/d)
+    if q=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if d=NULL then ?9/0 end if
+    if x_mpz_fdiv_q=NULL then
+        x_mpz_fdiv_q = link_c_proc(mpir_dll, "+__gmpz_fdiv_q", {P,P,P})
+    end if
+    c_proc(x_mpz_fdiv_q,{q,n,d})
+end procedure
+
+integer x_mpz_fdiv_r = NULL
+
+global procedure mpz_fdiv_r(mpz r, n, d)
+-- r := remainder(n,d)
+    if r=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if d=NULL then ?9/0 end if
+    if x_mpz_fdiv_r=NULL then
+        x_mpz_fdiv_r = link_c_proc(mpir_dll, "+__gmpz_fdiv_r", {P,P,P})
+    end if
+    c_proc(x_mpz_fdiv_r,{r,n,d})
+end procedure
+
+integer x_mpz_fdiv_q_ui = NULL
+
+global function mpz_fdiv_q_ui(mpz q, n, integer d)
+-- {q,res} := {floor(n/d),remainder(n,d)}
+    if q=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if d<=0 then ?9/0 end if
+    if x_mpz_fdiv_q_ui=NULL then
+        x_mpz_fdiv_q_ui = link_c_func(mpir_dll, "+__gmpz_fdiv_q_ui", {P,P,I},I)
+    end if
+    integer res = c_func(x_mpz_fdiv_q_ui,{q,n,d})
+    return res
+end function
+
+integer x_mpz_fdiv_qr = NULL
+
+global procedure mpz_fdiv_qr(mpz q, r, n, d)
+-- {q,r} := {floor(n/d),remainder(n,d)}
+    if q=NULL then ?9/0 end if
+    if r=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if d=NULL then ?9/0 end if
+    if x_mpz_fdiv_qr=NULL then
+        x_mpz_fdiv_qr = link_c_proc(mpir_dll, "+__gmpz_fdiv_qr", {P,P,P,P})
+    end if
+    c_proc(x_mpz_fdiv_qr,{q,r,n,d})
+end procedure
+
+integer x_mpz_tdiv_q_2exp = NULL
+
+global procedure mpz_tdiv_q_2exp(mpz q, n, integer b)
+-- q := trunc(n/2^b) rounds q towards zero
+-- For positive n mpz_tdiv_q_2exp is a simple bitwise right shift.
+-- For negative n mpz_tdiv_q_2exp effectively treats n as sign and magnitude. [untested...]
+-- In all cases q and r will satisfy n = qd + r, and r will satisfy 0 <= |r| < |d|.
+    if q=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+--  if b=NULL then ?9/0 end if
+    if x_mpz_tdiv_q_2exp=NULL then
+        x_mpz_tdiv_q_2exp = link_c_proc(mpir_dll, "+__gmpz_tdiv_q_2exp", {P,P,I})
+    end if
+    c_proc(x_mpz_tdiv_q_2exp,{q,n,b})
+end procedure
+
+integer x_mpz_tdiv_r_2exp = NULL
+
+global procedure mpz_tdiv_r_2exp(mpz r, n, integer b)
+-- r := remainder(n,2^b) r will have the same sign as n
+-- In all cases q and r will satisfy n = qd + r, and r will satisfy 0 <= |r| < |d|.
+    if r=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+--  if d=NULL then ?9/0 end if
+    if x_mpz_tdiv_r_2exp=NULL then
+        x_mpz_tdiv_r_2exp = link_c_proc(mpir_dll, "+__gmpz_tdiv_r_2exp", {P,P,I})
+    end if
+    c_proc(x_mpz_tdiv_r_2exp,{r,n,b})
+end procedure
+
+integer x_mpz_cdiv_q = NULL
+
+global procedure mpz_cdiv_q(mpz q, n, d)
+-- q := ceil(n/d)
+    if q=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if d=NULL then ?9/0 end if
+    if x_mpz_cdiv_q=NULL then
+        x_mpz_cdiv_q = link_c_proc(mpir_dll, "+__gmpz_cdiv_q", {P,P,P})
+    end if
+    c_proc(x_mpz_cdiv_q,{q,n,d})
+end procedure
+
+integer x_mpz_divisible_p = NULL
+
+global function mpz_divisible_p(mpz n, d)
+    if n=NULL then ?9/0 end if
+    if d=NULL then ?9/0 end if
+    if x_mpz_divisible_p=NULL then
+        x_mpz_divisible_p = link_c_func(mpir_dll, "+__gmpz_divisible_p", {P,P},I)
+    end if
+    boolean res = c_func(x_mpz_divisible_p,{n,d})
+    return res
+end function
+
+integer x_mpz_divisible_ui_p = NULL
+
+global function mpz_divisible_ui_p(mpz n, integer d)
+    if n=NULL then ?9/0 end if
+    if d<0 then ?9/0 end if
+    if x_mpz_divisible_ui_p=NULL then
+        x_mpz_divisible_ui_p = link_c_func(mpir_dll, "+__gmpz_divisible_ui_p", {P,I},I)
+    end if
+    boolean res = c_func(x_mpz_divisible_ui_p,{n,d})
+    return res
+end function
+
+integer x_mpz_divisible_2exp_p = NULL
+
+global function mpz_divisible_2exp_p(mpz n, integer b)
+    if n=NULL then ?9/0 end if
+    if b<0 then ?9/0 end if
+    if x_mpz_divisible_2exp_p=NULL then
+        x_mpz_divisible_2exp_p = link_c_func(mpir_dll, "+__gmpz_divisible_2exp_p", {P,I},I)
+    end if
+    boolean res = c_func(x_mpz_divisible_2exp_p,{n,b})
+    return res
+end function
+
+integer x_mpz_remove = NULL
+
+global function mpz_remove(mpz rop, op, f)
+--Remove all occurrences of the factor f from op and store the result in rop.
+--The return value is how many such occurrences were removed.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if f=NULL then ?9/0 end if
+    if x_mpz_remove=NULL then
+        x_mpz_remove = link_c_func(mpir_dll, "+__gmpz_remove", {P,P,P},I)
+    end if
+    integer res = c_func(x_mpz_remove,{rop,op,f})
+    return res
+end function
+
 integer x_mpz_mod = NULL
 
 global procedure mpz_mod(mpz r, n, d)
@@ -994,6 +891,19 @@ global procedure mpz_mod(mpz r, n, d)
     end if
     c_proc(x_mpz_mod,{r,n,d})
 end procedure
+
+integer x_mpz_fdiv_ui = NULL
+
+global function mpz_fdiv_ui(mpz n, integer d)
+-- returns mod(n,d) [n and d remain unaltered]
+    if n=NULL then ?9/0 end if
+    if d<0 then ?9/0 end if
+    if x_mpz_fdiv_ui=NULL then
+        x_mpz_fdiv_ui = link_c_func(mpir_dll, "+__gmpz_fdiv_ui", {P,I},I)
+    end if
+    integer res = c_func(x_mpz_fdiv_ui,{n,d})
+    return res
+end function
 
 integer x_mpz_mod_ui = NULL
 
@@ -1011,32 +921,6 @@ global function mpz_mod_ui(mpz r, n, integer d)
     return res
 end function
 
-
-integer x_mpz_fdiv_q_2exp = NULL
-
-global procedure mpz_fdiv_q_2exp(mpz q, n, integer bit_count)
-    if q=NULL then ?9/0 end if
-    if n=NULL then ?9/0 end if
-    if x_mpz_fdiv_q_2exp=NULL then
-        x_mpz_fdiv_q_2exp = link_c_proc(mpir_dll, "+__gmpz_fdiv_q_2exp", {P,P,I})
-    end if
-    c_proc(x_mpz_fdiv_q_2exp,{q,n,bit_count})
-end procedure
-
-integer x_mpz_fdiv_qr = NULL
-
-global procedure mpz_fdiv_qr(mpz q, r, n, d)
--- {q,r} := {floor(n/d),remainder(n,d)}
-    if q=NULL then ?9/0 end if
-    if r=NULL then ?9/0 end if
-    if n=NULL then ?9/0 end if
-    if d=NULL then ?9/0 end if
-    if x_mpz_fdiv_qr=NULL then
-        x_mpz_fdiv_qr = link_c_proc(mpir_dll, "+__gmpz_fdiv_qr", {P,P,P,P})
-    end if
-    c_proc(x_mpz_fdiv_qr,{q,r,n,d})
-end procedure
-
 integer x_mpz_cmp = NULL
 
 global function mpz_cmp(mpz op1, op2)
@@ -1048,6 +932,8 @@ global function mpz_cmp(mpz op1, op2)
         x_mpz_cmp = link_c_func(mpir_dll, "+__gmpz_cmp", {P,P},I)
     end if
     integer res = c_func(x_mpz_cmp,{op1,op2})
+--if not find(res,{-1,0,+1}) then ?9/0 end if   -- triggered (res==3)...
+    res = sign(res)     -- (.. so we /do/ actually need this).
     return res
 end function
 
@@ -1058,10 +944,40 @@ global function mpz_cmp_si(mpz op1, integer op2)
 --value if op1 < op2.
     if op1=NULL then ?9/0 end if
     if x_mpz_cmp_si=NULL then
-        x_mpz_cmp_si = link_c_func(mpir_dll, "+__gmpz_cmp_si", {P,P},I)
+        x_mpz_cmp_si = link_c_func(mpir_dll, "+__gmpz_cmp_si", {P,I},I)
     end if
     integer res = c_func(x_mpz_cmp_si,{op1,op2})
+--if not find(res,{-1,0,+1}) then ?9/0 end if   -- triggered...
+    res = sign(res) -- (... so we /do/ actually need this)
     return res
+end function
+
+global function mpz_min(sequence s, boolean return_index=false)
+    mpz res = s[1]  -- (ioob as per docs...)
+    integer rdx = 1
+    for i=2 to length(s) do
+        if mpz_cmp(s[i],res)=-1 then
+            res = s[i]
+            rdx = i
+        end if
+    end for
+    return iff(return_index?rdx:res)
+end function
+
+global function mpz_max(sequence s, boolean return_index=false)
+    mpz res = s[1]  -- (ioob as per docs...)
+    integer rdx = 1
+    for i=2 to length(s) do
+        if mpz_cmp(s[i],res)=+1 then
+            res = s[i]
+            rdx = i
+        end if
+    end for
+    return iff(return_index?rdx:res)
+end function
+
+global function mpz_sign(mpz op1)
+    return compare(mpz_cmp_si(op1,0),0) -- -1: op1 -ve, 0: op1=0, +1: op1+ve
 end function
 
 integer x_mpz_tstbit = NULL
@@ -1074,6 +990,14 @@ global function mpz_tstbit(mpz op, integer bit_index)
     end if
     integer res = c_func(x_mpz_tstbit,{op,bit_index})
     return res
+end function
+
+global function mpz_odd(mpz op1)
+    return mpz_tstbit(op1,0)
+end function
+
+global function mpz_even(mpz op1)
+    return not mpz_tstbit(op1,0)
 end function
 
 integer x_mpz_scan0 = NULL
@@ -1166,61 +1090,231 @@ global procedure mpz_ui_pow_ui(mpz rop, integer base, exponent)
     c_proc(x_mpz_ui_pow_ui,{rop,base,exponent})
 end procedure
 
-integer x_mpz_fits_slong_p = NULL
+integer x_mpz_root = NULL
 
-global function mpz_fits_slong_p(mpz op)
--- Return non-zero iff the value of op fits in a (signed) long, otherwise, return zero.
+global function mpz_root(mpz rop, op, integer n)
+--Set rop to the truncated integer part of the nth root of op.
+--Return true if the computation was exact, i.e. rop===op^n.
+    if rop=NULL then ?9/0 end if
     if op=NULL then ?9/0 end if
-    if x_mpz_fits_slong_p=NULL then
-        x_mpz_fits_slong_p = link_c_func(mpir_dll, "+__gmpz_fits_slong_p", {P},I)
+    if n<1 then ?9/0 end if
+    if x_mpz_root=NULL then
+        x_mpz_root = link_c_func(mpir_dll, "+__gmpz_root", {P,P,I}, I)
     end if
-    integer res = c_func(x_mpz_fits_slong_p,{op})
+    bool bExact = (c_func(x_mpz_root,{rop,op,n})!=0)
+    return bExact
+end function
+
+integer x_mpz_sqrt = NULL
+
+global procedure mpz_sqrt(mpz rop, op)
+--Set rop to the truncated integer part of the square root of op.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpz_sqrt=NULL then
+        x_mpz_sqrt = link_c_proc(mpir_dll, "+__gmpz_sqrt", {P,P})
+    end if
+    c_proc(x_mpz_sqrt,{rop,op})
+end procedure
+
+integer x_mpz_sqrtrem = NULL
+
+global procedure mpz_sqrtrem(mpz rop1, rop2, op)
+--Set rop1 to the truncated integer part of the square root of op,
+--and rop2 to the remainder op-rop1^2, which will be zero if op is
+--a perfect square.
+--If rop1 and rop2 are the same variable, the results are undefined.
+    if rop1=NULL then ?9/0 end if
+    if rop2=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpz_sqrtrem=NULL then
+        x_mpz_sqrtrem = link_c_proc(mpir_dll, "+__gmpz_sqrtrem", {P,P,P})
+    end if
+    c_proc(x_mpz_sqrtrem,{rop1,rop2,op})
+end procedure
+
+integer x_mpz_fib_ui = NULL
+
+--global procedure mpz_fib_ui(mpz fn, integer n)
+global procedure mpz_fib_ui(mpz fn, atom n)
+--Set fn to the n'th Fibonacci number.
+    if fn=NULL then ?9/0 end if
+    if n<0 then ?9/0 end if
+    if x_mpz_fib_ui=NULL then
+        x_mpz_fib_ui = link_c_proc(mpir_dll, "+__gmpz_fib_ui", {P,I})
+    end if
+    c_proc(x_mpz_fib_ui,{fn,n})
+end procedure
+
+integer x_mpz_fib2_ui = NULL
+
+global procedure mpz_fib2_ui(mpz fn, fnsub1, integer n)
+--Set fn to the n'th Fibonacci number, and fnsub1 to the n-1'th.
+    if fn=NULL then ?9/0 end if
+    if fnsub1=NULL then ?9/0 end if
+    if n<0 then ?9/0 end if
+    if x_mpz_fib2_ui=NULL then
+        x_mpz_fib2_ui = link_c_proc(mpir_dll, "+__gmpz_fib2_ui", {P,P,I})
+    end if
+    c_proc(x_mpz_fib2_ui,{fn,fnsub1,n})
+end procedure
+
+--/*
+--integer x_mpz_fits_slong_p = NULL
+--
+--global function mpz_fits_slong_p(mpz op)
+---- Return non-zero iff the value of op fits in a (signed) long, otherwise, return zero.
+--  if op=NULL then ?9/0 end if
+--  if x_mpz_fits_slong_p=NULL then
+--      x_mpz_fits_slong_p = link_c_func(mpir_dll, "+__gmpz_fits_slong_p", {P},I)
+--  end if
+--  integer res = c_func(x_mpz_fits_slong_p,{op})
+--  return res
+--end function
+--
+--integer x_mpz_fits_ulong_p = NULL
+--
+--global function mpz_fits_ulong_p(mpz op)
+---- Return non-zero iff the value of op fits in an unsigned long, otherwise, return zero.
+--  if op=NULL then ?9/0 end if
+--  if x_mpz_fits_ulong_p=NULL then
+--      x_mpz_fits_ulong_p = link_c_func(mpir_dll, "+__gmpz_fits_ulong_p", {P},I)
+--  end if
+--  integer res = c_func(x_mpz_fits_ulong_p,{op})
+--  return res
+--end function
+--*/
+
+integer x_mpz_gcd = NULL
+
+global procedure mpz_gcd(mpz rop, op1, op2)
+--Set rop to the greatest common divisor of op1 and op2. The result is always positive even if
+--one or both input operands are negative.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_gcd=NULL then
+        x_mpz_gcd = link_c_proc(mpir_dll, "+__gmpz_gcd", {P,P,P})
+    end if
+    c_proc(x_mpz_gcd,{rop,op1,op2})
+end procedure
+
+integer x_mpz_gcd_ui = NULL
+
+global function mpz_gcd_ui(mpz rop, op1, integer op2)
+--Compute the greatest common divisor of op1 and op2. If rop is not NULL, store the result there.
+--If the result is small enough to fit in an mpir_ui, it is returned. If the result does not fit, 0
+--is returned, and the result is equal to the argument op1. Note that the result will always fit
+--if op2 is non-zero.
+--  if rop=NULL then ?9/0 end if     -- (NB apparently permitted by the C api)
+    if op1=NULL then ?9/0 end if
+    if op2<0 then ?9/0 end if
+    if x_mpz_gcd_ui=NULL then
+        x_mpz_gcd_ui = link_c_func(mpir_dll, "+__gmpz_gcd_ui", {P,P,I},I)
+    end if
+    integer res = c_func(x_mpz_gcd_ui,{rop,op1,op2})
     return res
 end function
 
-integer x_mpz_fits_ulong_p = NULL
+integer x_mpz_lcm = NULL
 
-global function mpz_fits_ulong_p(mpz op)
--- Return non-zero iff the value of op fits in an unsigned long, otherwise, return zero.
-    if op=NULL then ?9/0 end if
-    if x_mpz_fits_ulong_p=NULL then
-        x_mpz_fits_ulong_p = link_c_func(mpir_dll, "+__gmpz_fits_ulong_p", {P},I)
+global procedure mpz_lcm(mpz rop, op1, op2)
+--Set rop to the least common multiple of op1 and op2. rop is always positive, irrespective of
+--the signs of op1 and op2. rop will be zero if either op1 or op2 is zero.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_lcm=NULL then
+        x_mpz_lcm = link_c_proc(mpir_dll, "+__gmpz_lcm", {P,P,P})
     end if
-    integer res = c_func(x_mpz_fits_ulong_p,{op})
-    return res
-end function
+    c_proc(x_mpz_lcm,{rop,op1,op2})
+end procedure
+
+integer x_mpz_lcm_ui = NULL
+
+global procedure mpz_lcm_ui(mpz rop, op1, integer op2)
+--Set rop to the least common multiple of op1 and op2. rop is always positive, irrespective of
+--the signs of op1 and op2. rop will be zero if either op1 or op2 is zero.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_lcm_ui=NULL then
+        x_mpz_lcm_ui = link_c_proc(mpir_dll, "+__gmpz_lcm_ui", {P,P,I})
+    end if
+    c_proc(x_mpz_lcm_ui,{rop,op1,op2})
+end procedure
+
+integer x_mpz_fac_ui = NULL
+
+global procedure mpz_fac_ui(mpz rop, integer n)
+--Set rop to the factorial of n.
+    if rop=NULL then ?9/0 end if
+    if n<0 then ?9/0 end if
+    if x_mpz_fac_ui=NULL then
+        x_mpz_fac_ui = link_c_proc(mpir_dll, "+__gmpz_fac_ui", {P,I})
+    end if
+    c_proc(x_mpz_fac_ui,{rop,n})
+end procedure
 
 integer x_mpz_get_si = NULL
 
-global function mpz_get_si(mpz op)
---Return the value of op as an mpir_si.
---If op fits into a mpir_si return the value of op. Otherwise return the least significant part
---of op, with the same sign as op.
---If op is too big to fit in a mpir_si, the returned result is probably not very useful. To find
---out if the value will fit, use the function mpz_fits_slong_p.
+--global function mpz_get_si(mpz op)
+global function mpz_get_integer(mpz op)
+--Return the value of op as a phix integer.
+--If op is too big to fit in an integer, it will either crash or return a meaningless result.
+--To find out if the value will fit, use the function mpz_fits_integer.
     if op=NULL then ?9/0 end if
     if x_mpz_get_si=NULL then
         x_mpz_get_si = link_c_func(mpir_dll, "+__gmpz_get_si", {P},I)
     end if
+--DEV I find myself repeatedly umm-ing and ahh-ing over this...
     integer res = c_func(x_mpz_get_si,{op})
+--  atom res = c_func(x_mpz_get_si,{op})
     return res
 end function
 
-integer x_mpz_get_ui = NULL
+--global function mpz_get_integer(mpz op)
+--  return mpz_get_si(op)
+--end function
 
-global function mpz_get_ui(mpz op)
---Return the value of op as an mpir_ui.
---If op is too big to fit an mpir_ui then just the least significant bits that do fit are returned.
---The sign of op is ignored, only the absolute value is used.
---If op is too big to fit in a mpir_ui, the returned result is probably not very useful. To find
---out if the value will fit, use the function mpz_fits_ulong_p.
-    if op=NULL then ?9/0 end if
-    if x_mpz_get_ui=NULL then
-        x_mpz_get_ui = link_c_func(mpir_dll, "+__gmpz_get_ui", {P},I)
+global function mpz_get_atom(mpz op)
+--Return the value of op as a phix atom.
+--If op is too big to fit in an atom, it will either crash or return +/-inf.
+--To find out if the value will fit, use the function mpz_fits_atom.
+    atom res = 0
+--  bool signed = mpz_sign(op)=-1
+    boolean signed = (mpz_cmp_si(op,0)<0)
+    mpz temp = mpz_init_set(op)
+    if signed then
+        mpz_ui_sub(temp,0,temp)
     end if
-    integer res = c_func(x_mpz_get_ui,{op})
+    -- keep it simple...
+    atom p10 = 1
+    while mpz_cmp_si(temp,0) do
+        res += mpz_fdiv_q_ui(temp,temp,1000000000)*p10
+        p10 *= 1000000000
+    end while
+    if signed then res *= -1 end if
     return res
 end function
+
+--/*
+--integer x_mpz_get_ui = NULL
+--
+--global function mpz_get_ui(mpz op)
+----Return the value of op as an mpir_ui.
+----If op is too big to fit an mpir_ui then just the least significant bits that do fit are returned.
+----The sign of op is ignored, only the absolute value is used.
+----If op is too big to fit in a mpir_ui, the returned result is probably not very useful. To find
+----out if the value will fit, use the function mpz_fits_ulong_p.
+--  if op=NULL then ?9/0 end if
+--  if x_mpz_get_ui=NULL then
+--      x_mpz_get_ui = link_c_func(mpir_dll, "+__gmpz_get_ui", {P},I)
+--  end if
+--  integer res = c_func(x_mpz_get_ui,{op})
+--  return res
+--end function
+--*/
 
 integer x_mpz_size = NULL
 
@@ -1238,6 +1332,7 @@ end function
 
 integer x_mpz_sizeinbase = NULL
 
+--bool loopy = true
 global function mpz_sizeinbase(mpz op, integer base)
 --
 -- Return the size of op measured in number of digits in the given base.
@@ -1253,16 +1348,54 @@ global function mpz_sizeinbase(mpz op, integer base)
 --  in op, counting from 1. (Unlike the bitwise functions which start from 0, See Section 5.11
 --
     if op=NULL then ?9/0 end if
+    if base<2 or base>62 then ?9/0 end if
     if x_mpz_sizeinbase=NULL then
         x_mpz_sizeinbase = link_c_func(mpir_dll, "+__gmpz_sizeinbase", {P,I},I)
     end if
     integer res = c_func(x_mpz_sizeinbase,{op,base})
+    if mpz_cmp_si(op,0)>0 then
+--if loopy then
+--  loopy = false
+        mpz tmp = mpz_init()
+        mpz_ui_pow_ui(tmp,base,res-1)
+--?{"mpz_sib",mpz_get_str(op),mpz_get_str(tmp),res}
+--      if mpz_cmp(op,tmp)<0 then res -= 1 ?"-1" end if
+        if mpz_cmp(op,tmp)<0 then res -= 1 end if
+--  loopy = true
+--end if
+    end if
     return res
+end function
+
+global function mpz_fits_integer(mpz op)
+-- Return true iff the value of op fits in a (signed) integer, otherwise, return false.
+-- Note this actually returns false for -#40000000, which technically fits, but true
+-- for -#40000001..#3FFFFFFF, and false for (+)#40000000 (on 32-bit).
+    if op=NULL then ?9/0 end if
+--  integer res = c_func(x_mpz_fits_slong_p,{op})
+    return mpz_sizeinbase(op,2)<machine_bits()-1
+end function
+
+global function mpz_fits_atom(mpz op, boolean tztrim=false)
+-- Return true iff the value of op fits in a phix atom, otherwise, return false.
+-- Note: this returns false for 9007199254740992 (on 32 bit), since that is
+--       the first value that "accidentally" fits, by ending in a binary 0.
+    integer n = mpz_sizeinbase(op,2),
+            lim = iff(machine_bits()=32?53:64)
+    if tztrim and n>lim then
+        mpz temp = mpz_init_set(op)
+        while n>lim and mpz_even(temp) do
+            {} = mpz_fdiv_q_ui(temp,temp,2)
+            n -= 1 
+        end while
+        temp = mpz_free(temp)
+    end if
+    return n<=lim
 end function
 
 integer x_mpz_get_str = NULL
 
-global function mpz_get_str(mpz x, integer base=10, bool comma_fill=false)
+global function mpz_get_str(mpz x, integer base=10, boolean comma_fill=false)
 --
 -- Note this always allocates memory for the first argument to the C function,
 -- and the other two arguments are swapped for default value reasons.
@@ -1286,6 +1419,7 @@ global function mpz_get_str(mpz x, integer base=10, bool comma_fill=false)
 --     I also tested that block sizes of 1,2,3,..10 work as well.
 --
     if x=NULL then ?9/0 end if
+    if base<2 or base>62 then ?9/0 end if
     if x_mpz_get_str=NULL then
         if mpir_dll=NULL then open_mpir_dll() end if
         x_mpz_get_str = link_c_func(mpir_dll, "+__gmpz_get_str", {P,I,P}, P)
@@ -1318,7 +1452,8 @@ global function mpz_get_str(mpz x, integer base=10, bool comma_fill=false)
         res &= ci
     end for
     if comma_fill then
-        res = reverse(join_by(reverse(res),1,3,"",","))[2..$]
+--      res = reverse(join_by(reverse(res),1,3,"",","))[2..$]
+        res = reverse(join_by(reverse(res),1,3,repeat(' ',0),repeat(',',1)))[2..$]
     end if
     return res
 end function
@@ -1342,7 +1477,6 @@ while e_size<300000 do
     end if
 end while
 --*/
-
 
 integer x_mpz_probable_prime_p = NULL
 
@@ -1378,7 +1512,8 @@ global procedure gmp_randseed(randstate state, atom mpz_seed=NULL)
         x_gmp_randseed = link_c_proc(mpir_dll, "+__gmp_randseed", {P,I})
     end if
     if mpz_seed=NULL then
-        string tmp = ""&('0'+rand(9)) -- (first digit!=0)
+--      string tmp = ""&('0'+rand(9)) -- (first digit!=0)
+        string tmp = repeat('0'+rand(9),1) -- (first digit!=0)
         for x=2 to 200 do
             tmp &= '0'+rand(10)-1     -- (then 199* 0..9)
         end for
@@ -1444,12 +1579,1347 @@ global procedure mpz_urandomm(mpz rop, randstate state, mpz n)
     c_proc(x_mpz_urandomm,{rop,state,n})
 end procedure
 
+include builtins\primes.e -- (an autoinclude, but why not)
+
+randstate pf_state=NULL
+integer pfs_cs = 0
+
+global function mpz_prime_factors(mpz_or_string s, integer maxprime=100)
+--
+-- Attempts to decompse the integer s into powers of small primes.
+-- returns eg 108 ==> {{2,2},{3,3}}  (ie 2^2*3^3==4*27==108)
+--         or 10080 ==> {{2,5},{3,2},{5,1},{7,1}}
+--         or 1196836 ==> {{2,2},{"299209"}}
+--  Each element is a {prime,power} pair, except last may be a lone string.
+--  See mpz_factorstring() for more clarification and handling of that.
+--
+-- The default 100th prime is 541, so at that setting this is exact/complete 
+--  for all inputs <= 541^2 == "292681", and you can easily raise (or lower) 
+--  that limit, within reason.
+-- However, factors of even a 500-digit number is properly hard, so hard that 
+--  in fact almost all internet security is based on it being a *really* hard 
+--  problem. Hence this is designed to "give up" early/in a sensible fashion, 
+--  eg: mpz_prime_factors(sprintf("%d",power(2*get_prime(101),2)),100) yields
+--  {{2,2},{"299209"}}. Note that length(res[$]) is 1, which means it greater
+--  than either get_prime(maxprime)^2 or power(2,machine_word()), hence it 
+--  returns it as a (lone) final string. Also, while all other elements of
+--  res are almost certainly phix integer, res[$][1] may be atom (1GB..4GB).
+--  Increasing maxprime to 101 above would obviously yield {{2,2},{547,2}},
+--  ie from mpz_prime_factors(sprintf("%d",power(2*get_prime(101),2)),101).
+--  [[Technically on 32-bit (no such "hole" on 64-bit) it could yield atoms
+--    in the range power(2,32..53) as "exact". However a) there are no mpz
+--    routines matching mpz_fits_ulong_p/mpz_get_ui, not that a few divides
+--    and multiplications should trouble us, along with some calls to say
+--    mpz_sizeinbase() to determine when to attempt, but more importantly 
+--    b) there does not seem to be very much point in bothering.]]
+-- Once again, see below for one suggested way to cope with all of that.
+--  
+    sequence res = {}
+    mpz n = iff(string(s)?mpz_init(s):mpz_init_set(s)),
+        f = mpz_init()
+    integer c = mpz_cmp_si(n,1), p
+    if c<=0 then
+        -- (special cases, equivalent to prime_factors(0)==>{}
+        --                           and prime_factors(1)==>{1})
+        res = iff(c<0?{}:{{2,0}})
+    else    
+--      if pf_state=NULL then pf_state = gmp_randinit_mt() end if       
+        if pf_state=NULL then
+            enter_cs()
+            if pf_state=NULL then
+                pf_state = gmp_randinit_mt()
+                pfs_cs = init_cs()
+            end if
+            leave_cs()
+        end if
+        enter_cs(pfs_cs)
+        boolean is_prime = mpz_probable_prime_p(n,pf_state,20)
+        leave_cs(pfs_cs)
+        if not is_prime then
+            for d=1 to maxprime do
+                enter_cs(pfs_cs)
+                p = get_prime(d)
+                leave_cs(pfs_cs)
+                if mpz_divisible_ui_p(n, p) then
+                    mpz_set_si(f,p)
+                    integer e = mpz_remove(n, n, f)
+                    res = append(res,{p,e})
+                    if mpz_cmp_si(n,1)=0 then exit end if
+                    enter_cs(pfs_cs)
+                    is_prime = mpz_probable_prime_p(n,pf_state,20)
+                    leave_cs(pfs_cs)
+                    if is_prime then exit end if
+                end if
+            end for
+        end if
+        if mpz_cmp_si(n,1)!=0 then
+--          boolean fits = mpz_fits_integer(n)
+            boolean fits = mpz_fits_atom(n)
+            if fits and not is_prime then
+--              mpz_ui_pow_ui(f, get_prime(maxprime), 2)
+                enter_cs(pfs_cs)
+                p = get_prime(maxprime)
+                leave_cs(pfs_cs)
+                mpz_ui_pow_ui(f, p, 2)
+                if mpz_cmp(n,f)>0 then
+                    fits = false
+                end if
+            end if
+            if fits then
+--              res = append(res,{mpz_get_ui(n),1})
+--              res = append(res,{mpz_get_si(n),1})
+--              res = append(res,{mpz_get_integer(n),1})
+                res = append(res,{mpz_get_atom(n),1})
+            else
+                res = append(res,{mpz_get_str(n)})
+            end if
+        end if
+    end if
+    {n,f} = mpz_free({n,f})
+    return res
+end function
+
+--/*
+This also looks doable (from http://rosettacode.org/wiki/Prime_decomposition#Perl_6 )
+Pure Perl 6
+This is a pure perl 6 version that uses no outside libraries. 
+It uses a variant of Pollard's rho factoring algorithm and is fairly performent when factoring numbers < 2^80; typically taking well under a second on an i7. 
+It starts to slow down with larger numbers, but really bogs down factoring numbers that have more than 1 factor larger than about 2^40.
+
+sub prime-factors ( Int $n where * > 0 ) {
+    return $n if $n.is-prime;
+    return () if $n == 1;
+    my $factor = find-factor( $n );
+    sort flat ( $factor, $n div $factor ).map: *.&prime-factors;
+}
+ 
+sub find-factor ( Int $n, $constant = 1 ) {
+    return 2 unless $n +& 1;
+    if (my $gcd = $n gcd 6541380665835015) > 1 { # magic number: [*] primes 3 .. 43
+        return $gcd if $gcd != $n
+    }
+    my $x      = 2;
+    my $rho    = 1;
+    my $factor = 1;
+    while $factor == 1 {
+        $rho = $rho +< 1;
+        my $fixed = $x;
+        my int $i = 0;
+        while $i < $rho {
+            $x = ( $x * $x + $constant ) % $n;
+            $factor = ( $x - $fixed ) gcd $n;
+            last if 1 < $factor;
+            $i = $i + 1;
+        }
+    }
+    $factor = find-factor( $n, $constant + 1 ) if $n == $factor;
+    $factor;
+}
+ 
+.put for (2^29-1, 2^14-1, 2^59-1, 2^71-1, 2^79-1, 2^97-1, 2^117-1, 2^241-1,
+5465610891074107968111136514192945634873647594456118359804135903459867604844945580205745718497)\
+.hyper(:1batch).map: -> $n {
+    my $start = now;
+   "factors of $n: ",
+    prime-factors($n).join(' * '), " \t in ", (now - $start).fmt("%0.3f"), " sec."
+}
+Output:
+factors of 536870911:  233 * 1103 * 2089         in  0.004  sec.
+factors of 2199023255551:  13367 * 164511353     in  0.011  sec.
+factors of 576460752303423487:  179951 * 3203431780337       in  0.023  sec.
+factors of 2361183241434822606847:  228479 * 48544121 * 212885833    in  0.190  sec.
+factors of 604462909807314587353087:  2687 * 202029703 * 1113491139767       in  0.294  sec.
+factors of 158456325028528675187087900671:  11447 * 13842607235828485645766393       in  0.005  sec.
+factors of 166153499473114484112975882535043071:  7 * 73 * 79 * 937 * 6553 * 8191 * 86113 * 121369 * 7830118297          in  0.022  sec.
+factors of 3533694129556768659166595001485837031654967793751237916243212402585239551:  22000409 * 160619474372352289412737508720216839225805656328990879953332340439     in  0.085  sec.
+factors of 5465610891074107968111136514192945634873647594456118359804135903459867604844945580205745718497:  
+            165901 * 10424087 * 18830281 * 53204737 * 56402249 * 59663291 * 91931221 * 95174413 * 305293727939 * 444161842339 * 790130065009             in  28.427  sec.
+--*/
+
+global function mpz_factorstring(sequence s)
+-- converts eg {{2,2},{3,3}} to "2^2*3^3"
+-- s is typically from mpz_prime_factors(), but does not have to be.
+-- s[$] may be {string} (ie unfactored/able).
+    if s={} then return "0" end if      -- (rather than ""/crash)
+    if s={{2,0}} then return "1" end if -- (rather than "2^0")
+    string res = ""
+    boolean inexact = length(s[$])=1
+    for i=1 to length(s)-inexact do
+        {atom p, integer e} = s[i]
+        if length(res) then res &= "*" end if
+        res &= sprintf("%d",p)
+        if e!=1 then
+            res &= sprintf("^%d",{e})
+        end if
+    end for
+    if inexact then
+        if length(res) then res &= "*" end if
+        res &= s[$][1]
+    end if
+    return res
+end function
+
+global procedure mpz_re_compose(mpz rop, sequence s)
+-- takes eg {{2,2},{3,3}} and sets rop to 108,
+-- where 108 is 2^2*3^3 ie 4*27.
+    if length(s)=0 then
+        mpz_set_si(rop,1)
+    else
+        mpz pn = mpz_init()
+        boolean inexact = length(s[$])=1
+        if inexact then
+            mpz_set_str(rop,s[$][1])
+        else
+            mpz_set_si(rop,1)
+        end if
+        for i=1 to length(s)-inexact do
+            {atom p, integer e} = s[i]
+            mpz_ui_pow_ui(pn,p,e)
+            mpz_mul(rop,rop,pn)
+        end for
+        pn = mpz_free(pn)
+    end if
+end procedure
+
+--DEV erm, I think this should be mpz_bin_uiui()...
+global function mpz_binom(integer n, k)
+-- equivalent, for small n and k, to builtins/factorial.e's choose()
+    mpz r = mpz_init(1)
+    for i=1 to k do
+--      r := (r*(n-i+1))/i
+        mpz_mul_si(r,r,n-i+1)
+        if mpz_fdiv_q_ui(r,r,i)!=0 then ?9/0 end if
+    end for
+    return r
+end function
+
+--SUG:
+--/*
+--function mpz_binom(integer n, k)
+procedure mpz_binom(mpz r, integer n, k)
+--  mpz r = mpz_init(1)
+    mpz_set_si(r,1)
+    for i=1 to k do
+        mpz_mul_si(r,r,n-i+1)
+        if mpz_fdiv_q_ui(r, r, i)!=0 then ?9/0 end if
+    end for
+--  return mpz_get_str(r)
+--end function
+end procedure
+ 
+mpz r = mpz_init()
+--?mpz_binom(10,4) 
+mpz_binom(r,10,4) 
+?mpz_get_str(r)
+--?k_perm(10,4)
+?choose(10,4)
+--*/
+
+-- Technical note: MPFR_PREC_MAX is really 2^31-257 (or 2^63-257 on 64 bit), but
+--                 mpfr.e (delib/implicitly) limits to integer, ie 2^30-1 (2^62-1).
+--                 Besides, running out of memory when trying to allocate a 2nd 
+--                 variable is not very likely to be useful to anyone anyway...
+--                 The default precision of 53/64 matches IEEE-754, which makes
+--                 using mpfr.e instead of atom fairly pointless, except perhaps
+--                 to make sure it gets (almost?) exactly the same results.
+
+integer x_mpfr_get_default_prec = NULL,
+        x_mpfr_set_default_prec = NULL,
+--      default_precision = iff(W=4?53:64)
+--dev FIXME? (see list.asm/ildump.txt)
+        default_precision = iff(machine_bits()=32?53:64)
+
+function precision_in_decimal(integer precision)
+-- (internal) convert a binary precision to decimal places (see notes in docs)
+    if precision<=0 then ?9/0 end if
+    mpz twos = mpz_init()
+    mpz_set_str(twos,repeat('2',precision),base:=2)
+    precision = mpz_sizeinbase(twos,10)
+    twos = mpz_free(twos)
+    return precision
+end function
+
+global function mpfr_get_default_prec(boolean decimal=false)
+    if x_mpfr_get_default_prec=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_get_default_prec = link_c_func(mpfr_dll, "+mpfr_get_default_prec", {}, I)
+    end if
+    integer precision = c_func(x_mpfr_get_default_prec,{})
+    if default_precision!=precision then ?9/0 end if
+    if decimal then precision = precision_in_decimal(precision) end if
+    return precision
+end function
+
+function precision_in_dp(integer precision)
+-- (internal) convert a (-ve) precision specified in decimal places to binary bits
+    if precision>=0 then ?9/0 end if
+    mpz nines = mpz_init(repeat('9',-precision))
+    precision = mpz_sizeinbase(nines,2) + 2 -- (+2 as documented in phix.chm/mpfr_set_default_prec)
+--  precision = mpz_sizeinbase(nines,2)
+    nines = mpz_free(nines)
+    return precision
+end function
+
+global procedure mpfr_set_default_prec(integer precision)
+    if x_mpfr_set_default_prec=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_set_default_prec = link_c_proc(mpfr_dll, "+mpfr_set_default_prec", {I})
+    end if
+    if precision<1 then precision = precision_in_dp(precision) end if
+    c_proc(x_mpfr_set_default_prec,{precision})
+    default_precision = precision
+end procedure
+
+global constant MPFR_RNDN = 0,  -- round to nearest
+                MPFR_RNDZ = 1,  -- round toward zero
+                MPFR_RNDU = 2,  -- round toward +infinity
+                MPFR_RNDD = 3,  -- round toward -infinity
+                MPFR_RNDA = 4,  -- round away from zero
+--              MPFR_RNDF = 5?  -- faithful rounding. (experimental?)
+                GMP_RNDN = MPFR_RNDN,
+                GMP_RNDZ = MPFR_RNDZ,
+                GMP_RNDU = MPFR_RNDU,
+                GMP_RNDD = MPFR_RNDD,
+                GMP_RNDA = MPFR_RNDA
+
+integer x_mpfr_get_default_rounding_mode = NULL,    -- (aka __gmp_default_rounding_mode)
+        x_mpfr_set_default_rounding_mode = NULL,
+        default_rounding = MPFR_RNDN
+
+global function mpfr_get_default_rounding_mode()
+    if x_mpfr_get_default_rounding_mode=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_get_default_rounding_mode = link_c_func(mpfr_dll, "+mpfr_get_default_rounding_mode", {}, I)
+    end if
+    integer rounding = c_func(x_mpfr_get_default_rounding_mode,{})
+    if default_rounding!=rounding then ?9/0 end if
+    return rounding
+end function
+
+global procedure mpfr_set_default_rounding_mode(integer rounding)
+-- Set the default rounding mode. The initial default rounding mode is to nearest (MPFR_RNDN).
+    if rounding<MPFR_RNDN or rounding>MPFR_RNDA then ?9/0 end if
+    if x_mpfr_set_default_rounding_mode=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_set_default_rounding_mode = link_c_proc(mpfr_dll, "+mpfr_set_default_rounding_mode", {I})
+    end if
+    c_proc(x_mpfr_set_default_rounding_mode,{rounding})
+    default_rounding = rounding
+end procedure
+
+integer x_mpfr_set_d = NULL
+
+global procedure mpfr_set_d(mpfr x, atom v, integer rounding=default_rounding)
+-- set x from a phix atom
+    if x=NULL then ?9/0 end if
+    if x_mpfr_set_d=NULL then
+        x_mpfr_set_d = link_c_proc(mpfr_dll, "+mpfr_set_d", {P,D,I})
+    end if
+    c_proc(x_mpfr_set_d,{x,v,rounding})
+end procedure
+
+integer x_mpfr_set_si = NULL
+
+global procedure mpfr_set_si(mpfr x, integer v, integer rounding=default_rounding)
+-- set x from a phix integer
+    if x=NULL then ?9/0 end if
+    if x_mpfr_set_si=NULL then
+        x_mpfr_set_si = link_c_proc(mpfr_dll, "+mpfr_set_si", {P,I,I})
+    end if
+    c_proc(x_mpfr_set_si,{x,v,rounding})
+end procedure
+
+integer x_mpfr_set_str = NULL
+
+global procedure mpfr_set_str(mpfr x, string s, integer base=0, rounding=default_rounding)
+-- set x from a string
+    if x=NULL then ?9/0 end if
+    if base<0 or base=1 or base>62 then ?9/0 end if
+    if x_mpfr_set_str=NULL then
+        x_mpfr_set_str = link_c_func(mpfr_dll, "+mpfr_set_str", {P,P,I,I},I)
+    end if
+    if c_func(x_mpfr_set_str,{x,s,base,rounding})!=0 then ?9/0 end if
+end procedure
+if "abc"="def" then mpfr_set_str(NULL,"") end if --DEV/temp
+
+
+--Function: int mpfr_set_q (mpfr_t rop, mpq_t op, mpfr_rnd_t rnd)
+--mpfr_set_q might fail if the numerator (or the denominator) can not be represented as a mpfr_t.
+integer x_mpfr_set_q = NULL
+
+global procedure mpfr_set_q(mpfr rop, mpq op, integer rounding=default_rounding)
+-- set the mpfr rop from an mpz
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_set_q=NULL then
+--      x_mpfr_set_q = link_c_func(mpfr_dll, "+mpfr_set_q", {P,P,I},I)
+        x_mpfr_set_q = link_c_proc(mpfr_dll, "+mpfr_set_q", {P,P,I})
+    end if
+    -- not quite sure exactly what the result is, seems to be -1/0/+1, 
+    -- I would hazard it is some kind of comparison/rounding thing...
+--  if c_func(x_mpfr_set_q,{rop,op,rounding})!=0 then ?9/0 end if
+    c_proc(x_mpfr_set_q,{rop,op,rounding})
+end procedure
+
+
+--__MPFR_DECLSPEC int mpfr_set_z (mpfr_ptr, mpz_srcptr, mpfr_rnd_t);
+----__MPFR_DECLSPEC int mpfr_set_z (mpfr_ptr, mpz_srcptr, mpfr_rnd_t);
+--Function: int mpfr_set_z (mpfr_t rop, mpz_t op, mpfr_rnd_t rnd)
+integer x_mpfr_set_z = NULL
+
+global procedure mpfr_set_z(mpfr rop, mpz op, integer rounding=default_rounding)
+-- set the mpfr rop from an mpz
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_set_z=NULL then
+--      x_mpfr_set_z = link_c_func(mpfr_dll, "+mpfr_set_z", {P,P,I},I)
+        x_mpfr_set_z = link_c_proc(mpfr_dll, "+mpfr_set_z", {P,P,I})
+    end if
+--  if c_func(x_mpfr_set_z,{rop,op,rounding})!=0 then ?9/0 end if
+    c_proc(x_mpfr_set_z,{rop,op,rounding})
+end procedure
+
+integer x_mpfr_clear = NULL
+
+procedure _mpfr_clear(mpfr x)
+--
+-- (internal / call mpfr_free() instead)
+-- Frees any mpfr-side memory associated with x, but not the phix-side
+-- as was allocated within mpfr_init(). Better: mpfr_free() does both.
+--
+    if x=NULL then ?9/0 end if
+    if x_mpfr_clear=NULL then
+        x_mpfr_clear = link_c_proc(mpfr_dll, "+mpfr_clear", {P})
+    end if
+    c_proc(x_mpfr_clear,{x})
+    poke4(x+4*W,NULL)
+end procedure
+
+procedure free_mpfr(atom x)
+-- (internal, delete_routine)
+    if peek4s(x+W*4)=MPFR_T then _mpfr_clear(x) end if
+    free(x)
+end procedure
+constant r_free_mpfr = routine_id("free_mpfr")
+
+integer x_mpfr_init2 = NULL
+
+global function mpfr_init(object v=0, integer precision=default_precision, rounding=default_rounding)
+--
+-- example: mpfr x = mpfr_init()
+-- Invoke x = mpfr_free(x) when the variable is no longer needed, see below.
+--
+    atom res = allocate(5*W)    -- (extra dword for MPFR_T)
+    res = delete_routine(res,r_free_mpfr)
+    poke4(res+4*W,MPFR_T)
+    if x_mpfr_init2=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_init2 = link_c_proc(mpfr_dll, "+mpfr_init2", {P,I})
+    end if
+    if precision<1 then precision = precision_in_dp(precision) end if
+    c_proc(x_mpfr_init2,{res,precision})
+    if integer(v) then
+        -- (aside: note, as per docs, the default here /is/ 0 rather than the nan of the raw C api)
+        mpfr_set_si(res,v,rounding)
+    elsif atom(v) then
+        mpfr_set_d(res,v,rounding)
+    elsif string(v) then
+        mpfr_set_str(res,v,rounding)
+    else
+        ?9/0 -- what's v??
+    end if
+    return res  
+end function
+
+global function mpfr_inits(integer n, object v=0, precision=default_precision, rounding=default_rounding)
+--
+-- Eg: mpfr {x,y,z} = mpfr_init(3)
+--
+--  Initialise n variables to v. Obviously the result my be stored in a sequence.
+--
+-- Invoke {x,y,z} = mpfr_free({x,y,z}) when the variables are no longer needed, see below (will occur automatically).
+--
+    sequence res = repeat(0,n)
+    for i=1 to n do res[i] = mpfr_init(v,precision,rounding) end for
+    return res
+end function
+
+integer x_mpfr_set = NULL
+
+global procedure mpfr_set(mpfr tgt, src, integer rounding=default_rounding)
+    if tgt=NULL then ?9/0 end if
+    if src=NULL then ?9/0 end if
+    if x_mpfr_set=NULL then
+        x_mpfr_set = link_c_proc(mpfr_dll, "+mpfr_set", {P,P,I})
+    end if
+    c_proc(x_mpfr_set,{tgt,src,rounding})
+end procedure
+
+integer x_mpfr_get_prec = NULL
+
+global function mpfr_get_prec(mpfr x, boolean decimal=false)
+    if x=NULL then ?9/0 end if
+    if x_mpfr_get_prec=NULL then
+        x_mpfr_get_prec = link_c_func(mpfr_dll, "+mpfr_get_prec", {P}, I)
+    end if
+    integer precision = c_func(x_mpfr_get_prec,{x})
+    if decimal then precision = precision_in_decimal(precision) end if
+    return precision
+end function
+
+global function mpfr_init_set(mpfr src, integer rounding=default_rounding)
+    if src=NULL then ?9/0 end if
+    integer precision = mpfr_get_prec(src)
+    atom res = mpfr_init(0,precision,rounding)
+    mpfr_set(res,src)
+    return res  
+end function
+
+global function mpfr_free(object x)
+--
+-- Clear and deallocate any variables created using mpfr_init()
+--
+-- usage: x = mpfr_free(x)
+--    or: {y,z} = mpfr_free({y,z})
+--
+--  (perhaps one day I'll implement var-id so that you won't 
+--   have to specify everything twice in cases like this...)
+--
+    if sequence(x) then
+        for i=1 to length(x) do
+            atom xi = x[i]  -- typecheck/prohibit deep nesting
+            _mpfr_clear(xi)
+            x[i] = NULL     -- see aside
+        end for
+        --
+        -- aside: The above x[i]=NULL does not immediately trigger 
+        --        the cleanup requested (ie 2nd parameter of 1 to 
+        --        allocate) in mpfr_new(); the (lhs) assignment in 
+        --        the calling code does. Just so that you know.
+        --
+        --        Notice that if we didn't set x[i] like that, the
+        --        release might be further deferred by refcounts
+        --        remaining in x/the hidden temp variable, that is
+        --        until the latter was also released/reused.
+        --
+        return x
+    end if
+    _mpfr_clear(x)
+    return NULL
+end function
+
+integer x_mpfr_set_prec = NULL
+
+global procedure mpfr_set_prec(mpfr x, integer precision)
+--
+-- Reset the precision of x to be exactly prec bits, and set its value to NaN. 
+-- The previous value stored in x is lost. It is equivalent to a call to mpfr_clear(x) 
+--  followed by a call to mpfr_init2(x, prec), but more efficient as no allocation is 
+--  done in case the current allocated space for the significand of x is enough. 
+-- The precision prec can be any integer between MPFR_PREC_MIN and MPFR_PREC_MAX. 
+-- To keep the previous value stored in x, use mpfr_prec_round instead.
+--
+-- precision is the number of bits required for the mantissa
+--
+    if x=NULL then ?9/0 end if
+    if x_mpfr_set_prec=NULL then
+        x_mpfr_set_prec = link_c_proc(mpfr_dll, "+mpfr_set_prec", {P,I})
+    end if
+    if precision<1 then precision = precision_in_dp(precision) end if
+    c_proc(x_mpfr_set_prec,{x,precision})
+end procedure
+
+integer x_mpfr_const_pi = NULL
+
+global procedure mpfr_const_pi(mpfr x, integer rounding=default_rounding)
+    if x=NULL then ?9/0 end if
+    if x_mpfr_const_pi=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_const_pi = link_c_proc(mpfr_dll, "+mpfr_const_pi", {P,I})
+    end if
+    c_proc(x_mpfr_const_pi,{x,rounding})
+end procedure
+
+integer x_mpfr_free_str = NULL
+
+procedure _mpfr_free_str(atom pString)
+-- (deliberately internal-only)
+    if x_mpfr_free_str=NULL then
+        x_mpfr_free_str = link_c_proc(mpfr_dll, "+mpfr_free_str", {P})
+    end if
+    c_proc(x_mpfr_free_str,{pString})
+end procedure
+
+integer x_mpfr_get_str = NULL
+
+global function mpfr_get_str(mpfr x, integer base=10, n=0, rounding=default_rounding)
+--
+-- Note the arguments are in a quite different order to the C function.
+-- Here, we let mpfr allocate space (and free it automatically), hence that
+--  first arg of the C function gets entirely hidden from the outside world.
+-- The second arg (exponent dword pointer) is likewise allocated/freed here.
+-- The x argument is moved from 5th to 1st place, for default value reasons.
+--
+--      ie     C: mpfr_get_str(<string_ptr>, <expptr>, base, n, x, rounding)
+--      ==> phix: mpfr_get_str(x, base, n, rounding)
+--
+-- Returns a string with an implied radix point and an integer exponent, eg
+--  when x is -3.1416, mpfr_get_str(x) returns {"-31416",1}
+--
+-- The mpfr_sprintf() function is generally probably better/easier.
+--
+    if x=NULL then ?9/0 end if
+    if base<2 or base>62 then ?9/0 end if
+    if x_mpfr_get_str=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_get_str = link_c_func(mpfr_dll, "+mpfr_get_str", {P,P,I,I,P,I}, P)
+    end if
+    atom pExponent = allocate(W)
+    atom pString = c_func(x_mpfr_get_str,{NULL,pExponent,base,n,x,rounding})
+    string res = peek_string(pString)
+    integer exponent = peek4u(pExponent)
+    free(pExponent)
+    _mpfr_free_str(pString)
+    return {res,exponent}
+end function
+
+integer x_mpfr_asprintf = NULL
+
+global function mpfr_sprintf(string fmt, atom x)
+--
+-- NB: only supports a single 'R' or 'Z' conversion specifier.
+--  The R can be followed by a rounding mode:
+--      U - round toward plus infinity
+--      D - round toward minus infinity
+--      Y - round away from zero
+--      Z - round toward zero
+--      N - round to nearest (with ties to even)
+--  and must then be followed by one of abefg or AEFG.
+--  The 'Z' must be followed by one of dxX or possibly aceEfigGo.
+--  I trust it is obvious this uses the C sprintf, not the phix one.
+--
+--  Example: string res = mpfr_asprintf(x,"%.1000Rf") -- print to 1000 d.p.
+--
+--  Under the hood this actually uses mpfr_asprintf (ie allocate the output buffer).
+--
+    if x=NULL or not (mpfr(x) or mpz(x)) then ?9/0 end if
+    if x_mpfr_asprintf=NULL then
+        if mpfr_dll=NULL then open_mpir_dll() end if
+        x_mpfr_asprintf = link_c_func(mpfr_dll, "+mpfr_asprintf", {P,P,P}, I)
+    end if
+    atom pString = allocate(W)
+    integer len = c_func(x_mpfr_asprintf,{pString,fmt,x})
+    atom rawString = peekNS(pString,W,false)
+    string res = peek_string(rawString)
+    _mpfr_free_str(rawString)
+    free(pString)
+    return res
+end function
+
+global procedure mpfr_printf(integer fn, string fmt, atom x)
+    puts(fn,mpfr_sprintf(fmt,x))
+end procedure
+
+integer x_mpfr_floor = NULL
+
+global procedure mpfr_floor(mpfr rop, op)
+--rop := floor(op)
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_floor=NULL then
+        x_mpfr_floor = link_c_proc(mpfr_dll, "+mpfr_floor", {P,P})
+    end if
+    c_proc(x_mpfr_floor,{rop,op})
+end procedure
+
+integer x_mpfr_add = NULL
+
+global procedure mpfr_add(mpfr rop, op1, op2, integer rounding=default_rounding)
+--rop := op1+op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_add=NULL then
+        x_mpfr_add = link_c_proc(mpfr_dll, "+mpfr_add", {P,P,P,I})
+    end if
+    c_proc(x_mpfr_add,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_add_si = NULL
+
+global procedure mpfr_add_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
+--rop := op1+op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if x_mpfr_add_si=NULL then
+        x_mpfr_add_si = link_c_proc(mpfr_dll, "+mpfr_add_si", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_add_si,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_sub = NULL
+
+global procedure mpfr_sub(mpfr rop, op1, op2, integer rounding=default_rounding)
+--rop := op1-op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_sub=NULL then
+        x_mpfr_sub = link_c_proc(mpfr_dll, "+mpfr_sub", {P,P,P,I})
+    end if
+    c_proc(x_mpfr_sub,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_sub_si = NULL
+
+global procedure mpfr_sub_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
+--rop := op1-op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if x_mpfr_sub_si=NULL then
+        x_mpfr_sub_si = link_c_proc(mpfr_dll, "+mpfr_sub_si", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_sub_si,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_si_sub = NULL
+
+global procedure mpfr_si_sub(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding)
+--rop := op1-op2
+    if rop=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_si_sub=NULL then
+        x_mpfr_si_sub = link_c_proc(mpfr_dll, "+mpfr_si_sub", {P,I,P,I})
+    end if
+    c_proc(x_mpfr_si_sub,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_mul = NULL
+
+global procedure mpfr_mul(mpfr rop, op1, op2, integer rounding=default_rounding)
+--rop := op1*op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_mul=NULL then
+        x_mpfr_mul = link_c_proc(mpfr_dll, "+mpfr_mul", {P,P,P,I})
+    end if
+    c_proc(x_mpfr_mul,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_mul_si = NULL
+
+global procedure mpfr_mul_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
+--rop := op1*op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if x_mpfr_mul_si=NULL then
+        x_mpfr_mul_si = link_c_proc(mpfr_dll, "+mpfr_mul_si", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_mul_si,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_div = NULL
+
+global procedure mpfr_div(mpfr rop, op1, op2, integer rounding=default_rounding)
+-- rop := op1/op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_div=NULL then
+        x_mpfr_div = link_c_proc(mpfr_dll, "+mpfr_div", {P,P,P,I})
+    end if
+    c_proc(x_mpfr_div,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_div_si = NULL
+
+global procedure mpfr_div_si(mpfr rop, op1, integer op2, integer rounding=default_rounding)
+-- rop := op1/op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if x_mpfr_div_si=NULL then
+        x_mpfr_div_si = link_c_proc(mpfr_dll, "+mpfr_div_si", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_div_si,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_div_z = NULL
+
+global procedure mpfr_div_z(mpfr rop, op1, mpz op2, integer rounding=default_rounding)
+-- rop := op1/op2
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_div_z=NULL then
+        x_mpfr_div_z = link_c_proc(mpfr_dll, "+mpfr_div_z", {P,P,P,I})
+    end if
+    c_proc(x_mpfr_div_z,{rop,op1,op2,rounding})
+end procedure
+
+
+integer x_mpfr_si_div = NULL
+
+global procedure mpfr_si_div(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if x_mpfr_si_div=NULL then
+        x_mpfr_si_div = link_c_proc(mpfr_dll, "+mpfr_si_div", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_si_div,{rop,op1,op2,rounding})
+end procedure
+
+integer x_mpfr_sqr = NULL
+
+global procedure mpfr_sqr(mpfr rop, op, integer rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_sqr=NULL then
+        x_mpfr_sqr = link_c_proc(mpfr_dll, "+mpfr_sqr", {P,P,I})
+    end if
+    c_proc(x_mpfr_sqr,{rop,op,rounding})
+end procedure
+
+--__MPFR_DECLSPEC int mpfr_sqrt (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_sqrt_ui (mpfr_ptr, unsigned long, mpfr_rnd_t);
+--Function: int mpfr_sqrt (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_sqrt_ui (mpfr_t rop, unsigned long int op, mpfr_rnd_t rnd)
+--Set rop to the square root of op rounded in the direction rnd. Set rop to -0 if op is -0, to be consistent with the IEEE 754 standard. Set rop to NaN if op is negative.
+
+integer x_mpfr_sqrt = NULL
+
+global procedure mpfr_sqrt(mpfr rop, op, integer rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_sqrt=NULL then
+        x_mpfr_sqrt = link_c_proc(mpfr_dll, "+mpfr_sqrt", {P,P,I})
+    end if
+    c_proc(x_mpfr_sqrt,{rop,op,rounding})
+end procedure
+
+integer x_mpfr_sqrt_ui = NULL
+
+global procedure mpfr_sqrt_ui(mpfr rop, integer op, rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op<0 then ?9/0 end if
+    if x_mpfr_sqrt_ui=NULL then
+        x_mpfr_sqrt_ui = link_c_proc(mpfr_dll, "+mpfr_sqrt_ui", {P,P,I})
+    end if
+    c_proc(x_mpfr_sqrt_ui,{rop,op,rounding})
+end procedure
+
+--Function: int mpfr_pow (mpfr_t rop, mpfr_t op1, mpfr_t op2, mpfr_rnd_t rnd)
+integer x_mpfr_pow = NULL
+
+global procedure mpfr_pow(mpfr rop, op1, op2, integer rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_pow=NULL then
+        x_mpfr_pow = link_c_proc(mpfr_dll, "+mpfr_pow", {P,P,P,I})
+    end if
+    c_proc(x_mpfr_pow,{rop,op1,op2,rounding})
+end procedure
+
+--XFunction: int mpfr_pow_ui (mpfr_t rop, mpfr_t op1, unsigned long int op2, mpfr_rnd_t rnd)
+--Function: int mpfr_pow_si (mpfr_t rop, mpfr_t op1, long int op2, mpfr_rnd_t rnd)
+integer x_mpfr_pow_si = NULL
+
+global procedure mpfr_pow_si(mpfr rop, op1, integer op2, rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if x_mpfr_pow_si=NULL then
+        x_mpfr_pow_si = link_c_proc(mpfr_dll, "+mpfr_pow_si", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_pow_si,{rop,op1,op2,rounding})
+end procedure
+
+--Function: int mpfr_ui_pow_ui (mpfr_t rop, unsigned long int op1, unsigned long int op2, mpfr_rnd_t rnd)
+--Return Value
+--Type: Int32
+--Return zero, a positive, or a negative value if rop is respectively equal to, greater than, or lower than the exact result. See GNU MPFR - Rounding Modes for details.
+integer x_mpfr_ui_pow_ui = NULL
+
+global procedure mpfr_ui_pow_ui(mpfr rop, integer op1, op2, rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op1<0 then ?9/0 end if
+    if op2<0 then ?9/0 end if
+    if x_mpfr_ui_pow_ui=NULL then
+        x_mpfr_ui_pow_ui = link_c_proc(mpfr_dll, "+mpfr_ui_pow_ui", {P,I,I,I})
+    end if
+    c_proc(x_mpfr_ui_pow_ui,{rop,op1,op2,rounding})
+end procedure
+
+--Function: int mpfr_ui_pow (mpfr rop, unsigned long int op1, mpfr_t op2, mpfr_rnd_t rnd)
+integer x_mpfr_ui_pow = NULL
+
+global procedure mpfr_ui_pow(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op1<0 then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_ui_pow=NULL then
+        x_mpfr_ui_pow = link_c_proc(mpfr_dll, "+mpfr_ui_pow", {P,I,P,I})
+    end if
+    c_proc(x_mpfr_ui_pow,{rop,op1,op2,rounding})
+end procedure
+
+--Set rop to op1 raised to op2, rounded in the direction rnd. Special values are handled as described in the ISO C99 and IEEE 754-2008 standards for the pow function:
+--pow(+/-0, y) returns plus or minus infinity for y a negative odd integer.
+--pow(+/-0, y) returns plus infinity for y negative and not an odd integer.
+--pow(+/-0, y) returns plus or minus zero for y a positive odd integer.
+--pow(+/-0, y) returns plus zero for y positive and not an odd integer.
+--pow(-1, +/-Inf) returns 1.
+--pow(+1, y) returns 1 for any y, even a NaN.
+--pow(x, +/-0) returns 1 for any x, even a NaN.
+--pow(x, y) returns NaN for finite negative x and finite non-integer y.
+--pow(x, -Inf) returns plus infinity for 0 < abs(x) < 1, and plus zero for abs(x) > 1.
+--pow(x, +Inf) returns plus zero for 0 < abs(x) < 1, and plus infinity for abs(x) > 1.
+--pow(-Inf, y) returns minus zero for y a negative odd integer.
+--pow(-Inf, y) returns plus zero for y negative and not an odd integer.
+--pow(-Inf, y) returns minus infinity for y a positive odd integer.
+--pow(-Inf, y) returns plus infinity for y positive and not an odd integer.
+--pow(+Inf, y) returns plus zero for y negative, and plus infinity for y positive.
+--Note: When 0 is of integer type, it is regarded as +0 by these functions. We do not use the usual limit rules in this case, as these rules are not used for pow.
+
+integer x_mpfr_neg = NULL
+
+global procedure mpfr_neg(mpfr rop, op, integer rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_neg=NULL then
+        x_mpfr_neg = link_c_proc(mpfr_dll, "+mpfr_neg", {P,P,I})
+    end if
+    c_proc(x_mpfr_neg,{rop,op,rounding})
+end procedure
+
+integer x_mpfr_sin = NULL
+
+global procedure mpfr_sin(mpfr rop, op, integer rounding=default_rounding)
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_sin=NULL then
+        x_mpfr_sin = link_c_proc(mpfr_dll, "+mpfr_sin", {P,P,I})
+    end if
+    c_proc(x_mpfr_sin,{rop,op,rounding})
+end procedure
+
+integer x_mpfr_log = NULL
+
+global procedure mpfr_log(mpfr rop, op, integer rounding=default_rounding)
+--Set rop to the natural logarithm of op, rounded in the direction rnd. 
+--Set rop to +0 if op is 1 (in all rounding modes), for consistency with the ISO C99 and IEEE 754-2008 standards. 
+--Set rop to -Inf if op is +/-0 (i.e., the sign of the zero has no influence on the result).
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_log=NULL then
+        x_mpfr_log = link_c_proc(mpfr_dll, "+mpfr_log", {P,P,I})
+    end if
+    c_proc(x_mpfr_log,{rop,op,rounding})
+end procedure
+
+integer x_mpfr_exp = NULL
+
+global procedure mpfr_exp(mpfr rop, op, integer rounding=default_rounding)
+--Set rop to the exponential of op, rounded in the direction rnd.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_exp=NULL then
+        x_mpfr_exp = link_c_proc(mpfr_dll, "+mpfr_exp", {P,P,I})
+    end if
+    c_proc(x_mpfr_exp,{rop,op,rounding})
+end procedure
+
+integer x_mpfr_gamma = NULL
+
+global procedure mpfr_gamma(mpfr rop, op, integer rounding=default_rounding)
+-- rop:= Gamma(op), rounded in the direction rnd.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpfr_gamma=NULL then
+        x_mpfr_gamma = link_c_proc(mpfr_dll, "+mpfr_gamma", {P,P,I})
+    end if
+    c_proc(x_mpfr_gamma,{rop,op,rounding})
+end procedure
+
+integer x_mpfr_get_si = NULL
+
+--DEV mpfr_get/fits_integer/atom??
+global function mpfr_get_si(mpfr op, integer rounding=default_rounding)
+    if op=NULL then ?9/0 end if
+    if x_mpfr_get_si=NULL then
+        x_mpfr_get_si = link_c_func(mpfr_dll, "+mpfr_get_si", {P,I},I)
+    end if
+    atom res = c_func(x_mpfr_get_si,{op,rounding})
+    return res
+end function
+
+--integer x_mpfr_sgn = NULL
+--
+--global function mpfr_sgn(mpfr op)
+--  if op=NULL then ?9/0 end if
+--  if x_mpfr_sgn=NULL then
+--      x_mpfr_sgn = link_c_func(mpfr_dll, "+mpfr_sgn", {P},I)
+--  end if
+--  integer res = c_func(x_mpfr_sgn,{op})
+--if not find(res,{-1,0,+1}) then ?9/0 end if
+----    res = sign(res)
+--  return res
+--end function
+
+integer x_mpfr_cmp = NULL
+
+global function mpfr_cmp(mpfr op1, op2)
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_cmp=NULL then
+        x_mpfr_cmp = link_c_func(mpfr_dll, "+mpfr_cmp", {P,P},I)
+    end if
+    integer res = c_func(x_mpfr_cmp,{op1,op2})
+if not find(res,{-1,0,+1}) then ?9/0 end if
+--  res = sign(res)
+    return res
+end function
+
+integer x_mpfr_cmp_si = NULL
+
+global function mpfr_cmp_si(mpfr op1, integer op2)
+    if op1=NULL then ?9/0 end if
+    if x_mpfr_cmp_si=NULL then
+        x_mpfr_cmp_si = link_c_func(mpfr_dll, "+mpfr_cmp_si", {P,I},I)
+    end if
+    integer res = c_func(x_mpfr_cmp_si,{op1,op2})
+if not find(res,{-1,0,+1}) then ?9/0 end if
+--  res = sign(res)
+    return res
+end function
+
+--/*
+mpfr_cmp
+__MPFR_DECLSPEC int mpfr_cmp_ui (mpfr_srcptr, unsigned long);
+__MPFR_DECLSPEC int mpfr_cmp_si (mpfr_srcptr, long);
+#define mpfr_cmp_ui(b,i) mpfr_cmp_ui_2exp((b),(i),0)
+#define mpfr_cmp_si(b,i) mpfr_cmp_si_2exp((b),(i),0)
+#define mpfr_cmp(b, c)   mpfr_cmp3(b, c, 1)
+#undef mpfr_cmp_si
+#define mpfr_cmp_si(_f,_s)                                      \
+  (__builtin_constant_p (_s) && (mpfr_long) (_s) >= 0 ?         \
+   mpfr_cmp_ui ((_f), (mpfr_ulong) (mpfr_long) (_s)) :          \
+   mpfr_cmp_si_2exp ((_f), (_s), 0))
+Function: int mpfr_cmp (mpfr_t op1, mpfr_t op2)
+Function: int mpfr_cmp_si (mpfr_t op1, long int op2)
+Compare op1 and op2. Return a positive value if op1 > op2, zero if op1 = op2, and a negative value if op1 < op2. 
+Both op1 and op2 are considered to their full own precision, which may differ. 
+If one of the operands is NaN, set the erange flag and return zero.
+
+Note: These functions may be useful to distinguish the three possible cases. 
+If you need to distinguish two cases only, it is recommended to use the predicate functions (e.g., mpfr_equal_p for the equality) described below; 
+they behave like the IEEE 754 comparisons, in particular when one or both arguments are NaN. 
+But only floating-point numbers can be compared (you may need to do a conversion first).
+mpfr_cmp:               Comparison Functions
+mpfr_cmp_si:            Comparison Functions
+--*/
+
+integer x_mpq_clear = NULL
+
+procedure _mpq_clear(mpq x)
+--
+-- (internal)
+-- Frees any mpz-side memory associated with x, but not the phix-side
+-- as was allocated within mpq_init(); mpq_free() below does both.
+--
+    if x=NULL then ?9/0 end if
+    if x_mpq_clear=NULL then
+        x_mpq_clear = link_c_proc(mpir_dll, "+__gmpq_clear", {P})
+    end if
+    c_proc(x_mpq_clear,{x})
+    poke4(x+6*W,0)
+end procedure
+
+procedure free_mpq(atom x)
+-- (internal, delete_routine)
+--?{"free_mpq",x}
+    if peek4s(x+6*W)=MPZ_Q then _mpq_clear(x) end if
+    free(x)
+end procedure
+constant r_free_mpq = routine_id("free_mpq")
+
+integer x_mpq_init = NULL
+
+global function mpq_init()
+    object res = allocate(7*W) -- (extra dword for MPZ_Q)
+    if x_mpq_init=NULL then
+        if mpir_dll=NULL then open_mpir_dll() end if
+        x_mpq_init = link_c_proc(mpir_dll, "+__gmpq_init", {P})
+    end if
+    c_proc(x_mpq_init,{res})
+    res = delete_routine(res,r_free_mpq)
+    poke4(res+6*W,MPZ_Q)
+    return res  
+end function
+
+global function mpq_inits(integer count)
+    object res = repeat(0,count)
+    for i=1 to count do res[i] = mpq_init() end for
+    return res  
+end function
+
+integer x_mpq_set = NULL
+
+global procedure mpq_set(mpq rop, op)
+-- rop := op
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpq_set=NULL then
+        x_mpq_set = link_c_proc(mpir_dll, "+__gmpq_set", {P,P})
+    end if
+    c_proc(x_mpq_set,{rop,op})
+end procedure
+
+integer x_mpq_set_z = NULL
+
+global procedure mpq_set_z(mpq rop, mpz op)
+-- rop := op/1
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpq_set_z=NULL then
+        x_mpq_set_z = link_c_proc(mpir_dll, "+__gmpq_set_z", {P,P})
+    end if
+    c_proc(x_mpq_set_z,{rop,op})
+end procedure
+
+integer x_mpq_set_si = NULL
+
+global procedure mpq_set_si(mpq rop, integer op1, op2=1)
+-- rop := op1/op2
+    if rop=NULL then ?9/0 end if
+    if op2<0 then ?9/0 end if
+    if x_mpq_set_si=NULL then
+        x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_si", {P,I,I})
+--      x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_ui", {P,I,I})
+    end if
+    c_proc(x_mpq_set_si,{rop,op1,op2})
+end procedure
+
+integer x_mpq_set_str = NULL
+
+global procedure mpq_set_str(mpq rop, string str, integer base=0)
+-- rop := str
+    if rop=NULL then ?9/0 end if
+    if base<0 or base=1 or base>62 then ?9/0 end if
+    if x_mpq_set_str=NULL then
+        x_mpq_set_str = link_c_proc(mpir_dll, "+__gmpq_set_str", {P,P,I})
+    end if
+    c_proc(x_mpq_set_str,{rop,str,base})
+end procedure
+
+global function mpq_init_set(mpq op)
+    mpq res = mpq_init()
+    mpq_set(res,op)
+    return res
+end function
+
+global function mpq_init_set_z(mpz op)
+    mpq res = mpq_init()
+    mpq_set_z(res,op)
+    return res
+end function
+
+global function mpq_init_set_si(integer op1, op2=1)
+    mpq res = mpq_init()
+    mpq_set_si(res, op1, op2)
+    return res
+end function
+
+global function mpq_init_set_str(string str, integer base=0)
+    mpq res = mpq_init()
+    mpq_set_str(res,str,base)
+    return res
+end function
+
+global function mpq_free(object x)
+--?{"mpq_free",x}
+    if sequence(x) then
+        for i=1 to length(x) do
+--          free_mpq(x[i])
+            x[i] = NULL
+        end for
+    else
+--if x=NULL then ?9/0 end if
+--      free_mpq(x)
+        x = NULL
+    end if
+    return x
+end function
+
+integer x_mpq_get_num = NULL
+
+global procedure mpq_get_num(mpz numerator, mpq rational)
+    if numerator=NULL then ?9/0 end if
+    if rational=NULL then ?9/0 end if
+    if x_mpq_get_num=NULL then
+        x_mpq_get_num = link_c_proc(mpir_dll, "+__gmpq_get_num", {P,P})
+    end if
+    c_proc(x_mpq_get_num,{numerator,rational})
+end procedure
+
+integer x_mpq_get_den = NULL
+
+global procedure mpq_get_den(mpz denominator, mpq rational)
+-- rop := op/1
+    if denominator=NULL then ?9/0 end if
+    if rational=NULL then ?9/0 end if
+    if x_mpq_get_den=NULL then
+        x_mpq_get_den = link_c_proc(mpir_dll, "+__gmpq_get_den", {P,P})
+    end if
+    c_proc(x_mpq_get_den,{denominator,rational})
+end procedure
+
+integer x_mpq_add = NULL
+
+global procedure mpq_add(mpq rsum, addend1, addend2)
+-- set rsum to addend1 + addend2.
+    if rsum=NULL then ?9/0 end if
+    if addend1=NULL then ?9/0 end if
+    if addend2=NULL then ?9/0 end if
+    if x_mpq_add=NULL then
+        x_mpq_add = link_c_proc(mpir_dll, "+__gmpq_add", {P,P,P})
+    end if
+    c_proc(x_mpq_add,{rsum,addend1,addend2})
+end procedure
+
+integer x_mpq_sub = NULL
+
+global procedure mpq_sub(mpq rdifference, minuend, subtrahend)
+-- set rdifference to minuend - subtrahend.
+    if rdifference=NULL then ?9/0 end if
+    if minuend=NULL then ?9/0 end if
+    if subtrahend=NULL then ?9/0 end if
+    if x_mpq_sub=NULL then
+        x_mpq_sub = link_c_proc(mpir_dll, "+__gmpq_sub", {P,P,P})
+    end if
+    c_proc(x_mpq_sub,{rdifference,minuend,subtrahend})
+end procedure
+
+integer x_mpq_mul = NULL
+
+global procedure mpq_mul(mpq rproduct, multiplier, multiplicand)
+-- set rproduct to multiplier * multiplicand.
+    if rproduct=NULL then ?9/0 end if
+    if multiplier=NULL then ?9/0 end if
+    if multiplicand=NULL then ?9/0 end if
+    if x_mpq_mul=NULL then
+        x_mpq_mul = link_c_proc(mpir_dll, "+__gmpq_mul", {P,P,P})
+    end if
+    c_proc(x_mpq_mul,{rproduct,multiplier,multiplicand})
+end procedure
+
+integer x_mpq_mul_2exp = NULL
+
+global procedure mpq_mul_2exp(mpq rop, op, integer bits)
+-- set rop to op * 2^bits
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if bits<0 then ?9/0 end if  -- (not sure about that...)
+    if x_mpq_mul_2exp=NULL then
+        x_mpq_mul_2exp = link_c_proc(mpir_dll, "+__gmpq_mul_2exp", {P,P,I})
+    end if
+    c_proc(x_mpq_mul_2exp,{rop,op,bits})
+end procedure
+
+integer x_mpq_div = NULL
+
+global procedure mpq_div(mpq rquotient, dividend, divisor)
+-- set rquotient to dividend / divisor.
+    if rquotient=NULL then ?9/0 end if
+    if dividend=NULL then ?9/0 end if
+    if divisor=NULL then ?9/0 end if
+    if x_mpq_div=NULL then
+        x_mpq_div = link_c_proc(mpir_dll, "+__gmpq_div", {P,P,P})
+    end if
+    c_proc(x_mpq_div,{rquotient,dividend,divisor})
+end procedure
+
+integer x_mpq_div_2exp = NULL
+
+global procedure mpq_div_2exp(mpq rop, op, integer bits)
+-- set rop to op / 2^bits
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if bits<0 then ?9/0 end if  -- (not sure about that...)
+    if x_mpq_div_2exp=NULL then
+        x_mpq_div_2exp = link_c_proc(mpir_dll, "+__gmpq_div_2exp", {P,P,I})
+    end if
+    c_proc(x_mpq_div_2exp,{rop,op,bits})
+end procedure
+
+integer x_mpq_neg = NULL
+
+global procedure mpq_neg(mpq negated_operand, operand)
+-- set negated_operand to -operand.
+    if negated_operand=NULL then ?9/0 end if
+    if operand=NULL then ?9/0 end if
+    if x_mpq_neg=NULL then
+        x_mpq_neg = link_c_proc(mpir_dll, "+__gmpq_neg", {P,P})
+    end if
+    c_proc(x_mpq_neg,{negated_operand,operand})
+end procedure
+
+integer x_mpq_abs = NULL
+
+global procedure mpq_abs(mpq rop, op)
+-- set rop to the absolute value of op.
+    if rop=NULL then ?9/0 end if
+    if op=NULL then ?9/0 end if
+    if x_mpq_abs=NULL then
+        x_mpq_abs = link_c_proc(mpir_dll, "+__gmpq_abs", {P,P})
+    end if
+    c_proc(x_mpq_abs,{rop,op})
+end procedure
+
+integer x_mpq_inv = NULL
+
+global procedure mpq_inv(mpq inverted_number, number)
+-- set inverted number to 1/number. If the new denominator is zero, this routine will divide by zero.
+    if inverted_number=NULL then ?9/0 end if
+    if number=NULL then ?9/0 end if
+    if x_mpq_inv=NULL then
+        x_mpq_inv = link_c_proc(mpir_dll, "+__gmpq_inv", {P,P})
+    end if
+    c_proc(x_mpq_inv,{inverted_number,number})
+end procedure
+
+integer x_mpq_canonicalize = NULL
+
+global procedure mpq_canonicalize(mpq op)
+-- Remove any factors that are common to the numerator and denominator of op, 
+-- and make the denominator positive.
+    if op=NULL then ?9/0 end if
+    if x_mpq_canonicalize=NULL then
+        x_mpq_canonicalize = link_c_proc(mpir_dll, "+__gmpq_canonicalize", {P})
+    end if
+    c_proc(x_mpq_canonicalize,{op})
+end procedure
+
+integer x_mpq_cmp_si = NULL
+
+global function mpq_cmp_si(mpq op1, integer num2, den2)
+    if op1=NULL then ?9/0 end if
+    if den2<0 then ?9/0 end if
+    if x_mpq_cmp_si=NULL then
+        x_mpq_cmp_si = link_c_func(mpir_dll, "+__gmpq_cmp_si", {P,I,I},I)
+--      x_mpq_cmp_si = link_c_func(mpir_dll, "+__gmpq_cmp_ui", {P,I,I},I)
+    end if
+    integer res = c_func(x_mpq_cmp_si,{op1,num2,den2})
+--if not find(res,{-1,0,+1}) then ?9/0 end if
+    res = sign(res)
+    return res
+end function
+
 --<clean to here>
 
 --/*
 mpfr_prec_t typedef sdword
 mpfr_sign_t typedef sdword
-mpfr_exp_t typedef sdword
 mp_limb_t typedef dword
 pmp_limb_t typedef ptr mp_limb_t
 mp_prec_t typedef mpfr_prec_t
@@ -1458,7 +2928,7 @@ mp_exp_t typedef sdword
 __mpfr_struct struct
         _mpfr_prec mpfr_prec_t ?
         _mpfr_sign mpfr_sign_t ?
-        _mpfr_exp mpfr_exp_t ?
+        _mpfr_exp int ?
         _mpfr_d pmp_limb_t  ?
 __mpfr_struct ends
 
@@ -1539,21 +3009,21 @@ mpfr_clear_nanflag
 mpfr_clear_overflow
 mpfr_clear_underflow
 --mpfr_clears
-mpfr_cmp
+--mpfr_cmp
 mpfr_cmp2
 mpfr_cmp3
 mpfr_cmp_d
 mpfr_cmp_ld
 mpfr_cmp_q
-mpfr_cmp_si
+--mpfr_cmp_si
 mpfr_cmp_si_2exp
-mpfr_cmp_ui
+--mpfr_cmp_ui
 mpfr_cmp_ui_2exp
 mpfr_cmp_z
 mpfr_cmpabs
 mpfr_const_catalan
 mpfr_const_catalan_internal
-mpfr_const_euler
+--mpfr_const_euler
 mpfr_const_euler_internal
 mpfr_const_log2
 mpfr_const_log2_internal
@@ -1578,7 +3048,7 @@ mpfr_div_q
 --mpfr_div_si
 --mpfr_div_ui
 mpfr_div_ui2
-mpfr_div_z
+--mpfr_div_z
 mpfr_divby0_p
 mpfr_divhigh_n
 mpfr_eint
@@ -1586,7 +3056,7 @@ mpfr_equal_p
 mpfr_erangeflag_p
 mpfr_erf
 mpfr_erfc
-mpfr_exp
+--mpfr_exp
 mpfr_exp10
 mpfr_exp2
 mpfr_exp_2
@@ -1602,7 +3072,7 @@ mpfr_fits_uint_p
 mpfr_fits_uintmax_p
 mpfr_fits_ulong_p
 mpfr_fits_ushort_p
-mpfr_floor
+--mpfr_floor
 mpfr_fma
 mpfr_fmod
 mpfr_fms
@@ -1610,7 +3080,7 @@ mpfr_fprint_binary
 mpfr_frac
 mpfr_free_cache
 mpfr_frexp
-mpfr_gamma
+--mpfr_gamma
 mpfr_gamma_one_and_two_third
 mpfr_get_d
 mpfr_get_d1
@@ -1653,7 +3123,7 @@ mpfr_lessgreater_p
 mpfr_lgamma
 mpfr_li2
 mpfr_lngamma
-mpfr_log
+--mpfr_log
 mpfr_log10
 mpfr_log1p
 mpfr_log2
@@ -1673,7 +3143,7 @@ mpfr_mulhigh_n
 mpfr_mullow_n
 mpfr_nan_p
 mpfr_nanflag_p
-mpfr_neg
+--mpfr_neg
 mpfr_nextabove
 mpfr_nextbelow
 mpfr_nexttoinf
@@ -1682,10 +3152,10 @@ mpfr_nexttozero
 mpfr_number_p
 mpfr_overflow
 mpfr_overflow_p
-mpfr_pow
+--mpfr_pow
 mpfr_pow_general
-mpfr_pow_si
-mpfr_pow_ui
+--mpfr_pow_si
+--mpfr_pow_ui
 mpfr_pow_z
 mpfr_powerof2_raw
 mpfr_powerof2_raw2
@@ -1728,7 +3198,7 @@ mpfr_set_nan
 mpfr_set_nanflag
 mpfr_set_overflow
 --mpfr_set_prec
-mpfr_set_q
+--mpfr_set_q
 --mpfr_set_si
 mpfr_set_si_2exp
 --mpfr_set_str
@@ -1736,15 +3206,15 @@ mpfr_set_str_binary
 --mpfr_set_ui
 mpfr_set_ui_2exp
 mpfr_set_underflow
-mpfr_set_z
+--mpfr_set_z
 mpfr_set_z_2exp
 mpfr_set_zero
 mpfr_setmax
 mpfr_setmin
 mpfr_setsign
 mpfr_sgn
-mpfr_si_div
-mpfr_si_sub
+--mpfr_si_div
+--mpfr_si_sub
 mpfr_signbit
 --mpfr_sin
 mpfr_sin_cos
@@ -1754,8 +3224,8 @@ mpfr_sinh_cosh
 --mpfr_sprintf  -- (asprintf)
 --mpfr_sqr
 mpfr_sqrhigh_n
-mpfr_sqrt
-mpfr_sqrt_ui
+--mpfr_sqrt
+--mpfr_sqrt_ui
 mpfr_strtofr
 --mpfr_sub
 mpfr_sub1
@@ -1828,7 +3298,7 @@ __gmp_doscan
 __gmp_errno
 __gmp_exception
 __gmp_extract_double
-__gmp_fib_table
+--__gmp_fib_table
 __gmp_fprintf
 __gmp_free_func
 __gmp_fscanf
@@ -1923,7 +3393,7 @@ __gmpn_divrem_hensel_r_1
 __gmpn_divrem_hensel_rsh_qr_1
 __gmpn_divrem_hensel_rsh_qr_1_preinv
 __gmpn_dump
-__gmpn_fib2_ui
+--__gmpn_fib2_ui
 __gmpn_gcd
 __gmpn_gcd_1
 __gmpn_gcd_subdiv_step
@@ -2071,28 +3541,28 @@ __gmpn_xnor_n
 __gmpn_xor_n
 __gmpn_zero
 __gmpq_abs
-__gmpq_add
+--__gmpq_add
 __gmpq_canonicalize
-__gmpq_clear
-__gmpq_clears
+--__gmpq_clear
+--__gmpq_clears
 __gmpq_cmp
-__gmpq_cmp_si
-__gmpq_cmp_ui
+--__gmpq_cmp_si
+--__gmpq_cmp_ui
 __gmpq_cmp_z
-__gmpq_div
-__gmpq_div_2exp
+--__gmpq_div
+--__gmpq_div_2exp
 __gmpq_equal
 __gmpq_get_d
-__gmpq_get_den
-__gmpq_get_num
+--__gmpq_get_den
+--__gmpq_get_num
 __gmpq_get_str
-__gmpq_init
-__gmpq_inits
+--__gmpq_init
+--__gmpq_inits
 __gmpq_inp_str
 __gmpq_inv
-__gmpq_mul
-__gmpq_mul_2exp
-__gmpq_neg
+--__gmpq_mul
+--__gmpq_mul_2exp
+--__gmpq_neg
 __gmpq_out_str
 __gmpq_set
 __gmpq_set_d
@@ -2102,10 +3572,10 @@ __gmpq_set_si
 __gmpq_set_str
 __gmpq_set_ui
 __gmpq_set_z
-__gmpq_sub
+--__gmpq_sub
 __gmpq_swap
 __gmpz_2fac_ui
-__gmpz_abs
+--__gmpz_abs
 --__gmpz_add
 --__gmpz_add_ui
 __gmpz_addmul
@@ -2115,7 +3585,7 @@ __gmpz_aorsmul_1
 __gmpz_array_init
 __gmpz_bin_ui
 __gmpz_bin_uiui
-__gmpz_cdiv_q
+--__gmpz_cdiv_q
 __gmpz_cdiv_q_2exp
 __gmpz_cdiv_q_ui
 __gmpz_cdiv_qr
@@ -2142,22 +3612,22 @@ __gmpz_divexact
 __gmpz_divexact_gcd
 __gmpz_divexact_ui
 __gmpz_divisible_2exp_p
-__gmpz_divisible_p
+--__gmpz_divisible_p
 __gmpz_divisible_ui_p
 __gmpz_dump
-__gmpz_export
+--__gmpz_export
 __gmpz_fac_ui
 __gmpz_fdiv_q
 --__gmpz_fdiv_q_2exp
 __gmpz_fdiv_q_ui
 __gmpz_fdiv_qr
 __gmpz_fdiv_qr_ui
-__gmpz_fdiv_r
+--__gmpz_fdiv_r
 __gmpz_fdiv_r_2exp
 --__gmpz_fdiv_r_ui
-__gmpz_fdiv_ui
-__gmpz_fib2_ui
-__gmpz_fib_ui
+--__gmpz_fdiv_ui
+--__gmpz_fib2_ui
+--__gmpz_fib_ui
 __gmpz_fits_si_p
 __gmpz_fits_sint_p
 --__gmpz_fits_slong_p
@@ -2166,8 +3636,8 @@ __gmpz_fits_ui_p
 __gmpz_fits_uint_p
 --__gmpz_fits_ulong_p
 __gmpz_fits_ushort_p
-__gmpz_gcd
-__gmpz_gcd_ui
+--__gmpz_gcd
+--__gmpz_gcd_ui
 __gmpz_gcdext
 __gmpz_get_d
 __gmpz_get_d_2exp
@@ -2178,7 +3648,7 @@ __gmpz_get_sx
 __gmpz_get_ux
 __gmpz_getlimbn
 __gmpz_hamdist
-__gmpz_import
+--__gmpz_import
 --__gmpz_init
 --__gmpz_init2
 --__gmpz_init_set
@@ -2196,8 +3666,8 @@ __gmpz_ior
 __gmpz_jacobi
 __gmpz_kronecker_si
 __gmpz_kronecker_ui
-__gmpz_lcm
-__gmpz_lcm_ui
+--__gmpz_lcm
+--__gmpz_lcm_ui
 __gmpz_likely_prime_p
 __gmpz_lucnum2_ui
 __gmpz_lucnum_ui
@@ -2210,7 +3680,7 @@ __gmpz_millerrabin
 --__gmpz_mul_si
 --__gmpz_mul_ui
 __gmpz_n_pow_ui
-__gmpz_neg
+--__gmpz_neg
 __gmpz_next_prime_candidate
 __gmpz_nextprime
 __gmpz_nthroot
@@ -2229,8 +3699,8 @@ __gmpz_probab_prime_p
 __gmpz_prodlimbs
 __gmpz_realloc
 __gmpz_realloc2
-__gmpz_remove
-__gmpz_root
+--__gmpz_remove
+--__gmpz_root
 __gmpz_rootrem
 __gmpz_rrandomb
 --__gmpz_scan0
@@ -2247,27 +3717,27 @@ __gmpz_setbit
 __gmpz_si_kronecker
 --__gmpz_size
 --__gmpz_sizeinbase
-__gmpz_sqrt
-__gmpz_sqrtrem
+--__gmpz_sqrt
+--__gmpz_sqrtrem
 --__gmpz_sub
 --__gmpz_sub_ui
 __gmpz_submul
 __gmpz_submul_ui
 __gmpz_swap
 __gmpz_tdiv_q
-__gmpz_tdiv_q_2exp
+--__gmpz_tdiv_q_2exp
 __gmpz_tdiv_q_ui
 __gmpz_tdiv_qr
 __gmpz_tdiv_qr_ui
 __gmpz_tdiv_r
-__gmpz_tdiv_r_2exp
+--__gmpz_tdiv_r_2exp
 __gmpz_tdiv_r_ui
 __gmpz_tdiv_ui
 __gmpz_trial_division
 --__gmpz_tstbit
 __gmpz_ui_kronecker
-__gmpz_ui_pow_ui
-__gmpz_ui_sub
+--__gmpz_ui_pow_ui
+--__gmpz_ui_sub
 __gmpz_urandomb
 --__gmpz_urandomm
 __gmpz_xor
@@ -2424,10 +3894,6 @@ typedef unsigned int    mpfr_flags_t;
 --#define GMP_RNDU MPFR_RNDU
 --#define GMP_RNDD MPFR_RNDD
 
-/* Note: With the following default choices for _MPFR_PREC_FORMAT and
-   _MPFR_EXP_FORMAT, mpfr_exp_t will be the same as [mp_exp_t] (at least
-   up to GMP 5). */
-
 /* Define precision: 1 (short), 2 (int) or 3 (long) (DON'T USE IT!) */
 #ifndef _MPFR_PREC_FORMAT
 # if __GMP_MP_SIZE_T_INT
@@ -2444,11 +3910,11 @@ typedef unsigned int    mpfr_flags_t;
 #endif
 
 #if _MPFR_PREC_FORMAT > _MPFR_EXP_FORMAT
-# error "mpfr_prec_t must not be larger than mpfr_exp_t"
+# error "mpfr_prec_t must not be larger than int"
 #endif
 
 /* Let's make mpfr_prec_t signed in order to avoid problems due to the
-   usual arithmetic conversions when mixing mpfr_prec_t and mpfr_exp_t
+   usual arithmetic conversions when mixing mpfr_prec_t and int
    in an expression (for error analysis) if casts are forgotten. */
 #if   _MPFR_PREC_FORMAT == 1
 typedef short mpfr_prec_t;
@@ -2476,28 +3942,27 @@ typedef unsigned long  mpfr_uprec_t;
 typedef int          mpfr_sign_t;
 
 /* Definition of the exponent. _MPFR_EXP_FORMAT must be large enough
-   so that mpfr_exp_t has at least 32 bits. */
+   so that int has at least 32 bits. */
 #if   _MPFR_EXP_FORMAT == 1
-typedef short mpfr_exp_t;
+typedef short int;
 typedef unsigned short mpfr_uexp_t;
 #elif _MPFR_EXP_FORMAT == 2
-typedef int mpfr_exp_t;
 typedef unsigned int mpfr_uexp_t;
 #elif _MPFR_EXP_FORMAT == 3
-typedef long mpfr_exp_t;
+typedef long int;
 typedef unsigned long mpfr_uexp_t;
 #elif _MPFR_EXP_FORMAT == 4
 /* Note: in this case, intmax_t and uintmax_t must be defined before
    the inclusion of mpfr.h (we do not include <stdint.h> here because
    of some non-ISO C99 implementations that support these types). */
-typedef intmax_t mpfr_exp_t;
+typedef intmax_t int;
 typedef uintmax_t mpfr_uexp_t;
 #else
 # error "Invalid MPFR Exp format"
 #endif
 
 /* Definition of the standard exponent limits */
-#define MPFR_EMAX_DEFAULT ((mpfr_exp_t) (((mpfr_ulong) 1 << 30) - 1))
+#define MPFR_EMAX_DEFAULT ((int) (((mpfr_ulong) 1 << 30) - 1))
 #define MPFR_EMIN_DEFAULT (-(MPFR_EMAX_DEFAULT))
 
 /* DON'T USE THIS! (For MPFR-public macros only, see below.)
@@ -2507,7 +3972,7 @@ typedef uintmax_t mpfr_uexp_t;
    This may change in the future. MPFR code should not be based on these
    representations (but if this is absolutely needed, protect the code
    with a static assertion). */
-#define __MPFR_EXP_MAX ((mpfr_exp_t) (((mpfr_uexp_t) -1) >> 1))
+#define __MPFR_EXP_MAX ((int) (((mpfr_uexp_t) -1) >> 1))
 #define __MPFR_EXP_NAN  (1 - __MPFR_EXP_MAX)
 #define __MPFR_EXP_ZERO (0 - __MPFR_EXP_MAX)
 #define __MPFR_EXP_INF  (2 - __MPFR_EXP_MAX)
@@ -2516,7 +3981,7 @@ typedef uintmax_t mpfr_uexp_t;
 typedef struct {
   mpfr_prec_t  _mpfr_prec;
   mpfr_sign_t  _mpfr_sign;
-  mpfr_exp_t   _mpfr_exp;
+  int   _mpfr_exp;
   mp_limb_t   *_mpfr_d;
 } __mpfr_struct;
 
@@ -2648,14 +4113,14 @@ __MPFR_DECLSPEC int mpfr_buildopt_gmpinternals_p (void);
 __MPFR_DECLSPEC int mpfr_buildopt_sharedcache_p  (void);
 __MPFR_DECLSPEC const char * mpfr_buildopt_tune_case (void);
 
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_emin     (void);
-__MPFR_DECLSPEC int        mpfr_set_emin     (mpfr_exp_t);
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_emin_min (void);
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_emin_max (void);
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_emax     (void);
-__MPFR_DECLSPEC int        mpfr_set_emax     (mpfr_exp_t);
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_emax_min (void);
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_emax_max (void);
+__MPFR_DECLSPEC int mpfr_get_emin    (void);
+__MPFR_DECLSPEC int        mpfr_set_emin     (int);
+__MPFR_DECLSPEC int mpfr_get_emin_min (void);
+__MPFR_DECLSPEC int mpfr_get_emin_max (void);
+__MPFR_DECLSPEC int mpfr_get_emax    (void);
+__MPFR_DECLSPEC int        mpfr_set_emax     (int);
+__MPFR_DECLSPEC int mpfr_get_emax_min (void);
+__MPFR_DECLSPEC int mpfr_get_emax_max (void);
 
 __MPFR_DECLSPEC const char * mpfr_print_rnd_mode (mpfr_rnd_t);
 
@@ -2691,12 +4156,12 @@ __MPFR_DECLSPEC void mpfr_flags_restore (mpfr_flags_t,
 __MPFR_DECLSPEC int mpfr_check_range (mpfr_ptr, int, mpfr_rnd_t);
 
 __MPFR_DECLSPEC int mpfr_prec_round (mpfr_ptr, mpfr_prec_t, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_can_round (mpfr_srcptr, mpfr_exp_t, mpfr_rnd_t,
+__MPFR_DECLSPEC int mpfr_can_round (mpfr_srcptr, int, mpfr_rnd_t,
                                     mpfr_rnd_t, mpfr_prec_t);
 __MPFR_DECLSPEC mpfr_prec_t mpfr_min_prec (mpfr_srcptr);
 
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_exp (mpfr_srcptr);
-__MPFR_DECLSPEC int mpfr_set_exp (mpfr_ptr, mpfr_exp_t);
+__MPFR_DECLSPEC int mpfr_get_exp (mpfr_srcptr);
+__MPFR_DECLSPEC int mpfr_set_exp (mpfr_ptr, int);
 
 __MPFR_DECLSPEC int mpfr_set_flt (mpfr_ptr, float, mpfr_rnd_t);
 #ifdef MPFR_WANT_DECIMAL_FLOATS
@@ -2709,18 +4174,18 @@ __MPFR_DECLSPEC int mpfr_set_ld (mpfr_ptr, long double, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_set_float128 (mpfr_ptr, __float128, mpfr_rnd_t);
 __MPFR_DECLSPEC __float128 mpfr_get_float128 (mpfr_srcptr, mpfr_rnd_t);
 #endif
-__MPFR_DECLSPEC int mpfr_set_z (mpfr_ptr, mpz_srcptr, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_set_z_2exp (mpfr_ptr, mpz_srcptr, mpfr_exp_t,
+--__MPFR_DECLSPEC int mpfr_set_z (mpfr_ptr, mpz_srcptr, mpfr_rnd_t);
+__MPFR_DECLSPEC int mpfr_set_z_2exp (mpfr_ptr, mpz_srcptr, int,
                                      mpfr_rnd_t);
 __MPFR_DECLSPEC void mpfr_set_nan (mpfr_ptr);
 __MPFR_DECLSPEC void mpfr_set_inf (mpfr_ptr, int);
 __MPFR_DECLSPEC void mpfr_set_zero (mpfr_ptr, int);
 
-__MPFR_DECLSPEC int mpfr_set_si_2exp (mpfr_ptr, long, mpfr_exp_t, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_set_ui_2exp (mpfr_ptr, unsigned long, mpfr_exp_t, mpfr_rnd_t);
+__MPFR_DECLSPEC int mpfr_set_si_2exp (mpfr_ptr, long, int, mpfr_rnd_t);
+__MPFR_DECLSPEC int mpfr_set_ui_2exp (mpfr_ptr, unsigned long, int, mpfr_rnd_t);
 #ifndef MPFR_USE_MINI_GMP
   /* mini-gmp does not provide mpq_t, we disable the following functions */
-__MPFR_DECLSPEC int mpfr_set_q (mpfr_ptr, mpq_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_set_q (mpfr_ptr, mpq_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_mul_q (mpfr_ptr, mpfr_srcptr, mpq_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_div_q (mpfr_ptr, mpfr_srcptr, mpq_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_add_q (mpfr_ptr, mpfr_srcptr, mpq_srcptr, mpfr_rnd_t);
@@ -2730,13 +4195,13 @@ __MPFR_DECLSPEC int mpfr_cmp_q (mpfr_srcptr, mpq_srcptr);
 --__MPFR_DECLSPEC int mpfr_set_str (mpfr_ptr, const char *, int, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_set4 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t, int);
 __MPFR_DECLSPEC int mpfr_abs (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_neg (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_neg (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_signbit (mpfr_srcptr);
 __MPFR_DECLSPEC int mpfr_setsign (mpfr_ptr, mpfr_srcptr, int, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_copysign (mpfr_ptr, mpfr_srcptr, mpfr_srcptr,
                                    mpfr_rnd_t);
 
-__MPFR_DECLSPEC mpfr_exp_t mpfr_get_z_2exp (mpz_ptr, mpfr_srcptr);
+__MPFR_DECLSPEC int mpfr_get_z_2exp (mpz_ptr, mpfr_srcptr);
 __MPFR_DECLSPEC float mpfr_get_flt (mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC double mpfr_get_d (mpfr_srcptr, mpfr_rnd_t);
 #ifdef MPFR_WANT_DECIMAL_FLOATS
@@ -2746,7 +4211,7 @@ __MPFR_DECLSPEC long double mpfr_get_ld (mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC double mpfr_get_d1 (mpfr_srcptr);
 __MPFR_DECLSPEC double mpfr_get_d_2exp (long*, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC long double mpfr_get_ld_2exp (long*, mpfr_srcptr, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_frexp (mpfr_exp_t*, mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+__MPFR_DECLSPEC int mpfr_frexp (int*, mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_get_z (mpz_ptr z, mpfr_srcptr f, mpfr_rnd_t);
 __MPFR_DECLSPEC void mpfr_get_q (mpq_ptr q, mpfr_srcptr f);
 
@@ -2762,25 +4227,25 @@ __MPFR_DECLSPEC void mpfr_nextabove (mpfr_ptr);
 __MPFR_DECLSPEC void mpfr_nextbelow (mpfr_ptr);
 __MPFR_DECLSPEC void mpfr_nexttoward (mpfr_ptr, mpfr_srcptr);
 
-__MPFR_DECLSPEC int mpfr_pow (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_pow_si (mpfr_ptr, mpfr_srcptr, long, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_pow_ui (mpfr_ptr, mpfr_srcptr, unsigned long,
-                                 mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_ui_pow_ui (mpfr_ptr, unsigned long, unsigned long,
-                                    mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_ui_pow (mpfr_ptr, unsigned long, mpfr_srcptr,
-                                 mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_pow (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_pow_si (mpfr_ptr, mpfr_srcptr, long, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_pow_ui (mpfr_ptr, mpfr_srcptr, unsigned long,
+--                               mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_ui_pow_ui (mpfr_ptr, unsigned long, unsigned long,
+--                                  mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_ui_pow (mpfr_ptr, unsigned long, mpfr_srcptr,
+--                               mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_pow_z (mpfr_ptr, mpfr_srcptr, mpz_srcptr, mpfr_rnd_t);
 
-__MPFR_DECLSPEC int mpfr_sqrt (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_sqrt_ui (mpfr_ptr, unsigned long, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_sqrt (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_sqrt_ui (mpfr_ptr, unsigned long, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_rec_sqrt (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 
 __MPFR_DECLSPEC int mpfr_ui_sub (mpfr_ptr, unsigned long, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_ui_div (mpfr_ptr, unsigned long, mpfr_srcptr, mpfr_rnd_t);
 
-__MPFR_DECLSPEC int mpfr_si_sub (mpfr_ptr, long, mpfr_srcptr, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_si_div (mpfr_ptr, long, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_si_sub (mpfr_ptr, long, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_si_div (mpfr_ptr, long, mpfr_srcptr, mpfr_rnd_t);
 
 __MPFR_DECLSPEC int mpfr_add_d (mpfr_ptr, mpfr_srcptr, double, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_sub_d (mpfr_ptr, mpfr_srcptr, double, mpfr_rnd_t);
@@ -2795,28 +4260,28 @@ __MPFR_DECLSPEC int mpfr_const_catalan (mpfr_ptr, mpfr_rnd_t);
 
 __MPFR_DECLSPEC int mpfr_agm (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
 
-__MPFR_DECLSPEC int mpfr_log (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_log (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_log2 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_log10 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_log1p (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_log_ui (mpfr_ptr, unsigned long, mpfr_rnd_t);
 
-__MPFR_DECLSPEC int mpfr_exp (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_exp (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_exp2 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_exp10 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_expm1 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_eint (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_li2 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 
-__MPFR_DECLSPEC int mpfr_cmp  (mpfr_srcptr, mpfr_srcptr);
+--__MPFR_DECLSPEC int mpfr_cmp  (mpfr_srcptr, mpfr_srcptr);
 __MPFR_DECLSPEC int mpfr_cmp3 (mpfr_srcptr, mpfr_srcptr, int);
 __MPFR_DECLSPEC int mpfr_cmp_d (mpfr_srcptr, double);
 __MPFR_DECLSPEC int mpfr_cmp_ld (mpfr_srcptr, long double);
 __MPFR_DECLSPEC int mpfr_cmpabs (mpfr_srcptr, mpfr_srcptr);
-__MPFR_DECLSPEC int mpfr_cmp_ui (mpfr_srcptr, unsigned long);
-__MPFR_DECLSPEC int mpfr_cmp_si (mpfr_srcptr, long);
-__MPFR_DECLSPEC int mpfr_cmp_ui_2exp (mpfr_srcptr, unsigned long, mpfr_exp_t);
-__MPFR_DECLSPEC int mpfr_cmp_si_2exp (mpfr_srcptr, long, mpfr_exp_t);
+--__MPFR_DECLSPEC int mpfr_cmp_ui (mpfr_srcptr, unsigned long);
+--__MPFR_DECLSPEC int mpfr_cmp_si (mpfr_srcptr, long);
+__MPFR_DECLSPEC int mpfr_cmp_ui_2exp (mpfr_srcptr, unsigned long, int);
+__MPFR_DECLSPEC int mpfr_cmp_si_2exp (mpfr_srcptr, long, int);
 __MPFR_DECLSPEC int mpfr_sgn (mpfr_srcptr);
 
 __MPFR_DECLSPEC int mpfr_mul_2ui (mpfr_ptr, mpfr_srcptr, unsigned long, mpfr_rnd_t);
@@ -2829,7 +4294,7 @@ __MPFR_DECLSPEC int mpfr_roundeven (mpfr_ptr, mpfr_srcptr);
 __MPFR_DECLSPEC int mpfr_round (mpfr_ptr, mpfr_srcptr);
 __MPFR_DECLSPEC int mpfr_trunc (mpfr_ptr, mpfr_srcptr);
 __MPFR_DECLSPEC int mpfr_ceil (mpfr_ptr, mpfr_srcptr);
-__MPFR_DECLSPEC int mpfr_floor (mpfr_ptr, mpfr_srcptr);
+--__MPFR_DECLSPEC int mpfr_floor (mpfr_ptr, mpfr_srcptr);
 __MPFR_DECLSPEC int mpfr_rint_roundeven (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_rint_round (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_rint_trunc (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
@@ -2902,7 +4367,7 @@ __MPFR_DECLSPEC int mpfr_erfc (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_cbrt (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 --__MPFR_DECLSPEC int mpfr_root (mpfr_ptr, mpfr_srcptr, unsigned long,
 --                             mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_gamma (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_gamma (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_gamma_inc (mpfr_ptr, mpfr_srcptr, mpfr_srcptr,
                                     mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_beta (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
@@ -2926,7 +4391,7 @@ __MPFR_DECLSPEC int mpfr_max (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_dim (mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t);
 
 __MPFR_DECLSPEC int mpfr_mul_z (mpfr_ptr, mpfr_srcptr, mpz_srcptr, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_div_z (mpfr_ptr, mpfr_srcptr, mpz_srcptr, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_div_z (mpfr_ptr, mpfr_srcptr, mpz_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_add_z (mpfr_ptr, mpfr_srcptr, mpz_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_sub_z (mpfr_ptr, mpfr_srcptr, mpz_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_z_sub (mpfr_ptr, mpz_srcptr, mpfr_srcptr, mpfr_rnd_t);
@@ -2994,34 +4459,34 @@ __MPFR_DECLSPEC int mpfr_round_nearest_away_end (mpfr_t, int);
 #define mpfr_round(a,b) mpfr_rint((a), (b), MPFR_RNDNA)
 #define mpfr_trunc(a,b) mpfr_rint((a), (b), MPFR_RNDZ)
 #define mpfr_ceil(a,b)  mpfr_rint((a), (b), MPFR_RNDU)
-#define mpfr_floor(a,b) mpfr_rint((a), (b), MPFR_RNDD)
+--#define mpfr_floor(a,b) mpfr_rint((a), (b), MPFR_RNDD)
 
-#define mpfr_cmp_ui(b,i) mpfr_cmp_ui_2exp((b),(i),0)
-#define mpfr_cmp_si(b,i) mpfr_cmp_si_2exp((b),(i),0)
+--#define mpfr_cmp_ui(b,i) mpfr_cmp_ui_2exp((b),(i),0)
+--#define mpfr_cmp_si(b,i) mpfr_cmp_si_2exp((b),(i),0)
 #define mpfr_abs(a,b,r)  mpfr_set4(a,b,r,1)
 #define mpfr_copysign(a,b,c,r) mpfr_set4(a,b,r,MPFR_SIGN(c))
 #define mpfr_setsign(a,b,s,r) mpfr_set4(a,b,r,(s) ? -1 : 1)
 #define mpfr_signbit(x)  (MPFR_SIGN(x) < 0)
-#define mpfr_cmp(b, c)   mpfr_cmp3(b, c, 1)
+--#define mpfr_cmp(b, c)     mpfr_cmp3(b, c, 1)
 
 
 #if defined (__GNUC__) && !defined(__ICC) && !defined(__cplusplus)
 #if (__GNUC__ >= 2)
 
-#undef mpfr_cmp_ui
-/* We use the fact that mpfr_sgn on NaN sets the erange flag and returns 0.
-   But warning! mpfr_sgn is specified as a macro in the API, thus the macro
-   mustn't be used if side effects are possible, like here. */
-#define mpfr_cmp_ui(_f,_u)                                      \
-  (__builtin_constant_p (_u) && (mpfr_ulong) (_u) == 0 ?        \
-   (mpfr_sgn) (_f) :                                            \
-   mpfr_cmp_ui_2exp ((_f), (_u), 0))
+--#undef mpfr_cmp_ui
+--/* We use the fact that mpfr_sgn on NaN sets the erange flag and returns 0.
+--   But warning! mpfr_sgn is specified as a macro in the API, thus the macro
+--   mustn't be used if side effects are possible, like here. */
+--#define mpfr_cmp_ui(_f,_u)                                        \
+--  (__builtin_constant_p (_u) && (mpfr_ulong) (_u) == 0 ?      \
+--   (mpfr_sgn) (_f) :                                          \
+--   mpfr_cmp_ui_2exp ((_f), (_u), 0))
 
-#undef mpfr_cmp_si
-#define mpfr_cmp_si(_f,_s)                                      \
-  (__builtin_constant_p (_s) && (mpfr_long) (_s) >= 0 ?         \
-   mpfr_cmp_ui ((_f), (mpfr_ulong) (mpfr_long) (_s)) :          \
-   mpfr_cmp_si_2exp ((_f), (_s), 0))
+--#undef mpfr_cmp_si
+--#define mpfr_cmp_si(_f,_s)                                        \
+--  (__builtin_constant_p (_s) && (mpfr_long) (_s) >= 0 ?       \
+--   mpfr_cmp_ui ((_f), (mpfr_ulong) (mpfr_long) (_s)) :            \
+--   mpfr_cmp_si_2exp ((_f), (_s), 0))
 
 #endif
 #endif
@@ -3130,23 +4595,22 @@ Function: int mpfr_set_flt (mpfr_t rop, float op, mpfr_rnd_t rnd)
 Function: int mpfr_set_ld (mpfr_t rop, long double op, mpfr_rnd_t rnd)
 Function: int mpfr_set_float128 (mpfr_t rop, __float128 op, mpfr_rnd_t rnd)
 Function: int mpfr_set_decimal64 (mpfr_t rop, _Decimal64 op, mpfr_rnd_t rnd)
-Function: int mpfr_set_z (mpfr_t rop, mpz_t op, mpfr_rnd_t rnd)
-Function: int mpfr_set_q (mpfr_t rop, mpq_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_set_z (mpfr_t rop, mpz_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_set_q (mpfr_t rop, mpq_t op, mpfr_rnd_t rnd)
 Set the value of rop from op, rounded toward the given direction rnd. 
 Note that the input 0 is converted to +0 by mpfr_set_uj, mpfr_set_sj, 
 The mpfr_set_float128 function is built only with the configure option '--enable-float128', which requires the compiler or system provides the '__float128' 
 data type (GCC 4.3 or later supports this data type); to use mpfr_set_float128, one should define the macro MPFR_WANT_FLOAT128 before including mpfr.h. 
-mpfr_set_z, mpfr_set_q, regardless of the rounding mode. 
 If the system does not support the IEEE 754 standard, mpfr_set_flt, mpfr_set_ld and mpfr_set_decimal64 might not preserve the signed zeros. 
 The mpfr_set_decimal64 function is built only with the configure option '--enable-decimal-float', and when the compiler or system provides the '_Decimal64' 
 data type (recent versions of GCC support this data type); to use mpfr_set_decimal64, one should define the macro MPFR_WANT_DECIMAL_FLOATS before including mpfr.h. 
-mpfr_set_q might fail if the numerator (or the denominator) can not be represented as a mpfr_t.
+--mpfr_set_q might fail if the numerator (or the denominator) can not be represented as a mpfr_t.
 
-Function: int mpfr_set_ui_2exp (mpfr_t rop, unsigned long int op, mpfr_exp_t e, mpfr_rnd_t rnd)
-Function: int mpfr_set_si_2exp (mpfr_t rop, long int op, mpfr_exp_t e, mpfr_rnd_t rnd)
+Function: int mpfr_set_ui_2exp (mpfr_t rop, unsigned long int op, int e, mpfr_rnd_t rnd)
+Function: int mpfr_set_si_2exp (mpfr_t rop, long int op, int e, mpfr_rnd_t rnd)
 Function: int mpfr_set_uj_2exp (mpfr_t rop, uintmax_t op, intmax_t e, mpfr_rnd_t rnd)
 Function: int mpfr_set_sj_2exp (mpfr_t rop, intmax_t op, intmax_t e, mpfr_rnd_t rnd)
-Function: int mpfr_set_z_2exp (mpfr_t rop, mpz_t op, mpfr_exp_t e, mpfr_rnd_t rnd)
+Function: int mpfr_set_z_2exp (mpfr_t rop, mpz_t op, int e, mpfr_rnd_t rnd)
 Set the value of rop from op multiplied by two to the power e, rounded toward the given direction rnd. Note that the input 0 is converted to +0.
 
 --Function: int mpfr_set_str (mpfr_t rop, const char *s, int base, mpfr_rnd_t rnd)
@@ -3247,19 +4711,19 @@ double (resp. long double) precision, using the given rounding mode.
 If op is zero, then a zero of the same sign (or an unsigned zero, if the implementation does not have signed zeros) is returned, and exp is set to 0. 
     If op is NaN or an infinity, then the corresponding double precision (resp. long-double precision) value is returned, and exp is undefined.
 
-Function: int mpfr_frexp (mpfr_exp_t *exp, mpfr_t y, mpfr_t x, mpfr_rnd_t rnd)
+Function: int mpfr_frexp (int *exp, mpfr_t y, mpfr_t x, mpfr_rnd_t rnd)
 Set exp (formally, the value pointed to by exp) and y such that 0.5<=abs(y)<1 and y times 2 raised to exp equals x rounded to the precision of y, 
 using the given rounding mode. 
 If x is zero, then y is set to a zero of the same sign and exp is set to 0. 
 If x is NaN or an infinity, then y is set to the same value and exp is undefined.
 
-Function: mpfr_exp_t mpfr_get_z_2exp (mpz_t rop, mpfr_t op)
+Function: int mpfr_get_z_2exp (mpz_t rop, mpfr_t op)
 Put the scaled significand of op (regarded as an integer, with the precision of op) into rop, and return the exponent exp (which may 
 be outside the current exponent range) such that op exactly equals rop times 2 raised to the power exp. 
 If op is zero, the minimal exponent emin is returned. 
 If op is NaN or an infinity, the erange flag is set, rop is set to 0, and the the minimal exponent emin is returned. 
 The returned exponent may be less than the minimal exponent emin of MPFR numbers in the current exponent range; in case the exponent 
-is not representable in the mpfr_exp_t type, the erange flag is set and the minimal value of the mpfr_exp_t type is returned.
+is not representable in the int type, the erange flag is set and the minimal value of the int type is returned.
 
 Function: int mpfr_get_z (mpz_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Convert op to a mpz_t, after rounding it with respect to rnd. 
@@ -3299,7 +4763,7 @@ the C implementation (macro IEEE_DBL_MANT_DIG, and if not defined 53 bits).
 Function: int mpfr_sub (mpfr_t rop, mpfr_t op1, mpfr_t op2, mpfr_rnd_t rnd)
 Function: int mpfr_ui_sub (mpfr_t rop, unsigned long int op1, mpfr_t op2, mpfr_rnd_t rnd)
 Function: int mpfr_sub_ui (mpfr_t rop, mpfr_t op1, unsigned long int op2, mpfr_rnd_t rnd)
-Function: int mpfr_si_sub (mpfr_t rop, long int op1, mpfr_t op2, mpfr_rnd_t rnd)
+--Function: int mpfr_si_sub (mpfr_t rop, long int op1, mpfr_t op2, mpfr_rnd_t rnd)
 Function: int mpfr_sub_si (mpfr_t rop, mpfr_t op1, long int op2, mpfr_rnd_t rnd)
 Function: int mpfr_d_sub (mpfr_t rop, double op1, mpfr_t op2, mpfr_rnd_t rnd)
 Function: int mpfr_sub_d (mpfr_t rop, mpfr_t op1, double op2, mpfr_rnd_t rnd)
@@ -3317,18 +4781,18 @@ Set rop to op1 times op2 rounded in the direction rnd. When a result is zero, it
 types having no signed zeros, 0 is considered positive). The same restrictions than for mpfr_add_d apply to mpfr_mul_d.
 
 Function: int mpfr_ui_div (mpfr_t rop, unsigned long int op1, mpfr_t op2, mpfr_rnd_t rnd)
-Function: int mpfr_si_div (mpfr_t rop, long int op1, mpfr_t op2, mpfr_rnd_t rnd)
+--Function: int mpfr_si_div (mpfr_t rop, long int op1, mpfr_t op2, mpfr_rnd_t rnd)
 Function: int mpfr_d_div (mpfr_t rop, double op1, mpfr_t op2, mpfr_rnd_t rnd)
 Function: int mpfr_div_d (mpfr_t rop, mpfr_t op1, double op2, mpfr_rnd_t rnd)
-Function: int mpfr_div_z (mpfr_t rop, mpfr_t op1, mpz_t op2, mpfr_rnd_t rnd)
+--Function: int mpfr_div_z (mpfr_t rop, mpfr_t op1, mpz_t op2, mpfr_rnd_t rnd)
 Function: int mpfr_div_q (mpfr_t rop, mpfr_t op1, mpq_t op2, mpfr_rnd_t rnd)
 Set rop to op1/op2 rounded in the direction rnd. When a result is zero, its sign is the product of the signs of the operands. 
 For types having no signed zeros, 0 is considered positive; but note that if op1 is non-zero and op2 is zero, the result might change 
 from +/-Inf to NaN in future MPFR versions if there is an opposite decision on the IEEE 754 side. The same restrictions than for mpfr_add_d apply to mpfr_d_div and mpfr_div_d.
 
-Function: int mpfr_sqrt (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
-Function: int mpfr_sqrt_ui (mpfr_t rop, unsigned long int op, mpfr_rnd_t rnd)
-Set rop to the square root of op rounded in the direction rnd. Set rop to -0 if op is -0, to be consistent with the IEEE 754 standard. Set rop to NaN if op is negative.
+--Function: int mpfr_sqrt (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_sqrt_ui (mpfr_t rop, unsigned long int op, mpfr_rnd_t rnd)
+--Set rop to the square root of op rounded in the direction rnd. Set rop to -0 if op is -0, to be consistent with the IEEE 754 standard. Set rop to NaN if op is negative.
 
 Function: int mpfr_rec_sqrt (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Set rop to the reciprocal square root of op rounded in the direction rnd. 
@@ -3349,32 +4813,32 @@ These functions agree with the rootn function of the IEEE 754-2008 standard (Sec
 --
 --This function predates the IEEE 754-2008 standard and behaves differently from its rootn function. It is marked as deprecated and will be removed in a future release.
 
-Function: int mpfr_pow (mpfr_t rop, mpfr_t op1, mpfr_t op2, mpfr_rnd_t rnd)
-Function: int mpfr_pow_ui (mpfr_t rop, mpfr_t op1, unsigned long int op2, mpfr_rnd_t rnd)
-Function: int mpfr_pow_si (mpfr_t rop, mpfr_t op1, long int op2, mpfr_rnd_t rnd)
+--Function: int mpfr_pow (mpfr_t rop, mpfr_t op1, mpfr_t op2, mpfr_rnd_t rnd)
+--Function: int mpfr_pow_ui (mpfr_t rop, mpfr_t op1, unsigned long int op2, mpfr_rnd_t rnd)
+--Function: int mpfr_pow_si (mpfr_t rop, mpfr_t op1, long int op2, mpfr_rnd_t rnd)
 Function: int mpfr_pow_z (mpfr_t rop, mpfr_t op1, mpz_t op2, mpfr_rnd_t rnd)
-Function: int mpfr_ui_pow_ui (mpfr_t rop, unsigned long int op1, unsigned long int op2, mpfr_rnd_t rnd)
-Function: int mpfr_ui_pow (mpfr_t rop, unsigned long int op1, mpfr_t op2, mpfr_rnd_t rnd)
-Set rop to op1 raised to op2, rounded in the direction rnd. Special values are handled as described in the ISO C99 and IEEE 754-2008 standards for the pow function:
-
-pow(+/-0, y) returns plus or minus infinity for y a negative odd integer.
-pow(+/-0, y) returns plus infinity for y negative and not an odd integer.
-pow(+/-0, y) returns plus or minus zero for y a positive odd integer.
-pow(+/-0, y) returns plus zero for y positive and not an odd integer.
-pow(-1, +/-Inf) returns 1.
-pow(+1, y) returns 1 for any y, even a NaN.
-pow(x, +/-0) returns 1 for any x, even a NaN.
-pow(x, y) returns NaN for finite negative x and finite non-integer y.
-pow(x, -Inf) returns plus infinity for 0 < abs(x) < 1, and plus zero for abs(x) > 1.
-pow(x, +Inf) returns plus zero for 0 < abs(x) < 1, and plus infinity for abs(x) > 1.
-pow(-Inf, y) returns minus zero for y a negative odd integer.
-pow(-Inf, y) returns plus zero for y negative and not an odd integer.
-pow(-Inf, y) returns minus infinity for y a positive odd integer.
-pow(-Inf, y) returns plus infinity for y positive and not an odd integer.
-pow(+Inf, y) returns plus zero for y negative, and plus infinity for y positive.
-Note: When 0 is of integer type, it is regarded as +0 by these functions. We do not use the usual limit rules in this case, as these rules are not used for pow.
-
-Function: int mpfr_neg (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_ui_pow_ui (mpfr_t rop, unsigned long int op1, unsigned long int op2, mpfr_rnd_t rnd)
+--Function: int mpfr_ui_pow (mpfr_t rop, unsigned long int op1, mpfr_t op2, mpfr_rnd_t rnd)
+--Set rop to op1 raised to op2, rounded in the direction rnd. Special values are handled as described in the ISO C99 and IEEE 754-2008 standards for the pow function:
+--
+--pow(+/-0, y) returns plus or minus infinity for y a negative odd integer.
+--pow(+/-0, y) returns plus infinity for y negative and not an odd integer.
+--pow(+/-0, y) returns plus or minus zero for y a positive odd integer.
+--pow(+/-0, y) returns plus zero for y positive and not an odd integer.
+--pow(-1, +/-Inf) returns 1.
+--pow(+1, y) returns 1 for any y, even a NaN.
+--pow(x, +/-0) returns 1 for any x, even a NaN.
+--pow(x, y) returns NaN for finite negative x and finite non-integer y.
+--pow(x, -Inf) returns plus infinity for 0 < abs(x) < 1, and plus zero for abs(x) > 1.
+--pow(x, +Inf) returns plus zero for 0 < abs(x) < 1, and plus infinity for abs(x) > 1.
+--pow(-Inf, y) returns minus zero for y a negative odd integer.
+--pow(-Inf, y) returns plus zero for y negative and not an odd integer.
+--pow(-Inf, y) returns minus infinity for y a positive odd integer.
+--pow(-Inf, y) returns plus infinity for y positive and not an odd integer.
+--pow(+Inf, y) returns plus zero for y negative, and plus infinity for y positive.
+--Note: When 0 is of integer type, it is regarded as +0 by these functions. We do not use the usual limit rules in this case, as these rules are not used for pow.
+--
+--Function: int mpfr_neg (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Function: int mpfr_abs (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Set rop to -op and the absolute value of op respectively, rounded in the direction rnd. 
 Just changes or adjusts the sign if rop and op are the same variable, otherwise a rounding might occur if the precision of rop is less than that of op.
@@ -3396,9 +4860,9 @@ Set rop to op1 divided by 2 raised to op2 rounded in the direction rnd. Just dec
 Next: Special Functions, Previous: Basic Arithmetic Functions, Up: MPFR Interface   [Index]
 
 5.6 Comparison Functions
-Function: int mpfr_cmp (mpfr_t op1, mpfr_t op2)
-Function: int mpfr_cmp_ui (mpfr_t op1, unsigned long int op2)
-Function: int mpfr_cmp_si (mpfr_t op1, long int op2)
+--Function: int mpfr_cmp (mpfr_t op1, mpfr_t op2)
+--Function: int mpfr_cmp_ui (mpfr_t op1, unsigned long int op2)
+--Function: int mpfr_cmp_si (mpfr_t op1, long int op2)
 Function: int mpfr_cmp_d (mpfr_t op1, double op2)
 Function: int mpfr_cmp_ld (mpfr_t op1, long double op2)
 Function: int mpfr_cmp_z (mpfr_t op1, mpz_t op2)
@@ -3412,8 +4876,8 @@ If you need to distinguish two cases only, it is recommended to use the predicat
 they behave like the IEEE 754 comparisons, in particular when one or both arguments are NaN. 
 But only floating-point numbers can be compared (you may need to do a conversion first).
 
-Function: int mpfr_cmp_ui_2exp (mpfr_t op1, unsigned long int op2, mpfr_exp_t e)
-Function: int mpfr_cmp_si_2exp (mpfr_t op1, long int op2, mpfr_exp_t e)
+Function: int mpfr_cmp_ui_2exp (mpfr_t op1, unsigned long int op2, int e)
+Function: int mpfr_cmp_si_2exp (mpfr_t op1, long int op2, int e)
 Compare op1 and op2 multiplied by two to the power e. Similar as above.
 
 Function: int mpfr_cmpabs (mpfr_t op1, mpfr_t op2)
@@ -3457,7 +4921,7 @@ for example the trigonometric and Bessel functions for large argument.
 For some functions, the memory usage might depend not only on the output precision: it is the case of the mpfr_rootn_ui function where 
 the memory usage is also linear in the argument k, and of the incomplete Gamma function (dependence on the precision of op).
 
-Function: int mpfr_log (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_log (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Function: int mpfr_log_ui (mpfr_t rop, unsigned long op, mpfr_rnd_t rnd)
 Function: int mpfr_log2 (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Function: int mpfr_log10 (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
@@ -3468,7 +4932,7 @@ Set rop to -Inf if op is +/-0 (i.e., the sign of the zero has no influence on th
 Function: int mpfr_log1p (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Set rop to the logarithm of one plus op, rounded in the direction rnd. Set rop to -Inf if op is -1.
 
-Function: int mpfr_exp (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_exp (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Function: int mpfr_exp2 (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Function: int mpfr_exp10 (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Set rop to the exponential of op, to 2 power of op or to 10 power of op, respectively, rounded in the direction rnd.
@@ -3561,7 +5025,7 @@ to the opposite of the E1 function (sometimes called eint1) at -op (formula 5.1.
 Function: int mpfr_li2 (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Set rop to real part of the dilogarithm of op, rounded in the direction rnd. MPFR defines the dilogarithm function as the integral of -log(1-t)/t from 0 to op.
 
-Function: int mpfr_gamma (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
+--Function: int mpfr_gamma (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Function: int mpfr_gamma_inc (mpfr_t rop, mpfr_t op, mpfr_t op2, mpfr_rnd_t rnd)
 Set rop to the value of the Gamma function on op, resp. the incomplete Gamma function on op and op2, rounded in the direction rnd. 
 (In the literature, mpfr_gamma_inc is called upper incomplete Gamma function, or sometimes complementary incomplete Gamma function.) 
@@ -3682,7 +5146,7 @@ the result is +0, except for the MPFR_RNDD rounding mode, where it is -0.
 5.10 Integer and Remainder Related Functions
 Function: int mpfr_rint (mpfr_t rop, mpfr_t op, mpfr_rnd_t rnd)
 Function: int mpfr_ceil (mpfr_t rop, mpfr_t op)
-Function: int mpfr_floor (mpfr_t rop, mpfr_t op)
+--Function: int mpfr_floor (mpfr_t rop, mpfr_t op)
 Function: int mpfr_round (mpfr_t rop, mpfr_t op)
 Function: int mpfr_roundeven (mpfr_t rop, mpfr_t op)
 Function: int mpfr_trunc (mpfr_t rop, mpfr_t op)
@@ -3690,7 +5154,7 @@ Set rop to op rounded to an integer.
 mpfr_rint rounds to the nearest representable integer in the given direction rnd, and the other five functions behave in a similar way with some fixed rounding mode:
 
 mpfr_ceil: to the next higher or equal representable integer (like mpfr_rint with MPFR_RNDU);
-mpfr_floor to the next lower or equal representable integer (like mpfr_rint with MPFR_RNDD);
+--mpfr_floor to the next lower or equal representable integer (like mpfr_rint with MPFR_RNDD);
 mpfr_round to the nearest representable integer, rounding halfway cases away from zero (as in the roundTiesToAway mode of IEEE 754-2008);
 mpfr_roundeven to the nearest representable integer, rounding halfway cases with the even-rounding rule (like mpfr_rint with MPFR_RNDN);
 mpfr_trunc to the next representable integer toward zero (like mpfr_rint with MPFR_RNDZ).
@@ -3783,7 +5247,7 @@ Here is an example of how to use mpfr_prec_round to implement Newton's algorithm
   mpfr_prec_round (x, 2 * n, MPFR_RNDN); /* exact */
   mpfr_add (x, x, t, MPFR_RNDN);      /* x is correct to 2n bits */
 
-Function: int mpfr_can_round (mpfr_t b, mpfr_exp_t err, mpfr_rnd_t rnd1, mpfr_rnd_t rnd2, mpfr_prec_t prec)
+Function: int mpfr_can_round (mpfr_t b, int err, mpfr_rnd_t rnd1, mpfr_rnd_t rnd2, mpfr_prec_t prec)
 Assuming b is an approximation of an unknown number x in the direction rnd1 with error at most two to the power E(b)-err where E(b) is 
 the exponent of b, return a non-zero value if one is able to round correctly x to precision prec with the direction rnd2 assuming an 
 unbounded exponent range, and 0 otherwise (including for NaN and Inf). 
@@ -3896,12 +5360,12 @@ Note: mpfr_nrandom is much more efficient than mpfr_grandom, especially for larg
 Function: int mpfr_erandom (mpfr_t rop1, gmp_randstate_t state, mpfr_rnd_t rnd)
 Generate one random floating-point number according to an exponential distribution, with mean one. Other characteristics are identical to mpfr_nrandom.
 
-Function: mpfr_exp_t mpfr_get_exp (mpfr_t x)
+Function: int mpfr_get_exp (mpfr_t x)
 Return the exponent of x, assuming that x is a non-zero ordinary number and the significand is considered in [1/2,1). 
 For this function, x is allowed to be outside of the current range of acceptable values. 
 The behavior for NaN, infinity or zero is undefined.
 
-Function: int mpfr_set_exp (mpfr_t x, mpfr_exp_t e)
+Function: int mpfr_set_exp (mpfr_t x, int e)
 Set the exponent of x to e if x is a non-zero ordinary number and e is in the current exponent range, and return 0; otherwise, return a non-zero value (x is not changed).
 
 Function: int mpfr_signbit (mpfr_t op)
@@ -3943,14 +5407,14 @@ Return a string saying which thresholds file has been used at compile time. This
 Next: Compatibility with MPF, Previous: Miscellaneous Functions, Up: MPFR Interface   [Index]
 
 5.13 Exception Related Functions
-Function: mpfr_exp_t mpfr_get_emin (void)
-Function: mpfr_exp_t mpfr_get_emax (void)
+Function: int mpfr_get_emin (void)
+Function: int mpfr_get_emax (void)
 Return the (current) smallest and largest exponents allowed for a floating-point variable. 
 The smallest positive value of a floating-point variable is one half times 2 raised to the smallest exponent and the largest value has the form 
 (1 - epsilon) times 2 raised to the largest exponent, where epsilon depends on the precision of the considered variable.
 
-Function: int mpfr_set_emin (mpfr_exp_t exp)
-Function: int mpfr_set_emax (mpfr_exp_t exp)
+Function: int mpfr_set_emin (int exp)
+Function: int mpfr_set_emax (int exp)
 Set the smallest and largest exponents allowed for a floating-point variable. 
 Return a non-zero value when exp is not in the range accepted by the implementation (in that case the smallest or largest exponent is not changed), and zero otherwise.
 
@@ -3964,10 +5428,10 @@ internally when need be).
 If emin > emax and a floating-point value needs to be produced as output, the behavior is undefined (mpfr_set_emin and mpfr_set_emax do not check this condition as it might occur 
     between successive calls to these two functions).
 
-Function: mpfr_exp_t mpfr_get_emin_min (void)
-Function: mpfr_exp_t mpfr_get_emin_max (void)
-Function: mpfr_exp_t mpfr_get_emax_min (void)
-Function: mpfr_exp_t mpfr_get_emax_max (void)
+Function: int mpfr_get_emin_min (void)
+Function: int mpfr_get_emin_max (void)
+Function: int mpfr_get_emax_min (void)
+Function: int mpfr_get_emax_max (void)
 Return the minimum and maximum of the exponents allowed for mpfr_set_emin and mpfr_set_emax respectively. 
 These values are implementation dependent, thus a program using mpfr_set_emax(mpfr_get_emax_max()) or mpfr_set_emin(mpfr_get_emin_min()) may not be portable.
 
@@ -4099,13 +5563,13 @@ Note: Information given here may be incomplete. API changes are also described i
 Next: Added Functions, Previous: API Compatibility, Up: API Compatibility   [Index]
 
 6.1 Type and Macro Changes
-The official type for exponent values changed from mp_exp_t to mpfr_exp_t in MPFR 3.0. 
+The official type for exponent values changed from mp_exp_t to int in MPFR 3.0. 
 The type mp_exp_t will remain available as it comes from GMP (with a different meaning). 
-These types are currently the same (mpfr_exp_t is defined as mp_exp_t with typedef), so that programs can still use mp_exp_t; but this may change in the future. 
-Alternatively, using the following code after including mpfr.h will work with official MPFR versions, as mpfr_exp_t was never defined in MPFR 2.x:
+These types are currently the same (int is defined as mp_exp_t with typedef), so that programs can still use mp_exp_t; but this may change in the future. 
+Alternatively, using the following code after including mpfr.h will work with official MPFR versions, as int was never defined in MPFR 2.x:
 
 #if MPFR_VERSION_MAJOR < 3
-typedef mp_exp_t mpfr_exp_t;
+typedef mp_exp_t int;
 #endif
 The official types for precision values and for rounding modes respectively changed from mp_prec_t and mp_rnd_t to mpfr_prec_t and mpfr_rnd_t in MPFR 3.0. 
 This change was actually done a long time ago in MPFR, at least since MPFR 2.2.0, with the following code in mpfr.h:
@@ -4269,14 +5733,14 @@ mpfr_clear_inexflag:            Exception Related Functions
 mpfr_clear_nanflag:             Exception Related Functions
 mpfr_clear_overflow:            Exception Related Functions
 mpfr_clear_underflow:           Exception Related Functions
-mpfr_cmp:               Comparison Functions
+--mpfr_cmp:             Comparison Functions
 mpfr_cmpabs:            Comparison Functions
 mpfr_cmp_d:             Comparison Functions
 mpfr_cmp_ld:            Comparison Functions
 mpfr_cmp_q:             Comparison Functions
-mpfr_cmp_si:            Comparison Functions
+--mpfr_cmp_si:          Comparison Functions
 mpfr_cmp_si_2exp:               Comparison Functions
-mpfr_cmp_ui:            Comparison Functions
+--mpfr_cmp_ui:          Comparison Functions
 mpfr_cmp_ui_2exp:               Comparison Functions
 mpfr_cmp_z:             Comparison Functions
 mpfr_const_catalan:             Special Functions
@@ -4296,7 +5760,7 @@ mpfr_div_2si:           Basic Arithmetic Functions
 mpfr_div_2ui:           Basic Arithmetic Functions
 mpfr_div_d:             Basic Arithmetic Functions
 mpfr_div_q:             Basic Arithmetic Functions
-mpfr_div_z:             Basic Arithmetic Functions
+--mpfr_div_z:           Basic Arithmetic Functions
 mpfr_d_div:             Basic Arithmetic Functions
 mpfr_d_sub:             Basic Arithmetic Functions
 mpfr_eint:              Special Functions
@@ -4306,11 +5770,10 @@ mpfr_erandom:           Miscellaneous Functions
 mpfr_erangeflag_p:              Exception Related Functions
 mpfr_erf:               Special Functions
 mpfr_erfc:              Special Functions
-mpfr_exp:               Special Functions
+--mpfr_exp:             Special Functions
 mpfr_exp10:             Special Functions
 mpfr_exp2:              Special Functions
 mpfr_expm1:             Special Functions
-mpfr_exp_t:             Nomenclature and Types
 mpfr_fac_ui:            Special Functions
 mpfr_fits_intmax_p:             Conversion Functions
 mpfr_fits_sint_p:               Conversion Functions
@@ -4326,7 +5789,7 @@ mpfr_flags_save:                Exception Related Functions
 mpfr_flags_set:         Exception Related Functions
 mpfr_flags_t:           Nomenclature and Types
 mpfr_flags_test:                Exception Related Functions
-mpfr_floor:             Integer and Remainder Related Functions
+--mpfr_floor:           Integer and Remainder Related Functions
 mpfr_fma:               Special Functions
 mpfr_fmma:              Special Functions
 mpfr_fmms:              Special Functions
@@ -4338,7 +5801,7 @@ mpfr_free_cache:                Special Functions
 mpfr_free_cache2:               Special Functions
 mpfr_free_pool:         Special Functions
 mpfr_frexp:             Conversion Functions
-mpfr_gamma:             Special Functions
+--mpfr_gamma:           Special Functions
 mpfr_gamma_inc:         Special Functions
 mpfr_get_d:             Conversion Functions
 mpfr_get_decimal64:             Conversion Functions
@@ -4379,7 +5842,7 @@ mpfr_less_p:            Comparison Functions
 mpfr_lgamma:            Special Functions
 mpfr_li2:               Special Functions
 mpfr_lngamma:           Special Functions
-mpfr_log:               Special Functions
+--mpfr_log:             Special Functions
 mpfr_log10:             Special Functions
 mpfr_log1p:             Special Functions
 mpfr_log2:              Special Functions
@@ -4396,7 +5859,7 @@ mpfr_mul_q:             Basic Arithmetic Functions
 mpfr_mul_z:             Basic Arithmetic Functions
 mpfr_nanflag_p:         Exception Related Functions
 mpfr_nan_p:             Comparison Functions
-mpfr_neg:               Basic Arithmetic Functions
+--mpfr_neg:             Basic Arithmetic Functions
 mpfr_nextabove:         Miscellaneous Functions
 mpfr_nextbelow:         Miscellaneous Functions
 mpfr_nexttoward:                Miscellaneous Functions
@@ -4445,7 +5908,7 @@ mpfr_set_ld:            Assignment Functions
 mpfr_set_nan:           Assignment Functions
 mpfr_set_nanflag:               Exception Related Functions
 mpfr_set_overflow:              Exception Related Functions
-mpfr_set_q:             Assignment Functions
+--mpfr_set_q:           Assignment Functions
 mpfr_set_si_2exp:               Assignment Functions
 mpfr_set_sj:            Assignment Functions
 mpfr_set_sj_2exp:               Assignment Functions
@@ -4453,7 +5916,7 @@ mpfr_set_ui_2exp:               Assignment Functions
 mpfr_set_uj:            Assignment Functions
 mpfr_set_uj_2exp:               Assignment Functions
 mpfr_set_underflow:             Exception Related Functions
-mpfr_set_z:             Assignment Functions
+--mpfr_set_z:           Assignment Functions
 mpfr_set_zero:          Assignment Functions
 mpfr_set_z_2exp:                Assignment Functions
 mpfr_sgn:               Comparison Functions
@@ -4461,10 +5924,10 @@ mpfr_signbit:           Miscellaneous Functions
 mpfr_sinh:              Special Functions
 mpfr_sinh_cosh:         Special Functions
 mpfr_sin_cos:           Special Functions
-mpfr_si_div:            Basic Arithmetic Functions
-mpfr_si_sub:            Basic Arithmetic Functions
-mpfr_sqrt:              Basic Arithmetic Functions
-mpfr_sqrt_ui:           Basic Arithmetic Functions
+--mpfr_si_div:          Basic Arithmetic Functions
+--mpfr_si_sub:          Basic Arithmetic Functions
+--mpfr_sqrt:                Basic Arithmetic Functions
+--mpfr_sqrt_ui:         Basic Arithmetic Functions
 mpfr_strtofr:           Assignment Functions
 mpfr_sub:               Basic Arithmetic Functions
 mpfr_subnormalize:              Exception Related Functions
@@ -4768,7 +6231,7 @@ mpz_addmul_ui (mpq_numref(q), mpq_denref(q), 123UL);
 /* mpq -= mpz */
 mpz_submul (mpq_numref(q), mpq_denref(q), z);
 Number Sequences
-Functions like mpz_fac_ui, mpz_fib_ui and mpz_bin_uiui are designed for calculating
+Functions like mpz_fac_ui, and mpz_bin_uiui are designed for calculating
 isolated values. If a range of values is wanted it's probably best to call to get
 a starting point and iterate from there.
 Text Input/Output
@@ -4978,20 +6441,20 @@ This is similar to the standard C frexp function (see Section "Normalization Fun
 The GNU C Library Reference Manual).
 
 5.5 Arithmetic Functions
-void mpz_ui_sub (mpz_t rop, mpir_ui op1, mpz_t op2) 
-Set rop to op1 - op2.
+--void mpz_ui_sub (mpz_t rop, mpir_ui op1, mpz_t op2) 
+--Set rop to op1 - op2.
 void mpz_addmul (mpz_t rop, mpz_t op1, mpz_t op2) 
 void mpz_addmul_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
 Set rop to rop + op1 * op2.
 void mpz_submul (mpz_t rop, mpz_t op1, mpz_t op2) 
 void mpz_submul_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
 Set rop to rop - op1 * op2.
-void mpz_neg (mpz_t rop, mpz_t op) 
-Set rop to -op.
-void mpz_abs (mpz_t rop, mpz_t op) 
-Set rop to the absolute value of op.
+--void mpz_neg (mpz_t rop, mpz_t op) 
+--Set rop to -op.
+--void mpz_abs (mpz_t rop, mpz_t op) 
+--Set rop to the absolute value of op.
 5.6 Division Functions
-void mpz_cdiv_q (mpz_t q, mpz_t n, mpz_t d) 
+--void mpz_cdiv_q (mpz_t q, mpz_t n, mpz_t d) 
 void mpz_cdiv_r (mpz_t r, mpz_t n, mpz_t d) 
 void mpz_cdiv_qr (mpz_t q, mpz_t r, mpz_t n, mpz_t d) 
 mpir_ui mpz_cdiv_q_ui (mpz_t q, mpz_t n, mpir_ui d) 
@@ -5000,13 +6463,13 @@ mpir_ui mpz_cdiv_qr_ui (mpz_t q, mpz_t r, mpz_t n, mpir_ui d)
 mpir_ui mpz_cdiv_ui (mpz_t n, mpir_ui d) 
 void mpz_cdiv_q_2exp (mpz_t q, mpz_t n, mp_bitcnt_t b) 
 void mpz_cdiv_r_2exp (mpz_t r, mpz_t n, mp_bitcnt_t b) 
-void mpz_fdiv_q (mpz_t q, mpz_t n, mpz_t d) 
-void mpz_fdiv_r (mpz_t r, mpz_t n, mpz_t d) 
+--void mpz_fdiv_q (mpz_t q, mpz_t n, mpz_t d) 
+--void mpz_fdiv_r (mpz_t r, mpz_t n, mpz_t d) 
 void mpz_fdiv_qr (mpz_t q, mpz_t r, mpz_t n, mpz_t d) 
-mpir_ui mpz_fdiv_q_ui (mpz_t q, mpz_t n, mpir_ui d) 
---mpir_ui mpz_fdiv_r_ui (mpz_t r, mpz_t n, mpir_ui d) 
+--mpir_ui mpz_fdiv_q_ui (mpz_t q, mpz_t n, mpir_ui d) 
+>mpir_ui mpz_fdiv_r_ui (mpz_t r, mpz_t n, mpir_ui d) 
 mpir_ui mpz_fdiv_qr_ui (mpz_t q, mpz_t r, mpz_t n, mpir_ui d) 
-mpir_ui mpz_fdiv_ui (mpz_t n, mpir_ui d) 
+--mpir_ui mpz_fdiv_ui (mpz_t n, mpir_ui d) 
 void mpz_fdiv_r_2exp (mpz_t r, mpz_t n, mp_bitcnt_t b) 
 void mpz_tdiv_q (mpz_t q, mpz_t n, mpz_t d) 
 void mpz_tdiv_r (mpz_t r, mpz_t n, mpz_t d) 
@@ -5015,8 +6478,8 @@ mpir_ui mpz_tdiv_q_ui (mpz_t q, mpz_t n, mpir_ui d)
 mpir_ui mpz_tdiv_r_ui (mpz_t r, mpz_t n, mpir_ui d) 
 mpir_ui mpz_tdiv_qr_ui (mpz_t q, mpz_t r, mpz_t n, mpir_ui d) 
 mpir_ui mpz_tdiv_ui (mpz_t n, mpir_ui d) 
-void mpz_tdiv_q_2exp (mpz_t q, mpz_t n, mp_bitcnt_t b) 
-void mpz_tdiv_r_2exp (mpz_t r, mpz_t n, mp_bitcnt_t b) 
+--void mpz_tdiv_q_2exp (mpz_t q, mpz_t n, mp_bitcnt_t b) 
+--void mpz_tdiv_r_2exp (mpz_t r, mpz_t n, mp_bitcnt_t b) 
 Divide n by d, forming a quotient q and/or remainder r. For the 2exp functions, d = 2b. The
 rounding is in three styles, each suiting different applications.
  * cdiv rounds q up towards +inf, and r will have the opposite sign to d. The c stands for
@@ -5048,13 +6511,13 @@ Set q to n/d. These functions produce correct results only when it is known in a
 d divides n.
 These routines are much faster than the other division functions, and are the best choice
 when exact division is known to occur, for example reducing a rational to lowest terms.
-int mpz_divisible_p (mpz_t n, mpz_t d) 
-int mpz_divisible_ui_p (mpz_t n, mpir_ui d) 
-int mpz_divisible_2exp_p (mpz_t n, mp_bitcnt_t b) 
-Return non-zero if n is exactly divisible by d, or in the case of mpz_divisible_2exp_p by 2b.
-n is divisible by d if there exists an integer q satisfying n = qd. Unlike the other division
-functions, d = 0 is accepted and following the rule it can be seen that only 0 is considered
-divisible by 0.
+--int mpz_divisible_p (mpz_t n, mpz_t d) 
+--int mpz_divisible_ui_p (mpz_t n, mpir_ui d) 
+--int mpz_divisible_2exp_p (mpz_t n, mp_bitcnt_t b) 
+--Return non-zero if n is exactly divisible by d, or in the case of mpz_divisible_2exp_p by 2b.
+--n is divisible by d if there exists an integer q satisfying n = qd. Unlike the other division
+--functions, d = 0 is accepted and following the rule it can be seen that only 0 is considered
+--divisible by 0.
 int mpz_congruent_p (mpz_t n, mpz_t c, mpz_t d) 
 int mpz_congruent_ui_p (mpz_t n, mpir_ui c, mpir_ui d) 
 int mpz_congruent_2exp_p (mpz_t n, mpz_t c, mp_bitcnt_t b) 
@@ -5068,33 +6531,20 @@ Chapter 5: Integer Functions 35
 --void mpz_pow_ui (mpz_t rop, mpz_t base, mpir_ui exp) 
 --Set rop to base^exp
 5.8 Root Extraction Functions
-int mpz_root (mpz_t rop, mpz_t op, mpir_ui n) 
-Set rop to b n
-p
-opc; the truncated integer part of the nth root of op. Return non-zero if the
-computation was exact, i.e., if op is rop to the nth power.
+--int mpz_root (mpz_t rop, mpz_t op, mpir_ui n) 
+--Set rop to the truncated integer part of the nth root of op. Return non-zero if the
+--computation was exact, i.e., if op is rop to the nth power.
 void mpz_nthroot (mpz_t rop, mpz_t op, mpir_ui n) 
-Set rop to b n
-p
-opc; the truncated integer part of the nth root of op.
+Set rop to the truncated integer part of the nth root of op.
 void mpz_rootrem (mpz_t root, mpz_t rem, mpz_t u, mpir_ui n) 
-Set root to b n
-p
-uc; the truncated integer part of the nth root of u. Set rem to the remainder,
-(u - rootn).
-void mpz_sqrt (mpz_t rop, mpz_t op) 
-Set rop to b
-p
-opc; the truncated integer part of the square root of op.
-void mpz_sqrtrem (mpz_t rop1, mpz_t rop2, mpz_t op) 
-Set rop1 to b
-p
-opc, like mpz_sqrt. Set rop2 to the remainder (op - rop12), which will be
-zero if op is a perfect square.
-If rop1 and rop2 are the same variable, the results are undefined.
+Set root to the truncated integer part of the nth root of u. Set rem to the remainder, (u - root^n).
+--void mpz_sqrt (mpz_t rop, mpz_t op) 
+--Set rop to the truncated integer part of the square root of op.
+--void mpz_sqrtrem (mpz_t rop1, mpz_t rop2, mpz_t op) 
+--Set rop1 like mpz_sqrt and rop2 to the remainder (op - rop1^2), which will be zero if op is a perfect square.
+--If rop1 and rop2 are the same variable, the results are undefined.
 int mpz_perfect_power_p (mpz_t op) 
-Return non-zero if op is a perfect power, i.e., if there exist integers a and b, with b > 1, such
-that op = ab.
+Return non-zero if op is a perfect power, i.e., if there exist integers a and b, with b > 1, such that op = ab.
 Under this definition both 0 and 1 are considered to be perfect powers. Negative values of
 op are accepted, but of course can only be odd perfect powers.
 int mpz_perfect_square_p (mpz_t op) 
@@ -5103,15 +6553,15 @@ this definition both 0 and 1 are considered to be perfect squares.
 
 5.9 Number Theoretic Functions
 
-void mpz_gcd (mpz_t rop, mpz_t op1, mpz_t op2) 
-Set rop to the greatest common divisor of op1 and op2. The result is always positive even if
-one or both input operands are negative.
-mpir_ui mpz_gcd_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
-Compute the greatest common divisor of op1 and op2. If rop is not NULL, store the result
-there.
-If the result is small enough to fit in an mpir_ui, it is returned. If the result does not fit, 0
-is returned, and the result is equal to the argument op1. Note that the result will always fit
-if op2 is non-zero.
+--void mpz_gcd (mpz_t rop, mpz_t op1, mpz_t op2) 
+--Set rop to the greatest common divisor of op1 and op2. The result is always positive even if
+--one or both input operands are negative.
+--mpir_ui mpz_gcd_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
+--Compute the greatest common divisor of op1 and op2. If rop is not NULL, store the result
+--there.
+--If the result is small enough to fit in an mpir_ui, it is returned. If the result does not fit, 0
+--is returned, and the result is equal to the argument op1. Note that the result will always fit
+--if op2 is non-zero.
 
 void mpz_gcdext (mpz_t g, mpz_t s, mpz_t t, const mpz_t a, const mpz_t b) 
 Set g to the greatest common divisor of a and b, and in addition set s and t to coefficients
@@ -5124,10 +6574,10 @@ Otherwise, s = sgn(a) if b = 0 or |b| = 2g, and t = sgn(b) if a = 0 or |a| = 2g.
 In all cases, s = 0 if and only if g = |b|, i.e., if b divides a or a = b = 0.
 If t is NULL then that value is not computed.
 
-void mpz_lcm (mpz_t rop, mpz_t op1, mpz_t op2) 
-void mpz_lcm_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
-Set rop to the least common multiple of op1 and op2. rop is always positive, irrespective of
-the signs of op1 and op2. rop will be zero if either op1 or op2 is zero.
+--void mpz_lcm (mpz_t rop, mpz_t op1, mpz_t op2) 
+--void mpz_lcm_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
+--Set rop to the least common multiple of op1 and op2. rop is always positive, irrespective of
+--the signs of op1 and op2. rop will be zero if either op1 or op2 is zero.
 int mpz_invert (mpz_t rop, mpz_t op1, mpz_t op2) 
 Compute the inverse of op1 modulo op2 and put the result in rop. If the inverse exists, the
 return value is non-zero and rop will satisfy 0 <= rop < op2. If an inverse doesn't exist the
@@ -5150,9 +6600,9 @@ etc can be used for mixed precision Jacobi symbols too.
 For more information see Henri Cohen section 1.4.2 (see Appendix B [References], page 125),
 or any number theory textbook. See also the example program demos/qcn.c which uses
 mpz_kronecker_ui on the MPIR website.
-mp_bitcnt_t mpz_remove (mpz_t rop, mpz_t op, mpz_t f) 
-Remove all occurrences of the factor f from op and store the result in rop. The return value
-is how many such occurrences were removed.
+--mp_bitcnt_t mpz_remove (mpz_t rop, mpz_t op, mpz_t f) 
+--Remove all occurrences of the factor f from op and store the result in rop. The return value
+--is how many such occurrences were removed.
 void mpz_fac_ui (mpz_t rop, unsigned long int n) 
 void mpz_2fac_ui (mpz_t rop, unsigned long int n) 
 void mpz_mfac_uiui (mpz_t rop, unsigned long int n, unsigned long int m) 
@@ -5165,13 +6615,13 @@ void mpz_bin_uiui (mpz_t rop, mpir_ui n, mpir_ui k)
 Compute the binomial coefficient (n over k) and store the result in rop. Negative values of n are
 supported by mpz_bin_ui, using the identity (-n over k) = (-1)^k*(n+k-1 over k), see Knuth volume 1
 section 1.2.6 part G.
-void mpz_fib_ui (mpz_t fn, mpir_ui n) 
-void mpz_fib2_ui (mpz_t fn, mpz_t fnsub1, mpir_ui n) 
-mpz_fib_ui sets fn to to Fn, the n'th Fibonacci number. mpz_fib2_ui sets fn to Fn, and
-fnsub1 to Fn-1.
-These functions are designed for calculating isolated Fibonacci numbers. When a sequence of
-values is wanted it's best to start with mpz_fib2_ui and iterate the defining Fn+1 = Fn+Fn-1
-or similar.
+--void mpz_fib_ui (mpz_t fn, mpir_ui n) 
+--void mpz_fib2_ui (mpz_t fn, mpz_t fnsub1, mpir_ui n) 
+--mpz_fib_ui sets fn to to Fn, the n'th Fibonacci number. mpz_fib2_ui sets fn to Fn, and
+--fnsub1 to Fn-1.
+--These functions are designed for calculating isolated Fibonacci numbers. When a sequence of
+--values is wanted it's best to start with mpz_fib2_ui and iterate the defining Fn+1 = Fn+Fn-1
+--or similar.
 void mpz_lucnum_ui (mpz_t ln, mpir_ui n) 
 void mpz_lucnum2_ui (mpz_t ln, mpz_t lnsub1, mpir_ui n) 
 mpz_lucnum_ui sets ln to to Ln, the n'th Lucas number. mpz_lucnum2_ui sets ln to Ln, and
@@ -5294,52 +6744,52 @@ The variable state must be initialized by calling one of the gmp_randinit functi
 5.14 Integer Import and Export
 mpz_t variables can be converted to and from arbitrary words of binary data with the following
 functions.
-void mpz_import (mpz_t rop, size t count, int order, size t size, int endian, size t nails, const void *op)
-Set rop from an array of word data at op.
-The parameters specify the format of the data. count many words are read, each size bytes.
-order can be 1 for most significant word first or -1 for least significant first. Within each
-word endian can be 1 for most significant byte first, -1 for least significant first, or 0 for the
-native endianness of the host CPU. The most significant nails bits of each word are skipped,
-this can be 0 to use the full words.
-There is no sign taken from the data, rop will simply be a positive integer. An application
-can handle any sign itself, and apply it for instance with mpz_neg.
-There are no data alignment restrictions on op, any address is allowed.
-Here's an example converting an array of mpir_ui data, most significant element first, and
-host byte order within each value.
-mpir_ui a[20];
-mpz_t z;
-mpz_import (z, 20, 1, sizeof(a[0]), 0, 0, a);
-This example assumes the full sizeof bytes are used for data in the given type, which is
-usually true, and certainly true for mpir_ui everywhere we know of. However on Cray vector
-systems it may be noted that short and int are always stored in 8 bytes (and with sizeof
-indicating that) but use only 32 or 46 bits. The nails feature can account for this, by passing
-for instance 8*sizeof(int)-INT_BIT.
-void * mpz_export (void *rop, size t *countp, int order, size t size, int endian, size t nails, mpz_t op)
-Fill rop with word data from op.
-The parameters specify the format of the data produced. Each word will be size bytes and
-order can be 1 for most significant word first or -1 for least significant first. Within each
-word endian can be 1 for most significant byte first, -1 for least significant first, or 0 for the
-native endianness of the host CPU. The most significant nails bits of each word are unused
-and set to zero, this can be 0 to produce full words.
-The number of words produced is written to *countp, or countp can be NULL to discard the
-count. rop must have enough space for the data, or if rop is NULL then a result array of
-the necessary size is allocated using the current MPIR allocation function (see Chapter 13
-[Custom Allocation], page 86). In either case the return value is the destination used, either
-rop or the allocated block.
-If op is non-zero then the most significant word produced will be non-zero. If op is zero then
-the count returned will be zero and nothing written to rop. If rop is NULL in this case, no
-block is allocated, just NULL is returned.
-The sign of op is ignored, just the absolute value is exported. An application can use mpz_sgn
-to get the sign and handle it as desired. (see Section 5.10 [Integer Comparisons], page 39)
-There are no data alignment restrictions on rop, any address is allowed.
-When an application is allocating space itself the required size can be determined with a
-calculation like the following. Since mpz_sizeinbase always returns at least 1, count here
-will be at least one, which avoids any portability problems with malloc(0), though if z is
-zero no space at all is actually needed (or written).
-numb = 8*size - nail;
-count = (mpz_sizeinbase (z, 2) + numb-1) / numb;
-p = malloc (count * size);
-
+--void mpz_import (mpz_t rop, size t count, int order, size t size, int endian, size t nails, const void *op)
+--Set rop from an array of word data at op.
+--The parameters specify the format of the data. count many words are read, each size bytes.
+--order can be 1 for most significant word first or -1 for least significant first. Within each
+--word endian can be 1 for most significant byte first, -1 for least significant first, or 0 for the
+--native endianness of the host CPU. The most significant nails bits of each word are skipped,
+--this can be 0 to use the full words.
+--There is no sign taken from the data, rop will simply be a positive integer. An application
+--can handle any sign itself, and apply it for instance with mpz_neg.
+--There are no data alignment restrictions on op, any address is allowed.
+--Here's an example converting an array of mpir_ui data, most significant element first, and
+--host byte order within each value.
+--mpir_ui a[20];
+--mpz_t z;
+--mpz_import (z, 20, 1, sizeof(a[0]), 0, 0, a);
+--This example assumes the full sizeof bytes are used for data in the given type, which is
+--usually true, and certainly true for mpir_ui everywhere we know of. However on Cray vector
+--systems it may be noted that short and int are always stored in 8 bytes (and with sizeof
+--indicating that) but use only 32 or 46 bits. The nails feature can account for this, by passing
+--for instance 8*sizeof(int)-INT_BIT.
+--void * mpz_export (void *rop, size t *countp, int order, size t size, int endian, size t nails, mpz_t op)
+--Fill rop with word data from op.
+--The parameters specify the format of the data produced. Each word will be size bytes and
+--order can be 1 for most significant word first or -1 for least significant first. Within each
+--word endian can be 1 for most significant byte first, -1 for least significant first, or 0 for the
+--native endianness of the host CPU. The most significant nails bits of each word are unused
+--and set to zero, this can be 0 to produce full words.
+--The number of words produced is written to *countp, or countp can be NULL to discard the
+--count. rop must have enough space for the data, or if rop is NULL then a result array of
+--the necessary size is allocated using the current MPIR allocation function (see Chapter 13
+--[Custom Allocation], page 86). In either case the return value is the destination used, either
+--rop or the allocated block.
+--If op is non-zero then the most significant word produced will be non-zero. If op is zero then
+--the count returned will be zero and nothing written to rop. If rop is NULL in this case, no
+--block is allocated, just NULL is returned.
+--The sign of op is ignored, just the absolute value is exported. An application can use mpz_sgn
+--to get the sign and handle it as desired. (see Section 5.10 [Integer Comparisons], page 39)
+--There are no data alignment restrictions on rop, any address is allowed.
+--When an application is allocating space itself the required size can be determined with a
+--calculation like the following. Since mpz_sizeinbase always returns at least 1, count here
+--will be at least one, which avoids any portability problems with malloc(0), though if z is
+--zero no space at all is actually needed (or written).
+--numb = 8*size - nail;
+--count = (mpz_sizeinbase (z, 2) + numb-1) / numb;
+--p = malloc (count * size);
+--
 5.15 Miscellaneous Functions
 --int mpz_fits_ulong_p (mpz_t op) 
 --int mpz_fits_slong_p (mpz_t op) 
@@ -5349,10 +6799,10 @@ int mpz_fits_ushort_p (mpz_t op)
 int mpz_fits_sshort_p (mpz_t op) 
 Return non-zero iff the value of op fits in an unsigned long, long, unsigned int, signed
 int, unsigned short int, or signed short int, respectively. Otherwise, return zero.
-int mpz_odd_p (mpz_t op) [Macro]
-int mpz_even_p (mpz_t op) [Macro]
-Determine whether op is odd or even, respectively. Return non-zero if yes, zero if no. These
-macros evaluate their argument more than once.
+--int mpz_odd_p (mpz_t op) [Macro]
+--int mpz_even_p (mpz_t op) [Macro]
+--Determine whether op is odd or even, respectively. Return non-zero if yes, zero if no. These
+--macros evaluate their argument more than once.
 
 5.16 Special Functions
 The functions in this section are for various special purposes. Most applications will not need
@@ -5432,37 +6882,37 @@ mpz_sizeinbase (mpq_numref(op), base)
 The three extra bytes are for a possible minus sign, possible slash, and the null-terminator.
 A pointer to the result string is returned, being either the allocated block, or the given str.
 6.3 Arithmetic Functions
-void mpq_add (mpq_t sum, mpq_t addend1, mpq_t addend2) 
-Set sum to addend1 + addend2.
-void mpq_sub (mpq_t difference, mpq_t minuend, mpq_t subtrahend) 
-Set difference to minuend - subtrahend.
-void mpq_mul (mpq_t product, mpq_t multiplier, mpq_t multiplicand) 
-Set product to multiplier * multiplicand.
-void mpq_mul_2exp (mpq_t rop, mpq_t op1, mp_bitcnt_t op2) 
-Set rop to op1 * 2^op2.
-void mpq_div (mpq_t quotient, mpq_t dividend, mpq_t divisor) 
-Set quotient to dividend/divisor.
-void mpq_div_2exp (mpq_t rop, mpq_t op1, mp_bitcnt_t op2) 
-Set rop to op1=2op2.
-void mpq_neg (mpq_t negated_operand, mpq_t operand) 
-Set negated operand to -operand.
-void mpq_abs (mpq_t rop, mpq_t op) 
-Set rop to the absolute value of op.
-void mpq_inv (mpq_t inverted_number, mpq_t number) 
-Set inverted number to 1/number. If the new denominator is zero, this routine will divide
-by zero.
+--void mpq_add (mpq_t sum, mpq_t addend1, mpq_t addend2) 
+--Set sum to addend1 + addend2.
+--void mpq_sub (mpq_t difference, mpq_t minuend, mpq_t subtrahend) 
+--Set difference to minuend - subtrahend.
+--void mpq_mul (mpq_t product, mpq_t multiplier, mpq_t multiplicand) 
+--Set product to multiplier * multiplicand.
+--void mpq_mul_2exp (mpq_t rop, mpq_t op1, mp_bitcnt_t op2) 
+--Set rop to op1 * 2^op2.
+--void mpq_div (mpq_t quotient, mpq_t dividend, mpq_t divisor) 
+--Set quotient to dividend/divisor.
+--void mpq_div_2exp (mpq_t rop, mpq_t op1, mp_bitcnt_t op2) 
+--Set rop to op1/2^op2.
+--void mpq_neg (mpq_t negated_operand, mpq_t operand) 
+--Set negated operand to -operand.
+--void mpq_abs (mpq_t rop, mpq_t op) 
+--Set rop to the absolute value of op.
+--void mpq_inv (mpq_t inverted_number, mpq_t number) 
+--Set inverted number to 1/number. If the new denominator is zero, this routine will divide
+--by zero.
 6.4 Comparison Functions
 int mpq_cmp (mpq_t op1, mpq_t op2) 
 int mpq_cmp_z (const mpq_t op1, const mpz_t op2) 
 Compare op1 and op2. Return a positive value if op1 > op2, zero if op1 = op2, and a
 negative value if op1 < op2.
 To determine if two rationals are equal, mpq_equal is faster than mpq_cmp.
-int mpq_cmp_ui (mpq_t op1, mpir_ui num2, mpir_ui den2) [Macro]
-int mpq_cmp_si (mpq_t op1, mpir_si num2, mpir_ui den2) [Macro]
-Compare op1 and num2/den2. Return a positive value if op1 > num2=den2, zero if op1 =
-num2=den2, and a negative value if op1 < num2=den2.
-num2 and den2 are allowed to have common factors.
-These functions are implemented as a macros and evaluate their arguments multiple times.
+--int mpq_cmp_ui (mpq_t op1, mpir_ui num2, mpir_ui den2) [Macro]
+--int mpq_cmp_si (mpq_t op1, mpir_si num2, mpir_ui den2) [Macro]
+--Compare op1 and num2/den2. Return a positive value if op1 > num2=den2, zero if op1 =
+--num2=den2, and a negative value if op1 < num2=den2.
+--num2 and den2 are allowed to have common factors.
+--These functions are implemented as a macros and evaluate their arguments multiple times.
 int mpq_sgn (mpq_t op) [Macro]
 Return +1 if op > 0, 0 if op = 0, and -1 if op < 0.
 This function is actually implemented as a macro. It evaluates its arguments multiple times.
@@ -5481,8 +6931,8 @@ mpz_t mpq_numref (mpq_t op) [Macro]
 mpz_t mpq_denref (mpq_t op) [Macro]
 Return a reference to the numerator and denominator of op, respectively. The mpz functions
 can be used on the result of these macros.
-void mpq_get_num (mpz_t numerator, mpq_t rational) 
-void mpq_get_den (mpz_t denominator, mpq_t rational) 
+--void mpq_get_num (mpz_t numerator, mpq_t rational) 
+--void mpq_get_den (mpz_t denominator, mpq_t rational) 
 void mpq_set_num (mpq_t rational, mpz_t numerator) 
 void mpq_set_den (mpq_t rational, mpz_t denominator) 
 Get or set the numerator or denominator of a rational. These functions are equivalent to

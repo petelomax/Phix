@@ -38,7 +38,7 @@
 --
 --  map m
 --  bool r = map(object o)
---  map m = new()
+--  map m = new_map()
 --  put(map m, object key, object val)
 --  bool b = has(map m, object key)
 --  object val = get(map m, object key, object defval=0)
@@ -54,7 +54,7 @@
 --  clear(map m)
 --  destroy_dict(map m) -- [part of dict.e]
 --
---DOC: map/new/put/(get)/has/(remove)/size/pairs/keys/values/for_each/clear/save_map/load_map
+--DOC: map/new_map/put/(get)/has/(remove)/size/pairs/keys/values/for_each/clear/save_map/load_map
 -- (add a link from get.e to map.e, for "get", ditto remove)
 
 --
@@ -76,7 +76,9 @@ global type map(object x)
     return is_dict(x)
 end type
 
-global function new()
+--17/01/20:
+--global function new()
+global function new_map()
     return new_dict()
 end function
 
@@ -201,7 +203,7 @@ integer fn
         return "cannot open "&sprint(file)
     end if
 
-    map m = new()
+    map m = new_map()
 
     get_line_no = 1
     while 1 do

@@ -37,7 +37,11 @@ constant TASK_NEVER = 1e300
 --constant e93tmpicfp       = 93    -- too many parameters in call_func/proc()
 --constant e117rdnrav       = 117   -- routine does not return a value
 --constant e118rrav         = 118   -- routine returns a value
---constant T_const1         = 26    -- (must match pglobals.e, but don't include that here)
+constant T_const1       = 26,   -- (must match pglobals.e, but don't include that here)
+         S_NTyp         = 2,    -- Const/GVar/TVar/Nspc/Type/Func/Proc
+         S_sig          = 7,    -- routine signature, eg {'F',T_integer} (nb S_sig must be = S_vtype)
+         S_ParmN        = 9,    -- minimum no of parameters (max is length(S_sig)-1)
+         S_Proc         = 8     -- Procedure
 
 --DEV use crash?
 --procedure fatal(integer errcode, integer ep1=0)
@@ -59,8 +63,8 @@ constant TASK_NEVER = 1e300
 
 enum TASK_RID,      -- routine id
 --   TASK_TID,      -- external task id
-     TASK_TYPE,     -- type of task: T_REAL_TIME or T_TIME_SHARED       (DEV merge these?)
-     TASK_STATE,    -- status: ST_ACTIVE, ST_SUSPENDED, ST_DEAD
+     TASK_TYPE,     -- type of task: T_REAL_TIME(1) or T_TIME_SHARED(2)
+     TASK_STATE,    -- status: ST_ACTIVE(0), ST_SUSPENDED(1), ST_DEAD(2)
      TASK_START,    -- start time of current run
      TASK_MIN_INC,  -- time increment for min
      TASK_MAX_INC,  -- time increment for max
@@ -293,11 +297,11 @@ global function task_create(integer rid, sequence args)
 -- Example: mytask = task_create(routine_id("myproc"), {5, 9, "ABC"})
 --  
 integer task_id
---sequence symtab
---object si             -- copy of symtab[i], speedwise
---integer minparams,
---      maxparams,
---      noofparams
+sequence symtab
+object si = 0           -- copy of symtab[i], speedwise
+integer minparams,
+        maxparams,
+        noofparams
 
     if current_task=0 then
         -- create an entry for the main process
@@ -316,7 +320,7 @@ integer task_id
         -- (T_EBP set by first call to task_yield [overwriting the 0])
     end if
 
---/*
+-- reinstated 17/8/19 (as routine_id now returns 0):
     -- validate rid/args: (or we could just let call_proc issue these errors)
 
     -- get copy of symtab. NB read only! may contain nuts! (unassigned vars)
@@ -328,11 +332,10 @@ integer task_id
         []
             call :%opGetST  -- [e/rdi]:=symtab (see builtins\VM\pStack.e)
           }
-    if rid<T_const1
-    or rid>length(symtab) then
-        crash("invalid routine_id")
+    if rid>T_const1
+    and rid<=length(symtab) then
+        si = symtab[rid]
     end if
-    si = symtab[rid]
     if not sequence(si)
     or si[S_NTyp]!=S_Proc then
         crash("invalid routine_id")
@@ -343,89 +346,89 @@ integer task_id
     noofparams = length(args)
     if noofparams<minparams then crash("insufficient parameters") end if
     if noofparams>maxparams then crash("too many parameters") end if
---*/
+
     task_id = add_task(rid,args,T_REAL_TIME)
     -- (T_EBP set within task_yield [because it is 0])
     return task_id
 end function
 --/*
 
-procedure opTASK_CREATE()
--- create a new task
-symtab_index sub
-sequence new_entry
-boolean recycle
-
-    a = Code[pc+1] -- routine id
-(see call_proc/:%opGetST)
-    if val[a] < 0 or val[a] >= length(e_routine) then
-            crash("invalid routine id")
-    end if
-    sub = e_routine[val[a]+1]
-    if SymTab[sub][S_TOKEN] != PROC then
-            crash("specify the routine id of a procedure, not a function or type")
-    end if
-    b = Code[pc+2] -- args
-
-    -- initially it's suspended
-    new_entry = {val[a],            -- TASK_RID
---               next_task_id,      -- TASK_TID
-                 T_REAL_TIME,       -- TASK_TYPE
-                 ST_SUSPENDED,      -- TASK_STATE
-                 0,                 -- TASK_START
-                 0,                 -- TASK_MIN_INC
-                 0,                 -- TASK_MAX_INC
-                 0,                 -- TASK_MIN_TIME
-                 TASK_NEVER,        -- TASK_MAX_TIME
-                 1,                 -- TASK_RUNS_LEFT
-                 1,                 -- TASK_RUNS_MAX
-                 0,                 -- TASK_NEXT
-                 0,                 -- TASK_PREV
-                 val[b],            -- TASK_ARGS
---               0,                 -- TASK_PC
---               {},                -- TASK_CODE
---               {}}                -- TASK_STACK
-                 0}                 -- TASK_EBP4    (set by task_yield)
-
-    recycle = FALSE
-    for i = 1 to length(tasks) do
-        if tasks[i][TASK_STATE] = ST_DEAD then
-            -- this task is dead, recycle its entry
-            -- (but not its external task id)
-            tasks[i] = new_entry
-            recycle = TRUE
-            exit
-        end if
-    end for
-
-    if not recycle then
-        -- expand
-        tasks = append(tasks, new_entry)
-    end if
-
-    target = Code[pc+3]
-    val[target] = next_task_id
-    if not id_wrap and next_task_id < TASK_ID_MAX then
-        next_task_id += 1
-    else
-        -- extremely rare
-        id_wrap = TRUE -- id's have wrapped
-        for i = 1 to TASK_ID_MAX do
-            next_task_id = i
-            for j = 1 to length(tasks) do
-                if next_task_id = tasks[j][TASK_TID] then
-                    next_task_id = 0
-                    exit -- this id is still in use
-                end if
-            end for
-            if next_task_id then
-                exit -- found unused id for next time
-            end if
-        end for
-        -- must have found one - couldn't have trillions of non-dead tasks!
-    end if
-    pc += 4
-end procedure
+--  procedure opTASK_CREATE()
+--  -- create a new task
+--  symtab_index sub
+--  sequence new_entry
+--  boolean recycle
+--
+--      a = Code[pc+1] -- routine id
+--  (see call_proc/:%opGetST)
+--      if val[a] < 0 or val[a] >= length(e_routine) then
+--              crash("invalid routine id")
+--      end if
+--      sub = e_routine[val[a]+1]
+--      if SymTab[sub][S_TOKEN] != PROC then
+--              crash("specify the routine id of a procedure, not a function or type")
+--      end if
+--      b = Code[pc+2] -- args
+--
+--      -- initially it's suspended
+--      new_entry = {val[a],            -- TASK_RID
+--  --               next_task_id,      -- TASK_TID
+--                   T_REAL_TIME,       -- TASK_TYPE
+--                   ST_SUSPENDED,      -- TASK_STATE
+--                   0,                 -- TASK_START
+--                   0,                 -- TASK_MIN_INC
+--                   0,                 -- TASK_MAX_INC
+--                   0,                 -- TASK_MIN_TIME
+--                   TASK_NEVER,        -- TASK_MAX_TIME
+--                   1,                 -- TASK_RUNS_LEFT
+--                   1,                 -- TASK_RUNS_MAX
+--                   0,                 -- TASK_NEXT
+--                   0,                 -- TASK_PREV
+--                   val[b],            -- TASK_ARGS
+--  --               0,                 -- TASK_PC
+--  --               {},                -- TASK_CODE
+--  --               {}}                -- TASK_STACK
+--                   0}                 -- TASK_EBP4    (set by task_yield)
+--
+--      recycle = FALSE
+--      for i = 1 to length(tasks) do
+--          if tasks[i][TASK_STATE] = ST_DEAD then
+--              -- this task is dead, recycle its entry
+--              -- (but not its external task id)
+--              tasks[i] = new_entry
+--              recycle = TRUE
+--              exit
+--          end if
+--      end for
+--
+--      if not recycle then
+--          -- expand
+--          tasks = append(tasks, new_entry)
+--      end if
+--
+--      target = Code[pc+3]
+--      val[target] = next_task_id
+--      if not id_wrap and next_task_id < TASK_ID_MAX then
+--          next_task_id += 1
+--      else
+--          -- extremely rare
+--          id_wrap = TRUE -- id's have wrapped
+--          for i = 1 to TASK_ID_MAX do
+--              next_task_id = i
+--              for j = 1 to length(tasks) do
+--                  if next_task_id = tasks[j][TASK_TID] then
+--                      next_task_id = 0
+--                      exit -- this id is still in use
+--                  end if
+--              end for
+--              if next_task_id then
+--                  exit -- found unused id for next time
+--              end if
+--          end for
+--          -- must have found one - couldn't have trillions of non-dead tasks!
+--      end if
+--      pc += 4
+--  end procedure
 --*/
 
 global procedure task_schedule(integer task_id, object schedule)
@@ -440,9 +443,11 @@ atom min_time,max_time
 integer task_type = tasks[task_id][TASK_TYPE]
 integer task_state = tasks[task_id][TASK_STATE]
 
+--?{"task_schedule",task_id,schedule,tasks}
     if atom(schedule) then
         -- time-sharing
-        if schedule<=0 then
+--      if schedule<=0 then
+        if not integer(schedule) or schedule<=0 then    -- (27/7/19, in passing)
             crash("number of executions must be greater than 0")
         end if
         --tasks[task_id][TASK_RUNS_LEFT] = schedule  -- current execution count
@@ -500,9 +505,12 @@ integer task_state = tasks[task_id][TASK_STATE]
     end if
     tasks[task_id][TASK_TYPE] = task_type
     tasks[task_id][TASK_STATE] = ST_ACTIVE
+--?{"task_schedule (exit)",task_id,schedule,tasks}
 end procedure
 
 global procedure task_suspend(integer task_id)
+--?{"task_suspend",task_id,tasks}
+    if tasks[task_id][TASK_STATE]!=ST_ACTIVE then ?9/0 end if   -- added 27/7/19
     tasks[task_id][TASK_STATE] = ST_SUSPENDED
     tasks[task_id][TASK_MAX_TIME] = TASK_NEVER
     if tasks[task_id][TASK_TYPE]=T_REAL_TIME then
@@ -510,6 +518,9 @@ global procedure task_suspend(integer task_id)
     else
         ts_first = task_delete(ts_first, task_id)
     end if
+--  task_yield()    -- added 27/7/19 [removed same day, as per docs must do itself]
+--  ("" erm, absolutely *not*, unless task_self()==task_id..., I now realise)
+--?{"task_suspend (end)",task_id,tasks}
 end procedure
 
 procedure call_current_task()
@@ -675,7 +686,7 @@ atom t
 -->
 --18/7/17:
         tasks[current_task][TASK_STATE] = ST_DEAD
---NO:!
+--NO:! (see kill_ebp...)
 --      tasks[current_task] = free_tasks
 --      free_tasks = current_task
 
@@ -756,8 +767,7 @@ end procedure
 
 global function task_list()
 -- return list of active and suspended tasks
-sequence list
-    list = {}
+sequence list = {}
     if current_task!=0 then
         for i=1 to length(tasks) do
 --18/7/17:

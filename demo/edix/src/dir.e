@@ -23,7 +23,7 @@
 --  Subdirectory(subtree) loading delayed until item expanded.
 --  Subdirectories initially shown as empty (when they are).
 --  Treeview resized to fit window.
---  Selection of previous item (does nothing if C:\\Euphoria\\include\\dll.e not found).
+--  Selection of previous item (does nothing if C:\Euphoria\include\dll.e not found).
 --  Simple implementation of imagelists.
 --  In-place editing (via F2, does not change anything on disk).
 --  Reload/refresh selected directory (F5). Now uses a freelist.
@@ -44,7 +44,7 @@
 --  The 'rename' feature (F2) just modifies the local table, it does NOT call
 --  moveFile or similar to affect the disk. Hence if you rename a directory
 --  /before/ it (and /all/ it's subdirectories) have been expanded, then you 
---  cannot later expand them, since eg dir(C:\\Winducks[\\etc]) returns -1.
+--  cannot later expand them, since eg dir(C:\Winducks[\etc]) returns -1.
 
 --/* 4.0.2
 include builtins\machine.e
@@ -262,11 +262,11 @@ atom pWord = allocate(2)
 
     -- get a folder icon
     poke2(pWord,0)
-    icon = c_func(xExtractAssociatedIcon,{instance(),"C:\\WINDOWS",pWord})
+    icon = c_func(xExtractAssociatedIcon,{instance(),`C:\WINDOWS`,pWord})
     void = c_func(xImageList_AddIcon,{himl,icon})
     void = c_func(xDeleteObject,{icon})
     -- get a drive icon
-    icon = c_func(xExtractAssociatedIcon,{instance(),"C:\\",pWord})
+    icon = c_func(xExtractAssociatedIcon,{instance(),`C:\`,pWord})
     void = c_func(xImageList_AddIcon,{himl,icon})
     void = c_func(xDeleteObject,{icon})
     free(pWord)
@@ -354,7 +354,7 @@ atom hParent, hItem
                 backName[3] = backName[3]+'A'-'0'
             end if
             backName = backName[1]&backName[3..9]&backExtension
-            f = open(initialcurrentdir&"backup\\"&backName,"r")
+            f = open(initialcurrentdir&`backup\`&backName,"r")
             if f!=-1 then
                 close(f)
 --          if find(backName,RecDirNames) then
@@ -453,7 +453,7 @@ integer selIdx
 --setText(Main,"Loading Recovery Dirs...")
     selIdx = 0
     recSelItem = 0
---RecDirList = dir(initialcurrentdir&"backup\\")
+--RecDirList = dir(initialcurrentdir&`backup\`)
 --RecDirNames = repeat(0,length(RecDirList))
 --for i=1 to length(RecDirList) do
 --  RecDirNames[i] = RecDirList[i][D_NAME]
@@ -505,7 +505,7 @@ end procedure
 --include builtins\ppp.e
 --/*
 procedure loadAllDrives()
---loadDir(NULL,"C:\\Euphoria")
+--loadDir(NULL,`C:\Euphoria`)
 --loadDir(NULL,"C:")
 --atom buffer
 --integer buflen
@@ -560,7 +560,7 @@ global integer resetPrev
 function getTreeText(integer treeIdx, integer fullpath)
 -- gets the text of the treeview item, optionally returning the full tree path.
 -- If fullpath is 0, the result is eg "ascii.bat";
--- if fullpath is 1, the result is eg "C:\\Euphoria\\bin\\ascii.bat";
+-- if fullpath is 1, the result is eg `C:\Euphoria\bin\ascii.bat`;
 -- if fullpath is 2, the result is eg {"C:","Euphoria","bin","ascii.bat"}
 --  (the last case is more useful for trees which are not file directories)
 sequence text
@@ -697,7 +697,7 @@ atom hItem
 end procedure
 --*/
 
---selectPreviousItem("C:\\Euphoria\\include\\dll.e")
+--selectPreviousItem(`C:\Euphoria\include\dll.e`)
 
 -- Project handling:
 
@@ -979,8 +979,8 @@ atom TVI
             if treeIdx and treeIdx<=length(backItems) then
                 if backItems[treeIdx][tLoaded]=-1 then
                     oldcurrfile = currfile
---                  void = openFile(initialcurrentdir&"backup\\"&backItems[treeIdx][tText],1,1)
-                    {} = openFile(0,initialcurrentdir&"backup\\"&backItems[treeIdx][tText],1)
+--                  void = openFile(initialcurrentdir&`backup\`&backItems[treeIdx][tText],1,1)
+                    {} = openFile(0,initialcurrentdir&`backup\`&backItems[treeIdx][tText],1)
 -- 10/1/08:
 --                  if not isSingleDir then
 --                      if currfile>oldcurrfile+2 then

@@ -32,7 +32,7 @@ integer c
         end if
     end for
     if withquotes then
-        x = '\"'&x&'\"'
+        x = '"'&x&'"'
     end if
     return x
 end function

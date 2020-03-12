@@ -36,7 +36,8 @@
             Segments are expected to be padded to a consistent length, before this routine is called, to achieve proper alignment.
             <br>
             <br>
-            Note that n_pad is duplicated between each (n*step)-block, but only occurs once at the end, unless a trailing "" is supplied.
+            Note that n_pad is duplicated when step>1 between each (n*step)-block, but only occurs once at the end, unless a trailing "" is supplied.<br>
+            When step=1, n_pad occurs once between each n-block, and only at the end in cases where a trailing "" has been provided.
             <br>
             <br>
             Uses <a href="join.htm">join</a> internally. The default for step_pad is three spaces. Returns a <a href="string.htm">string</a> or <a href="sequence.htm">sequence</a>.
@@ -77,14 +78,14 @@ puts(1,join_by(s,4,3))  puts(1,"=\n")   -- (join_by(s,4,4) same)
 --  C   G   K
 --  D   H   L
 --  =
-puts(1,join_by(s,2,5))  puts(1,"=\n")   -- (see note)
+puts(1,join_by(s,2,5))  puts(1,"=\n")   -- (example 5, see the second note)
 --  A   C   E   G   I
 --  B   D   F   H   J
 --
 --  K
 --  L
 --  =
-puts(1,join_by(s,5,2))  puts(1,"=\n")   -- (join_by(s,5,3) same, see notes)
+puts(1,join_by(s,5,2))  puts(1,"=\n")   -- (example 6, same as join_by(s,5,3), see last note)
 --  A   F
 --  B   G
 --  C   H
@@ -96,21 +97,16 @@ puts(1,join_by(s,5,2))  puts(1,"=\n")   -- (join_by(s,5,3) same, see notes)
 --  =
 puts(1,join_by(s,1,4))  puts(1,"=\n")
 --  A   B   C   D
---
 --  E   F   G   H
---
 --  I   J   K   L
 --  =
 puts(1,join_by(s,1,6))  puts(1,"=\n")
 --  A   B   C   D   E   F
---
 --  G   H   I   J   K   L
 --  =
 puts(1,join_by(s,1,5))  puts(1,"=\n")
 --  A   B   C   D   E
---
 --  F   G   H   I   J
---
 --  K   L
 --  =
 </eucode-->
@@ -163,21 +159,16 @@ puts(1,join_by(s,1,5))  puts(1,"=\n")
 --  =
 </i></font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#5E005E">join_by</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"=\n"</font><font color="#0000FF">)
 </font><font color="#000080"><i>--  A   B   C   D
---
 --  E   F   G   H
---
 --  I   J   K   L
 --  =
 </i></font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#5E005E">join_by</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"=\n"</font><font color="#0000FF">)
 </font><font color="#000080"><i>--  A   B   C   D   E   F
---
 --  G   H   I   J   K   L
 --  =
 </i></font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#5E005E">join_by</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"=\n"</font><font color="#0000FF">)
 </font><font color="#000080"><i>--  A   B   C   D   E
---
 --  F   G   H   I   J
---
 --  K   L
 --  =</i></font>
 </pre>
@@ -195,12 +186,10 @@ puts(1,join_by(s,1,5))  puts(1,"=\n")
             partial&gt;step cases, and therefore it is not really feasible to automate that reliably.
             <br>
             <br>
-            In the 6th example, with n=3, you might want the final K L up in column 3, however the routine as-is cannot do that.<br>
-            The implementation can be found in builtins\pflatten.e and contains the (lightly tested and) commented-out changes 
-            required to automatically output a trailing partial&lt;=step widthwise. There may also be some partial&lt;=(or&gt;)n 
-            cases (where that differs from partial&lt;=(or&gt;)step) which merit a subtly different approach, and that is the 
-            reason why I said lightly tested and left those changes commented-out.
-            <br>
+            In the 6th example, but with n=3, you might want/expect the final K L up in column 3, however the routine as-is cannot do that.<br>
+            Instead, using join_by(s&repeat("",3),5,3) should achieve the desired effect, ie first padding s to a whole multiple of step.<br>
+            There are always going to be some edge cases where length(s) is not a whole multiple of step*n that every man and his dog expects 
+            to behave differently, and for that you really need to be prepared to roll your own bespoke version (obvs, copy <i>and</a> rename).
          </td>
         </tr>
         <tr>
@@ -216,7 +205,10 @@ puts(1,join_by(s,1,5))  puts(1,"=\n")
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\pflatten.e (an autoinclude) for details of the actual implementation.
+            See builtins\pflatten.e (an autoinclude) for details of the actual implementation.<br>
+            It contains some (lightly tested and) commented-out changes required to automatically output a trailing partial&lt;=step widthwise. <br>
+            There may also be some partial&lt;=(or&gt;)n cases (where that differs from partial&lt;=(or&gt;)step) which merit a subtly different 
+            approach, and that is the reason why I said lightly tested and left those changes commented-out.
          </td>
         </tr>
         <tr>

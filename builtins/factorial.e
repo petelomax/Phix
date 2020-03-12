@@ -39,7 +39,7 @@ end function
 
 global function k_perm(integer n, k)
 -- standard partial permutations calculation (sequences without repetition)
-atom res = n
+    atom res = n
     for i=n-1 to n-k+1 by -1 do
         res *= i
     end for
@@ -47,8 +47,28 @@ atom res = n
 end function
 
 global function choose(integer n, k)
--- standard combinations calculation - choose k from n aka "n choose k"
-atom res = k_perm(n,k)/factorial(k)
+-- see also mpz_binom()
+-- nb: it is probably wiser to use mpz in preference to atom?
+    atom res = 1
+    for i=1 to k do
+        res = (res*(n-i+1))/i
+    end for
     return res
 end function
+
+-- standard combinations calculation - choose k from n aka "n choose k"
+--  atom res = k_perm(n,k)/factorial(k)
+--/* alt:
+    mpz r = mpz_init(1)
+    for i=1 to k do
+--      r := (r * (n-i+1)) / i, but using mpz routines:
+        mpz_mul_si(r, r, n-i+1)
+        if mpz_fdiv_q_ui(r, r, i)!=0 then ?9/0 end if
+    end for
+    return mpz_get_str(r)
+--or (more likely to overflow)
+--function binom(integer n, k)
+--  return factorial(n)/(factorial(k)*factorial(n-k))
+--end function
+--*/
 

@@ -2,14 +2,12 @@
 -- demo\rosetta\Koch_curve.exw
 -- ===========================
 --
--- DEV/todo: the commented-out code draws a full snowflake - but:
---  1) it is not properly centred
---  2) it warps on resize, a min(w,h) or similar is required
---
 include pGUI.e
 
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
+
+integer ox = 0, oy = 0
 
 procedure koch(atom x1, y1, x2, y2, integer iter)
     atom angle = -PI/3, -- -60 degrees
@@ -26,25 +24,25 @@ procedure koch(atom x1, y1, x2, y2, integer iter)
         koch(x5, y5, x4, y4, iter)
         koch(x4, y4, x2, y2, iter)
     else
-        cdCanvasVertex(cddbuffer, x1, y1)
-        cdCanvasVertex(cddbuffer, x3, y3)
-        cdCanvasVertex(cddbuffer, x5, y5)
-        cdCanvasVertex(cddbuffer, x4, y4)
-        cdCanvasVertex(cddbuffer, x2, y2)
+        cdCanvasVertex(cddbuffer, x1+ox, y1+oy)
+        cdCanvasVertex(cddbuffer, x3+ox, y3+oy)
+        cdCanvasVertex(cddbuffer, x5+ox, y5+oy)
+        cdCanvasVertex(cddbuffer, x4+ox, y4+oy)
+        cdCanvasVertex(cddbuffer, x2+ox, y2+oy)
     end if
 end procedure
  
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
-integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
---  atom {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
---  atom {x,y} = {w*0.05+w/6,h*0.05+h/6}
---  {w,h} = {w*0.6,h*0.6}
+    atom {w,h} = IupGetIntInt(canvas, "DRAWSIZE")
+    if w>h then ox = floor((w-h)/2); w=h 
+           else oy = floor((h-w)/2); h=w end if
+    atom {x,y} = {w*0.05+w/6,h*0.05+h/4}
+    {w,h} = {w*0.6,h*0.6}
     cdCanvasActivate(cddbuffer)
     cdCanvasBegin(cddbuffer, CD_OPEN_LINES)  
-    koch(0,0,width,height,4)    
---  koch(x,y,x+w/2,y+h,4)
---  koch(x+w/2,y+h,x+w,y,4)
---  koch(x+w,y,x,y,4)
+    koch(x,y,x+w/2,y+h,4)
+    koch(x+w/2,y+h,x+w,y,4)
+    koch(x+w,y,x,y,4)
     cdCanvasEnd(cddbuffer)
     cdCanvasFlush(cddbuffer)
     return IUP_DEFAULT
@@ -58,11 +56,6 @@ function map_cb(Ihandle ih)
     return IUP_DEFAULT
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
-end function
-
 procedure main()
     IupOpen()
     
@@ -72,7 +65,7 @@ procedure main()
 
     dlg = IupDialog(canvas)
     IupSetAttribute(dlg, "TITLE", "Koch curve")
-    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+    IupCloseOnEscape(dlg)
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
 
     IupMap(dlg)

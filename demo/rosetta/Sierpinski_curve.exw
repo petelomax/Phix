@@ -1,0 +1,156 @@
+--
+-- demo\rosetta\Sierpinski_curve.exw
+-- =================================
+--
+--  Draws curves lo to hi (simultaneously), initially {1,1}, max {8,8}
+--  Press +/- to change hi, shift +/- to change lo.
+--  ("=_" are also mapped to "+-", for the non-numpad +/-)
+--
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+integer width, height,
+        lo = 1, hi = 1
+atom cx, cy, h
+
+procedure lineTo(atom newX, newY)
+    cdCanvasVertex(cddbuffer, newX-width/2+h, height-newY+2*h)
+    cx = newX
+    cy = newY
+--?{cx,cy}
+end procedure
+
+procedure lineN() lineTo(cx,cy-2*h) end procedure
+procedure lineS() lineTo(cx,cy+2*h) end procedure
+procedure lineE() lineTo(cx+2*h,cy) end procedure
+procedure lineW() lineTo(cx-2*h,cy) end procedure
+ 
+procedure lineNW() lineTo(cx-h,cy-h) end procedure
+procedure lineNE() lineTo(cx+h,cy-h) end procedure
+procedure lineSE() lineTo(cx+h,cy+h) end procedure
+procedure lineSW() lineTo(cx-h,cy+h) end procedure
+
+procedure sierN(integer level)
+   if level=1 then
+      lineNE()  lineN()
+      lineNW()
+   else
+      sierN(level-1)  lineNE()
+      sierE(level-1)  lineN()
+      sierW(level-1)  lineNW()
+      sierN(level-1) 
+   end if
+end procedure
+ 
+procedure sierE(integer level)
+   if level=1 then
+      lineSE()  lineE()
+      lineNE() 
+   else
+      sierE(level-1)  lineSE()
+      sierS(level-1)  lineE()
+      sierN(level-1)  lineNE()
+      sierE(level-1) 
+   end if
+end procedure
+ 
+procedure sierS(integer level)
+   if level=1 then
+      lineSW()  lineS()
+      lineSE() 
+   else
+      sierS(level-1)  lineSW()
+      sierW(level-1)  lineS()
+      sierE(level-1)  lineSE()
+      sierS(level-1) 
+   end if
+end procedure
+ 
+procedure sierW(integer level)
+   if level=1 then
+      lineNW()  lineW()
+      lineSW() 
+   else
+      sierW(level-1)  lineNW()
+      sierN(level-1)  lineW()
+      sierS(level-1)  lineSW()
+      sierW(level-1) 
+   end if
+end procedure
+
+procedure sierpinskiCurve(integer level)
+   sierN(level)     lineNE()
+   sierE(level)     lineSE()
+   sierS(level)     lineSW()
+   sierW(level)     lineNW()
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    for level=lo to hi do
+        cx = width/2
+        cy = height
+        h = cx/power(2,level+1)
+        cdCanvasBegin(cddbuffer, CD_CLOSED_LINES)
+        sierpinskiCurve(level)
+        cdCanvasEnd(cddbuffer)
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if find(c,"+=-_") then
+        bool bShift = IupGetInt(NULL,"SHIFTKEY")
+        if c='+' or c='=' then
+            if bShift then
+                lo = min(lo+1,hi)
+            else
+                hi = min(8,hi+1)
+            end if
+        elsif c='-' or c='_' then
+            if bShift then
+                lo = max(1,lo-1)
+            else
+                hi = max(lo,hi-1)
+            end if
+        end if
+        IupSetStrAttribute(dlg, "TITLE", "Sierpinski curve (%d..%d)",{lo,hi})
+        cdCanvasClear(cddbuffer)
+        IupUpdate(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "770x770")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Sierpinski curve (1..1)")
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+
+    IupMap(dlg)
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

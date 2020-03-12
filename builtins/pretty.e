@@ -1,3 +1,4 @@
+without debug
 namespace pretty
 
 --****
@@ -64,11 +65,11 @@ end procedure
 
 function esc_char(integer a)
 -- show escaped characters
-    if    a='\t' then   return "\t"
-    elsif a='\n' then   return "\n"
-    elsif a='\r' then   return "\r"
-    elsif a='\\' then   return "\\\\"
-    elsif a='\"' then   return "\""
+    if    a='\t' then   return `\t`
+    elsif a='\n' then   return `\n`
+    elsif a='\r' then   return `\r`
+    elsif a='\\' then   return `\\`
+    elsif a='\"' then   return `\"`
     else                return a
     end if
 end function
@@ -85,16 +86,16 @@ procedure rPrint(object a)
                 if pretty_ascii >= 3 then 
                     -- replace number with display character?
                     if (a >= pretty_ascii_min and a <= pretty_ascii_max) then
-                        sbuff = '\'' & a & '\''  -- display char only
+                        sbuff = `'`&a&`'`  -- display char only
                     
                     elsif find(a, "\t\n\r\\") then
-                        sbuff = '\'' & esc_char(a) & '\''  -- display char only
+                        sbuff = `'`&esc_char(a)&`'`  -- display char only
                     
                     end if
                 else -- pretty ascii 1 or 2
                      -- add display character to number?
                     if (a >= pretty_ascii_min and a <= pretty_ascii_max) and pretty_ascii < 2 then
-                        sbuff &= '\'' & a & '\'' -- add to numeric display
+                        sbuff &= `'`&a&`\` -- add to numeric display
                     end if
                 end if
             end if
@@ -123,7 +124,7 @@ procedure rPrint(object a)
         end for
         
         if all_ascii then
-            pretty_out('\"')
+            pretty_out('"')
         else
             pretty_out('{')
         end if
@@ -154,7 +155,7 @@ procedure rPrint(object a)
             indent()
         end if
         if all_ascii then
-            pretty_out('\"')
+            pretty_out('"')
         else
             pretty_out('}')
         end if

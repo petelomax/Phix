@@ -7,23 +7,58 @@
       <h1 class="title">Atoms and Integers</h1>
       <div id="mainSection">
         Atoms can have any integer or floating point value.
+        <br>
+        <br>
+        On first reading you might want to skip this entire section as it is just a deep dive into number limits and accuracy, which is reasonably common to
+        all programming languages, except for 31/63-bit integers and the fact that some other languages have arbitrary precision numbers "baked in", whereas 
+        in Phix it is an explicit add-on much like say plain C.
        <br>
        <br>
-        On a 32-bit architecture atoms can hold approximately &plusmn;1e+308, with 
-        &plusmn;1e-324 being the closest you can get to 0 without actually being 0, 
-        to a maximum of about 15 decimal digits of accuracy.<br>
-        On a 64-bit architecture atoms can hold approximately &plusmn;1e+4932, with
-        &plusmn;1e-4951 being the closest you can get to 0 without actually being 0, 
-        to a maximum of about 19 decimal digits of accuracy.
+        On 32-bit atoms can hold about &plusmn;1e+308, with &tilde;15 decimal digits of accuracy
+        and &plusmn;1e-324 being the closest you can get to 0 without actually being 0.<br>
+        On 64-bit atoms can hold about &plusmn;1e+4932, with &tilde;19 decimal digits of accuracy
+        and &plusmn;1e-4951 being the closest you can get to 0 without actually being 0.<br>
+        In other words, for atoms 32-bit Phix uses the native FPU hardware 64-bit IEEE-754 floats, while 64-bit Phix uses 80-bit ones.
        <br>
        <br>
-        Integers in phix are limited to the subset that begin with 0b00 or 0b11: on a 32-bit 
+        Integers in Phix are limited to the subset that begin with 0b00 or 0b11: on a 32-bit 
         architecture they can contain a single value in the range -1,073,741,824 to +1,073,741,823 
-        (-#40000000 to #3FFFFFFF), with no fractional part, hence technically speaking phix 
+        (-#40000000 to #3FFFFFFF), with no fractional part, hence technically speaking Phix 
         integers are 31-bit, straddling the "middle half" of the actual hardware range (-2GB..+2GB-1).<br>
-        On a 64-bit architecture the range is -4,611,686,018,427,387,904 to +4,611,686,018,427,387,903 
+        On 64-bit the range is -4,611,686,018,427,387,904 to +4,611,686,018,427,387,903 
         (-#4000000000000000 to #3FFFFFFFFFFFFFFF), which technically speaking makes them 63-bit. <br>
-        Should you need to hold full 32 (or 64) bit "integers", simply use an atom (trust me, it works).
+        Should you need to hold full 32 (or 64) bit "integers", simply use an atom (trust me, it works).<br>
+        In other words, for integers Phix uses the standard machine-word-sized CPU registers, always signed, less one bit.
+        <br>
+        <br>
+        The following values may also prove useful:
+<!--eucode>
+printf(1,"maxint  %,d (#%x)\n",power(2,machine_bits()-2)-1)
+printf(1,"minint %,d (#%x)\n",-power(2,machine_bits()-2))
+printf(1,"maxatm %,d\n",{power(2,iff(machine_bits()=32?53:64))})
+--32-bit:
+maxint  1,073,741,823 (#3FFFFFFF)
+minint -1,073,741,824 (#C0000000)
+maxatm 9,007,199,254,740,992
+-- 64-bit:
+maxint  4,611,686,018,427,387,903 (#3FFFFFFFFFFFFFFF)
+minint -4,611,686,018,427,387,904 (#C000000000000000)
+maxatm 18,446,744,073,709,551,616
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"maxint  %,d (#%x)\n"</font><font color="#0000FF">,</font><font color="#7060A8">power</font><font color="#800000">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#7060A8">machine_bits</font><font color="#800080">()</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#800000">)</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">)
+</font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"minint %,d (#%x)\n"</font><font color="#0000FF">,-</font><font color="#7060A8">power</font><font color="#800000">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#7060A8">machine_bits</font><font color="#800080">()</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"maxatm %,d\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#7060A8">power</font><font color="#800080">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#7060A8">iff</font><font color="#00FF00">(</font><font color="#7060A8">machine_bits</font><font color="#000080">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#0000FF">?</font><font color="#000000">53</font><font color="#0000FF">:</font><font color="#000000">64</font><font color="#00FF00">)</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#000080"><i>--32-bit:
+</i></font><font color="#000000">maxint  1</font><font color="#0000FF">,</font><font color="#000000">073</font><font color="#0000FF">,</font><font color="#000000">741</font><font color="#0000FF">,</font><font color="#000000">823</font><font color="#0000FF"> (</font><font color="#000000">#3FFFFFFF</font><font color="#0000FF">)
+</font><font color="#000000">minint</font><font color="#0000FF"> -</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">073</font><font color="#0000FF">,</font><font color="#000000">741</font><font color="#0000FF">,</font><font color="#000000">824</font><font color="#0000FF"> (</font><font color="#000000">#C0000000</font><font color="#0000FF">)
+</font><font color="#000000">maxatm 9</font><font color="#0000FF">,</font><font color="#000000">007</font><font color="#0000FF">,</font><font color="#000000">199</font><font color="#0000FF">,</font><font color="#000000">254</font><font color="#0000FF">,</font><font color="#000000">740</font><font color="#0000FF">,</font><font color="#000000">992
+</font><font color="#000080"><i>-- 64-bit:
+</i></font><font color="#000000">maxint  4</font><font color="#0000FF">,</font><font color="#000000">611</font><font color="#0000FF">,</font><font color="#000000">686</font><font color="#0000FF">,</font><font color="#000000">018</font><font color="#0000FF">,</font><font color="#000000">427</font><font color="#0000FF">,</font><font color="#000000">387</font><font color="#0000FF">,</font><font color="#000000">903</font><font color="#0000FF"> (</font><font color="#000000">#3FFFFFFFFFFFFFFF</font><font color="#0000FF">)
+</font><font color="#000000">minint</font><font color="#0000FF"> -</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">611</font><font color="#0000FF">,</font><font color="#000000">686</font><font color="#0000FF">,</font><font color="#000000">018</font><font color="#0000FF">,</font><font color="#000000">427</font><font color="#0000FF">,</font><font color="#000000">387</font><font color="#0000FF">,</font><font color="#000000">904</font><font color="#0000FF"> (</font><font color="#000000">#C000000000000000</font><font color="#0000FF">)
+</font><font color="#000000">maxatm 18</font><font color="#0000FF">,</font><font color="#000000">446</font><font color="#0000FF">,</font><font color="#000000">744</font><font color="#0000FF">,</font><font color="#000000">073</font><font color="#0000FF">,</font><font color="#000000">709</font><font color="#0000FF">,</font><font color="#000000">551</font><font color="#0000FF">,</font><font color="#000000">616</font>
+</pre>
+        where maxatm is the largest integer (with no prior gaps) than can be held exactly in a native atom, above that you need to use <a href="mpfr.htm">mpir/gmp</a>.
         <br>
         <br>
         Phix does not entertain the idea of unsigned integers: zero less one is -1, not suddenly +4GB (which is what happens in C-based languages).<br>
@@ -34,7 +69,7 @@
         While you can store any integer value in a variable declared as an atom, the reverse is not true.
         <br>
         <br>
-        Here are some phix integers and atoms:
+        Here are some Phix integers and atoms:
 <!--eucode>
     0       -- (integer)
     1000    -- (integer)
@@ -56,8 +91,8 @@
        <br>
         Of course if you need to replicate the truncating/wrapping behaviour of C integer maths, for instance in hashing and
         cryptographic functions, you can easily do that with a bit of inline assembly, and should you need to work with 
-        ridiculously large numbers, an arbitrary precision maths library, <a href=bigatom.htm>bigatom</a>, is included 
-        with the distribution.
+        ridiculously large numbers, an arbitrary precision maths library, <a href="mpfr.htm">mpfr</a>, is included with the 
+        distribution.
        <br>
        <br>
        See also: <a href="numberbases.htm">Number Bases</a>

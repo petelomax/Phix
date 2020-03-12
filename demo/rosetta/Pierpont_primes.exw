@@ -1,0 +1,204 @@
+--
+-- demo/rosetta/Pierpont_primes.exw
+-- ================================
+--
+-- {{trans|Go}}
+-- I also tried using a priority queue, which worked pretty well but ended up 
+--  about 20% slower (with about 1500 untested candidates left in the queue by 
+--  the time it found the 2000th second kind).
+-- In truth, I only kept/distribute this because I did not want to throw away
+--  the (slower) priority queue implementation.
+--
+include mpfr.e
+ 
+function pierpont(integer n)
+    sequence p = {{mpz_init(2)},{}},
+             s = {mpz_init(1)}
+    integer i2 = 1, i3 = 1
+    mpz {n2, n3, t} = mpz_inits(3)
+    randstate state = gmp_randinit_mt()
+    atom t1 = time()+1
+    while min(length(p[1]),length(p[2])) < n do
+        mpz_mul_si(n2,s[i2],2)
+        mpz_mul_si(n3,s[i3],3)
+        if mpz_cmp(n2,n3)<0 then
+            mpz_set(t,n2)
+            i2 += 1
+        else
+            mpz_set(t,n3)
+            i3 += 1
+        end if
+        if mpz_cmp(t,s[$]) > 0 then
+            s = append(s, mpz_init_set(t))
+            mpz_add_ui(t,t,1)
+            if length(p[1]) < n and mpz_probable_prime_p(t,state) then
+                p[1] = append(p[1],mpz_init_set(t))
+            end if
+            mpz_sub_ui(t,t,2)
+            if length(p[2]) < n and mpz_probable_prime_p(t,state) then
+                p[2] = append(p[2],mpz_init_set(t))
+            end if
+        end if
+        if time()>t1 then
+            printf(1,"Found: 1st:%d/%d, 2nd:%d/%d\r",
+                     {length(p[1]),n,length(p[2]),n})
+            t1 = time()+1
+        end if
+    end while
+    return p
+end function
+ 
+--constant limit = 2000         -- 2 mins
+constant limit = 1000       -- 8.1s
+--constant limit = 250          -- 0.1s
+atom t0 = time()
+sequence p = pierpont(limit)
+constant fs = {"first","second"}
+
+for i=1 to length(fs) do
+    printf(1,"First 50 Pierpont primes of the %s kind:\n",{fs[i]})
+    for j=1 to 50 do
+        mpfr_printf(1,"%8Zd ", p[i][j])
+        if mod(j,10)=0 then printf(1,"\n") end if
+    end for
+    printf(1,"\n")
+end for
+ 
+constant t = {250,1000,2000}
+for i=1 to length(t) do
+    integer ti = t[i]
+    if ti>limit then exit end if
+    for j=1 to length(fs) do
+        string zs = shorten(mpz_get_str(p[j][ti]))
+        printf(1,"%dth Pierpont prime of the %s kind: %s\n",{ti,fs[j],zs})
+    end for
+    printf(1,"\n")
+end for
+printf(1,"Took %s\n", elapsed(time()-t0))
+
+--/*
+{{out}}
+<pre>
+First 50 Pierpont primes of the first kind:
+       2        3        5        7       13       17       19       37       73       97
+     109      163      193      257      433      487      577      769     1153     1297
+    1459     2593     2917     3457     3889    10369    12289    17497    18433    39367
+   52489    65537   139969   147457   209953   331777   472393   629857   746497   786433
+  839809   995329  1179649  1492993  1769473  1990657  2654209  5038849  5308417  8503057
+
+First 50 Pierpont primes of the second kind:
+       2        3        5        7       11       17       23       31       47       53
+      71      107      127      191      383      431      647      863      971     1151
+    2591     4373     6143     6911     8191     8747    13121    15551    23327    27647
+   62207    73727   131071   139967   165887   294911   314927   442367   472391   497663
+  524287   786431   995327  1062881  2519423 10616831 17915903 18874367 25509167 30233087
+
+250th Pierpont prime of the first kind: 62518864539857068333550694039553
+250th Pierpont prime of the second kind: 4111131172000956525894875083702271
+
+1000th Pierpont prime of the first kind: 6926931471643969025...4931399264696270849 (125 digits)
+1000th Pierpont prime of the second kind: 1308088756227965581...8280492460735463423 (139 digits)
+
+2000th Pierpont prime of the first kind: 2364705633481875045...9642823861502738433 (248 digits)
+2000th Pierpont prime of the second kind: 1702224134662426018...5760543848603844607 (277 digits)
+
+Took 2 minutes and 01s
+</pre>
+Note that shorten() has recently been added as a builtin, in honour of this and the several other dozen rc 
+tasks that previously all re-implemented some variation of it. Should you not yet have it, just use this:
+<lang Phix>function shorten(string s, what="digits", integer ml=20)
+    integer l = length(s)
+    string ls = sprintf(" (%d %s)",{l,what}) 
+    if l>ml*2+3+length(ls) then
+        s[ml..-ml] = "..."
+        s &= ls
+    end if
+    return s
+end function</lang>
+--*/
+
+--/*
+constant limit = 2000 -- 2mins 20s
+--constant limit = 1000 -- 11.3s
+--constant limit = 250  -- 0.3s
+include pqueue.e
+include mpfr.e
+integer pqid = pq_new(MIN_HEAP, routine_id("mpz_cmp"))
+pq_add({0,mpz_init(1)},pqid)
+sequence p = {{},{}}
+randstate state = gmp_randinit_mt()
+mpz y, z
+atom t0 = time()
+atom t1 = time()+1
+while length(p[1])<limit
+   or length(p[2])<limit do
+    {?,z} = pq_pop(pqid)
+    if length(p[1])<limit then
+        y = mpz_init()
+        mpz_add_ui(y,z,1)
+        if mpz_probable_prime_p(y,state) then
+            p[1] = append(p[1],y)
+        end if
+    end if
+    if length(p[2])<limit then
+        y = mpz_init()
+        mpz_sub_ui(y,z,1)
+        if mpz_probable_prime_p(y,state) then
+            p[2] = append(p[2],y)
+        end if
+    end if
+    while not pq_empty(pqid) do
+        -- remove duplicates
+        -- (eg both 2*2*3 and 2*3*2 get added, but generally we cannot be sure which 
+        --  first, and therefore would probably struggle to avoid adding the second.
+        --  Thankfully however, we can be certain that by the time any bubble up to
+        --  the front of the queue, then all such duplicates have all been added.)
+        {?,y} = pq_peek(pqid)
+        if mpz_cmp(y,z)!=0 then exit end if
+        {} = pq_pop(pqid)
+    end while
+    -- add z*2 and z*3 back into the priority queue
+    y = mpz_init()
+    mpz_mul_si(y,z,2)
+    pq_add({0,y},pqid)
+    mpz_mul_si(z,z,3)
+    pq_add({0,z},pqid)
+    if time()>t1 then
+        printf(1,"Found: 1st:%d, 2nd:%d (queue size %d)\r",{length(p[1]),length(p[2]),pq_size(pqid)})
+        t1 = time()+1
+    end if
+end while
+
+constant fs = {"first","second"}
+
+for i=1 to length(fs) do
+    printf(1,"First 50 Pierpont primes of the %s kind:\n",{fs[i]})
+    for j=1 to 50 do
+        mpfr_printf(1,"%8Zd ", p[i][j])
+        if mod(j,10)=0 then printf(1,"\n") end if
+    end for
+    printf(1,"\n")
+end for
+
+--DEV builtin?
+function shorten(string s, what="digits", integer ml=20)
+    integer l = length(s)
+    if l>ml*2 then
+        s[ml..-ml] = "..."
+        s &= sprintf(" (%d %s)",{l,what})
+    end if
+    return s
+end function
+
+constant t = {250,1000,2000}
+for i=1 to length(t) do
+    integer ti = t[i]
+    if ti>limit then exit end if
+    for j=1 to length(fs) do
+        string zs = shorten(mpz_get_str(p[j][ti]))
+        printf(1,"%dth Pierpont prime of the %s kind: %s\n",{ti,fs[j],zs})
+    end for
+    puts(1,"\n")
+end for
+printf(1,"Took %s\n", elapsed(time()-t0))
+--*/

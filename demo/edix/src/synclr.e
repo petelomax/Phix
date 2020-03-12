@@ -269,7 +269,7 @@ if bcomm<0 then
 else
     if ch='`' then
         bcomm = -1
-    elsif ch='"' and chidx<=ll-2 and equal(line[chidx..chidx+2],"\"\"\"") then
+    elsif ch='"' and chidx<=ll-2 and equal(line[chidx..chidx+2],`"""`) then
         bcomm = -2
         chidx += 2
     end if
@@ -280,7 +280,7 @@ end if
                         if ch2=ch then      -- closing quote found
 if bcomm=-2 then
     -- we're really looking for `"""`
-    if chidx<=ll-2 and equal(line[chidx..chidx+2],"\"\"\"") then
+    if chidx<=ll-2 and equal(line[chidx..chidx+2],`"""`) then
         chidx += 2
         bcomm = 0
         exit
@@ -691,7 +691,8 @@ integer lc
 --DEV crash here, bcomm was 1, blockComment was {}. [after unrecog. section]
 --          abc = blockComment[bcomm+1]
             abc = blockComment[2] -- (signals NOT line comment scan)
-            chidx2 -= 1
+--removed 8/7/19 (for pascal { } comments)
+--          chidx2 -= 1
             scanForUrls(text)
             syntaxClass = Comments
         elsif find(ctype,{TokenStart,TokenFirst,TokenLast}) then
@@ -908,7 +909,7 @@ else
         bcomm = -1
     elsif ch='"'
       and chidx<=length(text)-2
-      and equal(text[chidx..chidx+2],"\"\"\"") then
+      and equal(text[chidx..chidx+2],`"""`) then
         bcomm = -2
         chidx2 += 2
     end if
@@ -934,8 +935,8 @@ end if
 --                  if EuSq and ch2='\'' and chidx2=chidx+1 then    -- '' is illegal (but "" is not)
 if bcomm=-2 then
     -- we're really looking for `"""`
-    if chidx2<=length(text)-2 and equal(text[chidx2..chidx2+2],"\"\"\"") then
---  if chidx2<=length(text)-1 and equal(text[chidx2..chidx2+1],"\"\"") then
+    if chidx2<=length(text)-2 and equal(text[chidx2..chidx2+2],`"""`) then
+--  if chidx2<=length(text)-1 and equal(text[chidx2..chidx2+1],`""`) then
         chidx2 += 2
         bcomm = 0
         exit

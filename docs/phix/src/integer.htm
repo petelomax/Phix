@@ -40,12 +40,51 @@
           <br>
             On 64-bit, integers are whole numbers in the range -4,611,686,018,427,387,904 to +4,611,686,018,427,387,903 (-#4000000000000000 to #3FFFFFFFFFFFFFFF, technically 63-bit)
           <br>
+            Obviously, however, any code which should work on both 32 and 64-bit should conform to the 32-bit limits.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Supplemental:</b>
+         </td>
+         <td>
           <a name=bool></a>
-          <br>
-            In phix, <b>bool</b> is a simple alias of integer. It does not validate that the value is 0 or 1 only - instead, 0 is false, any other value is deemed true.
-            The builtin constants <b>true</b> and <b>false</b> can and should be used for variables and parameters declared as type bool, or, if you prefer, TRUE, True, 
-            FALSE, and False, are identical/aliases - mainly for compatibility with legacy code, but ultimately also one less thing (upper/lower case) that you have to 
-            remember, or fix.
+            In psym.e (part of the compiler), <b>bool</b> is a simple alias of integer, which does not validate that the value is true(1) or false(0) only - 
+            instead, 0 is false, and any other value is deemed true. However there is a more rigorous version, <b>boolean</b>, defined in builtins/ptypes.e -
+            not an autoinclude but used/included by both <a href="pGUI.htm">pGUI</a> and <a href="mpfr.htm">mpfr</a>, so using either makes it available.<br>
+            Obviously there is no harm whatsoever in storing a boolean in a bool or integer, and only rarely is there any advantage to using the former.
+<!--
+            , resulting in the following 
+            behaviour:<br>
+    <x!x-x-eucode>
+    bool test
+    test = 5                    -- fine
+    include builtins/ptypes.e   -- (or pGUI.e or mpfr.e)
+    test = 5                    -- fine
+    bool test2
+    test2 = 5                   -- error
+    </eucode-x-x>x
+    <pre>
+    <font color="#000000"></font><font color="#004080">bool</font><font color="#000000"> test
+    test</font><font color="#0000FF"> =</font><font color="#000000"> 5                   </font><font color="#000080"><i> -- fine
+    </i></font><font color="#008080">include</font><font color="#000000"> builtins</font><font color="#0000FF">/</font><font color="#000000">ptypes.e  </font><font color="#000080"><i> -- (or pGUI.e or mpfr.e)
+    </i></font><font color="#000000">test</font><font color="#0000FF"> =</font><font color="#000000"> 5                   </font><font color="#000080"><i> -- fine
+    </i></font><font color="#004080">bool</font><font color="#000000"> test2
+    test2</font><font color="#0000FF"> =</font><font color="#000000"> 5                  </font><font color="#000080"><i> -- error</i></font>
+    </pre>
+-->
+            <br>
+            <br>
+            Ideally boolean variables should (probably) begin with is/are/has or similar, eg isVisible/areEqual/hasEncryption
+            in preference to visible/equal/encryption, not that I religously follow that rule.
+            <br>
+            <br>
+            The builtin constants <b>true</b> and <b>false</b> can and should be used for variables and parameters declared as type bool[ean], or, 
+            if you prefer, TRUE, True, FALSE, and False, are identical/aliases - mainly for compatibility with legacy code, but ultimately also one 
+            less thing (upper/lower case) that you have to remember, or fix.
+<!--
+             Of course the above example would not show any deviation were it using true/1/false/0 instead of the patently illogical 5.
+-->
          </td>
         </tr>
         <tr>
@@ -54,12 +93,10 @@
          </td>
          <td>
 <!--eucode>
-integer z 
-    z = -1
+integer z = -1
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> z 
-    z</font><font color="#0000FF"> = -</font><font color="#000000">1</font>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> z</font><font color="#0000FF"> = -</font><font color="#000000">1</font>
 </pre>
          </td>
         </tr>
@@ -88,7 +125,8 @@ end if
             There are generic versions of the integer function implemented as :%opInt in builtins\VM\pType.e and :%opInt0 in builtins\VM\pJcc.e that 
             the compiler only invokes as a last resort, preferring instead to inline that functionality if the argument is known to be assigned or the
             result variable, if any, is known to be an integer, ie does not require decref/dealloc. The compiler may also completely omit the test 
-            and/or any related code, if type inference/propagation determines that the result will always be true or always false.
+            and/or any related code, if type inference/propagation determines that the result will always be true or always false.<br>
+            As already mentioned, builtins/ptypes.e is where the supplemental types are defined.
          </td>
         </tr>
         <tr>

@@ -640,7 +640,7 @@ end function
 -- See Also:
 --     [[:lower]] [[:upper]]
 
---/* Not Phix (erm)
+--/* Not Phix (now in pcase.e)
 public function proper(sequence x)
 -- Converts text to lowercase and makes each word start with an uppercase.
 integer pos

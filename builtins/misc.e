@@ -206,7 +206,7 @@ include builtins\pretty.e
 --      end for
 --
 --      if all_ascii then
---          pretty_out('\"')
+--          pretty_out('"')
 --      else
 --          pretty_out('{')
 --      end if
@@ -230,7 +230,7 @@ include builtins\pretty.e
 --          indent()
 --      end if
 --      if all_ascii then
---          pretty_out('\"')
+--          pretty_out('"')
 --      else
 --          pretty_out('}')
 --      end if

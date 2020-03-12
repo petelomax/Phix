@@ -1,0 +1,200 @@
+--
+-- chm2htm.exw
+--
+--  Assumes you have extracted phix.chm by hand using eg 7-zip first (sadly LiteZip does not cope).
+--  (I just right click on phix.chm and in the 7-Zip submenu click on Extract to "phix/".)
+--
+--  Deletes all files without an extension.
+--  Replaces all `src="/images/` with `src="images/`.
+--  Replaces all javascript:ExternalLink()s (with normal links)
+--  Copies images/ into html/
+--  <further small tweaks may be required!>
+--
+--  Note: this won't work until 0.8.1 is shipped:
+--      couple of tweaks to the original docs, eg `href=\n"long_url` made one line, 
+--      "" to the javascript so that clipboard now works in both browser&chm,
+--      and a new copy_directory() routine was quickly whipped up.
+--
+
+--/*
+include builtins\LiteZip.e
+
+atom hzip = UnzipOpenFile("phix.chm")   -- sadly, a bust... (.zip are PK, chm are ITSF/ITSP/PMGL(/I)/LZXC...)
+                                        -- Alt: ship a zip of the output of this...
+
+ZIPENTRY ze = new_ZIPENTRY()
+integer numitems = UnzipGetItems(hzip,ze)
+?{"numitems",numitems}  -- prints {"numitems",1156}
+
+UnzipSetBaseDir(hzip,current_dir()&"\\test")
+
+--?UnzipFindItem(hzip,ze,"readme.txt")  -- prints 0 (ZR_OK)
+--?UnzipGetFileName(ze) -- prints current_dir()&"\\test\\readme.txt"
+
+for i=1 to numitems do
+    integer res = UnzipGetItem(hzip, ze, i-1)
+    string name = UnzipGetFileName(ze)
+    if get_file_extension(name)!="" then
+        res = UnzipItemToFile(hzip, ze)
+        printf(1,"\r%2d%%",{(i/numitems)*100})
+    end if
+end for
+
+UnzipClose(hzip)
+puts(1,"\ndone\n")
+--*/
+with trace
+include pfile.e
+atom t1 = time()+1
+
+function fixup(string dir_name, bool toplevel=true)
+    sequence d = dir(dir_name)
+    integer lsub = 0    -- (tally of subdirectory lengths)
+    for i=length(d) to 1 by -1 do   
+        sequence di = d[i]
+        string file_name = di[D_NAME]
+        if not find(file_name,{".",".."}) then
+            string file_path = join_path({dir_name,file_name}),
+                   extension = get_file_extension(file_name)
+            if time()>t1 then
+                printf(1,"processing %s\n",{file_path})
+                t1 = time()+1
+            end if
+            if extension="" then
+                if find('d',di[D_ATTRIBUTES]) then
+                    lsub += fixup(file_path,false)
+--                  if fixup(file_path,false)=0 then
+--                      if not remove_directory(file_path) then ?9/0 end if
+--                      d[i..i] = {}
+--                  end if
+                    if toplevel and file_name="images" then
+                        string hi = join_path({dir_name,"html",file_name})
+                        if not file_exists(hi) then
+                            if not copy_directory(file_path,hi) then ?9/0 end if
+                        end if
+                    end if
+                else
+                    if not delete_file(file_path) then ?9/0 end if
+                    d[i..i] = {}
+                end if
+            elsif extension="htm" then
+--              ?di
+                string text = get_text(file_path)
+                bool found = false
+                if match(`src="/images/`,text) then
+                    text = substitute(text,`src="/images/`,`src="images/`)
+--                  ?di
+                    found = true
+                end if
+                string elink = `href="javascript:ExternalLink('`
+--?file_path
+                while true do
+                    integer k = match(elink,text)
+                    if k=0 then exit end if
+                    found = true
+                    if text[k-2..k-1] = "  " then
+                        -- kiss: patch up whitespace & just start again.
+                        for j=k-3 to 0 by -1 do
+                            if not find(text[j]," \r\n") then
+                                text[j+1..k-1] = " "
+                                exit
+                            end if
+                        end for
+                    else
+--eg                -- (we are not about to win any awards for neatness here...)
+--                                     k                             s      e                           ps
+--<a id="ext004" style="color:#9B5565" href="javascript:ExternalLink('ext004','http://www.virustotal.com');">http://www.virustotal.com</a>
+--==><a style="color:#9B5565" href='http://www.virustotal.com'>http://www.virustotal.com</a>
+--TIP: consider editing src and rebuilding/re-extracting chm, rather than faffing about here... (if any new crashes occur, that is)
+                        string style = text[k-24..k-1]
+                        if style!=`" style="color:#9B5565" ` then ?9/0 end if
+                        integer ca = match(`</a>`,text,k)
+                        if ca=0 then ?9/0 end if
+--?text[k-37..ca+3]
+                        integer s = k+length(elink),
+                                e = find('\'',text,s),
+                                ps = match(`');"`,text,e),
+                                l = e-s
+                        if e=0 then ?9/0 end if
+                        if ps=0 then ?9/0 end if
+                        if l<=0 then ?9/0 end if
+                        if text[s-1]!='\'' then ?9/0 end if
+                        if text[e..e+2]!=`','` then ?9/0 end if
+                        string id = text[s..e-1],
+                               ide = text[k-28-l..k-23]
+                        if ide!=`id="`&id&`" ` then ?9/0 end if
+                        string cs = text[ps..ps+3]
+                        if cs!=`');"` then ?9/0 end if
+                        text[ps..ps+3]="'"      -- 1: kill `);"`
+                        text[k+5..e+2]="'"      -- 2: kill `"javascript:ExternalLink('ext004','`
+                        text[k-28-l..k-23] = "" -- 3: kill `id="ext004" `
+--?text[k-37..match(`</a>`,text,k)+3]
+--{} = wait_key()
+                    end if
+                end while
+--              ?di
+                if found then
+                    integer fn = open(file_path,"wb")
+                    puts(fn,text)
+                    close(fn)
+                end if
+                text = ""
+--DEV (20/9/19) this may no longer be necessary [now that ../ has been added to makephix.exw (current!=1 and i=1)]
+            elsif toplevel and extension="jpg" then
+                string ji = join_path({dir_name,"html",file_name})
+                if not file_exists(ji) then
+                    if not copy_file(file_name,ji) then ?9/0 end if
+                end if
+            end if
+        end if
+    end for
+--  if length(d)=0 then
+--      ?9/0 -- delete directory
+--  end if
+    return lsub+length(d)
+end function
+printf(1,"Complete. %d files processed\n",fixup("phix"))
+?"done"
+{} = wait_key()
+
+--/*
+%center% [++Phix++]
+
+%center% The Phix Programming Language Reference Manual Wiki
+
+%center% Version 0.8.0
+
+(:treemenu:)
+*[[wiki]]
+**[[Example Program]]
+**[[Installation]]
+**[[Licence]]
+*[[Core Language]]
+*[[Library Routines]]
+*[[Other Libraries]]
+*[[Recommended Tools]]
+*[[Internals]]
+*[[Glossary]]
+(:treemenuend:)
+
+Introduction
+
+Phix has several advantages over other programming languages:
+*A remarkably simple, yet flexible and powerful language definition that is easy to learn and use.
+*A high-performance interpreter/compiler much faster than most.
+*Fully managed dynamic data storage with no requirement to allocate or free memory. Variables can grow or shrink to any size without any manual housekeeping.
+*Extensive run-time checking for: out-of-bounds subscripts, uninitialized variables, bad parameter and variable assignments and many more. There are no mysterious machine exceptions -- you always get a full English description of any problem that occurs within your program at run-time, with the exact source line it occurs on, along with a full call-stack listing and a dump of all of your variable values. Programs can be debugged quickly, easily, and more thoroughly.
+*A source level debugger allows execution of programs line-by-line. Tracing can begin (or end) on any line or for any condition, under full programmer control.
+*A built-in execution profiler identifies which lines of code take up the highest percentage of execution time, or are executed the most often.
+*Features of the underlying hardware are usually hidden. Programs are not typically aware of word-lengths, bit-representations, byte-order etc.
+*However, phix also satisfies anyone with a deeper curiosity. There is no hidden wall between the language and the operating system to fully understand how things actually work. Phix can create low-level listing files which show the exact addresses and assembly instructions generated, and also includes a program (filedump.exw) that shows every bit and byte in full detail (within reason, for example icons and other such data are shown in raw hex), for Windows PE, Linux ELF, and other format files.
+*Self-hosted so there is no need to know another language, or obtain any other development tools, to enhance or fix the language itself. You can easily download, install, and recompile phix in less than two minutes! (See the short webcast at http://phix.is-great.org/tutorial.php, and also Recommended Tools.)
+*The Edita programmers editor is freely available, and written in phix with everything you might expect, including multiple and user-definable syntax colouring, multilingual support, intellisense, autocompletion, code folding, integrated help, window painter, full source, and more.
+*Standalone executables can be created simply by adding a "-c" flag to the normal interpret command (or via Ctrl F5 if using Edita). (The detailed assembly listing mentioned above is likewise just a "-d".) There are no complicated compiler options to remember and there is no separate linking phase. A simple "format" directive in the source allows for easy cross-compilation to any other supported system.
+*Phix programs are naturally generic. The example program shows a single routine that will sort any type of data -- integers, floating-point numbers, strings etc. Phix achieves many of the benefits of object-oriented programming, yet in a much simpler way.
+
+--*/
+-- from
+--/*
+
+--*/

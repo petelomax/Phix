@@ -1,0 +1,331 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">librsvg</h1>
+      <div id="mainSection">
+        <b>DRAFT</b> - Experimental / Windows-only (mainly due to use of ".dll")
+       <br>
+       <br>
+        The file builtins\librsvg.e (<i>not</i> an autoinclude) contains a basic wrapper of the <a id="ext434" style="color:#9B5565"
+        href="javascript:ExternalLink('ext434','https://en.wikipedia.org/wiki/Librsvg');">librsvg</a> library.
+       <br>
+       <br>
+        The librsvg library contains several routines useful for manipulating svg files, in particular converting them
+        to png files so they can be displayed in pGUI applications.
+       <br>
+        The basic idea is that you can create an svg file (see the example below) using standard Phix code, or download one, 
+        and then use it on both the desktop and a webpage - don&rsquo;t get too excited by the mention of the latter; this is 
+        just one possible part of a potential solution to such things.
+       <br>
+       <br>
+        <b>NB</b> There is as yet no officially-supported Phix-friendly way to install librsvg itself.
+       <br>
+        I read some post on&rsquo;t&rsquo;internet, found some dlls from a past attempt to get gtk/whatever working, and used them. 
+        All I know is:
+       <br>
+        My C:\gtkX\bin contains a working set of 32-bit dlls and the file gtk+-bundle_3.6.4-20130921_win32.README.txt.
+       <small>Note however several files appear to link back to C:\gtk\bin, which does not work....</small>
+       <br>
+        In C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr, the \sys-root\mingw\bin subdirectories of both \i686-w64-mingw32 
+        and \x86_64-w64-mingw32 also work fine, on 32 and 64 bit respectively.
+       <br>
+       <small>(Cannot quite remember exactly, but some combination of running import Pkg; Pkg.add("Gtk"); Pkg.add("Graphics"); in
+        the julia repl, failing, and then dowloading/extracting gtk+-bundle_3.6.4-20130513_win32/64 manually.)
+        <br>
+       </small>
+        The contents of pygi-aio-3.4.2rev11.7z, a file I downloaded in 2015, who knows why or where from, also work fine.
+       <br>
+        You will most certainly need librsvg-2-2.dll, libglib-2.0-0.dll, libgdk_pixbuf-2.0-0.dll, and libgobject-2.0-0.dll,
+        plus (at least) another 9. I will upload something to PCAN when it is good and ready, but not before.
+       <br>
+        I specifically wrote set_librsvg_dir() to make switching between various directories as easy as possible.
+       <br>
+       <br>
+        Sadly the version info in librsvg is implemented as C macros, so as yet I have no way to check whether a .dll (/.so)
+        is a recent enough version. I guess I need to go on a proper version-hunt.
+       <br>
+       <br>
+        Unfortunately "develop on desktop" has a somewhat heavy footprint: 13 dlls at &tilde;15MB, just to support SVG display (via librsvg).
+       <br>
+        Note: some ".svg" files are pure-defs, no actual svg at all, eg fontawesome-webfont.svg (in case, like me, testing them confuses you..)
+       <br>
+        One thing I have spotted is that librsvg does not like eg &lt;font .. /&gt; at all, but "prefers" &lt;font ..&gt;&lt;/font&gt;, I can live with that.
+       <br>
+       <br>
+        The library signals errors by throwing exceptions, which are best fixed by only providing valid inputs: &lt;rant&gt; the worst possible "fix" 
+        being to use try/catch to <i>silently</i> ignore them, and in that way absolutely guarantee to maximise head-butting anger and frustration.
+        By all means feel free to use try/catch, but [please] at least display/log errors. Far too many programmers assume that when their users say 
+        "it displays error 8000437, which is meaningless to me" they would somehow be happy if pressing the button just quietly did precisely nothing, 
+        when of course the <b>only</b> way to make them happy is to make the button <b>actually work</b>. Sometimes that might mean they have to relay 
+        some gobbledegook so that you <i>can</i> actually help them, or better yet display messages the average joe <i>can</i> comprehend. &lt;/rant&gt;
+       <br>
+       <br>
+       <h3>Example:</h3>
+        Creates test.png, as per <a id="ext437" style="color:#9B5565"
+        href="javascript:ExternalLink('ext437','https://en.wikipedia.org/wiki/Scalable_Vector_Graphics#Example');">wikipedia</a> 
+        (as noted there, the final image excludes the grid and labels).
+       <br>
+       <br>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-qx54-6374-123h-8b2483c92846');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_18b74j93-qx54-6374-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+include librsvg.e
+
+constant test_text = """
+<svg width="391" height="391" viewBox="-70.5 -70.5 391 391" xmlns="http://www.w3.org/2000/svg">
+    <rect x="25" y="25" width="200" height="200" fill="lime" stroke-width="4" stroke="pink" />
+    <circle cx="125" cy="125" r="75" fill="orange" />
+    <polyline points="50,150 50,200 200,200 200,100" stroke="red" stroke-width="4" fill="none" />
+    <line x1="50" y1="50" x2="200" y2="200" stroke="blue" stroke-width="4" />
+</svg>
+"""
+
+rasterize_svg_text(test_text, "test.png")
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> librsvg.e
+
+</font><font color="#008080">constant</font><font color="#000000"> test_text</font><font color="#0000FF"> =</font><font color="#008000"> """
+&lt;svg width="391" height="391" viewBox="-70.5 -70.5 391 391" xmlns="http://www.w3.org/2000/svg"&gt;
+    &lt;rect x="25" y="25" width="200" height="200" fill="lime" stroke-width="4" stroke="pink" /&gt;
+    &lt;circle cx="125" cy="125" r="75" fill="orange" /&gt;
+    &lt;polyline points="50,150 50,200 200,200 200,100" stroke="red" stroke-width="4" fill="none" /&gt;
+    &lt;line x1="50" y1="50" x2="200" y2="200" stroke="blue" stroke-width="4" /&gt;
+&lt;/svg&gt;
+"""
+
+</font><font color="#5E005E">rasterize_svg_text</font><font color="#0000FF">(</font><font color="#000000">test_text</font><font color="#0000FF">,</font><font color="#008000"> "test.png"</font><font color="#0000FF">)</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+        See demo\rosetta\SierpinskyPentagon.exw for a complete runnable program, including display direct to screen (press 'S').
+       <br>
+       <br>
+       <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:8em;}
+       </style>
+       <!--
+procedure init_svg()
+    -- void g_object_unref(gpointer object);
+    xg_object_unref = link_c("libgobject-2.0-0.dll","g_object_unref",{C_PTR},NULL)
+    -- RsvgHandle* rsvg_handle_new_from_data(const guint8 *data, gsize data_len, GError **error);
+    xrsvg_handle_new_from_data = link_c("librsvg-2-2.dll","rsvg_handle_new_from_data",{C_PTR,C_INT,C_PTR},C_PTR)
+    -- GdkPixbuf* rsvg_handle_get_pixbuf(RsvgHandle *handle);
+    xrsvg_handle_get_pixbuf = link_c("librsvg-2-2.dll","rsvg_handle_get_pixbuf",{C_PTR},C_PTR)
+    -- gboolean rsvg_handle_close(RsvgHandle *handle, GError **error);
+    xrsvg_handle_close = link_c("librsvg-2-2.dll","rsvg_handle_close",{C_PTR,C_PTR},C_BOOL)
+    -- gboolean gdk_pixbuf_save(GdkPixbuf *pixbuf, const char *filename, const char *type, GError **error, ...);
+    xgdk_pixbuf_save = link_c("libgdk_pixbuf-2.0-0.dll","+gdk_pixbuf_save",{C_PTR,C_PTR,C_PTR,C_PTR,C_PTR},C_BOOL)
+    --guchar* gdk_pixbuf_get_pixels (const GdkPixbuf *pixbuf);
+    xgdk_pixbuf_get_pixels = link_c("libgdk_pixbuf-2.0-0.dll","gdk_pixbuf_get_pixels",{C_PTR},C_PTR)
+
+global function gdk_pixbuf_get_pixels(atom pGdkPixbuf)
+    if xg_type_init=NULL then ?9/0 end if -- ("" be what then??)
+    return c_func(xgdk_pixbuf_get_pixels,{pGdkPixbuf})
+end function
+-->
+       <div id="nopad" class="nopad" align="center">
+        <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>set_librsvg_dir</b>(string d) - (optional) specify the directory where librsvg-2-2.dll etc can be found.
+             <br>
+            </dt>
+            <dd class="pad">
+            If the directory does not exist the call is quietly ignored.
+             <br>
+            If the libraries are in the current directory, or in the path (as they usually are on linux), no such call is required.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>atom pGdkPixbuf =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>rasterize_svg_pixbuf</b>(string text) - converts a text svg to a GdkPixbuf.
+            </dt>
+            <dd class="pad">
+            You can locate the raw data within a GdkPixbuf for passing to <a href="IupImage.htm#IupImageRGB">IupImageRGBA</a>() using gdk_pixbuf_get_pixels(), see below.
+             <br>
+            Note that theoretically some svg might create raw data incompatible with IupImageRGBA(), however I have not yet found any such.
+             <br>
+            At some point you must release resources by invoking g_object_unref(pGdkPixbuf).
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>integer width =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>gdk_pixbuf_get_width</b>(atom pGdkPixbuf) - obtain the width in pixels.
+            </dt>
+            <dd class="pad">
+            It may be wise to check that gdk_pixbuf_get_rowstride() yields the same value, times 1/3/4[??], to ensure there is no padding between rows.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>integer height =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>gdk_pixbuf_get_height</b>(atom pGdkPixbuf) - obtain the height in pixels.
+            </dt>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>bool res =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>gdk_pixbuf_get_has_alpha</b>(atom pGdkPixbuf) - check whether the image has an alpha channel.
+            </dt>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>integer res =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>gdk_pixbuf_get_colorspace</b>(atom pGdkPixbuf) - obtain the colourspace.
+            </dt>
+            <dd class="pad">
+            Currently the only supported value is apparently GDK_COLORSPACE_RGB(=0).
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>integer res =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>gdk_pixbuf_get_n_channels</b>(atom pGdkPixbuf) - obtain the number of channels.
+            </dt>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>integer res =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>gdk_pixbuf_get_bits_per_sample</b>(atom pGdkPixbuf) - obtain the number of bits per sample.
+            </dt>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>atom pData =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>gdk_pixbuf_get_pixels</b>(atom pGdkPixbuf) - obtain a raw pointer to the pixel data.
+            </dt>
+            <dd class="pad">
+            Later versions of librsvg apparently implement gdk_pixbuf_read_pixels() and avoid making copies of read-only data.
+             <br>
+            However I have not located a late-enough version, yet, nor do I have any idea if/when/how pData might need releasing.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>g_object_unref</b>(atom pGdkPixbuf) - release resources when no longer needed.
+            </dt>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <!-- procedure -->
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>rasterize_svg_text</b>(string text, outputfilename) - creates say test.png from a text svg.
+            </dt>
+            <dd class="pad">
+            Note that unlike rasterize_svg_file() below, outputfilename must always be provided.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+           <nobr>string outputfilename =</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>rasterize_svg_file</b>(string inputfilename, outputfilename="") - converts say test.svg to test.png.
+            </dt>
+            <dd class="pad">
+            If outputfilename is left blank, it replaces ".svg" in the input with ".png" and uses/returns that.
+             <br>
+            If a non-empty outputfilename is supplied it gets returned unaltered.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+        </table>
+       </div>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

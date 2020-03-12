@@ -9,13 +9,20 @@ include builtins\libcurl.e
 
 constant output_html = false,
 --constant output_html = true,
+         output_users = false,
          limit = 20,    -- 0 to list all (ignored if output_html is true)
-         refresh_cache = timedelta(days:=1),    -- 0 for always
+         refresh_cache = timedelta(days:=21),   -- 0 for always
          languages = "http://rosettacode.org/wiki/Category:Programming_Languages",
          categories = "http://www.rosettacode.org/mw/index.php?title=Special:Categories&limit=5000"
 
 function open_download(string filename, url)
     bool refetch = true
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
+    filename = join_path({"rc_cache",filename})
     if file_exists(filename) then
         -- use existing file if <= refresh_cache (1 day) old
         sequence last_mod = get_file_date(filename)     -- (0.8.1+)
@@ -60,7 +67,7 @@ function correct_name(string language_name)
 end function
 --*/
 
-constant cat_title = "title=\"Category:"
+constant cat_title = `title="Category:`
 
 function extract_names()
 sequence results = {} -- {rank,count,name}
@@ -68,8 +75,9 @@ sequence results = {} -- {rank,count,name}
     -- 1) extract languages from eg title="Category:Phix"
     sequence language_names = {}
     string langs = open_download("languages.htm",languages),
+--  string langs = open_download("Programming_Languages.htm",languages),
            language_name
-    langs = langs[1..match("<div class=\"printfooter\">",langs)-1]
+    langs = langs[1..match(`<div class="printfooter">`,langs)-1]
     integer start = match("<h2>Subcategories</h2>",langs), k
     while true do
         k = match(cat_title,langs,start)
@@ -94,7 +102,16 @@ sequence results = {} -- {rank,count,name}
 --      language_name = correct_name(cats[k..start-1])
         language_name = cats[k..start-1]
         start = match("</a>",cats,start)+4
-        if find(language_name,language_names) then
+        if output_users then
+            if length(language_name)>5 
+            and language_name[-5..-1] = " User" then
+                language_name = language_name[1..-6]
+            else
+                language_name = ""
+            end if
+        end if
+        if length(language_name)
+        and find(language_name,language_names) then
             while not find(cats[start],"(<") do start += 1 end while -- (ignore)
             string members = cats[start..find('<',cats,start+1)]
             members = substitute(members,",","")
@@ -132,10 +149,10 @@ constant html_header = """
  <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-  <title>Rosettacode Rank Languages by popularity</title>
+  <title>Rosettacode Rank Languages by %s</title>
  </head>
  <body>
-  <h2>Rosettacode Rank Languages by popularity</h2>
+  <h2>Rosettacode Rank Languages by %s</h2>
   Generated %s<br><br>
   <table border="1" cellpadding="4" style="border-collapse: collapse">
    <tr><th align=right>Rank</th><th align=right>Entries</th><th align=left>Name</th></tr>
@@ -151,7 +168,9 @@ constant html_header = """
 
 procedure create_html(sequence results)
     integer fn = open("popularity.html","w")
-    printf(fn,html_header,{format_timedate(date())})
+    string what = iff(output_users?"number of users"
+                                  :"popularity")
+    printf(fn,html_header,{what,what,format_timedate(date())})
     for i=1 to length(results) do
         printf(fn,html_line,results[i])
     end for

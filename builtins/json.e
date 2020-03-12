@@ -117,7 +117,7 @@ function pj_rec(object fn, object o, integer indent=0, bool addcomma=false)
     if atom(o) then
         fn = pj_print(fn,"%.10g",{o})
     elsif string(o) then
-        fn = pj_print(fn,"\"%s\"",{o})
+        fn = pj_print(fn,`"%s"`,{o})
     else
         integer len = length(o)
         integer o1 = JSON_INVALID
@@ -133,7 +133,7 @@ function pj_rec(object fn, object o, integer indent=0, bool addcomma=false)
                     name = o[i][1]
                 end if
                 if not string(name) then return not_valid() end if
-                fn = pj_print(fn,"%s\"%s\":",{repeat(' ',indent+1),name})
+                fn = pj_print(fn,`%s"%s":`,{repeat(' ',indent+1),name})
                 fn = pj_rec(fn,o[i][2],indent+length(name)+4,i<len) 
                 if equal(fn,0) then return 0 end if
             end for
@@ -189,7 +189,7 @@ constant SYMBOL  = 1,
 
 function setCharClass()
 sequence charClass = repeat(ILLEGAL,255)
-    charClass['\"'] = DQUOTE
+    charClass['"'] = DQUOTE
     charClass[','] = SYMBOL
     charClass['-'] = SYMBOL
     charClass['.'] = DOT
@@ -321,14 +321,14 @@ integer tokstart
         while 1 do
             col += 1
             if col>textlen then
---              Abort("missing \"")
+--              Abort(`missing "`)
                 invalid = 2
                 exit
             end if
             nxtCh = text[col]
             if nxtCh='\\' then
                 col += 1
-            elsif nxtCh='\"' then
+            elsif nxtCh='"' then
                 col += 1
                 exit
             end if

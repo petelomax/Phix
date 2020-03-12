@@ -14,10 +14,6 @@
          </td>
          <td>
          <a href="sequence.htm">sequence</a> s = include_paths(<a href="integer.htm">integer</a> convert=0)
-         <br>
-         <i>-- or --</i>
-         <br>
-         <a href="string.htm">string</a> s = include_path(<a href="sequence.htm">sequence</a> d="builtins")
          </td>
         </tr>
         <tr>
@@ -26,9 +22,9 @@
          </td>
          <td>
             Returns a list of include paths, which are typically searched last-first.
-            <br>
-            <br>
-            The convert parameter is unused and present solely for compatibility with OpenEuphoria.
+          <br>
+          <br>
+            The convert parameter is unused and present solely for compatibility with Euphoria.
          </td>
         </tr>
         <tr>
@@ -42,38 +38,89 @@
             searched for within that path first, and that path is marked inactive once arwen.ew has been fully processed. Several
             such events may have occurred during compilation; the table returned is the complete table as at the end of compilation, 
             but without any indication of which, if any, directories are no longer 'active'.
-            <br>
-            <br>
+          <br>
+          <br>
             As shown below, every entry of the result ends with a path separator, so there should be no need to check for that.
-            <br>
-            <br>
+          <br>
+          <br>
             If EUDIR and/or EUINC are defined, they appear at the start of the list, and therefore would be searched last.
-            <br>
-            <br>
-            The include_path() function (without an s) is actually an auxillary function for the common case of wanting just one entry 
-            from the with-an-s set. Multiple trailing directories can be specified as either eg "builtins\\VM" or {"builtins","VM"}.
-            Obviously, for compile-time type errors on the parameter, check the s.<br>
-            Note there is no equivalent routine in OpenEuphoria (not that it would be difficult to add/work around).
+          <br>
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Auxillary Functions</b>
+         </td>
+         <td>
+            <a href="string.htm">string</a> s = <b>include_path</b>(<a href="sequence.htm">sequence</a> d="builtins")<br>
+            The include_path() function (without an s) caters for the common case of wanting just one entry from the with-an-s set, ending as specified.<br>
+            If d is "" (or {}) it retrieves the top-level directory where the main file resides, in practice that is include_paths()[include_files()[1][1]].<br>
+            Multiple trailing directories can be specified as either eg `builtins\VM` or {"builtins","VM"}.<br>
+            Obviously, when faced with unexpected compile-time type errors on the parameter, double check that s, ie include_path() vs include_path<b>s</b>().
+          <br>
+          <br>
+            <a href="sequence.htm">sequence</a> f = <b>include_files</b>()<br>
+            The include_files() function returns a complete set of included files, with directories as indexes to the include_paths() result, see example.<br>
+            The result is fully expected to be significantly longer when compiled that when interpreted, since the latter re-uses some parts of the phix
+            executable, whereas the former must incorporate it&rsquo;s own copies of pDiagN.e, pHeap.e, pStack.e, pprntfN.e, etc. See technicalia below.
+          <br>
+          <br>
+            <a href="integer.htm">integer</a> fdx = <b>include_file</b>(integer depth=1)<br>
+            The include_file() function (without an s) returns an index into the include_files() result. An fdx of 1 denotes the main top-level file.<br>
+            It uses the call stack to determine the calling routine_id, and then the symtab to get the index of the file in which that was defined.<br>
+            You should get the same result from top-level as (deeply) nested routine calls, as long as both calls are in the same source code file.<br>
+            The depth parameter allows you to determine what file contained the call to the routine that is calling include_file(), to arbirary depth.<br>
+            <small>(The nFrames parameter of the <a href="crash.htm">crash</a>() routine behaves in a similar fashion to this routine&rsquo;s depth, and
+            likewise this will of course crash should the stack not contain that many frames.)</small>
+          <br>
+          <br>
+            Note that to my knowledge there are no equivalent routines in Euphoria (not that I expect they should be difficult to add or work around).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
-sequence s = include_paths()
--- s might contain
---  {"C:\\Program Files (x86)\\Phix\\builtins\\",
---   "C:\\Program Files (x86)\\Phix\\builtins\\VM\\",
---   "C:\\Program Files (x86)\\Phix\\"}
+sequence p = include_paths()
+-- p might contain
+--  {`C:\Program Files (x86)\Phix\builtins\`,
+--   `C:\Program Files (x86)\Phix\builtins\VM\`,
+--   `C:\Program Files (x86)\Phix\`}
+
+string s = include_path()
+-- s will (given the above, and the default for d) contain 
+--   `C:\Program Files (x86)\Phix\builtins\`
+
+sequence f = include_files()
+-- f might contain      -- ie assuming the above:
+--  {{3,`test.exw`},    -- ie C:\Program Files (x86)\Phix\test.exw
+--   {1,`pincpathN.e`}, -- ie C:\Program Files (x86)\Phix\builtins\pincpathN.e
+--   {2,`pprntfN.e`}}   -- ie C:\Program Files (x86)\Phix\builtins\VM\pprntfN.e
+
+integer fdx = include_file()
+-- An fdx of 1 matches that {3,`test.exw`}, meaning that is where the above is.
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#5E005E"> include_paths</font><font color="#0000FF">()
-</font><font color="#000080"><i>-- s might contain
---  {"C:\\Program Files (x86)\\Phix\\builtins\\",
---   "C:\\Program Files (x86)\\Phix\\builtins\\VM\\",
---   "C:\\Program Files (x86)\\Phix\\"}</i></font>
+<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> p</font><font color="#0000FF"> =</font><font color="#5E005E"> include_paths</font><font color="#0000FF">()
+</font><font color="#000080"><i>-- p might contain
+--  {`C:\Program Files (x86)\Phix\builtins\`,
+--   `C:\Program Files (x86)\Phix\builtins\VM\`,
+--   `C:\Program Files (x86)\Phix\`}
+
+</i></font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#5E005E"> include_path</font><font color="#0000FF">()
+</font><font color="#000080"><i>-- s will (given the above, and the default for d) contain 
+--   `C:\Program Files (x86)\Phix\builtins\`
+
+</i></font><font color="#004080">sequence</font><font color="#000000"> f</font><font color="#0000FF"> =</font><font color="#5E005E"> include_files</font><font color="#0000FF">()
+</font><font color="#000080"><i>-- f might contain      -- ie assuming the above:
+--  {{3,`test.exw`},    -- ie C:\Program Files (x86)\Phix\test.exw
+--   {1,`pincpathN.e`}, -- ie C:\Program Files (x86)\Phix\builtins\pincpathN.e
+--   {2,`pprntfN.e`}}   -- ie C:\Program Files (x86)\Phix\builtins\VM\pprntfN.e
+
+</i></font><font color="#004080">integer</font><font color="#000000"> fdx</font><font color="#0000FF"> =</font><font color="#5E005E"> include_file</font><font color="#0000FF">()
+</font><font color="#000080"><i>-- An fdx of 1 matches that {3,`test.exw`}, meaning that is where the above is.</i></font>
 </pre>
          </td>
         </tr>
@@ -82,7 +129,8 @@ sequence s = include_paths()
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\pincpathN.e (an autoinclude) for details of the actual implementation.<br>
+            See builtins\pincpathN.e (an autoinclude) for details of the actual implementation.
+          <br>
             See also ptok.e, addPath/initFilePathSet/Finc/includeFile, for details of how the compiler builds and uses it.
          </td>
         </tr>
@@ -93,14 +141,25 @@ sequence s = include_paths()
           </a>
          </td>
          <td>
-          The result is <b><i>not</i></b> thread safe, and may corrupt internal reference counts when freed, if that occurs in multiple threads.<br>
-          Ideally this routine should only ever be called from the main/gui thread, and perhaps kept for the entire duration of an application.
+          The results are <b><i>not</i></b> thread safe (apart from fdx), and may corrupt internal reference counts when freed, should that occur in multiple threads.
+          <br>
+          <br>
+          Ideally these routines should only ever be called from the main/gui thread, and perhaps kept for the entire duration of an application.<br>
+          That will avoid any need to lock when freeing reference counts, and/or >=2 AGI stalls that occur within every include_file() call.
+          <br>
+          <br>
+          The "builtins" default for include_path() is used by several libraries for dll-loading purposes, but could fairly easily be changed if needed.
+          <br>
+          <br>
+          Somewhat similar and perhaps more detailed and/or more deeply nested results can also be obtained via <a href="throw.htm">throw/catch</a>.
+          <br>
+          <br>
+          The directory paths are accurate during interpretation but may be misleading should pre-compiled applications be installed in a different
+          directory, which can be especially significant when the builtins directory is located elsewhere on the target machine.
          </td>
         </tr>
        </table>
        <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
-
-       </table>
        <br>
        <br>
       </div>

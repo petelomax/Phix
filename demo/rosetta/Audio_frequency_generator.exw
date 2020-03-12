@@ -1,0 +1,66 @@
+--
+-- demo/rosetta/Audio_frequency_generator.exw
+--
+include pGUI.e
+Ihandle dlg, frequency, duration
+
+atom k32=0, xBeep
+
+function button_cb(Ihandle /*playbtn*/)
+    integer f = IupGetInt(frequency,"VALUE"),
+            d = IupGetInt(duration,"VALUE")
+    if platform()=WINDOWS then
+        if k32=0 then
+            k32 = open_dll("kernel32.dll")
+            xBeep = define_c_proc(k32, "Beep", {C_INT,C_INT})
+        end if
+        c_proc(xBeep,{f,d})
+    else
+        system(sprintf("play -n synth %f sine %d", {d/1000, f}))
+    end if
+    end if
+    return IUP_DEFAULT
+end function
+
+function valuechanged_cb(Ihandle val)
+    -- maintain the labels as the sliders are moved
+    Ihandle parent = IupGetParent(val),
+            lbl = IupGetNextChild(parent, NULL) 
+    integer v = IupGetInt(val,"VALUE")
+    IupSetInt(lbl,"TITLE",v)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    Ihandle flabel, dlabel, frame1, frame2, playbtn
+    
+    IupOpen()
+
+    flabel = IupLabel("2000","ALIGNMENT=ARIGHT,NAME=val_label,SIZE=20x8")
+    frequency = IupValuator("HORIZONTAL","VALUECHANGED_CB", Icallback("valuechanged_cb"),
+                            "EXPAND=HORIZONTAL, CANFOCUS=NO, MIN=50, MAX=10000, VALUE=2000")
+    frame1 = IupFrame(IupHbox({flabel,frequency}),`TITLE="Frequency (Hz): "`)
+
+    dlabel = IupLabel("500","ALIGNMENT=ARIGHT,NAME=val_label,SIZE=20x8")
+    duration = IupValuator("HORIZONTAL","VALUECHANGED_CB", Icallback("valuechanged_cb"),
+                           "EXPAND=HORIZONTAL, CANFOCUS=NO, MIN=100, MAX=3000, VALUE=500")
+    frame2 = IupFrame(IupHbox({dlabel,duration}),`TITLE="Duration (ms): "`)
+
+    playbtn = IupHbox({IupFill(),
+                       IupButton("Play",Icallback("button_cb"),"PADDING=30x0"),
+                       IupFill()},"MARGIN=0x20")
+
+    dlg = IupDialog(IupVbox({frame1,
+                             frame2,
+                             playbtn}, "MARGIN=10x5, GAP=5"))
+    IupSetAttribute(dlg,"TITLE","Audio Frequency Generator")
+    IupSetAttribute(dlg,"RASTERSIZE","500x230")
+    IupCloseOnEscape(dlg)
+
+    IupShow(dlg)
+    IupMainLoop()
+    IupClose()
+end procedure
+main()
+
+

@@ -19,9 +19,9 @@ constant T_pathset = 16
 global function include_paths(integer convert=0)
 --
 -- returns a list of include paths, eg
---      {"C:\\euphoria\\include\\",
---       "C:\\Program Files\\Phix\\builtins\\",
---       "C:\\Program Files\\Phix\\"}
+--      {`C:\euphoria\include\`,
+--       `C:\Program Files\Phix\builtins\`,
+--       `C:\Program Files\Phix\`}
 -- Note that paths are normally absolute/fully qualified (as shown) but there is no
 --  guarantee they will not (one day) be relative to some core/original directory.
 -- If a program is compiled and installed on a different machine, then obviously these

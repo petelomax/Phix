@@ -16,17 +16,28 @@
             include pGUI.e
             <br>
             <br>
-            cdCanvasPutImageRectRGB(<a href="cdCanvas.htm">cdCanvas</a> hCdCanvas, <a href="atom.htm">atom</a> iw, ih,
-                                                                                   <a href="sequence.htm">sequence</a> rgb, 
-                                                                                   <a href="atom.htm">atom</a> x=0, y=0, w=0, h=0, 
+            cdCanvasPutImageRectRGB(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> iw, ih,
+                                                                                <a href="sequence.htm">sequence</a> rgb3, 
+                                                                                <a href="atom.htm">atom</a> x=0, y=0, w=0, h=0, 
+                                                                                                               xmin=0, xmax=0, ymin=0, ymax=0)
+            <br><i>-- or --</i><br>
+            cdCanvasPutImageRectRGBA(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> iw, ih,
+                                                                                 <a href="sequence.htm">sequence</a> rgba, 
+                                                                                 <a href="atom.htm">atom</a> x=0, y=0, w=0, h=0, 
+                                                                                                               xmin=0, xmax=0, ymin=0, ymax=0)
+            <br><i>-- or --</i><br>
+            cdCanvasPutImageRectMap(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> iw, ih,
+                                                                                <a href="sequence.htm">sequence</a> index, colours,
+                                                                                <a href="atom.htm">atom</a> x=0, y=0, w=0, h=0, 
                                                                                                                xmin=0, xmax=0, ymin=0, ymax=0)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
+         </td>
          <td>
-            Puts, in a specified area of the canvas, an image with its red, green and blue components defined in the three matrices stored in byte arrays. 
+            Puts an image with its red, green, blue [and alpha] components defined in the three/four matrices stored in byte arrays in a specified area of the canvas. 
             <br>
             <br>
             The (i,j) component of these matrices is at the address (j*iw+i). <br>
@@ -42,6 +53,35 @@
             <br>
             <br>
             If the driver has bpp &lt;=8 or only 256 colors or less, then the image is converted to 256 optimal colors using the function cdRGB2Map and is drawn using cdPutImageRectMap.
+            <br>
+            <br>
+            cdCanvasPutImageRectMap is the same as cdCanvasPutImageRectRGB, except for the fact that the colors are provided by means of an index matrix (map). <br>
+            The color corresponding to a given index is given in  colors[index]. The map is also a matrix stored as a byte vector. <br>
+            If the color vector is {}, then a vector with 256 gray tones is assumed.
+            <br>
+            <br>
+            The wdCanvasPutImageRectRGB(), wdCanvasPutImageRectRGBA(), and wdCanvasPutImageRectMap() functions are identical, except in world coordinates.
+<!--
+void cdCanvasGetImImage(cdCanvas* canvas, const imImage* image, int x, int y); [in C]
+void wdCanvasGetImImage(cdCanvas* canvas, const imImage* image, double x, double y); (WC) [in C]
+
+The same as the cdCanvasGetImageRGB functions except for the fact that use an imImage structure. Image must be a display RGB image (color_space=IM_RGB and data_type=IM_BYTE). See the CD_IMIMAGE. (since 5.9)
+
+(separately documented)
+void cdCanvasPutImImage(cdCanvas* canvas, const imImage* image, int x, int y, int w, int h); [in C]
+void cdfCanvasPutImImage(cdCanvas* canvas, const imImage* image, double x, double y, double w, double h); [in C]
+void wdCanvasPutImImage(cdCanvas* canvas, const imImage* image, double x, double y, double w, double h); (WC) [in C]
+
+The same as the above functions except for the fact that use an imImage structure. Image must be a displayable image (imImageIsBitmap), and it can has an alpha channel. See the CD_IMIMAGE. (since 5.9)
+
+void cdRGB2Map(int iw, int ih, 
+               const unsigned char *r, const unsigned char *g, const unsigned char *b, 
+               unsigned char *index, int pal_size, long *color); [in C]
+
+cd.RGB2Map(imagergb: cdImageRGB, imagemap: cdImageMap, palette: cdPalette) [in Lua]
+Converts an RGB image into an image with 256 indexed colors. The resulting image must have the same size (width x length) as the RGB image. It is necessary to allocate memory for the arrays map and colors. This is the same algorithm used in the IM library - in fact, the same code.
+
+-->
          </td>
         </tr>
        </table>

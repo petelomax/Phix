@@ -63,8 +63,9 @@
          </td>
          <td>
             <a name="curl_easy_perform_ex"></a>
-            <a href="object.htm">object</a> res = <b>curl_easy_perform_ex</b>(<a href="atom.htm">atom</a> curl)<br>
-            curl: as above, a result from <a href="curl_easy_init.htm">curl_easy_init</a> that has been passed to a few <a href="curl_easy_setopt.htm">curl_easy_setopt</a>.
+            <a href="object.htm">object</a> res = <b>curl_easy_perform_ex</b>(<a href="object.htm">object</a> curl)<br>
+            curl: as above, a result from <a href="curl_easy_init.htm">curl_easy_init</a> that has been passed to a few <a href="curl_easy_setopt.htm">curl_easy_setopt</a>,
+                  or just a plain string url.
             <br>
             <br>
             Returns: if an integer is returned, it is a <a href="CURLcode.htm">CURLcode</a> (except for <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a>), otherwise it
@@ -73,25 +74,27 @@
             <br>
             <br>
             <a name="curl_easy_get_file"></a>
-            <a href="CURLcode.htm">CURLcode</a> res = <b>curl_easy_get_file</b>(<a href="string.htm">string</a> url, proxy, filename)
+            <a href="CURLcode.htm">CURLcode</a> res = <b>curl_easy_get_file</b>(<a href="string.htm">string</a> url, proxy, filename="")
             <br>
             <br>
-            Save the text/binary from url to a new file on your local PC specified by filename.
-            Proxy details can also be set, "" to not use a proxy.
+            Save the text/binary from url to a new file on your local PC specified by filename. Proxy details can also be set, "" to not use a proxy.<br>
+            The shorthand form curl_easy_get_file(url, filename) is treated as curl_easy_get_file(url, "", filename), ie no proxy.
             <br>
             <br>
             Returns: <a href="CURLcode.htm#CURLE_OK">CURLE_OK</a> on success, any other return value represents an error. <br>
             If the specified filename cannot be opened, returns <a href="CURLcode.htm#CURLE_CANT_OPEN_FILE">CURLE_CANT_OPEN_FILE</a>
             <br>
             <br>
-            curl_easy_get_file() automatically performs <a href="curl_global_init.htm">curl_global_init()</a> and 
+            curl_easy_get_file(), and curl_easy_perform_ex() when passed a string, automatically perform 
+            <a href="curl_global_init.htm">curl_global_init()</a> and 
             <a href="curl_global_cleanup.htm">curl_global_cleanup()</a> when required, and also
             <a href="curl_easy_init.htm">curl_easy_init()</a> and 
             <a href="curl_easy_cleanup.htm">curl_easy_cleanup()</a> (every time).<br>
             By default libcurl keeps connections open and caches DNS entries automatically.<br>
-            However, curl_easy_get_file() starts and stops a curl_session for each file downloaded, so it will not be
-            as efficient, as several direct <a href="curl_easy_setopt.htm">curl_easy_setopt()</a> and
-            <a href="curl_easy_perform.htm">curl_easy_perform()</a> calls, when performing multiple downloads.<br>
+            However, curl_easy_get_file() (and curl_eaxy_perform_ex(string)) start and stop a curl_session for each file downloaded, so 
+            they will not be as efficient, as several direct <a href="curl_easy_setopt.htm">curl_easy_setopt()</a> and
+            <a href="curl_easy_perform.htm">curl_easy_perform()</a> calls, when performing multiple downloads, then again there will
+            probably be no measurable difference for a single file/url download.<br>
             Also note that <a href="CURLoption.htm#CURLOPT_ERRORBUFFER">CURLOPT_ERRORBUFFER</a> is not used and is not a natural 
             fit for use with curl_easy_get_file(), along with most other debugging techniques, however the fairly trivial code 
             of the included demo download.exw serves as a perfectly good template for something better.

@@ -1,0 +1,121 @@
+--
+-- demo\rosetta\Sierpinski_arrowhead_curve.exw
+-- ===========================================
+--
+--  Draws curves lo to hi (simultaneously), initially {6,6}, max {10,10}
+--  Press +/- to change hi, shift +/- to change lo.
+--  ("=_" are also mapped to "+-", for the non-numpad +/-)
+--
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cddbuffer, cdcanvas
+
+integer width, height,
+        lo = 6, hi = 6
+atom cx, cy, h, theta
+
+integer iy = +1
+
+procedure draw_line(atom l)
+    cdCanvasVertex(cddbuffer, cx-width/2+h, (height-cy)*iy+2*h)
+    cx += l*cos(theta*CD_DEG2RAD)
+    cy += l*sin(theta*CD_DEG2RAD)
+end procedure
+
+procedure turn(integer angle)
+    theta = mod(theta+angle,360)
+end procedure
+
+procedure curve(integer order, atom l, integer angle)
+    if order=0 then
+        draw_line(l)
+    else
+        curve(order-1, l/2, -angle)
+        turn(angle)
+        curve(order-1, l/2,  angle)
+        turn(angle)
+        curve(order-1, l/2, -angle)
+    end if
+end procedure
+
+procedure sierpinski_arrowhead_curve(integer order, atom l)
+    -- If order is even we can just draw the curve.
+    if and_bits(order,1)=0 then
+        curve(order, l, +60)
+    else -- order is odd
+        turn( +60)
+        curve(order, l, -60)
+    end if
+    draw_line(l)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    for order=lo to hi do
+        cx = width/2
+        cy = height
+        h = cx/2
+        theta = 0
+        iy = iff(and_bits(order,1)?-1:+1)
+        cdCanvasBegin(cddbuffer, CD_OPEN_LINES)
+        sierpinski_arrowhead_curve(order, cx)
+        cdCanvasEnd(cddbuffer)
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_WHITE)
+    cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if find(c,"+=-_") then
+        bool bShift = IupGetInt(NULL,"SHIFTKEY")
+        if c='+' or c='=' then
+            if bShift then
+                lo = min(lo+1,hi)
+            else
+                hi = min(10,hi+1)
+            end if
+        elsif c='-' or c='_' then
+            if bShift then
+                lo = max(1,lo-1)
+            else
+                hi = max(lo,hi-1)
+            end if
+        end if
+        IupSetStrAttribute(dlg, "TITLE", "Sierpinski arrowhead curve (%d..%d)",{lo,hi})
+        cdCanvasClear(cddbuffer)
+        IupUpdate(canvas)
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "770x770")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Sierpinski arrowhead curve (6..6)")
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+
+    IupMap(dlg)
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

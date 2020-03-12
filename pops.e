@@ -167,6 +167,8 @@ global constant
     opMkSqi = 21,       -- res={e1,e2,..en}
     --
     -- opRepe is n (noofsubscripts), ref, rep, idx1..idxn           -- ref[idx1][idx2]~[idxn] := rep
+--erm...
+    -- opRepe is n (noofsubscripts), rep, idxn..idx1, ref
     -- see also opRepe1
     --
     opRepe = 22,

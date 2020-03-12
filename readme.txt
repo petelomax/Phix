@@ -29,7 +29,7 @@ very useful. But it is now all open source.
 Version 0.8.1
 =============
 01/05/2019: Made mpfr.e check for existence of msvcp100.dll/msvcr100.dll.
-            Also made mpfr_get_versions() 64-bit compatible and work when
+            Also made mpir_get_versions() 64-bit compatible and work when
             mpir_only is in force, fixed mpz_mod_ui() [obviously it had
             never been tested], added mpz_fdiv_qr() and fixed a bug in 
             mpz_get_str() whereby it crashed with a stack overflow when
@@ -40,6 +40,162 @@ Version 0.8.1
             no difference to the chm but messed up the online docs.
 08/05/2019: Added get_file_date() and set_file_date(), and added an optional
             date_type parameter to dir().
+09/05/2019: BUGFIX: [sequence] tasks = extract_tasks(tasks) was not checking
+            for tasks being unassigned properly (==> [MEMORY VIOLATION]), if
+            the pass-by-reference optimisation was being applied in opFrst.
+            Arguably on declaration the front-end should spot such and issue 
+            a fatal compilation-time error [DEV]. It would also benefit from
+            popping an opFrame before triggering the fatal runtime error, to
+            prevent the spurious "(warning: lineno of -1 for era of #HHHH)".
+22/05/2019: BUGFIX: The internal routine timedate.e/timedate_to_julian_day()
+            was returning the same day for 28/2/2034 and 1/3/2034. There was
+            already a different algorithm from wikipedia commented out which
+            claimed to return the same results: it didn't, and has now been
+            adopted as the better algorithm, fixing the above problem.
+25/05/2019: ENH: throw("could not open "&dll_name) was reporting the error as
+            "unhandled exception", it now checks for the "plain string" case
+            and says eg "unhandled exception (could not open kerbnel32.dll)"
+            (that is, when you have accidentally spelt kernel32 with a 'b').
+03/06/2019: More thread-safety mods to VM\prntfN.e (see OEforum).
+17/06/2019: Added sprintf() functionality to throw().
+19/06/2019: Added several dozen more routines to mpfr.e. Added try/catch to
+            the core types. Added mpz_add_si, mpz_sub_si, mpz_odd, mpz_even, 
+            mpz_sign, mpz_remove, mpz_prime_factors, mpz_factorstring, and 
+            mpz_re_compose.
+            Removed mpz_fits_s[/u]long_p, added mpz_fits_integer[/atom].
+            Removed mpz_get_s[/u]i, added mpz_get_integer[/atom].
+            Obviously the replacements are geared towards the phix limits,
+            ie 31/53/63/64 bits, rather than the machine word / C limits.
+            Allowed mpfr_set_default_prec and mpfr_set_prec to accept a -ve 
+            decimal precision (as well as the existing +ve binary precision).
+21/06/2019: Bugfix: emitHex10sdi() did not have any proper handling for large
+            64-bit integer literals, eg anything > #FFFFFFFF.
+22/06/2019: Added pp_IntCh to ppp.e and deprecated several pp_StrFmt settings:
+             -2 => use {pp_IntCh,false} instead
+             -3 => use {pp_StrFmt,-1,pp_IntCh,false} instead
+              1 => use {pp_StrFmt,3,pp_IntCh,false} instead
+            (I went the extra yard to give properly helpful error messages.)
+            pp_IntCh means display integers as eg 65'A', default true, and
+            obviously set it to false when you only want the 65 part.
+            [This change adds no functionality, just makes things clearer.]
+22/06/2019: Make ppp.e use backticks rather than doublequotes + escapes, when
+            that seems to be the sensible thing to do. Ditto ex.err files.
+23/06/2019: Bugfix: looks like I was mapping TCHAR the wrong way round in
+            cffi.e, and ansi was getting treated as UTF-16. Oops.
+08/07/2019: Bugfix in Edita/edx: Pascal block comments ({"{","}"}) were not
+            working. Traced to chidx2 -= 1 before the first scanForUrls() 
+            call in [ea]synclr.e which has been removed. Obviously it seems 
+            ok, but there may be some unexpected knock-on effects.
+16/07/2019: Added pipes parameter to system_exec(), and demo/capture_console
+            to demonstrate use. Needs a bit more work on linux.
+22/07/2019: Enhanced scanf() to properly handle %b/o/x formats. Previously
+            it could scan "#DEADBEEF" but not "DEADBEEF", now it can do both.
+            At the same time, to_number() was given an optional inbase param.
+31/07/2019: BUGFIX: scanf() was not parsing floats/checking for '.' correctly.
+02/08/2019: Added and_bitsu(), ditto not/or/xor, which give unsigned results.
+07/08/2019: ENH/BUGFIX Invoking free() on a value with delete_routine() in force 
+            now behaves as delete(). It is assumed it will re-invoke free(), but 
+            of course with the routine field as just zeroed. Previously, calling
+            free() on such would often result in a cryptic fatal error, as the 
+            subsequent delete() would re-invoke free() with the same address.
+12/09/2019: ?`"abc"` now prints `"abc"` rather than "\"abc\"". If a string has
+            any of "\r\n\t\0\e" then doublequotes\backslash must still be used, 
+            but if not, yet some of "\\\"\'" (aka `\"'`) /are/ present, then it 
+            uses backticks instead of dblquotes. See builtins\VM\psprintN.e
+12/09/2019: Upgraded pGUI libs to 3.27, which went without hitch.
+19/09/2019: BUGFIX: /0 on pltype.e line 678, procedure ltAdd(). Caused by the
+            (udt) "boolean wild_str = find('?', str) or find('*', str)" in 
+            demo\search.exw, dltyp[=976]!=ptyp[=1]. It now checks that both
+            are <=T_object before complaining.
+21/09/2019: BUGFIX: peek({mem,0}) on 64-bit was doing a sub rsp,8 which should
+            have been an add rsp,8 (to match the 32-bit add esp,4). That little
+            beastie of a bug was apparently introduced on 23/5/15!
+27/09/2019: BUGFIX: unconditional exit from for loop: reversed the changes of 
+            25/10/2017 (see below), which resurfaced. It occured to me (and I
+            have no idea why not 2 years ago) that the backpatch could probably
+            also be done in jskip() [as well as opEndFor], which it now is.
+            Note there may be some uses of jskip() which do not set "mergeSet"
+            properly, which it now relies on.
+25/10/2019: BUGFIX: A statement such as board = repeat('+'&"x",2) incorrectly
+            changed opRepeat to opRepCh (or more accurately routineNo from 
+            T_repeat to T_repch in pmain.e/ParamList()), leading to strange
+            and random output, as it brutally coerced parameter 1 to char using 
+            the asm equivalent of and_bits(<ref of string "xx">,#FF), and also
+            a fatal crash on line 3370 in pilx86.e/StoreDest() on finding a 
+            string with string elements/characters. It now checks not just for 
+            a toktype of SQUOTE, but also a following Ch of ','.
+27/10/2019: ENH: Made routine_ids first class, ie [also] callable directly. Eg:
+                procedure show(string s) ?s end procedure
+                constant r_show = routine_id("show")
+                -- show("40")   (normal non-routine_id call [still valid!])
+                call_proc(r_show,{"41"})                -- old style [""!]
+                r_show("42")                            -- ***new***
+
+                function f(integer i) return i end function
+                constant r_f = routine_id("f")
+                --?f(40)        (normal non-routine_id call [still valid!])
+                ?call_func(r_f,{41})                    -- old style [""!]
+                ?r_f(42)                                -- ***new***
+            Any integer followed by '(' is treated as a call_func() or a 
+            call_proc(), depending on the context, and obviously as above
+            the normal/old styles remain perfectly valid and fully supported.
+            However I decided against supporting this sort of thing (at least 
+            not before someone comes up with a compelling reason to):
+                --?r_f(r_f)(43)
+                --r_f(r_show)(44)
+                --sequence rids = {r_show}
+                --rids[1](45)
+            Instead you have to code integer rid=r_f(r_f) then ?rid(43), etc.
+            (Some wag might say that makes them second class, but it is not 
+             like you could ever do anything like that with "show" anyway.)
+            Note that i(5) where i is not a routine_id will fail just as badly
+            and in exactly the same way as call_func/proc(i,{5}) always has.
+            Likewise the additional compile-time validation of argument types
+            is not performed/deferred until run-time, in exactly the same way
+            as it always was for explicit/old-style call_func/proc() calls.
+            These changes were made to complement the syntax enhancements for
+            the new struct/class handling, specifically class methods.
+22/11/2019: Added builtins\ordinal.e (not an autoinclude):
+                ord(i) returns "st", "nd", "rd", or "th".
+                ordinal(n) returns "first", "second", etc.
+                ordinal(n, bJustSpell:=true) - returns "one", "two", etc.
+23/11/2019: Added an explicit string(cl) check to ppp.e, since I simply never 
+            want to see {"this",{9,10}} as {"this","\t\n"} ever again... if 
+            it causes any grief, I guess I'll have to make it optional.
+25/11/2019: [EXPERIMENTAL] added simple lambda function support. You can now
+                integer rid = function(integer i) return i+1 end function
+                ?rid(3) -- (as per 27/10/2019 above, nowt changed today.)
+            Not entirely sure where this is heading. The "integer rid =" is
+            not the interesting part, the inline function on the rhs is.
+            Such functions would need an explicit self_rid to be recursive.
+            A single-statement equivalent might also be possible, such as:
+                integer rid = =>(integer i) return i+1 -- (or "==>"?)
+            The body could also be any single statement (if/for/while/try as 
+            well as return, but not an unwrapped block), with caveat emptor
+            should it exit instead of an inner [explicit] return. However I
+            should probably wait until I find an actual use for the longhand 
+            form before I start designing a shorthand form!
+            **NB** the expression does not yet have any access to the nested
+            scope, I just realised, making it rather somewhat less useful...
+            Left as is for now, need to get demo\rosetta\Nested_function.exw
+            working before anything else can be done here.
+28/11/2019: BUGFIX (bitbucket issue #27, rmatch length 1 not working.) There
+            was a completely spurious "ln -= 1" on line 164, such that if you 
+            sought "xyz" it would actually find "xy", and in the length of 1 
+            case, the ensuing for j=1 to 0 loop never successfully returned.
+05/12/2019: BUGFIX: power(i,3) emitted mov ecx,3; mov eax,ecx; call %opPow;
+            so everything came out as 27. It now calls clearReg(ecx) which
+            makes it emit the more correct and useful mov eax,[i] instead.
+11/12/2019: Added %t to (s)printf(), to print "true"/"false" from a boolean.
+11/02/2020: To complement first class routine_ids, the absence of a trailing
+            '(' makes a routine reference equivalent to its routine_id, eg
+            atom eThread = create_thread(routine_id("mythread"),{1}) is old,
+            atom eThread = create_thread(mythread,{1}) is now the same. Nice.
+            Note that some builtins such as length still have no routine_id,
+            and instead you must provide you own mini-shim for such things.
+12/01/2020: day_of_week() changed to return 1..7 (Mon..Sun) [was Sun..Sat]
+            (bringing it into line with ISO 8601 and the earlier ISO 2015)
+13/02/2020: Added include_file[s]() to match include_path[s](), see docs.
 
 Version 0.8.0
 =============
@@ -187,7 +343,7 @@ Version 0.8.0
             new error "attempt to get square root of negative number" in the sqrt() builtin.
             builtins\prnd.e is not yet used and should be ignored for now.
             rmatch() added to complement match(), as per OE, matches from the other end.
-            proper() added to builtins/pcase.e - not yet documented.
+            proper() added to builtins/pcase.e - not yet documented [now done, 1/1/20].
             builtins\complex.e added for complex number handling - not yet documented.
             builtins\pfrac.e added for rational fraction handling - not yet documented.
             builtins\pqueue.e added for priority queue handling - not yet documented.

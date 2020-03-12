@@ -28,6 +28,13 @@ cdCanvas cd_canvas
 
 constant USE_OPENGL = 01    -- (if 0, it draws thinner bresenham lines)
 
+--/*
+enum FILL,BORDER
+constant colours = {CD_BLUE,CD_RED},
+         modes = {CD_FILL,CD_CLOSED_LINES}
+sequence pts = {{319,606},{150,86},{591,407},{46,407},{487,86}}
+--*/
+
 function canvas_action_cb(Ihandle canvas)
 --  if USE_OPENGL then
 --      IupGLMakeCurrent(canvas)    -- (no diff?)
@@ -52,6 +59,27 @@ function canvas_action_cb(Ihandle canvas)
 --  cdCanvasVertex(cd_canvas,200,200)
 --  cdCanvasEnd(cd_canvas)
 --/test
+--/*
+--  cdCanvasActivate(cddbuffer)
+--  cdCanvasClear(cddbuffer)
+    cdCanvasSetFillMode(cd_canvas, CD_WINDING)
+--  cdCanvasSetLineWidth(cd_canvas, round(radius/100)+1) 
+    for mode=FILL to BORDER do
+        cdCanvasSetForeground(cd_canvas,colours[mode])
+        cdCanvasBegin(cd_canvas,modes[mode])
+--      for i=1 to length(pts) do
+--          integer {x,y} = pts[i]
+--          cdCanvasVertex(cd_canvas,x,y)
+--      end for
+        for a=90 to 666 by 144 do
+            atom r = (a+rot)*CD_DEG2RAD,
+                 x = radius*cos(r)+cx,
+                 y = radius*sin(r)+cy
+            cdCanvasVertex(cd_canvas, x, y)
+        end for
+        cdCanvasEnd(cd_canvas)
+    end for
+--*/
 
     cdCanvasFlush(cd_canvas)
 --  if USE_OPENGL then
@@ -99,7 +127,7 @@ end function
 
 procedure main()
     IupOpen()
-    IupImageLibOpen()
+--  IupImageLibOpen()
 --  if USE_OPENGL then
 --      IupGLCanvasOpen()   -- (no diff?)
 --  end if

@@ -608,7 +608,7 @@ static void iLayoutExportElementLED(FILE* file, Ihandle* ih, const char* name, i
       for (i = 0; i < count; i++)
       {
         if (format[i] == 's')
-          fprintf(file, "\"\"");  /* empty string, let the job to the attributes */
+          fprintf(file, `""`);  /* empty string, let the job to the attributes */
         else if (format[i] == 'a')
         {
           char* cb_name = iupGetCallbackName(ih, "ACTION");

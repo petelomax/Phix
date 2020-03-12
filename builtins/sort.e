@@ -166,7 +166,7 @@ end function
 -- Example 1:
 --   <eucode>
 --   sequence dirlist
---   dirlist = dir("c:\\temp")
+--   dirlist = dir(`c:\temp`)
 --   sequence sorted
 --   -- Order is Size:descending, Name
 --   sorted = sort_columns( dirlist, {-D_SIZE, D_NAME} )

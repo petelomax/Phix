@@ -47,7 +47,7 @@ LF_LAST      = +1   -- as 0, plus last line has \n added if missing.
 -- =======
 --
 --  include pgettext.e
---  constant fn = open("builtins\\pgettext.e","r")
+--  constant fn = open(`builtins\pgettext.e`,"r")
 --  sequence rw, rs, rl
 --  rw = get_text(fn,WHOLE_FILE)
 --  ? length(rw)                        -- prints 2400(ish)

@@ -114,33 +114,30 @@ global constant ORAC = 1    -- adds int/eger seq/uence ~/length to/.. features.
 --                          --       Not that running p temp\pold -cp is a major burden
 --                          --       over "p -cp", as a one-time installation task.)
 
-global integer bind
-               bind = 0         -- set by -c, -listing command line options (create .exe file)
+global integer bind = 0         -- set by -c, -listing command line options (create .exe file)
 
-global integer repl
-               repl = 0         -- set by -repl command line option (read eval print loop)
+global integer repl = 0         -- set by -repl command line option (read eval print loop)
 
-global integer testall
-               testall = 0
-global integer pauseOnWarnings
-               pauseOnWarnings = 01     -- only used if testall!=0 (which it is for final file)
+global integer testall = 0
+global integer pauseOnWarnings = 01     -- only used if testall!=0 (which it is for final file)
 
 -- note there is a "copy" of this in pdiag.e:
-global integer batchmode        -- set by -batch command line option
-               batchmode = 0    -- 1=suppress displays/prompts [incomplete]
+global integer batchmode = 0    -- set by -batch command line option
+                                -- 1=suppress displays/prompts [incomplete]
 
-global integer norun            -- set by -norun, -listing command line options
-               norun = 0
+global integer safemode = false -- if true, running under -safe command line option.
 
-global integer nodiag           -- set by -nodiag command line option
-               nodiag = 0       --  (can make list.asm easier to follow)
+global integer norun = 0        -- set by -norun, -listing command line options
 
-global integer listing          -- set by -listing command line option (also sets norun & bind)
-               listing = 0      --  (aka -d, -dump, -l, -list, command line option)
+global integer nodiag = 0       -- set by -nodiag command line option
+                                --  (can make list.asm easier to follow)
+
+global integer listing = 0      -- set by -listing command line option (also sets norun & bind)
+                                --  (aka -d, -dump, -l, -list, command line option)
                                 -- -1 indiates -d! (interpretive dump) listing
 --DEV should no longer need this (rsn)
-global integer listimports      -- set by -import(s) command line option
-               listimports = 0  -- 1 just dumps the import section to screen
+global integer listimports = 0  -- set by -import(s) command line option
+                                -- 1 just dumps the import section to screen
 
 global constant suppressopRetf = 0 -- debug aid, should be 0 in all releases
 if suppressopRetf then
@@ -151,14 +148,16 @@ end if
 --      process #isginfo/opGchk properly, etc. (pltype.e should be OK)
 --  (btw, apart from completely ignoring "without warning", this would/should not 
 --        give you any more info than -c already does...)
-global integer lint             -- set by -lint command line option
-               lint = 0         --  (nb all x[i] = c_func will give warnings)
+global integer lint = 0         -- set by -lint command line option
+                                --  (nb all x[i] = c_func will give warnings)
 
-global integer dumpil           -- set by -dumpil command line option
-               dumpil = 0       --  (nb only suitable for small programs/compiler debugging,
+global integer dumpil = 0       -- set by -dumpil command line option
+                                --  (nb only suitable for small programs/compiler debugging,
                                 --      and also: not all errors/warnings will be displayed.)
-global integer dilfn            -- for use with dumpil option, output file "ildump.txt"
-               dilfn = 1        --  (opened here, written in pilx86, closed in pemit.e)
+global integer dilfn = 1        -- for use with dumpil option, output file "ildump.txt"
+                                --  (opened here, written in pilx86, closed in pemit.e)
+
+global integer minus_e = false  -- if true, -e "pgm"; ie no source file.
 
 global constant showfileprogress = 0    -- show files, times, etc.
 
@@ -317,6 +316,7 @@ constant testset={
 --  "t61cffi.exw",          --[61] OK   -- cffi tests
     "t62utf.exw",           --[62] OK   -- test the utf conversion routines
     "t63regex.exw",         --[63] OK   -- test the regular expression routines
+    "t64struct.exw",        --[64] OK   -- test the new struct/class syntax
     "..\\demo\\mandle.exw", --[61] OK   -- simple ascii mandlebrot demo
     "..\\demo\\combo.exw",  --[62] OK   -- simple combinations function
     "..\\demo\\takeuchi.exw",--[63] OK  -- stress test function calls
@@ -1098,8 +1098,8 @@ procedure show_cmd_help()
 --  puts(1," \".exw\" assumed, eg \"demo\\tak*\" runs demo\\takeuchi.exw.\n")
 --  puts(1," For more details, eg rebuilding the compiler, see pth.exw.\n")
 --  puts(1,"Press F7 to list prompt history, up/down to select (kept in p.ini).\n\n")
-    puts(1,"command line is:")
-    ?command_line()
+--  puts(1,"command line is:")
+--  ?command_line()
 end procedure
 
 sequence params
@@ -1311,6 +1311,11 @@ while 1 do  -- 17/8
 --so tryme:
 --                  if lenx>12345 then
                         xk = x[2]
+--23/7/19: (allow --c for shebang...)
+                        if xk='-' and length(x)>2 and x[3]='-' then
+                            x = x[2..$]
+                            xk = x[2]
+                        end if
                         if xk = 'c' then
                             -- treat "-ctest", and "-compiletest", as "-c test".
                             cl = append(cl,"-c")
@@ -1423,6 +1428,11 @@ while 1 do  -- 17/8
         end if
         x = x[2..lenx]
         lenx -= 1
+--23/7/19: (allow --c for shebang...)
+        if x1='-' and lenx>0 and x[1]='-' then
+            x = x[2..lenx]
+            lenx -= 1
+        end if
         if lenx=0 then
             Fatal("option expected (not just \"-\")\n")
         end if
@@ -1544,6 +1554,17 @@ while 1 do  -- 17/8
                     end if
                 end if
             end if
+        elsif x="e" then
+            if cl={} then Fatal("no inline code after -e\n") end if
+            -- (the \n is needed to match get_text(GT_WHOLEFILE) in 
+            --  text mode; without it causes an ioob in getToken())
+            text = cl[1]&"\n"
+            params = cl[2..$]
+            minus_e = true
+            g0close()
+            mainpath = ""
+            mainfile = "-e"
+            return
         elsif equal(x,"norun") then
             norun = 1
         elsif equal(x,"run") then
@@ -1659,7 +1680,8 @@ while 1 do  -- 17/8
 --          listing = 0         -- removed 19/12 (-d -test is now valid)
             exit
         elsif equal(x,"www") then
-            k = system_open("www.phix.is-great.org")
+--          k = system_open("www.phix.is-great.org")
+            system_open("www.phix.is-great.org")
             g0close()
             pemit2free()
             abort(0)
@@ -1678,6 +1700,17 @@ while 1 do  -- 17/8
                     --  same batchmode variable that we just set above.
                     --
                     call :!SetBatchMode     -- set pDiagN.e/batchmode (opt)
+                [32]
+                    add esp,4
+                [64]
+                    add rsp,8
+                []
+                  }
+        elsif equal(x,"safe") then
+            safemode = true
+            #ilASM{
+                    -- as above, but for VM/pfileioN.e
+                    call :!SetSafeMode      -- set pfileioN.e/safemode (opt)
                 [32]
                     add esp,4
                 [64]
@@ -1885,7 +1918,10 @@ t0 = t
     syminit()
 --trace(1)
 
-    includeFile(mainpath&mainfile,0,0)
+--23/7/19:
+--  includeFile(mainpath&mainfile,0,0)
+    includeFile(mainpath&trim(mainfile),0,0)
+    minus_e = false
 
     if length(params) and not bind then
         filenames[1]&=params
@@ -2459,15 +2495,17 @@ integer ebp4,   -- saved ebp, /4 as it shd be dword-aligned, then fits in an int
 --,sym4,level
 object wasEBP   -- integer(0) = compiled, else ({ebp4,esp4,pst4}) = interpreted
 
+bool bInit = true
+
     t = time()
 
-tt_save_init()
-while 1 do  -- main loop
+--tt_save_init()
     fileno=0
     resetOptions()
     initFilePathSet()
     tokinit()
     syminit()
+while 1 do  -- main loop
 
     puts(1,"Warning: the repl is brand new, experimental, incomplete, and liable to crash!\n")
     puts(1,"Enter a statement such as \"?remainder(floor(250/8),8)\" or \"puts(1,\"Hi\")\"\n")
@@ -2515,7 +2553,8 @@ while 1 do  -- main loop
         fileno = 1 --length(filenames)
         col = 0
 --trace(1)
-        Compile()
+        Compile(bInit)
+        bInit = false
         --
         -- Interpret
         --
@@ -2536,6 +2575,7 @@ while 1 do  -- main loop
         savepath = current_dir()
         if equal(savepath,mainpath) then
             savepath = 0
+?"savepath = 0"
         else
 --printf(1,"chdir to mainpath:%s\n",{mainpath})
             if not chdir(mainpath) then
@@ -2691,13 +2731,16 @@ pop rcx
 --  end if  -- no norun
 --  Warnings(1)
 --  currtls = T_maintls
+--?{"currRtn",currRtn}
         currRtn = dropScope(0,S_File)
+--?{"currRtn",currRtn}
+scopelevel = 1
         symtab[T_pathset] = -999
         symtab[T_fileset] = -999
     end if -- length(text)=0
 
-    tt_init()
-    ResetResourceSectionDefaults()
+--  tt_init()
+--  ResetResourceSectionDefaults()
 
 end while
 g0close()
@@ -2710,6 +2753,7 @@ sequence smf, smp   -- save of main file & path [DEV to go]
 -- X64 = 0
 --DLL = 0
     processCommandLine()
+    if bind and safemode then Fatal("-c -safe not supported") end if
 
 atom eres
      eres = 0
@@ -2728,12 +2772,14 @@ if testall then
     tt_save_init()
     for i=1 to length(testset)-1 do
 --printf(1,"state=%d\n",state)
-        mainfile = testset[i]
-        printf(1,"Testing[%d]: %s%s\n",{i,mainpath,mainfile})
-        eres = main()
-        if eres!=0 then exit end if
-        tt_init()
-        ResetResourceSectionDefaults()
+        if not safemode or not find(i,{41,42}) then
+            mainfile = testset[i]
+            printf(1,"Testing[%d]: %s%s\n",{i,mainpath,mainfile})
+            eres = main()
+            if eres!=0 then exit end if
+            tt_init()
+            ResetResourceSectionDefaults()
+        end if
     end for
     if eres=0 then
         printf(1,"All tests completed successfully, %3.2f seconds\n",time()-alltime)

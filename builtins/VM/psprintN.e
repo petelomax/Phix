@@ -24,13 +24,19 @@ function allascii(string x)
 -- Phix allows "strings" to hold binary data, so double check 
 -- before printing it as a string.
 integer c
+bool backtick = true
+sequence bsi = {}
     for i=length(x) to 1 by -1 do
         c = x[i]
 --31/1/15:
 --      if c<' ' then
 --      if c<' ' or c>#FF or find(c,"\\\"\'") then
-        if c='\\' or c='\"'or c='"' then
-            x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
+        if c='\\' or c='\"'or c='\'' then
+            if backtick then
+                bsi &= i
+            else
+                x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
+            end if
         elsif c<' ' or c>#FF then
 --          c = find(c,"\t\n\r")
 --          c = find(c,"\t\n\r\\\"\'\0\e")
@@ -42,12 +48,23 @@ integer c
             else
                 return 0
             end if
+            if backtick then
+                for j=1 to length(bsi) do
+                    integer k = bsi[j]
+                    x[k..k] = '\\'&x[k]
+                end for
+                backtick = false
+            end if
             x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
         end if
     end for
 --  if withquotes then
-        x = '\"'&x&'\"'
---  end if
+--  if backtick then
+    if backtick and length(bsi)!=0 then
+        x = '`'&x&'`'
+    else
+        x = '"'&x&'"'
+    end if
     return x
 end function
 

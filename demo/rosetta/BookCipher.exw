@@ -1,0 +1,72 @@
+--
+-- demo/rosetta/BookCipher.exw
+--
+--{{trans|C}}
+function decode(integer fn, sequence ui)
+    integer {ff,lf,tab,sp} = ui,
+             f = 0, l = 0, t = 0, s = 0
+    while true do
+        integer c = getc(fn)
+        if c=-1 then return false end if
+        if f==ff and l==lf and t==tab and s==sp then
+            if c=='!' then return false end if
+            puts(1,c)
+            return true
+        elsif c==#0C then
+            f += 1
+            {l, t, s} @= 0
+        elsif c=='\n' then
+            l += 1
+            {t, s} @= 0
+        elsif c=='\t' then
+            t += 1
+            s = 0
+        else
+            s += 1
+        end if
+    end while
+    return false;
+end function
+ 
+include builtins\libcurl.e
+
+procedure decodeFile(string filename, url, sequence code)
+    if not file_exists(filename) then
+        printf(1,"Downloading %s...\n",{filename})
+        CURLcode res = curl_easy_get_file(url,"",filename) -- (no proxy)
+        if res!=CURLE_OK then
+            string error = sprintf("%d",res)
+            if res=CURLE_COULDNT_RESOLVE_HOST then
+                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
+            end if
+            crash("Error %s downloading file\n", {error})
+        end if  
+    end if  
+    integer fn = open(filename, "r")
+    if fn=-1 then crash("could not open %s",{filename}) end if
+    for i=1 to length(code) do
+        if not decode(fn,code[i]) then exit end if
+        if seek(fn, 0)!=SEEK_OK then crash("seek error") end if
+    end for
+    printf(1,"\n\n");
+end procedure
+ 
+constant code = {{0,18,0,0},
+                 {0,68,0,1},
+                 {0,100,0,32},
+                 {0,114,0,45},
+                 {0,38,0,26},
+                 {0,16,0,21},
+                 {0,17,0,59},
+                 {0,11,0,29},
+                 {0,102,0,0},
+                 {0,10,0,50},
+                 {0,39,0,42},
+                 {0,33,0,50},
+                 {0,46,0,54},
+                 {0,76,0,47},
+                 {0,84,2,28}}
+decodeFile("theRaven.txt", "http://paulo-jorente.de/text/theRaven.txt", code)
+{} = wait_key()
+--Output:
+--Silence-Dogood.

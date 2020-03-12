@@ -72,7 +72,7 @@ function escape_char(string s)
        or ch='\n' then
         eof(s)
     else
-        error("unknown escape sequence \\%c", {ch})
+        error(`unknown escape sequence \%c`, {ch})
     end if
     return ch
 end function

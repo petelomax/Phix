@@ -2,7 +2,7 @@
 -- builtins/pqueue.e
 -- =================
 --
--- Basic implementation of priority queues. (incomplete/undocumented) [DEV]
+-- Basic implementation of priority queues (an autoinclude).
 --
 --  A priority queue is kind of fast to-do list, whereby you can add items,
 --  as many as you want, in any order, and quickly retrieve the lowest (if 
@@ -59,9 +59,9 @@
 --                2   3
 --               4 5 6 7
 --
---             -   1   1   2   2   3   3    <-- parent idx
---  node       1   2   3   4   5   6   7    <-- (this is sequence pq[pqid])
---            2,3 4,5 6,7  -   -   -   -    <-- children idx
+--             -   1   1   2   2   3   3    <-- parent idx (virtual)
+--  node       1   2   3   4   5   6   7    <-- this is sequence pq[pqid]
+--            2,3 4,5 6,7  -   -   -   -    <-- children idx (virtual)
 --
 -- The tree root is at index 1, with valid indices 1 through n, and an element 
 -- at index i having:
@@ -69,6 +69,7 @@
 --  * a parent at index floor(i/2) - except, obviously, for the root at [1].
 --
 -- Shape property: The tree is always fully filled, except for the last row.
+--                 The last row is always left-filled, without any gaps.
 -- Heap property: The key in each node is always >= or <= its childrens keys.
 --   (Note there is no guaranteed left/right relation of any child keys.)
 --
@@ -110,32 +111,51 @@
 --
 enum DATA, PRIORITY
 
-global enum MIN_HEAP = -1, MAX_HEAP = +1
+--global enum MIN_HEAP = -1, MAX_HEAP = +1  -- now in psym.e
 
-sequence pq = {{}}
-sequence pqtype = {MIN_HEAP}
+bool pqinit = false
+sequence pq, pqtype, pqcrid
 integer freelist = 0
 
-global function pq_new(integer t=MIN_HEAP)
+function pq_compare(object priority1, priority2)
+    return compare(priority1,priority2)
+end function
+constant PQ_COMPARE = routine_id("pq_compare")
+
+procedure pq_init()
+    pq = {{}}
+    pqtype = {MIN_HEAP}
+--26/9/19:
+--  pqcrid = {-1}
+    pqcrid = {PQ_COMPARE}
+    pqinit = true
+end procedure
+
+global function pq_new(integer t=MIN_HEAP, crid=PQ_COMPARE)
     if t!=MIN_HEAP and t!=MAX_HEAP then ?9/0 end if
+    if not pqinit then pq_init() end if
     integer pqid
     if freelist=0 then
         pq = append(pq,{})
         pqtype = append(pqtype,t)
+        pqcrid = append(pqcrid,crid)
         pqid = length(pq)
     else
         pqid = freelist
         freelist = pqtype[freelist]
         pq[pqid] = {}
         pqtype[pqid] = t
+        pqcrid[pqid] = crid
     end if
     return pqid
 end function
 
-global procedure pq_destroy(integer pqid=1, bool justclear=false)
+global procedure pq_destroy(integer pqid=1, bool justclear=false, integer crid=PQ_COMPARE)
+    if not pqinit then pq_init() end if
     if not sequence(pq[pqid]) then ?9/0 end if
     if pqid=1 or justclear then
         pq[pqid] = {}
+        pqcrid[pqid] = crid
     else
         pqtype[pqid] = freelist
         freelist = pqid
@@ -144,22 +164,26 @@ global procedure pq_destroy(integer pqid=1, bool justclear=false)
 end procedure
 
 global function pq_size(integer pqid=1)
+    if not pqinit then pq_init() end if
     return length(pq[pqid])
 end function
 
 global function pq_empty(integer pqid=1)
+--  if not pqinit then pq_init() end if
     return pq_size(pqid)=0
 end function
 
 global procedure pq_add(sequence item, integer pqid=1)
 -- item is {object data, object priority}
+    if not pqinit then pq_init() end if
     if length(item)!=2 then ?9/0 end if
     integer n = length(pq[pqid])+1,
             m = floor(n/2),
-            heap_type = pqtype[pqid]
+            heap_type = pqtype[pqid],
+            crid = pqcrid[pqid]
     pq[pqid] &= 0
     -- append at end, then up heap
-    while m>0 and compare(item[PRIORITY],pq[pqid][m][PRIORITY])=heap_type do
+    while m>0 and call_func(crid,{item[PRIORITY],pq[pqid][m][PRIORITY]})=heap_type do
         pq[pqid][n] = pq[pqid][m]
         n = m
         m = floor(m/2)
@@ -168,17 +192,19 @@ global procedure pq_add(sequence item, integer pqid=1)
 end procedure
  
 global function pq_pop(integer pqid=1)
+--  if not pqinit then pq_init() end if     -- (would crash next either way)
     sequence result = pq[pqid][1]
  
     integer qn = length(pq[pqid]),
             n = 1,
             m = 2,
-            heap_type = pqtype[pqid]
+            heap_type = pqtype[pqid],
+            crid = pqcrid[pqid]
     while m<qn do
-        if m+1<qn and compare(pq[pqid][m+1][PRIORITY],pq[pqid][m][PRIORITY])=heap_type then
+        if m+1<qn and call_func(crid,{pq[pqid][m+1][PRIORITY],pq[pqid][m][PRIORITY]})=heap_type then
             m += 1
         end if 
-        if compare(pq[pqid][m][PRIORITY],pq[pqid][qn][PRIORITY])!=heap_type then exit end if
+        if call_func(crid,{pq[pqid][m][PRIORITY],pq[pqid][qn][PRIORITY]})!=heap_type then exit end if
         pq[pqid][n] = pq[pqid][m]
         n = m
         m = m * 2
@@ -193,6 +219,7 @@ global function pq_pop_data(integer pqid=1)
 end function
 
 global function pq_peek(integer pqid=1)
+--  if not pqinit then pq_init() end if     -- (would crash next either way)
     sequence result = pq[pqid][1]
     return result
 end function

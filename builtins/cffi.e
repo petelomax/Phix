@@ -225,6 +225,7 @@ function machine_bits()
     end ifdef 
 end function
 --*/
+include builtins/ptypes.e   -- atom_string
 
 procedure err(string msg)
     puts(1,msg)
@@ -347,6 +348,10 @@ integer ch, n
         n = 32
     elsif equal(txt,"MAX_PATH") then
         n = 260
+    elsif equal(txt,"WSADESCRIPTION_LEN+1") then
+        n = 256+1
+    elsif equal(txt,"WSASYS_STATUS_LEN+1") then
+        n = 128+1
     else
         n = 0
         for i=1 to length(txt) do
@@ -358,10 +363,13 @@ integer ch, n
     return n
 end function
 
-sequence structs,
+-- Note: The sequence structs currently holds only one name per struct, whereas AltNames can hold several pointer aliases
+--       [as they are just pointers, not quite as useful as it sounds], perhaps there could be a struct_aliases sequence?
+
+sequence structs,       -- struct names
          stsizes,
          saligns,
-         smembers
+         smembers       
 
 function add_struct(sequence res)
 -- internal routine
@@ -399,9 +407,14 @@ function do_type(string mtype, integer machine)
 integer substruct = 0, k, size, align, signed = 1
 string mname
 
-    if equal(mtype,"const") then
+--?{"do_type",mtype}
+--11/5/19:
+--  if equal(mtype,"const") then
+--  if find(mtype,{"const","struct"}) then
+    while find(mtype,{"const","struct"}) do
         mtype = stoken()
-    end if
+--  end if
+    end while
     k = find(mtype,structs)
     if k then
         size = stsizes[k]
@@ -424,7 +437,9 @@ string mname
             k = find(mtype,UnicodeNames)
             if k then
                 if unicode=-1 then err(mtype&": set_unicode() has not been called") end if
-                k = UnicodeAs[unicode+1][k]
+--23/6/19!!
+--              k = UnicodeAs[unicode+1][k]
+                k = UnicodeAs[k][unicode+1]
                 mname = stoken()
             else
                 if equal(mtype,"signed") then
@@ -457,6 +472,12 @@ string mname
                         if equal(mname,"int") then          -- "short int" -> "short"
                             mname = stoken()
                         end if
+--did not work..
+--                  elsif equal(mtype,"FAR") then
+--                      mname = stoken()
+--                      if mname!="*" then
+--                          err("* expected, not "&mtype)
+--                      end if
                     end if
                 end if
             end if
@@ -469,6 +490,13 @@ string mname
             size = Sizes[k][machine/32]
             align = size
             signed = SizeSigns[k]
+        end if
+    end if
+--20/9/19:
+    if equal(mname,"FAR") then
+        mname = stoken()
+        if mname!="*" then
+            err("* expected, not "&mtype)
         end if
     end if
     if equal(mname,"*") then    -- "&"? (would need '&' adding twice in stoken())
@@ -491,10 +519,10 @@ string mname
     return {mname,substruct,mtype,size,align,signed}
 end function
 
-function parse_c_struct(integer struct, integer machine, integer base)
+function parse_c_struct(bool bStruct, integer machine, integer base)
 --
 -- internal routine:
---  struct is 1 for struct, 0 for union
+--  bStruct is 1 for struct, 0 for union
 --< machine is S32 or S64
 --  machine is 32 or 64
 --  base is 0 from top level, non-zero for nested structs/unions.
@@ -536,7 +564,9 @@ sequence res
     while 1 do
         signed = 1
         mtype = stoken()
-        isstruct = equal(mtype,"struct")
+--11/5/19:
+--      isstruct = equal(mtype,"struct")
+        isstruct = (equal(mtype,"struct") and ch='{')
         if isstruct or equal(mtype,"union") then
             res = parse_c_struct(isstruct,machine,base+sizeofS)
             {subname,subsize,align,submembers} = res
@@ -559,6 +589,7 @@ sequence res
 --  --              sm2i = {mtype,size,offset,signed}
 --                  sm2i[3] += padding
 --              end if
+--if mname="FAR" then ?9/0 end if
                 members = append(members,{mname,sm2i})
 --              members = append(members,{mname,{mtype,size,offset,signed}})
             end for
@@ -569,6 +600,7 @@ sequence res
             while 1 do
                 {mname,substruct,mtype,size,align,signed} = do_type(mtype,machine)
 
+--if mname="FAR" then ?9/0 end if
                 if equal(mname,";") then err("member name expected") end if
                 mult = 1
                 if ch='[' then
@@ -595,7 +627,7 @@ sequence res
                 if size>widest then
                     widest = size
                 end if
-                if struct then
+                if bStruct then
                     k = remainder(sizeofS,align)
                     if k then
                         sizeofS += align-k
@@ -609,9 +641,10 @@ sequence res
                         members = append(members,{subname,{mtype,subsize,offset+base+sizeofS,signed}})
                     end for
                 else
+--if mname="FAR" then ?9/0 end if
                     members = append(members,{mname,{mtype,size,base+sizeofS,signed}})
                 end if
-                if struct then
+                if bStruct then
                     sizeofS += size*mult
                 end if
                 if not equal(token,",") then exit end if
@@ -637,6 +670,9 @@ sequence res
                     ptrnames = append(ptrnames,token)
                 else
                     token = stoken()
+--21/9/19:
+                    if token="FAR" then token = stoken() end if
+                    if token="*" then token = stoken() end if
                 end if
             end while
         end if
@@ -846,6 +882,7 @@ procedure init_cffi()
 --                                       {"int8_t",         as_[u]char},
                                          {"UCHAR",          as_uchar},
                                          {"UINT8",          as_uchar},
+                                         {"u_char",         as_uchar},
                                          {"WORD",           as_short},
                                          {"ATOM",           as_short},
                                          {"LANGID",         as_short},
@@ -855,6 +892,7 @@ procedure init_cffi()
                                          {"UINT16",         as_ushort},
                                          {"USHORT",         as_ushort},
                                          {"WCHAR",          as_ushort},
+                                         {"u_short",        as_ushort},
                                          {"BOOL",           as_int},
                                          {"HFILE",          as_int},        -- (obsolete)
                                          {"INT",            as_int},
@@ -873,7 +911,9 @@ procedure init_cffi()
                                          {"LCID",           as_ulong},
                                          {"LCTYPE",         as_ulong},
                                          {"LGRPID",         as_ulong},
+                                         {"SOCKET",         as_ulong},
                                          {"ULONG",          as_ulong},
+                                         {"u_long",         as_ulong},
 --                                       {"float",          as_float},
                                          {"FLOAT",          as_float},
                                          {"INT64",          as_int64},
@@ -903,6 +943,7 @@ procedure init_cffi()
     dll_addrs = {}
     {C_SIZES,C_CONSTS} = columnize({
                                          {{2,1},C_WORD},    -- (=== C_SHORT)
+                                         {{2,0},C_USHORT},
                                          {{4,0},C_DWORD},   -- (=== C_PTR, C_HWND, etc)
                                          {{4,1},C_INT},
                                          {{8,0},C_POINTER},
@@ -977,50 +1018,55 @@ global function get_struct_size(integer id)
     return stsizes[id]
 end function
 
-global function allocate_struct(integer id)
--- remember to free() the result once done.
+global function allocate_struct(integer id, bool cleanup=true)
+-- if cleanup is false, remember to free() the result once done.
     if not cffi_init then ?9/0 end if
     integer size = stsizes[id]
-    atom res = allocate(size)
+    atom res = allocate(size,cleanup)
     mem_set(res,0,size)
     return res
 end function
 
-global procedure set_struct_field(integer id, atom pStruct, string fieldname, atom v)
---sequence {membernames,details} = smembers[id]
-sequence membernames,details
---integer k = find(fieldname,membernames)
-integer k
-integer size, offset
+function get_smembers(integer id)
     if not cffi_init then ?9/0 end if
-    {membernames,details} = smembers[id]
-    k = find(fieldname,membernames)
-    {?,size,offset} = details[k]
+    return smembers[id]
+end function
+
+--global procedure set_struct_field(integer id, atom pStruct, string fieldname, atom v)
+global procedure set_struct_field(integer id, atom pStruct, atom_string field, atom v)
+    sequence {membernames,details} = get_smembers(id)
+--integer k = find(fieldname,membernames)
+--integer k
+--integer size, offset
+--  {membernames,details} = smembers[id]
+--  k = find(fieldname,membernames)
+    integer k = iff(string(field)?find(field,membernames):field)
+    integer {?,size,offset} = details[k]
     pokeN(pStruct+offset,v,size)
 end procedure
 
-global function get_struct_field(integer id, atom pStruct, string fieldname)
---sequence {membernames,details} = smembers[id]
-sequence membernames,details
-integer k
-integer size, offset, signed
-    if not cffi_init then ?9/0 end if
-    {membernames,details} = smembers[id]
-    k = find(fieldname,membernames)
-    {?,size,offset,signed} = details[k]
+--global function get_struct_field(integer id, atom pStruct, string fieldname)
+global function get_struct_field(integer id, atom pStruct, atom_string field)
+    sequence {membernames,details} = get_smembers(id)
+--sequence membernames,details
+--integer k
+--integer size, offset, signed
+--  if not cffi_init then ?9/0 end if
+--  {membernames,details} = smembers[id]
+--  k = find(fieldname,membernames)
+    integer k = iff(string(field)?find(field,membernames):field)
+    integer {?,size,offset,signed} = details[k]
     return peekNS(pStruct+offset,size,signed)
 end function
 
-global function get_field_details(integer id, string fieldname)
---sequence {membernames,details} = smembers[id]
-sequence membernames,details
-integer k
-integer size, offset, sign
-    if not cffi_init then ?9/0 end if
-    {membernames,details} = smembers[id]
-    k = find(fieldname,membernames)
-    {?,size,offset,sign} = details[k]
-    return {offset,size,sign}
+--global function get_field_details(integer id, string fieldname)
+global function get_field_details(integer id, atom_string field)
+--  if not cffi_init then ?9/0 end if
+--  sequence {membernames,details} = smembers[id]
+    sequence {membernames,details} = get_smembers(id)
+    integer k = iff(string(field)?find(field,membernames):field)
+    integer {?,size,offset,sgn} = details[k]
+    return {offset,size,sgn}
 end function
 
 function open_lib(object lib)
@@ -1090,7 +1136,8 @@ integer rid
         if not equal(mtype,"void") then ?9/0 end if
         name = stoken()
     end if
-    if equal(name,"WINAPI") then
+--  if equal(name,"WINAPI") then
+    if find(name,{"WINAPI","WSAAPI"}) then
         name = stoken()
     end if
     if ch!='(' then err("( expected") end if

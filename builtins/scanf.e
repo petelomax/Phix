@@ -38,6 +38,7 @@
 --
 --  (programming note: %s is all the wildcard-matching we can handle; ? and * are treated as literals.)
 --
+--/**/without debug -- (keep ex.err clean)
 --
 -- The real gruntwork here is recognising numbers (if you think this is complicated, google "scanf.c").
 --  Much of get_number() and completeFloat() was copied from ptok.e, should really unify I spose, but
@@ -49,9 +50,13 @@
 --  the values -1,0,1,2,3, for example, could just as easily have been used instead)
 constant NONE    = 0,
          LITERAL = 1,   -- (note we actually store a string, rather than the 1)
-         INTEGER = 2,   -- ( ie %d )
+--       INTEGER = 2,   -- ( ie %d )
          ATOM    = 4,   -- ( ie %f )
-         STRING  = 8    -- ( ie %s )
+         STRING  = 8,   -- ( ie %s )
+         DECIMAL = 10,
+         BINARY  = 12,
+         HEXADEC = 16,
+         OCTAL   = 18
 
 function parse_fmt(string fmt)
 --
@@ -90,7 +95,12 @@ sequence res = {}
             end while
             switch lower(ch) do
                 case 's','c':           ftyp = STRING
-                case 'd','x','o','b':   ftyp = INTEGER
+--              case 'd','x','o','b':   ftyp = INTEGER
+                case 'd':               ftyp = DECIMAL
+                case 'b':               ftyp = BINARY
+                case 'o':               ftyp = OCTAL
+                case 't':               ftyp = OCTAL
+                case 'x':               ftyp = HEXADEC
                 case 'f','g','e':       ftyp = ATOM
                 case '%':               ftyp = LITERAL
                 default:                crash("bad format")
@@ -223,10 +233,10 @@ atom fraction
     return {N*msign,sidx}
 end function
 
-function get_number(string s, integer sidx)
+function get_number(string s, integer sidx, inbase=10)
 integer ch2
 atom N
-integer msign, base, tokvalid
+integer msign, base = 0, tokvalid = 1
 
 --  sidx += 1
     if sidx>length(s) then return {} end if
@@ -242,14 +252,16 @@ integer msign, base, tokvalid
         if sidx>length(s) then return {} end if
         ch = s[sidx]
     end if
-    if  ch>='0' 
-    and ch<='9' then
-        N = ch-'0'
+--  if  ch>='0' 
+--  and ch<='9' then
+    N = baseset[ch]
+    if N<inbase then
         sidx += 1
         if sidx>length(s) then return {N*msign,sidx} end if
         ch = s[sidx]
         if N=0 then -- check for 0x/o/b/d formats
-            base = find(ch,"toxbd(")
+--          base = find(ch,"toxbd(")
+            base = find(ch,iff(inbase>10?"toxxx(":"toxbd("))
             if base then
                 if base>1 then
                     base -= 1
@@ -303,29 +315,41 @@ integer msign, base, tokvalid
                         if sidx>length(s) then exit end if
                         ch = s[sidx]
                     end while
-                else
-                    while 1 do
-                        if ch!='_' then     -- allow eg 1_000_000 to mean 1000000 (any base)
-                            ch = baseset[ch]
-                            if ch>=base then exit end if    
-                            N = N*base + ch
-                            tokvalid = 1
-                        end if
-                        sidx += 1
-                        if sidx>length(s) then exit end if
-                        ch = s[sidx]
-                    end while
+                    if tokvalid=0 then return {} end if
+                    return {N*msign,sidx}
                 end if
-                if tokvalid=0 then return {} end if
-                return {N*msign,sidx}
+--              else
+--                  while 1 do
+--                      if ch!='_' then     -- allow eg 1_000_000 to mean 1000000 (any base)
+--                          ch = baseset[ch]
+--                          if ch>=base then exit end if    
+--                          N = N*base + ch
+--                          tokvalid = 1
+--                      end if
+--                      sidx += 1
+--                      if sidx>length(s) then exit end if
+--                      ch = s[sidx]
+--                  end while
+--              end if
+--              if tokvalid=0 then return {} end if
+--              return {N*msign,sidx}
             end if
         end if
+        if base=0 then base=inbase end if
 
         while 1 do
-            if ch<'0' or ch>'9' then
-                if ch!='_' then exit end if     -- allow eg 1_000_000 to mean 1000000
-            else
-                N = N*10 + ch-'0'
+--          if ch<'0' or ch>'9' then
+--              if ch!='_' then exit end if     -- allow eg 1_000_000 to mean 1000000
+--          else
+--              N = N*10 + ch-'0'
+--          end if
+            if ch!='_' then     -- allow eg 1_000_000 to mean 1000000 (any base)
+--31/7/19:
+                if ch='.' then exit end if
+                ch2 = baseset[ch]
+                if ch2>=base then exit end if   
+                N = N*base + ch2
+                tokvalid = 1
             end if
             sidx += 1
             if sidx>length(s) then exit end if
@@ -348,6 +372,8 @@ integer msign, base, tokvalid
                 return completeFloat(s,sidx,N,msign)
             end if
             sidx -= 1
+        elsif tokvalid=0 then   -- eg "0b" or "0(16)", ie no actual digits
+            return {}
         end if
         return {N*msign,sidx}
     elsif ch='.' then
@@ -380,11 +406,12 @@ integer msign, base, tokvalid
     return {}
 end function
 
-global function to_number(string s, object failure={})
+global function to_number(string s, object failure={}, integer inbase=10)
 sequence r
 atom N
 integer sidx
-    r = get_number(s,1)
+    if not binit then initb() end if
+    r = get_number(s,1,inbase)
     if length(r) then
         {N,sidx} = r
         if sidx>length(s) then
@@ -401,7 +428,7 @@ object ffi, tries
 integer start
 sequence resset = {}
 atom N
-integer goodres
+--integer goodres
     if fidx<=length(fmts) then
         if not binit then initb() end if
         ffi = fmts[fidx]
@@ -436,11 +463,19 @@ integer goodres
             end while
             res = resset
         else
-            tries = get_number(s,sidx)
+--       ATOM    = 4,   -- ( ie %f )
+--       DECIMAL = 10,
+--       BINARY  = 12,
+--       HEXADEC = 16,
+--       OCTAL   = 18
+            integer inbase = {10,10,2,16,8}[find(ffi,{ATOM,DECIMAL,BINARY,HEXADEC,OCTAL})]
+            tries = get_number(s,sidx,inbase)
             if length(tries)=0 then return {} end if
             {N, sidx} = tries
-            if ffi=INTEGER then
-                if not integer(N) then return {} end if
+--          if ffi=INTEGER then
+            if ffi>=DECIMAL then
+--              if not integer(N) then return {} end if
+                if not integer(N) and N!=floor(N) then return {} end if
             end if
             res = append(res,N)
             res = scanff(res,s,sidx,fmts,fidx+1)
@@ -449,12 +484,32 @@ integer goodres
         if sidx<=length(s) then return {} end if
         res = {res}
     end if
+--finally moved 22/7/19: (upon also spotting that fmts is no good for the sprintf() call anyways)
 --DEV/DOH: this should almost certainly be in scanf itself! [ie no need for "and sidx=1 and fidx=1"] (spotted in passing)
-    if length(res)>1 and sidx=1 and fidx=1 then
+--  if length(res)>1 and sidx=1 and fidx=1 then
+--      -- filter multiple results to exact matches
+--      goodres = 0
+--      for i=1 to length(res) do
+--          if sprintf(fmts,res[i])==s then
+--              goodres += 1
+--              res[goodres] = res[i]
+--          end if
+--      end for
+--      if goodres!=0 then
+--          res = res[1..goodres]
+--      end if
+--  end if
+    return res  
+end function
+
+global function scanf(string s, string fmt)
+--  return scanff({},s,1,parse_fmt(fmt),1)
+    sequence res = scanff({},s,1,parse_fmt(fmt),1)
+    if length(res)>1 then
         -- filter multiple results to exact matches
-        goodres = 0
+        integer goodres = 0
         for i=1 to length(res) do
-            if sprintf(fmts,res[i])==s then
+            if sprintf(fmt,res[i])==s then
                 goodres += 1
                 res[goodres] = res[i]
             end if
@@ -463,10 +518,6 @@ integer goodres
             res = res[1..goodres]
         end if
     end if
-    return res  
-end function
-
-global function scanf(string s, string fmt)
-    return scanff({},s,1,parse_fmt(fmt),1)
+    return res
 end function
 

@@ -1,0 +1,104 @@
+--
+-- demo\rosetta\Matrix_Digital_Rain.exw
+-- ====================================
+--
+--
+sequence sushii = {},   -- w x h of unicode char strings
+         colours,       --  """  of their fading colours
+         droplets       -- w column droplets, or zeroes
+
+include pGUI.e
+
+Ihandle dlg, canvas, timer
+cdCanvas cddbuffer, cdcanvas
+
+procedure rain(integer w,h)
+    for x=1 to w do
+        integer y = droplets[x]
+        if y or rand(40)=1 then
+            if y<h then
+                droplets[x] = y+1
+                sushii[y+1][x] = utf32_to_utf8({0x30A0 + rand(96)})
+                colours[y+1][x] = CD_WHITE
+            end if
+            if y then
+                bool clear_droplet = true
+                if colours[y][x]=CD_WHITE then
+                    colours[y][x] = #00F800 -- (CD_GREEN to nearest #800)
+                    clear_droplet = false
+                    y -= 1
+                end if
+                for y=y to 1 by -1 do
+                    integer cy = colours[y][x]
+                    if cy=0 then exit end if
+                    clear_droplet = false
+                    cy -= #000800
+                    colours[y][x] = cy
+                end for
+                if clear_droplet then
+                    droplets[x] = 0
+                end if
+            end if
+        end if
+    end for
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    integer {w,h} = IupGetIntInt(canvas, "DRAWSIZE"),
+            {dx,dy} = cdCanvasGetTextSize(cddbuffer, "W")
+    w = max(1,floor(w/dx))
+    h = max(1,floor(h/dy))
+    if length(sushii)!=h
+    or length(sushii[1])!=w then
+        sushii = repeat(repeat(" ",w),h)
+        colours = repeat(repeat(CD_BLACK,w),h)
+        droplets = repeat(0,w)
+    end if
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    rain(w,h)
+    for x=1 to w do
+        for y=1 to h do
+            cdCanvasSetForeground(cddbuffer, colours[y][x])
+            cdCanvasText(cddbuffer,x*dx, (h-y)*dy, sushii[y][x]) 
+        end for
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupUpdate(canvas)
+    return IUP_IGNORE
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cdCanvasSetBackground(cddbuffer, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    IupSetGlobal("UTF8MODE","YES") 
+
+    canvas = IupCanvas(NULL)
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+
+    timer = IupTimer(Icallback("timer_cb"), 50)
+
+    dlg = IupDialog(canvas)
+    IupSetAttribute(dlg, "TITLE", "Wireworld")
+    IupCloseOnEscape(dlg)
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+

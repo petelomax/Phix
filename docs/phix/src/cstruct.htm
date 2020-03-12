@@ -1,0 +1,133 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">c-struct</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+struct <i>identifier</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;"&lt;c-string&gt;"<br>
+end struct<br>
+<center><small><i>-- or --</i></small></center>
+struct|<i>identifier</i> <i>variable</i> ( ';' | ('='|':=') ( new() | <i>expr</i> ) ) [ ',' ... ]<br>
+<center><small><i>-- or --</i></small></center>
+<a href="integer.htm#bool">bool</a> res = struct|<i>identifier</i>(<a href="object.htm">object</a> o)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            For interfacing to C, the field definitions should be defined using a single C string, usually triple-quoted, copied verbatim from eg MSDN or some .h file.
+            <br>
+            <br>
+            This allows similar mechanisms for creation and dot-notation access of fields, however passing the final structure to a C function now needs to use the 
+            struct_mem() routine, but is otherwise unchanged.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+struct rect """
+typedef struct _RECT {
+  LONG left;
+  LONG top;
+  LONG right;
+  LONG bottom;
+} RECT, *PRECT;
+"""
+end struct
+rect q = new({10,10,350,200}),
+     r = new()
+r.left = 10     --\   equivalent to using the
+r.top = 10      -- }   {10,10,350,200} above
+r.right = 350   -- }  and/or m = allocate(16)
+r.bottom = 200  --/    & poke4(m+0/4/8/12,..).
+
+-- then eg c_proc(xFillRect,{hDC,struct_mem(r|q)|m,hBrush})
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">struct</font><font color="#000000"> rect</font><font color="#008000"> """
+typedef struct _RECT {
+  LONG left;
+  LONG top;
+  LONG right;
+  LONG bottom;
+} RECT, *PRECT;
+"""
+</font><font color="#008080">end struct
+</font><font color="#000000">rect q</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">350</font><font color="#0000FF">,</font><font color="#000000">200</font><font color="#800000">}</font><font color="#0000FF">),
+</font><font color="#000000">     r</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()
+</font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">left</font><font color="#0000FF"> =</font><font color="#000000"> 10    </font><font color="#000080"><i> --\   equivalent to using the
+</i></font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">top</font><font color="#0000FF"> =</font><font color="#000000"> 10     </font><font color="#000080"><i> -- }   {10,10,350,200} above
+</i></font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">right</font><font color="#0000FF"> =</font><font color="#000000"> 350  </font><font color="#000080"><i> -- }  and/or m = allocate(16)
+</i></font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">bottom</font><font color="#0000FF"> =</font><font color="#000000"> 200 </font><font color="#000080"><i> --/    &amp; poke4(m+0/4/8/12,..).
+
+-- then eg c_proc(xFillRect,{hDC,struct_mem(r|q)|m,hBrush})</i></font>
+</pre>
+            <br>
+            The above definition of RECT was originally copied completely unaltered from <a id="ext834" style="color:#9B5565" 
+            href="javascript:ExternalLink('ext834','http://msdn.microsoft.com/en-us/library/dd162897');">http://msdn.microsoft.com/en-us/library/dd162897</a>.
+            <br>
+            <br>
+            Using a C string allows you to specify byte/char/uchar/short/ushort/int/uint/long/ulong/long long, etc as well as things like unions and nested 
+            [C] structs, without the tedious and error-prone manual conversion to <a href="machine_bits.htm">machine_word</a>()-specific offsets and sizes, 
+            however the actual routine call remains via <a href="c_func.htm">c_func</a>() or <a href="c_proc.htm">c_proc</a>(), although you can also still 
+            use <a href="define_cffi_func.htm">define_cffi_func</a>() and <a href="define_cffi_proc.htm">define_cffi_proc</a>(). 
+            <br>
+            <br>
+            Typically I would expect any interface to C routines to be written once in a separate re-usable library component and pretty much never 
+            looked at again (sort of like a few things in builtins and <a href="otherlibs.htm">Other Libraries</a>, not that any use c-structs yet),
+            that is rather than scattered thoughout the source code of an application (or several). As such, the slightly-nicer syntax for accessing
+            fields is probably not really all that helpful, in hindsight, although it has long been a fairly regular request.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            As per <a href="struct.htm">struct</a>, which goes on to use the pre-existing <a href="cffi.htm">cffi</a>.
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The pre-existing <a href="cffi.htm">cffi</a> library has not been altered, this (dot notation) is just a thin wrapper to it.
+            <br>
+            <br>
+            These C-structs are utterly static and cannot be abstract, extended, or dynamic (and you can blame C for that, not Phix!). <br>
+            They normally only ever contain atoms and can only be embedded using the verbatim copied C syntax (ditto).<br>
+            No attempt has been made to support methods (/<a href="call_back.htm">call_backs</a>) beyond a simple store, and apart from 
+            <a href="structs.htm#new">new</a>(), dot notation, and <a href="structs.htm#struct_mem">struct_mem</a>(), much remains unaltered - 
+            see the original <a href="cffi.htm">cffi documentation</a> 
+            for more details.
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

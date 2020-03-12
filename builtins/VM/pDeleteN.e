@@ -249,6 +249,7 @@ include pcallfunc.e
 
 --global procedure delete(object o)
 procedure fdelete(object o)
+-- Note this code is replicated in free()
 --integer delete_index
 --sequence dsi
 integer rid

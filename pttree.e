@@ -54,15 +54,18 @@ global string identset
     identset['A'..'Z'] = 1
     identset['_'] = 1
     identset['a'..'z'] = 1
-    identset[#80] = 1   -- for rosettacode/unicode
-    identset[#88] = 1   -- for rosettacode/unicode
-    identset[#94] = 1   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
-    identset[#9A] = 1   -- for rosettacode/unicode
-    identset[#A3] = 1   -- for rosettacode/unicode
-    identset[#BB] = 1   -- for rosettacode/unicode
-    identset[#CE] = 1   -- for rosettacode/unicode
-    identset[#CF] = 1   -- for rosettacode/unicode
-    identset[#E2] = 1   -- for rosettacode/unicode
+--4/9/19 (nb changes must match charset in ptok.e
+--  identset[#80] = 1   -- for rosettacode/unicode
+--  identset[#88] = 1   -- for rosettacode/unicode
+--  identset[#94] = 1   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
+--  identset[#9A] = 1   -- for rosettacode/unicode
+--  identset[#A3] = 1   -- for rosettacode/unicode
+--  identset[#BB] = 1   -- for rosettacode/unicode
+--  identset[#CE] = 1   -- for rosettacode/unicode
+--  identset[#CF] = 1   -- for rosettacode/unicode
+--  identset[#E2] = 1   -- for rosettacode/unicode
+    identset[#80..#BF] = 1
+    identset[#C2..#F4] = 1
 
 global string thisline -- copy of text[line]
     thisline = ""
@@ -70,7 +73,7 @@ global string thisline -- copy of text[line]
 integer ttCh    -- current tt[ttidx+CH] being inspected [speedwise]
 integer isCh    -- identset[Ch]
 
-with trace
+--with trace
 global procedure tt_search()
 --
 -- Search for/Insert a var_id beginning with Ch at thisline[col].
@@ -213,6 +216,8 @@ sequence todo
 --nodegt=tt[node+GT]
     if ttscramble then
         todo = {GT,EQ,LT}
+--DEV/SUG instead (if ttscramble is still in use?):
+--      if ttscramble then todo = scramble(todo) end if & then common up this code...
         for n=3 to 1 by -1 do
             j = rand(n)
             k = todo[j]
@@ -1229,6 +1234,16 @@ global constant T_EU4_0         = 5248  tt_stringF("EU4_0",T_EU4_0)
 global constant T_bt            = 5256  tt_stringF("bt",T_bt)
 global constant T_rdrand        = 5276  tt_stringF("rdrand",T_rdrand)
 global constant T_bsf           = 5284  tt_stringF("bsf",T_bsf)
+global constant T_struct        = 5300  tt_stringF("struct",T_struct)
+global constant T_abstract      = 5332  tt_stringF("abstract",T_abstract)
+global constant T_class         = 5348  tt_stringF("class",T_class)
+global constant T_extends       = 5372  tt_stringF("extends",T_extends)
+global constant T_this          = 5384  tt_stringF("this",T_this)
+global constant T_virtual       = 5412  tt_stringF("virtual",T_virtual)
+global constant T_final         = 5428  tt_stringF("final",T_final)
+global constant T_private       = 5452  tt_stringF("private",T_private)
+global constant T_dynamic       = 5480  tt_stringF("dynamic",T_dynamic)
+global constant T_nullable      = 5512  tt_stringF("nullable",T_nullable)
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then

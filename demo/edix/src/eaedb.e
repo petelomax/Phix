@@ -696,7 +696,7 @@ global function getProjectSet(sequence path, sequence name)
 --  handle is 0 here (saved when we addTVItem),
 --DEV??
 --  name is converted to/stored in lowercase, eg "edita.exw",
---  path is converted to/stored in uppercase, eg "D:\\EDITA\\",
+--  path is converted to/stored in uppercase, eg `D:\EDITA\`,
 --  the root parent is 0,
 --  hasChildren controls whether the "+" node appears.
 --
@@ -851,7 +851,7 @@ object dt
                 backName[3] = backName[3] + 'A' - '0'
             end if
             backName = backName[1]&backName[3..9]&'.'&extension
-            backName = initialcurrentdir&"backup\\"&backName
+            backName = initialcurrentdir&`backup\`&backName
 --          if not c_func(xDeleteFile,{allocate_StringZ(backName)}) then
             if not delete_file(backName) then
             -- no worries if gone already ;-))

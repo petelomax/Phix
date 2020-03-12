@@ -15,16 +15,28 @@ function SourceLink(linktext) {
         document.getElementById("source").innerText = "External Link Copied to Clipboard"
     }
 }
-
+function setleft(img) {
+    var elem = document.getElementById("leftNav");
+    if (elem.style.display=="none")
+    {
+        img.style.left = "13px";
+    }
+    else
+    {
+        img.style.left = "292px";
+    }
+}
 function setStart(img) {
     img.style.position = "absolute";
     img.style.top = "80px";
     img.style.zIndex = 100;
+    setleft(img);
 }
 function setStart2(img) {
     img.style.position = "absolute";
     img.style.top = "360px";
     img.style.zIndex = 100;
+    setleft(img);
 }
 function setStartT(img) {
     img.style.top = -10;
@@ -36,14 +48,15 @@ function changeImage(img) {
     {
         elem.style.display = "";
         img.src = img.src.replace("widen", "close");
-        img.style.left = "292px";
+//      img.style.left = "292px";
     }
     else
     {
         elem.style.display = "none";
         img.src = img.src.replace("close", "widen");
-        img.style.left = "13px";
+//      img.style.left = "13px";
     }
+    setleft(img);
 }
 function changeImageT(img) {
     var elem = document.getElementById("Technicalia");

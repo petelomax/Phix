@@ -230,20 +230,30 @@ constant tnr = "tnr\\\"\'0e"
 function allascii(string x)
 -- Phix allows "strings" to hold binary data, so double check 
 -- before printing it as a string.
-integer c
+integer c, jstart = 0
     for i=length(x) to 1 by -1 do
         c = x[i]
-        if c<' ' or c>#7E or find(c,"\\\"\'") then
---      if c<' ' or c>#FE or find(c,"\\\"\'") then
-            c = find(c,"\t\n\r\\\"\'\0\e")
-            if c then
-                x[i..i] = '\\'&tnr[c]   -- NB does not work on RDS Eu/OpenEuphoria
-            else
-                return 0
-            end if
+        if c<' ' or c>#7E or c='`' then
+            if jstart=0 then jstart = i end if
+            for j=jstart to 1 by -1 do
+--              if c<' ' or c>#7E or find(c,"\\\"\'") then
+                if c<' ' or c>#7E or find(c,`\"'`) then
+--              if c<' ' or c>#FE or find(c,"\\\"\'") then
+                    c = find(c,"\t\n\r\\\"\'\0\e")
+                    if c then
+                        x[j..j] = '\\'&tnr[c]   -- NB does not work on RDS Eu/OpenEuphoria
+                    else
+                        return 0
+                    end if
+                end if
+            end for
+            return '"'&x&'"'
+--      elsif jstart=0 and find(c,"\\\"\'") then
+        elsif jstart=0 and find(c,`\"'`) then
+            jstart = i
         end if
     end for
-    return '\"'&x&'\"'
+    return '`'&x&'`'
 end function
 
 --
@@ -269,7 +279,7 @@ end function
 --a) it looks awful (all scrunched up), b) we could perhaps do better in the first place, here,
 --c) we would still want to leave some dword-sequences, in the same way that eaerr.e does.
 --d) we might want a length>40 and >95% of elements are ascii or similar.
---E) why not just \xHH those in 1..255 we're not sure of?
+--e) why not just \xHH those in 1..255 we're not sure of?
 --
 
 function cdi(string name, string prev, integer prst, integer prdx, object o, sequence idii)
@@ -347,7 +357,11 @@ integer newprst,                -- Scratch/innner version of prst.
     if atom(o) then
         this = sprintf("%.10g", o)
         if integer(o) then
-            if o>=#20 and o<=#FF then
+--9/2/20:
+--          if o>=#20 and o<=#FF then
+            if o='\\' then
+                this &= "'\\\\'"
+            elsif o>=#20 and o<=#7D then
                 this &= sprintf("'%s'",o)
             end if
         elsif not find('.',this)
@@ -552,6 +566,7 @@ procedure put2(string emsg)
                 elsif crash_msg[$]!='\n' then
                     crash_msg &= "\n"
                 end if
+                puts(1,emsg&"\n")
                 puts(1,crash_msg)
                 lines = 999
             else
@@ -822,9 +837,9 @@ constant msgs =
     -- the error occurs on the calling statement.
  "invalid file name\n",                                         -- e57ifn
     -- A common cause of this is using append instead of &:
-    --  append("C:\test\","fred.txt") returns the nested
+    --  append(`C:\test\`,"fred.txt") returns the nested
     --  {'C',':','\','t','e','s','t','\',"fred.txt"}, whereas
-    --  "C:\test\"&"fred.txt" returns "C:\test\fred.txt".
+    --  `C:\test\`&"fred.txt" returns `C:\test\fred.txt`.
     -- Remember that "append(s,x)" always returns a sequence (or 
     --  string) of length(s)+1, whereas "s&x" returns a sequence 
     --  (or string) of length(s)+length(x) [that is, except when 
@@ -1098,8 +1113,10 @@ constant
          T_const1  = 26
 
 function convert_offset(atom era, sequence sr)
+--printf(1,"pDiag.e line 1112: convert_offset(era=#%08x, sr=%v)\n",{era, sr})
 integer lineno = sr[S_1stl]     -- line no of "procedure"/"function"/"type" keyword
 sequence linetab = sr[S_ltab]
+    if linetab={} then return -1 end if -- added 20/12/19
 integer lastline = linetab[$]
 atom returnoffset = era-sr[S_il]
 integer thisline, linenxt, skip, base = 0, lti, tmp
@@ -1249,6 +1266,7 @@ end procedure
 --   E_FILE, -- (string|integer, optional) the source filename containing E_NAME.
 --   E_PATH, -- (string|integer, optional) the directory containing E_FILE.
 --   E_USER  -- (object, optional) user defined/application specific content.
+object throwee
 
 procedure throw(object e, object user_data={})
 --
@@ -1258,12 +1276,23 @@ procedure throw(object e, object user_data={})
 --
 -- Note: the default of {} is actually provided in pmain.e, see T_throw.
 --
+    throwee = 0
     if user_data!={} then
-        if not atom(e) then die() end if
-        e = {e,-1,-1,-1,-1,-1,-1,user_data}
+        if not atom(e) then
+            if string(e) and find('%',e) and sequence(user_data) then
+                e = sprintf(e,user_data)
+                throwee = e
+                e = {0,-1,-1,-1,-1,-1,-1,e}
+            else
+                die()
+            end if
+        else
+            e = {e,-1,-1,-1,-1,-1,-1,user_data}
+        end if
     elsif atom(e) then
         e = {e,-1,-1,-1,-1,-1,-1}
     elsif string(e) then
+        throwee = e
         e = {0,-1,-1,-1,-1,-1,-1,e}
     elsif length(e)<E_ADDR
        or not atom(e[E_CODE])
@@ -1342,15 +1371,20 @@ procedure throw(object e, object user_data={})
                 call :%pStoreMint   -- [rdi]:=rax, as float if rqd
               }
         e[E_ADDR] = addr
-        if e[E_LINE]=-1 and rtn!=-1 then
-            integer lineno := convert_offset(addr-1,symtab[rtn])
-            e[E_LINE] = lineno
-        end if
+--5/9/19:
+--      if e[E_LINE]=-1 and rtn!=-1 then
+--          integer lineno := convert_offset(addr-1,symtab[rtn])
+--          e[E_LINE] = lineno
+--      end if
     end if 
+    if e[E_LINE]=-1 and rtn!=-1 then
+        integer lineno := convert_offset(e[E_ADDR]-1,symtab[rtn])
+        e[E_LINE] = lineno
+    end if
     #ilASM{
             -- 1) if no exception handler then e55ue
         [32]
-            cmp [ebp+16],ebx        -- catch addr
+            cmp [ebp+16],ebx        -- catch addr/flag
             jne @f
                 mov al,55           -- e55ue
                 mov edx,[ebp+12]    -- called from address
@@ -1359,7 +1393,7 @@ procedure throw(object e, object user_data={})
                 jmp :!iDiag
                 int3
         [64]
-            cmp [rbp+32],rbx        -- catch addr
+            cmp [rbp+32],rbx        -- catch addr/flag
             jne @f
                 mov al,55           -- e55ue
                 mov rdx,[rbp+24]    -- called from address
@@ -1380,13 +1414,13 @@ procedure throw(object e, object user_data={})
             -- 3) while 1 issue fake opRetf (including this routine!)
           ::fakeRetLoop
         [32]
-            mov ecx,[ebp+16]        -- catch addr
+            mov ecx,[ebp+16]        -- catch addr/flag
             cmp ecx,1
             jne @f
                 mov dword[ebp+28],:fakeRetLoop  -- replace return address
                 jmp :%opRetf
         [64]
-            mov rcx,[rbp+32]        -- catch addr
+            mov rcx,[rbp+32]        -- catch addr/flag
             cmp rcx,1
             jne @f
                 mov dword[rbp+56],:fakeRetLoop  -- replace return address
@@ -2269,6 +2303,7 @@ atom    --returnoffset, -- era as offset into code block, used in lineno calc
         TchkRetAddr,    -- value of !opTchkRetAddr in pStack.e
         cb_ret_addr,    -- value of !cb_ret in pcfunc.e
         cf_ret_addr     -- value of !cf_ret in pcallfunc.e
+--      cc_ret_addr     -- value of !cc_ret in pcallfunc.e  [drat: global labels not allowed inside routines!!!]
 
 sequence msg,           -- error message, from msgs[msg_id] plus any params
          wmsg,          -- work var, used for building msg
@@ -2416,6 +2451,13 @@ X               mov qword[rbp+32],:rbidsret
             fild qword[esp]
             add esp,8
             call :%pStoreFlt
+--          mov eax,:!cc_ret
+--          lea edi,[cc_ret_addr]
+--          push ebx
+--          push eax
+--          fild qword[esp]
+--          add esp,8
+--          call :%pStoreFlt
             lea edi,[symtab]
         [64]
             mov rax,:!opTchkRetAddr
@@ -2437,6 +2479,12 @@ X               mov qword[rbp+32],:rbidsret
             fild qword[rsp]
             add rsp,8
             call :%pStoreFlt
+--          mov rax,:!cc_ret
+--          lea rdi,[cc_ret_addr]
+--          push rax
+--          fild qword[rsp]
+--          add rsp,8
+--          call :%pStoreFlt
             lea rdi,[symtab]
         []
             call :%opGetST  -- [e/rdi]:=symtab (see pStack.e)
@@ -2464,6 +2512,7 @@ X               mov qword[rbp+32],:rbidsret
             mov [ds+8],eax
         [64]
             pop al
+--          mov rax,[pst4]
         []
           }
 --*/
@@ -2499,7 +2548,8 @@ X               mov qword[rbp+32],:rbidsret
             printf(1,"or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
 --          put2(sprintf("or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
                    {or_eax,or_ecx,or_edx,or_esi,or_edi})
-            magicok = "\"@VSB\""
+--          magicok = "\"@VSB\""
+            magicok = `"@VSB"`
 --DEV wrong on machine_bits()=64... (possibly one for docs) [I think it may be OK now...]
 --          if vsb_magic!=#40565342 then
             if (vsb_magic-#40565342) then
@@ -2630,7 +2680,7 @@ X               mov qword[rbp+32],:rbidsret
     pathset = symtab[T_pathset]
 --  for j=1 to length(pathset) do
 --      if length(pathset[j])<2 or pathset[j][2]!=':' then
---          pathset[j] = current_dir()&'\\'&pathset[j]
+--          pathset[j] = current_dir()&`\`&pathset[j]
 --      end if
 --  end for
     if msg_id=106 then      -- e106ioob(edi,edx)
@@ -2884,6 +2934,15 @@ X               mov qword[rbp+32],:rbidsret
         msg = sprintf(msg,{crash_msg})  -- crash(xxxx)
     elsif msg_id=42 then        -- e42a(ecx)
         msg = sprintf(msg,{or_ecx})
+    elsif msg_id=55 then
+        integer lm = length(msg)
+        if string(throwee) and lm<70 then
+            integer lt = length(throwee)
+            if lt+lm>76 then
+                throwee[74-(lt+lm)..$] = "..."
+            end if
+            msg = sprintf("%s (%s)\n",{msg[1..$-1],throwee})
+        end if
     end if
 --?2
 --/*
@@ -3239,15 +3298,30 @@ else
 --?9997
 --?symtab[T_fileset]
 --?9998
-if 0 then
-                filename = symtab[T_fileset][sr[S_FPno]][1..2]&lineno
---?filename
-                filename[1] = pathset[filename[1]]
---?filename
-                put2(sprintf("%s%s:%d",filename))
-else -- new code
-                filename = symtab[T_fileset][sr[S_FPno]][1..2]
-                filename[1] = pathset[filename[1]]
+--if 0 then
+--              filename = symtab[T_fileset][sr[S_FPno]][1..2]&lineno
+----?filename
+--              filename[1] = pathset[filename[1]]
+----?filename
+--              put2(sprintf("%s%s:%d",filename))
+--else -- new code
+--20/12/19:
+--              filename = symtab[T_fileset][sr[S_FPno]][1..2]
+                sequence sfs = symtab[T_fileset]
+                integer srfn = sr[S_FPno]
+--printf(1,"pDiag.e line 3294, srfn=%d, length(symtab[T_fileset])=%d\n",{srfn,length(sfs)})
+                if srfn>length(sfs) then
+--DEV triggered on ::retaddr in pcallfunc.e line 251 - needs something akin to AddressMapping (see below)...[??]
+--?pathset
+--printf(1,"cc_ret:%08x\n",{cc_ret_addr})
+--                  filename = {"<unknown file>",sprintf("(%d)",srfn)}
+                    -- (drat, cannot be sure, so just take a leap of faith...)
+                    filename = {pathset[2],"pcallfunc.e",":cc_retaddr"}
+                    sr[S_Name] = -1
+                else
+                    filename = sfs[srfn][1..2]
+                    filename[1] = pathset[filename[1]]
+                end if
                 if lineno=-1 then
                     filename = append(filename,sprintf("-1 (era=#%s, from_addr=#%s, ret_addr=#%s)",
                                                        {addrS(or_era),addrS(from_addr),addrS(ret_addr)}))
@@ -3255,7 +3329,7 @@ else -- new code
                     filename = append(filename,sprintf("%d",lineno))
                 end if
                 put2(sprintf("%s%s:%s",filename))
-end if
+--end if
                 if sr[S_Name]=-1 then
 --              if sr[S_Name]=-1 or sr[S_NTyp]=S_Rsvd then
                     put2("\n")
@@ -3272,8 +3346,10 @@ end if
                     put2(msg)
                     msg = ""
                 end if
-if msg_id=80 then
-    -- (parameters/locals are not available)
+if msg_id=80 then   -- e80cbrna
+    -- "call_back returned non-atom",
+    -- note this occurs after the callback has returned, hence
+    -- parameters/locals suppressed, since they no longer exist
     msg_id = 0
 else
 --?sr
@@ -3342,6 +3418,7 @@ end if
 --          if ret_addr=TchkRetAddr then
 --29/10/17:
             if ret_addr=TchkRetAddr
+            or ret_addr=TchkRetAddr-1   -- 22/12/19
             or ret_addr=cf_ret_addr-1 then
                 or_era = from_addr-1
             else
@@ -3373,7 +3450,8 @@ if 0 then -- DEV 29/10/17/TEMP
                    {N,rtn,addrS(from_addr),addrS(ret_addr),addrS(ehand),addrS(prev_ebp),addrS(ebp_root)}))
             put2(sprintf("or_eax=#%08x, or_ecx=#%08x, or_edx=#%08x,\nor_esi=#%08x, or_edi=#%08x\n",
                    {or_eax,or_ecx,or_edx,or_esi,or_edi}))
-            magicok = "\"@VSB\""
+--          magicok = "\"@VSB\""
+            magicok = `"@VSB"`
 --DEV wrong on machine_bits()=64... (possibly one for docs) [I think it may be OK now...]
 --          if vsb_magic!=#40565342 then
             if (vsb_magic-#40565342) then
@@ -3424,7 +3502,8 @@ end if
         end if
     end while
 --erm??
-    if not batchmode then
+--  if not batchmode then
+    if not batchmode and atom(crash_msg) then
         puts(1,"\nGlobal & Local Variables\n")
     end if
     if fn!=-1 then
@@ -3461,7 +3540,8 @@ end if
 --DEV
 --          #isginfo{crash_msg,0b1001,0,0,integer,0} -- (verify compiler is working properly)
 --          #isginfo{crash_msg,0b1001,0,0,integer,3} -- (verify compiler is working properly)
-            if atom(crash_msg) and fn!=-1 then
+--          if atom(crash_msg) and fn!=-1 then
+            if fn!=-1 then
                 if atom(crashfile) then
 --                  puts(1,"--> see "&current_dir()&"\\ex.err\n")
                     printf(1,"--> see %s\n",{join_path({current_dir(),"ex.err"})})

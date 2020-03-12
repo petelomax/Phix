@@ -674,8 +674,12 @@ integer ldx
 
     if DEBUG then
         dltyp = symtab[v][S_ltype]
-        if dltyp!=ptyp then
-            ?9/0
+--19/9/19: (triggered by (udt) "boolean wild_str = find('?', str) or find('*', str)" in demo\search.exw, 976!=1)
+--      if dltyp!=ptyp then
+        if dltyp<=T_object
+        and ptyp<=T_object
+        and dltyp!=ptyp then
+--          ?9/0
             ?"9/0 (pltype.e line 676)"
 ltAddshowmapsymtab = v
 --          if diag then

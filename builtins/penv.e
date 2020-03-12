@@ -41,7 +41,7 @@ end procedure
 global function getenv(string var)
 --
 -- Return the specified environment variable setting, eg
--- getenv("PATH") might return "C:\WINDOWS;C:\WINDOWS\COMMAND"
+-- getenv("PATH") might return `C:\WINDOWS;C:\WINDOWS\COMMAND`
 -- Returns -1 if the variable is undefined
 --
 atom pRes
@@ -89,7 +89,7 @@ end function
 global function setenv(string var, object newValue=NULL, integer overwrite=1)
 --
 -- Set the specified environment variable setting, eg
---      setenv("PATH","C:\WINDOWS;C:\WINDOWS\COMMAND")
+--      setenv("PATH",`C:\WINDOWS;C:\WINDOWS\COMMAND`)
 -- The newValue can be 0(NULL) to delete a variable from the
 --  current processes environment, or it can be the address of
 --  a previously allocated memory-string.

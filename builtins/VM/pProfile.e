@@ -42,7 +42,7 @@ string p72, tj, stim, dashpathname
 integer ch, mark, tlim
 
 --  puts(1,"writing profile results to ex.pro...")
-    puts(1,"writing profile results to "&current_dir()&"\\ex.pro...")
+    puts(1,"writing profile results to "&current_dir()&`\ex.pro...`)
     fn = open("ex.pro","w")
     if sequence(opstat) then
         puts(fn,"opstats: [Meaning is dependent on your mods to p.exw, for an example see Branch().]\n")

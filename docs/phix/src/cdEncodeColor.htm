@@ -16,31 +16,67 @@
             include pGUI.e
             <br>
             <br>
-            <a href="integer.htm">integer</a> color = cdEncodeColor(<a href="atom.htm">atom</a> red, green, blue)<br>
-            <i>-- or --</i><br>
-            <a href="integer.htm">integer</a> color = rgb(<a href="atom.htm">atom</a> red, green, blue)
+            <a href="integer.htm">integer</a> color = cdEncodeColor(<a href="atom.htm">atom</a> red, green, blue)
+            <br><i>-- or --</i><br>
+            <a href="atom.htm">atom</a> color = cdEncodeColorAlpha(<a href="atom.htm">atom</a> red, green, blue, alpha)
+            <br><i>-- or --</i><br>
+            <a href="atom.htm">atom</a> color = cdEncodeAlpha(<a href="atom.htm">atom</a> colour, <a href="integer.htm">integer</a> alpha)
+            <br><i>-- or --</i><br>
+            <a href="atom.htm">atom</a> color = rgb(<a href="atom.htm">atom</a> red, green, blue, alpha=0)
+            <br><i>-- and --</i><br>
+            <a href="integer.htm">integer</a> {r,g,b} = cdDecodeColor(<a href="atom.htm">atom</a> colour)
+            <br><i>-- or --</i><br>
+            <a href="integer.htm">integer</a> {r,g,b,a} = cdDecodeColorAlpha(<a href="atom.htm">atom</a> colour)
+            <br><i>-- or --</i><br>
+            <a href="integer.htm">integer</a> alpha = cdDecodeAlpha(<a href="atom.htm">atom</a> colour)
+            <br><i>-- or --</i><br>
+            <a href="integer.htm">integer</a> {r,g,b,a} = to_rgb(<a href="atom.htm">atom</a> colour)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
+         </td>
          <td>
-            Returns a codified triple (r,g,b) in an integer such as 0x00RRGGBB, where RR are the red components, GG are the green ones and BB are the blue ones. <br>
+            cdEncodeColor() returns a codified triple (r,g,b) in an integer such as 0x00RRGGBB, where RR are the red components, GG are the green ones and BB are the blue ones. <br>
+            cdEncodeColorAlpha() returns a codified quadriple (r,g,b,a) in an integer such as 0xAARRGGBB, where AA are the alpha components, and as above.<br>
             The code is used in the CD library to define colors. It can be used without an active canvas.
             <br>
             <br>
-            Fractional colour values are permitted, and are automatically converted to unsigned integers in the range 0 to 255 (#00 to #FF). The precise mode of that
-            conversion is however officially undefined - you should not overly rely on rounding, trunction, or what happens when you pass values that are negative or 
-            above 255.49, but (for instance) one thing you can expect is that 255.01 will always yield 255.
+            Fractional colour values are permitted, and are automatically converted to unsigned integers in the range 0 to 255 (#00 to #FF). The precise mode of that conversion 
+            is however officially undefined - you should not overly rely on rounding, trunction, or what happens when you pass values that are negative or above 255.49, but (for 
+            instance) one thing you can expect is that 255.01 will always yield 255, however 254.99 might yield 254 or 255, and that may differ between different operating systems, 
+            libc/msvcrt builds, and even CPU brands. More likely to have been my fault than anyone else&rsquo;s, but I ended up with some rather strange little glitches during a 
+            failed experiment to get the exact same thing running identically on windows, linux, android, and javascript... (It was a ludicrously complex setup involving hundreds 
+            of gigabytes of third party tools, not really Phix at all, basically just rgb() vs. other hand crafted equivalents in various other languages, and a much older copy of 
+            IUP than the one I use now, that was lost forever when my previous PC finally died.)<br>
+            Anyway, I digress: for consistent results, should that be vitally important, explicitly round/truncate any fractions yourself.
             <br>
             <br>
-            The cdEncodeColor routine invokes the C function of the same name, whereas the rgb function performs the same task in pure phix code. The latter is recommended.
+            The cdEncodeColor() and cdEncodeColorAlpha() routines invoke the C functions of the same name, whereas the rgb() function performs the same task 
+            in pure Phix code. The latter is recommended (simply have/omit the fourth parameter as needed), and is more likely to behave consistently across
+            different platforms.
             <br>
             <br>
             A very similar rgb() routine exists in both arwen and win32lib, note however those libraries encode colours as
             red+green*#100+blue*#10000, whereas pGUI uses red*#10000+green*#100+blue, a fact you should only ever need to
             know when debugging or for some reason are directly comparing the results or using hard-coded literals such as
             #FF0000 (==CD_RED in pGUI) vs #0000FF (==BrightRed in arwen), which you may encounter when porting existing code.
+            <br>
+            <br>
+            The cdDecodeColor(), cdDecodeColorAlpha(), and to_rgb() routines reverse the process, again with the latter being pure Phix and usually recommended:<br>
+            Just code <code>integer {r,g,b} = to_rgb()</code>, or maybe <code>integer {r,g,b,{}} = to_rgb()</code> if you don&rsquo;t need the alpha value, <br>
+            however if you find yourself having to explicitly chop off the returned a, then using cdDecodeColour() may in fact be the better choice.<br>
+            Unlike the encode functions, no inconsistencies have ever been spotted between any of the decode routines.
+            <br>
+            <br>
+            cdEncodeAlpha returns the given color coded with the alpha information. <br>
+            ATENTION: At the moment only the Cairo, GDI+, XRender and IMAGERGB drivers support alpha components in color coding. <br>
+            The internal representation of the component is inverted, because the default value must be 0 and opaque for backward compatibility, so 
+            you should use the cdDecodeAlpha function or the cdAlpha macro to retrieve the alpha component. 0 is transparent, 255 is opaque.
+            <br>
+            <br>
+            cdDecodeAlpha returns the alpha component of a color in the CD library. Can be used without an active canvas. 0 is transparent, 255 is opaque.
          </td>
         </tr>
        </table>

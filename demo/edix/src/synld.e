@@ -133,7 +133,8 @@ setCharMap("ABCDEFGHIJKLMNOPQRSTUVWXYZ",TokenChar)
 setCharMap("abcdefghijklmnopqrstuvwxyz",TokenChar)
 setCharMap("_0123456789.",TokenChar)
 wordChar = charMap  -- in eatabs.e (all are TokenChar, not TokenStart/First/Last)
-setCharMap(":/-'*%$()=&?@+~,!.\\#",TokenChar)
+--setCharMap(":/-'*%$()=&?@+~,!.\\#",TokenChar)
+setCharMap(`:/-'*%$()=&?@+~,!.\#`,TokenChar)
 urlChar = charMap   -- (all are TokenChar, not TokenStart/First/Last)
 
 procedure fatal(sequence msg)
@@ -288,7 +289,7 @@ function Expect(sequence txt)
     for i=1 to length(txt) do
         if ch!=txt[i] then 
             if upper(ch)!=upper(txt[i]) then
-                fatal(sprintf("\"%s\" expected",{txt}))
+                fatal(sprintf(`"%s" expected`,{txt}))
                 return (newSyntax!=1)
             end if
         end if
@@ -452,7 +453,7 @@ integer newcolour, k, l
                         if l then
                             ColourTab[sectionNo] = newcolour
                         else
-                        fatal("unrecognised section/colour/attribute \""&word&"\"")
+                        fatal(`unrecognised section/colour/attribute "`&word&`"`)
                         return
                         end if
                     end if
@@ -515,11 +516,11 @@ integer TokenType
         charMap[129..256] = TokenChar -- #7F to #FF really
     end if
 
---  fullname = initialcurrentdir&"syn\\"&name&".syn"
+--  fullname = initialcurrentdir&`syn\`&name&".syn"
     fullname = join_path({initialcurrentdir,"syn",name&".syn"})
     f = open(fullname,"rb")
     if f=-1 then
-        fatal("cannot open file \""&fullname&"\"")
+        fatal(`cannot open file "`&fullname&`"`)
         if newSyntax!=1 then return end if
         setMAXnColours()
         defaultColourTab()
@@ -781,11 +782,11 @@ object mtxt, wordlist
 integer lh, f2, k, b1, b2
     lineno = 1
     columnOne = 1
-    fullname = initialcurrentdir&"help\\"&name
+    fullname = initialcurrentdir&`help\`&name
     fullname = get_proper_path(fullname) 
     f = open(fullname,"rb") -- closed by caller (if f!=-1).
     if f=-1 then
-        fatal("cannot open file \""&fullname&"\"")
+        fatal(`cannot open file "`&fullname&`"`)
     else
         ch = getc(f)
         -- (Note that Expect always returns true when newSyntax=1)

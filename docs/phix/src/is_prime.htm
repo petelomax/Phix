@@ -1,0 +1,136 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">is_prime</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          <a href="integer.htm#bool">bool</a> res = is_prime(<a href="atom.htm">atom</a> p)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">atom</a> res = get_prime(<a href="integer.htm">integer</a> n)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="sequence.htm">sequence</a> res = get_primes(<a href="integer.htm">integer</a> count=0)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="atom.htm">integer</a> maxprime = get_maxprime(<a href="atom.htm">atom</a> p)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Determine whether an integer is prime, or retrieve the n<small><sup>th</sup></small> prime or a table of prime numbers.
+            <br>
+            <br>
+            p: the number to check for primality.<br>
+            n: obtain the n<small><sup>th</sup></small> prime number.<br>
+            count: the number of primes to obtain, see notes below. <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The file builtins/primes.e (an autoinclude) contains an extensible prime generator routine, that maintains an internal table of
+            previously generated prime numbers, initially set to {2,3,5,7}.
+            <br>
+            <br>
+            All four function extend said table if necessary, then:<br>
+            is_prime() uses a fast <a href="bsearch.htm">binary_search</a>() on it.<br>
+            get_prime() returns a single element from it.<br>
+            get_primes() returns an exact or cropped copy of it.<br>
+            get_maxprime() performs a fast <a href="bsearch.htm">binary_search</a>() for floor(sqrt(p)).
+            <br>
+            <br>
+            Invoking, for instance, is_prime(100) is guaranteed to populate the internal table with all primes &lt;= 100.<br>
+            Note that same objective could also be achieved by invoking get_prime(25) or get_primes(25), similar to the example below.
+            <br>
+            <br>
+            If count is omitted or zero, the current table is returned, which can be as short as the initial four shown above.<br>
+            If count is positive, <i>at least</i> that number of primes will be returned.<br>
+            If count is negative, then <i>exactly</i> <a href="abs.htm">abs</a>(count) primes are returned.<br>
+            The latter would normally be a little slower than creating a non-trimmed copy, especially when it gets quite big.<br>
+            However, rather than say <a href="sum.htm">sum</a>(get_primes(26)[1..26]) you may as well get this routine to trim it for you,
+            ie use <a href="sum.htm">sum</a>(get_primes(-26)) instead.
+            <br>
+            <br>
+            You are of course free to mangle your own copy of any result from get_primes(), but for obvious reasons you are not allowed 
+            to damage or otherwise wreck havoc on the internal table.<br>
+            In some cases better performance may be noticed if any previous results from get_primes() are explicitly discarded (ie set to {}) 
+            before invoking either is_prime() or get_prime[s]() again (ie avoid any unnecessary cloning), and of course it is a pretty cheap 
+            operation to re-fetch the same thing, that is assuming it does not need any further extending, or trimming. You can also invoke
+            get_prime(-1), which happens more by accident than design to return 7<small><sup>[1]</sup></small>, to clear/re-initialise the 
+            internal table, should you need to release the memory for some other use.<br>
+            <small><sup>[1]</sup> get_prime<u><i>s</i></u>(-1) always returns {2}, which is slightly more rational/sensible.</small>
+            <br>
+            <br>
+            The biggest limiting factor is the size of the internal table. Like all Phix sequences, it can easily contain 100,000,000 items,
+            and can probably contain 200 million, but the theoretical limit of 400 million is quite likely to get thwarted by something else
+            being in the way (aka memory fragmentation or some other variable allocated slap in the middle of addressable memory). 
+            Those numbers are potentially much bigger on 64 bit, depending on physical memory and the operating system.
+            I can tell you that the 100,000,000<small><sup>th</sup></small> prime is 2,038,074,743 which suggests the sort of limits that 
+            might be applicable to parameter p of is_prime() on 32-bit [which is defined as atom to allow "integer" values above 1,073,741,823], 
+            but otherwise there are no deliberate restrictions in place here.
+            <br>
+            <br>
+            The <a href="mpfr.htm#mpz">mpz_probable_prime_p</a>() function is likely to be significantly faster for larger numbers, and
+            obviously is not limited to 31/53/63/64 bit values like the native 32/64-bit Phix integer/atoms are, and it will probably
+            also use and hog less memory, then again this needs no dlls and is perfectly adequate and fast enough, for most of the time,
+            that is assuming the results of any calculations are also all within the normal Phix integer/atom [accuracy] limits.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+?get_primes(-26) -- prints {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">get_primes</font><font color="#0000FF">(-</font><font color="#000000">26</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\primes.e (an autoinclude) for details of the actual implementation.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="bsearch.htm">binary_search</a>,
+          <a href="mpfr.htm#mpz">mpz_probable_prime_p</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

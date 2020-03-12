@@ -357,14 +357,15 @@ integer x,y,w,h
     --  prevfiles = {initialcurrentdir&"test.exw"}
     --  prevfiles = {initialcurrentdir&"pkd.exw"}
     --  prevfiles = {initialcurrentdir&"test.htm"}
-    --  prevfiles = {initialcurrentdir&"doc\\t.htm"}
+    --  prevfiles = {initialcurrentdir&`doc\t.htm`}
 --      prevfiles = {initialcurrentdir&"ccaout.e"}
 --      prevfiles = {initialcurrentdir&"eamenus.ew"}
 --      isLineNumbers = True
---      prevfiles = {"C:\\P2\\new\\EUCount\\database.e"}
---      prevfiles = {"C:\\p5\\demo\\Win32Demo\\Tooltip.EXW"}
---      prevfiles = {"C:\\Program Files\\Phix\\demo\\win32lib\\win32lib.ew"}
---      prevfiles = {"C:\\Program Files (x86)\\Phix\\e01.exw"}
+--      prevfiles = {`C:\P2\new\EUCount\database.e`}
+--      prevfiles = {`C:\p5\demo\Win32Demo\Tooltip.EXW`}
+--      prevfiles = {`C:\Program Files\Phix\demo\win32lib\win32lib.ew`}
+--      prevfiles = {`C:\Program Files (x86)\Phix\e01.exw`}
+--      prevfiles = {`C:\Program Files (x86)\Phix\test.pas`}
         prevcursel = ""
         isSingleInstance = False
     end if

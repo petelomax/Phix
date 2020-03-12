@@ -2,7 +2,10 @@
 -- OpenGLShader.exw
 -- ================
 --
---[DEV incomplete]
+--[DEV incomplete - ah, this is a copy of demo\pGUI\triangle.exw for https://rosettacode.org/wiki/OpenGL#Phix but
+--      what I'm after is something for https://rosettacode.org/wiki/OpenGL_Pixel_Shader  - for a runnable demo
+--      see C:\Program Files (x86)\Phix\demo\libxlsxwriter\js\OpenGL_Pixel_Shader.html ]
+
 --  Translation of http://rosettacode.org/wiki/OpenGL#Lua
 --
 --  Converted to pGUI by Pete Lomax
@@ -80,10 +83,11 @@ end procedure
 main()
 
 --/*
-#include <stdio.h>
-#include <stdlib.h>
-#include <GL/glew.h>
-#include <GL/glut.h>
+--C:
+--#include <stdio.h>
+--#include <stdlib.h>
+--#include <GL/glew.h>
+--#include <GL/glut.h>
  
 GLuint ps, vs, prog, r_mod;
 float angle = 0;
@@ -103,23 +107,23 @@ void render(void)
         glutSwapBuffers();
 }
  
+constant f = """
+varying float x, y, z;
+uniform float r_mod;
+float rand(float s, float r) { return mod(mod(s, r + r_mod) * 112341, 1); }
+void main() {
+    gl_FragColor = vec4(rand(gl_FragCoord.x, x), rand(gl_FragCoord.y, y), rand(gl_FragCoord.z, z), 1);
+}"""
+constant v = """
+varying float x, y, z;
+void main() {
+    gl_Position = ftransform();
+    x = gl_Position.x; y = gl_Position.y; z = gl_Position.z;
+    x += y; y -= x; z += x - y;
+}"""
+
 void set_shader()
 {
-        const char *f =
-                "varying float x, y, z;"
-                "uniform float r_mod;"
-                "float rand(float s, float r) { return mod(mod(s, r + r_mod) * 112341, 1); }"
-                "void main() {"
-                "	gl_FragColor = vec4(rand(gl_FragCoord.x, x), rand(gl_FragCoord.y, y), rand(gl_FragCoord.z, z), 1);"
-                "}";
-        const char *v =
-                "varying float x, y, z;"
-                "void main() {"
-                "	gl_Position = ftransform();"
-                "	x = gl_Position.x; y = gl_Position.y; z = gl_Position.z;"
-                "	x += y; y -= x; z += x - y;"
-                "}";
- 
         vs = glCreateShader(GL_VERTEX_SHADER);
         ps = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(ps, 1, &f, 0);

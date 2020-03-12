@@ -35,16 +35,17 @@ procedure dinit()
     initd = 1
 end procedure
 
---DEV/SUG: (requires forward type [erm, may already be working, just not yet tried in psym/init])
---global type dictionary(integer tid)
---  return tid=1 or (initd and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
---end type
+--DEV/SUG: (requires forward type [erm, may already be working, just not yet tried in psym/init]) ...needs MARKTYPES...
+global type dictionary(integer tid)
+    return tid=1 or (initd and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
+end type
 
 global function is_dict(object tid)
     return tid=1 or (initd and integer(tid) and tid>=1 and tid<=length(roots) and sequence(trees[tid]))
 end function
 
 procedure check(integer tid)
+--  if not is_dict(tid) then crash("invalid dictionary id (%d)",{tid},2) end if
     if not is_dict(tid) then
         #ilASM{ mov ecx,2           -- no of frames to pop to obtain an era (>=2)
                 mov al,56           -- e56idi (invalid dictionary id)
@@ -85,7 +86,7 @@ end function
 
 function height(integer node, integer branch, integer tid)
     node = trees[tid][node+branch]
-    return iff(node=NULL?0:trees[tid][node+HEIGHT])
+    return iff(node=NULL ? 0 : trees[tid][node+HEIGHT])
 end function
 
 procedure setHeight(integer node, integer tid)
@@ -145,22 +146,28 @@ end procedure
 --end procedure
 
 global procedure setd_default(object o, integer tid)
+    check(tid)
     defaults[tid] = o
 end procedure
 
-function getNode(integer node, object key, integer tid)
+function getNode(integer node, object key, dflt, integer tid)
     while node!=NULL do
         integer c = compare(key,trees[tid][node+KEY])
         if c=0 then return trees[tid][node+DATA] end if
         integer direction = HEIGHT+c    -- LEFT or RIGHT
         node = trees[tid][node+direction]
     end while
-    return defaults[tid]
+    return dflt
 end function
 
 global function getd(object key, integer tid=1)
     check(tid)
-    return getNode(roots[tid], key, tid)
+    return getNode(roots[tid], key, defaults[tid], tid)
+end function
+
+global function getdd(object key, dflt, integer tid=1)
+    check(tid)
+    return getNode(roots[tid], key, dflt, tid)
 end function
 
 function getKey(integer node, object key, integer tid)
@@ -295,13 +302,13 @@ global procedure traverse_dict_partial_key(integer rid, object pkey, object user
     end if
 end procedure
 
-object gpk  -- NB not thread safe!
+--object gpk    -- NB not thread safe!
 
-function gpk_visitor(object key, object /*data*/, object /*pkey*/, object /*user_data=-2*/)
-    gpk = key
-    return 0    -- stop!
-end function
-constant r_gpkv = routine_id("gpk_visitor")
+--function gpk_visitor(object key, object /*data*/, object /*pkey*/, object /*user_data=-2*/)
+--  gpk = key
+--  return 0    -- stop!
+--end function
+--constant r_gpkv = routine_id("gpk_visitor")
 
 function traverser(sequence res, integer node, bool partial, object pkey, integer tid, bool rev)
 sequence tt = trees[tid]
@@ -327,13 +334,13 @@ end function
 
 global function getd_partial_key(object pkey, integer tid=1, bool rev=false)
     check(tid)
-if 0 then
-    gpk = defaults[tid]
-    if roots[tid]!=0 then
-        {} = traverse_key(roots[tid], r_gpkv, pkey, NULL, tid, rev)
-    end if
-    return gpk
-end if
+--if 0 then
+--  gpk = defaults[tid]
+--  if roots[tid]!=0 then
+--      {} = traverse_key(roots[tid], r_gpkv, pkey, NULL, tid, rev)
+--  end if
+--  return gpk
+--end if
     object res = traverser({}, roots[tid], true, pkey, tid, rev)
     if length(res) then
         res = res[1]
@@ -344,6 +351,7 @@ end if
 end function
 
 global function getd_all_keys(integer tid=1)
+    check(tid)
     return traverser({}, roots[tid], false, NULL, tid, false)
 end function
 
@@ -358,11 +366,12 @@ global function dict_name(integer tid=1)
 end function
 
 ----DEV temp: (didn't help...)
---function f(object o) return o end function
+function f(object o) return o end function
 --if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
 
 global function new_dict(object kd_pairs = {}, integer pool_only=0)
---kd_pairs = f(kd_pairs)
+if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
+kd_pairs = f(kd_pairs)
 --pool_only = f(pool_only)
     if not initd then dinit() end if
     integer tid = free_trees

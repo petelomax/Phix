@@ -17,20 +17,42 @@
 --    prime_factors(12345) is {3,5,823}
 --
 
+procedure check(atom n, string rtn)
+    if n<1 or n!=floor(n) then
+        crash("argument to %s() must be a positive integer",{rtn})
+    elsif n>power(2,iff(machine_bits()=32?53:64)) then
+        -- n above power(2,53|64) is pointless, since IEE 754 floats drop 
+        -- low-order bits. As per the manual, on 32-bit atoms can store 
+        -- exact integers up to 9,007,199,254,740,992, however between
+        -- that and 18,014,398,509,481,984 you can only store even nos,
+        -- then upto 36,028,797,018,963,968, you can only store numbers 
+        -- divisible by 4, etc. Hence were you to ask for the prime
+        -- factors of 9,007,199,254,740,995 you might be surprised when
+        -- it does not list 5, since this gets 9,007,199,254,740,994.
+        -- (ie below routines actually get a number ending in 4 not 5)
+        crash("argument to %s() exceeds maximum precision",{rtn})
+    end if
+end procedure
+
 global function factors(atom n, integer include1=0)
+--global function factors(atom n, integer include1=0, atom maxfactor=n)
 -- returns a list of all integer factors of n
 --  if include1 is 0 (the default), result does not contain either 1 or n
 --  if include1 is 1, and n>1, the result contains 1 and n
 --  if include1 is -1, and n>1, the result contains 1 but not n
-sequence lfactors = {}, hfactors = {}
-atom hfactor
-integer p = 2,
-        lim = floor(sqrt(n))
+    check(n,"factors")
+    sequence lfactors = {}, hfactors = {}
+    atom hfactor
+    integer p = 2,
+            lim = floor(sqrt(n))
+--          lim = min(floor(sqrt(n)),maxfactor)
 
-    if n<1 or n!=floor(n) then ?9/0 end if  --DEV crash("first argument to factors() must be a positive integer",{},2)
-    if n!=1 and include1!=0 then
+--13/5/19:
+--  if n!=1 and include1!=0 then
+    if include1!=0 then
         lfactors = {1}
-        if include1=1 then
+--      if include1=1 then
+        if n!=1 and include1=1 then
             hfactors = {n}
         end if
     end if
@@ -46,25 +68,17 @@ integer p = 2,
     return lfactors & hfactors
 end function
 
-global function prime_factors(atom n, bool duplicates=false)
-sequence pfactors = {}
-integer p = 2, 
-        step = 1,
-        lim = floor(sqrt(n))
+include primes.e
 
-    if n<1 or n!=floor(n) then
-        crash("argument to prime_factors() must be a positive integer")
-    elsif n>power(2,iff(machine_bits()=32?53:64)) then
-        -- n above power(2,53|64) is pointless, since IEE 754 floats drop 
-        -- low-order bits. As per the manual, on 32-bit atoms can store 
-        -- exact integers up to 9,007,199,254,740,992, however between
-        -- that and 18,014,398,509,481,984 you can only store even nos,
-        -- then upto 36,028,797,018,963,968, you can only store numbers 
-        -- divisible by 4, etc. Hence were you to ask for the prime
-        -- factors of 9,007,199,254,740,995 you might be surprised when
-        -- it does not list 5, since this gets 9,007,199,254,740,994.
-        crash("argument to prime_factors() exceeds maximum precision")
-    end if
+global function prime_factors(atom n, bool duplicates=false, integer maxprime=100)
+-- returns a list of all prime factors <=get_prine(maxprime) of n
+--  if duplicates is true returns a true decomposition of n (eg 8 --> {2,2,2})
+    check(n,"prime_factors")
+    sequence pfactors = {}
+    integer pn = 1,
+            p = get_prime(pn), 
+            lim = min(floor(sqrt(n)),get_prime(maxprime))
+
     while p<=lim do
         if remainder(n,p)=0 then
             pfactors = append(pfactors,p)
@@ -76,14 +90,38 @@ integer p = 2,
                 end if
             end while
             if n<=p then exit end if
-            lim = floor(sqrt(n))
+            lim = min(floor(sqrt(n)),get_prime(maxprime))
         end if
-        p += step   -- (p:=2,3,5,7,9,11, etc)
-        step = 2
+        pn += 1
+        p = get_prime(pn)
     end while 
     if n>1 and (length(pfactors)!=0 or duplicates) then
         pfactors = append(pfactors,n)
+--added 12/6/19:
+    elsif duplicates and pfactors={} then
+        if n!=1 then ?9/0 end if    -- sanity check
+        pfactors = {1}
     end if
     return pfactors
+end function
+
+global function square_free(atom n, integer maxprime=100)
+-- returns true if prime_factors(n,duplicates:=true,maxprime) would contain no duplicates
+    check(n,"square_free")
+    integer pn = 1,
+            p = get_prime(pn), 
+            lim = min(floor(sqrt(n)),get_prime(maxprime))
+
+    while p<=lim do
+        if remainder(n,p)=0 then
+            n = n/p
+            if remainder(n,p)=0 then return false end if
+            if n<=p then exit end if
+            lim = min(floor(sqrt(n)),get_prime(maxprime))
+        end if
+        pn += 1
+        p = get_prime(pn)
+    end while 
+    return true
 end function
 

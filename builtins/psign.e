@@ -1,3 +1,4 @@
+DEAD (now in pmaths.e)
 --
 -- psign.e
 --

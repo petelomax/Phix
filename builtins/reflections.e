@@ -62,3 +62,58 @@ global function reflect(string s)
     return res
 end function
 
+function _debug_info()
+-- use throw to convert a return address and routine number 
+-- from the call stack into a proper line number, etc.
+-- (private, not called direct/from outside this file)
+integer rtn
+atom ret_addr
+ 
+    #ilASM{
+        [32]
+            mov edx,[ebp+20]    -- prev_ebp
+            mov eax,[edx+28]    -- return address
+            mov edx,[edx+20]    -- prev_ebp
+            lea edi,[ret_addr]
+            call :%pStoreMint
+            mov eax,[edx+8]     -- calling routine no
+            mov [rtn],eax
+        [64]
+            mov rdx,[rbp+40]    -- prev_ebp
+            mov rax,[rdx+56]    -- return address
+            mov rdx,[rdx+40]    -- prev_ebp
+            lea rdi,[ret_addr]
+            call :%pStoreMint
+            mov rax,[rdx+16]    -- calling routine no
+            mov [rtn],rax
+        []
+          }
+    try
+        throw({1,ret_addr-1,-1,rtn,-1,-1,-1})
+    catch e
+        return e
+    end try
+end function
+
+-- NOTE: following five routines must all use the exact same nesting level.
+
+global function debug_info()
+    return _debug_info()
+end function
+
+global function debug_line()
+    return _debug_info()[E_LINE]
+end function
+
+global function debug_rtn()
+    return _debug_info()[E_NAME]
+end function
+
+global function debug_file()
+    return _debug_info()[E_FILE]
+end function
+
+global function debug_path()
+    return _debug_info()[E_PATH]
+end function
+

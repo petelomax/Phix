@@ -1,0 +1,85 @@
+--
+-- demo\rosetta\Gradient_descent.exw
+-- =================================
+--
+--  **NB** /NOT/ part of distro...
+--  https://rosettacode.org/mw/index.php?title=Gradient_descent#Phix
+--
+--SUG: rewrite using mpfr:
+--output: (none match...)
+--/*
+Testing steepest descent method:
+The minimum is at x[1] = 0.1076572080934996,    x[1] = -1.2232976080475890  -- (64 bit)
+The minimum is at x[1] = 0.1073980565405569,    x[1] = -1.2233251778997771  -- (32 bit)
+Go: minimum is at x[0] = 0.10764302056464771,   x[1] = -1.223351901171944
+Julia:       Minimizer: [0.107626844383003,            -1.2232596628723371]
+Perl: nimum is at x[0] = 0.107653,              x[1] = -1.223370
+Perl 6: mum is at x[0] = 0.10743450794656964,   x[1] = -1.2233956711774543
+Racket:                 (0.10760797905122492           -1.2232993981966753)
+Scala: minimum is at x : 0.10756393294495799,      y : -1.2234116852966237
+T/s minimum is at x[0] = 0.10768224291553158,   x[1] = -1.2233090211217854
+--*/
+
+-- Function for which minimum is to be found.
+function g(sequence x)
+    atom {x0,x1} = x
+    return (x0-1)*(x0-1)*exp(-x1*x1) + 
+               x1*(x1+2)*exp(-2*x0*x0)
+end function
+ 
+-- Provides a rough calculation of gradient g(x).
+function gradG(sequence x, atom h)
+    integer n = length(x)
+    sequence z = repeat(0, n)
+    atom g0 := g(x)
+    for i=1 to n do
+        x[i] += h
+        z[i] = (g(x) - g0) / h
+    end for
+    return z
+end function
+ 
+function steepestDescent(sequence x, atom alpha, tolerance)
+    integer n = length(x)
+    atom h = tolerance,
+         g0 = g(x) -- Initial estimate of result.
+ 
+    -- Calculate initial gradient.
+    sequence fi = gradG(x, h)
+ 
+    -- Calculate initial norm.
+    atom delG = sqrt(sum(sq_mul(fi,fi))),
+         b = alpha / delG
+ 
+    -- Iterate until value is <= tolerance.
+    while delG>tolerance do
+        -- Calculate next value.
+        x = sq_sub(x,sq_mul(b,fi))
+        h /= 2
+ 
+        -- Calculate next gradient.
+        fi = gradG(x, h)
+ 
+        -- Calculate next norm.
+        delG = sqrt(sum(sq_mul(fi,fi)))
+        b = alpha / delG
+ 
+        -- Calculate next value.
+        atom g1 = g(x)
+ 
+        -- Adjust parameter.
+        if g1>g0 then
+            alpha /= 2
+        else
+            g0 = g1
+        end if
+    end while
+    return x
+end function
+ 
+constant tolerance = 0.0000006, alpha = 0.1
+sequence x = steepestDescent({0.1,-1}, alpha, tolerance)
+printf(1,"Testing steepest descent method:\n")
+printf(1,"The minimum is at x[1] = %.16f,  x[1] = %.16f\n", x)
+
+{} = wait_key()

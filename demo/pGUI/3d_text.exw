@@ -15,6 +15,53 @@ include opengl.e
 --include winbmp.ew
 --include tga.e
 
+constant FW_BOLD = 700,
+         ANSI_CHARSET = 0,
+         OUT_OUTLINE_PRECIS = 8,
+         CLIP_DEFAULT_PRECIS = 0,
+         ANTIALIASED_QUALITY = 4,
+         FF_DONTCARE = 0
+--$
+
+atom xgdi32 = NULL
+
+function gdi32()
+    if xgdi32=NULL then
+        xgdi32 = open_dll("gdi32.dll")
+    end if
+    return xgdi32
+end function
+
+integer xCreateFont = 0
+
+function ewCreateFont(integer nHeight, nWidth, nEscapement, nOrientation, fnWeight, 
+                              fdwItalic, fdwUnderline, fdwStrikeOut, fdwCharSet, 
+                              fdwOutputPrecision, fdwClipPrecision, fdwQuality, 
+                              fdwPitchAndFamily, string szFace)
+    if xCreateFont=NULL then
+        xCreateFont = link_c_func(gdi32(),"CreateFontA",
+            {C_INT,     -- int nHeight
+             C_INT,     -- int nWidth
+             C_INT,     -- int nEscapement
+             C_INT,     -- int nOrientation
+             C_INT,     -- int fnWeight
+             C_ULONG,   -- DWORD fdwItalic
+             C_ULONG,   -- DWORD fdwUnderline
+             C_ULONG,   -- DWORD fdwStrikeOut
+             C_ULONG,   -- DWORD fdwCharSet
+             C_ULONG,   -- DWORD fdwOutputPrecision
+             C_ULONG,   -- DWORD fdwClipPrecision
+             C_ULONG,   -- DWORD fdwQuality
+             C_ULONG,   -- DWORD fdwPitchAndFamily
+             C_PTR},    -- LPCTSTR lpszFace 
+            C_ULONG)    -- HFONT
+    end if
+    return c_func(xCreateFont,{nHeight,nWidth,nEscapement,nOrientation,fnWeight,
+                               fdwItalic,fdwUnderline,fdwStrikeOut,fdwCharSet,
+                               fdwOutputPrecision,fdwClipPrecision,fdwQuality,
+                               fdwPitchAndFamily,szFace})
+end function
+
 
 constant scrolltext = allocate_string("3D Text")
 
@@ -28,7 +75,7 @@ atom font
 --  font_list = gl_genLists(128)
     font_list = glGenLists(128)
 
---/*
+--/!*
     -- Create a font
     font = ewCreateFont(12,
                         0,
@@ -47,7 +94,7 @@ atom font
 
     if ewSelectObject(glhDC, font) then
     end if
---*/
+--*!/
 
     -- Create the 3D font.
     if wglUseFontOutlines(glhDC,                -- Device context

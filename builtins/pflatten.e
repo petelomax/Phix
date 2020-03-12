@@ -37,7 +37,7 @@ sequence res = ""
 end function
 
 global function join_by(sequence s, integer step, integer n, object step_pad="   ", object n_pad="\n")
-sequence res = {}
+sequence res = {}, js
 integer nmax = n
     while length(s)>=step do
 --  while length(s)>step do     -- (needed for auto-widthwise partial<=step)
@@ -51,11 +51,17 @@ integer nmax = n
                 end if
             end for
         end for
-        res = append(res,join(s[1..step],n_pad)&n_pad)
+        js = join(s[1..step],n_pad)
         n = nmax
         s = s[step*n+1..$]
+--      if step!=1 or length(s)=0 then js &= n_pad end if
+        if step!=1 or length(s)=0 or length(step_pad)=0 then js &= n_pad end if
+        res = append(res,js)
     end while
     if length(s) then
+--      js = join(s,n_pad)
+--      if step!=1 then js &= n_pad end if
+--      res = append(res,js)
         res = append(res,join(s,n_pad)&n_pad)
         -- auto-widthwise partial<=step:
 --      res = append(res,join(s,iff(length(s)<=step?step_pad:n_pad))&n_pad)
@@ -73,7 +79,7 @@ string elem, fname = ""
 
         elem = path_elements[i]
 
-        if length(elem) and find(elem[$],"\\/") then
+        if length(elem) and find(elem[$],`\/`) then
             elem = elem[1..$-1]
         end if
 

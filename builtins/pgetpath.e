@@ -48,8 +48,8 @@ include file.e
 --include builtins\VM\pcurrdirN.e [DEAD, so above should be fine]
 
 --/**/include builtins\peekstr.e
---  filepaths = {"C:\\Program Files (x86)\\Phix\\builtins\\",
---               "C:\\Program Files (x86)\\Phix\\"}
+--  filepaths = {`C:\Program Files (x86)\Phix\builtins\`,
+--               `C:\Program Files (x86)\Phix\`}
 --  filenames = {{1, "pgetpath.e"}, {1, "pcurrdir.e"}, {1, "pcfunc.e"},
 --               {1, "pprntf.e"}, {1, "peekstr.e"}}
 --
@@ -82,11 +82,11 @@ integer k
     -- check for and remove any \..\ in filepath
     --
     while 1 do
-        k = match("\\..\\",filepath)
+        k = match(`\..\`,filepath)
         if k=0 then exit end if
         for j=k-1 to 1 by -1 do
             if filepath[j]='\\' then
-                -- remove "\\xxx\\.." (keeping filepath[k+3]==='\\')
+                -- remove `\xxx\..` (keeping filepath[k+3]==='\\')
 --/**/          filepath[j..k+2] = ""                                           --/* -- Phix
                 filepath = filepath[1..j-1] & filepath[k+3..length(filepath)]   --*/ -- RDS
                 k = 0 -- signal found
@@ -103,9 +103,9 @@ integer k
     -- repeat for any \.\
     --
     while 1 do
-        k = match("\\.\\",filepath)
+        k = match(`\.\`,filepath)
         if k=0 then exit end if
-        -- remove "\\." (keeping filepath[k+2]==='\\')
+        -- remove `\.` (keeping filepath[k+2]==='\\')
 --/**/  filepath[k..k+1] = ""                                           --/* -- Phix
         filepath = filepath[1..k-1] & filepath[k+2..length(filepath)]   --*/ -- RDS
     end while
@@ -113,9 +113,9 @@ integer k
     -- repeat for any \\
     --
     while 1 do
-        k = match("\\\\",filepath)
+        k = match(`\\`,filepath)
         if k=0 then exit end if
-        -- remove 1st "\\" of 2
+        -- remove 1st \ of 2
 --/**/  filepath[k..k] = ""                                             --/* -- Phix
         filepath = filepath[1..k-1] & filepath[k+1..length(filepath)]   --*/ -- RDS
     end while
@@ -240,7 +240,7 @@ atom buffer
             res = filepath
 --10/1/18:
             for i=length(filepath) to 1 by -1 do
-                if find(filepath[i],"\\/") then
+                if find(filepath[i],`\/`) then
                     res = get_proper_path(filepath[1..i-1])&filepath[i..$]
                     exit
                 end if
@@ -261,7 +261,7 @@ atom buffer
 --      end for
     else -- linux
         --
-        -- Replace any \\ in filepath with /
+        -- Replace any \ in filepath with /
         --
         while 1 do
             integer k = find('\\',filepath)
@@ -334,7 +334,7 @@ end function
 global function get_proper_dir(string filepath, bool remove_slash=false)
     filepath = get_proper_path(filepath,0)
     for i=length(filepath) to 1 by -1 do
-        if find(filepath[i],"\\/") then
+        if find(filepath[i],`\/`) then
             filepath = filepath[1..i-remove_slash]
             exit
         end if

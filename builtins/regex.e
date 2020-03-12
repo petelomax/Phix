@@ -924,7 +924,7 @@ sequence code
     sequence m = regex(code,target)
     if length(m) then
         for i=1 to length(m)/2-1 do
-            integer k = match(sprintf("\\%d",{i}),res)
+            integer k = match(sprintf(`\%d`,{i}),res)
             if k!=0 then
                 res[k..k+1] = target[m[i*2+1]..m[i*2+2]-1]
             end if
@@ -945,9 +945,9 @@ string res = ""
         integer ch = s[i],
                 k = find(ch,"\n\r\t\0")
         if k then
-            res &= "\\"&"nrt0"[k]
+            res &= `\`&"nrt0"[k]
         elsif ch<' ' or ch>#7E then
-            res &= sprintf("\\x%02x",ch)
+            res &= sprintf(`\x%02x`,ch)
         else
             res &= ch
         end if
@@ -1008,11 +1008,12 @@ integer i = 4
                 printf(1,"%03d %-6s%s\n",{i, r, "eol($)"})
                 i += 1
             case CLASS:
-                string class = iff(code[i+1]?"^","")&escape(code[i+2])
-                printf(1,"%03d %-6s%s [%s]\n",{i, r, "class", class})
+                string c = iff(code[i+1]?"^","")&escape(code[i+2])
+                printf(1,"%03d %-6s%s [%s]\n",{i, r, "class", c})
                 i += 3
             case WORD_BOUND:
-                string bound = iff(code[i+1]?"^\\b","\\b")
+--              string bound = iff(code[i+1]?"^\\b","\\b")
+                string bound = iff(code[i+1]?`^\b`,`\b`)
                 printf(1,"%03d %-6s%s %s\n",{i, r, "bound", bound})
                 i += 2
             case BKREF:

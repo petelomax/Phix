@@ -1,6 +1,6 @@
 --
--- demo\\rosetta\\Compiler\\parse.exw
--- ==================================
+-- demo\rosetta\Compiler\parse.exw
+-- ===============================
 --
 include parse.e
 
@@ -24,11 +24,29 @@ procedure print_ast(object t)
     end if
 end procedure
 
+function ptree(object t)
+    if sequence(t) then
+        integer t1 = t[1]
+        t[1] = tkNames[t1]
+        if not find(t1,{tk_Identifier,tk_String}) then
+            for i=2 to length(t) do
+                if t1=tk_Sequence and t[i]=NULL then
+                    t[i] = "NULL"
+                else
+                    t[i] = ptree(t[i])
+                end if
+            end for
+        end if
+    end if
+    return t
+end function
+
 procedure main(sequence cl)
     open_files(cl)
     toks = lex()
     object t = parse()
     print_ast(t)
+pp(ptree(t),{pp_Nest,10,pp_Pause,0,pp_IntCh,false})
     close_files()
 end procedure
 
@@ -40,7 +58,7 @@ end procedure
 --main({0,0,"deep.c"})
 --main({0,0,"gcd.c"})
 --main({0,0,"factorial.c"})
---main({0,0,"fibonacci.c"})
+main({0,0,"fibonacci.c"})
 --main({0,0,"FizzBuzz.c"})
 --main({0,0,"99bottles.c"})
 --main({0,0,"Mandelbrot.c"})

@@ -13,14 +13,14 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> i = match(<a href="sequence.htm">sequence</a> needle, 
+          <a href="integer.htm">integer</a> i = match(<a href="object.htm">object</a> needle, 
                                                       <a href="sequence.htm">sequence</a> haystack, 
                                                       <a href="integer.htm">integer</a> start=1,
                                                       <a href="integer.htm#bool">bool</a> case_insensitive=false)
         <br>
           <i>-- or --</i>
         <br>
-          <a href="integer.htm">integer</a> i = rmatch(<a href="sequence.htm">sequence</a> needle,
+          <a href="integer.htm">integer</a> i = rmatch(<a href="object.htm">object</a> needle,
                                                        <a href="sequence.htm">sequence</a> haystack, 
                                                        <a href="integer.htm">integer</a> start=length(haystack),
                                                        <a href="integer.htm#bool">bool</a> case_insensitive=false)
@@ -40,10 +40,15 @@
             <br>
             By default match is case sensitive, so "the" will <i>not</i> match "THE", however this can be changed by supplying true (1 or
             any non-zero value) in the fourth parameter. In order to supply the fourth (positional) parameter, you must also supply the third - 
-            unlike OpenEuphoria, which allows ",,1" syntax, that I have no plans to ever add. So, obviously, to alter <code>match(x,s)</code>
+            unlike Euphoria, which allows ",,1" syntax, that I have no plans to ever add. So, obviously, to alter <code>match(x,s)</code>
             to become case in-sensitive, it must become <code>match(x,s,1,true)</code>, and replace ",,true" with ",1,true". Alternatively you 
             can use <a href="procedures.htm#namedparams">named parameters</a>: <code>match("the",s,case_insensitive:=true)</code> however that 
-            is not supported by OpenEuphoria.
+            is not supported by Euphoria.
+            <br>
+            <br>
+            If needle is an atom (unlike Euphoria, which crashes) then match() and rmatch() behave as find() and rfind() respectively.<br>
+            <small>(Aside: As far as I know, that change only ever benefitted one dubious use of match(), long since lost, then again I have 
+            never seen any downside, so there is equally not much point undoing it.)</small>
             <br>
             <br>
             The match_from() routine, which predated optional parameters, is now deprecated (and never had case insensitivity). 
@@ -102,45 +107,55 @@ line = line[1..match("--",line)-1]  -- remove comment
          <td>
             The following illustrates the correct use of the start parameter for match() and rmatch():
 <!--eucode>
-string mm = "the cat sat on the mat"
+string mm = "tatatatatat"
 integer tt = 1
 sequence mr = {"fwd"}
 while 1 do
-    tt = match("the",mm,tt)
+    tt = match("tat",mm,tt)
     mr = append(mr,tt)
     if tt=0 then exit end if
-    tt += 1
+--  tt += 1
+    tt += 3
 end while
 mr = append(mr,"rev")
 tt = length(mm)
 while 1 do
-    tt = rmatch("the",mm,tt)
+    tt = rmatch("tat",mm,tt)
     mr = append(mr,tt)
     if tt=0 then exit end if
-    tt -= 1
+--  tt -= 1
+    tt = max(tt-3,0)
 end while
-?mr -- outputs {"fwd",1,16,0,"rev",16,1,0}
+?mr -- output:
+    -- +/-1: {"fwd",1,3,5,7,9,0,"rev",9,7,5,3,1,0}
+    -- +/-3: {"fwd",1,5,9,0,"rev",9,5,1,0}
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">string</font><font color="#000000"> mm</font><font color="#0000FF"> =</font><font color="#008000"> "the cat sat on the mat"
+<font color="#000000"></font><font color="#004080">string</font><font color="#000000"> mm</font><font color="#0000FF"> =</font><font color="#008000"> "tatatatatat"
 </font><font color="#004080">integer</font><font color="#000000"> tt</font><font color="#0000FF"> =</font><font color="#000000"> 1
 </font><font color="#004080">sequence</font><font color="#000000"> mr</font><font color="#0000FF"> = {</font><font color="#008000">"fwd"</font><font color="#0000FF">}
 </font><font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do
-</font><font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
+</font><font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"tat"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
 </font><font color="#000000">    mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
 </font><font color="#008080">    if</font><font color="#000000"> tt</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if
-</font><font color="#000000">    tt</font><font color="#0000FF"> +=</font><font color="#000000"> 1
+</font><font color="#000080"><i>--  tt += 1
+</i></font><font color="#000000">    tt</font><font color="#0000FF"> +=</font><font color="#000000"> 3
 </font><font color="#008080">end while
 </font><font color="#000000">mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#008000">"rev"</font><font color="#0000FF">)
 </font><font color="#000000">tt</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">mm</font><font color="#0000FF">)
 </font><font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do
-</font><font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> rmatch</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
+</font><font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> rmatch</font><font color="#0000FF">(</font><font color="#008000">"tat"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
 </font><font color="#000000">    mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)
 </font><font color="#008080">    if</font><font color="#000000"> tt</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if
-</font><font color="#000000">    tt</font><font color="#0000FF"> -=</font><font color="#000000"> 1
+</font><font color="#000080"><i>--  tt -= 1
+</i></font><font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#5E005E"> max</font><font color="#0000FF">(</font><font color="#000000">tt</font><font color="#0000FF">-</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)
 </font><font color="#008080">end while
-</font><font color="#0000FF">?</font><font color="#000000">mr</font><font color="#000080"><i> -- outputs {"fwd",1,16,0,"rev",16,1,0}</i></font>
+</font><font color="#0000FF">?</font><font color="#000000">mr</font><font color="#000080"><i> -- output:
+    -- +/-1: {"fwd",1,3,5,7,9,0,"rev",9,7,5,3,1,0}
+    -- +/-3: {"fwd",1,5,9,0,"rev",9,5,1,0}</i></font>
 </pre>
+            <br>
+            Adjusting tt by +/-1 will find overlapping matches, +/-3 [ie length("tat")] non-overlapping ones.
          </td>
         </tr>
         <tr>

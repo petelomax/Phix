@@ -1,0 +1,317 @@
+--
+-- demo\rosetta\Gallery_Generator.exw
+--
+--DEV: incomplete (port to pGUI in progress, will not yet compile)
+-- from https://openeuphoria.org/pastey/301.wc (gtk version below)
+--
+-- Simple example program in Euphoria language to create a html
+-- page with all the picture files in the current directory. 
+
+-- Marco Achury, 2008 
+-- Released to public domain.  Feel free to use and modify. 
+-- Updated for Eu 4.1b2 by Irv Mullins, Mar 9, 2019 
+-- Added input folder and output file validation, and -h help 
+
+--/* 
+--
+--  Usage: eui img_tag [Input Directory] [Output file] 
+-- 
+--  e.g. eui img_tag ~/Pictures ~/thumbs 
+--  This will create a 'thumbs.html' file in your home directory, 
+--  containing the images in your 'Pictures' folder. 
+--   
+--  eui img_tag Downloads ~/pix will create a 'pix.html' file  
+--  in your home folder containing the images in your Downloads folder. 
+--*/
+
+--/!*
+--include std/error.e 
+--include std/sort.e 
+--include std/filesys.e 
+--include std/text.e 
+--include std/console.e 
+--include std/graphics.e 
+--include std/sequence.e 
+ 
+integer fn -- File number for output 
+--sequence DIR -- List of images found 
+sequence images -- List of images found 
+--sequence CDate -- The current date 
+--sequence FDate -- Formated date for the foot note. 
+--sequence temp 
+sequence output = "output.html" -- default 
+sequence cmdline = command_line() 
+ 
+constant help_text = """
+
+* Program: Gallery_Generator.exw *
+
+  Usage: p Gallery_Generator [Input Directory] [Output file]
+
+  e.g. p Gallery_Generator ~/Pictures ~/thumbs
+
+  This will create a 'thumbs.html' file in your home directory,
+  containing the images in your 'Pictures' folder.
+
+"""
+
+if length(cmdline) >=3 then  
+    if match("-h",cmdline[3]) then 
+        text_color(YELLOW)  
+        clear_screen() 
+        puts(1,help_text)
+        abort(1) 
+    end if 
+    
+--  if not equal(current_dir(),cmdline[3]) and not chdir(cmdline[3]) then 
+    if not chdir(cmdline[3]) then 
+        crash("ERROR: Cannot find source directory %s",{cmdline[3]}) 
+--  else 
+--      chdir(cmdline[3]) 
+    end if 
+     
+    if length(cmdline) >= 4 then  
+        if atom(dir(pathname(cmdline[4]))) then 
+            crash("ERROR: Destination directory %s does not exist.",{cmdline[4]}) 
+        end if 
+        output = get_proper_path(cmdline[4]) 
+        if not match(".html",lower(output)) then output &= ".html" end if 
+    end if 
+end if 
+    
+sequence image_paths = { -- wilcard strings for images 
+        "*.jpg",  
+        "*.gif", 
+        "*.png", 
+        "*.bmp", 
+        "*.pic", 
+        "*.img", 
+        "*.dib", 
+        "*.svg", -- add others if necessary 
+    $} 
+       
+images = {} 
+ 
+-- Look for files with image extension 
+for i=1 to length(image_paths) do 
+    object ii = dir(current_dir() & "/" & image_paths[i])
+    if not atom(ii) then images &= ii end if
+end for 
+images = sort(images) 
+ 
+fn = open (output, "w") -- Open output file 
+if fn=-1 then 
+    crash("ERROR: Cannot save output! %s",{output}) 
+end if 
+ 
+string cd = current_dir(),
+--     cds = cd & "/"
+       cds = cd & "\\"
+ 
+function quote(string s)
+    if find(' ',s) then
+--erm??
+--      s = sprintf("\"%s\"",substitute(s,"\n","\\n"))
+        s = sprintf("\"%s\"",substitute(s,"\\","\\\\"))
+--      s = sprintf("\"%s\"",s)
+--      s = sprintf("'%s'",s)
+--      s = sprintf("`%s`",s)   -- NO!
+    end if
+    return s
+end function
+
+include builtins\timedate.e
+
+---------------------------------------------------------------------------------- 
+-- GENERATE HTML 
+---------------------------------------------------------------------------------- 
+printf(fn,"<html>\n") 
+printf(fn," <head>\n") 
+printf(fn,"  <title>Images in %s</title>\n",{cd})
+printf(fn," </head>\n") 
+printf(fn," <body>\n") 
+printf(fn,"  <h1>Image Gallery</h1>\n") 
+printf(fn,"  %d Files in %s\n  <br>\n  <br>\n  <hr>\n",{length(images),cd}) 
+ 
+printf(fn,"  <table border='1'>\n") 
+printf(fn,"   <tr>\n") 
+ 
+for i=1 to length(images) do 
+    sequence ii = images[i]
+    string fname = ii[D_NAME], 
+           qname = quote(cds & fname) 
+    printf(fn,"    <td>\n     <img src=%s alt=\"Picture: %s\" heigth=250 width=250/><br>\n",{qname,fname})
+     
+    printf(fn, "     <b>File&nbsp;Name:</b> %s<br>\n",{fname})
+     
+    printf(fn, "     <b>File&nbsp;Size:</b> %,d bytes <br>\n",ii[D_SIZE])
+     
+--  printf(fn, "     <b>Dated:</b> %04d/%02d/%02d\n    </td>\n",ii[D_YEAR..D_DAY])
+    printf(fn, "     <b>Dated:</b> %s\n    </td>\n",format_timedate(ii[D_YEAR..$],"dth Mmm YYYY"))
+       
+    if remainder(i,4)=0 then   
+        printf(fn, "   </tr>\n") 
+        if i<length(images) then
+            printf(fn, "   <tr>\n") 
+        end if 
+    end if 
+     
+end for 
+printf(fn, "   </tr>\n") 
+printf(fn, "  </table>\n") 
+ 
+--CDate = date() 
+-- 
+--FDate = sprint(1900+CDate[1]) & "/" & sprint(CDate[2]) & "/" & sprint (CDate[3]) 
+--FDate = FDate & " " & sprint(CDate[4]) & ":" & sprint(CDate[5]) 
+-- 
+--printf(fn, "<address><b>Page generated:</b> " & FDate) 
+--DEV...
+--include builtins\timedate.e
+string generated = format_timedate(date(),"Dddd, Mmmm dth, YYYY")
+printf(fn, "  <br>\n  <address><b>Page generated:</b> %s by a Phix powered script</address>\n",{generated}) 
+printf(fn, " </body>\n</html>\n") 
+ 
+printf(1,"Output file: %s has %d images.\n",{get_proper_path(output),length(images)}) 
+ 
+?"done"
+{} = wait_key()
+--abort(0)
+--*!/
+
+--/*
+--
+-- from https://openeuphoria.org/pastey/304.wc
+--
+-- BUG: you may have to change line 257 in GtkFileselector.e from
+-- result = get(dlg,"filename") to result = get(dlg,"filenames")  
+
+-- Simple example program in Euphoria language to create a html 
+-- page with all the picture files in the current directory. 
+
+-- Marco Achury, 2008 
+-- Released to public domain.  Feel free to use and modify. 
+
+-- Updated for Eu 4.1b2 by Irv Mullins 
+-- Added EuGTK interface Mar 21, 2019 
+
+--include GtkEngine.e 
+--include GtkFileSelector.e 
+--include std/filesys.e 
+--include std/datetime.e 
+--include std/net/url.e 
+include pGUI.e
+
+integer fn -- File number for output 
+sequence input = sprintf("~/%s/!*",{user_name}) -- default home 
+sequence output = canonical_path("~/output.html") -- default in home 
+
+constant style = """" 
+    div.quote { 
+        display: block; 
+        border: 1px solid black; 
+        padding: 15px; 
+        background: #D0D0D0; 
+        margin: 5px;}
+"""
+---------------------------------------------------------------------------------- 
+function GenerateHTML()
+---------------------------------------------------------------------------------- 
+object fname, fdate, fpath = pathname(input[1])
+
+object fpix, fsize
+
+    fn = open(output, "w")
+    if fn=-1 then Error(x,y,"Cannot open output file!")
+        abort(1)
+    end if
+
+    printf(fn,"<html>\n")
+    printf(fn," <head>\n")
+    printf(fn,"  <title>Images in %s</title>\n",{fpath})
+    printf(fn,"  <style>\n%s  </style>\n",{style})
+    printf(fn," </head>\n\n")
+    printf(fn," <body>\n")
+    printf(fn,"  <h1>Image Gallery</h1>\n\n")
+    printf(fn,"  %d Files from %s in %s\n<br>\n<br>\n<hr>",{length(input),fpath,output})
+    printf(fn,"  <table border='0'\n")
+    printf(fn,"   <tr>\n")
+
+    for i=1  to length(input) do
+
+        fname = url:decode(input[i])
+        fpix = create(GdkPixbuf,fname)
+        fsize = get(fpix,"size")
+        fdate = file_timestamp(fname)
+
+        printf(fn,"    <td width='25%'>\n")
+        printf(fn,"     <a href='%s'>\n",{fname})
+        printf(fn,"     <img src='%s' width='90%' height='50%'/></a>\n",{fname})
+        printf(fn,"     <br clear='all' />")
+        printf(fn,"     <div class='quote' width='%d' align='bottom'>\n",fsize[1])
+        printf(fn,"      <small><b>Path:</b> %s </small><br />\n",{fpath})
+        printf(fn,"      <small><b>Name:</b> %s </small><br />\n",{filename(fname)})
+
+        printf(fn,"      <small><b>File&nbsp;Size:</b> %,d bytes</small><br>\n",file_length(fname))
+        printf(fn,"      <small><b>Date:</b> %d/%d/%d Time: %d:%2d:%2d</small>\n</td>\n\n",fdate)
+
+        if remainder(i,4)=0 then
+            printf(fn,"     </div>\n    </tr>\n\n    <tr>\n")
+        end if
+
+    end for
+    printf(fn,"  </table>\n")
+
+    printf(fn,"<address><b>Page generated: %s</b>",{datetime:format(now())})
+    printf(fn, " by a Phix powered script.</address>")
+    printf(fn, " </body>\n</html>\n")
+    close(fn)
+
+    string msg = sprintf("<b>Input folder:</b> %s\n<b>Output file:</b> %s has <b>%d</b> images.",
+                     {fpath,output,length(input)})
+    if Info(x,y,msg,z,GTK_BUTTONS_OK_CANCEL)=MB_OK then
+        show_uri("file://" & output)
+    end if
+    return 1
+end function
+
+----------------------------- 
+function ViewHTML() -- when OK button clicked 
+----------------------------- 
+    show_uri("file://" & output)
+    return 1
+end function
+
+---------------------------------------------------------------------------------- 
+function SelectFolder()
+---------------------------------------------------------------------------------- 
+ifdef UNIX then fileselector:filters = {"images"} end ifdef
+ifdef WINDOWS then fileselector:filters = {"all"} end ifdef
+    fileselector:show_preview = TRUE
+    fileselector:select_multiple = TRUE
+    input = fileselector:Open(input)
+
+    GenerateHTML()
+
+    return 1
+end function
+
+constant
+    win = create(GtkWindow,"title=Gallery Maker,size=300x200,border=10,$destroy=Quit"),
+    pan = create(GtkBox,"orientation=vertical,spacing=10"),
+    lbl = create(GtkLabel,"Click the Open button to choose files, then click view"),
+    box = create(GtkButtonBox),
+    btn1 = create(GtkButton,"gtk-quit","Quit"),
+    btn2 = create(GtkButton,"gtk-open","SelectFolder"),
+    btn3 = create(GtkButton, "gtk-ok","ViewHTML")
+
+    gtk:add(win,pan)
+    gtk:add(pan,lbl)
+    gtk:add(box,{btn1,btn2,btn3})
+    pack_end(pan,box)
+
+    show_all(win)
+    main()
+
+--*/
+

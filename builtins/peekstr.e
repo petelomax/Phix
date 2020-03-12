@@ -14,10 +14,11 @@
 --
 global function peek_string(atom addr)
 integer ch
---string res
-sequence res
+string res
+--sequence res
     res = ""
-    while 1 do
+    if addr!=NULL then
+        while 1 do
 --/*
 --BOOL WINAPI IsBadReadPtr(
 --  _In_    const VOID *lp,
@@ -34,11 +35,12 @@ sequence res
               }
             if r9!=0 then ?9/0 end if
 --*/    
-        ch = peek(addr)
-        if ch=0 then exit end if
-        res &= ch
-        addr += 1
-    end while
+            ch = peek(addr)
+            if ch=0 then exit end if
+            res &= ch
+            addr += 1
+        end while
+    end if
     return res
 end function
 
@@ -301,6 +303,7 @@ end function
 --  ret
 --
 
+--/* old:
 global function peek_wstring(atom addr)
 atom ptr
     ptr = addr
@@ -311,17 +314,19 @@ atom ptr
 
     return peek2u({addr, (ptr-addr)/2})
 end function
+--*/
 
---/* or maybe...
+--!/!* or maybe...
 global function peek_wstring(atom addr)
-integer wch
-sequence res = {}
-    while 1 do
-        wch = peek2u(addr)
-        if wch=0 then exit end if
-        res &= wch
-        addr += 2
-    end while
+    sequence res = {}
+    if addr!=NULL then
+        while 1 do
+            integer wch = peek2u(addr)
+            if wch=0 then exit end if
+            res &= wch
+            addr += 2
+        end while
+    end if
     return res
 end function
---*/
+--!*!/

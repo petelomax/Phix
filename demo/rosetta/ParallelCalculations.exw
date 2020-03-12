@@ -1,0 +1,67 @@
+--
+-- demo\rosetta\ParallelCalculations.exw
+-- =====================================
+--
+--  Proof that more threads can make things faster...
+--
+include mpfr.e
+sequence res
+constant res_cs = init_cs()         -- critical section
+
+procedure athread()
+    mpz z = mpz_init()
+    while true do
+        integer found = 0
+        enter_cs(res_cs)
+        for i=1 to length(res) do
+            if integer(res[i])
+            and res[i]>0 then
+                found = i
+                res[i] = 0
+                exit
+            end if
+        end for
+        leave_cs(res_cs)
+        if not found then exit end if
+        mpz_ui_pow_ui(z,2,found)
+        mpz_add_ui(z,z,1)
+        object r = mpz_prime_factors(z, 1_000_000)
+        enter_cs(res_cs)
+        res[found] = r
+        r = 0
+        leave_cs(res_cs)
+    end while
+    exit_thread(0)
+end procedure
+
+for nthreads=1 to 5 do
+    atom t0 = time()
+    res = tagset(100)
+    sequence threads = {}
+    for i=1 to nthreads do
+        threads = append(threads,create_thread(routine_id("athread"),{}))
+    end for
+    wait_thread(threads)
+    integer k = largest(res,true)
+    string e = elapsed(time()-t0)
+    printf(1,"largest is 2^%d+1 with smallest factor of %d (%d threads, %s)\n",
+             {k,res[k][1][1],nthreads,e})
+end for
+delete_cs(res_cs)
+
+--/* sample output:
+largest is 2^64+1 with smallest factor of 274177 (1 threads, 9.5s)
+largest is 2^64+1 with smallest factor of 274177 (2 threads, 7.1s)
+largest is 2^64+1 with smallest factor of 274177 (3 threads, 5.8s)
+largest is 2^64+1 with smallest factor of 274177 (4 threads, 4.5s)
+largest is 2^64+1 with smallest factor of 274177 (5 threads, 4.5s)
+IE: Checking the first 1 million primes as factors of 2^(1..100)+1 takes 1 core 9.5s and less when spread over multiple cores.
+Note however that I added quite a bit of locking to mpz_prime_factors(), specifically around get_prime() and mpz_probable_prime(),
+[happy to leave it in since the effect on the single-thread case was neglible] so it is really only the mpz_divisible_ui_p() calls 
+and some control-flow scaffolding that is getting parallelised. I've only got 4 cores so the 5th thread was not expected to help.
+--*/
+
+puts(1,"done")
+{} = wait_key()
+
+

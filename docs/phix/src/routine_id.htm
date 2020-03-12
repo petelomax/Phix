@@ -13,62 +13,49 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> rid = routine_id(<a href="string.htm">string</a> st)
+          <a href="integer.htm">integer</a> rid = routine_id(<a href="string.htm">string</a> rtn_name)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
          </td>
-         <td>Return an integer id number, known as a
-          <font color="#030303">
-           <b>routine id</b>
-          </font>, for a user-defined procedure or function. <br>
-            The name of the procedure or function is given by the string sequence st. <br>
-            -1 is returned if the named routine cannot be found.
+         <td>
+            Return an integer id number, in fact an index to the symbol table, for a user-defined procedure or function.
+            <br>
+            <br>
+            The name of the procedure or function is given by the string sequence rtn_name.
+            <br>
+            <br>
+            -1 is returned if the named routine cannot be found (see Technicalia).
          </td>
         </tr>
         <tr>
          <td>
           <b>Comments:</b>
          </td>
-         <td>The id number can be passed to call_proc() or call_func(), to indirectly
-             call the routine named by st.
+         <td>
+            The id number can be passed to call_proc() or call_func(), to indirectly call the routine named by rtn_name.<br>
+            It can also be called directly, as of 0.8.1+ routine_ids are first class, see example 1 below.
           <br>
           <br>
-             The routine named by st must be visible, i.e. callable, at the
-             place where routine_id() is used to get the id number. Indirect calls to the
-             routine can appear earlier in the program than the definition
-             of the routine, but the id number can only be obtained in code that 
-             comes
-          <i>after</i> the definition of the routine - see example 2 below.
+            The routine named by rtn_name must be visible, i.e. callable, at the place where routine_id() is used to get the id number. 
+            Indirect calls to the routine can appear earlier in the program than the definition of the routine, but the id number can 
+            only be obtained in code that comes <i>after</i> the definition of the routine - see example 2 below.
           <br>
           <br> 
-             Once obtained, a valid
-          <font color="#030303">
-           <b>routine id</b>
-          </font>
-             can be used at
-          <font color="#020202">
-           <b>
-            <i>any</i>
-           </b>
-          </font> place 
-             in the program to call a routine indirectly via call_proc()/call_func().
-          <br>
-             Some typical uses of routine_id() are:
-          <br>
-             1. Creating a subroutine that takes another routine as a parameter. (See
-                  Example 2 below)
-          <br>
-             2. Setting up an Object-Oriented system.
-          <br>
-             3. Defining a call_back(). (See
-          <a href="ccall.htm">Calling C Functions</a>)
+            Once obtained, a valid <b>routine id</b> can be used at <b><i>any</i></b> place in the program to call a routine indirectly 
+            via call_proc()/call_func(), or now directly.
           <br>
           <br>
-             Note that C routines, callable by phix, also have routine ids.
-             See <a href="define_c_proc.htm">define_c_proc</a>() and <a href="define_c_func.htm">define_c_func</a>().
+            Some typical uses of routine_id() are:<br>
+             1. Creating a subroutine that takes another routine as a parameter. (See Example 2 below)<br>
+             2. Setting up an Object-Oriented system.<br>
+             3. Defining a call_back(). (See <a href="ccall.htm">Calling C Functions</a>)
+          <br>
+          <br>
+             Note that C routines, callable by Phix, also have (non-first-class) routine ids, but from
+             <a href="define_c_proc.htm">define_c_proc</a>() and <a href="define_c_func.htm">define_c_func</a>(), not this.
          </td>
         </tr>
         <tr>
@@ -80,15 +67,17 @@
 procedure foo()
     puts(1, "Hello World\n")
 end procedure
-constant r_foo_num = routine_id("foo")
-call_proc(r_foo_num, {})    -- same as calling foo()
+constant r_foo = routine_id("foo")
+call_proc(r_foo, {})    -- same as calling foo()
+r_foo()                 -- "", in 0.8.1+
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> foo</font><font color="#0000FF">()
 </font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Hello World\n"</font><font color="#0000FF">)
 </font><font color="#008080">end procedure
-constant</font><font color="#000000"> r_foo_num</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)
-</font><font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">r_foo_num</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- same as calling foo()</i></font>
+constant</font><font color="#000000"> r_foo</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)
+</font><font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">r_foo</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- same as calling foo()
+</i></font><font color="#000000">r_foo</font><font color="#0000FF">()                </font><font color="#000080"><i> -- "", in 0.8.1+</i></font>
 </pre>
          </td>
         </tr>
@@ -128,7 +117,7 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
 </font><font color="#0000FF">?</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#5E005E"> routine_id</font><font color="#800000">(</font><font color="#008000">"add1"</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#000080"><i> -- displays {2,3,4}</i></font>
 </pre>
             <br>
-            Note that add1 could be a private function in a completely different file; there is no need for it to be in scope when called.
+            Note that add1 could be a private function in a completely different file; there is no need for it to be in scope when (actually) called.
          </td>
         </tr>
         <tr>
@@ -218,6 +207,82 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
             statement. Of course the latter is much easier, and this method should only be used when some other reason makes it necessary, in this specific case that would
             be a combination of getting these things into the optable (so that pfileioN.e does not have to be recompiled every time when interpreting) and the subsequent 
             implications for thread-safety (in top-level code).
+            <br>
+            <br>
+            In Phix, a return value of 0 for failure would probably make more sense, however for compatibility with Euphoria, on which 0 <i>is</i> a valid routine_id,
+            it returns -1. Previous versions of Phix could also return -2 if there were multiple globals of that name, and -3 if the namespace did not exist, and some
+            (Phix-only) routines check the result for &lt;=0, or even &lt;=T_const1(==26) as nothing in the symbol table &lt;=26 can be a valid routine_id target.
+<!--
+            <br>
+            <br>
+            The SetHandler() routine in win32lib.ew performs special handling of -1 [clear] and -2 [prefix] in the (list of) routine_ids: that handling is unchanged
+            but there may be some subtle differences as routine_id() now generates 0 - my hope is that it exposes a few bugs that might have previously slipped under 
+            the radar, rather than causing problems it should not.
+
+old/partially attempted before deciding against:
+            <br>
+            <br>
+            If the name cannot be found, 0 is returned. For compatibility with Euphoria, which returns -1, and older versions of Phix, which returned -1/-2/-3, the 
+            result should be tested for &lt;=0 (should you see anything testing for "=-1", please change it to "&lt;=0" and, if appropriate, let me know).
+-->
+            <br>
+            <br>
+            As of 0.8.1, routine_ids are first class, ie [also] callable directly. Eg:
+<!--eucode>
+            procedure show(string s) ?s end procedure
+            constant r_show = routine_id("show")
+            -- show("40")   (normal non-routine_id call [still valid!])
+            call_proc(r_show,{"41"})                -- old style [""!]
+            r_show("42")                            -- ***new***
+
+            function f(integer i) return i end function
+            constant r_f = routine_id("f")
+            --?f(40)        (normal non-routine_id call [still valid!])
+            ?call_func(r_f,{41})                    -- old style [""!]
+            ?r_f(42)                                -- ***new***
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">            procedure</font><font color="#000000"> show</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">) ?</font><font color="#000000">s</font><font color="#008080"> end procedure
+            constant</font><font color="#000000"> r_show</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"show"</font><font color="#0000FF">)
+</font><font color="#000080"><i>            -- show("40")   (normal non-routine_id call [still valid!])
+</i></font><font color="#7060A8">            call_proc</font><font color="#0000FF">(</font><font color="#000000">r_show</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"41"</font><font color="#800000">}</font><font color="#0000FF">)               </font><font color="#000080"><i> -- old style [""!]
+</i></font><font color="#000000">            r_show</font><font color="#0000FF">(</font><font color="#008000">"42"</font><font color="#0000FF">)                           </font><font color="#000080"><i> -- ***new***
+
+</i></font><font color="#008080">            function</font><font color="#000000"> f</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> i</font><font color="#008080"> end function
+            constant</font><font color="#000000"> r_f</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"f"</font><font color="#0000FF">)
+</font><font color="#000080"><i>            --?f(40)        (normal non-routine_id call [still valid!])
+</i></font><font color="#0000FF">            ?</font><font color="#7060A8">call_func</font><font color="#0000FF">(</font><font color="#000000">r_f</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">41</font><font color="#800000">}</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- old style [""!]
+</i></font><font color="#0000FF">            ?</font><font color="#000000">r_f</font><font color="#0000FF">(</font><font color="#000000">42</font><font color="#0000FF">)                               </font><font color="#000080"><i> -- ***new***</i></font>
+</pre>
+            <br>
+            Any integer followed by '(' is treated as a call_func() or a call_proc(), depending on the context, and obviously as above the normal/old styles remain perfectly 
+            valid and fully supported. However I decided against supporting this sort of thing (at least not before someone comes up with a compelling reason to):
+<!--eucode>
+            --?r_f(r_f)(43)
+            --r_f(r_show)(44)
+            --sequence rids = {r_show}
+            --rids[1](45)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>            --?r_f(r_f)(43)
+            --r_f(r_show)(44)
+            --sequence rids = {r_show}
+            --rids[1](45)</i></font>
+</pre>
+            <br>
+            Instead you have to code integer rid=r_f(r_f) then ?rid(43), etc. (Some wag might say that makes them second class, but it is not like you could ever do anything 
+            like that with "show" anyway.) Note that i(5) where i is not a routine_id will fail just as badly and in exactly the same way as call_func/proc(i,{5}) always did.<br>
+            Likewise the additional compile-time validation of argument types that occurs on a show() call is not performed/deferred until run-time on r_show(), in exactly 
+            the same way as it always was for explicit/old-style call_func/proc() calls. <br>
+            These changes (first class routine_ids) were made to complement the syntax enhancements for the new struct/class handling, specifically class methods.
+            <br>
+            <br>
+            There is inevitably<sup><small>1</small></sup> perhaps three or four times as much overhead on a call_func/proc(), and equivalently on r_show()-style, as there is 
+            on a direct call, however that should be of no concern unless you are invoking it millions of times, in which case I would suggest you consider three versions of 
+            a tight inner loop rather than just the one inner loop that can call any of three different routines.<br>
+            <sup><small>1</small></sup> The arguments are boxed into a single sequence, additional validation occurs on rid and the length of said sequence, then each element
+            of the sequence is individually extracted and put into place (same deal for r_show()-style), whereas of course a direct call has no rid to validate, the number 
+            and type of arguments is validated (and fairly often only) at compile-time, and each argument is put directly into place.
          </td>
         </tr>
        </table>

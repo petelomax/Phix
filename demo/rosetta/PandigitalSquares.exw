@@ -1,0 +1,291 @@
+--
+-- demo\rosetta\PandigitalSquares.exw
+-- ==================================
+--
+-- for https://rosettacode.org/wiki/First_perfect_square_in_base_N_with_N_unique_digits#Phix
+-- Partial translation of VB with bitmap idea from C++ and adopting the digit-array approach from pascal
+-- instead of base conversion.
+-- sped things up by a factor of 4, but still no match...
+-- [this is probably quite a good target for improving the quality of the generated code]
+
+--with profile_time
+include mpfr.e
+atom t0 = time()
+constant chars = "0123456789abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz|",
+--       use_hll_code = false
+         use_hll_code = true
+
+function str_conv(sequence s, integer mode=+1)
+-- mode of +1: eg {1,2,3} -> "123", mode of -1 the reverse.
+-- note this doesn't really care what base s/res are in.
+    {sequence res,integer dcheck} = iff(mode=+1?{"",9}:{{},'9'})
+    for i=1 to length(s) do
+        integer d = s[i]
+        d += mode*iff(d>dcheck?'a'-10:'0')
+        res &= d
+    end for
+    return res
+end function
+ 
+--with trace
+procedure do_one(integer base)
+-- tabulates one base
+    integer bm1 = base-1,
+            dr = iff(and_bits(base,1) ? floor(base/2) : 0),
+            id = 0, 
+            rc = 0,
+            sdri
+    atom st = time()
+    sequence sdr = repeat(0,bm1)
+    for i=0 to bm1-1 do
+        sdri = mod(i*i,bm1)
+        rc += (sdri==dr)
+        sdr[i+1] = iff(sdri=0 ? bm1 : sdri)
+    end for
+    if dr>0 then
+        id = base
+        for i=1 to dr do
+            sdri = sdr[i+1]
+            if sdri>=dr
+            and id>sdri then
+                id = sdri
+            end if
+        end for
+        id -= dr
+    end if
+    string sq = chars[1..base]
+    if id>0 then sq = sq[1..id]&chars[id+1]&sq[id+1..$] end if
+    sq[1..2] = "10"
+    mpz sqz = mpz_init(),
+        rtz = mpz_init(),
+        dnz = mpz_init(),
+        tmp = mpz_init()
+    mpz_set_str(sqz,sq,base)
+    mpz_sqrt(rtz,sqz)
+    mpz_add_ui(rtz,rtz,1)       -- rtz = sqrt(sqz)+1
+    mpz_mul_si(dnz,rtz,2)
+    mpz_add_si(dnz,dnz,1)       -- dnz = rtz*2+1
+    mpz_mul(sqz,rtz,rtz)        -- sqz = rtz * rtz
+    integer d = 1,
+            inc = 1
+    if base>3 and rc>0 then
+        while mpz_fdiv_ui(sqz,bm1)!=dr do 
+            -- align sqz to dr
+            mpz_add_ui(rtz,rtz,1)   -- rtz += 1
+            mpz_add(sqz,sqz,dnz)    -- sqz += dnz
+            mpz_add_ui(dnz,dnz,2)   -- dnz += 2
+        end while
+        inc = floor(bm1/rc)
+        if inc>1 then
+            mpz_mul_si(tmp,rtz,inc-2)
+            mpz_sub_ui(tmp,tmp,1)
+            mpz_add(dnz,dnz,tmp)    -- dnz += rtz*(inc-2)-1
+        end if
+        d = inc * inc
+        mpz_add(dnz,dnz,dnz)
+        mpz_add_ui(dnz,dnz,d)       -- dnz += dnz + d
+    end if
+    d *= 2
+    atom mask, fullmask = power(2,base)-1 -- ie 0b111..
+    integer icount = 0
+    mpz_set_si(tmp,d)
+    sequence sqi = str_conv(mpz_get_str(sqz,base), mode:=-1),
+             dni = str_conv(mpz_get_str(dnz,base), mode:=-1),
+             dti = str_conv(mpz_get_str(tmp,base), mode:=-1)
+--?{"d",d,"dti",dti,"dtz",mpz_get_str(dnz,base),"dni",dni}
+    while true do
+--      sq = mpz_get_str(sqz,base)
+--?{"sq",sq,"sqi",sqi}
+        if use_hll_code then
+            mask = 0
+            for i=1 to length(sqi) do
+                mask = or_bits(mask,power(2,sqi[i]))
+            end for
+        else
+--          ?9/0 -- see below, inline part 1
+            mask = length(sqi)
+            #ilASM{
+                [32]
+                    mov esi,[sqi]
+                    mov edx,[mask]
+                    shl esi,2
+                    xor eax,eax
+                  @@:
+                    mov edi,1
+                    mov cl,[esi]
+                    shl edi,cl
+                    add esi,4
+                    or eax,edi
+                    sub edx,1
+                    jnz @b
+                    mov [mask],eax
+                [64]
+                    mov rsi,[sqi]
+                    mov rdx,[mask]
+                    shl rsi,2
+                    xor rax,rax
+                  @@:
+                    mov rdi,1
+                    mov cl,[rsi]
+                    shl rdi,cl
+                    add rsi,8
+                    or rax,rdi
+                    sub rdx,1
+                    jnz @b
+                    mov [mask],rax
+                []
+                  }
+        end if
+        if mask=fullmask then exit end if
+--      mpz_add(sqz,sqz,dnz)        -- sqz += dnz
+--      mpz_add_ui(dnz,dnz,d)       -- dnz += d
+        integer carry = 0, sidx, si
+        if use_hll_code then
+            for sidx=-1 to -length(dni) by -1 do
+                si = sqi[sidx]+dni[sidx]+carry
+                carry = si>=base
+                sqi[sidx] = si-carry*base
+            end for
+            sidx += length(sqi)+1
+            while carry and sidx do
+                si = sqi[sidx]+carry
+                carry = si>=base
+                sqi[sidx] = si-carry*base
+                sidx -= 1
+            end while
+        else
+--          ?9/0 -- see below, inline part 2
+            if length(dni)=length(sqi) then
+                sqi = 0&sqi
+            end if
+            #ilASM{
+                [32]
+                    mov esi,[sqi]
+                    mov edi,[dni]
+                    mov ecx,[ebx+esi*4-12]  -- length(sqi)
+                    mov edx,[ebx+edi*4-12]  -- length(dni)
+                    lea esi,[esi+ecx-1]
+                    lea edi,[edi+edx-1]
+                    sub ecx,edx
+                    xor eax,eax
+                    lea esi,[ebx+esi*4]     -- locate sqi[$]
+                    lea edi,[ebx+edi*4]     -- locate dni[$]
+                    push ecx
+                    mov ecx,[base]
+                  @@:
+                    add eax,[esi]
+                    add eax,[edi]
+                    div cl
+                    mov [esi],ah
+                    xor ah,ah
+                    sub esi,4
+                    sub edi,4
+                    sub edx,1
+                    jnz @b
+                    pop edx
+                  @@:
+                    test eax,eax
+                    jz @f
+                    add eax,[esi]
+                    div cl
+                    mov [esi],ah
+                    xor ah,ah
+                    sub esi,4
+                    sub edx,1
+                    jnz @b
+                  @@:
+                    mov [carry],eax
+                [64]
+                    mov rsi,[sqi]
+                    mov rdi,[dni]
+                    mov rcx,[rbx+rsi*4-24]  -- length(sqi)
+                    mov rdx,[rbx+rdi*4-24]  -- length(dni)
+                    lea rsi,[rsi+rcx*2-2]
+                    lea rdi,[rdi+rdx*2-2]
+--                  lea rsi,[rbx+rsi*4]
+--                  lea rdi,[rbx+rdi*4]
+--                  lea rsi,[rsi+rcx*8-8]   -- locate sqi[$]
+--                  lea rdi,[rdi+rdx*8-8]   -- locate dni[$]
+--                  shl rsi,2
+--                  shl rdi,2
+                    sub rcx,rdx
+                    xor rax,rax
+                    lea rsi,[rbx+rsi*4]     -- locate sqi[$]
+                    lea rdi,[rbx+rdi*4]     -- locate dni[$]
+                    push rcx
+                    mov rcx,[base]
+                  @@:
+                    add rax,[rsi]
+                    add rax,[rdi]
+                    div cl
+                    mov [rsi],ah
+                    xor ah,ah
+                    sub rsi,8
+                    sub rdi,8
+                    sub rdx,1
+                    jnz @b
+                    pop rdx
+                  @@:
+                    test rax,rax
+                    jz @f
+                    add rax,[rsi]
+                    div cl
+                    mov [rsi],ah
+                    xor ah,ah
+                    sub rsi,8
+                    sub rdx,1
+                    jnz @b
+                  @@:
+                    mov [carry],rax
+                []
+                  } 
+        end if
+        if carry then
+            sqi = carry&sqi
+        end if
+        carry = 0
+        for sidx=-1 to -length(dti) by -1 do
+            si = dni[sidx]+dti[sidx]+carry
+            carry = floor(si/base)
+            dni[sidx] = remainder(si,base)
+        end for
+        sidx += length(dni)+1
+        while carry and sidx do
+            si = dni[sidx]+carry
+            carry = si>=base
+            dni[sidx] = si-carry*base
+            sidx -= 1
+        end while
+        if carry then
+            dni = carry&dni
+        end if
+--?{"dni",dni,"dnz",mpz_get_str(dnz,base)}
+--{} = wait_key()
+        icount += 1
+    end while
+    mpz_set_si(tmp,icount)
+    mpz_mul_si(tmp,tmp,inc)
+    mpz_add(rtz,rtz,tmp)            -- rtz += icount * inc
+    sq = str_conv(sqi, mode:=+1)
+    string rt = mpz_get_str(rtz,base),
+           idstr = iff(id?sprintf("%d",id):" "),
+           ethis = elapsed_short(time()-st),
+           etotal = elapsed_short(time()-t0)
+    printf(1,"%3d %3d %s %18s -> %-28s %10d %8s     %8s\n",
+             {base, inc, idstr, rt, sq, icount, ethis, etotal})
+    {sqz,rtz,dnz,tmp} = mpz_free({sqz,rtz,dnz,tmp})
+end procedure
+ 
+puts(1,"base inc id             root -> square" &
+        "                       test count    time        total\n")
+for base=2 to 19 do
+--for base=2 to 25 do
+--for base=2 to 28 do
+    do_one(base)
+end for
+printf(1,"completed in %s\n", {elapsed(time()-t0)})
+
+{} = wait_key()
+
+
+

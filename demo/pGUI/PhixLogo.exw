@@ -1,0 +1,1117 @@
+--
+-- demo\pGui\PhixLogo.exw
+-- ======================
+--
+--  Create a phix logo (experimental) [copied from demo/rosetta/SierpinskyPentagon.exw]
+--
+--  ***** Make this more like Microsoft Visio ***** -- lines/curves (see cdCanvasBegin)/shapes/etc...
+--
+--  1) draw a grid (optional).
+--  2) show size (etc) in new lhs(/rhs..) panel. Also a menu (layout options, draw svg, save as...).
+--  3) add a treeview of shapes(/lines) (selectable/collapseable/groupable/dragable)
+--  4) get mouse-position stuff working (see morphion)
+--  5) mouseover to highlight nearest thing (center/point/line)
+--
+-- demo\pGUI\aaline.exw
+--
+--  draw anti-aliased lines (iif USE_OPENGL==1)
+--
+--  This program was written in an attempt to figure out precisely what makes opengl
+--  draw anti-aliased lines, and/or how to add such capability to other programs. 
+--  I am still somewhat in the dark, but obviously CD_GL is critical, and I learnt 
+--  that the canvas_resize_cb thing is too. Anyway: it is short, sweet, and works.
+--
+--  This is effectively a cut-down version of demo\rosetta\XiaolinWuLine.exw,
+--  though things actually went the other way round.
+--
+--  I also learnt thet cdCanvasArc draws anti-aliased lines whereas cdCanvasSector
+--  does not; draw the latter ontop of cdCanvasArc and cdCanvasLine for best effect.
+--  Also note that cdCanvasSector draws a chord under opengl but a pie-segment when
+--  not.
+
+include pGUI.e
+
+-- For Edita/Tools/Re-indent source:
+--#withtype Ihandle
+--#withtype Ihandln
+--#withtype cdCanvas
+
+Ihandle dlg, canvas
+cdCanvas cd_canvas
+
+constant USE_OPENGL = 01    -- (if 0, it draws thinner bresenham lines)
+
+--/*
+enum FILL,BORDER
+constant colours = {CD_BLUE,CD_RED},
+         modes = {CD_FILL,CD_CLOSED_LINES}
+sequence pts = {{319,606},{150,86},{591,407},{46,407},{487,86}}
+--*/
+
+function canvas_action_cb(Ihandle canvas)
+--  if USE_OPENGL then
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+--  end if
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
+--  cdCanvasSetBackground(cd_canvas, CD_RED)
+    cdCanvasLine(cd_canvas,0,0,200,200)
+    cdCanvasLine(cd_canvas,w,0,200,200)
+    cdCanvasLine(cd_canvas,0,h,200,200)
+    cdCanvasLine(cd_canvas,w,h,200,200)
+    cdCanvasArc(cd_canvas, 200, 200, 200, 200, 0, 360)
+--  cdCanvasSector(cd_canvas, 200, 200, 200, 200, 0, 360) 
+--  cdCanvasSetForeground(cd_canvas, CD_RED)
+    cdCanvasArc(cd_canvas, 200, 200, 300, 100, 0, 360)
+--  cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+--test (note that, w/o the lines, this has bresenham edges)
+--  cdCanvasBegin(cd_canvas,CD_FILL)
+--  cdCanvasVertex(cd_canvas,w,h)
+--  cdCanvasVertex(cd_canvas,0,h)
+--  cdCanvasVertex(cd_canvas,200,200)
+--  cdCanvasEnd(cd_canvas)
+--/test
+--/*
+--  cdCanvasActivate(cddbuffer)
+--  cdCanvasClear(cddbuffer)
+    cdCanvasSetFillMode(cd_canvas, CD_WINDING)
+--  cdCanvasSetLineWidth(cd_canvas, round(radius/100)+1) 
+    for mode=FILL to BORDER do
+        cdCanvasSetForeground(cd_canvas,colours[mode])
+        cdCanvasBegin(cd_canvas,modes[mode])
+--      for i=1 to length(pts) do
+--          integer {x,y} = pts[i]
+--          cdCanvasVertex(cd_canvas,x,y)
+--      end for
+        for a=90 to 666 by 144 do
+            atom r = (a+rot)*CD_DEG2RAD,
+                 x = radius*cos(r)+cx,
+                 y = radius*sin(r)+cy
+            cdCanvasVertex(cd_canvas, x, y)
+        end for
+        cdCanvasEnd(cd_canvas)
+    end for
+--*/
+
+    cdCanvasFlush(cd_canvas)
+--  if USE_OPENGL then
+--      IupGLSwapBuffers(canvas)    -- (no diff?)
+--  end if
+    return IUP_DEFAULT
+end function
+
+function canvas_map_cb(Ihandle canvas)
+    if USE_OPENGL then
+--      integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{{canvas_width,canvas_height}} -- {{8,8}}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    else
+        cd_canvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
+    end if
+    cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
+    cdCanvasSetForeground(cd_canvas, CD_BLUE)
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    if USE_OPENGL then
+        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{canvas_width,canvas_height} -- {638,478}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+        cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    end if
+    return IUP_DEFAULT
+end function
+
+function esc_close(Ihandle /*ih*/, atom c)
+-- (I like all my demos to close when escape is keyed)
+    if c=K_ESC then return IUP_CLOSE end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+--  IupImageLibOpen()
+--  if USE_OPENGL then
+--      IupGLCanvasOpen()   -- (no diff?)
+--  end if
+    if USE_OPENGL then
+        canvas = IupGLCanvas()
+--      IupSetAttribute(canvas, "BUFFER", "DOUBLE") -- (no diff?)
+    else
+        canvas = IupCanvas()
+    end if
+    IupSetAttribute(canvas, "RASTERSIZE", "640x480")
+    IupSetCallback(canvas, "ACTION", Icallback("canvas_action_cb"))
+    IupSetCallback(canvas, "MAP_CB", Icallback("canvas_map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    dlg = IupDialog(IupVbox({canvas}))
+    IupSetAttribute(dlg, "TITLE", "Anti-Aliased Lines")
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+
+--/*
+Another version, Inspired by Ruby:
+<lang Phix>puts(1,"""
+   __    ________
+  /_/\  / ______ \
+  \ \ \/ /\____/ /\ __
+   \ \ \/ /   / / //_/\
+    \ \ \/___/ / / \_\/_  __
+    /\ \______/ /    /_/\/ /\
+   / /\  ____ \ \    \ \ \/ /
+  / / /\ \ \ \ \ \    \_\  /
+ / / /  \ \ \ \ \ \   / /  \
+/_/ /    \ \ \ \ \ \ /_/ /\ \
+\_\/      \_\/  \_\/ \_\/\_\/
+""")
+--*/
+--  Four-way:
+--  1: standard pGUI drawing
+--  2: create svg, convert to png via librsvg [windows only as coded, ie ".dll"], load and show
+--  3: embed svg in a html page and open in browser.
+--  4: from an ast (same for both) generate 4a) phix code, embed in template and run, and
+--                                          4b) javascript, "" but then open in a browser.
+--      The differences are expected to be relatively minor, eg "then .. end if" <=> "{ .. }".
+--      The templates are not expected to be particularly generic, for instance just replace
+--      a single "%draw(w,h)%"; leaving things like resize and +/- key handling done by hand 
+--      in each template for now, and just assume the pre-existence of cddbuffer etc as rqd.
+--      [The final beast may in fact be limited to a fairly small set of available templates.]
+--      Likewise feel free to write mini-shims, eg cdCanvasBegin(cddbuffer) <==> ctx.beginPath.
+--      [Such shims to become permanent fixtures of phix.js, and not written out every time.]
+--      You should be able to recreate the ast from the output code fragment. In fact the ast,
+--      generator, and parser should probably all be developed/designed in parallel anyway.
+--      The javascript output can either display directly or generate an inline svg, apart from
+--      suspecting the latter might prove easier I have no real preference, and obviously there
+--      is no suggestion the javascript should write svg/html/parse/create ast or invoke librsvg,
+--      and likwise in a similar fashion the /generated/ phix code should be kept quite simple.
+--      First step, obvs, is to get phix/js codes working manually, and as-alike-as-possible.
+--
+-- The distributed version also contains a fledgling transpiler, able to generate [[this page]].
+--
+--TODO: generate test.exw that runs the same (4a)...
+--      make 32/64 bit seamless...
+
+--/*
+include builtins\librsvg.e          -- experimental...
+set_librsvg_dir(`C:\gtkX\bin`)  -- ok!!
+--set_librsvg_dir(`C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr\i686-w64-mingw32\sys-root\mingw\bin`)    -- ok!!
+--set_librsvg_dir(`C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr\x86_64-w64-mingw32\sys-root\mingw\bin`)  -- ok!! (64-bit!!)
+--set_librsvg_dir(`C:\Program Files (x86)\Phix98\demo\eugtk_w32\pygi-aio-3.4.2rev11\gtk`)   -- ok!!
+--set_librsvg_dir(`C:\Program Files (x86)\Phix98\demo\gtk+-bundle_3.6.4-20130921_win32\bin`)    -- ok!! (same version as C:\gtkX\bin)
+
+include pGUI.e
+
+Ihandle dlg, canvas, label
+cdCanvas cddbuffer, cdcanvas
+--DEV
+--integer level = 0
+constant USE_OPENGL = 01    -- (if 0, it draws thinner bresenham lines)
+
+constant TITLE = "Phix Logo"
+--DEV
+--       _72_degrees = 72*CD_DEG2RAD,   -- exterior angle
+--       _72_degrees = 72*PI/180,   -- exterior angle
+--       _72_degrees = 72*Math.PI/180,  -- exterior angle
+--       starting_angle = 3*_72_degrees
+--       cos_72_degrees = cos(_72_degrees)
+--       scaleFactor = 1/(2+cos_72_degrees*2)
+
+integer svgfn = -1
+--bool javascript = false
+
+function reversi(sequence s, integer w, h)
+    sequence res = {}
+    for i=1 to h do
+        res &= s[-w..-1]
+--      res &= s[-w-i+1..-i]
+        s = s[1..-w-1]
+--      s = s[1..-w]
+    end for
+--  if s!={} then ?9/0 end if
+    return res
+end function
+
+enum FILL,BORDER
+constant colours = {CD_BLUE,CD_RED},
+         modes = {CD_FILL,CD_CLOSED_LINES}
+
+--procedure drawLogo(atom x, y, side, w, h, integer depth)
+--procedure drawLogo(atom x, y, side, w, h)
+procedure drawLogo(atom w, h)
+--?{w,h}
+--/*
+    atom angle = starting_angle
+--  if svgfn!=0 then
+    if 0 then
+for fc=1 to 2 do
+        if svgfn!=-1 then
+            printf(svgfn,`<polygon points="`)
+        else
+--          cdCanvasBegin(cddbuffer,CD_FILL)
+--good:
+--          cdCanvasBegin(cddbuffer,CD_CLOSED_LINES)
+            cdCanvasBegin(cddbuffer,iff(fc=1?CD_FILL:CD_CLOSED_LINES))
+--          cdCanvasBegin(cddbuffer,iff(fc=2?CD_FILL:CD_CLOSED_LINES))
+        end if
+        -- draw from the top
+        for i=1 to 5 do
+            x += cos(angle) * side
+            y -= sin(angle) * side
+            if svgfn!=-1 then
+                printf(svgfn,"%.3f %.3f ",{x,y})
+            else
+                cdCanvasVertex(cddbuffer, w+x, h-y)
+            end if
+            angle += _72_degrees
+        end for
+        if svgfn!=-1 then
+--          printf(svgfn,"\" transform=\"translate(10,-10) rotate(0)\"/>\n")
+            printf(svgfn,"\" />\n")
+            exit
+        else
+            cdCanvasEnd(cddbuffer)
+        end if
+end for
+    end if
+--*/
+--/!* note: bresenham edges... [erm, CD_PATH_FILL, but CD_PATH_FILLSTROKE is ok]
+--int {w, h} = cdCanvasGetSize(canvas?cddbuffer)
+  /* Draw a filled path at center-right (looks like a weird fish). 
+     Notice that in PDF the arc is necessarily a circle arc, and not an ellipse. */
+--/*
+atom canvas=cddbuffer
+    cdCanvasSetForeground(canvas, CD_GREEN);
+--  cdCanvasSetFillMode(canvas, CD_WINDING)
+--for i=1 to 2 do
+    cdCanvasBegin(canvas, CD_PATH);
+-->
+    cdCanvasPathSet(canvas, CD_PATH_MOVETO);
+    cdCanvasVertex(canvas, w/2, h/2);
+--  cdCanvasVertex(canvas, 10, h)
+    cdCanvasPathSet(canvas, CD_PATH_LINETO);
+    cdCanvasVertex(canvas, w/2+30, h/2+50);
+--  cdCanvasVertex(canvas, w/2, h)
+    cdCanvasPathSet(canvas, CD_PATH_LINETO);
+    cdCanvasVertex(canvas, w/2+50, h/2+50);
+    cdCanvasPathSet(canvas, CD_PATH_CURVETO);
+    cdCanvasVertex(canvas, w/2+50+50, h/2+200-50); /* control point for start */
+    cdCanvasVertex(canvas, w/2+50+80, h/2+250-50); /* control point for end */
+    cdCanvasVertex(canvas, w/2+50+80, h/2+200-50); /* end point */
+
+--  cdCanvasPathSet(canvas, CD_PATH_STROKE);
+--  cdCanvasEnd(canvas);
+--  cdCanvasSetForeground(canvas, CD_BLUE);
+--  cdCanvasBegin(canvas, CD_PATH);
+
+    cdCanvasPathSet(canvas, CD_PATH_CURVETO);
+    cdCanvasVertex(canvas, w/2+50+80, h/2+150-50);
+    cdCanvasVertex(canvas, w/2+50+50, h/2+100-50);
+    cdCanvasVertex(canvas, w/2+50+200, h/2+100-50);
+    cdCanvasPathSet(canvas, CD_PATH_LINETO);
+--  cdCanvasVertex(canvas, w/2+50+200, h/2-50);
+    cdCanvasVertex(canvas, w/2+50+200, h/2+100);
+    cdCanvasPathSet(canvas, CD_PATH_ARC);
+    cdCanvasVertex(canvas, w/2+100, h/2);  /* center */
+    cdCanvasVertex(canvas, 200, 100);  /* width, height */
+    cdCanvasVertex(canvas, -30*1000, -170*1000);    /* start angle, end angle (degrees / 1000) */
+--  cdCanvasPathSet(canvas, CD_PATH_LINETO);
+--  cdCanvasVertex(canvas, 10, h)
+--  cdCanvasPathSet(canvas, CD_PATH_LINETO);
+--  cdCanvasVertex(canvas, w/2, h)
+--  cdCanvasPathSet(canvas, CD_PATH_LINETO);
+--  cdCanvasVertex(canvas, w/2-10, h-10)
+--  cdCanvasPathSet(canvas, CD_PATH_LINETO);
+--  cdCanvasVertex(canvas, w/2, h/2)
+
+--  cdCanvasPathSet(canvas, CD_PATH_CLOSE);
+--  cdCanvasPathSet(canvas, CD_PATH_STROKE);
+    cdCanvasPathSet(canvas, CD_PATH_FILL);
+--  cdCanvasPathSet(canvas, CD_PATH_FILLSTROKE);
+    cdCanvasEnd(canvas);
+--end for
+--*/
+
+  /* Draw a filled path at center-right (looks like a weird fish). 
+     Notice that in PDF the arc is necessarily a circle arc, and not an ellipse. */
+--  cdCanvasSetForeground(cddbuffer, CD_GREEN)
+--for fc=1 to 2 do
+    integer t = floor(w*0.1),
+            cx = floor(w/2),
+            cy = floor(h*3/4),
+            cw = floor(w/2),
+            ch = floor(h/2)
+if 0 then
+--?{w,h,cx,cy,cw,ch}
+--?tan(67.5*CD_DEG2RAD) -- 2.414213562  -- 1+sqrt(2)
+--?arctan(2)*CD_RAD2DEG -- 63.43494882
+--?arctan(sqrt(2))*CD_RAD2DEG -- 54.73561032
+--?arctan(1)*CD_RAD2DEG -- 45
+--?cos(45*CD_DEG2RAD)   -- 0.7071067812 -- 1/sqrt(2)
+--?sin(45*CD_DEG2RAD)   -- 0.7071067812
+--?sqrt(2)              -- 1.414213562
+--?1/sqrt(2)            -- 0.7071067812
+
+?1
+    cdCanvasSetForeground(cddbuffer, CD_GREEN)
+    cdCanvasFont(cddbuffer, "Times", CD_ITALIC, 24*24)
+    cdCanvasText(cddbuffer, 20, 20, "b")
+--if 02 then
+--  integer iw = w, ih = h
+    integer iw = and_bits(w,0b111111111100), ih = h
+--  sequence {r,g,b} = cdCanvasGetImageRGB(cddbuffer,0,0,w,h)
+    sequence {r,g,b} = cdCanvasGetImageRGB(cddbuffer,0,0,iw,ih)
+--  sequence {r,g,b} = cdCanvasGetImageRGB(cddbuffer,w,h,0,0)
+?2
+    r = reversi(r,iw,ih)
+    g = reversi(g,iw,ih)
+    b = reversi(b,iw,ih)
+    sequence a = repeat(#80,length(r))
+--end if
+    cdCanvasClear(cddbuffer)
+
+    cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    cdCanvasFont(cddbuffer, "Times", CD_ITALIC, 24*24)
+--  cdCanvasFont(cddbuffer, "Times", CD_ITALIC, 24*18)
+--  {} = cdCanvasTextAlignment(cddbuffer, CD_BASE_LEFT) 
+    cdCanvasText(cddbuffer, 20, 20, "hi")
+    cdCanvasPutImageRectRGBA(cddbuffer, iw, ih, {r,g,b,a})
+--  cdCanvasPutImageRectRGB(cddbuffer, iw, ih, {r,g,b},80,80)
+?3
+end if
+    -- upper top right quarter of P
+    cdCanvasSetFillMode(canvas, CD_WINDING)
+--  cdCanvasSetFillMode(canvas, CD_EVENODD)
+
+--for i=1 to 2 do
+for mode=FILL to BORDER do
+        cdCanvasSetForeground(cddbuffer,colours[mode])
+        cdCanvasBegin(cddbuffer,modes[mode])
+
+--/*
+--  cdCanvasSetForeground(cddbuffer, iff(i=1?CD_GREEN:CD_RED));
+--  cdCanvasBegin(cddbuffer, CD_PATH);
+--  cdCanvasBegin(cddbuffer, CD_FILL);
+--  cdCanvasBegin(cddbuffer, CD_CLOSED_LINES);
+--  cdCanvasBegin(cddbuffer, iff(i=1?CD_FILL:CD_CLOSED_LINES));
+--  cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO);
+    cdCanvasVertex(cddbuffer, 100, 300);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, 400, 800);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, 600, 200);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+--  cdCanvasVertex(cddbuffer, 300, 500);
+    cdCanvasVertex(cddbuffer, 200, 600);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+--  cdCanvasVertex(cddbuffer, 400, 100);
+    cdCanvasVertex(cddbuffer, 600, 400);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+--  cdCanvasVertex(cddbuffer, 10, 30);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_STROKE);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_FILL);
+--*/
+    sequence pts = {{320,600},{150,85},{600,400},{45,400},{500,85},{319,606},{150,85},{600,400},{45,400},{500,85}}
+    for i=1 to length(pts) do
+        integer {x,y} = pts[i]
+        cdCanvasVertex(cddbuffer,x,y)
+    end for
+    cdCanvasEnd(cddbuffer);
+--/*
+{319,606}
+{150.3056326,86.81212261}
+{591.9532202,407.6878774}
+{46.04677982,407.6878774}
+{487.6943674,86.81212261}
+{319,606}
+{150.3056326,86.81212261}
+{591.9532202,407.6878774}
+{46.04677982,407.6878774}
+{487.6943674,86.81212261}
+--*/
+end for
+
+if 0 then
+    --
+    -- PL: My understanding of CD_PATH_FILL is that it uses lines from start/end to **all**
+    --     points as part of the fill process. For example, to draw an 'L' shape, you should
+    --     start/end at the lower left corner, otherwise it ends up more like a triangle.
+    --     A polo-mint-O needs to be drawn in 4 quarters (unless over-blitting b/g colour),
+    --     with start/end on the corners of the square touching the inner circular edge, or
+    --     perhaps in many more bits if said corners are beyond the outer circular edge.
+    --     [If 10 or less pixels thick then just do it with a single cdCanvasArc() call.]
+    --     It is enough, I think, to only consider the start and end of each line/arc/curve
+    --     segment, but I'm not by any stretch of the imagination certain of that.
+    --
+--cdCanvasSetFillMode(cdCanvas canvas, integer mode)
+---- or --
+--integer mode = cdCanvasGetFillMode(cdCanvas canvas) 
+--
+--Configures or retrieves a predefined polygon fill rule (CD_EVENODD or CD_WINDING).
+
+
+--DEV:
+--/*
+cdCanvasLineJoin(cdCanvas* canvas, int style); [in C]
+
+canvas:LineJoin(style: number) -> (old_style: number) [in Lua]
+Configures the current line style for: CD_MITER, CD_BEVEL or CD_ROUND. Returns the previous value. Default value: CD_MITER. Value CD_QUERY simply returns the current value.
+--*/
+
+?1
+    cdCanvasSetFillMode(canvas, CD_WINDING)
+    -- upper top right quarter of P
+    cdCanvasSetForeground(cddbuffer, CD_GREEN)
+    cdCanvasBegin(cddbuffer, CD_PATH);
+    cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO);
+    cdCanvasVertex(cddbuffer, cx+cw/2-t, cy+ch/2-t);
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, w/2, h);
+    cdCanvasPathSet(cddbuffer, CD_PATH_ARC);
+    cdCanvasVertex(cddbuffer, cx, cy);  /* center */
+    cdCanvasVertex(cddbuffer, cw, ch);  /* width, height */
+    cdCanvasVertex(cddbuffer, -90*1000, 0*1000); -- start angle, end angle (degrees / 1000)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, cx+cw/2-t, cy)
+    cdCanvasPathSet(cddbuffer, CD_PATH_ARC);
+    cdCanvasVertex(cddbuffer, cx, cy);  /* center */
+    cdCanvasVertex(cddbuffer, cw-2*t, ch-2*t);  -- width, height
+    cdCanvasVertex(cddbuffer, 0*1000, 90*1000); -- start angle, end angle (degrees / 1000)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, w/2, h);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_STROKE);
+    cdCanvasPathSet(cddbuffer, CD_PATH_FILL);
+    cdCanvasEnd(cddbuffer);
+
+    -- lower top right quarter of P
+    cdCanvasSetForeground(cddbuffer, CD_GREEN)
+--  cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    cdCanvasBegin(cddbuffer, CD_PATH);
+    cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO);
+    cdCanvasVertex(cddbuffer, cx+cw/2-t, cy-ch/2+t);
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, w/2, h/2);
+    cdCanvasPathSet(cddbuffer, CD_PATH_ARC);
+    cdCanvasVertex(cddbuffer, cx, cy);  /* center */
+    cdCanvasVertex(cddbuffer, cw, ch);  /* width, height */
+    cdCanvasVertex(cddbuffer, -90*1000, 0*1000); -- start angle, end angle (degrees / 1000)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, cx+cw/2-t, cy)
+    cdCanvasPathSet(cddbuffer, CD_PATH_ARC);
+    cdCanvasVertex(cddbuffer, cx, cy);  /* center */
+    cdCanvasVertex(cddbuffer, cw-2*t, ch-2*t);  /* width, height */
+    cdCanvasVertex(cddbuffer, 0*1000, -90*1000); -- start angle, end angle (degrees / 1000)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO);
+    cdCanvasVertex(cddbuffer, w/2, h/2);
+--  cdCanvasPathSet(cddbuffer, CD_PATH_STROKE);
+    cdCanvasPathSet(cddbuffer, CD_PATH_FILL);
+    cdCanvasEnd(cddbuffer);
+
+--  cw -= 2*t
+--  ch -= 2*t
+----?{w,h,cx,cy,cw,ch}
+--  cdCanvasSetForeground(cddbuffer, CD_PARCHMENT)
+----    cdCanvasSetForeground(cddbuffer, CD_RED)
+--  cdCanvasSector(cddbuffer,cx,cy,cw,ch,270,90)
+--  cdCanvasArc(cddbuffer,cx,cy,cw,ch,270,90)
+
+    -- long upright of h
+--  cdCanvasSetForeground(cddbuffer, CD_BLUE)
+--  cdCanvasLine(cddbuffer,10,10,w-3*t, h)
+--  cdCanvasFont(cddbuffer, "Times", CD_ITALIC, 24*24)
+--  cdCanvasFont(cddbuffer, "Helvetica", CD_ITALIC, 24*12)
+--  {} = cdCanvasTextAlignment(cddbuffer, CD_BASE_LEFT) 
+--  cdCanvasText(cddbuffer, 20, 20, "hi")
+
+--/*
+    atom angle = 0*CD_DEG2RAD,
+         scalex = 12,
+         scaley = 12
+--  sequence matrix = {scalex*cos(angle),        -sin(angle), 20,
+--                            sin(angle),  scaley*cos(angle), 1}
+    sequence matrix = {scalex*cos(angle),        -sin(angle),
+                              sin(angle),  scaley*cos(angle), 20, 1}
+    {} = cdCanvasVectorTextTransform(cddbuffer,matrix)
+    cdCanvasVectorText(cddbuffer, 0, 0, "hi")
+--*/
+end if
+
+if 0 then
+-->
+--/*
+    cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO)
+    cdCanvasVertex(cddbuffer, w/2, h-t)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, w/2, h)
+--/!*
+    cdCanvasPathSet(cddbuffer, CD_PATH_ARC)
+    cdCanvasVertex(cddbuffer, w/2,h*3/4)  /* center */
+    cdCanvasVertex(cddbuffer, w/2, h/2)  /* width, height */
+--  cdCanvasVertex(cddbuffer, 270*1000, 90*1000)    /* start angle, end angle (degrees / 1000) */
+    cdCanvasVertex(cddbuffer, 90*1000, -90*1000)    /* start angle, end angle (degrees / 1000) */
+--  cdCanvasVertex(cddbuffer, 90, 270000)   /* start angle, end angle (degrees / 1000) */
+--  cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+--  cdCanvasVertex(cddbuffer, w*3/4, h/4+t)
+--*!/
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, w/2, h/2+t)
+--  cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO)
+--  cdCanvasVertex(cddbuffer, w/2, h-t)
+    cdCanvasPathSet(cddbuffer, CD_PATH_ARC)
+    cdCanvasVertex(cddbuffer, w/2,h*3/4)  /* center */
+    cdCanvasVertex(cddbuffer, w/2-2*t, h/2-2*t)  /* width, height */
+    cdCanvasVertex(cddbuffer, -90*1000, 90*1000) /* start angle, end angle (degrees / 1000) */
+    cdCanvasPathSet(cddbuffer, CD_PATH_STROKE)
+--  cdCanvasPathSet(cddbuffer, CD_PATH_FILLSTROKE)
+--*/
+
+--/*
+--  cdCanvasBegin(cddbuffer, CD_PATH)
+--  cdCanvasPathSet(cddbuffer, CD_PATH_NEW)
+    cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO)
+    cdCanvasVertex(cddbuffer, 10, 10)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+--  cdCanvasVertex(cddbuffer, w-3.25*t, h)
+    cdCanvasVertex(cddbuffer, w-3*t, h)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, w-2*t, h)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+--  cdCanvasVertex(cddbuffer, 10+1.25*t, 10)
+    cdCanvasVertex(cddbuffer, 10+t, 10)
+    cdCanvasPathSet(cddbuffer, CD_PATH_FILLSTROKE)
+    cdCanvasEnd(cddbuffer)
+--*/
+
+    -- long upright of P
+    cdCanvasBegin(cddbuffer, CD_PATH)
+    cdCanvasSetForeground(cddbuffer, CD_GREEN)
+    cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO)
+    cdCanvasVertex(cddbuffer, 10, h)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, 10+1.25*t, h)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+-- maybe...
+    cdCanvasVertex(cddbuffer, w-2*t, 10)
+--  cdCanvasVertex(cddbuffer, w-t, 10)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, w-3.25*t, 10)
+--  cdCanvasVertex(cddbuffer, w-2.25*t, 10)
+    cdCanvasPathSet(cddbuffer, CD_PATH_FILLSTROKE)
+    cdCanvasEnd(cddbuffer)
+
+--*"/
+
+--/*
+--  cdCanvasBegin(cddbuffer, CD_PATH)
+    cdCanvasPathSet(cddbuffer, CD_PATH_CURVETO)
+    cdCanvasVertex(cddbuffer, w/2+150+150, h/2+200-50) /* control point for start */
+    cdCanvasVertex(cddbuffer, w/2+150+180, h/2+250-50) /* control point for end */
+    cdCanvasVertex(cddbuffer, w/2+150+180, h/2+200-50) /* end point */
+    cdCanvasPathSet(cddbuffer, CD_PATH_CURVETO)
+    cdCanvasVertex(cddbuffer, w/2+150+180, h/2+150-50)
+    cdCanvasVertex(cddbuffer, w/2+150+150, h/2+100-50)
+    cdCanvasVertex(cddbuffer, w/2+150+300, h/2+100-50)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, w/2+150+300, h/2-50)
+    cdCanvasPathSet(cddbuffer, CD_PATH_ARC)
+    cdCanvasVertex(cddbuffer, w/2+300, h/2)  /* center */
+    cdCanvasVertex(cddbuffer, 200, 100)  /* width, height */
+    cdCanvasVertex(cddbuffer, -30*1000, -170*1000)  /* start angle, end angle (degrees / 1000) */
+--  cdCanvasPathSet(cddbuffer, CD_PATH_CLOSE)
+--  cdCanvasPathSet(cddbuffer, CD_PATH_STROKE)
+--  cdCanvasPathSet(cddbuffer, CD_PATH_FILL)    -- bres
+--  cdCanvasPathSet(cddbuffer,iff(fc=1?CD_PATH_FILL:CD_PATH_CLOSE))
+--  cdCanvasPathSet(cddbuffer,iff(fc=1?CD_PATH_FILL:CD_PATH_STROKE))
+    cdCanvasPathSet(cddbuffer, CD_PATH_FILLSTROKE) -- erm, good enough...
+    cdCanvasEnd(cddbuffer)
+
+--*/
+    -- top flat segment of P
+    cdCanvasBox(cddbuffer, 10+t, cx, h-t, h) 
+
+    -- middle flat patch for P
+    cdCanvasBegin(cddbuffer, CD_PATH)
+--  cdCanvasPathSet(cddbuffer, CD_PATH_NEW)
+--  cdCanvasSetForeground(cddbuffer, CD_GREEN)
+--  cdCanvasSetForeground(cddbuffer, CD_YELLOW)
+    cy = floor(h/2)
+    cdCanvasPathSet(cddbuffer, CD_PATH_MOVETO)
+    cdCanvasVertex(cddbuffer, cx-2*t, cy+t)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, cx+t, cy+t)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, cx, cy)
+    cdCanvasPathSet(cddbuffer, CD_PATH_LINETO)
+    cdCanvasVertex(cddbuffer, cx-t, cy)
+    cdCanvasPathSet(cddbuffer, CD_PATH_FILLSTROKE)
+    cdCanvasEnd(cddbuffer)
+--cdCanvasSetForeground(cddbuffer, CD_GREEN)
+end if
+--end for
+--*!/
+
+if 0 then
+--/!* good:
+--  integer {w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
+--{w, h} = sq_sub(IupGetIntInt(canvas, "DRAWSIZE"),10)
+    {w,h} = sq_sub({w,h},10)
+--  cdCanvasSetBackground(cddbuffer, CD_RED)
+    cdCanvasLine(cddbuffer,0,0,200,200)
+    cdCanvasLine(cddbuffer,w,0,200,200)
+    cdCanvasLine(cddbuffer,0,h,200,200)
+    cdCanvasLine(cddbuffer,w,h,200,200)
+    cdCanvasArc(cddbuffer, 200, 200, 200, 200, 0, 360)
+--  cdCanvasSector(cddbuffer, 200, 200, 200, 200, 0, 360) 
+--  cdCanvasSetForeground(cddbuffer, CD_RED)
+    cdCanvasArc(cddbuffer, 200, 200, 300, 100, 0, 360)
+--  cdCanvasSetBackground(cddbuffer, CD_BLUE)
+--          cdCanvasEnd(cddbuffer)
+
+--  cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+--test (note that, w/o the lines, this has bresenham edges)
+--  cdCanvasBegin(cddbuffer,CD_FILL)
+--  cdCanvasVertex(cddbuffer,w,h)
+--  cdCanvasVertex(cddbuffer,0,h)
+--  cdCanvasVertex(cddbuffer,200,200)
+--  cdCanvasEnd(cddbuffer)
+--/test
+--*!/
+end if
+
+--  else
+----        if depth=0 then
+--          distance = side
+--          cdCanvasBegin(cddbuffer,CD_FILL)
+----        else
+----            side *= scaleFactor
+----            /* Starting at the top of the highest pentagon, calculate
+----               the top vertices of the other pentagons by taking the
+----               length of the scaled side plus the length of the gap. */
+----            distance = side + side * cos_72_degrees * 2.0
+----        end if
+--      /* The top positions form a virtual pentagon of their own,
+--         so simply move from one to the other by changing direction. */
+--      for i=1 to 5 do
+--          x += cos(angle) * distance
+--          y -= sin(angle) * distance
+----            if depth=0 then
+--              cdCanvasVertex(cddbuffer, w+x, h-y)
+----            else
+----                drawLogo(x, y, side, w, h, depth-1)
+----            end if
+--          angle += _72_degrees
+--      end for
+----        if depth=0 then
+--          cdCanvasEnd(cddbuffer)
+----        end if
+--  end if
+end procedure
+
+procedure draw(integer w,h)
+--DEV does not properly shrink vertically, or center on html...
+--  atom hw = min(w/2,h/2),
+--       margin = 20,
+--       radius = hw - 2*margin,
+--       side = radius * sin(PI/5) * 2
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    cdCanvasClear(cddbuffer)
+--  drawLogo(hw, 3*margin, side, w/2-radius-2*margin, h, level)
+--  drawLogo(hw, 3*margin, side, w/2-radius-2*margin, h)
+--  drawLogo(w-20, h-20)
+    drawLogo(w, h)
+end procedure
+
+function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    cdCanvasActivate(cddbuffer)
+    draw(w,h)
+    cdCanvasFlush(cddbuffer)
+--  IupSetStrAttribute(dlg, "TITLE", "%s (level %d)",{TITLE,level})
+    IupSetStrAttribute(dlg, "TITLE", "%s",{TITLE})
+    return IUP_DEFAULT
+end function
+
+--/*
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    return IUP_DEFAULT
+end function
+--*/
+
+--/!*
+function map_cb(Ihandle canvas)
+    if USE_OPENGL then
+--      integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{{canvas_width,canvas_height}} -- {{8,8}}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        IupGLMakeCurrent(canvas)    -- *** BIG DIFFERENCE! ***
+        cdcanvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    else
+        cdcanvas = cdCreateCanvas(CD_IUPDBUFFER, canvas)
+--      cdcanvas = cdCreateCanvas(CD_IUP, canvas)
+    end if
+--  cdCanvasSetBackground(cdcanvas, CD_PARCHMENT)
+--  cdCanvasSetForeground(cdcanvas, CD_BLUE)
+--  cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+cddbuffer = cdcanvas
+    return IUP_DEFAULT
+end function
+--*!/
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    if USE_OPENGL then
+        integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--?{canvas_width,canvas_height} -- {638,478}
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      IupGLMakeCurrent(canvas)    -- (no diff?)
+        cdCanvasSetAttribute(cdcanvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    end if
+    return IUP_DEFAULT
+end function
+
+constant html_intro = """
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>%s</title></head>
+<body>
+"""
+
+--DEV full screen???
+--canvas {
+--  border: 1px solid black;
+--  width: 100%;
+--  height: 100%;
+--}
+--/* DEV:
+--If the window resizes we need to recalculate the canvas width as well, 
+--using a debounce to avoid calling too many times our canvas resizing 
+--(the resize event can be called hundreds of times as you move the window with the mouse, for example):
+
+const debounce = (func) => {
+  let timer
+  return (event) => {
+    if (timer) { clearTimeout(timer) }
+    timer = setTimeout(func, 100, event)
+  }
+}
+
+window.addEventListener('resize', debounce(() => {
+  canvas.width = window.innerWidth
+  canvas.height = window.innerHeight
+}))
+--*/
+constant script_intro = """
+<canvas id="cvsid" width="100%" height="100%"></canvas>
+<script>
+let cvs = document.getElementById("cvsid")
+cvs.width = window.innerWidth
+cvs.height = window.innerHeight
+let ctx = cvs.getContext("2d"),
+    w=cvs.width, h=cvs.height
+"""
+
+constant phix_code = """
+procedure drawPentagon(atom x, y, side, w, h, integer depth)
+    atom angle = starting_angle, distance
+    if depth=0 then
+        distance = side
+        cdCanvasBegin(cddbuffer,CD_FILL)
+    else
+        side *= scaleFactor
+        /* Starting at the top of the highest pentagon, calculate
+           the top vertices of the other pentagons by taking the
+           length of the scaled side plus the length of the gap. */
+        distance = side + side * cos_72_degrees * 2.0
+    end if
+    /* The top positions form a virtual pentagon of their own,
+       so simply move from one to the other by changing direction. */
+    for i=1 to 5 do
+        x += cos(angle) * distance
+        y -= sin(angle) * distance
+        if depth=0 then
+            cdCanvasVertex(cddbuffer, w+x, h-y)
+        else
+            drawPentagon(x, y, side, w, h, depth-1)
+        end if
+        angle += _72_degrees
+    end for
+    if depth=0 then
+        cdCanvasEnd(cddbuffer)
+    end if
+end procedure
+
+procedure draw(integer w,h)
+    atom hw = min(w/2,h/2),
+         margin = 20,
+         radius = hw - 2*margin,
+         side = radius * sin(PI/5) * 2
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    cdCanvasClear(cddbuffer)
+    cdCanvasSetForeground(cddbuffer, CD_BLUE)
+--  drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h, level)
+    drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h)
+end procedure
+"""
+if string(phix_code) then end if    --DEV unused as yet
+
+--DEV one idea is to transpile phix_code to js_code 
+--   (and possibly vice versa, but that would really 
+--    only be a means of ironing out a few more bugs.)
+--   (I would not expect comments to be preserved??)
+--   (See demo/rosetta/Compiler for some ideas???)
+constant js_code = """
+//let _72_degrees = 72*CD_DEG2RAD,  // exterior angle
+const _72_degrees = 72*Math.PI/180, // exterior angle
+      starting_angle = 3*_72_degrees,
+      cos_72_degrees = Math.cos(_72_degrees),
+      scaleFactor = 1/(2+cos_72_degrees*2)
+//let level = 5
+
+//function drawPentagon(x, y, side, w, h, depth) {
+function drawPentagon(x, y, side, w, h) {
+    let angle = starting_angle, distance
+//  if (depth==0) {
+        distance = side
+//      cdCanvasBegin(cddbuffer,CD_FILL)
+        ctx.beginPath()
+//  } else {
+//      side *= scaleFactor
+//      /* Starting at the top of the highest pentagon, calculate
+//         the top vertices of the other pentagons by taking the
+//         length of the scaled side plus the length of the gap. */
+//      distance = side + side * cos_72_degrees * 2.0
+//  }
+    /* The top positions form a virtual pentagon of their own,
+       so simply move from one to the other by changing direction. */
+    for(let i=1; i<=5; i++) {
+        x += Math.cos(angle) * distance
+        y -= Math.sin(angle) * distance
+//      if (depth==0) {
+            ctx.lineTo(x, y)
+//      } else {
+//          drawPentagon(x, y, side, w, h, depth-1)
+//      }
+        angle += _72_degrees
+    }
+//  if (depth==0) {
+//      cdCanvasEnd(cddbuffer,CD_FILL)
+        ctx.fill()
+//  }
+}
+
+function draw(w,h) {
+//  atom hw = min(w/2,h/2),
+    let hw = w<h ? w/2 : h/2,
+        margin = 20,
+        radius = hw - 2*margin,
+        side = radius * Math.sin(Math.PI/5) * 2
+//  cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+//  cdCanvasClear(cddbuffer)
+//  cdCanvasSetForeground(cddbuffer, CD_BLUE)
+
+//  ctx.clearRect(0,0,w,h)
+//    ctx.fillStyle='parchment' // nope...
+//  CD_PARCHMENT    = #FFFFE0,
+//    ctx.fillStyle='white'
+    ctx.fillStyle='#FFFFE0'  // excellento!!
+    ctx.fillRect(0,0,w,h)
+    ctx.fillStyle='blue' 
+//  drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h, level)
+    drawPentagon(hw, 3*margin, side, w/2-radius-2*margin, h)
+}
+draw(w,h)
+"""
+
+--test (works fine)
+--constant wikipedia_svg = """
+--<?xml version="1.0" encoding="UTF-8" ?>
+--<svg width="391" height="391" viewBox="-70.5 -70.5 391 391" xmlns="http://www.w3.org/2000/svg">
+--  <rect x="25" y="25" width="200" height="200" fill="lime" stroke-width="4" stroke="pink" />
+--  <circle cx="125" cy="125" r="75" fill="orange" />
+--  <polyline points="50,150 50,200 200,200 200,100" stroke="red" stroke-width="4" fill="none" />
+--  <line x1="50" y1="50" x2="200" y2="200" stroke="blue" stroke-width="4" />
+--</svg>
+--"""
+
+function esc_close(Ihandle /*ih*/, atom c)
+    if c=K_ESC then return IUP_CLOSE end if
+    if find(c,"+-") then
+        c = ','-c -- iff(c='+'?+1:-1)
+--      level = max(0,min(5,level+c))
+        IupRedraw(canvas)
+    else
+        c = upper(c)
+        if find(c,"SHJ") then
+            -- S: create svg, convert using librsvg, load and display
+            -- H: create html with embedded svg, and open in browser
+            -- J: create html with javascript, and open in browser
+            string filename = "pentagon"&iff(c='S'?".svg":".htm")
+            svgfn = open(filename,"w")
+            if c!='S' then
+                printf(svgfn,html_intro,{TITLE})
+            end if
+            if c='J' then
+--              printf(svgfn,"<div ...>") -- (as needed)
+                puts(svgfn,script_intro)
+                printf(svgfn,js_code)
+                printf(svgfn,"</script>\n")
+            else
+--              if c='H' then
+--                  printf(svgfn,"<!DOCTYPE html>\n")
+--                  printf(svgfn,`<html><head><meta charset="UTF-8">`)
+--                  printf(svgfn,"<title>%s</title></head>\n",{TITLE})
+--                  printf(svgfn,`<body onLoad="draw(500,500)"><script>`)
+--                  printf(svgfn,"<body>\n")
+--                  printf(svgfn,html_intro,{TITLE})
+--              if c='J' then
+--                  javascript = true
+--              end if
+--  if svgfn!=-1 then
+--      if javascript then
+--          printf(svgfn,"code")
+--          return
+--      end if
+                integer w = 500, h = 500 
+                printf(svgfn,`<svg width="%d" height="%d" `,{w,h})
+                printf(svgfn,`style="fill:blue" version="1.1" `)
+                printf(svgfn,`xmlns="http://www.w3.org/2000/svg">`&"\n")
+--  end if
+                draw(w,h)
+--  if svgfn!=-1 then
+                printf(svgfn,"</svg>\n")
+--  end if
+            end if
+            if c!='S' then
+                printf(svgfn,"</body>\n</html>\n")
+            end if
+            close(svgfn)
+            svgfn = -1
+            if c='S' then
+--              ?"librsvg"  -- (see below)
+--              string pngname = rasterize_svg_file(filename)
+--              {} = rasterize_svg_text(text,pngname) -- maybe... or ...
+--              atom pixbuf = rasterize_svg_text(text) -- maybe...  [NO]
+--?get_text(filename)
+                atom pGdkPixbuf = rasterize_svg_pixbuf(get_text(filename))
+--              atom pGdkPixbuf = rasterize_svg_pixbuf(wikipedia_svg)
+                Ihandln image = IupGetAttributeHandle(label, "IMAGE")
+                if image!=NULL then
+                    IupSetAttributeHandle(label, "IMAGE", NULL)
+                    IupDestroy(image)
+                end if
+--              image = IupLoadImage(filename)  -- (double-checked, nope)
+--              image = IupLoadImage(pngname) 
+--              atom pGdkPixbuf = gdk_pixbuf_get_pixels(atom pGdkPixbuf)
+--              atom pixbuf = gdk_pixbuf_get_pixels(atom pGdkPixbuf)
+                integer w = gdk_pixbuf_get_width(pGdkPixbuf),
+                        h = gdk_pixbuf_get_height(pGdkPixbuf)
+                if not gdk_pixbuf_get_has_alpha(pGdkPixbuf) then ?9/0 end if
+                if gdk_pixbuf_get_colorspace(pGdkPixbuf)!=GDK_COLORSPACE_RGB then ?9/0 end if
+                if gdk_pixbuf_get_rowstride(pGdkPixbuf)!=w*4 then ?9/0 end if
+                if gdk_pixbuf_get_n_channels(pGdkPixbuf)!=4 then ?9/0 end if
+                if gdk_pixbuf_get_bits_per_sample(pGdkPixbuf)!=8 then ?9/0 end if
+                atom pixbuf = gdk_pixbuf_get_pixels(pGdkPixbuf)
+--              image = IupImageA(w,h,pixbuf)
+--              image = IupImageRGB(w,h,pixbuf)
+                image = IupImageRGBA(w,h,pixbuf)        -- yeah!!
+                g_object_unref(pGdkPixbuf)
+
+--              if image=NULL then crash("error opening "&pngname) end if
+                if image=NULL then crash("error loading svg") end if
+                IupSetAttributeHandle(label, "IMAGE", image)
+                IupSetInt(label, "VISIBLE", true)
+                IupSetAttribute(label,"SIZE",NULL)
+                IupSetAttribute(canvas, "SIZE", IupGetAttribute(canvas,"SIZE"))
+                IupSetAttribute(dlg,"SIZE",NULL)
+                IupRefresh(dlg)
+                IupSetAttribute(canvas, "SIZE", NULL)
+--DEV (not just yet...)
+--          elsif c='H' then
+            else
+--              system(filename)
+--sug/not tried:
+--              {} = system_exec(filename,8)
+                system_open(filename)
+            end if
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    IupImageLibOpen()
+
+--  canvas = IupCanvas(NULL)
+    if USE_OPENGL then
+        canvas = IupGLCanvas()
+--      IupSetAttribute(canvas, "BUFFER", "DOUBLE") -- (no diff?)
+    else
+        canvas = IupCanvas()
+    end if
+
+--  IupSetAttribute(canvas, "RASTERSIZE", "640x640")
+    IupSetAttribute(canvas, "RASTERSIZE", "700x900")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "UNMAP_CB", Icallback("canvas_unmap_cb"))
+    IupSetCallback(canvas, "RESIZE_CB", Icallback("canvas_resize_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    label = IupLabel()
+    IupSetAttribute(label, "IMAGE", "IUP_MediaStop")
+    IupSetInt(label, "VISIBLE", false)
+
+    dlg = IupDialog(IupHbox({canvas,label}))
+    IupSetAttribute(dlg, "TITLE", TITLE)
+    IupSetCallback(dlg, "K_ANY",     Icallback("esc_close"))
+
+    IupShow(dlg)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+
+main()
+
+--/*
+include pGUI.e
+IupOpen()
+
+--atom pError = allocate(machine_word())
+imImage im1 = imFileImageLoadBitmap(pngname,0,pError)
+if im1=NULL then crash("error opening "&pngname) end if
+Ihandln image1 = IupImageFromImImage(im1),
+        label1 = IupLabel()
+IupSetAttributeHandle(label1, "IMAGE", image1)
+Ihandle dlg = IupDialog(label1)
+IupSetAttribute(dlg, "TITLE", "SVG Viewer")
+IupCloseOnEscape(dlg)
+IupShow(dlg)
+
+IupMainLoop()
+IupClose()
+--*/
+
+--*/

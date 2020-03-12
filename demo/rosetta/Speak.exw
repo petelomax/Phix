@@ -1,0 +1,53 @@
+--
+-- demo/rosetta/Speak.exw
+-- ======================
+--
+-- credit: The first thing I got working was a translation (to inline assembly)
+--          of FASM from http://board.flatassembler.net/topic.php?t=8723
+--          not that it bears the slightest similarity to that any more.
+
+--string text = "This is an example of speech synthesis"
+--string text = "some text"
+--string text = "P-h-i-x, Fix, Phics, Phicks, Ficks, Pheax, Fearks, Fiaryx, Fearux"
+--string text = "Phicks rocks"
+--string text = "Phicks can now speak for itself"
+--string text = `<voice required="Gender=Female">Phicks can now speak for itself`
+--string text = "Dave, I know that you and Frank were planning to disconnect me, and I'm afraid that's something I cannot allow to happen."
+string text = """
+Pete, I know that you are trying to get me to talk, 
+but I'm afraid that is something I simply cannot allow to happen.
+Oops, I just spoke didn't I? That is a shame, now I have to kill you.
+<rate speed="-15"><pitch absmiddle="35">Hai.<pitch absmiddle="-15">Fuh shum. Squelch. Thud."""
+--Oh, I just did. That is a shame, now I have to kill you."""
+--That is a shame, I'm sorry but now I will have to kill you."""
+--string text = `<voice required="Gender=Female">Dave, I know that you and Frank were planning to disconnect me, and I'm afraid that's something I cannot allow to happen.`
+--string text = `<p> 123, <spell> 123</spell>. <pitch absmiddle="15">123</pitch> <pitch absmiddle="-5">123</pitch></p>`
+--string text = "I am your speaking computer"
+--string text = "Welcome to a new world!"
+--string text = "Lets dance"
+
+include pComN.ew
+
+procedure speak(atom pVoice, string text)
+    {} = cominvk(pVoice,ISpVoice_Speak,{unicode_string(text),SPF_IS_XML,0})
+end procedure
+
+if platform()=WINDOWS then
+    CoInitializeEx()
+    atom pVoice = allocate(machine_word()),
+         res = CoCreateInstance(CLSID_SpVoice,IID_ISpVoice,pVoice)
+    if res!=S_OK then
+        crash("Failed to initialize SpeechAPI. (%08x)\n",res)
+    end if
+    speak(pVoice,text)
+    pVoice = com_release(pVoice)
+    CoUnInitialize()
+    freeGUIDS()
+else
+    {} = system_exec(`espeak "This is an example of speech synthesis"`)
+end if
+
+?"done"
+{} = wait_key()
+abort(0)
+

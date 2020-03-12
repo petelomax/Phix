@@ -795,7 +795,8 @@ function escape(sequence oneline, integer col)
     integer ch = 0
     if col<len then
         ch = oneline[col]
-        if find(ch,"nrtb\"\'\\0eE") then    -- eg \n
+--      if find(ch,"nrtb\"\'\\0eE") then    -- eg \n
+        if find(ch,`nrtb"'\0eE`) then		-- eg \n (inc \\)
             ch = 1
         elsif find(ch,"#x") then            -- eg \xFF
             ch = 3
@@ -986,7 +987,7 @@ sequence oneline
                 while col>lenTC do
                     CurrLine += 1
                     if CurrLine>length(filetext[currfile]) then
-                        Abort(xl("missing ")&"\"\"\"")
+                        Abort(xl("missing ")&`"""`)
                         exit
                     end if
                     token &= '\n'
@@ -1013,7 +1014,7 @@ sequence oneline
         while 1 do
             col += 1
             if col>lenTC then
-                Abort(xl("missing ")&"\"")
+                Abort(xl("missing ")&`"`)
                 exit
             end if
             nxtCh = oneline[col]
@@ -1408,7 +1409,7 @@ integer wastokline, wastokstart, wastokend
                                    "SAFE","DATA_EXECUTE","UCSTYPE_DEBUG",
                                    "CRASH","EU4_1","BITS32"}) then
                     if not find(token,withdefs) then
---                      errtext &= "idfef "&token&xl(" unrecognised, and no \"--#withdef\" for it")
+--                      errtext &= "idfef "&token&xl(` unrecognised, and no "--#withdef" for it`)
 --trace(1)
                         Warning("unknown/--#withdef missing",{})
                     end if
@@ -1430,7 +1431,7 @@ integer wastokline, wastokstart, wastokend
                 getToken() -- discard the and/or
             end while
             if not equal(token,"then") then
-                Abort("\"then\""&xl(" expected"))
+                Abort(`"then"`&xl(" expected"))
                 return 0
             end if
             pp_replace("neht")
@@ -1486,7 +1487,7 @@ integer wastokline, wastokstart, wastokend
             getToken()
         end while
     end while
-    Abort("\"end ifdef\""&xl(" expected"))
+    Abort(`"end ifdef"`&xl(" expected"))
     return 0
 end function
 
@@ -1637,12 +1638,12 @@ procedure dragCommentsAlong(integer direction)
 --     when surrounding constructs (if/for/while) are added/deleted.
 --
 sequence wsmatch -- whitespace + comment ("--"); required match string.
-sequence wnmatch -- whitespace + blockcomment("--/**/"); skip string.
+sequence wnmatch -- whitespace + blockcomment(`--/**/`); skip string.
 sequence checkline
 integer lws,        -- length(wsmatch)
         ch,         -- a ' ' or '\t' to check
         sidx,       -- position of ch
-        six,        -- effective column (until we pass "--\**\")
+        six,        -- effective column (until we pass `--\**\`)
         thislen,    -- double blank lines now split up comment
         lastlen     -- blocks, except when inside a routine.
 
@@ -3087,7 +3088,7 @@ end procedure
 
 
 constant xlTITLE = xl("Reindent source file")
---constant xlTIP     = xl("Tip: To see the effect of these flags, run this on src\\indent.exw")
+--constant xlTIP     = xl(`Tip: To see the effect of these flags, run this on src\indent.exw`)
 constant xlSPACE = xl("Remove spaces in expressions?")
 constant xlALGN1 = xl("Align ifdef in column 1")
 constant xlALGN0 = xl("Align ifdef as part of code")
@@ -3122,7 +3123,7 @@ integer space = isStripSpaces,
 --constant ALIGNO = create(RadioButton,xlALGNO, 0, REIN,   8, 100, 165,  20, 0)
 --constant GO   = create(Button,     xlGO,      0, REIN, 125, 126,  80,  25, 0)
 
---setHint(SPACE,xl("Converts eg \"a = length ( x [ 3 ] )\" to \"a = length(x[3])\""))
+--setHint(SPACE,xl(`Converts eg "a = length ( x [ 3 ] )" to "a = length(x[3])"`))
 --setCheck(SPACE,isStripSpaces)
 --setCheck(ALIGN1,isAlignIfdef=1)   -> 1
 --setCheck(ALIGN0,isAlignIfdef=0)   -> 0

@@ -522,6 +522,8 @@ constant F_CLOSED   = #00,  -- file is closed/available for re-use (see flist)
 integer finit
         finit = 0
 
+integer safemode = false -- (aka 0)
+
 procedure initF()
 --/*
     kernel32 = open_dll("kernel32.dll")
@@ -805,6 +807,9 @@ atom fhandle
 integer iThis
 --atom frealposn
 
+--DEV not working as expected: p -safe -test allows t39rndio, t58rtxt, whereas 41/42 (ilASM) /were/ caught & excluded...
+--DOH! I didn't put !SetSafeMode in the optable!!
+    if safemode then safemode=0 ?9/0 end if
     if not finit then initF() end if
     fmode = 0                                   -- assume text mode
     if sequence(openmode) then                  -- allow open(<file>,'r') as well as open(<file>,"r")
@@ -6702,6 +6707,7 @@ string src
 --atom this
 integer iThis
 
+    if safemode then ?9/0 end if
 --DEV/temp:
 bool from_hll = false
 if option>8 then
@@ -8003,6 +8009,22 @@ procedure ffree_console()
 end procedure
 
 #ilASM{ jmp :fin
+--/*
+procedure :!SetSafeMode(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :!SetSafeMode
+        -- called from processCommandLine()
+        [32]
+            mov eax,[esp]
+            mov [safemode],1 -- (aka true)
+            jmp eax
+        [64]
+            mov rax,[rsp]
+            mov [safemode],1
+            jmp rax
+        []
+
 --/*
 procedure :%opOpen(:%)
 end procedure -- (for Edita/CtrlQ)

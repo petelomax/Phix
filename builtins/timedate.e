@@ -101,6 +101,8 @@
 --          I'll work on a copy of this file w/o the next line soon [he said on 17/9/15]):
 --#without reformat
 
+include pdate.e -- days_in_month()
+
 -- deliberately not global, to deter direct inspection:
 constant DT_TZ = 9,
          DT_DSTZ = 10
@@ -350,6 +352,11 @@ integer vmin, vmax
                 end if
             end if
         end for
+--added 20/11/19:
+        if s[DT_YEAR]!=0 and s[DT_MONTH]!=0 and s[DT_DAY]!=0
+        and s[DT_DAY]>days_in_month(s[DT_YEAR],s[DT_MONTH]) then
+            return 0
+        end if
         return 1
     end if
     return 0
@@ -486,7 +493,9 @@ sequence months      = repeat(0,langmax),
 --Sunday Monday Tuesday Wednesday Thursday Friday Saturday
 
 months[en] = {"January","February","March","April","May","June","July","August","September","October","November","December"}
-days[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
+--12/1/2020:
+--days[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
+days[en] = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
 --Google Translate:
 --months[de] = {"Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"}
 --days[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
@@ -553,7 +562,10 @@ integer prevSun -- (can be -ve near the start of the month)
         if m<sm and m>em then return false end if
     end if
     if wd!=1 then ?9/0 end if   -- different code needed for Friday handling, 
-    prevSun = d - day_of_week(y,m,d) + 1
+--12/01/2020 (See readme. Without testing, I am just going to map dow back to Sun..Sat)
+--  prevSun = d - day_of_week(y,m,d) + 1
+    integer dow = {2,3,4,5,6,7,1}[day_of_week(y,m,d)]
+    prevSun = d - dow + 1
 --  if m=sm then return prevSun>=sd end if
     if m=sm then
         if length(td)<DT_DSTZ
@@ -681,22 +693,22 @@ function timedate_to_julian_day(timedate td)
 --  methods/languages, that is if they treat such as julian dates rather than as
 --  back-dated gregorian calendar dates.
 --
-integer {y,m,d} = td
-integer m1 = -(m<=2)
-    return floor((1461*(y+4800+m1))/4)+
-           floor((367*(m-2-12*m1))/12)-
-           floor((3*((y+4900+m1)/100))/4)+
-           d-32075
-end function
-
--- The following routine (from wikipedia) gives the same results.
---function jd2(timedate td)
 --integer {y,m,d} = td
---integer m1 = (m<=2)
---  y += 4800-m1
---  m += 12*m1-3
---  return d+floor((153*m+2)/5)+365*y+floor(y/4)-floor(y/100)+floor(y/400)-32045
+--integer m1 = -(m<=2)
+--  return floor((1461*(y+4800+m1))/4)+
+--         floor((367*(m-2-12*m1))/12)-
+--         floor((3*((y+4900+m1)/100))/4)+
+--         d-32075
 --end function
+--
+---- The following routine (from wikipedia) gives the same results. -- 22/5/19 oh no it does not!
+--function jd2(timedate td)
+integer {y,m,d} = td
+integer m1 = (m<=2)
+    y += 4800-m1
+    m += 12*m1-3
+    return d+floor((153*m+2)/5)+365*y+floor(y/4)-floor(y/100)+floor(y/400)-32045
+end function
 --
 --?timedate_to_julian_day({2000,1,1,0,0,0,0,0})
 --?jd2({2000,1,1,0,0,0,0,0})
@@ -982,6 +994,7 @@ integer closequote
                         fmtdx += 1
                         ftyp = AM
                         fsize = 2
+                    --(else error, as ftyp=0 below)
                     end if
                     break
         case 'D':   fcase = 1
@@ -1082,6 +1095,7 @@ integer closequote
                         ftyp = TH
                         fsize = 2
                     else
+--DEV (spotted in passing) ain't this going to get clobbered, always?
                         ecxtra = "tz or th expected"
                     end if
                     break
@@ -1103,6 +1117,7 @@ integer closequote
                     if (ch>='a' and ch<='z')
                     or (ch>='A' and ch<='Z')
                     or (ch>='0' and ch<='9') then
+--DEV ditto
                         ecxtra = "ch is "&ch
                     else
                         ftyp = LITERAL
@@ -1132,7 +1147,7 @@ integer ch, n, asize = 1, sidx = idx+1
     ch = s[sidx]
     if ch<'0' 
     or ch>'9' then
-        ecxtra = sprintf("number expected \"%s\" at position %d, not \"%s\"",{s,sidx,to_space(s[sidx..$])})
+        ecxtra = sprintf(`number expected "%s" at position %d, not "%s"`,{s,sidx,to_space(s[sidx..$])})
         return {3,idx,0}    -- "number expected"
     end if
     n = ch-'0'
@@ -1151,7 +1166,7 @@ integer ch, n, asize = 1, sidx = idx+1
     if asize!=nsize
     and (asize>nsize or
          nsize>3) then
-        ecxtra = sprintf("wrong size (%d not %d) number in \"%s\" at position %d, (\"%s\")",{asize,nsize,s,idx+1,to_space(s[idx+1..$])})
+        ecxtra = sprintf(`wrong size (%d not %d) number in "%s" at position %d, ("%s")`,{asize,nsize,s,idx+1,to_space(s[idx+1..$])})
         return {3,idx,0}    -- "number expected"
     end if
     return {0,sidx,n}
@@ -1182,7 +1197,7 @@ string si
             return {ecode,idx+length(si),i}
         end if
     end for
-    ecxtra = sprintf("%s expected in \"%s\" at position %d, not \"%s\"",{desc,s,idx+1,to_space(s[idx+1..$])})
+    ecxtra = sprintf(`%s expected in "%s" at position %d, not "%s"`,{desc,s,idx+1,to_space(s[idx+1..$])})
     return {2,idx,0}    -- "unrecognised"
 end function
 
@@ -1329,7 +1344,7 @@ integer sdx = 0,    -- chars processed in s
                         ?9/0    -- should never happen
                 end switch
                 if ecode=0 then
-                    if day<1 or day>31 then
+                    if day<1 or day>31 then -- (more tests below)
                         ecode = 6
                         exit
                     end if
@@ -1454,6 +1469,12 @@ integer sdx = 0,    -- chars processed in s
     and fmtdx!=length(fmt) then
         ecxtra = "remaining format is:"&fmt[fmtdx+1..$]
         ecode = 19
+    end if
+--added 20/11/19:
+    if ecode=0 
+    and year!=0 and month!=0 and day!=0
+    and day>days_in_month(year,month) then
+        ecode = 6
     end if
     if ecode!=0 then return {ecode,edescs[ecode],ecxtra} end if
 --  if fmtdx!=length(fmt) then ?9/0 end if  --should never happen
@@ -1685,7 +1706,12 @@ object x
                 end switch
             case DAY:
                 day = td[DT_DAY]
-                if day<1 then
+--20/11/19:
+--              if day<1 then
+                year  = td[DT_YEAR]
+                month = td[DT_MONTH]
+                if day<1
+                or day>days_in_month(year,month) then
                     ecxtra = sprintf("day is %d",day)
                     ecode = 6
                     exit

@@ -99,9 +99,9 @@ integer bits = 0
 end function
 
 --/* seems ok:
-constant itestset = {{"C:\\Program Files (x86)\\Phix\\pw.exe",WINDOWS},
-                     {"C:\\Program Files (x86)\\Phix\\pth.exe",WINDOWS},
-                     {"C:\\Program Files (x86)\\Phix\\phix",LINUX}}
+constant itestset = {{`C:\Program Files (x86)\Phix\pw.exe`,WINDOWS},
+                     {`C:\Program Files (x86)\Phix\pth.exe`,WINDOWS},
+                     {`C:\Program Files (x86)\Phix\phix`,LINUX}}
 for i=1 to length(itestset) do
     ?{itestset[i],ibits(itestset[i][1],itestset[i][2])}
 end for
@@ -134,8 +134,8 @@ string filepath
         sequence paths = {res}
         paths = add_path(paths,current_dir())
         if plat=WINDOWS then
-            paths = add_path(paths,"C:\\Program Files (x86)\\Phix")
-            paths = add_path(paths,"C:\\Program Files\\Phix")
+            paths = add_path(paths,`C:\Program Files (x86)\Phix`)
+            paths = add_path(paths,`C:\Program Files\Phix`)
             paths = add_paths(paths,split(getenv("PATH"),';'),{"phix","bin"})
         else
             paths = add_path(paths,join_path({getenv("HOME"),"phix"}))
@@ -167,7 +167,7 @@ string filepath
     end if
     if enquote then
         if find(' ',filepath) then
-            filepath = '\"' & filepath & '\"'
+            filepath = '"'&filepath&'"'
         end if
     end if
     return filepath

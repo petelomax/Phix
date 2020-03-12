@@ -1,0 +1,151 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">struct</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+struct <i>identifier</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;( <i>"&lt;c-string&gt;"</i> | { <i>field</i> [ ',' ... ] } )<br>
+end struct<br>
+<center><small><i>-- or --</i></small></center>
+struct|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [ ',' ... ]<br>
+<center><small><i>-- or --</i></small></center>
+<a href="integer.htm#bool">bool</a> res = struct|<i>identifier</i>(<a href="object.htm">object</a> o)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            As well as defining new structs, the base struct builtin type can also be used, along with the identifiers it introduces, to declare and 
+            instantiate variables of that type, and/or test whether or not some value is of that type. Standard <a href="scope.htm">scope</a> rules
+            apply to <i>identifier</i>, specifically prefix with <code>global</code> to make any types and/or variables visible in other files,
+            whereas the individual <i>field</i> names can only be accessed via dot notation syntax (or <a href="structs.htm">builtins\structs.e</a>).
+            <br>
+            <br>
+            For interfacing to C, use a <a href="cstruct.htm">c-struct</a>, ie define the contents using a C string.
+            <br>
+            <br>
+            See the technicalia drop-down for additional notes on the mandatory ';' for unassigned struct vars and the optional parameters of 
+            <a href="structs.htm#new">new</a>().
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+struct bridge
+    string name = "london"
+    integer completed = 1971,
+            age = 48
+end struct
+bridge b = new(),
+       t = new({"tower",1894,125})
+?b.age
+--b.age = "oops" -- type error
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">struct</font><font color="#000000"> bridge
+</font><font color="#004080">    string</font><font color="#000000"> name</font><font color="#0000FF"> =</font><font color="#008000"> "london"
+</font><font color="#004080">    integer</font><font color="#000000"> completed</font><font color="#0000FF"> =</font><font color="#000000"> 1971</font><font color="#0000FF">,
+</font><font color="#000000">            age</font><font color="#0000FF"> =</font><font color="#000000"> 48
+</font><font color="#008080">end struct
+</font><font color="#000000">bridge b</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(),
+</font><font color="#000000">       t</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"tower"</font><font color="#0000FF">,</font><font color="#000000">1894</font><font color="#0000FF">,</font><font color="#000000">125</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#000000">b</font><font color="#0000FF">.</font><font color="#000000">age
+</font><font color="#000080"><i>--b.age = "oops" -- type error</i></font>
+</pre>
+            <br>
+            In their simplest form, structures are just a collection of fields.<br>
+            If no default value is specified for a field, one will be provided automatically: 0/false/""/{}/NULL for atom/bool/string/sequence/struct|object respectively.
+            <br>
+            <br>
+            When you declare <code><a href="struct.htm">struct</a> bridge</code> there is also an implicit 
+            <code><a href="types.htm">type</a> bridge()</code> automatically declared on your behalf.
+            <br>
+            <br>
+            If you wanted something nice and simple, that&rsquo;s it.<br>
+            If you wanted something a bit more powerful and flexible, read on.<br>
+            Simple structs can in fact also be extended and embedded, as will be explained shortly.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            DoStruct() in pmain.e (along with several other places in that file) maps the above syntax to routines in 
+            <a href="structs.htm">builtins\structs.e</a><br>
+            Note the latter is "dual use": the compiler itself uses the same routines to lookup what it has already compiled, and of course 
+            that same information is also used at run-time, in other words the compiler both calls routines in structs.e and emits the same
+            exact calls to be invoked (again) at run-time, as well as a few more run-time only calls.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="structs.htm#new">builtins\struct.e:new()</a>,
+          <a href="class.htm">class</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Note that (in the middle case) should you want to declare a (lowest level builtin) struct variable at file-level without invoking new() or 
+            otherwise assigning it on declaration, the ';' (or a ',') is mandatory for struct, ditto <a href="class.htm">class</a>. Obviously without a 
+            terminating semicolon, comma, or assignment operator (in fact '=' or ':=') the compiler would treat an attempt at such a variable declaration 
+            as a brand new type definition (top case), and possibly end up saying "end&nbsp;struct&nbsp;expected", perhaps somewhat dis-jointedly.
+            Thankfully there is no such need for derived types, or during routine parameter or local variable declarations, since it is not legal to 
+            define a new type(/struct/class) then anyway, besides in any case (eg) <nobr>"bridge b"</nobr> (which does not need said mandatory terminator) 
+            is almost always preferable to <nobr>"struct s"</nobr> (which does, should you be trying to declare a variable). Phew, that was an excessive 
+            amount of hard work to explain a probably fairly rare and pretty minor edge case of an occasional mandatory semicolon!
+            <br>
+            <br>
+            The effective signature for instantiation/creation is <nobr>new(<a href="integer.htm">integer</a>|<a href="string.htm">string</a> 
+            id=routine_id("<i>identifier</i>"), <a href="sequence.htm">sequence</a> defaults={})</nobr>.<br>
+            The new() in bridge b = new() is automatically augmented by the compiler to new(routine_id("bridge")), which is also equivalent to new("bridge"). <br>
+            <small>Aside: also, bridge [<i>not</i> followed by '('] is now equivalent to routine_id("bridge") anyway, so the ability to specify with either 
+            a routine_id or a string is less significant, except the latter may occasionally make debugging easier, in that (say) 984 is faster but not 
+            instantly recognisable, whereas "bridge" is a known and valid structure name, and also clearly (for instance) <i>not</i> an animal.<br></small>
+            If the compiler cannot deduce the "bridge" from context, it issues an error forcing the programmer to provide it explicitly.<br>
+            If as shown for 't' above, new() is (only) given a sequence of initial default values [assigned in numeric order], then an appropriate struct 
+            identifier is squidged in beforehand, again automatically/when possible. The compiler assumes an integer/string is an id, and a sequence is defaults, 
+            and therefore replacing eg <nobr><code>s&nbsp;=&nbsp;new(setup[idx])</code></nobr> with 
+            <nobr><code>integer/string/sequence&nbsp;si&nbsp;=&nbsp;setup[idx]; s&nbsp;=&nbsp;new(si)</code></nobr> may help, ie you may need to explicitly tell the 
+            compiler the exact type of a single parameter to new(), typically by the simple act of storing it in a local variable of one of those three types.<br>
+            [Should you pass <a href="structs.htm#new">new</a>() two parameters, the compiler (front-end) assumes you know what you are doing!]
+            <br>
+            <br>
+            Technically struct is abstract (see <a href="class.htm">class</a>) so you <i>cannot</i> say <code>struct s = new("struct")</code>, however you 
+            can say <code>struct b = new("bridge")</code>, although of course <code>bridge b = new()</code> is altogether just easier/nicer/safer.
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -198,7 +198,7 @@ sequence oneword
                     return 0
                 end if
             end while
-            insertword(oneword&'\"')
+            insertword(oneword&`"`)
             ch = GetCh()
         elsif find(ch,symbol) then
 --PL this allowed eg "]&" to be recorded as one symbol...

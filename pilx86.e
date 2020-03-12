@@ -275,6 +275,7 @@ constant
 --       mov_mesi_edx   = {#89,#16},    -- 0o211 0o026              -- mov [esi],eax
 --       mov_mem32_edx  = {#89,#15},    -- 0o211 0o025 m32          -- mov [m32],edx
          mov_mem32_ebx  = {#89,#1D},    -- 0o211 0o035 m32          -- mov [m32],ebx
+         mov_mem32_esi  = {#89,#35},    -- 0o211 0o065 m32          -- mov [m32],esi (or r14 with #4C)
          mov_ebpi8_eax  = {#89,#45},    -- 0o211 0o105 imm8         -- mov [ebp+imm8],eax
 --       mov_ebpi8_edx  = {#89,#55},    -- 0o211 0o125 imm8         -- mov [ebp+imm8],edx
          mov_ebpi8_ebx  = {#89,#5D},    -- 0o211 0o135 imm8         -- mov [ebp+imm8],ebx(0)
@@ -723,16 +724,17 @@ global -- used by psched.e  [DEV]
 procedure lineinfo()
 -- For a proper explanation of LineTab, see pdiag.e (this was written
 --  in a relatively ad-hoc manner, sorry).
-integer skipline
+integer firstline, skipline
 --  if lastline!=emitline then  -- now inlined
     if thisDbg then
-        skipline = symtab[currRtn][S_1stl]
+        firstline = symtab[currRtn][S_1stl]
 --?{skipline,emitline,ltline,lastline,LineTab,oplnlen}
-        skipline = emitline-skipline+1
+        skipline = emitline-firstline+1
         ltline += 1
         if skipline!=ltline then
             -- add negative count of lines which emitted no code:
             if DEBUG then
+                -- (has been caused by not setting emitline correctly)
                 if ltline>skipline then ?9/0 end if -- major guff
             end if
             LineTab = append(LineTab,ltline-skipline)
@@ -1973,7 +1975,30 @@ end if
                 elsif i>T_Ainc
                   and not some_unresolved_rtnids
                   and not and_bits(siState,S_used) then         -- and this routine not (directly) used
+--if siNTyp=S_Type then trace(1) end if
                     WarnU(siNTyp,si," is not used.",i)
+                    if siNTyp=S_Type then
+--?{"WarnU(",siNTyp,si," is not used.",i}
+--DEV see what damage this does...
+--oops2 in ReconstructIds(six)
+--      ss = symtab[scopechain]
+--      tnxt = ss[S_Nlink]
+--      if tnxt!=-2 then
+--          tidx = ss[S_Name]
+--          symtab[scopechain] = 0      -- reduce refcount on ss
+--          ss[S_Nlink] = -2
+--          symtab[scopechain] = ss
+--          tt[tidx+EQ] = tnxt
+--      end if
+                        integer tnxt = symtab[i][S_Nlink]
+                        if tnxt!=-2 then
+                            integer tidx = symtab[i][S_Name]
+                            symtab[i][S_Nlink] = -2
+                            tt[tidx+EQ] = tnxt
+                        end if
+                        symtab[i] = 0
+                        symtab[i-1] = 0
+                    end if
                 end if
             else -- <S_TYpe
 --29/1/10:
@@ -3594,20 +3619,45 @@ procedure emitHex10sdi(integer dest, atom v)
     if sched then
         schedule(0,0,0,pUV,0,dest)
     end if
-    if v then
-        x86 &= mov_m32_imm32                    -- mov [dest],imm32
-    else
-        x86 &= mov_mem32_ebx                    -- mov [dest],ebx (0)
-    end if
-    if q86>1 then
-        quad2(isVar4,dest)
-    else
---      emitHex4v(dest) -- {isVar,0,0,dest}
-        x86 &= {isVar4,0,0}
+--  bool r14 = false
+    if X64=1 and (v>#7FFFFFFF or v<-#80000000) then
+        -- mov r14,imm64:
+        emitHex1(#49)
+        emitHex1(#BE)
+        emitHexDword(and_bits(v,#FFFFFFFF))
+        v = floor(v/#100000000)
+        emitHexDword(and_bits(v,#FFFFFFFF))
+--      emitHex1(#48)
+--      r14 = true
+        emitHex1(#4C)
+--          if k<-128 then
+--              emitHex6w(mov_rbpi32_r14,k)     -- mov [rbp+imm32],r14
+--          else
+--              emitHex3(mov_rbpi8_r14,k)       -- mov [rbp+imm8],r14
+--       mov_rbpi8_r14  = {#89,#75},    -- 0o211 0o165 imm8         -- mov [rbp+imm8],r14 (needs a #4C)
+--       mov_rbpi32_r14 = {#89,#B5},    -- 0o211 0o265 imm32        -- mov [rbp+imm32],r14 (needs a #4C)
+--       mov_ebpi32_ebx = {#89,#9D},    -- 0o211 0o235 imm32        -- mov [ebp+imm32],ebx(0)
+--          end if
+--      v = 0
+        x86 &= mov_mem32_esi                    -- mov [dest],r14
+        x86 &= {isVar,0,0}
         x86 &= dest
-    end if
-    if v then
-        emitHexDword(v)
+    else
+        if v then
+            x86 &= mov_m32_imm32                -- mov [dest],imm32
+        else
+            x86 &= mov_mem32_ebx                -- mov [dest],ebx (0)
+        end if
+        if q86>1 then
+            quad2(isVar4,dest)
+        else
+--          emitHex4v(dest) -- {isVar,0,0,dest}
+            x86 &= {isVar4,0,0}
+            x86 &= dest
+        end if
+        if v then
+            emitHexDword(v)
+        end if
     end if
 end procedure
 
@@ -3627,7 +3677,8 @@ constant m_add = #00,   -- 0o000    add
 --7/4/16. Values such as #7FFFFFFF are now valid for 32bit p.exe creating 64bit exe:
 --procedure regimm365(integer imm)
 procedure regimm365(atom imm)
-    if isFLOAT(imm) then ?9/0 end if
+--removed 25/1/20 (over an 4294967295 aka #FFFFFFFF when running "p64 -c -norun p32.exu")
+--  if isFLOAT(imm) then ?9/0 end if
     --
     --  Perform one of the above 8 operations on a register using the specified literal.
     --   (ie add/or/adc/sbb/and/sub/xor/cmp reg,imm8/32)
@@ -3963,6 +4014,7 @@ integer k
         end if
     else
         if X64 then
+--          emitHex1(#90)
             emitHex1(#48)
         end if
         --DEV is this used anywhere else?
@@ -4298,7 +4350,8 @@ function jskip()
 --
 integer skip, noofitems
 --, jtgt
-integer skiptgt, mergeSet
+integer skiptgt
+--, mergeSet2
 integer waspc = pc, xpc
     while 1 do
         nextop = s5[pc]
@@ -4372,8 +4425,25 @@ integer waspc = pc, xpc
 --25/10/17:
 --/!* --(nope)
         elsif nextop=opEndFor
-          and s5[waspc+1] = exitMerge
+--        and s5[waspc+1] = exitMerge
+          and mergeSet=exitMerge
+--        and ((s5[waspc+1]=exitMerge) or
+--             (s5[waspc]=opLn and s5[waspc+
           and pc = tgt-6 then
+--trace(1)
+--27/9/19: (unconditional exit from for loop, copied from opEndFor)
+--(nextop = s5[pc]==opEndFor: opEndFor,END+LOOP,bpFor)
+            integer p1 = s5[pc+2],  -- last byte of opFor (holds loopTop addr)
+                    tg2 = s5[p1-5] -- (was flags, now backpatch chain)
+            if s5[p1-6]!=opFor2 then ?9/0 end if
+            while tg2 do
+                integer k = length(x86)-tg2,
+                        backpatch = x86[tg2]
+                x86[tg2] = k                        
+                tg2 = backpatch
+            end while
+--/*
+?{"pilx86.e line 4415, isGscan=",isGscan}
 --?9/0
             tokline = emitline
             while 1 do
@@ -4382,7 +4452,9 @@ integer waspc = pc, xpc
                 tokline += 1
             end while
             tokcol += linestarts[tokline]-1
-            Abort("illegal/unsupported construct")
+--          Abort("illegal/unsupported construct")
+            ?`Abort("illegal/unsupported construct") (line 4425)`
+--*/
 --  81:  opLn,13,                            --:  exit
 --  83:  opJmp,3,95,0,                       opJmp,exitMerge,tgt,link
 --  87:  opLn,14,                            --: end for
@@ -4397,7 +4469,12 @@ integer waspc = pc, xpc
 ----            return 1
 --          return 0
 --*!/
+--27/9/19
+            skip = opSkip[nextop] -- (shd always be 3, from/see pops.e)
+            if skip<=0 then ?9/0 end if
+            pc += skip
         else
+--      end if
             skip = opSkip[nextop]
             if skip>0 then
 --              jtgt = jtgts[nextop]
@@ -4405,8 +4482,8 @@ integer waspc = pc, xpc
 --DEV:
                 if (nextop>=opJif and nextop<=opJnotx)
                 or (nextop>=opJmp and nextop<=opJlen) then
-                    mergeSet = s5[pc+1]
-                    if mergeSet!=isOpCode then  -- ignore opRetfs
+                    integer mergeSet2 = s5[pc+1]
+                    if mergeSet2!=isOpCode then -- ignore opRetfs
                         -- detach any skipped jumps:
                         skiptgt = s5[pc+2]
                         if skiptgt>pc then      -- ignore end whiles (backward jumps)
@@ -5873,6 +5950,16 @@ else
                             emitHex6w(mov_medi_im32,#40000000)      -- mov [edi],h4
                         end if
 end if
+--9/5/19:
+                        cmp_h4(eax)
+                        emitHex6j(jne_rel32,0)                      -- jne @f [sj OK]
+                        backpatch = length(x86)
+                        -- unassigned (fatal runtime error)
+--DEV: this could do with an "opRetn", ie pop an opFrame but return here
+                        movRegVno(esi,src)                      -- mov esi,src (var no for unassigned)
+                        emitHex5callG(opUnassigned)
+                        x86[backpatch] = length(x86)-backpatch  -- @@:
+
                     else
                         if sched then
                             schedule(0,0,ebxbit,pUV,1,0)
@@ -11141,6 +11228,7 @@ end if
                                                         -- @@: <next instruction>
                     end if
                 end if
+--27/9/19 this code copied into jskip:
                 -- finally, batchpatch zero-iteration jmp(s) [if any] at loop start:
                 tgt = s5[p1-5] -- (was flags, now backpatch chain)
                 while tgt do
@@ -11707,6 +11795,7 @@ end if -- tmpd
                 end if
 --8/6/16:
 --              loadToReg(eax,src)                              -- mov eax,[src]
+                clearReg(ecx)       -- (added 5/12/19)
                 getSrc()
                 if and_bits(state1,K_rtn+K_Fres) then ?9/0 end if
                 if slroot=T_integer and smin=smax then
@@ -16026,6 +16115,7 @@ string options
 --  jdesc[opCatch] = "opCatch,mergeSet(0),tgt,link,tlnk,e\n"
     jdesc[opCatch] = "opCatch,tlnk,e\n"
     jdesc[opThrow] = "opThrow,e,user\n"
+    jdesc[opPow] = "opPow,dest,src1,src2,tii[==1]\n"
 
 -- Other descriptions can be added here as needed, or possibly this lot could be moved into pops.e
 --  for use elsewhere. Things like opLn etc are pretty self-evident and not worth adding?
@@ -16324,6 +16414,7 @@ integer lastop, lastln
             puts(dilfn,bcomma)
         end if
         skip = opSkip[opcode]
+if skip=-20000 then ?9/0 end if
         if skip>0 then
             pskip(skip)
         else

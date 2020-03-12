@@ -1061,7 +1061,7 @@ end if
                 end if
             elsif Ch='\t' then
                 tokcol = col
-                Abort("tab character found in string - use spaces or \\t instead")
+                Abort(`tab character found in string - use spaces or \t instead`)
             end if
             TokStr = append(TokStr,Ch)
             col += 1
@@ -1174,7 +1174,7 @@ end if
             end if
         elsif Ch='\t' then
             tokcol = col
-            Abort("tab character - use space or \\t instead")
+            Abort(`tab character - use space or \t instead`)
         end if
         Tok9 = Ch   -- DEV use Ch! [DOH, we cannot as Ch is NEXT char!!!]
         col += 1
@@ -1254,8 +1254,8 @@ global procedure MatchChar(integer x, bool float_valid=false)
 --      MatchChar(')'[,false])
 --      MatchChar('}'[,false])
 --
---  if not equal(Ch,x) then Expected('\''&x&'\'') end if
-    if not equal(toktype,x) then Expected('\''&x&'\'') end if
+--  if not equal(Ch,x) then Expected(`'`&x&`'`) end if
+    if not equal(toktype,x) then Expected(`'`&x&`'`) end if
 --  getToken()
     getToken(float_valid)
 end procedure
@@ -1280,7 +1280,7 @@ global procedure MatchString(integer T_ident, bool float_valid=false)
 --
     if toktype!=LETTER 
     or ttidx!=T_ident then
-        Expected('\"'&getname(T_ident,-2)&'\"')
+        Expected('"'&getname(T_ident,-2)&'"')
     end if
     getToken(float_valid)
 end procedure
@@ -1486,7 +1486,7 @@ sequence name
             end if
         end if
     end while
-    Aborpp("\"end ifdef\" expected")
+    Aborpp(`"end ifdef" expected`)
 end procedure
 
 procedure preprocess() -- called from getToken()

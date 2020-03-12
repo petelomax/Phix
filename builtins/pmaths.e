@@ -52,28 +52,32 @@ global function min(object a, object b)
     if a<b then return a else return b end if
 end function
 
-global function minsq(sequence s)
+global function minsq(sequence s, bool return_index=false)
 object res = s[1]
+integer rdx = 1
     for i=2 to length(s) do
         if s[i]<res then
             res = s[i]
+            rdx = i
         end if
     end for
-    return res
+    return iff(return_index?rdx:res)
 end function
 
 global function max(object a, object b)
     if a>b then return a else return b end if
 end function
 
-global function maxsq(sequence s)
+global function maxsq(sequence s, bool return_index=false)
 object res = s[1]
+integer rdx = 1
     for i=2 to length(s) do
         if s[i]>res then
             res = s[i]
+            rdx = i
         end if
     end for
-    return res
+    return iff(return_index?rdx:res)
 end function
 
 global function mod(atom x, atom y)

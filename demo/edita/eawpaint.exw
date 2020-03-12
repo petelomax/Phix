@@ -2564,8 +2564,8 @@ integer cType
                     k = Windows[i]
 --dev: flattenset or <expr> R[k][7][2][2] here...
 -- 2/1/64 OK:
-                    text = sprintf("%s (\"%s\")",{Results[k][6],Results[k][7][2][2]})
---                  text = sprintf("%s (\"%s\")",{Results[k][6],flattenset(Results[k][7][2][2])})
+                    text = sprintf(`%s ("%s")`,{Results[k][6],Results[k][7][2][2]})
+--                  text = sprintf(`%s ("%s")`,{Results[k][6],flattenset(Results[k][7][2][2])})
                     void = insertItem(SelList,text,0)
                     if OK and equal(text,defaulttext) then
                         defaultindex = i
@@ -2682,7 +2682,7 @@ object flags
         oneCtrl[Text] = ppf(oneCtrl[Text])
     --?oneCtrl[Text]
     else
-        oneCtrl[Text] = sprintf("\"%s\"",{oneCtrl[Text]})
+        oneCtrl[Text] = sprintf(`"%s"`,{oneCtrl[Text]})
     end if
     oneCtrl[Type] = getCtrlTypeString(oneCtrl[Type])
     oneCtrl[cHbmap] = "0" --DEV
@@ -2923,7 +2923,8 @@ sequence text
 integer len
 --18/07/2013
 --  if equal(set[1],DQUOTE) and equal(set[2],"") then return end if -- don't check "", the null string
-    if equal(set[1],DQUOTE) and equal(set[2],"\"\"") then return end if -- don't check "", the null string
+--  if equal(set[1],DQUOTE) and equal(set[2],"\"\"") then return end if -- don't check "", the null string
+    if equal(set[1],DQUOTE) and equal(set[2],`""`) then return end if -- don't check "", the null string
     poke4(selData,set[3..5])    -- {line,colfrom,colto}
     poke4(CDS,{CD_SETSEL,12,selData})
     if c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})!=CD_EDITA then
@@ -2980,12 +2981,12 @@ integer len
     elsif find(set[1],{FUNC,DQUOTE}) then
 --      if equal(set[2],With) then return end if
 --      if set[1]=UNKNOWN and length(With) then
---          With = '\"'&With&'\"'
+--          With = `"`&With&`"`
 --      end if
 --18/07/2013:
 --      if set[1]=DQUOTE then
 ----trace(1)
---          if equal('\"'&set[2]&'\"',With) then return end if
+--          if equal(`"`&set[2]&`"`,With) then return end if
 ----            set[4..5] += {-1,+1}
 --          set[4] = set[4]-1
 --          set[5] = set[5]+1
@@ -3033,7 +3034,7 @@ integer len
         text = set[2]
     elsif set[1]=DQUOTE then
 --18/07/2013:
---      text = '\"'&set[2]&'\"'
+--      text = `"`&set[2]&`"`
         text = set[2]
     elsif set[1]=DIGIT then
 --      if not equal(text,sprint(set[2])) then ?9/0 end if
@@ -3154,8 +3155,8 @@ sequence actualFile
     last = 0
     for i=1 to length(CtrlSet) do
         if CtrlSet[i][oEnt]=0 then
---          text = sprintf("constant %s = create(%s,\"%s\",%s,%s,%s,%s,%s,%s,%s)",ConvertOne(i))
-            text = sprintf("constant %s = create(%s,%s,%s,%s,%s,%s,%s,%s,%s)",ConvertOne(i))
+--          text = sprintf(`constant %s = create(%s,"%s",%s,%s,%s,%s,%s,%s,%s)`,ConvertOne(i))
+            text = sprintf(`constant %s = create(%s,%s,%s,%s,%s,%s,%s,%s,%s)`,ConvertOne(i))
 --          len = length(text)
 --DEV this caused a machine crash...
 --          mem = allocate_TextSpace(len)
@@ -3239,7 +3240,7 @@ sequence actualFile
             replace(oneRes[8],oneCtrl[5])
         end if
         if oneRes[7][2][1]=UNKNOWN then
-            oneCtrl[3] = '\"'&oneCtrl[3]&'\"'
+            oneCtrl[3] = `"`&oneCtrl[3]&`"`
         end if
         if equal(oneRes[7][1][2],"ListView") then
             -- Leave the column definitions alone
@@ -3260,7 +3261,7 @@ sequence actualFile
     --
     k = CtrlSet[1][oEnt]
     if k then
-        text = sprintf("%s (\"%s\")",{Results[k][6],Results[k][7][2][2]})
+        text = sprintf(`%s ("%s")`,{Results[k][6],Results[k][7][2][2]})
     end if
     poke4(CDS,{CD_SETDEF,length(text),mem_str(text)})
     void = c_func(xSendMessage,{EditaHwnd, WM_COPYDATA, NULL, CDS})

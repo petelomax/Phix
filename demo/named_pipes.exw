@@ -5,8 +5,8 @@
 --DEV:
 --#withtype bool
 
---constant plat = platform()
-constant plat = LINUX
+constant plat = platform()
+--constant plat = LINUX
 
 include builtins\cffi.e
 
@@ -464,8 +464,10 @@ if plat=WINDOWS then
 end if
 --                                     PIPE_UNLIMITED_INSTANCES, 0, 0, 1000, NULL)
 
-        string cmd = iff(cl[1]!=cl[2]?sprintf("\"%s\" \"%s\" -client",cl)
-                                     :sprintf("\"%s\" -client",cl))
+--      string cmd = iff(cl[1]!=cl[2]?sprintf("\"%s\" \"%s\" -client",cl)
+--                                   :sprintf("\"%s\" -client",cl))
+        string cmd = iff(cl[1]!=cl[2]?sprintf(`"%s" "%s" -client`,cl)
+                                     :sprintf(`"%s" -client`,cl))
         {} = system_exec(cmd,8)
 --DEV timeout? (apparently not)
 if plat=WINDOWS then
@@ -690,7 +692,8 @@ procedure Main()
         --DEV in IdleHandler?
         if cl[1]!=cl[2] then    -- (if compiled, you have to create a client by hand)
 --          system(sprintf("\"%s\" \"%s\" -client",cl),2)
-            {} = system_exec(sprintf("\"%s\" \"%s\" -client",cl),8)
+--          {} = system_exec(sprintf("\"%s\" \"%s\" -client",cl),8)
+            {} = system_exec(sprintf(`"%s" "%s" -client`,cl),8)
         end if
     else
         setText(main,"Client")
@@ -709,6 +712,7 @@ char    inbuf[512];
 wchar_t outbuf[512];
 bool    ret;
 LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+--?==   lpszPipeName = `\\.\pipe\AHFSUserCommand`
 DWORD   dwBytesRead;
 AnsiString szConn;
 
@@ -743,6 +747,7 @@ const int BUFLEN = 512;
 char    inbuf[BUFLEN];
 wchar_t outbuf[BUFLEN];
 LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+--?==   lpszPipeName = `\\.\pipe\AHFSUserCommand`
 DWORD   dwBytesRead;
 AnsiString szSQL;
 
@@ -765,7 +770,8 @@ AnsiString szSQL;
     throw "LoadClientData: DBConnection string error";
   }
 
-    this->szInfoPipeName = AnsiString("\\\\.\\pipe\\AppHandler-");
+--  this->szInfoPipeName = AnsiString("\\\\.\\pipe\\AppHandler-");
+    this->szInfoPipeName = AnsiString(`\\.\pipe\AppHandler-`);
     this->szInfoPipeName += AnsiString(dwSessionId);
 
     for(nLoop=0; nLoop<AHPM_NUM_INFO_THREADS; nLoop++)
@@ -956,6 +962,7 @@ const int BUFLEN = 512;
 char    inbuf[BUFLEN];
 wchar_t outbuf[BUFLEN];
 LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+--?==   lpszPipeName = `\\.\pipe\AHFSUserCommand`
 DWORD   dwBytesRead;
 AnsiString szSQL;
 
@@ -971,7 +978,8 @@ AnsiString szSQL;
 
 
       szMsg.sprintf(pFmt,this->nVersion);
-      szPipeName.sprintf("\\\\.\\pipe\\AppHandler-%d",dwSessionId);
+--    szPipeName.sprintf("\\\\.\\pipe\\AppHandler-%d",dwSessionId);
+      szPipeName.sprintf(`\\.\pipe\AppHandler-%d`,dwSessionId);
       blRes = CallNamedPipeA(szPipeName.c_str(), szMsg.c_str(), szMsg.Length(),
                   &outbuf, sizeof(outbuf), &dwBytesRead, NMPWAIT_WAIT_FOREVER);
       if (blRes==false)
@@ -983,6 +991,7 @@ const int BUFLEN = 512;
 char    inbuf[BUFLEN];
 wchar_t outbuf[BUFLEN];
 LPSTR   lpszPipeName = "\\\\.\\pipe\\AHFSUserCommand";
+--?==   lpszPipeName = `\\.\pipe\AHFSUserCommand`
 DWORD   dwBytesRead;
 UnicodeString szSQL;
 
@@ -1016,6 +1025,7 @@ int _tmain(VOID)
    DWORD  dwThreadId = 0; 
    HANDLE hPipe = INVALID_HANDLE_VALUE, hThread = NULL; 
    LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+   LPTSTR lpszPipename = TEXT(`\\.\pipe\mynamedpipe`) 
  
 // The main loop creates an instance of the named pipe and 
 // then waits for a client to connect to it. When the client 
@@ -1230,6 +1240,7 @@ int _tmain(int argc, TCHAR *argv[])
    BOOL   fSuccess = FALSE; 
    DWORD  cbRead, cbToWrite, cbWritten, dwMode; 
    LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\mynamedpipe"); 
+   LPTSTR lpszPipename = TEXT(`\\.\pipe\mynamedpipe`) 
 
    if( argc > 1 )
       lpvMessage = argv[1];

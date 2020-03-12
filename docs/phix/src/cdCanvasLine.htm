@@ -16,18 +16,96 @@
             include pGUI.e
             <br>
             <br>
-            cdCanvasLine(<a href="cdCanvas.htm">cdCanvas</a> hCdCanvas, <a href="atom.htm">atom</a> x1, y1, x2, y2)
+            cdCanvasLine(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> x1, y1, x2, y2)
+            <br><i>-- or --</i><br>
+            wdCanvasLine(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> x1, y1, x2, y2)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
+         </td>
          <td>
             Draws a line from (x1,y1) to (x2,y2) using the current foreground color and line width and style. Both points are included in the line. 
             <br>
             <a name=cdLine></a>
             <br>
-            The procedure cdLine(x1,y1,x2,y2) is shorthand for cdCanvasLine(cdActiveCanvas(),x1,y1,x2,y2).
+            The procedure cdLine(x1,y1,x2,y2) is shorthand for cdCanvasLine(<a href="cdCanvasActivate.htm">cdActiveCanvas</a>(),x1,y1,x2,y2).
+            <br>
+            <br>
+            When translating to Phix, the C function cdfCanvasLine() should simply have the 'f' deleted.
+            <a name=attr></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            These also apply to <a href="cdCanvasArc.htm">cdCanvasArc</a>(), 
+            <a href="cdCanvasBegin.htm">cdCanvasBegin/End</a>(), and
+            <a href="cdCanvasRect.htm">cdCanvasRect</a>().<br>
+            <small>Aside: Inserting "Set"/"Get" into the C function names might be tedious, but then again so would prefixing with "{} =".</small>
+            <br>
+            <br>
+<!--<a name="cdCanvasLine.htm#attr">cdCanvasLineStyle</a>-->
+            <b>cdCanvasSetLineStyle</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="integer.htm">integer</a> style)<br>
+            <i>-- or --</i><br>
+            <a href="integer.htm">integer</a> prev = <b>cdCanvasGetLineStyle</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas)
+            <br>
+            <br>
+            Configures or retrieves the style of the current line.<br>
+            Valid settings for style are: CD_CONTINUOUS, CD_DASHED, CD_DOTTED, CD_DASH_DOT, CD_DASH_DOT_DOT, or CD_CUSTOM.<br>
+            Default value: CD_CONTINUOUS. When translating C code, cdCanvasLineStyle() needs Set/Get inserted, and for the latter CD_QUERY removed.<br>
+            When <b>CD_CUSTOM</b> is used the <b>cdCanvasLineStyleDashes</b>() function must be called before to initialize the custom dashes. <br>
+            The spaces are drawn with the background color, except when back opacity is transparent then the background is left unchanged. <br>
+            See <a name="cdCanvasBox.htm#attr">cdCanvas[Get/Set]BackOpacity</a>.
+            <p align="center"><font size="4">Line Styles</font><br>
+            <img src="images/lines.gif" border="2" width="243" height="62"/></p>
+            <br>
+            <b>cdCanvasLineStyleDashes</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="sequence.htm">sequence</a> dashes)
+            <br>
+            <br>
+            Defines the custom line style dashes.<br>
+            The first value is the length of the first dash, the second value is the length of the first space, and so on.<br>
+            For example: {10,2,5,2} means dash size 10, space size 2, dash size 5, space size 2, and repeats the pattern. Sizes are in pixels.<br>
+            In Phix, the final count parameter of the C function is assumed from <a href="length.htm">length</a>(dashes).
+            <br>
+            <br>
+            <b>cdCanvasSetLineWidth</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> width)<br>
+            <i>-- or --</i><br>
+            <b>wdCanvasSetLineWidth</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> width_mm)<br>
+            <i>-- and --</i><br>
+            <a href="integer.htm">integer</a> prev = <b>cdCanvasGetLineWidth</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas)<br>
+            <i>-- or --</i><br>
+            <a href="integer.htm">atom</a> prev = <b>wdCanvasGetLineWidth</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas)
+            <br>
+            <br>
+            Configures or retrieves the width of the current line in pixels or (for wd) millimeters.<br>
+            Default value: 1. When translating C code, c/wdCanvasLineWidth() needs Set/Get inserted, and for the latter CD_QUERY removed.
+            <br>
+            <br>
+            <b>cdCanvasSetLineJoin</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="integer.htm">integer</a> join_style)<br>
+            <i>-- or --</i><br>
+            <a href="integer.htm">integer</a> prev = <b>cdCanvasGetLineJoin</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas)
+            <br>
+            <br>
+            Configures or retrieves the current line style for <b>CD_MITER</b>, <b>CD_BEVEL</b> or <b>CD_ROUND</b>.<br>
+            Default value: CD_MITER. When translating C code, cdCanvasLineJoin() needs Set/Get inserted, and for the latter CD_QUERY removed.<br>
+            <p align="center"><font size="4">Line Joins</font><br>
+            <img src="images/linejoin.gif" border="2" width="111" height="138"/></p>
+            <br>
+
+            <b>cdCanvasSetLineCap</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="integer.htm">integer</a> cap_style)<br>
+            <i>-- or --</i><br>
+            <a href="integer.htm">integer</a> cap_style = <b>cdCanvasGetLineCap</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas)
+            <br>
+            <br>
+            Configures or retrieves the current line style for <b>CD_CAPFLAT</b>, <b>CD_CAPSQUARE</b> or <b>CD_CAPROUND</b>.<br>
+            Default value: CD_CAPFLAT. When translating C code, cdCanvasLineCap() needs Set/Get inserted, and for the latter CD_QUERY removed.<br>
+            <p align="center"><font size="4">Line Caps</font><br>
+            <img src="images/linecap.gif" border="2" width="211" height="166"/></p>
+            <br>
          </td>
         </tr>
        </table>

@@ -901,6 +901,8 @@ integer slsi    -- scratch (idx to symtab)
             si = symtab[slsi]
 outFrame = slsi
             slt = si[S_ltab]
+--4/11/19: (structs)
+if slt!={} then
             sIL = si[S_il]
 if newEmit then
     if listing!=-1 then
@@ -928,6 +930,7 @@ end if
                 end if
             end if
             slO = 0
+end if
         end if
     end if
 end procedure
@@ -1672,6 +1675,7 @@ end if
                     stateDesc("K_ridt",K_ridt)
                     stateDesc("K_dlft",K_dlft)
                     stateDesc("K_drid",K_drid)
+--                  stateDesc("K_struc",K_struc)
                     if siState then
                         sState &= sprintf(" + *** #%x ***??",siState)
                     end if

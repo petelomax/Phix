@@ -1,0 +1,198 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Structs and Classes</h1>
+      <div id="mainSection">
+        These are extended user defined types, with named access to individual fields and additional typechecking.<br>
+        There are actually four different types of structures:
+        <br>
+        <br>
+        <ul>
+        <li><a href="struct.htm">Simple Structs</a></li>
+        <li><a href="cstruct.htm">C Structs</a></li>
+        <li><a href="class.htm">Classes</a></li>
+        <li><a href="dynamic.htm">Dynamic Classes</a></li>
+        </ul>
+
+        All four are reference types: each instance must be created via <a href="structs.htm#new">new</a>() and if you save the 
+        result of that in more than one place, modifying either will modify the other. <br>
+        In particular you should note that the result from <a href="structs.htm#new">new</a>() is <b>not</b> normally suitable for 
+        passing to <a href="repeat.htm">repeat</a>(), similar to <a href="allocate.htm">allocate</a>() I suppose, and instead you 
+        should typically invoke new() n times to populate a sequence of length n.
+        The original design also had a sequence-based type, with copy-on-write semantics, however it proved much more difficult to
+        implement, and besides any benefits that might have bought are probably much better obtained via the traditional myseq[MYENUM]
+        style syntax anyway. Another way of saying that might be: Why would you bother to introduce a entirely brand new type system 
+        and syntax if it is not radically different to whatever you already have?
+        <br>
+        <br>
+        Some performance has been sacrificed in the name of programmer productivity, simplifying and managing complexity, enhancing and 
+        enforcing type checking, and being flexible enough to cater for as many forseeable needs as possible.
+        That is largely true of any similar system, including object orientated ones, admittedly [at this time] probably more pronounced 
+        in Phix than say C++/Go. Not a problem for several hundred or even thousand structs/objects, however (for instance) a standard 
+        phix sequence holding 4096 x 2160 pixels will seriously outperform invoking new() more than 8 million times, and not necessarily 
+        just during initialisation. Obviously, should benefits such as improved code clarity fail to outweigh a significant performance 
+        hit, then in that specific case structs/classes are quite simply entirely inappropriate and should not be used.
+        <br>
+        <br>
+        Also note that structs/classes are not directly comparable: you cannot use <a href="sort.htm">sort</a>() on sequences 
+        of structs/classes, instead it would have to be a <a href="custom_sort.htm">custom_sort</a>(), or even better yet use 
+        a <a href="class.htm">class</a> rather than a <a href="sequence.htm">sequence</a> to contain not only the list of 
+        structs/classes but also the internal/private method(s) needed to compare and sort them.<br>
+        Likewise, although such operations may still be applicable to individual string and sequence fields [or will/should one 
+        day be, except/as noted in <a href="structs.htm">builtins\structs.e</a>], any (traditional numeric) subscripts, slices, 
+        append, prepend, and concatenation are meaningless and invalid on structs and classes.
+        <br>
+        <br>
+        In many object-orientated programming languages, compilation is so painfully slow that extreme measures are taken to 
+        avoid/prevent changes that might require dependent classes be recompiled. There are no such considerations in Phix, 
+        since it would probably take longer to test than recompile anyway, however of course it retains the notion of a fixed
+        interface, albeit an implicit rather than explict one, behind which rather drastic changes can occur without requiring 
+        any external source code changes whatsoever. Obviously the standard non-OOP file-level encapsulation which prevents 
+        inadvertent interference by unrelated code is equally applicable to structs/classes, which also have similar scope rules 
+        for their fields as local variables do in traditional routines - while you might have access to s.name, the standalone 
+        name field is not otherwise itself exposed in any way, nor is there any problem with different structs each having their
+        own name field, all potentially in a different position, or even sometimes string, sometimes function. For more details 
+        see the private workings of the autoinclude <a href="structs.htm">builtins\structs.e</a>.
+<!--
+        <br>
+        <br>
+        The above types all have reference semantics; the original design also included a structure with sequence semantics, which
+        was dropped because it proved much more difficult to implement, but might offer slightly better performance/less overhead
+        and therefore be resurrected some day (one less level of subscript but many more instructions, so may actually be slower).
+-->
+<!--
+        For interfacing to C, the struct contents should be specified as a single string copied verbatim from MSDN or some .h file, eg:
+<x!x--eucode>
+struct rect """
+typedef struct _RECT {
+                      LONG left;
+                      LONG top;
+                      LONG right;
+                      LONG bottom;
+                    } RECT, *PRECT;
+"""
+end struct
+rect r = new({10,10,350,200}) -- (arg optional)
+r.left = 10     --\
+r.top = 10      -- } equivalent to using the
+r.right = 350   -- }  {10,10,350,200} above
+r.bottom = 200  --/
+
+c_proc(xFillRect,{hDC,r[I_DATA],hBrush})
+</eucode--x>
+<pre>
+<font color="#000000">struct rect</font><font color="#008000"> """
+typedef struct _RECT {
+                      LONG left;
+                      LONG top;
+                      LONG right;
+                      LONG bottom;
+                    } RECT, *PRECT;
+"""
+</font><font color="#008080">end</font><font color="#000000"> struct
+rect r</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">350</font><font color="#0000FF">,</font><font color="#000000">200</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- (arg optional)
+</i></font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">left</font><font color="#0000FF"> =</font><font color="#000000"> 10    </font><font color="#000080"><i> --\
+</i></font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">top</font><font color="#0000FF"> =</font><font color="#000000"> 10     </font><font color="#000080"><i> -- } equivalent to using the
+</i></font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">right</font><font color="#0000FF"> =</font><font color="#000000"> 350  </font><font color="#000080"><i> -- }  {10,10,350,200} above
+</i></font><font color="#000000">r</font><font color="#0000FF">.</font><font color="#000000">bottom</font><font color="#0000FF"> =</font><font color="#000000"> 200 </font><font color="#000080"><i> --/
+
+</i></font><font color="#5E005E">c_proc</font><font color="#0000FF">(</font><font color="#000000">xFillRect</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">hDC</font><font color="#0000FF">,</font><font color="#000000">r</font><font color="#800080">[</font><font color="#000000">I_DATA</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">hBrush</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+        These C-structs are utterly static and cannot be abstract, extended, or dynamic (and you can blame C for that, not Phix!). <br>
+        They can only ever contain atoms and can only be embedded using the verbatim copied C syntax (ditto).
+        <br>
+        <br>
+        Alternatively, but not suitable for interfacing to C, individual phix-style fields can be individually specified, eg:
+<x!x--eucode>
+struct person
+    string name = "boris"
+    atom age = 3.75
+end struct
+person p = new()
+?p.age
+--p.age = "oops" -- type error
+</eucode--x>
+<pre>
+<font color="#000000">struct person
+</font><font color="#004080">    string</font><font color="#000000"> name</font><font color="#0000FF"> =</font><font color="#008000"> "boris"
+</font><font color="#004080">    atom</font><font color="#000000"> age</font><font color="#0000FF"> =</font><font color="#000000"> 3.75
+</font><font color="#008080">end</font><font color="#000000"> struct
+person p</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()
+?</font><font color="#000000">p</font><font color="#0000FF">.</font><font color="#000000">age
+</font><font color="#000080"><i>--p.age = "oops" -- type error</i></font>
+</pre>
+        The new() in person p = new() is automatically substituted by the compiler with new(routine_id("person")), which is also equivalent to
+        new("person"). If the compiler cannot deduce the "person" from context, it issues an error forcing the programmer to provide it explicitly.
+        If as shown in the C-struct example above, new() is (only) given a sequence of initial values, an appropriate struct identifier is squidged 
+        in beforehand, again automatically/when possible.
+        <br>
+        <br>
+        It can sometimes be helpful to think of simple objects as structs and more complex things as classes, in Phix there is not that much difference 
+        between structs and classes. <X!--, apart from the fact that structs cannot be fully dynamic (see below).--X><br>
+        Typically classes have methods as well as fields, a hierarchy, etc. Normally I would recommend that classes should probably only ever extend other 
+        classes, however in practice that is not specifically enforced.
+<x!x--eucode>
+[abstract] class politician nullable extends person
+    [virtual|final] procedure show()
+      printf(1,"%s aged $g, habitual liar\n",{this.name,this.age}))
+    end procedure
+end class
+politician mp = new()
+mp.show() -- boris, aged 3.75, habitual liar
+</eucode--x>
+<pre>
+<font color="#000000"></font><font color="#0000FF">[</font><font color="#000000">abstract</font><font color="#0000FF">]</font><font color="#000000"> class politician nullable extends person
+</font><font color="#0000FF">    [</font><font color="#000000">virtual</font><font color="#0000FF">|</font><font color="#000000">final</font><font color="#0000FF">]</font><font color="#008080"> procedure</font><font color="#000000"> show</font><font color="#0000FF">()
+</font><font color="#5E005E">      printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s aged $g, habitual liar\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#00FFFF">)
+</font><font color="#008080">    end procedure
+end</font><font color="#000000"> class
+politician mp</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()
+</font><font color="#000000">mp</font><font color="#0000FF">.</font><font color="#000000">show</font><font color="#0000FF">()</font><font color="#000080"><i> -- boris, aged 3.75, habitual liar</i></font>
+</pre>
+        An abstract class (or struct) cannot be instantiated, ie attempts to invoke new() trigger compile-time and/or run-time errors.<br>
+        By default struct and class variables cannot be set to null, unless the definition contains an explicit nullable clause.<br>
+        When a class is extended, all the fields along with their defaults are copied over into the new structure.<br>
+        You can store every politician in a person variable, but not (necessarily) every person in a politician variable.<br>
+        You can store every politician and every person in a struct (or class[?]) variable, ie the lowest level builtin type.<br>
+        In other words the base classes (as in "extends base") can hold the extended classes, but not always vice-versa.<br>
+        A virtual method can be overidden by a derived class, and does not require a concrete implementation in abstract classes.<br>
+        By default all methods are final, ie cannot be overidden, and if desired that can be explictly stated.<br>
+        <br>
+        <br>
+<x!x--
+        Also by default, you have to explicitly declare all the fields and methods of each class/structure, however you can also create
+        fully dynamic classes by making the base class "extends struct":
+< ! --eucode>
+class flex dynamic
+end class
+flex f = new()
+?
+?f.jelly
+f.jelly = "green"
+?f.jelly
+</eucode -- >
+<pre>
+<font color="#000000">class flex dynamic
+</font><font color="#008080">end</font><font color="#000000"> class
+flex f</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()
+?
+?</font><font color="#000000">f</font><font color="#0000FF">.</font><font color="#000000">jelly
+f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font color="#0000FF"> =</font><font color="#008000"> "green"
+</font><font color="#0000FF">?</font><font color="#000000">f</font><font color="#0000FF">.</font><font color="#000000">jelly</font>
+</pre>
+        The builtin struct type has no fields, and all classes implicitly extend it. However by explicitly extending it, you are implying
+        something extra is desired, which ...
+        <br>
+        <br>
+--x>
+-->
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -2,7 +2,9 @@
 -- ptok.e
 --
 -- File read and tokeniser.
+--
 ----/**/without debug   -- no gain
+without trace
 
 integer fn
         fn = -1
@@ -41,7 +43,6 @@ global --DEV 1/11/09 for psym.e
 integer ltl         -- length(text)
         ltl = -1
 
---DEV could we use MapViewOfFile??
 procedure loadFile()
 string msg
 --
@@ -50,43 +51,11 @@ string msg
 -- scanning EUDIR,EUINC, etc). It is closed on exit.
 --
 
---/**/  -- Phix version (see notes above re gets()):
---/**/  text = get_text(fn,GT_WHOLE_FILE)
---/**/  ltl = length(text)
-
---/* -- RDS compatible code:
---  (btw: The sheer number of calls made by RDS Eu to getc() makes 
---        this significantly slower than the Phix single get_text.
---        RDS Eu would fare much better if it built a table of lines
---        using gets, 0.5.9 had the constant oneString which has now
---        been removed.)
---
-integer textlen
-integer lllen
-object line
-sequence lastline
-integer ch
-
-    if seek(fn,-1)!=0 then ?9/0 end if
-    ltl = where(fn)
-    if seek(fn,0)!=0 then ?9/0 end if
-
-    text = repeat(' ',ltl+1)
-    for i=1 to ltl do
-        ch = getc(fn)
-        if ch=-1 then   -- (since text mode drops \r)
-            ltl = i-1
-            exit
-        end if
-        text[i] = ch
-    end for
-    if text[ltl]!='\n' then
-        ltl += 1
-        text[ltl] = '\n'
+    if not minus_e then
+        text = get_text(fn,GT_WHOLE_FILE)
     end if
-    text = text[1..ltl]
+    ltl = length(text)
 
---*/
 -- 01/08/2013:
     col = 0
     if ltl>=3 and text[1..3]={#EF,#BB,#BF} then
@@ -306,7 +275,7 @@ end procedure
 
 forward global procedure eof_processing()
 
-without trace
+--without trace
 --with trace
 include ppp.e
 
@@ -403,6 +372,8 @@ end if
 --      fn = open(file,"rb")
         fn = open(file,"r")
         thispath = ""
+    elsif minus_e then
+        thispath = ""
     else
         for i=length(filepaths) to 1 by -1 do
             if i<=alwaysactive
@@ -461,10 +432,12 @@ end if
             fn = open(file,"r")
         end if
     end if
-    if fn!=-1 then
+    if fn!=-1 or minus_e then
 --if usegpp then
 --?{thispath,file}
+if not minus_e then
         file = get_proper_path(thispath&file,"")
+end if
 --?{{file}}
 --/*
 global integer intellisense = 0
@@ -612,6 +585,7 @@ end if
 
         wasfileno = fileno
         loadFile()
+--if filenames={} then ?text {} = wait_key() end if
 if showfileprogress then
 --?text
 ?"loadFile"
@@ -911,7 +885,7 @@ end if
     end if
 end procedure
 
-without trace
+--without trace
 constant Tmap = {"integer","atom","string","sequence","object"}
 
 function unmapsig(sequence sig, integer ParmN)
@@ -1134,7 +1108,9 @@ global procedure tokinit()
 
     line = 1
     col = 0
+--if not minus_e then
     ltl = -1
+--end if
     tokline = 0
     tokcol = 0
     
@@ -1264,15 +1240,26 @@ string charset, baseset
     charset['0'..'9'] = DIGIT
     charset[':'..'?'] = SYMBOL  -- :;<=>?
     charset['A'..'Z'] = LETTER
-    charset[#80] = LETTER   -- more unicode
-    charset[#88] = LETTER   -- more unicode
-    charset[#94] = LETTER   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
-    charset[#9A] = LETTER   -- for rosettacode/unicode
-    charset[#A3] = LETTER   -- for rosettacode/unicode
-    charset[#BB] = LETTER   -- for rosettacode/unicode
-    charset[#CE] = LETTER   -- for rosettacode/unicode
-    charset[#CF] = LETTER
-    charset[#E2] = LETTER
+--4/9/19: (nb changes must match identset in pttree.e)
+--  charset[#80] = LETTER   -- more unicode
+--  charset[#88] = LETTER   -- more unicode
+--  charset[#94] = LETTER   -- for rosettacode/unicode (as ptok.e is not stored in utf8)
+--  charset[#9A] = LETTER   -- for rosettacode/unicode
+--  charset[#A3] = LETTER   -- for rosettacode/unicode
+--  charset[#BB] = LETTER   -- for rosettacode/unicode
+--  charset[#CE] = LETTER   -- for rosettacode/unicode
+--  charset[#CF] = LETTER
+--  charset[#E2] = LETTER
+    charset[#80..#BF] = LETTER
+    charset[#C2..#F4] = LETTER
+--51102: #81(129), #82(130), #83(131), #84(132), #85(133), #86(134), #87(135), #89(137), #8A(138), #8B(139), #8C(140), #8D(141), #8E(142), #8F(143), 
+--      #90(144), #91(145), #92(146), #93(147), #95(149), #96(150), #97(151), #98(152), #99(153), #9B(155), #9C(156), #9D(157), #9E(158), #9F(159), 
+--      #A0(160), #A1(161), #A2(162), #A4(164), #A5(165), #A6(166), #A7(167), #A8(168), #A9(169), #AA(170), #AB(171), #AC(172), #AD(173), #AE(174), #AF(175), 
+--      #B0(176), #B1(177), #B2(178), #B3(179), #B4(180), #B5(181), #B6(182), #B7(183), #B8(184), #B9(185), #BA(186), #BC(188), #BD(189), #BE(190), #BF(191)
+--From https://rosettacode.org/wiki/Idiomatically_determine_all_the_characters_that_can_be_used_for_symbols
+--or more accurately, after I posted that I ran some further tests, and determined the following:
+--  Tip: 100% unicode coverage would be achieved by marking everything from #80 to #BF and #C2 to #F4, 
+--       as LETTER, but not #C0, C1 or #F5..#FF (oh, what the heck, just do it! -- DONE!)
 --  charset['_'] = ILLEGAL  -- Specifically checked for after 1st character of LETTER
 --  charset['_'] = USCORE
 --12/11/15:
@@ -1471,7 +1458,8 @@ global procedure skipHashBangLine()
 --      end if
         Ch = text[col]
     end while
-    line += 1
+--removed 1/10/19 (since it gets done in skipSpacesAndComments(), again)
+--  line += 1
     skipSpacesAndComments()
 end procedure
 

@@ -121,6 +121,36 @@ end for
 printf(1," rt:%3.2f seconds\n",{time()-t0})
 end procedure
 test()
+
+--27/9/19: (zero iteration jump backpatching)
+constant mtm = false
+sequence grid = {1,2,3,4,5,6,7,8,0}
+sequence valid = {}
+integer p0 = find(0,grid)
+for i=p0-3 to 1 by -3 do
+    valid = append(valid,i)
+    if not mtm then exit end if
+end for
+if valid!={6} then ?9/0 end if
+-- This should iterate once (p0 is still 9):
+for i=p0-3 to 1 by -3 do
+    valid = append(valid,i)
+    p0 -= 6
+    exit
+end for
+if valid!={6,6} then ?9/0 end if
+-- This should iterate zero times (p0 is now 3):
+-- [note the real test is manually examining the (3) zero-iterations jumps in the list.asm
+--  (look for the jumps [jl in this case] just before the "valid = append(valid,i)" lines)
+--  - we are supposed to exercise the backpatch, specifically those from jskip(), rather 
+--    than (say) whether the front-end is/gets smart enough to optimise such things away.]
+for i=p0-3 to 1 by -3 do
+    valid = append(valid,i)
+    exit
+end for
+if valid!={6,6} then ?9/0 end if
+
+
 puts(1,"t29for.exw done\n")
 --/* Not Phix
 puts(1,"completed (it's more fun to run this under Phix!)\n")

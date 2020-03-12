@@ -21,7 +21,7 @@
 --  (which is something prepend, as opposed to append, /always/ does)
 --  which causes a fatal error, eg see 'elsif fmt[i]='s' then'.
 
---!/**/without debug -- remove to debug (just keeps ex.err clutter-free)
+--/**/without debug -- remove to debug (just keeps ex.err clutter-free)
 --!/**/with debug
 --  NB the "without debug" in both pdiag.e and ppp.e overshadow the one
 --      here; use "with debug" and/or "-nodiag" to get a listing.
@@ -73,9 +73,11 @@ integer one = iff(result[1]='-'?2:1)
 --DEV: (oldschool, from when prepend string did not work) [prepend always yields T_Seq now anyways] [DEV: lies, 28/3/2014]
 --              result = prepend(result,'1')
                 if one=1 then
-                    result = "1"&result
+--                  result = "1"&result
+                    result = '1'&result
                 else
-                    result = "-1"&result[2..$]
+--                  result = "-1"&result[2..$]
+                    result = '-'&'1'&result[2..$]
                 end if
                 if charflag!='f' then
                     dot = find('.',result)
@@ -272,7 +274,8 @@ end for
             result &= '+'
         end if
         if exponent=0 then
-            reve = "0"
+--          reve = "0"
+            reve = repeat('0',1)
         else
 --          reve = ""
             reve = repeat(' ',0)
@@ -321,7 +324,9 @@ end for
                         if charflag='g' then
                             if f=0 then exit end if
                         end if
-                        if find(result,{"","-","+"}) then
+--                      if find(result,{"","-","+"}) then
+                        if length(result)=0
+                        or (length(result)=1 and (result[1]='-' or result[1]='+')) then
                             result &= '0'
                         end if
                         result &= '.'
@@ -436,7 +441,7 @@ object o
     return 1
 end function
 
-string hexchar
+string hexchar, dxoetc
 sequence bases
 
 --integer r_len = 0
@@ -467,30 +472,34 @@ integer tmp
 -- [DEV] technically this isn't thread safe... (code shown commented out should be enough, once those routines work)
         -- (uncommented 25/11/16)
         enter_cs()
+        if not init2 then
 --DEV make INF a builtin (like PI), ditto NAN:
---      inf = 1e300*1e300
-        #ilASM{ fld1
-                fldz
-                fdivp
-            [32]
-                lea edi,[inf]
-            [64]
-                lea rdi,[inf]
-            []
-                call :%pStoreFlt }
+--          inf = 1e300*1e300
+            #ilASM{ fld1
+                    fldz
+                    fdivp
+                [32]
+                    lea edi,[inf]
+                [64]
+                    lea rdi,[inf]
+                []
+                    call :%pStoreFlt }
 
-        -- Erm, this one is a bit bizarre...
-        -- On the one hand it seems RDS Eu does not support nan properly, but then it somehow does...
-        -- If you try testing for nan, it seems to go all pear-shaped, but avoiding the tests
-        --  seems to make it happy again, and yet print "nan" and "inf" like a good little boy...
-        -- Of course, you shouldn't be using this code on RDS Eu anyway.
-        --
---/**/  nan = -(inf/inf)        --/* Phix
-        nan = 3.245673689e243   --   RDS --*/
+            -- Erm, this one is a bit bizarre...
+            -- On the one hand it seems RDS Eu does not support nan properly, but then it somehow does...
+            -- If you try testing for nan, it seems to go all pear-shaped, but avoiding the tests
+            --  seems to make it happy again, and yet print "nan" and "inf" like a good little boy...
+            -- Of course, you shouldn't be using this code on RDS Eu anyway.
+            --
+--/**/      nan = -(inf/inf)        --/* Phix
+            nan = 3.245673689e243   --   RDS --*/
 
-        bases = {10,16,8,2}
-        hexchar = "0123456789ABCDEFabcdef"
-        init2 = 1
+            bases = {10,16,8,2}
+            hexchar = "0123456789ABCDEFabcdef"
+--          dxoetc = "dxobscvefgEXG"
+            dxoetc = "dxobstcvefgEXG"
+            init2 = 1
+        end if
         leave_cs()
     end if
     nxt = 1
@@ -568,7 +577,15 @@ integer tmp
                 lowerHex = 0
                 -- 23/2/10 'b' added
                 -- 12/1/19 'v' added
-                fidx = find(fi,"dxobscvefgEXG")
+                -- 11/12/19 't' added
+--              fidx = find(fi,"dxobstcvefgEXG")
+                fidx = 0
+                for dx=1 to length(dxoetc) do
+                    if fi=dxoetc[dx] then
+                        fidx = dx
+                        exit
+                    end if
+                end for
                 if fi='X' then
                     --
                     -- Yup, I know it's a wee bit confusing, but for compatibility
@@ -582,7 +599,8 @@ integer tmp
                 end if
 
                 if fidx=0
-                or (showcommas and find(fi,"df")=0) then
+--              or (showcommas and find(fi,"df")=0) then
+                or (showcommas and fi!='d' and fi!='f') then
                     badfmt()
                 end if
                 if not atom(args) and nxt>length(args) then
@@ -626,12 +644,12 @@ integer tmp
                             if base=10 then
                                 work = 0-work
                             else
---DEV 
---if machine_bits()=64 then
---                              work = and_bits(work,#7FFFFFFFFFFFFFFF)+#8000000000000000
---else
+--DEV (found this(/64-bit version) commented out 23/7/19, no idea why... putting it back fixed my issue)
+if machine_bits()=64 then
+                                work = and_bits(work,#7FFFFFFFFFFFFFFF)+#8000000000000000
+else
                                 work = and_bits(work,#7FFFFFFF)+#80000000
---end if
+end if
                             end if
                         end if
 --                      r1 = ""
@@ -693,7 +711,7 @@ integer tmp
                             r1 = repeat('0',1)
                         end if
                     end if
-                elsif fidx<=7 then  -- 's' or 'c' or 'v'
+                elsif fidx<=8 then  -- 's' or 't' or 'c' or 'v'
                     if showplus then badfmt() end if
                     if atom(args) then
                         o = args
@@ -711,11 +729,15 @@ integer tmp
                         o = sprint(o)
                         -- aside: in the following if construct, only the  
                         -- last (ie precision) branch is revelant to %v.
+                    elsif fi='t' then
+                        o = iff(o?"true":"false")
                     end if
                     if atom(o) then
-                        r1 = " "
+--                      r1 = " "
+                        r1 = repeat(' ',1)
                         r1[1] = and_bits(#FF,o) -- (nb: keeps r1 a string)
-                    elsif fidx=6 then -- 'c'
+--                  elsif fidx=6 then -- 'c'
+                    elsif fi='c' then
 --/**/                  #ilASM{ mov al,76                           -- Phix
 --!/**/                         xor edi,edi         -- ep1 unused   -- Phix
 --!/**/                         xor esi,esi         -- ep2 unused   -- Phix

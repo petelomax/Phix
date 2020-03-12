@@ -67,11 +67,12 @@ constant
 --!*/
 
 
-global constant CLSCTX_INPROC_SERVER        = 0x000001
+global constant CLSCTX_INPROC_SERVER        = 0x000001,
 --              CLSCTX_INPROC_HANDLER       = 0x000002,
 --              CLSCTX_LOCAL_SERVER         = 0x000004,
 --              CLSCTX_INPROC_SERVER16      = 0x000008,
 --              CLSCTX_REMOTE_SERVER        = 0x000010,
+                CLSCTX_ALL                  = 0x00001F,
 --              CLSCTX_INPROC_HANDLER16     = 0x000020,
 --              CLSCTX_INPROC_SERVERX86     = 0x000040,
 --              CLSCTX_INPROC_HANDLERX86    = 0x000080,
@@ -82,7 +83,8 @@ global constant CLSCTX_INPROC_SERVER        = 0x000001
 --              CLSCTX_NO_FAILURE_LOG       = 0x004000,
 --              CLSCTX_DISABLE_AAA          = 0x008000,
 --              CLSCTX_ENABLE_AAA           = 0x010000,
---              CLSCTX_FROM_DEFAULT_CONTEXT = 0x020000
+--              CLSCTX_FROM_DEFAULT_CONTEXT = 0x020000,
+$
 
 global constant S_OK            = 0,
                 E_NOTIMPL       = 0x80004001,
@@ -124,6 +126,26 @@ global constant --SIGDN_NORMALDISPLAY               = 0,
 --              SIGDN_PARENTRELATIVEFORADDRESSBAR   = 0x8007c001,
 --              SIGDN_PARENTRELATIVE                = 0x80080001,
 $
+
+-- See C:\Program Files (x86)\Windows Kits\8.1\Include\um\sapi.h
+global constant SPF_DEFAULT             = #000,
+                SPF_ASYNC               = #001,
+--              SPF_PURGEBEFORESPEAK    = #002,
+--              SPF_IS_FILENAME         = #004,
+                SPF_IS_XML              = #008
+--              SPF_IS_NOT_XML          = #010,
+--              SPF_PERSIST_XML         = #020,
+--              SPF_NLP_SPEAK_PUNC      = #040,
+--              SPF_PARSE_SAPI          = #080,
+--              SPF_PARSE_SSML          = #100,
+--              SPF_PARSE_AUTODETECT    = 0,
+--              SPF_NLP_MASK    = SPF_NLP_SPEAK_PUNC,
+--              SPF_PARSE_MASK  = ( SPF_PARSE_SAPI | SPF_PARSE_SSML ) ,
+--              SPF_PARSE_MASK          = #180,
+--              SPF_VOICE_MASK  = ( SPF_ASYNC | SPF_PURGEBEFORESPEAK | SPF_IS_FILENAME | SPF_IS_XML | SPF_IS_NOT_XML | SPF_NLP_MASK | SPF_PERSIST_XML | SPF_PARSE_MASK ) ,
+--              SPF_VOICE_MASK          = #1FF,
+--              SPF_UNUSED_FLAGS        = not_bits(SPF_VOICE_MASK)
+--See also: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens
 
 function gnibble(integer c)
 -- helper routine for GUID()
@@ -187,33 +209,40 @@ end function
 --  name of the dll that contains the actual implementation (should you wrongly care).
 --
 global constant atom CLSID_FileOpenDialog = GUID("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7"),
-                     CLSID_FileSaveDialog = GUID("C0B4E2F3-BA21-4773-8DBA-335EC946EB8B")
---                   CLSID_TaskbarList = GUID (56FDF344-FD6D-11D0-958A-006097C9A090)
+                     CLSID_FileSaveDialog = GUID("C0B4E2F3-BA21-4773-8DBA-335EC946EB8B"),
+--                   CLSID_TaskbarList = GUID (56FDF344-FD6D-11D0-958A-006097C9A090),
+                     CLSID_SpVoice = GUID("96749377-3391-11D2-9EE3-00C04F797396")
 
 --
 -- An IID (interface id) uniquely identifies an interface, in other words something (else) 
 -- that implements said interface will have such-and-such methods, in a specific order.
 --
 global constant atom IID_IUnknown = GUID("00000000-0000-0000-C000-000000000046"),
+                     IID_IDispatch = GUID("{00020400-0000-0000-C000-000000000046}"),
                      IID_IFileOpenDialog = GUID("d57c7288-d4ad-4768-be02-9d969532d960"),
                      IID_IFileSaveDialog = GUID("84bccd23-5fde-4cdb-aea4-af64b83d78ab"),
                      IID_IShellItem = GUID("43826d1e-e718-42ee-bc55-a1e261c37bfe"),
-                     IID_IFileDialogCustomize = GUID("{E6FDD21A-163F-4975-9C8C-A69F1BA37034}")
---                   IID_IFileDialogEvents = GUID("973510db-7d7f-452b-8975-74a85828d354")
---                   IID_ITaskbarList = GUID(56FDF342-FD6D-11D0-958A-006097C9A090)
+                     IID_IFileDialogCustomize = GUID("E6FDD21A-163F-4975-9C8C-A69F1BA37034"),
+--                   IID_IFileDialogEvents = GUID("973510db-7d7f-452b-8975-74a85828d354"),
+--                   IID_ITaskbarList = GUID(56FDF342-FD6D-11D0-958A-006097C9A090),
+                     IID_ISpVoice = GUID("6C44DF74-72B9-4992-A1EC-EF996E0422D4")
+
 
 global procedure freeGUIDS()
 --DEV if cinit
     free(CLSID_FileOpenDialog)
     free(CLSID_FileSaveDialog)
 --  free(CLSID_TaskbarList)
+    free(CLSID_SpVoice)
     free(IID_IUnknown)
+    free(IID_IDispatch)
     free(IID_IFileOpenDialog)
     free(IID_IFileSaveDialog)
     free(IID_IShellItem)
     free(IID_IFileDialogCustomize)
 --  free(IID_IFileDialogEvents)
 --  free(IID_ITaskbarList)
+    free(IID_ISpVoice)
 end procedure
 
 --
@@ -221,7 +250,7 @@ end procedure
 --  There really are no function prototypes or parameter definitions, it really is a
 --  matter of get it right or watch it not work: it (really!) is as simple as that.
 -- (There is no particular reason why most of these are commented out, except to show
---  which of them are actively used/have been thoroughly tested.)
+--  which of them are actively used/have been [lightly] tested.)
 -- Note these constants are simply/automatically doubled when running on 64-bit.
 --
 global constant IUnknown_QueryInterface                         = #00,
@@ -233,6 +262,7 @@ global constant IUnknown_QueryInterface                         = #00,
 --              IModalWindow_Release                            = IUnknown_Release,
                 IModalWindow_Show                               = #0C,
 
+--DEV should be in fileopenN.ew?:
                 IFileDialog_QueryInterface                      = IUnknown_QueryInterface,
 --              IFileDialog_AddRef                              = IUnknown_AddRef,
                 IFileDialog_Release                             = IUnknown_Release,
@@ -385,10 +415,208 @@ global constant IUnknown_QueryInterface                         = #00,
                 IShellItemArray_GetCount                        = #1C,
                 IShellItemArray_GetItemAt                       = #20,
 --              IShellItemArray_EnumItems                       = #24,
+
+--              IUnknown:
+--              ISpVoice_QueryInterface                         = IUnknown_QueryInterface,
+--              ISpVoice_AddRef                                 = IUnknown_AddRef,
+--              ISpVoice_Release                                = IUnknown_Release,
+--              ISpNotifySource:
+--              ISpVoice_SetNotifySink                          = #0C,
+--              ISpVoice_SetNotifyWindowMessage                 = #10,
+--              ISpVoice_SetNotifyCallbackFunction              = #14,
+--              ISpVoice_SetNotifyCallbackInterface             = #18,
+--              ISpVoice_SetNotifyWin32Event                    = #1C,
+--              ISpVoice_WaitForNotifyEvent                     = #20,
+--              ISpVoice_GetNotifyEventHandle                   = #24,
+--              ISpEventSource:
+--              ISpVoice_SetInterest                            = #28,
+--              ISpVoice_GetEvents                              = #2C,
+--              ISpVoice_GetInfo                                = #30,
+--              ISpVoice:
+--              ISpVoice_SetOutput                              = #34,
+--              ISpVoice_GetOutputObjectToken                   = #38,
+--              ISpVoice_GetOutputStream                        = #3C,
+--              ISpVoice_Pause                                  = #40,
+--              ISpVoice_Resume                                 = #44,
+--              ISpVoice_SetVoice                               = #48,
+--              ISpVoice_GetVoice                               = #4C,
+                ISpVoice_Speak                                  = #50,
+--   Speak as function(byval as ISpVoice ptr, byval pwcs as wstring ptr, byval dwFlags as DWORD, byval pulStreamNumber as ULONG ptr) as HRESULT
+--              ISpVoice_SpeakStream                            = #54,
+                ISpVoice_GetStatus                              = #58,
+--              ISpVoice_Skip                                   = #5C,
+--              ISpVoice_SetPriority                            = #60,
+--              ISpVoice_GetPriority                            = #64,
+--              ISpVoice_SetAlertBoundary                       = #68,
+--              ISpVoice_GetAlertBoundary                       = #6C,
+--              ISpVoice_SetRate as function(byval as ISpVoice ptr, byval RateAdjust as integer) as HRESULT
+--              ISpVoice_GetRate as function(byval as ISpVoice ptr, byval RateAdjust as integer ptr) as HRESULT
+--              ISpVoice_SetVolume as function(byval as ISpVoice ptr, byval usVolume as ushort) as HRESULT
+--              ISpVoice_GetVolume as function(byval as ISpVoice ptr, byval pusVolume as ushort ptr) as HRESULT
+--              ISpVoice_WaitUntilDone as function(byval as ISpVoice ptr, byval msTimeout as ULONG) as HRESULT      
+--              ISpVoice_SetSyncSpeakTimeout
+--              ISpVoice_GetSyncSpeakTimeout
+--              ISpVoice_SpeakCompleteEvent
+--              ISpVoice_IsUISupported
+--              ISpVoice_DisplayUI
+--/*
+To test your setup, try running these:
+C:\Windows\SysWOW64\Speech\SpeechUX\sapi.cpl
+C:\Windows\System32\Speech\SpeechUX\sapi.cpl
+--*/
 $
+
+global constant
+  COINIT_APARTMENTTHREADED  = 0x2,
+  COINIT_MULTITHREADED      = 0x0,
+  COINIT_DISABLE_OLE1DDE    = 0x4,
+  COINIT_SPEED_OVER_MEMORY  = 0x8
+
+global procedure CoInitializeEx(integer dwCoInit=COINIT_MULTITHREADED)
+--
+-- Note : The first parameter of the C function, pvReserved, must always
+--        be NULL, and hence is provided automatically by this function.
+--        CoInitialize([NULL]) is technically [more] equivalent to
+--        CoInitializeEx([NULL,]COINIT_APARTMENTTHREADED), however
+--        a) COINIT_MULTITHREADED carries less overhead and in the 
+--          single-threaded case it makes little or no difference.
+--          [In a multi-threaded situtation you may need a bit
+--           more locking, usually in the form of enter_cs().]
+--        b) COINIT_APARTMENTTHREADED does not work properly if it
+--          is invoked from the main (GUI) thread anyway.
+--
+-- Also: In C this can be called multiple times, however secondary calls 
+--       achieve precisely nothing, every call must have a corresponding 
+--       CoUninitialize(), and in the COINIT_APARTMENTTHREADED case must 
+--       be from the same thread.
+--       Instead this [more] simply terminates in error if called twice.
+--
+-- This routine should only ever be called from with a similar guard:
+    if platform()!=WINDOWS then ?9/0 end if
+
+integer res
+    #ilASM{
+            [32]
+                mov eax,[dwCoInit]
+                push eax                            -- dwCoInit (flags)
+                push ebx                            -- pvReserved (NULL)
+                call "ole32.dll","CoInitializeEx"
+                mov [res],eax
+            [64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+                mov rdx,[dwCoInit]                  -- dwCoInit (p2)
+                sub rsp,8*5                         -- minimum 4 param shadow space, and align
+--              mov rdx,rax                         -- dwCoInit (p2)
+                mov rcx,rbx                         -- pvReserved (p1/NULL)
+                call "ole32.dll","CoInitializeEx"
+                mov [res],rax
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+            []
+          }
+    if res!=S_OK then ?9/0 end if
+end procedure
+
+global procedure CoUnInitialize()
+    if platform()!=WINDOWS then ?9/0 end if
+    #ilASM{
+            [32]
+                call "ole32.dll","CoUninitialize"
+            [64]
+--              call "ole32.dll","CoUninitialize"
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+                sub rsp,8*5                         -- minimum 4 param shadow space, and align
+                call "ole32.dll","CoInitializeEx"
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+            []
+          }
+end procedure
+
+global function CoCreateInstance(atom rclsid, riid, ppv, integer dwClsContext=CLSCTX_ALL, atom pUnkOuter=NULL)
+-- Note args are in a different order to C (rclsid,pUnkOuter,dwClsContext,riid,ppv), for improved defaulting.
+atom hr
+    #ilASM{
+            [32]
+                mov eax,[ppv]
+                call :%pLoadMint
+                push eax                            -- ppv
+                mov eax,[riid]
+                call :%pLoadMint
+                push eax                            -- riid
+                mov eax,[dwClsContext]
+                call :%pLoadMint
+                push eax                            -- dwClsContext
+                mov eax,[pUnkOuter]
+                call :%pLoadMint
+                push eax                            -- pUnkOuter
+                mov eax,[rclsid]
+                call :%pLoadMint
+                push eax                            -- rclsid
+                call "ole32.dll","CoCreateInstance"
+                lea edi,[hr]        
+                call :%pStoreMint
+            [64]
+                -- standard (Windows API) calling convention applies: 
+                -- first 4 parameters are passed in rcx/rdx/r8/r9 (or xmm0..3),
+                -- caller (ie this code) must allocate >=32 bytes of shadow space.
+                -- logically: p1/rcx at [rsp], p2/rdx at [rsp+8], p3/r8 at [rsp+16],
+                -- p4/r9 at [rsp+24], then: p5 in [rsp+32], p6 in [rsp+40], etc.
+                -- rax/rcx/rdx/r8/r9/r10/r11 are damaged, as are xmm0..5 and st0..7
+                -- rbx/rbp/rdi/rsi/r12/r13/r14/r15 are preserved (as are xmm6..15)
+                -- result in rax or xmm0
+
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+                sub rsp,8*5                         -- minimum 4 param shadow space, and align
+                mov rax,[ppv]
+                call :%pLoadMint
+                mov [rsp+32],rax                    -- ppv (p5)
+                mov rax,[riid]
+                call :%pLoadMint
+                mov r9,rax                          -- riid (p4)
+                mov rax,[dwClsContext]
+                call :%pLoadMint
+                mov r8,rax                          -- dwClsContext (p3)
+                mov rax,[pUnkOuter]
+                call :%pLoadMint
+                mov rdx,rax                         -- pUnkOuter (p2)
+                mov rax,[rclsid]
+                call :%pLoadMint
+                mov rcx,rax                         -- rclsid (p1)
+                call "ole32.dll","CoCreateInstance"
+                lea rdi,[hr]        
+                call :%pStoreMint
+--              add rsp,8*5
+--              pop rsp
+                mov rsp,[rsp+8*5]   -- equivalent to the add/pop
+            []
+          }
+    return hr
+end function
 
 --integer rlen -- (for test code at the end)
 
+--DEV should probably be in fileopenN.ew:
 global function COMDLG_FILTERSPEC(sequence filters)
 --
 -- filters should be something like { {"Text Document (*.txt)", "*.txt"}, 
@@ -409,6 +637,7 @@ atom res,           -- result
         fi = filters[i]
         if length(fi)!=2 then ?9/0 end if
         {fi1,fi2} = fi
+--DEV/SUG store in sequences len1[i],len2[i] for re-use.
         len += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi1,-1,NULL,0})
         len += c_func(xMultiByteToWideChar,{CP_UTF8,0,fi2,-1,NULL,0})
 --22/11/16:
@@ -441,13 +670,14 @@ atom res,           -- result
     return res
 end function
 
-global function unicode_string(string utf8str)
+global function unicode_string(string utf8str,bool cleanup=true)
 -- Returns an atom pointer to memory containing the ansi/utf8 input converted to a null-word (#0000) terminated WideString.
--- Caller is responsible for free()ing memory (that the result points to) once the WideString result is no longer required.
+-- By default the memory will be cleaned up automatically, unless the second parameter is false in which case the caller 
+-- is responsible for invoking free() once the WideString result is no longer required.
 atom res
 integer len
     len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,NULL,0})
-    res = allocate(len*2)
+    res = allocate(len*2,cleanup)
     len = c_func(xMultiByteToWideChar,{CP_UTF8,0,utf8str,-1,res,len})
     return res
 end function
@@ -744,7 +974,13 @@ global function cominvk(atom pInterface,integer vIdx,sequence params, integer bD
 --
 --22/11/16:
 --  return cominvk_imm(peek4u(pInterface),vIdx,params,bDebug)
-    return cominvk_imm(peekNS(pInterface,machine_word(),0),vIdx,params,bDebug)
+--  return cominvk_imm(peekNS(pInterface,machine_word(),0),vIdx,params,bDebug)
+    return cominvk_imm(peeknu(pInterface),vIdx,params,bDebug)
+end function
+
+global function com_release(atom pIUnknown)
+    {} = cominvk(pIUnknown,IUnknown_Release,{})
+    return NULL
 end function
 
 

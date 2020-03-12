@@ -1,0 +1,106 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">unique</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          <a href="sequence.htm">sequence</a> res = unique(<a href="sequence.htm">sequence</a> s, <a href="string.htm">string</a> options="SORT")
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Returns s with duplicate elements removed.
+            <br>
+            <br>
+            s: the <a href="sequence.htm">sequence</a> from which to remove duplicates.<br>
+            options: "SORT" (the default) performs a standard sort on s before removing duplicates,<br>
+            "PRESORTED" indicates the initial sort is unnecesary,<br>
+            "STABLE" (==="INPLACE") retains the original order of any unique entries, but uses a slightly slower 
+            <a href="dict.htm">dictionary</a>-based method of removing duplicates.<br>
+            A fatal error occurs if options is not one of those (or not all upper-case).
+            <br>
+            <br>
+            If "PRESORTED" is specified, but s is not actually sorted, then only adjacent duplicates are removed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+sequence s = { 4,7,9,7,2,5,5,9,0,4,4,5,6,5}
+?unique(s, "STABLE")            --=> {4,7,9,2,5,0,6}
+?unique(s, "SORT")              --=> {0,2,4,5,6,7,9}
+?unique(s, "PRESORTED")         --=> {4,7,9,7,2,5,9,0,4,5,6,5}
+?unique(sort(s), "PRESORTED")   --=> {0,2,4,5,6,7,9}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF"> = {</font><font color="#000000"> 4</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">}
+?</font><font color="#5E005E">unique</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#008000"> "STABLE"</font><font color="#0000FF">)           </font><font color="#000080"><i> --=&gt; {4,7,9,2,5,0,6}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">unique</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#008000"> "SORT"</font><font color="#0000FF">)             </font><font color="#000080"><i> --=&gt; {0,2,4,5,6,7,9}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">unique</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#008000"> "PRESORTED"</font><font color="#0000FF">)        </font><font color="#000080"><i> --=&gt; {4,7,9,7,2,5,9,0,4,5,6,5}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">unique</font><font color="#0000FF">(</font><font color="#5E005E">sort</font><font color="#800000">(</font><font color="#000000">s</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000"> "PRESORTED"</font><font color="#0000FF">)  </font><font color="#000080"><i> --=&gt; {0,2,4,5,6,7,9}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\punique.e (an autoinclude) for details of the actual implementation.
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            This is functionally equivalent to the Euphoria remove_dups() routine in std\sequence.e except that:<br>
+            * the options in the latter is an integer which should be one of the provided RD_XXX enums,<br>
+            * RD_INPLACE uses find() rather than a dictionary and may therefore be exponentially slower on large data sets,<br>
+            * the Euphoria default is PRESORTED whereas the Phix default is SORT, and<br>
+            * the Euphoria routine is not an autoinclude.
+            <br>
+            <br>
+            I elected to have string options in preference to adding yet more literal (integer) constants to syminit().<br>
+            There is in fact a <b>remove_dups</b>() routine in builtins\punique.e, along with a global enum RD_INPLACE, RD_PRESORTED, RD_SORT 
+            which offers better compatibility with Euphoria, but they can only be used following an explicit `include builtins\punique.e` 
+            statement, which may require a `--/**/` prefix, and a "--/*\ninclude std/seuence.e\n--*/" to be completely compatible.
+            <br>
+            <br>
+            While this offers perfectly reasonable performance, it may be sub-optimal, simply because building a large sequence and 
+            then creating a smaller one from it is not always going to be the fastest possible approach. The dictionary based method
+            was noted above as slightly slower simply because it is creating a potentially significant structure that a plain old
+            sort does not, however something similar to that method (see the source code) might in fact be the fastest way to build 
+            a unique list (ie, one that does not need passing through this routine). There will be cases where using this routine
+            actually <i>is</i> the fastest way possible, at least, that is, short of some hideously complicated and extremely ugly 
+            inline assembly! I would always just use this and not even consider anything else unless I had at least 5000 entries.
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -365,13 +365,9 @@ atom a
     tables = get4()
     safe_seek(tables)
     ntables = get4()
-    printf(fn, "The \"%s\" database has %d table",
-           {db_names[find(current_db, db_file_nums)], ntables})
-    if ntables=1 then
-        puts(fn, "\n")
-    else
-        puts(fn, "s\n")
-    end if
+    string s = iff(ntables=1?"\n":"s\n")
+    printf(fn, `The "%s" database has %d table%s`,
+           {db_names[find(current_db, db_file_nums)], ntables, s})
     t_header = where(current_db)
     for t=1 to ntables do
         -- display the next table
@@ -1417,9 +1413,9 @@ sequence new_path, old_path, table_list, record, chunk, cj
 
     -- rename database as .tmp
     if platform()=LINUX then
-        system("mv \"" & new_path & "\" \"" & old_path & '"', 2)
+        system(`mv "` & new_path & `" "` & old_path & '"', 2)
     elsif platform()=WIN32 then
-        system("ren \"" & new_path & "\" \"" & name_only(old_path) & '"', 2)
+        system(`ren "` & new_path & `" "` & name_only(old_path) & '"', 2)
     else
         -- DOS
         system("ren " & new_path & " " & name_only(old_path), 2)
@@ -1430,9 +1426,9 @@ sequence new_path, old_path, table_list, record, chunk, cj
     if index!=DB_OK then
         -- failed, move it back to .edb
         if platform()=LINUX then
-            system("mv \"" & old_path & "\" \"" & new_path & '"', 2)
+            system(`mv "` & old_path & `" "` & new_path & '"', 2)
         elsif platform()=WIN32 then
-            system("ren \"" & old_path & "\" \"" & name_only(new_path) & '"', 2)
+            system(`ren "` & old_path & `" "` & name_only(new_path) & '"', 2)
         else
             -- DOS
             system("ren " & old_path & " " & name_only(new_path), 2)

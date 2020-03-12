@@ -28,14 +28,16 @@
             <br>
             If args is an <a href="atom.htm">atom</a> then all formats in fmt are applied to it. <br>
             If args is a <a href="sequence.htm">sequence</a>, then formats in fmt are applied to successive elements.<br>
-            Thus printf() always takes exactly 3 arguments. However the length of
-            the last argument, containing the values to be printed, can vary. <br>
+            Note that printf() takes <i>at most</i> 3 arguments, however the length of the last argument, containing the 
+            values to be printed, can vary. <br>
             The basic formats are:
           <br>
           <br>
  %s - print a utf-8 or ansi string or sequence as a string of characters, or print an atom as a single character
           <br>
- %c - print an atom as a single character (nb not unicode)
+ %t - print "true" or "false" from a boolean, from an args[i] of non-zero or zero respectively
+          <br>
+ %c - print an atom as a single character. NB: not unicode, performs <a href="and_bits.htm">and_bits</a>(args[i],#FF)
           <br>
  %v - print the string result from <a href="sprint.htm">sprint</a>(args[i])
           <br>
@@ -76,7 +78,7 @@
             If the field width starts with a '+' (not %s, %c, or %v) e.g. %+7d then a plus sign will be printed for positive values.<br>
             If the field width starts with a '-' e.g. %-5d then the value will be left-justified within the field. Normally it will be right-justified.<br>
             If the field width starts with '=' e.g. %=8s then it will be centred. A '|' is similar except it splits odd padding (eg) 4:3 whereas '=' splits it 3:4.<br>
-            If the field width starts with a ',' (%d and %f only) then commas are inserted every third character (phix-specific).<br>
+            If the field width starts with a ',' (%d and %f only) then commas are inserted every third character (Phix-specific).<br>
             The 'starts with' is not entirely accurate. Note that '-=|' (and none) are mutually exclusive, and cannot co-exist with 0. <br>
             Likewise '0' and '+' are also mutually exclusive, however '+' can co-exist with '-=|' as long as it is specified first, 
             whereas ',' can be used with any ('0+-=|') , as long as it is specified last.<br>
@@ -91,9 +93,9 @@
             A statement such as printf(1,"%s","John Smith") should by rights just print 'J', as the
             %s should apply to the first element of args, which in this case is 'J'. <br>
             The correct statement is printf(1,"%s",{"John Smith"}) where no such confusion can arise. <br>
-            However this is such an easy mistake to make that in phix it is caught specially (args is
+            However this is such an easy mistake to make that in Phix it is caught specially (args is
             <i>a</i> string and fmt has only one %-format, ignoring any %%) and the full name printed. <br>
-            Note however that RDS Eu and OpenEuphoria will both just print 'J'.
+            Note however that Euphoria will just print 'J'.
           <br>
           <br>
             Unicode is supported via utf-8 strings, which this routine treats exactly the same as ansi. <br>
@@ -103,7 +105,7 @@
             result from <a href="utf32_to_utf8.htm">utf32_to_utf8</a>({uchar}).<br>
             To print a utf-32 or utf-16 sequence it should first be passed through 
             <a href="utf32_to_utf8.htm">utf32_to_utf8</a>() or
-            <a href="utf16_to_utf8.htm">utf16_to_utf8</a>() respectively.
+            <a href="utf16_to_utf32.htm#utf16_to_utf8">utf16_to_utf8</a>() respectively.
           <br>
           <br>
             Lastly, %x and %X are "the wrong way round" for historical/compatibility reasons.
@@ -114,7 +116,7 @@
           <b>Settings:</b>
          </td>
          <td>
-            [Phix only, there is no equivalent for RDS Eu or OpenEuphoria]<br>
+            [Phix only, there is no equivalent for Euphoria]<br>
             If called with fn of 0 (stdin, which cannot be printed to anyway) and a fmt of "" (so
             there wouldn&rsquo;t be any output anyway), then args is treated as a pair-list of settings,
             eg 
@@ -131,7 +133,7 @@
             is invoked when padding to the minimum field width, which obviously makes a big difference when
             aligning unicode strings being displayed to a console/terminal, but is a completely unnecessary
             overhead in legacy/ansi-only code. In fact, making the default false significantly sped up some 
-            of the listing and ex.err file generation in the phix compiler itself.
+            of the listing and ex.err file generation in the Phix compiler itself.
             <br>
             <br>
             At the moment that is the only option implemented. A fatal error occurs if the odd element is
@@ -223,7 +225,7 @@ printf(1, "error code %d[#%08x]", ERROR_CANCELLED)
           <a id="ext517" style="color:#9B5565" 
             href="javascript:ExternalLink('ext517','http://www.gnu.org/software/libc/manual/html_node/Floating_002dPoint-Conversions.html#Floating_002dPoint-Conversions');">gnu clib docs
           </a>,
-            on which the phix version is partially based, but does not use directly.
+            on which the Phix version is partially based, but does not use directly.
                 <a name="SEEALSO"></a>
           <br>
             puthex32(a) and putsint(i) are low-level equivalents of printf(1,"%08x[\n]",{a}) and printf(1,"%d[\n]",{i}) respectively, see builtins\puts1[h].e
@@ -244,8 +246,8 @@ printf(1, "error code %d[#%08x]", ERROR_CANCELLED)
           </a>
          </td>
          <td>
-            The C and C++ versions of printf have a length qualifier before the specifier, eg %hu means "unsigned short int". This is unnecessary in phix;
-            if you see any of h,hh,l,ll,j,z,t, or L, my advice is to simply ignore/delete them. Also, phix does not have unsigned ints, so after removing
+            The C and C++ versions of printf have a length qualifier before the specifier, eg %hu means "unsigned short int". This is unnecessary in Phix;
+            if you see any of h,hh,l,ll,j,z,t, or L, my advice is to simply ignore/delete them. Also, Phix does not have unsigned ints, so after removing
             the h you would then replace %u with %d. Other differences exist: 
             <a id="ext518" style="color:#9B5565" href="javascript:ExternalLink('ext518','https://www.google.co.uk/search?q=printf');">see here</a>.
          </td>

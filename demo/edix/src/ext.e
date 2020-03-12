@@ -61,7 +61,7 @@ function get_interpreter()
         return res
     end if
     res = get_file_path(res,dropslash:=0)
-    integer k = match(iff(platform()=WINDOWS?"\\Phix\\":"/Phix/"),res)
+    integer k = match(iff(platform()=WINDOWS?`\Phix\`:"/Phix/"),res)
     if k!=0 then
         res = res[1..k+5]   -- eg/ie ../Phix/demo/pGUI/ -> ../Phix/
     end if
@@ -70,9 +70,9 @@ function get_interpreter()
         if is_file(file) then return file end if
         file = join_path({current_dir(),"pw.exe"})
         if is_file(file) then return file end if
-        file = "C:\\Program Files (x86)\\Phix\\pw.exe"  -- 32 bit?
+        file = `C:\Program Files (x86)\Phix\pw.exe`     -- 32 bit?
         if is_file(file) then return file end if
-        file = "C:\\Program Files\\Phix\\pw.exe"        -- 64 bit?
+        file = `C:\Program Files\Phix\pw.exe`           -- 64 bit?
         if is_file(file) then return file end if
         sequence paths = split(getenv("PATH"),';')
         for i=1 to length(paths) do
@@ -226,7 +226,7 @@ function ext_edit_cb(Ihandle /*extname*/, integer /*ch*/, atom pNewValue)
     string ext = lower(peek_string(pNewValue))
     if length(ext) and ext[1]='.' then ext = ext[2..$] end if
 --  if ext="keys" then -- [it now uses "KEYS" and lower() to avoid any conflict]
---      IupMessage("Invalid","An extension of \"keys\" may not be specified (it is used internally).")
+--      IupMessage("Invalid",`An extension of "keys" may not be specified (it is used internally).`)
 --      return IUP_IGNORE
 --  els
     if find('.',ext)!=0 then

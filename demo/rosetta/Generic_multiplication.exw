@@ -1,6 +1,5 @@
 --
 -- demo\rosetta\Generic_multiplication.exw
--- =======================================
 --
 -- https://rosettacode.org/wiki/Generalised_floating_point_multiplication
 --
@@ -8,12 +7,6 @@
 -- it should not shock anyone that this kind of "string maths" which works digit-by-digit 
 -- and uses repeated addition (eg *999 performs 27 additions) could easily be 10,000 times 
 -- slower than raw hardware or a carefully optimised library such as gmp.
---
--- Deviation from task description:
--- b_add() only copes with negative parameters when using balanced number bases, hence I 
--- changed the test slightly to remove the signs, or you could just omit the b-c part of 
--- the test by setting b to -501.7034897119342 (ie -436.436 - 65.26748971193418) and then 
--- do a*b rather than a*(b-c), or you could fix b_add() and/or write a brand new b_sub().
 --
 constant MAX_DP = 81
 
@@ -136,8 +129,9 @@ function b2b(string n, alphabet, alphabet2)
                 zdx = find('0',alphabet),
                 zdx2 = find('0',alphabet2),
                 carry = 0, q, r, digit
-        bool negative = (zdx=1 and n[1]='-')
-        if negative then n = n[2..$] end if
+        bool negative = ((zdx=1 and n[1]='-') or
+                         (zdx!=1 and find(n[1],alphabet)<zdx))
+        if negative then n = negate(n,alphabet) end if
         integer ndp = find('.',n)
         if ndp!=0 then
             {n,m} = {n[1..ndp-1],n[ndp+1..$]}
@@ -282,13 +276,25 @@ function atm2b(atom d, string alphabet)
     return res
 end function
 
+-- negative numbers in addition and subtraction 
+-- (esp. non-balanced) are treated as follows:
+-- for -ve a:   (-a)+b == b-a;      (-a)-b == -(a+b)
+-- for -ve b:   a+(-b) == a-b;      a-(-b) == a+b
+-- for a>b:     a-b == -(b-a)  [avoid running off end]
+
+forward function b_sub(string a, b, alphabet)
+
 function b_add(string a, b, alphabet)
     integer base = length(alphabet),
             zdx = find('0',alphabet),
             carry = 0, da, db, digit
     if zdx=1 then
-        -- (let me know if you can fix this for me!)
-        if a[1]='-' or b[1]='-' then ?9/0 end if -- +ve only
+        if a[1]='-' then    -- (-a)+b == b-a
+            return b_sub(b,negate(a,alphabet),alphabet)
+        end if
+        if b[1]='-' then    -- a+(-b) == a-b
+            return b_sub(a,negate(b,alphabet),alphabet)
+        end if
     end if
     integer adt = find('.',a),
             bdt = find('.',b)
@@ -323,6 +329,73 @@ function b_add(string a, b, alphabet)
         a[-adt+1..-adt] = "."
     end if
     a = b_trim(a)
+    return a
+end function
+
+function a_smaller(string a, b, alphabet)
+-- return true if a is smaller than b
+-- if not balanced then both are +ve
+    if length(a)!=length(b) then ?9/0 end if -- sanity check
+    for i=1 to length(a) do
+        integer da = find(a[i],alphabet),
+                db = find(b[i],alphabet),
+                c = compare(da,db)
+        if c!=0 then return c<0 end if
+    end for
+    return false -- (=, which is not <)
+end function
+
+function b_sub(string a, b, alphabet)
+    integer base = length(alphabet),
+            zdx = find('0',alphabet),
+            carry = 0, da, db, digit
+    if zdx=1 then
+        if a[1]='-' then    -- (-a)-b == -(a+b)
+            return negate(b_add(negate(a,alphabet),b,alphabet),alphabet)
+        end if
+        if b[1]='-' then    -- a-(-b) == a+b
+            return b_add(a,negate(b,alphabet),alphabet)
+        end if
+    end if
+    integer adt = find('.',a),
+            bdt = find('.',b)
+    if adt or bdt then
+        -- remove the '.'s and zero-pad the shorter as needed
+        --   (thereafter treat them as two whole integers)
+        -- eg "1.23"+"4.5" -> "123"+"450" (leaving adt==2)
+        if adt then adt = length(a)-adt+1;  a[-adt..-adt] = "" end if
+        if bdt then bdt = length(b)-bdt+1;  b[-bdt..-bdt] = "" end if
+        if bdt>adt then
+            a &= repeat('0',bdt-adt)
+            adt = bdt
+        elsif adt>bdt then
+            b &= repeat('0',adt-bdt)
+        end if
+    end if
+    bool bNegate = false
+    if length(a)<length(b)
+    or (length(a)=length(b) and a_smaller(a,b,alphabet)) then
+        bNegate = true
+        {a,b} = {b,a}   -- ensure b is the shorter/smaller
+    end if
+    for i=-1 to -length(a) by -1 do
+        da = iff(i<-length(a)?0:find(a[i],alphabet)-zdx)
+        db = iff(i<-length(b)?0:find(b[i],alphabet)-zdx)
+        digit = da - (db + carry) + zdx
+        carry = digit<=0
+        a[i] = alphabet[digit+carry*base]
+        if i<-length(b) and carry=0 then exit end if
+    end for
+    if carry then 
+        ?9/0    -- should have set bNegate above...
+    end if
+    if adt then
+        a[-adt+1..-adt] = "."
+    end if
+    a = b_trim(a)
+    if bNegate then
+        a = negate(a,alphabet)
+    end if
     return a
 end function
 
@@ -372,26 +445,22 @@ end function
 -- [note 1] not surprisingly, the decimal output is somewhat cleaner/shorter when
 --          the decimal string inputs for a and c are used, whereas tests 1/2/5/7
 --          (the 3-based ones) look much better with all ternary string inputs.
--- [note 2] proof that b_mul() copes with negative numbers, though b_add() dis'ne.
 
 procedure test(string name, alphabet)
 --string a = b2b("523.2391403749428",decimal,alphabet),         -- [see note 1]
 string a = b2b("+-0++0+.+-0++0+",balancedternary,alphabet),
-       b = b2b("436.436",decimal,alphabet),
---     b = b2b("+--+0++.++0-+00---+",balancedternary,alphabet),
---     b = b2b("-501.7034897119342",decimal,alphabet),          -- [see note 2]
+       b = b2b("-436.436",decimal,alphabet),
+--     b = b2b("-++-0--.--0+-00+++-",balancedternary,alphabet),
 --     c = b2b("65.26748971193416",decimal,alphabet),           -- [see note 1]
        c = b2b("+-++-.+-++-",balancedternary,alphabet),
-       d = b_add(b,c,alphabet),
+       d = b_sub(b,c,alphabet),
        r = b_mul(a,d,alphabet)
---     r = b_mul(a,b,alphabet)                                  -- [see note 2]
     printf(1,"%s\n%s\n",{name,repeat('=',length(name))})
     printf(1,"      a = %.16g  %s\n",{b2dec(a,alphabet),a})
     printf(1,"      b = %.16g  %s\n",{b2dec(b,alphabet),b})
     printf(1,"      c = %.16g  %s\n",{b2dec(c,alphabet),c})
 --  printf(1,"      d = %.16g  %s\n",{b2dec(d,alphabet),d})
-    printf(1,"a*(b+c) = %.16g  %s\n\n",{b2dec(r,alphabet),r})
---  printf(1,"    a*b = %.16g  %s\n\n",{b2dec(r,alphabet),r})   -- [see note 2]
+    printf(1,"a*(b-c) = %.16g  %s\n\n",{b2dec(r,alphabet),r})
 end procedure
 test("balanced ternary", balancedternary)
 test("balanced base 27", balanced_base27)
@@ -408,7 +477,7 @@ test("septemvigesimal", septemvigesimal)
 
 --=== multiplication table ===
 --without e notation, with hexadecimal across, septemvigesimal down, and balanced ternary contents!
-printf(1,"# |")
+printf(1,"* |")
 for j=1 to 12 do
     printf(1," #%s %3s |",{atm2b(j,hexadecimal),atm2b(j,balancedternary)})
 end for
@@ -432,57 +501,56 @@ printf(1,"\n")
 abort(0)
 
 Output:
-"started"
 balanced ternary
 ================
       a = 523.2391403749428  +-0++0+.+-0++0+
-      b = 436.4359999999999  +--+0++.++0-+00---+0+-+++0+-0----0++0000-00+-+-++-0+0+00++--0+-00+++-0-+---0-+0++++0--
+      b = -436.4359999999999  -++-0--.--0+-00+++-0-+---0-+0++++0--0000+00-+-+--+0-0-00--++0-+00---+0+-+++0+-0----0++
       c = 65.26748971193416  +-++-.+-++-
-a*(b+c) = 262510.9026799813  ++++000+0-0-.0-0+0+00+++00++0+0-++-++00+0--+000--0+000+-0-+++++---+-+0-+-0-0--0-0+--+--0-+++00----
+a*(b-c) = -262510.9026799813  ----000-0+0+.0+0-0-00---00--0-0+--+--00-0++-000++0-000-+0+-----+++-+-0+-+0+0++0+0-++-++0+---00++++
 
 balanced base 27
 ================
       a = 523.2391403749428  AUJ.FLI
-      b = 436.436  AXD.LSQSGLFZUINATKCIKUVMWEWJMQ0COTSWNRONXBMBQYL0VGRUCDYFDFTYSMHVANGXPVXHIZJRJWZD0PBGF
+      b = -436.436  NKQ.YFDFTYSMHVANGXPVXHIZJRJWZD0PBGFJAEBAKOZODLY0ITEHPQLSQSGLFZUINATKCIKUVMWEWJMQ0COTS
       c = 65.26748971193416  BK.GF
-a*(b+c) = 262510.9026799813  MICW.PJALDCRRAQIQCAWMKXSTPYUXYPK0LVOBZRGUSJJOGIHSNU0FRMZGOWQPEENDVDPNJZXKFGCLHKLCX0YBQHB
+a*(b-c) = -262510.9026799813  ZVPJ.CWNYQPEENDVDPNJZXKFGCLHKLCX0YIBOMETHFWWBTVUFAH0SEZMTBJDCRRAQIQCAWMKXSTPYUXYPK0LODUO
 
 decimal
 =======
       a = 523.239140374943  523.239140374942844078646547782350251486053955189757658893461362597165066300868770004
-      b = 436.436  436.436
+      b = -436.436  -436.436
       c = 65.26748971193415  65.267489711934156378600823045267489711934156378600823045267489711934156378600823045
-a*(b+c) = 262510.9026799814  262510.90267998140903693918986303277315826215892262734715612833785876513103053772667101895163734826631742752252837097627017862754285047634638652268078676654605120794218
+a*(b-c) = -262510.9026799814  -262510.90267998140903693918986303277315826215892262734715612833785876513103053772667101895163734826631742752252837097627017862754285047634638652268078676654605120794218
 
 binary
 ======
       a = 523.2391403749427  1000001011.001111010011100001001101101110011000100001011110100101001010100100000111001000111
-      b = 436.436  110110100.011011111001110110110010001011010000111001010110000001000001100010010011011101001
+      b = -436.436  -110110100.011011111001110110110010001011010000111001010110000001000001100010010011011101001
       c = 65.26748971193416  1000001.01000100011110100011010010101100110001100000111010111111101111001001001101111101
-a*(b+c) = 262510.9026799814  1000000000101101110.111001110001011000001001000001101110011111011100000100000100001000101011100011110010110001010100110111001011101001010000001110110100111110001101000000001111110101
+a*(b-c) = -262510.9026799814  -1000000000101101110.111001110001011000001001000001101110011111011100000100000100001000101011100011110010110001010100110111001011101001010000001110110100111110001101000000001111110101
 
 ternary
 =======
       a = 523.2391403749428  201101.0201101
-      b = 436.4360000000001  121011.102202211210021110012111201022222000202102010100101200200110122011122101110212
+      b = -436.4360000000001  -121011.102202211210021110012111201022222000202102010100101200200110122011122101110212
       c = 65.26748971193416  2102.02102
-a*(b+c) = 262510.9026799813  111100002121.2201010011100110022102110002120222120100001221111011202022012121122001201122110221112
+a*(b-c) = -262510.9026799813  -111100002121.2201010011100110022102110002120222120100001221111011202022012121122001201122110221112
 
 hexadecimal
 ===========
       a = 523.2391403749427  20B.3D384DB9885E94A90723EF9CBCB174B443E45FFC41152FE0293416F15E3AC303A0F3799ED81589C62
-      b = 436.436  1B4.6F9DB22D0E5604189374BC6A7EF9DB22D0E5604189374BC6A7EF9DB22D0E5604189374BC6A7EF9DB2
+      b = -436.436  -1B4.6F9DB22D0E5604189374BC6A7EF9DB22D0E5604189374BC6A7EF9DB22D0E5604189374BC6A7EF9DB2
       c = 65.26748971193416  41.447A34ACC60EBFBC937D5DC2E5A99CF8A021B641511E8D2B3183AFEF24DF5770B96A673E28086D905
-a*(b+c) = 262510.9026799814  4016E.E7160906E7DC10422DA508321819F4A637E5AEE668ED5163B12FCB17A732442F589975B7F24112B2E8F6E95EAD45803915EE26D20DF323D67CAEEC75D7BED68AA34E02F2B492257D66F028545FB398F60E
+a*(b-c) = -262510.9026799814  -4016E.E7160906E7DC10422DA508321819F4A637E5AEE668ED5163B12FCB17A732442F589975B7F24112B2E8F6E95EAD45803915EE26D20DF323D67CAEEC75D7BED68AA34E02F2B492257D66F028545FB398F60E
 
 septemvigesimal
 ===============
       a = 523.2391403749428  JA.6C9
-      b = 436.436  G4.BKML7C5DJ8Q0KB39AIICH4HACN02OJKGPLOPG2D1MFBQI6LJ33F645JELD7I0Q6FNHG88E9M9GE3QO276
+      b = -436.436  -G4.BKML7C5DJ8Q0KB39AIICH4HACN02OJKGPLOPG2D1MFBQI6LJ33F645JELD7I0Q6FNHG88E9M9GE3QO276
       c = 65.26748971193416  2B.76
-a*(b+c) = 262510.9026799813  D92G.OA1C42LM0N8N30HDAFKJNEIFEOB0BHP1DM6ILA9P797KPJ05MCE6OGMO54Q3I3NQ9DGB673C8BC2FQF1N82
+a*(b-c) = -262510.9026799813  -D92G.OA1C42LM0N8N30HDAFKJNEIFEOB0BHP1DM6ILA9P797KPJ05MCE6OGMO54Q3I3NQ9DGB673C8BC2FQF1N82
 
-# | #1   + | #2  +- | #3  +0 | #4  ++ | #5 +-- | #6 +-0 | #7 +-+ | #8 +0- | #9 +00 | #A +0+ | #B ++- | #C ++0 |
+* | #1   + | #2  +- | #3  +0 | #4  ++ | #5 +-- | #6 +-0 | #7 +-+ | #8 +0- | #9 +00 | #A +0+ | #B ++- | #C ++0 |
 1 |      + |        |        |        |        |        |        |        |        |        |        |        |
 2 |     +- |     ++ |        |        |        |        |        |        |        |        |        |        |
 3 |     +0 |    +-0 |    +00 |        |        |        |        |        |        |        |        |        |

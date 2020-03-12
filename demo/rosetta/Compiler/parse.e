@@ -1,6 +1,6 @@
 --
--- demo\\rosetta\\Compiler\\parse.e
--- ================================
+-- demo\rosetta\Compiler\parse.e
+-- =============================
 --
 --  The reusable part of parse.exw
 --

@@ -90,28 +90,29 @@ end function
 -- Part 1: A basic, static, IFileDialogEvents object to intercept file selection and
 --         set the custom encoding drop down added below (same as the one in Notepad).
 --
-function fn_IFileDialogEvents_OnSelectionChange(atom this, atom pFileDialog)
+function fn_IFileDialogEvents_OnSelectionChange(atom /*this*/, atom pFileDialog)
 --atom psiCurrent = allocate(4)
 atom psiCurrent = allocate(machine_word())
-atom pName = 0
+atom pName = NULL
 --atom ppName = allocate(4)
 atom ppName = allocate(machine_word())
 string sres
 integer encoding
 
-    if this then end if     -- suppress warnings
+--  if this then end if     -- suppress warnings
     -- (note: the next call will fail when there is no current selection, which will always
     --        be the case when this is called for the first time at startup, hence the 0.)
     if cominvk_imm(pFileDialog,IFileDialog_GetCurrentSelection,{psiCurrent},0)=S_OK then
         if cominvk(psiCurrent,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
 --          pName = peek4u(ppName)
-            pName = peekNS(ppName,machine_word(),0)
+--          pName = peekNS(ppName,machine_word(),0)
+            pName = peeknu(ppName)
         end if
         {} = cominvk(psiCurrent,IShellItem_Release,{})
     end if
     free(psiCurrent)
     free(ppName)
-    if pName!=0 then
+    if pName!=NULL then
         sres = peek_unicode_string(pName)
         c_proc(xCoTaskMemFree,{pName})
         encoding = getEncoding(sres)
@@ -243,7 +244,7 @@ function set_Filters(atom pFileDialog, object filters, object extension)
 --  present) will automatically override this. The third "flags" part, if
 --  present, allows additional options such as FOS_ALLOWMULTISELECT.
 --
-integer res = 1
+bool res = true
 atom pFilters
 atom pExtension
 integer d_idx = 1
@@ -256,7 +257,7 @@ atom pFlags
         end if
         if cominvk(pFileDialog,IFileDialog_SetFileTypes,{length(filters),pFilters})!=S_OK
         or cominvk(pFileDialog,IFileDialog_SetFileTypeIndex,{d_idx})!=S_OK then
-            res = 0
+            res = false
         end if
         free(pFilters)
     end if
@@ -269,8 +270,9 @@ atom pFlags
         end if
         if cominvk(pFileDialog,IFileDialog_GetOptions,{pFlags})!=S_OK
 --      or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peek4u(pFlags),flags)})!=S_OK then
-        or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peekNS(pFlags,machine_word(),0),flags)})!=S_OK then
-            res = 0
+--      or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peekNS(pFlags,machine_word(),0),flags)})!=S_OK then
+        or cominvk(pFileDialog,IFileDialog_SetOptions,{or_bits(peeknu(pFlags),flags)})!=S_OK then
+            res = false
         end if
         free(pFlags)
         extension = extension[2]
@@ -278,7 +280,7 @@ atom pFlags
     if extension!=NULL then
         pExtension = unicode_string(extension)
         if cominvk(pFileDialog,IFileDialog_SetDefaultExtension,{pExtension})!=S_OK then
-            res = 0
+            res = false
         end if
         free(pExtension)
     end if
@@ -287,7 +289,7 @@ end function
 
 function add_encoding_dropdown(integer encoding)
 -- Helper routine, factored out of filedialog()
-integer res = 1
+bool res = true
     if encoding!=0 then
         if Encoding=0 then
             Encoding = unicode_string("Encoding:")
@@ -304,7 +306,7 @@ integer res = 1
         or cominvk(pFileDialogCustomize,IFileDialogCustomize_AddControlItem,{100,4,Utf16be})!=S_OK
         or cominvk(pFileDialogCustomize,IFileDialogCustomize_SetSelectedControlItem,{100,encoding})!=S_OK
         or cominvk(pFileDialogCustomize,IFileDialogCustomize_EndVisualGroup,{})!=S_OK then
-            res = 0
+            res = false
         end if
     end if
     return res
@@ -357,7 +359,7 @@ else
                 free(pDefaultFolder)
                 if res=S_OK then exit end if
                 for i=length(default_folder) to 1 by -1 do
-                    if find(default_folder[i],"\\/") then
+                    if find(default_folder[i],`\/`) then
                         default_folder = default_folder[1..i-1]
                         res = S_OK
                         exit
@@ -375,7 +377,8 @@ end if
         end if
         if default_folder=NULL
 --      or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peek4u(pShellItem)})=S_OK) then
-        or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peekNS(pShellItem,machine_word(),0)})=S_OK) then
+--      or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peekNS(pShellItem,machine_word(),0)})=S_OK) then
+        or (pShellItem!=NULL and cominvk(pFileDialog,I_SetFolder,{peeknu(pShellItem)})=S_OK) then
             if set_Filters(pFileDialog,filters,extension) then
                 if and_bits(flags,FOS_ALLOWMULTISELECT) then
                     if fmode!=OPEN then ?9/0 end if  -- (IFileOpenDialog_GetResults must be available!)
@@ -404,12 +407,14 @@ end if
                                         pShellItemArrayCount = allocate(machine_word())
                                         if cominvk(pShellItemArray,IShellItemArray_GetCount,{pShellItemArrayCount})=S_OK then
 --                                          res = repeat(0,peek4s(pShellItemArrayCount))
-                                            res = repeat(0,peekNS(pShellItemArrayCount,machine_word(),1))
+--                                          res = repeat(0,peekNS(pShellItemArrayCount,machine_word(),1))
+                                            res = repeat(0,peekns(pShellItemArrayCount))
                                             for i=1 to length(res) do
                                                 if cominvk(pShellItemArray,IShellItemArray_GetItemAt,{i-1,psiResult})!=S_OK then exit end if
                                                 if cominvk(psiResult,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
 --                                                  pName = peek4u(ppName)
-                                                    pName = peekNS(ppName,machine_word(),0)
+--                                                  pName = peekNS(ppName,machine_word(),0)
+                                                    pName = peeknu(ppName)
                                                     res[i] = peek_unicode_string(pName)
                                                     c_proc(xCoTaskMemFree,{pName})
                                                 end if
@@ -427,7 +432,8 @@ end if
                                     and cominvk(pFileDialog,IFileDialog_GetResult,{psiResult})=S_OK then
                                         if cominvk(psiResult,IShellItem_GetDisplayName,{SIGDN_FILESYSPATH,ppName})=S_OK then
 --                                          pName = peek4u(ppName)
-                                            pName = peekNS(ppName,machine_word(),0)
+--                                          pName = peekNS(ppName,machine_word(),0)
+                                            pName = peeknu(ppName)
                                             res = peek_unicode_string(pName)
                                             c_proc(xCoTaskMemFree,{pName})
                                             if encoding!=0 then
@@ -437,7 +443,8 @@ end if
                                                 or fmode=SAVE then
 --?{res,encfilename}
 --                                                  encoding = peek4s(pEnc)
-                                                    encoding = peekNS(pEnc,machine_word(),1)
+--                                                  encoding = peekNS(pEnc,machine_word(),1)
+                                                    encoding = peekns(pEnc)
                                                 else
                                                     encoding = getEncoding(res)
                                                 end if
@@ -483,11 +490,11 @@ global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, object e
 --  NULL then an idx of 1 is assumed. The second "doc" part specifies a default file extension, ie/eg "fred" is actually saved as 
 --  "fred.doc" (and is not worth setting during file open). Note that manually changing the filter drop-down (if present) will
 --  automatically override this. The third "flags" part, if present, allows additional options such as FOS_ALLOWMULTISELECT.
--- Specifying a default folder of say "C:\temp" causes the standard behaviour of setting the folder to use if there is not a
---  recently used folder value available. Specifying a default folder of {"C:\temp"} overrides any recently used folder value.
+-- Specifying a default folder of say `C:\temp` causes the standard behaviour of setting the folder to use if there is not a
+--  recently used folder value available. Specifying a default folder of {`C:\temp`} overrides any recently used folder value.
 --  Edita, for example, uses the latter to force open/save in the directory associated with the current file tab, however most
 --  applications would not benefit from such brutally forceful behaviour. Lastly, a default name can be specified by using eg
---  {"C:\temp","listing.txt"}, with the underlying assumption that anyone wanting to specify a name will also want to force a 
+--  {`C:\temp`,"listing.txt"}, with the underlying assumption that anyone wanting to specify a name will also want to force a 
 --  specific target directory as well. Not sure if it is a smart idea for open, but there is nothing specific to stop that.
 -- Specifying an encoding of ENC_NONE (0) suppresses the encoding drop-down, otherwise specify ENC_ANSI/ENC_UTF8/ENC_UTF16LE/
 --  ENC_UTF16BE (1..4) for ansi/utf8/utf16le/utf16be.

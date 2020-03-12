@@ -168,18 +168,18 @@ string res = "<"
     elsif key<'A' or key>'Z' then
         integer k = find(key,ESCHAR)
         if k then
-            res &= "\'\\"&ESCAPES[k]&"\'"
+            res &= `'\`&ESCAPES[k]&`'`
         elsif key>=K_F1 and key<=K_F12 then
             res &= sprintf("F%d",key-K_F1+1)
         elsif key<=#20 or key>=#7E then
             -- error
-            res &= sprintf("\'???#%02x???\'",key)
+            res &= sprintf(`'???#%02x???'`,key)
         else
-            res &= "\'"&key&"\'"
+            res &= `'`&key&`'`
         end if
     else
         res &= key
---      res &= "\'"&key&"\'"
+--      res &= `'`&key&`'`
     end if
     res &= '>'
     return res
@@ -535,8 +535,8 @@ constant {dkeys,dkeymaps} = columnize({{"<Alt G>","<Ctrl G>"},                  
                                        {"<Ctrl Delete>","<Ctrl X>"},                -- Cut
                                        {"<Ctrl Shift Delete>","<Ctrl Shift X>"},    -- Cut Append
                                        {"<Alt Delete>","<Ctrl '<'>"},               -- Un-comment
-                                       {"<Ctrl '\\t'>","<Alt '>'>"},                -- Indent
-                                       {"<Ctrl Shift '\\t'>","<Alt '<'>"}})         -- Un-Indent
+                                       {"<Ctrl Tab>","<Alt '>'>"},                  -- Indent
+                                       {"<Ctrl Shift Tab>","<Alt '<'>"}})           -- Un-Indent
 
 procedure load_mapping()
 -- note: load_standards() has not yet been called

@@ -9,7 +9,7 @@ include std\console.e
 --*/
 
 object void
-if 01 then
+if 0 then
 void = print_json(1,1)                                          -- valid (number)
 void = print_json(1,"hello")                                    -- valid (string)
 void = print_json(1,{JSON_KEYWORD,"null"})                      -- valid (keyword)
@@ -18,23 +18,25 @@ void = print_json(1,{JSON_ARRAY,{JSON_KEYWORD,"null"},12})      -- valid ([null,
 void = print_json(1,{JSON_ARRAY})                               -- valid (empty array)
 void = print_json(1,{JSON_OBJECT,{"this","that"},{"age",29}})   -- valid (object with 2 pairs)
 void = print_json(1,{JSON_OBJECT})                              -- valid (object with 0 pairs)
+void = print_json(1,{JSON_OBJECT,{"this","that"},{"age",{JSON_OBJECT,{"this","that"},{"age",29}}}}) -- valid (nested object)
+void = print_json(1,{JSON_ARRAY,{JSON_KEYWORD,"null"},{JSON_ARRAY,{JSON_KEYWORD,"null"},12}})       -- valid (nested array)
+?"above should all be valid, below not"
 void = print_json(1,{JSON_OBJECT,{"this","that"},{29,"age"}})   -- invalid (pairs[1] must be string)
 void = print_json(1,{JSON_KEYWORD,"undefined"})                 -- invalid (undefined is not a known keyword)
 --void = print_json(1,{12})                                     -- invalid in Phix, but OE treats that as the string "\x0C"
 void = print_json(1,{JSON_OBJECT,12})                           -- invalid (12 is not a pair)
-void = print_json(1,{JSON_OBJECT,{"this","that"},{"age",{JSON_OBJECT,{"this","that"},{"age",29}}}}) -- valid (nested object)
-void = print_json(1,{JSON_ARRAY,{JSON_KEYWORD,"null"},{JSON_ARRAY,{JSON_KEYWORD,"null"},12}})       -- valid (nested array)
+?"^last invalid, no more should occur below"
 end if
 
 puts(1,"roundtrip (10 examples):\n")
-sequence json_strings = {"{\"this\":\"that\",\"age\":{\"this\":\"that\",\"age\":29}}",
+sequence json_strings = {`{"this":"that","age":{"this":"that","age":29}}`,
                          "1",
-                         "\"hello\"",
+                         `"hello"`,
                          "null",
                          "[12]",
                          "[null,12]",
                          "[]",
-                         "{\"this\":\"that\",\"age\":29}",
+                         `{"this":"that","age":29}`,
                          "{}",
                          "[null,[null,12]]"}
 

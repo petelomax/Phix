@@ -10,8 +10,8 @@
 --
 -- Examples
 --  ? trim(" abc ")         -- prints "abc"
---  ? trim("\"abc\"")       -- prints ""abc""
---  ? trim("\"abc\"",'\"')  -- prints "abc" (not ""abc"")
+--  ? trim(`"abc"`)     `   -- prints `"abc"`
+--  ? trim(`"abc"`,'"')     -- prints "abc" (not ""abc"" nor `"abc"`, but 3 chars)
 --  ? trim(table,{{}})      -- removes s[i]={} entries from start and end (note the extra {})
 --  ? trim(table,{{},0})    -- removes s[i]={} or 0 """
 --  ? trim(gets(fn))        -- trim returns eof (-1) unaltered.
@@ -102,4 +102,13 @@ integer lpos, rpos
     return source
 end function
 
+global function shorten(string s, what="digits", integer ml=20)
+    integer l = length(s)
+    string ls = sprintf(" (%,d %s)",{l,what}) 
+    if l>ml*2+3+length(ls) then
+        s[ml+1..-ml-1] = "..."
+        s &= ls
+    end if
+    return s
+end function
 

@@ -75,7 +75,6 @@ object text
                 or match("rosetta",lower(name))
                 or match("7guis",lower(name))
                 or match("pgui",lower(name)) then
---                  dload(path&"\\"&name)
                     dload(join_path({path,name}))
                 end if
             elsif match(".exw",lower(name))!=0
@@ -176,7 +175,6 @@ integer fn, ch
     res = fulltext[i]
 --  res = files[i][T_text]  --NO!
     if atom(res) then
---      path = directories[files[i][T_path]]&"\\"&files[i][T_name]
         path = join_path({files[i][T_path],files[i][T_name]})
         fn = open(path,"rb")
         if fn=-1 then
@@ -226,10 +224,10 @@ function datestring(object d)
 --?"datestring"
 --      d = d[1]
 --      {d[1],d[3]} = {d[3],d[1]}
---      return sprintf("{%02d\\%02d\\%04d %02d:%02d:%02d}",d)
+--      return sprintf(`{%02d\%02d\%04d %02d:%02d:%02d}`,d)
 --  end if
     {d[1],d[3]} = {d[3],d[1]}
-    return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+    return sprintf(`%02d\%02d\%04d %02d:%02d:%02d`,d)
 end function
 
 constant KB = 1024,
@@ -549,8 +547,8 @@ atom t = time()
     fileinfo = {}
     modifieds = {}
     sizes = {}
---  pgdbinit(croot&"\\demo\\arwendemo\\pgui\\")
---  pgdbinit(croot&"\\demo\\pGUI\\pdemo\\")
+--  pgdbinit(croot&`\demo\arwendemo\pgui\`)
+--  pgdbinit(croot&`\demo\pGUI\pdemo\`)
     if not DB_BROKEN then
         pgdbinit(join_path({croot,"demo","pGUI","pdemo"},1))
     end if
@@ -580,10 +578,10 @@ end function
 --        but these are quite different to the ones in Compiler/core.e
 function enquote(string s)
     if find(' ',s) then
-        s = '\"' & s & '\"'
+        s = `"`&s&`"`
     end if
     return s
---  return sprintf("\"%s\"",substitute(s,"\n","\\n"))
+--  return sprintf(`"%s"`,substitute(s,"\n",`\n`))
 end function
 
 function unquote(string s)
@@ -594,7 +592,7 @@ function unquote(string s)
     return s
 --  if s[s]!='\"' then ?9/0 end if
 --  if s[$]!='\"' then ?9/0 end if
---  s = substitute(s[2..-2],"\\n","\n")
+--  s = substitute(s[2..-2],`\n`,"\n")
 --  return s
 end function
 --*/
@@ -623,7 +621,6 @@ sequence d
             pgdbSetFileInfo(k,name,fileinfo[fidx])
         end if
         IupUpdate(matrix)
---      path = directories[k]&"\\"&name
         path = join_path({directories[k],name})
         if option=rCOPY then
             cmd = crun
@@ -639,14 +636,14 @@ sequence d
                     cmd = cmd[1..-5]
                 end if
                 if find(' ',cmd) then
-                    cmd = '\"' & cmd & '\"'
+                    cmd = `"`&cmd&`"`
                 end if
                 if match(croot,path)=1 then
                     path = path[length(croot)+1..$]
                 end if
             end if
             if find(' ',path) then
-                path = '\"' & path & '\"'
+                path = `"`&path&`"`
             end if
             cmd &= " "&path
 --5/8/18: (clear CF_UNICODETEXT etc first, as per IupClipboard() docs)
@@ -654,7 +651,7 @@ sequence d
             IupSetAttribute(clipboard,"TEXT",cmd)
         else
             if find(' ',path) then
-                path = '\"' & path & '\"'
+                path = `"`&path&`"`
             end if
             if option=rEDIX then
 --DEV
@@ -663,8 +660,8 @@ if 0 then
 --              cmd = crun&" edix "&path
                 {} = chdir(croot)
 else
-                cmd = sprintf("%s \"%s\\demo\\edita\\edita.exw\" %s",{crun,croot,path})
---              cmd = sprintf("%s \"%s\\demo\\edix\\edix.exw\" %s",{crun,croot,path})
+                cmd = sprintf(`%s "%s\demo\edita\edita.exw" %s`,{crun,croot,path})
+--              cmd = sprintf(`%s "%s\demo\edix\edix.exw" %s`,{crun,croot,path})
 --              string edix = enquote(join_path({croot,"demo","edix","edix.exw"}))
 --              cmd = sprintf("%s %s %s",{crun,edix,path})
 end if
@@ -834,7 +831,7 @@ global procedure Amend(integer use_mouse=0)
     integer l = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
     l = tags[l]
 --?files[l]
---  files = {{"C:\\Program Files (x86)\\Phix\\demo","99bottles.exw",964,{2015,9,13,18,38'&',23},{{2016,10,9,18,12,15,1,283}},0,""}}
+--  files = {{`C:\Program Files (x86)\Phix\demo`,"99bottles.exw",964,{2015,9,13,18,38'&',23},{{2016,10,9,18,12,15,1,283}},0,""}}
     IupSetAttribute(l_dir,"TITLE",files[l][T_path])
     IupSetAttribute(l_name,"TITLE",files[l][T_name])
 --  IupSetStrAttribute(l_size,"TITLE",trim(Size(files[l][3])))

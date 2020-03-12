@@ -1,0 +1,167 @@
+--
+-- demo\rosetta\SOAP.exw
+-- =====================
+--
+-- translated from https://gist.github.com/p120ph37/8281362ae9da042f3043
+--
+include builtins\libcurl.e
+include builtins\xml.e      -- xml_encode()
+ 
+function write_callback(atom pData, integer size, integer nmemb, atom /*pUserdata*/)
+integer bytes_written = size*nmemb
+    puts(1,peek({pData,bytes_written}))
+    return bytes_written
+end function
+constant write_cb = call_back({'+',routine_id("write_callback")})
+
+function compose_soap_frobnicate(string foo, bar, baz)
+  return sprintf("""
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+ xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+ <soap:Body>
+  <frobnicate xmlns="http://example.com/frobnicate">
+   <foo>%s</foo>
+   <bar>%s</bar>
+   <baz>%s</baz>
+  </frobnicate>
+ </soap:Body>
+</soap:Envelope>""",{xml_encode(foo),xml_encode(bar),xml_encode(baz)})
+end function
+
+curl_global_init()
+atom curl = curl_easy_init()
+curl_easy_setopt(curl, CURLOPT_URL, "https://ameriwether.com/cgi-bin/info.pl")
+string soap = compose_soap_frobnicate("'Ein'", ">Zwei<", "\"Drei\"")
+curl_easy_setopt(curl, CURLOPT_POSTFIELDS, soap)
+curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC)
+curl_easy_setopt(curl, CURLOPT_USERNAME, "user")
+curl_easy_setopt(curl, CURLOPT_PASSWORD, "password")
+curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
+atom headers = NULL
+headers = curl_slist_append(headers, "Content-Type: text/xml; charset=utf-8")
+headers = curl_slist_append(headers, "SOAPAction: \"https://ameriwether.com/cgi-bin/info.pl/frobnicate\"")
+headers = curl_slist_append(headers, "Accept: text/plain") -- Example output easier to read as plain text.
+curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers)
+-- Make the example URL work even if your CA bundle is missing.
+curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, false)
+CURLcode res = curl_easy_perform(curl)
+if res!=CURLE_OK then
+    printf(2, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res))
+end if
+curl_slist_free_all(headers)
+curl_easy_cleanup(curl)
+curl_global_cleanup()
+ 
+?"done"
+{} = wait_key()
+
+--output:
+--/*
+TCP Connection:
+ 127.0.0.1:40056 > 127.0.0.1:443
+SSL Layer (TLSv1.2):
+ CIPHER=ECDHE-RSA-AES256-GCM-SHA384
+ CIPHER_ALGKEYSIZE=256
+ CIPHER_EXPORT=false
+ CIPHER_USEKEYSIZE=256
+ CLIENT_VERIFY=NONE
+ COMPRESS_METHOD=NULL
+ SECURE_RENEG=true
+ SESSION_RESUMED=Initial
+ TLS_SNI=ameriwether.com
+HTTP Request:
+ POST /cgi-bin/info.pl HTTP/1.1
+HTTP Headers:
+ Accept: text/plain
+ ContentLength: 411
+ ContentType: text/xml; charset=utf-8
+ Host: ameriwether.com
+ Soapaction: "https://ameriwether.com/cgi-bin/info.pl/frobnicate"
+CGI Params:
+ POSTDATA=<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+ xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+ <soap:Body>
+  <frobnicate xmlns="http://example.com/frobnicate">
+   <foo>&apos;Ein&apos;</foo>
+   <bar>&gt;Zwei&lt;</bar>
+   <baz>&quot;Drei&quot;</baz>
+  </frobnicate>
+ </soap:Body>
+</soap:Envelope>
+"done"
+
+
+--untested (from EuForum) - but tweaked slightly towards builtins/libcurl.e...
+include C:\EUPHORIA\INCLUDE\euLibCurl.ew 
+ 
+atom curl_handle 
+atom pError = allocate(CURL_ERROR_SIZE) 
+ 
+function get_url(string url, object form_data) 
+-- form_data can be NO_FORMS 
+-- returns HTML page or error code 
+    object buffer, buffer2 
+    if connexion_mode = SOCKS then 
+        curl_easy_setopt(curl_handle, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5) 
+        curl_easy_setopt(curl_handle, CURLOPT_PROXY, "127.0.0.1:4567") 
+        curl_easy_setopt(curl_handle, CURLOPT_COOKIEFILE, "C:\\EUPHORIA\\accounts\\SOCKS_cookies") 
+        curl_easy_setopt(curl_handle, CURLOPT_COOKIEJAR, "C:\\EUPHORIA\\accounts\\SOCKS_cookies") 
+        curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)") 
+    elsif connexion_mode = Proxy then 
+        curl_easy_setopt(curl_handle, CURLOPT_PROXYTYPE, CURLPROXY_HTTP) 
+        curl_easy_setopt(curl_handle, CURLOPT_PROXY, "192.168.0.1:4480") 
+        curl_easy_setopt(curl_handle, CURLOPT_COOKIEFILE, "C:\\EUPHORIA\\accounts\\Proxy_cookies") 
+        curl_easy_setopt(curl_handle, CURLOPT_COOKIEJAR, "C:\\EUPHORIA\\accounts\\Proxy_cookies") 
+        curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.8.1.4) Gecko/20070515 Firefox/2.0.0.4") 
+    else -- Direct 
+        curl_easy_setopt(curl_handle, CURLOPT_PROXYTYPE, CURLPROXY_HTTP) 
+        curl_easy_setopt(curl_handle, CURLOPT_PROXY, "") 
+        curl_easy_setopt(curl_handle, CURLOPT_COOKIEFILE, "C:\\EUPHORIA\\accounts\\Direct_cookies") 
+        curl_easy_setopt(curl_handle, CURLOPT_COOKIEJAR, "C:\\EUPHORIA\\accounts\\Direct_cookies") 
+        curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "Opera/9.21 (Windows NT 5.1; U; en)") 
+    end if 
+ 
+    curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 0) 
+    -- CURLOPT_CAINFO and CURLOPT_CAPATH would be used to point to certificates, 
+    -- but the line above says not to verify the SSL certificate 
+ 
+    if sequence(form_data) then 
+        curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, form_data) 
+    else 
+        curl_easy_setopt(curl_handle, CURLOPT_HTTPGET, true) 
+    end if 
+ 
+    curl_easy_setopt(curl_handle, CURLOPT_URL, url) 
+    if sequence(form_data) then 
+        showMessage(sprintf("Downloading file %s : %s",{url,form_data})) 
+    else 
+        showMessage(sprintf("Downloading file %s",{url})) 
+    end if 
+    buffer = curl_easy_perform_ex(curl_handle) 
+    if atom(buffer) then 
+        showMessage(sprintf("Error '%s' downloading file", {peek_sequence(pError, CURL_ERROR_SIZE) } ) ) 
+    end if 
+    return buffer 
+end function 
+-------------------------------------------------------------------------------- 
+ 
+if  curl_global_init(CURL_GLOBAL_ALL) != 0 then 
+    warnErr("Could not initialise libCurl\n\nContinue?") 
+end if 
+ 
+curl_handle = curl_easy_init() 
+curl_easy_setopt(curl_handle, CURLOPT_ERRORBUFFER, pError) 
+curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, true) 
+
+get_url(...???...)
+
+curl_easy_cleanup(curl_handle) 
+curl_global_cleanup() 
+free(pError) 
+--*/
+
+

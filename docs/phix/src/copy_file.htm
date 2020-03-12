@@ -13,7 +13,11 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm#bool">bool</a> res = copy_file(<a href="string.htm">string</a> src, <a href="string.htm">string</a> dest, <a href="integer.htm#bool">bool</a> overwrite=false)
+          <a href="integer.htm#bool">bool</a> res = copy_file(<a href="string.htm">string</a> src, dest, <a href="integer.htm#bool">bool</a> overwrite=false)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href="integer.htm#bool">bool</a> res = copy_directory(<a href="string.htm">string</a> src, dest, <a href="integer.htm#bool">bool</a> overwrite=false)
          </td>
         </tr>
         <tr>
@@ -21,16 +25,16 @@
           <b>Description:</b>
          </td>
          <td>
-            Copy a file.
+            Copy a file or directory.
             <br>
             <br>
-            src: the name of the file to copy. It must exist and cannot be a directory.<br>
+            src: the name of the file or directory to copy. It must exist.<br>
             dest: the new name or location of the file.<br>
             overwrite: false (0/the default) prevents an existing destination file from being overwritten. 
                        true (non-zero) permits the overwriting of any existing destination file.
             <br>
             <br>
-            Returns: 0 (false) on failure, 1 (true) on success.
+            Returns: true (1) on success, false (0) on failure.
          </td>
         </tr>
         <tr>
@@ -38,25 +42,37 @@
           <b>Comments:</b>
          </td>
          <td>
-            If overwrite is true, and if dest file already exists, the function overwrites the existing file and succeeds.
+            copy_file() can be used to copy files <i>or</i> directories, whereas copy_directory() verifies that src really is a directory 
+            (returns false if not) before proceeding.<br>
+            The latter exists mainly just to make code a little more self-documenting, rather than providing any additional functionality. <br>
+            Note there is no routine that verfies src is <i>not</i> a directory before proceeding, for that you must explicitly check that 
+            <a href="get_file_type.htm">get_file_type</a>(src)==FILETYPE_FILE first.
+            <br>
+            <br>
+            If overwrite is true and dest already exists, the function overwrites the existing file and succeeds.
+            <br>
+            <br>
+            If src is a directory, a full recursive copy occurs. For something more selective see <a href="walk_dir.htm">walk_dir</a>().
             <br>
             <br>
             If dest is a directory, a file of the same name as source is created therein.
             <br>
             <br>
-            Unlike some other routines here, any path separators should be appropriate for the operating
-            system, namely backslash ('\\') on Windows and forwardslash ('/') on Linux.
+            Unlike some other routines here, any path separators should be appropriate for the operating system, namely backslash ('\\') on 
+            Windows and forwardslash ('/') on Linux. <br>
+            If in doubt (not already a result from the top half of <a href="fileutils.htm">the table</a>) pass src/dest through 
+            <a href="get_proper_path.htm">get_proper_path</a>() and/or <a href="get_proper_dir.htm">get_proper_dir</a>() before 
+            passing them to this routine.
             <br>
             <br>
-            For best results, use fully qualified absolute pathnames. You should not rely on relative
-            paths in dest any more than you do in src; for instance copy_file("demo\\test","demo\\test2")
-            is fine, whereas copy_file("demo\\test","test2") is likely to copy to the parent directory, and
-            copy_file("C:\\Program Files (x86)\\Phix\\demo\\test","test2") is likely to copy it to the
-            current directory. The precise behaviour of path-less operations is operating system dependent.
+            For best results, use fully qualified absolute pathnames. You should not rely on relative paths in dest any more than you do in 
+            src; for instance copy_file(`demo\test`,`demo\test2`) is fine, whereas copy_file(`demo\test`,"test2") is likely to copy to 
+            the parent directory, and copy_file(`C:\Program Files (x86)\Phix\demo\test`,"test2") is likely to copy it to the current 
+            directory. The precise behaviour of path-less operations is operating system dependent.
             <br>
             <br>
-            If overwrite was requested but the copy fails, there is no guarantee that any 
-            existing destination file is preserved, deleted, corrupted, or all three.
+            If overwrite was requested but the copy fails, there is no guarantee that any existing destination file is preserved, deleted, 
+            corrupted, or all three.
             <br>
             <br>
             The use of a <a href="procedures.htm#namedparams">named parameter</a> when setting the overwrite parameter recommended, 

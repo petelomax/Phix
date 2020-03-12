@@ -1,0 +1,456 @@
+--
+-- demo/capture_console.exw
+--
+--  see also child.ex
+--  DEV: not quite right on linux: doubles-up on output, hangs on eof (fudge below [find '!'])
+--
+include builtins\syswait.ew
+
+constant BUFSIZE = 4096
+ 
+include cffi.e
+
+constant 
+tSA = """
+typedef struct _SECURITY_ATTRIBUTES {
+  DWORD  nLength;
+  LPVOID lpSecurityDescriptor;
+  BOOL   bInheritHandle;
+} SECURITY_ATTRIBUTES, *PSECURITY_ATTRIBUTES, *LPSECURITY_ATTRIBUTES;
+"""
+
+bool p_init = false
+atom kernel32, pSA, pRd, pWr,
+     libc
+
+integer xGetExitCodeProcess, xWaitForSingleObject, 
+        xReadFile, xWriteFile,
+        xCreatePipe, xPeekNamedPipe,
+        xSetHandleInformation, xCloseHandle, 
+--      xGetLastError,
+        idSA,
+        xPipe, xClose, xRead, xWrite
+--      , xWaitpid
+constant HANDLE_FLAG_INHERIT = 0x00000001,
+         FORTYMS = 40,           -- Forty milliseconds, 1/25th of a second
+         STILL_ACTIVE = 259
+
+enum STDIN, STDOUT, STDERR, STD3=$
+enum READ, WRITE
+
+procedure initpi()
+    enter_cs()
+    if platform()=WINDOWS then
+        kernel32 = open_dll("kernel32.dll")
+
+--#without reformat
+        xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
+            {C_PTR,     --  HANDLE hObject, // handle of object to wait for
+             C_PTR},    --  DWORD   dwTimeout // time-out interval in milliseconds
+            C_DWORD)    -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
+
+        xGetExitCodeProcess = define_c_func(kernel32, "GetExitCodeProcess",
+            {C_PTR,     --  HANDLE hProcess, // handle to the process
+             C_PTR},    --  LPDWORD  lpExitCode // address to receive termination status
+            C_BOOL)     -- BOOL
+
+        xReadFile   = define_c_func(kernel32,"ReadFile",
+            {C_PTR,     --  HANDLE  hFile,  // handle of file to read
+             C_PTR,     --  LPVOID  lpBuffer,   // address of buffer that receives data
+             C_LONG,    --  DWORD  nNumberOfBytesToRead,    // number of bytes to read
+             C_PTR,     --  LPDWORD  lpNumberOfBytesRead,   // address of number of bytes read
+             C_PTR},    --  LPOVERLAPPED  lpOverlapped  // address of structure for data
+            C_INT)      -- BOOL
+
+        xWriteFile  = define_c_func(kernel32,"WriteFile",
+            {C_PTR,     --  HANDLE  hFile,  // handle of file to write to
+             C_PTR,     --  LPCVOID  lpBuffer,  // address of data to write to file
+             C_LONG,    --  DWORD  nNumberOfBytesToWrite,   // number of bytes to write
+             C_PTR,     --  LPDWORD  lpNumberOfBytesWritten,    // address of number of bytes written
+             C_PTR},    --  LPOVERLAPPED  lpOverlapped  // addr. of structure needed for overlapped I/O
+            C_INT)      -- BOOL
+
+        xCreatePipe = define_c_func(kernel32,"CreatePipe",
+            {C_PTR,     --  _Out_     PHANDLE hReadPipe
+             C_PTR,     --  _Out_     PHANDLE hWritePipe
+             C_PTR,     --  _In_opt_  LPSECURITY_ATTRIBUTES lpPipeAttributes
+             C_DWORD},  --  _In_      DWORD nSize
+            C_BOOL)     -- BOOL
+
+        xPeekNamedPipe = define_c_func(kernel32,"PeekNamedPipe",
+            {C_PTR,     --    _In_       HANDLE hNamedPipe,
+             C_PTR,     --    _Out_opt_  LPVOID lpBuffer,
+             C_DWORD,   --    _In_       DWORD nBufferSize,
+             C_PTR,     --    _Out_opt_  LPDWORD lpBytesRead,
+             C_PTR,     --    _Out_opt_  LPDWORD lpTotalBytesAvail,
+             C_PTR},    --    _Out_opt_  LPDWORD lpBytesLeftThisMessage
+            C_BOOL)     -- BOOL
+
+        xSetHandleInformation = define_c_func(kernel32,"SetHandleInformation",
+            {C_PTR,     --  _In_  HANDLE hObject,
+             C_DWORD,   --  _In_  DWORD dwMask,
+             C_DWORD},  --  _In_  DWORD dwFlags
+            C_BOOL)     -- BOOL
+
+        xCloseHandle = define_c_func(kernel32, "CloseHandle",
+            {C_PTR},    --  HANDLE  hObject // handle of object to close
+            C_BOOL)     -- BOOL
+
+--      xGetLastError = define_c_func(kernel32, "GetLastError",
+--          {},
+--          C_DWORD)    -- DWORD
+
+--#with reformat
+
+        idSA = define_struct(tSA)
+        pSA = allocate_struct(idSA)
+        -- Set the bInheritHandle flag so pipe handles are inherited. 
+        set_struct_field(idSA,pSA,"nLength",get_struct_size(idSA))
+        set_struct_field(idSA,pSA,"bInheritHandle",true)
+        set_struct_field(idSA,pSA,"lpSecurityDescriptor",NULL)
+
+    else -- LINUX
+        libc = open_dll({"libc.so", "libc.dylib", ""})
+        xPipe = define_c_func(libc, "pipe",
+                    {C_PTR},    --  int filedes[2]
+                    C_INT)      -- int
+        xClose  = define_c_func(libc, "close",
+                    {C_INT},    --  int filedes
+                    C_INT)      -- int
+        xRead = define_c_func(libc, "read",
+                    {C_INT,     --  int filedes
+                     C_PTR,     --  void* buffer
+                     C_INT},    --  size_t size
+                    C_LONG)     -- ssize_t
+        xWrite = define_c_func(libc, "write",
+                    {C_INT,     --  int filedes
+                     C_PTR,     --  void* buffer
+                     C_INT},    --  size_t size
+                    C_LONG)     -- ssize_t
+--      xWaitpid = define_c_func(libc, "waitpid",
+--                  {C_INT,     --  pid_t pid
+--                   C_PTR,     --  int* status_ptr
+--                   C_INT},    --  int options
+--                  C_INT)      -- pid_t
+    end if
+    pRd = allocate(machine_word()*2)
+    pWr = pRd+machine_word()
+    leave_cs()
+
+    p_init = 1
+end procedure
+
+procedure close_handle(atom hObject)
+    if platform()=WINDOWS then
+        if not c_func(xCloseHandle,{hObject}) then ?9/0 end if
+    else
+        if c_func(xClose,{hObject})!=0 then ?9/0 end if
+    end if
+end procedure
+
+procedure WriteToPipe(integer infd, atom stdin_wr)
+-- Read from a file and write its contents to the pipe for the child's STDIN.
+-- Stop when there is no more data. 
+    while true do
+        object x = gets(infd)
+        if atom(x) then exit end if
+        if platform()=WINDOWS then
+            bool bSuccess = c_func(xWriteFile,{stdin_wr, x, length(x), pWr, NULL})
+            if not bSuccess then exit end if
+        else -- LINUX
+            if c_func(xWrite,{stdin_wr,x,length(x)})=-1 then ?9/0 end if
+        end if
+    end while
+end procedure
+ 
+procedure ReadFromPipe(atom handle, hProc) 
+-- Read output from the child process's pipe for STDOUT
+-- and write to the parent process's pipe for STDOUT. 
+-- Stop when there is no more data. 
+    atom pAvail = allocate(4,true),
+         chBuf = allocate(BUFSIZE,true)
+    integer dwRead
+    while true do
+        if platform()=WINDOWS then
+            while true do
+                {} = c_func(xPeekNamedPipe,{handle,NULL,0,NULL,pAvail,NULL})
+                if peek4u(pAvail)!=0 then exit end if -- (available bytes non-0)
+                if not c_func(xGetExitCodeProcess, {hProc, pWr}) then return end if
+                atom ret = peek4u(pWr)
+                if ret!=STILL_ACTIVE then return end if
+                {} = c_func(xWaitForSingleObject, {hProc, FORTYMS})
+            end while
+            bool bSuccess = c_func(xReadFile,{handle, chBuf, BUFSIZE, pRd, NULL})
+            dwRead = peek4u(pRd)
+            if not bSuccess or dwRead==0 then exit end if
+        else -- LINUX
+--/*
+--tryme:
+void read_from_pipe (int file)
+{
+  FILE *stream;
+  int c;
+  stream = fdopen (file, "r");
+  while ((c = fgetc (stream)) != EOF)
+    putchar (c);
+  fclose (stream);
+}
+FILE * fdopen (int filedes, const char *opentype)
+--*/
+--DEV this blocks, need equivalent to the above[?]
+--?"xRead"
+            dwRead = c_func(xRead,{handle,chBuf,BUFSIZE})
+--?dwRead
+            if dwRead=-1 then ?9/0 end if
+            if dwRead=0 then exit end if
+        end if
+        string buff = peek({chBuf,dwRead})
+--      puts(1,upper(buff))
+--      puts(1,lower(buff))
+        puts(1,buff)
+--DEV/fudge...
+        if platform()=LINUX then
+            if find('!',buff) then exit end if
+        end if
+    end while
+end procedure
+
+--DEV this may become a builtin/autoinclude:
+function create_pipe()
+    atom hRd, hWr
+    if not p_init then initpi() end if
+    if platform()=WINDOWS then
+        if not c_func(xCreatePipe,{pRd, pWr, pSA, 0}) then ?9/0 end if
+        hRd = peekNS(pRd,machine_word(),false)
+        hWr = peekNS(pWr,machine_word(),false)
+    else -- LINUX
+        if c_func(xPipe,{pRd})=-1 then ?9/0 end if
+        hRd = peek4u(pRd)
+        hWr = peek4u(pRd+4) -- (as tested/needed on 64 bit!)
+    end if
+    return {hRd,hWr}
+end function
+
+procedure set_handle_information(atom hObject, dwMask, dwFlags)
+    if platform()!=WINDOWS then ?9/0 end if
+    if not c_func(xSetHandleInformation,{hObject, dwMask, dwFlags}) then ?9/0 end if
+end procedure
+ 
+procedure main()
+ 
+    printf(1,"\n->Start of parent execution.\n");
+
+    -- Create pipes for the child process's stdin/out/err. 
+ 
+    sequence pipes = repeat(0,STD3)
+    -- You can comment out one or more of these...
+    pipes[STDIN] = create_pipe()
+    pipes[STDOUT] = create_pipe()
+    pipes[STDERR] = create_pipe()
+
+    if platform()=WINDOWS then
+        if sequence(pipes[STDIN]) then
+            set_handle_information(pipes[STDIN][WRITE], HANDLE_FLAG_INHERIT, 0)
+        end if
+        if sequence(pipes[STDOUT]) then
+            set_handle_information(pipes[STDOUT][READ], HANDLE_FLAG_INHERIT, 0)
+        end if
+        if sequence(pipes[STDERR]) then
+            set_handle_information(pipes[STDERR][READ], HANDLE_FLAG_INHERIT, 0)
+        end if
+    end if
+
+    -- Create the child process, with replacement stdin/stdout/stderr. 
+--  string cmd = iff(platform()=WINDOWS?"p child":"./p child")
+    string cmd = iff(platform()=WINDOWS?`..\p child`:"./p child")
+--  atom hProc = system_exec(cmd, 12, pipes)
+
+    if sequence(pipes[STDIN]) then
+        -- Use any (plain text) input file to verify the data flow.
+        string filename = "child.ex"
+        integer infd = open(filename,"r")
+        if infd=-1 then crash("cannot open %s",{filename}) end if
+
+        -- Write to the pipe that is the standard input for a child process. 
+        -- Data is written to the pipe's buffers, so it is not necessary to wait
+        -- until the child process is running before writing data.
+ 
+        WriteToPipe(infd,pipes[STDIN][WRITE])
+        close(infd)
+        -- Close the pipe handle so the child process stops reading. 
+        close_handle(pipes[STDIN][WRITE])
+
+        printf(1,"\n->Contents of %s written to child STDIN pipe.\n", {filename})
+    end if
+--  atom hProc = system_exec(cmd, 12, pipes)
+--  atom hProc = system_exec(cmd, 8, pipes)
+    atom hProc = system_wait(cmd, pipes)
+
+--/*
+--tryme??: (not sure it will help with the hang in read on linux)
+    if platform()=LINUX then
+        -- This is the parent process.  Wait for the child to complete.
+--      void = waitpid(pid, &status, 0)
+        {} = waitpid(hProc, &status, 0)
+--ah!, and this...
+        flags = fcntl(pfd[0], F_GETFL);
+        flags |= O_NONBLOCK;
+        if (fcntl(pfd[0], F_SETFL, flags)) perror("fcntl");
+F_GETFL=        3 ; get file status flags
+F_SETFL=        4 ; set file status flags
+O_NONBLOCK=     0x0004 ; no delay
+    end if
+--*/
+
+    if sequence(pipes[STDOUT]) then
+        -- Read from pipe that is the standard output for child process. 
+ 
+        printf(1,"\n->Contents of child process STDOUT:\n\n")
+        ReadFromPipe(pipes[STDOUT][READ],hProc)
+    end if
+
+    if sequence(pipes[STDERR]) then
+        printf(1,"\n->Contents of child process STDERR:\n\n")
+        ReadFromPipe(pipes[STDERR][READ],hProc)
+    end if
+
+    printf(1,"\n->End of parent execution.\n")
+
+    if platform()=WINDOWS then
+        close_handle(hProc)
+    end if
+
+    -- The remaining open handles are cleaned up when this process terminates. 
+    -- To avoid resource leaks in a larger application, close handles explicitly. 
+    -- (I /think/ this is the lot....)
+
+    if sequence(pipes[STDIN]) then
+        close_handle(pipes[STDIN][READ])
+--      close_handle(pipes[STDIN][WRITE])   -- (done above)
+    end if
+    if sequence(pipes[STDOUT]) then
+        close_handle(pipes[STDOUT][READ])
+        close_handle(pipes[STDOUT][WRITE])
+    end if
+    if sequence(pipes[STDERR]) then
+        close_handle(pipes[STDERR][READ])
+        close_handle(pipes[STDERR][WRITE])
+    end if
+
+end procedure
+main()
+?"done"
+{} = wait_key()
+
+--/* This also works on linux:
+--(DEV: surely there must be a way to make pmain.e do most of this (esp 32 vs 64 bit) for me!!)
+-- eg res = #iffi{"libc.so.6","popen",cmd,mode}
+--  (note that args **MUST** be integer/string/atom; sequence/object/udt are banned)
+--                           [ie: as_is/shl 2/%pLoadMint respectively]
+--   [res is always %pStoreMint'd, and must be atom/integer (only)]
+function popen(string cmd, mode)
+-- FILE * popen (const char *command, const char *mode)
+    integer res
+    #ilASM{
+        [ELF32]
+            mov eax,[cmd]
+            mov ecx,[mode]
+            shl eax,2
+            shl ecx,2
+            push ecx
+            push eax
+            call "libc.so.6","popen"
+            add esp,8
+            lea edi,[res]
+            call :%pStoreMint
+        [ELF64]
+            mov rdi,[cmd]
+            mov rsi,[mode]
+            shl rdi,2
+            shl rsi,2
+            call "libc.so.6","popen"
+            lea rdi,[res]
+            call :%pStoreMint
+        []
+          }
+    return res
+end function
+
+function fread(atom buffer, integer size, count, stream)
+-- size_t fread (void *data, size_t size, size_t count, FILE *stream)
+    integer res
+    #ilASM{
+        [ELF32]
+            mov eax,[buffer]
+            call :%pLoadMint
+            mov ecx,[size]
+            mov edx,[count]
+            mov esi,[stream]
+            push esi
+            push edx
+            push ecx
+            push eax
+            call "libc.so.6","fread"
+            add esp,16
+            lea edi,[res]
+            call :%pStoreMint
+        [ELF64]
+            mov rdi,[buffer]
+            call :%pLoadMint
+            mov rsi,[size]
+            mov rdx,[count]
+            mov rcx,[stream]
+            call "libc.so.6","fread"
+            lea rdi,[res]
+            call :%pStoreMint
+        []
+          }
+    return res
+end function
+
+function pclose(integer fd)
+--int pclose (FILE *stream)
+    integer res
+    #ilASM{
+        [ELF32]
+            mov eax,[fd]
+            push eax
+            call "libc.so.6","pclose"
+            add esp,4
+            lea edi,[res]
+            call :%pStoreMint
+        [ELF64]
+            mov rdi,[fd]
+            call "libc.so.6","pclose"
+            lea rdi,[res]
+            call :%pStoreMint
+        []
+          }
+    return res
+end function
+
+    if platform()=LINUX then
+        -- FILE *fd = popen("ls", "r");
+        integer fd = popen("ls", "r")
+        if fd=NULL then ?9/0 end if
+ 
+        atom buffer = allocate(256)
+        string comout = ""
+ 
+        /* Use fread so binary data is dealt with correctly */
+        while true do
+            integer chread = fread(buffer, 1, 256, fd)
+            if chread=0 then exit end if
+            comout &= peek({buffer,chread})
+        end while
+ 
+        /* We can now work with the output as we please. Just print
+         * out to confirm output is as expected */
+--      puts(1,upper(comout))
+        puts(1,comout)
+        {} = pclose(fd)
+    end if
+puts(1,"done!\n")
+{} = wait_key()
+--*/
+

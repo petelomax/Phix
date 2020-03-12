@@ -1042,7 +1042,7 @@ end procedure
 constant r_Recover=routine_id("Recover")
 
 procedure Restore()
--- On entry, the current file path is initialcurrentdir&"backup\\".
+-- On entry, the current file path is initialcurrentdir&`backup\`.
 -- Find what file it is a backup of, close it if it is already open,
 --  set the path and filename on currfile, and saveFile().
 -- This will create a new backup of the file just restored over (if it exists).
@@ -1240,12 +1240,12 @@ global integer r_CharInput,r_VirtualKey
 --constant V = routine_id("VirtualKey")
 
 function cmap(integer n)
-    if n='\t' then return "\\t" end if
-    if n='\n' then return "\\n" end if
-    if n='\r' then return "\\r" end if
-    if n='\"' then return "\\\"" end if
-    if n='\'' then return "\\\'" end if
-    if n='\\' then return "\\\\" end if
+    if n='\t' then return `\t` end if
+    if n='\n' then return `\n` end if
+    if n='\r' then return `\r` end if
+    if n='\"' then return `\"` end if
+    if n='\'' then return `\'` end if
+    if n='\\' then return `\\` end if
     setText(SB6,sprintf("invalid character:%d",n))
     return ""   
 end function
@@ -1396,7 +1396,7 @@ atom n
                             ch = d[i]
                             if leadin then
                                 leadin = 0
-                                if not find(ch,"\"\'\\") then
+                                if not find(ch,`"'\`) then
                                     if ch='t' then
                                         ch = '\t'
                                     elsif ch='n' then
@@ -1426,7 +1426,7 @@ atom n
                             c &= '}'
                         end if
                     elsif ch='{' and k='}' then
-                        c = "\"" --{'"'}
+                        c = `"`
                         skip = 0
                         for i=2 to ld-1 do
                             if skip then
@@ -1436,7 +1436,7 @@ atom n
                                 if ch>='0' and ch<='9' then
                                     n = n*10+ch-'0'
                                 elsif ch=',' then
-                                    if n<' ' or n>255 or find(n,"\"\'\\") then
+                                    if n<' ' or n>255 or find(n,`"'\`) then
                                         hexchar = cmap(n)
                                         if length(hexchar)=0 then return end if
                                         c &= hexchar
@@ -1456,7 +1456,7 @@ atom n
                                 end if
                             end if
                         end for
-                        if n<' ' or n>255 or find(n,"\"\'\\") then
+                        if n<' ' or n>255 or find(n,`"'\`) then
                             hexchar = cmap(n)
                             if length(hexchar)=0 then return end if
                             c &= hexchar
@@ -1546,7 +1546,7 @@ integer fmt
             ct = {}
         end if
     else
-        backdir = initialcurrentdir&"backup\\"
+        backdir = initialcurrentdir&`backup\`
         if atom(dir(backdir)) then
             if not createDirectory(backdir) then
                 void = proemh(xl("Error"),xl("Unable to create backup directory")&backdir,0)
@@ -1582,7 +1582,7 @@ elsif toClipBoard>=3 then
     if toClipBoard=4 then
         addpCode("<pre>\n")
     end if
-    addpCode("<font color=\"#000000\">")
+    addpCode(`<font color="#000000">`)
 else
     addpCode(sprintf("<html><head><title>%s %02d/%02d/%04d %02d:%02d</title></head>\n",
                      {filenames[currfile],dt[3],dt[2],dt[1],dt[4],dt[5]}))
@@ -1640,8 +1640,8 @@ end if
 if toClipBoard=2 then
                 addpCode(sprintf("[color=%s]",{htmlclr(clr)}))
 else
---              addpCode(sprintf("<font color=%s>",{htmlclr(clr)}))
-                addpCode(sprintf("<font color=\"%s\">",{htmlclr(clr)}))
+--              addpCode(sprintf(`<font color=%s>`,{htmlclr(clr)}))
+                addpCode(sprintf(`<font color="%s">`,{htmlclr(clr)}))
 end if
             end if
             if font=5 then
@@ -1652,7 +1652,7 @@ end if
                         while url[length(url)]='\n' do      -- ""
                             url = url[1..length(url)-1]
                         end while
-                        addpCode("<a href=\""&url&"\">")    -- 08/12/07
+                        addpCode(`<a href="`&url&`">`)  -- 08/12/07
                         uline = 2
                     end if
                     addpCode("<u>")
@@ -1751,7 +1751,7 @@ end if
         close(fn)
 --DEV: (works, might want an option to do this instead?)
 --  void = openFile(pcfile,1,0)
-        void = shellExecute(NULL, "open", "pc.htm", NULL, initialcurrentdir&"backup\\", SW_SHOWNORMAL)
+        void = shellExecute(NULL, "open", "pc.htm", NULL, initialcurrentdir&`backup\`, SW_SHOWNORMAL)
         if void = 31 then
             void = messageBox(xl("Error"),"ERROR_GEN_FAILURE",0)
         end if
@@ -1886,7 +1886,7 @@ if ci1!=0 and ci2!=0 then
                         code[i] = hout[ci1]*16+hout[ci2]
                         code[i+1..i+2] = 0
                     elsif ci1='\r'
-                    and ci2='\n' then
+                      and ci2='\n' then
                         code[i..i+2] = 0
                     end if
 end if
@@ -2525,7 +2525,7 @@ procedure resetMenus()
 }&HelpMenus()&
 {{"Edita Home Page",            M_Help,-2,0,eHome,PROC,r_EditaHomePage,{}}
 --DEV Phix?
---,{"Euphoria Reference Manual",    M_Help,-2,0,"EUDIR\\HTML\\Refman.htm",PROC,r_EuRefMan,{""}}
+--,{"Euphoria Reference Manual",    M_Help,-2,0,`EUDIR\HTML\Refman.htm`,PROC,r_EuRefMan,{""}}
 --  HelpEuph = menuItem("Euphoria Reference Manual")
 --  HelpMHme = menuItem("MEditor Home Page")
 --  HelpManl = menuItem("MEditor Manual")
@@ -2589,7 +2589,7 @@ atom msg_pos, rect
 
     if currfile or Tmenu=2 then
         if Tmenu=0  -- edit area
-        and equal(initialcurrentdir&"backup\\",filepaths[currfile]) then
+        and equal(initialcurrentdir&`backup\`,filepaths[currfile]) then
             Restore()
         else
 --          rect = allocate_Rect()

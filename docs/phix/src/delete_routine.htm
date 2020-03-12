@@ -31,8 +31,16 @@
          <td>
             When the reference count on a data object drops to zero it is automatically garbage collected. This routine allows additional processing
             to occur at the point when that happens, which may include freeing some allocated memory, closing a file, releasing some other resource, 
-            or removing indexes that point to an item. It is also possible to explicitly invoke <a href="delete.htm">delete</a>() on remaining objects
-            ahead of their eventual destruction, to force any such additional processing to occur immediately, or in a specific order.
+            or removing indexes that point to an item. 
+            <br>
+            <br>
+            It is also permissible to explicitly invoke <a href="delete.htm">delete</a>() (or even <a href="free.htm">free</a>(), which behaves 
+            identically when a delete_routine is in force) on remaining objects ahead of their eventual destruction, to force any such additional 
+            processing to occur immediately, or in a specific order. However the same effect can also be achieved by setting the [last copy of] o 
+            to NULL, or simply removing some table entry containing said. It is also worth pointing out that using free() or delete() on an allocated 
+            memory address is guaranteed to leave an invalid memory pointer lying about, whereas when relying on automatic cleanup the memory will 
+            still be there, even when ideally it shouldn&rsquo;t be, until it is guaranteed safe to reclaim, and hence not cause unpredictable memory 
+            corruption should it accidentally be accessed after being free()d.
           <br>
           <br>
             The routine specified by rid should be a procedure that takes a single parameter, being the object to be cleaned up.
@@ -46,18 +54,18 @@
             of an internal clone operation, perhaps because of insufficient space or multiple reference counts).
           <br>
           <br>
-            An error occurs if a delete_routine has already been set. This is inconsistent with OpenEuphoria, which allows daisy-chains of cleanup
+            An error occurs if a delete_routine has already been set. This is inconsistent with Euphoria, which allows daisy-chains of cleanup
             routines, however my argument is that it is better to prevent routines such as unlink (below) from being invoked twice, than it is to 
             permit the added but questionable extra flexibility. Besides there is nothing to prevent the data from containing a list of routine_ids 
             that the one associated cleanup routine can invoke in turn, and if you put unlink in that list twice it is your problem not mine, but at 
             least it is trivial to scan such a list, something you would struggle to do with multiple hidden internal associations.
           <br>
           <br>
-            An error also occurs when an attempt is made to apply a routine_id to a constant (with the exception of integer constants, because the 
+            An error also occurs when an attempt is made to apply a routine_id to a constant, with the exception of integer constants, because the 
             run-time simply cannot determine whether an integer value such as 4 is originally from open() or MB_YESNO - however I reserve the right 
-            (albeit with no actual intention or schedule) to add compile-time errors for the latter at some future date). Obviously invoking, say,
-            routine_id("test",rXXX) is utterly pointless - the constant "test" is never going to be destroyed, and hence rXXX would never be invoked. 
-            This is also inconsistent with OpenEuphoria.
+            (albeit with no actual intention or schedule) to add compile-time errors for the latter at some future date. Obviously invoking, say,
+            delete_routine("test",rXXX) is utterly pointless - the constant "test" is never going to be destroyed, and hence rXXX would never be 
+            invoked. This is also inconsistent with Euphoria.
           <br>
           <br>
             Should an integer be passed as the first parameter, it is promoted to atom. This is required for memory allocations, as some may fall
@@ -159,8 +167,8 @@ procedure</font><font color="#000000"> add</font><font color="#0000FF">(</font><
          </td>
          <td>
           
-          This mechanism is not guaranteed to play nice with automatic memeory leak checking. In the above example, the list items also hold chain links,
-          but if separate tables were used it might be the case that shutdown would destroy the link table before invoking unlink on some item in another
+          This mechanism is not guaranteed to play nice with automatic memory leak checking. In the above example, the list items also hold chain links,
+          but if separate tables were used it might be the case that shutdown could destroy the link table before invoking unlink on some item in another
           table. It may prove necessary for automatic memory leak checking to trigger errors when any outstanding delete_routine calls are detected.
           <br>
           <br>

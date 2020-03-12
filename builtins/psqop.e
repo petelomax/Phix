@@ -498,8 +498,8 @@ object res
     return res
 end function
 
-global function sq_trunc(atom x)
-    return sq_mul(sign(x),sq_floor(abs(x)))
+global function sq_trunc(object x)
+    return sq_mul(sq_sign(x),sq_floor(sq_abs(x)))
 end function
 
 global function sq_and(object a, object b)

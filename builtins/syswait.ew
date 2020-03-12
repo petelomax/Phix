@@ -2,51 +2,33 @@
 --  syswait.ew (Phix compatible)
 --  ==========
 --
---      Phix implementation of system_wait, system_open, system, sysproc, and system_exec.
---      Phix implementation of system_wait, system_open, and system.
---DEV document this:
+--      Phix implementation of system_exec, system, and system_open.
+--
 --      system_wait is functionally identical to system_exec but takes only one parameter
 --       and exists (as well as system_exec) for compatibility reasons only.
 --      system_open can be used to open documents or web pages, equivalent to double-
 --       clicking on a file in Explorer. The executable associated with the extension
 --       is automatically located (and in fact cannot be specified).
 --      system creates a new shell (%COMSPEC% /C) to run the specified command.
---      sysproc invokes an executable in a no-wait fashion, similar to system, but
---       without creating a new shell (seemingly a bad idea for gui apps...).
 --      system_exec must be passed an executable (not dir, mkdir, rename, etc).
 --      set_system_doevents() is used with system_exec/wait to allow background
 --       processing, event handlers etc to continue while waiting.
 --
 -- Credit: based heavily on system_wait.ew by Juergen Luethje.
 --
--- TODO: The mode parameter of system and system_exec is not currently used.
---       These functions probably deserve to be renamed:
---          system() -> system_command(), with an extra wait/shell option
---          sysproc then becomes, say, system_command(,,NOSHELL+NOWAIT).
---          system_exec() -> system_wait(), possibly also with new option.
---          (meaning we are left with 3 main routines, system_command(),
---           system_open(), and system_wait(), plus set_system_doevents()).
---          doing so would of course break alot of legacy code.
 
 --DEV drop all pretence of Eu(2.4) compatibility: all the linux stuff is in #ilASM...
 
---!/**/include builtins\VM\pSleep.e
---/* Not required for Phix:
-include ..\..\builtins\dll.e
-include ..\..\builtins\machine.e
---*/
---DEV wrong one for newEmit
---!/**/include builtins\pcfunc.e
-
 constant
-    FALSE = 0,
+    W = machine_word(),
+--  FALSE = 0,
 --  TRUE = 1,
     SW_NORMAL = 1,
 --  INFINITE = #FFFFFFFF,    -- Infinite timeout
     FORTYMS = 40,            -- Forty milliseconds, 1/25th of a second
 --  ONE32TH = 0.03125        -- 1/32 second (31.25 ms) (for linux)
 --  STARTF_USESHOWWINDOW = 1,
---  STARTF_USESTDHANDLES = 256,
+    STARTF_USESTDHANDLES = #100,
 --  STD_OUTPUT_HANDLE   = -11,  -- #FFFFFFF5
 --  STD_INPUT_HANDLE    = -10,  -- #FFFFFFF6
 --  STD_ERROR_HANDLE    = -12,
@@ -74,38 +56,47 @@ constant
 --End Enum
 
 constant    -- TYPE STARTUPINFO
---  cb              =  0,   -- DWORD        -- size in bytes
---  lpReserved      =  4,   -- ASCIIZ PTR
---  lpDesktop       =  8,   -- ASCIIZ PTR
---  lpTitle         = 12,   -- ASCIIZ PTR
---  dwX             = 16,   -- DWORD
---  dwY             = 20,   -- DWORD
---  dwXSize         = 24,   -- DWORD
---  dwYSize         = 28,   -- DWORD
---  dwXCountChars   = 32,   -- DWORD
---  dwYCountChars   = 36,   -- DWORD
---  dwFillAttribute = 40,   -- DWORD
---  dwFlags         = 44,   -- DWORD
---  wShowWindow     = 48,   -- WORD
---  cbReserved2     = 50,   -- WORD
---  lpReserved2     = 52,   -- BYTE PTR
---  hStdInput       = 56,   -- DWORD
---  hStdOutput      = 60,   -- DWORD
---  hStdError       = 64,   -- DWORD
-SIZEOF_STARTUPINFO = 68
-
+--  cb              =  0,       -- DWORD        -- size in bytes
+--  lpReserved      =  4,       -- ASCIIZ PTR
+--  lpDesktop       =  8,       -- ASCIIZ PTR
+--  lpTitle         = 12,       -- ASCIIZ PTR
+--  dwX             = 16,       -- DWORD
+--  dwY             = 20,       -- DWORD
+--  dwXSize         = 24,       -- DWORD
+--  dwYSize         = 28,       -- DWORD
+--  dwXCountChars   = 32,       -- DWORD
+--  dwYCountChars   = 36,       -- DWORD
+--  dwFillAttribute = 40,       -- DWORD
+--  dwFlags         = 44,       -- DWORD
+    dwFlags         = 4*W+28,   -- DWORD
+--  wShowWindow     = 48,       -- WORD
+--  cbReserved2     = 50,       -- WORD
+--  lpReserved2     = 52,       -- BYTE PTR
+--  hStdInput       = 56,       -- DWORD
+    hStdInput       = W*6+32,   -- DWORD
+--  hStdOutput      = 60,       -- DWORD
+    hStdOutput      = W*7+32,   -- DWORD
+--  hStdError       = 64,       -- DWORD
+    hStdError       = W*8+32,   -- DWORD
+--SIZEOF_STARTUPINFO = 68
+SIZEOF_STARTUPINFO = W*9+32
 
 constant    -- TYPE PROCESS_INFORMATION
-    hProcess    =  0,   -- DWORD
---  hThread     =  4,   -- DWORD
+    hProcess    =  0,   -- HANDLE
+    hThread     =  W,   -- HANDLE
 --  dwProcessId =  8,   -- DWORD
 --  dwThreadId  = 12,   -- DWORD
-SIZEOF_PROCESS_INFORMATION = 16
+SIZEOF_PROCESS_INFORMATION = W*2+8
+
+enum STDIN, STDOUT, STDERR, STD3=$
+enum READ, WRITE
 
 integer swinit swinit = 0
 atom kernel32,xCreateProcess,xWaitForSingleObject,xGetExitCodeProcess,
 --   xGetProcessTimes,lpCreationTime,lpExitTime,lpKernelTime,lpUserTime,
---   xGetStdHandle,xCloseHandle,xGetLastError,
+--   xGetStdHandle,
+     xCloseHandle,
+--   xGetLastError,
      shell32, xShellExecute
 --   user32, xWaitForInputIdle,
 --/*
@@ -113,73 +104,71 @@ atom kernel32,xCreateProcess,xWaitForSingleObject,xGetExitCodeProcess,
 --*/
 
 procedure initsw()
---puts(1,"syswait.e not linux\n") [I think it is now..]
---DEV locking as per pprntf
     enter_cs()
     if platform()=WINDOWS then
         kernel32 = open_dll("kernel32.dll")
 
 --#without reformat
         xCreateProcess = define_c_func(kernel32, "CreateProcessA",
-            {C_POINTER, --  LPCTSTR lpApplicationName, // pointer to name of executable module
-             C_POINTER, --  LPTSTR lpCommandLine, // pointer to command line string
-             C_POINTER, --  LPSECURITY_ATTRIBUTES lpProcessAttributes, // pointer to process security attributes
-             C_POINTER, --  LPSECURITY_ATTRIBUTES   lpThreadAttributes, // pointer to thread security attributes
-             C_LONG,    --  BOOL  bInheritHandles, // handle inheritance flag 
-             C_ULONG,   --  DWORD   dwCreationFlags, // creation flags
-             C_POINTER, --  LPVOID lpEnvironment, // pointer to new environment block
-             C_POINTER, --  LPCTSTR  lpCurrentDirectory, // pointer to current directory name
-             C_POINTER, --  LPSTARTUPINFO   lpStartupInfo, // pointer to STARTUPINFO
-             C_POINTER},--  LPPROCESS_INFORMATION lpProcessInformation // pointer to PROCESS_INFORMATION
+            {C_PTR,     --  LPCTSTR lpApplicationName, // pointer to name of executable module
+             C_PTR,     --  LPTSTR lpCommandLine, // pointer to command line string
+             C_PTR,     --  LPSECURITY_ATTRIBUTES lpProcessAttributes, // pointer to process security attributes
+             C_PTR,     --  LPSECURITY_ATTRIBUTES   lpThreadAttributes, // pointer to thread security attributes
+             C_BOOL,    --  BOOL  bInheritHandles, // handle inheritance flag 
+             C_DWORD,   --  DWORD   dwCreationFlags, // creation flags
+             C_PTR,     --  LPVOID lpEnvironment, // pointer to new environment block
+             C_PTR,     --  LPCTSTR  lpCurrentDirectory, // pointer to current directory name
+             C_PTR,     --  LPSTARTUPINFO   lpStartupInfo, // pointer to STARTUPINFO
+             C_PTR},    --  LPPROCESS_INFORMATION lpProcessInformation // pointer to PROCESS_INFORMATION
             C_LONG)     -- BOOL 
 
         xWaitForSingleObject = define_c_func(kernel32, "WaitForSingleObject",
-            {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
-             C_ULONG},  --  DWORD   dwTimeout // time-out interval in milliseconds
-            C_ULONG)    -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
+            {C_PTR,     --  HANDLE hObject, // handle of object to wait for
+             C_DWORD},  --  DWORD   dwTimeout // time-out interval in milliseconds
+            C_DWORD)    -- DWORD -- WAIT_ABANDONED, WAIT_OBJECT_0, or WAIT_TIMEOUT
 
         xGetExitCodeProcess = define_c_func(kernel32, "GetExitCodeProcess",
-            {C_ULONG,   --  HANDLE hProcess, // handle to the process
-             C_ULONG},  --  LPDWORD  lpExitCode // address to receive termination status
-            C_ULONG)    -- BOOL
+            {C_PTR,     --  HANDLE hProcess, // handle to the process
+             C_PTR},    --  LPDWORD  lpExitCode // address to receive termination status
+            C_BOOL) -- BOOL
 
 --      xGetProcessTimes = define_c_func(kernel32,"GetProcessTimes",
---          {C_POINTER, --  HANDLE  hProcess,   // specifies the process of interest
---           C_POINTER, --  LPFILETIME  lpCreationTime, // when the process was created
---           C_POINTER, --  LPFILETIME  lpExitTime, // when the process exited
---           C_POINTER, --  LPFILETIME  lpKernelTime,   // time the process has spent in kernel mode
---           C_POINTER},--  LPFILETIME  lpUserTime  // time the process has spent in user mode
---          C_LONG)     -- BOOL
+--          {C_PTR,     --  HANDLE  hProcess,   // specifies the process of interest
+--           C_PTR,     --  LPFILETIME  lpCreationTime, // when the process was created
+--           C_PTR,     --  LPFILETIME  lpExitTime, // when the process exited
+--           C_PTR,     --  LPFILETIME  lpKernelTime,   // time the process has spent in kernel mode
+--           C_PTR},    --  LPFILETIME  lpUserTime  // time the process has spent in user mode
+--          C_BOOL)     -- BOOL
 
 --      user32 = open_dll("user32.dll")
 --
 --      xWaitForInputIdle = define_c_func(user32, "WaitForInputIdle",
---          {C_ULONG,   --  HANDLE hObject, // handle of object to wait for
---           C_ULONG},  --  DWORD   dwTimeout // time-out interval in milliseconds
---          C_LONG)     -- DWORD -- 0, WAIT_TIMEOUT, or 0xFFFFFFFF
+--          {C_PTR,     --  HANDLE hObject, // handle of object to wait for
+--           C_DWORD},  --  DWORD   dwTimeout // time-out interval in milliseconds
+--          C_DWORD)    -- DWORD -- 0, WAIT_TIMEOUT, or 0xFFFFFFFF
 
         shell32 = open_dll("shell32.dll")
 
         xShellExecute = define_c_func(shell32, "ShellExecuteA",
-            {C_LONG,    --  HWND  hwnd, // handle to parent window
-             C_POINTER, --  LPCTSTR  lpOperation,   // pointer to string that specifies operation to perform
-             C_POINTER, --  LPCTSTR  lpFile,    // pointer to filename string
-             C_POINTER, --  LPTSTR  lpParameters,   // pointer to string that specifies executable-file parameters
-             C_POINTER, --  LPCTSTR  lpDirectory,   // pointer to string that specifies default directory
-             C_LONG},   --  INT  nShowCmd   // whether file is shown when opened
-            C_POINTER)  -- HINSTANCE
+            {C_PTR,     --  HWND  hwnd, // handle to parent window
+             C_PTR,     --  LPCTSTR  lpOperation,   // pointer to string that specifies operation to perform
+             C_PTR,     --  LPCTSTR  lpFile,    // pointer to filename string
+             C_PTR,     --  LPTSTR  lpParameters,   // pointer to string that specifies executable-file parameters
+             C_PTR,     --  LPCTSTR  lpDirectory,   // pointer to string that specifies default directory
+             C_INT},    --  INT  nShowCmd   // whether file is shown when opened
+            C_PTR)  -- HINSTANCE
 
 --      xGetStdHandle = define_c_func(kernel32,"GetStdHandle",
---          {C_UINT},   --  DWORD  nStdHandle   // input, output, or error device
---          C_INT)      -- HANDLE
+--          {C_DWORD},  --  DWORD  nStdHandle   // input, output, or error device
+--          C_PTR)      -- HANDLE
 
---      xCloseHandle = define_c_func(kernel32, "CloseHandle",
---          {C_POINTER},--  HANDLE  hObject // handle of object to close
---          C_LONG)     -- BOOL
+        xCloseHandle = define_c_func(kernel32, "CloseHandle",
+            {C_PTR},    --  HANDLE  hObject // handle of object to close
+            C_BOOL)     -- BOOL
 
 --      xGetLastError = define_c_func(kernel32, "GetLastError",
 --          {},
---          C_INT)      -- DWORD
+--          C_DWORD)    -- DWORD
 
 --#with reformat
 
@@ -210,14 +199,14 @@ end procedure
 ----#without reformat
 --
 --  xChangeDisplaySettings = define_c_func(user32, "xChangeDisplaySettingsW",
---      {C_POINTER, --  DEVMODE *lpDevMode, // NULL for default
---       C_ULONG},  --  DWORD   dwFlags,    // 0 for default
+--      {C_PTR,     --  DEVMODE *lpDevMode, // NULL for default
+--       C_DWORD},  --  DWORD   dwFlags,    // 0 for default
 --      C_LONG)     -- LONG
 --
 --  xBeep = define_c_func(kernel32, "Beep",
---      {C_ULONG,   --  DWORD dwFreq
---       C_ULONG},  --  DWORD dwDuration
---      C_LONG)     -- BOOL
+--      {C_DWORD,   --  DWORD dwFreq
+--       C_DWORD},  --  DWORD dwDuration
+--      C_BOOL)     -- BOOL
 --
 ----#with reformat
 --
@@ -245,7 +234,41 @@ global procedure set_system_doevents(integer rid, object params)
     doeventparams = params
 end procedure
 
-global function system_wait(sequence child_process)
+procedure cdc(object pipe_pair, integer c, d, n)
+-- linux only (close/dup/close local helper)
+    if sequence(pipe_pair) then
+        c = pipe_pair[c]
+        d = pipe_pair[d]
+        #ilASM{
+            [ELF32]
+                mov eax,[c]
+                push eax
+                call "libc.so.6","close"
+                add esp,4
+                mov eax,[d]
+                mov ecx,[n]
+                push ecx
+                push eax
+                call "libc.so.6","dup2"
+                add esp,8
+                mov eax,[d]
+                push eax
+                call "libc.so.6","close"
+                add esp,4
+            [ELF64]
+                mov rdi,[c]
+                call "libc.so.6","close"
+                mov rdi,[d]
+                mov rsi,[n]
+                call "libc.so.6","dup2"
+                mov rdi,[d]
+                call "libc.so.6","close"
+            []
+              }
+    end if
+end procedure
+
+global function system_wait(sequence child_process, pipes={})
 -- after:
 -- http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dllproc/base/creating_processes.asp
 -- http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dllproc/base/createprocess.asp
@@ -255,20 +278,34 @@ global function system_wait(sequence child_process)
 
 atom ret, void, hProc
 --atom stdin, stdout, stderr
---, hThr
+, hThr
 --integer doevents
-atom si, pi, ec
+atom si, pi, pError
 atom child = allocate_string(child_process)
     if platform()=WINDOWS then
+        if not swinit then initsw() end if
         si = allocate(SIZEOF_STARTUPINFO)
         mem_set(si,0,SIZEOF_STARTUPINFO)
         poke4(si, SIZEOF_STARTUPINFO)       -- cb
 --      poke4(si+dwFlags,or_bits(STARTF_USESTDHANDLES,STARTF_USESHOWWINDOW))
+--      bool inherit = (Wait<=0) and (length(pipes)>0)
+        bool inherit = length(pipes)>0
+        if inherit then
+            if length(pipes)!=STD3 then ?9/0 end if
+            if sequence(pipes[STDIN]) then
+                pokeN(si+hStdInput,pipes[STDIN][READ],W)
+            end if
+            if sequence(pipes[STDOUT]) then
+                pokeN(si+hStdOutput,pipes[STDOUT][WRITE],W)
+            end if
+            if sequence(pipes[STDERR]) then
+                pokeN(si+hStdError,pipes[STDERR][WRITE],W)
+            end if
+            poke4(si+dwFlags,STARTF_USESTDHANDLES)
+        end if
 
         pi = allocate(SIZEOF_PROCESS_INFORMATION)
         mem_set(pi,0,SIZEOF_PROCESS_INFORMATION)
-
-        if not swinit then initsw() end if
 
 --DEV clutching at straws here...
 --      mem_set(si,0,SIZEOF_STARTUPINFO)
@@ -302,7 +339,8 @@ atom child = allocate_string(child_process)
                       NULL,     -- Process handle not inheritable.
 --instance(),
                       NULL,     -- Thread handle not inheritable.
-                      FALSE,    -- Set handle inheritance to FALSE.
+--                    FALSE,    -- Set handle inheritance to FALSE.
+                      inherit,  -- Set handle inheritance to FALSE.
 --1,--TRUE,
 --                    PROCESS_QUERY_INFORMATION,        -- No creation flags.
                       NULL,
@@ -341,60 +379,57 @@ atom child = allocate_string(child_process)
 --printf(1,"system_wait: ret is %d\n",ret)
 
         free(child)
---      if not Wait then return 0 end if
         ret = 0
 
---      if Wait then
         hProc = peek4u(pi+hProcess)
---      hThr  = peek4u(pi+hThread)
+        hThr  = peek4u(pi+hThread)
 
---      void = c_func(xWaitForInputIdle,{hProc,INFINITE})
---      void = c_func(xWaitForInputIdle,{hProc,FORTYMS})
-
---      if Wait then
-
-        -- Wait until child process exits.
---      ret = c_func(xWaitForSingleObject, {hProc, INFINITE})
---      ec=allocate(4)
---      doevents=routine_id("doEvents") -- if available
-        ec = allocate(4)
-
+        -- Wait until child process exits, or up to 0.4s if Wait<=0.
+        pError = allocate(4)
         while 1 do
-            void = c_func(xGetExitCodeProcess, {hProc, ec})
-            ret = peek4u(ec)
+            void = c_func(xGetExitCodeProcess, {hProc, pError})
+            ret = peek4u(pError)
             if ret!=STILL_ACTIVE then exit end if
             if doevents!=-1 then call_proc(doevents,doeventparams) end if
             void = c_func(xWaitForSingleObject, {hProc, FORTYMS})
             if Wait<0 then Wait += 1 end if
             if Wait=0 then exit end if
         end while
-        free(ec)
+        free(pError)
         free(si)
         free(pi)
---      if not c_func(xGetProcessTimes,{hProc,lpCreationTime,lpExitTime,lpKernelTime,lpUserTime}) then
---          kutime = -c_func(xGetLastError,{})
---      else
---          kutime = peek4s(lpKernelTime+4)*(#100000000/1000000000)+peek4u(lpKernelTime)/1000000000
---                 + peek4s(lpUserTime+4)*(#100000000/1000000000)+peek4u(lpUserTime)/1000000000
---      end if
---      end if
 
         -- Close process and thread handles.
---      void = c_func(xCloseHandle, {hProc})
---      void = c_func(xCloseHandle, {hThr})
---      end if
+        if Wait<=0 then 
+            ret = hProc
+        else
+            void = c_func(xCloseHandle, {hProc})
+        end if
+        void = c_func(xCloseHandle, {hThr})
 
---      free(si)
---      free(pi)
---      if not Wait then return 0 end if
     elsif platform()=LINUX then
 
         if Wait<=0 then
             #ilASM{
                 [ELF32]
                     call "libc.so.6","fork"
-                    test eax,eax
-                    jnz :parent_ret0
+                    lea edi,[ret]
+                    call :%pStoreMint
+                [ELF64]
+                    call "libc.so.6","fork"
+                    lea rdi,[ret]
+                    call :%pStoreMint
+                []
+                  }
+            if ret=0 then
+                -- child
+                if length(pipes) then
+                    cdc(pipes[STDIN],WRITE,READ,0)
+                    cdc(pipes[STDOUT],READ,WRITE,1)
+                    cdc(pipes[STDERR],READ,WRITE,2)
+                end if
+                #ilASM{
+                    [ELF32]
                         mov eax,[child]
 --                      shl eax,2
                         push eax
@@ -403,26 +438,16 @@ atom child = allocate_string(child_process)
                         mov ebx,eax 
                         mov eax,1                   -- sys_exit
                         int 0x80 
-                  ::parent_ret0
-                    mov eax,ebx
-                    lea edi,[ret]
-                    call :%pStoreMint
-                [ELF64]
-                    call "libc.so.6","fork"
-                    test rax,rax
-                    jnz :parent_ret0
+                    [ELF64]
                         mov rdi,[child]
 --                      shl rdi,2
                         call "libc.so.6","system"
                         mov rdi,rax
                         mov rax,60                  -- sys_exit
                         syscall
-                  ::parent_ret0
-                    mov rax,rbx
-                    lea rdi,[ret]
-                    call :%pStoreMint
-                []
-                  }
+                    []
+                      }
+            end if
 --          ret = 0     -- (GAH! must fix that compiler bug)
             sleep(0.4)  -- give libc:system a chance to get going (before we free(child))
         else
@@ -766,23 +791,6 @@ string path             -- (semi-permanent)
 end function
 ------------------------------------------------------------------------
 
-global function system_open(sequence filename)
--- as shellExecute(0,"open",file,0,0,SW_NORMAL)
-if platform()=LINUX then ?9/0 end if --DEV (no known equivalent?...)
---/**/  if not swinit then initsw() end if                              --\* Phix
---/**/  return c_func(xShellExecute,{0,"open",filename,0,0,SW_NORMAL})  --/* Phix
-atom lpFile
-integer len, res
-        if not swinit then initsw() end if
-        len = length(filename)
-        lpFile = allocate(len+1)
-        poke(lpFile,filename)
-        poke(lpFile+len,0)
-        res = c_func(xShellExecute,{0,xOpen,lpFile,0,0,SW_NORMAL})
-        free( lpFile )
-        return res                                                      --  RDS */
-end function
-
 --procedure restore(integer mode)
 --  if not suinit then initsu() end if
 --  if mode=1 then
@@ -793,23 +801,26 @@ end function
 --  if c_func(xChangeDisplaySettings,{NULL,0}) then end if
 --end procedure
 
-global function system_exec(sequence s, integer mode=2)
+global function system_exec(sequence s, integer mode=2, sequence pipes={})
 atom res -- exit code or -1 on failure
 if platform()=WINDOWS then
-    if and_bits(mode,4) then            -- "new shell" bit is set
+--  if and_bits(mode,4) then            -- "new shell" bit is set
+    if and_bits(mode,4)                 -- "new shell" bit is set
+    or length(pipes) then               -- (rqd. for redirection)
         s = getenv("COMSPEC")&" /C "&s
     end if
 end if
     if and_bits(mode,8) then            -- "no wait" bit is set
         Wait = -10                      -- Max 10 iterations (0.4s)
     end if
-    res = system_wait(s)
+    res = system_wait(s,pipes)
 --  if mode!=2 then restore(mode) end if
     Wait = 1
     return res
 end function
 
 global procedure system(sequence s, integer mode=2)
+--global procedure system(sequence s, integer mode=2, sequence pipes={})
 --
 -- Invoke the specified shell command.
 -- Uses %COMSPEC% /C, which means it has the same features (redirection, wildcards, etc) 
@@ -828,28 +839,17 @@ global procedure system(sequence s, integer mode=2)
 --  if mode!=2 then restore(mode) end if
     if mode then end if
     {} = system_exec(s,12)
+--  {} = system_exec(s,12,pipes)
 end procedure
 
---global procedure sysproc(sequence s)
-----
----- Similar to system(), except that %COMSPEC% /C is NOT used (which means no
-----    redirection, etc). Strongly recommended for running windows GUI apps.
-----
---integer r
---  Wait = -10
---  r = system_wait(s)
---  Wait = 1
---end procedure
---
---global function sysexec(sequence s)
-----
----- Similar to system_exec(), except that %COMSPEC% /C is used.
-----
---integer res -- exit code or -1 on failure
---  s = getenv("COMSPEC")&" /C "&s
---  res = system_wait(s)
---  return res
---end function
+global procedure system_open(sequence filename)
+    if platform()=WINDOWS then
+        if not swinit then initsw() end if
+        {} = c_func(xShellExecute,{0,"open",filename,0,0,SW_NORMAL})
+    else
+        system("xdg-open "&filename)
+    end if
+end procedure
 
 --/*
 

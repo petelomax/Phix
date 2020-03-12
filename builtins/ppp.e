@@ -103,10 +103,11 @@
 --                          Specify 0 for no pause
 --          pp_StrFmt       0: print strings as eg "abc" (default)
 --                         -1:  ditto, but without quotes.
---                         -2:  as 0, but chars number-only like +1
---                         -3:  as -1, ""
---                          1: as number only, eg {97, 98, 99}
+--                         -2:  as 0, but chars number-only like +1                 [DEPRECATED: use pp_IntCh,false instead]
+--                         -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]
+--                          1: as number only, eg {97, 98, 99}                      [DEPRECATED: use pp_StrFmt,3,pp_IntCh,false instead]
 --                          3: as number&text, eg {97a, 98b, 99c}
+--          pp_IntCh        show ints as eg 65'A', default true (false==just 65)
 --          pp_IntFmt       Integer format, default "%d"
 --                          NB: applies to pp_StrFmt 1 as well.
 --          pp_FltFmt       Float format, default "%.10g"
@@ -214,10 +215,15 @@ integer ppp_Indent      -- auto-indent all lines this much
 object  ppp_Nest        -- nest level
 --      ppp_Nest=0
 integer ppp_Pause       -- pause display after this many lines
-        ppp_Pause = 23  -- 0=never pause
+--      ppp_Pause = 23  -- 0=never pause
+        ppp_Pause = 0   -- 0=never pause
+--integer ppp_StrFmt        -- 0=text as strings, -1 without quotes,
+--      ppp_StrFmt = 0  -- -2=text as strings, chars number only,
+--                      -- 1 as numbers, 3 as number&text
 integer ppp_StrFmt      -- 0=text as strings, -1 without quotes,
-        ppp_StrFmt = 0  -- -2=text as strings, chars number only,
-                        -- 1 as numbers, 3 as number&text
+        ppp_StrFmt = 0  -- 3 as numbers [each as per pp_IntCh]
+--added 22/6/19:
+integer ppp_IntCh = true    -- ints as eg 65'A' (false=just 65)
 
 integer ppp_Init   ppp_Init    =  0
 
@@ -255,8 +261,11 @@ global constant pp_File     = 1,
                 pp_Ascii    = 8,
                 pp_Date     = 9,
                 pp_Brkt     = 10,
-                pp_Q22      = 12
+                pp_Q22      = 12,
+                pp_IntCh    = 13
 --*/
+--DEV temp:
+--constant pp_IntCh  = 13
 
 --DEV:
 --!/**/ string pline --/*
@@ -347,21 +356,24 @@ end function
 
 without warning -- suppress short-circuit warning
 
-integer cl1q            -- cl[1] was '\"'
+integer cl1q            -- cl[1] was '"'
         cl1q = 0
-integer cllq            -- cl[-1] was '\"'
+integer cllq            -- cl[-1] was '"'
         cllq = 0
 
 function prnf(object cl, integer col, integer indent, integer prnt, integer nestlvl)
 integer len, iplus1, k, ch
-integer aschar
+integer aschar, asbacktick
 sequence sep,txt
 object chint
     if sequence(cl) then
-        if ppp_StrFmt<=0 then
+--23/11/19: (I just never want to see {"this",{9,10}} as {"this","\t\n"} ever again, thank you very much!)
+--      if ppp_StrFmt<=0 then
+        if string(cl) and ppp_StrFmt<=0 then
 
 --!/**/     aschar = string(cl)             --!/* -- Phix
             aschar = (length(cl)>0)         --!*/ -- RDS Eu:
+            asbacktick = true
 
             for i=1 to length(cl) do
                 chint = cl[i]
@@ -375,10 +387,13 @@ object chint
 --                  end if
 --                  aschar += 1
 --              end if
-                if find(chint,escBytes) then    -- "\t\n\r\\\"\'"
+--              if find(chint,escBytes) then    -- "\t\n\r\\\"\'"
+                k = find(chint,escBytes)        -- "\t\n\r\\\"\'"
+                if k then
                     aschar += 1
+                    if k<3 then asbacktick = false end if
                     if ppp_Q22
-                    and chint=#22 then  -- ie '\"'
+                    and chint=#22 then  -- ie '"'
                         -- \"blah ==> #22&"blah
                         -- blah\"blah ==> blah"&#22&"blah
                         -- blah\" ==> blah"&#22
@@ -394,37 +409,51 @@ object chint
                 elsif not graphic(chint) then
                     aschar = 0
                     exit
+                elsif chint='`' then
+                    asbacktick = false
                 end if
             end for
             if aschar then
-                len = length(cl)+(aschar-1) -- allow for escape chars
+--              len = length(cl)+(aschar-1) -- allow for escape chars
+                len = length(cl)
+                if not asbacktick then
+                    len += (aschar-1) -- allow for escape chars
+                end if
                 if prnt then
-                    if aschar>1 then    --replace escape chars
+                    if aschar>1     --replace escape chars
+                    and not asbacktick then
                         for i=length(cl) to 1 by -1 do
                             ch = cl[i]
                             if find(ch,escBytes) then -- escape chars
                                 if ppp_Q22
-                                and ch=#22 then -- ie '\"'
+                                and ch=#22 then -- ie '"'
                                     -- \"blah ==> #22&"blah
                                     -- blah\"blah ==> blah"&#22&"blah
                                     -- blah\" ==> blah"&#22
                                     if i=1 then
-                                        cl = "#22&\""&cl[2..length(cl)]
-                                        if ppp_StrFmt!=-1
-                                        and ppp_StrFmt!=-3 then
+--                                      cl = "#22&\""&cl[2..length(cl)]
+                                        cl = `#22&"`&cl[2..length(cl)]
+--                                      if ppp_StrFmt!=-1
+--                                      and ppp_StrFmt!=-3 then
+                                        if ppp_StrFmt!=-1 then
                                             cl1q = 1
                                         end if
                                     elsif i=length(cl) then
-                                        cl = cl[1..i-1]&"\"&#22"
-                                        if ppp_StrFmt!=-1
-                                        and ppp_StrFmt!=-3 then
+--                                      cl = cl[1..i-1]&"\"&#22"
+                                        cl = cl[1..i-1]&`"&#22`
+--                                      if ppp_StrFmt!=-1
+--                                      and ppp_StrFmt!=-3 then
+                                        if ppp_StrFmt!=-1 then
                                             cllq = 1
                                         end if
                                     else
-                                        cl = cl[1..i-1]&"\"&#22&\""&cl[i+1..length(cl)]
+--                                      cl = cl[1..i-1]&"\"&#22&\""&cl[i+1..length(cl)]
+                                        cl = cl[1..i-1]&`"&#22&"`&cl[i+1..length(cl)]
                                     end if
 --                              else
-                                elsif ppp_StrFmt!=-3 then
+--22/6/19 (-3 is now deprecated, though was not entirely sure what this was meant to be doing anyways...)
+--                              elsif ppp_StrFmt!=-3 then
+                                else
                                     cl[i] = '\\'
                                     ch = escChars[find(ch,escBytes)]
                                     cl = cl[1..i]&ch&cl[i+1..length(cl)]
@@ -432,9 +461,13 @@ object chint
                             end if
                         end for
                     end if
-                    if ppp_StrFmt=-1
-                    or ppp_StrFmt=-3 then
+--22/6/19:
+--                  if ppp_StrFmt=-1
+--                  or ppp_StrFmt=-3 then
+                    if ppp_StrFmt=-1 then
                         sput(cl)
+                    elsif asbacktick then
+                        sput('`'&cl&'`')
                     else
                         if ppp_Q22 and cl1q then
                             cl1q = 0
@@ -442,18 +475,19 @@ object chint
                                 sput(cl)
                                 cllq = 0
                             else
-                                sput(cl&'\"')
+                                sput(cl&'"')
                             end if
                         elsif ppp_Q22 and cllq then
                             cllq = 0
-                            sput('\"'&cl)
+                            sput('"'&cl)
                         else
-                            sput('\"'&cl&'\"')
+                            sput('"'&cl&'"')
                         end if
                     end if
                 end if
-                if ppp_StrFmt!=-1
-                and ppp_StrFmt!=-3 then
+--              if ppp_StrFmt!=-1
+--              and ppp_StrFmt!=-3 then
+                if ppp_StrFmt!=-1 then
                     len += 2
                 end if
                 return len
@@ -466,7 +500,7 @@ object chint
              (cl[3]>=1 and cl[3]<=31 and cl[1]>=1900 and cl[1]<=3000))
         and (cl[2]>=1 and cl[2]<=12) then
             txt = sprintf(ppp_Date,cl)
-            if prnt then sput('\"'&txt&'\"') end if
+            if prnt then sput('"'&txt&'"') end if
             return length(txt)+2
         end if
         len = nindent
@@ -509,14 +543,19 @@ object chint
     if integer(cl)
     or (cl>=-#FFFFFFFF and cl<=#FFFFFFFF and cl=floor(cl)) then
         if graphic(cl)
+        and ppp_IntCh
         and (not find(cl,escBytes) or cl>=' ') then
-            if ppp_StrFmt=1
-            or ppp_StrFmt=-2
-            or ppp_StrFmt=-3 then
-                txt = sprintf(ppp_IntFmt,cl)
+--22/6/19:
+--          if ppp_StrFmt=1
+--          or ppp_StrFmt=-2
+--          or ppp_StrFmt=-3 then
+--              txt = sprintf(ppp_IntFmt,cl)
 --30/1/18:
-            elsif find(cl,escBytes) then
-                txt = sprintf("%d'\\%s'",{cl,cl})
+--          elsif find(cl,escBytes) then
+            if find(cl,escBytes) then
+                -- (just `"'\`, aka "\"\'\\", not "\r\n\t\e\0":)
+--              txt = sprintf("%d'\\%s'",{cl,cl})
+                txt = sprintf(`%d'\%s'`,{cl,cl})
             else
                 txt = sprintf("%d'%s'",{cl,cl})
             end if
@@ -548,23 +587,41 @@ object chint
 end function
 with warning
 
-procedure fatal(sequence msg)
-    puts(1,"ppp.e: fatal: "&msg&"\nPress d for diagnostics...")
-    if find(getc(0),"dD") then ?9/0 end if
---  if find(getc(0),"dD") then crash("?9/0") end if
-    abort(1)
+--procedure fatal(sequence msg)
+--  puts(1,"ppp.e: fatal: "&msg&"\nPress d for diagnostics...")
+--  if find(getc(0),"dD") then ?9/0 end if
+----    if find(getc(0),"dD") then crash("?9/0") end if
+--  abort(1)
+--end procedure
+--bool warned = false
+--procedure warn(string msg)
+procedure fatal(string msg, integer level)
+--  puts(1,msg)
+--  warned = true
+    crash_message(msg)
+    #ilASM{ 
+            [32]
+                mov ecx,[level] -- no of frames to pop to obtain an era
+            [64]
+                mov rcx,[level] -- no of frames to pop to obtain an era
+            []
+--              mov al,2        -- (we don't rightly care, /0'll do)
+                mov al,68       -- e68crash
+                jmp :!fatalN    -- fatalN(level,errcode,ep1,ep2)
+          }
+--  ?9/0
 end procedure
 
 procedure setAscii()
 object minasc,maxasc
     ascii = repeat(0,255)
-    if length(ppp_Ascii)!=2 then fatal("length(ascii) must be 2") end if
+    if length(ppp_Ascii)!=2 then fatal("length(ascii) must be 2",4) end if
     minasc = ppp_Ascii[1]
     if not sequence(minasc) then minasc = {minasc} end if
     maxasc = ppp_Ascii[2]
     if not sequence(maxasc) then maxasc = {maxasc} end if
-    if length(minasc)!=length(maxasc) then fatal("length(minasc)!=length(maxasc)") end if
-    if find(0,minasc) or find(0,maxasc) then fatal("find(0,minasc) or find(0,maxasc)") end if
+    if length(minasc)!=length(maxasc) then fatal("length(minasc)!=length(maxasc)",4) end if
+    if find(0,minasc) or find(0,maxasc) then fatal("find(0,minasc) or find(0,maxasc)",4) end if
     for i=1 to length(minasc) do
         ascii[minasc[i]..maxasc[i]] = 1
     end for
@@ -599,7 +656,7 @@ function setOpt(sequence options)
 integer f, ip1
 object tmp
     if not ppp_Init then pp_Init() end if
-    if and_bits(1,length(options)) then fatal("length(options) not even") end if
+    if and_bits(1,length(options)) then fatal("length(options) not even",3) end if
     for i=1 to length(options) by 2 do
         f = options[i]
         ip1 = i+1
@@ -620,9 +677,22 @@ object tmp
         elsif f=pp_StrFmt then
             options[ip1] = ppp_StrFmt
             ppp_StrFmt = tmp
+            if tmp=-2 then
+                fatal("pp_StrFmt,-2 deprecated: use pp_IntCh,false instead",3)
+            elsif tmp=-3 then
+                fatal("pp_StrFmt,-3 deprecated: use pp_StrFmt,-1,pp_IntCh,false instead",3)
+            elsif tmp=1 then
+                fatal("pp_StrFmt,1 behaves as 3: use pp_StrFmt,3,pp_IntCh,false instead",3)
+            end if
+--             -2:  as 0, but chars number-only like +1                 [DEPRECATED: use pp_IntCh,false instead]
+--             -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]
+--              1: as number only, eg {97, 98, 99}                      [DEPRECATED: use pp_StrFmt,3,pp_IntCh,false instead]
         elsif f=pp_IntFmt then
             options[ip1] = ppp_IntFmt
             ppp_IntFmt = tmp
+        elsif f=pp_IntCh then
+            options[ip1] = ppp_IntCh
+            ppp_IntCh = tmp
         elsif f=pp_FltFmt then
             options[ip1] = ppp_FltFmt
             ppp_FltFmt = tmp
@@ -665,10 +735,11 @@ global procedure ppOpt(sequence options)
 --                      specify 0 for no pause
 --      pp_StrFmt       0: print strings as eg "abc" (default)
 --                     -1:  ditto, but without quotes.
---                     -2:  as 0, but chars number-only like +1
---                     -3:  as -1, but chars number-only like +1
---                      1: as number only, eg {97, 98, 99}
+--                     -2:  as 0, but chars number-only like +1                 [DEPRECATED: use pp_IntCh,false instead]
+--                     -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]
+--                      1: as number only, eg {97, 98, 99}                      [DEPRECATED: use pp_StrFmt,3,pp_IntCh,false instead]
 --                      3: as number&text, eg {97a, 98b, 99c}
+--      pp_IntCh        show ints as eg 65'A', default true (false==just 65)
 --      pp_IntFmt       integer format, default "%d"
 --                      NB: applies to pp_StrFmt 1 as well.
 --      pp_FltFmt       float format, default "%g"

@@ -21,30 +21,29 @@ integer fog_supported   -- 0 = not supported,
                         -- 1 = supported, on
                         -- 3 = supported, off
 
--- Make room for two texture id:s
-constant texID = allocate(4+4)  -- DEV machine_word()*2?? [or are they dwords?]
+sequence textures       -- (there will be two of them)
 
 constant NUM_PANELS = 16
 
 constant vertices = {
                      {-15, 10, 0},{-5, 10, 0},{-5, 20, 0},{-15, 20, 0}, -- back wall 
-                     {-5, 10, 0},{5, 10, 0},{5, 20, 0},{-5, 20, 0},
-                     {5, 10, 0},{15, 10, 0},{15, 20, 0},{5, 20, 0},
-                     {-15, 0, 0},{-5, 0, 0},{-5, 10, 0},{-15, 10, 0},
-                     {-5, 0, 0},{5, 0, 0},{5, 10, 0},{-5, 10, 0},
-                     {5, 0, 0},{15, 0, 0},{15, 10, 0},{5, 10, 0},
+                     { -5, 10, 0},{ 5, 10, 0},{ 5, 20, 0},{ -5, 20, 0},
+                     {  5, 10, 0},{15, 10, 0},{15, 20, 0},{  5, 20, 0},
+                     {-15,  0, 0},{-5,  0, 0},{-5, 10, 0},{-15, 10, 0},
+                     { -5,  0, 0},{ 5,  0, 0},{ 5, 10, 0},{ -5, 10, 0},
+                     {  5,  0, 0},{15,  0, 0},{15, 10, 0},{  5, 10, 0},
 
-                     {-5, -10, 0},{5, -10, 0},{5, 0, 0},{-5, 0, 0},     -- foggy bit 
-                     {-5, -10, 10},{-5, -10, 0},{-5, 0, 0},{-5, 0, 10},
-                     {-5, -10, 20},{-5, -10, 10},{-5, 0, 10},{-5, 0, 20},
-                     {5, -10, 0},{5, -10, 10},{5, 0, 10},{5, 0, 0},
-                     {5, -10, 10},{5, -10, 20},{5, 0, 20},{5, 0, 10},
-                     {-5, -10, 10},{5, -10, 10},{5, -10, 0},{-5, -10, 0},
+                     {-5, -10,  0},{ 5, -10,  0},{ 5,   0,  0},{-5,   0,  0},   -- foggy bit 
+                     {-5, -10, 10},{-5, -10,  0},{-5,   0,  0},{-5,   0, 10},
+                     {-5, -10, 20},{-5, -10, 10},{-5,   0, 10},{-5,   0, 20},
+                     { 5, -10,  0},{ 5, -10, 10},{ 5,   0, 10},{ 5,   0,  0},
+                     { 5, -10, 10},{ 5, -10, 20},{ 5,   0, 20},{ 5,   0, 10},
+                     {-5, -10, 10},{ 5, -10, 10},{ 5, -10,  0},{-5, -10,  0},
 
-                     {-15, 0, 10},{-5, 0, 10},{-5, 0, 0},{-15, 0, 0},   -- floor 
-                     {5, 0, 10},{15, 0, 10},{15, 0, 0},{5, 0, 0},
+                     {-15, 0, 10},{-5, 0, 10},{-5, 0,  0},{-15, 0,  0}, -- floor 
+                     {  5, 0, 10},{15, 0, 10},{15, 0,  0},{  5, 0,  0},
                      {-15, 0, 20},{-5, 0, 20},{-5, 0, 10},{-15, 0, 10},
-                     {5, 0, 20},{15, 0, 20},{15, 0, 10},{5, 0, 10}
+                     {  5, 0, 20},{15, 0, 20},{15, 0, 10},{  5, 0, 10}
                     }
 
 -- Texture references for the panels 
@@ -67,7 +66,7 @@ integer fmt
         fmt = GL_RGB
     end if
 
-    glBindTexture(GL_TEXTURE_2D, peek4u(texID+tex_no*4))
+    glBindTexture(GL_TEXTURE_2D, textures[tex_no+1])
 
     -- set up wrap & filter params 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
@@ -101,7 +100,7 @@ procedure init()
     glLoadIdentity()
 
     -- Generate texture IDs 
-    glGenTextures(2, texID)
+    textures = glGenTextures(2)
 
     -- Load textures 
     string d = get_proper_dir(command_line()[2])
@@ -146,7 +145,7 @@ end procedure
 procedure draw_panel(integer ref)
 integer v
 
-    glBindTexture(GL_TEXTURE_2D, peek4u(texID+panel_texture[ref+1]*4))
+    glBindTexture(GL_TEXTURE_2D, textures[panel_texture[ref+1]+1])
 
     v = ref*4
     glBegin(GL_QUADS)

@@ -320,7 +320,7 @@ string name = IupGetName(ih);
       str &= sprintf(" %.50s", {title});
   end if
   if name!="" then
-      str &= sprintf(" \"%.50s\"", {name})
+      str &= sprintf(` "%.50s"`, {name})
   end if
   return str
 end function
@@ -354,12 +354,12 @@ function iupStrHasSpace(string str)
 end function
 
 function iupStrConvertToC(string s)
-    return substitute_all(s,{"\n","\r","\t"},{"\\n","\\r","\\t"})
+    return substitute_all(s,{"\n","\r","\t"},{`\n`,`\r`,`\t`})
 end function
 
 function iupStrFileGetTitle(string file_name)
     for i=length(file_name) to 1 by -1 do
-        if find(file_name[i],"\\/") then
+        if find(file_name[i],`\/`) then
             file_name = file_name[i+1..$]
             exit
         end if
@@ -370,7 +370,7 @@ end function
 function iupStrFileNameSplit(string file_name, string path, string title)
   /* Look for last folder separator and split title from path */
   for i=length(file_name) to 1 by -1 do
-    if find(file_name[i],"\\/") then
+    if find(file_name[i],`\/`) then
       path = file_name[1..i]
       title = file_name[i+1..$]
       exit
@@ -933,7 +933,7 @@ integer idx
   if name!="" and iupATTRIB_ISINTERNAL(name) then
     name = ""
   end if
-  name = iff(name=""?"NULL":"\""&name&"\"")
+  name = iff(name=""?"NULL":`"`&name&`"`)
   if ih_iclass_childtype(ih)==IUP_CHILDNONE then
     printf(fn, "      IupSetAtt(%s, IupCreate(\"%s\"), \n", {name,classname})
   else
@@ -1131,7 +1131,7 @@ string classname = upper(IupGetClassName(ih))
 
       for i=1 to length(fmt) do
         if fmt[i]=='s' then
-          printf(fn, "\"\"");  /* empty string, let the job to the attributes */
+          printf(fn, `""`);  /* empty string, let the job to the attributes */
         elsif fmt[i]=='a' then
 --        string cb_name = ""--iupGetCallbackName(ih, "ACTION");
 --        if (!cb_name) then

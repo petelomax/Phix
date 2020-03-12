@@ -12,8 +12,8 @@ function list_cb(Ihandle self, object pText, int /*item*/, state)
         Ihandle elem = IupGetHandle(pText)
         Ihandle label = IupGetAttributePtr(self, "mainLabel")
         string title = IupGetAttribute(elem, "_FILE_TITLE"), 
-               class = IupGetClassName(elem),
-               str_elem = sprintf("FileTitle: %s - Type: %s", {title,class})
+               classname = IupGetClassName(elem),
+               str_elem = sprintf("FileTitle: %s - Type: %s", {title,classname})
         IupStoreAttribute(label, "TITLE", str_elem)
     end if
     return IUP_DEFAULT
@@ -140,20 +140,18 @@ function showelem_cb(Ihandle self)
 
     if name!="" then
         Ihandle elem = IupGetHandle(name)
-        string class = IupGetClassName(elem)
+        string classname = IupGetClassName(elem)
 
-        if class="dialog" then
+        if classname="dialog" then
             IupShow(elem)
         else
             Ihandln dialog = IupGetDialog(elem)
             if dialog!=NULL then
                 IupShow(dialog)
+            elsif classname="menu" then
+                IupPopup(elem, IUP_MOUSEPOS, IUP_MOUSEPOS)
             else
-                if class="menu" then
-                    IupPopup(elem, IUP_MOUSEPOS, IUP_MOUSEPOS)
-                else
-                    IupMessage("Error", "Will only show dialogs and independent menus.");
-                end if
+                IupMessage("Error", "Will only show dialogs and independent menus.");
             end if
         end if
     else
@@ -168,9 +166,9 @@ function hideelem_cb(Ihandle self)
 
     if name!="" then
         Ihandle elem = IupGetHandle(name);
-        string class = IupGetClassName(elem)
+        string classname = IupGetClassName(elem)
 
-        if class="dialog" then
+        if classname="dialog" then
             IupHide(elem)
         else
             Ihandln dialog = IupGetDialog(elem)
@@ -192,9 +190,9 @@ function layoutdlg_cb(Ihandle self)
 
     if name!="" then
         Ihandle elem = IupGetHandle(name);
-        string class = IupGetClassName(elem);
+        string classname = IupGetClassName(elem);
 
-        if class="dialog" then
+        if classname="dialog" then
             IupShow(IupLayoutDialog(elem));
         else
             Ihandln dialog = IupGetDialog(elem);
@@ -228,9 +226,9 @@ function destroyall_cb(Ihandle self)
     for i=1 to length(ih_names) do
         Ihandle elem = ih_names[i]
         if iupObjectCheck(elem) then
-            string class = IupGetClassName(elem);
+            string classname = IupGetClassName(elem);
 
-            if class="dialog" then
+            if classname="dialog" then
                 IupDestroy(elem);
             else
                 Ihandln dialog = IupGetDialog(elem);
@@ -255,8 +253,8 @@ function inactivetoggle_cb(Ihandle self, int v)
     return IUP_DEFAULT;
 end function
 
-function is_image(string class)
-    return find(class,{"image","imagergb","imagergba"})!=0
+function is_image(string classtype)
+    return find(classtype,{"image","imagergb","imagergba"})!=0
 end function
 
 function compare_image_names(Ihandle ih1, ih2)
@@ -283,9 +281,9 @@ function showallimages_cb(Ihandle ih)
 --  num_images = 0;
     for i=1 to length(names) do
         Ihandle elem = IupGetHandle(names[i]);
-        string class = IupGetClassType(elem);
+        string classtype = IupGetClassType(elem);
 
-        if is_image(class) then
+        if is_image(classtype) then
             -- show only loaded images
             string file_title = IupGetAttribute(elem, "_FILE_TITLE");
             if file_title!="" then
@@ -402,9 +400,9 @@ function saveimage_cb(Ihandle self)
 
     if name!="" then
         Ihandle elem = IupGetHandle(name);
-        string class = IupGetClassType(elem);
+        string classtype = IupGetClassType(elem);
 
-        if is_image(class) then
+        if is_image(classtype) then
 --            char file_name[10240];
 
             string imgtype = getfileformat(1);
@@ -469,9 +467,9 @@ function saveallimages_cb()
 
     for i=1 to length(names) do
         Ihandle elem = IupGetHandle(names[i]);
-        string class = IupGetClassType(elem);
+        string classtype = IupGetClassType(elem);
 
-        if is_image(class) then
+        if is_image(classtype) then
 --    char file_name[10240] = "";
 
             /* save only loaded images */
@@ -523,9 +521,9 @@ function saveallimagesone_cb()
 
     for i=1 to length(names) do
         Ihandle elem = IupGetHandle(names[i]);
-        string class = IupGetClassType(elem);
+        string classtype = IupGetClassType(elem);
 
-        if is_image(class) then
+        if is_image(classtype) then
             /* save only loaded images */
             string file_title = IupGetAttribute(elem, "_FILE_TITLE")
             if file_title!="" then
@@ -673,7 +671,7 @@ iupview [-h] [-t type] [-o out_file] in_files
 function iupStrFileGetTitle(string file_name)
 -- translated/deduced from the C source (iup_str.c)
     for i=length(file_name) to 1 by -1 do
-        if find(file_name[i],"\\/") then
+        if find(file_name[i],`\/`) then
             file_name = file_name[i+1..$]
             exit
         end if
@@ -1357,7 +1355,7 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, dlg, img,
     btn_2 = IupButton("Text", Icallback("text_click_cb"), "IMAGE=img1, PADDING=5x5")
     btn_3 = IupButton(NULL, Icallback("action2_cb"), "IMAGE=img1")
     btn_4 = IupButton(NULL, Icallback("action3_cb"), "IMAGE=img1,IMPRESS=img2")
-    btn_5 = IupButton(NULL, Icallback("action3_cb"), "BGCOLOR=\"255 0 128\", SIZE=20x10")
+    btn_5 = IupButton(NULL, Icallback("action3_cb"), `BGCOLOR="255 0 128", SIZE=20x10`)
     set_callbacks({btn_1,btn_2,btn_3,btn_4,btn_5})
 --DEV this will confuse plade: (fixed, any more?)
 --  frm_1 = IupFrame(IupVbox({btn_1,btn_2,btn_3,btn_4,btn_5}),"TITLE=IupButton")

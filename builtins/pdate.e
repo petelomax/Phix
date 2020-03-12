@@ -6,9 +6,8 @@
 --
 include builtins\VM\pcfunc.e        -- (not strictly necessary)
 
-sequence dot
+sequence dot, dim, t, days
 --  --   dot={0,31,59,90,120,151,181,212,243,273,304,334}   -- now done in init (forward refs).
-sequence t
 --  --   t={ 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }           -- now done in init (forward refs).
 
 atom kernel32, xGetLocalTime, xGetSystemTime
@@ -23,7 +22,10 @@ procedure initd()
         xGetSystemTime = define_c_proc(kernel32,"GetSystemTime",{C_PTR})
     end if
     dot = {0,31,59,90,120,151,181,212,243,273,304,334}
-    t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
+    dim = {31,28,31,30,31,30,31,31,30,31,30,31}
+--  t = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
+    t = {-1, 2, 1, 4,-1, 2, 4, 0, 3, 5, 1, 3 }
+    days = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
     leave_cs()
 end procedure
 
@@ -41,7 +43,18 @@ global function day_of_year(integer y, integer m, integer d)
 --  d += dot[m]+y   -- eg march 1st is 60th day normally, 61st in a leap year.
 --  return d
     if not dinit then initd() end if
+--12/2/20:
+--  if m<1 or m>12 or y<1752 then return 0 end if
+    if m<1 or m>12 or (y!=0 and y<1752) then return 0 end if
     return d+dot[m]+(m>2 and is_leap_year(y))
+end function
+
+global function days_in_month(integer y, integer m)
+    if not dinit then initd() end if
+--12/2/20:
+--  if m<1 or m>12 or y<1752 then return 0 end if
+    if m<1 or m>12 or (y!=0 and y<1752) then return 0 end if
+    return dim[m]+(m=2 and is_leap_year(y))
 end function
 
 --/*
@@ -75,14 +88,21 @@ end function
 
 --*/
 
-global function day_of_week(integer y, integer m, integer d)
--- day of week function (Sakamoto) returns 1..7 (Sun..Sat)
+global function day_of_week(integer y, m, d, bool bAsText=false)
+-- day of week function (Sakamoto) returns 1..7 (Mon..Sun)
 integer l
     if not dinit then initd() end if
-    y -= m<3
-    l = floor(y/4)-floor(y/100)+floor(y/400)
-    d += y+l+t[m]
-    return remainder(d,7)+1
+    if d<1 then ?9/0 end if
+    if y!=0 or m!=0 or not bAsText or d>7 then
+        y -= m<3
+        l = floor(y/4)-floor(y/100)+floor(y/400)
+        d += y+l+t[m]
+        d = remainder(d,7)+1
+    end if
+    if bAsText then
+        return days[d]
+    end if
+    return d
 end function
 
 constant

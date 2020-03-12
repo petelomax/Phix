@@ -175,12 +175,11 @@
 <font color="#000000"></font><font color="#0000FF">    {} =</font><font color="#000000"> f</font><font color="#0000FF">()</font>
 </pre>
         which explicitly discards the result of the function call. Alternatively if you prefer
-       <code>{?} = f()</code>
+        <code>{?} = f()</code>
         has exactly the same effect (however
-       <code>? = f()</code> is not legal syntax). Note that OpenEuphoria (imnsho 
-        wrongly) allows /implicit/ discarding of function results, which phix does not, whereas, cmiiw, OpenEuphoria 
-        does not support any of the subscripting, nesting, "@=", "{}=", ":=", or "==" forms of (multiple) assignment 
-        that phix does.
+        <code>? = f()</code> is not legal syntax). Note that Euphoria (imnsho wrongly) allows /implicit/ discarding of function results, 
+        which Phix does not, whereas, cmiiw, Euphoria does not support any of the subscripting, nesting, "@=", "{}=", ":=", or "==" forms 
+        of (multiple) assignment that Phix does.
        <br>
        <br>
         Like all powerful programming constructs, multiple assigment can be used to make things easier, but it can 
@@ -203,11 +202,11 @@
 <pre>
 <font color="#000000"></font><font color="#0000FF">    {</font><font color="#000000">main</font><font color="#0000FF">,</font><font color="#000000">mainHwnd</font><font color="#0000FF">} = {</font><font color="#008080">create</font><font color="#800000">(</font><font color="#000000">Window</font><font color="#0000FF">,...</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">getHwnd</font><font color="#800000">(</font><font color="#000000">main</font><font color="#800000">)</font><font color="#0000FF">}</font><font color="#000080"><i> -- error!</i></font>
 </pre>
-        Obviously you could rewrite that statement the other way round, but as the saying goes, debugging is several 
-        times harder than writing code in the first place, therefore if you write tricky code you are, by definition, 
-        not smart enough to debug it.
-        <br>
-        <br>
+        Obviously you could rewrite that statement the other way round, but to quote Brian Kernighan:
+        <blockquote>
+            &ldquo;Debugging is twice as hard as writing the code in the first place. Therefore if you write the code 
+            as cleverly as possible, you are, by definition, not smart enough to debug it.&rdquo;
+        </blockquote>
         <b>Update</b>: actually, you <i>cannot</i> write that "the other way round". Further illustrating the 
         "not smart enough" point, I failed to spot that the rhs is constructed in its entireity before any assignments 
         on the lhs, hence main would be unassigned whichever way round things were done [ie, as mentioned elsewhere, 
@@ -226,18 +225,18 @@
        <br>
         The first example of such things that springs to mind is the slightly dodgy:
 -->
-        Another example is the slightly dodgy:
+        Another example is:
 <!--eucode>
-    {s[idx],idx} = <something>
+    {idx, s[idx]} = <something>
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">    {</font><font color="#000000">s</font><font color="#800000">[</font><font color="#000000">idx</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">idx</font><font color="#0000FF">} = &lt;</font><font color="#000000">something</font><font color="#0000FF">&gt;</font>
+<font color="#000000"></font><font color="#0000FF">    {</font><font color="#000000">idx</font><font color="#0000FF">,</font><font color="#000000"> s</font><font color="#800000">[</font><font color="#000000">idx</font><font color="#800000">]</font><font color="#0000FF">} = &lt;</font><font color="#000000">something</font><font color="#0000FF">&gt;</font>
 </pre>
-        which is perhaps understandable, but may be "an accident waiting to happen".
-        Clearly someone could read that and assume it is setting the old idx of s,
-        before getting a new value of idx for something else later, but of course
-        that would be the effect of {idx,s[idx]} = &lt;something&gt;. Not nice, really,
-        either way round.
+        Clearly someone could read that and assume it is setting a new idx and then using that new idx to index s, 
+        but it uses the old value, again because of the right-to-left ordering, and in fact <code>{s[idx],idx}=</code> 
+        is technically undefined behaviour, because the compiler is at liberty to apply constant propagation to the 
+        [idx] and use the old ("known") value even after idx has itself been updated, and/or push [idx] before it
+        stores it, or, indeed, just use the very latest value. Avoid (ie use temps and &gt;1 statement).
        <br>
        <br>
         Certainly the lhs should never rely on something having "already happened" on 
@@ -355,7 +354,7 @@ sequence temp
        <h2>Performance notes</h2>
         Multiple assignment is ideally suited to function results and table entries.
         If you are using {} or & on the rhs (at the top level) of a multiple assigmnent
-        statement, then a longhand version will almost certainly be slightly faster, 
+        statement, then a longhand version would almost certainly be slightly faster, 
         due to the creation and subscripting of the temporary sequence being absent, 
         though obviously any such overhead is insignificant except in the most 
         crititical of inner loops, and as always there is no point pre-emptively 
@@ -510,6 +509,16 @@ sequence temp
             (because tmp is always subscripted, it is not subject to the same optimisation 
             trouble that we just saw in the "all equal" case above.) Obviously the compiler
             tries (hard) to avoid using a un-named temp unless it has no choice.
+          <br>
+          <br>
+            On the surface of it, this feature (Phix Multiple Assigment) bears a great deal of similarity to Object Destructuring in Javascript, however
+            there are significant differences: In the Javascript <code>{name, occupation} = person;</code> then both <code>person.name</code> 
+            and <code>person.occupation</code> must<small><sup>1</sup></small> exist, somewhere/in any order, 
+            whereas the Phix <code>{name, occupation} = person;</code> simply extracts the first and second elements, whatever they may be, and hence 
+            although it looks different, the Phix construct is probably closer to Javascript <i>Array</i> Destructure, <code>[a,b] = [1,2]</code>. 
+            Also, in Javascript, destructuring can be used directly in the parameters of a routine definition, whereas it must be a subsequent and 
+            separate statement in Phix.<br>
+            <small><sup>1</sup>I say must, but would not be surprised if it quietly set name/occupation to undefined, instead of crashing/halting.</small>
           <br>
           <br>
          </td>

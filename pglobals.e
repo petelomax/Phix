@@ -28,7 +28,8 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant phixversion = {0,7,7},    -- 0.7.7    -- 09/01/18
 --global constant phixversion = {0,7,8},    -- 0.7.8    -- 13/03/18
 --global constant phixversion = {0,7,9},    -- 0.7.9    -- 13/04/18
-global constant phixversion = {0,8,0},      -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
+--global constant phixversion = {0,8,0},    -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
+global constant phixversion = {0,8,1},      -- 0.8.1    -- 0?/0?/19 (uploaded ??/??/19)
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...
@@ -229,7 +230,10 @@ global constant S_used = #000001,   -- bit for not used warnings
 --              K_omask = #1FFFFFFF     -- mask to remove K_optp bit
                 K_dlft = #040000,   -- defaulted param (must be a Tvar with K_used (=isParam) set)
 --DEV (24/11/15)
-                K_drid = #080000    -- defaulted routine_id (must be resolved at compile-time)
+                K_drid = #080000,   -- defaulted routine_id (must be resolved at compile-time)
+                                    -- ie/eg gbl func Icallback(str name, int rid = rtn_id(name))
+--              K_struc = #0100000, -- a structure type or variable (see builtins/structs.e)
+$
 
 -- symtab[i][S_Efct] values:
 global constant E_none = 0,
@@ -628,6 +632,15 @@ global constant T_integer   = 1,
 --  T_define_c_proc = 154
 --  T_call_func = 174??
 
+--25/1/20: (Alias_C_flags)
+--global integer T_long         T_long = 0
+--global integer T_ulong        T_ulong = 0
+--global integer T_ptr          T_ptr = 0
+global integer T_ptr            T_ptr = 0
+global integer Z_int            Z_int = 0   -- (T_int already in use by pttree.e/pilasm.e)
+global integer T_uint           T_uint = 0
+global integer T_int64          T_int64 = 0
+global integer T_uint64         T_uint64 = 0
 global integer T_win32          T_win32 = 0
 global integer T_linux          T_linux = 0
 global integer T_Bin            T_Bin = 0
@@ -671,6 +684,16 @@ global integer T_max            T_max = 0
 global integer T_maxsq          T_maxsq = 0
 global integer T_EnterCS        T_EnterCS = 0
 global integer T_LeaveCS        T_LeaveCS = 0
+global integer T_is_struct      T_is_struct = 0
+global integer T_new            T_new = 0
+global integer T_struct_start   T_struct_start = 0
+global integer T_struct_field   T_struct_field = 0
+global integer T_end_struct     T_end_struct = 0
+global integer T_extend_struct  T_extend_struct = 0
+--global integer T_field_type   T_field_type = 0
+global integer T_fetch_field    T_fetch_field = 0
+global integer T_store_field    T_store_field = 0
+global integer Z_struct         Z_struct = 0
 
 global integer TIDX
                TIDX = -1

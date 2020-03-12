@@ -295,6 +295,9 @@ integer c, cprev
     end for
     charmash['?']='?'
     charmash['_']='_'
+    charmash['/']='/'
+    charmash['<']='<'
+    charmash['>']='>'
     -- everything else is considered "white space"
 
     c = 'a'
@@ -789,7 +792,7 @@ end function
 --ERM... [DEV] 
 --  When the window is first opened, the directory defaults to that of the currently
 --  open file, and that is loaded recursively. However, if you edit the directory,
---  it loads it non-recursively - otherwise changing it to eg "C:\" would start a
+--  it loads it non-recursively - otherwise changing it to eg `C:\` would start a
 --  process, albeit an interruptable one, that could easily take two hours or more 
 --  to complete, if it tried loading things like C:\Windows...
 --
@@ -1138,8 +1141,8 @@ function browse_cb(Ihandle /*browse*/)
 --?"browse_cb"
     if browsedlg=NULL then
         browsedlg = IupFileDlg()
---      IupSetAttributes(browsedlg,"ALLOWNEW=NO,DIALOGTYPE=DIR,TITLE=\"Directory\"")    -- (no help)
-        IupSetAttributes(browsedlg,"DIALOGTYPE=DIR,TITLE=\"Directory\"")
+--      IupSetAttributes(browsedlg,`ALLOWNEW=NO,DIALOGTYPE=DIR,TITLE="Directory"`)  -- (no help)
+        IupSetAttributes(browsedlg,`DIALOGTYPE=DIR,TITLE="Directory"`)
         IupSetAttributeHandle(browsedlg,"PARENTDIALOG",fifdlg)
     end if
     string d = IupGetAttribute(dtext,"VALUE")
@@ -1931,9 +1934,9 @@ integer linelength
                 return
             else
 --DEV: C:\Program Files\Phix (or wherever)?
-                d = "C:\\EUPHORIA"
+                d = `C:\EUPHORIA`
                 if isChecked(ei) then
-                    d = d & "\\INCLUDE"
+                    d = d & `\INCLUDE`
                 end if
             end if
         end if
@@ -1957,7 +1960,7 @@ integer linelength
                     if not length(edir) then exit end if
                     d = getenv(edir)
                     if atom(d) then exit end if
-                    d&="\\include"
+                    d&=`\include`
                     edir=""
                 end if
             end while
@@ -1966,7 +1969,7 @@ integer linelength
 
     if bddone=0 then
         if isChecked(bd) then
-            d = initialcurrentdir&"backup\\"
+            d = initialcurrentdir&`backup\`
             directories_scanned += 1
             if walk_dir(d, routine_id("look_at"), False) then
             end if

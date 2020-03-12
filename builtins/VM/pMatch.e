@@ -1,6 +1,6 @@
 --
--- pMatch.e
--- ========
+-- builtins\VM\pMatch.e
+-- ====================
 --
 --  (Temporary) hll implementation of match()
 --  There is an equivalent commented-out backend/asm version in pJcc.e, conversion of which is yet to be completed.
@@ -31,14 +31,14 @@ global function match(object needle, sequence haystack, integer start=1, bool ca
 --
 integer res, hdx, ln, lh
 object ni, hi
-    if case_insensitive then
-        needle = lower(needle)
-        haystack = lower(haystack)
-    end if
     -- This line, and first parameter being object not sequence, is not RDS compliant.
     --  (RDS gives error "first argument of match() must be a sequence")
     if atom(needle) then
         return find(needle,haystack,start)
+    end if
+    if case_insensitive then
+        needle = lower(needle)
+        haystack = lower(haystack)
     end if
     res = start
     ln = length(needle)
@@ -136,10 +136,16 @@ end function
 -- See Also:
 --     [[:rfind]], [[:match]]
 
-global function rmatch(sequence needle, sequence haystack, integer start=length(haystack), bool case_insensitive=false)
+global function rmatch(object needle, sequence haystack, integer start=length(haystack), bool case_insensitive=false)
 
-integer ln = length(needle),
-        lh = length(haystack)
+    -- This line, and first parameter being object not sequence, is not RDS compliant.
+    --  (RDS gives error "first argument of match() must be a sequence")
+    if atom(needle) then
+        return rfind(needle,haystack,start)
+    end if
+
+    integer ln = length(needle),
+            lh = length(haystack)
 
     if ln=0
     or start=0
@@ -161,7 +167,8 @@ integer ln = length(needle),
         start = lh-ln+1
     end if
 
-    ln -= 1
+--28/11/19 (bitbucket issue #27)
+--  ln -= 1
 
     for i=start to 1 by -1 do
 --      if equal(needle, haystack[i..i+ln]) then

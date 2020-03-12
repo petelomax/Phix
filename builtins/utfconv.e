@@ -136,7 +136,7 @@ integer  utf8len, i, headb, bytes, c
 
         -- 2 bytes encoding (head range: 0b_1100_0000..0b_1101_1111):
         elsif bytes=2 then
-            c = and_bits(headb, #1F)*#40 +          -- 0b110[7..11] headb
+            c = and_bits(headb, #1F)*#40+   -- 0b110[7..11] headb
                 and_bits(utf8[i+1], #3F)            -- 0b10[1..6] tail
             if c>#7FF then ?9/0 end if              -- sanity check
             if c<#80 then                           -- long form?
@@ -145,8 +145,8 @@ integer  utf8len, i, headb, bytes, c
 
         -- 3 bytes encoding (head range: 0b_1110_0000..0b_1110_1111):
         elsif bytes=3 then
-            c = and_bits(headb, #0F)*#1000 +        -- 0b1110[13..16] head
-                and_bits(utf8[i+1], #3F)*#40 +      -- 0b10[7..12] tail
+            c = and_bits(headb, #0F)*#1000+ -- 0b1110[13..16] head
+                and_bits(utf8[i+1], #3F)*#40+   -- 0b10[7..12] tail
                 and_bits(utf8[i+2], #3F)            -- 0b10[1..6] tail
             if c>#FFFF then ?9/0 end if             -- sanity check
             if c<#800                               -- long form?
@@ -156,9 +156,9 @@ integer  utf8len, i, headb, bytes, c
 
         -- 4 bytes encoding (head range: 0b_1111_0000..0b_1111_0111):
         elsif bytes=4 then
-            c = and_bits(headb, #07)*#040000 +      -- 0b11110[19..21] head
-                and_bits(utf8[i+1], #3F)*#1000 +    -- 0b10[13..18] tail
-                and_bits(utf8[i+2], #3F)*#0040 +    -- 0b10[7..12] tail
+            c = and_bits(headb, #07)*#040000+   -- 0b11110[19..21] head
+                and_bits(utf8[i+1], #3F)*#1000+ -- 0b10[13..18] tail
+                and_bits(utf8[i+2], #3F)*#0040+ -- 0b10[7..12] tail
                 and_bits(utf8[i+3], #3F)            -- 0b10[1..6] tail
             if c<#10000                             -- long form?
             or c>#10FFFF then
@@ -209,8 +209,8 @@ integer u
     for i=1 to length(utf32) do
         u = utf32[i]                                        -- u = Unicode codepoint
 
-        if u<0 
-        or u>#10FFFF 
+        if u<0
+        or u>#10FFFF
         or (u>=#D800 and u<#DFFF) then
             -- out of utf-8 standard range (#0..#10FFFF) or invalid:
             chr = INVALID_UNICODE
@@ -296,7 +296,7 @@ integer i, ch, ch2
     i = 1
     while i<=length(utf16) do
         ch = utf16[i]
-        if ch<0 
+        if ch<0
         or ch>#FFFF then
 --          ?9/0
             utf32 = append(utf32,#FFFD)
@@ -334,8 +334,8 @@ integer ch
 --  if string(utf16) then ?9/0 end if   -- (just not particularly helpful)
     for i=1 to length(utf32) do
         ch = utf32[i]
-        if ch<0 
-        or (ch>=#D800 and ch<#DFFF) 
+        if ch<0
+        or (ch>=#D800 and ch<#DFFF)
         or ch>#10FFFF then
 --          ?9/0
             utf16 = append(utf16,#FFFD)
@@ -359,3 +359,116 @@ global function utf16_to_utf8(sequence utf16)
     return utf32_to_utf8(utf16_to_utf32(utf16))
 end function
 
+--/* --maybe: (cld/shd extensively test via utf32 up to #10FFFF (see below)
+-- Here is a little function to report an UTF-8 string length.
+-- It works also with ASCII strings so it could replace length(). [nah...]
+
+function ulength(sequence s)
+integer res = 0,
+          i = 1,
+          lg = length(s)
+    if lg<2 then return length(s) end if
+    while i<=lg do
+        integer si = s[i]
+        if    and_bits(si,#80)=#00 then i += 1
+        elsif and_bits(si,#E0)=#C0 then i += 2
+        elsif and_bits(si,#F0)=#E0 then i += 3
+        elsif and_bits(si,#F8)=#F0 then i += 4
+        else                            i += 1
+        end if
+        res += 1
+    end while
+    return res
+end function
+
+-- And here is un UTF-8 compliant head() function. It works also with ASCII strings.
+function uhead(sequence s, integer n)
+sequence res
+integer i = 1,
+          lg = length(s),
+          ul = 0
+    if lg<2 then return head(s, n) end if
+    while i<=lg do
+        integer si = s[i]
+        if    and_bits(si,#80)=#00 then i += 1
+        elsif and_bits(si,#E0)=#C0 then i += 2
+        elsif and_bits(si,#F0)=#E0 then i += 3
+        elsif and_bits(si,#F8)=#F0 then i += 4
+        else                            i += 1
+        end if
+        ul += 1
+        if ul=n then
+            s = s[1..i-1]
+            exit
+        end if
+    end while
+    return s
+end function
+
+From: https://rosettacode.org/wiki/Idiomatically_determine_all_the_characters_that_can_be_used_for_symbols#Phix
+(something like this, perhaps... not that we need system_exec(), you understand, just the "to #10FFFF" part)
+function run(string ident)
+    integer fn = open("test.exw","w")
+    printf(fn,"object %s",ident)
+    close(fn)
+    return system_exec("p -batch test.exw")
+end function
+ 
+function check(integer lo, hi)
+    string ok1 = "", ok2 = ""
+    integer ng1 = 0, ng2 = 0
+    for ch=lo to hi do
+        printf(1,"%d/%d...\r",{ch,hi})
+        if find(ch,"\t\r\n \0\x1A;") then
+            ng1 += 1
+            ng2 += 1
+        else
+            string c = sprintf("%c",ch)
+            if run(c)==0 then ok1 &= c else ng1 += 1 end if
+            if run("_"&c)==0 then ok2 &= c else ng2 += 1 end if
+        end if
+    end for
+    return {{ng1,length(ok1),ok1},
+            {ng2,length(ok2),ok2}}
+end function
+ 
+sequence r = check(0,127)
+printf(1,"ansi characters:\n===============\n")
+printf(1,"1st character: %d bad, %d OK %s\n",r[1])
+printf(1,"2nd..nth char: %d bad, %d OK %s\n\n",r[2])
+r = check(128,255)
+integer ok8 = 0, ng8 = 0
+for i=#80 to #10FFFF do
+    if i<#D800 or i>#DFFF then
+        printf(1,"#%x/#10FFFF...\r",i)
+        string utf8 = utf32_to_utf8({i})
+        bool ok = true
+        if not find(utf8[1],r[1][3]) then
+            ok = false
+        else
+            for j=2 to length(utf8) do
+                if not find(utf8[j],r[2][3]) then
+                    ok = false
+                    exit
+                end if
+            end for
+        end if
+        if ok then
+            ok8 += 1
+        else
+            ng8 += 1
+        end if
+    end if
+end for
+printf(1,"utf8 characters:   \n===============\n")
+printf(1,"bad:%,d, good:%,d\n",{ng8,ok8})
+Output:
+ansi characters:
+===============
+1st character: 75 bad, 53 OK ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz
+2nd..nth char: 65 bad, 63 OK 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz
+
+utf8 characters:
+===============
+bad:0, good:1,111,936
+--*/

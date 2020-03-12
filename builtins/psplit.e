@@ -150,7 +150,7 @@ integer start = 1, ch
         --  we would have had to add a final chunk.)
         if length(res)=0 then
             res = path[$..$]
-        elsif not find(res[$][$],"\\/") then
+        elsif not find(res[$][$],`\/`) then
             res[$] = append(res[$],ch)
         end if
     end if

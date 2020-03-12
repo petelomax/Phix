@@ -1,0 +1,496 @@
+--
+-- demo\rosetta\Transportation_problem.exw
+-- =======================================
+--
+-- Find the optimal transportation plan for certain volumes of resources from 
+--  suppliers to consumers, taking into account the cost of transportation. 
+--
+--{{trans|Go}}, with all the additional tests I could find (before geting bored)
+--
+enum QTY, COST, R, C -- (a shipment)
+constant eps = 1e-12
+ 
+function print_matrix(sequence matrix)
+    atom total_costs = 0.0
+    for r=1 to length(matrix) do
+        for c=1 to length(matrix[r]) do
+            object s = matrix[r][c]
+            string st = "  -  "
+            if s!=0 and s[R]==r and s[C]==c then
+                atom qty = round(s[QTY]) -- (remove +/-eps)
+                if qty!=0 then
+                    st = sprintf(" %3d ", qty)
+                    total_costs += qty * s[COST]
+                end if
+            end if
+            puts(1,st)
+        end for
+        printf(1,"\n")
+    end for
+    return total_costs
+end function
+
+procedure print_result(sequence transport, atom expected)
+    sequence matrix = transport[4]
+    printf(1,"Optimal solution\n\n")
+    atom total_costs = print_matrix(matrix)
+    printf(1,"\nTotal costs: %g (expected %g)\n\n", {total_costs,expected})
+end procedure
+
+function get_neighbors(sequence shipment, lst)
+    sequence nbrs = {0,0}
+    for e=1 to length(lst) do
+        sequence o = lst[e]
+        if o!=shipment then
+            if o[R]==shipment[R] and nbrs[1]==0 then
+                nbrs[1] = o
+            elsif o[C]==shipment[C] and nbrs[2]==0 then
+                nbrs[2] = o
+            end if
+            if nbrs[1]!=0 and nbrs[2]!=0 then
+                exit
+            end if
+        end if
+    end for
+    return nbrs
+end function
+
+function matrix_to_list(sequence matrix)
+    sequence l = {}
+    for r=1 to length(matrix) do
+        for c=1 to length(matrix[r]) do
+            if matrix[r,c]!=0 then
+                l = append(l,matrix[r,c])
+            end if
+        end for
+    end for 
+    return l
+end function
+
+function get_closed_path(sequence matrix, shipment)
+    sequence path = matrix_to_list(matrix)
+    path = prepend(path,shipment)
+
+    -- remove (and keep removing) elements that do not have a
+    -- vertical AND horizontal neighbor
+    while true do
+        integer removals = 0
+        for e=length(path) to 1 by -1 do
+            sequence nbrs = get_neighbors(path[e], path)
+            if nbrs[1]==0 or nbrs[2]==0 then
+                path[e..e] = {}
+                removals += 1
+            end if
+        end for
+        if removals==0 then exit end if
+    end while
+ 
+    -- place the remaining elements in the correct plus-minus order
+    sequence stones = repeat(0,length(path)),
+             prev = shipment
+    for i=1 to length(stones) do
+        stones[i] = prev
+        prev = get_neighbors(prev, path)[mod(i,2)+1]
+    end for
+    return stones
+end function
+ 
+function fix_degenerate_case(sequence matrix, costs)
+    if length(matrix)+length(matrix[1])-1 != length(matrix_to_list(matrix)) then
+        printf(1,"fixing degenerate case...\n")
+        for r=1 to length(matrix) do
+            for c=1 to length(matrix[r]) do
+                if matrix[r][c] == 0 then
+                    sequence dummy = {eps, costs[r][c], r, c}
+                    if length(get_closed_path(matrix,dummy)) == 0 then
+                        matrix[r][c] = dummy
+                        return matrix
+                    end if
+                end if
+            end for
+        end for
+        ?9/0 -- ??
+    end if
+    return matrix
+end function
+
+function initialise(sequence tests, integer t)
+    sequence {src,dst,costs} = tests[t]
+    string cs = ppf(costs,{pp_Nest,1,pp_StrFmt,1,pp_Indent,7})
+    printf(1,"test %d:\nsrc: %v,\ndst: %v,\ncosts: %s\n",{t,src,dst,cs})
+ 
+    -- check for and fix any imbalance
+    atom totalSrc = sum(src),
+         totalDst = sum(dst),
+         diff = totalSrc-totalDst
+    if diff>0 then
+        puts(1,"adding dummy consumer...\n")
+        dst = append(dst, diff)
+        for i=1 to length(costs) do
+            costs[i] &= 0
+        end for
+    elsif diff<0 then
+        puts(1,"adding dummy supplier...\n")
+        src = append(src, -diff)
+        costs = append(costs,repeat(0,length(dst)))
+    end if
+ 
+    printf(1,"generating initial feasible solution using northwest corner method...\n")
+    sequence matrix = repeat(repeat(0,length(dst)),length(src))
+    integer northwest = 1
+    for r=1 to length(src) do
+        for c=northwest to length(dst) do
+            atom qty = min(src[r],dst[c])
+            if qty>0 then
+                matrix[r][c] = {qty,costs[r,c],r,c}
+                src[r] -= qty
+                dst[c] -= qty
+                if src[r]=0 then
+                    northwest = c
+                    exit
+                end if
+            end if
+        end for
+    end for
+    printf(1,"\nTotal costs: %g\n\n", print_matrix(matrix))
+    
+    return {src,dst,costs,matrix}
+end function
+ 
+function stepping_stone(sequence transport)
+    sequence {src, dst, costs, matrix} = transport
+    atom maxReduction = 0
+    object move = NULL, leaving
+    matrix = fix_degenerate_case(matrix, costs)
+    for r=1 to length(src) do
+        for c=1 to length(dst) do
+            if matrix[r][c] = 0 then
+                sequence trial_shipment = {0, costs[r][c], r, c},
+                         path = get_closed_path(matrix,trial_shipment)
+                atom reduction = 0.0,
+                     lowestQuantity = 1e308
+                object leavingCandidate = 0
+                bool plus = true
+                for i=1 to length(path) do
+                    sequence s = path[i]
+                    if plus then
+                        reduction += s[COST]
+                    else
+                        reduction -= s[COST]
+                        if s[QTY] < lowestQuantity then
+                            leavingCandidate = s
+                            lowestQuantity = s[QTY]
+                        end if
+                    end if
+                    plus = not plus
+                end for
+                if reduction < maxReduction then
+                    move = path
+                    leaving = leavingCandidate
+                    maxReduction = reduction
+                end if
+            end if
+        end for
+    end for
+ 
+    if move!=NULL then
+        atom q = leaving[QTY]
+        bool plus = true
+        for i=1 to length(move) do
+            sequence s = move[i]
+            if plus then
+                s[QTY] += q
+            else
+                s[QTY] -= q
+            end if
+            if s[QTY] == 0 then
+                matrix[s[R]][s[C]] = 0
+            else
+                matrix[s[R]][s[C]] = s
+            end if
+            plus = not plus
+        end for
+        {src, dst, costs, matrix} = stepping_stone({src, dst, costs, matrix})
+    end if
+    return {src, dst, costs, matrix}
+end function
+ 
+constant tests = {{{25,35},         -- src
+                   {20,30,10},      -- dst
+                   {{3,5,7},        -- costs[si][di]
+                    {3,2,5}},
+                   180},            -- expected total
+                  {{12,40,33},      -- src
+                   {20,30,10},      -- dst
+                   {{3,5,7},        -- costs[si][di]
+                    {2,4,6},
+                    {9,1,8}},
+                   130},            -- expected total
+                  {{14,10,15,12},   -- src
+                   {10,15,12,15},   -- dst
+                   {{10,30,25,15},  -- costs[si][di]
+                    {20,15,20,10},
+                    {10,30,20,20},
+                    {30,40,35,45}},
+                   1000},           -- expected total
+                  {{100,300,300},   -- src
+                   {300,200,200},   -- dst
+                   {{50,40,30},     -- costs[si][di]
+                    {80,40,30},
+                    {90,70,50}},
+                   39000},          -- expected total
+                  {{40,60,50},      -- src
+                   {20,30,50,50},   -- dst
+                   {{4,6,8,8},      -- costs[si][di]
+                    {6,8,6,7},
+                    {5,7,6,8}},
+                   920},            -- expected total
+                  {{12,1,5},        -- src
+                   {10,8},          -- dst
+                   {{2,4},          -- costs[si][di]
+                    {8,12},
+                    {12,6}},
+                   68},             -- expected total
+                  {{7,9,18},        -- src
+                   {5,8,7,14},  -- dst
+                   {{19,30,50,10},  -- costs[si][di]
+                    {70,30,40,60},
+                    {40 ,8,70,20}},
+                   743},            -- expected total
+                  {{12,11,14,8},    -- src
+                   {10,11,15,5,4},  -- dst
+                   {{7,12,1,5,6},   -- costs[si][di]
+                    {15,3,12,6,14},
+                    {8,16,10,12,7},
+                    {18,8,17,11,16}},
+                   259},            -- expected total
+                  {{50,75,25},      -- src
+                   {20,20,50,60},   -- dst
+                   {{3,5,7,6},      -- costs[si][di]
+                    {2,5,8,2},
+                    {3,6,9,2}},
+                   610}}            -- expected total
+
+for i=1 to length(tests) do
+--for i=3 to 3 do
+    print_result(stepping_stone(initialise(tests,i)),tests[i][4])
+end for
+
+?"done"
+{} = wait_key()
+
+
+--/*
+test 1:
+src: {25,35},
+dst: {20,30,10},
+costs: {{3,5,7},
+        {3,2,5}}
+
+generating initial feasible solution using northwest corner method...
+  20    5   -
+  -    25   10
+
+Total costs: 185
+
+Optimal solution
+
+  20   -     5
+  -    30    5
+
+Total costs: 180 (expected 180)
+
+test 2:
+src: {12,40,33},
+dst: {20,30,10},
+costs: {{3,5,7},
+        {2,4,6},
+        {9,1,8}}
+
+adding dummy consumer...
+generating initial feasible solution using northwest corner method...
+  12   -    -    -
+   8   30    2   -
+  -    -     8   25
+
+Total costs: 248
+
+Optimal solution
+
+  -    -    -    12
+  20   -    10   10
+  -    30   -     3
+
+Total costs: 130 (expected 130)
+
+test 3:
+src: {14,10,15,12},
+dst: {10,15,12,15},
+costs: {{10,30,25,15},
+        {20,15,20,10},
+        {10,30,20,20},
+        {30,40,35,45}}
+
+adding dummy supplier...
+generating initial feasible solution using northwest corner method...
+  10    4   -    -
+  -    10   -    -
+  -     1   12    2
+  -    -    -    12
+  -    -    -     1
+
+Total costs: 1220
+
+fixing degenerate case...
+Optimal solution
+
+  -    -    -    14
+  -     9   -     1
+  10   -     5   -
+  -     5    7   -
+  -     1   -    -
+
+Total costs: 1000 (expected 1000)
+
+test 4:
+src: {100,300,300},
+dst: {300,200,200},
+costs: {{50,40,30},
+        {80,40,30},
+        {90,70,50}}
+
+generating initial feasible solution using northwest corner method...
+ 100   -    -
+ 200  100   -
+  -   100  200
+
+Total costs: 42000
+
+Optimal solution
+
+ 100   -    -
+  -   200  100
+ 200   -   100
+
+Total costs: 39000 (expected 39000)
+
+test 5:
+src: {40,60,50},
+dst: {20,30,50,50},
+costs: {{4,6,8,8},
+        {6,8,6,7},
+        {5,7,6,8}}
+
+generating initial feasible solution using northwest corner method...
+  20   20   -    -
+  -    10   50   -
+  -    -    -    50
+
+Total costs: 980
+
+fixing degenerate case...
+Optimal solution
+
+  10   30   -    -
+  -    -    10   50
+  10   -    40   -
+
+Total costs: 920 (expected 920)
+
+test 6:
+src: {12,1,5},
+dst: {10,8},
+costs: {{2,4},
+        {8,12},
+        {12,6}}
+
+generating initial feasible solution using northwest corner method...
+  10    2
+  -     1
+  -     5
+
+Total costs: 70
+
+Optimal solution
+
+   9    3
+   1   -
+  -     5
+
+Total costs: 68 (expected 68)
+
+test 7:
+src: {7,9,18},
+dst: {5,8,7,14},
+costs: {{19,30,50,10},
+        {70,30,40,60},
+        {40,8,70,20}}
+
+generating initial feasible solution using northwest corner method...
+   5    2   -    -
+  -     6    3   -
+  -    -     4   14
+
+Total costs: 1015
+
+Optimal solution
+
+   5   -    -     2
+  -     2    7   -
+  -     6   -    12
+
+Total costs: 743 (expected 743)
+
+test 8:
+src: {12,11,14,8},
+dst: {10,11,15,5,4},
+costs: {{7,12,1,5,6},
+        {15,3,12,6,14},
+        {8,16,10,12,7},
+        {18,8,17,11,16}}
+
+generating initial feasible solution using northwest corner method...
+  10    2   -    -    -
+  -     9    2   -    -
+  -    -    13    1   -
+  -    -    -     4    4
+
+Total costs: 395
+
+fixing degenerate case...
+fixing degenerate case...
+Optimal solution
+
+  -    -    12   -    -
+  -     8    3   -    -
+  10   -    -    -     4
+  -     3   -     5   -
+
+Total costs: 259 (expected 259)
+
+test 9:
+src: {50,75,25},
+dst: {20,20,50,60},
+costs: {{3,5,7,6},
+        {2,5,8,2},
+        {3,6,9,2}}
+
+generating initial feasible solution using northwest corner method...
+  20   20   10   -
+  -    -    40   35
+  -    -    -    25
+
+Total costs: 670
+
+fixing degenerate case...
+Optimal solution
+
+  -    -    50   -
+  20   20   -    35
+  -    -    -    25
+
+Total costs: 610 (expected 610)
+
+"done"
+
+--*/

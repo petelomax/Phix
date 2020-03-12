@@ -37,7 +37,8 @@ function pad64(integer v)
 end function
 
 function rev4(string s)
-string res = ""
+--string res = ""
+string res = repeat(' ',0)
     for i=1 to length(s)-3 by 4 do
         for j=i+3 to i by -1 do
             res &= s[j]

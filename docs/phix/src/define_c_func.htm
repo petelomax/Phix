@@ -32,7 +32,7 @@
             <br>
             <br>
             The <a href="define_cffi_func.htm">define_cffi_func</a> routine is a string-based wrapper of this routine, 
-            which you may find easier to use.
+            which you may find slightly easier to use.
             <br>
             <br>
             lib is either an (atom) address returned by open_dll(), or {}.
@@ -49,13 +49,13 @@
             STDCALL is the default in a Windows system.
             <br>
             The CDECL convention requires the callee to clean up the stack, and is 
-            therefore more suited to variable numbers of arguments, whereas with 
-            STDCALL the routine cleans up the stack before returning.
+            therefore more suited to a variable number of arguments, whereas with 
+            STDCALL the routine cleans up the stack before returning, however it
+            is entirely dependent on how the dll/so was built.
             <br>
             <br>
-            args is a list of the parameter types for the function. 
-            <br>
-            return_type should be self explanatory. The following C types are predefined (in psym.e/syminit):
+            args is a list of the parameter types for the function, return_type should be self explanatory. 
+            The following C types are predefined (in psym.e/syminit):
          </td>
         </tr>
         <tr>
@@ -72,14 +72,13 @@
                      C_INT = #01000004,     -- a 32 bit signed integer
                     C_BOOL = C_INT,
                     C_UINT = #02000004,     -- a 32 bit unsigned integer
+                   C_DWORD = C_UINT,
                    C_INT64 = #01000008,     -- a 64 bit signed integer
                    C_QWORD = #02000008,     -- a 64 bit unsigned integer
-                    C_LONG = C_INT,
-                   C_ULONG = C_UINT,
-                   C_DWORD = C_UINT,
-                 C_POINTER = iff(machine_bits()=32?#02000004    -- a 32 bit (unsigned) pointer
-                                                  :#01000008)   -- a 64-bit (signed) pointer
-                     C_PTR = C_POINTER,
+                    C_LONG = iff(machine_bits()=32 or platform()=WINDOWS ? C_INT  : C_INT64),
+                   C_ULONG = iff(machine_bits()=32 or platform()=WINDOWS ? C_UINT : C_QWORD),
+                     C_PTR = iff(machine_bits()=32                       ? C_UINT : C_QWORD),
+                 C_POINTER = C_PTR,
                   C_HANDLE = C_PTR,
                     C_HWND = C_PTR,
                    C_FLOAT = #03000004,     -- a 32-bit float
@@ -96,14 +95,13 @@
 </i></font><font color="#004600">                     C_INT</font><font color="#0000FF"> =</font><font color="#000000"> #01000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32 bit signed integer
 </i></font><font color="#004600">                    C_BOOL</font><font color="#0000FF"> =</font><font color="#004600"> C_INT</font><font color="#0000FF">,
 </font><font color="#004600">                    C_UINT</font><font color="#0000FF"> =</font><font color="#000000"> #02000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32 bit unsigned integer
-</i></font><font color="#004600">                   C_INT64</font><font color="#0000FF"> =</font><font color="#000000"> #01000008</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 64 bit signed integer
+</i></font><font color="#004600">                   C_DWORD</font><font color="#0000FF"> =</font><font color="#004600"> C_UINT</font><font color="#0000FF">,
+</font><font color="#004600">                   C_INT64</font><font color="#0000FF"> =</font><font color="#000000"> #01000008</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 64 bit signed integer
 </i></font><font color="#004600">                   C_QWORD</font><font color="#0000FF"> =</font><font color="#000000"> #02000008</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 64 bit unsigned integer
-</i></font><font color="#004600">                    C_LONG</font><font color="#0000FF"> =</font><font color="#004600"> C_INT</font><font color="#0000FF">,
-</font><font color="#004600">                   C_ULONG</font><font color="#0000FF"> =</font><font color="#004600"> C_UINT</font><font color="#0000FF">,
-</font><font color="#004600">                   C_DWORD</font><font color="#0000FF"> =</font><font color="#004600"> C_UINT</font><font color="#0000FF">,
-</font><font color="#004600">                 C_POINTER</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#0000FF">?</font><font color="#000000">#02000004   </font><font color="#000080"><i> -- a 32 bit (unsigned) pointer
-</i></font><font color="#0000FF">                                                  :</font><font color="#000000">#01000008</font><font color="#0000FF">)  </font><font color="#000080"><i> -- a 64-bit (signed) pointer
-</i></font><font color="#004600">                     C_PTR</font><font color="#0000FF"> =</font><font color="#004600"> C_POINTER</font><font color="#0000FF">,
+</i></font><font color="#004600">                    C_LONG</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#008080"> or</font><font color="#7060A8"> platform</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#004600">WINDOWS</font><font color="#0000FF"> ?</font><font color="#004600"> C_INT </font><font color="#0000FF"> :</font><font color="#004600"> C_INT64</font><font color="#0000FF">),
+</font><font color="#004600">                   C_ULONG</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32</font><font color="#008080"> or</font><font color="#7060A8"> platform</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#004600">WINDOWS</font><font color="#0000FF"> ?</font><font color="#004600"> C_UINT</font><font color="#0000FF"> :</font><font color="#004600"> C_QWORD</font><font color="#0000FF">),
+</font><font color="#004600">                     C_PTR</font><font color="#0000FF"> =</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#7060A8">machine_bits</font><font color="#800000">()</font><font color="#0000FF">=</font><font color="#000000">32                      </font><font color="#0000FF"> ?</font><font color="#004600"> C_UINT</font><font color="#0000FF"> :</font><font color="#004600"> C_QWORD</font><font color="#0000FF">),
+</font><font color="#004600">                 C_POINTER</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,
 </font><font color="#004600">                  C_HANDLE</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,
 </font><font color="#004600">                    C_HWND</font><font color="#0000FF"> =</font><font color="#004600"> C_PTR</font><font color="#0000FF">,
 </font><font color="#004600">                   C_FLOAT</font><font color="#0000FF"> =</font><font color="#000000"> #03000004</font><font color="#0000FF">,    </font><font color="#000080"><i> -- a 32-bit float
@@ -118,7 +116,7 @@
           <b></b>
          </td>
          <td>
-DEV not yet (ever??) supported [Eu types<->c_func]:
+DEV not yet (ever??) supported [Eu types&lt;-&gt;c_func]:
 <br>
         The C function that you define could be one created by the
             Euphoria To C Translator, in which case you can pass Euphoria data
@@ -161,8 +159,8 @@ DEV not yet (ever??) supported [Eu types<->c_func]:
           <br>
           <br>
             You can pass or return any C integer type or pointer type.
-             You can also pass a phix atom as a C double or float, and get
-             a C double or float returned to you as a phix atom.
+             You can also pass a Phix atom as a C double or float, and get
+             a C double or float returned to you as a Phix atom.
           <br>
           <br>
             In C (on Windows and Linux), parameter types which use 4 bytes or less are all passed the
@@ -182,6 +180,14 @@ DEV not yet (ever??) supported [Eu types<->c_func]:
           <br>
             The C type "long double" should be avoided at all costs - it is highly compiler-dependent
             and can be 10/8/12/16 bytes aligned to an 8/2/4/16 byte boundary.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Auxillary function:</b>
+         </td>
+         <td>
+            integer res = <b>sizeof</b>(integer c_type) - returns the size in bytes of the above types.<br>
          </td>
         </tr>
         <tr>
@@ -216,7 +222,8 @@ end if
           <b>Implementation:</b>
          </td>
          <td>
-            See builtins\VM\pcfunc.e (an autoinclude) for details of the actual implementation.
+            See builtins\VM\pcfunc.e (an autoinclude) for details of the actual implementation.<br>
+            The ancilliary function sizeof() is however implemented in the autoinclude builtins\dll.e
          </td>
         </tr>
         <tr>
@@ -229,10 +236,31 @@ end if
           <a href="define_c_proc.htm">define_c_proc</a>,
           <a href="c_proc.htm">c_proc</a>,
           <a href="open_dll.htm">open_dll</a>,
-          <a href="ccall.htm">Calling C Functions</a>
+          <a href="ccall.htm">Calling C Functions</a>,
+          <a href="platform.htm">platform</a>,
+          <a href="machine_bits.htm">machine_bits</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            C_LONG, C_ULONG, C_PTR are in fact aliases, and as such removed from the symbol table during binding.<br>
+            Their definitions, along with any further aliases of them, are all actually deferred until after any 
+            <a href="format.htm">format</a> directive has had a chance to be processed, and therefore now use the 
+            compiler internals X64 and PE (see pglobals.e), rather than machine_bits() and platform() directly. <br>
+            This allows, for instance, a 32-bit windows PE compiler to build a 64-bit linux ELF without problems, though
+            to be fair there are likely more 32<small>&lt;-&gt;</small>64 bit hiccups than PE<small>&lt;-&gt;</small>ELF.<br>
+            Aside: as long as we can cross-compile a viable compiler, I don&rsquo;t consider it a big issue should it need 
+            an extra round of self-hosted compilation on the target machine to iron out the last few remaining niggles,
+            and certainly not if the first step of installation is a self-hosting round check compilation anyway.<br>
          </td>
         </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

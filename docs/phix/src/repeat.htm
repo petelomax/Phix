@@ -13,14 +13,15 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="sequence.htm">sequence</a> s = repeat(<a href="object.htm">object</a> x, <a href="integer.htm">integer</a> i)
+          <a href="sequence.htm">sequence</a> s = repeat(<a href="object.htm">object</a> x, <a href="integer.htm">integer</a> n)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
          </td>
-         <td>  Create a <a href="sequence.htm">sequence</a> of length i where each element is x.
+         <td>
+            Create a <a href="sequence.htm">sequence</a> of length n where each element is x.
          </td>
         </tr>
         <tr>
@@ -28,13 +29,13 @@
           <b>Comments:</b>
          </td>
          <td>
-            When you repeat a <a href="sequence.htm">sequence</a> or a floating-point number the interpreter does not actually make multiple copies in memory.
-            Rather, a single copy is "pointed to" a number of times.
+            When you repeat a <a href="sequence.htm">sequence</a> or a floating-point number the interpreter does not actually 
+            make multiple copies in memory, instead a single copy is "pointed to" a number of times.
           <br>
           <br>
             For efficiency reasons, if the item to be repeated appears to be a character, ie is an integer in the range 7 to 255, 
             a <a href="string.htm">string</a> is created, otherwise a <a href="html/glossary.htm#dwordseq">dword-sequence</a> 
-            is created. Better overall performance was also observed by making repeat(0,N) create a dword-sequence rather than a 
+            is created. Better overall performance was also observed by making repeat(0,n) create a dword-sequence rather than a 
             string of nulls which was very likely to be auto-expanded to a dword sequence in the near future. Generally speaking, 
             all further handling of the result is completely transparent whether a string or dword-sequence is created, with the 
             following exceptions: performance gains, explicit tests with the <a href="string.htm">string</a>() builtin, #isginfo 
@@ -42,9 +43,9 @@
             element, rather than 4 or 8, which might need a secondary <a href="poke.htm">poke</a>() before use.
           <br>
           <br>
-            Compatibility note: RDS Eu/OpenEuphoria allow an atom length/count, whereas phix requires an integer, since I believe
-            that deliberately trapping say 11.99 (which RDS Eu/OpenEuphoria truncate to 11) may help to expose the occasional 
-            programming error at source, rather than ten minutes later when the sequence turns out to be one element too short.
+            Compatibility note: Euphoria allows an atom length/count, whereas Phix requires an integer, since I believe that 
+            deliberately trapping say 11.99 (which Euphoria truncates to 11) may help expose the occasional programming error 
+            at source, rather than ten minutes later when the sequence turns out to be one element too short.
          </td>
         </tr>
         <tr>
@@ -117,12 +118,12 @@ repeat('=', 10)     -- "=========="  (a string)
          <td>
             Internally, when the compiler spots an obvious character, it maps repeat() to repeatch(), which can be called explicitly
             and has the advantage of yielding type string, rather than sequence (string|dword_sequence), and in so doing may permit
-            subsequent optimisations (via type inference). There are in fact a couple of places in the compiler itself that take 
-            advantage of the fact that repeat(0,i) and repeat(&lsquo;\0&rsquo;,i) are treated differently, and specifically there are
-            #isginfo{code/data_section,T_String.. directives to ensure that interpretation can use them in-situ rather than allocate
-            and poke every time we run anything. Note that explicitly calling repeatch, which is not available on RDS Eu/OpenEuphoria, 
-            performs an implicit "non-integer agnostic" and_bits(x,#FF), and hence yields incorrect results if x is not an integer or 
-            outside the range 0..255, as opposed to terminating in error, so if you must use repeatch(), do so sparingly and carefully. 
+            subsequent optimisations, via type inference. There are in fact a couple of places in the compiler itself that take 
+            advantage of the fact that repeat(0,n) and repeat(&lsquo;\0&rsquo;,n) are treated differently, and specifically there are
+            #isginfo{code/data_section,T_String..} directives to ensure that interpretation can use them in-situ rather than allocate
+            and poke every time we run anything. Note that explicitly calling repeatch, which is not available on Euphoria, performs 
+            an implicit "non-integer agnostic" low-level and_bits(x,#FF), and hence yields incorrect results if x is not an integer 
+            or outside the range 0..255, rather than an error, so if you must use repeatch(), do so sparingly and carefully. 
          </td>
         </tr>
        </table>

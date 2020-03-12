@@ -1,0 +1,115 @@
+--
+-- demo/rosetta/Fermat.exw
+-- =======================
+--
+include mpfr.e
+ 
+procedure fermat(mpz res, integer n)
+    integer pn = power(2,n)
+    mpz_ui_pow_ui(res,2,pn)
+    mpz_add_si(res,res,1)
+end procedure
+ 
+--function shorten(string s)
+--  integer l = length(s)
+--  if l>40 then s[10..-10]=sprintf("...<%,d digits>...",l) end if
+--  return s
+--end function
+ 
+mpz fn = mpz_init()
+for i=0 to 29 do -- (see note)
+    fermat(fn,i)
+    if i<=20 then
+        printf(1,"F%d = %s\n",{i,shorten(mpz_get_str(fn))})
+    else -- (since printing it takes too long...)
+        printf(1,"F%d has %,d digits\n",{i,mpz_sizeinbase(fn,10)})
+    end if
+end for
+ 
+printf(1,"\n")
+randstate state = gmp_randinit_mt()
+for i=0 to 13 do
+    atom t = time()
+    fermat(fn,i)
+    sequence f = mpz_prime_factors(fn, 200000)
+    t = time()-t
+    string fs = "",
+           ts = elapsed(t)
+    if length(f[$])=1 then -- (as per docs)
+        mpz_set_str(fn,f[$][1])
+        if not mpz_probable_prime_p(fn, state) then
+            if length(f)=1 then
+                fs = " (not prime)"
+            else
+                fs = " (last factor is not prime)"
+            end if
+        end if
+        f[$][1] = shorten(f[$][1])
+    elsif length(f)=1
+      and mpz_probable_prime_p(fn, state) then
+        fs = " (prime)"
+    end if
+    fs = mpz_factorstring(f)&fs
+    printf(1,"Factors of F%d: %s [%s]\n",{i,fs,ts})
+end for
+
+?"done"
+{} = wait_key()
+--/*
+Output:
+Note that mpz_prime_factors(), a phix-specific extension to gmp, is designed to find small factors quickly and give up 
+early, however it works by maintaining a table of primes, so any prime factor over 10 digits or so is beyond reach. 
+You could increase the maxprime parameter, here set at 200,000, which guarantees all factors up to 2,750,159 (obviously 
+7 digits), but it will just get exponentially slower without getting close to finding anything more, specifically in 
+this case 1,238,926,361,552,897 (16 digits) or 59,649,589,127,497,217 (17 digits).
+
+Calculating F0..F29 is pretty quick, but F30 and above hit integer limits on 32 bit, F32 and above exceed my physical memory on 64 bit.
+As noted above, there is not really much point, and it just takes far too long to bother printing out any numbers with more than 500,000 digits.
+Attempting to factor F14 and above gets nowhere, with each attempt some 5-10 times slower than the previous, until F18 which eventually crashes.
+
+F0 = 3
+F1 = 5
+F2 = 17
+F3 = 257
+F4 = 65537
+F5 = 4294967297
+F6 = 18446744073709551617
+F7 = 340282366920938463463374607431768211457
+F8 = 115792089...<78 digits>...129639937
+F9 = 134078079...<155 digits>...006084097
+F10 = 179769313...<309 digits>...224137217
+F11 = 323170060...<617 digits>...596230657
+F12 = 104438888...<1,234 digits>...154190337
+F13 = 109074813...<2,467 digits>...715792897
+F14 = 118973149...<4,933 digits>...964066817
+F15 = 141546103...<9,865 digits>...712377857
+F16 = 200352993...<19,729 digits>...719156737
+F17 = 401413218...<39,457 digits>...934173697
+F18 = 161132571...<78,914 digits>...298300417
+F19 = 259637056...<157,827 digits>...185773057
+F20 = 674114012...<315,653 digits>...335579137
+F21 has 631,306 digits
+F22 has 1,262,612 digits
+F23 has 2,525,223 digits
+F24 has 5,050,446 digits
+F25 has 10,100,891 digits
+F26 has 20,201,782 digits
+F27 has 40,403,563 digits
+F28 has 80,807,125 digits
+F29 has 161,614,249 digits
+
+Factors of F0: 3 (prime) [0.0s]
+Factors of F1: 5 (prime) [0s]
+Factors of F2: 17 (prime) [0s]
+Factors of F3: 257 (prime) [0s]
+Factors of F4: 65537 (prime) [0s]
+Factors of F5: 641*6700417 [0s]
+Factors of F6: 274177*67280421310721 [0.0s]
+Factors of F7: 340282366920938463463374607431768211457 (not prime) [0.2s]
+Factors of F8: 115792089...<78 digits>...129639937 (not prime) [0.2s]
+Factors of F9: 2424833*552937374...<148 digits>...393118209 (last factor is not prime) [0.2s]
+Factors of F10: 179769313...<309 digits>...224137217 (not prime) [0.2s]
+Factors of F11: 319489*974849*103761886...<606 digits>...591348737 (last factor is not prime) [0.3s]
+Factors of F12: 114689*910626896...<1,228 digits>...946770433 (last factor is not prime) [0.6s]
+Factors of F13: 109074813...<2,467 digits>...715792897 (not prime) [1.3s]
+--*/

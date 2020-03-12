@@ -367,7 +367,8 @@ procedure check(object o, integer level)
     and o!=C_DOUBLE then
 --DEV
 --if o!=#2000008 then
-if o!=#1000008 then
+if o!=#1000008
+and o!=#2000008 then
         fatalN(level,e74dcfpe)
 end if
     end if
@@ -1152,7 +1153,8 @@ integer esp4
             or argdefi=#02000002    -- C_USHORT (a 16 bit signed integer)
             or argdefi=#01000004    -- C_INT
             or argdefi=#02000004    -- C_UINT == C_ULONG, C_POINTER, C_PTR
-            or argdefi=#01000008 then
+            or argdefi=#01000008
+            or argdefi=#02000008 then
                 #ilASM{
                         [32]
                             mov edx,[argi]
@@ -1368,11 +1370,14 @@ end if
 ----,#02000008
 --,#01000008
 --                          }) then
-            if argdefi=#01000004            -- C_INT
+            if argdefi=#01000001            -- C_CHAR
             or argdefi=#02000001            -- C_UCHAR
             or argdefi=#01000002            -- C_SHORT
+            or argdefi=#02000002            -- C_USHORT
+            or argdefi=#01000004            -- C_INT
             or argdefi=#02000004            -- C_UINT == C_ULONG, C_POINTER, C_PTR
-            or argdefi=#01000008 then
+            or argdefi=#01000008
+            or argdefi=#02000008 then
                 #ilASM{
                         [32]
 --                          mov edx,[argi]      --DEV :%pLoadMint
@@ -1597,7 +1602,8 @@ end if
 --              if not find(argdefi,{
 --                                   #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
 --                                  }) then ?9/0 end if
-                if argdefi!=#02000004 then     -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                if argdefi!=#02000004          -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                and argdefi!=#02000008 then    -- C_UINT == C_ULONG, C_POINTER, C_PTR
                     ?9/0
                 end if
             end if
@@ -1620,7 +1626,8 @@ end if
 --                                   #02000004      -- C_UINT == C_ULONG, C_POINTER, C_PTR
 ----                                     #12000004      -- C_WIDEPTR [DEV]
 --                                  }) then ?9/0 end if
-                if argdefi!=#02000004 then     -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                if argdefi!=#02000004          -- C_UINT == C_ULONG, C_POINTER, C_PTR
+                and argdefi!=#02000008 then    -- C_UINT == C_ULONG, C_POINTER, C_PTR
                     ?9/0
                 end if
             end if
@@ -1832,12 +1839,12 @@ end if
                 cmp rdx,0x01000004  -- (C_INT [== C_LONG], signed)
                 jne @f
 
---DEV tryme:
---                  cdqe            -- (eax->rax)
---                  jmp :intres
-
+--DEV tryme: (did just that 20/6/19, worked a charm! [fixed mpz_sign()])
+                    cdqe            -- (eax->rax)
+                    jmp :intres
+--/*
 --                  cmp rax,h4
---                  mov r15,h4
+                    mov r15,h4
                     cmp rax,r15
                     jb :intres          -- (0..#3FFFFFFFFFFFFFFF)
 --                  mov r14,#C000000000000000
@@ -1849,6 +1856,7 @@ end if
                         fild qword[rsp]
                         pop rax -- (discard)
                         jmp :cstore
+--*/
             @@:
                 cmp rdx,0x02000004  -- (C_UINT [== C_ULONG, C_POINTER, C_PTR], unsigned)
                 jne @f

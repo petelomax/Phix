@@ -131,3 +131,50 @@ end procedure
 
 main()
 
+--/*
+--=== Lindenmayer/svg ===
+--{{trans|Perl}}
+--Same output, obviously the resulting file can be opened in a separate browser.
+constant Lindenmayer = new_dict({{'A',""},
+                                 {'M',"OA++PA----NA[-OA----MA]++"},
+                                 {'N',"+OA--PA[---MA--NA]+"},
+                                 {'O',"-MA++NA[+++OA++PA]-"},
+                                 {'P',"--OA++++MA[+PA++++NA]--NA"}})
+string penrose = "[N]++[N]++[N]++[N]++[N]"
+for n=1 to 4 do
+    string next = ""
+    for i=1 to length(penrose) do
+        integer ch = penrose[i]
+        object l = getd(ch,Lindenmayer)
+        next &= iff(l=NULL?ch:l)
+    end for
+    penrose = next
+end for
+ 
+atom x=160, y=160, theta=PI/5, r = 20
+string svg = ""
+constant line = "<line x1='%.1f' y1='%.1f' x2='%.1f' y2='%.1f' style='stroke:rgb(255,165,0)'/>\n"
+sequence stack = {}
+for i=1 to length(penrose) do
+    integer ch = penrose[i]
+    switch ch do
+        case 'A':   atom nx = x+r*cos(theta),
+                         ny = y+r*sin(theta)
+                    svg &= sprintf(line,{x,y,nx,ny})
+                    {x,y} = {nx,ny}
+        case '+':   theta += PI/5
+        case '-':   theta -= PI/5
+        case '[':   stack = append(stack,{x,y,theta})
+        case ']':   {x,y,theta} = stack[$]
+                    stack = stack[1..$-1]
+    end switch
+end for
+constant svgfmt = """
+<svg xmlns="http://www.w3.org/2000/svg" height="350" width="350">
+ <rect height="100%%" width="100%%" style="fill:black" />
+ %s
+</svg>"""
+integer fn = open("penrose_tiling.svg","w")
+printf(fn,svgfmt,svg)
+close(fn)
+--*/

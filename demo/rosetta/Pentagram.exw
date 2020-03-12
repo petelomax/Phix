@@ -16,6 +16,8 @@ enum FILL,BORDER
 constant colours = {CD_BLUE,CD_RED},
          modes = {CD_FILL,CD_CLOSED_LINES}
 
+--sequence pts = {{319,606},{150,86},{591,407},{46,407},{487,86}}
+
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE"),
             cx = floor(w/2),
@@ -23,17 +25,24 @@ function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
             radius = floor(min(cx,cy)*0.9)
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
-    {} = cdCanvasFillMode(cddbuffer, CD_WINDING)    --DEV doc
-    cdCanvasLineWidth(cddbuffer, round(radius/100)+1) 
+    cdCanvasSetFillMode(cddbuffer, CD_WINDING)
+    cdCanvasSetLineWidth(cddbuffer, round(radius/100)+1) 
     for mode=FILL to BORDER do
         cdCanvasSetForeground(cddbuffer,colours[mode])
         cdCanvasBegin(cddbuffer,modes[mode])
+--if 01 then
+--      for i=1 to length(pts) do
+--          atom {x,y} = pts[i]
+--          cdCanvasVertex(cddbuffer, x, y)
+--      end for
+--else
         for a=90 to 666 by 144 do
             atom r = (a+rot)*CD_DEG2RAD,
-                 x = radius*cos(r)+cx,
-                 y = radius*sin(r)+cy
+                 x = floor(radius*cos(r)+cx),
+                 y = floor(radius*sin(r)+cy)
             cdCanvasVertex(cddbuffer, x, y)
         end for
+--end if
         cdCanvasEnd(cddbuffer)
     end for
     cdCanvasFlush(cddbuffer)
@@ -42,7 +51,8 @@ end function
 
 function map_cb(Ihandle ih)
     cdcanvas = cdCreateCanvas(CD_IUP, ih)
-    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+--  cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    cddbuffer = cdcanvas
     cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
     return IUP_DEFAULT
 end function
@@ -90,3 +100,69 @@ end procedure
 
 main()
 
+--/*
+{{trans|Sidef}}:
+constant HDR = """
+<?xml version="1.0" standalone="no" ?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"
+"http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
+<svg height="%d" width="%d" style="" xmlns="http://www.w3.org/2000/svg">
+<rect height="100%%" width="100%%" style="fill:black;" />
+"""
+constant LINE = """
+<polyline points="%s"
+style="fill:blue; stroke:white; stroke-width:3;"
+transform="translate(%d, %d) rotate(-18)" />
+"""
+ 
+function pentagram(integer dim=200, sides=5)
+ 
+    sequence v = repeat(0,sides)
+    for i=1 to sides do
+        atom theta = PI*2*(i-1)/5,
+             x = cos(theta)*dim,
+             y = sin(theta)*dim
+        v[i] = {sprintf("%.3f",x),
+                sprintf("%.3f",y)}
+    end for
+    v = append(v,v[1])
+    sequence q = {}
+    for i=1 to length(v) by 2 do
+        q &= v[i]
+    end for
+    for i=2 to length(v) by 2 do
+        q &= v[i]
+    end for 
+    string res = sprintf(HDR,dim*2)
+    res &= sprintf(LINE,{join(q),dim,dim})
+    res &= "</svg>\n"
+ 
+    return res
+end function
+ 
+puts(1,pentagram())
+
+Output of sidef:
+<?xml version="1.0" standalone="no" ?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"
+"http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
+<svg height="400" width="400" style="" xmlns="http://www.w3.org/2000/svg">
+<rect height="100%" width="100%" style="fill:black;" />
+<polyline points="180.000 0.000 -145.623 105.801 55.623 -171.190 55.623 171.190 -145.623 -105.801 180.000 0.000"
+style="fill:blue; stroke:white; stroke-width:3;"
+transform="translate(200, 200) rotate(-18)" />
+</svg>
+Output of zkl:
+<?xml version="1.0" standalone="no" ?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"
+"http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
+<svg height="400" width="400" style="" xmlns="http://www.w3.org/2000/svg">
+<rect height="100%" width="100%" style="fill:bisque;" />
+<polyline points=" 200.000, 0.000 -161.803, 117.557 " style="fill:seashell; stroke:blue; stroke-width:3;" transform="translate(200,200) rotate(-18)" />
+<polyline points=" 61.803, 190.211 -161.803,-117.557 " style="fill:seashell; stroke:blue; stroke-width:3;" transform="translate(200,200) rotate(-18)" />
+<polyline points="-161.803, 117.557  61.803,-190.211 " style="fill:seashell; stroke:blue; stroke-width:3;" transform="translate(200,200) rotate(-18)" />
+<polyline points="-161.803,-117.557  200.000, 0.000 " style="fill:seashell; stroke:blue; stroke-width:3;" transform="translate(200,200) rotate(-18)" />
+<polyline points=" 61.803,-190.211  61.803, 190.211 " style="fill:seashell; stroke:blue; stroke-width:3;" transform="translate(200,200) rotate(-18)" />
+
+</svg>
+--*/

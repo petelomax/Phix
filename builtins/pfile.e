@@ -104,7 +104,7 @@ integer ch, allnum
 --          if allnum then
                 len = i-1
 --          end if
-        elsif find(ch,"\\/:") then
+        elsif find(ch,`\/:`) then
             exit
         end if
     end for
@@ -147,7 +147,7 @@ global function get_file_type(string filename)
     end if
 
     if length(filename)=2 and filename[2]=':' then
-        filename &= "\\"
+        filename &= `\`
     end if
 
     object d = dir(filename)
@@ -388,9 +388,11 @@ atom ret
     return ret
 end function
 
-global function copy_file(string src, string dest, bool overwrite=false)
+--11/9/19:
+--global function copy_file(string src, dest, bool overwrite=false)
+function copy_one_file(string src, dest, bool overwrite=false)
 integer success
-    if not finit then initf() end if
+--  if not finit then initf() end if
 
     if get_file_type(src)!=FILETYPE_FILE then return false end if
 
@@ -429,12 +431,12 @@ integer success
     return success
 end function
 
-global function move_file(string src, string dest, bool overwrite=false)
+global function move_file(string src, dest, bool overwrite=false)
 atom ret
 
     if not file_exists(src)
     or (not overwrite and file_exists(dest)) then
-        return 0
+        return false
     end if
 
     if platform()=WINDOWS then
@@ -454,7 +456,8 @@ atom ret
     elsif platform()=LINUX then
 
         if not equal(get_proper_dir(src),get_proper_dir(dest)) then
-            ret = copy_file(src, dest, overwrite)
+--          ret = copy_file(src, dest, overwrite)
+            ret = copy_one_file(src, dest, overwrite)
             if ret then
                 ret = delete_file(src)
             end if
@@ -588,6 +591,44 @@ global function clear_directory(string path, bool recurse=true)
     return 1
 end function
 
+--global function copy_directory(string src, dest, bool overwrite=false)
+global function copy_file(string src, dest, bool overwrite=false)
+    if not finit then initf() end if
+    integer st = get_file_type(src),
+            dt = get_file_type(dest)
+    if st=FILETYPE_FILE then return copy_one_file(src,dest,overwrite) end if
+    if st!=FILETYPE_DIRECTORY then return false end if
+    if dt==FILETYPE_FILE then return false end if
+    if dt!=FILETYPE_DIRECTORY then
+        -- note: FILETYPE_UNDEFINED is deliberately barred
+        if dt!=FILETYPE_NOT_FOUND then return false end if
+        if not create_directory(dest) then return false end if
+    end if
+    sequence d = dir(src)
+    for i=1 to length(d) do
+        sequence di = d[i]
+        string name = di[D_NAME]
+        if not find(name,{".",".."}) then
+            string src_path = join_path({src,name}),
+                   dest_path = join_path({dest,name})
+            if find('d',di[D_ATTRIBUTES]) then
+--              if not copy_directory(src_path,dest_path) then return false end if
+                if not copy_file(src_path,dest_path,overwrite) then return false end if
+            else
+--              if not copy_file(src_path,dest_path) then return false end if
+                if not copy_one_file(src_path,dest_path,overwrite) then return false end if
+            end if
+        end if
+    end for
+    return true
+end function
+
+global function copy_directory(string src, dest, bool overwrite=false)
+    if not finit then initf() end if
+    if get_file_type(src)!=FILETYPE_DIRECTORY then return false end if
+    return copy_file(src,dest,overwrite)
+end function
+
 global function remove_directory(string dir_name, bool force=false)
 atom ret
 object files
@@ -679,7 +720,6 @@ integer lend
     return res
 end function
 
---DEV not yet documented/autoincluded
 global function get_text(object file, integer options=GT_WHOLE_FILE)
     integer fn = iff(string(file)?open(file,"rb"):file)
     if fn=-1 then return -1 end if
@@ -735,6 +775,43 @@ global function get_text(object file, integer options=GT_WHOLE_FILE)
         end if
     end if
 
+    return res
+end function
+
+global function temp_file(string location = "", prefix = "", extn = "tmp", open_mode="")
+    if not finit then initf() end if
+    if length(location)=0 then
+        object envtmp = getenv("TEMP")
+        if atom(envtmp) then
+            envtmp = getenv("TMP")
+            if atom(envtmp) then
+                envtmp = iff(W?`C:\temp\`:"/tmp/")
+            end if
+        end if
+        location = envtmp
+    else
+        location = get_proper_path(location)
+    end if
+    if not file_exists(location)
+    and not create_directory(location) then
+        crash("could not create temp directory %s",{location})
+    end if
+    object res          -- string or {integer,string}
+    while true do
+        string randname = join_path({location, sprintf("%s%06d.%s",{prefix,rand(1_000_000)-1, extn})})
+        if not file_exists(randname) then
+            if length(open_mode)=0 then
+                res = randname
+                exit
+            end if
+            if not find(open_mode,{"w","wb","a","ab"}) then crash("invalid open mode") end if
+            integer fn = open(randname,open_mode)
+            if fn!=-1 then
+                res = {fn,randname}
+                exit
+            end if
+        end if
+    end while
     return res
 end function
 
@@ -820,111 +897,6 @@ integer fn
 end function
 
 --DEV not yet documented/autoincluded
--- See also GetTempFileName() and http://rosettacode.org/wiki/Secure_temporary_file
---**
--- Returns a file name that can be used as a temporary file.
---
--- Parameters:
---  # ##temp_location## : A sequence. A directory where the temporary file is expected
---               to be created. 
---            ** If omitted (the default) the 'temporary' directory
---               will be used. The temporary directory is defined in the "TEMP" 
---               environment symbol, or failing that the "TMP" symbol and failing
---               that "C:\TEMP\" is used in non-Unix systems and "/tmp/" is used
---               in Unix systems. 
---            ** If ##temp_location## was supplied, 
---               *** If it is an existing file, that file's directory is used.
---               *** If it is an existing directory, it is used.
---               *** If it doesn't exist, the directory name portion is used.
---  # ##temp_prefix## : A sequence: The is prepended to the start of the generated file name.
---               The default is "".
---  # ##temp_extn## : A sequence: The is a file extention used in the generated file. 
---               The default is "_T_".
---  # ##reserve_temp## : An integer: If not zero an empty file is created using the 
---               generated name. The default is not to reserve (create) the file.
---
--- Returns:
---     A **sequence**, A generated file name.
---                  
--- Comments:
---
--- Example 1:
--- <eucode>
---  ? temp_file("/usr/space", "myapp", "tmp") --> /usr/space/myapp736321.tmp
---  ? temp_file() --> /tmp/277382._T_
---  ? temp_file("/users/me/abc.exw") --> /users/me/992831._T_
--- </eucode>
-
---global function temp_file(string temp_location = "", string temp_prefix = "", string temp_extn = "_T_", integer reserve_temp = 0)
-global function temp_file(string temp_location = "", string temp_prefix = "", string temp_extn = "_T_")
-string randname
-object envtmp
---integer filetype
---object tdir
---integer ret
-    if not finit then initf() end if
-
-    if length(temp_location)=0 then
-        envtmp = getenv("TEMP")
-        if atom(envtmp) then
-            envtmp = getenv("TMP")
-            if atom(envtmp) then
-                envtmp = iff(W?"C:\\temp\\":"/tmp/")
-            end if
-        end if
-        temp_location = envtmp
-    else
-        ?9/0
-        -- untested (not what I need right now)
---      filetype = file_type(temp_location)
---      if filetype=FILETYPE_FILE then
---          temp_location = dirname(temp_location, 1)
---              
---      elsif filetype=FILETYPE_DIRECTORY then
---          -- use temp_location
---          temp_location = temp_location
---                              
---      elsif filetype=FILETYPE_NOT_FOUND then
---          tdir = dirname(temp_location, 1)
---          if file_exists(tdir) then
---              temp_location = tdir
---          else
---              temp_location = "."
---          end if
---              
---      else
---          temp_location = "."
---              
---      end if
-    end if
-
-    if temp_location[$]!=SLASH then
-        temp_location &= SLASH
-    end if
-
-
-    while 1 do
-        randname = sprintf("%s%s%06d.%s", {temp_location, temp_prefix, rand(1_000_000)-1, temp_extn})
-        if not file_exists(randname) then
-            exit
-        end if
-    end while
-
---  if reserve_temp then
---      -- Reserve the name by creating an empty file.
---      if not file_exists(temp_location) then
---          if create_directory(temp_location)=0 then
---              return ""
---          end if
---      end if
---      ret = write_file(randname, "")
---  end if
-
-    return randname
-
-end function
-
---DEV not yet documented/autoincluded
 --****
 -- === URL Parse Accessor Constants
 --
@@ -967,6 +939,25 @@ global enum
         --**
         -- The #name part
         URL_FRAGMENT
+
+--DEV/SUG when documenting, replace bits of https://rosettacode.org/mw/index.php?title=URL_parser#Phix with:
+--/*
+global function url_element_desc(integer idx)
+    string res
+    switch idx do
+        case URL_PROTOCOL:      res = "scheme"
+        case URL_HOSTNAME:      res = "domain"
+        case URL_PORT:          res = "port"
+        case URL_PATH:          res = "path"
+        case URL_USER:          res = "user"
+        case URL_PASSWORD:      res = "password"
+        case URL_QUERY_STRING:  res = "query"
+        case URL_FRAGMENT:      res = "fragment"
+        default: ?9/0
+    end switch
+    return res
+end function
+--*/
 
 --DEV not yet documented/autoincluded
 --**

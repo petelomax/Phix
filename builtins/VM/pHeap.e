@@ -3210,6 +3210,14 @@ sub edi,eax
         test esi,#01
 --      jnz :memorycorruption
         jz :!FreePoole32a
+--6/8/19: real cause: free() when delete_routine() in force...
+--??        jmp :mc53
+
+--          pop edx
+--                      mov edi,[esp+?]
+            mov edi,edx             -- temp
+            mov al,32               -- e32hc(era,edi)   --DEV show era/line number?
+            jmp :!iDiag
             int3
       :!FreePoole32a
         cmp dword[esi],#00484253    -- dwMagic ("SBH\0")

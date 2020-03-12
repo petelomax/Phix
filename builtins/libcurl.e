@@ -192,7 +192,9 @@ global constant
   CURLE_BAD_CONTENT_ENCODING     = 61,  -- 61 - Unrecognized/bad encoding
   CURLE_LDAP_INVALID_URL         = 62,  -- 62 - Invalid LDAP URL
   CURLE_FILESIZE_EXCEEDED        = 63,  -- 63 - Maximum file size exceeded
+--*/
   CURLE_USE_SSL_FAILED           = 64,  -- 64 - Requested FTP SSL level failed
+--/*
   CURLE_SEND_FAIL_REWIND         = 65,  -- 65 - Sending the data requires a rewind
                                         --    -- that failed
   CURLE_SSL_ENGINE_INITFAILED    = 66,  -- 66 - failed to initialise ENGINE
@@ -772,16 +774,16 @@ global constant
 --/*
   CURLOPT_PROXYUSERPWD              = 10006,    -- "user:password" to use with proxy.
   CURLOPT_RANGE                     = 10007,    -- Range to get, specified as an ASCII string.
-  -- not used
-  CURLOPT_READDATA                  = 10009,    -- Specified file stream to upload from (use as input):
+  -- not used                   (ie [1000]8,)
 --*/
+  CURLOPT_READDATA                  = 10009,    -- Specified file stream to upload from (use as input):
   CURLOPT_ERRORBUFFER               = 10010,    -- Buffer to receive error messages in, must be at least CURL_ERROR_SIZE
                                                 -- bytes big. If this is not used, error messages go to stderr instead:
   CURLOPT_WRITEFUNCTION             = 20011,    -- Function that will be called to store the output (instead of fwrite). The
                                                 -- parameters will use fwrite() syntax, make sure to follow them.
---/*
   CURLOPT_READFUNCTION              = 20012,    -- Function that will be called to read the input (instead of fread). The
                                                 -- parameters will use fread() syntax, make sure to follow them.
+--/*
   CURLOPT_TIMEOUT                   =    13,    -- Time-out the read operation after this amount of seconds
   CURLOPT_INFILESIZE                =    14,    -- If the CURLOPT_INFILE is used, this can be used to inform libcurl about
                                                 -- how large the file being sent really is. That allows better error
@@ -843,17 +845,13 @@ global constant
 --CURLOPT_OBSOLETE40                = 10040,    -- OBSOLETE, do not use!
 --*/
   CURLOPT_VERBOSE                   =    41,    -- talk a lot
---/*
   CURLOPT_HEADER                    =    42,    -- throw the header out too
---*/
   CURLOPT_NOPROGRESS                =    43,    -- shut off the progress meter
 --/*
   CURLOPT_NOBODY                    =    44,    -- use HEAD to get http document
 --*/
   CURLOPT_FAILONERROR               =    45,    -- no output on http error codes >= 400
---/*
   CURLOPT_UPLOAD                    =    46,    -- this is an upload
---*/
   CURLOPT_POST                      =    47,    -- HTTP POST method
 --/*
   CURLOPT_DIRLISTONLY               =    48,    -- bare names when listing directories
@@ -886,9 +884,9 @@ global constant
                                                 -- is set but doesn't match one of these, 'private' will be used. 
 --*/
   CURLOPT_SSL_VERIFYPEER            =    64,    -- Set if we should verify the peer in ssl handshake, set 1 to verify.
---/*
   CURLOPT_CAINFO                    = 10065,    -- The CApath or CAfile used to validate the peer certificate
                                                 -- this option is used only if SSL_VERIFYPEER is true
+--/*
   -- 66 = OBSOLETE
   -- 67 = OBSOLETE
   CURLOPT_MAXREDIRS                 =    68,    -- Maximum number of http redirects to follow
@@ -965,9 +963,11 @@ global constant
   CURLOPT_FTP_USE_EPRT              =   106,    -- Specifically switch on or off the FTP engine's use of the EPRT command (
                                                 -- it also disables the LPRT attempt). By default, those ones will always be
                                                 -- attempted before the good old traditional PORT command.
+--*/
   CURLOPT_HTTPAUTH                  =   107,    -- Set this to a bitmask value to enable the particular authentications
                                                 -- methods you like. Use this in combination with CURLOPT_USERPWD.
                                                 -- Note that setting multiple bits may cause extra network round-trips.
+--/*
   CURLOPT_SSL_CTX_FUNCTION          = 20108,    -- Set the ssl context callback global function, currently only for OpenSSL ssl_ctx
                                                 -- in second argument. The global function must be matching the
                                                 -- curl_ssl_ctx_callback proto.
@@ -1000,11 +1000,13 @@ global constant
                                                 -- to parse (using the CURLOPT_NETRC option). If not set, libcurl will do
                                                 -- a poor attempt to find the user's home directory and check for a .netrc
                                                 -- file in there.
+--*/
   CURLOPT_USE_SSL                   =   119,    -- Enable SSL/TLS for FTP, pick one of:
                                                 -- CURLUSESSL_TRY     - try using SSL, proceed anyway otherwise
                                                 -- CURLUSESSL_CONTROL - SSL for the control connection or fail
                                                 -- CURLUSESSL_ALL     - SSL for all communication or fail
   CURLOPT_POSTFIELDSIZE_LARGE       = 30120,    -- The _LARGE version of the standard POSTFIELDSIZE option
+--/*
   CURLOPT_TCP_NODELAY               =   121,    -- Enable/disable the TCP Nagle algorithm
   -- 122 OBSOLETE, used in 7.12.3. Gone in 7.13.0
   -- 123 OBSOLETE. Gone in 7.16.0
@@ -1091,9 +1093,9 @@ global constant
 --*/
   CURLOPT_CERTINFO                  =   172,    -- Collect certificate chain info and allow it to be retrievable with
                                                 -- CURLINFO_CERTINFO after the transfer is complete.
---/*
   CURLOPT_USERNAME                  = 10173,    -- "name" and "pwd" to use when fetching.
   CURLOPT_PASSWORD                  = 10174,
+--/*
   CURLOPT_PROXYUSERNAME             = 10175,    -- "name" and "pwd" to use with Proxy when fetching.
   CURLOPT_PROXYPASSWORD             = 10176,
   CURLOPT_NOPROXY                   = 10177,    -- Comma separated list of hostnames defining no-proxy zones. These should
@@ -1119,8 +1121,10 @@ global constant
   CURLOPT_SSH_KEYFUNCTION           = 20184,    -- set the SSH host key callback, must point to a curl_sshkeycallback
                                                 -- global function
   CURLOPT_SSH_KEYDATA               = 10185,    -- set the SSH host key callback custom pointer
+--*/
   CURLOPT_MAIL_FROM                 = 10186,    -- set the SMTP mail originator
   CURLOPT_MAIL_RCPT                 = 10187,    -- set the list of SMTP mail receiver(s)
+--/*
   CURLOPT_FTP_USE_PRET              =   188,    -- FTP: send PRET before PASV
   CURLOPT_RTSP_REQUEST              =   189,    -- RTSP request method (OPTIONS, SETUP, PLAY, etc...)
   CURLOPT_RTSP_SESSION_ID           = 10190,    -- The RTSP session identifier
@@ -1205,6 +1209,15 @@ global constant
 --*/ $
 constant
   CURLOPT_LASTENTRY                 =   244     -- the last used
+
+-- parameter for the CURLOPT_USE_SSL option
+global constant
+  CURLUSESSL_NONE    = 0,  -- do not attempt to use SSL
+  CURLUSESSL_TRY     = 1,  -- try using SSL, proceed anyway otherwise
+  CURLUSESSL_CONTROL = 2,  -- SSL for the control connection or fail
+  CURLUSESSL_ALL     = 3,  -- SSL for all communication or fail
+  CURLUSESSL_LAST    = 4   -- not an option, never use
+
 
 global type CURLoption(integer n)
     integer rem = remainder(n,10000)
@@ -1304,7 +1317,9 @@ constant write_cb = call_back({'+',routine_id("curl_easy_write_callback")})
 -----------------------------
 -- curl_easy_perform_ex
 -----------------------------
-global function curl_easy_perform_ex(atom curl)
+--global function curl_easy_perform_ex(atom curl)
+--global function curl_easy_perform_ex(atom_string curl)
+global function curl_easy_perform_ex(object curl)
 -- see also curl_multi_perform_ex, if you modify this.
     enter_cs(ceb_cs)
     integer slot_no = 0
@@ -1322,12 +1337,25 @@ global function curl_easy_perform_ex(atom curl)
     end if
     leave_cs(ceb_cs)
 
+    bool free_curl = false,
+         was_global_init = global_init
+    if string(curl) then
+        string url = curl
+        if not was_global_init then curl_global_init() end if
+        curl = curl_easy_init()
+        curl_easy_setopt(curl, CURLOPT_URL, url)
+        free_curl = true
+    end if
     -- set callback function to receive data
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, slot_no)
 
     -- get file
     integer ret = curl_easy_perform(curl)
+    if free_curl then
+        curl_easy_cleanup(curl)
+        if not was_global_init then curl_global_cleanup() end if
+    end if
 
     enter_cs(ceb_cs)
     string res = curl_easy_buffers[slot_no]
@@ -1398,8 +1426,14 @@ end function
 
 --------------------------------------------------------------------------------
 
-global function curl_easy_get_file(string url, proxy, filename)
+global function curl_easy_get_file(string url, proxy, filename="")
 CURLcode res
+    if filename="" then
+        -- allow curl_easy_get_file(url,filename) to
+        --  mean curl_easy_get_file(url,"",filename)
+        if proxy="" then ?9/0 end if
+        {filename,proxy} = {proxy,""}
+    end if
     integer fn = open(filename,"wb")
     if fn=-1 then
         res = CURLE_CANT_OPEN_FILE
@@ -2451,12 +2485,9 @@ global constant
 -- Bitmasks for CURLOPT_HTTPAUTH and CURLOPT_PROXYAUTH options:
 --
 -- CURLAUTH_NONE         - No HTTP authentication
--- CURLAUTH_BASIC        - HTTP Basic authentication (default)
--- CURLAUTH_DIGEST       - HTTP Digest authentication
 -- CURLAUTH_NEGOTIATE    - HTTP Negotiate (SPNEGO) authentication
 -- CURLAUTH_GSSNEGOTIATE - Alias for CURLAUTH_NEGOTIATE (deprecated)
 -- CURLAUTH_NTLM         - HTTP NTLM authentication
--- CURLAUTH_DIGEST_IE    - HTTP Digest authentication with IE flavour
 -- CURLAUTH_NTLM_WB      - HTTP NTLM authentication delegated to winbind helper
 -- CURLAUTH_ONLY         - Use together with a single other type to force no
 --                         authentication or just that single type
@@ -2465,17 +2496,22 @@ global constant
 --/
 
 global constant CURLAUTH_NONE         = #00000000
-global constant CURLAUTH_BASIC        = #00000001
-global constant CURLAUTH_DIGEST       = #00000002
-global constant CURLAUTH_NEGOTIATE    = #00000004
+--*/
+global constant CURLAUTH_BASIC        = #00000001   -- HTTP Basic authentication (default)
+global constant CURLAUTH_DIGEST       = #00000002   -- HTTP Digest authentication
+global constant CURLAUTH_NEGOTIATE    = #00000004   -- HTTP Negotiate (SPNEGO) authentication.
+--/*
 -- Deprecated since the advent of CURLAUTH_NEGOTIATE
 global constant CURLAUTH_GSSNEGOTIATE = CURLAUTH_NEGOTIATE
-global constant CURLAUTH_NTLM         = #00000008
-global constant CURLAUTH_DIGEST_IE    = #00000010
-global constant CURLAUTH_NTLM_WB      = #00000020
+--*/
+global constant CURLAUTH_NTLM         = #00000008   -- HTTP NTLM authentication.
+global constant CURLAUTH_DIGEST_IE    = #00000010   -- HTTP Digest authentication with IE flavour
+global constant CURLAUTH_NTLM_WB      = #00000020   -- NTLM delegating to winbind helper.
+global constant CURLAUTH_BEARER       = #00000040   -- HTTP Bearer token authentication, used primarily in OAuth 2.0 protocol.
 global constant CURLAUTH_ONLY         = #80000000
 global constant CURLAUTH_ANY          = not CURLAUTH_DIGEST_IE
 global constant CURLAUTH_ANYSAFE      = not or_bits(CURLAUTH_BASIC, CURLAUTH_DIGEST_IE)
+--/*
 
 global constant CURLSSH_AUTH_ANY       = not 0     -- all types supported by the server
 global constant CURLSSH_AUTH_NONE      = 0      -- none allowed, silly but complete
@@ -2536,14 +2572,14 @@ global constant
 --                           global enum curl_khmatch, -- libcurl's view on the keys
 --                           void *clientp); -- custom pointer passed from app
 
--- parameter for the CURLOPT_USE_SSL option
-global constant
-  CURLUSESSL_NONE    = 0,  -- do not attempt to use SSL
-  CURLUSESSL_TRY     = 1,  -- try using SSL, proceed anyway otherwise
-  CURLUSESSL_CONTROL = 2,  -- SSL for the control connection or fail
-  CURLUSESSL_ALL     = 3,  -- SSL for all communication or fail
-  CURLUSESSL_LAST    = 4   -- not an option, never use
-
+---- parameter for the CURLOPT_USE_SSL option
+--global constant
+--  CURLUSESSL_NONE  = 0,  -- do not attempt to use SSL
+--  CURLUSESSL_TRY   = 1,  -- try using SSL, proceed anyway otherwise
+--  CURLUSESSL_CONTROL = 2,  -- SSL for the control connection or fail
+--  CURLUSESSL_ALL   = 3,  -- SSL for all communication or fail
+--  CURLUSESSL_LAST  = 4   -- not an option, never use
+--
 --global type curl_usessl(integer x)
 --  return (x >= CURLUSESSL_NONE) and (x <= CURLUSESSL_LAST)
 --end type

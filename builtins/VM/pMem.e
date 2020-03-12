@@ -640,7 +640,9 @@ end procedure -- (for Edita/CtrlQ)
 --23/5/15:
 --      jz :opPeekNxStore64
         jnz @f
-            sub rsp,8                   --[1] aka pop rdi
+--21/9/19:
+--          sub rsp,8                   --[1] aka pop rdi
+            add rsp,8                   --[1] aka pop rdi
             jmp :opPeekNxStore64
       @@:
         lea rdi,[rbx+rax*4]

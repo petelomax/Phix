@@ -612,6 +612,7 @@ public function upper(object x)
 end function
 --*/
 
+--/*
 --**
 -- Convert a text sequence to capitalized words.
 --
@@ -648,46 +649,48 @@ end function
 -- See Also:
 --     [[:lower]] [[:upper]]
 
-global function proper(string x)
--- Converts text to lowercase and makes each word start with an uppercase.
-integer ch
-integer inword
-
-    inword = 0      -- Initially not in a word
-    for i=1 to length(x) do
-        ch = x[i]
-        -- Check for upper case
-        if ch>='A' and ch<='Z' then
-            if inword=1 then
-                -- Upper, but as we are in a word convert it to lower.
-                x[i] = lower(ch)
-            else
-                inword = 1      -- now we are in a word
-            end if
-        else
-            -- Not upper, so check for lower case
-            if ch>='a' and ch<='z' then
-                if inword=0 then
-                    -- start of word, so convert only lower to upper.
-                    x[i] = upper(ch)
-                    inword = 1      -- now we are in a word
-                end if
-            else
-                -- Not lower so check for digits
-                -- n.b. digits have no effect on if its in a word or not.
-                if ch<'0' or ch>'9' then
-                    -- not digit so check for special word chars
-                    if ch='_' then
-                        inword = 1
-                    else
-                        inword = 0
-                    end if
-                end if
-            end if
-        end if
-    end for
-    return x
-end function
+-- now part of pcase.e
+--global function proper(string x)
+---- Converts text to lowercase and makes each word start with an uppercase.
+--integer ch
+--integer inword
+--
+--  inword = 0      -- Initially not in a word
+--  for i=1 to length(x) do
+--      ch = x[i]
+--      -- Check for upper case
+--      if ch>='A' and ch<='Z' then
+--          if inword=1 then
+--              -- Upper, but as we are in a word convert it to lower.
+--              x[i] = lower(ch)
+--          else
+--              inword = 1      -- now we are in a word
+--          end if
+--      else
+--          -- Not upper, so check for lower case
+--          if ch>='a' and ch<='z' then
+--              if inword=0 then
+--                  -- start of word, so convert only lower to upper.
+--                  x[i] = upper(ch)
+--                  inword = 1      -- now we are in a word
+--              end if
+--          else
+--              -- Not lower so check for digits
+--              -- n.b. digits have no effect on if its in a word or not.
+--              if ch<'0' or ch>'9' then
+--                  -- not digit so check for special word chars
+--                  if ch='_' then
+--                      inword = 1
+--                  else
+--                      inword = 0
+--                  end if
+--              end if
+--          end if
+--      end if
+--  end for
+--  return x
+--end function
+--*/
 
 --**
 -- Converts a string containing Key/Value pairs into a set of
@@ -1015,8 +1018,10 @@ end function
 -- Example 1:
 -- <eucode>
 -- sequence s = escape("John \"Mc\" Doe")
+-- sequence s = escape(`John "Mc" Doe`)
 -- puts(1, s)
 -- -- output is: John \"Mc\" Doe
+-- -- output is: `John \"Mc\" Doe`
 -- </eucode>
 --
 -- See Also:
@@ -1024,7 +1029,8 @@ end function
 --
 
 --/* Not Phix (erm... can do better [\r\t\n])
-global function escape(string s, string what="\"")
+--global function escape(string s, string what="\"")
+global function escape(string s, string what=`"`)
 sequence r = ""
 
     for i=1 to length(s) do
@@ -1047,6 +1053,7 @@ end function
 --   # ##quote_pair## : A sequence of two strings. The first string is the opening
 --              quote to use, and the second string is the closing quote to use.
 --              The default is {"\"", "\""} which means that the output will be
+--              The default is {`"`, `"`} which means that the output will be
 --              enclosed by double-quotation marks.
 --   # ##esc## : A single escape character. If this is not negative (the default),
 --              then this is used to 'escape' any embedded quote characters and

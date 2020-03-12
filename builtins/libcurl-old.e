@@ -77,7 +77,8 @@ end function
 -- nulls (but probably not all) trigger a fatal error.
 function peek_pointer(object pMem)
     if pMem=NULL then return NULL end if
-    return peekNS(pMem,machine_word(),false)
+--  return peekNS(pMem,machine_word(),false)
+    return peeknu(pMem)
 end function
 
 function peek_strings(atom pMem)

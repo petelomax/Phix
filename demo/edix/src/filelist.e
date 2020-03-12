@@ -140,7 +140,7 @@ function value_cb(Ihandle /*self*/, integer l, integer c)
                         integer year = d[DT_YEAR]
                         d[DT_YEAR] = d[DT_DAY]
                         d[DT_DAY] = year
-                        semiperm = sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+                        semiperm = sprintf(`%02d\%02d\%04d %02d:%02d:%02d`,d)
                     else
 --                      semiperm = sprintf("%d",semiperm)
                         semiperm = sprintf("%d",files[l][c])
@@ -560,7 +560,7 @@ integer tmp
         if lColumn=F_date then
             --DEV format date as per status bar?
             tmp=d[1] d[1]=d[3] d[3]=tmp -- swap day and year
-            return sprintf("%02d\\%02d\\%04d %02d:%02d:%02d",d)
+            return sprintf(`%02d\%02d\%04d %02d:%02d:%02d`,d)
         else
             return sprintf("%d",files[lRow][lColumn])
         end if

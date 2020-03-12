@@ -72,6 +72,8 @@
 --
 --  04/04/15 Added return/dblclick -> follow a "see #hhhhhhhh" automatically.
 --
+-- Check against https://www.codeproject.com/Articles/5205732/libpe
+--
 with trace
 --DEV/TEMP
 --constant WINDERS=WINDOWS
@@ -770,17 +772,17 @@ integer i
                     res &= "&"
                     nostrip = 1
                 end if
-                res &= "\""
+                res &= `"`
                 instring = 1
             end if
             if escidx!=0 then
-                res &= "\\"&escaped[escidx]
+                res &= `\`&escaped[escidx]
             else
                 res &= ch
             end if
         else
             if instring then
-                res &= "\""
+                res &= `"`
                 instring = 0
             end if
             if length(res) then
@@ -796,7 +798,7 @@ integer i
     end while
     if instring then
         if nostrip then
-            res &= "\""
+            res &= `"`
         else
             res = res[2..$] -- (remove opening \")
         end if
@@ -929,7 +931,11 @@ atom mi
             ?9/0
         end if
     end if
-    if integer(size) then
+    if address>=file_size then
+        ?"line 935"
+        val = "***bounds error***"
+        size = 0
+    elsif integer(size) then
         signed = 0
         val = binary[address+1]
         for i=2 to size do
@@ -1100,9 +1106,32 @@ integer byte
             addrMax = address+16
             addrMax -= and_bits(addrMax,#0F)+1
         end if
+--NO! this sort of thing should be done in the caller...
+--if e_machine=40       -- ARM
+--if addrMax>length(binary)
+--and address>=#8000 then
+--  ?{"-#8000 line 1105",address,addrMax,length(binary)}
+--  address -= #8000
+--  addrMax -= #8000
+--end if
+--/*
+"load_file"
+{"SetTabIdx","ELF Header"}
+{"SetTabIdx","Program Headers"}
+{2,"???"}
+{"SetTabIdx","Code Segment"}
+{"SetTabIdx","Code Segment"}
+{32884,32895,152}
+{#8074,#807F,152}
+"filedump.exw line 1105"
+{32896,32883,152}
+{#8080,#8073,152}
+"load_file<"
+--*/
         for a=address to addrMax do
 --DEV 5/9/15:
---if a>=length(binary) then ?804 size=0 exit end if
+--DEV 1/9/19:
+--if a>=length(binary) then ?"filedump.exw line 1105" size=0 exit end if
             byte = binary[a+1]
             hex &= sprintf("%02x",byte)
             if remainder(a+5,4)=0 then
@@ -1474,7 +1503,7 @@ string notes
 
     if size>4 and binary[address+1..address+4]="Phix" then
         integer offset = addr
-        sig = decode(sprintf("%08x: sigPhx",addr),"x4","signature (should be \"Phix\")")
+        sig = decode(sprintf("%08x: sigPhx",addr),"x4",`signature (should be "Phix")`)
         if sig!="Phix" then return fatal("bad signature") end if
         size -= 4
         addr += 4
@@ -1925,7 +1954,7 @@ string notes
             end while
         end if
     else
-        NotPhix("data section does not start with \"Phix\"")
+        NotPhix(`data section does not start with "Phix"`)
     end if
     if size then
 --printf(1,"%08x\n",address)
@@ -1971,7 +2000,7 @@ typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
 --*/
     -- Magic number. This is the "magic number" of an EXE file.
     -- The first byte of the file is 0x4d and the second is 0x5a.
-    e_magic = decode("e_magic","x2","signature (should be \"MZ\")")                                 -- MZ
+    e_magic = decode("e_magic","x2",`signature (should be "MZ")`)                               -- MZ
 --DEV (temp)
 --  if e_magic!="MZ" then return fatal("bad signature") end if
     if find(e_magic,{"MZ","ZZ"})=0 then return fatal("bad signature") end if
@@ -2218,12 +2247,12 @@ $
 #define IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT   13   // Delay Load Import Descriptors
 #define IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR 14   // COM Runtime descriptor
 --*/
-constant RVAdesc = {"export (see \"Export Section\" tab)",
-                    "import (see \"Import Section\" tab)",
-                    "resource (see \"Resource Section\" tab)",
-                    "exception (see \"Exceptions\" tab)",
-                    "security",     -- Certificate (first field is file ptr not RVA)
-                    "basereloc (see \"Relocations\" tab)",
+constant RVAdesc = {`export (see "Export Section" tab)`,
+                    `import (see "Import Section" tab)`,
+                    `resource (see "Resource Section" tab)`,
+                    `exception (see "Exceptions" tab)`,
+                    `security`,     -- Certificate (first field is file ptr not RVA)
+                    `basereloc (see "Relocations" tab)`,
                     "debug",
                     "architecture", -- copyright -- Reserved, must be 0
                     "globalptr",
@@ -2325,7 +2354,7 @@ integer supported
 
     -- IMAGE_NT_HEADERS(32/64):
     SetTabIdx("PE Header")
-    signature = decode("signature","x4","(should be \"PE\\0\\0\")")                                 -- PE
+    signature = decode("signature","x4",`(should be "PE\0\0")`)                                     -- PE
     if signature!="PE\\0\\0" then return fatal("bad signature") end if
     --  IMAGE_FILE_HEADER structure:
     machine = decode("machine","h2","")
@@ -2523,18 +2552,18 @@ integer supported
     for i=1 to nSections do
         if address+#28>file_size then return fatal("unexpected end of file") end if
         Name = decode(sprintf("Name[%d]",i),"x8","")
-        if not find(Name,{".idata\\0\\0",
-                          ".edata\\0\\0",
-                          ".reloc\\0\\0",
-                          ".pdata\\0\\0",
-                          ".text\\0\\0\\0",     -- (executable code)
-                          ".code\\0\\0\\0",
-                          ".data\\0\\0\\0",
-                          ".rsrc\\0\\0\\0"}) then
-            NotPhix("Section Named \""&Name&"\"")
+        if not find(Name,{`.idata\0\0`,
+                          `.edata\0\0`,
+                          `.reloc\0\0`,
+                          `.pdata\0\0`,
+                          `.text\0\0\0`,    -- (executable code)
+                          `.code\0\0\0`,
+                          `.data\0\0\0`,
+                          `.rsrc\0\0\0`}) then
+            NotPhix(`Section Named "`&Name&`"`)
         end if
         if find('$',Name)!=0 then return fatal("section name must not contain $") end if
-        if find(Name,{"UPX0\\0\\0\\0\\0","UPX1\\0\\0\\0\\0"}) then
+        if find(Name,{`UPX0\0\0\0\0`,`UPX1\0\0\0\0`}) then
             -- (obviously, if you want more, you must manually unpack the thing, using upx)
             return fatal("no further processing of upx-compressed executables")
         end if
@@ -2568,7 +2597,7 @@ integer supported
 
         if length(desc) then
             SectionNames[i] = desc
-            desc = sprintf(" (see \"%s\" tab)",{desc})
+            desc = sprintf(` (see "%s" tab)`,{desc})
         end if
         SizeOfRawData[i] = decode("SizeOfRawData","h4","")
 --DEV NotPhix??:
@@ -2604,22 +2633,24 @@ integer supported
         end if
         if (SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_EXECUTE+IMAGE_SCN_MEM_READ or
             SectionCharacteristics=IMAGE_SCN_CNT_CODE+IMAGE_SCN_MEM_READ+IMAGE_SCN_MEM_WRITE)
+--DEV this disney look right...
         and (desc="" or Name=".text\\0\0\\0" or Name=".code\\0\0\\0") then
             sCodeSections = append(sCodeSections,i)
             if length(sCodeSections)=1 then
-                desc = " (see \"Code Section\" tab)"
+                desc = ` (see "Code Section" tab)`
             else
                 NotPhix("more than one code section")
-                desc = sprintf(" (see \"Code Section(%d)\" tab)",length(sCodeSections))
+                desc = sprintf(` (see "Code Section(%d)" tab)`,length(sCodeSections))
             end if
             res[tabidx][k][R_NOTES] = desc
-        elsif Name=".data\\0\\0\\0" and SizeOfRawData[i]!=0 then
+--      elsif Name=".data\\0\\0\\0" and SizeOfRawData[i]!=0 then
+        elsif Name=`.data\0\0\0` and SizeOfRawData[i]!=0 then
             sDataSections = append(sDataSections,i)
             if length(sDataSections)=1 then
-                desc = " (see \"Data Section\" tab)"
+                desc = ` (see "Data Section" tab)`
             else
                 NotPhix("more than one data section")
-                desc = sprintf(" (see \"Data Section(%d)\" tab)",length(sDataSections))
+                desc = sprintf(` (see "Data Section(%d)" tab)`,length(sDataSections))
             end if
             res[tabidx][k][R_NOTES] = desc
         end if
@@ -2785,7 +2816,17 @@ integer NoMorePadding = 0
                         RVA = decode(sprintf("Thunk [%08x]",ThunkAddr),"h4","")
                         size -= 4
                     else
-                        RVA = decode(sprintf("Thunk [%08x]",ThunkAddr),"h8","")
+--9/1/20: (test.exe from test.go)
+--                      RVA = decode(sprintf("Thunk [%08x]",ThunkAddr),"h8","")
+--                      RVA = decode(sprintf("Thunk [%08x]",address),"h8","")
+--type check failure, RVA is {319096582,84608268}
+--type check failure, RVA is {#13050706,#50B050C}   -- oh shit!
+--  StartAddress = 2070528
+--  ImportBase = -157696
+--  ThunkBase = 4352000
+                        object RVA2 = decode(sprintf("Thunk [%08x]",ThunkAddr),"h8","")
+--                      RVA = iff(sequence(RVA2)?RVA2[1]*#100000000+RVA2[2]:RVA2)
+                        RVA = iff(sequence(RVA2)?0:RVA2)
                         size -= 8
                     end if
                     k = length(res[tabidx])
@@ -2873,7 +2914,7 @@ integer NoMorePadding = 0
         addsep()
     end while
     if NoMorePadding=0 then
--- bugfix: in lb\\test.dll, RVASize[2] just covers the array of IMAGE_IMPORT_DESCRIPTORs, and we overran that.
+-- bugfix: in lb\test.dll, RVASize[2] just covers the array of IMAGE_IMPORT_DESCRIPTORs, and we overran that.
 --      if size!=0 then -- oops
         if size>0 then -- oops
             if size<16 then
@@ -3906,7 +3947,7 @@ if wLengthST>Size then ?9/0 end if
                                         return fatal("unknown type")
                                     end if
                                     res[tabidx][$][R_NOTES] = desc
-                                    len = decode_unicode_string("szKey",24,"(should be L\"Translation\")")
+                                    len = decode_unicode_string("szKey",24,`(should be L"Translation")`)
                                     Size -= len
                                     size -= len
                                     wLength -= len
@@ -4434,7 +4475,7 @@ string text, desc
         end if
     end for
     if find(' ',crun) then
-        crun = '\"' & crun & '\"'
+        crun = `"`&crun&`"`
     end if
 --  sysproc(crun&" GraphR.exw")
     {} = system_exec(crun&" GraphR.exw",8)
@@ -4787,6 +4828,7 @@ integer k
         if k=0 then return fatal("unsupported type") end if
         desc = PT_TDESC[k]
         if not find(p_type,{PT_LOAD,PT_DYNAMIC,PT_INTERP,PT_PHDR}) then
+--      if not find(p_type,{PT_LOAD,PT_DYNAMIC,PT_INTERP,PT_PHDR,PT_GNU_RELRO}) then
             -- (add more types as Phix needs/uses them)
             NotPhix("wrong segment type ("&desc&")")
         end if
@@ -4824,6 +4866,7 @@ integer k
                              0x010000,0x020000,0x040000,0x080000,
                              0x100000,0x200000,0x400000,0x800000})
         or (p_align>1 and remainder(p_offset,p_align)!=remainder(p_vaddr,p_align)) then
+?{"p_align line 4868",p_align,"offset",p_offset,"vaddr",p_vaddr,"ro",remainder(p_offset,p_align),"rv",remainder(p_vaddr,p_align)}
             return fatal("bad align")
         end if
         p_types = append(p_types,p_type)
@@ -4837,6 +4880,7 @@ integer k
 --      p_aligns = append(p_aligns,p_align)
 --1/12/14:
         if p_type=PT_LOAD then
+--      if p_type=PT_LOAD or p_type=PT_GNU_RELRO then
 --      if p_type=PT_LOAD and (e_shoff=0 or e_shnum=0) then
             if p_flags=PF_R+PF_X
             or p_flags=PF_R+PF_W+PF_X then  -- for fdbg
@@ -4869,7 +4913,7 @@ end function
 procedure set_seetab(string desc, integer idx)
 integer vdx
     vdx = p_seetab[idx]
-    desc = sprintf("virtual address (see \"%s\" tab)",desc)
+    desc = sprintf(`virtual address (see "%s" tab)`,desc)
     res[phtab][vdx][R_NOTES] = desc
 end procedure
 
@@ -4877,7 +4921,7 @@ procedure set_seetab2(string desc, integer idx, integer pstab)
 -- (Phix programs don't have section headers, btw)
 integer vdx
     vdx = shseetabs[idx]
-    desc = sprintf("(see \"%s\" tab)",desc)
+    desc = sprintf(`(see "%s" tab)`,desc)
     res[pstab][vdx][R_NOTES] = desc
 end procedure
 
@@ -5215,26 +5259,26 @@ atom reloc_base
         end if
 --DEV check these will actually exist? Or use p_didx?
         if d_tag=DT_HASH then
---          res[tabidx][$][R_NOTES] = "(See \"Hash\" tab)"
-            res[tabidx][$][R_NOTES] = "(See \"Symtab\" tab, Hash)"
+--          res[tabidx][$][R_NOTES] = `(See "Hash" tab)`
+            res[tabidx][$][R_NOTES] = `(See "Symtab" tab, Hash)`
             n = find(0x5,shtypes)
             if n!=0 then
                 -- (Phix programs don't have section headers, btw)
                 set_seetab2("Hash",n,pstab)
             end if
         elsif d_tag=DT_SYMTAB then
-            res[tabidx][$][R_NOTES] = "(See \"Symtab\" tab)"
+            res[tabidx][$][R_NOTES] = `(See "Symtab" tab)`
             n = find(0xB,shtypes)
             if n!=0 then
                 -- (Phix programs don't have section headers, btw)
                 set_seetab2("Symtab",n,pstab)
             end if
         elsif d_tag=DT_STRTAB then
-            res[tabidx][$][R_NOTES] = "(See \"Symtab\" tab, Strings)"
+            res[tabidx][$][R_NOTES] = `(See "Symtab" tab, Strings)`
         elsif d_tag=DT_RELA then
-            res[tabidx][$][R_NOTES] = "(See \"Symtab\" tab, Relocationas)"
+            res[tabidx][$][R_NOTES] = `(See "Symtab" tab, Relocationas)`
         elsif d_tag=DT_REL then
-            res[tabidx][$][R_NOTES] = "(See \"Symtab\" tab, Relocations)"
+            res[tabidx][$][R_NOTES] = `(See "Symtab" tab, Relocations)`
         elsif d_tag=DT_STRSZ then
             n_strtab = ds_normalise(p_vals[p_strtab])
             res[tabidx][$][R_NOTES] = sprintf(" (- strings end at #%08x)",n_strtab+d_val-1)
@@ -5315,6 +5359,8 @@ atom reloc_base
                 if i=1 then
                     for j=1 to length(p_types) do
                         if p_types[j]=PT_LOAD and p_offsets[j]=address then
+--                      if find(p_types[j],{PT_LOAD,PT_GNU_RELRO})
+--                      and p_offsets[j]=address then
                             dsidx = find(j,sDataSegments)
                             if dsidx=0 then ?9/0 end if
                             sDataSegments[dsidx..dsidx] = {}
@@ -6027,6 +6073,10 @@ atom ilen
     code_section = binary
 --  address = p_offsets[idx]
     address = iff(idx>0?p_offsets[idx]:shoffsets[-idx])
+--?{"address",address}
+--if address=0 then ?9/0 end if
+--DEV
+if address=0 then ?"line 6075" address = #B0 size-=address end if
     elfv = append(elfv,{desc,address,0})    -- erm?
 --  decodeinit(CSvaddr, p_offsets[idx], machine)
     decodeinit(CSvaddr, address, machine, arch_ELF)
@@ -6074,6 +6124,7 @@ integer size = p_fileszs[idx]
 --      desc = "Interpreter"
 --  else
     if p_types[idx]!=PT_LOAD then ?9/0 end if
+--  if not find(p_types[idx],{PT_LOAD,PT_GNU_RELRO}) then ?9/0 end if
     dsidx = find(idx,sDataSegments)
     if dsidx=0 then ?9/0 end if
     if dsidx=1 then
@@ -6941,7 +6992,9 @@ string desc
 --integer sh_type
 atom sh_type
 integer sh_flags
-integer sh_addr
+--DEV (temp... [see line 7072])
+--integer sh_addr
+atom sh_addr
 integer sh_offset
 integer sh_seetab
 integer sh_size
@@ -6982,7 +7035,12 @@ UINT32 sh_entsize;
         sh_name = decode("sh_name",4,"")
 --      desc = sprintf("section %d: %s",{i-1,get_string(string_table+sh_name)})
 --      res[tabidx][$][R_NOTES] = desc
+if string_table=NULL then
+    desc = "???"
+    ?"line 7030"
+else
         desc = get_string(string_table+sh_name)
+end if
         shdescs = append(shdescs,desc)
         res[tabidx][$][R_NOTES] = sprintf("section %d: %s",{i-1,desc})
         sh_type = decode("sh_type","h4","")
@@ -7017,7 +7075,10 @@ UINT32 sh_entsize;
             sh_flags = decode("sh_flags","h8","")
             desc = decode_flags(ELFsflagSet,sh_flags)
             res[tabidx][$][R_NOTES] = desc
+--DEV (temp)
+if address>=file_size then ?"line 7068" exit end if
             sh_addr = decode("sh_addr","h8","")
+if not integer(sh_addr) then ?"line 7072" end if
             sh_offset = decode("sh_offset","h8","")
             sh_size = decode("sh_size","h8","")
         else
@@ -7056,7 +7117,9 @@ UINT32 sh_entsize;
                                   0x00100,0x00200,0x00400,0x00800,
                                   0x01000,0x02000,0x04000,0x08000,
                                   0x10000,0x20000,0x40000,0x80000}) then
-            return fatal("bad align")
+--DEV (temp...)
+--          return fatal("bad align")
+            ?{"bad align (line 7111)",sh_addralign}
         end if
 --      p_flags = decode("p_flags","h4","")
 --      desc = decode_flags(ELFpflagSet,p_flags)
@@ -7764,7 +7827,8 @@ sequence codesegments
     NotPhixMessages = {}
     SetTabIdx("ELF Header")
     ei_magic = decode("ei_magic","x4","ELF signature")                              -- 0x7F&"ELF"
-    if ei_magic!="0x7F&\"ELF\"" then
+--  if ei_magic!="0x7F&\"ELF\"" then
+    if ei_magic!=`0x7F&"ELF"` then
         return resetTabs()
     end if
     ei_class = decode("ei_class",1,"")
@@ -7854,7 +7918,7 @@ sequence codesegments
     elsif e_machine=15 then     desc = "Hewlett-Packard PA-RISC"                                    -- EM_PARISC        -- HPPA
     elsif e_machine=16 then     desc = "nCUBE"                                                      -- EM_nCUBE
     elsif e_machine=17 then     desc = "Fujitsu VPP500"                                             -- EM_VPP500
-    elsif e_machine=18 then     desc = "Sun's \"v8plus\""                                           -- EM_SPARC32PLUS   -- Enhanced instruction set SPARC
+    elsif e_machine=18 then     desc = `Sun's "v8plus"`												-- EM_SPARC32PLUS	-- Enhanced instruction set SPARC
     elsif e_machine=19 then     desc = "Intel 80960"                                                -- EM_960
     elsif e_machine=20 then     desc = "PowerPC"                                                    -- EM_PPC
     elsif e_machine=21 then     desc = "64-bit PowerPC"                                             -- EM_PPC64
@@ -8091,7 +8155,15 @@ sequence codesegments
 --DEV
 --  address = e_shoff + e_shentsize*e_shstrndx + 16
 --  string_table = decode("string table","h4","")
+--  string_table = get_number(e_shoff+e_shentsize*e_shstrndx+16, 4)
+    address = e_shoff+e_shentsize*e_shstrndx+16
+if address<file_size then
     string_table = get_number(e_shoff+e_shentsize*e_shstrndx+16, 4)
+--else
+elsif e_shnum!=0 then
+    ?"line 8152"
+    string_table = NULL
+end if
 --  desc = sprintf("%08x",string_table)
 --  res[tabidx][$][R_NOTES] = desc
 --  if e_phoff!=address then
@@ -8130,6 +8202,9 @@ sequence codesegments
             if 00 then
                 if e_shnum=0
                 and p_types={PT_LOAD,PT_LOAD}           -- exactly 2 loadable sections,
+--              and length(p_types)=2
+--              and find(p_types[1],{PT_LOAD,PT_GNU_RELRO})
+--              and find(p_types[2],{PT_LOAD,PT_GNU_RELRO})
                 and p_flagss={PF_R+PF_X,PF_R+PF_W} then     -- one for code, one for data
 --DEV min/max of PT_LOAD sections...
                     DSvaddr = p_vaddrs[2]
@@ -8157,6 +8232,8 @@ sequence codesegments
 -- 1/12/14:
 --                  if p_type=PT_LOAD then  -- loadable
                     if p_type=PT_LOAD and (e_shoff=0 or e_shnum=0) then
+--                  if find(p_type,{PT_LOAD,PT_GNU_RELRO})
+--                  and (e_shoff=0 or e_shnum=0) then
 --DEV and machine = 386?
                         if p_flagss[i]=PF_R+PF_X
                         or p_flagss[i]=PF_R+PF_W+PF_X then  -- for fdbg
@@ -8194,7 +8271,7 @@ sequence codesegments
                             set_seetab2("Symtab",i,pstab)
 --DEV not thumb...
 --IMAGE_SCN_MEM_16BIT?
-                        elsif e_machine=0x28                        -- ARM
+                        elsif e_machine=0x28                        -- ARM (#28=40)
                           and supported=-1                          -- ARM
                           and and_bits(e_entry,0b11)=0b00           -- *NOT* Thumb
                           and shflags[i]=SHF_ALLOC+SHF_EXECINSTR then
@@ -8690,7 +8767,7 @@ integer biSize, biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeIm
     SetTabIdx("Bitmap File")
     size = file_size
     -- BITMAPFILEHEADER
-    bfType = decode("bfType","x2","signature (should be \"BM\")")
+    bfType = decode("bfType","x2",`signature (should be "BM")`)
     if bfType!="BM" then return fatal("bad signature") end if
     bfSize = decode("bfSize",4,"")
     bfReserved1 = decode("bfReserved1",2,"(must be 0)")
@@ -8814,7 +8891,8 @@ typdef struct
 end function
 
 --/*
-constant fields|descs = {"signature"|"(Should be \"Mod\\0\")",
+--constant fields|descs = {"signature"|"(Should be \"Mod\\0\")",
+constant fields|descs = {"signature"|`(Should be "Mod\0")`,
                          "size"|"size (in bytes"}
 --*/
 
@@ -8850,9 +8928,9 @@ string res = ""
         ch = and_bits(h4,#FF)
         h4 = floor(h4/#100)
         if ch='\0' then
-            res &= "\\0"
+            res &= `\0`
         elsif ch='\n' then
-            res &= "\\n"
+            res &= `\n`
         else
             res &= ch
         end if
@@ -9171,8 +9249,8 @@ integer nCategory
         if tag=MI_SIGNATURE then
             xlen = tagsize
             version = decode("version","x","")
-            if find(version,{"Module info file v1.1\\0",
-                             "Module info file v2.01g\\0"}) then    -- DEV incomplete
+            if find(version,{`Module info file v1.1\0`,
+                             `Module info file v2.01g\0`}) then -- DEV incomplete
                 desc = "(good)"
             else
                 -- this app may work just fine, or it may fail, 
@@ -9268,7 +9346,7 @@ integer nCategory
             RVA = decode("RVA","h4","")
             nCategory = decode("category","h1","")
             if nCategory>' ' and nCategory<='z' then
-                desc = sprintf("\'%s\'",nCategory)
+                desc = sprintf(`'%s'`,nCategory)
                 res[tabidx][$][R_NOTES] = desc
             end if
             xlen = tagsize-5
@@ -9369,7 +9447,7 @@ integer ch
             end for
             if length(extension) then exit end if
             filename = filename[1..i-1]
-        elsif find(ch,"\\/") then
+        elsif find(ch,`\/`) then
             exit
         end if
     end for
@@ -9408,12 +9486,12 @@ sequence todo, todos
         if ch='.' then
             extension = lower(filename[i+1..$])
             exit
-        elsif find(ch,"\\/") then
+        elsif find(ch,`\/`) then
             exit
         end if
     end for
     for i=length(filename) to 1 by -1 do
-        if find(filename[i],"\\/") then
+        if find(filename[i],`\/`) then
             lastpath = filename[1..i]
             exit
         end if
@@ -9453,7 +9531,7 @@ sequence todo, todos
         filetype = "bitmap file"
     elsif extension="udd"                     and decode_UDD_file()!=-1 then
         filetype = "udd file"
-    elsif find(extension,{"exe","dll","wcx"})     and decode_DOS_Header() then
+    elsif find(extension,{"exe","dll","wcx","cpl"})   and decode_DOS_Header() then
         filetype = "PE executable"
         if address=e_lfanew -- (added 10/1/14)
         or decode_DOS_Stub() then
@@ -9559,8 +9637,8 @@ string name = ""
     IupSetAttribute(filedlg, "DIALOGTYPE", "SAVE")
     IupSetAttribute(filedlg, "TITLE", "Save")
 --DEV TEXTFILES
---      IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
---      IupSetAttributes(filedlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
+--      IupSetAttributes(filedlg, `FILTER = " .bmp", FILTERINFO = "Bitmap Files"`)
+--      IupSetAttributes(filedlg, `FILTER = "*.bmp", FILTERINFO = "Bitmap Files"`)
 --      IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
 --      IupSetInt(filedlg, "FILTERUSED", 2)
 
@@ -9579,7 +9657,7 @@ string name = ""
     if length(name) then
 --      if string(name) then
 --          for i=length(name) to 1 by -1 do
---              if find(name[i],"\\/") then
+--              if find(name[i],`\/`) then
 --                  lastoutpath = name[1..i]
 --                  exit
 --              end if
@@ -9704,8 +9782,8 @@ string filename = ""
 --  NULL then an idx of 1 is assumed. The second "doc" part specifies a default file extension, ie/eg "fred" is actually saved as 
 --  "fred.doc" (and is not worth setting during file open). Note that manually changing the filter drop-down (if present) will
 --  automatically override this. The third "flags" part, if present, allows additional options such as FOS_ALLOWMULTISELECT.
--- Specifying a default folder of say "C:\temp" causes the standard behaviour of setting the folder to use if there is not a
---  recently used folder value available. Specifying a default folder of {"C:\temp"} overrides any recently used folder value.
+-- Specifying a default folder of say `C:\temp` causes the standard behaviour of setting the folder to use if there is not a
+--  recently used folder value available. Specifying a default folder of {`C:\temp`} overrides any recently used folder value.
 --  Edita, for example, uses the latter to force open/save in the directory associated with the current file tab, however most
 --  applications would not benefit from such brutally forceful behaviour.
 -- Specifying an encoding of 0 suppresses the encoding drop-down, otherwise specify 1..4 for default(ansi)/utf8/utf16le/utf16be.
@@ -9732,11 +9810,11 @@ string filename = ""
 --pp(newGetSaveFileName(NULL))
 --pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{1,"txt"}))
 --pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{2,NULL}))
---pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",2))
---pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",0))
+--pp(newGetSaveFileName(NULL,NULL,NULL,`C:\Windows`,2))
+--pp(newGetSaveFileName(NULL,NULL,NULL,`C:\Windows`,0))
 --trace(1)
---  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo",0)
---  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo")
+--  res = newGetSaveFileName(NULL,NULL,NULL,`C:\Program Files (x86)\Phix\demo\win32dibademo`,0)
+--  res = newGetSaveFileName(NULL,NULL,NULL,`C:\Program Files (x86)\Phix\demo\win32dibademo`)
         pp(res)
         {} = wait_key()
 --*/
@@ -9749,8 +9827,8 @@ string filename = ""
 --      IupSetAttribute(filedlg2, "DIALOGTYPE", "OPEN")
     IupSetAttribute(filedlg2, "TITLE", "Open")
 --DEV exe,dll,so|All? (see FILTER)
---      IupSetAttributes(filedlg2, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
---      IupSetAttributes(filedlg2, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
+--      IupSetAttributes(filedlg2, `FILTER = " .bmp", FILTERINFO = "Bitmap Files"`)
+--      IupSetAttributes(filedlg2, `FILTER = "*.bmp", FILTERINFO = "Bitmap Files"`)
 --      IupSetAttribute(filedlg2, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
 --      IupSetInt(filedlg2, "FILTERUSED", 2)
 
@@ -10018,54 +10096,196 @@ procedure main()
 
     IupMap(maindlg)
     if platform()=WINDOWS then
---      load_file("C:\\Program Files (x86)\\Phix\\p.exe")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\fdbg0011\\fdbg")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\libcurl32.dll")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\libcurl.32.SK.dll")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\libcurl.64.SK-X.dll") -- PE at #F8
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurl\\libcurl.64.SK.dll") -- PE at #E8
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\libcurl\\examples\\cygcurl-4.32.dll") -- HMMM
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\libcurl.dll")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\libcurl.32.vs.dll")
+--      load_file(`C:\Program Files (x86)\Phix\p.exe`)
+--      load_file(`C:\Program Files (x86)\Phix\test.exe`)
+--      load_file(`C:\Phix\a\lxc`)
+--  GraphR:{{"ELF Header (#0..#3F)",0,64},
+--          {"Program Headers (#40..#26F)",64,560},
+--          {"Section Headers (#A47410..#A47C8F)",10777616,2176},
+--          {"Interpreter (#270..#28B)",624,28},
+--          {"Dynamic Link Info (#9FDDF8..#9FDFE7)",10477048,496},
+--          {"Symtab (#9FDFE8..#239F)",10477544,-10468424}}
+--      load_file(`C:\Program Files (x86)\Phix\p64`)
+--      load_file(`C:\Program Files (x86)\Phix\hwelf`)
+--      load_file(`E:\downloads\misc\arm\asm\hw`)
+        load_file(`E:\downloads\misc\arm\asm\p64`)
+--/*
+pete@Pete-PC:~$ objdump -x ./p64
 
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\vector\\sha512.dll")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurlx\\vector\\Hash DLLs\\SHA512.dll")
---      load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
---      load_file("C:\\Program Files (x86)\\Phix\\p46.exe")
---      load_file("C:\\Program Files (x86)\\Phix\\p64.exe")
---      load_file("C:\\Downloads\\StartGamedev-170112-win\\game.apk.unzipped\\lib\\armeabi\\libgnustl_shared.so")
---      load_file("C:\\Downloads\\StartGamedev-170112-win\\game.apk.unzipped\\lib\\armeabi\\liblove.so")
---      load_file("C:\\Downloads\\StartGamedev-170112-win\\game.apk.unzipped\\lib\\armeabi\\libmpg123.so")
---      load_file("C:\\Downloads\\StartGamedev-170112-win\\game.apk.unzipped\\lib\\armeabi\\libopenal.so")
-    --  load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
---      load_file("C:\\Program Files (x86)\\Phix\\e03") --**PERFECT**
---      load_file("C:\\Program Files (x86)\\Phix\\e06.dll")
---      load_file("C:\\Program Files (x86)\\Phix\\phix")
---      load_file("C:\\Program Files (x86)\\Phix\\p64")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\singen\\singen") -- hopeless
---      load_file("C:\\Program Files (x86)\\Phix\\pth")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libcurl\\coinsplus.exe")
---      load_file("C:\\Users\\Pete\\Documents\\crypt-2.2.5-bin\\bin\\crypt.dll")
-        load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\test\\DllMain\\dllmain_dll.dll")
+./p64:     file format elf64-x86-64
+./p64
+architecture: i386:x86-64, flags 0x00000102:
+EXEC_P, D_PAGED
+start address 0x000000000063a000
+
+Program Header:
+  INTERP off    0x0000000000000158 vaddr 0x0000000000400158 paddr 0x0000000000400158 align 2**12
+         filesz 0x0000000000000020 memsz 0x0000000000000020 flags r--
+ DYNAMIC off    0x0000000000000178 vaddr 0x0000000000400178 paddr 0x0000000000400178 align 2**12
+         filesz 0x00000000000000b0 memsz 0x00000000000000b0 flags r--
+    LOAD off    0x0000000000000228 vaddr 0x0000000000400228 paddr 0x0000000000400228 align 2**12
+         filesz 0x00000000000002d8 memsz 0x00000000000002d8 flags rw-
+    LOAD off    0x0000000000000500 vaddr 0x0000000000400500 paddr 0x0000000000400500 align 2**12
+         filesz 0x0000000000239b00 memsz 0x0000000000239b00 flags rw-
+    LOAD off    0x000000000023a000 vaddr 0x000000000063a000 paddr 0x000000000063a000 align 2**12
+         filesz 0x00000000001546b8 memsz 0x00000000001546b8 flags r-x
+
+Sections:
+Idx Name          Size      VMA               LMA               File off  Algn
+SYMBOL TABLE:
+no symbols
+
+pete@Pete-PC:~$ readelf -a --use-dynamic ./p64
+ELF Header:
+  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00
+  Class:                             ELF64
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           Advanced Micro Devices X86-64
+  Version:                           0x1
+  Entry point address:               0x63a000
+  Start of program headers:          64 (bytes into file)
+  Start of section headers:          0 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               64 (bytes)
+  Size of program headers:           56 (bytes)
+  Number of program headers:         5
+  Size of section headers:           64 (bytes)
+  Number of section headers:         0
+  Section header string table index: 0
+
+There are no sections in this file.
+
+There are no sections to group in this file.
+
+Program Headers:
+  Type           Offset             VirtAddr           PhysAddr
+                 FileSiz            MemSiz              Flags  Align
+  INTERP         0x0000000000000158 0x0000000000400158 0x0000000000400158
+                 0x0000000000000020 0x0000000000000020  R      0x1000
+      [Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]
+  DYNAMIC        0x0000000000000178 0x0000000000400178 0x0000000000400178
+                 0x00000000000000b0 0x00000000000000b0  R      0x1000
+  LOAD           0x0000000000000228 0x0000000000400228 0x0000000000400228
+                 0x00000000000002d8 0x00000000000002d8  RW     0x1000
+  LOAD           0x0000000000000500 0x0000000000400500 0x0000000000400500
+                 0x0000000000239b00 0x0000000000239b00  RW     0x1000
+  LOAD           0x000000000023a000 0x000000000063a000 0x000000000063a000
+                 0x00000000001546b8 0x00000000001546b8  R E    0x1000
+readelf: Error: Reading 3729080 bytes extends past end of file for dynamic string table
+3729080 = #38E6B8
+
+Dynamic section at offset 0x178 contains 11 entries:
+  Tag        Type                         Name/Value
+ 0x0000000000000001 (NEEDED)             0x1
+ 0x0000000000000001 (NEEDED)             0x3e
+ 0x0000000000000006 (SYMTAB)             0x400228
+ 0x000000000000000b (SYMENT)             16 (bytes)
+ 0x0000000000000004 (HASH)               0x400330
+ 0x0000000000000005 (STRTAB)             0x400368
+ 0x000000000000000a (STRSZ)              88 (bytes)
+ 0x0000000000000007 (RELA)               0x4003c0
+ 0x0000000000000008 (RELASZ)             240 (bytes)
+ 0x0000000000000009 (RELAENT)            24 (bytes)
+ 0x0000000000000000 (NULL)               0x0
+
+'RELA' relocation section at offset 0x4003c0 contains 240 bytes:
+  Offset          Info           Type           Sym. Value    Sym. Name + Addend
+0000004004b0  000100000001 R_X86_64_64       0000000000000000 <string table index:  11> + 0
+0000004004b8  000200000001 R_X86_64_64       0000000000000000 <string table index:  16> + 0
+0000004004c0  000300000001 R_X86_64_64       0000000000000000 <string table index:  23> + 0
+0000004004c8  000400000001 R_X86_64_64       0000000000000000 <string table index:  32> + 0
+0000004004d0  000500000001 R_X86_64_64       0000000000000000 <string table index:  39> + 0
+0000004004d8  000600000001 R_X86_64_64       0000000000000000 <string table index:  45> + 0
+0000004004e0  000700000001 R_X86_64_64       0000000000000000 <string table index:  50> + 0
+0000004004e8  000800000001 R_X86_64_64       0000000000000000 <string table index:  55> + 0
+0000004004f0  000900000001 R_X86_64_64       0000000000000000 <string table index:  73> + 0
+0000004004f8  000a00000001 R_X86_64_64       0000000000000000 <string table index:  80> + 0
+
+The decoding of unwind sections for machine type Advanced Micro Devices X86-64 is not currently supported.
+
+Dynamic symbol information is not available for displaying symbols.
+
+Histogram for bucket list length (total of 1 bucket):
+ Length  Number     % of total  Coverage
+      0  1          (100.0%)
+
+No version information found in this file.
+pete@Pete-PC:~$ ls -al
+-rwxrwxrwx 1 pete pete 3729080 Jan 25 19:48 p64
+pete@Pete-PC:~$
+--*/
+--      load_file(`E:\downloads\misc\arm\asm\hwp64nd`)
+--      load_file(`E:\downloads\misc\arm\asm\tiny-x64`)
+--      load_file(`E:\downloads\misc\arm\asm\tiny-elf64`)
+--      load_file(`C:\Program Files (x86)\p6\asm\fasmu\fasm-1.71.51\fasm-1.71.51\fasm\fasm`) -- 32 bit elf
+--      load_file(`C:\Program Files (x86)\p6\asm\fasm\fasm_amd64_linux64_samples\console\00\a00`) -- runs fine on debian...
+--      load_file(`C:\Program Files (x86)\p6\asm\fasm\fasm_amd64_linux64_samples\console\02\a00`) -- runs fine on debian...
+--      load_file(`C:\Program Files (x86)\p6\asm\fasm\fasm_amd64_linux64_samples\console\02\a01`) -- runs fine on debian...
+--/*
+C:\Program Files (x86)\Phix\demo\libxlsxwriter\mfasm  05/05/2017 16:39:14
+C:\Program Files (x86)\Phix\demo\libxlsxwriter\mfasm.zip 147.00 KB 02/05/2017 05:43:53
+C:\Program Files (x86)\Phix98\demo\PE_Stuff\fasm_amd64_linux64_samples.tar.gz 73.00 KB 29/06/2013 11:03:38
+C:\Users\Pete\Downloads\FASMARM_full.ZIP 681.00 KB 05/05/2017 18:12:29
+--*/
+--      load_file(`C:\Program Files (x86)\Phix\demo\misc\fdbg0011\fdbg`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\libcurl32.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\libcurl.32.SK.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\libcurl.64.SK-X.dll`) -- PE at #F8
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurl\libcurl.64.SK.dll`) -- PE at #E8
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\libcurl\examples\cygcurl-4.32.dll`) -- HMMM
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\libcurl.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\libcurl.32.vs.dll`)
+
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\vector\sha512.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurlx\vector\Hash DLLs\SHA512.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\e01.exe`)
+--      load_file(`C:\Program Files (x86)\Phix\p46.exe`)
+--      load_file(`C:\Program Files (x86)\Phix\p64.exe`)
+--      load_file(`C:\Downloads\StartGamedev-170112-win\game.apk.unzipped\lib\\armeabi\libgnustl_shared.so`)
+--      load_file(`C:\Downloads\StartGamedev-170112-win\game.apk.unzipped\lib\\armeabi\liblove.so`)
+--      load_file(`C:\Downloads\StartGamedev-170112-win\game.apk.unzipped\lib\\armeabi\libmpg123.so`)
+--      load_file(`C:\Downloads\StartGamedev-170112-win\game.apk.unzipped\lib\\armeabi\libopenal.so`)
+    --  load_file(`C:\Program Files (x86)\Phix\e02.exe`)
+--      load_file(`C:\Program Files (x86)\Phix\e03`) --**PERFECT**
+--      load_file(`C:\Program Files (x86)\Phix\e06.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\phix`)
+--      load_file(`C:\Program Files (x86)\Phix\p64`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\singen\singen`) -- hopeless
+--      load_file(`C:\Program Files (x86)\Phix\pth`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libcurl\coinsplus.exe`)
+--      load_file(`C:\Users\Pete\Documents\crypt-2.2.5-bin\bin\crypt.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\misc\test\DllMain\dllmain_dll.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\misc\Euraylib\raylib (5).dll`)
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\EXAMPLES\ARMELF\armelf`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\speak\speak.exe`)
+--      load_file(`C:\Program Files (x86)\Phix\speak2.exe`)
+--      load_file(`C:\Windows\SysWOW64\Speech\SpeechUX\sapi.cpl`)
+--      load_file(`C:\Windows\SysWOW64\Speech\Common\sapi.dll`)
+--      load_file(`C:\Windows\System32\Speech\Common\sapi.dll`)
+--      load_file(`E:\downloads\misc\arm\httpServer\httpServer.exe`)
 --      load_file(`C:\Program Files (x86)\Phix\demo\misc\test\Tiny14_v1.1.1_2018-12-04\Tiny14\tiny14`)
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\test\\DllMain\\dllmain_dll_with.dll")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\test\\DllMain\\dllmain_dll.wcx")
+--      load_file(`C:\Program Files (x86)\Phix\demo\misc\test\DllMain\dllmain_dll_with.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\misc\test\DllMain\dllmain_dll.wcx`)
 --      load_file("C:\\Users\\Pete\\Documents\\librhash_134\\librhash.dll")     -- upx-compressed...
 --      load_file("E:\\downloads\\hot\\misc\\llvmpy-0.12.7-cp27-none-win32\\llvm\\llrt\\llrt_x86.ll")
---      load_file("C:\\Program Files (x86)\\Phix\\pw.exe")
---      load_file("C:\\Program Files (x86)\\Phix\\m01")
---      load_file("C:\\Program Files (x86)\\Phix\\sfx\\test\\cat")
-    --  load_file("C:\\Program Files (x86)\\Phix\\sfx\\lua_5.0.2_arm")
-    --  load_file("C:\\Program Files (x86)\\Phix\\demo\\IDE\\IDE.exe")
-    --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\OPENGL\\Opengl\\wall.raw")
---      load_file("C:\\Program Files (x86)\\Phix\\asm\\win32app\\win32_small_apps\\sprites\\spriteDDT.exe")
---      load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\demo\\iup\\libiupgl.so")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\5\\cd-5.11_Linux32_64_lib.tar\\cd-5.11_Linux32_64_lib\\libcd.so")
---      load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share2\\data.edb")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\data.edb")
-    --  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\OPENGL\\OPENGL.EXE")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\mfasm\\EXAMPLES\\ARM\\TEST.BIN")
---      load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\euchipmunkphy\\chipmunk.dll")
+--      load_file(`C:\Program Files (x86)\Phix\pw.exe")
+--      load_file(`C:\Program Files (x86)\Phix\m01")
+--      load_file(`C:\Program Files (x86)\Phix\sfx\test\cat`)
+    --  load_file(`C:\Program Files (x86)\Phix\sfx\lua_5.0.2_arm`)
+    --  load_file(`C:\Program Files (x86)\Phix\demo\IDE\IDE.exe`)
+    --  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\OPENGL\Opengl\wall.raw`)
+--      load_file(`C:\Program Files (x86)\Phix\asm\win32app\win32_small_apps\sprites\spriteDDT.exe`)
+--      load_file(`C:\Users\Pete\Downloads\qman70\Share\demo\iup\libiupgl.so`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\pIUP\5\cd-5.11_Linux32_64_lib.tar\cd-5.11_Linux32_64_lib\libcd.so`)
+--      load_file(`C:\Users\Pete\Downloads\qman70\Share2\data.edb`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\data.edb`)
+    --  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\WIN64\OPENGL\OPENGL.EXE`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\mfasm\EXAMPLES\ARM\TEST.BIN`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\misc\euchipmunkphy\chipmunk.dll`)
     else
         load_file("/usr/lib/libiup.so")
     end if
@@ -10088,37 +10308,37 @@ main()
 --  cl = command_line()
 --  load_file(cl[1])
 -- pemit2: sections should be [.edata,].idata,.rsrc,.data,.text
---  load_file("C:\\Program Files (x86)\\Phix\\p.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\pw.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\ok.ico")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\DemoResources\\hand.bmp")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\arwendemo\\pgui\\Hopstarter-Sleek-Xp-Basic-Ok.ico")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\arwendemo\\pgui\\tick64.ico")
---  load_file("C:\\Program Files (x86)\\Phix\\ok2.ico")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t01typeX.exe")
+--  load_file(`C:\Program Files (x86)\Phix\p.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\pw.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\ok.ico`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\DemoResources\hand.bmp`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\arwendemo\pgui\Hopstarter-Sleek-Xp-Basic-Ok.ico`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\arwendemo\pgui\tick64.ico`)
+--  load_file(`C:\Program Files (x86)\Phix\ok2.ico`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t01typeX.exe`)
 -- add loadconfig to RVA blacklist... (not rqd)
---  load_file("C:\\Windows\\SYSWOW64\\kernel32.dll")                -- imports not recognised (who cares)
---  load_file("C:\\Windows\\system32\\kernel32.dll")                -- imports not recognised (who cares)
---  load_file("C:\\Windows\\System32\\accessibilitycpl.dll")        -- ugh. crashes on F9 (who cares)
---  load_file("C:\\Program Files (x86)\\EC Software\\HelpAndManual6\\HELPMAN.EXE")  -- bit too much (lots of unknown pairing, then very very very slow)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\of\\pedll.dll")
---  load_file("C:\\Program Files\\7-Zip\\7z.exe")                   -- seems fine (even with the import section being "backwards" and datasection virtualsize>rawdatasize...)
-                                                                    -- "" oops, broken by "h8" handling...
---  load_file("C:\\Program Files\\7-Zip\\7z.dll")                   -- *** LOTS OF DISSASSEMBLY PROBLEMS! (neither OllyDbg nor x86asm.net fare any better)
+--  load_file(`C:\Windows\SYSWOW64\kernel32.dll`)               -- imports not recognised (who cares)
+--  load_file(`C:\Windows\system32\kernel32.dll`)               -- imports not recognised (who cares)
+--  load_file(`C:\Windows\System32\accessibilitycpl.dll`)       -- ugh. crashes on F9 (who cares)
+--  load_file(`C:\Program Files (x86)\EC Software\HelpAndManual6\HELPMAN.EXE`)  -- bit too much (lots of unknown pairing, then very very very slow)
+--  load_file(`C:\Program Files (x86)\Phix\asm\of\pedll.dll`)
+--  load_file(`C:\Program Files\7-Zip\7z.exe`)          -- seems fine (even with the import section being "backwards" and datasection virtualsize>rawdatasize...)
+                                                            -- "" oops, broken by "h8" handling...
+--  load_file(`C:\Program Files\7-Zip\7z.dll`)          -- *** LOTS OF DISSASSEMBLY PROBLEMS! (neither OllyDbg nor x86asm.net fare any better)
 --DEV RVA: basereloc#=0/debug#=0,IAT#=0 -> No Code Sections [?]
 -- .text/.rdata/.data/.rsrc/.reloc -> No Code Sections [?]
---  load_file("C:\\Program Files (x86)\\Edita\\help\\xxhha.dll")    -- imports not recognised (who cares)       -- <some things that OllyDbg cannot decode either>
---  load_file("C:\\Program Files (x86)\\Phix98\\demo\\PE_Stuff\\elf\\test")     -- ARM (should really get F9 to work on this, and write a disassembler)
+--  load_file(`C:\Program Files (x86)\Edita\help\xxhha.dll`)    -- imports not recognised (who cares)       -- <some things that OllyDbg cannot decode either>
+--  load_file(`C:\Program Files (x86)\Phix98\demo\PE_Stuff\elf\test`)   -- ARM (should really get F9 to work on this, and write a disassembler)
 -- ("", see http://www2.onlinedisassembler.com/odaweb/vCs0Rd/0 )
 --  https://www.onlinedisassembler.com/odaweb/2ZhZD4Yl
 --  load_file("C:\\Program Files (x86)\\Phix98\\demo\\PE_Stuff\\elf\\minielf")  -- good [really good!]
 --DEV stop disassembly if enrypoint!=start of code...
 --  load_file("C:\\Users\\Pete\\Desktop\\atratus-v0.11\\bin\\robotfindskitten") -- (has interpreter section) [otherwise/hence good] [should not disassamble, really]
---  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\hello")               -- good [really good!]
---  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\hello64")             -- good [really good!] (nothing to test this on, though)
+--  load_file(`C:\Users\Pete\Downloads\qman70\Share\hello`)             -- good [really good!]
+--  load_file(`C:\Users\Pete\Downloads\qman70\Share\hello64`)           -- good [really good!] (nothing to test this on, though)
 --proper symtab etc... (why not others?) [**Needs strtab doing**] (or just drop a marker in data section...?) [DONE]
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\linux_dynamic\\main32") -- good (dlopen but seems over-complex) [*** by far the closest we've got ***]
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\linux_dynamic\\main64") -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\linux_dynamic\main32`) -- good (dlopen but seems over-complex) [*** by far the closest we've got ***]
+--  load_file(`C:\Program Files (x86)\Phix\asm\linux_dynamic\main64`) -- good
 --{{description,start,size}}
 --GraphR:{{"ELF Header (#0..#33)",0,52},
 --      {"Program Headers (#34..#B3)",52,128},
@@ -10142,49 +10362,49 @@ main()
 --        {".shstrtab (#758C..#75EB)",30092,96},
 --        {".symtab (#77F4..#78A3)",30708,176},
 --        {".strtab (#78A4..#78AF)",30884,12}}
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\linux_dynamic\\libmain.so")
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\linux_dynamic\\libmain64.so")
+--  load_file(`C:\Program Files (x86)\Phix\asm\linux_dynamic\libmain.so`)
+--  load_file(`C:\Program Files (x86)\Phix\asm\linux_dynamic\libmain64.so`)
 --missing symtab...
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\elf\\dyn64.bin") -- (soso)
+--  load_file(`C:\Program Files (x86)\Phix\asm\elf\dyn64.bin`) -- (soso)
 --not going well:
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\hello32.so") -- (soso)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\hellotest32")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\fdbg0025\\fdbg.exe")    -- got as far as fdbg
---  load_file("C:\\Program Files (x86)\\Phix\\test\\fdbg0025\\fasm.exe") -- (32 bit)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\PE64DEMO\\PE64DEMO.EXE") -- perfect!
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\hwc64.EXE") -- moving import above data triggers false positive
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\hello32.so`) -- (soso)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\hellotest32`)
+--  load_file(`C:\Program Files (x86)\Phix\test\fdbg0025\fdbg.exe`) -- got as far as fdbg
+--  load_file(`C:\Program Files (x86)\Phix\test\fdbg0025\fasm.exe`) -- (32 bit)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\WIN64\PE64DEMO\PE64DEMO.EXE`) -- perfect!
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\hwc64.EXE`) -- moving import above data triggers false positive
 --these need "de-macroing":
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\MANDEL\\MANDEL.EXE") -- good (even the sse2 instructions...) [d/m started, bit too much...]
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\OPENGL\\OPENGL.EXE") -- seems fine apart from some movd mm/xmm doubts
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\TEMPLATE\\TEMPLATE.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\TEMPLATE.EXE") -- perfect ("" de-macroed)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\templater.exe") -- "" (with resource section)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\templaterp.exe") -- ""         "" (de-macroed)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\divsd.exe") -- perfect
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\main.exe") -- perfect
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\libtest.dll") -- perfect (but no imports) [64 bit]
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\cbeer.exe") -- perfect
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\WIN64\\USECOM\\USECOM.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasmu\\fasm\\fasm.o") -- unsupported file type (relocatable) [DEV??]
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasmu\\fasm\\examples\\libcdemo\\libcdemo.o") -- unsupported file type (relocatable)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\WIN64\MANDEL\MANDEL.EXE`) -- good (even the sse2 instructions...) [d/m started, bit too much...]
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\WIN64\OPENGL\OPENGL.EXE`) -- seems fine apart from some movd mm/xmm doubts
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\WIN64\TEMPLATE\TEMPLATE.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\TEMPLATE.EXE`) -- perfect ("" de-macroed)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\templater.exe`) -- "" (with resource section)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\templaterp.exe`) -- ""      "" (de-macroed)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\divsd.exe`) -- perfect
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\main.exe`) -- perfect
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\libtest.dll`) -- perfect (but no imports) [64 bit]
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\cbeer.exe`) -- perfect
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\WIN64\USECOM\USECOM.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasmu\fasm\fasm.o`) -- unsupported file type (relocatable) [DEV??]
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasmu\fasm\examples\libcdemo\libcdemo.o`) -- unsupported file type (relocatable)
 --32bitpe:
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\BEER\\BEER.EXE") -- confused by single ".flat" section (who cares)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\DDRAW\\DDRAW.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\DIALOG\\DIALOG.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\DLL\\ERRORMSG.DLL") -- good, could suffer a de-macro
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\errormsg.dll") -- damn, looks like we need a relocations section...
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\DLL\\LASTERR.EXE") -- good, could suffer a de-macro [DONE, see next]
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\lasterr.exe") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\HELLO\\HELLO.EXE") -- good, could (definitely) suffer a de-macro
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\hello.exe") -- good (moving import section above data triggers false positive...)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\hello.exe") -- good (see?...)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\MINIPAD\\MINIPAD.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\OPENGL\\OPENGL.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\TEMPLATE\\TEMPLATE.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\USECOM\\USECOM.EXE") -- good
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\EXAMPLES\\PEDEMO\\PEDEMO.EXE") -- good, try getting rid of that relocations section? (done, see next)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\pedemo32.exe") -- perfect. HEY: changing "PE GUI" to "PE GUI 4.0" stopped the false positive!!
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\pedemo32.exe") -- false positive
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\BEER\BEER.EXE`) -- confused by single ".flat" section (who cares)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\DDRAW\DDRAW.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\DIALOG\DIALOG.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\DLL\ERRORMSG.DLL`) -- good, could suffer a de-macro
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\errormsg.dll`) -- damn, looks like we need a relocations section...
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\DLL\LASTERR.EXE`) -- good, could suffer a de-macro [DONE, see next]
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\lasterr.exe`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\HELLO\HELLO.EXE`) -- good, could (definitely) suffer a de-macro
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\hello.exe`) -- good (moving import section above data triggers false positive...)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\test\hello.exe`) -- good (see?...)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\MINIPAD\MINIPAD.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\OPENGL\OPENGL.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\TEMPLATE\TEMPLATE.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\USECOM\USECOM.EXE`) -- good
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\PEDEMO\PEDEMO.EXE`) -- good, try getting rid of that relocations section? (done, see next)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\pedemo32.exe`) -- perfect. HEY: changing "PE GUI" to "PE GUI 4.0" stopped the false positive!!
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\test\pedemo32.exe`) -- false positive
 --C:\Program Files (x86)\Phix\asm\fasm>fc pedemo32.exe test\pedemo32.exe
 --Comparing files pedemo32.exe and TEST\PEDEMO32.EXE
 --00000088: D6 FC   DateTimeStamp
@@ -10193,115 +10413,115 @@ main()
 --000000CA: 00 0A   MinorSubsystemVersion
 --000000D8: 63 92   CheckSum
 --000000D9: 33 34
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\test\\elf32.exe") --uh?
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\test\\elf64.exe") --uh?
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\bcx\\bc9Adp\\RadAsm\\Addins\\ProjectZip.dll") -- (no import section tab, who cares)
---  load_file("F:\\CFULL\\HDD (C)\\Program Files\\Phix\\euiup3.dll")
---  load_file("F:\\CFULL\\HDD (C)\\Downloads\\PFx86\\Edita\\gdiplus.dll")
+--  load_file(`C:\Program Files (x86)\Phix\asm\test\elf32.exe`) --uh?
+--  load_file(`C:\Program Files (x86)\Phix\asm\test\elf64.exe`) --uh?
+--  load_file(`C:\Program Files (x86)\Phix\demo\misc\bcx\bc9Adp\RadAsm\Addins\ProjectZip.dll`) -- (no import section tab, who cares)
+--  load_file(`F:\CFULL\HDD (C)\Program Files\Phix\euiup3.dll`)
+--  load_file(`F:\CFULL\HDD (C)\Downloads\PFx86\Edita\gdiplus.dll`)
 --DEV this seems a reasonable one to address the RVA/section overlap issue:
---  load_file("F:\\CFULL\\HDD (C)\\Downloads\\PFx86\\Phix\\demo\\file_lister\\euwingui\\EuWinGUI.dll")
---  load_file("F:\\CFULL\\HDD (C)\\Downloads\\PFx86\\Phix\\dll\\testd.dll")
---  load_file("F:\\CFULL\\HDD (C)\\Downloads\\PFx86\\Phix\\dll\\lb\\test.dll")
---  load_file("F:\\CFULL\\HDD (C)\\Downloads\\PFx86\\Phix\\dll\\lb\\test_diag_and_mb.dll")
---  load_file("F:\\CFULL\\HDD (C)\\Program Files\\7-Zip\\7-zip.dll")
---  load_file("F:\\CFULL\\HDD (C)\\Program Files\\7-Zip\\7z.dll")   -- good (spotted a (non-Phix!) jump table we accidentally dissassemble)
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\mandelbrot_opt\\iterate.dll")
+--  load_file(`F:\CFULL\HDD (C)\Downloads\PFx86\Phix\demo\file_lister\euwingui\EuWinGUI.dll`)
+--  load_file(`F:\CFULL\HDD (C)\Downloads\PFx86\Phix\dll\testd.dll`)
+--  load_file(`F:\CFULL\HDD (C)\Downloads\PFx86\Phix\dll\lb\test.dll`)
+--  load_file(`F:\CFULL\HDD (C)\Downloads\PFx86\Phix\dll\lb\test_diag_and_mb.dll`)
+--  load_file(`F:\CFULL\HDD (C)\Program Files\7-Zip\7-zip.dll`)
+--  load_file(`F:\CFULL\HDD (C)\Program Files\7-Zip\7z.dll`)    -- good (spotted a (non-Phix!) jump table we accidentally dissassemble)
+--  load_file(`C:\Program Files (x86)\Phix\demo\misc\mandelbrot_opt\iterate.dll`)
 --DEV get that file addr,virtual addr thing going for elf: [DONE, I think]
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\et\\elf32")  -- hello world 32bit
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\et\\elf64")  -- hello world 64bit
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\et\\pe32.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\et\\pe64.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\pe32.exe")   --(OLD?)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\pe64.exe")   --(OLD?)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\e01.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\ok64.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\misc\\Speech\\Speech.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\e02.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\arwenpcomdemo\\fileopen.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\eicar.com")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\Win32Demo\\boxes.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\b\\boxes.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\b\\boxes.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\p6.exe")
---  load_file("C:\\Program Files (x86)\\Phix6\\p.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\rosetta\\AtomicUrpdates.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\FP\\t02.exe")
---  load_file("C:\\Edita14\\bitmap_write.ppm")
---  load_file("C:\\Edita14\\rayv3\\ex.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\p7.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\p64.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\EuGTK_4.3.2\\EuGTK_Win_Aug10\\eugtkdem\\gtk2\\LIBGLIB-2.0-0.DLL")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\EuGTK_4.3.2\\EuGTK_Win_Aug10\\eugtkdem\\gtk2\\libgio-2.0-0.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euphoria-4.1.0-ARMv6-hardfloat\\bin\\eui")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euphoria-4.1.0-ARMv6-hardfloat\\bin\\echoversion")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euphoria-4.1.0-ARMv6-hardfloat\\bin\\eutest")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libcairo-2.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libfontconfig-1.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libfreetype-6.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libpng15-15.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\zlib1.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\eucairo\\libxml2-2.dll")
---  load_file("C:\\Windows\\SysWOW64\\ws2_32.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libiupcontrols.so")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libiup.so")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libiupcd.so")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\pIUP\\win14\\lnx32\\libcd.so")
+--  load_file(`C:\Program Files (x86)\Phix\asm\et\elf32`)   -- hello world 32bit
+--  load_file(`C:\Program Files (x86)\Phix\asm\et\elf64`)   -- hello world 64bit
+--  load_file(`C:\Program Files (x86)\Phix\asm\et\pe32.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\asm\et\pe64.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\test\pe32.exe`) --(OLD?)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\test\pe64.exe`) --(OLD?)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\test\e01.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\e01.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\ok64.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\misc\Speech\Speech.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\e02.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\arwenpcomdemo\fileopen.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\eicar.com`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\Win32Demo\boxes.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\b\boxes.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\b\boxes.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\p6.exe`)
+--  load_file(`C:\Program Files (x86)\Phix6\p.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\rosetta\AtomicUrpdates.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\test\FP\t02.exe`)
+--  load_file(`C:\Edita14\bitmap_write.ppm`)
+--  load_file(`C:\Edita14\rayv3\ex.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\p7.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\p64.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\EuGTK_4.3.2\EuGTK_Win_Aug10\eugtkdem\gtk2\LIBGLIB-2.0-0.DLL`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\EuGTK_4.3.2\EuGTK_Win_Aug10\eugtkdem\gtk2\libgio-2.0-0.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\euphoria-4.1.0-ARMv6-hardfloat\bin\eui`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\euphoria-4.1.0-ARMv6-hardfloat\bin\echoversion`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\euphoria-4.1.0-ARMv6-hardfloat\bin\eutest`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\eucairo\libcairo-2.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\eucairo\libfontconfig-1.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\eucairo\libfreetype-6.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\eucairo\libpng15-15.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\eucairo\zlib1.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\eucairo\libxml2-2.dll`)
+--  load_file(`C:\Windows\SysWOW64\ws2_32.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\pIUP\win14\lnx32\libiupcontrols.so`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\pIUP\win14\lnx32\libiup.so`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\pIUP\win14\lnx32\libiupcd.so`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\pIUP\win14\lnx32\libcd.so`)
 --libcairo-2.dll libfontconfig-1.dll libfreetype-6.dll libpng12.dll zlib1.dll libxml2-2.dll
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euiup\\iup.dll")
---  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\phix\\sfx\\ledc")
---  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\phix\\sfx\\win32\\test.exe")
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\euiup\iup.dll`)
+--  load_file(`C:\Users\Pete\Downloads\qman70\Share\phix\sfx\ledc`)
+--  load_file(`C:\Users\Pete\Downloads\qman70\Share\phix\sfx\win32\test.exe`)
 
---  load_file("C:\\Program Files (x86)\\Phix\\e06.dll")
---  load_file("C:\\Program Files (x86)\\Phix\\e06.so")
---  load_file("C:\\Program Files (x86)\\Phix\\pth.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\e01.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\e03.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\e09.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t00.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t01type.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t02parms.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t04unary.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t18equal.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\test\\e01z.exe")
---  load_file("C:\\euphoria\\e01.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\e01")
---  load_file("C:\\Program Files (x86)\\Phix\\e07.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\eui-unpacked.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t60.exe")
---  load_file("C:\\Users\\Pete\\Downloads\\ollydbg\\p.udd")
---  load_file("C:\\Users\\Pete\\Downloads\\ollydbg110\\e01.udd")
---  load_file("C:\\Users\\Pete\\Downloads\\ollydbg110\\pw.udd")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\tee\\simple_notepad.exe")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\sudoku.exe")
---  load_file("C:\\Users\\Pete\\Documents\\a00.exe")    -- win64 exceptions
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\a00.exe")  -- win64 exceptions
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\l00")
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\e00")  -- lnx exceptions
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\brainkrieg.exe")
+--  load_file(`C:\Program Files (x86)\Phix\e06.dll`)
+--  load_file(`C:\Program Files (x86)\Phix\e06.so`)
+--  load_file(`C:\Program Files (x86)\Phix\pth.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\e01.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\e03.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\e09.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t00.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t01type.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t02parms.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t04unary.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t18equal.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\test\e01z.exe`)
+--  load_file(`C:\euphoria\e01.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\e01`)
+--  load_file(`C:\Program Files (x86)\Phix\e07.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\eui-unpacked.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t60.exe`)
+--  load_file(`C:\Users\Pete\Downloads\ollydbg\p.udd`)
+--  load_file(`C:\Users\Pete\Downloads\ollydbg110\e01.udd`)
+--  load_file(`C:\Users\Pete\Downloads\ollydbg110\pw.udd`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\tee\simple_notepad.exe`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\sudoku.exe`)
+--  load_file(`C:\Users\Pete\Documents\a00.exe`)    -- win64 exceptions
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\a00.exe`)   -- win64 exceptions
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\l00`)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\e00`)   -- lnx exceptions
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\brainkrieg.exe`)
 --big holes in GraphR:
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\skeleton.bin")
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\fasm_amd64_linux64_samples\\include\\fdbg")
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\skeleton.bin`)
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\fasm_amd64_linux64_samples\include\fdbg`)
 --DEV at least binary dump the missing bits!
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\elf\\elf32gtk.bin")
+--  load_file(`C:\Program Files (x86)\Phix\asm\elf\elf32gtk.bin`)
 --this one actually works: (but dump is awful)
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\elf\\gtk32.bin")
+--  load_file(`C:\Program Files (x86)\Phix\asm\elf\gtk32.bin`)
 
---  load_file("C:\\Program Files (x86)\\Phix\\asm\\fasm\\dynelfexe\\test")  -- ** PERFECT!! ** [now with 2 libs!!]
---  load_file("C:\\Program Files (x86)\\Phix\\e03") --**PERFECT**
---  load_file("C:\\Program Files (x86)\\Phix\\e01")
---  load_file("C:\\Program Files (x86)\\Phix\\pth")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t01type")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t38bltns")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t39rndio")
---  load_file("C:\\Program Files (x86)\\Phix\\test\\t40rtnid")
---  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\libdl-2.19.so")
---  load_file("C:\\Users\\Pete\\Downloads\\qman70\\Share\\libc-2.19.so")
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\SHA\\SHA.DLL")
+--  load_file(`C:\Program Files (x86)\Phix\asm\fasm\dynelfexe\test`)    -- ** PERFECT!! ** [now with 2 libs!!]
+--  load_file(`C:\Program Files (x86)\Phix\e03`) --**PERFECT**
+--  load_file(`C:\Program Files (x86)\Phix\e01`)
+--  load_file(`C:\Program Files (x86)\Phix\pth`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t01type`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t38bltns`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t39rndio`)
+--  load_file(`C:\Program Files (x86)\Phix\test\t40rtnid`)
+--  load_file(`C:\Users\Pete\Downloads\qman70\Share\libdl-2.19.so`)
+--  load_file(`C:\Users\Pete\Downloads\qman70\Share\libc-2.19.so`)
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\SHA\SHA.DLL`)
 --DEV much more work required: (any relocation to part of distro) [also need a 32 bit version]
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euglfw3_2\\EuGLFW3\\Bin\\libglfw.so.3.1")
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\euglfw3_2\EuGLFW3\Bin\libglfw.so.3.1`)
 --DEV much more work required: (any relocation to part of distro) [also need a 64 bit version]
---  load_file("C:\\Program Files (x86)\\Phix\\demo\\libxlsxwriter\\euglfw3_2\\EuGLFW3\\Bin\\glfw3.dll")
+--  load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\euglfw3_2\EuGLFW3\Bin\glfw3.dll`)
 --  WinMain(Main,SW_NORMAL)
 --end procedure
 --main()

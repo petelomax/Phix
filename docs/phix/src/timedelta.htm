@@ -36,35 +36,10 @@
             <br>
             <br>
             The parameters are expected to be <a href="procedures.htm#namedparams">named</a>: while 7 hours and 30 minutes 
-            <i>could</i> legally be defined using <code>timedelta(0,0,7,30)</code>,
+            <i>could</i> legally be defined using <code>timedelta(0,0,7,30[,0,0,0])</code>,
             it is recommended that the far more readable 
             <code>timedelta(hours:=7, minutes:=30)</code> or 
             <code>timedelta(hours:=7.5)</code> be used instead.
-            <br>
-            <br>
-            The parameters are all defined as atoms to allow huge and/or fractional values to be passed.
-            <br>
-            <br>
-            1,000 milliseconds equal 1 second and 1,000 microseconds equal 1 millisecond (and 1,000,000 microseconds equal 1 second)
-            - probably only useful in delta*bignumber cases.
-            <br>
-            <br>
-            Fairly obviously, I should hope, invoking <code>timedelta(seconds:=s)</code> is a rather pointless exercise, as is the
-            perfectly legal but otherwise completely useless <code>timedelta()</code>, as they simply return s unaltered or 0 respectively.
-            <br>
-            <br>
-            timedeltas have no notion of and will account for neither leap years nor leap seconds; an application programmer wishing 
-            to alter dates by more than 4 weeks is advised to take care of any whole months/years separately and manually, perhaps 
-            with a loop to adjust month by 12 and year by 1 until month is between 1 and 12, probably requiring standard/leap fiddles
-            for days near the end of the month, but days and below via a timedelta, and anything like first or last Thursday of the 
-            month should probably not be using this routine at all.
-            <br>
-            <br>
-            timedeltas have no notion of and will account for neither general relativity nor worm holes; passengers travelling near 
-            the speed of light or passing through time portals should avoid attempting to apply timedeltas to incompatible timeframes.
-            For example, if you leave on Friday and arrive last Monday, by Tuesday the time of your departure has not become Saturday,
-            however if last Thursday you jump back to next Sunday then you are two days older than everyone else, despite never having
-            experienced Saturday, which should by rights make you one day younger.
          </td>
         </tr>
         <tr>
@@ -79,6 +54,8 @@ timedate td = parse_date_string("1/8/2016",{"D/M/YYYY"})
 ?format_timedate(td,"Dddd, Mmmm dth, yyyy")                 -- displays "Monday, August 1st, 2016"
 td = adjust_timedate(td,fourdays)
 ?format_timedate(td,"Dddd, Mmmm dth, yyyy")                 -- displays "Friday, August 5th, 2016"
+td = adjust_timedate(td,-fourdays)
+?format_timedate(td,"Dddd, Mmmm dth, yyyy")                 -- displays "Monday, August 1st, 2016"
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\timedate.e
@@ -86,7 +63,9 @@ td = adjust_timedate(td,fourdays)
 </font><font color="#004080">timedate</font><font color="#000000"> td</font><font color="#0000FF"> =</font><font color="#5E005E"> parse_date_string</font><font color="#0000FF">(</font><font color="#008000">"1/8/2016"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"D/M/YYYY"</font><font color="#800000">}</font><font color="#0000FF">)
 ?</font><font color="#5E005E">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dth, yyyy"</font><font color="#0000FF">)                </font><font color="#000080"><i> -- displays "Monday, August 1st, 2016"
 </i></font><font color="#000000">td</font><font color="#0000FF"> =</font><font color="#5E005E"> adjust_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#000000">fourdays</font><font color="#0000FF">)
-?</font><font color="#5E005E">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dth, yyyy"</font><font color="#0000FF">)                </font><font color="#000080"><i> -- displays "Friday, August 5th, 2016"</i></font>
+?</font><font color="#5E005E">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dth, yyyy"</font><font color="#0000FF">)                </font><font color="#000080"><i> -- displays "Friday, August 5th, 2016"
+</i></font><font color="#000000">td</font><font color="#0000FF"> =</font><font color="#5E005E"> adjust_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,-</font><font color="#000000">fourdays</font><font color="#0000FF">)
+?</font><font color="#5E005E">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dth, yyyy"</font><font color="#0000FF">)                </font><font color="#000080"><i> -- displays "Monday, August 1st, 2016"</i></font>
 </pre>
          </td>
         </tr>
@@ -111,6 +90,40 @@ td = adjust_timedate(td,fourdays)
          <td>
             I considered adding a years parameter, but there would be no way to know whether it should be multiplied by 365, 366, 365.25, or something else, 
             and besides, it is perfectly simple to get timedelta(days:=365) [or whatever] directly and play with that.
+            <br>
+            <br>
+            The parameters are all defined as atoms to allow huge and/or fractional values to be passed.
+            <br>
+            <br>
+            1,000 milliseconds equal 1 second and 1,000 microseconds equal 1 millisecond (and 1,000,000 microseconds equal 1 second)
+            - probably only useful in delta*bignumber cases.
+            <br>
+            <br>
+            Using seconds to express timedeltas, as opposed to separate years/days/etc, imposes some minor accuracy limitations:<br>
+            timedeltas up to one year should be accurate to within one microsecond (10<small><sup>-6</sup>s</small>) or better,<br>
+            timedeltas up to one thousand years should be accurate to within one millisecond (10<small><sup>-3</sup>s</small>) or better,<br>
+            timedeltas up to one million years should be accurate to within one second or better.<br>
+            timedeltas up to one billion years should be accurate to within 15 minutes or better.<br>
+            timedeltas up to the age of the universe should be accurate to within 4 hours or better.<br>
+            Obviously that can almost certainly be completely ignored, for each and every possible practical purpose.
+            <br>
+            <br>
+            Fairly obviously, I should hope, invoking <code>timedelta(seconds:=s)</code> is a rather pointless exercise, as is the
+            perfectly legal but otherwise completely useless <code>timedelta()</code>, as they simply return s unaltered or 0 respectively.
+            <br>
+            <br>
+            timedeltas have no notion of and will account for neither leap years nor leap seconds; an application programmer wishing 
+            to alter dates by more than 4 weeks is advised to take care of any whole months/years separately and manually, perhaps 
+            with a loop to adjust month by 12 and year by 1 until month is between 1 and 12, probably requiring standard/leap fiddles
+            for days near the end of the month, but days and below via a timedelta, and anything like first or last Thursday of the 
+            month should probably not be using this routine at all.
+            <br>
+            <br>
+            timedeltas have no notion of and will account for neither general relativity nor worm holes; passengers travelling near 
+            the speed of light or passing through time portals should avoid attempting to apply timedeltas to incompatible timeframes.
+            For example, if you leave on Friday and arrive last Monday, by Tuesday the time of your departure has not become Saturday,
+            however if last Thursday you jump back to next Sunday then you are two days older than everyone else, despite never having
+            experienced Saturday, which should by rights make you one day younger.
          </td>
         </tr>
        </table>

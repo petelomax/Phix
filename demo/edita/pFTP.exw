@@ -559,7 +559,7 @@ sequence title,msg
         eeI = {}
     end if
     msg &= sprintf("\n\nPlease quote error code %d [%d] when\n",{net_errno,id})&
-           "reporting problems, output from Tools\\Diag may also help."
+                   `reporting problems, output from Tools\Diag may also help.`
 
     void = messageBox(title,msg,0)
     void = InternetClose(hSession)
@@ -945,7 +945,7 @@ integer k
     -- check for and remove any \.. in filepath
     --
     while 1 do
-        k=match("\\..",name)
+        k=match(`\..`,name)
         if k=0 then exit end if
         if find('\\',name)=k then   -- avoid infinite loop
             -- should never happen
@@ -1166,8 +1166,8 @@ end procedure
 
 function delete_local_file(sequence file)
 atom eCode
---DEV isn't lpath already \\ terminated??
-    setText(STATUS,sprintf("Deleting local file %s\\%s",{lpath,file}))
+--DEV isn't lpath already \ terminated??
+    setText(STATUS,sprintf(`Deleting local file %s\%s`,{lpath,file}))
     if not c_func(xDeleteFile,{allocate_StringZ(lpath&'\\'&file)}) then
         eCode = c_func(xGetLastError,{})
         void = messageBox("Error deleting",
@@ -1265,7 +1265,7 @@ sequence oldrpath
 end function
 
 
-procedure delete(integer id)
+procedure delete_files(integer id)
 -- id should be CDOK else do nothing.
 -- (in truth, id is only passed to keep mainHandler tidy)
 sequence s
@@ -1287,7 +1287,7 @@ sequence file
                 --DataL[idx..idx]={}
                 void = sendMessage(LVL,LVM_DELETEITEM,idx-1,0)
             end for
---          loadDir(0,lpath,0)  -- always refresh after delete
+--          loadDir(0,lpath,0)  -- always refresh after delete_files
         else
             if not beginSession() then return end if
 
@@ -1309,7 +1309,7 @@ sequence file
 
             void = InternetClose(hSession)
 
---          loadDir(1,rpath,"") -- always refresh after delete
+--          loadDir(1,rpath,"") -- always refresh after delete_files
         end if
     end if
 end procedure
@@ -1737,7 +1737,7 @@ integer i,ch
     file = data[s[1]][D_Name]
     if remote then
         savelpath=lpath
-        lpath=sprintf("%s\\FTP\\%s\\%s\\",{current_dir(),ServerId,rpath})
+        lpath=sprintf(`%s\FTP\%s\%s\`,{current_dir(),ServerId,rpath})
         i=1
         while i<=length(lpath) do
             ch=lpath[i]
@@ -1861,7 +1861,7 @@ sequence msgtitle
         msgtitle = "ReUpload failure"
     end if
     filepath=upper(filepath)
-    x=current_dir()&"\\FTP\\"
+    x=current_dir()&`\FTP\`
     if match(upper(x),filepath)!=1 then
         void=messageBox(msgtitle,
                         "match("&x&","&filepath&")!=1",0)
@@ -1907,7 +1907,7 @@ sequence msgtitle
     if getremotefilename then
         if match("ftp.",ServerName)!=1 then
             void=messageBox(msgtitle,
-                            "ServerName does not begin \"ftp.\".",0)
+                            `ServerName does not begin "ftp.".`,0)
             return
         end if
         --DEV this is possibly specific to my ISP:
@@ -1945,7 +1945,7 @@ sequence savelpath, saverpath
 
 --trace(1)
     filepath=upper(filepath)    -- probably is already...
-    x=current_dir()&"\\FTP\\"
+    x=current_dir()&`\FTP\`
     if match(upper(x),filepath)!=1 then
         void=messageBox("ReDownload failure",
                         "match("&x&","&filepath&")!=1",0)
@@ -2020,7 +2020,7 @@ sequence fname
             elsif wParam = VK_ESCAPE then   closeWindow(Main)
             end if
         elsif find(id,CDids) then
-            if wParam = VK_RETURN then      delete(id)          -- (does nowt if id!=CDOK)
+            if wParam = VK_RETURN then      delete_files(id)    -- (does nowt if id!=CDOK)
             elsif wParam = VK_ESCAPE then   closeWindow(CD)
             end if
         elsif find(id,RNids) then
@@ -2055,7 +2055,7 @@ sequence fname
         elsif id = RNcncl then                          closeWindow(RN)
         elsif id = M_Ccd then                           openRN(id,CREATEDIR)    -- Create directory
         elsif id = M_Cdel then                          confirmdelete(id)
-        elsif id = CDOK then                            delete(id)
+        elsif id = CDOK then                            delete_files(id)
         elsif id = CDcncl then                          closeWindow(CD)
         elsif id = M_Chg then
             if M_Context = REMOTE then                  openFlags()             -- Change attributes

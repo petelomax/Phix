@@ -421,7 +421,7 @@ integer newcolour, k, l
                         if l then
                             ColourTab[sectionNo] = newcolour
                         else
-                        fatal("unrecognised section/colour/attribute \""&word&"\"")
+                        fatal(`unrecognised section/colour/attribute "`&word&`"`)
                         return
                         end if
                     end if
@@ -486,7 +486,7 @@ integer TokenType
     fullname = initialcurrentdir&"syn\\"&name&".syn"
     f = open(fullname,"rb")
     if f=-1 then
-        fatal("cannot open file \""&fullname&"\"")
+        fatal(`cannot open file "`&fullname&`"`)
         if newSyntax!=1 then return end if
         setMAXnColours()
         defaultColourTab()
@@ -751,7 +751,7 @@ integer lh, f2, k, b1, b2
     fullname = initialcurrentdir&"help\\"&name
     f = open(fullname,"rb") -- closed by caller (if f!=-1).
     if f=-1 then
-        fatal("cannot open file \""&fullname&"\"")
+        fatal(`cannot open file "`&fullname&`"`)
     else
         ch = getc(f)
         -- (Note that Expect always returns true when newSyntax=1)

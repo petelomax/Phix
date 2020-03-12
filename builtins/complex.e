@@ -1,16 +1,19 @@
 --
 -- builtins\complex.e
 --
---  Simple complex number handling.     --DEV not documented
+--  Simple complex number handling.
 --
 -- Note: some uses on http://rosettacode.org/wiki/Arithmetic/Complex suggest that
 --       norm==magnitude (aka abs), whereas complex_norm() is abs^2 in this lib.
 --
-global constant I = {0,1}   -- i
+--namespace complex
+
+--global constant i = {0,1} -- i
 
 constant REAL = 1,
          IMAG = 2
 
+--DEV forward types needed before this can be made an autoinclude...
 global type complex(object c)
     bool res = sequence(c) and length(c)=2 and atom(c[REAL]) and atom(c[IMAG])
     return res
@@ -26,7 +29,8 @@ end type
 --  [1]: complex_real, complex_imag, complex_norm, complex_abs, complex_arg
 --       complex_theta (~=complex_arg), and complex_rho (==complex_abs).
 --
-global type complexn(object c)
+--global 
+type complexn(object c)
     bool res = atom(c) or complex(c)
     return res
 end type

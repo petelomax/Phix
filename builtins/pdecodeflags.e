@@ -50,8 +50,11 @@ string res = ""
         else
             fset = and_bits(v,flag)
 --          if fset=flag then                   -- (oops, sign issues with eg #80000000)
-            if fset=and_bits(flag,flag) then
-                v -= flag
+--1/10/19:
+--          if fset=and_bits(flag,flag) then
+--              v -= flag
+            if fset!=0 then
+                v -= fset
                 if length(res)!=0
                 and length(sep)!=0
                 and length(desc)>=1 
@@ -63,7 +66,8 @@ string res = ""
         end if
     end for
     if v!=0 then
-        res = sprintf("0x%x+",v)&res
+        if sep="" then sep = "+" end if
+        res = sprintf("0x%x%s%s",{v,sep,res})
     end if
     return res
 end function

@@ -2109,7 +2109,7 @@ integer revision
             if not find(filename,{"ex.err","list.asm","ildump.txt"}) then
 --DEV somewhere else...
 -- 1) once per session scans
-                backdir = filepaths[c]&"backup\\"
+                backdir = filepaths[c]&`backup\`
 --              k = find(backdir,backdirs)
                 k = find(backdir,filepaths[c])
                 if k=0 then
@@ -2188,7 +2188,7 @@ integer revision
                     revision = 1
                 end if
                 backrev[k] = revision
---              backname = sprintf("backup\\%s.%04d.%s",{filebase(filename),revision,fileext(filename)})
+--              backname = sprintf(`backup\%s.%04d.%s`,{filebase(filename),revision,fileext(filename)})
                 backname = join_path({"backup",sprintf("%s.%04d.%s",{filebase(filename),revision,fileext(filename)})})
                 string src = filepaths[c]&filenames[c]
                 if not file_exists(src)
@@ -2322,9 +2322,9 @@ if c!=currfile then ?9/0 end if
                         IupSetAttribute(sbmsg,"TITLE","")
 --DEV usegpp (kill LowerCase, not that using it here should matter)
 --DEV Bugfix 3/6/7: There may be many similar cases...
-                    elsif k=2 and equal(filepaths[c],initialcurrentdir&"help\\") then
+                    elsif k=2 and equal(filepaths[c],initialcurrentdir&`help\`) then
 --                  elsif k=2 and equal(lower(filepaths[c]),
---                                      lower(initialcurrentdir&"help\\")) then
+--                                      lower(initialcurrentdir&`help\`)) then
 --                      setText(SB6(->sbmsg),"Reloading Help Control Files")
                         IupSetAttribute(sbmsg,"TITLE","Reloading Help Control Files")
                         initHlp()
@@ -3309,12 +3309,12 @@ integer ch, dotfound, isnumber, validhex, lch
 end procedure
 
 function cmap(integer n)
-    if n='\t' then return "\\t" end if
-    if n='\n' then return "\\n" end if
-    if n='\r' then return "\\r" end if
-    if n='\"' then return "\\\"" end if
-    if n='\'' then return "\\\'" end if
-    if n='\\' then return "\\\\" end if
+    if n='\t' then return `\t` end if
+    if n='\n' then return `\n` end if
+    if n='\r' then return `\r` end if
+    if n='\"' then return `\"` end if
+    if n='\'' then return `\'` end if
+    if n='\\' then return `\\` end if
 --  setText(SB6,sprintf("invalid character:%d",n))
     IupSetStrAttribute(sbmsg,"TITLE","invalid character:%c(#%02x)",{n,n})
     return ""   
@@ -3475,7 +3475,7 @@ atom n
                             ch = d[i]
                             if leadin then
                                 leadin = 0
-                                if not find(ch,"\"\'\\") then
+                                if not find(ch,`"'\`) then
                                     if ch='t' then
                                         ch = '\t'
                                     elsif ch='n' then
@@ -3507,7 +3507,7 @@ atom n
                             c &= '}'
                         end if
                     elsif ch='{' and k='}' then
-                        c = "\"" --{'"'}
+                        c = `"`
                         skip = 0
                         for i=2 to ld-1 do
                             if skip then
@@ -3517,7 +3517,7 @@ atom n
                                 if ch>='0' and ch<='9' then
                                     n = n*10+ch-'0'
                                 elsif ch=',' then
-                                    if n<' ' or n>255 or find(n,"\"\'\\") then
+                                    if n<' ' or n>255 or find(n,`"'\`) then
                                         hexchar = cmap(n)
                                         if length(hexchar)=0 then return end if
                                         c &= hexchar
@@ -3538,7 +3538,7 @@ atom n
                                 end if
                             end if
                         end for
-                        if n<' ' or n>255 or find(n,"\"\'\\") then
+                        if n<' ' or n>255 or find(n,`"'\`) then
                             hexchar = cmap(n)
                             if length(hexchar)=0 then return end if
                             c &= hexchar
@@ -3607,7 +3607,8 @@ integer c,      -- a character
                     strings[i][j] = c-32
                 end if
             elsif method = CAPITALISE then
-                if find(pc," \"/") then
+--              if find(pc," \"/") then
+                if find(pc,` "/`) then
                     if c>='a' and c<='z' then
                         strings[i][j] = c-32
                     end if
@@ -4437,7 +4438,7 @@ function map_cb(Ihandle ih)
 --  cdCanvasFont(cddbuffer, fontname, fontstyle, fontsize)
     {charwidth,charheight} = cdCanvasGetTextSize(cddbuffer,"I")
 --?{charwidth,charheight}
-    cdCanvasLineWidth(cddbuffer, 2) 
+    cdCanvasSetLineWidth(cddbuffer, 2) 
     return IUP_DEFAULT
 end function
 
@@ -4503,7 +4504,7 @@ Ihandle tab = IupHbox({IupFill()})
             path = get_proper_dir(".")
         end if
     end if
-    if find(path[$],"\\/")=0 then ?9/0 end if
+    if find(path[$],`\/`)=0 then ?9/0 end if
     filepaths = append(filepaths,path)
     filetext = append(filetext,text)
     unicodefile = append(unicodefile,encoding)
@@ -4708,11 +4709,11 @@ end function
 --pp(newGetSaveFileName(NULL))
 --pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{1,"txt"}))
 --pp(newGetSaveFileName(NULL,{{"Text Documents (*.txt)","*.txt"},{"All Documents (*.*)","*.*"}},{2,NULL}))
---pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",2))
---pp(newGetSaveFileName(NULL,NULL,NULL,"C:\\Windows",0))
+--pp(newGetSaveFileName(NULL,NULL,NULL,`C:\Windows`,2))
+--pp(newGetSaveFileName(NULL,NULL,NULL,`C:\Windows`,0))
 --trace(1)
---  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo",0)
---  res = newGetSaveFileName(NULL,NULL,NULL,"C:\\Program Files (x86)\\Phix\\demo\\win32dibademo")
+--  res = newGetSaveFileName(NULL,NULL,NULL,`C:\Program Files (x86)\Phix\demo\win32dibademo`,0)
+--  res = newGetSaveFileName(NULL,NULL,NULL,`C:\Program Files (x86)\Phix\demo\win32dibademo`)
         pp(res)
         {} = wait_key()
 --*/
@@ -4722,10 +4723,10 @@ end function
 --18/11/17:
 --      IupSetAttributePtr(filedlg, "PARENTDIALOG", dlg)
         IupSetAttributeHandle(filedlg, "PARENTDIALOG", dlg)
---      IupSetAttributes(filedlg, "DIALOGTYPE = SAVE, TITLE = \"File Save\"")
+--      IupSetAttributes(filedlg, `DIALOGTYPE = SAVE, TITLE = "File Save"`)
         IupSetAttribute(filedlg, "TITLE", "Open")
---      IupSetAttributes(filedlg, "FILTER = \" .bmp\", FILTERINFO = \"Bitmap Files\"")
---      IupSetAttributes(filedlg, "FILTER = \"*.bmp\", FILTERINFO = \"Bitmap Files\"")
+--      IupSetAttributes(filedlg, `FILTER = " .bmp", FILTERINFO = "Bitmap Files"`)
+--      IupSetAttributes(filedlg, `FILTER = "*.bmp", FILTERINFO = "Bitmap Files"`)
         IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
         IupSetInt(filedlg, "FILTERUSED", 2)
 
@@ -6279,7 +6280,7 @@ procedure F1key(integer ctrl)
 --?"F1!"
 --      openChm("phix.chm",0)
 --DEV get path dynamically, word under the cursor... and esc to close
---      openChm("C:\\Program Files (x86)\\Phix\\docs\\phix\\phix.chm","")
+--      openChm(`C:\Program Files (x86)\Phix\docs\phix\phix.chm`,"")
     if ctrl then
         keybd:keyboard_dialog()
     else
@@ -6323,7 +6324,7 @@ constant cb_help = Icallback("help_cb")
 function create_help_menu()
 --trace(3)
 --?helpfiles
---{"..\\..\\docs\\phix\\phix.chm","help\\mini.chm"}
+--{`..\..\docs\phix\phix.chm`,`help\mini.chm`}
 Ihandle help_context    = menu_item("&Context Help\tF1",    "PNG_Help",         cb_help,  1, H_F1)
 --Ihandle help_phix     = menu_item("Phix.chm",             "PNG_HelpPhixCHM",  cb_help,  1, 0)
 --Ihandle help_msdn     = menu_item("mini.chm",             "PNG_HelpCHM",      cb_help,  1, 0)
@@ -6967,13 +6968,13 @@ integer startx
                                                 exit
                                             end if
                                             if find('#',oneline)>2 then
-                                                if k=1 and not find(oneline[2],":/\\") then
+                                                if k=1 and not find(oneline[2],`:/\`) then
                                                     oneline = "file://localhost/"&filepaths[currfile]&oneline
                                                 end if
                                                 fn = open("redirect.htm","w")
-                                                puts(fn,"<html><head><meta http-equiv=refresh content=\"0;url=")
+                                                puts(fn,`<html><head><meta http-equiv=refresh content="0;url=`)
                                                 puts(fn,oneline)
-                                                puts(fn,"\"></head></html>")
+                                                puts(fn,`"></head></html>`)
                                                 close(fn)
                                                 oneline = "redirect.htm"
                                             end if
@@ -8490,7 +8491,7 @@ procedure main()
 --  IupSetStrAttribute(dlg, "ICON", "icons/95.ico")
     IupSetStrAttribute(dlg, "ICON", "icons/96.ico")
     -- (above might not be supported by GDK-PixBuf ... in which case:)
---  IupSetStrAttribute(dlg, "ICON", iff(platform()=WINDOWS?"icons\\95.ico":"icons/95.png"))
+--  IupSetStrAttribute(dlg, "ICON", iff(platform()=WINDOWS?`icons\95.ico`:"icons/95.png"))
     -- (for some reason, despite the fact they are both 32x32bit identical/lossless images,
     --  windows does a far better job resizing the .ico to 16x16 than it does with .png)
 

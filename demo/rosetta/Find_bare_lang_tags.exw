@@ -1,0 +1,292 @@
+--
+-- demo\rosetta\Find_bare_lang_tags.exw
+-- ====================================
+--
+--  Finds/counts no of "<lang>" as opposed to eg "<lang Phix>" tags.
+--  Since downloading all the pages can be very slow, this uses a cache.
+--
+constant include_drafts = true,
+         sort_by_task = false,
+         sort_by_lang = not sort_by_task    -- (one or t'other)
+
+integer lp = 0
+procedure progress(string msg, sequence args = {})
+    if length(args) then msg = sprintf(msg,args) end if
+    integer lm = length(msg)
+    if lm<lp then msg[$..$] = repeat(' ',lp-lm)&msg[$] end if
+    puts(1,msg)
+    lp = iff(msg[$]='\r'?lm:0)
+end procedure
+
+include builtins\timedate.e
+integer refresh_cache = timedelta(days:=365) -- 0 for always
+--integer refresh_cache = timedelta(days:=1) -- 0 for always
+
+include builtins\libcurl.e
+atom curl = NULL
+atom pErrorBuffer
+
+function write_callback(atom pData, integer size, integer nmemb, integer fn)
+    integer bytes_written = size * nmemb
+    puts(fn,peek({pData,bytes_written}))
+    return bytes_written
+end function
+constant write_cb = call_back({'+', routine_id("write_callback")})
+
+function open_download(string filename, url)
+    bool refetch = true
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
+    filename = join_path({"rc_cache",filename})
+    if file_exists(filename) then
+        -- use existing file if <= refresh_cache (365 days) old
+        sequence last_mod = get_file_date(filename)     -- (0.8.1+)
+        atom delta = timedate_diff(last_mod,date())
+        refetch = (delta>refresh_cache) or get_file_size(filename)=0
+    else
+        string directory = get_file_path(filename)
+        if get_file_type(directory)!=FILETYPE_DIRECTORY then
+            if not create_directory(directory,make_parent:=true) then
+                crash("cannot create %s directory",{directory})
+            end if
+        end if
+    end if
+    object text
+    if not refetch then
+        text = trim(get_text(filename))
+        refetch = (not sequence(text)) or (length(text)<10)
+    end if
+    if refetch then
+        progress("Downloading %s...\r",{filename})
+        if curl=NULL then
+            curl_global_init()
+            curl = curl_easy_init()
+            pErrorBuffer = allocate(CURL_ERROR_SIZE)
+            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
+        end if
+        url = substitute(url,"%3A",":")
+        url = substitute(url,"%2A","*")
+        curl_easy_setopt(curl, CURLOPT_URL, url)
+        integer fn = open(filename,"wb")
+        if fn=-1 then ?9/0 end if
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fn)
+        while true do
+            CURLcode res = curl_easy_perform(curl)
+            if res=CURLE_OK then exit end if
+            string error = sprintf("%d",res)
+            if res=CURLE_COULDNT_RESOLVE_HOST then
+                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
+            end if
+            progress("Error %s downloading file, retry?(Y/N):",{error})
+            if lower(wait_key())!='y' then abort(0) end if
+            printf(1,"Y\n")
+        end while
+        close(fn)
+        refresh_cache += timedelta(days:=1) -- did I mention it is slow?
+        text = get_text(filename)
+    end if
+    return text
+end function
+
+function open_category(string filename)
+    return open_download(filename&".htm","http://rosettacode.org/wiki/Category:"&filename)
+end function
+
+function dewiki(string s)
+    -- extract tasks from eg `<li><a href="/wiki/100_doors"`
+    sequence tasks = {}
+    integer start = 1, finish = match(`<div class="printfooter">`,s)
+    s = s[1..finish-1]
+    while true do
+--      start = match("<li><a href=\"/wiki/",s,start)
+        start = match(`<li><a href="/wiki/`,s,start)
+        if start=0 then exit end if
+--      start += length("<li><a href=\"/wiki/")
+        start += length(`<li><a href="/wiki/`)
+        finish = find('"',s,start)
+        string task = s[start..finish-1]
+        task = substitute_all(task,{"*",":"},{"%2A","%3A"})
+        if task!="Rosetta_Code/Find_bare_lang_tags" then -- not this one!
+            tasks = append(tasks,task)
+        end if
+--      if length(tasks)>10 then exit end if    -- (debug aid)
+        start = finish+1
+    end while
+    return tasks
+end function
+
+constant {html,ascii} = columnize({{"%2A","*"},
+                                   {"%3A",":"},
+                                   {"%27","'"},
+                                   {"%2B","+"},
+                                   {"%22",`"`},
+                                   {"%E2%80%93","-"},
+                                   {"%E2%80%99","'"},
+                                   {"%C3%A8","e"},
+                                   {"%C3%A9","e"}})
+
+function html_clean(string s)
+    return substitute_all(s,html,ascii)
+end function
+
+constant {utf8,ansi} = columnize({{x"E28093","-"},
+                                  {x"E28099","'"},
+                                  {x"C3A8","e"},
+                                  {x"C3A9","e"},
+                                  {x"D09A","K"},
+                                  {x"D09C","M"}})
+
+function utf8_clean(string s)
+    return substitute_all(s,utf8,ansi)
+end function
+
+function multi_lang(sequence s)
+-- Convert eg {"Algol","Algol","C","C","C"} to "Algol[2],C[3]"
+    integer i = 1, j = 2
+    while i<length(s) do
+        if s[i]=s[j] then
+            while j<length(s) and s[i]=s[j+1] do j+=1 end while
+            s[i..j] = {sprintf("%s[%d]",{s[i],j-i+1})}
+        end if
+        i += 1
+        j = i+1
+    end while
+    return join(s,",")
+end function
+
+function multi_task(sequence s, tasks)
+-- Similar to multi_lang() but with task[indexes]
+    integer i = 1, j = 2
+    while i<=length(s) do
+        integer si = s[i]
+        string tsi = html_clean(tasks[si])
+        if j<=length(s) and si=s[j] then
+            while j<length(s) and si=s[j+1] do j+=1 end while
+            s[i..j] = {sprintf("%s[%d]",{tsi,j-i+1})}
+        else
+            s[i] = tsi
+        end if
+        i += 1
+        j = i+1
+    end while
+    if length(s)>8 then s[4..-4] = {"..."} end if
+    return join(s,",")
+end function
+
+function find_bare_lang_tags()
+    -- note this lot use web scraping (as cribbed from a similar task) ...
+    sequence tasks = dewiki(open_category("Programming_Tasks"))
+    if include_drafts then
+        tasks &= dewiki(open_category("Draft_Programming_Tasks"))
+        tasks = sort(tasks)
+    end if
+    -- ... whereas the individual tasks use the web api instead (3x smaller/faster)
+    integer total_count = 0,
+            lt = length(tasks),
+            kept = 0
+    progress("%d tasks found\n",{lt})
+    sequence task_langs = {},
+             task_counts = iff(sort_by_task?repeat(0,lt):{}),
+             task_things = iff(sort_by_task?repeat({},lt):{})
+    for i=1 to length(tasks) do
+        string ti = tasks[i],
+               url = sprintf("http://rosettacode.org/mw/index.php?title=%s&action=raw",{ti}),
+               contents = open_download(ti&".raw",url),
+               this
+        integer count = 0, start = 1, header
+        while true do
+            start = match(`<lang>`,contents,start)
+            if start=0 then exit end if
+            -- look backward for the nearest header
+            header = rmatch(`{{header|`,contents,start)
+            if header=0 then
+--              this = ""
+                this = "no language"
+            else
+                header += length(`{{header|`)
+                this = utf8_clean(contents[header..match(`}}`,contents,header)-1])
+            end if
+            if sort_by_lang then
+                integer k = find(this,task_langs)
+                if k=0 then
+                    task_langs = append(task_langs,this)
+                    task_things = append(task_things,{i})
+                    task_counts = append(task_counts,1)
+                else
+                    task_things[k] = append(task_things[k],i)
+                    task_counts[k] += 1
+                end if
+            else
+                task_things[i] = append(task_things[i],this)
+            end if
+            count += 1
+            start += length(`<lang>`)
+        end while
+        if count!=0 then
+            if sort_by_task then
+                task_counts[i] = count
+            end if
+            kept += 1
+        end if
+        progress("%d tasks kept, %d to go\r",{kept,lt-i})
+        total_count += count
+        if get_key()=#1B then progress("escape keyed\n") exit end if
+    end for
+    if curl!=NULL then
+        curl_easy_cleanup(curl)
+        free(pErrorBuffer)
+        curl = NULL
+        pErrorBuffer = NULL
+    end if
+    progress("%d tasks with bare lang tags\n",{kept})
+    sequence tags = custom_sort(task_counts,tagset(length(task_counts)))
+    for i=length(tags) to 1 by -1 do
+        integer ti = tags[i],
+                tc = task_counts[ti]
+        if tc=0 then exit end if
+--if tc>5 then
+        if sort_by_task then
+            progress("%s %d (%s)\n",{html_clean(tasks[ti]),tc,multi_lang(task_things[ti])})
+        else -- (sort_by_count)
+            progress("%s %d (%s)\n",{task_langs[ti],tc,multi_task(task_things[ti],tasks)})
+        end if
+--end if
+    end for
+    return total_count
+end function
+
+progress("Total: %d\n",{find_bare_lang_tags()})
+
+?"done"
+{} = wait_key()
+--/*
+-- Output as of 26/7/19, sort_by_task:
+1174 tasks found
+505 tasks with bare lang tags
+Hello_world/Newbie 13 (Clojure[3],COBOL[3],Haskell[4],JavaScript[3])
+Variables 10 (Cache ObjectScript[4],ChucK[3],Forth,ooRexx,uBasic/4tH)
+Knight's_tour 9 (CoffeeScript,Mathprog[4],XSLT[4])
+Comments 8 (EasyLang,FreeBASIC,Gri,PostScript,Scilab,Simula[2],smart BASIC)
+100_doors 8 (4DOS Batch,Cache ObjectScript[2],EasyLang,PostScript,Scilab,uBasic/4tH,Ursa)
+...
+Total: 1094
+
+sort_by_lang:
+1174 tasks found
+505 tasks with bare lang tags
+uBasic/4tH 83 (100_doors,99_Bottles_of_Beer,AKS_test_for_primes,...,Zeckendorf_number_representation,Zero_to_the_zero_power,Zig-zag_matrix)
+EasyLang 81 (100_doors,15_Puzzle_Game,A+B,...,Tic-tac-toe,Towers_of_Hanoi,User_input/Text)
+MK-61/52 75 (Ackermann_function,Arithmetic-geometric_mean,Arithmetic-geometric_mean/Calculate_Pi,...,Vector_products,Voronoi_diagram,Zero_to_the_zero_power)
+Scilab 58 (100_doors,15_Puzzle_Game,AKS_test_for_primes,...,Welch's_t-test,Yin_and_yang,Zig-zag_matrix)
+C 48 (Atomic_updates,Balanced_brackets,Best_shuffle,...,UTF-8_encode_and_decode,Variable-length_quantity,Write_float_arrays_to_a_text_file)
+...
+Smalltalk 1 (Address_of_a_variable)
+smart BASIC 1 (Comments)
+4DOS Batch 1 (100_doors)
+Total: 1094
+"done"
+--*/

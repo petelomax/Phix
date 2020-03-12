@@ -6,7 +6,8 @@
 -- routines and constants for dynamic linking to C functions
 --
 -- Note: This file is completely empty as far as Phix is concerned,
---       except for the include statement, which allows eg:
+--       except for the [newish] sizeof() routine and the include 
+--       builtins\VM\pcfunc.e statement, which allows eg:
 --          include dll.e as dll
 --          constant xFunc = dll:define_c_func(lib,"name",...)
 --       to work equally on RDS Eu and Phix.
@@ -18,6 +19,7 @@ without trace
 
 --DEV wrong one for newEmit:
 --!/**/ include builtins\pcfunc.e   -- (Phix compatible)
+--/**/ include builtins\VM\pcfunc.e -- (Phix compatible)
 
 --/* Not required for Phix (see syminit() in psym.e)
 -- C types for .dll arguments and return value:
@@ -109,3 +111,12 @@ procedure free_console()
     machine_proc(M_FREE_CONSOLE, 0)
 end procedure
 --*/
+
+global function sizeof(integer x)
+    integer top = floor(x/#100000)
+    if not find(top,{#01,#02,#03}) then ?9/0 end if
+    x -= top*#1000000
+    if not find(x,{1,2,4,8}) then ?9/0 end if
+    return x
+end function
+

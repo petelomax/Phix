@@ -244,11 +244,13 @@ pop dword[ebp+12]
 --          pop esi                                 -- [1] ([si_il, ie symtab[rid][S_il]])
 --EXCEPT
 --X         mov dword[ebp+16],:retaddr
-            mov dword[ebp+28],:retaddr
+            mov dword[ebp+28],:cc_retaddr
+--          mov dword[ebp+28],:!cc_ret
 --          jmp dword[ebx+esi*4+40]                 -- execute first opcode (S_il=11)
 --          jmp esi                                 -- execute first opcode
             ret                                     -- [1] (== jmp symtab[rid][S_il])
-         ::retaddr
+         ::cc_retaddr
+--       :!cc_ret
             cmp [isProc],0
             jz :isFunc
                 xor eax,eax
@@ -300,11 +302,13 @@ pop dword[ebp+12]
 --          pop esi                                 -- [1] ([si_il, ie symtab[rid][S_il]])
 --EXCEPT
 --X         mov qword[rbp+32],:retaddr
-            mov qword[rbp+56],:retaddr
+            mov qword[rbp+56],:cc_retaddr
+--          mov qword[rbp+56],:!cc_ret
 --          jmp dword[ebx+esi*4+40]                 -- execute first opcode (S_il=11)
 --          jmp esi                                 -- execute first opcode
             ret                                     -- [1] (== jmp symtab[rid][S_il])
-         ::retaddr
+         ::cc_retaddr
+--       :!cc_ret
             cmp [isProc],0
             jz :isFunc
                 xor rax,rax

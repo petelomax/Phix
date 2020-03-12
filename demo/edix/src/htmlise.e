@@ -51,7 +51,7 @@ integer wasSelON, offset, ch
             ct = {}
         end if
 --  else
---      backdir = initialcurrentdir&"backup\\"
+--      backdir = initialcurrentdir&`backup\`
 --      if atom(dir(backdir)) then
 --          if not createDirectory(backdir) then
 --              void = proemh(xl("Error"),xl("Unable to create backup directory")&backdir,0)
@@ -87,7 +87,7 @@ integer wasSelON, offset, ch
     if toClipBoard=4 then
         addpCode("<pre>\n")
     end if
-    addpCode("<font color=\"#000000\">")
+    addpCode(`<font color="#000000">`)
 --else
 --  addpCode(sprintf("<html><head><title>%s %02d/%02d/%04d %02d:%02d</title></head>\n",
 --                   {filenames[currfile],dt[3],dt[2],dt[1],dt[4],dt[5]}))
@@ -146,7 +146,7 @@ integer wasSelON, offset, ch
 --              addpCode(sprintf("[color=%s]",{htmlclr(clr)}))
 --else
 --              addpCode(sprintf("<font color=%s>",{htmlclr(clr)}))
-                addpCode(sprintf("<font color=\"%s\">",{htmlclr(clr)}))
+                addpCode(sprintf(`<font color="%s">`,{htmlclr(clr)}))
 --end if
             end if
             if font=5 then
@@ -157,7 +157,7 @@ integer wasSelON, offset, ch
                         while url[length(url)]='\n' do      -- ""
                             url = url[1..length(url)-1]
                         end while
-                        addpCode("<a href=\""&url&"\">")    -- 08/12/07
+                        addpCode(`<a href="`&url&`">`)
                         uline = 2
                     end if
                     addpCode("<u>")
@@ -257,7 +257,7 @@ integer wasSelON, offset, ch
 --      close(fn)
 ----DEV: (works, might want an option to do this instead?)
 ----    void = openFile(pcfile,1,0)
---      void = shellExecute(NULL, "open", "pc.htm", NULL, initialcurrentdir&"backup\\", SW_SHOWNORMAL)
+--      void = shellExecute(NULL, "open", "pc.htm", NULL, initialcurrentdir&`backup\`, SW_SHOWNORMAL)
 --      if void = 31 then
 --          void = messageBox(xl("Error"),"ERROR_GEN_FAILURE",0)
 --      end if
@@ -426,7 +426,7 @@ if ci1!=0 and ci2!=0 then
                         code[i] = hout[ci1]*16+hout[ci2]
                         code[i+1..i+2] = 0
                     elsif ci1='\r'
-                    and ci2='\n' then
+                      and ci2='\n' then
                         code[i..i+2] = 0
                     end if
 end if

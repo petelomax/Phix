@@ -485,7 +485,7 @@ integer semicolon
     if not length(line) then return end if  -- oops
     if length(line)>length("builtins")
     and match("builtins",line)=1
-    and find(line[length("builtins")+1],"\\/")
+    and find(line[length("builtins")+1],`\/`)
     and length(BuiltinsPath) then
         line = BuiltinsPath&line[length("builtins")+1..length(line)]
     end if
@@ -497,7 +497,7 @@ integer semicolon
         end if
         return
     end if
-    if find(line[1],"\\/") then
+    if find(line[1],`\/`) then
         -- possibly absolute
 --      if not atom(dir(line)) then
         if get_file_type(line)=FILETYPE_FILE then
@@ -542,7 +542,7 @@ integer semicolon
                 else
                     path = incpath
                 end if
---              if not find(path[length(path)],"\\/") then
+--              if not find(path[length(path)],`\/`) then
 --                  path &= '\\'
 --              end if
                 gline = join_path({path,line})
@@ -562,10 +562,10 @@ integer semicolon
     --
     path = getenv("EUDIR")
     if not atom(path) then
---      if not find(path[length(path)],"\\/") then
+--      if not find(path[length(path)],`\/`) then
 --          path &= '\\'
 --      end if
---      if not atom(dir(path&"INCLUDE\\"&line)) then        -- FOUND IT!
+--      if not atom(dir(path&`INCLUDE\`&line)) then     -- FOUND IT!
         gline = join_path({path,"include",line})
         if get_file_type(gline)=FILETYPE_FILE then
             foundInclude(gline)
@@ -706,7 +706,7 @@ sequence prevline
             elsif logG=1 then
                 if length(line) > 5 then -- possible section underline
                     if isErrFile then
-                        if find(line[3],".\\:") and not equal(line[1..2]," \"") then
+                        if find(line[3],`.\:`) and not equal(line[1..2],` "`) then
                             routinescope &= -1
 --                          routinetype &= 0
                             routinenames = append(routinenames,detab(line))
@@ -783,7 +783,7 @@ global procedure setListOfAllRoutines(integer target, sequence text, integer log
     BuiltinsPath = getExtRunWith("exw")
     if length(BuiltinsPath) then
         for i=length(BuiltinsPath) to 1 by -1 do
-            if find(BuiltinsPath[i],"\\/") then
+            if find(BuiltinsPath[i],`\/`) then
                 BuiltinsPath = BuiltinsPath[1..i]
                 exit
             end if
@@ -1008,8 +1008,11 @@ end procedure
 constant lib="abcdeghoprstuz"
 --with trace
 constant redirect="<html><head>"&
-"<meta http-equiv=refresh content=\"0;"&
-"url=file://localhost/%s/HTML/lib_%s_%s.htm#%s\">"&
+--"<meta http-equiv=refresh content=\"0;"&
+--??
+`<meta http-equiv=refresh content="0;`&
+--"url=file://localhost/%s/HTML/lib_%s_%s.htm#%s\">"&
+`url=file://localhost/%s/HTML/lib_%s_%s.htm#%s">`&
 "</head></html>"
 
 procedure EuRefMan(sequence name)
@@ -1019,9 +1022,9 @@ integer k, fn
 --DEV Phix?
     helpfilepath = getenv("EUDIR")
     if atom(helpfilepath) then
-?       if not atom(dir("C:\\Euphoria\\HTML\\Refman.htm")) then
+?       if not atom(dir(`C:\Euphoria\HTML\Refman.htm`)) then
 --      if get_file_type(line)=FILETYPE_FILE then
-            helpfilepath = "C:\\Euphoria"
+            helpfilepath = `C:\Euphoria`
         end if
     end if
     if atom(helpfilepath) then
@@ -1032,7 +1035,7 @@ integer k, fn
         if length(name) then
             for i=2 to length(lib) by 2 do
                 if name[1]<=lib[i] then
-                    redirectfilepath=helpfilepath&"/html/redirect.htm"
+                    redirectfilepath=helpfilepath&`/html/redirect.htm`
                     while 1 do
                         k = find('\\',redirectfilepath)
                         if k=0 then exit end if
@@ -1047,7 +1050,7 @@ integer k, fn
             end for
         else
             -- open the HTML version of refman.doc
-            helpfilepath &= "\\HTML\\Refman.htm"
+            helpfilepath &= `\HTML\Refman.htm`
 ?           if atom(dir(helpfilepath)) then
 --          if get_file_type(line)=FILETYPE_FILE then
                 void = messageBox("Euphoria Manual not found",
@@ -1213,7 +1216,7 @@ function getexhname()
 sequence exhpath, exhname
 --? if tf>=0 then
     if 1 then
---      exhpath = current_dir()&"\\lang\\"
+--      exhpath = current_dir()&`\lang\`
         exhpath = join_path({initialcurrentdir,"lang"},trailsep:=true)
 --      exhname = "ealng_" & tfname & ".exh"
         exhname = "elng_" & tfname & ".exh"
@@ -1578,6 +1581,21 @@ constant cb_winproc = call_back(routine_id("winproc"))
 
 
 global procedure openChm(sequence filename, object word)
+--DEV <temp (trying to locate an interpret-only 80000003)>
+atom maddr
+    #ilASM{
+            call :next
+           ::next
+        [32]
+            pop eax
+            lea edi,[maddr]
+        [64]
+            pop rax
+            lea rdi,[maddr]
+        []
+            call :%pStoreMint
+          }
+--</temp>
     if get_file_extension(filename)!="chm" then ?9/0 end if
     if platform()=WINDOWS then
         if xHtmlHelp=0 then initw() end if
@@ -1591,7 +1609,9 @@ global procedure openChm(sequence filename, object word)
             end if
         end if
         atom pChm = IupRawStringPtr(filename)
-        if sequence(word) then
+--15/5/19:
+--      if sequence(word) then
+        if sequence(word) and length(word) then
             atom ak = allocate_struct(idHH_AKLINK)
             set_struct_field(idHH_AKLINK,ak,"cbStruct",get_struct_size(idHH_AKLINK))
             set_struct_field(idHH_AKLINK,ak,"fReserved",false)
@@ -1920,7 +1940,7 @@ sequence sdt, text
         fkey = fkey[1]
         --if equal(fkey,
         --  {
-        --       "C:\\POSITIVE\\",
+        --       `C:\POSITIVE\`,
         --       "t3.exw"
         --     }
         --) then trace(1) end if

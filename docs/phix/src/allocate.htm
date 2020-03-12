@@ -13,23 +13,42 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="atom.htm">atom</a> a = allocate(<a href="integer.htm">integer</a> i, <a href="integer.htm#bool">bool</a> cleanup=false)
+         <a href="atom.htm">atom</a> pMem = allocate(<a href="integer.htm">integer</a> i, <a href="integer.htm#bool">bool</a> cleanup=false)
+         <br>
+         <i>-- or --</i>
+         <br>
+         <a href="atom.htm">atom</a> pMem = allocatew(<a href="atom.htm">atom</a> v=0, <a href="integer.htm#bool">bool</a> cleanup=false)
+         <br>
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
          </td>
-         <td>Allocate i contiguous bytes of memory. Return the address of the block of memory, or return 0 if the memory cannot be allocated.
-             The address returned will be at least 4-byte aligned.
+         <td>
+            Allocate i contiguous bytes of memory. Return the address of the block of memory, or return 0 if the memory cannot be allocated.
+            The address returned will be at least 4-byte aligned.
+            <br>
+            <br>
+            The allocatew() function (not to be confused with wide strings) allocates a <a href="machine_bits.htm">machine_word</a>()-sized 
+            block of memory and sets it to v.
          </td>
         </tr>
         <tr>
          <td>
           <b>Comments:</b>
          </td>
-         <td>If the optional cleanup flag is non-zero, the memory will be automatically released once it is no longer required, otherwise the 
-            application should invoke <a href="free.htm">free</a>() manually.
+         <td>
+            If the optional cleanup flag is non-zero, the memory will be automatically released once it is no longer required, otherwise 
+            the application should invoke <a href="free.htm">free</a>() manually.
+            <br>
+            <br>
+            Note that when cleanup is true, ie the default automatic memory management is in force, you should avoid 
+            invoking <a href="free.htm">free</a>() or <a href="delete.htm">delete</a>() on pMem explicitly: doing 
+            so is guaranteed to leave an invalid pointer to memory lying around. In preference you should either let 
+            things happen naturally, or explicitly set the last/only copy of pMem to NULL, and in that way ensure 
+            the raw memory is not actually freed until it is guaranteed safe to do so, and accidental references to 
+            it will not cause unpredictable memory corruption.
          </td>
         </tr>
         <tr>
@@ -82,7 +101,7 @@ end for
           </a>
          </td>
          <td>
-          OpenEuphoria allows say allocate(107.5) and provisions 107 or 108 bytes as it sees fit, whereas in phix the programmer is forced to explicitly 
+          Euphoria allows say allocate(107.5) and provisions 107 or 108 bytes as it sees fit, whereas in Phix the programmer is forced to explicitly 
           round non-integers in the required direction before invoking allocate(). Technically the first parameter is an atom, to allow values above 
           #3FFFFFFF (on 32-bit, though a hard limit of #5FFFFFF8 applies, whereas 63-bit integers will exceed available hardware for decades yet), but it 
           is explicitly checked to be an exact and non-negative integer (see builtins\pAlloc.e for details).
@@ -97,14 +116,14 @@ end for
           likely to have any effect should there be some strange OS-level address mapping going on.
           <br>
           <br>
-          As explained in builtins\VM\pHeap.e, 32-bit phix deliberately limits allocations to 1,610,612,728 bytes (8 bytes shy of #60000000) whereas in 
-          tests 32-bit OpenEuphoria managed 1,873,463,796 (#6FAAC9F4) bytes; it is assumed this will not be an issue for any sensibly-written application.
-          In any case, the ability of 32-bit phix to construct (hll) strings up to 1,610,612,711 characters compared to the 32-bit OpenEuphoria (hll) 
-          <a href="sequence.htm">sequence</a> limit of 468,365,949 elements(/characters) is considered to be completely exhonorating here.
+          As explained in builtins\VM\pHeap.e, 32-bit Phix deliberately limits allocations to 1,610,612,728 bytes (8 bytes shy of #60000000) whereas in 
+          tests 32-bit Euphoria managed 1,873,463,796 (#6FAAC9F4) bytes; it is assumed this will not be an issue for any sensibly-written application.
+          In any case, the ability of 32-bit Phix to construct (hll) strings up to 1,610,612,711 characters compared to the 32-bit Euphoria (hll) 
+          <a href="sequence.htm">sequence</a> limit of a mere 468,365,949 elements(/characters) is considered to be completely exhonorating here.
           Similar limits are theoretically present in 64-bit versions but significantly in excess of any machine that could physically be constructed.
           <br>
           <br>
-          The division between pAlloc.e and pHeap.e exists so that <a href="delete_routine.htm">delete_routine</a>() can be used in the former.
+          The division between pAlloc.e and pHeap.e exists mainly so that <a href="delete_routine.htm">delete_routine</a>() can be used in the former.
          </td>
         </tr>
        </table>

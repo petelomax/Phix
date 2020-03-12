@@ -375,7 +375,7 @@ function rnd(object shape=1)
 --          rnd() [==rnd(1), and ==rnd(9.53)] -> 0.5,
 --          rnd({1,{2,3,4}}) -> {0.5, {0.5, 0.5, 0.5}}
 -- nb: rnd(0.3) [still] yields an atom result in the range 0.0 to 1.0, rather
---     than a result in the range 0.0 to 0.3, which needs something bespoke.
+--     than a result in the range 0.0 to 0.3, which needs something bespoke.     [[see maybe below...]]
 --     (in that very specific case I might suggest loop till <=0.9, then /3)
 -- nb: the shape of a (nested) string is a dword-sequence of the same length.
 --
@@ -394,5 +394,7 @@ function rnd(object shape=1)
         r = iff(a>b?b/a:a/b)
     end if
     return r
+--maybe:
+--  return r*shape
 end function
 --*/

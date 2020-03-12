@@ -296,8 +296,8 @@ end function
 
 atom xZipAddFile = NULL
 global function ZipAddFile(atom hzip, string dest, string src=dest)
--- src is the (full) path to the file, dest is the (relative) path the zip should contain,
---  eg ZipAddFile(hz,"builtins\\base64.e","C:\\Program Files (x86)\\Phix\\builtins\\base64.e").
+-- dest is the (relative) path the zip should contain, src is the (full) path to the file
+--  eg ZipAddFile(hz,`builtins\base64.e`,`C:\Program Files (x86)\Phix\builtins\base64.e`).
 -- returns ZR_OK or a string error message
     if xZipAddFile=NULL then
         xZipAddFile = link_c_func(zip,"ZipAddFileA",{C_PTR,C_PTR,C_PTR},C_INT)
@@ -312,8 +312,8 @@ end function
 atom xZipAddDir = NULL
 global function ZipAddDir(atom hzip, string destname, integer offset=0)
 -- offset specifes that part of destname that should be omitted from the zip, eg
---  ZipAddDir(hz,"test\\LiteZip",5) stores the files in a "LiteZip" subdir, so
---  in that specific case it will effectively omit destname[1..5], ie "test\\".
+--  ZipAddDir(hz,`test\LiteZip`,5) stores the files in a "LiteZip" subdir, so
+--  in that specific case it will effectively omit destname[1..5], ie `test\`.
 --  Of course destname can/may need to be a full rather than relative pathname.
 -- returns ZR_OK or a string error message
     if xZipAddDir=NULL then
@@ -323,7 +323,7 @@ global function ZipAddDir(atom hzip, string destname, integer offset=0)
     if get_file_type(destname)!=FILETYPE_DIRECTORY then ?9/0 end if
     if offset>0 and offset<length(destname) then
         integer ch = destname[offset]
-        if not find(ch,"\\/") then ?9/0 end if
+        if not find(ch,`\/`) then ?9/0 end if
     end if
     integer res = c_func(xZipAddDir,{hzip,destname,offset})
     if res!=ZR_OK then

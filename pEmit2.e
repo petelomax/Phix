@@ -2179,7 +2179,22 @@ else
 --if vchk!=v then puts(1,"setdsDword *IS* needed\n") end if
 -- DEV 17/4/06 sanity check added:
 --if newEmit then ?9/0 end if
-                if v!=si[S_value] then ?9/0 end if
+--DEV 21/6/19 triggers for #02000004,"!=",#02000008 when p32'ing p64...
+--              if v!=si[S_value] then ?9/0 end if
+--S_Name
+--      ,i,symtabmap[i]
+--sv = si[S_Name]
+--k = symtab[i][S_FPno]
+--                              printf(1,"xType=0 on symtab[%d] (%s in %s)\n",{i,getname(sv,-2),filenames[k][2]})
+                if v!=si[S_value] then
+-- erm, I think this screws up our traverse...
+--                  integer vfn = si[S_FPno]
+--                  string vname = getname(si[S_Name],-2),
+--                         vfile = iff(vfn=0?"???":filenames[vfn][2])
+--                  ?{"9/0 pEmit2.e line 2183",v,"!=",si[S_value],"slink=",slink,"name=",vname,"in",vfile}
+                    ?{"9/0 pEmit2.e line 2183",v,"!=",si[S_value],"slink=",slink,"slink=",slink,"symtabmap[slink]",symtabmap[slink]}
+                    ?si
+                end if
 --29/12/14: (removed immediately: no effect)
 --              if bind and mapsymtab and and_bits(si[S_State],K_rtn) then
 --                  v = symtabmap[v]
@@ -2696,6 +2711,7 @@ atom pathaddr, nameaddr
 --object wassi      --DEV temp?
 integer rd = iff(DLL?REFS:DATA)
     if not bind then ?9/0 end if
+--SUG: flatsym2[T_integer..T_object] = tagset(T_object) -- {1..15}
     for i=T_integer to T_object do
         flatsym2[i] = i
     end for
@@ -2828,7 +2844,10 @@ end if
                     end if
                     lt = si[S_ltab]
                     si[S_ltab] = 0
+--4/11/19 (structs)
+if lt!={} then
                     lt = ltpack(lt,i)
+end if
                     if listing then
                         symtab[i][S_ltab] = lt  -- no...
                     end if
@@ -3053,8 +3072,13 @@ integer p, maxparams, useplus1
     p = symtab[symidx][S_Parm1]
     maxparams = length(symtab[symidx][S_sig]) - 1
 -- 23/1/17 [IDE.exw crash calling routine_id(x) mid-procedure x().]
-    useplus1 = (maxparams>1 and symtab[p][S_Slink]=0)
-    while maxparams do
+--  useplus1 = (maxparams>1 and symtab[p][S_Slink]=0)
+-- 22/2/20 p==0 (masking    string sr = sort[n[i..$]]
+--                                          ^ attempt to subscript an atom)
+    useplus1 = (maxparams>1 and p!=0 and symtab[p][S_Slink]=0)
+--23/7/2019 (routine_id("abs") when pmaths.e had not been included...)
+--  while maxparams do
+    while maxparams and p do
         if DEBUG then
             if symtab[p][S_NTyp]!=S_TVar then ?9/0 end if
             -- sanity check: K_noclr must NOT be set on any params!
@@ -3382,7 +3406,9 @@ else
 end if
 --              vi = v
                 vi_active = v
-            elsif nTyp>S_Type then
+--9/2/20:
+--          elsif nTyp>S_Type then
+            elsif nTyp>S_Type and not repl then
 --          elsif nTyp>S_Type or (MARKTYPES and nTyp=S_Type and v>T_Asm) then
 --this should work, when MARKTYPES=1: (or c/should we T_Asm[+1]..symlimit?? - yes)
 --          elsif nTyp>=S_Type and v>T_Asm then
@@ -3567,6 +3593,8 @@ end if
             vi_active = T_maintls   -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
 --          while vi do
             while vi_active do
+--4/11/19: (structs)
+if symtab[vi_active][S_il]!=0 then
 --              s5thunk(symtab[vi][S_il]) -- sets s5
                 s5thunk(symtab[vi_active][S_il]) -- sets s5
 --              symtab[vi][S_il] = 0    -- kill refcount
@@ -3575,6 +3603,7 @@ end if
                 gvar_scan(vi_active)
 --              symtab[vi][S_il] = s5
                 symtab[vi_active][S_il] = s5
+end if
 if NEWGSCAN then
                 vi_active = g_scan[vi_active]
                 if vi_active=-1 then exit end if
@@ -3815,11 +3844,14 @@ end if
         vi_active = T_maintls   -- follow (volatile) K_used chain from top_level_sub[main], aka symtab[T_maintls][S_Slink].
 --      while vi do
         while vi_active do
+--4/11/19 (structs)
+if symtab[vi_active][S_il]!=0 then
 --?vi
 --          s5thunk(symtab[vi][S_il])   -- set s5
             s5thunk(symtab[vi_active][S_il])    -- set s5
 --          gvar_scan_nobind(vi)
             gvar_scan_nobind(vi_active)
+end if
 if NEWGSCAN then
             vi_active = g_scan[vi_active]
             if vi_active=-1 then exit end if
@@ -3869,6 +3901,8 @@ end if
 
 --  while vi do
     while vi_active do
+--4/11/19: (structs)
+if symtab[vi_active][S_il]!=0 then
 --      sv = symtab[vi]
         sv = symtab[vi_active]
 --      symtab[vi] = 0                              -- kill refcount
@@ -3912,6 +3946,7 @@ end if
 --              CSvsize += 5
 --          end if
 --      end if
+end if
 if NEWGSCAN then
         vi_active = g_scan[vi_active]
         if vi_active=-1 then exit end if

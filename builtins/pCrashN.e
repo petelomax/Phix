@@ -8,6 +8,7 @@
 
 --DEV this should perhaps have an optional parameter to pop more frames.
 --without debug
+--/*
 global procedure crash(string fmt, object data={})  --, integer nFrames=1)
     if atom(data) or length(data) then
         fmt = sprintf(fmt, data)
@@ -34,4 +35,45 @@ global procedure crash(string fmt, object data={})  --, integer nFrames=1)
             int3
           }
 end procedure
+--*/
+--/!*
+global procedure crash(string fmt, object data={}, integer nFrames=1)
+    if atom(data) or length(data) then
+        fmt = sprintf(fmt, data)
+    end if
+    if nFrames<1 then ?9/0 end if
+    crash_message(fmt)  -- (yes, that increfs fmt correctly, I just checked!)
+    #ilASM{
+        -- while e/rax do issue fake opRetf (including this routine!)
+        [32]
+            mov eax,[nFrames]
+          @@:
+            mov edx,[ebp+28]            -- return addr
+            mov dword[ebp+28],:fakeRet  -- replace return address
+            push edx
+            jmp :%opRetf
+          ::fakeRet
+            pop edx
+            sub eax,1
+            jnz @b
+            sub edx,1
+        [64]
+            mov rax,[nFrames]
+          @@:
+            mov rdx,[rbp+56]            -- return addr
+            mov dword[rbp+56],:fakeRet  -- replace return address
+            push rdx
+            jmp :%opRetf
+          ::fakeRet
+            pop rdx
+            sub rax,1
+            jnz @b
+            sub rdx,1
+        []
+            mov al,68           -- e68crash
+            jmp :!iDiag
+            int3
+          }
+end procedure
+--*!/
 

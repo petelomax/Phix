@@ -20,53 +20,38 @@
          <td>
           <b>Description:</b>
          </td>
-         <td>Return the length of s. s must be a <a href="sequence.htm">sequence</a> or <a href="string.htm">string</a>. An error will
-             occur if s is an <a href="atom.htm">atom</a>.
+         <td>
+            Return the length of the <a href="sequence.htm">sequence</a> or <a href="string.htm">string</a> s.<br>
+            The compiler issues compile-time errors/tests for run-time errors, if s is/might be an <a href="atom.htm">atom</a> or <a href="integer.htm">integer</a> (see technicalia).<br>
+            If s is a string, the result is the number of <i>bytes</i>, see technicalia for utf8/16 handling.<br>
+            If s is a sequence, the result is the number of top-level elements.<br>
+            &nbsp;&nbsp;Nested sub-sequences, however complicated, and string elements, each count as one towards the length.<br>
          </td>
         </tr>
         <tr>
          <td>
-          <b>Comments:</b>
-         </td>
-         <td>The length of each <a href="sequence.htm">sequence</a> is stored internally by the interpreter.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 1:</b>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
-length({{1,2}, {3,4}, {5,6}})   -- 3
+?length("")                             -- 0: the empty string
+?length({})                             -- 0: the empty sequence
+?length({{}})                           -- 1: s[1] is {}.
+?length("four")                         -- 4: 4 bytes/characters
+?length({1.2,"three",{4,{5,"six"}},7})  -- 4: s[1] is 1.2
+                                        --    s[2] is "three",
+                                        --    s[3] is {4,{5,"six"}},
+                                        --    s[4] is 7.
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080"> {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- 3</i></font>
-</pre>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 2:</b>
-         </td>
-         <td>
-<!--eucode>
-length("") -- 0
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)</font><font color="#000080"><i> -- 0</i></font>
-</pre>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 3:</b>
-         </td>
-         <td>
-<!--eucode>
-length({}) -- 0
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{}</font><font color="#0000FF">)</font><font color="#000080"><i> -- 0</i></font>
+<font color="#000000"></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)                            </font><font color="#000080"><i> -- 0: the empty string
+</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{}</font><font color="#0000FF">)                            </font><font color="#000080"><i> -- 0: the empty sequence
+</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{}</font><font color="#800000">}</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- 1: s[1] is {}.
+</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#008000">"four"</font><font color="#0000FF">)                        </font><font color="#000080"><i> -- 4: 4 bytes/characters
+</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1.2</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#008000">"six"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- 4: s[1] is 1.2
+                                        --    s[2] is "three",
+                                        --    s[3] is {4,{5,"six"}},
+                                        --    s[4] is 7.</i></font>
 </pre>
          </td>
         </tr>
@@ -75,10 +60,7 @@ length({}) -- 0
           <b>Implementation:</b>
          </td>
          <td>
-            There is a generic version of the length function implemented as :%opLen in builtins\VM\pLen.e that the compiler only invokes as a last resort, 
-            preferring instead to inline that functionality if the argument is known to be assigned to a sequence, or has a fixed length. In the latter 
-            case the compiler will use that known value as a literal constant without referencing the argument at all, and the compiler will also avoid 
-            calling the generic version, when it can, if the result variable is known to be an integer, ie does not require decref/dealloc.
+            See :%opLen in builtins\VM\pLen.e and the technicalia section below.
          </td>
         </tr>
         <tr>
@@ -86,10 +68,60 @@ length({}) -- 0
           <b>See Also:</b>
          </td>
          <td>
-          <a href="sequence.htm">sequence</a>
+          <a href="sequence.htm">sequence</a>,
+          <a href="string.htm">string</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The length of each <a href="sequence.htm">sequence</a> (and <a href="string.htm">string</a>) is stored internally, allowing fast lookup.
+            <br>
+            <br>
+            The compiler only invokes the generic/full-blown version in :%opLen in builtins\VM\pLen.e as the very last resort.<br>
+            The length functionality is inlined by the compiler if any of the following are true:<br>
+            <ul>
+             <li>The argument is known to have a fixed length, in which case a literal constant is used without referencing the argument at all.</li>
+             <li>The argument is known to be assigned to a sequence, in which case run-time checks for that are not emitted.</li>
+             <li>The result is known to be an integer (ie it does not require decref/dealloc).</li>
+            </ul>
+            Since length() is one of the most often-called functions, inlining can have a significant impact on performance, and especially 
+            in tight inner loops it can be worthwhile checking the list.asm to ensure the compiler is <i>not</i> emitting calls to :%opLen.
+            <br>
+            <br>
+            The last element of a sequence can be referenced as <code>s[length(s)]</code>, <code>s[$]</code>, or <code>s[-1]</code>.<br>
+            The latter two are in fact absolutely identical, and to be preferred in every sense over an explicit length call:<br>
+            The compiler replaces eg <code>s[length(s)]</code> with <code>s[$]</code>, as another optimisation, however more complex equivalents such as
+            <code>s[i][j][length(s[i][j])]</code> that the compiler might have missed may benefit (performancewise, as well as typing/RSI/reading) from 
+            the programmer explicitly using <code>s[i][j][$]</code> instead.
+            <br>
+            <br>
+            Phix strings are null-terminated, and technically s[length(s)+1] is a null character, however it is an error to try and reference it.
+            <br>
+            <br>
+            Obviously, for traditional ascii/ansi/latin-1 strings, the number of bytes is the same as the number of characters, however with unicode 
+            encodings such as UTF-8 some characters are multibyte, and therefore they are clearly not the same. Thankfully, UTF-32 uses a much more
+            consistent 4-bytes-per-character, for which Phix almost always uses a <a href="html/glossary.htm#dwordseq">dword_sequence</a> (UTF-32 is
+            almost never written to file, so I am not going to talk about theoretical 4-bytes-per-character LE/BE binary <i>strings</i> any further).
+            Almost all manipulation of UTF-8 strings can usually be performed without any conversion to UTF-32 whatsoever, in fact UTF-8 was deliberately
+            designed for precisely that, however should you really need to consider each individual unicode point separately, it is a relatively simple 
+            matter of say <code>sequence utf32 = <a href="utf8_to_utf32.htm">utf8_to_utf32</a>(utf8)</code>, then invoking length()/subscripting on utf32,
+            before a final <code>utf8 = <a href="utf32_to_utf8.htm">utf32_to_utf8</a>(utf32)</code>, and obviously something fairly similar for 
+            UTF-16 handling, except that the initial utf16 input would either already be a dword sequence or (rarer) some kind of byte-pair string, 
+            with whichever endianness.<br>
+            <br>
+            In Euphoria, the length() function has been redefined to yield 1 when passed an atom. While that <i>is</i> helpful for certain algorithms, 
+            sometimes making tests for atom() unnecessary, I firmly believe that fatal errors from length() play a far more important and vital role in 
+            debugging, by highlighting errors in logic, and hence Phix will <i>not</i> be following suit.
+            Besides, it is not exactly difficult to write a shim to achieve the same (as Eu) effect/benefit, and use it sparingly.
          </td>
         </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

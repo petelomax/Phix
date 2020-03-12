@@ -276,13 +276,13 @@ global function dir(sequence path, integer date_type=D_MODIFICATION)
 -- Returns a list of files that match the specified path.
 -- If the path is a directory, eg "C:Windows" then details of all files in 
 -- that directory are returned. A trailing slash is optional.
--- Relative paths may be specified, eg "builtins\\" will return a list of 
+-- Relative paths may be specified, eg `builtins\` will return a list of 
 -- files in the builtins subdirectory of the current working directory.
--- If a specific file is used, eg "C:\\autoexec.bat" then details for just 
+-- If a specific file is used, eg `C:\autoexec.bat` then details for just 
 -- that file are returned.
--- The path may end with a wildcard, eg "test\\f*" returns a list of files in 
+-- The path may end with a wildcard, eg `test\f*` returns a list of files in 
 -- the current directory beginning with 'f'.
--- Either backslashes (which must be entered as \\ in strings, remember) or 
+-- Either backslashes (which must be entered as \\ in double-qoute strings, remember) or 
 -- forward slashes (/) may be used as path separators.
 --
 -- If no such file or directory exists, -1 is returned.
@@ -360,7 +360,7 @@ atom xSystemTime, xLocalFileTime, xFindData
 --DEV:      if list_directory then
             lpPath = allocate_string(path)
 --?path
---if path="C:\\Program Files\\Phix\\pw.exe" then
+--if path=`C:\Program Files\Phix\pw.exe` then
 --  ?1
 --end if
             h = c_func(xFindFirstFile,{lpPath,xFindData})

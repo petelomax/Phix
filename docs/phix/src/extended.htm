@@ -1,0 +1,288 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">extended</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+<!-- [virtual [|] final] <i>method</i> -->
+class <i>identifier</i> extends <i>base</i><br>
+&nbsp;&nbsp;&nbsp;&nbsp;{ [(public|private)[:]] ( <i>field</i> | <i>method</i> ) [ ',' ... ] }<br>
+end class<br>
+<center><small><i>-- or --</i></small></center>
+class|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [ ',' ... ]<br>
+<center><small><i>-- or --</i></small></center>
+<a href="integer.htm#bool">bool</a> res = class|<i>identifier</i>(<a href="object.htm">object</a> o)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Classes can also be extended, to create an inheritance hierarchy, or just simply embedded.
+<!--
+            <br>
+            <br>
+            It can sometimes be helpful to think of simple objects as structs and more complex things as classes, although in Phix there is technically not very much 
+            difference between them, apart from the fact that structs cannot be fully <a href="dynamic.htm">dynamic</a>.
+-->
+<!--
+            Classes are superficially similar to structs, however in structs all fields are implicitly public whereas they are private by default in classes,
+            structs cannot be fully <a href="dynamic.htm">dynamic</a>, and typically classes have methods, while structs normally do not. <small>(In general, 
+            Phix allows some reasonable overlap, rather than always strictly saying "NON" (in a cheesy French accent) even when there is no reasonable let 
+            alone outright compelling reason to do so. Which reasonably stands to reason, he reasoned reasonably.)</small>
+            <br>
+            <br>
+            An abstract class (or struct) cannot be instantiated, ie attempts to invoke <a href="structs.htm#new">new</a>() trigger compile-time and/or run-time errors.<br>
+            By default struct and class variables cannot be set to null, unless the definition contains an explicit <b>nullable</b> clause.<br>
+            The <b>dynamic</b> keyword is explained in the <a href="dynamic.htm">next section</a>, <b>extends</b> is explained below.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Extending:</b>
+         </td>
+         <td>
+<!--eucode>
+class politician extends person
+    string job = "habitual liar"
+    procedure show()
+      printf(1,"%s aged %g, %s\n",{this.name,this.age,this.job}))
+    end procedure
+end class
+politician aj = new(),
+           mp = new({"boris",3.75})
+aj.show() -- average joe aged 35, habitual liar
+mp.show() -- boris aged 3.75, habitual liar
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">class</font><font color="#000000"> politician</font><font color="#008080"> extends</font><font color="#000000"> person
+</font><font color="#004080">    string</font><font color="#000000"> job</font><font color="#0000FF"> =</font><font color="#008000"> "habitual liar"
+</font><font color="#008080">    procedure</font><font color="#000000"> show</font><font color="#0000FF">()
+</font><font color="#5E005E">      printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s aged %g, %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF">,</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">job</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#00FFFF">)
+</font><font color="#008080">    end procedure
+end class
+</font><font color="#000000">politician aj</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(),
+</font><font color="#000000">           mp</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"boris"</font><font color="#0000FF">,</font><font color="#000000">3.75</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#000000">aj</font><font color="#0000FF">.</font><font color="#000000">show</font><font color="#0000FF">()</font><font color="#000080"><i> -- average joe aged 35, habitual liar
+</i></font><font color="#000000">mp</font><font color="#0000FF">.</font><font color="#000000">show</font><font color="#0000FF">()</font><font color="#000080"><i> -- boris aged 3.75, habitual liar</i></font>
+</pre>
+            <br>
+            When a <a href="class.htm">class</a>(/struct) is extended, all fields are copied along with any defaults and privacy settings.<br>
+            You can store every politician in a <a href="class.htm">person</a> variable, but not the other way round.<br>
+            You can store every politician <i>and</i> every person in a class variable, ie the lowest level builtin type.<br>
+            If you also had class honest_man extends person, a person can hold an honest_man or a politician, but an honest_man
+            variable cannot hold a politician, and a politician variable cannot hold a honest_man! 
+            In other words variables of the base class (as in "extends base") can hold the extended class[es], but not vice-versa.<br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Embedding:</b>
+         </td>
+         <td>
+<!--eucode>
+person jrm = new({"jacob",50})
+
+class mogg
+    person p = jrm
+    string job = "minister for the early 1800s"
+    procedure show()
+      printf(1,"%s aged %g, %s\n",{this.p.name,this.p.age,this.job}))
+    end procedure
+end class
+mogg m = new() -- or new({jrm,"oaf"}) or new({new("person",{"jacob",50}),"oaf"})
+jrm.show() -- jacob, aged 50
+m.p.show() -- jacob, aged 50
+m.show() -- jacob aged 50, minister for the early 1800s
+</eucode-->
+<pre>
+<font color="#000000">person jrm</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"jacob"</font><font color="#0000FF">,</font><font color="#000000">50</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#008080">class</font><font color="#000000"> mogg
+    person p</font><font color="#0000FF"> =</font><font color="#000000"> jrm
+</font><font color="#004080">    string</font><font color="#000000"> job</font><font color="#0000FF"> =</font><font color="#008000"> "minister for the early 1800s"
+</font><font color="#008080">    procedure</font><font color="#000000"> show</font><font color="#0000FF">()
+</font><font color="#5E005E">      printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s aged %g, %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">p</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">p</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF">,</font><font color="#000000">this</font><font color="#0000FF">.</font><font color="#000000">job</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#00FFFF">)
+</font><font color="#008080">    end procedure
+end class
+</font><font color="#000000">mogg m</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()</font><font color="#000080"><i> -- or new({jrm,"oaf"}) or new({new("person",{"jacob",50}),"oaf"})
+</i></font><font color="#000000">jrm</font><font color="#0000FF">.</font><font color="#000000">show</font><font color="#0000FF">()</font><font color="#000080"><i> -- jacob, aged 50
+</i></font><font color="#000000">m</font><font color="#0000FF">.</font><font color="#000000">p</font><font color="#0000FF">.</font><font color="#000000">show</font><font color="#0000FF">()</font><font color="#000080"><i> -- jacob, aged 50
+</i></font><font color="#000000">m</font><font color="#0000FF">.</font><font color="#000000">show</font><font color="#0000FF">()</font><font color="#000080"><i> -- jacob aged 50, minister for the early 1800s</i></font>
+</pre>
+            <br>
+<!--
+        Alternatively they can be embedded :
+-->
+            When a class(/struct) is embedded, unless otherwise specified the default is null and fields require extra subscripting, ie/eg this.p.name vs. this.name.<br>
+            Private fields of embedded classes can only be accessed via explicit getters and setters, rather than anything resembling "friends".<br>
+            As shown, you cannot override methods in embedded fields, and nothing stops you having a same-named-method at a different level.<br>
+            <small>(Obviously you could easily declare "class person_with_overidden_show extends person" and extend/embed an instance of that instead.)<br></small>
+            Inlining the new() of jrm on the "mogg m =" line would as shown require an explicit "person" <small>(if that&rsquo;s not an insult)</small>.<br>
+            When a class is extended, all fields are given the inherited defaults, whereas an embedded class gets a null default (assuming nowt like jrm above).<br>
+            Conversely, extending a person might need the same information updating in more than one place, unlike a single/shared new() being embedded.<br>
+            You cannot store a mogg in a person variable or vice versa(!), but can store both in their common ancestor, which in this case is the root builtin class.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            As per <a href="struct.htm">struct</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+            <a href="class.htm">class</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            It is considered bad form to have a class extend a struct or vice versa, however in practice that is not specifically enforced.<br>
+            It is also questionable as to whether there is any useful value in hierarchies of, and hence extending, plain structs.
+            <br>
+            <br>
+            Embed (rather than extend) structures when implementing composition, as in "favour composition over inheritance".
+            <br>
+            <br>
+            There are no static fields: I considered adding them, however an <code>abstract mammal</code> with a static next_uniq_id field, extended 
+            into <code>cats</code> and <code>dogs</code> would (unavoidably) have separate next_uniq_id fields for <code>cats</code> and <code>dogs</code>... 
+            Much better would be to embed a separate <code>class uniq</code> containing said next_uniq, then it becomes entirely the programmer&rsquo;s 
+            choice whether to invoke <code>uniq uid = new()</code> just once and set/share that on all <code>cats</code> and all <code>dogs</code>, 
+            or invoke it twice and that way keep them separate. Obviously either way you need to (lock and) store next_uniq_id in an instance field as 
+            each cat or dog is created, before incrementing (and unlocking) it. If you only need the one, in Phix you may as well store uid in a simple 
+            static (ie file_level) variable or constant, rather than embed the exact same reference to it on each and every instance.
+            <br>
+            <br>
+            All methods are treated as virtual, ie can be overidden. It may become possible to explicitly specify virtual/final in a future release,
+            which may also perform additional routine signature and parameter type verification at compile-time (it is currently run-time-only).
+            You can also, for instance, declare <code>procedure foo();</code> and get an invalid routine_id(0) error at run-time if it has not been 
+            overridden in that particular derived class/instance. The trailing semicolon is significant: it signals that there is no body, and no 
+            "end procedure", and should generate/store a routine_id of zero. At present, <code>integer foo = 0</code> would behave identically.
+            There is no compile-time error should you attempt <code>p.show = 5</code> in the above, however a subsequent p.show() would trigger a
+            fatal (but <a href="try.htm">catchable</a>) run-time error. You can copy methods about, just like the integers they really are, by the
+            simple act of using "()" when invoking and "no-()" to fetch/store. However, if you start trying to copy them between classes then it is,
+            with regret, you are in that world of pain all on your own, mate, and I wish you all the best of luck, since you&rsquo;ll need it.
+            <br>
+            <br>
+            Multiple inheritance is permitted using the obvious <code>extends a,b</code> syntax, alternatively declare separate a and b member fields 
+            for composition.<br>
+            Note that conflicting field names in the second and subsequent extended classes must have the exact same default, and in fact the compiler
+            font-end fakes defaults as a means of detecting/rejecting conflicts. Any programmer using multiple inheritance is expected to assume much
+            responsibility (away from the compiler) for checking any such clashes the compiler misses, especially any dynamically-created ones.
+            <br>
+            <br>
+            In contrast, any conflicting/duplicate methods are simply overwritten in the order encountered (ditto programmer responsibility).<br>
+            Phix is steadfastly single-dispatch: there is no problem with having a class-specific or even instance-specific method, but only one: the
+            idea that you would have(/want) ten dozen potential candidates for a routine (differing only by signature) and get the compiler to pick 
+            one out for you (aka Koenig lookup) is simply <i>not</i> the way Phix does things - for example it has precisely just the <b>one</b> 
+            <a href="seqops.htm">sq_add</a>(object, object), <i>not</i> ([u]short/[u]int/[u]long[long]/float/double,<small><i>&lt;ditto&gt;</i></small>)
+            <small><i>&lt;which be like 100 already&gt;</i></small> with however many you want or accidentally forgot about quietly and rudely coerced 
+            into casting/rounding/truncation errors, before even starting on either/both parameters being sequence... <small><i>&lt;/rant&gt;</i></small>
+            <br>
+            <br>
+            Classes grant Phix object orientated capabilities, however, fear not, you can still write an entire application without being <i>forced</i> to 
+            use them at all, whereas already radicalised readers will no doubt be relieved to hear that object orientated techniques can always be applied,
+            even in the most awkward and utterly inappropriate of circumstances. <img src="images/ksk-smile.png" />
+            <br>
+            <br>
+            On a personal note, I have always been very sceptical of object orientation, have never seen any <i>proof</i> that it improves productivity 
+            or shortens timescales, but far more importantly I have never seen <i><b>anything remotely resembling</b></i> a "good object oriented design", 
+            and have (somewhat reluctantly) reached the conclusion that mythical beast simply does not exist. To clarify, I said and meant <i>design</i>, 
+            not codebase, and I will concede it is Turing complete and can do lots, especially with decent libs, and that a well written IDE with fast 
+            and efficient intellisense is abfab, but again, not what I just asked for.
+<!--
+        Also by default, you have to explicitly declare all the fields and methods of each class/structure, however you can also create
+        fully dynamic classes by making the base class "extends struct":
+< ! --eucode>
+class flex dynamic
+end class
+flex f = new()
+?
+?f.jelly
+f.jelly = "green"
+?f.jelly
+</eucode -- >
+<pre>
+<font color="#000000">class flex dynamic
+</font><font color="#008080">end</font><font color="#000000"> class
+flex f</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()
+?
+?</font><font color="#000000">f</font><font color="#0000FF">.</font><font color="#000000">jelly
+f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font color="#0000FF"> =</font><font color="#008000"> "green"
+</font><font color="#0000FF">?</font><font color="#000000">f</font><font color="#0000FF">.</font><font color="#000000">jelly</font>
+</pre>
+        The builtin struct type has no fields, and all classes implicitly extend it. However by explicitly extending it, you are implying
+        something extra is desired, which ...
+        <br>
+        <br>
+-->
+<!--
+        <br>
+        <br>
+        <small><sup>1</sup> Were fields private by default, then simple structs would be utterly useless...<br></small>
+            <br>
+            <br>
+            All dynamically-added fields are deemed public and of type <a href="object.htm">object</a>.<br>
+            It is questionable as to whether there is any useful value in hierarchies of, and hence extending, dynamic classes.
+-->
+<!--
+            <br>
+            <br>
+            All methods are treated as virtual, ie can be overidden. It may become possible to explicitly specify virtual/final in a future release,
+            which may also perform additional routine signature and parameter type verification at compile-time (it is currently run-time-only).
+            <br>
+            <br>
+            Classes grant Phix object orientated capabilities, however, fear not, you can still write an entire application without being <i>forced</i> to 
+            use them at all, whereas already radicalised readers will no doubt be relieved to hear that object orientated techniques can always be applied,
+            even in the most awkward and utterly inappropriate of circumstances. <img src="images/ksk-smile.png" />
+            <br>
+            <br>
+            On a personal note, I have always been very sceptical of object orientation, have never seen any <i>proof</i> that it improves productivity 
+            or shortens timescales, but far more importantly I have never seen <i><b>anything remotely resembling</b></i> a "good object oriented design", 
+            and have (somewhat reluctantly) reached the conclusion that mythical beast simply does not exist. To clarify, I said and meant <i>design</i>, 
+            not codebase, and I will concede it is Turing complete and can do lots, especially with decent libs, and that a well written IDE with fast 
+            and efficient intellisense is abfab, but again, not what I just asked for.
+
+        Obviously you can create several fields/methods as normal, or as shown above create all of them dynamically.<br>
+        Note that only classes may be dynamic, a compilation error occurs when trying to declare a dynamic struct, and likewise you
+        cannot create an object hierarchy (/inheritance) with some dynamic and some not, nor can you make any dynamic alterations 
+        via the lowest-level builtin "class" (or "struct") type, instead it has to be part of the same dynamic hierarchy.<br>
+        The dynamic keyword is optional when extending, ie "class flexy extends flex", and "class flexy dynamic extends flex" are treated identically.<br>
+        Dynamic routines are typically implemented as integers, to which is assigned a standard <a href="routine_id.htm">routine_id</a>() 
+        of something that takes a leading "this" of the appropriate class as the first parameter.
+
+-->
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

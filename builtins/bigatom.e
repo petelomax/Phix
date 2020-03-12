@@ -1176,7 +1176,8 @@ global function ba_mul(object A, B, bool bRound=false)
         else
             integer len = length(res[DIGITS])
             if len>ndecs then
-                res[DIGITS] = remove(res[DIGITS], ndecs, len)
+--              res[DIGITS] = remove(res[DIGITS], ndecs, len)
+                res[DIGITS] = res[DIGITS][1..ndecs-1]
             end if
             res = normalize(res)
         end if
@@ -1205,7 +1206,8 @@ global function ba_trunc(object N)
 --PL 19/11/15
 --  if stop>start then
     if stop>=start then
-        N[DIGITS] = remove(N[DIGITS],start,stop)
+--      N[DIGITS] = remove(N[DIGITS],start,stop)
+        N[DIGITS] = N[DIGITS][1..start-1]
     end if
 
     return normalize(N)
@@ -1351,9 +1353,8 @@ global function ba_divide(object A, B, bool bRound=false)
         else
             integer len = length(res[DIGITS])
             if len>ndecs then
-                res[DIGITS] = remove(res[DIGITS], ndecs, len)
---DEV/sug:
---              res[DIGITS] = res[DIGITS][1..ndecs-1]
+--              res[DIGITS] = remove(res[DIGITS], ndecs, len)
+                res[DIGITS] = res[DIGITS][1..ndecs-1]
             end if
             res = normalize(res)
         end if
@@ -1502,7 +1503,8 @@ global function ba_frac(object N)
     if N[EXPONENT]<0 then 
         return N
     end if
-    N[DIGITS] = remove(N[DIGITS], 1, N[EXPONENT]+1)
+--  N[DIGITS] = remove(N[DIGITS], 1, N[EXPONENT]+1)
+    N[DIGITS] = N[DIGITS][N[EXPONENT]+2..$]
     N[EXPONENT] = -1
 
     return normalize(N)
@@ -1715,13 +1717,14 @@ global function ba_log(object N, bool bRound=false)
 
     {} = ba_scale(sc)   -- (restore original settings)
 
+    integer start = res[EXPONENT]+2+SCALE
     if bRound then
-        res = round_digits(res, res[EXPONENT]+2+SCALE)
+        res = round_digits(res, start)
     else
-        integer start = res[EXPONENT]+2+SCALE,
-                stop = length(res[DIGITS])
+        integer stop = length(res[DIGITS])
         if stop>start then
-            res[DIGITS] = remove(res[DIGITS],start,stop)
+--          res[DIGITS] = remove(res[DIGITS],start,stop)
+            res[DIGITS] = res[DIGITS][1..start-1]
         end if
     end if
 
@@ -1910,13 +1913,14 @@ global function ba_exp(object N, bool bRound=false)
 
     {} = ba_scale(sc)   -- (restore original settings)
 
+    integer start = res[EXPONENT]+2+SCALE
     if bRound then
-        res = round_digits(res, res[EXPONENT]+2+SCALE)
+        res = round_digits(res, start)
     else
-        integer start = res[EXPONENT]+2+SCALE,
-                stop = length(res[DIGITS])
+        integer stop = length(res[DIGITS])
         if stop>start then
-            res[DIGITS] = remove(res[DIGITS],start,stop)
+--          res[DIGITS] = remove(res[DIGITS],start,stop)
+            res[DIGITS] = res[DIGITS][1..start-1]
         end if
     end if
 
@@ -2162,13 +2166,14 @@ global function ba_sqrt(object N, bool bRound=false)
         res  = ba_multiply(res, {1,-1,{5}}) -- 0.5
     end while
 
+    integer start = res[EXPONENT]+2+SCALE
     if bRound then
-        res = round_digits(res, res[EXPONENT]+2+SCALE)
+        res = round_digits(res, start)
     else
-        integer start = res[EXPONENT]+2+SCALE,
-                stop = length(res[DIGITS])
+        integer stop = length(res[DIGITS])
         if stop>start then
-            res[DIGITS] = remove(res[DIGITS],start, stop)
+--          res[DIGITS] = remove(res[DIGITS],start,stop)
+            res[DIGITS] = res[DIGITS][1..start-1]
         end if
     end if
 
@@ -2207,7 +2212,8 @@ integer start,stop
             start = res[EXPONENT]+2+SCALE
             stop = length(res[DIGITS])
             if stop>start then
-                res[DIGITS] = remove(res[DIGITS],start,stop)
+--              res[DIGITS] = remove(res[DIGITS],start,stop)
+                res[DIGITS] = res[DIGITS][1..start-1]
             end if
 
             return normalize(res)
@@ -2221,13 +2227,14 @@ integer start,stop
 
             {} = ba_scale(sc)   -- (restore original settings)
 
+            start = res[EXPONENT]+2+SCALE
             if bRound then
-                res = round_digits(res, res[EXPONENT]+2+SCALE)
+                res = round_digits(res, start)
             else
-                start = res[EXPONENT]+2+SCALE
                 stop = length(res[DIGITS])
                 if stop>start then
-                    res[DIGITS] = remove(res[DIGITS],start,stop)
+--                  res[DIGITS] = remove(res[DIGITS],start,stop)
+                    res[DIGITS] = res[DIGITS][1..start-1]
                 end if
                 res = normalize(res)
             end if
@@ -2250,13 +2257,14 @@ integer start,stop
 
     {} = ba_scale(sc)   -- (restore original settings)
 
+    start = res[EXPONENT]+2+SCALE
     if bRound then
-        res = round_digits(res, res[EXPONENT]+2+SCALE)
+        res = round_digits(res, start)
     else
-        start = res[EXPONENT]+2+SCALE
         stop = length(res[DIGITS])
         if stop>start then
-            res[DIGITS] = remove(res[DIGITS],start,stop)
+--          res[DIGITS] = remove(res[DIGITS],start,stop)
+            res[DIGITS] = res[DIGITS][1..start-1]
         end if
     end if
 
@@ -2311,13 +2319,14 @@ global function ba_log10(object N, bool bRound=false)
                        N[EXPONENT] = -1
     sequence res = ba_logb(N, 10, bRound)
     res = ba_add(res, exponent)          -- the sum ignores the scale
+    integer start = res[EXPONENT]+2+SCALE
     if bRound then
-        res = round_digits(res, res[EXPONENT]+2+SCALE)
+        res = round_digits(res, start)
     else
-        integer start = res[EXPONENT]+2+SCALE,
-                stop = length(res[DIGITS])
+        integer stop = length(res[DIGITS])
         if stop>start then
-            res[DIGITS] = remove(res[DIGITS],start,stop)
+--          res[DIGITS] = remove(res[DIGITS],start,stop)
+            res[DIGITS] = res[DIGITS][1..start-1]
         end if
     end if
 

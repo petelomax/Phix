@@ -1565,6 +1565,13 @@ integer unrecognised
 --integer opAsmRqd = 0      [DEV]
 -- try also constant useopAsmRqd = 1/0 at the top [DEV (sorry, I'm just too busy right now, shouldn't even be typing this!)]
 
+    if safemode then
+        integer pathno = filenames[fileno][1]
+        if pathno>3 then
+            safemode=0
+            ?9/0
+        end if
+    end if
 --trace(1)
     bklpos = -1
     fwdchain = 0
@@ -4428,7 +4435,18 @@ end if
                         end if
 --                      xrm = 0o370+reg
                         xrm += reg
-                        s5 &= {0o367,xrm}
+--26/6/19:
+--; 175             div cl
+--                  div ecx               ;#0043D5A5: 367361                     np 05 07 41 741      
+--0043D5A5   F6F1           DIV CL
+--0043D5A5   0o366 0o361            DIV CL
+--                      s5 &= {0o367,xrm}
+                        if p1size=1 then
+                            s5 &= 0o366
+                        else
+                            s5 &= 0o367
+                        end if
+                        s5 &= xrm
                     else
                         ?9/0 -- sanity check (should never trigger)
                     end if

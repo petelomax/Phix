@@ -42,6 +42,13 @@
             should return 1 to continue the traversal, or 0 to terminate it.
             <br>
             <br>
+            Obviously modifying the key structure of tid during rid is likely to have unintended consequences (updating 
+            the data should however be fine). If you are traversing a complex tree structure and rebalance it underfoot,
+            then anything can happen, from skipping whole subtrees, traversing them twice, or a fatal error. However it
+            would be acceptable to terminate and restart the traversal after performing each key update (return 0), that
+            is assuming you can skip any already-done updates on the next traversal.
+            <br>
+            <br>
             The ordering is case-sensitive. If a case-insensitive ordering is required, the key values as passed to
             <a href="setd.htm">setd</a>() [etc] should be passed through either <a href="upper.htm">upper</a>() or 
             <a href="lower.htm">lower</a>() and if needs be a copy of the original case included somewhere in data.
@@ -53,7 +60,7 @@
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Example 1:</b>
          </td>
          <td>
 <!--eucode>
@@ -77,6 +84,109 @@ traverse_dict(routine_id("visitor"))
 </font><font color="#5E005E">setd</font><font color="#0000FF">(</font><font color="#008000">"key2"</font><font color="#0000FF">,</font><font color="#008000">"data2"</font><font color="#0000FF">)
 
 </font><font color="#5E005E">traverse_dict</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"visitor"</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+constant map1 = new_dict({{"key1","data1"}}),
+         map2 = new_dict({{"key2","data2"}}),
+         map3 = new_dict(map1)
+
+function merge(object key, object data, integer map3)
+    setd(key,data,map3)
+    return 1
+end function
+traverse_dict(routine_id("merge"),map3,map2)
+
+include builtins\map.e
+?{"map1:",pairs(map1)}
+?{"map2:",pairs(map2)}
+?{"map3:",pairs(map3)}
+-- output
+-- {"map1:",{{"key1","data1"}}}
+-- {"map2:",{{"key2","data2"}}}
+-- {"map3:",{{"key1","data1"},{"key2","data2"}}}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> map1</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"key1"</font><font color="#0000FF">,</font><font color="#008000">"data1"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">),
+</font><font color="#000000">         map2</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"key2"</font><font color="#0000FF">,</font><font color="#008000">"data2"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">),
+</font><font color="#000000">         map3</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#000000">map1</font><font color="#0000FF">)
+
+</font><font color="#008080">function</font><font color="#000000"> merge</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> key</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> data</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> map3</font><font color="#0000FF">)
+</font><font color="#5E005E">    setd</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">map3</font><font color="#0000FF">)
+</font><font color="#008080">    return</font><font color="#000000"> 1
+</font><font color="#008080">end function
+</font><font color="#5E005E">traverse_dict</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"merge"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">map3</font><font color="#0000FF">,</font><font color="#000000">map2</font><font color="#0000FF">)
+
+</font><font color="#008080">include</font><font color="#000000"> builtins\map.e
+</font><font color="#0000FF">?{</font><font color="#008000">"map1:"</font><font color="#0000FF">,</font><font color="#5E005E">pairs</font><font color="#800000">(</font><font color="#000000">map1</font><font color="#800000">)</font><font color="#0000FF">}
+?{</font><font color="#008000">"map2:"</font><font color="#0000FF">,</font><font color="#5E005E">pairs</font><font color="#800000">(</font><font color="#000000">map2</font><font color="#800000">)</font><font color="#0000FF">}
+?{</font><font color="#008000">"map3:"</font><font color="#0000FF">,</font><font color="#5E005E">pairs</font><font color="#800000">(</font><font color="#000000">map3</font><font color="#800000">)</font><font color="#0000FF">}
+</font><font color="#000080"><i>-- output
+-- {"map1:",{{"key1","data1"}}}
+-- {"map2:",{{"key2","data2"}}}
+-- {"map3:",{{"key1","data1"},{"key2","data2"}}}</i></font>
+</pre>
+            <br>
+            Obviously should the same key occur in map1 and map2, the data from map2 will overwrite the corresponding map1 value.
+            <br>
+            <br>
+            Note that other forms of merge are possible/may be required, for example if key is file size and data is a list of files of that size,
+            the merge operation would probably want to concatenate the values from matching keys rather than replace them, eg:
+<!--eucode>
+constant map1 = new_dict({{1234,{"this.txt"}}}),
+         map2 = new_dict({{1234,{"that.txt"}}}),
+         map3 = new_dict(map1)
+
+function merge(object key, object data, integer map3)
+    integer node = getd_index(key,map3)
+    if node=NULL then
+        setd(key,data,map3)
+        -- (possibly return 0 as per comment above)
+    else
+        setd(key,getd_by_index(node,map3)&data,map3)
+    end if
+    return 1
+end function
+traverse_dict(routine_id("merge"),map3,map2)
+include builtins\map.e
+?{"map1:",pairs(map1)}
+?{"map2:",pairs(map2)}
+?{"map3:",pairs(map3)}
+-- output
+-- {"map1:",{{1234,{"this.txt"}}}}
+-- {"map2:",{{1234,{"that.txt"}}}}
+-- {"map3:",{{1234,{"this.txt","that.txt"}}}}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> map1</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1234</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"this.txt"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">),
+</font><font color="#000000">         map2</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1234</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"that.txt"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">),
+</font><font color="#000000">         map3</font><font color="#0000FF"> =</font><font color="#5E005E"> new_dict</font><font color="#0000FF">(</font><font color="#000000">map1</font><font color="#0000FF">)
+
+</font><font color="#008080">function</font><font color="#000000"> merge</font><font color="#0000FF">(</font><font color="#004080">object</font><font color="#000000"> key</font><font color="#0000FF">,</font><font color="#004080"> object</font><font color="#000000"> data</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> map3</font><font color="#0000FF">)
+</font><font color="#004080">    integer</font><font color="#000000"> node</font><font color="#0000FF"> =</font><font color="#5E005E"> getd_index</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">map3</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#000000"> node</font><font color="#0000FF">=</font><font color="#004600">NULL</font><font color="#008080"> then
+</font><font color="#5E005E">        setd</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">map3</font><font color="#0000FF">)
+</font><font color="#000080"><i>        -- (possibly return 0 as per comment above)
+</i></font><font color="#008080">    else
+</font><font color="#5E005E">        setd</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#5E005E">getd_by_index</font><font color="#800000">(</font><font color="#000000">node</font><font color="#0000FF">,</font><font color="#000000">map3</font><font color="#800000">)</font><font color="#0000FF">&amp;</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000">map3</font><font color="#0000FF">)
+</font><font color="#008080">    end if
+    return</font><font color="#000000"> 1
+</font><font color="#008080">end function
+</font><font color="#5E005E">traverse_dict</font><font color="#0000FF">(</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#008000">"merge"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">map3</font><font color="#0000FF">,</font><font color="#000000">map2</font><font color="#0000FF">)
+</font><font color="#008080">include</font><font color="#000000"> builtins\map.e
+</font><font color="#0000FF">?{</font><font color="#008000">"map1:"</font><font color="#0000FF">,</font><font color="#5E005E">pairs</font><font color="#800000">(</font><font color="#000000">map1</font><font color="#800000">)</font><font color="#0000FF">}
+?{</font><font color="#008000">"map2:"</font><font color="#0000FF">,</font><font color="#5E005E">pairs</font><font color="#800000">(</font><font color="#000000">map2</font><font color="#800000">)</font><font color="#0000FF">}
+?{</font><font color="#008000">"map3:"</font><font color="#0000FF">,</font><font color="#5E005E">pairs</font><font color="#800000">(</font><font color="#000000">map3</font><font color="#800000">)</font><font color="#0000FF">}
+</font><font color="#000080"><i>-- output
+-- {"map1:",{{1234,{"this.txt"}}}}
+-- {"map2:",{{1234,{"that.txt"}}}}
+-- {"map3:",{{1234,{"this.txt","that.txt"}}}}</i></font>
 </pre>
          </td>
         </tr>

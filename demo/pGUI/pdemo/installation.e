@@ -137,7 +137,7 @@ global procedure install()
            sfxdir = join_path({cd,"sfx"}),
            sfxctl = join_path({sfxdir,sprintf("phix.%s.txt",{setupver})})
 
-    sequence envset = iff(platform()=WINDOWS?{"C:\\Downloads", "ALLUSERSPROFILE", 
+    sequence envset = iff(platform()=WINDOWS?{`C:\Downloads`, "ALLUSERSPROFILE", 
                                               "APPDATA", "LOCALAPPDATA", "PUBLIC",
                                               "USERPROFILE", "TEMP", "PHIXSETUP"}
                                             :{".","HOME","PHIXSETUP"})
@@ -236,7 +236,7 @@ Can you take a quick look at http://phix.x10.mx/phx.0.8.0.zip (7.53MB)?
 
 I created that file using LiteZip, which can extract from it with no errors.
 If open it using the 7_Zip gui, I can test/extract with no errors or warnings.
-However, if I right-click and either "Extract Here" or "Extract to phx.0.8.0\" then I
+However, if I right-click and either "Extract Here" or "Extract to phx.0.8.0" then I
 immediately get "Warnings: Headers Error" on the progress window, apparently exactly 
 the same (blank) one I got via the gui, though it then finishes without problem.
 

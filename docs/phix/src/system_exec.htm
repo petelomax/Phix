@@ -13,7 +13,9 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> exit_code = system_exec(<a href="string.htm">string</a> st, <a href="integer.htm">integer</a> mode=2)
+          <a href="integer.htm">integer</a> exit_code = system_exec(<a href="string.htm">string</a> st, 
+                                                                    <a href="integer.htm">integer</a> mode=2, 
+                                                                    <a href="sequence.htm">sequence</a> pipes={})
          </td>
         </tr>
         <tr>
@@ -97,8 +99,8 @@
             being able to make any sense of the rest of the line.
          <br>
          <br>
-            Note that the bit 4/8 settings of the mode parameter have no known equivalents on RDS Eu or OpenEuphoria, though 
-            otherwise <a href="system.htm">system</a>() and <a href="system_exec.htm">system_exec</a>() work the same.
+            Note that the bit 4/8 settings of the mode parameter have no known equivalents on Euphoria, though otherwise 
+            <a href="system.htm">system</a>() and <a href="system_exec.htm">system_exec</a>() work the same.
          <br>
          <br>
             For example if you want to run DEL or a batch file or the command string contains "&lt; input" or "&gt; output", then 
@@ -113,7 +115,16 @@
             <a href="puts.htm">puts</a>(1,xx) or <a href="getc.htm">getc</a>(0).
           <br>
           <br>
-            You can run a phix program using <a href="system_exec.htm">system_exec</a>(), and it can return an exit code using <a href="abort.htm">abort</a>().
+            See demo\capture_console.exw for a detailed example of using the pipes parameter (needs a bit more work on linux).<br>
+            If provided, it should be a sequence of length 3 for stdin/stdout/stderr, each of which is either a pair of read/write pipe handles or 
+            0/NULL if that does not want redirecting. <br>
+            Note that when both waiting for a result <i>and</i> redirecting stdin, all output to the latter must be completed <i>before</i> the call
+            to system_exec(), or perhaps via separate threads (but not tasks).<br>
+            For example, to only capture/redirect stdout, it should be {0,{stdout_rd,stdout_wr},0}, where stdout_rd and stdout_wr are from 
+            create_pipe() [DEV not yet a builtin, the one in capture_console.exw is a potential candidate].
+          <br>
+          <br>
+            You can run a Phix program using <a href="system_exec.htm">system_exec</a>(), and it can return an exit code using <a href="abort.htm">abort</a>().
           <br>
           <br>
             <a href="system_exec.htm">system_exec</a>() does not by default start a new DOS shell.
@@ -155,15 +166,13 @@ exit_code</font><font color="#0000FF"> =</font><font color="#5E005E"> system_exe
          <td>
 <!--eucode>
 -- executes myprog with two file names as arguments
--- note use of double backslash in literal string to get a single backslash
-if system_exec("p.exe \\test\\myprog.ex indata.csv outdata.csv") then
+if system_exec(`p.exe \test\myprog.ex indata.csv outdata.csv`) then
     puts(2, "failure!\n")
 end if
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#000080"><i>-- executes myprog with two file names as arguments
--- note use of double backslash in literal string to get a single backslash
-</i></font><font color="#008080">if</font><font color="#5E005E"> system_exec</font><font color="#0000FF">(</font><font color="#008000">"p.exe \\test\\myprog.ex indata.csv outdata.csv"</font><font color="#0000FF">)</font><font color="#008080"> then
+</i></font><font color="#008080">if</font><font color="#5E005E"> system_exec</font><font color="#0000FF">(</font><font color="#008000">`p.exe \test\myprog.ex indata.csv outdata.csv`</font><font color="#0000FF">)</font><font color="#008080"> then
 </font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "failure!\n"</font><font color="#0000FF">)
 </font><font color="#008080">end if</font>
 </pre>
@@ -177,14 +186,14 @@ end if
 <!--eucode>
 -- execute myprog with redirected standard input and output, and wait for the result
 -- note the use of quotation marks around any path/filename that contains spaces
-if system_exec("\"C:Program Files (x86)\\Phix\\p.exe\" myprog.ex < indata > outdata",4)
+if system_exec(`"C:Program Files (x86)\Phix\p.exe" myprog.ex < indata > outdata`,4)
     puts(2, "failure!\n")
 end if
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#000080"><i>-- execute myprog with redirected standard input and output, and wait for the result
 -- note the use of quotation marks around any path/filename that contains spaces
-</i></font><font color="#008080">if</font><font color="#5E005E"> system_exec</font><font color="#0000FF">(</font><font color="#008000">"\"C:Program Files (x86)\\Phix\\p.exe\" myprog.ex &lt; indata &gt; outdata"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">)
+</i></font><font color="#008080">if</font><font color="#5E005E"> system_exec</font><font color="#0000FF">(</font><font color="#008000">`"C:Program Files (x86)\Phix\p.exe" myprog.ex &lt; indata &gt; outdata`</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">)
 </font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000"> "failure!\n"</font><font color="#0000FF">)
 </font><font color="#008080">end if</font>
 </pre>

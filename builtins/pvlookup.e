@@ -936,8 +936,7 @@ integer bracketed
                     elsif cap='l' then
                         argtext = lower(argtext)
                     elsif cap='w' then
---DEV:
---                      argtext = proper(argtext)
+                        argtext = proper(argtext)
                     elsif cap=0 then
                         -- do nothing
                         cap = cap

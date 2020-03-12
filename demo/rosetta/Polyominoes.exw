@@ -1,0 +1,297 @@
+--
+-- demo\rosetta\Polyominoes.exw
+-- ============================
+--
+-- https://rosettacode.org/wiki/Free_polyominoes_enumeration
+--
+--{{trans|C#}} ... but didn't bother with Wrap()
+
+integer n, ns,                  -- rank, rank squared
+        target,                 -- rank to display
+        clipAt,                 -- max columns for display
+        fSiz, fWid              -- field size, width
+sequence polys,                 -- results
+         AnyR,                  -- Any Rotation count
+         nFlip,                 -- Non-Flipped count
+         Frees,                 -- Free Polyominoes count
+         fChk, fCkR,            -- field checks
+         dirs,                  -- directions
+         rotO, rotX, rotY       -- rotations
+
+-- (character indexes only work properly in utf32:)
+constant glyphs = utf8_to_utf32(" 12└4┘─┴8│┌├┐┤┬┼")
+
+function Puzzle(string a, string b) -- tests each intersection to determine correct corner symbol
+    sequence res = ""
+    if length(a)>length(b) then b &= repeat(' ', length(a)-length(b)) end if
+    if length(a)<length(b) then a &= repeat(' ', length(b)-length(a)) end if
+    for i=1 to length(a)-1 do
+        integer n=i+1
+        res &= glyphs[iff(a[i]==a[n]?0:1) + 
+                      iff(b[n]==a[n]?0:2) +
+                      iff(a[i]==b[i]?0:4) + 
+                      iff(b[i]==b[n]?0:8) + 1];
+    end for
+    return utf32_to_utf8(res)
+end function
+
+function flipXY(sequence p) -- flips a small string
+    sequence res = repeat("",length(p[1]))
+    for i=1 to length(res) do
+        for j=1 to length(p) do res[i] &= p[j][i] end for
+    end for
+    return res
+end function
+
+function double_width(string s)
+    string t = ""
+    for i=1 to length(s) do
+        integer ch = s[i]
+        t &= ch&ch
+    end for
+    return t
+end function
+ 
+function Cornered(string s) -- converts plain ascii art into cornered version
+    sequence lines = split(s,'\n')
+    string res = ""
+    string line = repeat(' ', length(lines[1])*2), last
+    for i=1 to length(lines) do
+        last = line
+        line = double_width(lines[i])
+        res &= Puzzle(last, line) & '\n'
+    end for
+    res &= Puzzle(line, repeat(' ', length(lines[$])*2)) & '\n'
+    return res
+end function
+
+function Assemble(sequence p)
+-- assembles string representation of polyominoes into larger horizontal band
+    sequence lines = repeat("",target)
+    for i=1 to length(p) do
+        sequence t = split(p[i],'\n')
+        if length(t)<length(t[1]) then t = flipXY(t) end if
+        for l=1 to length(lines) do
+            lines[l] &= iff(l<=length(t)?' '&t[l]&' ':repeat(' ',length(t[1])+2))
+        end for
+    end for
+    for i=length(lines) to 1 by -1 do
+        if find('#',lines[i])=0 then lines[i..i] = {} end if
+    end for
+    return Cornered(join(lines,"\n"))&"\n"
+end function
+ 
+function toStr(sequence field)
+-- converts field into a minimal string
+    string res = repeat(' ',n*(fWid+1)-1)
+    for i=fWid+1 to length(res) by fWid+1 do res[i] = '\n' end for
+    integer i = 0, j = n-2
+    while i<length(field) do
+        if and_bits(field[i+1],1)=1 then res[j+1] = '#' end if
+        if mod(j,fWid+1)==fWid then i -= 1 end if
+        i += 1
+        j += 1
+    end while
+    sequence t = split(res,'\n')
+    integer nn = 100, m = 0, v, k = 0; -- trim down
+    for i = 1 to length(t) do
+        string s = t[i]
+        v = find('#',s)
+        if v=0 then exit end if
+        if v<nn then nn=v end if
+        v = rfind('#',s)
+        if v>m then m=v end if
+        k += 1
+    end for
+    t = t[1..k]
+    for i=1 to length(t) do
+        t[i] = t[i][nn..m]
+    end for
+    if platform()=WINDOWS then return t end if
+    res = join(t,'\n')
+    return res
+end function
+
+procedure CheckIt(sequence field, integer lv)
+    AnyR[lv] += 1
+    for i=1 to ns do fChk[i] = 0 end for
+    integer x, y
+    bool bail = false
+    for x=n to fWid-1 do
+        for y=0 to fSiz-x by fWid do
+            bail = and_bits(field[x+y+1],1)=1
+            if bail then exit end if
+        end for
+        if bail then exit end if
+    end for
+    integer x2 = n - x, t, of1, of2, r
+    for i=1 to fSiz do
+        if and_bits(field[i],1)==1 then
+            t = (i + n - 3)
+            fChk[mod(t,fWid)+x2+floor(t/fWid)*n+1] = 1
+        end if
+    end for
+    for of1=1 to length(fChk) do if fChk[of1]!=0 then exit end if end for
+    bool c = true
+    for r=2 to 8 do
+        for x=0 to n-1 do
+            for y=0 to n-1 do
+                fCkR[rotO[r]+rotX[r]*x+rotY[r]*y+1] = fChk[x+y*n+1]
+            end for
+        end for
+        for of2=1 to length(fCkR) do if fCkR[of2]!=0 then exit end if end for
+        of2 -= of1
+        integer i = of1
+        while true do
+            if i>=ns-iff(of2>0?of2:0) then exit end if
+            if fChk[i+1]>fCkR[i+of2+1] then exit end if
+            if fChk[i+1]<fCkR[i+of2+1] then c = false; exit end if
+            i += 1
+        end while
+        if not c then exit end if
+    end for
+    if r>4 then nFlip[lv] +=1 end if
+    if c then
+        if lv==target+1 then polys=append(polys,toStr(field)) end if
+        Frees[lv] += 1
+    end if
+end procedure
+
+function Recurse(integer lv, sequence field, putlist, integer putno, putlast)
+-- this is probably about ten times slower than C#... 
+--  (some you win, some you lose - it has certainly not helped converting
+--   0-based indexing to 1-based simply by adding +1 almost everywhere.)).
+    CheckIt(field, lv)
+    if n<lv then return {field,putlist} end if
+    integer pos
+    for i=putno to putlast do
+        pos = putlist[i]
+        field[pos+1] = or_bits(field[pos+1],1)
+        integer k = 0
+        for d=1 to length(dirs) do
+            integer pos2 = pos + dirs[d]
+            if 0<=pos2 and pos2<fSiz and field[pos2+1]==0 then
+                field[pos2+1] = 2
+                k += 1
+                putlist[putlast+k] = pos2
+            end if
+        end for
+        {field,putlist} = Recurse(lv+1, field, putlist, i+1, putlast+k)
+        for j=1 to k do field[putlist[putlast+j]+1] = 0 end for
+        field[pos+1] = 2
+    end for
+    for i=putno to putlast do field[putlist[i]+1] = and_bits(field[putlist[i]+1],-2) end for
+    return {field,putlist}
+end function
+
+procedure CountEm()
+    ns = n * n
+    AnyR = repeat(0,n+1)
+    nFlip = repeat(0,n+1)
+    Frees = repeat(0,n+1)
+    fWid = n*2 - 2
+    fSiz = (n-1)*(n-1)*2 + 1
+    sequence pnField = repeat(0,fSiz),
+             pnPutList = repeat(0,fSiz)
+    fChk = repeat(0,ns)
+    fCkR = repeat(0,ns)
+    dirs = {1, fWid, -1, -fWid}
+    rotO = {0, n-1, ns-1, ns-n, n-1, 0, ns-n, ns-1}
+    rotX = {1, n, -1, -n, -1, n, 1, -n}
+    rotY = {n, -1, -n, 1, n, 1, -n, -1}
+    {} = Recurse(1, pnField, pnPutList, 1, 1)
+end procedure
+
+procedure main()
+    polys = {}
+    n = 11
+    target = 5
+    printf(1,"Counting polyominoes to rank %d...\n", n)
+    clipAt = 120
+    atom start = time()
+    CountEm()
+    atom ti = time()-start
+    if length(polys)>0 then
+        printf(1,"Displaying rank %d:\n", target);
+        if platform()=LINUX then
+            puts(1,Assemble(polys))
+        else
+            -- Windows consoles not so clever with unicode...
+            integer w = 0
+            sequence lines = {}
+            for i=1 to length(polys) do
+                for j=1 to length(polys[i]) do
+                    if j>length(lines) then
+                        lines = append(lines,repeat(' ',w))
+                    end if
+                    lines[j] &= repeat(' ',w-length(lines[j]))
+                    if i>1 then lines[j] &= "  " end if
+                    lines[j] &= polys[i][j]
+                end for
+                w = length(lines[1])
+            end for
+            puts(1,join(lines,"\n")&"\n")
+        end if
+    end if
+    printf(1,"Displaying results:\n")
+    printf(1," n      All Rotations     Non-Flipped      Free Polys\n")
+    for i=2 to n+1 do
+        printf(1,"%2d : %16d %15d %15d\n", {i-1, AnyR[i], nFlip[i], Frees[i]})
+    end for
+    printf(1,"Elapsed: %s\n",{elapsed(ti)})
+    atom ms = ti*1000
+    if ms>250 then
+        printf(1,"Estimated completion times:\n")
+        for i=n+1 to n+10 do
+            ms = (ms+44)*4
+            printf(1,"%2d : %s\n",{i,elapsed(ms/1000)})
+        end for
+    end if
+    {} = wait_key()
+end procedure
+main()
+
+--/*
+Counting polyominoes to rank 11...
+Displaying rank 5:
+###  ###   ###  ####  ###   ##   ##   ##  ####  ###  #####   #
+##   #    ##    #     # #  ##    #   ##    #     #          ###
+     #                      #   ##   #           #           #
+Displaying results:
+ n      All Rotations     Non-Flipped      Free Polys
+ 1 :                1               1               1
+ 2 :                2               1               1
+ 3 :                6               2               2
+ 4 :               19               7               5
+ 5 :               63              18              12
+ 6 :              216              60              35
+ 7 :              760             196             108
+ 8 :             2725             704             369
+ 9 :             9910            2500            1285
+10 :            36446            9189            4655
+11 :           135268           33896           17073
+Elapsed: 5.8s
+Estimated completion times:
+12 : 23.5s
+13 : 1 minute and 34s
+14 : 6 minutes and 17s
+15 : 25 minutes and 07s
+16 : 1 hour, 40 minutes and 28s
+17 : 6 hours, 41 minutes and 52s
+18 : 1 day, 2 hours, 47 minutes and 27s
+19 : 4 days, 11 hours, 9 minutes and 49s
+20 : 17 days, 20 hours, 39 minutes and 14s
+21 : 71 days, 10 hours, 36 minutes and 57s
+
+{{out}}
+linux
+<pre>
+Displaying rank 5:
+ ┌───┐   ┌─────┐     ┌─┐   ┌───┐   ┌───┐     ┌───┐     ┌───┐     ┌───┐   ┌─┐     ┌─────┐   ┌─┐     ┌─┐   
+ │   │   │ ┌───┘   ┌─┘ │   │ ┌─┘   │ ┌─┘   ┌─┘ ┌─┘     │ ┌─┘   ┌─┘ ┌─┘   │ └─┐   └─┐ ┌─┘   │ │   ┌─┘ └─┐ 
+ │ ┌─┘   │ │       │ ┌─┘   │ │     │ └─┐   └─┐ │     ┌─┘ │     │ ┌─┘     │ ┌─┘     │ │     │ │   └─┐ ┌─┘ 
+ └─┘     └─┘       │ │     │ │     └───┘     └─┘     └───┘     └─┘       │ │       └─┘     │ │     └─┘   
+                   └─┘     └─┘                                           └─┘               │ │           
+                                                                                           └─┘
+</pre>
+--*/

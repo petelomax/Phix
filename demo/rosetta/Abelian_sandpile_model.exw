@@ -1,0 +1,223 @@
+--
+-- demo\rosetta\Abelian_sandpile_model.exw
+-- =======================================
+--
+-- (The distributed version also has variable speed, additional display modes,
+--  and a random dropping toggle. This be that.)
+--
+-- The redraw logic originally cribbed from Morpion Solitaire.
+-- The version posted to rosettacode is pixel_mode only.
+--
+constant help_text = """
+Any "pile" that has 4 or more sand particles on it collapses, 
+resulting in four particles being subtracted from the pile and 
+distributed among it's neighbors. This animates that process,
+producing some unexpected patterns, even after randomising.
+
+Press +/- to increase/decrease moves per second, P to toggle 
+pixel mode, R to toggle random dropping, and T to toggle text 
+display (while each pile is >=20 pixels).
+"""
+
+--without debug
+include pGUI.e
+--include builtins\VM\pprntfN.e
+--include builtins\VM\pcfunc.e
+--include builtins\pfile.e
+--include builtins\scanf.e
+--include builtins\pdir.e
+--include builtins\penv.e
+--include builtins\pretty.e
+--include builtins\factorial.e
+--include builtins\VM\pTime.e
+--with debug
+--#withtype Ihandle
+--#withtype cdCanvas
+
+Ihandle dlg, canvas, timer
+
+sequence board = {{0,0,0},
+                  {0,0,0},
+                  {0,0,0}}
+
+integer mps = 100           -- moves per second (1/10/100/1000, -down, +up)
+bool pixel_mode = false,    -- key 'P' to toggle
+     random_drop = false,   -- key 'R' to toggle
+     show_text = true       -- key 'T' to toggle
+
+function redraw_cb(Ihandle ih, integer /*posx*/, integer /*posy*/)
+    integer {cw,ch} = IupGetIntInt(ih, "DRAWSIZE"),
+            bw = length(board[1]),
+            bh = length(board)
+    
+    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
+    IupGLMakeCurrent(ih)
+    cdCanvasActivate(cddbuffer)
+    cdCanvasClear(cddbuffer)
+    integer mx = min(floor(cw/bw),floor(ch/bh)),
+            r = floor(mx/2),
+            r2 = r*r
+    mx = r*2    -- (prevent drift)
+    integer t = r+floor(r/3),
+            cy = ch-r, cx = r,
+            hr = floor(r/2)
+    if not pixel_mode then
+        if mx>8 then
+            -- draw grid
+            cdCanvasSetForeground(cddbuffer,CD_LIGHT_GREY)
+            while cx<cw or cy>0 do
+                cdCanvasLine(cddbuffer,cx,1,cx,ch)
+                cdCanvasLine(cddbuffer,1,cy,cw,cy)
+                cx += mx
+                cy -= mx
+            end while
+            if show_text and mx>=20 then    
+                {} = cdCanvasTextAlignment(cddbuffer, CD_CENTER) 
+            end if
+        else
+            t += 1
+        end if
+    else
+        mx = 1
+    end if
+    cy = ch-r
+    for y=1 to bh do
+        cx = r
+        for x=1 to bw do 
+            integer c = board[y][x]
+            if c!=0 then
+--              integer colour = {CD_YELLOW,CD_ORANGE,CD_RED}[c]
+                integer colour = {CD_VIOLET,CD_RED,CD_BLUE}[c]
+                if pixel_mode then
+                    cdCanvasPixel(cddbuffer, cx, cy, colour)
+                else
+                    cdCanvasSetForeground(cddbuffer,colour)
+                    cdCanvasSector(cddbuffer, cx, cy, t, t, 0, 360)
+                    if show_text and mx>=20 then
+                        cdCanvasSetForeground(cddbuffer,CD_DARK_GREY)
+                        cdCanvasCircle(cddbuffer, cx, cy, t)
+                        string txt = sprintf("%d",c)
+                        cdCanvasText(cddbuffer, cx, cy, txt)
+                    end if
+                end if
+            end if
+            cx += mx
+        end for
+        cy -= mx
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    IupGLMakeCurrent(ih)
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvas cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle canvas)
+    cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+procedure drop(integer x, y)
+    sequence moves = {}
+    while true do
+        board[y,x] += 1
+        if board[y,x]>=4 then
+            board[y,x] -= 4
+            moves &= {{y,x-1},{y,x+1},{y-1,x},{y+1,x}}
+        end if
+        -- extend board if rqd (maintain a border of zeroes)
+        if x=1 then
+            -- extend left
+            for i=1 to length(board) do
+                board[i] = prepend(board[i],0)
+            end for
+            for i=1 to length(moves) do
+                moves[i][2] += 1
+            end for
+        elsif x=length(board[1]) then
+            -- extend right
+            for i=1 to length(board) do
+                board[i] = append(board[i],0)
+            end for
+        end if
+        -- (copy the undamaged lines from the other end...)
+        if y=1 then
+            -- extend up
+            board = prepend(board,board[$])
+            for i=1 to length(moves) do
+                moves[i][1] += 1
+            end for
+        elsif y=length(board) then
+            -- extend down
+            board = append(board,board[1])
+        end if
+        if length(moves)=0 then exit end if
+        {y,x} = moves[$]
+        moves = moves[1..$-1]
+    end while   
+    IupUpdate(canvas)
+end procedure
+
+integer drops = 0
+
+function timer_cb(Ihandle /*ih*/)
+    for i=1 to mps do
+        integer {x,y} = {length(board[1]),length(board)}
+        {x,y} = iff(random_drop?{rand(x-2)+1,rand(y-2)+1}
+                               :{floor(x/2)+1,floor(y/2)+1})
+        drop(x,y)
+        drops += 1
+    end for
+    string title = sprintf("Abelian sandpile model (%d, %d moves/s)",{drops,mps})
+    IupSetStrAttribute(dlg,"TITLE",title)
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then return IUP_CLOSE
+    elsif c=K_F1 then
+        IupMessage("Abelian sandpile model",help_text)
+    elsif find(c,"+-") then
+        if c='-' and mps>1 then
+            mps /= 10
+        elsif c='+' and mps<1000 then
+            mps *= 10
+        end if
+    else
+        c = upper(c)
+        if    c='P' then pixel_mode = not pixel_mode
+        elsif c='R' then random_drop = not random_drop
+        elsif c='T' then show_text = not show_text
+        end if
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+ 
+    canvas = IupGLCanvas("RASTERSIZE=800x800")
+    IupSetCallbacks({canvas}, {"ACTION", Icallback("redraw_cb"),
+                               "MAP_CB", Icallback("map_cb"),
+                               "RESIZE_CB", Icallback("canvas_resize_cb")})
+    dlg = IupDialog(canvas,`TITLE="Abelian sandpile model"`)
+    IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupSetAttribute(dlg, "RASTERSIZE", NULL)
+    IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
+    timer = IupTimer(Icallback("timer_cb"), 1000)
+    IupMainLoop()
+    IupClose()
+end procedure
+ 
+main()
+

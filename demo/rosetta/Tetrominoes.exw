@@ -1,0 +1,235 @@
+--
+-- demo\rosetta\Tetrominoes.exw
+-- ============================
+--
+-- Author Pete Lomax, Jan 2020
+--
+--  1. A robot may not injure a human being, or, through inaction,
+--      allow a human being to come to harm.
+--
+--  2. A robot must obey the orders given it by human beings
+--      except where such orders would conflict with the First Law.
+--
+--  3. A robot must protect its own existence as long as such
+--      protection does not conflict with the First or Second Law.
+--
+--  4. A robot must never place the long skinny ones horizontally,
+--      unless it leads to a long skinny vertical hole so 4 rows can
+--      be cleared at once the next time a long skinny one comes
+--      around.
+--
+include pGUI.e
+
+Ihandle canvas, dialog, timer
+cdCanvas cddbuffer, cdcanvas
+
+constant TITLE = "Tetrominoes",
+         lct = {{'I',CD_CYAN,   {{-2, 0},{-1, 0},{ 0, 0},{ 1, 0}}},
+                {'T',CD_PURPLE, {{-1, 0},{ 0, 0},{ 1, 0},{ 0, 1}}},
+                {'O',CD_YELLOW, {{-1, 0},{ 0, 0},{-1, 1},{ 0, 1}}},
+                {'S',CD_GREEN,  {{-1, 1},{ 0, 1},{ 0, 0},{ 1, 0}}},
+                {'Z',CD_RED,    {{-1, 0},{ 0, 0},{ 0, 1},{ 1, 1}}},
+                {'J',CD_BLUE,   {{-1, 0},{ 0, 0},{ 1, 0},{ 1, 1}}},
+                {'L',CD_ORANGE, {{-1, 1},{-1, 0},{ 0, 0},{ 1, 0}}}},
+        {letters,colours,tiles} = columnize(lct),
+        topbot = {repeat('*',12)},
+        clear_line = '*'&repeat(' ',10)&'*',
+        full_line = '*'&repeat('Z',10)&'*',
+        init_board = topbot&repeat(clear_line,20)&topbot,
+        directions = {{0,+1}, -- DOWN
+                      {-1,0}, -- LEFT
+                      {+1,0}} -- RIGHT
+
+enum type direction DOWN, LEFT, RIGHT end type
+
+sequence board, -- (nb 2-based indexing!)
+         tile
+integer px, py, preview, level, 
+        completed, -- (the first complete line found, cleared soon)
+        completen, -- (number of    ""     "" s  ""      ""    "" )
+        completot  -- (the running total, used to update the level)
+
+function check(sequence this, that, integer nx, ny)
+-- (common code for move and rotate)
+    integer tx, ty, what
+    for i=1 to length(that) do  -- check tgt free
+        sequence ti = that[i]
+        if not find(ti,this) then
+            {tx,ty} = ti
+            if tx>11 or board[ty,tx]!=' ' then
+                return false
+            end if 
+        end if
+    end for
+    for i=1 to 4 do             -- clear current
+        {tx,ty} = this[i]
+        what = board[ty,tx]
+        board[ty,tx]=' '
+    end for
+    for i=1 to 4 do             -- set new position
+        {tx,ty} = that[i]
+        board[ty,tx] = what
+    end for
+    {px,py} = {nx,ny}
+    IupUpdate(canvas)
+    return true
+end function
+
+function move(direction d, bool place=false, what=' ')
+-- returns true/false to allow detection of "game over", drop new, etc
+    integer {dx,dy} = directions[d], tx, ty, x, y
+    sequence {this, that} @= repeat({},4)
+    for i=1 to length(tile) do
+        {tx,ty} = tile[i]
+        {x,y} = {px+tx+1,py+ty+1}
+        this[i] = {x,y}
+        that[i] = {x+dx,y+dy}
+        if place then board[y,x] = what end if
+    end for
+    return check(this,that,px+dx,py+dy)
+end function
+
+procedure rotate()
+-- 90 degrees anti-clockwise
+    sequence rile = tile, 
+             {this, that} @= repeat({},4)
+    for i=1 to length(tile) do
+        integer {tx,ty} = tile[i]
+        rile[i] = {ty,-tx}
+        this[i] = {px+tx+1,py+ty+1}
+        that[i] = {px+ty+1,py-tx+1}
+    end for
+    if check(this,that,px,py) then
+        tile = rile
+    end if
+end procedure
+
+procedure set_level(integer nl)
+    level = nl
+    IupSetInt(timer,"RUN",false)
+    IupSetInt(timer,"TIME",50*(11-level))
+    IupSetInt(timer,"RUN",true)
+    IupSetStrAttribute(dialog,"TITLE","%s - level %d",{TITLE,level})
+end procedure
+
+procedure drop(bool bStart=false)
+    if bStart then
+        {board,preview,completed,completot} = {init_board,rand(7),0,0}
+        set_level(1)
+    else
+        while move(DOWN) do end while
+        for i=2 to 21 do
+            if not find(' ',board[i]) then
+                completed = i
+                for j=i+1 to 22 do
+                    board[j-1] = full_line
+                    if j=22 or find(' ',board[j]) then
+                        completen = j-i
+                        IupUpdate(canvas)
+                        return  -- (show it with a brief pause)
+                    end if
+                end for
+            end if
+        end for
+    end if
+    integer t = preview
+    preview = rand(7)
+    {px,py,tile} = {6,1,tiles[t]}
+    if not move(DOWN,true,letters[t]) then
+        IupSetStrAttribute(dialog,"TITLE","%s - GAME OVER",{TITLE})
+        IupSetInt(timer,"RUN",false)
+    end if
+end procedure
+
+procedure new_game()
+    drop(bStart:=true)
+end procedure
+
+procedure clear()
+    completot += completen
+    integer nl = floor(min(completot-1,90)/10)+1
+    if nl!=level then set_level(nl) end if
+    for i=completed+completen-1 to 3 by -1 do
+        completed -= (completed>2)
+        board[i] = board[completed]
+    end for
+    board[2] = clear_line
+    completed = 0
+end procedure
+
+function redraw_cb(Ihandle /*canvas*/, integer /*posx*/, integer /*posy*/)
+    integer {cw,ch} = IupGetIntInt(canvas, "DRAWSIZE"),
+            dx = min(floor(cw/10), floor(ch/20))-1,
+            mx = floor((cw-10*dx-11)/2),
+            my = floor((ch-20*dx-21)/2),
+            gx, gy, sq
+
+    cdCanvasActivate(cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_DARK_GREY)
+    cdCanvasClear(cddbuffer)
+
+    for y=1 to 20 do
+        gy = my+(20-y)*(dx+1)+1
+        for x=1 to 10 do
+            sq = board[y+1,x+1]
+            if sq!=' ' then
+                cdCanvasSetForeground(cddbuffer,colours[find(sq,letters)])
+                gx = mx+(x-1)*(dx+1)+1
+                cdCanvasBox(cddbuffer, gx, gx+dx-1, gy, gy+dx-1)
+            end if
+        end for
+    end for
+    cdCanvasSetForeground(cddbuffer,colours[preview])
+    gx = mx+9*(dx+1)+1
+    gy = my+19*(dx+1)+1
+    dx = floor(dx/4)
+    sequence ptile = sq_add(repeat({gx+dx*2,gy+dx*2},4),sq_mul(tiles[preview],dx))
+    for i=1 to 4 do
+        {gx,gy} = ptile[i]
+        cdCanvasBox(cddbuffer, gx, gx+dx-1, gy, gy+dx-1)
+    end for
+    cdCanvasFlush(cddbuffer)
+    return IUP_DEFAULT
+end function
+
+function map_cb(Ihandle ih)
+    cdcanvas = cdCreateCanvas(CD_IUP, ih)
+    cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle /*ih*/, atom c)
+    if c=K_CR or c=K_SP then new_game()
+    elsif c=K_LEFT then {} = move(LEFT)
+    elsif c=K_RIGHT then {} = move(RIGHT)
+    elsif c=K_UP then rotate()
+    elsif c=K_DOWN then drop()
+    elsif c=K_ESC then return IUP_CLOSE
+    end if
+    return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandle /*timer*/)
+    if     completed    then clear()
+    elsif not move(DOWN) then drop()
+    end if
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupCanvas("RASTERSIZE=350x675")
+    IupSetCallback(canvas, "MAP_CB", Icallback("map_cb"))
+    IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
+    dialog = IupDialog(canvas)
+    IupSetAttribute(dialog,"TITLE",TITLE)
+    IupSetCallback(dialog, "K_ANY", Icallback("key_cb"));
+    timer = IupTimer(Icallback("timer_cb"), 500)
+    new_game()
+    IupShow(dialog)
+    IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    IupMainLoop()
+    IupClose()
+end procedure
+main()
+

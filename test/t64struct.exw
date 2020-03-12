@@ -1,0 +1,428 @@
+--
+-- test/t64struct.exw
+--
+--  Tests for new struct/class syntax handling
+--
+-- 1) first class routine_ids, aka call integers directly
+integer i
+procedure show(integer s)
+    i = s
+end procedure
+constant r_show = routine_id("show")
+--integer r_show = routine_id("show")
+
+show(40)                if i!=40 then ?9/0 end if
+call_proc(r_show,{41})  if i!=41 then ?9/0 end if
+r_show(42)              if i!=42 then ?9/0 end if
+
+function f(integer i)
+    return i
+end function
+--constant r_f = routine_id("f")
+integer r_f = routine_id("f")
+
+i = f(40)               if i!=40 then ?9/0 end if
+i = call_func(r_f,{41}) if i!=41 then ?9/0 end if
+i = r_f (42)            if i!=42 then ?9/0 end if
+
+--/* a quick timing test (pretty much what I expected)
+integer i = 0, i0
+procedure count()
+    i += 1
+end procedure
+constant r_count = routine_id("count")
+
+atom t1 = time()+1
+while time()<t1 do
+count()
+end while
+i0 = i
+i = 0
+t1 = time()+1
+while time()<t1 do
+--  call_proc(r_count,{})
+    r_count()
+end while
+
+function add1(integer i)
+    return i+1
+end function
+constant r_add1 = routine_id("add1")
+
+integer j = 0, j0
+t1 = time()+1
+while time()<t1 do
+  j = add1(j)
+end while
+j0 = j
+j = 0
+t1 = time()+1
+while time()<t1 do
+--  j = call_func(r_add1,{j})
+    j = r_add1(j)
+end while
+?{i0,i,i0/i,i/i0} -- {11977948,4106341,2.916939436,0.3428250816}
+?{j0,j,j0/j,j/j0} -- {11195753,3132206,3.574398683,0.2797673368}
+-- so call_func/proc is ~3 times slower than direct call (as to be expected, and now noted in docs)
+--*/
+
+-- for https://rosettacode.org/wiki/Classes (which actually has procedure show() instead of function getn())
+class number
+    public integer n = 3
+    function get_n()
+        return n
+    end function
+end class
+number v = new({4})
+if v.n!=4 then ?9/0 end if
+v.n = 5
+if v.n!=5 then ?9/0 end if
+
+--/*
+There is as yet no formally-documented con(/de)structor method, however the (experimental, hopefully formally-documented 
+by 0.8.2) procedure five() below is called, though right now it needs a single {args} on the new (if provided). As-is it 
+does nothing that isn't done anyway, apart from the 3 overidden by 4 overidden by 5 that I just snuck in, and it may yet 
+get some clever new ("new") syntax. Of course you could instead just write a more traditional new_five() function. Also
+note that (currently) destructors, such as that ~five(), are not invoked in a timely fashion or indeed even guaranteed 
+to be called at all (that <i>must</i> be fixable, I just don&rsquo;t yet know how).
+    function five(integer n = 4)    -- (this is entirely optional)
+        printf(1,"constructor five called\n")
+        this.n = n
+        return this
+    end function
+    procedure ~five()
+        ?{"~five (destructor)",this}
+    end procedure
+
+https://rosettacode.org/wiki/Classes [DONE]
+=={{header|Phix}}==
+Note that constructors and destructors are not quite yet finalised (hopefully 0.8.2).
+Needs 0.8.1+
+<lang Phix>
+--*!/
+class number
+    public integer n = 3
+    procedure show()
+        printf(1,"show: n is %d\n",{n})
+    end procedure
+end class
+number v = new({4})
+?v.n
+v.n = 5
+v.show()
+--/!*
+</lang>
+{{out}}
+<pre>
+4
+show: n is 5
+</pre>
+--*/
+
+--from https://rosettacode.org/wiki/Active_object
+--[DEV need to get rid of threads/sleep() for t64...] [DONE]
+--=={{header|Phix}}==
+--Needs 0.8.1+
+--<lang Phix>
+--/!*
+--integer xlock = init_cs()
+
+class integrator
+--
+-- Integrates input function f over time
+-- S + (t1 - t0) * (f(t1) + f(t0)) / 2
+--
+--  integer f   -- 
+    function fie(atom t) return sin(2*PI*0.5*t) end function
+--  atom interval, t0, k0 = 0, v = 0
+    atom pie = 0
+--  bool running
+--  public integer id
+ 
+--  procedure set_func(integer rid)
+--      this.f = rid
+--  end procedure
+ 
+    procedure update()
+--      enter_cs(xlock)
+--      integer f = this.f  -- (nb: no "this")
+--      atom t1 = time(),
+--           k1 = f(t1)
+--DEV..
+--      this.v += (k1 + k0) * (t1 - t0) / 2
+--      v += (k1 + k0) * (t1 - t0) / 2
+--      v = v + (k1 + k0) * (t1 - t0) / 2
+--      t0 = t1
+--      k0 = k1
+--      leave_cs(xlock)
+        pie = fie(1)
+    end procedure
+
+--  procedure tick()
+--      running = true
+--      while running do
+--          sleep(interval)
+--          update()
+--      end while
+--  end procedure
+
+--  procedure stop()
+--      running = false
+--      wait_thread(id)
+--  end procedure
+
+    function get_output()
+        return pie
+    end function
+ 
+end class
+
+--function new_integrator(integer rid, atom interval)
+--  integrator i = new()
+--  
+----    i.id = create_thread(i.tick,{i})
+--  return i
+--end function
+
+--function zero(atom /*t*/) return 0 end function
+--function sine(atom t) return sin(2*PI*0.5*t) end function
+
+integrator pi = new()
+pi.update()
+--?pi.get_output()
+if pi.get_output()!=sin(PI) then ?9/0 end if
+--i.set_func(zero)
+--sleep(0.5)
+--i.stop()
+--?i.get_output()
+--/*
+{{out}}
+<pre>
+--0.0003532983803
+--4.049495114e-17
+</pre>
+--*/
+
+--?sin(PI)
+--?sin(0)
+if sin(0)!=0 then ?9/0 end if
+
+-- from https://rosettacode.org/wiki/Anonymous_recursion#Phix
+class Fib
+    private function fib_i(integer n)
+        return iff(n<2?n:this.fib_i(n-1)+this.fib_i(n-2))
+    end function
+    public function fib(integer n)
+        if n<0 then throw("constraint error") end if
+        return this.fib_i(n)
+    end function
+end class
+Fib fib = new()
+ 
+function fib_i(integer i)
+    return sprintf("this is not the fib_i(%d) you are looking for",i)
+end function
+ 
+if fib.fib(10)!=55 then ?9/0 end if
+--?fib.fib_i(10)    -- illegal
+if fib_i(10)!="this is not the fib_i(10) you are looking for" then ?9/0 end if
+
+-- from https://rosettacode.org/wiki/Abstract_type
+abstract class job
+    function task(); -- (virtual)
+    function easy() return "easy" end function
+end class
+--job j = new()     -- compilation error: "abstract class"
+
+class errand extends job
+    private function hard() return "hard" end function
+    function random() return "random" end function
+    procedure mix_it_up(integer i)
+        this.task = {this.easy,this.hard,this.random}[i]
+    end procedure
+end class
+errand e = new()
+
+e.mix_it_up(1)
+if e.task()!="easy" then ?9/0 end if
+e.mix_it_up(2)
+-- note that private hard() can now be invoked via public task()
+if e.task()!="hard" then ?9/0 end if
+
+class tedious extends job
+    function task() return "tedious" end function
+end class
+tedious t = new()
+
+procedure test(job j, string expected)
+    if j.task()!=expected then ?9/0 end if
+end procedure
+e.mix_it_up(3)
+test(e,"random")
+test(t,"tedious")
+
+-- from https://rosettacode.org/wiki/Add_a_variable_to_a_class_instance_at_runtime
+class wobbly dynamic
+    -- (pre-define a few fields/methods if you like)
+end class
+wobbly wobble = new()
+if wobble.jelly!=0 then ?9/0 end if
+wobble.jelly = "green"
+if wobble.jelly!="green" then ?9/0 end if
+
+-- from https://rosettacode.org/wiki/Break_OO_privacy
+class ptest
+    private string msg = "test"
+    function get_msg() return msg end function
+end class
+ptest p = new()
+if p.get_msg()!="test" then ?9/0 end if
+--?p.msg                                -- illegal
+--p.msg = "this is broken"              -- illegal
+include builtins\structs.e as structs
+constant ctx = routine_id("ptest")  -- magic/context
+--constant ctx = "ptest"            --  also works
+if structs:fetch_field(p,"msg",ctx)!="test" then ?9/0 end if
+structs:store_field(p,"msg","this breaks privacy",ctx)
+if p.get_msg()!="this breaks privacy" then ?9/0 end if
+
+-- from https://rosettacode.org/wiki/Call_an_object_method (well, planned for, but not actually posted)
+class ctest
+    function test() return "test" end function
+    function inst() return "inst" end function
+end class
+ctest ct = new()
+if ct.test()!="test" then ?9/0 end if
+if ct.inst()!="inst" then ?9/0 end if
+ct.inst = ct.test
+if ct.inst()!="test" then ?9/0 end if
+--?"=="
+-- quickly prove we only altered t, not test:
+ctest ct2 = new()
+if ct2.inst()!="inst" then ?9/0 end if
+-- and the same proof, but slightly quirkier: [not tried since moving here]
+--include builtins\structs.e as structs
+--integer i = structs:get_field_default("ctest","inst")
+--i(ct) -- (same output for ct or ct2! - see note)
+--i(ct2)
+--?`i:=structs:fetch_field(ct,"inst")`
+--i:=structs:fetch_field(ct,"inst")
+--i(ct)
+--i(ct2)
+--?`i:=structs:fetch_field(ct2,"inst")`
+--i:=structs:fetch_field(ct2,"inst")
+--i(ct)
+--i(ct2)
+
+-- from https://rosettacode.org/wiki/Inheritance/Multiple
+class Camra
+    string name = "nikkon"
+end class
+class Mobile
+--  string name = "nokia" -- oops!
+    string mane = "nokia" -- ok!
+end class
+class CamraPhone extends Camra,Mobile
+    function what() return {name,mane} end function
+end class
+CamraPhone cp = new()
+if cp.what()!={"nikkon","nokia"} then ?9/0 end if
+
+--======================================================--
+
+class Camera
+    public string name = "nikkon"
+end class
+class MobilePhone
+    public string name = "nokia" -- (clash no more)
+end class
+class CameraPhone
+--  Camera c = new()
+--  MobilePhone m = new()
+    public Camera c
+    public MobilePhone m
+    function what() return {c.name,m.name} end function
+end class
+Camera c = new({"canon"})
+MobilePhone m = new()
+CameraPhone cp1 = new({c,m}),
+            cp2 = new({new("Camera"),new("MobilePhone")}),
+            cp3 = new() -- (internal/shared/NULL c,m)
+cp3.c = new()           -- (obviously c must be public)
+cp3.m = new({"LG20"})   --     ""     m    ""     ""
+if cp1.what()!={"canon","nokia"} then ?9/0 end if
+if cp2.what()!={"nikkon","nokia"} then ?9/0 end if
+if cp3.what()!={"nikkon","LG20"} then ?9/0 end if
+
+-- from https://rosettacode.org/wiki/Inheritance/Single (this only checks it compiles ok)
+class Animal
+    private string species
+end class
+class Dog extends Animal
+    public procedure bark()
+        puts(1,"woof\n")
+    end procedure
+end class
+class Lab extends Dog end class
+class Collie extends Dog end class
+class Cat extends Animal end class
+
+-- from https://rosettacode.org/mw/index.php?title=Reflection/List_methods#Phix
+class c7
+    private function foo();
+    public procedure bar();
+end class
+
+sequence fields = structs:get_struct_fields(c7)
+for i=1 to length(fields) do
+    {string name, integer tid, integer flags} = fields[i]
+    if and_bits(flags,SF_RTN) then
+        if tid!=ST_INTEGER then ?9/0 end if -- (sanity check)
+        fields[i] = sprintf("%s:%s",{name,structs:get_field_flags(c7,name,true)})
+    end if
+end for
+if fields!={"foo:SF_PRIVATE+SF_FUNC","bar:SF_PROC"} then ?9/0 end if
+
+-- from https://rosettacode.org/wiki/Reflection/List_properties
+class c8 nullable
+    integer int = 1
+    public atom atm = 2.3
+    string str = "4point5"
+    sequence seq
+  public:
+    object obj = {"an object"}
+    c8 child
+    private function foo();
+    public procedure bar();
+end class
+
+c8 c_instance = new()
+
+--include builtins\structs.e as structs
+function nulls(object s) return iff(s=NULL?"NULL":s) end function
+fields = structs:get_struct_fields(c8)
+for i=1 to length(fields) do
+    {name, tid, flags} = fields[i]
+    if not and_bits(flags,SF_RTN) then -- (exclude foo/bar)
+        string t2 = nulls(structs:get_field_type(c8,name,true)),
+               f2 = nulls(structs:get_field_flags(c8,name,true))
+        object v2 = nulls(structs:fetch_field(c_instance,name,c8))
+        fields[i] = sprintf("type:%s, name:%s, flags:%s, value:%v",{t2,name,f2,v2})
+    elsif and_bits(flags,SF_RTN) then
+        if tid!=ST_INTEGER then ?9/0 end if -- (sanity check)
+        fields[i] = sprintf("%s:%s",{name,structs:get_field_flags(c8,name,true)})
+    end if
+end for
+if fields!={`type:ST_INTEGER, name:int, flags:SF_PRIVATE, value:1`,
+            `type:ST_ATOM, name:atm, flags:SF_PUBLIC, value:2.3`,
+            `type:ST_STRING, name:str, flags:SF_PRIVATE, value:"4point5"`,
+            `type:ST_SEQUENCE, name:seq, flags:SF_PRIVATE, value:{}`,
+            `type:ST_OBJECT, name:obj, flags:SF_PUBLIC, value:{"an object"}`,
+            `type:c8, name:child, flags:SF_PUBLIC, value:"NULL"`,
+            `foo:SF_PRIVATE+SF_FUNC`,
+            `bar:SF_PROC`} then
+    ?9/0
+end if
+
+?"ok"
+{} = wait_key()

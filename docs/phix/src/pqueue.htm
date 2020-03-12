@@ -1,0 +1,193 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">pqueue</h1>
+      <div id="mainSection">
+        The file builtins\pqueue.e (an autoinclude) contains a basic implementation of priority queues.
+        <br>
+        <br>
+        A priority queue is kind of fast to-do list, whereby you can add as many items as you want in any order 
+        and at any time, and quickly retrieve either the lowest or highest element (but not both), depending on 
+        whether the priority queue was created as a MIN_HEAP or a MAX_HEAP. You can add items on-the-fly, between
+        peeling a few off, and the head of the priority queue will always be the min/max element.
+        <br>
+        <br>
+        Relatively small lists gain little, however I can attest to seeing this thoroughly trounce an earlier 
+        version of a program that had to process over 800,000 numbers in a different order to the way they were 
+        created, by a factor of 17.5 (0.8s vs 14s), and yet the only real difference was how those numbers were 
+        being stored and sorted. While a standard <a href="sort.htm">sort</a>() is generally pretty fast, it can 
+        be completely outclassed by a priority queue<sup><small>1</small></sup>, and obviously a priority queue
+        will also outclass any algorithm that uses repeated sorting or scanning.
+        <br>
+        <br>
+        For more technical details about the implementation of priority queues (a kind of shape-constrained
+        binary tree kept in a flat list), see the comments at the start of builtins\pqueue.e - note that at the
+        time of writing no consideration (or testing) whatsoever has been given to thread-safety.
+        <br>
+        <br>
+        Like <a href="dict.htm">dictionaries</a>, there is a default queue which works as if pq_new() had
+        returned 1, which can simplify things slightly when only one (MIN_HEAP) queue is required.
+        <br>
+        <br>
+        Traditionally the priority is an integer (as in the example below), but here it can also be a float, 
+        a string, or even a complex nested sequence. Plus, a custom priority comparison routine can also be 
+        provided for things on which the standard builtin <a href="compare.htm">compare</a>() function will 
+        not work as needed, such as <a href="mpfr.htm">mpfr or mpz</a>.
+        <br>
+        <br>
+        Priority queues particularly shine when used with generators, whereby as each item is popped the next 
+        (if any) for that generator (which is always >= than the one just popped, but may be lower or higher 
+        than other generators in the queue) is immediately pushed back on. [By "generator" I just mean anything 
+        you can get another value from, be that a routine_id, an index, a file handle, whatever - the data can 
+        be anything, the only constraint is the priority has to be sortable.]
+        <br>
+        <br>
+        <h3>Example:</h3>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-qx54-4765-123h-8b2483c92846');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_18b74j93-qx54-4765-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+integer powers = pq_new(), p, v
+sequence res = {}
+for i=1 to 35 do
+    p = get_prime(i)
+    pq_add({p,p},powers)        -- {2,3,5,7,11,...}, aka power(prime,1)
+    {p,v} = pq_pop(powers)
+    res &= v
+    pq_add({p,v*p},powers)      -- {4,8,9,16,25,...}, aka power(prime,>1)
+end for
+pq_destroy(powers)
+printf(1,"The first 35 primes or perfect powers are:\n")
+?res -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49,53,59,61,64,67,71,73,79,81,83,89,97}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> powers</font><font color="#0000FF"> =</font><font color="#5E005E"> pq_new</font><font color="#0000FF">(),</font><font color="#000000"> p</font><font color="#0000FF">,</font><font color="#000000"> v
+</font><font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> = {}
+</font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 35</font><font color="#008080"> do
+</font><font color="#000000">    p</font><font color="#0000FF"> =</font><font color="#5E005E"> get_prime</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">)
+</font><font color="#5E005E">    pq_add</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">p</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">powers</font><font color="#0000FF">)       </font><font color="#000080"><i> -- {2,3,5,7,11,...}, aka power(prime,1)
+</i></font><font color="#0000FF">    {</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">} =</font><font color="#5E005E"> pq_pop</font><font color="#0000FF">(</font><font color="#000000">powers</font><font color="#0000FF">)
+</font><font color="#000000">    res</font><font color="#0000FF"> &amp;=</font><font color="#000000"> v
+</font><font color="#5E005E">    pq_add</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">*</font><font color="#000000">p</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">powers</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {4,8,9,16,25,...}, aka power(prime,&gt;1)
+</i></font><font color="#008080">end for
+</font><font color="#5E005E">pq_destroy</font><font color="#0000FF">(</font><font color="#000000">powers</font><font color="#0000FF">)
+</font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"The first 35 primes or perfect powers are:\n"</font><font color="#0000FF">)
+?</font><font color="#000000">res</font><font color="#000080"><i> -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49,53,59,61,64,67,71,73,79,81,83,89,97}</i></font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+        Obviously the key point is it gets 2<small><sup>6</sup></small> (64) before 3<small><sup>4</sup></small> (81), which it 
+        achieves by popping and re-adding the p=2 generator more times than the p=3 generator. Without a priority queue, that
+        kind of thing can get real fiddly real fast.
+        <br>
+        <br>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:8em;}
+        </style>
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            integer pqid =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>pq_new</b>(integer t=MIN_HEAP, crid=PQ_COMPARE) - optional: creates a new priority queue.<br>
+            </dt><dd class="pad">
+            Parameter t must be either MIN_HEAP (ie pop 1 before 2) or MAX_HEAP (ie pop 2 before 1). <br>
+            Note the default queue (ie pqid of 1 in the calls below) is always a MIN_HEAP.<br>
+            Parameter crid can be the <a href="routine_id.htm">routine_id</a> of a custom priority comparison
+            routine, such as <a href="mpfr.htm#mpz">mpz_cmp</a>().<br>
+            The default PQ_COMPARE [not global] is just a simple wrapper of the standard builtin 
+            <a href="compare.htm">compare</a>() function.<br>
+            The only way to set a custom comparator on pqid=1 is via pq_destroy(), see below.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            integer res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>pq_size</b>(integer pqid=1) - obtains the number of entries currently in the list.<br>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            bool res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>pq_empty</b>(integer pqid=1) - yields true when the list is empty, false otherwise.<small>(literally just returns pq_size(pqid)==0)</small><br>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>pq_add</b>(sequence item, integer pqid=1) - adds an item to a priority queue.<br>
+            </dt><dd class="pad">
+            item is {object data, object priority}
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            sequence item =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>pq_pop</b>(integer pqid=1) - obtains highest/lowest priority item.<br>
+            </dt><dd class="pad">
+            The item returned is {object data, object priority}.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            object data =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>pq_pop_data</b>(integer pqid=1) - as pq_pop but discards priority.<br>
+            </dt><dd class="pad">
+            There would be no way to determine what the priority was, unless you had buried it somewhere inside data.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            sequence item =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <b>pq_peek</b>(integer pqid=1) - as pq_pop but leaves item in the queue.<br>
+          </td></tr>
+
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <!-- procedure -->
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>pq_destroy</b>(integer pqid=1, bool justclear=false, integer crid=PQ_COMPARE) removes/frees/empties a queue once no longer needed.<br>
+            </dt><dd class="pad">
+            A pqid of 1 is always just cleared. <br>
+            By default any custom comparator function on pqid is removed, unless re-supplied.
+            </dd></dl>
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        Note there is no way to examine any element in the queue other than the head.<br>
+        If you define a MIN_HEAP queue, the minimum priority is readily available, the maximum is not.<br>
+        If you define a MAX_HEAP queue, the maximum priority is readily available, the minimum is not.<br>
+        Should you require both min and max to be available, and perhaps a few things in the middle, use a 
+        <a href="dict.htm">dictionary</a> instead - and accept the slight performance loss.
+        <br>
+        <br>
+        <sup><small>1</small></sup> Unless perhaps there is an overhead in the construction of individual 
+        {data,priority} elements, and/or tearing apart of data, that is simply not present in a plain 
+        sort(data) operation (ie ymmv).
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

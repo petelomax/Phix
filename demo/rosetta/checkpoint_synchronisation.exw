@@ -1,0 +1,205 @@
+--
+-- demo\rosetta\checkpoint_synchronisation.exw
+-- ===========================================
+--
+--  Simple multitasking solution: no locking required, 
+--                                no race condition possible, 
+--                                supports workers leaving and joining.
+--
+--  Technical notes:
+--      checkpoint() suspends/yields all but the last task,
+--      then it (re-)schedules the N-1 and returns normally.
+--      control does not return from the task_yield()s until
+--      the corresponding task_schedule() six lines above.
+--
+constant NPARTS = 3
+integer workers = 0
+sequence waiters = {}
+bool terminate = false
+
+procedure checkpoint(integer task_id)
+    if length(waiters)+1=NPARTS or terminate then
+        printf(1,"checkpoint\n")
+        for i=1 to length(waiters) do
+            task_schedule(waiters[i],1)
+        end for
+        waiters = {}
+    else
+        waiters &= task_id
+        task_suspend(task_id)
+        task_yield()
+    end if
+end procedure
+
+procedure worker(string name)
+    printf(1,"worker %s running\n",{name})
+    while not terminate do
+        printf(1,"worker %s begins part\n",{name})
+        task_delay(rnd())
+        printf(1,"worker %s completes part\n",{name})
+        checkpoint(task_self())
+        if find(task_self(),waiters) then ?9/0 end if
+        if terminate or rnd()>0.95 then exit end if
+        task_delay(rnd())
+    end while   
+    printf(1,"worker %s leaves\n",{name})
+    workers -= 1
+end procedure
+
+string name = "A"
+
+while get_key()!=#1B do -- (key escape to shut down)
+    if workers<NPARTS then
+        integer task_id = task_create(routine_id("worker"),{name})
+        task_schedule(task_id,1)
+        name[1] += 1
+        workers += 1
+    end if
+    task_yield()
+end while
+printf(1,"escape keyed\n")
+terminate = true
+while workers>0 do
+    task_yield()
+end while
+
+?"done"
+{} = wait_key()
+
+--FIXED by adding task_yield() after the task_suspend() [as per docs].
+--DEV crash... (quite rare)
+-- (I have added a check for ST_ACTIVE at the top of task_suspend() since... oh, it triggered:)
+-- QU: is the -1/era because task_yield() isn't in the call stack??...
+--/*
+with dignostics:
+{"task_schedule",2,1,{{-1,2,0,0,0,0,1,1,1,1,0,0,0,0},
+                      {1093,1,1,0,0,0,0,1e+300,1,1,0,0,{"A"},0}}}
+{"task_schedule (exit)",2,1,{{-1,2,0,0,0,0,1,1,1,1,0,2,0,0},
+                             {1093,2,0,0,0,0,0,1e+300,1,1,1,0,{"A"},0}}}
+worker A running
+worker A begins part
+{"task_schedule",3,1,{{-1,2,0,0.157,0,0,1,1,1,1,0,2,0,1853208},
+                      {1093,2,0,0.157,0,0,0,1e+300,1,1,1,0,{"A"},1711833},
+                      {1093,1,1,    0,0,0,0,1e+300,1,1,0,0,{"B"},0}}}
+{"task_schedule (exit)",3,1,{{-1,2,0,0.157,0,0,1,1,1,1,0,2,0,1853208},
+                             {1093,2,0,0.157,0,0,0,1e+300,1,1,1,3,{"A"},1711833},
+                             {1093,2,0,    0,0,0,0,1e+300,1,1,2,0,{"B"},0}}}
+worker B running
+worker B begins part
+{"task_schedule",4,1,{{-1,2,0,0.172,0,0,1,1,1,1,0,2,0,1853208},
+                      {1093,2,0,0.157,0,0,0,1e+300,1,1,1,3,{"A"},1711833},
+                      {1093,2,0,0.157,0,0,0,1e+300,1,1,2,0,{"B"},1830491},
+                      {1093,1,1,    0,0,0,0,1e+300,1,1,0,0,{"C"},0}}}
+{"task_schedule (exit)",4,1,{{-1,2,0,0.172,0,0,1,1,1,1,0,2,0,1853208},
+                             {1093,2,0,0.157,0,0,0,1e+300,1,1,1,3,{"A"},1711833},
+                             {1093,2,0,0.157,0,0,0,1e+300,1,1,2,4,{"B"},1830491},
+                             {1093,2,0,    0,0,0,0,1e+300,1,1,3,0,{"C"},0}}}
+worker C running
+worker C begins part
+worker A completes part
+{"task_suspend",2,{{-1,2,0,0.329,0,0,1,1,0,1,0,2,0,1853208},
+                   {1093,2,0,0.344,0,0,0,1e+300,1,1,1,3,{"A"},1711833},
+                   {1093,2,0,0.329,0,0,0,1e+300,0,1,2,4,{"B"},1830491},
+                   {1093,2,0,0.329,0,0,0,1e+300,0,1,3,0,{"C"},1836895}}}
+{"task_suspend (end)",2,{{-1,2,0,0.329,0,0,1,1,0,1,0,3,0,1853208},
+                         {1093,2,1,0.344,0,0,0,1e+300,1,1,1,3,{"A"},1711833},
+                         {1093,2,0,0.329,0,0,0,1e+300,0,1,1,4,{"B"},1830491},
+                         {1093,2,0,0.329,0,0,0,1e+300,0,1,3,0,{"C"},1836895}}}
+worker A leaves <<<<
+{"task_suspend",2,{{-1,2,0,0.329,0,0,1,1,0,1,0,3,0,1853208},
+                   {1093,2,1,0.344,0,0,0,1e+300,1,1,1,3,{"A"},1711767},
+                   {1093,2,0,0.329,0,0,0,1e+300,0,1,1,4,{"B"},1830491},
+                   {1093,2,0,0.329,0,0,0,1e+300,0,1,3,0,{"C"},1836895}}}
+
+C:\Program Files (x86)\Phix\builtins\VM\pTask.e:510 in procedure task_suspend()
+attempt to divide by 0
+    task_id = 2
+... called from C:\Program Files (x86)\Phix\demo\rosetta\checkpoint_synchronisation.exw:-1 (era=#0071F080, from_addr=#0, ret_addr=#0)
+
+Global & Local Variables
+
+--> see C:\Program Files (x86)\Phix\demo\rosetta\ex.err
+Press Enter...
+
+C:\Program Files (x86)\Phix\builtins\VM\pTask.e:506 in procedure task_suspend()
+attempt to divide by 0
+    task_id = 2
+... called from C:\Program Files (x86)\Phix\demo\rosetta\checkpoint_synchronisation.exw:-1 (era=#0083F080, from_addr=#0, ret_addr=#0)
+
+Global & Local Variables
+
+ C:\Program Files (x86)\Phix\demo\rosetta\checkpoint_synchronisation.exw:
+    workers = 2
+    waiters = {4,2}
+    terminate = 0
+    name = `D`
+    task_id = 4
+
+ C:\Program Files (x86)\Phix\builtins\VM\pTask.e:
+    tasks[1] = {-1,2,0,0.453,0,0,1,1,0,1,0,3,0,1985162}
+    tasks[2] = {1093,2,1,0.468,0,0,0,1e+300,1,1,1,3,{`A`},2006679}
+    tasks[3] = {1093,2,0,0.453,0,0,0,1e+300,0,1,1,0,{`B`},2122201}
+    tasks[4] = {1093,2,1,0.359,0,0,0,1e+300,1,1,3,0,{`C`},2125403}
+    current_task = 2
+    rt_first = 0
+    ts_first = 3
+    free_tasks = 0
+    clock_stopped = 0
+    kill_ebp_id = 0
+    ebp4 = 2006679
+    save_clock = -1
+<prev:>
+C:\Program Files (x86)\Phix\builtins\VM\pTask.e:229 in function task_delete()
+attempt to divide by 0
+(prev==0 and: if task_id!=first then ?9/0 end if)
+    first = 3
+    task_id = 4
+    prev = 0
+    next = 3
+... called from C:\Program Files (x86)\Phix\builtins\VM\pTask.e:511 in procedure task_suspend()
+    task_id = 4
+... called from C:\Program Files (x86)\Phix\demo\rosetta\checkpoint_synchronisation.exw:-1 (era=#008CF07F, from_addr=#0, ret_addr=#0)
+
+Global & Local Variables
+
+ C:\Program Files (x86)\Phix\demo\rosetta\checkpoint_synchronisation.exw:
+    workers = 2
+    waiters = {4}
+    terminate = 0
+    name = `D`
+    task_id = 4
+
+ C:\Program Files (x86)\Phix\builtins\VM\pTask.e:
+    tasks[1] = {-1,  2,0,0.219,0,0,1,1,     0,1,0,2,  0,  2215618}
+    tasks[2] = {1093,2,0,0.219,0,0,0,1e+300,1,1,1,3,{`A`},2141889}
+    tasks[3] = {1093,2,0,0.203,0,0,0,1e+300,1,1,2,0,{`B`},2301783}
+    tasks[4] = {1093,2,1,0.219,0,0,0,1e+300,1,1,3,0,{`C`},2154135}
+                1    2 3  4    5 6 7 8      9 A B C   D     E
+
+enum TASK_RID,      -- routine id
+     TASK_TYPE,     -- type of task: T_REAL_TIME(1) or T_TIME_SHARED(2)
+3    TASK_STATE,    -- status: ST_ACTIVE(0), ST_SUSPENDED(1), ST_DEAD(2)
+4    TASK_START,    -- start time of current run
+     TASK_MIN_INC,  -- time increment for min
+     TASK_MAX_INC,  -- time increment for max
+     TASK_MIN_TIME, -- minimum activation time
+                    -- or number of executions remaining before sharing
+8    TASK_MAX_TIME, -- maximum activation time (determines task order)
+9    TASK_RUNS_LEFT,-- number of executions left in this burst
+A    TASK_RUNS_MAX, -- maximum number of executions in one burst
+B    TASK_NEXT,     -- points to next task on list
+C    TASK_PREV,     --   ""      prev       ""
+D    TASK_ARGS,     -- args to call task procedure with at startup
+E    TASK_EBP4      -- (set by task_yield)
+
+
+    current_task = 4
+    rt_first = 0
+    ts_first = 3
+    free_tasks = 0
+    clock_stopped = 0
+    kill_ebp_id = 0
+    ebp4 = 2154135
+    save_clock = -1
+
+--*/

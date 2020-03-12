@@ -1,0 +1,4271 @@
+; This file contains various constants (but not all) from:
+;       * errno.h
+;       * fcntl.h
+;       * limits.h
+;       * stand.h
+;       * stdlib.h
+;       * sys/mmap.h
+;       * sys/stat.h
+;       * sys/time.h
+;       * unistd.h
+; for more & precise info reffer to original files, as this file is stipped A LOT
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; errno.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+EPERM=          1 ; Operation not permitted
+ENOENT=         2 ; No such file or directory
+ESRCH=          3 ; No such process
+EINTR=          4 ; Interrupted system call
+EIO=            5 ; Input/output error
+ENXIO=          6 ; Device not configured
+E2BIG=          7 ; Argument list too long
+ENOEXEC=        8 ; Exec format error
+EBADF=          9 ; Bad file descriptor
+ECHILD=         10 ; No child processes
+EDEADLK=        11 ; Resource deadlock avoided
+ENOMEM=         12 ; Cannot allocate memory
+EACCES=         13 ; Permission denied
+EFAULT=         14 ; Bad address
+ENOTBLK=        15 ; Block device required
+EBUSY=          16 ; Device busy
+EEXIST=         17 ; File exists
+EXDEV=          18 ; Cross-device link
+ENODEV=         19 ; Operation not supported by device
+ENOTDIR=        20 ; Not a directory
+EISDIR=         21 ; Is a directory
+EINVAL=         22 ; Invalid argument
+ENFILE=         23 ; Too many open files in system
+EMFILE=         24 ; Too many open files
+ENOTTY=         25 ; Inappropriate ioctl for device
+ETXTBSY=        26 ; Text file busy
+EFBIG=          27 ; File too large
+ENOSPC=         28 ; No space left on device
+ESPIPE=         29 ; Illegal seek
+EROFS=          30 ; Read-only filesystem
+EMLINK=         31 ; Too many links
+EPIPE=          32 ; Broken pipe
+EDOM=           33 ; Numerical argument out of domain
+ERANGE=         34 ; Result too large
+EAGAIN=         35 ; Resource temporarily unavailable
+EWOULDBLOCK=    EAGAIN ; Operation would block
+EINPROGRESS=    36 ; Operation now in progress
+EALREADY=       37 ; Operation already in progress
+ENOTSOCK=       38 ; Socket operation on non-socket
+EDESTADDRREQ=   39 ; Destination address required
+EMSGSIZE=       40 ; Message too long
+EPROTOTYPE=     41 ; Protocol wrong type for socket
+ENOPROTOOPT=    42 ; Protocol not available
+EPROTONOSUPPORT=43 ; Protocol not supported
+ESOCKTNOSUPPORT=44 ; Socket type not supported
+EOPNOTSUPP=     45 ; Operation not supported
+ENOTSUP=        EOPNOTSUPP ; Operation not supported
+EPFNOSUPPORT=   46 ; Protocol family not supported
+EAFNOSUPPORT=   47 ; Address family not supported by protocol family
+EADDRINUSE=     48 ; Address already in use
+EADDRNOTAVAIL=  49 ; Can't assign requested address
+ENETDOWN=       50 ; Network is down
+ENETUNREACH=    51 ; Network is unreachable
+ENETRESET=      52 ; Network dropped connection on reset
+ECONNABORTED=   53 ; Software caused connection abort
+ECONNRESET=     54 ; Connection reset by peer
+ENOBUFS=        55 ; No buffer space available
+EISCONN=        56 ; Socket is already connected
+ENOTCONN=       57 ; Socket is not connected
+ESHUTDOWN=      58 ; Can't send after socket shutdown
+ETOOMANYREFS=   59 ; Too many references: can't splice
+ETIMEDOUT=      60 ; Operation timed out
+ECONNREFUSED=   61 ; Connection refused
+ELOOP=          62 ; Too many levels of symbolic links
+ENAMETOOLONG=   63 ; File name too long
+EHOSTDOWN=      64 ; Host is down
+EHOSTUNREACH=   65 ; No route to host
+ENOTEMPTY=      66 ; Directory not empty
+EPROCLIM=       67 ; Too many processes
+EUSERS=         68 ; Too many users
+EDQUOT=         69 ; Disc quota exceeded
+ESTALE=         70 ; Stale NFS file handle
+EREMOTE=        71 ; Too many levels of remote in path
+EBADRPC=        72 ; RPC struct is bad
+ERPCMISMATCH=   73 ; RPC version wrong
+EPROGUNAVAIL=   74 ; RPC prog. not avail
+EPROGMISMATCH=  75 ; Program version wrong
+EPROCUNAVAIL=   76 ; Bad procedure for program
+ENOLCK=         77 ; No locks available
+ENOSYS=         78 ; Function not implemented
+EFTYPE=         79 ; Inappropriate file type or format
+EAUTH=          80 ; Authentication error
+ENEEDAUTH=      81 ; Need authenticator
+EIDRM=          82 ; Identifier removed
+ENOMSG=         83 ; No message of desired type
+EOVERFLOW=      84 ; Value too large to be stored in data type
+ECANCELED=      85 ; Operation canceled
+EILSEQ=         86 ; Illegal byte sequence
+ENOATTR=        87 ; Attribute not found
+EDOOFUS=        88 ; Programming error
+EBADMSG=        89 ; Bad message
+EMULTIHOP=      90 ; Multihop attempted
+ENOLINK=        91 ; Link has been severed
+EPROTO=         92 ; Protocol error
+ENOTCAPABLE=    93 ; Capabilities insufficient
+ELAST=          93 ; Must be equal largest errno
+ERESTART=       -1 ; restart syscall
+EJUSTRETURN=    -2 ; don't modify regs, just return
+ENOIOCTL=       -3 ; ioctl not handled by this layer
+EDIRIOCTL=      -4 ; do direct ioctl in GEOM
+
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; fcntl.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+;
+; File status flags: these are used by open(2), fcntl(2).
+; They are also used (indirectly) in the kernel file structure f_flags,
+; which is a superset of the open/fcntl flags. Open flags and f_flags
+; are inter-convertible using OFLAGS(fflags) and FFLAGS(oflags).
+; Open/fcntl flags begin with O_ kernel-internal flags begin with F.
+;
+; open-only flags
+O_RDONLY=       0x0000 ; open for reading only
+O_WRONLY=       0x0001 ; open for writing only
+O_RDWR=         0x0002 ; open for reading and writing
+O_ACCMODE=      0x0003 ; mask for above modes
+
+;
+; Kernel encoding of open mode separate read and write bits that are
+; independently testable: 1 greater than the above.
+;
+; XXX
+; FREAD and FWRITE are excluded from the #ifdef _KERNEL so that TIOCFLUSH,
+; which was documented to use FREAD/FWRITE, continues to work.
+;
+FREAD=          0x0001
+FWRITE=         0x0002
+O_NONBLOCK=     0x0004 ; no delay
+O_APPEND=       0x0008 ; set append mode
+O_SHLOCK=       0x0010 ; open with shared file lock
+O_EXLOCK=       0x0020 ; open with exclusive file lock
+O_ASYNC=        0x0040 ; signal pgrp when data ready
+O_FSYNC=        0x0080 ; synchronous writes
+O_SYNC=         0x0080 ; POSIX synonym for O_FSYNC
+O_NOFOLLOW=     0x0100 ; don't follow symlinks
+O_CREAT=        0x0200 ; create if nonexistent
+O_TRUNC=        0x0400 ; truncate to zero length
+O_EXCL=         0x0800 ; error if already exists
+FHASLOCK=       0x4000 ; descriptor holds advisory lock
+
+; Defined by POSIX 1003.1  BSD default, but must be distinct from O_RDONLY.
+O_NOCTTY=       0x8000 ; don't assign controlling terminal
+
+; Attempt to bypass buffer cache
+O_DIRECT=       0x00010000
+
+; Defined by POSIX Extended API Set Part 2
+O_DIRECTORY=    0x00020000 ; Fail if not directory
+O_EXEC=         0x00040000 ; Open for execute only
+FEXEC=          O_EXEC
+
+; Defined by POSIX 1003.1-2008  BSD default, but reserve for future use.
+O_TTY_INIT=     0x00080000 ; Restore default termios attributes
+
+;
+; XXX missing O_DSYNC, O_RSYNC.
+;
+
+
+;=========== NOTE not sure these work correctly in fasm (haven't tested)
+; bits to save after open
+FMASK=          FREAD or FWRITE or FAPPEND or FASYNC or FFSYNC or FNONBLOCK or O_DIRECT or FEXEC
+; bits settable by fcntl(F_SETFL, ...)
+FCNTLFLAGS=     FAPPEND or FASYNC or FFSYNC or FNONBLOCK or FRDAHEAD or O_DIRECT
+
+; Set by shm_open(3) in older libc's to get automatic MAP_ASYNC
+; behavior for POSIX shared memory objects (which are otherwise
+; implemented as plain files).
+;
+FPOSIXSHM=      O_NOFOLLOW
+FCNTLFLAGS=     FAPPEND or FASYNC or FFSYNC or FNONBLOCK or FPOSIXSHM or FRDAHEAD or O_DIRECT
+
+
+; The O_* flags used to have only F* names, which were used in the kernel
+; and by fcntl. We retain the F* names for the kernel f_flag field
+; and for backward compatibility for fcntl. These flags are deprecated.
+;
+FAPPEND=        O_APPEND ; kernel/compat
+FASYNC=         O_ASYNC ; kernel/compat
+FFSYNC=         O_FSYNC ; kernel
+FNONBLOCK=      O_NONBLOCK ; kernel
+FNDELAY=        O_NONBLOCK ; compat
+O_NDELAY=       O_NONBLOCK ; compat
+
+;
+; We are out of bits in f_flag (which is a short). However,
+; the flag bits not set in FMASK are only meaningful in the
+; initial open syscall. Those bits can thus be given a
+; different meaning for fcntl(2).
+;
+; Read ahead
+FRDAHEAD=       O_CREAT
+
+; Defined by POSIX Extended API Set Part 2
+;
+; Magic value that specify the use of the current working directory
+; to determine the target of relative file paths in the openat() and
+; similar syscalls.
+;
+AT_FDCWD=       -100
+
+;
+; Miscellaneous flags for the *at() syscalls.
+;
+AT_EACCESS=             0x100 ; Check access using effective user and group ID
+AT_SYMLINK_NOFOLLOW=    0x200 ; Do not follow symbolic links
+AT_SYMLINK_FOLLOW=      0x400 ; Follow symbolic link
+AT_REMOVEDIR=           0x800 ; Remove directory instead of file
+
+;
+; Constants used for fcntl(2)
+;
+
+; command values
+F_DUPFD=        0 ; duplicate file descriptor
+F_GETFD=        1 ; get file descriptor flags
+F_SETFD=        2 ; set file descriptor flags
+F_GETFL=        3 ; get file status flags
+F_SETFL=        4 ; set file status flags
+F_GETOWN=       5 ; get SIGIO/SIGURG proc/pgrp
+F_SETOWN=       6 ; set SIGIO/SIGURG proc/pgrp
+F_OGETLK=       7 ; get record locking information
+F_OSETLK=       8 ; set record locking information
+F_OSETLKW=      9 ; F_SETLK wait if blocked
+F_DUP2FD=       10 ; duplicate file descriptor to arg
+F_GETLK=        11 ; get record locking information
+F_SETLK=        12 ; set record locking information
+F_SETLKW=       13 ; F_SETLK wait if blocked
+F_SETLK_REMOTE= 14 ; debugging support for remote locks
+F_READAHEAD=    15 ; read ahead
+F_RDAHEAD=      16 ; Darwin compatible read ahead
+
+; file descriptor flags (F_GETFD, F_SETFD)
+FD_CLOEXEC=     1 ; close-on-exec flag
+
+; record locking flags (F_GETLK, F_SETLK, F_SETLKW)
+F_RDLCK=        1 ; shared or read lock
+F_UNLCK=        2 ; unlock
+F_WRLCK=        3 ; exclusive or write lock
+F_UNLCKSYS=     4 ; purge locks for a given system ID
+F_CANCEL=       5 ; cancel an async lock request
+F_WAIT=         0x010 ; Wait until lock is granted
+F_FLOCK=        0x020 ; Use flock(2) semantics for lock
+F_POSIX=        0x040 ; Use POSIX semantics for lock
+F_REMOTE=       0x080 ; Lock owner is remote NFS client
+F_NOINTR=       0x100 ; Ignore signals when waiting
+
+;
+; Advisory file segment locking data type -
+; information passed to system by user
+;
+;struct flock {
+;       off_t   l_start         ; starting offset
+;       off_t   l_len           ; len = 0 means until end of file
+;       pid_t   l_pid           ; lock owner
+;       short   l_type          ; lock type: read/write, etc.
+;       short   l_whence        ; type of l_start
+;       int     l_sysid         ; remote system id or zero for local
+;}
+
+;
+; Old advisory file segment locking data type,
+; before adding l_sysid.
+;
+;struct oflock {
+;       off_t   l_start         ; starting offset
+;       off_t   l_len           ; len = 0 means until end of file
+;       pid_t   l_pid           ; lock owner
+;       short   l_type          ; lock type: read/write, etc.
+;       short   l_whence        ; type of l_start
+;}
+
+; lock operations for flock(2)
+LOCK_SH=        0x01 ; shared file lock
+LOCK_EX=        0x02 ; exclusive file lock
+LOCK_NB=        0x04 ; don't block when locking
+LOCK_UN=        0x08 ; unlock file
+
+;
+; XXX missing posix_fadvise() and posix_fallocate(), and POSIX_FADV_* macros.
+;
+
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; stdlib.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+
+EXIT_FAILURE=    1
+EXIT_SUCCESS=    0
+
+RAND_MAX=        0x7fffffff
+
+;MB_CUR_MAX=     __mb_cur_max
+
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; unistd.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+STDIN_FILENO=   0 ; standard input file descriptor
+STDOUT_FILENO=  1 ; standard output file descriptor
+STDERR_FILENO=  2 ; standard error file descriptor
+
+F_ULOCK=        0 ; unlock locked section
+F_LOCK=         1 ; lock a section for exclusive use
+F_TLOCK=        2 ; test and lock a section for exclusive use
+F_TEST=         3 ; test a section for locks by other procs
+
+;======== CUSTOM ======
+STDIN=  STDIN_FILENO
+STDOUT= STDOUT_FILENO
+STDERR= STDERR_FILENO
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; sys/mmap.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+
+;
+; Inheritance for minherit()
+;
+INHERIT_SHARE=  0
+INHERIT_COPY=   1
+INHERIT_NONE=   2
+
+;
+; Protections are chosen from these bits, or-ed together
+;
+PROT_NONE=      0x00 ; no permissions
+PROT_READ=      0x01 ; pages can be read
+PROT_WRITE=     0x02 ; pages can be written
+PROT_EXEC=      0x04 ; pages can be executed
+
+;
+; Flags contain sharing type and options.
+; Sharing types; choose one.
+;
+MAP_SHARED=     0x0001 ; share changes
+MAP_PRIVATE=    0x0002 ; changes are private
+MAP_COPY=       MAP_PRIVATE ; Obsolete
+
+;
+; Other flags
+;
+MAP_FIXED=              0x0010 ; map addr must be exactly as requested
+
+MAP_RENAME=             0x0020 ; Sun: rename private pages to file
+MAP_NORESERVE=          0x0040 ; Sun: don't reserve needed swap area
+MAP_RESERVED0080=       0x0080 ; previously misimplemented MAP_INHERIT
+MAP_RESERVED0100=       0x0100 ; previously unimplemented MAP_NOEXTEND
+MAP_HASSEMAPHORE=       0x0200 ; region may contain semaphores
+MAP_STACK=              0x0400 ; region grows down, like a stack
+MAP_NOSYNC=             0x0800 ; page to but do not sync underlying file
+
+;
+; Mapping type
+;
+MAP_FILE=               0x0000 ; map from file (default)
+MAP_ANON=               0x1000 ; allocated from memory, swap space
+
+;
+; Extended flags
+;
+MAP_NOCORE=             0x00020000 ; dont include these pages in a coredump
+
+;
+; Process memory locking
+;
+MCL_CURRENT=            0x0001 ; Lock only current memory
+MCL_FUTURE=             0x0002 ; Lock all future memory as well
+
+;
+; Error return from mmap()
+;
+;        MAP_FAILED=     ((void *)-1)
+
+;
+; msync() flags
+;
+MS_SYNC=         0x0000 ; msync synchronously
+MS_ASYNC=        0x0001 ; return immediately
+MS_INVALIDATE=   0x0002 ; invalidate all cached data
+
+;
+; Advice to madvise
+;
+_MADV_NORMAL=           0 ; no further special treatment
+_MADV_RANDOM=           1 ; expect random page references
+_MADV_SEQUENTIAL=       2 ; expect sequential page references
+_MADV_WILLNEED=         3 ; will need these pages
+_MADV_DONTNEED=         4 ; dont need these pages
+
+MADV_NORMAL=    _MADV_NORMAL
+MADV_RANDOM=    _MADV_RANDOM
+MADV_SEQUENTIAL=_MADV_SEQUENTIAL
+MADV_WILLNEED=  _MADV_WILLNEED
+MADV_DONTNEED=  _MADV_DONTNEED
+MADV_FREE=      5 ; dont need these pages, and junk contents
+MADV_NOSYNC=    6 ; try to avoid flushes to physical media
+MADV_AUTOSYNC=  7 ; revert to default flushing strategy
+MADV_NOCORE=    8 ; do not include these pages in a core file
+MADV_CORE=      9 ; revert to including pages in a core file
+MADV_PROTECT=   10 ; protect process from pageout kill
+
+;
+; Return bits from mincore
+;
+MINCORE_INCORE=                 0x1 ; Page is incore
+MINCORE_REFERENCED=             0x2 ; Page has been referenced by us
+MINCORE_MODIFIED=               0x4 ; Page has been modified by us
+MINCORE_REFERENCED_OTHER=       0x8 ; Page has been referenced
+MINCORE_MODIFIED_OTHER=         0x10 ; Page has been modified
+MINCORE_SUPER=                  0x20 ; Page is a "super" page
+
+;
+; XXX missing POSIX_TYPED_MEM_* macros and
+; posix_typed_mem_info structure.
+;
+POSIX_MADV_NORMAL=      _MADV_NORMAL
+POSIX_MADV_RANDOM=      _MADV_RANDOM
+POSIX_MADV_SEQUENTIAL=  _MADV_SEQUENTIAL
+POSIX_MADV_WILLNEED=    _MADV_WILLNEED
+POSIX_MADV_DONTNEED=    _MADV_DONTNEED
+
+;struct shmfd {
+;       size_t          shm_size 
+;       vm_object_t     shm_object 
+;       int             shm_refs 
+;       uid_t           shm_uid 
+;       gid_t           shm_gid 
+;       mode_t          shm_mode 
+;
+;;
+;; Values maintained solely to make this a better-behaved file
+;; descriptor for fstat() to run on.
+;;
+;       struct timespec shm_atime 
+;       struct timespec shm_mtime 
+;       struct timespec shm_ctime 
+;       struct timespec shm_birthtime 
+;
+;       struct label    *shm_label              ; MAC label
+;}
+
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; limits.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+
+_POSIX_ARG_MAX=         4096
+_POSIX_CHILD_MAX=       25
+_POSIX_LINK_MAX=        8
+_POSIX_MAX_CANON=       255
+_POSIX_MAX_INPUT=       255
+_POSIX_NAME_MAX=        14
+_POSIX_NGROUPS_MAX=     8
+_POSIX_OPEN_MAX=        20
+_POSIX_PATH_MAX=        256
+_POSIX_PIPE_BUF=        512
+_POSIX_SSIZE_MAX=       32767
+_POSIX_STREAM_MAX=      8
+_POSIX_TZNAME_MAX=      6
+
+BC_BASE_MAX=            99 ; max ibase/obase values in bc(1)
+BC_DIM_MAX=             2048 ; max array elements in bc(1)
+BC_SCALE_MAX=           99 ; max scale value in bc(1)
+BC_STRING_MAX=          1000 ; max const string length in bc(1)
+COLL_WEIGHTS_MAX=       0 ; max weights for order keyword
+EXPR_NEST_MAX=          32 ; max expressions nested in expr(1)
+LINE_MAX=               2048 ; max bytes in an input line
+RE_DUP_MAX=             255 ; max RE's in interval notation
+
+_POSIX2_BC_BASE_MAX=            99
+_POSIX2_BC_DIM_MAX=             2048
+_POSIX2_BC_SCALE_MAX=           99
+_POSIX2_BC_STRING_MAX=          1000
+_POSIX2_EQUIV_CLASS_MAX=        2
+_POSIX2_EXPR_NEST_MAX=          32
+_POSIX2_LINE_MAX=               2048
+_POSIX2_RE_DUP_MAX=             255
+
+_POSIX_AIO_LISTIO_MAX=          16
+_POSIX_AIO_MAX=                 1
+_POSIX_DELAYTIMER_MAX=          32
+_POSIX_MQ_OPEN_MAX=             8
+_POSIX_MQ_PRIO_MAX=             32
+_POSIX_RTSIG_MAX=               8
+_POSIX_SEM_NSEMS_MAX=           256
+_POSIX_SEM_VALUE_MAX=           32767
+_POSIX_SIGQUEUE_MAX=            32
+_POSIX_TIMER_MAX=               32
+
+_POSIX_THREAD_DESTRUCTOR_ITERATIONS=    4
+_POSIX_THREAD_KEYS_MAX=                 128
+_POSIX_THREAD_THREADS_MAX=              64
+
+_POSIX_HOST_NAME_MAX=           255
+_POSIX_LOGIN_NAME_MAX=          9
+_POSIX_SS_REPL_MAX=             4
+_POSIX_SYMLINK_MAX=             255
+_POSIX_SYMLOOP_MAX=             8
+_POSIX_TRACE_EVENT_NAME_MAX=    30
+_POSIX_TRACE_NAME_MAX=          8
+_POSIX_TRACE_SYS_MAX=           8
+_POSIX_TRACE_USER_EVENT_MAX=    32
+_POSIX_TTY_NAME_MAX=            9
+_POSIX2_CHARCLASS_NAME_MAX=     14
+_POSIX2_COLL_WEIGHTS_MAX=       2
+
+_POSIX_RE_DUP_MAX=       _POSIX2_RE_DUP_MAX
+
+_XOPEN_IOV_MAX=         16
+_XOPEN_NAME_MAX=        255
+_XOPEN_PATH_MAX=        1024
+PASS_MAX=               128 ; _PASSWORD_LEN from <pwd.h>
+
+NL_ARGMAX=      99 ; max # of position args for printf
+NL_LANGMAX=     31 ; max LANG name length
+NL_MSGMAX=      32767
+NL_NMAX=        1
+NL_SETMAX=      255
+NL_TEXTMAX=     2048
+
+MB_LEN_MAX=     6 ; 31-bit UTF-8
+
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; sys/time.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+
+;struct timezone {
+;       int     tz_minuteswest  ; minutes west of Greenwich
+;       int     tz_dsttime      ; type of dst correction
+;}
+DST_NONE=       0 ; not on dst
+DST_USA=        1 ; USA style dst
+DST_AUST=       2 ; Australian style dst
+DST_WET=        3 ; Western European dst
+DST_MET=        4 ; Middle European dst
+DST_EET=        5 ; Eastern European dst
+DST_CAN=        6 ; Canada
+
+;struct bintime {
+;       time_t  sec 
+;       uint64_t frac 
+;}
+
+;
+; Names of the interval timers, and structure
+; defining a timer setting.
+;
+ITIMER_REAL=    0
+ITIMER_VIRTUAL= 1
+ITIMER_PROF=    2
+
+;struct itimerval {
+;       struct  timeval it_interval     ; timer interval
+;       struct  timeval it_value        ; current value
+;}
+
+;
+; Getkerninfo clock information structure
+;
+;struct clockinfo {
+;       int     hz              ; clock frequency
+;       int     tick            ; micro-seconds per hz tick
+;       int     spare 
+;       int     stathz          ; statistics clock frequency
+;       int     profhz          ; profiling clock frequency
+;}
+
+CLOCK_REALTIME=         0
+CLOCK_VIRTUAL=          1
+CLOCK_PROF=             2
+CLOCK_MONOTONIC=        4
+CLOCK_UPTIME=           5 ; FreeBSD-specific.
+CLOCK_UPTIME_PRECISE=   7 ; FreeBSD-specific.
+CLOCK_UPTIME_FAST=      8 ; FreeBSD-specific.
+CLOCK_REALTIME_PRECISE= 9 ; FreeBSD-specific.
+CLOCK_REALTIME_FAST=    10 ; FreeBSD-specific.
+CLOCK_MONOTONIC_PRECISE=11 ; FreeBSD-specific.
+CLOCK_MONOTONIC_FAST=   12 ; FreeBSD-specific.
+CLOCK_SECOND=           13 ; FreeBSD-specific.
+CLOCK_THREAD_CPUTIME_ID=14
+
+TIMER_RELTIME=          0x0 ; relative timer
+TIMER_ABSTIME=          0x1 ; absolute timer
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; sys/stat.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+
+
+;struct ostat {
+;       __uint16_t st_dev               ; inode's device
+;       ino_t     st_ino                ; inode's number
+;       mode_t    st_mode               ; inode protection mode
+;       nlink_t   st_nlink              ; number of hard links
+;       __uint16_t st_uid               ; user ID of the file's owner
+;       __uint16_t st_gid               ; group ID of the file's group
+;       __uint16_t st_rdev              ; device type
+;       __int32_t st_size               ; file size, in bytes
+;       struct  timespec st_atimespec   ; time of last access
+;       struct  timespec st_mtimespec   ; time of last data modification
+;       struct  timespec st_ctimespec   ; time of last file status change
+;       __int32_t st_blksize            ; optimal blocksize for I/O
+;       __int32_t st_blocks             ; blocks allocated for file
+;       fflags_t  st_flags              ; user defined flags for file
+;       __uint32_t st_gen               ; file generation number
+;}
+
+;struct stat {
+;       __dev_t   st_dev                ; inode's device
+;       ino_t     st_ino                ; inode's number
+;       mode_t    st_mode               ; inode protection mode
+;       nlink_t   st_nlink              ; number of hard links
+;       uid_t     st_uid                ; user ID of the file's owner
+;       gid_t     st_gid                ; group ID of the file's group
+;       __dev_t   st_rdev               ; device type
+;#if __BSD_VISIBLE
+;       struct  timespec st_atimespec   ; time of last access
+;       struct  timespec st_mtimespec   ; time of last data modification
+;       struct  timespec st_ctimespec   ; time of last file status change
+;#else
+;       time_t    st_atime              ; time of last access
+;       long      __st_atimensec        ; nsec of last access
+;       time_t    st_mtime              ; time of last data modification
+;       long      __st_mtimensec        ; nsec of last data modification
+;       time_t    st_ctime              ; time of last file status change
+;       long      __st_ctimensec        ; nsec of last file status change
+;#endif
+;       off_t     st_size               ; file size, in bytes
+;       blkcnt_t st_blocks              ; blocks allocated for file
+;       blksize_t st_blksize            ; optimal blocksize for I/O
+;       fflags_t  st_flags              ; user defined flags for file
+;       __uint32_t st_gen               ; file generation number
+;       __int32_t st_lspare 
+;#if __BSD_VISIBLE
+;       struct timespec st_birthtimespec  ; time of file creation
+;;
+;; Explicitly pad st_birthtimespec to 16 bytes so that the size of
+;; struct stat is backwards compatible. We use bitfields instead
+;; of an array of chars so that this doesn't require a C99 compiler
+;; to compile if the size of the padding is 0. We use 2 bitfields
+;; to cover up to 64 bits on 32-bit machines. We assume that
+;; CHAR_BIT is 8...
+;;
+;       unsigned int :(8 / 2) * (16 - (int)sizeof(struct timespec)) 
+;       unsigned int :(8 / 2) * (16 - (int)sizeof(struct timespec)) 
+;#else
+;       time_t    st_birthtime          ; time of file creation
+;       long      st_birthtimensec      ; nsec of file creation
+;       unsigned int :(8 / 2) * (16 - (int)sizeof(struct __timespec)) 
+;       unsigned int :(8 / 2) * (16 - (int)sizeof(struct __timespec)) 
+;#endif
+;}
+
+;struct nstat {
+;       __dev_t   st_dev                ; inode's device
+;       ino_t     st_ino                ; inode's number
+;       __uint32_t st_mode              ; inode protection mode
+;       __uint32_t st_nlink             ; number of hard links
+;       uid_t     st_uid                ; user ID of the file's owner
+;       gid_t     st_gid                ; group ID of the file's group
+;       __dev_t   st_rdev               ; device type
+;       struct  timespec st_atimespec   ; time of last access
+;       struct  timespec st_mtimespec   ; time of last data modification
+;       struct  timespec st_ctimespec   ; time of last file status change
+;       off_t     st_size               ; file size, in bytes
+;       blkcnt_t st_blocks              ; blocks allocated for file
+;       blksize_t st_blksize            ; optimal blocksize for I/O
+;       fflags_t  st_flags              ; user defined flags for file
+;       __uint32_t st_gen               ; file generation number
+;       struct timespec st_birthtimespec  ; time of file creation
+;;
+;; See above about the following padding.
+;;
+;       unsigned int :(8 / 2) * (16 - (int)sizeof(struct timespec)) 
+;       unsigned int :(8 / 2) * (16 - (int)sizeof(struct timespec)) 
+;}
+
+;st_atime=      st_atimespec.tv_sec
+;st_mtime=      st_mtimespec.tv_sec
+;st_ctime=      st_ctimespec.tv_sec
+;st_birthtime=  st_birthtimespec.tv_sec
+
+S_ISUID=        0004000 ; set user id on execution
+S_ISGID=        0002000 ; set group id on execution
+S_ISTXT=        0001000 ; sticky bit
+
+S_IRWXU=        0000700 ; RWX mask for owner
+S_IRUSR=        0000400 ; R for owner
+S_IWUSR=        0000200 ; W for owner
+S_IXUSR=        0000100 ; X for owner
+
+S_IREAD=        S_IRUSR
+S_IWRITE=       S_IWUSR
+S_IEXEC=        S_IXUSR
+
+S_IRWXG=        0000070 ; RWX mask for group
+S_IRGRP=        0000040 ; R for group
+S_IWGRP=        0000020 ; W for group
+S_IXGRP=        0000010 ; X for group
+
+S_IRWXO=        0000007 ; RWX mask for other
+S_IROTH=        0000004 ; R for other
+S_IWOTH=        0000002 ; W for other
+S_IXOTH=        0000001 ; X for other
+
+S_IFMT=          0170000 ; type of file mask
+S_IFIFO=         0010000 ; named pipe (fifo)
+S_IFCHR=         0020000 ; character special
+S_IFDIR=         0040000 ; directory
+S_IFBLK=         0060000 ; block special
+S_IFREG=         0100000 ; regular
+S_IFLNK=         0120000 ; symbolic link
+S_IFSOCK=        0140000 ; socket
+S_ISVTX=         0001000 ; save swapped text even after use
+S_IFWHT=         0160000 ; whiteout
+
+ACCESSPERMS=    S_IRWXU or S_IRWXG or S_IRWXO ; 0777
+ALLPERMS=       S_ISUID or S_ISGID or S_ISTXT or S_IRWXU or S_IRWXG or S_IRWXO
+DEFFILEMODE=    S_IRUSR or S_IWUSR or S_IRGRP or S_IWGRP or S_IROTH or S_IWOTH
+
+S_BLKSIZE=       512 ; block size used in the stat struct
+
+;
+; Definitions of flags stored in file flags word.
+;
+; Super-user and owner changeable flags.
+;
+UF_SETTABLE=    0x0000ffff ; mask of owner changeable flags
+UF_NODUMP=      0x00000001 ; do not dump file
+UF_IMMUTABLE=   0x00000002 ; file may not be changed
+UF_APPEND=      0x00000004 ; writes to file may only append
+UF_OPAQUE=      0x00000008 ; directory is opaque wrt. union
+UF_NOUNLINK=    0x00000010 ; file may not be removed or renamed
+;
+; Super-user changeable flags.
+;
+SF_SETTABLE=    0xffff0000 ; mask of superuser changeable flags
+SF_ARCHIVED=    0x00010000 ; file is archived
+SF_IMMUTABLE=   0x00020000 ; file may not be changed
+SF_APPEND=      0x00040000 ; writes to file may only append
+SF_NOUNLINK=    0x00100000 ; file may not be removed or renamed
+SF_SNAPSHOT=    0x00200000 ; snapshot inode
+
+OPAQUE=         UF_OPAQUE
+APPEND=         UF_APPEND or SF_APPEND
+IMMUTABLE=      UF_IMMUTABLE or SF_IMMUTABLE
+NOUNLINK=       UF_NOUNLINK or SF_NOUNLINK
+
+
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+; sys/stat.h
+;XXXXXXXXXXXXXXXX
+;XXXXXXXXXXXXXXXX
+NULL=    0
+
+
+; where values for lseek(2)
+SEEK_SET=       0 ; set file offset to offset
+SEEK_CUR=       1 ; set file offset to current plus offset
+SEEK_END=       2 ; set file offset to EOF plus offset
+
+;
+; Device switch
+;
+;struct devsw {
+;    const char dv_name[8] 
+;    int                dv_type                 ; opaque type constant, arch-dependant
+;    int                (*dv_init)(void)        ; early probe call
+;    int                (*dv_strategy)(void *devdata, int rw, daddr_t blk, size_t size,
+;                              char *buf, size_t *rsize) 
+;    int                (*dv_open)(struct open_file *f, ...) 
+;    int                (*dv_close)(struct open_file *f) 
+;    int                (*dv_ioctl)(struct open_file *f, u_long cmd, void *data) 
+;    void       (*dv_print)(int verbose)        ; print device information
+;    void       (*dv_cleanup)(void) 
+;}
+
+;struct open_file {
+;    int                        f_flags         ; see F_* below
+;    struct devsw       *f_dev          ; pointer to device operations
+;    void               *f_devdata      ; device specific data
+;    struct fs_ops      *f_ops          ; pointer to file system operations
+;    void               *f_fsdata       ; file system specific data
+;    off_t              f_offset        ; current file offset
+;    char               *f_rabuf        ; readahead buffer pointer
+;    size_t             f_ralen         ; valid data in readahead buffer
+;    off_t              f_raoffset      ; consumer offset in readahead buffer
+;}
+SOPEN_RASIZE=   512
+
+SOPEN_MAX=      64
+
+; f_flags values
+F_READ=         0x0001 ; file opened for reading
+F_WRITE=        0x0002 ; file opened for writing
+F_RAW=          0x0004 ; raw device open - no file system
+F_NODEV=        0x0008 ; network open - no device
+
+
+; vim: set ts=8 sw=8 syn=fasm:
+
+--/*
+Additional data types, system constants values
+It should be assumed that "int", "long", "PID", "clock_t", "time_t", "u (int) 32" are of the DWORD type, and "short" is of the WORD type.
+
+Structure "pt_regs" (function 2) from /usr/include/asm/ptrace.h :
+
+         struct pt_regs {
+                 long ebx;
+                 long ecx;
+                 long edx;
+                 long esi;
+                 long edi;
+                 long ebp;
+                 long eax;
+                 int xds;
+                 int xes;
+                 long orig_eax;
+                 long eip;
+                 int xcs;
+                 long eflags;
+                 long esp;
+                 int xss;
+         }; 
+
+Access bits (functions 5 and 277) from /usr/include/asm/fcntl.h
+name    octal   comment
+O_CREAT 
+100 
+File creation. Available for sys_mq_open. 
+O_EXCL 
+200 
+Do not create a file if it already exists. Available for sys_mq_open. 
+O_NOCTTY 
+400 
+If the file name given is a terminal, it will NOT become a process control terminal. 
+O_TRUNC 
+1000 
+Truncation of the file 
+O_APPEND 
+2000 
+Adding to a file 
+O_NONBLOCK 
+4000 
+Do not open if it causes a blockage. Available for sys_mq_open. 
+O_NDELAY 
+O_NONBLOCK 
+as above 
+O_SYNC 
+10000 
+specific for ext2 and block devices 
+FASYNC 
+20000 
+fcntl, for compliance with BSD 
+O_DIRECT 
+40000 
+prompt for direct disk access, currently ignored 
+O_LARGEFILE 
+100000 
+Allow to open files> 4GB 
+O_DIRECTORY 
+200000 
+it must be a directory 
+O_NOFOLLOW 
+400000 
+do not follow the links 
+
+
+Access rights / mode (functions 5, 8, 14, 15 and 277) from /usr/include/linux/stat.h
+name    octal   comment
+S_ISUID 
+4000 
+set user ID when executing (suid) 
+S_ISGID 
+2000 
+set group ID when executing (sgid) 
+S_ISVTX 
+1000 
+"sticky bit" - only the owner can delete from such a directory 
+S_IRUSR 
+400 
+reading by the owner (S_IREAD) 
+S_IWUSR 
+200 
+saving by the owner (S_IWRITE) 
+S_IXUSR 
+100 
+performing / searching the catalog by the owner (S_IEXEC) 
+permission S_IRGRP 
+40 
+reading through a group 
+S_IWGRP 
+20 
+recording by a group 
+S_IXGRP 
+10 
+performing / searching a directory by a group 
+S_IROTH 
+4 
+reading by others (R_OK) 
+S_IWOTH 
+2 
+recording by others (W_OK) 
+S_IWOTH 
+1 
+performing / searching the directory by others (X_OK) 
+S_IRWXUGO 
+(S_IRWXU | S_IRWXG | S_IRWXO) 
+reading, writing and performing by everyone 
+S_IALLUGO 
+(S_ISUID | S_ISGID | S_ISVTX | S_IRWXUGO) 
+reading, writing and performing by all + suid + sgid + sticky bit 
+S_IRUGO 
+(S_IRUSR | S_IRGRP | S_IROTH) 
+reading for everyone 
+S_IWUGO 
+(S_IWUSR | S_IWGRP | S_IWOTH) 
+record for everyone 
+S_IXUGO 
+(S_IXUSR | S_IXGRP | S_IXOTH) 
+performing / searching the catalog for everyone 
+
+
+Mounting flags (function 21) from /usr/include/linux/fs.h
+name    value   comment
+MS_MGC_MSK 
+0xC0ED 
+in ms 16-bit; 'magic', necessary before 2.4.0-t9 (????) 
+MS_RDONLY 
+1 
+Mount only for reading 
+MS_NOSUID 
+2 
+Ignore the suid and sgid bits 
+MS_NODEV 
+4 
+Prohibit access to special files / devices 
+MS_NOEXEC 
+8 
+Prohibit the execution of programs 
+MS_SYNCHRONOUS 
+16 
+Records are synchronized immediately 
+MS_REMOUNT 
+32 
+Change the flags of the mounted filesystem (reassemble with other attributes) 
+MS_MANDLOCK 
+64 
+Allow required locks on the file system (???) 
+MS_NOATIME 
+1024 
+Do not change access time 
+MS_NODIRATIME 
+2048 
+Do not change the access time to directories 
+MS_BIND 
+4096 
+Binding mounting - visible elsewhere in the file system 
+MS_REC 
+16384 
+
+MS_VERBOSE 
+32768 
+
+MS_ACTIVE 
+(1 << 30) 
+
+MS_NOUSER 
+(1 << 31) 
+
+
+
+Move to another place in the file (functions 19 and 140) from /usr/include/fcntl.h
+name    value   importance
+SEEK_SET 
+0 
+Shifting starts from the beginning of the file 
+SEEK_CUR 
+1 
+Moving starts from the current position 
+SEEK_END 
+2 
+Panning starts from the end of the file 
+
+The so-called process specification (functions 7 and 37)
+PID     the signal will be sent to
+> 0 
+the child process about this PID 
+0 
+each child process in the calling process group 
+-1 
+all child processes except the first one 
+<-1 
+all child processes in the | {gid} | group 
+
+Requested action (function 26) from /usr/include/linux/ptrace.h
+PTRAC _...      value   arguments       returns
+PEEKTEXT 
+0 
+PID, address, indicator on data 
+read (d) word at the given address 
+PEEKDATA 
+1 
+PID, address, indicator on data 
+read (d) word at the given address in the User's memory area 
+PEEKUSR 
+2 
+PID, address, indicator on data 
+read (d) word at the given address in the User's memory area 
+POKETEXT 
+3 
+PID, address, indicator on data 
+save (d) word at the given address 
+POKEDATA 
+4 
+PID, address, indicator on data 
+save (d) word at the given address 
+POKEUSR 
+5 
+PID, address, indicator on data 
+save (d) word at the given address in the User's memory area 
+TRACEME 
+6 
+- 
+Set the PTRACE bit in the process flags 
+CONT 
+7 
+PID, - signal number 
+Restart after the signal 
+KILL 
+8 
+PID 
+send a SIGKILL signal to the child process, ending it 
+SINGLESTEP      9 
+PID 
+Set the TRAP flag, SIGTRAP signal 
+GETREGS 
+12 
+PID, -, indicator for data 
+get the values ​​of the child process registers 
+SETREGS 
+13 
+PID, -, indicator for data 
+set the values ​​of the child process registers 
+GETFPREGS 
+14 
+PID, -, indicator for data 
+download the FPU state of the child process 
+SETFPREGS 
+15 
+PID, -, indicator for data 
+determine the FPU status of the child process 
+ATTACH 
+16 
+PID, -, - 
+connect the process to the already started process. 
+DETACH 
+17 
+PID, -, - 
+disconnect the previously connected process 
+(K4) GETFPXREGS 
+18 
+PID, -, indicator for data 
+download the extended FPU state of the child process 
+(K4) SETFPXREGS 
+19 
+PID, -, indicator for data 
+set the extended FPU state of the child process 
+(K4) setOptions 
+21 
+PID, -, data 
+The PTRACE_O_TRACESYSGOOD option or none 
+syscall 
+24 
+PID, - signal number 
+Continue and stop at the next return from the given signal 
+
+Registers are set like this : 
+EBX, ECX, EDX, ESI, EDI, EBP, EAX, DS, ES, FS, GS, ORIG_EAX, EIP, CS, EFL, UESP, SS, FRAME_SIZE.
+
+The values ​​of errors returned by Linux system functions. These numbers can also be found in:
+
+my library - attachment "bibl / incl /..../...._ system.inc"
+/usr/src/linux/include/asm/errors.h
+man errno (only part)
+The "real" returned error values ​​are the opposite sign (for example, EIO = -5).
+
+ % define EPERM 1;  Operation not allowed
+ % define ENOENT 2;  There is no such file / directory
+ % define ESRCH 3;  There is no such process
+ % define EINTR 4;  Interrupted system function
+ % define EIO 5;  I / O error
+ % define ENXIO 6;  There is no such device / address
+ % define E2BIG 7;  Too long list of arguments
+ % define ENOEXEC 8;  Executable format error
+ % define EBADF 9;  Bad file number
+ % define ECHILD 10;  There are no child processes
+ % define EAGAIN 11;  Resources temporarily unavailable.
+ % define ENOMEM 12;  No memory
+ % define EACCES 13;  Access denied
+ % define EFAULT 14;  Wrong address
+ % define ENOTBLK 15;  A block device is required
+ % define EBUSY 16;  Device / resource busy
+ % define EEXIST 17;  The file exists
+ % define EXDEV 18;  Inter-instrument link
+ % define ENODEV 19;  There is no such device
+ % define ENOTDIR 20;  This is not a directory
+ % define EISDIR 21;  This is a catalog
+ % define EINVAL 22;  Invalid argument
+ % define ENFILE 23;  File table overflow
+ % define EMFILE 24;  Too many files open
+ % define ENOTTY 25;  Inadequate control operation
+                                 ;  input / output (Not a typewriter)
+ % define ETXTBSY 26;  Text file busy
+ % define EFBIG 27;  File too big
+ % define ENOSPC 28;  No space on the device
+ % define ESPIPE 29;  Incorrect change of position in the file
+ % define EROFS 30;  Read-only file system
+ % define EMLINK 31;  Too many links
+ % define EPIPE 32;  Bad stream
+ % define EDOM 33;  An argument outside the field of mathematics.
+ % define ERANGE 34;  The result can not be presented
+ % define EDEADLK 35;  Resource deadlocks have been avoided
+                                 ;  (Resource deadlock would occur)
+ % define ENAMETOOLONG 36;  File name too long
+ % define ENOLCK 37;  No locks available
+ % define ENOSYS 38;  Function not implemented
+ % define ENOTEMPTY 39;  The catalog is not empty
+ % define ELOOP 40;  Too many symbolic links
+ % define EWOULDBLOCK EAGAIN;  Resources temporarily unavailable (operation
+                                 ;  would block the program)
+ % define ENOMSG 42;  There is no message of the requested type
+ % define EIDRM 43;  ID removed
+ % define ECHRNG 44;  Channel number out of range
+ % define EL2NSYNC 45;  Level 2 is not synchronized
+ % define EL3HLT 46;  Level 3 stopped
+ % define EL3RST 47;  Level 3 restarted
+ % define ELNRNG 48;  Too many links / link number
+ % define EUNATCH 49;  Protocol driver not connected
+ % define ENOCSI 50;  There are no free CSI structures
+ % define EL2HLT 51;  Level 2 stopped
+ % define EBADE 52;  Incorrect exchange
+ % define EBADR 53;  Invalid request descriptor
+ % define EXFULL 54;  Full exchange (buffer?)
+ % define ENOANO 55;  No anode
+ % define EBADRQC 56;  Invalid task code
+ % define EBADSLT 57;  Invalid slot
+
+ % define EDEADLOCK EDEADLK
+
+ % define EBFONT 59;  Invalid font file format
+ % define ENOSTR 60;  The device is not a stream
+ % define ENODATA 61;  There is no data
+ % define ETIME 62;  Time limit exceeded
+ % define ENOSR 63;  No streaming resources
+ % define ENONET 64;  The computer is not on the network
+ % define ENOPKG 65;  Package not installed
+ % define EREMOTE 66;  The object is remote
+ % define ENOLINK 67;  Link has been severed
+ % define EADV 68;  Advertise error
+ % define ESRMNT 69;  Srmount error
+ % define ECOMM 70;  Communication error when sending
+ % define EPROTO 71;  Protocol error
+ % define EMULTIHOP 72;  Multihop attempted
+ % define EDOTDOT 73;  RFS specific error
+ % define EBADMSG 74;  This is not a data message
+ % define EOVERFLOW 75;  Value too large for a specific type
+ % define ENOTUNIQ 76;  The name is not unique in the network
+ % define EBADFD 77;  File descriptor in bad condition
+ % define EREMCHG 78;  Change of remote address
+ % define ELIBACC 79;  You can not get to the required bibl.
+ % define ELIBBAD 80;  Access to the broken one
+                                 ;  shared library
+ % define ELIBSCN 81;  Broken section .lib in a.out
+ % define ELIBMAX 82;  Attempt to connect too many libraries
+                                 ;  shared
+ % define ELIBEXEC 83;  Can not be started directly
+                                 ;  shared library
+ % define EILSEQ 84;  Invalid byte sequence
+ % define ERESTART 85;  The interrupted system function should remain
+                                 ;  restarted
+ % define ESTRPIPE 86;  Streams pipe error
+ % define EUSERS 87;  Too many users
+ % define ENOTSOCK 88;  Slot operation on a non-socket
+ % define EDESTADDRREQ 89;  Required destination address
+ % define EMSGSIZE 90;  Message too long
+ % define EPROTOTYPE 91;  Bad protocol type for the socket
+ % define ENOPROTOOPT 92;  Report not available
+ % define EPROTONOSUPPORT 93;  Unsupported protocol
+ % define ESOCKTNOSUPPORT 94;  Socket type not supported
+ % define EOPNOTSUPP 95;  Operation not supported on the second
+                                 ;  on the transport side
+ % define EPFNOSUPPORT 96;  Unsupported protocol family
+ % define EAFNOSUPPORT 97;  Address family not supported by
+                                 ;  this protocol
+ % define EADDRINUSE 98;  The address is already used
+ % define EADDRNOTAVAIL 99;  The requested address can not be assigned
+ % define ENETDOWN 100;  The network does not work
+ % define ENETUNREACH 101;  The network is unavailable
+ % define ENETRESET 102;  No network due to a reset
+ % define ECONNABORTED 103;  Connection interruption by the program
+ % define ECONNRESET 104;  Reset connection by the other party
+ % define ENOBUFS 105;  There is no space in the buffer
+ % define EISCONN 106;  The other side of transport is already there
+                                 ;  connected
+ % define ENOTCONN 107;  The other side of the transport is not
+                                 ;  connected
+ % define ESHUTDOWN 108;  You can not send after turning off the other
+                                 ;  transport side
+ % define ETOOMANYREFS 109;  Too many references: can not splice
+ % define ETIMEDOUT 110;  Connection timeout exceeded
+ % define ECONNREFUSED 111;  Connection refused
+ % define EHOSTDOWN 112;  Host is turned off
+ % define EHOSTUNREACH 113;  There is no way to host
+ % define EALREADY 114;  The operation is already in progress
+ % define EINPROGRESS 115;  The operation continues now
+ % define ESTALE 116;  Constantly NFS file handle
+ % define EUCLEAN 117;  The structure requires ordering
+ % define ENOTNAM 118;  Not a XENIX named type file
+ % define ENAVAIL 119;  No XENIX semaphores available
+ % define EISNAM 120;  Is a named type file
+ % define EREMOTEIO 121;  Remote I / O error
+ % define EDQUOT 122;  Exceeded disk limit (Quota)
+
+ % define ENOMEDIUM 123;  No media
+ % define EMEDIUMTYPE 124;  Bad type of media
+ % define ECANCELED 125;  Operation was abandoned
+ % define ENOKEY 126;  Required key unavailable
+ % define EKEYEXPIRED 127;  Expired key
+ % define EKEYREVOKED 128;  The key is invalid
+ % define EKEYREJECTED 129;  Key rejected
+
+ % define EOWNERDEAD 130;  The owner was killed
+ % define ENOTRECOVERABLE 131;  State not recoverable
+
+
+ % define ERESTARTSYS 512
+ % define ERESTARTNOINTR 513
+ % define ERESTARTNOHAND 514;  restart if no handler ..
+ % define ENOIOCTLCMD 515;  No ioctl command
+ % define ERESTART_RESTARTBLOCK 516;  restart by calling sys_restart_syscall
+
+ ;  NFS v3
+ % define EBADHANDLE 521;  Illegal NFS file handle
+ % define ENOTSYNC 522;  Update synchronization mismatch
+ % define EBADCOOKIE 523;  The cookie is constantly
+ % define ENOTSUPP 524;  Unsupported operation
+ % define ETOOSMALL 525;  Buffer or request too small
+ % define ESERVERFAULT 526;  An untranslatable error occurred
+ % define EBADTYPE 527;  A type not supported by the server
+ % define EJUKEBOX 528;  Request initiated, but will not
+                                 ;  complete before timeout
+ % define EIOCBQUEUED 529;  iocb queued, will get completion event
+ % define EIOCBRETRY 530;  iocb queued, will trigger a retry
+
+ #define EWOULDBLOCKIO 530;  Would block due to block-IO 
+
+Structure "tms" (function 43) from /usr/include/linux/times.h :
+
+         struct tms {
+                 clock_t tms_utime;
+                 clock_t tms_stime;
+                 clock_t tms_cutime;
+                 clock_t tms_cstime;
+             }; 
+Structure "flock" from /usr/include/asm/fcntl.h :
+
+         struct flock {
+                 short l_type;  // type of file lock (WORD)
+
+                 short l_whence;  // see SEEK_ * above?  (WORD)
+
+                 off_t l_start;  // the address of the place to which it relates
+                                 // blocking, in bytes counted
+                                 // from the position specified
+                                 // by l_whence (DWORD)
+
+                 off_t l_len;  // the length of the blocked area.
+                                 // Zero means to the end of the file (DWORD)
+
+                 pid_t l_pid;  // received by the F_GETLK command,
+                                 // ignored when enabling the lock (DWORD)
+         }; 
+
+Arguments for the sys_fcntl (number 55) function from /usr/include/bits/fcntl.h
+ECX (command)   Value   Description
+F_DUPFD 
+0 
+EDX becomes a copy of the EBX descriptor 
+F_GETFD 
+1 
+Read the close-on-exec flag. When bit0 = 0, the file will be opened despite exec, otherwise the file will be closed. 
+F_SETFD 
+2 
+Set the close-on-exec flag to the last bit in EDX 
+F_GETFL 
+3 
+Return the descriptor flags that were set by the open function 
+F_SETFL 
+4 
+Set the descriptor flags to EDX. Only O_APPEND and O_NONBLOCK can be set. 
+F_GETLK 
+5 
+[If you are running sys_fcntl64, use the 64-bit version] 
+EDX has the address of the flock structure. Return the flock structure that protects us from getting a lock or set the lock_ltype field to F_UNLCK if possible 
+F_SETLK 
+6 
+[If you are running sys_fcntl64, use the 64-bit version] 
+EDX has the address of the flock structure. The lock is set if l_type is F_RDLCK or F_WRLCK or removed when it is F_UNLCK. If the lock is stored by someone else, it returns -1 and EACCES or EAGAIN. 
+F_SETLKW 
+7 
+[If you are running sys_fcntl64, use the 64-bit version] 
+Like F_SETLK, but instead of returning an error, it waits to release the lock. 
+F_SETOWN 
+8 
+Set the process that is the owner of the socket. Here, and in the following function, process groups are returned as negative values. 
+F_GETOWN 
+9 
+Download the process ID that owns the socket. 
+F_SETSIG 
+10 
+Set the signal number to be sent. 
+F_GETSIG 
+11 
+Download the signal number to be sent. 
+F_GETLK64 
+12 
+EDX has the address of the flock structure. Return the flock structure that protects us from getting a lock or set the l_type lock field to F_UNLCK if possible 
+F_SETLK64 
+13 
+EDX has the address of the flock structure. The lock is set if l_type is F_RDLCK or F_WRLCK or removed when it is F_UNLCK. If the lock is stored by someone else, it returns -1 and EACCES or EAGAIN. 
+F_SETLKW64 
+14 
+Like F_SETLK, but instead of returning an error, it waits to release the lock. 
+F_SETLEASE 
+1024 
+Set the lease. 
+F_GETLEASE 
+1025 
+Get information on which lease is active. 
+F_NOTIFY 
+1026 
+Request notifications on a given directory. 
+
+Sigaction structure (function 67) from /usr/include/asm/signal.h :
+
+         struct sigaction {
+                 __sighandler_t sa_handler;  // signal handling procedure
+                 unsigned long sa_flags;
+                 void (* sa_restorer) (void);  // restoring procedure?
+                 sigset_t sa_mask;  // mask maintained for
+                                                 // extensibility
+             };
+
+         typedef void (* __ sighandler_t) (int);  // type of procedure
+                                                 // signal handling
+
+         #define _NSIG 64
+         #define _NSIG_BPW 32
+         #define _NSIG_WORDS (_NSIG / _NSIG_BPW)
+
+         typedef struct {
+                 unsigned long sig [_NSIG_WORDS];
+             } sigset_t;  // definition of this type
+                                                 // masks above 
+
+The structure of rlimit (functions 75 and 76) from /usr/include/linux/resource.h :
+
+         struct rlimit {
+                 unsigned long rlim_cur;  // "soft" limit or
+                                         // RLIM_INFINITY = -1 if missing
+                 unsigned long rlim_max;  // maximum limit or
+                                         // RLIM_INFINITY if missing
+             }; 
+Table of resource numbers from /usr/include/bits/resource.h
+name    value   which means
+RLIMIT_CPU 
+0 
+processor time out in seconds 
+RLIMIT_FSIZE 
+1 
+size in bytes of the largest file that can be created 
+RLIMIT_DATA 
+2 
+the maximum size in bytes of all data segments 
+RLIMIT_STACK 
+3 
+maximum stack size in bytes 
+RLIMIT_CORE 
+4 
+maximum core size in bytes 
+RLIMIT_RSS 
+5 
+the maximum size of the resident code 
+RLIMIT_NPROC 
+6 
+the maximum number of processes for a given real PID 
+RLIMIT_OFILE, RLIMIT_NOFILE 
+7 
+maximum number of open descriptors + 1 
+RLIMIT_MEMLOCK 
+8 
+the maximum number of memory bytes that can be blocked (sys_mlock) 
+RLIMIT_AS 
+9 
+address space limit 
+RLIMIT_LOCKS 
+10 
+file lock limit (sys_flock etc.) 
+RLIMIT_SIGPENDING 
+11 
+maximum number of waiting signals 
+RLIMIT_MSGQUEUE 
+12 
+the maximum number of bytes in message queues 
+RLIMIT_NICE 
+13 
+the maximum sys_nice priority that can be set 
+RLIMIT_RTPRIO 
+14 
+the maximum real-time priority that can be set for an unprivileged process 
+
+The rusage structure (function 77) from /usr/include/linux/resource.h :
+
+             #define RUSAGE_SELF 0 #define RUSAGE_CHILDREN (-1) #define RUSAGE_BOTH (-2) // sys_wait4 () uses this struct rusage {struct timeval ru_utime;  // used time struct structeveval ru_stime;  // used system time long ru_maxrss;  // size of the maximum // resident set?  long ru_ixrss;  // size of shared memory long ru_idrss;  // size of the un-shared memory long ru_isrss;  // the size of the un-split stack long ru_minflt;  // number of recovered pages long ru_majflt;  // number of memory page errors long ru_nswap;  // swaps long ru_inblock;  // blocking long ru_oublock entry operations;  // blocking long ru_msgsnd output operations;  // sent messages long ru_msgrcv;  // received messages long ru_nsignals;  // received signals long ru_nvcsw;  // voluntary context changes long ru_nivcsw;  // involuntary context changes}; 
+
+Timeval structure (function 78) from /usr/include/linux/time.h :
+
+         struct timeval {
+                 time_t tv_sec;  // dword, seconds
+                 suseconds_t tv_usec;  // dword, microseconds
+             }; 
+
+Timezone structure (function 78) from /usr/include/linux/time.h :
+
+         struct timezone {
+                 int tz_minuteswest;  // minutes west of Greenwich
+                 int tz_dsttime;  // type of target point correction?
+                 }; 
+
+The sigset_t structure (functions 72 and 73) from /usr/include/asm/signal.h :
+
+         #define _NSIG 64
+         #define _NSIG_BPW 32
+         #define _NSIG_WORDS (_NSIG / _NSIG_BPW)
+
+         typedef struct {
+                 unsigned long sig [_NSIG_WORDS];
+             } sigset_t; 
+
+
+Commands for the sys_ulimit (number 58) function from /usr/include/ulimit.h
+name    value   command
+UL_GETFSIZE 
+1 
+download the file size limit in 512-byte units 
+UL_SETFSIZE 
+2 
+set the file size limit in 512-byte units 
+__UL_GETMAXBRK 
+3 
+(apparently not in Linux), give the highest possible address in the data segment 
+__UL_GETOPENMAX 
+4 
+specify the largest number of files that this process can open 
+
+The device type for the sys_mknod (number 14) function from /usr/include/linux/stat.h
+name    octal   device type
+S_IFREG 
+0100000 
+normal file 
+S_IFCHR 
+0020000 
+character device 
+S_IFBLK 
+0060000 
+block device 
+S_IFIFO 
+0010000 
+named pipe 
+
+The "utimbuf" structure (function 30) from /usr/include/linux/utime.h :
+
+               struct utimbuf {
+                       time_t actime;  / * access time * /
+                       time_t modtime;  / * last change time * /
+               }; 
+
+Structure of "timeb" (function 35) from /usr/include/sys/timeb.h :
+
+         struct timeb {
+                 time_t time;  / * number of seconds since the beginning of the epoch * /
+                 unsigned short millitm;  / * number of milliseconds from the moment
+                                            time seconds * /
+                 short timezone;  / * time shift for the zone
+                                            local area in minutes to the west
+                                             from Greenwich * /
+                 short dstflag;  / * different from zero means that in
+                                            part of the year is valid
+                                            summertime */
+                  }; 
+
+Structure of "ustat" (function 62) from /usr/include/bits/ustat.h :
+
+         struct ustat {
+                 __daddr_t f_tfree;  / * total number of free blocks * /
+                 __ino_t f_tinode;  / * number of free nodes i-node * /
+                 char f_fname [6];  / * file system name (unused) * /
+                 char f_fpack [6];  / * the name of the package (?) of the file system
+                                          (unused) */
+                   }; 
+
+Flags for the swapon function (number 87) from /usr/include/sys/swap.h :
+
+ / * The swap space swap priority is coded like this:
+    (prio << SWAP_FLAG_PRIO_SHIFT) & SWAP_FLAG_PRIO_MASK
+ * /
+ #define SWAP_FLAG_PREFER 0x8000 / * Set if specified
+                                            priority.  Setting this bit
+                                            this causes a new space
+                                            exchange will have a higher one
+                                            priority * /
+ #define SWAP_FLAG_PRIO_MASK 0x7fff
+ #define SWAP_FLAG_PRIO_SHIFT 0 
+
+
+Flags for the reboot function (number 88) from /usr/include/linux/reboot.h
+name    value   which means
+LINUX_REBOOT_CMD_RESTART 
+0x01234567 
+system reset 
+LINUX_REBOOT_CMD_HALT 
+0xCDEF0123 
+stopping the system 
+LINUX_REBOOT_CMD_CAD_ON 
+0x89ABCDEF 
+enabling Ctrl-Alt-Del support 
+LINUX_REBOOT_CMD_CAD_OFF 
+0x00000000 
+disabling Ctrl-Alt-Del support 
+LINUX_REBOOT_CMD_POWER_OFF 
+0x4321FEDC 
+power off 
+LINUX_REBOOT_CMD_RESTART2 
+0xA1B2C3D4 
+reset using the command given as an additional argument 
+
+Structure "dirent" (functions 89 and 141) from /usr/include/linux/dirent.h :
+
+         struct dirent {
+                 long d_ino;  / * number of i-node * /
+                 off_t d_off;  / * offset from the beginning of the catalog
+                                         to the next structure dirent
+                                         (to the current dirent?) /
+                 unsigned short d_reclen;  / * length of this dirent
+                                                  (d_name?) * /
+                 char d_name [NAME_MAX + 1];  / * file name (completed
+                                                  zero mark) * /
+               }; 
+
+
+Types of protection for mapped data (function 90) from /usr/include/bits/mman.h
+name    value   which means
+PROT_READ 
+1 
+the memory page can be read 
+PROT_WRITE 
+2 
+the page can be saved 
+PROT_EXEC 
+4 
+the site can be performed 
+PROT_NONE 
+0 
+does not have access to the page 
+You can use OR to combine more flags. 
+
+
+Data mapping flags (function 90) from /usr/include/bits/mman.h
+name    value   which means
+MAP_FIXED 
+0x10 
+Be sure to use the address provided as a parameter 
+MAP_GROWSDOWN 
+0x0100 
+Stack type segment ("grows" down) 
+MAP_DENYWRITE 
+0x0800 
+ignored 
+MAP_EXECUTABLE 
+0x1000 
+Executable (ignored) 
+MAP_LOCKED 
+0x2000 
+Block mapping. Ignored. 
+MAP_NORESERVE 
+0x4000 
+Do not book swap exchange pages for this mapping. 
+MAP_POPULATE 
+0x8000 
+Multiply page tables? 
+MAP_NONBLOCK 
+0x10000 
+Do not block during I / O. 
+MAP_FILE 
+0 
+use the file? Ignored. 
+MAP_ANONYMOUS, MAP_ANON 
+0x20 
+Do not use the file. File descriptor and offset parameter are ignored. Implemented from 2.4 
+
+Select only 1 of these:
+Types of sharing
+name    value   which means
+MAP_SHARED 
+0x01 
+sharing changes 
+MAP_PRIVATE 
+0x02 
+changes are private 
+
+
+
+Function parameters 96 and 97 (from /usr/include/bits/resource.h )
+EBX = whose priority we take / change   value in EBX    which means
+PRIO_PROCESS 
+0 
+ECX is the process ID 
+PRIO_PGRP 
+1 
+ECX is the ID of the process group 
+PRIO_USER 
+2 
+ECX is the user ID 
+
+The "statfs" structure (function 99) from /usr/include/asm/statfs.h :
+
+         struct statfs {
+                 long f_type;  / * type of file system (see below) * /
+                 long f_bsize;  / * optimal transfer block size * /
+                 long f_blocks;  / * total number of data blocks * /
+                 long f_bfree;  / * wolne bloki * /
+                 long f_bavail;  / * free blocks available for
+                                          nie-superużytkowników * /
+                 long f_files;  / * total number of file nodes
+                                          ( file nodes ) * /
+                 long f_ffree;  / * free nodes * /
+                 fsid_t f_fsid;  / * File system ID * /
+                 long f_namelen;  / * max. length of the file name * /
+                 long f_spare [6];  / * zapasowe na później * /
+               };
+
+                 struct
+               {
+                 int __val [2];
+               } __fsid_t;  / * type of structure fsid_t above * / 
+
+
+The type of file system
+name    value
+AFFS_SUPER_MAGIC 
+0xADFF 
+EXT_SUPER_MAGIC 
+0x137D 
+EXT2_OLD_SUPER_MAGIC 
+0xEF51 
+EXT2_SUPER_MAGIC 
+0xEF53 
+HPFS_SUPER_MAGIC 
+0xF995E849 
+ISOFS_SUPER_MAGIC 
+0x9660 
+MINIX_SUPER_MAGIC 
+0x137F (original minix) 
+MINIX_SUPER_MAGIC2 
+0x138F (30-character minix) 
+MINIX2_SUPER_MAGIC 
+0x2468 (minix V2) 
+MINIX2_SUPER_MAGIC2 
+0x2478 (V2 minix, 30 characters) 
+MSDOS_SUPER_MAGIC 
+0x4d44 
+NCP_SUPER_MAGIC 
+0x564c 
+NFS_SUPER_MAGIC 
+0x6969 
+PROC_SUPER_MAGIC 
+0x9fa0 
+SMB_SUPER_MAGIC 
+0x517B 
+XENIX_SUPER_MAGIC 
+0x012FF7B4 
+SYSV4_SUPER_MAGIC 
+0x012FF7B5 
+SYSV2_SUPER_MAGIC 
+0x012FF7B6 
+COH_SUPER_MAGIC 
+0x012FF7B7 
+UFS_MAGIC 
+0x00011954 
+_XIAFS_SUPER_MAGIC 
+0x012FD16D 
+
+Command for the sys_syslog function (number 103) from /usr/src/linux/kernel/printk.c
+value   comment
+0 
+Close the log. He does nothing. 
+1 
+Open the log. He does nothing. 
+2 
+Read from the log at most EDX bytes to [ECX]. Returns the number of bytes read in EAX. 
+3 
+Read all (last EDX bytes) messages remaining in the buffer. Returns the number of bytes read in EAX. 
+4 
+Read and clear all (last EDX bytes) messages remaining in the buffer. Returns the number of bytes read in EAX. 
+5 
+Clear the buffer. 
+6 
+Disable the printk () function on the console. 
+7 
+Enable the printk () function on the console. 
+8 
+Set the logging level of messages sent to the console. 
+
+Timer number (function 104) from /usr/include/linux/time.h
+name    value   comment
+ITIMER_REAL 
+0 
+counts down the real time 
+ITIMER_VIRTUAL 
+1 
+it counts down the process execution time 
+ITIMER_PROF 
+2 
+he counts down both times 
+
+Structure "itimerval" (function 104) from /usr/include/linux/time.h :
+
+         struct itimerval {
+                 struct timeval it_interval;  / * next value?  * /
+                 struct timeval it_value;  / * present value * /
+             };
+
+         struct timeval {
+                 long tv_sec;  / * sekund * /
+                 long tv_usec;  / * microseconds * /
+             }; 
+
+The "stat" structure (function 104) with man 2 stat (and /usr/include/asm/stat.h , where the data is usually more relevant to your system than on the manual pages):
+
+                 / * from the manual page: * /
+               struct stat {
+                   dev_t st_dev;  / * device * /
+                   ino_t st_ino;  / * i-node (inode) * /
+                   umode_t st_mode;  / * ochrona * /
+                   nlink_t st_nlink;  / * number of permanent links
+                                                  (hardlinks) * /
+                   uid_t st_uid;  / * Owner's ID * /
+                   gid_t st_gid;  / * ID of the owner group * /
+                   dev_t st_rdev;  / * device type (if
+                                                  device inode) * /
+                   off_t st_size;  / * total size
+                                                 in bytes * /
+                   unsigned long st_blksize;  / * block size for I / O
+                                                  filesystem * /
+                   unsigned long st_blocks;  / * number of allocated blocks * /
+                   time_t st_atime;  / * last access time * /
+                   time_t st_mtime;  / * last modified time * /
+                   time_t st_ctime;  / * last change time * /
+               };
+
+                 / * from file /usr/include/asm/stat.h: * /
+                 struct stat {
+                         unsigned long st_dev;
+                         unsigned long st_ino;
+                         unsigned short st_mode;
+                         unsigned short st_nlink;
+                         unsigned short st_uid;
+                         unsigned short st_gid;
+                         unsigned long st_rdev;
+                         unsigned long st_size;
+                         unsigned long st_blksize;
+                         unsigned long st_blocks;
+                         unsigned long st_atime;
+                         unsigned long st_atime_nsec;
+                         unsigned long st_mtime;
+                         unsigned long st_mtime_nsec;
+                         unsigned long st_ctime;
+                         unsigned long st_ctime_nsec;
+                         unsigned long __unused4;
+                         unsigned long __unused5;
+                 }; 
+
+
+Possible values ​​for the st_mode field
+name    octal   which means
+S_IFMT 
+00170000 
+bit mask for bit-type file types 
+S_IFSOCK 
+0140000 
+nest 
+S_IFLNK 
+0120000 
+symbolic link (symbolic link) 
+S_IFREG 
+0100000 
+regular file 
+S_IFBLK 
+0060000 
+block device 
+S_IFDIR 
+0040000 
+catalog 
+S_IFCHR 
+0020000 
+character device 
+S_IFIFO 
+0010000 
+fifo 
+S_ISUID 
+0004000 
+bit 'set UID' 
+S_ISGID 
+0002000 
+bit 'set GID' 
+S_ISVTX 
+0001000 
+bit 'sticky' 
+S_IRWXU 
+00700 
+the user (file owner) has read, write and execute rights 
+S_IRUSR (S_IREAD) 
+00400 
+the user has read rights 
+S_IWUSR (S_IWRITE) 
+00200 
+the user has write rights 
+S_IXUSR (S_IEXEC) 
+00100 
+the user has the right to execute 
+S_IRWXG 
+0070 
+the group has read, write and execute rights 
+S_IRGRP (S_IREAD) 
+0040 
+the group has read rights 
+S_IWGRP (S_IWRITE) 
+0020 
+the group has write rights 
+S_IXGRP (S_IEXEC) 
+0010 
+the user has the right to execute 
+S_IRWXO 
+007 
+others have read, write and execute rights 
+S_IROTH (S_IREAD) 
+004 
+others have read rights 
+S_IWOTH (S_IWRITE) 
+002 
+others have write rights 
+S_IXOTH (S_IEXEC) 
+001 
+others have enforcement rights 
+
+Structure "vm86_struct" (function 113) from /usr/include/asm/vm86.h :
+
+         struct vm86_struct {
+                 struct vm86_regs regs;
+                 unsigned long flags;
+                 unsigned long screen_bitmap;
+                 unsigned long cpu_type;
+                 struct revectored_struct int_revectored;
+                 struct revectored_struct int21_revectored;
+         };
+
+         struct vm86_regs {
+         / *
+          * normal registers, with special meaning for
+                 segment listings and descriptors
+          * /
+                 long ebx;
+                 long ecx;
+                 long edx;
+                 long esi;
+                 long edi;
+                 long ebp;
+                 long eax;
+                 long __null_ds;
+                 long __null_es;
+                 long __null_fs;
+                 long __null_gs;
+                 long orig_eax;
+                 long eip;
+                 unsigned short cs, __csh;
+                 long eflags;
+                 long esp;
+                 unsigned short ss, __ssh;
+         / *
+          * these are specific to the v86 mode:
+          * /
+                 unsigned short es, __esh;
+                 unsigned short ds, __dsh;
+                 unsigned short fs, __fsh;
+                 unsigned short gs, __gsh;
+         };
+
+         struct revectored_struct {
+                 unsigned long __map [8];  / * 256 bitów * /
+         }; 
+
+Options for wait functions (numbers 7 and 114) are 0 or one or more of these options (from /usr/include/bits/waitflags.h ):
+
+Options for the wait function
+name    value   which means
+WNOHANG 
+1 
+do not block waiting, it returns immediately when no child has finished. Only for sys_wait / pid 
+WUNTRACED 
+2 
+enter the status of stopped child processes. Only for sys_wait, sys_waitpid 
+WCONTINUED 
+8 
+wait for the detained descendants resumed by the SIGCONT signal 
+WSTOPPED 
+2 
+wait for descendants caught by the signal. Only for sys_waitid 
+WEXITED 
+4 
+wait for the descendants to finish. Only for sys_waitid 
+WNOWAIT 
+0x01000000 
+just get the status. Only for sys_waitid 
+__WNOTHREAD 
+0x20000000 
+do not wait for descendants of other group threads. Only for sys_waitid 
+__WALL 
+0x40000000 
+wait for any of your descendants. Only for sys_waitid 
+__WCLONE 
+0x80000000 
+wait for cloned processes. Only for sys_waitid 
+
+The sysinfo structure (function 116) from /usr/include/linux/kernel.h :
+
+         (pre 2.3.16, all sizes in bytes):
+
+         struct sysinfo {
+                    long uptime;  / * number of seconds from start
+                                                  system * /
+                    unsigned long loads [3];  / * average load over
+                                                  1, 5 and 15 minutes * /
+                    unsigned long totalram;  / * amount of memory * /
+                    unsigned long freeram;  / * amount of free memory * /
+                    unsigned long sharedram;  / * amount of shared memory * /
+                    unsigned long bufferram;  / * memory used
+                                                  by bufory * /
+                    unsigned long totalswap;  / * amount of exchange memory * /
+                    unsigned long freeswap;  / * the amount of free
+                                                  exchange memory * /
+                    unsigned short procs;  / * number of processes * /
+                    char _f [22];  / * complement up to 64 bytes * /
+               };
+
+         (from 2.3.48, sizes in multiples of mem_unit?)
+
+         struct sysinfo {
+                    long uptime;  / * number of seconds from start
+                                                  system * /
+                    unsigned long loads [3];  / * average load over
+                                                  1, 5 and 15 minutes * /
+                    unsigned long totalram;  / * amount of memory * /
+                    unsigned long freeram;  / * amount of free memory * /
+                    unsigned long sharedram;  / * amount of shared memory * /
+                    unsigned long bufferram;  / * memory used
+                                                 by bufory * /
+                    unsigned long totalswap;  / * amount of exchange memory * /
+                    unsigned long freeswap;  / * the amount of free
+                                                  exchange memory * /
+                    unsigned short procs;  / * number of processes * /
+                    unsigned long totalhigh;  / * amount of high memory * /
+                    unsigned long freehigh;  / * the amount of free
+                                                  high memory * /
+                    unsigned int mem_unit;  / * size of the memory unit
+                                                  in bytes * /
+                                 / * complement for libc5 * /
+                     char _f [20-2 * sizeof (long) -sizeof (int)];
+               }; 
+
+Flags for function 120 (for kernel 2.4.18?) From /usr/include/linux/sched.h :
+
+Cloning flags
+name    value   which means
+CSIGNAL 
+0x000000ff 
+a mask of signals to send when leaving 
+CLONE_VM 
+0x00000100 
+when the VM is split between processes 
+CLONE_FS 
+0x00000200 
+when the file system information is split between processes 
+CLONE_FILES 
+0x00000400 
+when open files are divided between processes 
+CLONE_SIGHAND 
+0x00000800 
+when signal handling procedures and blocked signals are shared 
+CLONE_PID 
+0x00001000 
+when PID is shared between processes 
+CLONE_PTRACE 
+0x00002000 
+if we want the clone to be tracked too 
+CLONE_VFORK 
+0x00004000 
+if the cloner wants the child process to wake him up by mm_release 
+CLONE_PARENT 
+0x00008000 
+if the clone is to have the same parent as cloning 
+CLONE_THREAD 
+0x00010000 
+The same group of threads? 
+CLONE_NEWNS 
+0x00020000 
+New namespace group ?? 
+CLONE_SIGNAL 
+(CLONE_SIGHAND | CLONE_THREAD) 
+The combination of the two: the same group of threads and when the signal handling procedures and blocked signals are shared 
+
+The structure of utsname (function 122) from /usr/include/sys/utsname.h :
+
+         #define _UTSNAME_LENGTH 65 / * all tables below
+                                                  są tegoength * /
+
+         struct utsname {
+                 / * The name of the operating system implementation.  * /
+                 char sysname [_UTSNAME_SYSNAME_LENGTH];
+
+                 / * The name of this computer on the network.  * /
+                 char nodename [_UTSNAME_NODENAME_LENGTH];
+
+                 / * Release of this implementation.  * /
+                 char release [_UTSNAME_RELEASE_LENGTH];
+                 / * Version of this issue.  * /
+                 char version [_UTSNAME_VERSION_LENGTH];
+
+                 / * The name of the equipment the system is working on.  * /
+                 char machine [_UTSNAME_MACHINE_LENGTH];
+
+         #if _UTSNAME_DOMAIN_LENGTH - 0
+             / * The domain name of this computer on the network.  * /
+         # ifdef __USE_GNU
+             char domainname [_UTSNAME_DOMAIN_LENGTH];
+         # else
+             char __domainname [_UTSNAME_DOMAIN_LENGTH];
+         # endif
+         #endif
+           }; 
+
+Function numbers for modify_ldt (function 123)
+
+Functions of changing the Local Descriptor Table
+value   which means
+0 
+Read LDT to [ECX], EDX bytes 
+1 
+Change 1 entry in LDT. ECX has the address structure modify_ldt_ldt_s , and EDX - its size 
+2 
+Read default LDT to [ECX], EDX bytes 
+17 
+Change 1 entry in LDT. ECX has the address of the modify_ldt_ldt_s structure, and EDX - its size (?) 
+Structure "modify_ldt_ldt_s" (function 123) from /usr/include/asm/ldt.h :
+
+         struct modify_ldt_ldt_s {
+                 unsigned int entry_number;
+                 unsigned long base_addr;
+                 unsigned int limit;
+                 unsigned int seg_32bit: 1;
+                 unsigned int contents: 2;
+                 unsigned int read_exec_only: 1;
+                 unsigned int limit_in_pages: 1;
+                 unsigned int seg_not_present: 1;
+                 unsigned int useable: 1;
+         }; 
+
+Timex structure (function 124) with man 2 adjtimex (in /usr/include/linux/timex.h is slightly larger):
+
+         struct timex {
+                 int modes;  / * switch mode * /
+                 long offset;  / * offset time (microseconds) * /
+                 long frequency;  / * frequency offset
+                                          (scaled ppm) * /
+                 long maxerror;  / * maximum error (microseconds) * /
+                 long esterror;  / * calculated error (microseconds) * /
+                 int status;  / * komenda / status zegar * /
+                 long constant;  / * czas czas pll * /
+                 long precision;  / * clock accuracy (microseconds)
+                                          (read-only) */
+                 long tolerance;  / * frequency tolerance
+                                          clock (ppm) (read only) * /
+                 struct timeval time;  / * current time (read only) * /
+                 long tick;  / * time between tacks
+                                          clock (microseconds) * /
+               }; 
+The field "modes" defines which parameters (if any) should be set. It can contain bitwise OR combinations of zero or more of the following values:
+
+Values ​​of the field "modes"
+name    value   description
+ADJ_OFFSET 
+0x0001 
+time offset 
+ADJ_FREQUENCY 
+0x0002 
+frequency offset 
+ADJ_MAXERROR 
+0x0004 
+maximum time error 
+ADJ_ESTERROR 
+0x0008 
+calculated time error 
+ADJ_STATUS 
+0x0010 
+clock status 
+ADJ_TIMECONST 
+0x0020 
+constant time pll 
+ADJ_TICK 
+0x4000 
+the value of a tick 
+ADJ_OFFSET_SINGLESHOT 
+0x8001 
+old-fashioned adjtime 
+Ordinary users are limited to zero for "modes". Only the superuser can set any parameters.
+
+If no error occurs, the following is returned:
+
+Possible results and status of the clock
+name    value   description
+TIME_OK 
+0 
+clock synchronized 
+TIME_INS 
+1 
+add a leap second 
+TIME_DEL 
+2 
+delete the leap second 
+TIME_OOP 
+3 
+the leap lasts 
+TIME_WAIT 
+4 
+a leap second occurred 
+TIME_BAD 
+5 
+error, the clock is out of sync 
+More information is available at /usr/include/linux/timex.h .
+
+
+Action to be executed (function 126) from /usr/include/asm/signal.h :
+
+Possible changes to the current set of blocked signals
+name    value   description
+SIG_BLOCK 
+0 
+For the current set of blocked signals, add the ones from [ECX]. 
+SIG_UNBLOCK 
+1 
+From the current set of blocked signals, remove them from [ECX]. 
+SIG_SETMASK 
+2 
+The current set of blocked signals is changed to the one under [ECX]. 
+
+Structure "module" (function 128) with man module :
+
+         struct module {
+                 unsigned long size_of_struct;
+                 struct module * next;
+                 const char * name;
+                 unsigned long size;
+                 long usecount;
+                 unsigned long flags;
+                 unsigned int nsyms;
+                 unsigned int ndeps;
+                 struct module_symbol * syms;
+                 struct module_ref * deps;
+                 struct module_ref * refs;
+                 int (* init) (void);
+                 void (* cleanup) (void);
+                 const struct exception_table_entry * ex_table_start;
+                 const struct exception_table_entry * ex_table_end;
+               #ifdef __alpha__
+                 unsigned long gp;
+               #endif
+               }; 
+More at /usr/include/linux/module.h .
+
+
+The "kernel_sym" structure (function 130) from /usr/include/linux/module.h :
+
+         struct kernel_sym {
+                 unsigned long value;
+                 char name [60];
+         }; 
+
+Command to execute (function 131) from /usr/include/sys/quota.h (in parentheses from /usr/include/linux/quota.h ):
+
+Disk limits options
+name    value   description
+Q_QUOTAON 
+0x0100 (0x800002) 
+Enable disk limits. ESI = file name of the file containing the limits. 
+Q_QUOTAOFF 
+0x0200 (0x800003) 
+Turn off limits. EDX and ESI ignored. 
+Q_GETQUOTA 
+0x0300 (0x800007) 
+Download limits and current filling for user / EDX group. ESI = address of mem_dqblk structure. 
+Q_SETQUOTA 
+0x0400 (0x800008) 
+Set limits and current filling for the user / EDX group. ESI = address of mem_dqblk structure. 
+Q_SETQLIM 
+0x0700 (missing) 
+Set limits for the user / EDX group. ESI = address of mem_dqblk structure. 
+Q_SETUSE 
+0x0500 (missing) 
+Set the current filling for the user / EDX group. ESI = address of mem_dqblk structure. 
+Q_SYNC 
+0x0600 (0x800001) 
+Update the quot copy for the file system. If ECX = 0, all filesystems with cached are synchronized. EDX and ESI ignored. 
+Q_GETSTATS 
+0x0800 
+Download statistics and general information about quota. ESI = dqstats structure address. ECX and EDX ignored. 
+Q_GETINFO 
+missing (0x800005) 
+Download information about a file with quotas ?. ESI = address of mem_dqinfo structure. EDX ignored. 
+Q_SETINFO 
+missing (0x800006) 
+Set the file information with quotas ?. ESI = address of mem_dqinfo structure. EDX ignored. 
+Q_SETGRACE 
+none (none) 
+Set "grace times" in the file with quotas ?. ESI = address of mem_dqinfo structure. EDX ignored. 
+Q_SETFLAGS 
+none (none) 
+Set flags in the file information with quotas ?. ESI = address of mem_dqinfo structure. EDX ignored. 
+The commands on the XFS file system are different.
+
+         struct mem_dqblk {
+                 __u32 dqb_bhardlimit;  / * absolute occupied limit
+                                                  blocks on the disk * /
+                 __u32 dqb_bsoftlimit;  / * preferred occupied limit
+                                                  blocks on the disk * /
+                 qsize_t dqb_curspace;  / * current occupied size
+                                                  of space * /
+                 __u32 dqb_ihardlimit;  / * absolute occupied limit
+                                                 nodes (i-nodes) on the disk * /
+                 __u32 dqb_isoftlimit;  / * preferred occupied limit
+                                                  nodes on the disk * /
+                 __u32 dqb_curinodes;  / * current number of occupied nodes * /
+                 time_t dqb_btime;  / * excessive timeout
+                                                 disk usage * /
+                 time_t dqb_itime;  / * excessive timeout
+                                                 use of the node * /
+         };
+
+         struct mem_dqinfo {
+                 struct quota_format_type * dqi_format;
+                 int dqi_flags;
+                 unsigned int dqi_bgrace;
+                 unsigned int dqi_igrace;
+                 union {
+                         struct v1_mem_dqinfo v1_i;
+                         struct v2_mem_dqinfo v2_i;
+                 } u;
+         };
+
+         struct dqstats {
+                 int lookups;
+                 int drops;
+                 int reads;
+                 int writes;
+                 int cache_hits;
+                 int allocated_dquots;
+                 int free_dquots;
+                 int syncs;
+         }; 
+
+Command for execution (function 134) :
+
+Bdflush daemon commands
+EBX value       description
+<= 0 
+if the daemon was not running, then the function enters the daemon code and never returns. 
+1 
+Some buffers are written to the disk. 
+> = 2 and is even 
+ECX = DWORD address, the tuning parameter equal (EBX-2) / 2 is returned under [ECX] 
+> = 3 and is odd 
+ECX = DWORD, the kernel sets this value to the tuning parameter number (EBX-3) / 2 
+
+Options for sysfs (function 135):
+
+Operations on file system names
+EBX     description     ECX and EDX     which returns
+1 
+Translate the name of the file system to the number 
+ECX = address of the string containing the name. 
+EAX = number of the file system 
+2 
+Translate the file system number to the name 
+ECX = number of the file system 
+EDX = buffer address per name. 
+EAX = 0 
+3 
+Return the total number of file systems currently present in the kernel. 
+ignored 
+EAX = number of file systems 
+
+Operation for sys_flock (function 143) from /usr/include/asm/fcntl.h :
+
+File lock options
+name    value   description
+LOCK_SH 
+1 
+Creating a shared lock. 
+LOCK_EX Place 
+2 
+Creating an exclusive lock. 
+LOCK_UN 
+8 
+Removal of the lock created by this process 
+After zoruowaniu with the value LOCK_NB = 4, the function will not block the operation of the program. 
+Flags for sys_msync (function 144) from /usr/include/asm/mman.h :
+
+Possibilities for synchronizing memory write
+name    value   description
+MS_ASYNC flag 
+1 
+Perform asynchronous entries. 
+MS_INVALIDATE 
+2 
+Mark the data as invalid after saving 
+MS_SYNC 
+4 
+Perform synchronous records. 
+
+The iovec structure (function 145) from /usr/include/bits/uio.h :
+
+            struct iovec {
+                    void * iov_base;  / * data address * /
+                    size_t iov_len;  / * data length * /
+            }; 
+
+Structure of sysctl_args (function 149) from man 2 sysctl :
+
+        struct __sysctl_args {
+                int * name;  / * vector of integers
+                                         describing variable * /
+                int nlen;  / * length of this vector * /
+                void * oldval;  / * 0 or address where to store
+                                          old value * /
+                size_t * oldlenp;  / * the amount of space for the old value
+                                     overwritten by real
+                                     her size * /
+                void * newval;  / * 0 or the address of the new value * /
+                size_t newlen;  / * the size of the new value * /
+        }; 
+
+Flags for sys_mlockall (function 152) from /usr/include/bits/mman.h :
+
+Blocking all pages of the process memory
+name    value   description
+MCL_CURRENT 
+1 
+Block all memory pages in the process's address space. 
+MCL_FUTURE 
+2 
+Block all memory pages in the process's address space in the future, when they are mapped to the process space. 
+
+The sched_param structure (function 154) from /usr/include/bits/sched.h :
+
+         struct sched_param {
+                 int __sched_priority;
+         }; 
+
+Policy for scheduling tasks (functions 156,157,159,160) from /usr/include/bits/sched.h :
+
+Means of scheduling tasks
+name    value   description
+SCHED_OTHER 
+0 
+The default way of scheduling tasks 
+SCHED_FIFO 
+1 
+First at the entrance, first at the exit 
+SCHED_RR 
+2 
+Cyclic scheduling 
+
+Timespec structure (function 162 and others) with man nanosleep :
+
+         struct timespec {
+                 time_t tv_sec;  / * sekund * /
+                 long tv_nsec;  / * nanosekundy * /
+         }; 
+
+Flags for the sys_mremap (number 163) function from /usr/include/linux/mman.h :
+
+Possibilities of memory remapping
+name    value   description
+MREMAP_MAYMOVE 
+1 
+You can move these pages
+MREMAP_FIXED 
+2 
+You can not move pages.
+
+Function codes for the sys_vm86 function (number 166) from /usr/include/asm/vm86.h :
+
+Functions of Virtual Mode 8086
+name    value
+VM86_PLUS_INSTALL_CHECK 
+0 
+VM86_ENTER 
+1 
+VM86_ENTER_NO_BYPASS 
+2 
+VM86_REQUEST_IRQ 
+3 
+VM86_FREE_IRQ 
+4 
+VM86_GET_IRQ_BITS 
+5 
+VM86_GET_AND_RESET_IRQ 
+6 
+
+Structure "vm86plus_struct" (function 113) from /usr/include/asm/vm86.h :
+
+         struct vm86plus_struct {
+                 struct vm86_regs regs;
+                 unsigned long flags;
+                 unsigned long screen_bitmap;
+                 unsigned long cpu_type;
+                 struct revectored_struct int_revectored;
+                 struct revectored_struct int21_revectored;
+                 struct vm86plus_info_struct vm86plus;
+         };
+
+         struct vm86plus_info_struct {
+                 unsigned long force_return_for_pic: 1;
+                 unsigned long vm86dbg_active: 1;  / * for debugger * /
+                 unsigned long vm86dbg_TFpendig: 1;  / * for debugger * /
+                 unsigned long unused: 28;
+                 unsigned long is_vm86pus: 1;  / * for use
+                                                  internal mode vm86 * /
+                 unsigned char vm86dbg_intxxtab [32];  / * for debugger * /
+         }; 
+
+Subfunction numbers for the sys_query_module (number 167) from /usr/include/linux/module.h :
+
+Polling kernel modules
+name    value   which returns
+lack 
+0 
+always successful 
+QM_MODULES 
+1 
+buffer: names separated by a zero sign 
+[EDI] = number of modules 
+QM_DEPS 
+2 
+in buffer: module names used by the given module, 
+[EDI] = number of such modules 
+QM_REFS 
+3 
+in buffer: module names using the given module, 
+[EDI] = number of such modules 
+QM_SYMBOLS 
+4 
+buffer: exported symbols and values. Format: module_symbol structures (see below) and names separated by a zero sign. 
+[EDI] = number of symbols 
+QM_INFO 
+5 
+Buffer format: module_info structure (see below) 
+[EDI] = size of the module_info structure 
+         struct module_symbol {
+                 unsigned long value;
+                 unsigned long name;  / * address of the string from
+                                                  beginning of buffer * /
+         };
+
+         struct module_info {
+                 unsigned long address;  / * module address * /
+                 unsigned long size;  / * occupied memory * /
+                 unsigned long flags;  / * status: MOD_RUNNING,
+                                           MOD_AUTOCLEAN, ... * /
+         }; 
+
+The "pollfd" structure for the sys_poll function (number 168) from man poll :
+
+         struct pollfd {
+                 int fd;  / * open file descriptor * /
+                 short events;  / * event mask (see below) to
+                                          monitoring * /
+                 short revents;  / * return mask of found events
+                                         (look down) */
+         }; 
+Events from /usr/include/sys/poll.h :
+
+Events for the sys_poll function
+name    value   which means
+POLLIN 
+0x0001 
+can be read (without blocking) data with a priority other than high 
+POLLPRI 
+0x0002 
+High priority data can be read 
+POLLOUT 
+0x0004 
+Normal data can be saved 
+POLLWRNORM 
+POLLOUT 
+like POLLOUT. 
+POLLERR 
+0x0008 
+error 
+POLLHUP 
+0x0010 
+solution 
+POLLNVAL 
+0x0020 
+the descriptor is not valid 
+POLLRDNORM 
+0x0040 
+Normal data can be read 
+POLLNORM 
+POLLRDNORM 
+like POLLRDNORM. 
+POLLRDBAND 
+0x0080 
+priority data can be read 
+POLLWRBAND 
+0x0100 
+priority data can be saved 
+
+Commands in the sys_nfsservctl (number 169) function from man nfsservctl and /usr/include/linux/nfsd/syscall.h :
+
+NFS server control commands
+name    value   which means
+NFSCTL_SVC 
+0 
+this is the server process 
+NFSCTL_ADDCLIENT 
+1 
+adding an NFS client 
+NFSCTL_DELCLIENT 
+2 
+removing the NFS client 
+NFSCTL_EXPORT 
+3 
+exporting the file system 
+NFSCTL_UNEXPORT 
+4 
+stop exporting the file system 
+NFSCTL_UGIDUPDATE 
+5 
+updating the uid / gid map of the client 
+NFSCTL_GETFH 
+6 
+getting fh by ino (used by mountd) 
+NFSCTL_GETFD 
+7 
+getting fh by path (used by mountd) 
+NFSCTL_GETFS 
+8 
+getting fh through the path with the maximum length of FH 
+NFSCTL_FODROP 
+50 
+reject requests during a failure 
+NFSCTL_STOPFODROP 
+51 
+stop rejecting requests 
+NFSCTL_FOLOCKS 
+52 
+leave locks during a breakdown 
+NFSCTL_FOGRACE 
+53 
+set grace period for failover 
+NFSCTL_FOSERV 
+54 
+remove service mon for failover 
+Structure "nfsctl_arg" and union "nfsctl_res" for the sys_nfsservctl function (number 169) from man nfsservctl :
+
+        struct nfsctl_arg {
+                 int ca_version;  /*security*/
+                 union {
+                         struct nfsctl_svc u_svc;
+                         struct nfsctl_client u_client;
+                         struct nfsctl_export u_export;
+                         struct nfsctl_uidmap u_umap;
+                         struct nfsctl_fhparm u_getfh;
+                         struct nfsctl_fdparm u_getfd;
+                         struct nfsctl_fsparm u_getfs;
+                         struct nfsctl_fodrop u_fodrop;
+                 } u;
+         }
+
+         union nfsctl_res {
+                 __u8 cr_getfh [NFS_FHSIZE];
+                 struct knfsd_fh cr_getfs;
+         };
+
+         / * SVC * /
+         struct nfsctl_svc {
+                 unsigned short svc_port;
+                 int svc_nthreads;
+         };
+
+         / * ADDCLIENT / DELCLIENT * /
+         struct nfsctl_client {
+                 char cl_ident [NFSCLNT_IDMAX + 1];
+                 int cl_naddr;
+                 struct in_addr cl_addrlist [NFSCLNT_ADDRMAX];
+                 int cl_fhkeytype;
+                 int cl_fhkeylen;
+                 unsigned char cl_fhkey [NFSCLNT_KEYMAX];
+         };
+
+         / * EXPORT / UNEXPORT * /
+         struct nfsctl_export {
+                 char ex_client [NFSCLNT_IDMAX + 1];
+                 char ex_path [NFS_MAXPATHLEN + 1];
+                 __kernel_dev_t ex_dev;
+                 __kernel_ino_t ex_ino;
+                 int ex_flags;
+                 __kernel_uid_t ex_anon_uid;
+                 __kernel_gid_t ex_anon_gid;
+         };
+
+         / * UGIDUPDATE * /
+         struct nfsctl_uidmap {
+                 char * ug_ident;
+                 __kernel_uid_t ug_uidbase;
+                 int ug_uidlen;
+                 __kernel_uid_t * ug_udimap;
+                 __kernel_gid_t ug_gidbase;
+                 int ug_gidlen;
+                 __kernel_gid_t * ug_gdimap;
+         };
+
+         / * GETFH * /
+         struct nfsctl_fhparm {
+                 struct sockaddr gf_addr;
+                 __kernel_dev_t gf_dev;
+                 __kernel_ino_t gf_ino;
+                 int gf_version;
+         };
+
+         / * GETFD * /
+         struct nfsctl_fdparm {
+                 struct sockaddr gd_addr;
+                 char gd_path [NFS_MAXPATHLEN + 1];
+                 int gd_version;
+         };
+
+         / * GETFS - Download file handle with size * /
+         struct nfsctl_fsparm {
+                 struct sockaddr gd_addr;
+                 char gd_path [NFS_MAXPATHLEN + 1];
+                 int gd_maxlen;
+         };
+
+         / * FODROP / STOPFODROP * /
+         struct nfsctl_fodrop {
+                 char fo_dev [NFS_MAXPATHLEN + 1];
+                 __u32 fo_timeout;
+         }; 
+
+Options in the sys_prctl (number 172) function from man prctl and /usr/include/linux/prctl.h :
+
+Operations on the process
+name    value   which means
+PR_SET_PDEATHSIG 
+1 
+ECX = the number of the signal that will receive the child process when the parent is finished 
+PR_GET_PDEATHSIG 
+2 
+load the current signal number that will receive the child process after ending the parent by [ECX] 
+PR_GET_DUMPABLE 
+3 
+to get information on whether the program has to dump the core (core dump), returns in EAX 
+PR_SET_DUMPABLE 
+4 
+setting, whether the program should dump core ( core dump ) ECX = 0 (un) ECX = 1 (yes) 
+PR_GET_UNALIGN 
+5 
+download bits of access control for non-distributed data? ( unaligned access control bits ), result in EAX? 
+PR_SET_UNALIGN 
+6 
+set bits of access control to unlicensed data ( unaligned access control bits ) ECX = 1 (do nothing), ECX = 2 (generate SIGBUS signal) 
+PR_GET_KEEPCAPS 
+7 
+preserving the capabilities of the process ( keep capabilities ), returns in EAX 
+PR_SET_KEEPCAPS 
+8 
+keeping capabilities ( keep capabilities ), ECX = 1 (yes) ECX = 0 (no) 
+PR_GET_FPEMU 
+9 
+download the FPU emulation control bits, returns in EAX? 
+PR_SET_FPEMU 
+10 
+set the emulation control bits FPU, ECX = 1 (emulation enabled) ECX = 2 (generate SIGFPE signal) 
+PR_GET_FPEXC 
+11 
+download FPU exceptions mode, returns in EAX? 
+PR_SET_FPEXC 
+12 
+set the FPU exceptions mode, ECX = 0 (disabled) ECX = 1 ( async non-recoverable exc. mode ), ECX = 2 ( async recoverable exception mode ), ECX = 3 ( exact exception mode ) 
+PR_GET_TIMING 
+13 
+download the process time measurement mode, returns in EAX? 
+PR_SET_TIMING 
+14 
+download process time measurement mode, ECX = 0 (normal) ECX = 1 (exact) 
+
+Structures for the sys_capget (number 184) and sys_capset (number 185) functions from /usr/include/linux/capability.h :
+
+         typedef struct __user_cap_header_struct {
+                 __u32 version;
+                 int pid;
+         } * cap_user_header_t;
+
+         typedef struct __user_cap_data_struct {
+                 __u32 effective;
+                 __u32 permitted;
+                 __u32 inheritable;
+         } * cap_user_data_t; 
+
+The "stack_t" structure for the sys_sigaltstack function (number 186) from /usr/include/asm/signal.h :
+
+         SS_ONSTACK 0x0001
+         SS_DISABLE 0x0004
+
+         typedef struct sigaltstack {// stack_t
+                 void * ss_sp;  // int (dword)
+                 int ss_flags;  // int (dword), SS_ONSTACK or SS_DISABLE
+                 size_t ss_size;  // int (dword)
+         } stack_t; 
+
+The "stat64" structure for the sys_ * stat64 function (issue 195, 196, 197) from /usr/include/asm/stat.h :
+
+         struct stat64 {
+                 unsigned long long st_dev;
+                 unsigned char __pad0 [4];
+
+                 unsigned long __st_ino;
+
+                 unsigned int st_mode;
+                 unsigned int st_nlink;
+
+                 unsigned long st_uid;
+                 unsigned long st_gid;
+
+                 unsigned long long st_rdev;
+                 unsigned char __pad3 [4];
+
+                 long long st_size;
+                 unsigned long st_blksize;
+
+                 / * The number of 512-byte blocks allocated.  * /
+                 unsigned long long st_blocks;
+
+                 unsigned long st_atime;
+                 unsigned long st_atime_nsec;
+
+                 unsigned long st_mtime;
+                 unsigned int st_mtime_nsec;
+
+                 unsigned long st_ctime;
+                 unsigned long st_ctime_nsec;
+
+                 unsigned long long st_ino;
+         }; 
+
+Information about the kernel about using the memory for the sys_madvise function (number 219) from /usr/include/bits/mman.h :
+
+Information on how to use memory
+name    value   which means
+MADV_NORMAL 
+0 
+No special treatment 
+MADV_RANDOM 
+1 
+You can expect random access to this memory 
+MADV_SEQUENTIAL 
+2 
+Sequential access to this memory can be expected 
+MADV_WILLNEED 
+3 
+Our process will need these pages of memory 
+MADV_DONTNEED 
+4 
+Our process does not need these pages of memory 
+
+Makedev macros in FASM syntax for the sys_mknod (number 14) function from /usr/include/sys/sysmacros.h :
+
+         ;  May = main device number
+         ;  min = side number of the device
+
+         ;  for the 2.4 kernel
+         macro makedev24 May, min
+         {
+                 xor esi, esi
+                 mov edx, May
+                 shl edx, 8
+                 or edx, min
+         }
+
+         ;  for the 2.6 kernel
+         macro makedev26 May, min
+         {
+
+                 mov edx, min
+                 and edx, 0xff
+
+                 mov esi, May
+                 and esi, 0xfff
+                 shl esi, 8
+                 or edx, esi
+
+                 xor eax, eax
+                 mov esi, min
+                 and esi, not 0xff
+                 shld eax, esi, 12
+                 shl esi, 12
+
+                 or edx, esi
+
+                 mov esi, May
+                 and esi, not 0xfff
+
+                 or esi, eax
+
+         } 
+
+Signal numbers (functions 37, 48 and 238) from /usr/include/bits/signum.h :
+
+signals
+name    value   which means
+SIGHUP 
+1 
+"Hang up" (hangup) 
+SIGINT 
+2 
+Interrupt (for example, Ctrl + C was pressed) 
+SIGQUIT 
+3 
+Exit 
+SIGILL 
+4 
+The processor has performed an incorrect instruction 
+SIGTRAP 
+5 
+Trap (when tracking the performance) 
+SIGABRT 
+6 
+Interruption of operation 
+SIGIOT 
+6 (too!) 
+IOT trap 
+SIGBUS 
+7 
+Bus error (wrong data setting - for example, an undivided address by 4) 
+SIGFPE 
+8 
+Coprocessor exception (NaN result, but also divide by zero or overflow in division) 
+SIGKILL 
+9 
+Killing the process 
+SIGUSR1 
+10 
+User-defined signal 
+SIGSEGV 
+11 
+Breach of memory protection (segmentation fault) 
+SIGUSR2 
+12 
+The second signal defined by the user 
+SIGPIPE 
+13 
+Invalid pipe 
+SIGALRM 
+14 
+Alarm clock 
+SIGTERM 
+15 
+The program end request 
+SIGSTKFLT 
+16 
+Stack error (coprocessor?) 
+SIGCHLD, SIGCLD 
+17 
+The state of the child process has changed 
+SIGCONT 
+18 
+Continuation 
+SIGSTOP 
+19 
+Stop program request 
+SIGTSTP 
+20 
+Stop (z) the keyboard (?) 
+SIGTTIN 
+21 
+Reading from the terminal in the background 
+SIGTTOU 
+22 
+Writing to the terminal in the background 
+SIGURG 
+23 
+An urgent event on the nest 
+SIGXCPU 
+24 
+CPU limit exceeded 
+SIGXFSZ 
+25 
+File size limit exceeded 
+SIGVTALRM 
+26 
+Virtual alarm clock 
+SIGPROF 
+27 
+A profile alarm clock 
+SIGWINCH 
+28 
+Change the window size 
+SIGIO, SIGPOLL 
+29 
+You can perform I / O 
+SIGPWR 
+thirty 
+Restart after power failure (?) / Power supply error 
+SIGSYS 
+31 
+Incorrect system function 
+SIGUNUSED 
+31 (too!) 
+(unused) 
+
+Futex operations (function 240) from /usr/include/linux/futex.h :
+
+Operations on futex
+name    value   which means     returns in EAX
+FUTEX_WAIT 
+0 
+Checks whether the value of the fex is as much as given and waiting 
+0 when the process was woken up by FUTEX_WAKE 
+FUTEX_WAKE 
+1 
+It wakes up at most ECX processes waiting at a given address 
+the number of awakened processes 
+FUTEX_FD 
+2 
+He assigns a file descriptor to the futex 
+new file descriptor 
+
+The user_desc structure (function 243) from /usr/src/?/include/asm/ldt.h :
+
+         struct user_desc {
+                 unsigned int entry_number;  / * number of changed or
+                                                 of the downloaded entry in TLS * /
+                 unsigned long base_addr;  / * base address * /
+                 unsigned int limit;  / * limit * /
+                 unsigned int seg_32bit: 1;  / * segment * /
+                 unsigned int contents: 2;
+                 unsigned int read_exec_only: 1;  / * tylko RX * /
+                 unsigned int limit_in_pages: 1;
+                 unsigned int seg_not_present: 1; / * czy nieobecny * /
+                 unsigned int useable: 1;  / * you can use * /
+         }; 
+
+The io_event structure (function 247) from /usr/src/?/include/linux/aio_abi.h :
+
+         struct io_event {
+                 __u64 data;  / * data field * /
+                 __u64 obj;  / * where the event came from * /
+                 __s64 res;  / * event result code * /
+                 __s64 res2;  / * result secondary * /
+         }; 
+
+Iocb structure (function 247) from /usr/src/?/include/linux/aio_abi.h :
+
+         struct iocb {
+                 / * for internal kernel / libc usage.  * /
+                 __u64 aio_data;  / * data to be returned as event data * /
+                 __u32 aio_key, aio_reserved1;
+                                 / * jądro sets aio_key to the desired number * /
+
+                 / * pola wspólny * /
+                 __u16 aio_lio_opcode;  / * see: IOCB_CMD_ * /
+                 __s16 aio_reqprio;
+                 __u32 aio_fildes;
+
+                 __u64 aio_buf;
+                 __u64 aio_nbytes;
+                 __s64 aio_offset;
+
+                 / * additional parameters * /
+                 __u64 aio_reserved2;  / * in the future it will be an indicator
+                                          on the structure sigevent * /
+                 __u64 aio_reserved3;
+         }; 
+
+Structure epoll_event (functions 255 and 256) with man 2 epoll_ctl :
+
+         typedef union epoll_data {
+                 void * ptr;
+                 int fd;
+                 __uint32_t u32;
+                 __uint64_t u64;
+         } epoll_data_t;
+
+         struct epoll_event {
+                 __uint32_t events;  / * Epoll events * /
+                 epoll_data_t data;  / * User data variable * /
+         }; 
+
+Epoll operations (function 255) from /usr/include/sys/epoll.h :
+
+Operations on the epoll descriptor
+name    value   which means
+EPOLL_CTL_ADD 
+1 
+Add an EDX descriptor to the "epoll" descriptor in EBX 
+EPOLL_CTL_DEL 
+2 
+Delete the EDX descriptor to the "epoll" descriptor in EBX 
+EPOLL_CTL_MOD 
+3 
+Change the event (epoll_event structure) associated with the EDX descriptor 
+
+The structure of sigevent (function 259) from /usr/include/asm/siginfo.h :
+
+         #define SIGEV_MAX_SIZE 64
+         #define SIGEV_PAD_SIZE ((SIGEV_MAX_SIZE / sizeof (int)) - 3)
+
+         typedef struct sigevent {
+                 sigval_t sigev_value;
+                 int sigev_signo;
+                 int sigev_notify;
+                 union {
+                         int _pad [SIGEV_PAD_SIZE];
+
+                         struct {
+                                 void (* _function) (sigval_t);
+                                 void * _attribute;  / * pthread_attr_t * /
+                         } _sigev_thread;
+                 } _sigev_un;
+         } sigevent_t;
+
+         / * For the mq_notify function, this definition is given
+                 w man mq_notify : * /
+
+          union sigval {/ * Forwarded data * /
+              int sival_int;  /* Total value */
+              void * sival_ptr;  / * Indicator (that's how the manual literally says) * /
+          };
+
+          struct sigevent {
+              int sigev_notify;  / * Notification method 0 = signal,
+                                          1 = nothing, 2 = create thread * /
+              int sigev_signal;  / * Notification signal number * /
+              union sigval sigev_value;  / * Data provided * /
+              void (* sigev_notify_function) (union sigval);
+                                        / * Thread notification function * /
+              void * sigev_notify_attributes;
+                                        / * Attributes of the thread function * /
+          };
+
+
+Itimerspec structure (function 260) from /usr/include/time.h :
+
+         struct itimerspec {
+                 struct timespec it_interval;
+                 struct timespec it_value;
+         }; 
+
+Clock identifiers (functions 264-267) from /usr/include/bits/time.h :
+
+Identifiers of clocks in the system
+name    value   which means
+CLOCK_REALTIME 
+0 
+Real time clock system 
+CLOCK_MONOTONIC 
+1 
+System monotone clock 
+CLOCK_PROCESS_CPUTIME_ID 
+2 
+High resolution CPU clock (for the process) 
+CLOCK_THREAD_CPUTIME_ID 
+3 
+High resolution CPU clock (for thread) 
+
+The statfs64 structure (functions 268 and 269) from /usr/include/bits/statfs.h :
+
+         struct statfs64 {
+                 __SWORD_TYPE f_type;  / * 32 bity * /
+                 __SWORD_TYPE f_bsize;
+                 __fsblkcnt64_t f_blocks;  / * 64 bits * /
+                 __fsblkcnt64_t f_bfree;
+                 __fsblkcnt64_t f_bavail;
+                 __fsfilcnt64_t f_files;
+                 __fsfilcnt64_t f_ffree;
+                 __fsid_t f_fsid;  / * struct {int __val [2];  } /
+                 __SWORD_TYPE f_namelen;
+                 __SWORD_TYPE f_frsize;
+                 __SWORD_TYPE f_spare [5];
+         }; 
+
+Policy for memory (function 274) from /usr/include/numaif.h and man 2 mbind :
+
+Types of policy regarding memory
+name    value   which means
+MPOL_DEFAULT 
+0 
+Use the default process policy 
+MPOL_PREFERRED 
+1 
+Determine the preferred node for allocation 
+MPOL_BIND 
+2 
+Restrict the memory allocation to only the specified nodes 
+MPOL_INTERLEAVE 
+3 
+Optimize bandwidth for duration 
+
+Flags for memory (function 274) from /usr/src/kernels/.../include/linux/mempolicy.h :
+
+Flags for politics regarding memory
+name    value   which means
+MPOL_MF_STRICT 
+(1 << 0) 
+Check if memory pages match policy. If they do not match the default policy or can not be moved MPOL_MF_MOVE *, an EIO error is returned. 
+MPOL_MF_MOVE 
+(1 << 1) 
+Move the pages of this process's memory to suit politics 
+MPOL_MF_MOVE_ALL 
+(1 << 2) 
+Move all pages of memory to suit politics 
+
+Structure mq_attr (function 277) with man 3 mq_getattr :
+
+          struct mq_attr {
+              long mq_flags;  / * Flags: 0 or O_NONBLOCK * /
+              long mq_maxmsg;  / * Max.  number of messages in the queue * /
+              long mq_msgsize;  / * Max.  size of messages in bytes * /
+              long mq_curmsgs;  / * Number of messages currently queued * /
+          }; 
+
+The structure of siginfo (function 277) from /usr/include/asm/siginfo.h :
+
+      typedef struct siginfo {
+         int si_signo;
+         int si_errno;
+         int si_code;
+
+         union {
+                 int _pad [SI_PAD_SIZE];
+
+                 / * kill () * /
+                 struct {
+                         pid_t _pid;  / * pid emailing * /
+                         uid_t _uid;  / * uid emailing * /
+                 } _kill;
+
+                 / * timers POSIX.1b * /
+                 struct {
+                         unsigned int _timer1;
+                         unsigned int _timer2;
+                 } _timer;
+
+                 / * signals POSIX.1b * /
+                 struct {
+                         pid_t _pid;  / * pid emailing * /
+                         uid_t _uid;  / * uid emailing * /
+                         sigval_t _sigval;
+                 } _rt;
+
+                 / * SIGCHLD * /
+                 struct {
+                         pid_t _pid;  / * że potomek * /
+                         uid_t _uid;  / * uid emailing * /
+                         int _status;  / * exit code * /
+                         clock_t _utime;
+                         clock_t _stime;
+                 } _sigchld;
+
+                 / * SIGILL, SIGFPE, SIGSEGV, SIGBUS * /
+                 struct {
+                         void * _addr;  / * statement that caused the error * /
+                 } _sigfault;
+
+                 / * SIGPOLL * /
+                 struct {
+                         int _band;  / * POLL_IN, POLL_OUT, POLL_MSG * /
+                         int _fd;
+                 } _sigpoll;
+         } _sifields;
+      } siginfo_t; 
+
+Flags for inotify (function 292) from /usr/src/kernels/.../include/linux/inotify.h :
+
+Flags for event notification on the observed object
+name    value   which means
+IN_ACCESS 
+0x00000001 
+Access to the object 
+IN_MODIFY 
+0x00000002 
+The object has been modified 
+IN_ATTRIB 
+0x00000004 
+Change of attributes 
+IN_CLOSE_WRITE 
+0x00000008 
+Closing an open file for writing 
+IN_CLOSE_NOWRITE 
+0x00000010 
+Closing a file not open for writing 
+IN_OPEN 
+0x00000020 
+The facility has been opened 
+IN_MOVED_FROM 
+0x00000040 
+The file was moved from the observed directory 
+IN_MOVED_TO 
+0x00000080 
+A file has been moved to the observed directory 
+IN_CREATE 
+0x00000100 
+A file was created in the observed directory 
+IN_DELETE 
+0x00000200 
+The file has been deleted in the observed directory 
+IN_DELETE_SELF 
+0x00000400 
+The observed object has been removed 
+IN_MOVE_SELF 
+0x00000800 
+The object has been moved 
+IN_UNMOUNT 
+0x00002000 
+The file system was unmounted 
+IN_Q_OVERFLOW 
+0x00004000 
+Overflow of the event queue 
+IN_IGNORED 
+0x00008000 
+The file has been ignored 
+IN_ONLYDIR 
+0x01000000 
+Observe the path only when it is a directory 
+IN_DONT_FOLLOW 
+0x02000000 
+Do not follow symbolic links 
+IN_MASK_ADD 
+0x20000000 
+If this object is already observed, add the event data to be observed 
+IN_ISDIR 
+0x40000000 
+An event has occurred on the catalog 
+IN_ONESHOT 
+0x80000000 
+Observe the given path only to the first event 
+
+
+Values ​​for the sys_ioprio function (number 289 and 290) from /usr/src/.../include/linux/fcntl.h
+name    value   importance
+IOPRIO_WHO_PROCESS 
+0 
+ECX is the number of a single process 
+IOPRIO_WHO_PGRP 
+1 
+ECX is the ID of the process group 
+IOPRIO_WHO_USER 
+2 
+ECX is the user ID 
+
+
+Sync flags for sys_sync_file_range (number 314) from /usr/src/.../include/linux/fs.h
+name    value   importance
+SYNC_FILE_RANGE_WAIT_BEFORE 
+1 
+Wait for the changed pages to be changed, which are marked for saving before any record 
+SYNC_FILE_RANGE_WRITE 
+2 
+Start syncing changed pages that are not selected for saving 
+SYNC_FILE_RANGE_WAIT_AFTER 
+4 
+Wait for the changed pages to be changed after any recording 
+
+
+Options for the sigprocmask function (number 175) from /usr/include/asm/signal.h
+name    value   importance
+SIG_BLOCK 
+0 
+The set of blocked signals is the sum of the current set and set in [ECX] 
+SIG_UNBLOCK 
+1 
+Signals from [ECX] are unlocked 
+SIG_SETMASK 
+2 
+The set of blocked signals is set to [ECX] 
+
+
+Options for the fadvice function (number 272) from /usr/include/bits/fcntl.h
+name    value   importance
+POSIX_FADV_NORMAL 
+0 
+Default access 
+POSIX_FADV_RANDOM 
+1 
+Access in random order 
+POSIX_FADV_SEQUENTIAL 
+2 
+Sequential access 
+POSIX_FADV_WILLNEED 
+3 
+This data will be needed in the near future 
+POSIX_FADV_DONTNEED 
+4 
+This data will not be needed in the near future 
+POSIX_FADV_NOREUSE 
+5 
+The data will be needed only once 
+
+
+Flags for splice (number 313), vmsplice (number 316) and tee (number 315) from /usr/include/bits/fcntl.h
+name    value   importance
+SPLICE_F_MOVE 
+1 
+Try to move the memory pages instead of copying. He does nothing at sys_tee. Not used in sys_vmsplice. 
+SPLICE_F_NONBLOCK 
+2 
+Do not block during the entry-exit operation 
+SPLICE_F_MORE 
+4 
+Further calls will be further data. Nothing is done in sys_tee and sys_vmsplice. 
+SPLICE_F_GIFT 
+8 
+Not used in sys_splice and sys_tee. In sys_vmsplice, this means the forgiveness of these pages of memory for the kernel. 
+
+
+Flags for the shmget function (number 29 in x86-64) from /usr/include/linux/ipc.h and /usr/include/bits/shm.h
+name    figure in octal importance
+IPC_CREAT 
+00001000 
+Create a new segment 
+IPC_EXCL 
+00002000 
+Exclusive access to the segment 
+SHM_HUGETLB 
+04000 
+Allocate using the "big pages" of memory. 
+SHM_NORESERVE 
+010000 
+Do not book an exchange space for this segment 
+access mode 
+000-777 
+Same meaning as in access flags 
+
+
+Flags for the shmat function (number 30 in x86-64) from /usr/include/bits/shm.h
+name    figure in octal importance
+SHM_RDONLY 
+010000 
+Connect the read-only segment. 
+SHM_RND 
+020000 
+Round the address down to a multiple of SHMLBA. 
+SHM_REMAP flag 
+040000 
+Change all mappings in the segment 
+
+
+Orders for the shmctl function (number 31 in x86-64) from /usr/include/linux/ipc.h and /usr/include/bits/shm.h
+name    value   meaning and value returned
+IPC_RMID 
+0 
+Select the segment to be deleted. Returns 0. 
+IPC_SET 
+1 
+Save some elements of the given structure to the kernel. Returns 0. 
+IPC_STAT 
+2 
+Copy the data from the kernel of the given segment to the given structure. Returns 0. 
+IPC_INFO 
+3 
+Return information about shared memory limits and parameters. Returns the last index in the kernel table to the shared memory. 
+SHM_LOCK 
+11 
+It prevents the segment from being swapped (swapped). Returns 0. 
+SHM_UNLOCK 
+12 
+Allows exchange (swapping) of the segment. Returns 0. 
+SHM_STAT 
+13 
+Similar to IPC_STAT, but ID means the number in the kernel table. Returns the segment identifier with the given number. 
+SHM_INFO 
+14 
+Return information about the resources used by the shared memory. Returns the last index in the kernel table to the shared memory. 
+
+The structure of shmid_ds (function 31 in x86-64) from /usr/include/bits/shm.h :
+
+         struct shmid_ds {
+                 struct ipc_perm shm_perm;  / * Owner and permissions * /
+                 size_t shm_segsz;  / * Segment size in bytes * /
+                 time_t shm_atime;  / * Last connection time * /
+                 time_t shm_dtime;  / * Time of last disconnection * /
+                 time_t shm_ctime;  / * Last change time * /
+                 pid_t shm_cpid;  / * PID twórcy * /
+                 pid_t shm_lpid;  / * PID of the last shmat operation
+                                                 or shmdt * /
+                 shmatt_t shm_nattch;  / * Current number of connections * /
+                 ...
+         }; 
+
+
+Domains for sockets (function 41 in x86-64) from /usr/include/bits/socket.h
+name    value   importance
+AF_UNIX, AF_LOCAL 
+1 
+Local communication 
+AF_INET 
+2 
+IPv4 protocols 
+AF_AX25 
+3 
+AX.25 protocol of amateur radio 
+AF_IPX 
+4 
+Novell IPX protocols 
+AF_APPLETALK 
+5 
+Appletalk 
+AF_NETROM 
+6 
+Amateur NetROM radio 
+AF_BRIDGE 
+7 
+Multi-protocol bridge 
+AF_ATMPVC 
+8 
+Access to raw ATM PVC 
+AF_X25 
+9 
+ITU-T X.25 / ISO-8208 protocol 
+AF_INET6 
+10 
+IPv6 protocols 
+AF_ROSE 
+11 
+Amateur radio X.25 PLP 
+AF_DECnet 
+12 
+Reserved for the DECnet project 
+AF_NETBEUI 
+13 
+Reserved for the 802.2LLC project 
+AF_SECURITY 
+14 
+Pseudo-domain for security callback 
+AF_KEY 
+15 
+Key management interface 
+AF_NETLINK 
+16 
+Kernel interface device 
+AF_PACKET 
+17 
+Low-level packet interface 
+AF_ASH 
+18 
+Ash 
+AF_ECONET 
+19 
+Acorn Econet 
+AF_ATMSVC 
+20 
+ATM SVC 
+AF_SNA 
+22 
+Linux SNA project 
+AF_IRDA 
+23 
+IrDA sockets 
+AF_PPPOX 
+24 
+PPPoX sockets 
+AF_WANPIPE 
+25 
+Interface for Wanpipe sockets 
+AF_BLUETOOTH 
+31 
+Bluetooth sockets 
+
+
+Types of sockets (function 41 in x86-64) from /usr/include/bits/socket.h
+name    value   importance
+SOCK_STREAM 
+1 
+Sequenced, reliable, bidirectional, vapor on the connection of a stream of bytes 
+SOCK_DGRAM 
+2 
+Supports datagrams (unconnected, unreliable) 
+SOCK_RAW 
+3 
+Direct access to network protocols 
+SOCK_RDM 
+4 
+A reliable datagram layer without a guarantee of order. 
+SOCK_SEQPACKET 
+5 
+Sequenced, reliable, bidirectional, vapor on the connection of a stream of bytes. The recipient must read the entire package after each reading. 
+SOCK_PACKET 
+10 
+Obsolete, do not use 
+SOCK_NONBLOCK 
+04000 octal 
+Set the non-blocking mode. 
+SOCK_CLOEXEC 
+02000000 octal 
+Set the flag close-during-exec. 
+
+
+Flags for the sendto function (number 44 in x86-64) and recvfrom (number 45 in x86-64) from /usr/include/bits/socket.h
+name    value   importance
+MSG_CONFIRM 
+0x800 
+(sendto) Confirmation of receipt of the answer 
+MSG_DONTROUTE 
+0x04 
+(sendto) Do not use the gateway to send, send directly 
+MSG_DONTWAIT 
+0x40 
+(sendto, recvfrom) Enable non-blocking mode 
+MSG_EOR 
+0x80 
+(sendto) The end of the data record 
+MSG_MORE 
+0x8000 
+(sendto) The initiator has more data to send 
+MSG_NOSIGNAL 
+0x4000 
+(sendto) Do not send signals 
+MSG_OOB 
+0x01 
+(sendto, recvfrom) Send data out of order 
+MSG_CMSG_CLOEXEC 
+0x40000000 
+(recvmsg) Set the close-during-exc flag on the descriptor received during the SCM_RIGHTS operation 
+MSG_ERRQUEUE 
+0x2000 
+(recvfrom) Errors should be received by the socket error queue 
+MSG_PEEK 
+0x02 
+(recvfrom) Get data from the queue without removing them from the queue 
+MSG_TRUNC 
+0x20 
+(recvfrom) Return the real data length, even if the buffer was smaller 
+MSG_WAITALL 
+0x100 
+(recvfrom) Wait for the operation to complete 
+
+Msghdr structure (function 46 in x86-64) with man 2 sendmsg :
+
+                 struct msghdr {
+                         void * msg_name;  / * optional address * /
+                         socklen_t msg_namelen;  / * address size * /
+                         struct iovec * msg_iov;  / * send table and
+                                                          collecting * /
+                         size_t msg_iovlen;  / * number of elements in
+                                                           msg_iov * /
+                         void * msg_control;  / * dane pomocnicze * /
+                         socklen_t msg_controllen;  / * length of the data buffer
+                                                          pomocnicze * /
+                         int msg_flags;  / * flags on the received
+                                                          messages: MSG_EOR,
+                                                          MSG_TRUNC, MSG_CTRUNC,
+                                                          MSG_OOB, MSG_ERRQUEUE * /
+                         }; 
+
+The structure of sembuf (function 65 in x86-64) with /usr/include/sys/sem.h :
+
+         struct sembuf
+         {
+                 unsigned short int sem_num;  / * number of semaphores * /
+                 short int sem_op;  / * operation on the semaphore:
+                                                  a positive number is added
+                                                  zero means waiting for zero
+                                                 the negative number is subtracted * /
+                 short int sem_flg;  / * operation flag:
+                                                  IPC_NOWAIT = 4,000 in octal
+                                                  or SEM_UNDO = 0x1000 * /
+         }; 
+
+
+Orders for semaphores (function 66 in x86-64) with /usr/include/bits/sem.h and /usr/include/bits/ipc.h
+name    value   meaning and value returned
+IPC_RMID 
+0 
+Delete the semaphore set. Returns 0. 
+IPC_SET 
+1 
+Copy data from the buf array with the address given in R10 to the kernel structure. Returns 0. 
+IPC_STAT 
+2 
+Copy data from the kernel structure to the buf array with the address specified in R10. Returns 0. 
+IPC_INFO 
+3 
+Return in system buffer in R10 information about system limits and semaphore parameters. Returns the number of the last item used in the kernel table. 
+GETPID 
+11 
+Returns the PID of the process that performed the last operation on this semaphore 
+GETVAL 
+12 
+Returns the value of the given semaphore in the set 
+GETALL 
+13 
+To the array array with the address given in R10, enter the values ​​of all semaphores in the system. Returns 0. 
+GETNCNT 
+14 
+Returns the number of processes waiting for the given semaphore in the set to increase 
+GETZCNT 
+15 
+Returns the number of processes waiting for the specified semaphore in the set to reset to zero 
+SETVAL 
+16 
+Set the values ​​given for the semaphore in the set to the one given in R10. Returns 0. 
+SETALL 
+17 
+Set the values ​​of all semaphores to those given in the array array with the address given in R10. Returns 0. 
+SEM_STAT 
+18 
+Similar to IPC_STAT, but the semaphore set identifier is the semaphore number in the kernel table. Returns the identifier of the semaphore set with the given number. 
+SEM_INFO 
+19 
+Similar to IPC_INFO, returns other values ​​in some fields ( man semctl ) Returns the number of the last item used in the kernel table. 
+
+Unia semun (function 66 in x86-64) with man 2 semctl :
+
+                 union semun {
+                         int val;  / * Value for SETVAL * /
+                         struct semid_ds * buf;  / * Bufor na IPC_STAT, IPC_SET * /
+                         unsigned short * array;  / * Array for GETALL, SETALL * /
+                         struct seminfo * __ buf;  / * Buffer for IPC_INFO * /
+                 }; 
+
+Msgp structure (function 69 in x86-64) with man 2 msgsnd :
+
+                 struct msgbuf {
+                         long mtype;  / * message type, must be> 0 * /
+                         char mtext [1];  / * data messages * /
+                 }; 
+
+
+Flags for the msgrcv function (number 70 in x86-64) from /usr/include/bits/msq.h
+name    figure in octal importance
+IPC_NOWAIT 
+04000 
+Do not wait for messages 
+MSG_EXCEPT 
+020000 
+Receive the first message NOT being the specified type 
+MSG_NOERROR 
+010000 
+Trim messages to the specified size 
+
+Structure msqid_ds (function 71 in x86-64) with man 2 msgctl :
+
+         struct msqid_ds {
+                 struct ipc_perm msg_perm;  / * Owner and permissions * /
+                 time_t msg_stime;  / * Last time msgsnd * /
+                 time_t msg_rtime;  / * Time last msgrcv * /
+                 time_t msg_ctime;  / * Last change time * /
+                 unsigned long __msg_cbytes;  / * Current number of bytes in
+                                                  kolejce * /
+                 msgqnum_t msg_qnum;  / * Current number of messages in
+                                                  kolejce * /
+                 msglen_t msg_qbytes;  / * Maximum number of bytes
+                                                  allowed in the queue * /
+                 pid_t msg_lspid;  / * PID of the last msgsnd * /
+                 pid_t msg_lrpid;  / * PID of the last msgrcv * /
+         };
+
+         struct ipc_perm {
+                 key_t __key;  / * Key given msgget * /
+                 uid_t uid;  / * Effective UID of the owner * /
+                 gid_t gid;  / * Effective GID of the owner * /
+                 uid_t cuid;  / * Efektywny UID of twórcy * /
+                 gid_t cgid;  / * Efektywny GID of twórcy * /
+                 unsigned short mode;  /* Permissions */
+                 unsigned short __seq;  / * Sequence number * /
+         }; 
+
+
+Orders for queues (function 71 in x86-64) from /usr/include/bits/msq.h and /usr/include/bits/ipc.h
+name    value   meaning and value returned
+IPC_RMID 
+0 
+Delete the queue. Returns 0. 
+IPC_SET 
+1 
+Copy data from the buf array with the address given in R10 to the kernel structure. Returns 0. 
+IPC_STAT 
+2 
+Copy data from the kernel structure to the buf array with the address specified in R10. Returns 0. 
+IPC_INFO 
+3 
+Return in system buffer in R10 information about system limits and queue parameters. Returns the number of the last item used in the kernel table. 
+MSG_STAT 
+11 
+Similar to IPC_STAT, but the semaphore set identifier is the semaphore number in the kernel table. Returns the identifier of the semaphore set with the given number. 
+MSG_INFO 
+12 
+Similar to IPC_INFO, returns other values ​​in some fields ( man semctl ) Returns the number of the last item used in the kernel table. 
+
+
+Subfunctions for arch_prctl (number 158 in x86-64) from linux / arch / x86 / include / asm / prctl.h
+name    value   meaning and value returned
+ARCH_SET_FS 
+0x1002 
+Set the base address of the FS descriptor to the given address 
+ARCH_GET_FS 
+0x1003 
+Download the base address of the FS descriptor to the variable at the given address 
+ARCH_SET_GS 
+0x1001 
+Set the base address of the GS descriptor to the given address 
+ARCH_GET_GS 
+0x1004 
+Download the base address of the GS descriptor to the variable at the given address 
+
+The getcpu_cache structure (function 318) from linux / include / linux / getcpu.h :
+
+                 struct getcpu_cache {
+                         unsigned long blob [128 / sizeof (long)];
+                 }; 
+
+Structure robust_list_head (function 312) from /usr/include/linux/futex.h :
+
+                 struct robust_list {
+                         struct robust_list * next;
+                 };
+
+                 struct robust_list_head {
+
+                         struct robust_list list;
+
+                         long futex_offset;
+
+                         struct robust_list * list_op_pending;
+                 }; 
+
+
+Subfunctions for keyctl (number 288) from /usr/include/linux/keyctl.h
+name    value   importance
+KEYCTL_GET_KEYRING_ID 
+0 
+Get the key set identifier 
+KEYCTL_JOIN_SESSION_KEYRING 
+1 
+Connect or start a session set of keys 
+KEYCTL_UPDATE 
+2 
+Update the key 
+KEYCTL_REVOKE 
+3 
+Cancel the key 
+KEYCTL_CHOWN 
+4 
+Change the owner of the key 
+KEYCTL_SETPERM 
+5 
+Set permissions for the key 
+KEYCTL_DESCRIBE 
+6 
+Describe the key 
+KEYCTL_CLEAR 
+7 
+Clear the contents of the key set 
+KEYCTL_LINK 
+8 
+Connect the key to the key collection 
+KEYCTL_UNLINK 
+9 
+Disconnect the key from the key collection 
+KEYCTL_SEARCH 
+10 
+Find the key in the key collection 
+KEYCTL_READ 
+11 
+Read the content of the key or set of keys 
+KEYCTL_INSTANTIATE 
+12 
+Create a partially constructed key 
+KEYCTL_NEGATE 
+13 
+Arrange a partially constructed key 
+KEYCTL_SET_REQKEY_KEYRING 
+14 
+Set the default key set for key queries 
+KEYCTL_SET_TIMEOUT 
+15 
+Set the duration of the key 
+KEYCTL_ASSUME_AUTHORITY 
+16 
+Create the right to create the key 
+KEYCTL_GET_SECURITY 
+17 
+Download the key security label 
+
+
+Special key sets for request_key (number 287) from /usr/include/linux/keyctl.h
+name    value   importance
+KEY_SPEC_THREAD_KEYRING 
+-1 
+A thread-specific key collection 
+KEY_SPEC_PROCESS_KEYRING 
+-2 
+A set of keys specific to the process 
+KEY_SPEC_SESSION_KEYRING 
+-3 
+Session-specific key collection 
+KEY_SPEC_USER_KEYRING 
+-4 
+A set of user-specific keys 
+KEY_SPEC_USER_SESSION_KEYRING 
+-5 
+A set of keys specific to the user and session 
+KEY_SPEC_GROUP_KEYRING 
+-6 
+Group-specific key collection 
+KEY_SPEC_REQKEY_AUTH_KEY 
+-7 
+The key ID for the expected authentication key for the request_key 
+KEY_SPEC_REQUESTOR_KEYRING 
+-8 
+The key ID for the target file for request_key 
+
+The kexec_segment structure (function 283) with man 2 kexec_load :
+
+         struct kexec_segment
+         {
+                 void * buf;  / * buffer in user space * /
+                 size_t bufsz;  / * length of buffer in user space * /
+                 void * mem;  / * physical kernel address * /
+                 size_t memsz;  / * length of the physical address * /
+         }; 
+
+
+Flagi dla kexec_load (nr 283) z linux-XYZ / include / linux / kexec.h
+name    value   importance
+KEXEC_ON_CRASH 
+0x00000001 
+Run the new kernel after a system failure 
+KEXEC_PRESERVE_CONTEXT 
+0x00000002 
+Keep the state of the software and hardware before launching the new kernel 
+KEXEC_ARCH_DEFAULT 
+(0 << 16) 
+The architecture of the new kernel is the default architecture 
+KEXEC_ARCH_386 
+(3 << 16) 
+The architecture of the new kernel is i386 
+KEXEC_ARCH_X86_64 
+(62 << 16) 
+The architecture of the new kernel is x86-64 (AMD64) 
+KEXEC_ARCH_PPC 
+(20 << 16) 
+The architecture of the new kernel is PowerPC 
+KEXEC_ARCH_PPC64 
+(21 << 16) 
+The architecture of the new kernel is PowerPC64 
+KEXEC_ARCH_IA_64 
+(50 << 16) 
+The architecture of the new kernel is IA-64 
+KEXEC_ARCH_ARM 
+(40 << 16) 
+The architecture of the new kernel is ARM 
+KEXEC_ARCH_S390 
+(22 << 16) 
+The architecture of the new kernel is S390 
+KEXEC_ARCH_SH 
+(42 << 16) 
+The architecture of the new kernel is SH 
+KEXEC_ARCH_MIPS 
+(10 << 16) 
+The architecture of the new nucleus is MIPS 
+KEXEC_ARCH_MIPS_LE. 
+(8 << 16) 
+The architecture of the new nucleus is MIPS LE 
+
+
+Namespace types for sys_setns (number 346) from linux-XYZ / include / linux / sched.h
+name    value   importance
+CLONE_NEWIPC 
+0x08000000 
+the descriptor must refer to the IPC namespace 
+CLONE_NEWNET 
+0x40000000 
+the descriptor must refer to the network namespace 
+CLONE_NEWUTS 
+0x04000000 
+the descriptor must refer to the UTS namespace 
+
+Mmsghdr structure (functions 337 and 345) with man 2 recvmmsg :
+
+        struct mmsghdr {
+                struct msghdr msg_hdr; / * Header messages * /
+                unsigned int msg_len; / * Number of header bytes received * /
+        }; 
+The msghdr structure has been described earlier.
+
+Flagi for finit_module (number 350) from linux-XYZ / include / uapi / linux / module.h
+name    value   importance
+MODULE_INIT_IGNORE_MODVERSIONS 
+1 
+Ignoruj hashe wersji symboli 
+MODULE_INIT_IGNORE_VERMAGIC 
+2 
+Ignoruj identyfikator zgodnego jądra w module ("vermagic") 
+
+Struktura sched_attr (funkcje 351 i 352) z man 2 sched_setattr :
+
+        struct sched_attr {
+                u32 size; /* Rozmiar tej struktury */
+                u32 sched_policy; /* Polityka (SCHED_OTHER = 0,
+                                                SCHED_BATCH = 3, SCHED_IDLE = 5,
+                                                SCHED_FIFO = 1, SCHED_RR = 2,
+                                                SCHED_DEADLINE = 6) */
+                u64 sched_flags; /* Flagi = 0 lub SCHED_FLAG_RESET_ON_FORK = 0x40000000 */
+                s32 sched_nice; /* Wartość priorytetu (SCHED_OTHER,
+                                                SCHED_BATCH) */
+                u32 sched_priority; /* Statyczny priorytet (SCHED_FIFO,
+                                                SCHED_RR) */
+                /* Pozostałe pola są dla SCHED_DEADLINE */
+                u64 sched_runtime;
+                u64 sched_deadline;
+                u64 sched_period;
+        }; 
+
+
+Flagi dla renameat2 (numer 353) z linux-XYZ/include/uapi/linux/fs.h
+name    wartość       znaczenie
+RENAME_EXCHANGE 
+1 << 1 
+Atomowo wymień 2 istniejące obiekty między sobą 
+RENAME_NOREPLACE 
+1 << 0 
+Nie nadpisuj ścieżki docelowej (błąd, gdy już istnieje) 
+RENAME_WHITEOUT 
+1 << 2 
+Utwórz obiekt nadpisujący ( whiteout ) 
+
+Struktura sock_fprog (funkcja 354) z man 2 seccomp :
+
+        struct sock_fprog {
+                unsigned short len; /* Liczba instrukcji BPF */
+                struct sock_filter *filter; /* Adres tablicy instrukcji BPF */
+        };
+
+        struct sock_filter {
+                __u16 code; /* Kod filtru */
+                __u8 jt; /* Skok, gdy prawda */
+                __u8 jf; /* Skok, gdy fałsz */
+                __u32 k; /* Pole dowolnego użytku */
+        };
+
+        struct seccomp_data {
+                int nr; /* Numer funkcji systemowej */
+                __u32 arch; /* wartość AUDIT_ARCH_* z
+                                                <linux/audit.h> */
+                __u64 instruction_pointer; /* wskaźnik instrukcji CPU - IP/EIP/RIP */
+                __u64 args[6]; /* Do 6 parametrów funkcji systemowej */
+        }; 
+
+
+Flagi dla getrandom (numer 355) z linux-XYZ/include/uapi/linux/random.h
+name    wartość       znaczenie
+GRND_RANDOM 
+0x0002 
+Używaj /dev/random zamiast /dev/urandom 
+GRND_NONBLOCK 
+0x0001 
+Nie czekaj w razie braku danych 
+
+
+Flagi dla memfd_create (numer 356) z linux-XYZ/include/uapi/linux/memfd.h
+name    wartość       znaczenie
+MFD_CLOEXEC 
+0x0001 
+Ustaw FD_CLOEXEC na nowym deskryptorze 
+MFD_ALLOW_SEALING 
+0x0002 
+Umożliw operacje pieczętowania pliku 
+
+
+Operacje dla sys_bpf (numer 357) z linux-XYZ/include/uapi/linux/bpf.h
+name    wartość       znaczenie
+BPF_MAP_CREATE 
+0 
+Utwórz mapę i zwróć jej deskryptor 
+BPF_MAP_LOOKUP_ELEM 
+1 
+Wyszukaj element w mapie i zwróć jego wartość 
+BPF_MAP_UPDATE_ELEM 
+2 
+Utwórz lub zmień element w mapie 
+BPF_MAP_DELETE_ELEM 
+3 
+Wyszukaj element w mapie i usuń go 
+BPF_MAP_GET_NEXT_KEY 
+4 
+Wyszukaj element w mapie i pobierz kolejny klucz 
+BPF_PROG_LOAD 
+5 
+Sprawdź i załaduj program 
+
+Struktura bpf_attr (funkcja 357) z man 2 bpf :
+
+        union bpf_attr {
+                struct { /* Używane w BPF_MAP_CREATE */
+                        __u32 map_type;
+                        __u32 key_size; /* rozmiar klucza w bajtach */
+                        __u32 value_size; /* rozmiar wartości w bajtach */
+                        __u32 max_entries; /* maksymalna liczba wpisów w mapie */
+                };
+
+                struct { /* Używane w BPF_MAP_*_ELEM i BPF_MAP_GET_NEXT_KEY */
+                        __u32 map_fd;
+                        __aligned_u64 key;
+                        union {
+                                __aligned_u64 value;
+                                __aligned_u64 next_key;
+                        };
+                        __u64 flags;
+                };
+
+                struct { /* Używane w BPF_PROG_LOAD */
+                        __u32 prog_type;
+                        __u32 insn_cnt;
+                        __aligned_u64 insns; /* 'const struct bpf_insn *' */
+                        __aligned_u64 license; /* 'const char *' */
+                        __u32 log_level; /* Poziom logowania w weryfikacji */
+                        __u32 log_size; /* rozmiar bufora użytkownika */
+                        __aligned_u64 log_buf; /* bufor użytkownika 'char *' */
+                        __u32 kern_version;
+                                                /* sprawdzane, gdy prog_type=kprobe
+                                                (od Linux 4.1) */
+                };
+        } __attribute__((aligned(8)));
+
+
+
+Flagi dla execveat (numer 358)
+name    wartość       znaczenie
+AT_EMPTY_PATH 
+0x1000 
+Jeśli ścieżka jest pusta, uruchom plik wskazany jako katalog 
+AT_SYMLINK_NOFOLLOW 
+0x100 
+Nie podążaj za dowiązaniami symbolicznymi 
+
+
+Komendy membarrier (numer 375) z linux-XYZ/include/uapi/linux/membarrier.h
+name    wartość       znaczenie
+MEMBARRIER_CMD_QUERY 
+0 
+Pobierz listę obsługiwanych komend 
+MEMBARRIER_CMD_SHARED 
+1 
+Zsynchronizuj wątki - upewnij się, że wszystkie przeszły przez punkt, w którym wszystkie odczyty i zapisy pamięci są zgodne z kolejnością ich wykonania 
+
+
+Flagi dla mlock2 (numer 376) z linux-XYZ/include/uapi/asm-generic/mman-common.h
+name    wartość       znaczenie
+MLOCK_ONFAULT 
+0x01 
+Zablokuj strony pamięci aktualnie rezydentne i zaznacz cały obszar do zablokowania stron po ich załadowaniu po błędzie stronicowania 
+
+
+Flagi dla preadv2 (nr 378) z linux-XYZ / include / uapi / linux / fs.h
+name    value   importance
+RWF_HIPRI 
+0x00000001 
+High priority operation 
+
+
+Flagi dla fanotify_init (nr 338) z linux-XYZ / include / uapi / linux / fanotify.h
+name    value   importance
+FAN_CLASS_PRE_CONTENT 
+0x00000008 
+Events before access to the object 
+FAN_CLASS_CONTENT 
+0x00000004 
+Events after access to the object 
+FAN_CLASS_NOTIF 
+0x00000000 
+Events at any time related to access to the facility 
+FAN_CLOEXEC 
+0x00000001 
+Set FD_CLOEXEC on the returned descriptor 
+FAN_NONBLOCK 
+0x00000002 
+Disable blocking on the returned descriptor 
+FAN_UNLIMITED_QUEUE 
+0x00000010 
+Turn off the message limit in the queue 
+FAN_UNLIMITED_MARKS 
+0x00000020 
+Disable the tag limit in the queue 
+
+
+Flags for fanotify_mark (number 338) from linux-XYZ / include / uapi / linux / fanotify.h
+name    value   importance
+FAN_MARK_ADD 
+0x00000001 
+Add events to the mask 
+FAN_MARK_REMOVE 
+0x00000002 
+Delete events from the mask 
+FAN_MARK_FLUSH 
+0x00000080 
+Remove events related or unmountable from the mask (depends on other parameters) 
+FAN_MARK_DONT_FOLLOW 
+0x00000004 
+Do not follow symbolic links 
+FAN_MARK_ONLYDIR 
+0x00000008 
+Add events only to the directory 
+FAN_MARK_MOUNT 
+0x00000010 
+Add a mount point and all objects in the center for observation 
+FAN_MARK_IGNORED_MASK 
+0x00000020 
+Add or remove events from the ignore list 
+FAN_MARK_IGNORED_SURV_MODIFY 
+0x00000040 
+The ignore list is to be kept when others are modified 
+
+
+Events for fanotify_mark (number 338) from linux-XYZ / include / uapi / linux / fanotify.h
+name    value   importance
+FAN_ACCESS 
+0x00000001 
+Create an event when access to the object takes place 
+FAN_MODIFY 
+0x00000002 
+Create an event when the file is changed (saved) 
+FAN_CLOSE_WRITE 
+0x00000008 
+Create an event when a writable file is closed 
+FAN_CLOSE_NOWRITE 
+0x00000010 
+Create an event when the file is read-only or the directory is closed 
+FAN_OPEN 
+0x00000020 
+Create an event when the file or directory is opened 
+FAN_OPEN_PERM 
+0x00010000 
+Create an event when a request to open to a file or directory appears 
+FAN_ACCESS_PERM 
+0x00020000 
+Create an event when a request to read a file or directory appears 
+FAN_ONDIR 
+0x40000000 
+Create the appropriate event from the catalog 
+FAN_EVENT_ON_CHILD 
+0x08000000 
+Create an event to create objects directly in a given directory 
+FAN_CLOSE 
+FAN_CLOSE_WRITE + FAN_CLOSE_NOWRITE 
+Create an event when the object opened in any mode is closed 
+
+The file_handle structure (function 341) with man 2 name_to_handle_at :
+
+         struct file_handle {
+                 unsigned int handle_bytes;  / * rozmiar f_handle * /
+                 int handle_type;  / * handle type * /
+                 unsigned char f_handle [0];  / * file identifier * /
+         }; 
+
+
+Resource types for sys_kcmp (number 338) from linux-XYZ / include / uapi / linux / kcmp.h
+name    value   importance
+KCMP_FILE 
+0 
+Compare the given file descriptors 
+KCMP_FILES 
+2 
+Compare all file descriptors in processes 
+KCMP_FS 
+3 
+Compare information about the file system 
+KCMP_IO 
+5 
+Compare the I / O context 
+KCMP_SIGHAND 
+4 
+Compare signal handling instructions 
+KCMP_SYSVSEM 
+6 
+Compare the list of undo operations in semaphores 
+KCMP_VM 
+1 
+Compare the address space 
+
+
+Flagi for kexec_file_load (number 320 w x86-64) z linux-XYZ / include / uapi / linux / kexec.h
+name    value   importance
+KEXEC_FILE_UNLOAD 
+0x00000001 
+Disconnect the kernel activity 
+KEXEC_FILE_ON_CRASH 
+0x00000002 
+Load the new kernel as an emergency when the first error occurs 
+KEXEC_FILE_NO_INITRAMFS 
+0x00000004 
+The loading of the initrd is optional 
+
+
+--*/

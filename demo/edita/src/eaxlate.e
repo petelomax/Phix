@@ -347,7 +347,7 @@ integer k
                 oneline=oneline[1..k]
             end if
             if k or length(res) then
-                k = match("\"\"\"",oneline)
+                k = match(`"""`,oneline)
                 if k then
                     if k>1 then
                         res=append(res,oneline[1..k-1])

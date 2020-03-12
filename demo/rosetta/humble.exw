@@ -1,0 +1,256 @@
+--
+-- demo/rosetta/humble.exw
+-- =======================
+--
+--  I felt pretty good about the performance of this, until I ran the Go version - humbled indeed!
+--  It will go all the way to 100 digits if you give it time (18mins, on 64bit - 32bit runs out of 
+--  memory after printing the 99th line)
+--  I also tried a log version (similar to [[Hamming_numbers#Phix]]) but inaccuracies crept in over 10 digits.
+--
+include mpfr.e
+include builtins/ptrim.e    -- (shorten(), pre-0.8.1)
+ 
+procedure humble(integer n, bool countdigits=false)
+-- if countdigits is false: show first n humble numbers,
+-- if countdigits is true: count them up to n digits.
+    sequence humble = {mpz_init(1)},
+             nexts = {2,3,5,7},
+             indices = repeat(1,4)
+    for i=1 to 4 do nexts[i] = mpz_init(nexts[i]) end for
+    integer digits = 1,
+            count = 1,
+            dead = 1,
+            tc = 0
+    atom t0 = time()
+    mpz p10 = mpz_init(10)
+    while ((not countdigits) and length(humble)<n)
+       or (countdigits and digits<=n) do
+        mpz x = mpz_init_set(mpz_min(nexts))
+        humble = append(humble,x)
+        if countdigits then
+            if mpz_cmp(x,p10)>=0 then
+                mpz_mul_si(p10,p10,10)
+--              integer d = min(indices)
+                integer d = minsq(indices)
+                for k=dead to d-1 do
+                    humble[k] = mpz_free(humble[k])
+                end for
+                dead = d
+                string s = iff(digits=1?"":"s"),
+                       e = elapsed(time()-t0)
+                tc += count
+--              e &= sprintf(", %,d dead",{dead-1})
+                e &= sprintf(", total:%,d",{tc})
+                printf(1,"%,12d humble numbers have %d digit%s (%s)\n",{count,digits,s,e})
+                digits += 1
+                count = 1
+            else
+                count += 1
+            end if
+        end if
+        for j=1 to 4 do
+            if mpz_cmp(nexts[j],x)<=0 then
+                indices[j] += 1
+                mpz_mul_si(nexts[j],humble[indices[j]],get_prime(j))
+            end if
+        end for
+    end while
+    if not countdigits then
+        for i=1 to length(humble) do
+            humble[i] = shorten(mpz_get_str(humble[i]),ml:=10)
+        end for
+        printf(1,"First %d humble numbers: %s\n\n",{n,join(humble," ")})
+    end if
+end procedure
+
+if 01 then
+humble(50)
+humble(42,true)
+--humble(100,true)
+end if
+/*
+{{out}}
+First 50 humble numbers: 1 2 3 4 5 6 7 8 9 10 12 14 15 16 18 20 21 24 25 27 28 30 32 35 36 40 42 45 48 49 50 54 56 60 63 64 70 72 75 80 81 84 90 96 98 100 105 108 112 120
+
+           9 humble numbers have 1 digit (0s, total:9)
+          36 humble numbers have 2 digits (0s, total:45)
+          95 humble numbers have 3 digits (0s, total:140)
+         197 humble numbers have 4 digits (0s, total:337)
+         356 humble numbers have 5 digits (0s, total:693)
+         579 humble numbers have 6 digits (0.0s, total:1,272)
+         882 humble numbers have 7 digits (0.0s, total:2,154)
+       1,272 humble numbers have 8 digits (0.0s, total:3,426)
+       1,767 humble numbers have 9 digits (0.1s, total:5,193)
+       2,381 humble numbers have 10 digits (0.1s, total:7,574)
+       3,113 humble numbers have 11 digits (0.2s, total:10,687)
+       3,984 humble numbers have 12 digits (0.2s, total:14,671)
+       5,002 humble numbers have 13 digits (0.3s, total:19,673)
+       6,187 humble numbers have 14 digits (0.4s, total:25,860)
+       7,545 humble numbers have 15 digits (0.5s, total:33,405)
+       9,081 humble numbers have 16 digits (0.6s, total:42,486)
+      10,815 humble numbers have 17 digits (0.8s, total:53,301)
+      12,759 humble numbers have 18 digits (0.9s, total:66,060)
+      14,927 humble numbers have 19 digits (1.2s, total:80,987)
+      17,323 humble numbers have 20 digits (1.4s, total:98,310)
+      19,960 humble numbers have 21 digits (1.7s, total:118,270)
+      22,853 humble numbers have 22 digits (2.0s, total:141,123)
+      26,015 humble numbers have 23 digits (2.3s, total:167,138)
+      29,458 humble numbers have 24 digits (2.7s, total:196,596)
+      33,188 humble numbers have 25 digits (3.2s, total:229,784)
+      37,222 humble numbers have 26 digits (3.7s, total:267,006)
+      41,568 humble numbers have 27 digits (4.3s, total:308,574)
+      46,245 humble numbers have 28 digits (5.0s, total:354,819)
+      51,254 humble numbers have 29 digits (5.7s, total:406,073)
+      56,618 humble numbers have 30 digits (6.5s, total:462,691)
+      62,338 humble numbers have 31 digits (7.3s, total:525,029)
+      68,437 humble numbers have 32 digits (8.3s, total:593,466)
+      74,917 humble numbers have 33 digits (9.4s, total:668,383)
+      81,793 humble numbers have 34 digits (10.5s, total:750,176)
+      89,083 humble numbers have 35 digits (11.7s, total:839,259)
+      96,786 humble numbers have 36 digits (13.1s, total:936,045)
+     104,926 humble numbers have 37 digits (14.6s, total:1,040,971)
+     113,511 humble numbers have 38 digits (16.2s, total:1,154,482)
+     122,546 humble numbers have 39 digits (17.9s, total:1,277,028)
+     132,054 humble numbers have 40 digits (19.7s, total:1,409,082)
+     142,038 humble numbers have 41 digits (21.7s, total:1,551,120)
+     152,515 humble numbers have 42 digits (23.9s, total:1,703,635)
+..
+     163,497 humble numbers have 43 digits (36.3s, total:1,867,132)
+     174,986 humble numbers have 44 digits (39.7s, total:2,042,118)
+     187,004 humble numbers have 45 digits (43.3s, total:2,229,122)
+     199,565 humble numbers have 46 digits (47.2s, total:2,428,687)
+     212,675 humble numbers have 47 digits (51.3s, total:2,641,362)
+     226,346 humble numbers have 48 digits (55.7s, total:2,867,708)
+     240,590 humble numbers have 49 digits (1 minute, total:3,108,298)
+     255,415 humble numbers have 50 digits (1 minute and 05s, total:3,363,713)
+     270,843 humble numbers have 51 digits (1 minute and 11s, total:3,634,556)
+     286,880 humble numbers have 52 digits (1 minute and 16s, total:3,921,436)
+     303,533 humble numbers have 53 digits (1 minute and 22s, total:4,224,969)
+     320,821 humble numbers have 54 digits (1 minute and 28s, total:4,545,790)
+     338,750 humble numbers have 55 digits (1 minute and 35s, total:4,884,540)
+     357,343 humble numbers have 56 digits (1 minute and 42s, total:5,241,883)
+     376,599 humble numbers have 57 digits (1 minute and 50s, total:5,618,482)
+     396,533 humble numbers have 58 digits (1 minute and 57s, total:6,015,015)
+     417,160 humble numbers have 59 digits (2 minutes and 05s, total:6,432,175)
+     438,492 humble numbers have 60 digits (2 minutes and 14s, total:6,870,667)
+     460,533 humble numbers have 61 digits (2 minutes and 23s, total:7,331,200)
+     483,307 humble numbers have 62 digits (2 minutes and 32s, total:7,814,507)
+     506,820 humble numbers have 63 digits (2 minutes and 42s, total:8,321,327)
+     531,076 humble numbers have 64 digits (2 minutes and 53s, total:8,852,403)
+     556,104 humble numbers have 65 digits (3 minutes and 04s, total:9,408,507)
+     581,902 humble numbers have 66 digits (3 minutes and 15s, total:9,990,409)
+     608,483 humble numbers have 67 digits (3 minutes and 27s, total:10,598,892)
+     635,864 humble numbers have 68 digits (3 minutes and 40s, total:11,234,756)
+     664,053 humble numbers have 69 digits (3 minutes and 53s, total:11,898,809)
+     693,065 humble numbers have 70 digits (4 minutes and 07s, total:12,591,874)
+     722,911 humble numbers have 71 digits (4 minutes and 22s, total:13,314,785)
+     753,593 humble numbers have 72 digits (4 minutes and 37s, total:14,068,378)
+     785,141 humble numbers have 73 digits (4 minutes and 52s, total:14,853,519)
+     817,554 humble numbers have 74 digits (5 minutes and 09s, total:15,671,073)
+     850,847 humble numbers have 75 digits (5 minutes and 26s, total:16,521,920)
+     885,037 humble numbers have 76 digits (5 minutes and 44s, total:17,406,957)
+     920,120 humble numbers have 77 digits (6 minutes and 02s, total:18,327,077)
+     956,120 humble numbers have 78 digits (6 minutes and 21s, total:19,283,197)
+     993,058 humble numbers have 79 digits (6 minutes and 42s, total:20,276,255)
+   1,030,928 humble numbers have 80 digits (7 minutes and 02s, total:21,307,183)
+   1,069,748 humble numbers have 81 digits (7 minutes and 24s, total:22,376,931)
+   1,109,528 humble numbers have 82 digits (7 minutes and 47s, total:23,486,459)
+   1,150,287 humble numbers have 83 digits (8 minutes and 10s, total:24,636,746)
+   1,192,035 humble numbers have 84 digits (8 minutes and 34s, total:25,828,781)
+   1,234,774 humble numbers have 85 digits (8 minutes and 60s, total:27,063,555)
+   1,278,527 humble numbers have 86 digits (9 minutes and 26s, total:28,342,082)
+   1,323,301 humble numbers have 87 digits (9 minutes and 53s, total:29,665,383)
+   1,369,106 humble numbers have 88 digits (10 minutes and 21s, total:31,034,489)
+   1,415,956 humble numbers have 89 digits (10 minutes and 50s, total:32,450,445)
+   1,463,862 humble numbers have 90 digits (11 minutes and 20s, total:33,914,307)
+   1,512,840 humble numbers have 91 digits (11 minutes and 52s, total:35,427,147)
+   1,562,897 humble numbers have 92 digits (12 minutes and 25s, total:36,990,044)
+   1,614,050 humble numbers have 93 digits (12 minutes and 60s, total:38,604,094)
+   1,666,302 humble numbers have 94 digits (13 minutes and 36s, total:40,270,396)
+   1,719,669 humble numbers have 95 digits (14 minutes and 14s, total:41,990,065)
+   1,774,166 humble numbers have 96 digits (14 minutes and 52s, total:43,764,231)
+   1,829,805 humble numbers have 97 digits (15 minutes and 31s, total:45,594,036)
+   1,886,590 humble numbers have 98 digits (16 minutes and 21s, total:47,480,626)
+   1,944,540 humble numbers have 99 digits (17 minutes and 05s, total:49,425,166)
+   2,003,661 humble numbers have 100 digits (17 minutes and 49s, total:51,428,827)
+--*/
+
+--/!* This is the attempt at a log version mentioned above:
+-- numbers kept as {log,{pow2,pow3,pow5}},
+--  value is ~= exp(log), == (2^pow2)*(3^pow3)*(5^pow5)
+enum LOG, POWS
+enum POW2, POW3, POW5, POW7
+
+include builtins\mpfr.e
+ 
+function hcalc(sequence hn)
+    mpz {res,tmp} = mpz_inits(2)
+    integer {i2,i3,i5,i7} = hn[POWS]
+    mpz_ui_pow_ui(res,2,i2)
+    mpz_ui_pow_ui(tmp,3,i3)
+    mpz_mul(res,res,tmp)
+    mpz_ui_pow_ui(tmp,5,i5)
+    mpz_mul(res,res,tmp)
+    mpz_ui_pow_ui(tmp,7,i7)
+    mpz_mul(res,res,tmp)
+    return res
+end function
+
+constant {lg1,lg2,lg3,lg5,lg7} = sq_log10({1,2,3,5,7})
+ 
+procedure humbled(integer n, bool countdigits=false)
+sequence h = {{lg1,{0,0,0,0}}},
+         x2 = {lg2,{1,0,0,0}}, 
+         x3 = {lg3,{0,1,0,0}},
+         x5 = {lg5,{0,0,1,0}},
+         x7 = {lg7,{0,0,0,1}}
+integer {i2,i3,i5,i7} @= 1,
+        digits = 1, count = 1, tc = 0
+    atom t0 = time()
+    while (countdigits=false and length(h)<n)
+       or (countdigits=true and digits<n) do
+        sequence x = min({x2,x3,x5,x7})
+        h = append(h,x)
+        if countdigits then
+-- (This solves the inaccuracy issue, but reduces performance to about the same as above or worse...)
+--          integer d = mpz_sizeinbase(hcalc(x),10)
+            if floor(x[LOG])>digits then
+--          if d>digits then
+                digits += 1
+                tc += count
+                string s = iff(digits=1?"":"s"),
+                       e = elapsed(time()-t0)
+                e &= sprintf(", total:%,d",{tc})
+                printf(1,"%,12d humble numbers have %d digit%s (%s)\n",{count,digits,s,e})
+                count = 1
+            else
+                count += 1
+            end if
+        end if
+        sequence p = x[POWS]
+        if p=x2[POWS] then i2 += 1 x2 = h[i2] x2[LOG] += lg2 x2[POWS][POW2] += 1 end if
+        if p=x3[POWS] then i3 += 1 x3 = h[i3] x3[LOG] += lg3 x3[POWS][POW3] += 1 end if
+        if p=x5[POWS] then i5 += 1 x5 = h[i5] x5[LOG] += lg5 x5[POWS][POW5] += 1 end if
+        if p=x7[POWS] then i7 += 1 x7 = h[i7] x7[LOG] += lg7 x7[POWS][POW7] += 1 end if
+    end while
+    if not countdigits then
+        for i=1 to n do
+            h[i] = mpz_get_str(hcalc(h[i]))
+        end for
+        printf(1,"First 50 humble numbers: %s\n\n",{join(h," ")})
+    end if
+end procedure
+ 
+if 0 then
+atom t0 = time()
+humbled(50)
+humbled(70,true)
+--humbled(100,true) -- [DEV] crashes...
+?elapsed(time()-t0)
+end if
+--*!/
+
+?"done"
+{} = wait_key() 
+abort(0)
+

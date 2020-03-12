@@ -32,17 +32,17 @@ integer i
                     res &= "&"
                     nostrip = 1
                 end if
-                res &= "\""
+                res &= `"`
                 instring = 1
             end if
             if escidx!=0 then
-                res &= "\\"&escaped[escidx]
+                res &= `\`&escaped[escidx]
             else
                 res &= ch
             end if
         else
             if instring then
-                res &= "\""
+                res &= `"`
                 instring = 0
             end if
             if length(res) then
@@ -58,7 +58,7 @@ integer i
     end while
     if instring then
         if nostrip then
-            res &= "\""
+            res &= `"`
         else
             res = res[2..$] -- (remove opening \")
         end if

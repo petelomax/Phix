@@ -97,7 +97,7 @@ end function
 function quote(string s)
     if s[1]!='\"'
     and find(' ',s) then
-        s = sprintf("\"%s\"",s)
+        s = sprintf(`"%s"`,s)
     end if
     return s
 end function
@@ -109,7 +109,7 @@ string cmd = extns:getExtRunWith(ext)
     if length(cmd)!=0 then
         string path = filepaths[c]
         string fullpath = path&name
-        if match("\"%s\"",cmd) then
+        if match(`"%s"`,cmd) then
             cmd = sprintf(cmd,{fullpath})
         elsif match("%s",cmd) then
             cmd = sprintf(cmd,{quote(fullpath)})
@@ -137,7 +137,7 @@ procedure run(string cmd, string path)
 -- worker thread (so system_exec() does not stall the whole app)
     {} = chdir(path)
 --  atom res = system_exec(cmd)
---open "C:\Program Files (x86)\Phix\demo\libxlsxwriter\js\pendulum1.html"
+--open `C:\Program Files (x86)\Phix\demo\libxlsxwriter\js\pendulum1.html`
     if length(cmd)>5 
     and cmd[1..5]="open " then  -- (note the space)
         cmd = cmd[6..$]
@@ -457,7 +457,7 @@ constant CMD_OPTS = {
  
 constant HELP_TEXT = { 
     "usage:", 
-    "   startw [-d path] [-s show] \"command\" [parameters]" 
+    `   startw [-d path] [-s show] "command" [parameters]` 
 } 
  
 constant 

@@ -1,0 +1,215 @@
+--
+-- demo\rosetta\Tasks_without_examples.exw
+-- =======================================
+--
+--  Extract just the descriptions of tasks, without any implementions.
+--  Since downloading all the pages can be very slow, this uses a cache.
+--  Limiting by "Phix" fairly obviously speeds it up tenfold :-)
+--  I assume the first four constants are self-explanatory.
+--
+constant output_html = false,
+--constant output_html = true,
+         include_drafts = true,
+--       summary = false,
+         summary = true,
+         notlang = "Phix" -- or "" (ie a zero length string) for all
+--       notlang = ""
+
+include builtins\timedate.e
+integer refresh_cache = timedelta(days:=30) -- 0 for always
+constant SECONDS_TO_DAYS = 60*60*24
+
+include builtins\libcurl.e
+atom curl = NULL
+atom pErrorBuffer
+
+function write_callback(atom pData, integer size, integer nmemb, integer fn)
+    integer bytes_written = size * nmemb
+    puts(fn,peek({pData,bytes_written}))
+    return bytes_written
+end function
+constant write_cb = call_back({'+', routine_id("write_callback")})
+
+function open_download(string filename, url)
+    bool refetch = true
+    string why = ""
+    if get_file_type("rc_cache")!=FILETYPE_DIRECTORY then
+        if not create_directory("rc_cache") then
+            crash("cannot create rc_cache directory")
+        end if
+    end if
+    filename = join_path({"rc_cache",filename})
+    if file_exists(filename) then
+        -- use existing file if <= refresh_cache (30+ days) old
+        sequence last_mod = get_file_date(filename)     -- (0.8.1+)
+        atom delta = timedate_diff(last_mod,date(),DT_DAY)
+--      ?{delta,refresh_cache,elapsed(delta),elapsed(refresh_cache)}
+        refetch = (delta>refresh_cache)
+        if refetch then
+            why = sprintf(" (%d days old)",delta/SECONDS_TO_DAYS)
+        end if
+    else
+        string directory = get_file_path(filename)
+        if get_file_type(directory)!=FILETYPE_DIRECTORY then
+            if not create_directory(directory,make_parent:=true) then
+                crash("cannot create %s directory",{directory})
+            end if
+        end if
+    end if
+    if refetch then
+        printf(1,"Downloading %s%s...\n",{filename,why})
+        if curl=NULL then
+            curl_global_init()
+            curl = curl_easy_init()
+            pErrorBuffer = allocate(CURL_ERROR_SIZE)
+            curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, pErrorBuffer)
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
+        end if
+        url = substitute(url,"%3A",":")
+        url = substitute(url,"%2A","*")
+        curl_easy_setopt(curl, CURLOPT_URL, url)
+        integer fn = open(filename,"wb")
+        if fn=-1 then ?9/0 end if
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fn)
+        CURLcode res = curl_easy_perform(curl)
+        if res!=CURLE_OK then
+            string error = sprintf("%d",res)
+            if res=CURLE_COULDNT_RESOLVE_HOST then
+                error &= " [CURLE_COULDNT_RESOLVE_HOST]"
+            end if
+            printf(1, "Error %s downloading file\n", error)
+            {} = wait_key()
+            abort(0)
+        end if  
+        close(fn)
+        refresh_cache += timedelta(days:=1) -- did I mention it is slow?
+    end if
+    return get_text(filename)
+end function
+
+function open_category(string filename)
+    return open_download(filename&".htm","http://rosettacode.org/wiki/Category:"&filename)
+end function
+
+function dewiki(string s)
+    sequence tasks = {}
+    integer start = 1, finish = match(`<div class="printfooter">`,s)
+    s = s[1..finish-1]
+    while true do
+--      start = match("<li><a href=\"/wiki/",s,start)
+        start = match(`<li><a href="/wiki/`,s,start)
+        if start=0 then exit end if
+--      start += length("<li><a href=\"/wiki/")
+        start += length(`<li><a href="/wiki/`)
+        finish = find('"',s,start)
+        string task = s[start..finish-1]
+        task = substitute(task,"*","%2A")
+        task = substitute(task,":","%3A")
+        tasks = append(tasks,task)
+        start = finish+1
+    end while
+    return tasks
+end function
+
+function extract_tasks()
+    -- extract tasks from eg `<li><a href="/wiki/100_doors"`
+    sequence tasks = dewiki(open_category("Programming_Tasks"))
+    if include_drafts then
+        tasks &= dewiki(open_category("Draft_Programming_Tasks"))
+    end if
+    if length(notlang) then
+        -- filter already done in specified language
+        string langurl = "http://rosettacode.org/wiki/Category:"&notlang
+        sequence done = dewiki(open_download(notlang&".htm",langurl))
+        integer k = 0
+        for i=1 to length(tasks) do
+            if not find(tasks[i],done) then
+                k += 1
+                tasks[k] = tasks[i]
+            end if
+        end for
+        tasks = tasks[1..k]
+        done = {}
+    end if
+    if not summary then
+        -- replace with contents
+        for i=1 to length(tasks) do
+            string ti = tasks[i],
+                   url = sprintf("http://rosettacode.org/wiki/%s",{ti}),
+                   contents = open_download(ti&".htm",url)
+            integer start = match(`</div>`,contents,match(`<div class="infobox"`,contents))+length(`</div>`)
+            integer finish = match(`<div id="toc"`,contents,start)-1
+            -- ... but draft tasks with too few languages have no toc:
+            if finish=-1 then finish = match(`<h2>`,contents,start)-1 end if
+            -- ... and if no languages at all, use the footer:
+            if finish=-1 then finish = match(`</div><div class="printfooter">`,contents,start)-1 end if
+            if finish=-1 then ?9/0 end if
+            contents = contents[start..finish]
+            ti = substitute(ti,"_"," ")
+            if not match("<b>"&ti&"</b>",contents) then
+                -- (ps: I refuse to panic over the occasional replicated header...)
+                contents = sprintf("<h3>%s</h3>%s",{ti,contents})
+            end if
+            tasks[i] = contents
+            if get_key()=#1B then exit end if
+        end for
+    end if
+    if curl!=NULL then
+        curl_easy_cleanup(curl)
+        free(pErrorBuffer)
+        curl = NULL
+        pErrorBuffer = NULL
+    end if
+    return tasks
+end function
+
+function html_clean(string ri)
+    ri = substitute(ri,"%3A",":")
+    ri = substitute(ri,"%E2%80%93","-")
+    ri = substitute(ri,"%E2%80%99","'")
+    ri = substitute(ri,"%27","'")
+    ri = substitute(ri,"%2B","+")
+    ri = substitute(ri,"%C3%A8","e")
+    ri = substitute(ri,"%C3%A9","e")
+    ri = substitute(ri,"%22",`"`)
+    ri = substitute(ri,"%2A","*")
+    return ri
+end function
+
+constant html_header = """
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Rosettacode Tasks without examples</title>
+ </head>
+ <body>
+  <h2>Rosettacode Tasks without examples</h2>
+  Generated %s, %d entries<br>
+  <br>
+""",
+         html_footer = """
+ </body>
+</html>
+"""
+
+sequence results = extract_tasks()
+if output_html then
+    integer fn = open("Tasks_Without_Examples.html","w")
+    printf(fn,html_header,{format_timedate(date()),length(results)})
+    for i=1 to length(results) do
+        printf(fn,"%s<br>\n",html_clean(results[i]))
+    end for
+    puts(fn,html_footer)
+    close(fn)
+else
+    for i=1 to length(results) do
+        printf(1,"%s\n",html_clean(results[i]))
+    end for
+end if
+printf(1,"%d tasks\n",length(results))
+
+?"done"
+{} = wait_key()
+

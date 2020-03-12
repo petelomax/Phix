@@ -32,10 +32,10 @@
 --
 --      symtab[T_fileset]: {{1,"t4.exw","-metric"},
 --                          {2,"pcmdln.e"}}
---      symtab[T_pathset]: {"C:\test\",
---                          "C:\Program Files\Phix\builtins\"}
+--      symtab[T_pathset]: {`C:\test\`,
+--                          `C:\Program Files\Phix\builtins\`}
 --
---  ==> {<SearchPath>"p.exe","C:\test\t4.exw","-metric"}
+--  ==> {<SearchPath>"p.exe",`C:\test\t4.exw`,"-metric"}
 --
 --  (where "-metric" is some random application's command line option,
 --   presumably p4.exw contains code similar to that for eg "-nodiag"
@@ -48,9 +48,8 @@
 --  A shared reference to the symtab can be obtained via opGetST (see below).
 --
 --  Note that eg "p -c t4 -metric" where t4 is "?command_line()" simply displays
---  {"C:\\Program Files\Phix\\t4.exe","C:\\Program Files\Phix\\t4.exe","-metric"}
+--  {`C:\Program Files\Phix\t4.exe`,`C:\Program Files\Phix\t4.exe`,"-metric"}
 --  which should be no surprise as there is a system_wait() involved.
---  Also "exw p p xxxx" behaves as "exw p -cp" and ignores the xxxx, and        --DEV not any more((??))
 --  likewise "p -cp xx" reserves the right to completely ignore the "xx".
 --    (update: "p -cp xx" is now treated as a fatal error)
 --  Reasonable results should be obtained in the "p p test -metric" and
@@ -104,7 +103,7 @@ integer l
     xPath = NULL
     tmp = filepath
     for j=length(tmp) to 1 by -1 do
-        if find(tmp[j],"\\/") then
+        if find(tmp[j],`\/`) then
             if j>2 then
 --/*
                 if tmp[2]=':' then
@@ -112,8 +111,8 @@ integer l
                 elsif match("..",tmp)=1 then
                     -- xSearchPath returns gibberish in such cases...
                     --  (as sadly true on winXP as it was on win98)
---DEV for removal of "\\..\\" see eg ptok.e and/or edita/eaxlate.e
---                  return current_dir()&"\\"&tmp
+--DEV for removal of `\..\` see eg ptok.e and/or edita/eaxlate.e
+--                  return current_dir()&`\`&tmp
 --                  return get_proper_path("tmp")
                     return get_proper_path(tmp)
                 end if
@@ -228,10 +227,10 @@ integer pArg4,W,N
         end while
 
         while chfirst<=chlast do
-            if plainstr[chfirst]='\"' then
+            if plainstr[chfirst]='"' then
                 for i=chfirst+1 to chlast+1 do
                     if i>chlast -- closing quote not found, assume one at end...
-                    or plainstr[i]='\"' then
+                    or plainstr[i]='"' then
                         chfirst += 1
                         l = i-1
                         tmp = plainstr[chfirst..l]
@@ -410,7 +409,7 @@ integer pArg4,W,N
 --/**/      if lr<2 then
 --/**/          res = append(res,tmp2)  -- eg {"p.exe"} ==> {"p.exe","test.exw"}
 --/**/      else
---/**/          res[2] = tmp2           -- eg {"p","fred.exw"} ==> {"p","C:\projects\fred.exw"}
+--/**/          res[2] = tmp2           -- eg {"p","fred.exw"} ==> {"p",`C:\projects\fred.exw`}
 --/**/          if lr>2 then
 --/**/              res = res[1..2]     -- discard remainder/only keep res[1]
 --/**/          end if

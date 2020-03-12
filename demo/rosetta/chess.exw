@@ -1,0 +1,1663 @@
+--
+-- demo/rosetta/chess.exw
+-- ======================
+--
+--X https://rosettacode.org/wiki/Generate_random_chess_position#Phix
+
+--TODO: replace {FROM,TO,PROMOTE,BITS} moves with integer and masks/functions (ditto MOVE_REC:=0) [??]
+--      merge eval_light_pawn()/eval_dark_pawn(), ditto eval_light_king()/eval_dark_king() [nah]
+--      make colours/pieces 8x8? [nah]
+--      do a quick profile_time! (attack came out at 46.7%...)
+--with profile_time
+
+without debug
+include builtins\VM\pprntfN.e
+include builtins\pretty.e
+include builtins\scanf.e
+with debug
+--with trace
+--with type_check
+
+constant LITE = 1, DARK = 2,
+         L = LITE, D = DARK
+
+integer side    -- the side to move. LITE or DARK. fliped via 3-side.
+                -- read all uses of "[side]" as "LITE:[1], DARK:[2]".
+
+enum EMPTY=0, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING
+enum E=EMPTY, P=PAWN, N=KNIGHT, B=BISHOP, R=ROOK, Q=QUEEN, K=KING
+
+-- the initial board state
+constant init_color = {D, D, D, D, D, D, D, D,
+                       D, D, D, D, D, D, D, D,
+                       E, E, E, E, E, E, E, E,
+                       E, E, E, E, E, E, E, E,
+                       E, E, E, E, E, E, E, E,
+                       E, E, E, E, E, E, E, E,
+                       L, L, L, L, L, L, L, L,
+                       L, L, L, L, L, L, L, L}
+
+constant init_piece = {
+                       R, N, B, Q, K, B, N, R,
+                       P, P, P, P, P, P, P, P,
+                       E, E, E, E, E, E, E, E,
+                       E, E, E, E, E, E, E, E,
+                       E, E, E, E, E, E, E, E,
+                       E, E, E, E, E, E, E, E,
+                       P, P, P, P, P, P, P, P,
+                       R, N, B, Q, K, B, N, R,
+                      }
+
+-- the board representation:
+sequence color, -- [1..64], LITE, DARK, or EMPTY
+         piece  -- [1..64], PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, or EMPTY
+
+---This is the basic description of a move. promote is what
+-- piece to promote the pawn to, if the move is a pawn
+-- promotion. bits is a bitfield that describes the move,
+-- with the following bits:
+--
+--   1        capture
+--   2        castle
+--   4        en passant capture
+--   8        pushing a pawn 2 squares
+--   16       pawn move
+--   32       promote
+
+--DEV replace with bits/functions... 
+--(nb placing bits last makes it (just) fit into a 32-bit phix integer, the
+--    max value of [PROMOTE] is 4(ie QUEEN), which fits with bits to spare,
+--    whereas the #88 coding format of FROM/TO simply would not fit at all.)
+constant FROM = 1, TO = 2, PROMOTE = 3, BITS = 4
+-- [BITS]:
+constant B_CAPTURE = 1, B_CASTLE = 2, B_EP_CAPTURE = 4, B_PAWN2SQ = 8, B_PAWN = 16, B_PROMOTE = 32
+
+constant MOVE_ = 1, -- {FROM,TO,PROMOTEBITS} sub-elements
+         SCORE = 2  -- (an atom)
+
+-- an element of the history stack, with the information
+-- necessary to take a move back.
+
+constant H_MOVE = 1, H_CAPTURE = 2, H_CASTLE = 3, H_EP = 4, H_FIFTY = 5
+constant MOVE_REC = repeat(0,4)
+constant HIST_REC = {MOVE_REC,0,0,0,0}
+
+--integer BOOKON -- (not available yet)
+
+integer castle  -- a bitfield with the castle permissions:
+                --  1 - white can still castle kingside
+                --  2 - white queenside
+                --  4 - black kingside
+                --  8 - black queenside.
+
+-- the en passant square. if white moves e2e4, the en passant
+-- square is set to e3, because that's where a pawn would move
+-- in an en passant capture
+
+integer ep
+
+-- the number of moves since a capture or pawn move, used
+-- to handle the fifty-move-draw rule
+
+integer fifty
+
+integer ply     -- the half-move that we're on
+
+sequence move_stack = {{}}
+
+constant HIST_STACK = 64
+sequence history = repeat(repeat(0,HIST_STACK),HIST_STACK)
+
+-- we need an array of hist_rec's so we can take back the moves we make
+sequence hist_dat = repeat(HIST_REC,HIST_STACK)
+
+integer max_depth   -- the engine will search for max_depth ply.
+
+integer nodes   -- the number of nodes we have searched
+
+-- a triangular PV (Principal Variation) array
+constant PV_SIZE = 100
+sequence pv = repeat(repeat(MOVE_REC,PV_SIZE),PV_SIZE)
+sequence pv_length = repeat(0,PV_SIZE)
+
+integer follow_pv
+
+--
+-- Now we have the mailbox array, so called because it looks like a
+-- mailbox, at least according to Bob Hyatt. This is useful when we
+-- need to figure out what pieces can go where. Let's say we have a
+-- rook on square a4 (32) and we want to know if it can move one
+-- square to the left. We subtract 1, and we get 31 (h5). The rook
+-- obviously can't move to h5, but we don't know that without doing
+-- a lot of annoying work. Sooooo, what we do is figure out a4's
+-- mailbox number, which is 61. Then we subtract 1 from 61 (60) and
+-- see what mailbox[60] is. In this case, it's -1, so it's out of
+-- bounds and we can forget it. You can see how mailbox[] is used
+-- in attack().
+--
+constant mailbox = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                     -1,  1,  2,  3,  4,  5,  6,  7,  8, -1,
+                     -1,  9, 10, 11, 12, 13, 14, 15, 16, -1,
+                     -1, 17, 18, 19, 20, 21, 22, 23, 24, -1,
+                     -1, 25, 26, 27, 28, 29, 30, 31, 32, -1,
+                     -1, 33, 34, 35, 36, 37, 38, 39, 40, -1,
+                     -1, 41, 42, 43, 44, 45, 46, 47, 48, -1,
+                     -1, 49, 50, 51, 52, 53, 54, 55, 56, -1,
+                     -1, 57, 58, 59, 60, 61, 62, 63, 64, -1,
+                     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+                   }
+
+constant mailbox64 = {
+                      22, 23, 24, 25, 26, 27, 28, 29,
+                      32, 33, 34, 35, 36, 37, 38, 39,
+                      42, 43, 44, 45, 46, 47, 48, 49,
+                      52, 53, 54, 55, 56, 57, 58, 59,
+                      62, 63, 64, 65, 66, 67, 68, 69,
+                      72, 73, 74, 75, 76, 77, 78, 79,
+                      82, 83, 84, 85, 86, 87, 88, 89,
+                      92, 93, 94, 95, 96, 97, 98, 99
+                     }
+
+-- slide and offset are basically the vectors that pieces can move in.
+-- If slide[piece] is false, it can only move once in each direction.
+
+constant slide = {false, false, true, true, true, false}
+                --(PAWN,KNIGHT,BISHOP,ROOK,QUEEN, KING)
+
+constant offset = {
+                   {},
+                   {-21, -19, -12, -8, 8, 12, 19, 21},
+                   {-11, -9, 9, 11},
+                   {-10, -1, 1, 10},
+                   {-11, -10, -9, -1, 1, 9, 10, 11},
+                   {-11, -10, -9, -1, 1, 9, 10, 11},
+                   {}
+                  }
+
+
+-- This is the castle_mask array. We can use it to determine
+-- the castling permissions after a move. What we do is
+-- logical-AND the castle bits with the castle_mask bits for
+-- both of the move's squares. Let's say castle is 1, meaning
+-- that white can still castle kingside. Now we play a move
+-- where the rook on h1 gets captured. We AND castle with
+-- castle_mask[63], so we have 1&14, and castle becomes 0 and
+-- white cannot castle kingside anymore.
+
+constant castle_mask = {
+                         7, 15, 15, 15,  3, 15, 15, 11,
+                        15, 15, 15, 15, 15, 15, 15, 15,
+                        15, 15, 15, 15, 15, 15, 15, 15,
+                        15, 15, 15, 15, 15, 15, 15, 15,
+                        15, 15, 15, 15, 15, 15, 15, 15,
+                        15, 15, 15, 15, 15, 15, 15, 15,
+                        15, 15, 15, 15, 15, 15, 15, 15,
+                        13, 15, 15, 15, 12, 15, 15, 14
+                       }
+
+-- castle details: idx 1..4 to {from_rook,rankbg,to_rook}
+-- (if kingside, rank 'g' gets checked to be empty twice)
+constant cdii = {63,59,7,3},        -- {to_king's}
+         castles = {{64,63,62},     -- white kingside
+                    {57,58,60},     -- white queenside
+                    {8,7,6},        -- black kingside
+                    {1,2,4}}        -- black queenside
+
+integer gameover, 
+        counter     -- DEV not used for much, yet...
+
+sequence move_list,     -- for (manual) undo
+         cp_list        -- for reps()
+
+atom t0
+
+procedure init_board()
+    t0 = time()
+    color = init_color
+    piece = init_piece
+    side = LITE
+    castle = 15
+    ep = -1
+    fifty = 0
+    ply = 1
+    move_stack[1] = {}
+    gameover = 0
+    counter = 0
+    move_list = {}
+    cp_list = {}
+--test:
+--history = repeat(repeat(0,HIST_STACK),HIST_STACK)
+end procedure
+
+-- utility functions
+function get_file(integer sq) return remainder(sq-1,8)+1 end function   -- yields 1..8
+function get_rank(integer sq) return floor((sq-1)/8)+1 end function     --     ""
+
+function attack(integer sq, s)
+-- return true if square sq is being attacked by side s, false otherwise.
+    integer {l,r} = {{-9,-7},{7,9}}[s]
+    for i=1 to 64 do
+        if color[i]=s then
+            if piece[i]=PAWN then
+                integer file = get_file(i)
+                if (file!=1 and i+l=sq)
+                or (file!=8 and i+r=sq) then
+                    return true
+                end if
+            else -- non-pawn piece
+                integer pi = piece[i]
+                for j=1 to length(offset[pi]) do
+                    integer n = i
+                    while 1 do
+                        n = mailbox[mailbox64[n]+offset[pi][j]]
+                        if n=sq then
+                            return true
+                        elsif n=-1
+                           or color[n]!=EMPTY
+                           or not slide[pi] then
+                            exit
+                        end if
+                    end while
+                end for
+            end if
+        end if
+    end for
+    return false
+end function
+
+function in_check(integer s)
+-- return true if side s is in check and false otherwise.
+    for i=1 to 64 do
+        if color[i]=s and piece[i]=KING then
+            return attack(i,3-s)
+        end if
+    end for
+    return false
+end function
+
+procedure gen_push(integer from, too, bits)
+--
+-- Put a move on the move stack, unless it is a pawn promotion, 
+-- in which case add all four of the permitted moves (K/B/R/Q).
+-- It also assigns a score to the move for alpha-beta move
+-- ordering. If the move is a capture, it uses MVV/LVA
+-- (Most Valuable Victim/Least Valuable Attacker). Otherwise,
+-- it uses the move's history heuristic value. Note that
+-- 1,000,000 is added to a capture move's score, so it
+-- always gets ordered above a "normal" move. */
+--
+--if color[from]!=side then ?9/0 end if
+    sequence move = {{from,too,0,bits},0}
+    if and_bits(bits,B_PAWN)
+    and ((side=LITE and too<=8) or
+         (side=DARK and too>=57)) then
+        bits = or_bits(bits,B_PROMOTE)
+        move[MOVE_][BITS] = or_bits(bits,B_PROMOTE)
+        for i=KNIGHT to QUEEN do
+            move[MOVE_][PROMOTE] = i
+            move[SCORE] = 1000000+(i*10)
+            move_stack[ply] = append(move_stack[ply],move)
+        end for
+    else
+        if and_bits(bits,B_CAPTURE) then
+            move[SCORE] = 1000000+(piece[too]*10)-piece[from]
+        else
+            move[SCORE] = history[from][too]
+        end if
+        move_stack[ply] = append(move_stack[ply],move)
+    end if
+end procedure
+
+procedure gen(bool captures_only=false)
+--
+-- gen() generates pseudo-legal moves for the current position.
+-- It scans the board to find friendly pieces and then determines
+-- what squares they attack. When it finds a piece/square combo, 
+-- it calls gen_push to put the move on the "move stack."
+-- captures_only is used by the quiescence search, and only
+-- generates capture & promote moves.
+--
+    if ply>length(move_stack) then
+        move_stack = append(move_stack,{})
+    else
+        move_stack[ply] = {}
+    end if
+
+    for i=1 to 64 do
+        if color[i]=side then
+            if piece[i]=PAWN then
+                integer file = get_file(i),
+                        {l,r,d} = {{-9,-7,-8},{7,9,8}}[side]
+                if file!=1 and color[i+l]=3-side then
+                    gen_push(i,i+l,B_CAPTURE+B_PAWN)
+                end if
+                if file!=8 and color[i+r]=3-side then
+                    gen_push(i,i+r,B_CAPTURE+B_PAWN)
+                end if
+                if captures_only then
+                    integer promote_rank = {2,7}[side]
+                    if get_rank(i)=promote_rank
+                    and color[i+d]=EMPTY then
+                        gen_push(i,i+d,B_PAWN)
+                    end if
+                else
+                    if color[i+d]=EMPTY then
+                        gen_push(i,i+d,B_PAWN)
+                        integer d2 = i+d*2,
+                                this_rank = get_rank(i),
+                                start_rank = {7,2}[side]
+                        if this_rank=start_rank and color[d2]=EMPTY then
+                            gen_push(i,d2,B_PAWN+B_PAWN2SQ)
+                        end if
+                    end if
+                end if
+            else -- non-pawn piece
+                integer pi = piece[i]
+                for j=1 to length(offset[pi]) do
+                    integer n = i
+                    while 1 do
+                        n = mailbox[mailbox64[n]+offset[pi][j]]
+                        if n=-1 then
+                            exit
+                        end if
+                        if color[n]!=EMPTY then
+                            if color[n]=3-side then
+                                gen_push(i,n,B_CAPTURE)
+                            end if
+                            exit
+                        end if
+                        if not captures_only then
+                            gen_push(i,n,0)
+                        end if
+                        if not slide[pi] then exit end if
+                    end while
+                end for
+            end if
+        end if
+    end for
+
+    if not captures_only then
+        -- generate castle moves
+        integer {r,l,k} = {{1,2,61},{4,8,5}}[side]
+        if and_bits(castle,r) then gen_push(k,k+2,B_CASTLE) end if
+        if and_bits(castle,l) then gen_push(k,k-2,B_CASTLE) end if
+    end if
+
+    -- generate en passant moves
+    if ep!= -1 then
+        integer ep_file = get_file(ep),
+                {l,r} = {{7,9},{-9,-7}}[side]
+        if ep_file!=1 and color[ep+l]=side and piece[ep+l]=PAWN  then
+            gen_push(ep+l,ep,B_PAWN+B_EP_CAPTURE+B_CAPTURE)
+        end if
+        if ep_file!=8 and color[ep+r]=side and piece[ep+r]=PAWN then
+            gen_push(ep+r,ep,B_PAWN+B_EP_CAPTURE+B_CAPTURE)
+        end if
+    end if
+end procedure
+
+procedure takeback()
+-- very similar to makemove(), only backwards :)
+
+    side = 3-side
+    ply -= 1
+
+    sequence m = hist_dat[ply][H_MOVE]
+    castle = hist_dat[ply][H_CASTLE]
+    ep = hist_dat[ply][H_EP]
+    fifty = hist_dat[ply][H_FIFTY]
+    integer captured = hist_dat[ply][H_CAPTURE]
+    integer {from,too,bits} = {m[FROM],m[TO],m[BITS]}
+
+    color[from] = side
+    piece[from] = iff(and_bits(bits,B_PROMOTE)?PAWN:piece[too])
+    color[too] = iff(captured=EMPTY?EMPTY:3-side)
+    piece[too] = captured
+
+    if and_bits(bits,B_CASTLE) then
+        integer {from_rook,{},to_rook} = castles[find(too,cdii)]
+        color[from_rook] = side
+        piece[from_rook] = ROOK
+        color[to_rook] = EMPTY
+        piece[to_rook] = EMPTY
+    elsif and_bits(bits,B_EP_CAPTURE) then
+        too += {+8,-8}[side]
+        color[too] = 3-side
+        piece[too] = PAWN
+    end if
+end procedure
+
+function makemove(sequence m)
+-- If the move is illegal, it undoes whatever it did and returns false.
+-- Otherwise, it returns true.
+
+    integer {from,too,bits} = {m[FROM],m[TO],m[BITS]}
+    if color[from]!=side then return false end if   -- (Added PL 7/6/19)
+
+    -- test to see if a castle move is legal and move the rook
+    --  (the king is moved with the usual move code later)
+    if and_bits(bits,B_CASTLE) then
+        integer {from_rook,rankbg,to_rook} = castles[find(too,cdii)]
+        if in_check(side) or color[rankbg]!=EMPTY   
+        or color[to_rook]!=EMPTY or color[too]!=EMPTY
+        or attack(to_rook,3-side) or attack(too,3-side) then
+            return false
+        end if
+        color[to_rook] = color[from_rook]
+        piece[to_rook] = ROOK
+        color[from_rook] = EMPTY
+        piece[from_rook] = EMPTY
+    end if
+
+    -- back up information so we can take the move back later.
+    hist_dat[ply][H_MOVE] = m
+    hist_dat[ply][H_CAPTURE] = piece[too]
+    hist_dat[ply][H_CASTLE] = castle
+    hist_dat[ply][H_EP] = ep
+    hist_dat[ply][H_FIFTY] = fifty
+    ply += 1
+
+    -- update the castle, en passant, and fifty-move-draw variables
+    castle = and_bits(castle,and_bits(castle_mask[from],castle_mask[too]))
+
+    if and_bits(bits,B_PAWN2SQ) then
+        ep = too + {+8,-8}[side]
+    else
+        ep = -1
+    end if
+
+    if and_bits(bits,B_CAPTURE+B_PAWN) then
+        fifty = 0
+    else
+        fifty += 1
+    end if
+
+    -- move the piece
+--if color[from]!=side then ?9/0 end if
+    color[too] = side
+    piece[too] = iff(and_bits(bits,B_PROMOTE)?m[PROMOTE]:piece[from])
+
+    color[from] = EMPTY
+    piece[from] = EMPTY
+
+    -- erase the pawn if this is an en passant move
+    if and_bits(bits,B_EP_CAPTURE) then
+        too += {+8,-8}[side]
+        color[too] = EMPTY
+        piece[too] = EMPTY
+    end if
+
+    -- switch sides and test for legality (if we can capture
+    --   the other guy's king, it's an illegal position and
+    --       we need to take the move back)
+
+    side = 3-side   -- (1<==>2)
+
+    if in_check(3-side) then
+        takeback()
+        return false
+    end if
+
+    return true
+
+end function
+
+--SUG: (go back to int move_bytes)
+--function move_str(integer m)
+--  integer from = and_bits(m,#FF),
+--          tooo = and_bits(m,#FF00)/#100,
+--          bits = and_bits(m,#3F000000)/#1000000
+function move_str(sequence m)
+    integer {from,tooo,bits} = {m[FROM],m[TO],m[BITS]}
+    string res = sprintf("%c%d%c%d", {get_file(from)+'a'-1, 9-get_rank(from),
+                                      get_file(tooo)+'a'-1, 9-get_rank(tooo)})
+
+    if and_bits(bits,B_PROMOTE) then
+        integer c = m[PROMOTE]
+        switch c do
+            case KNIGHT:    c = 'N'
+            case BISHOP:    c = 'B'
+            case ROOK:      c = 'R'
+            default:        c = 'Q'
+        end switch
+        res &= c
+    end if
+    return res
+end function
+
+constant DOUBLED_PAWN_PENALTY       = 10
+constant ISOLATED_PAWN_PENALTY      = 20
+constant BACKWARDS_PAWN_PENALTY     =  8
+constant PASSED_PAWN_BONUS          = 20
+constant ROOK_SEMI_OPEN_FILE_BONUS  = 10
+constant ROOK_OPEN_FILE_BONUS       =  5
+constant ROOK_ON_SEVENTH_BONUS      = 20
+
+-- the values of the pieces
+--        100, 350, 375, 550, 1000, 0
+--        100, 300, 325, 500, 950, 0
+constant piece_value = {
+                        100, 300, 300, 500, 900, 0  -- original values
+                       }
+
+-- The "pcsq" arrays are piece/square tables. They're values
+-- added to the material value of the piece based on the
+-- location of the piece.
+
+constant pawn_pcsq = {
+                      0,   0,   0,   0,   0,   0,   0,   0,
+                      5,  10,  15,  20,  20,  15,  10,   5,
+                      4,   8,  12,  16,  16,  12,   8,   4,
+                      3,   6,   9,  12,  12,   9,   6,   3,
+                      2,   4,   6,   8,   8,   6,   4,   2,
+                      1,   2,   3, -10, -10,   3,   2,   1,
+                      0,   0,   0, -40, -40,   0,   0,   0,
+                      0,   0,   0,   0,   0,   0,   0,   0
+                     }
+
+constant knight_pcsq = {
+                        -10, -10, -10, -10, -10, -10, -10, -10,
+                        -10,   0,   0,   0,   0,   0,   0, -10,
+                        -10,   0,   5,   5,   5,   5,   0, -10,
+                        -10,   0,   5,  10,  10,   5,   0, -10,
+                        -10,   0,   5,  10,  10,   5,   0, -10,
+                        -10,   0,   5,   5,   5,   5,   0, -10,
+                        -10,   0,   0,   0,   0,   0,   0, -10,
+                        -10, -30, -10, -10, -10, -10, -30, -10
+                       }
+
+constant bishop_pcsq = {
+                        -10, -10, -10, -10, -10, -10, -10, -10,
+                        -10,   0,   0,   0,   0,   0,   0, -10,
+                        -10,   0,   5,   5,   5,   5,   0, -10,
+                        -10,   0,   5,  10,  10,   5,   0, -10,
+                        -10,   0,   5,  10,  10,   5,   0, -10,
+                        -10,   0,   5,   5,   5,   5,   0, -10,
+                        -10,   0,   0,   0,   0,   0,   0, -10,
+                        -10, -10, -20, -10, -10, -20, -10, -10
+                       }
+
+constant king_pcsq = {-8, -8, -8, -8, -8, -8, -8, -8,
+                      -8, -8, -8, -8, -8, -8, -8, -8,
+                      -8, -8, -8, -8, -8, -8, -8, -8,
+                      -8, -8, -8, -8, -8, -8, -8, -8,
+                      -8, -8, -8, -8, -8, -8, -8, -8,
+                      -8, -8, -8, -8, -8, -8, -8, -8,
+                      -4, -4, -4, -4, -4, -4, -4, -4,
+                       0,  4,  8, -4,  0, -4,  8,  4
+                     }
+
+constant king_endgame_pcsq = { 0,  10,  20, 30,  30,  20,  10,   0,
+                              10,  20,  30, 40,  40,  30,  20,  10,
+                              20,  30,  40, 50,  50,  40,  30,  20,
+                              30,  40,  50, 60,  60,  50,  40,  30,
+                              30,  40,  50, 60,  60,  50,  40,  30,
+                              20,  30,  40, 50,  50,  40,  30,  20,
+                              10,  20,  30, 40,  40,  30,  20,  10,
+                               0,  10,  20, 30,  30,  20,  10,   0
+                             }
+
+-- The flip array is used to calculate the piece/square
+-- values for DARK pieces. The piece/square value of a
+-- LITE pawn is pawn_pcsq[sq] and the value of a DARK
+-- pawn is pawn_pcsq[flip[sq]]
+
+constant flip = {57,  58,  59,  60,  61,  62,  63,  64,
+                 49,  50,  51,  52,  53,  54,  55,  56,
+                 41,  42,  43,  44,  45,  46,  47,  48,
+                 33,  34,  35,  36,  37,  38,  39,  40,
+                 25,  26,  27,  28,  29,  30,  31,  32,
+                 17,  18,  19,  20,  21,  22,  23,  24,
+                  9,  10,  11,  12,  13,  14,  15,  16,
+                  1,   2,   3,   4,   5,   6,   7,   8
+                }
+
+-- pawn_count[x][y] is the number of pawns of color x on file y.
+-- The array has two extra files (0 and 9) that will always be 0
+-- so we can use the same pawn evaluation code on every pawn without
+-- worrying about going out of bounds in the array.
+
+sequence pawn_count
+
+-- pawn_rank[x][y] is the rank of the least advanced pawn of color x
+-- on file y. If there isn't a pawn on that file, we assume it
+-- advanced off the board. This is a kludge that makes some of the
+-- pawn evaluation code work. This array has two extra files for the
+-- same reason pawn_count does.
+
+sequence pawn_rank
+
+sequence piece_mat = {0,0}, -- the value of a side's pieces
+         pawn_mat = {0,0}   -- the value of a side's pawns
+
+
+function eval_light_pawn(integer sq)
+
+    integer result = pawn_pcsq[sq],
+            file = get_file(sq)+1,
+            rank = get_rank(sq)
+
+    -- if there's a pawn behind this one, it's doubled
+    if pawn_rank[LITE][file]>rank then
+        result -= DOUBLED_PAWN_PENALTY
+    end if
+
+    -- if there aren't any friendly pawns on either side of
+    --  this one, it's isolated
+    if  not pawn_count[LITE][file-1]
+    and not pawn_count[LITE][file+1] then
+        result -= ISOLATED_PAWN_PENALTY
+
+    -- if it's not isolated, it might be backwards
+    elsif pawn_rank[LITE][file-1]<rank
+      and pawn_rank[LITE][file+1]<rank then
+        result -= BACKWARDS_PAWN_PENALTY
+    end if
+
+    -- add a bonus if the pawn is passed
+    if pawn_rank[DARK][file-1]>=rank and 
+       pawn_rank[DARK][file]  >=rank and
+       pawn_rank[DARK][file+1]>=rank then
+        result += (9-rank)*PASSED_PAWN_BONUS
+    end if
+
+    return result
+end function
+
+function eval_dark_pawn(integer sq)
+
+    integer result = pawn_pcsq[flip[sq]],
+            file = get_file(sq)+1,
+            rank = get_rank(sq)
+
+    -- if there's a pawn behind this one, it's doubled
+    if pawn_rank[DARK][file]<rank then
+        result -= DOUBLED_PAWN_PENALTY
+    end if
+
+    -- if there aren't any friendly pawns on either side of
+    --  this one, it's isolated
+    if  not pawn_count[DARK][file-1]
+    and not pawn_count[DARK][file+1] then
+        result -= ISOLATED_PAWN_PENALTY
+
+    -- if it's not isolated, it might be backwards
+    elsif pawn_rank[DARK][file-1]>rank
+      and pawn_rank[DARK][file+1]>rank then
+        result -= BACKWARDS_PAWN_PENALTY
+    end if
+
+    -- add a bonus if the pawn is passed
+    if pawn_rank[LITE][file-1]<=rank    and
+       pawn_rank[LITE][file]  <=rank and
+       pawn_rank[LITE][file+1]<=rank then
+        result += 9-rank*PASSED_PAWN_BONUS
+    end if
+
+    return result
+
+end function
+
+
+-- The following two functions are the king safety functions.
+--  Here's the idea:
+--  First, the piece/square value is added to result
+--  Second, the pawns in front of the king are evaluated. If the
+--  king is on the queenside, the pawns on files a, b, and c
+--      are evaluated. If the king is on the kingside, the pawns
+--      on files f, g, and h are evaluated. The evaluation of each
+--      file works like this: if there isn't a friendly pawn on the
+--      file, it's considered open and a penalty is assessed. If
+--      there is a friendly pawn on the file, and it hasn't been
+--      pushed, nothing happens. If it's been pushed one square,
+--      a penalty is assessed. If it's been pushed more than one
+--      square, a penalty (usually bigger) is assessed. After this
+--      is done for the three files, the enemy pawns are examined.
+--      If they are getting too close to the king, it's a "pawn
+--      storm" and penalties are assessed. If the king isn't on
+--      the kingside or the queenside, i.e., if it's on one of the
+--      two center files, then the three files closest to it are
+--      examined. A penalty is assessed for each one of these files
+--      that's empty.
+--  Finally, the score is multiplied by a scalar of the opponent's
+--  material. The rationale for this is that if there are problems
+--      with your king safety and your opponent has a lot of pieces,
+--      you're in trouble because it's easy for your opponent to
+--      attack you. On the other hand, if you have problems with your
+--      king safety and your opponent has no pieces, then it simply
+--      does not really matter, because he cannot attack you.
+--
+function eval_light_king(integer sq)
+
+    integer result = king_pcsq[sq]
+
+    integer file = get_file(sq)
+    if file<4 then
+        -- file 'a'
+        if pawn_count[LITE][2] then
+            if pawn_rank[LITE][2]=6 then
+                result -= 2
+            elsif pawn_rank[LITE][2]!=7 then
+                result -= 4
+            end if
+        elsif not pawn_count[DARK][2] then
+            result -= 8
+        end if
+        -- file 'b'
+        if pawn_count[LITE][3] then
+            if pawn_rank[LITE][3]=6 then
+                result -= 2
+            elsif pawn_rank[LITE][3]!=7 then
+                result -= 4
+            end if
+        elsif not pawn_count[DARK][3] then
+            result -= 8
+        end if
+        -- file 'c'
+        if pawn_count[LITE][4] then
+            if pawn_rank[LITE][4]=6 then
+                result -= 1
+            elsif pawn_rank[LITE][4]!=7 then
+                result -= 3
+            end if
+        elsif not pawn_count[DARK][4] then
+            result -= 5
+        end if
+        -- pawn storm
+        for i=2 to 4 do
+            if pawn_count[DARK][i] then
+                if pawn_rank[DARK][i]>4 then
+                    result -= 2
+                elsif pawn_rank[DARK][i]>3 then
+                    result -= 1
+                end if
+            end if
+        end for
+    elsif file>5 then
+        -- file 'h'
+        if pawn_count[LITE][9] then
+            if pawn_rank[LITE][9]=6 then
+                result -= 2
+            elsif pawn_rank[LITE][9]!=7 then
+                result -= 4
+            end if
+        elsif not pawn_count[DARK][9] then
+            result -= 8
+            -- file 'g'
+            if pawn_count[LITE][8] then
+                if(pawn_rank[LITE][8]=6) then
+                    result -= 2
+                elsif pawn_rank[LITE][8]!=7 then
+                    result -= 4
+                end if
+            elsif not pawn_count[DARK][8] then
+                result -= 8
+            end if
+            -- file 'f'
+            if pawn_count[LITE][7] then
+                if pawn_rank[LITE][7]=6 then
+                    result -= 1
+                elsif pawn_rank[LITE][7]!=7 then
+                    result -= 3
+                end if
+            elsif not pawn_count[DARK][7] then
+                result -= 5
+            end if
+            -- pawn storm
+            for i=7 to 9 do
+                if pawn_count[DARK][i] then
+                    if pawn_rank[DARK][i]>4 then
+                        result -= 2
+                    elsif pawn_rank[DARK][i]>3 then
+                        result -= 1
+                    end if
+                end if
+            end for
+        end if
+    else
+        for i=file to file+2 do
+            if not pawn_count[LITE][i] and not pawn_count[DARK][i] then
+                result -= 2
+            end if
+        end for
+    end if
+
+    result *= floor(piece_mat[DARK]/600)
+
+    return result
+
+end function
+
+function eval_dark_king(integer sq)
+
+    integer result = king_pcsq[flip[sq]]
+
+    integer file = get_file(sq)
+    if file<4 then
+        -- file 'a'
+        if pawn_count[DARK][2] then
+            if pawn_rank[DARK][2]=3 then
+                result -= 2
+            elsif pawn_rank[DARK][2]!=2 then
+                result -= 4
+            end if
+        elsif not pawn_count[LITE][3] then
+            result -= 8
+        end if
+        -- file 'b'
+        if pawn_count[DARK][3] then
+            if pawn_rank[DARK][3]=3 then
+                result -= 2
+            elsif pawn_rank[DARK][3]!=2 then
+                result -= 4
+            end if
+        elsif not pawn_count[LITE][3] then
+            result -= 8
+        end if
+        -- file 'c'
+        if pawn_count[DARK][4] then
+            if pawn_rank[DARK][4]=3 then
+                result -= 1
+            elsif pawn_rank[DARK][4]!=2 then
+                result -= 3
+            end if
+        elsif not pawn_count[LITE][4] then
+            result -= 5
+        end if
+        -- pawn storm
+        for i=2 to 4 do
+            if pawn_count[LITE][i] then
+                if pawn_rank[LITE][i]<6 then
+                    if pawn_rank[DARK][i]<5 then
+                        result -= 2
+                    else
+                        result -= 1
+                    end if
+                end if
+            end if
+        end for
+    elsif file>5 then
+        -- file 'h'
+        if pawn_count[DARK][9] then
+            if pawn_rank[DARK][9]=3 then
+                result -= 2
+            elsif pawn_rank[DARK][9]!=2 then
+                result -= 4
+            end if
+        elsif not pawn_count[LITE][9] then
+            result -= 8
+        end if
+        -- file 'g'
+        if pawn_count[DARK][8] then
+            if pawn_rank[DARK][8]=3 then
+                result -= 2
+            elsif pawn_rank[DARK][8]!=2 then
+                result -= 4
+            end if
+        elsif not pawn_count[LITE][8] then
+            result -= 8
+        end if
+        -- file 'f'
+        if pawn_count[DARK][7] then
+            if pawn_rank[DARK][7]=3 then
+                result -= 1
+            elsif pawn_rank[DARK][7]!=2 then
+                result -= 3
+            end if
+        elsif not pawn_count[LITE][7] then
+            result -= 5
+        end if
+        -- pawn storm
+        for i=7 to 9 do
+            if pawn_count[LITE][i] then
+                if pawn_rank[LITE][i]<6 then
+                    if pawn_rank[LITE][i]<5 then
+                        result -= 2
+                    else
+                        result -= 1
+                    end if
+                end if
+            end if
+        end for
+    else
+        for i=file to file+2 do
+            if not pawn_count[LITE][i] and not pawn_count[DARK][i] then
+                result -= 2
+            end if
+        end for
+    end if
+
+    result *= floor(piece_mat[LITE]/600)
+
+    return result
+
+end function
+
+
+function eval()
+
+    integer file, rank
+    sequence score = {0,0}  -- each side's score
+
+    -- this is the first pass: set up pawn_count, pawn_rank,
+    -- piece_mat, and pawn_mat.
+
+    pawn_count  = repeat(repeat(0,10),2)
+    pawn_rank  = repeat(repeat(0,10),2)
+
+--  pawn_rank[DARK]  += 9 
+    pawn_rank[DARK]  = sq_add(pawn_rank[DARK],9)
+
+    piece_mat[LITE] = 0
+    piece_mat[DARK] = 0
+    pawn_mat[LITE] = 0
+    pawn_mat[DARK] = 0
+
+    for i=1 to 64 do
+        if color[i]!=EMPTY then
+            if piece[i]=PAWN then
+                pawn_mat[color[i]] += piece_value[PAWN]
+                file = get_file(i)+1   -- add 1 because of the extra file in the array
+                rank = get_rank(i)
+                if color[i]=LITE then
+                    pawn_count[LITE][file] += 1
+                    if pawn_rank[LITE][file]<rank then
+                        pawn_rank[LITE][file] = rank
+                    end if
+                else -- color is DARK
+                    pawn_count[DARK][file] += 1
+                    if pawn_rank[DARK][file]>rank then
+                        pawn_rank[DARK][file] = rank
+                    end if
+                end if
+            else -- piece not a pawn
+                piece_mat[color[i]] += piece_value[piece[i]]
+            end if
+        end if
+    end for
+
+    -- this is the second pass: evaluate each piece
+
+    score[LITE] = piece_mat[LITE]+pawn_mat[LITE]
+    score[DARK] = piece_mat[DARK]+pawn_mat[DARK]
+
+    for i=1 to 64 do
+        if color[i]!=EMPTY then
+            if color[i]=LITE then
+                if piece[i]=PAWN then
+                    score[LITE] += eval_light_pawn(i)
+                elsif piece[i]=KNIGHT then
+                    score[LITE] += knight_pcsq[i]
+                elsif piece[i]=BISHOP then
+                    score[LITE] += bishop_pcsq[i]
+                elsif piece[i]=ROOK then
+                    integer file1 = get_file(i)+1
+                    if not pawn_count[LITE][file1] then
+                        score[LITE] += ROOK_SEMI_OPEN_FILE_BONUS
+                        if not pawn_count[DARK][file1] then
+                            score[LITE] += ROOK_OPEN_FILE_BONUS
+                        end if
+                        if get_rank(i)=2 then
+                            score[LITE] += ROOK_ON_SEVENTH_BONUS
+                        end if
+                    end if
+                elsif piece[i]=KING then
+                    if piece_mat[DARK]<=1200 then
+                        score[LITE] += king_endgame_pcsq[i]
+                    else
+                        score[LITE] += eval_light_king(i)
+                    end if
+                end if
+            else -- DARK side
+                if piece[i]=PAWN then
+                    score[DARK] += eval_dark_pawn(i)
+                elsif piece[i]=KNIGHT then
+                    score[DARK] += knight_pcsq[flip[i]]
+                elsif piece[i]=BISHOP then
+                    score[DARK] += bishop_pcsq[flip[i]]
+                elsif piece[i]=ROOK then
+                    integer file1 = get_file(i)+1
+                    if not pawn_count[DARK][file1] then
+                        score[DARK] += ROOK_SEMI_OPEN_FILE_BONUS
+                        if not pawn_count[LITE][file1] then
+                            score[DARK] += ROOK_OPEN_FILE_BONUS
+                        end if
+                    end if
+                    if get_rank(i)=7 then
+                        score[DARK] += ROOK_ON_SEVENTH_BONUS
+                    end if
+                elsif piece[i]=KING then
+                    if piece_mat[LITE]<=1200 then
+                        score[DARK] += king_endgame_pcsq[flip[i]]
+                    else
+                        score[DARK] += eval_dark_king(i)
+                    end if
+                end if
+            end if
+        end if
+    end for
+
+    -- the score[] array is set, now return the score relative
+    -- to the side to move
+
+    if side=LITE then
+        return score[LITE]-score[DARK]
+    end if
+
+    return score[DARK]-score[LITE]
+
+end function
+
+function reps()
+-- returns #times the current position has been repeated.
+    integer r = 0
+    sequence cp = {color,piece}
+    for i=1 to length(cp_list) do
+        if cp = cp_list[i] then
+            r += 1
+        end if
+    end for
+    return r
+end function
+
+procedure sort_pv()
+--
+--  sort_pv() is called when the search function is following
+--  the PV (Principal Variation). It looks through the current
+--  ply's move list to see if the PV move is there. If so,
+--  it adds 10,000,000 to the move's score so it's played first
+--  by the search function. If not, follow_pv remains false and
+--  search() stops calling sort_pv().
+--
+    follow_pv = false
+    for i=1 to length(move_stack[ply])  do
+        if equal(move_stack[ply][i][MOVE_],pv[ply][i]) then
+            follow_pv = true
+            move_stack[ply][i][SCORE] += 10000000
+            return
+        end if
+    end for
+end procedure
+
+--DEV builtin/(procedural)opcode? or just as-is/autoinclude pswap.e?
+--function swap(sequence s, integer i, j)
+--  {s[i],s[j]} = {s[j],s[i]}
+--  return s
+--end function
+
+procedure sort_ply(integer from)
+--
+--  sort_ply() searches the current ply's move list from 'from'
+--  to the end to find the move with the highest score. Then it
+--  swaps that move and the 'from' move so the move with the
+--  highest score gets searched next, and hopefully produces
+--  a cutoff.
+--
+    integer bs = -1,     -- best score
+            bi = 1       -- best i
+
+    for i=from to length(move_stack[ply]) do
+        integer score = move_stack[ply][i][SCORE]
+        if score>bs then
+            bs = score
+            bi = i
+        end if
+    end for
+--  move_stack[ply] = swap(move_stack[ply],from,bi)
+    {move_stack[ply][from],move_stack[ply][bi]} = {move_stack[ply][bi],move_stack[ply][from]}
+
+end procedure
+
+function quiesce(integer alpha,integer beta)
+--
+-- quiesce() is a recursive minimax search function with
+-- alpha-beta cutoffs. In other words, negamax. It basically
+-- only searches capture sequences and allows the evaluation
+-- Function to cut the search off (and set alpha). The idea
+-- is to find a position where there isn't a lot going on
+-- so the static evaluation function will work.
+--
+    integer x
+    integer c   -- in check
+    integer f   -- legal move found
+
+    nodes += 1
+
+    pv_length[ply] = ply
+
+    c = in_check(side)
+
+    -- if we're in check, try all moves to get out. (not
+    -- necessary, just something I (Tom) decided to do)
+
+    if c then
+        gen()
+    else -- otherwise, use the evaluation function.
+        x = eval()
+        if x>=beta then
+            return beta
+        end if
+        if x>alpha then
+            alpha = x
+        end if
+        gen(captures_only:=true)
+    end if
+
+    if follow_pv then  -- are we following the PV?
+        sort_pv()
+    end if
+
+    f = false
+
+    -- loop through the moves
+
+    for i=1 to length(move_stack[ply]) do
+        sort_ply(i)
+        if makemove(move_stack[ply][i][MOVE_]) then
+            f = true     -- we found a legal move!
+            x = -quiesce(-beta,-alpha)
+            takeback()
+            if x>alpha then
+                if x>=beta then
+                    return beta
+                end if
+                alpha = x
+                -- update the PV
+                pv[ply][ply] = move_stack[ply][i][MOVE_]
+                for j=ply+1 to pv_length[ply+1]-1 do
+                    pv[ply][j] = pv[ply+1][j]
+                end for
+                pv_length[ply] = pv_length[ply+1]
+            end if
+        end if
+    end for
+
+    -- if we are in check with no legal moves, we lost
+
+    if not f and c then
+        return -10000+ply-1
+    end if
+
+    return alpha
+
+end function
+
+
+function search(integer alpha,integer beta,integer depth)
+-- does exactly what it says on the tin, in negamax fashion
+    integer x
+    integer c,f
+
+    if not depth then
+        -- we are as deep as we want to be. call quiesce() to get
+        --   a reasonable score and return it.
+        return quiesce(alpha,beta)
+    end if
+
+    nodes += 1
+
+    pv_length[ply] = ply
+
+    c = in_check(side)
+    if c then
+        depth += 1      -- search deeper when in check
+    end if
+
+    gen()
+
+    if follow_pv then  -- are we following the PV?
+        sort_pv()
+    end if
+
+    f = false
+
+    -- loop through the moves
+
+    for i=1 to length(move_stack[ply]) do
+        sort_ply(i)
+        sequence move = move_stack[ply][i][MOVE_]
+        if makemove(move) then
+            f = true
+            x = -search(-beta,-alpha,depth-1)
+            takeback()
+            if x>alpha then
+                -- this move caused a cutoff, so increase the history
+                -- value so it gets ordered high next time we can
+                -- search it
+                history[move[FROM]][move[TO]] += depth
+                if x>=beta then
+                    return beta
+                end if
+                alpha = x
+                -- update the PV
+                pv[ply][ply] = move
+                for j=ply+1 to pv_length[ply+1] do
+                    pv[ply][j] = pv[ply+1][j]
+                end for
+                pv_length[ply] = pv_length[ply+1]
+            end if
+        end if
+    end for
+
+    if not f then
+        -- no legal moves? then we're in checkmate or stalemate
+        if c then
+            return -10000+ply-1
+        else
+            return 0
+        end if
+    end if
+
+    -- fifty move draw rule
+    if fifty>=100 then return 0 end if
+
+    return alpha
+
+end function
+
+
+procedure think(integer output, string what="pv")
+--
+-- think() calls search() iteratively. Search statistics
+-- are printed depending on the value of output:
+-- 0 = no output
+-- 1 = normal output
+--
+--  -- try the opening book first
+--  pv[0][0].u = book_move();
+--  if (pv[0][0].u != -1)
+--      return;
+
+    ply = 1
+    nodes = 0
+--  memset(pv, 0, sizeof(pv));
+--  memset(history, 0, sizeof(history));
+--test:
+--history = repeat(repeat(0,HIST_STACK),HIST_STACK)
+    if output=1 then
+        printf(1,"ply      nodes  score  %s\n",{what})
+    end if
+    for i=1 to max_depth do
+        follow_pv = true
+        integer x = search(-10000,10000,i)
+        if output=1 then
+            printf(1,"%3d  %9d  %5d ",{i,nodes,x})
+            for j=1 to pv_length[1] do
+                printf(1," %s", move_str(pv[1][j]))
+            end for
+            printf(1,"\n")
+        end if
+        if x>=9999 or x<= -10000 then
+            gameover = 1
+            exit
+        end if
+    end for
+end procedure
+
+function parse_move(string s)
+--
+-- parse the move s (in coordinate notation, eg e2e4) and return 
+-- the move index in move_stack[1], or -1 if the move is illegal.
+--
+    -- first make sure the string looks like a move
+    if length(s)<4
+    or s[1]<'a' or s[1]>'h' or s[2]<'0' or s[2]>'9'
+    or s[3]<'a' or s[3]>'h' or s[4]<'0' or s[4]>'9' then
+        return -1
+    end if
+
+    integer f = s[1]-'a'+1+8*(8-(s[2]-'0')),
+            t = s[3]-'a'+1+8*(8-(s[4]-'0'))
+
+    for i=1 to length(move_stack[1]) do
+        sequence move = move_stack[1][i][MOVE_]
+        if move[FROM]==f
+        and move[TO]==t then
+
+            -- if the move is a promotion, handle the promotion piece;
+            -- assume promotion moves occur consecutively in move_stack.
+            if and_bits(move[BITS],B_PROMOTE) then
+                integer s5 = iff(length(s)=5?upper(s[5]):'Q')
+                switch s5 do
+                    case 'N':   return i
+                    case 'B':   return i+1
+                    case 'R':   return i+2
+                    default:    return i+3
+                end switch
+            end if
+            return i
+        end if
+    end for
+    return -1   -- did not find the move
+end function
+
+function print_result()
+--
+-- Check to see if the game is over: if so print the result and
+-- return false to indicate that (automatic) play should stop.
+-- 
+    bool legal_move = false
+    string msg
+    for i=1 to length(move_stack[1]) do
+        if makemove(move_stack[1][i][MOVE_]) then
+            takeback()
+            legal_move = true
+            exit
+        end if
+    end for
+    if not legal_move then
+        if in_check(side) then
+            if side=LITE then
+                msg = "0-1 {Black mates}"
+            else
+                msg = "1-0 {White mates}"
+            end if
+        else
+            msg = "1/2-1/2 {Stalemate}"
+        end if
+    elsif reps() == 2 then
+        msg = "1/2-1/2 {Draw by repetition}"
+        legal_move = false
+    elsif fifty>=100 then
+        msg = "1/2-1/2 {Draw by fifty move rule}"
+        legal_move = false
+    end if
+    if not legal_move then
+        printf(1,"%s (%d moves)\n",{msg,counter})
+?{counter,length(move_list),elapsed(time()-t0)}
+    end if
+    return legal_move
+end function
+
+procedure print_board()
+    for i=1 to 64 do
+        if remainder(i,8)=1 then printf(1,"\n%d ",8-floor((i-1)/8)) end if
+        integer pi = ".PNBRQK"[piece[i]+1] + (color[i]=DARK)*('a'-'A')
+        printf(1," %c",pi)
+    end for
+    printf(1,"\n\n   a b c d e f g h\n\n")
+end procedure
+
+procedure finish_move(string m, sequence cp)
+    move_list = append(move_list,{m,hist_dat[1]})
+    cp_list = append(cp_list,cp)
+    counter += 1
+    ply = 1
+    gen()
+    print_board()
+    if not print_result() then
+        gameover = true
+    end if
+end procedure
+
+procedure computer_move()
+    sequence m = pv[1][1]
+    if m=MOVE_REC then
+        printf(1,"(no legal moves)\n")
+        gameover = true
+    else
+        string cm = move_str(m),
+               mc = {"white","black"}[side]
+        printf(1,"Computer (%s)'s move: %s [%d]\n", {mc,cm,counter})
+        sequence cp = {color,piece}
+        if not makemove(m) then ?9/0 end if
+        finish_move(cm,cp)
+    end if
+end procedure
+
+procedure user_move(string s)
+    sequence cp = {color,piece}
+    integer mdx = parse_move(s)
+    if mdx=-1 or gameover or not makemove(move_stack[1][MOVE_]) then
+        printf(1,"Illegal move.\n")
+    else
+        finish_move(s,cp)
+    end if
+end procedure
+
+constant intro = """
+Tom Kerrigan's Simple Chess Program (TSCP)
+"help" displays a list of commands.
+
+""",
+help_text = """
+on - computer plays for the side to move
+on2 - computer plays against itself (press any key to interrupt)
+off - computer stops playing
+sd - set search depth per move
+u(ndo) - takes back a move
+n(ew) - starts a new game
+d - display the board
+h(int) - suggest a move
+<cr> - "" and play it
+bye - exit the program
+Enter moves in coordinate notation, e.g., e2e4, e7e8Q
+"""
+
+procedure main()
+sequence computer = {} -- or {LITE}, {DARK}, or {LITE,DARK}
+
+--  integer m   --DEV...
+--  sequence m
+
+    printf(1,intro)
+--  init_hash()
+    init_board()
+    print_board()
+
+--  open_book()
+    gen()
+    max_depth = 4
+--  max_depth = 3
+--  max_depth = 2
+    while true do
+--max_depth = iff(side=LITE?4:3)
+--max_depth = iff(side=LITE?3:4)
+--max_depth = iff(side=LITE?3:2)
+--max_depth = iff(side=LITE?2:3)
+
+        if find(side,computer) and not gameover then
+
+            -- think about the move and make it
+            think(1)
+            computer_move()
+            if get_key()!=-1 then
+                computer = {}
+            end if
+        else
+
+            -- get user input
+            string tp = iff(gameover?"":sprintf("(%s to play)",{"white","black"}[side]))
+            printf(1,"tscp%s> ",{tp})
+            string s = trim(gets(0))
+            printf(1,"\n")
+            switch s do
+                case "on":      computer &= side
+                case "on2":     computer = {LITE,DARK}
+                case "off":     computer = {}
+                case "sd":      printf(1,"max depth:")
+                                s = trim(gets(0))
+                                sequence r = scanf(s,"%d")
+                                if length(r)=1 then
+                                    max_depth = r[1][1]
+                                    printf(1,"\n")
+                                else
+                                    printf(1," unrecognised\n")
+                                end if
+                case "u",
+                     "undo":    if length(move_list)!=0 then
+                                    computer = {}
+                                    ply = 2
+                                    hist_dat[1] = move_list[$][2]
+                                    takeback()
+                                    move_list = move_list[1..$-1]
+                                    cp_list = cp_list[1..$-1]
+                                    counter -= 1
+                                    gameover = false
+                                    ply = 1
+                                    gen()
+                                    print_board()
+                                end if
+                case "n",
+                     "new":     init_board()
+                                gen()
+                                print_board()
+                case "d":       print_board()
+                case "","h",
+                     "hint":    if gameover then
+                                    printf(1,"game over.\n")
+                                else
+                                    think(1,"hints")
+                                    if s="" then computer_move() end if
+                                end if
+                case "q",
+                     "quit",
+                     "bye":     printf(1,"Share and enjoy!\n")
+                                exit
+                case "!":       crash("'!' keyed!\n")
+                case "help":    printf(1,help_text)
+                default:        user_move(s)
+            end switch
+        end if
+    end while
+--  close_book()
+end procedure
+main()
+
+--/*
+Tom Kerrigan's Simple Chess Program (TSCP)
+version 1.81, 2/5/03
+Copyright 1997 Tom Kerrigan
+
+"help" displays a list of commands.
+
+Opening book missing.
+tscp> d
+
+8  r n b q k b n r
+7  p p p p p p p p
+6  . . . . . . . .
+5  . . . . . . . .
+4  . . . . . . . .
+3  . . . . . . . .
+2  P P P P P P P P
+1  R N B Q K B N R
+
+   a b c d e f g h
+
+tscp> on
+ply      nodes  score  pv
+  1         21     48  d2d4
+  2         84      0  d2d4 d7d5
+  3        800     35  d2d4 d7d5 b1c3
+  4       4219      5  e2e4 d7d5 f1b5 c8d7 b5d3
+Computer's move: e2e4
+tscp> d
+
+8  r n b q k b n r
+7  p p p p p p p p
+6  . . . . . . . .
+5  . . . . . . . .
+4  . . . . P . . .
+3  . . . . . . . .
+2  P P P P . P P P
+1  R N B Q K B N R
+
+   a b c d e f g h
+
+tscp>
+--*/
+
+--/*
+constant show_bad_boards = false
+ 
+string board
+ 
+function fen()
+    string res = ""
+    for i=1 to 64 by 8 do
+        integer empty = 0
+        for j=i to i+7 do
+            if board[j]='.' then
+                empty += 1
+            else
+                if empty then
+                    res &= empty+'0'
+                    empty = 0
+                end if
+                res &= board[j]
+            end if
+        end for
+        if empty then
+            res &= empty+'0'
+        end if
+        if i<57 then res &= '/' end if
+    end for
+    res &= " w - - 0 1"
+    return res
+end function
+ 
+function p15()
+    string res = "pppppppprrnnbbq"
+    -- promote 0..8 pawns
+    for i=1 to rand(9)-1 do
+        res[i] = res[rand(7)+8]
+    end for
+    res = shuffle(res)
+    return res
+end function
+ 
+function kings_adjacent(sequence p12)
+    integer {p1,p2} = sq_sub(p12,1),
+            row_diff = abs(floor(p1/8)-floor(p2/8)),
+            col_diff = abs(mod(p1,8)-mod(p2,8))
+    return row_diff<=1 and col_diff<=1
+end function
+ 
+integer lp
+procedure show_board()
+    printf(1,"%d pieces\n%s",{lp,join_by(board,1,8,"")})
+end procedure
+ 
+while true do
+    string pieces = "Kk"&                        -- kings
+                    upper(p15())[1..rand(16)-1]& -- white
+                    lower(p15())[1..rand(16)-1]  -- black
+    lp = length(pieces)
+    sequence p = tagset(64)
+    p = shuffle(p)
+    board = repeat('.',64)
+    for i=1 to lp do board[p[i]] = pieces[i] end for
+ 
+    if kings_adjacent(p[1..2]) then
+        if show_bad_boards then show_board() end if
+        puts(1,"kings adjacent - reshuffle\n\n")
+    else
+        -- check no pawn will be on a promotion square,
+        -- and (above spec) no pawn has gone backwards:
+        if find('p',lower(board[1..8]&board[57..64]))=0 then exit end if
+        if show_bad_boards then show_board() end if
+        puts(1,"pawn on rank 1/8 - reshuffle\n\n")
+    end if
+end while
+show_board()
+printf(1,"\n%s\n",{fen()})
+--*/
+--/*
+To allow pawns that have "moved backwards", replace the inner test with if not find('P',board[1..8]) and not find('p',board[57..64]) then exit end if
+Output: (eg)
+10 pieces
+......K.
+b......q
+...nn...
+.....k..
+........
+..Q..n..
+..b..r..
+........
+6K1/b6q/3nn3/5k2/8/2Q2n2/2b2r2/8 w - - 0 1
+--*/
+
+

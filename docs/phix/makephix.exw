@@ -23,6 +23,7 @@
 -- For the web version: create html/images, and copy phix.htm to index.htm (see installation.txt)
 
 -- Quick ref (for want of anywhere better to put it)
+
 --  It's -> It&rsquo;s
 --  '\'' -> '\&#39;'    (when syntax colouring goes wrong)
 --  'text' -> &lsquo;text&rsquo; ("")
@@ -37,12 +38,14 @@ free_console()
 
 constant justcompile = 0    -- (occasionally helpful if you need to manually edit something)
                             -- (nb windows only!)
+constant wikidocs = 0
 constant replaceprewithcode = 0
 constant displaycompileprogress = 0
 
 sequence tocf = {}  -- filenames
 sequence tocl = {}  -- levels
 sequence tocln = {} -- line nos
+global
 sequence contents
 sequence descriptions
 sequence index
@@ -60,6 +63,7 @@ constant stdhdr = "<head>\n <body>\n  <toc>\n   <these>\n    <get>\n     <stripp
 procedure fatal(string msg)
     puts(1,msg)
     if getc(0) then end if
+contents = {}
     ?9/0
 end procedure
 
@@ -101,9 +105,13 @@ integer startidx, endidx, k
                     exit
                 end if
             end for
-            tocf = append(tocf,trim_head(line))
-            tocl = append(tocl,level)
-            tocln = append(tocln,lineno)
+            if not wikidocs
+--          or not match("sqlite3_lang_",line) then
+            or not match("sqlite3_lang",line) then
+                tocf = append(tocf,trim_head(line))
+                tocl = append(tocl,level)
+                tocln = append(tocln,lineno)
+            end if
         end if
     end while
     close(fn)
@@ -163,6 +171,9 @@ integer startidx, endidx, k
         filename = tocf[i]
 --      filename = "src\\"&filename&".htm" 
         filename = join_path({current_dir(),"src",filename&".htm"}) 
+--temp, for linux:
+string test = get_proper_path(filename)
+if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
         fn = open(filename,"r")
         if fn=-1 then fatal("error opening "&filename&"\n") end if
         content = ""
@@ -208,6 +219,9 @@ integer startidx, endidx, k
         if dend=0 then fatal("close title error in "&filename&"\n") end if
         description = content[dstart..dend-1]
         contents[i] = content
+        if wikidocs then
+            description = substitute(description,"/","")
+        end if
         descriptions[i] = description
         close(fn)
         if displaycompileprogress then
@@ -217,6 +231,9 @@ integer startidx, endidx, k
     for i=1 to length(stubnames) do
 --      filename = "src\\"&stubnames[i]&".htm" 
         filename = join_path({current_dir(),"src",stubnames[i]&".htm"}) 
+--temp, for linux:
+string test = get_proper_path(filename)
+if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
         fn = open(filename,"r")
         if fn=-1 then fatal("error opening "&filename&"\n") end if
         content = ""
@@ -247,25 +264,17 @@ function b(string desc)
     return desc
 end function
 
---with trace
-procedure write_toc(integer fn, integer i)
-sequence toci       -- (1 for anything we want to appear)
-integer this, that
-integer current = i
-string filename
-integer level
-string toclevel
-
-    toci = repeat(0,length(tocl))
+function get_toc(integer i)
+sequence toci = repeat(0,length(tocl))  -- (1 for anything we want to appear)
     --
     --  flag anything exactly one indent longer than "this", until we
     --  find anything shorter or equal to that, then find our "parent" 
     --  and repeat the process on that, until we hit/process the root.
     --
-    this = tocl[i]+1
+    integer this = tocl[i]+1
     while i>=0 do
         for k=i+1 to length(toci) do
-            that = tocl[k]
+            integer that = tocl[k]
             if that=this then
                 toci[k] = 1
             elsif that<=this then
@@ -282,7 +291,18 @@ string toclevel
             if tocl[i]=this-1 then exit end if
         end while
     end while       
-    
+    return toci
+end function
+
+--with trace
+procedure write_toc(integer fn, integer i)
+    sequence toci = get_toc(i)
+--integer this, that
+integer current = i
+string filename
+integer level
+string toclevel
+
     puts(fn,"    <div id=\"leftNav\">\n")
     puts(fn,"     <div id=\"tocnav\">\n")
     for i=1 to length(toci) do
@@ -296,6 +316,9 @@ string toclevel
             filename = tocf[i]
             if current=1 and i!=1 then
                 filename = "html/"&filename
+--20/9/19:
+            elsif current!=1 and i=1 then
+                filename = "../"&filename
             end if
             printf(fn,"       <a href=\"%s.htm\">%s</a>\n",{filename,b(descriptions[i])})
             puts(fn,"      </div>\n")
@@ -308,29 +331,1824 @@ string toclevel
     puts(fn,"     <div class=\"topic\">\n")
 end procedure
 
+--/* -- (not particularly impressed with the results...)
+procedure writeindex()
+--eg/ie:
+--* [[Introduction]] [[#intro]]
+--** [[Example Program]]
+    if not wikidocs then ?9/0 end if
+    if get_file_type("pmwiki")!=FILETYPE_DIRECTORY then
+        if not create_directory("pmwiki") then ?9/0 end if
+    end if
+    integer fn = open(join_path({"pmwiki","Docs.Index"}),"w")
+    if fn=-1 then ?9/0 end if
+    puts(1,"Writing index...\n")
+    for i=1 to length(tocf) do
+--      integer level = tocl[i]+1
+        integer level = min(tocl[i]+1,4)
+        string stars = repeat('*',level),
+               title = iff(i=1?"Phix":descriptions[i]),
+               filename = tocf[i],
+--             anchor = ""
+               anchor = iff(level=1?sprintf(" [[#%s]]",filename):"")
+--** [[File and Device I/O]]
+        title = substitute(title,"/","")
+--      if i=1 then title = "Phix" end if
+--      if level=1 then
+--          integer k = find(title,{"Phix"})
+--          if k=0 then ?9/0 end if
+--          anchor = {"phix"}[k]
+--          anchor = sprintf(" [[#%s]]",filename)
+--      end if
+        printf(fn,"%s [[%s]]%s\n",{stars,title,anchor})
+    end for
+    close(fn)
+end procedure
+--*/
+
+--constant PageContent = """
+--version=pmwiki-2.2.114 ordered=1 urlencoded=1
+--agent=Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.132 Safari/537.36 OPR/63.0.3368.94
+--author=Pete
+--charset=UTF-8
+--csum=
+--ctime=1220695294
+--host=213.205.198.150
+--name=%s
+--rev=1
+--targets=%s
+--text=%s
+--
+--""",
+constant PageContent = """
+version=pmwiki-2.2.114 ordered=1 urlencoded=1
+charset=UTF-8
+text=%s
+
+""",
+
+phixheader = "%25center%25 [++Phix++]%0a%0a%25center%25 The Phix Programming Language Reference Manual Wiki%0a%0a%25center%25 Version 0.8.0%0a%0a",
+contenthdr = "(:table border=0 align=left cellpadding=5 cellspacing=5:)%0a(:cell width=240:)%0a(:treemenu:)%0a",
+contentmid = "(:treemenuend:)%0a(:cell:)%0a",
+contentend = "%0a%0a(:tableend:)"
+
+procedure allwhite(string s)
+    if length(s)=0 then ?9/0 end if
+    for i=1 to length(s) do
+        if not find(s[i]," \n") then ?9/0 end if
+    end for
+end procedure
+
+function skips(integer dx, string content, skip)
+    for i=1 to length(skip) do
+        while find(content[dx]," \n") do dx += 1 end while
+        if content[dx]!=skip[i] then ?9/0 end if
+        dx += 1
+    end for
+    return dx
+end function
+
+constant csc = `<div id="code-snippet-1" class="codeSnippetContainer" xmlns="">`,
+--       csl = length(csc),
+         jid = `<a id="`,
+         jil = length(jid),
+         jstyle = `" style="color:#9B5565"`,
+         jsl = length(jstyle),
+         jelink = `href="javascript:ExternalLink('`,
+         jel = length(jelink)
+
+--DEV:  <col style="width 5%"/>
+--      <col style="width 8%"/>
+--      <col style="width 15%"/>
+--      <table border="1" cellpadding="2" width="80%">
+--      </td><td align="left" style="padding 0; border-style none; width 100%">
+--      <big>%</big>
+--C:\Program Files (x86)\Phix\docs\phix\src\installation.htm:143           <a id="exti02" style="color#9B5565" href="javascriptExternalLink('exti02','http//openeuphoria.org/wiki/view/How%20to%20Compi
+--C:\Program Files (x86)\Phix\docs\phix\src\installation.htm:144           http//openeuphoria.org/wiki/view/How%20to%20Compile%20Open%20Euphoria%20On%20Linux.wc</a> and I suspect the same or worse is
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:22             <table style="border1px solid #ffffff " border="0" cellpadding="0" cellspacing="0" width="100%">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:24                 <td style="border1px solid #ffffff " width="33%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:27                 <td style="border1px solid #ffffff " width="33%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:30                 <td style="border1px solid #ffffff " width="34%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:70             <table style="border1px solid #ffffff " border="0" cellpadding="0" cellspacing="0" width="100%">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:72                 <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:88                 <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:147         <table style="border1px solid #ffffff " border="0" cellpadding="0" cellspacing="0" width="100%">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:149             <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:165             <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:193         <table style="border1px solid #ffffff " border="0" cellpadding="0" cellspacing="0" width="100%">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:195             <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:211             <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:229         <table style="border1px solid #ffffff " border="0" cellpadding="0" cellspacing="0" width="100%">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:231             <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:256         <table style="border1px solid #ffffff " border="0" cellpadding="0" cellspacing="0" width="100%">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:258             <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\iuplayout.htm:274             <td style="border1px solid #ffffff " width="50%" class="style2">
+--C:\Program Files (x86)\Phix\docs\phix\src\IupWebBrowser.htm:42               href="javascriptExternalLink('ext239','http//msdn.microsoft.com/en-us/library/t9adwcde%28v=VS.80%29.aspx');">ATL</a>)
+--C:\Program Files (x86)\Phix\docs\phix\src\IupWebBrowser.htm:67               <a id="ext244" style="color#9B5565" href="javascriptExternalLink('ext244','http//msdn.microsoft.com/en-us/library/aa7520
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:48             <td> %d </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:53             <td> %f </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:58             <td> %H </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:63             <td> %j </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:68             <td> %J </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:73             <td> %m </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:78             <td> %M </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:83             <td> %s </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:88             <td> %S </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:93             <td> %w </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:98             <td> %W </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:103         <td> %Y </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:108         <td> %% </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:110         <td> %                                </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:129         <td>    strftime('%Y-%m-%d', ...)           </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:134         <td>    strftime('%H:%M:%S', ...)           </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:139         <td>    strftime('%Y-%m-%d %H:%M:%S', ...)  </td>
+--C:\Program Files (x86)\Phix\docs\phix\src\sqlite3_lang_datefunc.htm:144         <td>    strftime('%J', ...)                 </td>
+
+
+bool just_msgs = true
+sequence shown = {}
+
+include builtins\xml.e
+
+--  {{`ul`, {},
+--  {{`li`, {},
+--    {
+--     {`a`,
+--      {{`id`, `style`, `href`},
+--       {`ext001`, `color:#9B5565`,
+--        `javascript:ExternalLink('ext001','http://phix.x10.mx/tutorial.php');`}},
+--      {`http://phix.x10.mx/tutorial.php`}},
+--      ",\n            and also ",
+--     {`a`, {{`href`}, {`html/rectools.htm`}}, {`Recommended Tools`}},
+--     ".)\n        "}},
+--   {`li`, {},
+--    {"Phix programs are naturally generic. The\n         ",
+--     {`a`, {{`href`}, {`html/example.htm`}}, {`example program`}},
+--     "shows a single routine that will sort any type of data -- integers,\n            floating-point numbers, strings etc. Phix achieves many of the \n            benefits of object-oriented programming, yet in a much simpler way.\n        "}}}}}
+
+function get_attr(sequence attr, string attrname)
+-- attr should normally be some tag[HTML_ATTRIBS]
+-- attrname should normally be a fixed literal, eg "src"
+    integer idx = find(attrname,attr[XML_ATTRNAMES])
+    return attr[XML_ATTRVALUES][idx]
+end function
+
+function get_tag_text(sequence contents, string tagname)
+    string res = ""
+    for i=1 to length(contents) do
+        sequence ci = contents[i]
+        if not string(ci) then
+            string tag = ci[HTML_TAGNAME]
+            if tag=tagname then
+                if length(ci[HTML_CONTENTS])!=1 then ?9/0 end if
+                res = ci[HTML_CONTENTS][1]
+                exit
+            end if
+            res = get_tag_text(ci[HTML_CONTENTS],tagname)
+            if length(res) then exit end if
+        end if
+    end for 
+    return res
+end function
+
+function plain_text(sequence contents)
+    string res = ""
+    if string(contents) then
+        res = contents
+    else
+        for i=1 to length(contents[HTML_CONTENTS]) do
+            res &= plain_text(contents[HTML_CONTENTS][i])
+        end for
+    end if
+    return trim(res)
+end function
+
+function add_code(string content, eucode)
+    eucode = trim_head(eucode,"\n") -- (yep, just \n)
+    eucode = trim_tail(eucode) -- (vs. all whitespace)
+    if eucode="" then ?9/0 end if
+    eucode = substitute(eucode,"\n","%0a")
+--  eucode = `substitute(eucode,"\n"," ")` -- temp...!
+--  content &= "(:source lang=phix:)"&eucode&"(:sourceend:)"
+    content &= "%0a(:source lang=phix:)%0a"&eucode&"%0a(:sourceend:)%0a" -- (...whereas this may be permanent)
+    return content
+end function
+
+constant FILESET = {"phix","example","language","rectools","licence","installation","functions","sequences",
+                    "sequence","object","atom","integer","string","glossary","strings","atoms","subscripts",
+                    "numberbases","multiassign","utfconv","usingtypes","scope","allocate","phixvscl","mpfr",
+                    "specialtop","variables","constants","library","predeftypes","otherlibs","xml","fileio",
+                    "accuracy","internals","srchsort","patmat","math","bitlog","opsystem","debug","profile",
+                    "trace","cgraphics","machine","dcall","ccall","mtask","mthread","eucompat","assignment",
+                    "otherlibs","complex","wrectools","seqops","enum","subscripts","procedures","functions",
+                    "phixvsfl","phixcomp","comments","include","expressions","relops","logicops","arithops",
+                    "slices","concatenation","seqformation","otherseqops","precedence","declarations","iff",
+                    "types","variables","constants","scope","usingtypes","statements","assignop","compjava",
+                    "explicitdiscard","multiassign","callproc","if","switch","exit","shortcircuit","perrec",
+                    "for","while","return","try","throw","with","format","sharedlib","debugging","seqmanip"}
+--"seqops"
+--                  "compare","get_text","system_exec","video_config","message_box","pretty_print","common",
+--                  "pGUI","IupFlatButton","IupImageLibOpen","IupText","IupTree","IupMatrixEx","IupGridBox",
+--                  "IupColorDlg","IupCalendar","IupExpander","IupDatePick","IupConfig","IupPlot","IupSbox",
+--                  "IupTreeAddNodes","IupDetachBox","IupSplit","IupTabs","cdCanvasArc","glBegin","glLight",
+--                  "glEnable","glGet","glShadeModel","ppOpt","SQLcheat"
+
+
+--constant FILESET = {"licence"}
+
+bool tr = false
+
+with trace
+function process_contents(string content, sequence contents, string filename, integer innert, bool trim_sp=true)
+--
+-- (wikidocs only)
+-- string content is the partially-bult result (which we need to inspect for whitespace/linefeed addn),
+-- sequence contents is a complex nested [sub-]structure from strict_html_parse(),
+-- filename is from src/filename.htm (and not the output file name),
+-- innert is a count of opening <table> met so far on the recursive descent of contents,
+-- trim_sp is false to pervent space/newline trimming for raw pre (not the ones skipped after eucode, 
+--  which effectively also gets the equivalent of trim_sp=false treatment but from add_code() above).
+--
+--pp(contents)
+bool skip_pre = false
+--trace(1)
+    for i=1 to length(contents) do
+--?i
+        sequence ci = contents[i]
+        if string(ci) then
+--if ci="\n        The above example delares a\n        " then trace(1) content = content[-10..-1] end if
+--if ci=", and \n        then invokes the function and displays the results. It also demonstrates how \n        " then trace(1) content = content[-10..-1] end if
+--if match("You do not need any of these tools",ci) 
+--if ci=
+--"\n        which is not that algorithm at all but in fact something significantly worse than trial division.\n        The use of mod is a pretty big clue, and trial division is normally considered the most naive and inefficient way,\n        so finding something even less efficient, and then teaching it for over thirty years, ... well.\n        "
+--"\n       Phix has just five builtin data types:\n       "
+--"\n        You do not need any of these tools to program in Phix, or even modify the compiler itself, but they may make life somewhat easier,\n        especially if you plan to roll up your sleeves and dig around in the deepest darkest parts of the Phix runtime (inline assembly).\n        This is of course a \"dip into as needed\" list of my favourites, rather than a suggestion to \"go and grab all of these today\".\n        No doubt more will be added in due course. Obviously if any links are broken please try using your favourite search engine.\n        "
+--then trace(1) if length(content)>10 then content = content[-10..-1] end if end if
+--          content &= substitute(ci,"\n","%0a")
+--          content &= substitute_all(ci,{"\n","\t","  "},{"%0a"," ","  "})
+--          integer pch = iff(trim_sp and length(content)?content[$]:'x')
+            integer pch = iff(trim_sp?iff(length(content)?content[$]:' '):'x')
+            if pch='a' and length(content)>=3 and content[-3..-1]="%0a" then pch='\n' end if
+            for j=1 to length(ci) do
+                integer ch = ci[j]
+                if ch='\n' then
+--                  if pch='\n' and content[$]=' ' then
+                    if pch='\n' then
+                        if length(content) and content[$]=' ' then
+                            content[$] = '%'
+                            content &= "0a%0a"
+                        end if
+--                  else
+                    elsif not trim_sp then
+                        if ch=='\n' then
+                            content &= "%0a"
+                        else
+                            content &= ch
+                        end if
+                    elsif not find(pch," \t\r\n") then
+                        content &= ' '
+                    end if
+--                  content &= "%0a"
+                else
+                    if ch='\t' or ch='\r' then ch=' ' end if
+--                  if ch!=' ' or (pch!=' ' and pch!='\r') then
+                    if ch!=' ' or not find(pch," \r\n\t") then
+                        content &= ch
+                    end if
+                end if
+                pch = iff(trim_sp?ch:'x')
+            end for
+        else
+            string tag = ci[HTML_TAGNAME]
+            if skip_pre then
+                if tag!="pre" then ?9/0 end if
+                skip_pre = false
+            elsif tag="ul"
+               or tag="ol" then     -- erm/dev...
+                sequence li = ci[HTML_CONTENTS]
+                for j=1 to length(li) do
+                    sequence lij = li[j]
+                    if string(lij) then
+                        allwhite(lij)
+--                  else
+                    elsif lij!={`br`,{},{}}
+                      and lij[HTML_TAGNAME]!=`!--` then
+                        if lij[HTML_TAGNAME]!="li" then ?9/0 end if
+                        content = process_contents(content&"%0a*",lij[HTML_CONTENTS],filename,innert)
+                    end if
+                end for
+            elsif tag="a" then
+--              string link, desc = ci[HTML_CONTENTS][1]
+--              string link, desc = plain_text(ci[HTML_CONTENTS])
+                string link, desc = plain_text(ci)
+                sequence attrnames = ci[HTML_ATTRIBS][1]
+                if attrnames={`id`, `style`, `href`} then
+                    -- ExternalLink
+                    string id = ci[HTML_ATTRIBS][2][1]
+                    integer lid = length(id)
+                    link = trim(ci[HTML_ATTRIBS][2][3])
+--DEV...
+--constant
+string jelink = `javascript:ExternalLink('`
+integer jel = length(jelink)
+                    if link[1..jel]!=jelink then ?9/0 end if
+                    link = link[jel+1..$]
+                    if link[1..lid]!=id then ?9/0 end if
+                    link = link[lid+1..$]
+                    if link[1..3]!=`','` then ?9/0 end if
+                    link = link[4..$]
+                    if link[-3..-1]!=`');` then ?9/0 end if
+                    link = link[1..-4]
+                    if length(ci[HTML_CONTENTS])!=1 then ?9/0 end if
+                    desc = trim(ci[HTML_CONTENTS][1])
+                    if link=desc then
+                        content &= sprintf("[[%s]]",{link})
+                    else
+                        content &= sprintf("[[%s|%s]]",{link,desc})
+                    end if
+                elsif attrnames={`href`} then
+                    -- Internal link
+                    link = trim(ci[HTML_ATTRIBS][2][1])
+                    if link[1]='#' then
+                        link = ""
+                    else
+                        integer dhtm = match(`.htm`,link)
+                        if dhtm!=0 then link = link[1..dhtm-1] end if
+                    end if
+
+                    if match("html/",link)=1 then link = link[6..$] end if
+                    if link="" then link = filename end if
+                    if length(desc)>4 
+                    and desc[1..4]=" <b>" 
+                    and desc[-5..-1]="</b> " then
+--                      desc = desc[5..-6]
+                        ?9/0
+                    end if
+                    integer k = find(link,tocf)
+                    if k=0 then
+                        if (link = `sqlite3_lang_pragma` and filename = "sqlite3_get_table")
+                        or (link = `sqlite3_lang_transaction` and filename = "sqlite3_get_autocommit")
+                        or (link = `sqlite3_lang` and filename = "sqlite3_advanced")
+--                      or (link = `sqlite3_lang_omitted` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_keywords` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_syntaxdiagrams` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_aggfunc` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_altertable` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_analyze` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_attach` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_transaction` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_comment` and filename = "sqlite3_lang")
+--                      or (link = `sqlite3_lang_corefunc` and filename = "sqlite3_lang")
+                        or (link = `sqlite3_lang_createtable` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_datatype3` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_omitted` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_delete` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_altertable` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_droptable` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_createindex` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_dropindex` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_insert` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_update` and filename = "SQLcheat")
+                        or (link = `sqlite3_lang_select` and filename = "SQLcheat")
+
+                        or (link = `sqlite3_lang_createview` and filename = "SQLcheat") then
+                            content &= sprintf("[[%s|%s]]",{"http://www.sqlite.org",desc})
+                        else
+                            fatal("not found:"&link)
+                        end if
+                    else
+if not find(link,FILESET) then
+--{"link:","call_back"}
+--{"link:","pGUI"}
+--{"link:","floor"}
+--{"link:","puts"}
+--{"link:","abs"}
+--{"link:","allocate_string"}
+--{"link:","c_func"}
+--{"link:","columnize"}
+--{"link:","dcall"}
+--{"link:","for"}
+--{"link:","include"}
+--{"link:","if"}
+--{"link:","poke"}
+--{"link:","debugging"}
+--{"link:","machine_bits"}
+--{"link:","free"}
+--{"link:","delete"}
+--{"link:","mem_set"}
+--{"link:","peek"}
+--{"link:","poke"}
+--{"link:","call"}
+--{"link:","delete_routine"}
+--{"link:","utf8_to_utf32"}
+--{"link:","utf32_to_utf8"}
+--{"link:","utf16_to_utf32"}
+--{"link:","utf32_to_utf16"}
+--{"link:","print"}
+--{"link:","qu"}
+--{"link:","statements"}
+--{"link:","for"}
+--{"link:","while"}
+--{"link:","if"}
+--{"link:","return"}
+--{"link:","procedures"}
+
+--?{"link:",link}
+end if
+                        string dk = descriptions[k]
+--if dk!=trim(dk) then ?9/0 end if
+                        if desc!=dk then
+--                          content &= sprintf("[[%s|%s]]",{desc,dk})
+                            content &= sprintf("[[%s|%s]]",{dk,desc})
+                        else
+                            content &= sprintf("[[%s]]",{dk})
+                        end if
+                    end if
+                elsif attrnames={`name`} then
+                    --?? (eg "<a name=bool></a>")
+                else
+                    ?9/0
+                end if
+            elsif tag="p"
+--             or tag="b"
+               or tag="nobr" -- "white-space: nowrap" [DEV]
+               or tag="font"
+--             or tag="sup"
+--             or tag="small"
+--             or tag="sub"
+               or tag="blockquote"
+               or tag="h1"
+               or tag="h2"
+               or tag="h3"
+               or tag="h4"
+               or tag="strong" then
+--             or tag="em"
+--             or tag="tt"
+--             or tag="big"
+--             or tag="h"
+--             or tag="i" then
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+--'^Superscript^'
+--'_Subscript_'
+--'-small-'
+--//italics//
+--**bold**  (presumably not at the start of a line...)
+
+            elsif tag="sup" then
+--?{"sup",filename} -- accuracy [good]
+                content &= "'^"
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+                content &= "^'"
+            elsif tag="sub" then
+--?{"sub",filename} -- accuracy [good]
+                content &= "'_"
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+                content &= "_'"
+            elsif tag="small" then
+--?{"small",filename} -- mpfr [works on accuracy]
+--              content &= "'-"
+                content &= "[-"
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+--              content &= "-'"
+                content &= "-]"
+            elsif tag="i" then
+--?{"italics",filename} -- mpfr
+                content &= "//"
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+                content &= "//"
+            elsif tag="b"
+               or tag="em" then
+--?{tag,filename} -- mpfr, xml
+                content &= "**"
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+                content &= "**"
+            elsif tag="u" then
+?{tag,filename}
+                content &= "{+"
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+                content &= "+}"
+            elsif tag="pre" then
+                content = trim_tail(process_contents(content,ci[HTML_CONTENTS],filename,innert,false)," ")
+            elsif tag="br" then
+                content &= "%0a"
+--              content &= "\\\\"   --NO!!
+            elsif tag="!--" then
+                --comment - do nothing!
+            elsif tag="wbr" then
+                -- word break - do nothing?
+            elsif tag="hr" then
+--?{tag,filename} -- perrec
+                --erm... (test perrec)
+                content &= "%0a----%0a"
+--          elsif tag="script" then
+                --erm...
+--          elsif tag="button" then -- (from sqlite3 docs)
+                --erm...
+            elsif tag="div" then
+                if ci[HTML_ATTRIBS]={{`id`,`class`,`xmlns`},{`code-snippet-1`,`codeSnippetContainer`,``}} then
+                    content = add_code(content,get_tag_text(ci[HTML_CONTENTS],`!--eucode`))
+                else
+                    content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+                end if
+            elsif tag=`!--eucode` then
+                if length(ci[HTML_CONTENTS])!=1 then ?9/0 end if
+                content = add_code(content,ci[HTML_CONTENTS][1])
+                skip_pre = true
+            elsif tag="code" then
+--              content = add_code(content,plain_text(ci))
+                string code = plain_text(ci)
+                code = substitute(code,"&gt",">")
+                code = substitute(code,"&lt","<")
+                content &= "[@"&code&"@]"
+--DEV...
+            elsif tag="table" then
+--if find(filename,{"seqops","mpfr"}) then
+--  ?{tag,filename,innert} -- mpfr, seqops
+--end if
+--              content &= {"%0a(:table [attr...]:)","%0a||"}[innert+1]
+--cellspacing (a positive integer indicating the space between cells)
+--cellpadding(:table border=0 cellpadding=5 cellspacing=5:)%0a
+--(:table border=0 cellpadding=5 cellspacing=5:)%0a
+                string hfmt = iff(innert=0?"%%0a(:table border=%s align=center cellpadding=%s cellspacing=%s :)"
+                                          :"%%0a|| border=%s align=center cellpadding=%s cellspacing=%s %%0a"),
+                       border = xml_get_attribute(ci,"border","1"),
+                       cellpadding = xml_get_attribute(ci,"cellpadding","0"),
+                       cellspacing = xml_get_attribute(ci,"cellspacing","0")
+--              content &= {"%0a(:table border=1 :)","%0a||"}[innert+1]
+                content &= sprintf(hfmt,{border,cellpadding,cellspacing})
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert+1)
+                content &= iff(innert=0?"%0a(:tableend:)%0a":"%0a")
+            elsif tag="tr" then
+                tr = true
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+                if tr then ?9/0 end if
+            elsif tag="th" then
+                string hnr = iff(innert=1?iff(tr?"nr":"")
+                                         :iff(tr?"%0a":"")),
+                       thfmt = iff(innert=1?"%%0a(:head%s:)"
+                                           :"%s||! ")
+                tr = false
+                content &= sprintf(thfmt,{hnr})
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+            elsif tag="td" then
+                string dnr = iff(innert=1?iff(tr?"nr":"")
+                                         :iff(tr?"%0a":"")),
+                       tdfmt = iff(innert=1?"%%0a(:cell%s:)"
+                                           :"%s|| ")
+                tr = false
+                content &= sprintf(tdfmt,{dnr})
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+            elsif tag="tbody"
+               or tag="span"
+               or tag="center"
+               or tag="caption"
+               or tag="dl"
+               or tag="dt"
+               or tag="dd" then
+                content = process_contents(content,ci[HTML_CONTENTS],filename,innert)
+            elsif tag="col"
+               or tag="style" then
+                -- (assume part of table...)
+            elsif tag="img" then
+--?{tag,filename} -- installation
+                -- (ignore for now...)
+--Attach:image.gif
+--?ci
+--              string img = plain_text(ci)
+                string img = get_attr(ci[HTML_ATTRIBS],`src`)
+--              img = substitute(img,"/","\\")
+--              string img = get_tag_attr(ci,`src`)
+                img = split_path(img)[$]
+--?{tag,filename,img} -- installation
+                content &= " Attach:"&img
+            else
+--              ?9/0
+                fatal("unknown tag:"&tag&" (in "&filename&")")
+            end if
+        end if
+    end for
+    if skip_pre then ?9/0 end if
+    return content
+end function
+
+--/* --test/temp (we have no>1 table nesting!)
+function tabify(sequence contents)
+    sequence res = {}
+    for i=1 to length(contents) do
+        sequence ci = contents[i]
+        if not string(ci) then
+            sequence inner = tabify(ci[HTML_CONTENTS])
+            if ci[HTML_TAGNAME]="table" then
+                if not find({"table",inner},res) then
+                    res = append(res,{"table",inner})
+                end if
+            elsif inner!={} then
+                if not find(inner,res) then
+                    res = append(res,inner)
+                end if
+            end if
+        end if
+    end for
+    if length(res)=1 then res=res[1] end if
+    return res
+end function
+
+sequence seent = {}
+--/*
+1: no tables
+{`showt`,
+ {}}
+2: no nesting:
+{`showt`,
+ {`table`, {}}}
+3: single nesting:
+{`showt`,
+ {`table`, {`table`, {}}}}
+--*/
+
+procedure showt(sequence t, string filename)
+    integer k = find(t,seent)
+    if k=0 then
+        pp({"showt",t},{pp_Nest,1})
+        seent = append(seent,t)
+        k = length(seent)
+    end if
+--  if k=2 then ?filename end if
+    if k=3 then ?filename end if
+end procedure
+--*/
+--/*
+-- k=2:
+Building wiki docs
+Reading files...
+Writing files...
+{`showt`,
+ {}}
+{`showt`,
+ {`table`, {}}}
+"language"
+"logicops"
+{`showt`,
+ {`table`, {`table`, {}}}}
+"iff"
+"seqformation"
+"multiassign"
+"try"
+"throw"
+"debugging"
+"predeftypes"
+"atom"
+"integer"
+"sequence"
+"string"
+"object"
+"seqmanip"
+"srchsort"
+"patmat"
+"math"
+"bitlog"
+"fileio"
+"opsystem"
+"debug"
+"trace"
+"profile"
+"cgraphics"
+"machine"
+"allocate"
+"dcall"
+"ccall"
+"mtask"
+"mthread"
+"eucompat"
+"complex"
+"mpfr"
+"utfconv"
+"xml"
+"internals"
+"glossary"
+"glossary"
+"(not) done"
+-- k=3:
+Building wiki docs
+Reading files...
+Writing files...
+{`showt`,
+ {}}
+{`showt`,
+ {`table`, {}}}
+{`showt`,
+ {`table`, {`table`, {}}}}
+"seqops"
+"(not) done"
+full/3:
+Building wiki docs
+Reading files...
+Writing files...
+{`showt`,
+ {}}
+{`showt`,
+ {`table`, {}}}
+{`showt`,
+ {`table`, {`table`, {}}}}
+"seqops"
+"compare"
+"get_text"
+"system_exec"
+"video_config"
+"message_box"
+"pretty_print"
+"common"
+"IupFlatButton"
+"IupImageLibOpen"
+"IupText"
+"IupTree"
+"IupTreeAddNodes"
+"IupMatrixEx"
+"IupPlot"
+"IupCalendar"
+"IupColorDlg"
+"IupDatePick"
+"IupDetachBox"
+"IupExpander"
+"IupGridBox"
+"IupSbox"
+"IupSplit"
+"IupTabs"
+"IupConfig"
+"cdCanvasArc"
+"glBegin"
+"glEnable"
+"glGet"
+"glLight"
+"glShadeModel"
+"ppOpt"
+"SQLcheat"
+"(not) done"
+--*/
+
+function wikify(integer idx, string filename)
+    string content = contents[idx]
+-- Note: it is usually easier to "fix" a few /src input, rather than improve this...
+--  string targets = "",
+--  string menu = "",
+--WOW!!!
+--if find(filename,{"phix","example","language"}) then
+    sequence test = strict_html_parse(content)
+    if test[1]=-1 then ?test ?9/0 end if
+    if test[1][HTML_TAGNAME]!="h1" then ?9/0 end if
+    if length(test)=4 
+    and string(test[4]) then
+        allwhite(test[4])
+        test = test[1..3]
+    end if
+    if length(test)=3 
+    and string(test[2]) then
+        allwhite(test[2])
+        test[2..2] = {}
+    end if
+    if length(test)!=2 then ?9/0 end if
+    if length(test[1][HTML_CONTENTS])!=1 then ?9/0 end if
+    string title = test[1][HTML_CONTENTS][1]
+    test = test[2][HTML_CONTENTS]
+--  showt(tabify(test),filename)
+--global constant HTML_TAGNAME = 1,
+--              HTML_ATTRIBS = 2,
+--              HTML_CONTENTS = 3
+
+    if find(filename,FILESET) then  --DEV/temp
+--      showt(tabify(test),filename)
+        content = process_contents("",test,filename,0)
+--      content = substitute(content,`\\`,`[=\\=]`) -- NO! (now done earlier)
+    else
+        integer ts = match(`<h1 class="title">`,content),
+                te = match(`</h1>`,content,ts)
+        if ts=0 or te=0 then ?9/0 end if
+--      title = content[ts+length(`<h1 class="title">`)..te-1]
+        if title!=content[ts+length(`<h1 class="title">`)..te-1] then ?9/0 end if
+        content[ts..te+length(`</h1>`)] = ""
+        content = trim(content)
+        if content[1..length(`<div id="mainSection">`)]!=`<div id="mainSection">` then ?9/0 end if
+        content[1..length(`<div id="mainSection">`)] = ""
+--string ce = content[-length(`</div>`)..$]
+        if content[-length(`</div>`)..$]!=`</div>` then ?9/0 end if
+        content[-length(`</div>`)..$] = ""
+        content = substitute(content,"<hr>"," ")
+        content = trim(content)
+        content = substitute(content,`\\`,`[=\\=]`)
+--***we don't care!!***
+        content = substitute(content,"<br>","\n")
+--      content = substitute(content,"<br>","\\\\")
+--      content = substitute(content,"<BR>","\n")
+        content = substitute(content,"<wbr>","")
+--erm...
+--/*
+        content = substitute(content,"%","%25")
+        content = substitute(content,"<ul>"," ")
+        content = substitute(content,"<li>","*")
+--      content = substitute(content,"</li>"," ")
+        content = substitute(content,"</li>","%0a")
+        content = substitute(content,"</ul>"," ")
+--*/
+        sequence snippets = {}, snipaddr = {}
+        while true do
+            -- those in a codeSnippetContainer first
+            integer cs = match(csc,content)
+            if cs=0 then exit end if
+--?{1,cs}
+            integer eu = match(`<!--eucode>`,content,cs),
+                    ee = match(`</eucode-->`,content,eu),
+                    pe = match(`</pre>`,content,ee)
+            if eu=0 or ee=0 or pe=0 then ?9/0 end if
+            pe = skips(pe,content,"</pre></div></div></div></div>")
+--          content[ee..pe] = "(:sourceend:)" -- (last first!)
+--          content[cs..eu+10] = "(:source lang=phix:)"
+            snippets = append(snippets,content[eu+11..ee-1])
+            snipaddr = append(snipaddr,cs)
+            content[cs..pe] = "X"
+        end while
+        while true do
+            -- and those not in a codeSnippetContainer
+            integer eu = match(`<!--eucode>`,content)
+            if eu=0 then exit end if
+--?{2,eu}
+            integer ee = match(`</eucode-->`,content,eu),
+                    pe = match(`</pre>`,content,ee)
+            if ee=0 or pe=0 then ?9/0 end if
+            snippets = append(snippets,content[eu+11..ee-1])
+            snipaddr = append(snipaddr,eu)
+            content[eu..pe+5] = "X"
+            for j=1 to length(snipaddr) do
+                if snipaddr[j]>pe+5 then
+                    -- move new snippet down into place
+                    for k=j to length(snipaddr)-1 do
+                        snipaddr[k] -= pe+5-eu
+                        if content[snipaddr[k]]!='X' then ?9/0 end if
+                    end for
+                    snipaddr[j..$] = snipaddr[$]&snipaddr[j..$-1]
+                    snippets[j..$] = snippets[$]&snippets[j..$-1]
+                    exit
+                end if
+                if content[snipaddr[j]]!='X' then ?9/0 end if
+            end for
+        end while
+        content = substitute(content,"\t"," ")
+        -- remove comments (without affecting positions)
+        while true do
+            integer cs = match("<!--",content)
+            if cs=0 then exit end if
+            integer ce = match("-->",content,cs+4)
+            if ce=0 then ?9/0 end if
+--          content[cs..ce+2] = ""
+            for i=cs to ce+2 do
+                content[i] = ' '
+            end for
+        end while
+
+--erm...
+        content = substitute(content,"\r"," ")
+        content = substitute(content,"\n"," ")
+--      content = substitute(content,"     "," ")
+--      content = substitute(content,"    "," ")
+--      content = substitute(content,"   "," ")
+--      while true do
+--          integer lc = length(content)
+--          content = substitute(content,"  "," ")
+--          if length(content)=lc then exit end if
+--      end while
+
+--DEV Improve me: A far better way would be a simple 1..length(content) copy, skipping some spaces. Brainfreeze on the snipaddr[] updates though. [DONE!]
+--/!*
+        integer nil = iff(length(snipaddr)?snipaddr[1]:0), ndx = 1
+        integer ch, pc=' ', odx = 0
+        for i=1 to length(content) do
+            ch = content[i]
+            if ch!=' ' or pc!=' ' then
+                odx += 1
+                content[odx] = ch
+                if i=nil then -- nil is `next interesting line`!
+                    snipaddr[ndx] = odx
+                    ndx += 1
+                    nil = iff(ndx>length(snipaddr)?0:snipaddr[ndx])
+                end if  
+            end if
+            pc = ch
+        end for
+        content = content[1..odx]
+--*!/
+--/*
+        integer l = 7
+        string spaces = repeat(' ',l+1)
+        while true do
+            integer ss = match(spaces,content)
+            if ss=0 then
+                if l=1 then exit end if
+                l -= 1
+                spaces = repeat(' ',l+1)
+--?{"l:",l}
+            else
+?{3,ss}
+                content[ss..ss+l] = " "
+                for i=1 to length(snipaddr) do
+                    if snipaddr[i]>ss then snipaddr[i] -= l end if
+                end for
+            end if
+        end while
+--*/
+        for j=length(snipaddr) to 1 by -1 do -- last first!
+            integer sj = snipaddr[j]
+            if content[sj]!='X' then ?9/0 end if
+            content[sj..sj] = "(:source lang=phix:)"&snippets[j]&"(:sourceend:)"
+        end for
+--/*
+        -- remove comments
+        while true do
+            integer cs = match("<!--",content)
+            if cs=0 then exit end if
+            integer ce = match("-->",content,cs+4)
+            if ce=0 then ?9/0 end if
+            content[cs..ce+2] = ""
+        end while
+--*/
+        -- process external links (convert to plain text):
+        while true do
+            integer js = match(jid,content)
+            if js=0 then exit end if
+--?{4,js}
+            integer jm = match(jstyle,content,js+jil),
+                    jn = match(jelink,content,jm+jsl)
+            if jm=0 or jn=0 then ?9/0 end if
+            -- check spaces?...
+            allwhite(content[jm+jsl..jn-1])
+            integer jo = match(`','`,content,jn+jel),
+                    jp = match(`');">`,content,jo+4),
+                    je = match(`</a>`,content,jp+5)
+            if jo=0 or jp=0 or je=0 then ?9/0 end if
+            string id = content[js+jil..jm-1],
+                   ln = content[jn+jel..jo-1]
+            if id!=ln then ?9/0 end if
+            string l1 = content[jo+3..jp-1],
+                   l2 = trim(content[jp+5..je-1])
+--          if l1!=l2 then ?9/0 end if
+--          content[js..je+3] = l1
+            if l1=l2 then
+                content[js..je+3] = l1
+            else
+                content[js..je+3] = sprintf("[[%s|%s]]",{l1,l2})
+            end if
+        end while
+--              ext001','http://phix.x10.mx/tutorial.php');">http://phix.x10.mx/tutorial.php</a>
+--...
+        -- process internal links (convert to [[title]] form):
+--<a href="html/rectools.htm">Recommended Tools</a>
+        while true do
+            integer il = match(`<a href="`,content)
+            --                   123456789
+            if il=0 then exit end if
+--          if content[il+9..il+13]!="html/" then ?9/0 end if
+
+            integer ie, ic, ca
+            if content[il+9]='#' then
+                ie = il+9
+            else
+                ie = match(`.htm`,content,il+9)
+            end if
+            ic = match(`">`,content,ie+4)
+            ca = match(`</a>`,content,ic+2)
+            if ie=0 or ic=0 or ca=0 then ?9/0 end if
+            string link = content[il+9..ie-1],
+                   desc = content[ic+2..ca-1]   
+            if match("html/",link)=1 then link = link[6..$] end if
+            if link="" then link = filename end if
+            if length(desc)>4 
+            and desc[1..4]=" <b>" 
+            and desc[-5..-1]="</b> " then
+                desc = desc[5..-6]
+            end if
+            integer k = find(link,tocf)
+            if k=0 then
+                if (link = `sqlite3_lang_pragma` and filename = "sqlite3_get_table")
+                or (link = `sqlite3_lang_transaction` and filename = "sqlite3_get_autocommit")
+                or (link = `sqlite3_lang_omitted` and filename = "sqlite3_lang")
+                or (link = `sqlite3_lang_keywords` and filename = "sqlite3_lang")
+                or (link = `sqlite3_lang_syntaxdiagrams` and filename = "sqlite3_lang")
+                or (link = `sqlite3_lang` and filename = "sqlite3_advanced")
+                or (link = `sqlite3_lang_createtable` and filename = "SQLcheat")
+                or (link = `sqlite3_lang_datatype3` and filename = "SQLcheat")
+                or (link = `sqlite3_lang_omitted` and filename = "SQLcheat")
+                or (link = `sqlite3_lang_delete` and filename = "SQLcheat")
+                or (link = `sqlite3_lang_createview` and filename = "SQLcheat") then
+                    content[il..ca+3] = sprintf("[[%s|%s]]",{"http://www.sqlite.org",desc})
+                else
+                    ?{"not found:",link}
+                    ?9/0
+                end if
+            else
+                string dk = descriptions[k]
+                if desc!=dk
+--NB: these may require further work/should all be tested...
+--(DEV could we not do somthing with index.txt here???)
+                and (desc!=`sequence` or dk!=`Sequences and Strings`)
+--              and (desc!=`mpir/gmp` or dk!=`mpfr / gmp`)
+                and (desc!=`mpir/gmp` or dk!=`mpfr  gmp`)
+                and (desc!=`mpfr` or dk!=`mpfr  gmp`)
+                and (desc!=`mpz` or dk!=`mpfr  gmp`)
+                and (desc!=`mpz_prime_factors` or dk!=`mpfr  gmp`)
+                and (desc!=`mpz_probable_prime_p` or dk!=`mpfr  gmp`)
+                and (desc!=`mpz_add_si` or dk!=`mpfr  gmp`)
+                and (desc!=`mpz_sub_si` or dk!=`mpfr  gmp`)
+                and (desc!=`mpz_si_sub` or dk!=`mpfr  gmp`)
+                and (desc!=`mpfr or mpz` or dk!=`mpfr  gmp`)
+                and (desc!=`mpz_cmp` or dk!=`mpfr  gmp`)
+                and (desc!=`mpfr / gmp` or dk!=`mpfr  gmp`)
+                and (desc!=`iff` or dk!=`Ternary Operator`)
+                and (desc!=`if` or dk!=`If Statement`)
+                and (desc!=`? x` or dk!=`?`)    -- fileio
+                and (desc!=`short-circuit` or dk!=`Short-Circuit Evaluation`)
+                and (desc!=`sequence operators` or dk!=`Sequence Operations`)
+                and (desc!=`sequence ops` or dk!=`Sequence Operations`)
+                and (desc!=`for-loop` or dk!=`For Statement`)
+                and (desc!=`for-loops` or dk!=`For Statement`)
+                and (desc!=`if-statement` or dk!=`If Statement`)
+                and (desc!=` <b>predefined</b>. ` or dk!=`Core Language`)   -- usingtypes
+                and (desc!="predefined types" or dk!="Using Types")         -- also usingtypes
+                and (desc!="special statements" or dk!="Special Top-Level Statements") --""
+                and (desc!="Profiling" or dk!="Debugging and Profiling") --""
+                and (desc!="profile" or dk!="Debugging and Profiling") --""
+                and (desc!=`Debugging ` or dk!=`Debugging and Profiling`)   -- trace
+                and (desc!=`profiling` or dk!=`Debugging and Profiling`)    -- profile
+                and (desc!=`equality testing` or dk!=`Relational Operators`)
+                and (desc!="Library Routines - Dynamic Calls " or dk!="Dynamic Calls")
+                and (desc!=`while-loop` or dk!=`While Statement`)
+                and (desc!=`while-loops` or dk!=`While Statement`)
+    --          and (desc!=`try/catch` or dk!=`Try/Catch Statement`)
+                and (desc!=`try/catch` or dk!=`TryCatch Statement`)
+                and (desc!=`return` or dk!=`Return Statement`)
+                and (desc!=`format` or dk!=`format directive`)
+                and (desc!=`user-defined types` or dk!=`Using Types`)
+                and (desc!=`predefined` or dk!=`Using Types`)
+                and (desc!=`can` or dk!=`Using Types`)
+    --          and (desc!=`with trace` or dk!=`with / without`)
+                and (desc!=`with trace` or dk!=`with  without`)
+                and (desc!=`without trace` or dk!=`with  without`)
+                and (desc!=`with profile` or dk!=`with  without`)
+                and (desc!=`with profile_time` or dk!=`with  without`)
+                and (desc!=`create a type` or dk!=`Using Types`)
+                and (desc!=`could` or dk!=`Using Types`)    -- ZIPENTRY
+                and (desc!=`unwise` or dk!=`Using Types`)   -- Ihandle
+                and (desc!=`Atoms` or dk!=`Atoms and Integers`)
+                and (desc!=`Sequences` or dk!=`Sequences and Strings`)
+                and (desc!=`sequence-formation operator` or dk!=`Sequence Formation`)
+                and (not find(desc,{`sq_eq`,`sq_ne`,`sq_lt`,`sq_le`,`sq_gt`,`sq_ge`}) or dk!=`Relational Operators`)
+                and (not find(desc,{`sq_add`,`sq_sub`,`sq_uminus`,`sq_mul`,`sq_div`}) or dk!=`Arithmetic Operators`)
+                and (not find(desc,{`sq_and`,`sq_not`,`sq_or`,`sq_xor`}) or dk!=`Logical Operators`)
+                and (desc!=`inf or -inf (infinity or -infinity)` or dk!=`Arithmetic Operators`)
+                and (desc!=`and/or/xor/not` or dk!=`Logical Operators`)
+                and (desc!=`equals operator (=)` or dk!=`Relational Operators`)
+                and (desc!=`exact` or dk!=`Floats Are Not Exact`)
+                and (desc!=`Neither is exact` or dk!=`Floats Are Not Exact`)
+                and (desc!=`timedate type` or dk!=`the timedate type`)  -- get_file_date
+                and (desc!=`the table` or dk!=`utilities`)  -- rename_file
+                and (desc!=`try/catch handler` or dk!=`TryCatch Statement`) -- abort
+                and (desc!=`try` or dk!=`TryCatch Statement`)               -- ""
+                and (desc!=`exception handling` or dk!=`TryCatch Statement`) -- curl_easy_init
+                and (desc!=`float64_to_atom` or dk!=`floatNN_to_atom`)
+                and (desc!=`CURLOPT_ERRORBUFFER` or dk!=`CURLoption type`)
+                and (desc!=`curl_easy_strerror` or dk!=`CURLcode type`)
+                and (desc!=`CURLMcode` or dk!=`CURLcode type`)
+                and (desc!=`CURLSHcode` or dk!=`CURLcode type`)
+                and (desc!=`CURLOPT_FAILONERROR` or dk!=`CURLoption type`)
+                and (desc!=`curl_multi_strerror` or dk!=`CURLcode type`)
+                and (desc!=`curl_share_strerror` or dk!=`CURLcode type`)
+                and (desc!=`CURLOPT_DEBUGFUNCTION` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_VERBOSE` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_WRITEFUNCTION` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_HEADERFUNCTION` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_HTTPHEADER` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_XFERINFOFUNCTION` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_WRITEDATA` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_READFUNCTION` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_READDATA` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_XFERINFODATA` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_PROGRESSDATA` or dk!=`CURLoption type`)
+                and (desc!=`CURLE_ABORTED_BY_CALLBACK` or dk!=`CURLcode type`)
+                and (desc!=`CURLOPT_NOPROGRESS` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_PROGRESSFUNCTION` or dk!=`CURLoption type`)
+                and (desc!=`CURLE_HTTP_RETURNED_ERROR` or dk!=`CURLcode type`)
+                and (desc!=`CURLE_OK` or dk!=`CURLcode type`)
+                and (desc!=`CURLE_UNKNOWN_OPTION` or dk!=`CURLcode type`)
+                and (desc!=`CURLcode` or dk!=`CURLcode type`)
+                and (desc!=`CURLE_UNSUPPORTED_PROTOCOL` or dk!=`CURLcode type`)
+                and (desc!=`CURLOPT_USERNAME` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_USERPWD` or dk!=`CURLoption type`)
+                and (desc!=`CURLE_OUT_OF_MEMORY` or dk!=`CURLcode type`)
+                and (desc!=`CURLOPT_SHARE` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_PASSWORD` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_POSTFIELDS` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_POSTFIELDSIZE` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_CUSTOMREQUEST` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_COOKIELIST` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_MAIL_RCPT` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_MAIL_FROM` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_SSL_VERIFYPEER` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_CAINFO` or dk!=`CURLoption type`)
+                and (desc!=`CURLoption` or dk!=`CURLoption type`)
+                and (desc!=`CURLE_CANT_OPEN_FILE` or dk!=`CURLcode type`)
+                and (desc!=`CURLOPT_PRIVATE` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_CONNECT_ONLY` or dk!=`CURLoption type`)
+                and (desc!=`CURLOPT_DNS_USE_GLOBAL_CACHE` or dk!=`CURLoption type`)
+                and (desc!=`CURLM_UNKNOWN_OPTION` or dk!=`CURLcode type`)
+                and (desc!=`CURLM_OK` or dk!=`CURLcode type`)
+                and (desc!=`CURLM_CALL_MULTI_PERFORM` or dk!=`CURLcode type`)
+                and (desc!=`CURLSHE_OK` or dk!=`CURLcode type`)
+                and (desc!=`IupImageRGBA` or dk!=`IupImage`)
+                and (desc!=`BGCOLOR` or dk!=`IupButton`)
+                and (desc!=`TITLE` or dk!=`IupButton`)
+                and (desc!=`CANFOCUS` or dk!=`IupButton`)
+                and (desc!=`ACTION` or dk!=`IupButton`)
+                and (desc!=`ACTION` or dk!=`IupCanvas`)
+                and (desc!=`TITLE` or dk!=`IupGLExpander`)
+                and (desc!=`EXTRABUTTON_CB` or dk!=`IupGLExpander`)
+                and (desc!=`TITLE` or dk!=`IupGLFrame`)
+                and (desc!=`TITLE` or dk!=`IupToggle`)
+                and (desc!=`imImage` or dk!=`cdCanvas`)
+                and (desc!=`TITLE` or dk!=`IupLabel`)
+                and (desc!=`BUTTON_CB` or dk!=`IupLabel`)
+                and (desc!=`IupSetAttributeId` or dk!=`IupSetAttribute`)
+                and (desc!=`IupGetAttributeId` or dk!=`IupGetAttribute`)
+                and (desc!=`IupGetIntId` or dk!=`IupGetAttribute`)
+                and (desc!=`IupGetFloatId` or dk!=`IupGetAttribute`)
+                and (desc!=`IupSetIntId` or dk!=`IupSetStrAttribute`)
+                and (desc!=`IupSetFloatId` or dk!=`IupSetStrAttribute`)
+                and (desc!=`IupGetFloat` or dk!=`IupGetAttribute`)
+                and (desc!=`ACTION` or dk!=`IupList`)
+                and (desc!=`TITLE` or dk!=`IupMenuItem`)
+                and (desc!=`TITLE` or dk!=`IupSubmenu`)
+                and (desc!=`ACTION` or dk!=`IupText`)
+                and (desc!=`ACTION` or dk!=`IupToggle`)
+                and (desc!=`Nodes` or dk!=`IupTree`)
+                and (desc!=`Images` or dk!=`IupTree`)
+                and (desc!=`IupSetAttributeId2` or dk!=`IupSetAttribute`)
+                and (desc!=`IupGetAttributeId2` or dk!=`IupGetAttribute`)
+                and (desc!=`IupGetIntId2` or dk!=`IupGetAttribute`)
+                and (desc!=`IupGetFloatId2` or dk!=`IupGetAttribute`)
+                and (desc!=`IupSetIntId2` or dk!=`IupSetStrAttribute`)
+                and (desc!=`IupSetFloatId2` or dk!=`IupSetStrAttribute`)
+                and (desc!=`IupSetStrAttributeId2` or dk!=`IupSetStrAttribute`)
+                and (desc!=`VALUE_CB` or dk!=`IupMatrix`)
+                and (desc!=`IupSetIntId2` or dk!=`IupSetAttribute`)
+                and (desc!=`IupSetFloatId2` or dk!=`IupSetAttribute`)
+                and (desc!=`REDRAW` or dk!=`IupMatrix`)
+                and (desc!=`ENTERITEM_CB` or dk!=`IupMatrix`)
+                and (desc!=`FOCUS_CB` or dk!=`IupCanvas`)
+                and (desc!=`IupTextConvertPosToLinCol` or dk!=`IupText`)
+                and (desc!=`REDRAW` or dk!=`IupPlot`)
+                and (desc!=`AXS_XMAX` or dk!=`IupPlot`)
+                and (desc!=`AXS_XMIN` or dk!=`IupPlot`)
+                and (desc!=`AXS_YMAX` or dk!=`IupPlot`)
+                and (desc!=`AXS_YMIN` or dk!=`IupPlot`)
+                and (desc!=`AXS_?AUTOMIN` or dk!=`IupPlot`)
+                and (desc!=`AXS_?AUTOMAX` or dk!=`IupPlot`)
+                and (desc!=`READONLY` or dk!=`IupPlot`)
+                and (desc!=`Interaction` or dk!=`IupPlot`)
+                and (desc!=`BUTTON_CB` or dk!=`IupCanvas`)
+                and (desc!=`TIPFORMAT` or dk!=`IupPlot`)
+                and (desc!=`AXS_?TIPFORMAT` or dk!=`IupPlot`)
+                and (desc!=`AUTOTICK` or dk!=`IupPlot`)
+                and (desc!=`AUTOTICKSIZE` or dk!=`IupPlot`)
+                and (desc!=`AXS_?TICKFORMATAUTO` or dk!=`IupPlot`)
+                and (desc!=`AXS_?TICKFORMAT` or dk!=`IupPlot`)
+                and (desc!=`MENUCONTEXT` or dk!=`IupPlot`)
+                and (desc!=`LOCKLOOP` or dk!=`Global Attributes`)
+        --      and (desc!=`xIupSetLanguage` or dk!=`IupPopup`)
+                and (desc!=`KEY` or dk!=`Global Attributes`)
+                and (desc!=`DLGBGCOLOR` or dk!=`Global Attributes`)
+                and (desc!=`INPUTCALLBACKS` or dk!=`Global Attributes`)
+                and (desc!=`MOUSEBUTTON` or dk!=`Global Attributes`)
+                and (desc!=`IupSetClassDefaultAttribute` or dk!=`IupGetClassCallbacks`)
+                and (desc!=`IupSetInt` or dk!=`IupSetStrAttribute`)
+                and (desc!=`IupGetInt` or dk!=`IupGetAttribute`)
+                and (desc!=`IupMultiline` or dk!=`IupText`)
+                and (desc!=`EXTRABUTTON_CB` or dk!=`IupExpander`)
+                and (desc!=`cdCanvasGetTransform` or dk!=`cdCanvasTransform`)
+                and (desc!=`cdCanvasSetLineWidth` or dk!=`cdCanvasLine`)
+                and (desc!=`cdCanvasGetLineWidth` or dk!=`cdCanvasLine`)
+                and (desc!=`cdCanvasSetLineStyle` or dk!=`cdCanvasLine`)
+                and (desc!=`cdCanvasGetLineStyle` or dk!=`cdCanvasLine`)
+                and (desc!=`cdCanvasTransformPoint` or dk!=`cdCanvasTransform`)
+                and (desc!=`cdCanvasVectorTextDirection` or dk!=`cdCanvasVectorText`)
+                and (desc!=`cdGetScreenColorPlanes` or dk!=`cdCanvasGetColorPlanes`)
+                and (desc!=`cdGetScreenSize` or dk!=`cdCanvasGetSize`)
+                and (desc!=`wdCanvasWindow` or dk!=`World Coordinates`)
+                and (desc!=`wdCanvasGetWindow` or dk!=`World Coordinates`)
+                and (desc!=`wdCanvasViewport` or dk!=`World Coordinates`)
+                and (desc!=`wdCanvasGetViewport` or dk!=`World Coordinates`)
+                and (desc!=`cdContext` or dk!=`cdCreateCanvas`)
+                and (desc!=`cd_context` or dk!=`cdCreateCanvas`)
+                and (desc!=`cdCanvasFlush` or dk!=`cdCanvasClear`)
+                and (desc!=`cdActiveCanvas` or dk!=`cdCanvasActivate`)
+                and (desc!=`Regions` or dk!=`cdCanvasRegionCombineMode`)
+                and (desc!=`cdText` or dk!=`cdCanvasText`)
+                and (desc!=`cdCanvasSector/Chord` or dk!=`cdCanvasArc`)
+                and (desc!=`cdCanvasSector` or dk!=`cdCanvasArc`)
+                and (desc!=`cdCanvasBegin/End` or dk!=`cdCanvasBegin`)
+                and (desc!=`cdCanvasSetInteriorStyle` or dk!=`cdCanvasBox`)
+                and (desc!=`Color Coding` or dk!=`cdEncodeColor`)
+                and (desc!=`glEnd` or dk!=`glBegin`)
+                and (desc!=`glPushMatrix and glPopMatrix` or dk!=`glPushMatrix`)
+                and (desc!=`glBegin/glEnd` or dk!=`glBegin`)
+                and (desc!=`glGetDoublev` or dk!=`glGet`)
+                and (desc!=`glGetIntegerv` or dk!=`glGet`)
+                and (desc!=`pp` or dk!=`ppOpt`)
+                and (desc!=`ppf` or dk!=`ppOpt`)
+                and (desc!=`glPopMatrix` or dk!=`glPushMatrix`)
+                and (desc!=`TITLE` or dk!=`IupFrame`)
+                and (desc!=`SPIN` or dk!=`IupText`)
+                and (desc!=`PLACEMENT` or dk!=`IupDialog`)
+                and (desc!=`IupUpdate() vs. IupUpdateChildren()` or dk!=`IupUpdate`)
+                and (desc!=`Guide/System Control` or dk!=`pGUI`)
+                and (desc!=`IupSetAtt` or dk!=`IupSetAttributes`)
+                and (desc!=`DRAGSOURCEMOVE` or dk!=`Drag & Drop`)
+                and (desc!=`DRAGSOURCE` or dk!=`Drag & Drop`)
+                and (desc!=`DRAGTYPES` or dk!=`Drag & Drop`)
+                and (desc!=`DRAGBEGIN_CB` or dk!=`Drag & Drop`)
+                and (desc!=`DRAGDATASIZE_CB` or dk!=`Drag & Drop`)
+                and (desc!=`DRAGDATA_CB` or dk!=`Drag & Drop`)
+                and (desc!=`DRAGEND_CB` or dk!=`Drag & Drop`)
+                and (desc!=`DROPTARGET` or dk!=`Drag & Drop`)
+                and (desc!=`DROPTYPES` or dk!=`Drag & Drop`)
+                and (desc!=`DROPDATA_CB` or dk!=`Drag & Drop`)
+                and (desc!=`DROPMOTION_CB` or dk!=`Drag & Drop`)
+                and (desc!=`Notes` or dk!=`Drag & Drop`)
+                and (desc!=`IupSetFunction` or dk!=`IupSetGlobalFunction`)
+                and (desc!=`cbfunc` or dk!=`Icallback`)
+                and (desc!=`IupMultiLine` or dk!=`IupText`)
+                and (desc!=`DEFAULTFONT` or dk!=`Global Attributes`)
+                and (desc!=`UTF8MODE` or dk!=`Global Attributes`)
+                and (desc!=`MODKEYSTATE` or dk!=`Global Attributes`)
+                and (desc!=`DLGFGCOLOR` or dk!=`Global Attributes`)
+                and (desc!=`TXTBGCOLOR` or dk!=`Global Attributes`)
+                and (desc!=`TXTFGCOLOR` or dk!=`Global Attributes`)
+                and (desc!=`LINKFGCOLOR` or dk!=`Global Attributes`)
+                and (desc!=`MENUBGCOLOR` or dk!=`Global Attributes`)
+                and (desc!=`IupSetCallbackf` or dk!=`IupSetCallback`)
+                and (desc!=`IupSetAttributesf` or dk!=`IupSetAttributes`)
+                and (desc!=`Ihandln` or dk!=`Ihandle`)
+                and (desc!=`IupGetAttributePtr` or dk!=`IupGetAttribute`)
+                and (desc!=`IupSetStrAttributeId` or dk!=`IupSetStrAttribute`)
+                and (desc!=`Ihandles` or dk!=`Ihandle`)
+                and (desc!=`paranormalised function` or dk!=`Paranormalised Functions`)
+                and (desc!=`IupSetAttributePtr` or dk!=`IupSetAttribute`)
+                and (desc!=`IupSetFunction` or dk!=`IupGetGlobalFunction`)
+                and (desc!=`ZIPENTRY` or dk!=`The ZIPENTRY type`)
+                and (desc!=`new_ZIPENTRY` or dk!=`The ZIPENTRY type`)
+                and (desc!=`SQLITE_INTERRUPT` or dk!=`types and constants`)
+                and (desc!=`SQLITE_ABORT` or dk!=`types and constants`)
+                and (desc!=`sqlite3` or dk!=`types and constants`)
+                and (desc!=`SQLITE_OK` or dk!=`types and constants`)
+                and (desc!=`SQLITE_BUSY` or dk!=`types and constants`)
+                and (desc!=`cheat sheet` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`SQLITE_FULL` or dk!=`types and constants`)
+                and (desc!=`SQLITE_IOERR` or dk!=`types and constants`)
+                and (desc!=`SQLITE_NOMEM` or dk!=`types and constants`)
+                and (desc!=`sqlite3_stmt` or dk!=`types and constants`)
+                and (desc!=`SQLITE3_NON_FATAL` or dk!=`types and constants`)
+                and (desc!=`SQLITE_ROW` or dk!=`types and constants`)
+                and (desc!=`SQLITE_DONE` or dk!=`types and constants`)
+                and (desc!=`standard error handler` or dk!=`types and constants`)
+                and (desc!=`SQLITE_ERROR` or dk!=`types and constants`)
+                and (desc!=`SQLITE_MISUSE` or dk!=`types and constants`)
+                and (desc!=`Database Manipulation (CREATE, DROP DATABASE)` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`Table Manipulation (CREATE, ALTER, DROP TABLE, Data Types)` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`Index Manipulation (CREATE, DROP INDEX)` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`Data Manipulation (INSERT, UPDATE, DELETE, TRUNCATE TABLE)` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`Select (SELECT, FROM, WHERE, ORDER BY, GROUP BY, HAVING, Operators, Aggregate functions)` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`Alias` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`JOIN` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`UNION` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`SELECT INTO/IN` or dk!=`SQL Cheat Sheet`)
+                and (desc!=`CREATE VIEW` or dk!=`SQL Cheat Sheet`)
+                
+--/*
+
+                and (desc!=`PRAGMA table_info` or dk!=`PRAGMA Statements`)
+                and (desc!=`BEGIN` or dk!=`BEGIN TRANSACTION`)
+                and (desc!=`COMMIT` or dk!=`BEGIN TRANSACTION`)
+                and (desc!=`ROLLBACK` or dk!=`BEGIN TRANSACTION`)
+                and (desc!=`omit some features` or dk!=`SQL Features That SQLite Does Not Implement`)
+                and (desc!=`SQL keywords` or dk!=`SQLite Keywords`)
+                and (desc!=`syntax diagrams` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sql-stmt-list:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sql-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sql-stmt` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`sqlite3_lang.htm` or dk!=`SQL As Understood By SQLite`)
+                and (desc!=`sql-stmt-list` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`alter-table-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`analyze-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`attach-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`begin-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`commit-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`create-index-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`create-table-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`create-trigger-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`create-view-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`create-virtual-table-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`delete-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`delete-stmt-limited` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`detach-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`drop-index-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`drop-table-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`drop-trigger-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`drop-view-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`insert-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`pragma-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`reindex-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`release-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`rollback-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`savepoint-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`select-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`update-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`update-stmt-limited` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`vacuum-stmt` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`sqlite3_lang_explain.htm` or dk!=`EXPLAIN`)
+                and (desc!=`column-def` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`sqlite3_lang_altertable.htm` or dk!=`ALTER TABLE`)
+--              and (desc!=`sqlite3_lang_analyze.htm` or dk!=`ANALYZE`)
+                and (desc!=`expr` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`sqlite3_lang_attach.htm` or dk!=`ATTACH DATABASE`)
+--              and (desc!=`sqlite3_lang_transaction.htm` or dk!=`BEGIN TRANSACTION`)
+--              and (desc!=`sqlite3_lang_savepoint.htm` or dk!=`SAVEPOINT`)
+--              and (desc!=`indexed-column` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`sqlite3_lang_createindex.htm` or dk!=`CREATE INDEX`)
+--              and (desc!=`sqlite3_partialindex.htm` or dk!=`Partial Indexes`)
+--              and (desc!=`table-constraint` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`sqlite3_lang_createtable.htm` or dk!=`CREATE TABLE`)
+--              and (desc!=`sqlite3_lang_createtable.htm#primkeyconst` or dk!=`CREATE TABLE`)
+--              and (desc!=`sqlite3_lang_createtable.htm#uniqueconst` or dk!=`CREATE TABLE`)
+--              and (desc!=`sqlite3_lang_createtable.htm#tablecoldef` or dk!=`CREATE TABLE`)
+--              and (desc!=`column-constraint` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`type-name` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`signed-number` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`sqlite3_lang_createtrigger.htm` or dk!=`CREATE TRIGGER`)
+--              and (desc!=`sqlite3_lang_createview.htm` or dk!=`CREATE VIEW`)
+--              and (desc!=`sqlite3_lang_delete.htm` or dk!=`DELETE`)
+--              and (desc!=`sqlite3_lang_expr.htm` or dk!=`expression`)
+--              and (desc!=`sqlite3_lang_insert.htm` or dk!=`INSERT`)
+--              and (desc!=`sqlite3_lang_select.htm` or dk!=`SELECT`)
+--              and (desc!=`sqlite3_lang_select.htm#compound` or dk!=`SELECT`)
+--              and (desc!=`sqlite3_lang_select.htm#simpleselect` or dk!=`SELECT`)
+--              and (desc!=`sqlite3_lang_update.htm` or dk!=`UPDATE`)
+--              and (desc!=`sqlite3_lang_with.htm` or dk!=`WITH clause`)
+--              and (desc!=`conflict-clause` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`foreign-key-clause` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`literal-value` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`table-or-subquery:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`result-column:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`type-name:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`signed-number:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`signed-number:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`select-core:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`join-clause:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`join-constraint:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`join-operator:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`select-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+--              and (desc!=`compound-operator:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`ORDER BY` or dk!=`SELECT`)
+                and (desc!=`LIMIT` or dk!=`SELECT`)
+                and (desc!=`VALUES` or dk!=`SELECT`)
+                and (desc!=`compound SELECT` or dk!=`SELECT`)
+                and (desc!=`simple SELECT` or dk!=`SELECT`)
+                and (desc!=`comparison expressions` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`COLLATE operator` or dk!=`expression`)
+                and (desc!=`BINARY` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`VALUES clause` or dk!=`SELECT`)
+                and (desc!=`common table expressions` or dk!=`WITH clause`)
+                and (desc!=`update-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`column-name-list:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`expr:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`literal-value:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`raise-function:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`common-table-expression:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`qualified-table-name:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`with-clause:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`cte-table-name:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`qualified-table-name` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`boolean expression is true` or dk!=`expression`)
+                and (desc!=`parenthesized list of column names` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`row value` or dk!=`Row Values`)
+                and (desc!=`ON CONFLICT` or dk!=`ON CONFLICT clause`)
+                and (desc!=`update-stmt-limited:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`vacuum-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`page_size` or dk!=`PRAGMA Statements`)
+                and (desc!=`auto_vacuum` or dk!=`PRAGMA Statements`)
+                and (desc!=`pragma auto_vacuum` or dk!=`PRAGMA Statements`)
+                and (desc!=`Attached databases` or dk!=`ATTACH DATABASE`)
+                and (desc!=`ROWIDs` or dk!=`CREATE TABLE`)
+                and (desc!=`INTEGER PRIMARY KEY` or dk!=`CREATE TABLE`)
+                and (desc!=`views` or dk!=`CREATE VIEW`)
+                and (desc!=`view` or dk!=`CREATE VIEW`)
+                and (desc!=`compound select` or dk!=`SELECT`)
+                and (desc!=`compound-operator` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`recursive-cte:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`recursive-cte` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`cte-table-name` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`create-index-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`indexed-column:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`bound parameters` or dk!=`expression`)
+                and (desc!=`ALTER` or dk!=`ALTER TABLE`)
+                and (desc!=`CREATE TABLE documentation` or dk!=`CREATE TABLE`)
+                and (desc!=`rowid` or dk!=`CREATE TABLE`)
+                and (desc!=`specified here` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`collating sequence` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`affinity` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`PRAGMA foreign_key_list` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA foreign_keys` or dk!=`PRAGMA Statements`)
+                and (desc!=`multi-statement transaction` or dk!=`BEGIN TRANSACTION`)
+                and (desc!=`section 1` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`defer_foreign_keys pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`nested savepoint` or dk!=`SAVEPOINT`)
+                and (desc!=`nested savepoints` or dk!=`SAVEPOINT`)
+                and (desc!=`SQLite triggers` or dk!=`CREATE TRIGGER`)
+                and (desc!=`foreign key constraints are enabled` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`deferred` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`foreign key actions` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`PRAGMA recursive_triggers` or dk!=`PRAGMA Statements`)
+                and (desc!=`attached database` or dk!=`ATTACH DATABASE`)
+                and (desc!=`parameters` or dk!=`expression`)
+                and (desc!=`CAST expression` or dk!=`expression`)
+                and (desc!=`VIEW` or dk!=`CREATE VIEW`)
+                and (desc!=`column definition` or dk!=`CREATE TABLE`)
+                and (desc!=`random()` or dk!=`Core Functions`)
+                and (desc!=`sqlite_version()` or dk!=`Core Functions`)
+                and (desc!=`UNIQUE` or dk!=`CREATE TABLE`)
+                and (desc!=`PRIMARY KEY` or dk!=`CREATE TABLE`)
+                and (desc!=`rowids` or dk!=`CREATE TABLE`)
+                and (desc!=`AUTOINCREMENT` or dk!=`SQLite Autoincrement`)
+                and (desc!=`last_insert_rowid()` or dk!=`Core Functions`)
+                and (desc!=`unique index` or dk!=`CREATE INDEX`)
+                and (desc!=`ROWID` or dk!=`CREATE TABLE`)
+                and (desc!=`WITHOUT ROWID` or dk!=`Clustered Indexes and the WITHOUT ROWID Optimization`)
+                and (desc!=`IN operator` or dk!=`expression`)
+
+                and (desc!=`does not implement DROP COLUMN` or dk!=`SQL Features That SQLite Does Not Implement`)
+                and (desc!=`"DELETE FROM table_name;"` or dk!=`DELETE`)
+                and (desc!=`does not implement RIGHT OUTER JOIN or FULL OUTER JOIN` or dk!=`SQL Features That SQLite Does Not Implement`)
+                and (desc!=`views are read-only` or dk!=`SQL Features That SQLite Does Not Implement`)
+                and (desc!=`alter-table-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`column-def:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`column-constraint:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`conflict-clause:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`ordering-term:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`foreign-key-clause:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`foreign key constraints` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`enabled` or dk!=`PRAGMA Statements`)
+                and (desc!=`REFERENCES clauses` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`REFERENCES clause` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`CHECK constraint` or dk!=`CREATE TABLE`)
+                and (desc!=`PRAGMA foreign_keys=OFF` or dk!=`PRAGMA Statements`)
+                and (desc!=`DROP TABLE X` or dk!=`DROP TABLE`)
+                and (desc!=`PRAGMA foreign_key_check` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA schema_version` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA writable_schema=ON` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA schema_version=X` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA writable_schema=OFF` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA integrity_check` or dk!=`PRAGMA Statements`)
+                and (desc!=`analyze-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`PRAGMA optimize` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA optimize(0x03)` or dk!=`PRAGMA Statements`)
+                and (desc!=`attach-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`begin-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`commit-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`rollback-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`RELEASE` or dk!=`SAVEPOINT`)
+                and (desc!=`read_uncommitted` or dk!=`PRAGMA Statements`)
+                and (desc!=`SQLITE_ABORT_ROLLBACK` or dk!=`types and constants`)
+                and (desc!=`PRAGMA journal_mode` or dk!=`PRAGMA Statements`)
+                and (desc!=`comment-syntax:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`Date &amp; Time functions` or dk!=`Date And Time Functions`)
+                and (desc!=`GLOB` or dk!=`expression`)
+                and (desc!=`coalesce()` or dk!=`Core Functions`)
+                and (desc!=`LIKE` or dk!=`expression`)
+                and (desc!=`unlikely(X)` or dk!=`Core Functions`)
+                and (desc!=`likely(X)` or dk!=`Core Functions`)
+                and (desc!=`likelihood` or dk!=`Core Functions`)
+                and (desc!=`aggregate function` or dk!=`Aggregate Functions`)
+                and (desc!=`hex()` or dk!=`Core Functions`)
+                and (desc!=`lower()` or dk!=`Core Functions`)
+                and (desc!=`compile_options pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`datatype` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`partial index` or dk!=`Partial Indexes`)
+                and (desc!=`legacy_file_format pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`create-table-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`table-constraint:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`trigger` or dk!=`CREATE TRIGGER`)
+                and (desc!=`expression affinity` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`order` or dk!=`SELECT`)
+                and (desc!=`column definitions` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`table constraints` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`column constraints` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`SQL Data Constraints` or dk!=`CREATE TABLE`)
+                and (desc!=`dynamic typing` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`below` or dk!=`CREATE TABLE`)
+                and (desc!=`constraint conflict resolution algorithm` or dk!=`ON CONFLICT clause`)
+                and (desc!=`separately` or dk!=`SQLite Autoincrement`)
+                and (desc!=`parent key` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`foreign key constraint` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`create-trigger-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`delete-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`insert-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`dropped` or dk!=`DROP TRIGGER`)
+                and (desc!=`dropped` or dk!=`DROP TABLE`)
+                and (desc!=`modified` or dk!=`ALTER TABLE`)
+                and (desc!=`ATTACH` or dk!=`ATTACH DATABASE`)
+                and (desc!=`Common table expression` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`count_changes pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`SQLITE_CONSTRAINT` or dk!=`types and constants`)
+                and (desc!=`create-view-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`INSTEAD OF trigger` or dk!=`CREATE TRIGGER`)
+                and (desc!=`create-virtual-table-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`column definitions` or dk!=`CREATE TABLE`)
+                and (desc!=`boolean expression` or dk!=`expression`)
+                and (desc!=`delete-stmt-limited:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`pragma-value` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sqlite3_pragma.htm#syntax` or dk!=`PRAGMA Statements`)
+                and (desc!=`sqlite3_lang_conflict.htm` or dk!=`ON CONFLICT clause`)
+                and (desc!=`sqlite3_lang_createtable.htm#notnullconst` or dk!=`CREATE TABLE`)
+                and (desc!=`sqlite3_lang_createvtab.htm` or dk!=`CREATE VIRTUAL TABLE`)
+                and (desc!=`with-clause` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sqlite3_lang_with.htm#recursivecte` or dk!=`WITH clause`)
+                and (desc!=`compound-select-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`factored-select-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`simple-select-stmt` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`ordering-term` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sqlite3_lang_detach.htm` or dk!=`DETACH DATABASE`)
+                and (desc!=`sqlite3_lang_dropindex.htm` or dk!=`DROP INDEX`)
+                and (desc!=`sqlite3_lang_droptable.htm` or dk!=`DROP TABLE`)
+                and (desc!=`sqlite3_lang_droptrigger.htm` or dk!=`DROP TRIGGER`)
+                and (desc!=`sqlite3_lang_dropview.htm` or dk!=`DROP VIEW`)
+                and (desc!=`join-constraint` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`result-column` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`select-core` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`table-or-subquery` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`raise-function` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sqlite3_lang_createtrigger.htm#raise` or dk!=`CREATE TRIGGER`)
+                and (desc!=`sqlite3_lang_expr.htm#litvalue` or dk!=`expression`)
+                and (desc!=`sqlite3_lang_reindex.htm` or dk!=`REINDEX`)
+                and (desc!=`common-table-expression` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`join-clause` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`join-operator` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sqlite3_lang_select.htm#fromclause` or dk!=`SELECT`)
+                and (desc!=`column-name-list` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`sqlite3_lang_indexedby.htm` or dk!=`INDEXED BY`)
+                and (desc!=`sqlite3_lang_vacuum.htm` or dk!=`VACUUM`)
+                and (desc!=`sqlite3_lang_comment.htm` or dk!=`comment`)
+                and (desc!=`detach-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`drop-index-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`drop-table-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`DELETE FROM` or dk!=`DELETE`)
+                and (desc!=`drop-trigger-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`drop-view-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`object resolution` or dk!=`Database Object Name Resolution`)
+                and (desc!=`detailed discussion on collating sequences` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`Datatype In SQLite3` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`numeric-literal:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`column affinity` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`like(<i>Y</i>,<i>X</i>)` or dk!=`Core Functions`)
+                and (desc!=`like(<i>Y</i>,<i>X</i>,<i>Z</i>)` or dk!=`Core Functions`)
+                and (desc!=`case_sensitive_like pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`glob(<i>Y</i>,<i>X</i>)` or dk!=`Core Functions`)
+                and (desc!=`storage class` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`rules for determining column affinity` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`encoding` or dk!=`PRAGMA Statements`)
+                and (desc!=`hexadecimal integers` or dk!=`expression`)
+                and (desc!=`affinities` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`simple` or dk!=`Core Functions`)
+                and (desc!=`aggregate` or dk!=`Aggregate Functions`)
+                and (desc!=`date-time functions` or dk!=`Date And Time Functions`)
+                and (desc!=`max()` or dk!=`Aggregate Functions`)
+                and (desc!=`max()` or dk!=`Core Functions`)
+                and (desc!=`default column value` or dk!=`CREATE TABLE`)
+                and (desc!=`default value` or dk!=`CREATE TABLE`)
+                and (desc!=`compound SELECTs` or dk!=`SELECT`)
+                and (desc!=`conflict resolution algorithm` or dk!=`ON CONFLICT clause`)
+                and (desc!=`NOT NULL` or dk!=`CREATE TABLE`)
+                and (desc!=`CHECK` or dk!=`CREATE TABLE`)
+                and (desc!=`FOREIGN KEY constraints` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`delete triggers` or dk!=`CREATE TRIGGER`)
+                and (desc!=`recursive triggers` or dk!=`PRAGMA Statements`)
+                and (desc!=`pragma-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`pragma-value:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`index_info pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`VIEWs` or dk!=`CREATE VIEW`)
+                and (desc!=`user_version pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`incremental_vacuum` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA cache_size` or dk!=`PRAGMA Statements`)
+                and (desc!=`fullfsync` or dk!=`PRAGMA Statements`)
+                and (desc!=`sqlite_compileoption_get()` or dk!=`Core Functions`)
+                and (desc!=`cache_size` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA` or dk!=`PRAGMA Statements`)
+                and (desc!=`foreign_key_list pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`SQLITE_SCHEMA` or dk!=`types and constants`)
+                and (desc!=`short_column_names` or dk!=`PRAGMA Statements`)
+                and (desc!=`full_column_names` or dk!=`PRAGMA Statements`)
+                and (desc!=`checkpoint_fullfsync` or dk!=`PRAGMA Statements`)
+                and (desc!=`auto_vacuum=incremental` or dk!=`PRAGMA Statements`)
+                and (desc!=`UNIQUE constraint` or dk!=`CREATE TABLE`)
+                and (desc!=`PRIMARY KEY constraint` or dk!=`CREATE TABLE`)
+                and (desc!=`index_xinfo pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`FOREIGN KEY` or dk!=`SQLite Foreign Key Support`)
+                and (desc!=`PRAGMA quick_check` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA journal_size_limit` or dk!=`PRAGMA Statements`)
+                and (desc!=`exclusive locking mode` or dk!=`PRAGMA Statements`)
+                and (desc!=`persistent journal mode` or dk!=`PRAGMA Statements`)
+                and (desc!=`PRAGMA mmap_size` or dk!=`PRAGMA Statements`)
+                and (desc!=`integrity_check` or dk!=`PRAGMA Statements`)
+                and (desc!=`application_id pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`attached databases` or dk!=`ATTACH DATABASE`)
+                and (desc!=`temp_store_directory` or dk!=`PRAGMA Statements`)
+                and (desc!=`schema_version pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`journal_mode pragma` or dk!=`PRAGMA Statements`)
+                and (desc!=`reindex-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`savepoint-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`release-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`INSERT OR REPLACE` or dk!=`ON CONFLICT clause`)
+                and (desc!=`factored-select-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`WITH` or dk!=`WITH clause`)
+                and (desc!=`simple-select-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+                and (desc!=`FROM clause` or dk!=`SELECT`)
+                and (desc!=`WHERE clause` or dk!=`SELECT`)
+                and (desc!=`GROUP BY, HAVING and result-column expression` or dk!=`SELECT`)
+                and (desc!=`DISTINCT/ALL keyword` or dk!=`SELECT`)
+                and (desc!=`collation sequence` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`selecting a collation sequence` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`sum()` or dk!=`Aggregate Functions`)
+                and (desc!=`min()` or dk!=`Aggregate Functions`)
+                and (desc!=`usual rules` or dk!=`Datatypes In SQLite Version 3`)
+                and (desc!=`compound-select-stmt:` or dk!=`Syntax Diagrams For SQLite`)
+--*/
+                and (desc!=`PCRE compatibility` or dk!=`regex syntax`)
+                and (desc!=`timedate` or dk!=`the timedate type`)
+                and (desc!=`format string` or dk!=`format strings`)
+                and (desc!=`Event Handling` or dk!=`Events`)
+                and (desc!=`MarkBoxes` or dk!=`Markboxes`)
+                and (desc!=`Group boxes` or dk!=`Groups`)
+                and (desc!=`Editable controls` or dk!=`Editable`)
+                and (desc!=`Tool bars` or dk!=`Toolbars`)
+                and (desc!=`Status bars` or dk!=`Statusbars`)
+                and (desc!=`Scroll bars` or dk!=`Scrollbars`)
+                and (desc!=`Track bars` or dk!=`Trackbars`)
+                and (desc!=`Progress bars` or dk!=`Progressbars`)
+                and (desc!=`List boxes` or dk!=`List Controls`)
+                and (desc!=`Tab controls` or dk!=`Tab Controls`)
+                and (desc!=`HyperText controls` or dk!=`Hypertext Controls`)
+                and (desc!=`Moving between Controls (using TAB)` or dk!=`Moving Between Controls`)
+                and (desc!=`Clipboard functions` or dk!=`Clipboard Functions`)
+                and (desc!=`Dib sections &amp; Bitmaps` or dk!=`Dib Sections &amp; Bitmaps`)
+                and (desc!=`Icons &amp; Cursors` or dk!=`Icon &amp; Cursor (mouse pointer) Routines`)
+                and (desc!=`Common Dialogs` or dk!=`Common Dialog Windows`)
+                and (desc!=`Windows messages` or dk!=`Windows Messages`)
+                and (desc!=`To do list..` or dk!=`Arwen Win32 Library`)
+                and (desc!=`Bugs` or dk!=`Arwen Win32 Library`)
+                and (desc!=`Windows Messages` or dk!=`Events`)
+                and (desc!=`DibSection` or dk!=`DibSection Library for Arwen`)
+                and (desc!=`pixel` or dk!=`pixels`)
+                and (desc!=`Arwen` or dk!=`Arwen Win32 Library`)
+                and (desc!=`Dependency Walker` or dk!=`Windows Only`)
+                and (desc!=`bigatom` or dk!=`bigatom type`)
+                and (desc!=`limitations` or dk!=`Floats Are Not Exact`)
+                and (desc!=`limitations of atoms` or dk!=`Floats Are Not Exact`)
+                and (desc!=`Clipping` or dk!=`cdCanvasClip`)
+                and desc!=lower(dk)
+                and link!=lower(dk) then
+                    if not just_msgs then
+                        clear_screen()
+                        just_msgs = true
+                    end if
+                    string msg = sprintf("        and (desc!=`%s` or dk!=`%s`)\n",{desc,dk})
+                    if not find(msg,shown) then
+                        shown = append(shown,msg)
+                        puts(1,msg)
+                    end if
+                    ?9/0
+--                  sleep(2)
+--                  abort(0)
+                end if
+--DEV to do: mid-page (#) links... [DEV surely link not dk?(*3?), erm, did I mean dk->wikify --ERM/AHEM: NO!!]
+                if desc!=dk then
+                    content[il..ca+3] = sprintf("[[%s|%s]]",{desc,dk})
+                else
+                    content[il..ca+3] = sprintf("[[%s]]",{dk})
+                end if
+            end if
+        end while
+    end if
+--DEV/sug not if it starts with a table...
+--if filename="integer" then ?content end if
+    if content[1..11]!=`%0a(:table ` then
+        content = sprintf("'''%s'''%%0a%%0a%s",{title,content})
+    end if
+--if filename="integer" then ?content end if
+--  content = substitute(content,"\n","%0a")
+    content = substitute(content,"<br>","%0a")
+    content = substitute(content,"<p>","%0a")
+    content = substitute(content,`//-- or --//`,`//-- or --//\\`) -- force line break...
+    string menu = ""
+    sequence toci = get_toc(idx)
+    for i=1 to length(toci) do
+        if toci[i] then
+            integer level = tocl[i]+1
+            string link = iff(i=1?"Phix":descriptions[i])
+--*[[Phix]]%0a**[[Example Program]]%0a**[[Installation]]%0a**[[Licence]]%0a*[[Core Language]]%0a*[[Library Routines]]%0a*[[Other Libraries]]%0a*[[Recommended Tools]]%0a*[[Internals]]%0a
+            menu &= sprintf("%s[[%s]]%%0a",{repeat('*',level),link})
+        end if
+    end for
+--?menu
+    content = sprintf("%s%s%s%s%s",{contenthdr,menu,contentmid,content,contentend})
+--  return {targets,content}
+    return content
+end function
+
+function wikiword(string desc)
+--  sequence fw = split(substitute(desc,"/",""),no_empty:=true)
+    sequence fw = split(desc,no_empty:=true)
+    for i=1 to length(fw) do fw[i][1] = upper(fw[i][1]) end for
+    return join(fw,"")
+end function
+
 procedure writefiles()
 integer fn
-string filename
+string filename, filepath
     puts(1,"Writing files...\n")
     for i=1 to length(tocf) do
         filename = tocf[i]
-        if i!=1 then
-            filename = join_path({"html",filename})
-        end if
-        filename &= ".htm"
-        fn = open(filename,"w")
-        if fn=-1 then fatal("error opening "&filename&"\n") end if
-        printf(fn,stubs[HEAD],{descriptions[i]})
-        if i=1 then
-            puts(fn,stubs[BANNER])
+        if wikidocs then
+--?{filename,i}
+--          string targets = "",
+--                 content = contents[i]
+--          string {targets,content} = wikify(contents[i])
+            string content = wikify(i,filename)
+--if find(filename,{"phix","example","language","rectools"}) then
+if find(filename,FILESET) then
+--/*
+            integer ch = lower(filename[1])
+if find(ch,"cdepl")
+and match("cd",filename)!=1
+and match("vs",filename)=0
+--and match("Iup",filename)!=1
+and match("curl",filename)!=1
+and match("Dib",filename)=0
+and match("db_",filename)!=1 then
+--and match("task_",filename)!=1
+--and match("get_",filename)!=1
+--and match("Zip",filename)!=1
+--and match("UnZip",filename)!=1
+--and match("ba_",filename)!=1
+--and match("a32",filename)!=1
+--and match("arwen",filename)!=1
+--and match("utf",filename)!=1
+--and match("sqlite3",filename)!=1
+--and match("nopoll",filename)!=1 then
+--*/
+            if i=1 then
+                filename = "Phix"
+                content = phixheader&content
+            else
+--              filename = substitute_all(descriptions[i],{" ","/"},{"",""})
+--              filename[1] = upper(filename[1])
+                filename = wikiword(descriptions[i])
+            end if
+            filename = "Docs."&filename
+--?filename
+            filepath = join_path({"pmwiki",filename})
+            if get_file_type("pmwiki")!=FILETYPE_DIRECTORY then
+                if not create_directory("pmwiki") then ?9/0 end if
+            end if
+            fn = open(filepath,"w")
+--          if not file
+--          printf(fn,PageContent,{filename,targets,content})
+            printf(fn,PageContent,{content})
+--          ?{filename,descriptions[i],i}
+--          ?contents[i]
+            close(fn)
+end if
         else
-            puts(fn,stubs[BODY])
-        end if
+            if i!=1 then
+                filename = join_path({"html",filename})
+            end if
+            filename &= ".htm"
+            fn = open(filename,"w")
+            if fn=-1 then fatal("error opening "&filename&"\n") end if
+            printf(fn,stubs[HEAD],{descriptions[i]})
+            if i=1 then
+                puts(fn,stubs[BANNER])
+            else
+                puts(fn,stubs[BODY])
+            end if
 --if i=2 then trace(1) end if
-        write_toc(fn,i)
-        puts(fn,contents[i])
-        puts(fn,stubs[TAIL])
-        close(fn)
+            write_toc(fn,i)
+            puts(fn,contents[i])
+            puts(fn,stubs[TAIL])
+            close(fn)
+        end if
     end for
 end procedure
 
@@ -444,19 +2262,288 @@ string cmd, cd
     if getc(0) then end if
 end procedure
 
-if not justcompile then
+if wikidocs then
+    puts(1,"Building wiki docs\n")
+--  puts(1,"Reading files...\n")
     readtoc()
+--if 0 then
+--  writeindex()
+--end if
     writefiles()
-    writehhck()
-    -- for the online version:
-    integer fn = open("phix.htm","r")
-    string txt = get_text(fn)
-    close(fn)
-    fn = open("html\\phix.htm","w")
-    txt = substitute(txt,"html/","")
-    puts(fn,txt)
-    close(fn)
-end if
-if platform()=WINDOWS then  --DEV try to run hhc.exe on wine?
-    compile()
+--/*
+If I understand correctly, you already have all the documentation
+content, and you need to place it in a wiki for easier
+browsing/searching and updating.
+
+So the main question is how to structure/organize the content.
+
+Let's say all your pages are in the Main/ wikigroup. If you select
+another group like Docs/, the below examples should replace "Main/" and
+"Main." with "Docs/" and "Docs.".
+
+I would probably start with a large trail (bulleted list) with links to
+all your pages, like in the page Main.Index (or Docs.Index):
+
+* [[Introduction]] [[#intro]]
+** [[Example Program]]
+** [[Installation]]
+** [[Licence]]
+* [[Core Language]] [[#core]]
+** [[Atoms and Integers]]
+*** [[Number Bases]]
+*** [[Floats Are Not Exact]]
+... and so on
+
+Then I would place a "breadcrumb" trail path in "Main.GroupHeader", or
+in "Site.PageActions", or in a specific place in the skin template:
+
+  ^|[[Main/Index]]|^
+
+This will output links to the parents of the current page, eg if you are
+in [[Number Bases]], there will be links to [[Atoms and Integers]],
+[[Core Language]] and [[Index]]:
+
+  Index > Core Language > Atoms and Integers > Number Bases
+
+At the bottom of the page, or better in Main.GroupFooter, I'd place a
+"prev-next" wiki trail:
+
+  <|[[Main/Index]]|>
+
+which would output
+  < Atoms and Integers | Index | Floats Are Not Exact >
+
+so that people can browse up and down the trail in the order of the
+index page.
+
+At every main section, in the index page I've added an anchor like
+[[#intro]], [[#core]].
+
+Then in these main section pages, I'd include that section of the index
+trail like, in Main.CoreLanguage
+
+  (:include Main.Index#core:)
+
+This will include the full subtree below "* [[Core Language]]" until the
+next anchor.
+
+If you add new pages or reorder the pages in the index trail tree, the
+updated section will be included in the main sections.
+
+In the sidebar, I'd only link to the main section links for now(*):
+
+* [[Introduction]]
+* [[Core Language]]
+* [[Library Routines]]
+* [[Other Libraries]]
+* [[Recommended Tools]]
+* [[Internals]]
+* [[Glossary]]
+
+For more information, see:
+  https://www.pmwiki.org/wiki/PmWiki/WikiStructure
+  https://www.pmwiki.org/wiki/PmWiki/WikiTrails
+  https://www.pmwiki.org/wiki/PmWiki/IncludeOtherPages
+  https://www.pmwiki.org/wiki/PmWiki/GroupHeaders
+
+These may also be useful:
+
+Categories and backlinks, mesh-like cross linking:
+  https://www.pmwiki.org/wiki/PmWiki/Categories
+  https://www.pmwiki.org/wiki/Cookbook/Backlinks
+
+WikiGroups, separate website sections, possibly custom configurations,
+their own sidebar, etc.:
+  https://www.pmwiki.org/wiki/PmWiki/WikiGroup
+
+SourceBlock uses GeSHi to highlight code:
+  https://www.pmwiki.org/wiki/Cookbook/SourceBlock
+
+If you generate many pages, the file storage format in wiki.d is
+described here:
+  https://www.pmwiki.org/wiki/PmWiki/PageFileFormat
+
+or this may be easier, just create the wikitext and let this addon
+import it in the correct file format:
+  https://www.pmwiki.org/wiki/Cookbook/ImportText
+
+Note that a file under wiki.d should have a name that is a regular
+PmWiki page name, like "Main.CoreLanguage" (GroupName, dot, PageName,
+first letters of words are uppercase, no spaces). The following are
+incorrect and may be invisible to PmWiki, or you may have problems when
+modifying them: "Core Language" (without group, with space) or
+"Main.CoreLanguage.txt" (more than 1 dot) or "main.corelanguage"
+(lowercase).
+
+
+Petko
+
+(*) I said "for now" because there are addons that claim to do expanding
+menus. I haven't used these but just tested Cookbook/TrailMenu by Pm and
+couldn't make it work reliably. I'll review and hopefully fix it when I
+find some time. Or you can try some of the other expanding menu addons.
+
+
+On 28/09/2019 23:04, Pete Lomax wrote:
+> I have some documentation that I want to pmwiki-fi.
+>
+> Currently I use a small program to convert some 1000 internal files to
+> chm or online html, and can
+> easily adapt that to do most of the final gruntwork, once I know
+> precisely what the target is.
+>
+> The [non-editable] online docs are currently at
+> http://phix.x10.mx/docs/html/phix.htm
+>
+> My first stab at the first page is
+> http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Wiki
+>
+> Previously I originally created PCAN (of which the latter is a part)
+> via web scraping and another one-off
+> program that I still have somewhere (but will never use in anger
+> again).
+>
+> If curious, see https://bitbucket.org/petelomax/phix/src -
+> specifically docs/phix/makephix.exw, phix.htm, and
+> docs/phix/src/toc.txt - to fully understand what I already have.
+>
+> Not particularly worried about the graphics on the first page, and I
+> already have a geshi widget for code,
+> it is the lhs menu that needs most help, and I can live without the
+> hide/unhide feature of that.
+>
+> Any tips for making the pmwiki version as close as possible to the
+> online docs would be most appreciated.
+
+I have now uploaded approx 90 pages to the phix docs wiki. The other 900 are hopefully
+easily generated, but I may as well get some feedback before going any further.
+
+There are some obvious failures: installation, precedence, reserved words, and mpfr
+is a bit wonky but not bad really - suggestions/actual demonstrations/edits on the 
+wiki that show //how// to fix things would probably be somewhat more helpful to me 
+than just pointing out things that are wrong!
+
+Abject failures include:
+http://phix.x10.mx/pmwiki/pmwiki.php?n=Docs.MpfrGmp
+and
+http://phix.x10.mx/pmwiki/pmwiki.php?n=Docs.SequenceManipulation
+
+The Docs.Xxx pages are auto-generated by docs/phix/makephix.exw with wikidocs set non-zero
+from docs/phix/src. I plan to periodically check the wiki and manually apply any changes
+to the latter, typically as each new version is released, at which point the entire wiki
+will probably be re-uploaded. While small changes can and should be made directly, it may
+be wise to insert a [[Docz.Xxx]] link, with name, date, and summary, and copy the original 
+page before making significant edits. Obviously, as well as having a Recent Changes log, 
+I would also find all such Docz collected together in the file listing of my cPanel.
+
+I don't want to get into a full tutorial on pmwiki editing, that's what all the help links
+on the edit page are for, but here are all the baby-steps needed for creating a new page:
+1) Press edit (top right or bottom left, it makes no difference).
+2) Figure out and enter the password.
+3) Press eg Ctrl A, Ctrl C, to copy the existing page to the cliboard.
+4) Press Ctrl Home to cancel selection and go to the top of the page.
+5) Enter eg **MODIFIED** - see [[Docz.Atom]] (Albert Einstein 4/3/1905 some observations)
+5a) NB enter what it looks like, not the gibberish you get when you edit this page.
+6) Save, click on the new Docz.Atom link, Ctrl V to paste in the old page.
+6a) NB clicking on "" in the preview pane will rudely bin all the edits just made.
+7) Edit
+8) Preview
+9) Save
+10) Finish reading this list
+11) Complain it is all far too difficult
+12) Realise you shouldn't be reading this if you'd followed step 10 properly
+13) Start to wonder which one of us, if any, is going to give up and admit defeat first.
+(:comment 14) Hee hee hee hee hee hee hee..... I win, you lose, na-na na-na-na na na na.:)
+
+The Introduction page contains such a Docz example, both to show you what I mean, and a
+place to hold this text, with no danger of it being auto-clobbered. Admittedly the link
+on a Docs.Xxx page could well get clobbered, but at least the target will still exist.
+
+Obviously if you prefer, you can clone the phix bitbucket repository and push any changes
+direct to docs/phix/src, or just post to EuForum, whatever suits you best.
+
+The wiki deliberately excludes all sqlite3_lang_xxx pages, since all that information is
+readily available at http://www.sqlite.org and has no business whatsoever on my wiki.
+
+If anything does not look right, compare it against the static online manual which can be
+found at http://phix.x10.mx/docs/html/phix.htm or your local phix.chm.
+
+==
+I had an images directory containing 409 files arranged in 15 folders. 
+In the end I had to flatten the whole thing directly into uploads, and then 
+fix up/rename all the different image sizes that clobbered, one by one.
+I tried absolute paths and everything to get relative paths to work, including Path:, 
+Attach:Path:, Docs./, and setting $EnableLinkPageRelative = 1; all to no avail.
+I also noted that there seems to be no way to perform a relative upload.
+Anyway, it kinda works now, just thought you should know of my troubles.
+
+'^Superscript^'
+'_Subscript_'
+'-small-'
+//italics//
+**bold**    (presumably not at the start of a line...)
+
+Horizontal Line
+Four or more dashes (----) at the beginning of a line produce a horizontal line.
+
+%lfloat% Attach:image.gif | Caption %% (could be %rfloat%, %center%, %rframe%, %lframe%, %frame% )
+%width=200px% Attach:image.gif %%
+
+The align attribute of <th> is not supported in HTML5. Use CSS instead.
+
+CSS syntax: <th style="text-align:left">
+
+Table directives
+
+There are six directives for table processing. All must be at the beginning of a line to have any effect.
+
+(:table [attr...]:)
+Generates a new HTML <table> tag with the attributes provided in attr.... Closes the previous table, if any. Valid attributes and values are:
+
+border (a positive integer)
+bordercolor (a color name or hex number; doesn't display in all browsers)
+cellspacing (a positive integer indicating the space between cells)
+cellpadding (a positive integer indicating the interior border of a cell)
+width (a positive integer or percent)
+bgcolor (a color name or hex number)
+align (left, center or right)
+summary (does not display; used primarily to help visually disabled people navigate)
+(:cellnr [attr...]:), (:cell [attr...]:), (:headnr [attr...]:), (:head [attr...]:)
+The (:head:) directive opens a new "header cell" of the table (creates <th> tag in HTML).
+The (:cell:) directive opens a new "regular cell" of the table (creates <td> tag in HTML).
+The directives (:headnr:) and (:cellnr:) open a new cell on a new row in the table.
+These directives close any previous cell and/or row. Note, the (:head:) and (:headnr:) directives exist from PmWiki version 2.2.11 or newer.
+
+Valid attributes and values are:
+
+align (left, center or right)
+valign (top, middle or bottom) * default is "top", see note below
+colspan (a positive integer)
+rowspan (a positive integer)
+bgcolor (a color name or hex number)
+width (a positive integer or percent)
+class (a CSS class of the cell)
+style (custom CSS styles of the cell)
+(:tableend:)
+Closes the previous table cell and closes off any table. Generates </th>, </td>, </tr>, and </table> tags as needed.
+--*/
+    ?"(not) done"
+    {} = wait_key()
+else
+    if not justcompile then
+        readtoc()
+        writefiles()
+        writehhck()
+        -- for the online version:
+        integer fn = open("phix.htm","r")
+        string txt = get_text(fn)
+        close(fn)
+        fn = open("html\\phix.htm","w")
+        txt = substitute(txt,"html/","")
+        puts(fn,txt)
+        close(fn)
+    end if
+    if platform()=WINDOWS then  --DEV try to run hhc.exe on wine?
+        compile()
+    end if
 end if

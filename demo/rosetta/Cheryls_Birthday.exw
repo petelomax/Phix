@@ -1,0 +1,373 @@
+--
+-- demo\rosetta\Cheryls_Birthday.exw
+--
+--  Strictly speaking we only need to columnize(choices) on steps 1 and 3.
+--  Iterating backwards down the choices array simplifies element removal.
+--  First case [1&2, months with unique days] must "or" before removing items.
+--  Case 3 is days with unique months, case 4 is unique months.
+
+sequence choices = {{5, 15}, {5, 16}, {5, 19}, {6, 17}, {6, 18},
+                    {7, 14}, {7, 16}, {8, 14}, {8, 15}, {8, 17}}
+ 
+sequence mwud = repeat(false,12)    -- months with unique days
+ 
+for step=1 to 4 do
+    sequence {months,days} = columnize(choices)
+    bool impossible = false
+    for i=length(choices) to 1 by -1 do
+        integer {m,d} = choices[i]
+        switch step do
+            case 1:   mwud[m] += (sum(sq_eq(days,d))=1)
+            case 2: impossible = mwud[m]
+            case 3: impossible = (sum(sq_eq(days,d))!=1)
+            case 4: impossible = (sum(sq_eq(months,m))!=1)
+        end switch
+        if impossible then
+            choices[i..i] = {}
+        end if
+    end for
+end for
+?choices
+
+--Output:
+--{{7,16}}
+
+--/!* --DEV:
+-- This is now working, just needs a bit of a tidy up (ok, quite a lot), massaging into something worthwhile for builtins/, and documenting:
+
+--===alt=== functional/filter
+
+--builtins/filter.e: (autoinclude?)
+constant {predef,lambdas} = columnize({{"<",function (object a,b,/*ud*/) return a<b end function}})
+
+function filter(sequence s, object rtn, user_data=NULL, bool bNegate=false)
+    sequence res = {}
+    if string(rtn) then
+        integer k = find(rtn,predef)
+        if k=0 then crash("unrecognised comparitor "&rtn) end if
+        rtn = lambdas[k]
+    end if
+    integer rid = rtn
+    for i=1 to length(s) do
+        if rid(i,s,user_data)!=bNegate then res = append(res,s[i]) end if
+    end for
+    return res
+end function
+
+enum MONTH, DAY
+
+function unique_month(integer i, sequence s, object /*user_data*/)
+    return sum(sq_eq(vslice(s,MONTH),s[i][MONTH]))=1
+end function
+ 
+function unique_day(integer i, sequence s, object /*user_data*/)
+    return sum(sq_eq(vslice(s,DAY),s[i][DAY]))=1
+end function
+
+function month_without_unique_day(integer i, sequence s, um)
+    return not find(s[i][MONTH],um)
+end function
+
+--sequence choices = {{5, 15}, {5, 16}, {5, 19}, {6, 17}, {6, 18},
+choices = {{5, 15}, {5, 16}, {5, 19}, {6, 17}, {6, 18},
+                    {7, 14}, {7, 16}, {8, 14}, {8, 15}, {8, 17}}
+ 
+-- Albert knows the month but does not know the day.
+-- So the month cannot be unique within the choices.
+-- However this step changes nothing, hence omit it.
+--choices = filter(choices,unique_month,bNegate:=true)
+
+-- Albert also knows that Bernard doesn't know the answer.
+-- So the month cannot have a unique day.
+sequence um = unique(vslice(filter(choices,unique_day),MONTH))
+choices = filter(choices,month_without_unique_day,um)
+
+-- Bernard now knows the answer.
+-- So the day must be unique within the remaining choices.
+choices = filter(choices,unique_day)
+
+-- Albert now knows the answer too.
+-- So the month must be unique within the remaining choices.
+choices = filter(choices,unique_month)
+
+if length(choices)!=1 then crash("Something went wrong!") end if
+
+include builtins\timedate.e
+timedate td = repeat(0,6)
+{td[DT_MONTH],td[DT_DAY]} = choices[1]
+printf(1,"Cheryl's birthday is %s\n", {format_timedate(td,"Mmmm ddth")})
+
+--{{out}}
+--Cheryl's birthday is July 16th
+
+
+--*!/
+
+--/* -- from OE:
+--**
+-- Filter a sequence based on a user supplied comparator function.
+--
+-- Parameters:
+-- * ##source## : sequence to filter
+-- * ##rid## : Either a [[:routine_id]] of function to use as comparator or one
+-- of the predefined comparitors.
+-- * ##userdata## : an object passed to each invocation of ##rid##. If omitted,
+--                 {} is used.
+-- * ##rangetype##: A sequence. Only used when ##rid## is "in" or "out". This is
+-- used to let the function know how to interpret ##userdata##. When ##rangetype##
+-- is an empty string (which is the default), then ##userdata## is treated as a set of zero or more
+-- discrete items such that "in" will only return items from ##source## that are
+-- in the set of item in ##userdata## and "out" returns those not in ##userdata##.
+-- The other values for ##rangetype## mean that ##userdata## must be a set of
+-- exactly two items, that represent the lower and upper limits of a range of
+-- values. 
+--
+-- Returns:
+--      A **sequence**, made of the elements in ##source## which passed the comparitor test.
+--
+-- Comments:
+-- * The only items from ##source## that are returned are those that pass the test.
+-- * When ##rid## is a routine_id, that user defined routine must be a function.
+-- Each item in ##source##, along with the ##userdata## is passed to the function.
+-- The function must return a non-zero atom if the item is to be included in the
+-- result sequence, otherwise it should return zero to exclude it from the result.
+-- * The predefined comparitors are...
+--
+-- | "<"  or "lt" | return items in ##source## that are less than ##userdata## |
+-- | "<=" or "le" | return items in ##source## that are less than or equal to ##userdata## |
+-- | "="  or "==" or "eq" | return items in ##source## that are equal to ##userdata## |
+-- | "!=" or "ne" | return items in ##source## that are not equal to ##userdata## |
+-- | ">"  or "gt" | return items in ##source## that are greater than ##userdata## |
+-- | ">=" or "ge" | return items in ##source## that are greater than or equal to ##userdata## |
+-- | "in" | return items in ##source## that are in ##userdata## |
+-- | "out" | return items in ##source## that are not in ##userdata## |
+--
+-- * Range Type Usage
+-- |= Range Type  |= Meaning |
+-- | "[]"         | Inclusive range. Lower and upper are in the range. |
+-- | "[)"         | Low Inclusive range. Lower is in the range but upper is not. |
+-- | "(]"         | High Inclusive range. Lower is not in the range but upper is. |
+-- | "()"         | Exclusive range. Lower and upper are not in the range. |
+--
+-- Example 1:
+-- <eucode>
+-- function mask_nums(atom a, object t)
+--     if sequence(t) then
+--         return 0
+--     end if
+--     return and_bits(a, t) != 0
+-- end function
+--
+-- function even_nums(atom a, atom t)
+--     return and_bits(a,1) = 0
+-- end function
+--
+-- constant data = {5,8,20,19,3,2,10}
+-- filter(data, routine_id("mask_nums"), 1) --> {5,19,3}
+-- filter(data, routine_id("mask_nums"), 2) -->{19, 3, 2, 10}
+-- filter(data, routine_id("even_nums")) -->{8, 20, 2, 10}
+--
+-- -- Using 'in' and 'out' with sets.
+-- filter(data, "in", {3,4,5,6,7,8}) -->{5,8,3}
+-- filter(data, "out", {3,4,5,6,7,8}) -->{20,19,2,10}
+--
+-- -- Using 'in' and 'out' with ranges.
+-- filter(data, "in",  {3,8}, "[]") --> {5,8,3}
+-- filter(data, "in",  {3,8}, "[)") --> {5,3}
+-- filter(data, "in",  {3,8}, "(]") --> {5,8}
+-- filter(data, "in",  {3,8}, "()") --> {5}
+-- filter(data, "out", {3,8}, "[]") --> {20,19,2,10}
+-- filter(data, "out", {3,8}, "[)") --> {8,20,19,2,10}
+-- filter(data, "out", {3,8}, "(]") --> {20,19,3,2,10}
+-- filter(data, "out", {3,8}, "()") --> {8,20,19,3,2,10}
+-- </eucode>
+--
+-- Example 3:
+-- <eucode>
+-- function quiksort(sequence s)
+--  if length(s) < 2 then
+--      return s
+--  end if
+--  return quiksort( filter(s[2..$], "<=", s[1]) ) & s[1] & quiksort(filter(s[2..$], ">", s[1]))
+-- end function
+-- ? quiksort( {5,4,7,2,4,9,1,0,4,32,7,54,2,5,8,445,67} )
+-- --> {0,1,2,2,4,4,4,5,5,7,7,8,9,32,54,67,445}
+-- </eucode>
+--
+-- See Also:
+--   [[:apply]]
+
+public function filter(sequence source, object rid, object userdata = {}, object rangetype = "")
+sequence dest
+integer idx
+
+    if length(source)=0 then
+        return source
+    end if
+    dest = repeat(0, length(source))
+    idx = 0
+    switch rid do
+        case "<", "lt" then
+            for a=1 to length(source) do
+                if compare(source[a], userdata)<0 then
+                    idx += 1
+                    dest[idx] = source[a]
+                end if
+            end for
+
+        case "<=", "le" then
+            for a=1 to length(source) do
+                if compare(source[a], userdata)<=0 then
+                    idx += 1
+                    dest[idx] = source[a]
+                end if
+            end for
+
+        case "=", "==", "eq" then
+            for a=1 to length(source) do
+                if compare(source[a], userdata)=0 then
+                    idx += 1
+                    dest[idx] = source[a]
+                end if
+            end for
+
+        case "!=", "ne" then
+            for a=1 to length(source) do
+                if compare(source[a], userdata)!=0 then
+                    idx += 1
+                    dest[idx] = source[a]
+                end if
+            end for
+
+        case ">", "gt" then
+            for a=1 to length(source) do
+                if compare(source[a], userdata)>0 then
+                    idx += 1
+                    dest[idx] = source[a]
+                end if
+            end for
+
+        case ">=", "ge" then
+            for a=1 to length(source) do
+                if compare(source[a], userdata)>=0 then
+                    idx += 1
+                    dest[idx] = source[a]
+                end if
+            end for
+
+        case "in" then
+            switch rangetype do
+                case "" then
+                    for a=1 to length(source) do
+                        if find(source[a], userdata)  then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+
+                case "[]" then
+                    for a=1 to length(source) do
+                        if  compare(source[a], userdata[1])>=0
+                        and compare(source[a], userdata[2])<=0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+
+                case "[)" then
+                    for a=1 to length(source) do
+                        if compare(source[a], userdata[1])>=0 and
+                           compare(source[a], userdata[2])<0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+                case "(]" then
+                    for a=1 to length(source) do
+                        if compare(source[a], userdata[1])>0 then
+                            if compare(source[a], userdata[2])<=0 then
+                                idx += 1
+                                dest[idx] = source[a]
+                            end if
+                        end if
+                    end for
+                case "()" then
+                    for a=1 to length(source) do
+                        if compare(source[a], userdata[1])>0 then
+                            if compare(source[a], userdata[2])<0 then
+                                idx += 1
+                                dest[idx] = source[a]
+                            end if
+                        end if
+                    end for
+
+            end switch
+
+        case "out" then
+            switch rangetype do
+                case "" then
+                    for a=1 to length(source) do
+                        if not find(source[a], userdata)  then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+
+                case "[]" then
+                    for a=1 to length(source) do
+                        if compare(source[a], userdata[1])<0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        elsif compare(source[a], userdata[2])>0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+
+                case "[)" then
+                    for a=1 to length(source) do
+                        if compare(source[a], userdata[1])<0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        elsif compare(source[a], userdata[2])>=0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+                case "(]" then
+                    for a=1 to length(source) do
+                        if compare(source[a], userdata[1])<=0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        elsif compare(source[a], userdata[2])>0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+                case "()" then
+                    for a=1 to length(source) do
+                        if compare(source[a], userdata[1])<=0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        elsif compare(source[a], userdata[2])>=0 then
+                            idx += 1
+                            dest[idx] = source[a]
+                        end if
+                    end for
+
+            end switch
+
+        case else
+            for a=1 to length(source) do
+                if call_func(rid, {source[a], userdata}) then
+                    idx += 1
+                    dest[idx] = source[a]
+                end if
+            end for
+    end switch
+    return dest[1..idx]
+end function
+
+--*/
+?"done"
+{} = wait_key()

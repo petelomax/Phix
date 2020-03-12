@@ -27,24 +27,34 @@
          </td>
          <td>
             Send a UTF-8 text (op code 1) message over the provided connection with the provided length.
-            <br>
-            <br>
-            conn: The connection where the message will be sent.<br>
-            content: The content to be sent (it should be utf-8 content or the function will fail). Should be string or atom (/raw memory address)<br>
+          <br>
+          <br>
+            conn: The connection where the message will be sent.
+          <br>
+            content: The content to be sent (it should be utf-8 content or the function will fail). Should be string or atom (/raw memory address)
+          <br>
             len: Number of bytes to take from the content to be sent. If not provided, for that default to work, content must be a string.
-            <br>
-            <br>
-            Returns: The number of bytes written otherwise < 0 is returned in case of failure. <br>
-            The function will fail if some parameter is NULL or undefined, or the content provided is not UTF-8. <br>
-            In the case of failure, also check errno variable to know more what went wrong.<br>
+          <br>
+          <br>
+            Returns: The number of bytes written otherwise &lt; 0 is returned in case of failure.
+          <br>
+            The function will fail if some parameter is NULL or undefined, or the content provided is not UTF-8.
+          <br>
+            In the case of failure, also check errno variable to know more what went wrong.
+          <br>
             See Notes below to know more about error codes and when it is possible to retry write operations.
-            <br>
-            <br>
-            The function returns the number of bytes sent, being the max amount of bytes that can be reported as sent by this funciton. <br>
-            This means value reported by this function do not includes headers. The funciton also returns the following general indications:<br>
-            N : number of bytes sent (user land bytes sent, without including web socket headers). <br>
-            0 : no bytes sent (see errno indication). See also <a href="nopoll_conn_complete_pending_write.htm">nopoll_conn_complete_pending_write</a>() <br>
-            -1 : failure found <br>
+          <br>
+          <br>
+            The function returns the number of bytes sent, being the max amount of bytes that can be reported as sent by this funciton.
+          <br>
+            This means value reported by this function do not includes headers. The funciton also returns the following general indications:
+          <br>
+            N : number of bytes sent (user land bytes sent, without including web socket headers).
+          <br>
+            0 : no bytes sent (see errno indication). See also <a href="nopoll_conn_complete_pending_write.htm">nopoll_conn_complete_pending_write</a>()
+          <br>
+            -1 : failure found
+          <br>
             -2 : retry operation needed (NOPOLL_EWOULDBLOCK) [PL: but that is 11!]
          </td>
         </tr>
@@ -54,37 +64,39 @@
          </td>
          <td>
             <b>Retrying failed write operations</b>
-            <br>
+          <br>
             Every time you do a write operation (using for example nopoll_conn_send_text or 
             <a href="nopoll_conn_send_text_fragment.htm">nopoll_conn_send_text_fragment</a>) 
             there is a possibility that the write operation failes because the socket isn&rsquo;t capable to keep on accepting more data.
-            <br>
-            <br>
+          <br>
+          <br>
             In that case, errno == 11 (or NOPOLL_EWOULDBLOCK) is returned so you can check this to later retry the write operation.
-            <br>
-            <br>
+          <br>
+          <br>
             Because websocket involves sending headers that already includes the size of the message sent, you cannot just retry by calling 
             again to the send operation used (like nopoll_conn_send_text), especially because you must "continue" the send operation where 
             it was left instead of sending more content with additional headers. In short, you must complete the operation.
-            <br>
-            <br>
-            To this end, you must use the following functions to check and complete pending write operations:<br>
-            <a href="nopoll_conn_pending_write_bytes.htm">nopoll_conn_pending_write_bytes</a>()<br>
+          <br>
+          <br>
+            To this end, you must use the following functions to check and complete pending write operations:
+          <br>
+            <a href="nopoll_conn_pending_write_bytes.htm">nopoll_conn_pending_write_bytes</a>()
+          <br>
             <a href="nopoll_conn_complete_pending_write.htm">nopoll_conn_complete_pending_write</a>()
-            <br>
-            <br>
+          <br>
+          <br>
             Here is a posible complete function considering all points:
-            <br>
-            <br>
-           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
-            <div class="codeSnippetContainerCodeContainer">
-             <div class="codeSnippetToolBar">
-              <div class="codeSnippetToolBarText">
+          <br>
+          <br>
+          <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+           <div class="codeSnippetContainerCodeContainer">
+            <div class="codeSnippetToolBar">
+             <div class="codeSnippetToolBarText">
                <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-kiss-4273-986j-8b2483c92846');">Copy</a>
-              </div>
              </div>
-             <div id="CodeSnippetContainerCode_13a75j95-kiss-4273-986j-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
-              <div style="color:Black;">
+            </div>
+            <div id="CodeSnippetContainerCode_13a75j95-kiss-4273-986j-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+             <div style="color:Black;">
 <!--eucode>
 --DEV not tested!
 include nopoll.e
@@ -161,36 +173,39 @@ end function
 </i></font><font color="#008080">    return </font><font color="#000000"> bytes_written
 </font><font color="#008080">end function</font>
 </pre>
-              </div>
              </div>
             </div>
            </div>
+          </div>
             As we can see, the example tries to first write the content and then check for errors, 
             trying to complete write in the case of errno == NOPOLL_EWOULDBLOCK, but, before going 
             ahead retrying, the function sleeps a bit.
-            <br>
-            <br>
-            A very important note to consider is that this isn&rsquo;t by far the best way to do this. <br>
-            This example is just to demonstrate the concept. <br>
+          <br>
+          <br>
+            A very important note to consider is that this isn&rsquo;t by far the best way to do this.
+          <br>
+            This example is just to demonstrate the concept.
+          <br>
             The "ideal" implementation would be not to do any retry here (second part) but let the engine loop
             and waiting for this WebSocket to retry later, letting the overall application to keep on doing other 
             things meanwhile (like writing or handling I/O in other connections) rather than locking the caller (as the example do).
-            <br>
-            <br>
+          <br>
+          <br>
             Knowing this, if you want a ready to use function that implements concept (for the second part), you can directly use:
-            <a href="nopoll_conn_flush_writes.htm">nopoll_conn_flush_writes</a>().<br>
+            <a href="nopoll_conn_flush_writes.htm">nopoll_conn_flush_writes</a>().
+          <br>
             With it, a fairly complete and efficient write operation would be:
-            <br>
-            <br>
-           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
-            <div class="codeSnippetContainerCodeContainer">
-             <div class="codeSnippetToolBar">
-              <div class="codeSnippetToolBarText">
+          <br>
+          <br>
+          <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+           <div class="codeSnippetContainerCodeContainer">
+            <div class="codeSnippetToolBar">
+             <div class="codeSnippetToolBarText">
                <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_13a75j95-kist-4273-986j-8b2483c92846');">Copy</a>
-              </div>
              </div>
-             <div id="CodeSnippetContainerCode_13a75j95-kist-4273-986j-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
-              <div style="color:Black;">
+            </div>
+            <div id="CodeSnippetContainerCode_13a75j95-kist-4273-986j-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+             <div style="color:Black;">
 <!--eucode>
     -- do write operation 
     bytes_written = nopoll_conn_send_text(conn, content)
@@ -205,10 +220,10 @@ end function
     -- pass to the function bytes_written as returned by nopoll_conn_send_text
 </i></font><font color="#000000">    bytes_written</font><font color="#0000FF"> =</font><font color="#5E005E"> nopoll_conn_flush_writes</font><font color="#0000FF">(</font><font color="#000000">conn</font><font color="#0000FF">,</font><font color="#000000"> 2000000</font><font color="#0000FF">,</font><font color="#000000"> bytes_written</font><font color="#0000FF">)</font>
 </pre>
-              </div>
              </div>
             </div>
            </div>
+          </div>
             PL: note that errno is defined (in C) as WSAGetLastError(), not (yet) available via nopoll.e
          </td>
         </tr>
@@ -217,9 +232,7 @@ end function
           <b>See Also:</b>
          </td>
          <td>
-<!-- maybe:
-References NOPOLL_TEXT_FRAME
--->
+          <!-- maybe: References NOPOLL_TEXT_FRAME -->
           <a href="nopoll_conn_is_ok.htm">nopoll_conn_is_ok</a>,
           <a href="nopoll_conn_is_ready.htm">nopoll_conn_is_ready</a>,
         

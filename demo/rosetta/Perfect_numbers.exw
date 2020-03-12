@@ -1,6 +1,6 @@
 --
 -- demo\rosetta\Perfect_numbers.exw
--- ======================================
+-- ================================
 --
 -- Author Pete Lomax, August 2015
 --
@@ -17,7 +17,8 @@ end for
 --496
 --8128
 
---/*
+--/!*
+?"atom:"
 function is_prime(atom n)
     if n<2 then return false end if
     for i=2 to floor(sqrt(n)) do
@@ -26,37 +27,98 @@ function is_prime(atom n)
     return 1
 end function
 
-atom n
---for i=2 to 4500 do
-for i=2 to 59 do    -- overflows above this...
-    n = power(2,i)-1
-    if is_prime(n) then
-        printf(1,"%d\t%d\n",{i,n*power(2,i-1)})
+atom na
+--for i=2 to 59 do  -- overflows above this...
+for i=2 to 19 do    -- (erm, inaccurate on 31 anyway)
+    na = power(2,i)-1
+    if is_prime(na) then
+        printf(1,"%d\t%d\n",{i,na*power(2,i-1)})
     end if
 end for
---*/
---/*
+--*!/
+--/"*
+?"bigatom:"
 include bigatom.e
 
-{} = ba_scale(10)   -- slight help(?)
+--{} = ba_scale(10) -- slight help(?)
 
-function is_prime(bigatom n)
+function is_prime_ba(bigatom n)
 bigatom i = ba_new(2)
 bigatom sqrtn = ba_floor(ba_sqrt(n))
     while ba_compare(i,sqrtn)<=0 do
-        if ba_remainder(n,i)=0 then return 0 end if
+        if ba_compare(ba_remainder(n,i),0)=0 then return 0 end if
         i = ba_add(i,1)
     end while
     return 1
 end function
 
-bigatom n
+bigatom ban
 --for i=2 to 4500 do    -- NO!!
-for i=2 to 59 do
-    n = ba_sub(ba_power(2,i),1)
-    if is_prime(n) then
-        printf(1,"%d\t%s\n",{i,ba_sprint(ba_multiply(n,ba_power(2,i-1)))})
+--for i=2 to 59 do
+for i=2 to 31 do    -- (takes long enough to get here, & no more get found)
+    ban = ba_sub(ba_power(2,i),1)
+    if is_prime_ba(ban) then
+        printf(1,"%d\t%s\n",{i,ba_sprint(ba_multiply(ban,ba_power(2,i-1)))})
     end if
 end for
---*/
+--*!/
+--/!*
+?"mpfr:"
+include mpfr.e
+
+mpz n = mpz_init(),
+    p = mpz_init()
+randstate state =  gmp_randinit_mt()
+for i = 2 to 159 do
+    mpz_ui_pow_ui(n, 2, i)
+    mpz_sub_ui(n, n, 1)
+    if mpz_probable_prime_p(n, state) then
+        mpz_ui_pow_ui(p,2,i-1)
+        mpz_mul(n,n,p)
+        printf(1, "%d  %s\n",{i,mpz_get_str(n,comma_fill:=true)})
+    end if
+end for
+n = mpz_free(n)
+state =  gmp_randclear(state)
+
+-- output:
+--  6
+--  28
+--  496
+--  8128
+--  "atom:"
+--  2       6
+--  3       28
+--  5       496
+--  7       8128
+--  13      33550336
+--  17      8589869056
+--  19      137438691328
+--  "bigatom:"
+--  2       6
+--  3       28
+--  5       496
+--  7       8128
+--  13      33550336
+--  17      8589869056
+--  19      137438691328
+--  31      2305843008139952128
+--  "mpfr:"
+--  2  6
+--  3  28
+--  5  496
+--  7  8,128
+--  13  33,550,336
+--  17  8,589,869,056
+--  19  137,438,691,328
+--  31  2,305,843,008,139,952,128
+--  61  2,658,455,991,569,831,744,654,692,615,953,842,176
+--  89  191,561,942,608,236,107,294,793,378,084,303,638,130,997,321,548,169,216
+--  107  13,164,036,458,569,648,337,239,753,460,458,722,910,223,472,318,386,943,117,783,728,128
+--  127  14,474,011,154,664,524,427,946,373,126,085,988,481,573,677,491,474,835,889,066,354,349,131,199,152,128
+
+--*!/
+?"done"
+{} = wait_key()
+
 

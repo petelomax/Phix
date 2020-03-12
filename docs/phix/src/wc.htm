@@ -1,0 +1,137 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">World Coordinates</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Allows the use of a World Coordinate System. In this system you can attribute 
+            coordinates to any unit you want. After you define a window (rectangular 
+            region) in your world, each given coordinate is then mapped to canvas 
+            coordinates to draw the primitives. You can define a viewport in your canvas to 
+            change the coordinate mapping from world to canvas. The image below shows the 
+            relation between Window and Viewport.
+            <p align="center"><font size="4">Window x Viewport</font><br>
+            <img src="images/wc-dc.gif" border="2" width="330" height="182"/></p>
+            If you want to map coordinates from one system to another, use the 
+            wdCanvasWorld2Canvas() and wdCanvasCanvas2World() functions.
+            <br>
+            <br>
+            The quality of the picture depends on the conversion from World to Canvas, so 
+            if the canvas has a small size the picture quality will be poor. To increase 
+            picture quality create a canvas with a larger size, if possible.
+            <br>
+            <br>
+            All World Coordinate drawing in all drivers are simulated using other CD primitives and 
+            do NOT depend or use <a href="cdCanvasTransform.htm">cdCanvasTransform</a>() transformation matrix.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Auxillary functions:</b>
+         </td>
+         <td>
+            <b>wdCanvasWindow</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> xmin, xmax, ymin, ymax)
+            <br>
+            <br>
+            Configures a window in the world coordinate system to be used to convert world coordinates (with values in real numbers) 
+            into canvas coordinates (with values in integers). <br>
+            The default window is the size in millimeters of the whole canvas.
+            <br>
+            <br>
+            <a href="atom.htm">atom</a> {xmin, xmax, ymin, ymax} = <b>wdCanvasGetWindow</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas)
+            <br>
+            <br>
+            Queries the current window in the world coordinate system being used to convert world coordinates into canvas coordinates (and the other way round).
+            <br>            
+            <br>
+            <b>wdCanvasViewport</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> xmin, xmax, ymin, ymax)
+            <br>
+            <br>
+            Configures a viewport in the canvas coordinate system to be used to convert world coordinates (with values in real numbers) into canvas coordinates (with 
+            values in integers). <br>
+            The default viewport is the whole canvas (0,w-1,0,h-1). If the canvas size is changed, the viewport will not be automatically updated.
+            <br>
+            <br>
+            <a href="atom.htm">atom</a> {mode, xmin, xmax, ymin, ymax} = <b>wdCanvasGetViewport</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas)
+            <br>
+            <br>
+            Queries the current viewport in the world coordinate system being used to convert world coordinates into canvas coordinates (and the other way round).
+            <br>            
+            <br>
+            <a href="integer.htm">integer</a> {x, y} = <b>wdCanvasWorld2Canvas</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> xw, yw)
+            <br>
+            <br>
+            Converts world coordinates into canvas coordinates.
+            <br>            
+            <br>
+            <a href="integer.htm">integer</a> {w, h} = <b>wdCanvasWorld2CanvasSize</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> ww, hw)
+            <br>
+            <br>
+            As wdCanvasWorld2Canvas(), but only applies the scale (sx,sy) and does not apply the transform (tx,ty) of wdCanvasSetTransform() and friends.<br>
+            (Unlike "", which applies both - PL: nb this is based on my interpretation of wd.c, not documented in cd.chm.)
+            <br>
+            <br>
+            <a href="atom.htm">atom</a> {xw, yw} = <b>wdCanvasCanvas2World</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> xv, yv)
+            <br>
+            <br>
+            Converts canvas coordinates into world coordinates.
+            <br>            
+            <br>
+            <b>wdCanvasHardcopy</b>(<a href="cdCanvas.htm">cdCanvas</a> canvas, <a href="atom.htm">atom</a> hCdContext, pData, cbFct)
+            <br>
+            <br>
+            Creates a new canvas, prepares Window and Viewport according to the provided canvas, maintaining the aspect ratio and making the drawing occupy 
+            the largest possible area of the new canvas, calls the drawing function (cbFct, which must use routines in WC) and, finally, removes the new canvas.<br>
+            It is usually used for "hard copies" of drawings (print equivalent copy). The most common used contexts are Printer, PS and PDF.<br>
+            <br>
+            <br>
+         </td>
+        </tr>
+       </table>
+<!--
+      
+void <a name="wdSetTransform">wdCanvasSetTransform</a>(cdCanvas* canvas, double sx, double sy, double tx, double ty); [in C]</span>
+    
+canvas:wSetTransform(sx, sy, tx, ty: number) [in Lua]</pre>
+    <p>Configures the world coordinate system transformation to be used to 
+    convert world coordinates (with values in real numbers) into canvas 
+    coordinates (with values in integers). The transformation is automatically 
+    set by <strong>wdCanvasWindow</strong> and <strong>wdCanvasViewport</strong>. 
+    This has NO relation with <strong>cdCanvasTransform</strong>.</p>
+void <a name="wdGetTransform">wdCanvasGetTransform</a>(cdCanvas* canvas, double *sx, double *sy, double *tx, double *ty); [in C]</span>
+
+canvas:wGetTransform() -&gt; (sx, sy, tx, ty: number) [in Lua]</pre>
+    <p>Queries the current transformation being used to 
+      convert world coordinates into canvas coordinates (and the other way round). It 
+      is not necessary to provide all return pointers, you can provide only the 
+      desired values.</p>
+      
+void <a name="wdTranslate">wdCanvasTranslate</a>(cdCanvas* canvas, double dtx, double dty); [in C]</span>
+    
+canvas:wTranslate(dtx, dty: number) [in Lua]</pre>
+    <p>Translates the transformation by a delta, by adding the given values to 
+    the current tx and ty values.</p>
+
+void <a name="wdScale">wdCanvasScale</a>(cdCanvas* canvas, double dsx, double dsy); [in C]</span>
+    
+canvas:wScale(dsx, dsy: number) [in Lua]</pre>
+    <p>Scales the transformation by a delta, by multiplying the given values by 
+    the current sx and sy values.</p></div>
+      
+-->
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -1,0 +1,290 @@
+--with trace
+--
+--include builtins\structs.e
+--abstract 
+--struct person
+class person --nullable
+--extends struct    -- [borken(GOOD)]
+--extends sequence  -- OK, in the simplest of cases, but needs **lots** of testing!
+--DEV erm, private/public should behave as toggles... [YEP, docs updated]
+public:
+  string name = "boores"
+--  public string name = "boores"
+--  atom age = 1.113
+    public atom age = 1.113
+--private: string prv = "this be private"
+--/*
+--works, but undocumented... (constructor)
+--X  procedure person(person this, string name, atom age)
+  procedure person(string name="", atom age=0)
+--  procedure person(string name="", atom age=this.age)     -- NO... (erm/doh: name[1] would be illegal too)
+    -- constructor (optional)
+?{"constructor",this,name,age}
+    this.name = name&"<<X"
+    this.age = age+0.00001
+  end procedure
+--*/
+--/*
+  procedure ~person(person this)
+    -- destructor (optional)
+  end procedure
+  procedure xyz();
+--*/
+--X procedure show(person this) ?{"this.age",this.age} end procedure
+--  private 
+  procedure show() ?{"this.age",this.age,this.name,"(WOW)"} end procedure               -- WOW WOW WOW WOW!
+--public:
+--  procedure show() this.prv = "this be really private" ?{"this.age",this.age,this.prv,this.name} end procedure    -- good!
+--  function get_age(person this) return this.age*3 end function
+  function get_age() return this.age end function
+  function get_age2() age=77 return age end function
+--  procedure foo;
+  procedure foo();
+--end struct
+end class
+--/*
+--AHEM, I am now thinking NO: define them within the struct, or not at all...
+--Alt: define an int in the struct, then set_field_default(string struct_name, field_name, object v), 
+--                                ie/eg: set_field_default("person", "xyz", routine_id("xyy"))
+--  - of course you should take care to invoke all such set_field_default() //before// any new(),
+--    and I suppose, if you like, you //could// change such defaults before each and every new().
+--procedure person.person(person this)
+--procedure person.~person(person this)
+procedure person.xyz()
+    ?"person.xyz()"
+end procedure
+--*/
+--/*
+Hmm:
+type Shape =
+  abstract Perimeter: unit -> float
+  abstract Area: unit -> float
+ 
+type Circle(radius) =
+  interface Shape with
+    member x.Perimeter() = 2.0 * radius * Math.PI
+    member x.Area() = Math.PI * radius**2.0
+ 
+type Rectangle(width, height) =
+  interface Shape with
+    member x.Perimeter() = 2.0 * width + 2.0 * height
+    member x.Area() = width * height
+--*/
+--/!*
+--string s = "person"
+--person p = new(s)
+--person p = new("person")
+--person p = new()
+person q
+person p = new({"boris",5})
+?{"struct(p)",struct(p)}
+q = p
+--q = NULL  -- only valid for nullable class - YEAH!
+--with trace
+--trace(1)
+--integer isr = is_struct(null,routine_id("person"))
+--?{"is_struct(NULL,r_person)",isr}
+?p.name
+?p.age
+--?p.prv
+--p.prv = "this not be private"
+--?p.aege
+--p.age = "oops" -- error
+?p
+--?get_struct_fields(p)
+--p.show(p) -- wow!! (but the p should be defaulted)
+p.show()    -- wow!!
+--good:
+--procedure foo(person this)
+--  ?{"foo",this}
+--end procedure
+--p.foo = routine_id("foo")
+--p.foo()
+--?"WOW"
+--?p.get_age(p)
+?p.get_age()
+?"age2:"
+?p.get_age2()
+--/!*
+if length(p.name)>=2 then
+    ?p.name[1]&""
+    ?p.name[1..2]
+end if
+--/!*
+p.age = 5
+?p.age
+?p
+?p["age"] --OK
+--{p.age} = {4} -- good: was "unsupported (S_SEQUENCE)", now "localsubscripts=T_store_field"
+?p.age
+?p
+--*!/
+--/!*
+struct employee extends person
+    string employee_number = "007"
+--fine:
+--  procedure foo()
+--      ?{"foo-e",this}
+--  end procedure
+end struct
+employee e = new()
+?e
+?e.age
+?e.employee_number
+?e.employee_number&"<<<"    -- good!
+?e.name
+--e.foo() -- fine!
+--e.name = upper(e.name) -- good!
+?e.name[1..2] -- OK!!
+--broken: [see --DEV (need to fetch/modify/store)\n  Aborp("not yet supported")  in pmain.e/Assignment()]
+--e.name[1] = upper(e.name[1])
+--/!*
+integer CH = upper(e.name[1])  -- OK
+string n = e.name
+--integer CH = upper(n[1])
+n[1] = CH
+e.name = n          -- OK
+--e.name[1] = CH    -- not yet supported... (ditto)
+--*!/
+?e.name
+
+--e = p             -- fails - as it should!
+--with trace
+--trace(1)
+--DEV more work rqd!! [DONE]
+--integer bR = person(p)    -- true
+--integer bR = person(e)    -- true
+--integer bR = employee(p)  -- false
+--integer bR = employee(e)  -- true
+--integer bR = struct(p)    -- true
+--integer bR = struct(e)    -- true
+--?9/0
+--?{{{{bR}}}}
+--integer bR = is_struct(e, routine_id("person"))
+--p = e             -- fine
+--struct szz := p   -- fine
+
+class five
+  public integer n = 5
+  procedure show()
+    printf(1,"show: n is %d\n",{this.n})
+  end procedure
+end class
+five v = new()
+?v.n
+v.show()
+--?{"class(v)",class(v),"struct(v)",struct(v),"five(v)",five(v),"person(v)",person(v)}
+--embedded:
+
+--      The dynamic keyword is optional when extending, ie "class flexy extends flex", "class flexy dynamic extends flex", and
+--      "class flexy extends flex dynamic", are all treated identically.<br>
+
+--c structs:
+?"c_structz"
+struct rect """
+typedef struct _RECT {
+                      LONG left;
+                      LONG top;
+                      LONG right;
+                      LONG bottom;
+                    } RECT, *PRECT;
+"""
+end struct
+rect r = new()
+?r          -- good (aside: pMem is ".0"'d as it is delete_routine'd)
+?r.left
+r.left=4
+?r.left     -- good!
+?r["left"]  -- good!
+
+--struct s = r
+--class s = r
+--?{class(s),struct(s)} -- good (ple*2)
+--?struct_flags(e)  -- 0
+--?struct_flags(e, true)    -- "", as in the mt string, oh yeah, not abstract and not nullable...
+--?struct_flags("person",true) -- "S_ABSTRACT" (when it is)
+--*!/
+
+--?9/0
+--Needs: T_fetch_struct_field, T_store_field.
+--DONE: T_new, T_start_struct, T_add_struct_field(sp), T_end_struct
+--*!/
+
+sequence a = {1},
+         b = a
+struct mystruct
+    integer i = 1
+end struct
+mystruct s = new(),
+         t = s
+b[1] = 2        -- (creates clone)
+t.i = 2         -- (changes both)
+?{a[1],b[1]}    -- {1,2}
+?{s.i,t.i}      -- {2,2}
+
+--good:
+--struct a1,b1;
+--struct c1;
+--struct d1;
+--{a1,b1,c1,d1} @= s
+--?{a1,b1,c1,d1}
+
+--/*
+A sanitised debug... [DEV make me some routines to dump all this ...]
+C:\Program Files (x86)\Phix\t01.exw:104
+attempt to divide by 0
+
+Global & Local Variables
+
+ C:\Program Files (x86)\Phix\builtins\dict.e:
+--enum KEY,DATA,LEFT,HEIGHT,RIGHT
+    trees[1] = {}
+    trees[2][1..5] = {`struct`,1,0,1,0}
+    trees[2][6..10] = {`sequence`,2,36,3,41}
+    trees[2][11..15] = {1,0,0,1,0}
+    trees[2][16..20] = {3,0,11,2,0}
+    trees[2][21..25] = {8,``,16,3,26}
+    trees[2][26..30] = {12,{},0,1,0}
+    trees[2][31..35] = {15,0,21,4,51}
+    trees[2][36..40] = {`person`,3,0,1,0}
+    trees[2][41..45] = {{`struct`,955},3,1,2,76}
+    trees[2][46..50] = {{3,`name`},1,31,5,71}
+    trees[2][51..55] = {{3,`age`},2,66,3,61}
+    trees[2][56..60] = {{3,`show`},3,0,1,0}
+    trees[2][61..65] = {{3,`get_age`},4,0,1,0}
+    trees[2][66..70] = {955,{`boores`,1.113,964,972},0,2,106}
+    trees[2][71..75] = {`employee`,4,96,4,6}
+    trees[2][76..80] = {{`struct`,2710},4,0,1,0}
+    trees[2][81..85] = {{4,`name`},1,0,2,91}
+    trees[2][86..90] = {{4,`age`},2,56,2,101}
+    trees[2][91..95] = {{4,`show`},3,0,1,0}
+    trees[2][96..100] = {{4,`get_age`},4,86,3,81}
+    trees[2][101..105] = {{4,`employee_number`},5,0,1,0}
+    trees[2][106..110] = {2710,{`boores`,1.113,964,972,`007`},0,1,0}
+    treenames = {`1`,``}
+    roots = {0,46'.'}
+    sizes = {0,22}
+    defaults = {0,0}
+    freelists = {0,0}
+    free_trees = 0
+    initd = 1
+
+ C:\Program Files (x86)\Phix\builtins\structs.e:
+--enum S_NAME, S_TID, S_FLAGS, S_SDX, S_BDX, S_FIELDS, S_DEFAULT -- (for use on definitions)
+    structs[1] = {`struct`,   408,#13,1,0,{},{}}
+    structs[2] = {`sequence`, 408, #5,2,0,{},{}}
+    structs[3] = {`person`,   955, #1,3,0,{{`name`,8},{`age`,3},{`show`,1},{`get_age`,1}},{`boores`,1.113,964,972}}
+    structs[4] = {`employee`,2710, #1,4,3,{{`name`,8},{`age`,3},{`show`,1},{`get_age`,1},{`employee_number`,8}},{`boores`,1.113,964,972,`007`}}
+    instances = {0,0,{0,{{`boores`,5,964,972}}},
+                     {0,{{`Boores`,1.113,964,972,`007`}}}}
+    vtable = 2
+    sdx = 0
+
+ C:\Program Files (x86)\Phix\t01.exw:
+    p = {`struct`,`person`,3,1}
+    e = {`struct`,`employee`,4,1}
+    n = `Boores`
+    CH = 66'B'
+    bR = 0
+    r = <novalue>
+--*/

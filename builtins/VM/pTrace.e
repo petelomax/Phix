@@ -1623,9 +1623,9 @@ end procedure
 --
 
 --include ipc.ew
---constant path = "C:\\Program Files\\Edita" -- will need to prompt for/save this in an ini file.
+--constant path = `C:\Program Files\Edita` -- will need to prompt for/save this in an ini file.
 --sequence filepath
---constant temp = "C:\\Program Files\\Phix\\builtins\\file.e"   -- always use fullpath
+--constant temp = `C:\Program Files\Phix\builtins\file.e`   -- always use fullpath
 --constant AppName = "Edita"
 --if not ipc_IsProcessRunning(path) then
 --  filepath = path&".exw"

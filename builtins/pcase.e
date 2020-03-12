@@ -141,64 +141,140 @@ end function
 -- See Also:
 --     [[:lower]] [[:upper]]
 
-global function proper(sequence x)
--- Converts text to lowercase and makes each word start with an uppercase.
---integer pos
-integer inword = 0              -- Initially not in a word
---integer convert = string(x)   -- Initially convert text
---sequence res
-
---  res = x                 -- Work on a copy of the original, in case we need to restore.
-    if string(x) then
-        for i=1 to length(x) do
-            integer ch = x[i]
-            -- Check for upper case
-            integer pos = isupper(ch)
-            if pos=0 then
-                -- Not upper, so check for lower case
-                pos = islower(ch)
-                if pos=0 then
-                    -- Not lower so check for digits
-                    -- n.b. digits have no effect on if its in a word or not.
-                    pos = ch>='0' and ch<='9'
-                    if pos=0 then
-                        -- not digit so check for special word chars
---                      pos = t_specword(ch)
---                      if pos then
-                        if ch='_' then
-                            inword = 1
-                        else
-                            inword = 0
-                        end if
-                    end if
-                else
-                    if inword=0 then
-                        -- start of word, so convert only lower to upper.
---I have no idea what this test is/was:
---                      if pos<=26 then
-                            x[i] = upper(ch) -- Convert to uppercase
+--/*
+-- replaced below...
+--global function proper(sequence x)
+---- Converts text to lowercase and makes each word start with an uppercase.
+----integer pos
+--integer inword = 0                -- Initially not in a word
+----integer convert = string(x) -- Initially convert text
+----sequence res
+--
+----    res = x                 -- Work on a copy of the original, in case we need to restore.
+--  if string(x) then
+--      for i=1 to length(x) do
+--          integer ch = x[i]
+--          -- Check for upper case
+--          integer pos = isupper(ch)
+--          if pos=0 then
+--              -- Not upper, so check for lower case
+--              pos = islower(ch)
+--              if pos=0 then
+--                  -- Not lower so check for digits
+--                  -- n.b. digits have no effect on if its in a word or not.
+--                  pos = ch>='0' and ch<='9'
+--                  if pos=0 then
+--                      -- not digit so check for special word chars
+----                        pos = t_specword(ch)
+----                        if pos then
+--                      if ch='_' then
+--                          inword = 1
+--                      else
+--                          inword = 0
 --                      end if
-                        inword = 1      -- now we are in a word
-                    end if
-                end if
-            else
-                if inword=1 then
-                    -- Upper, but as we are in a word convert it to lower.
-                    x[i] = lower(ch) -- Convert to lowercase
-                else
-                    inword = 1      -- now we are in a word
-                end if
-            end if
-        end for
-    else            
-        for i=1 to length(x) do
-            object xi = x[i]
-            if sequence(xi) then
-                x[i] = proper(xi) -- recursive conversion
-            end if
-        end for
-    end if
-    return x
-end function
+--                  end if
+--              else
+--                  if inword=0 then
+--                      -- start of word, so convert only lower to upper.
+----I have no idea what this test is/was:
+----                        if pos<=26 then
+--                          x[i] = upper(ch) -- Convert to uppercase
+----                        end if
+--                      inword = 1      -- now we are in a word
+--                  end if
+--              end if
+--          else
+--              if inword=1 then
+--                  -- Upper, but as we are in a word convert it to lower.
+--                  x[i] = lower(ch) -- Convert to lowercase
+--              else
+--                  inword = 1      -- now we are in a word
+--              end if
+--          end if
+--      end for
+--  else            
+--      for i=1 to length(x) do
+--          object xi = x[i]
+--          if sequence(xi) then
+--              x[i] = proper(xi) -- recursive conversion
+--          end if
+--      end for
+--  end if
+--  return x
+--end function
+--*/
 
+constant str_methods = {"LOWER","UPPER","CAPITALISE","SENTENCE","INVERT"}
+enum LOWER = 1, UPPER = 2, CAPITALISE = 3, SENTENCE = 4, INVERT = 5
+
+global function proper(string s, method="CAPITALISE")
+--
+-- LOWER:       "this is England. so there" -> "this is england. so there"
+-- UPPER:       "this is England. so there" -> "THIS IS ENGLAND. SO THERE"
+-- CAPITALISE:  "this is England. so there" -> "This Is England. So There"
+-- SENTENCE:    "this is England. so there" -> "This is england. So there"
+-- INVERT:      "this is England. so there" -> "THIS IS eNGLAND. SO THERE"
+--
+-- Obviously LOWER/UPPER overlap functionally with lower()/upper(), but it 
+--  might one day be useful to dynamically specify such options at runtime.
+-- SENTENCE is far from perfect, INVERT has (potential) use in Edita/Edix,
+-- to correct something just typed in with the wrong caps lock setting.
+--
+integer mi = find(upper(method),str_methods), -- must be one of those!
+        ch,             -- a character
+        pc = ' '        -- previous character
+bool eos = true,        -- end of sentence flag
+     inQuote = false,   -- within double quotes flag
+     islow = false,     -- ch is lowercase
+     ishigh = false,    -- ch is uppercase
+     lowit = false,     -- change it?
+     highit = false     -- change it?
+
+    if not cinit then initcase() end if
+    if mi=0 then crash("proper(s,\"%s\"): invalid method parameter",{method}) end if
+    for i=1 to length(s) do
+        ch := s[i]
+--      islow := (ch>='a' and ch<='z')  lowit = false
+--      ishigh := (ch>='A' and ch<='Z') highit = false
+        islow := (ch>0 and ch<=255 and ch!=toUpper[ch])     lowit = false
+        ishigh := (ch>0 and ch<=255 and ch!=toLower[ch])    highit = false
+        switch mi do
+            case LOWER then lowit := ishigh
+            case UPPER then highit := islow
+            case INVERT then lowit := ishigh
+                            highit := islow
+            case CAPITALISE then
+                        if find(pc," \t\r\n\"\'`") then
+                            highit := islow
+                        else
+                            lowit := ishigh
+                        end if  
+            case SENTENCE then
+                    if find(pc," \t\r\n") then
+                        if eos then
+                            highit := islow
+                            eos := False
+                        else
+                            lowit := ishigh
+                        end if
+                    else
+                        lowit := ishigh
+                    end if
+                    if find(ch,".!?") then
+                        eos := True
+                    elsif not find(ch," \t\r\n") then
+                        eos := False
+                    end if
+                    if ch='\"' then
+                        ch := ' '
+                        inQuote := not inQuote
+                        eos := inQuote
+                    end if
+        end switch
+        pc := ch
+        if     lowit then ch += 32 s[i] := ch
+        elsif highit then ch -= 32 s[i] := ch end if
+    end for
+    return s
+end function
 

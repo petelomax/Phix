@@ -1,6 +1,6 @@
 --
--- demo\\rosetta\\Compiler\\core.e
--- ===============================
+-- demo\rosetta\Compiler\core.e
+-- ============================
 --
 --  Standard declarations and routines used by lex.exw, parse.exw, cgen.exw, and interp.exw
 --
@@ -141,7 +141,7 @@ global procedure close_files()
 end procedure
 
 global function enquote(string s)
-    return sprintf("\"%s\"",substitute(s,"\n","\\n"))
+    return sprintf(`"%s"`,substitute(s,"\n","\\n"))
 end function
 
 global function unquote(string s)

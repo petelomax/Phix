@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-         crash(<a href="string.htm">string</a> fmt, <a href="object.htm">object</a> data={})
+         crash(<a href="string.htm">string</a> fmt, <a href="object.htm">object</a> data={}, integer nFrames=1)
          </td>
         </tr>
         <tr>
@@ -25,7 +25,8 @@
             <br>
             <br>
             fmt: the message text, optionally with format specifiers as per <a href="sprintf.htm">sprintf</a>.<br>
-            data: an object, defaulted to {}, as per <a href="sprintf.htm">sprintf</a>.
+            data: an object, defaulted to {}, as per <a href="sprintf.htm">sprintf</a>.<br>
+            nFrames: number of frames to pop from the stack, see below.
          </td>
         </tr>
         <tr>
@@ -36,7 +37,21 @@
             The actual message shown, both on the standard error console and in ex.err[or as specified via crash_file()], is <a href="sprintf.htm">sprintf</a>(fmt, data). 
             <br>
             <br>
-            The program terminates as for any runtime error.
+            The default value for nFrames pops the crash routine itself, and that is suitable for most application code.<br>
+            Several builtins\ and builtins\VM\ files try to report the error on the calling statement rather than in themselves, 
+            for instance it is easily several thousand times more likely that the wrong parameters were passed to printf(), 
+            than the actual problem being a bug within printf() itself.
+            <br>
+            <br>
+            The program terminates as for any runtime error, unless there exists a containing <a href="try.htm">try/catch</a> statement.
+<!--
+            <br>
+            <br>
+            Note that crash() is slightly more sanitised, and biased slightly away from developer-friendliness and more towards 
+            user-friendliness (yeah, not really buying that one either). As a developer, I prefer throw() and even 9/0 to crash(), 
+            at least when debugging, although to be fair the difference can be a bit subtle. Lastly, crash() predates throw() by 
+            several years, if that means anything.
+-->
          </td>
         </tr>
         <tr>
