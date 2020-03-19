@@ -31,19 +31,10 @@ integer draw_shadows = 1
 integer dx = 0, dy = 0, dw = 0, dh = 0
 
 function project_point(sequence pt)
-atom d
-atom px,py,pz
-
-    {px,py,pz} = pt
-    if pz=oz then
-        d = 0.0001
-    else
-        d =  1-pz/(pz-oz)
-    end if
-
+    atom {px,py,pz} = pt,
+         d = iff(pz=oz?0.0001:1-pz/(pz-oz))
     px = floor(ox+(ox-px)/d)
     py = dh - floor(oy+(oy-py)/d)
-
     return {px,py}
 end function
 
@@ -71,29 +62,27 @@ procedure draw_lines(sequence coords)
 --  draws white lines {40,0}..{0,80}, {0,80}..{80,80}, {80,80}..{40,0}
 --    and blue lines {40,5}..{0,85}, {0,85}..{80,85}, {80,85}..{40,5}.
 --
-atom x1, y1, x2, y2
-object ci
-
+    atom x1, y1, x2, y2
     for i = 1 to length(coords) do
-        ci = coords[i]
+        object ci = coords[i]
         if atom(ci) then
             cdCanvasSetForeground(cddbuffer, ci)
-        elsif length(ci) = 4 then
-            {x1,y1,x2,y2} = ci
-            cdCanvasLine(cddbuffer,x1,y1,x2,y2)
-            {x1,y1} = {x2,y2}
-        elsif length(ci) = 2 then
-            {x2,y2} = ci
-            cdCanvasLine(cddbuffer,x1,y1,x2,y2)
-            {x1,y1} = {x2,y2}
         else
-            ?9/0
+            if length(ci)=4 then
+                {x1,y1,x2,y2} = ci
+            elsif length(ci)=2 then
+                {x2,y2} = ci
+            else
+                ?9/0
+            end if
+            cdCanvasLine(cddbuffer,x1,y1,x2,y2)
+            {x1,y1} = {x2,y2}
         end if
     end for
 end procedure
 
 procedure draw_polygon(sequence points)
-    integer {{x1,y1},{x2,y2},{x3,y3}} = points
+    atom {{x1,y1},{x2,y2},{x3,y3}} = points
     cdCanvasBegin(cddbuffer,CD_FILL)
     cdCanvasVertex(cddbuffer,x1,y1)
     cdCanvasVertex(cddbuffer,x2,y2)
@@ -102,9 +91,6 @@ procedure draw_polygon(sequence points)
 end procedure
 
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
-integer N, x, y, z
-atom x1, y1, z1,
-     x2, y2, z2
     {dw,dh} = IupGetIntInt(canvas, "DRAWSIZE")
     {dx,dy} = {floor(dw/4)+1,floor(dh/4)+1}
     {X_MAX,Y_MAX,Z_MAX} = {dw,dh,floor((dw+dh)/2)}
@@ -113,14 +99,14 @@ atom x1, y1, z1,
     cdCanvasClear(cddbuffer)
     cdCanvasSetForeground(cddbuffer, #909090)
 
-    {x1,y1,z1} = {X_MIN,  0.0,Z_MIN}
-    {x2,y2,z2} = {X_MAX,Y_MAX,Z_MAX}
+    atom {x1,y1,z1} = {X_MIN,  0.0,Z_MIN},
+         {x2,y2,z2} = {X_MAX,Y_MAX,Z_MAX}
 
     -- draw the verticals on the sides and horizontals on the floor and ceiling
-    N = floor((z2-z1)/100)
+    integer N = floor((z2-z1)/100)
     if N<3 then N = 3 end if
     for i=1 to N-1 do
-        z = z1+floor((i/N)*(z2-z1))
+        integer z = z1+floor((i/N)*(z2-z1))
         draw_lines({#808080,
                     project_point({x2, y2, z}) & project_point({x2, y1, z}),
                     project_point({x1, y1, z}),
@@ -133,7 +119,7 @@ atom x1, y1, z1,
     N = floor((y2-y1)/100)
     if N<3 then N = 3 end if
     for i=1 to N-1 do
-        y = y1+floor((i/N)*(y2-y1))
+        integer y = y1+floor((i/N)*(y2-y1))
         draw_lines({#808080,
                     project_point({x1,y,z1}) & project_point({x1,y,z2}),
                     project_point({x2,y,z2}),
@@ -144,7 +130,7 @@ atom x1, y1, z1,
     N = floor((x2-x1)/100)
     if N<3 then N = 3 end if
     for i=1 to N-1 do
-        x = x1+floor((i/N)*(x2-x1))
+        integer x = x1+floor((i/N)*(x2-x1))
         draw_lines({#808080,
                     project_point({x,y2,z2}) & project_point({x,y1,z2}),
                     project_point({x,y1,z1}),
@@ -165,15 +151,12 @@ atom x1, y1, z1,
 
     if draw_shadows then
         cdCanvasSetForeground(cddbuffer, #A0A0A0)
---13/12/18: crash when updating the number of boids too quickly... (same below)
---      for i=1 to BOIDS do
         for i=1 to length(verts) do
             draw_polygon(verts[i][6..8])
         end for
     end if
 
     -- draw boids as polygons, starting with farthest from the POV
---  for i=BOIDS to 1 by -1 do
     for i=length(verts) to 1 by -1 do
         sequence v = verts[i]
         cdCanvasSetForeground(cddbuffer, colors[v[5]])
@@ -202,7 +185,7 @@ sequence y, yhat, z, u
 end function
 
 function timer_cb(Ihandle /*ih*/)
-sequence in,boid, pt, v, v1, v2, v3, sv
+sequence in, boid, pt, v, v1, v2, v3, sv
 
     move_boids()
 
@@ -276,7 +259,6 @@ sequence boid = repeat(0, B_ELEMENTS)
         end for
         boidsn = boidsnp1
     end if
---  BOIDS = num
     return num
 end function
 

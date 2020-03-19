@@ -1,0 +1,86 @@
+--
+-- demo\rosetta\Graph_colouring.exw
+--
+--  Exhaustive search, trims search space to < best so far, newused improves on unique().
+--  Many more examples/testing would be needed before I would trust this the tiniest bit.
+--
+constant tests = split("""
+0-1 1-2 2-0 3
+1-6 1-7 1-8 2-5 2-7 2-8 3-5 3-6 3-8 4-5 4-6 4-7
+1-4 1-6 1-8 3-2 3-6 3-8 5-2 5-4 5-8 7-2 7-4 7-6
+1-6 7-1 8-1 5-2 2-7 2-8 3-5 6-3 3-8 4-5 4-6 4-7
+""","\n",true)
+
+function colour(sequence nodes, links, colours, soln, integer best, next, used=0)
+-- fill/try each colours[next], recursing as rqd and saving any improvements.
+-- nodes/links are read-only here, colours is the main workspace, soln/best are
+-- the results, next is 1..length(nodes), and used is length(unique(colours)).
+-- On really big graphs I might consider making nodes..best static, esp colours,
+-- in which case you will probably also want a "colours[next] = 0" reset below.
+    integer c = 1
+    while c<best do
+        bool avail = true
+        for i=1 to length(links[next]) do
+            if colours[links[next][i]]==c then
+                avail = false
+                exit
+            end if
+        end for
+        if avail then
+            colours[next] = c
+            integer newused = used + (find(c,colours)==next)
+            if next<length(nodes) then
+                {best,soln} = colour(nodes,links,colours,soln,best,next+1,newused)
+            elsif newused<best then
+                {best,soln} = {newused,colours}
+            end if
+        end if
+        c += 1
+    end while
+    return {best,soln}
+end function    
+
+function add_node(sequence nodes, links, string n)
+    integer rdx = find(n,nodes)
+    if rdx=0 then
+        nodes = append(nodes,n)
+        links = append(links,{})
+        rdx = length(nodes)
+    end if
+    return {nodes, links, rdx}
+end function
+
+for t=1 to length(tests) do
+    string tt = tests[t]
+    sequence lt = split(tt," "),
+             nodes = {},
+             links = {}
+    integer linkcount = 0, left, right
+    for l=1 to length(lt) do
+        sequence ll = split(lt[l],"-")
+        {nodes, links, left} = add_node(nodes,links,ll[1])
+        if length(ll)=2 then
+            {nodes, links, right} = add_node(nodes,links,ll[2])
+            links[left] &= right
+            links[right] &= left
+            linkcount += 1
+        end if
+    end for
+    integer ln = length(nodes)
+    printf(1,"test%d: %d nodes, %d edges, ",{t,ln,linkcount})
+    sequence colours = repeat(0,ln),
+             soln = tagset(ln) -- fallback solution
+    integer next = 1, best = ln
+    printf(1,"%d colours:%v\n",colour(nodes,links,colours,soln,best,next))
+end for
+{} = wait_key()
+--/* output:
+test1: 4 nodes, 3 edges, 3 colours:{1,2,3,1}
+test2: 8 nodes, 12 edges, 2 colours:{1,2,2,2,1,2,1,1}
+test3: 8 nodes, 12 edges, 2 colours:{1,2,2,2,1,2,1,1}
+test4: 8 nodes, 12 edges, 2 colours:{1,2,2,2,2,1,1,1}
+
+also, changing the first test agrees with Perl 6:
+0-1 1-2 2-0 3 4 5
+test1: 6 nodes, 3 edges, 3 colours:{1,2,3,1,1,1}
+--*/

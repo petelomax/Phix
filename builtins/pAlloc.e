@@ -90,7 +90,9 @@ global procedure free(object addr)
             atom ai = addr[i]   -- (deliberate typecheck)
             free(ai)
         end for
-    else
+--14/3/2020:
+--  else
+    elsif addr!=NULL then
 --      if not heap_ptr(addr) then ?9/0 end if (maybe/not)
 -- 6/8/19:
         if not integer(addr) then
@@ -171,7 +173,7 @@ atom res
     return res
 end function
 
-global function allocatew(atom v=0, bool cleanup=false)
+global function allocate_word(atom v=0, bool cleanup=false)
     atom res = allocate(machine_word(),cleanup)
     pokeN(res,v,machine_word())
     return res

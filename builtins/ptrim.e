@@ -102,12 +102,17 @@ integer lpos, rpos
     return source
 end function
 
-global function shorten(string s, what="digits", integer ml=20)
+global function shorten(sequence s, string what="digits", integer ml=20)
     integer l = length(s)
     string ls = sprintf(" (%,d %s)",{l,what}) 
-    if l>ml*2+3+length(ls) then
-        s[ml+1..-ml-1] = "..."
-        s &= ls
+    if l>ml*2+iff(string(s)?3+length(ls):2) then
+        if string(s) then
+            s[ml+1..-ml-1] = "..."
+            s &= ls
+        else
+            s[ml+1..-ml-1] = {"..."}
+            s = append(s,ls)
+        end if
     end if
     return s
 end function

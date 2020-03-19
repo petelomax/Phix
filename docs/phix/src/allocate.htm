@@ -17,7 +17,7 @@
          <br>
          <i>-- or --</i>
          <br>
-         <a href="atom.htm">atom</a> pMem = allocatew(<a href="atom.htm">atom</a> v=0, <a href="integer.htm#bool">bool</a> cleanup=false)
+         <a href="atom.htm">atom</a> pMem = allocate_word(<a href="atom.htm">atom</a> v=0, <a href="integer.htm#bool">bool</a> cleanup=false)
          <br>
          </td>
         </tr>
@@ -26,12 +26,8 @@
           <b>Description:</b>
          </td>
          <td>
-            Allocate i contiguous bytes of memory. Return the address of the block of memory, or return 0 if the memory cannot be allocated.
-            The address returned will be at least 4-byte aligned.
-            <br>
-            <br>
-            The allocatew() function (not to be confused with wide strings) allocates a <a href="machine_bits.htm">machine_word</a>()-sized 
-            block of memory and sets it to v.
+            Allocate i or <a href="machine_bits.htm">machine_word</a>() bytes of memory and return the address, or 0 (aka NULL) on failure.<br>
+            The address returned is always machine_word aligned.
          </td>
         </tr>
         <tr>
@@ -49,6 +45,11 @@
             things happen naturally, or explicitly set the last/only copy of pMem to NULL, and in that way ensure 
             the raw memory is not actually freed until it is guaranteed safe to do so, and accidental references to 
             it will not cause unpredictable memory corruption.
+            <br>
+            <br>
+            The <b>allocate_word</b>() function allocates a single <a href="machine_bits.htm">machine_word</a>()-sized block of memory and sets it to (integer) v.<br>
+            The <a href="peek.htm">peekns/peeknu</a>() routines are a natural companion to allocate_word, however (as yet) there is no built-in version of
+            <a href="poke.htm">pokeN</a>() that defaults the third parameter to machine_word().
          </td>
         </tr>
         <tr>
@@ -124,6 +125,13 @@ end for
           <br>
           <br>
           The division between pAlloc.e and pHeap.e exists mainly so that <a href="delete_routine.htm">delete_routine</a>() can be used in the former.
+          <br>
+          <br>
+          Note that explicit calls to free() may be measureably faster than relying on cleanup, simply because the former (static call) can for instance
+          allocate stack space directly whereas the latter (dynamic call) must examine the appropriate symtab entry and calculate the needed stack space.
+          (And, yes, a free() call must itself allocate and free some small bit of memory, albeit not recursively, mainly for a return address.)<br>
+          However code is typically much cleaner with automatic cleanup, it is not worth obsessing over unless there are millions of dynamic free() calls,
+          and even a single test to see whether a manual free() is needed could easily tip the balance back in favour (performancewise) of automatic.
          </td>
         </tr>
        </table>

@@ -2585,14 +2585,11 @@ end if
 
     initialAutoEntry("abs",             S_Func,"FN",    "pmaths.e",0,E_none)
     initialAutoEntry("allocate",        S_Func,"FII",   "pAlloc.e",0,E_other,1)
---  symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("allocatew",       S_Func,"FII",   "pAlloc.e",0,E_other,0)
 --DEV doc
     initialAutoEntry("allocate_data",   S_Func,"FII",   "pAlloc.e",0,E_other)
-    initialAutoEntry("allocate_string", S_Func,"FPI",   "pAlloc.e",0,E_other)
-    symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("allocate_wstring", S_Func,"FPI",  "pAlloc.e",0,E_other)
-    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("allocate_string", S_Func,"FPI",   "pAlloc.e",0,E_other,1)
+    initialAutoEntry("allocate_word",   S_Func,"FII",   "pAlloc.e",0,E_other,0)
+    initialAutoEntry("allocate_wstring", S_Func,"FPI",  "pAlloc.e",0,E_other,1)
     initialAutoEntry("arccos",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("atan2",           S_Func,"FNN",   "pmaths.e",0,E_none)
@@ -2692,7 +2689,7 @@ end if
     initialAutoEntry("peek_string",     S_Func,"FN",    "peekstr.e",0,E_none)
     initialAutoEntry("prompt_string",   S_Func,"FS",    "get.e",0,E_other)
     initialAutoEntry("proper",          S_Func,"FSS",   "pcase.e",0,E_none,1)
-    initialAutoEntry("shorten",         S_Func,"FSSI",  "ptrim.e",0,E_other,1)
+    initialAutoEntry("shorten",         S_Func,"FPSI",  "ptrim.e",0,E_other,1)
     initialAutoEntry("sprintf",         S_Func,"FPO",   "VM\\pprntfN.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("sprint",          S_Func,"FOII",  "VM\\psprintN.e",0,E_none)

@@ -1,32 +1,42 @@
 --
 -- demo\rosetta\Raster_bars.exw
 --
+constant N = 10,
+         nColours = floor(255/N)
+integer offset = 0, clast = nColours
+
 include pGUI.e
  
 Ihandle dlg, canvas
 cdCanvas cddbuffer, cdcanvas
-sequence colours
  
+function colour(integer i)
+    integer g = i*N
+    return  cdEncodeColorAlpha(g, g, g, 255)
+end function
+
 function redraw_cb(Ihandle /*ih*/, integer /*posx*/, integer /*posy*/)
     cdCanvasActivate(cddbuffer)
-    cdCanvasSetBackground(cddbuffer, CD_WHITE)
---  cdCanvasSetForeground(cddbuffer, CD_BLUE)
+    cdCanvasSetBackground(cddbuffer, colour(clast))
     cdCanvasClear(cddbuffer)
-    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE")
-    integer h = ceil(height/4)
-    for row=1 to 4 do
-        integer x = 0, p2 = power(2,row+2), c = floor(255/(p2-1))
-        for n=0 to p2-1 do
-            integer colour = c*n*#010101
-            if and_bits(row,1)=0 then colour = xor_bits(colour,#FFFFFF) end if
-            cdCanvasSetForeground(cddbuffer, colour)
-            integer nx = ceil(width*(n+1)/p2)
-            cdCanvasBox(cddbuffer, x, nx, height-h, height)
-            x = nx
-      end for
-      height -= h
+    integer {width, height} = IupGetIntInt(canvas, "DRAWSIZE"),
+            h = floor(height/(nColours-1)),
+            y = height+offset
+    cdCanvasSetInteriorStyle(cddbuffer, CD_SOLID)
+    for i=2 to nColours do
+        integer c = clast+i-1
+        if c>nColours then c -= nColours end if
+        cdCanvasSetForeground(cddbuffer, colour(c))
+        cdCanvasBox(cddbuffer, 0, width, y-h, y)
+        y -= h
     end for
     cdCanvasFlush(cddbuffer)
+    offset += 1
+    if offset>=h then
+        offset = 0
+        clast += 1
+        if clast>nColours then clast = 1 end if
+    end if
     return IUP_DEFAULT
 end function
  
@@ -42,11 +52,11 @@ function unmap_cb(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
  
-function esc_close(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
+function timer_cb(Ihandle /*ih*/)
+    IupRedraw(dlg) 
+    return IUP_DEFAULT
 end function
- 
+
 procedure main()
     IupOpen()
  
@@ -59,7 +69,8 @@ procedure main()
     dlg = IupDialog(canvas)
     IupSetAttribute(dlg, "TITLE", "Raster bars")
     IupSetCallback(canvas, "ACTION", Icallback("redraw_cb"))
-    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+    IupCloseOnEscape(dlg)
+    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 10)
  
     IupMap(dlg)
     IupSetAttribute(canvas, "RASTERSIZE", NULL)

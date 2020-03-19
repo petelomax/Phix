@@ -1,4 +1,5 @@
-DEPRECATED - just use mpq, see eg bernoulli() below
+--DEPRECATED - just use mpq, see eg bernoulli() below
+--erm/DEV belay that, see https://rosettacode.org/wiki/Arithmetic/Rational#Phix which is 30% faster than mpq...
 --
 -- builtins/pfrac.e
 --

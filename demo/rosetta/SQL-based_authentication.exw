@@ -1,0 +1,91 @@
+--
+-- demo/rosetta/SQL-based_authentication.exw
+--
+--  Uses SQLite, there is a MySQL wrapper in PCAN that I have not personally tried yet.
+--  Uses code from [[md5|md5#Phix]], now modified to be an executable library.
+--
+include pSQLite.e
+include md5.exw
+ 
+-- candidate for a new builtin, perhaps...
+--procedure assert_equal(object a,b) if a!=b then throw("fatal") end if end procedure
+
+sqlite3_stmt pAddUser = NULL
+
+procedure add_user(sqlite3 db, string name, pw)
+    if pAddUser=NULL then
+        pAddUser = sqlite3_prepare(db,"INSERT INTO users (username,pass_salt,pass_md5) VALUES(:name, :salt, :md5);")
+    end if
+    string salt = sq_rand(repeat(#FF,16)),
+           md5s = md5(salt&pw)
+    sqlite3_bind_text(pAddUser,":name", name)
+    sqlite3_bind_text(pAddUser,":salt", salt)
+    sqlite3_bind_text(pAddUser,":md5", md5s)
+    {} = sqlite3_step(pAddUser)             -- (nb: ignores any errors.)
+    sqlite3_reset(pAddUser)
+end procedure
+
+sqlite3_stmt pAuthUser = NULL
+
+function authenticate_user(sqlite3 db, string name, pw)
+    if pAuthUser=NULL then
+        pAuthUser = sqlite3_prepare(db,"SELECT pass_salt, pass_md5 FROM users WHERE username = :name;")
+    end if
+    sqlite3_bind_text(pAuthUser,":name", name)
+    integer res = sqlite3_step(pAuthUser)
+    if res!=SQLITE_ROW then
+        res = false -- (no such user)
+    else
+--      assert_equal(sqlite3_column_name(pAuthUser,1),"pass_salt")
+--      assert_equal(sqlite3_column_type(pAuthUser,1),SQLITE_TEXT)
+        string salt = sqlite3_column_text(pAuthUser,1)
+--      assert_equal(sqlite3_column_name(pAuthUser,2),"pass_md5")
+--      assert_equal(sqlite3_column_type(pAuthUser,2),SQLITE_TEXT)
+        string pass_md5 = sqlite3_column_text(pAuthUser,2)
+        res = (pass_md5==md5(salt&pw))
+    end if
+    sqlite3_reset(pAuthUser)
+    return res
+end function
+
+constant create_cmd = """
+CREATE TABLE IF NOT EXISTS users(
+  userid INTEGER PRIMARY KEY AUTOINCREMENT,
+  username VARCHAR(32) UNIQUE NOT NULL,
+  pass_salt tinyblob,
+      -- a string of 16 random bytes
+  pass_md5 tinyblob);
+      -- binary MD5 hash of pass_salt concatenated with the password
+"""
+
+procedure main()
+--  {} = delete_file("users.sqlite")    -- (optional)
+    sequence sqlversion = sqlite3_libversion(true)
+    if sqlversion<{3,3,0} then
+        crash("a newer sqlite.dll/so is required (for IF NOT EXISTS)")
+    end if
+    sqlite3 db = sqlite3_open("users.sqlite")
+    integer res = sqlite3_exec(db,create_cmd)
+    if res!=SQLITE_OK then ?9/0 end if
+
+    sqlite3_set_fatal_id(SQLITE3_NON_FATAL) -- (else trying to re-add user crashes)
+    add_user(db,"user","password")
+    printf(1,"user with correct password:%t\n",authenticate_user(db, "user", "password"))
+    printf(1,"user with incorrect password:%t\n",authenticate_user(db, "user", "wrong"))
+
+    if pAddUser!=NULL then
+        if sqlite3_finalize(pAddUser)!=SQLITE_OK then ?9/0 end if
+    end if
+    if pAuthUser!=NULL then
+        if sqlite3_finalize(pAuthUser)!=SQLITE_OK then ?9/0 end if
+    end if
+    sqlite3_close(db)
+    ?"done"
+    {} = wait_key()
+end procedure
+main()
+
+-- output:
+--user with correct password:true
+--user with incorrect password:false
+
