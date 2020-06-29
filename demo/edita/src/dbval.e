@@ -358,6 +358,10 @@ global function db_validate(sequence pFileName)
         return {0, kFreeListSpace}
     end if
 
+-- 29/6/20: error ocurred when I had a 4GB file, so out of desperation I simply commented
+--          out this entire loop. It then succesfully compacted that file down to 300K -
+--          (yep, approx 1/3000th of the size). Perhaps these should be warnings instead.
+
     for i=1 to free_count do
         void = seek(fn, free_list+(i-1)*8)
         if void!=0 then
@@ -386,9 +390,7 @@ global function db_validate(sequence pFileName)
             close(fn)
             return {0, kFreeChainSizeChk, i}
         end if
-
     end for
-
 
     -- All clear.
     close(fn)
