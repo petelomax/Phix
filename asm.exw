@@ -1,0 +1,1163 @@
+--;You know you want to:
+--DEV this lot all need testing under emitON=0...
+--format PE64
+
+constant HNDL = 0,
+         MODE = 4
+constant SIGDN_FILESYSPATH = #80058000 
+integer x
+atom y
+constant integer pFileDialog = allocate(4)
+
+object symtab, stdin
+#ilASM{ jmp :fin
+      :%glbl
+        ret
+      ::fin }
+
+include puts1h.e
+procedure pQ()
+    puts1("this is pQ\n")
+    getc0()
+end procedure
+
+pQ()
+pQ()
+
+#ilASM{
+--DEV (not supported in pilasm.e) [DEV it is now]
+        [32]
+                mov [ebp+28],:!cb_ret
+                mov eax,:!cb_ret
+                mov dword[ebp+28],eax
+        [64]
+                mov qword[rbp+56],:!cb_ret
+                mov rax,:!cb_ret
+                mov qword[rbp+56],rax
+        []
+      }
+
+#ilASM{
+        [32]
+            mov edx,routine_id(pQ)              -- mov edx,imm32 (sets K_ridt)
+            mov ecx,$_Ltot                      -- mov ecx,imm32(=symtab[open][S_Ltot])
+            call :%opFrame
+            mov dword[ebp+28],:thisret
+            jmp $_il                            -- jmp code:open
+          ::thisret     
+        [64]
+            mov rdx,routine_id(pQ)              -- mov rdx,imm32 (sets K_ridt)
+            mov rcx,$_Ltot                      -- mov rcx,imm32(=symtab[open][S_Ltot])
+            call :%opFrame
+            mov qword[rbp+56],:thisret
+            jmp $_il                            -- jmp code:open
+          ::thisret     
+        []
+      }
+
+pQ()
+pQ()
+
+procedure p(integer p1)--, integer p2)
+integer res
+if 01 then  -- (toggle this to test emitON=0)
+    #ilASM{ 
+-->
+--private static byte[] x86_FastMemCopy_New = new byte[]
+--{
+--  0x90, //nop do nothing
+--  0x60, //pushad store flag register on stack
+--  0x95, //xchg ebp, eax eax contains memory address of our method
+--  0x8B, 0xB5, 0x5A, 0x01, 0x00, 0x00, //mov esi,[ebp][00000015A] get source buffer address
+--  0x89, 0xF0, //mov eax,esi
+--  0x83, 0xE0, 0x0F, //and eax,00F will check if it is 16 byte aligned
+--  0x8B, 0xBD, 0x62, 0x01, 0x00, 0x00, //mov edi,[ebp][000000162] get destination address
+--  0x89, 0xFB, //mov ebx,edi
+--  0x83, 0xE3, 0x0F, //and ebx,00F will check if it is 16 byte aligned
+--  0x8B, 0x8D, 0x6A, 0x01, 0x00, 0x00, //mov ecx,[ebp][00000016A] get number of bytes to copy
+--  0xC1, 0xE9, 0x07, //shr ecx,7 divide length by 128
+--  0x85, 0xC9, //test ecx,ecx check if zero
+--  0x0F, 0x84, 0x1C, 0x01, 0x00, 0x00, //jz 000000146 ? copy the rest
+--  0x0F, 0x18, 0x06, //prefetchnta [esi] pre-fetch non-temporal source data for reading
+--  0x85, 0xC0, //test eax,eax check if source address is 16 byte aligned
+--  0x0F, 0x84, 0x8B, 0x00, 0x00, 0x00, //jz 0000000C0 ? go to copy if aligned
+--  0x0F, 0x18, 0x86, 0x80, 0x02, 0x00, 0x00, //prefetchnta [esi][000000280] pre-fetch more source data
+--  0x0F, 0x10, 0x06, //movups xmm0,[esi] copy 16 bytes of source data
+--  0x0F, 0x10, 0x4E, 0x10, //movups xmm1,[esi][010] copy more 16 bytes
+--  0x0F, 0x10, 0x56, 0x20, //movups xmm2,[esi][020] copy more
+--  0x0F, 0x18, 0x86, 0xC0, 0x02, 0x00, 0x00, //prefetchnta [esi][0000002C0] pre-fetch more
+--  0x0F, 0x10, 0x5E, 0x30, //movups xmm3,[esi][030]
+--  0x0F, 0x10, 0x66, 0x40, //movups xmm4,[esi][040]
+--  0x0F, 0x10, 0x6E, 0x50, //movups xmm5,[esi][050]
+--  0x0F, 0x10, 0x76, 0x60, //movups xmm6,[esi][060]
+--  0x0F, 0x10, 0x7E, 0x70, //movups xmm7,[esi][070] we've copied 128 bytes of source data
+--  0x85, 0xDB, //test ebx,ebx check if destination address is 16 byte aligned
+--  0x74, 0x21, //jz 000000087 ? go to past if aligned
+--  0x0F, 0x11, 0x07, //movups [edi],xmm0 past first 16 bytes to non-aligned destination address
+--  0x0F, 0x11, 0x4F, 0x10, //movups [edi][010],xmm1 past more
+--  0x0F, 0x11, 0x57, 0x20, //movups [edi][020],xmm2
+--  0x0F, 0x11, 0x5F, 0x30, //movups [edi][030],xmm3
+--  0x0F, 0x11, 0x67, 0x40, //movups [edi][040],xmm4
+--  0x0F, 0x11, 0x6F, 0x50, //movups [edi][050],xmm5
+--  0x0F, 0x11, 0x77, 0x60, //movups [edi][060],xmm6
+--  0x0F, 0x11, 0x7F, 0x70, //movups [edi][070],xmm7 we've pasted 128 bytes of source data
+--  0xEB, 0x1F, //jmps 0000000A6 ? continue
+--  0x0F, 0x2B, 0x07, //movntps [edi],xmm0 past first 16 bytes to aligned destination address
+--  0x0F, 0x2B, 0x4F, 0x10, //movntps [edi][010],xmm1 past more
+--  0x0F, 0x2B, 0x57, 0x20, //movntps [edi][020],xmm2
+--  0x0F, 0x2B, 0x5F, 0x30, //movntps [edi][030],xmm3
+--  0x0F, 0x2B, 0x67, 0x40, //movntps [edi][040],xmm4
+--  0x0F, 0x2B, 0x6F, 0x50, //movntps [edi][050],xmm5
+--  0x0F, 0x2B, 0x77, 0x60, //movntps [edi][060],xmm6
+--  0x0F, 0x2B, 0x7F, 0x70, //movntps [edi][070],xmm7 we've pasted 128 bytes of source data
+--  0x81, 0xC6, 0x80, 0x00, 0x00, 0x00, //add esi,000000080 increment source address by 128
+--  0x81, 0xC7, 0x80, 0x00, 0x00, 0x00, //add edi,000000080 increment destination address by 128
+--  0x83, 0xE9, 0x01, //sub ecx,1 decrement counter
+--  0x0F, 0x85, 0x7A, 0xFF, 0xFF, 0xFF, //jnz 000000035 ? continue if not zero
+--  0xE9, 0x86, 0x00, 0x00, 0x00, //jmp 000000146 ? go to copy the rest of data
+--
+--  0x0F, 0x18, 0x86, 0x80, 0x02, 0x00, 0x00, //prefetchnta [esi][000000280] pre-fetch source data
+--  0x0F, 0x28, 0x06, //movaps xmm0,[esi] copy 128 bytes from aligned source address
+--  0x0F, 0x28, 0x4E, 0x10, //movaps xmm1,[esi][010] copy more
+--  0x0F, 0x28, 0x56, 0x20, //movaps xmm2,[esi][020]
+--  0x0F, 0x18, 0x86, 0xC0, 0x02, 0x00, 0x00, //prefetchnta [esi][0000002C0] pre-fetch more data
+--  0x0F, 0x28, 0x5E, 0x30, //movaps xmm3,[esi][030]
+--  0x0F, 0x28, 0x66, 0x40, //movaps xmm4,[esi][040]
+--  0x0F, 0x28, 0x6E, 0x50, //movaps xmm5,[esi][050]
+--  0x0F, 0x28, 0x76, 0x60, //movaps xmm6,[esi][060]
+--  0x0F, 0x28, 0x7E, 0x70, //movaps xmm7,[esi][070] we've copied 128 bytes of source data
+--  0x85, 0xDB, //test ebx,ebx check if destination address is 16 byte aligned
+--  0x74, 0x21, //jz 000000112 ? go to past if aligned
+--  0x0F, 0x11, 0x07, //movups [edi],xmm0 past 16 bytes to non-aligned destination address
+--  0x0F, 0x11, 0x4F, 0x10, //movups [edi][010],xmm1 past more
+--  0x0F, 0x11, 0x57, 0x20, //movups [edi][020],xmm2
+--  0x0F, 0x11, 0x5F, 0x30, //movups [edi][030],xmm3
+--  0x0F, 0x11, 0x67, 0x40, //movups [edi][040],xmm4
+--  0x0F, 0x11, 0x6F, 0x50, //movups [edi][050],xmm5
+--  0x0F, 0x11, 0x77, 0x60, //movups [edi][060],xmm6
+--  0x0F, 0x11, 0x7F, 0x70, //movups [edi][070],xmm7 we've pasted 128 bytes of data
+--  0xEB, 0x1F, //jmps 000000131 ? continue copy-past
+--  0x0F, 0x2B, 0x07, //movntps [edi],xmm0 past 16 bytes to aligned destination address
+--  0x0F, 0x2B, 0x4F, 0x10, //movntps [edi][010],xmm1 past more
+--  0x0F, 0x2B, 0x57, 0x20, //movntps [edi][020],xmm2
+--  0x0F, 0x2B, 0x5F, 0x30, //movntps [edi][030],xmm3
+--  0x0F, 0x2B, 0x67, 0x40, //movntps [edi][040],xmm4
+--  0x0F, 0x2B, 0x6F, 0x50, //movntps [edi][050],xmm5
+--  0x0F, 0x2B, 0x77, 0x60, //movntps [edi][060],xmm6
+--  0x0F, 0x2B, 0x7F, 0x70, //movntps [edi][070],xmm7 we've pasted 128 bytes of data
+--  0x81, 0xC6, 0x80, 0x00, 0x00, 0x00, //add esi,000000080 increment source address by 128
+--  0x81, 0xC7, 0x80, 0x00, 0x00, 0x00, //add edi,000000080 increment destination address by 128
+--  0x83, 0xE9, 0x01, //sub ecx,1 decrement counter
+--  0x0F, 0x85, 0x7A, 0xFF, 0xFF, 0xFF, //jnz 0000000C0 ? continue copy-past if non-zero
+--  0x8B, 0x8D, 0x6A, 0x01, 0x00, 0x00, //mov ecx,[ebp][00000016A] get number of bytes to copy
+--  0x83, 0xE1, 0x7F, //and ecx,07F get rest number of bytes
+--  0x85, 0xC9, //test ecx,ecx check if there are bytes
+--  0x74, 0x02, //jz 000000155 ? exit if there are no more bytes
+--  0xF3, 0xA4, //rep movsb copy rest of bytes
+--  0x0F, 0xAE, 0xF8, //sfence performs a serializing operation on all store-to-memory instructions
+--  0x61, //popad restore flag register
+--  0xC3, //retn return from our method to C#
+--  
+--  0x00, 0x00, 0x00, 0x00, //source buffer address
+--  0x00, 0x00, 0x00, 0x00,
+--
+--  0x00, 0x00, 0x00, 0x00, //destination buffer address
+--  0x00, 0x00, 0x00, 0x00,
+--
+--  0x00, 0x00, 0x00, 0x00, //number of bytes to copy-past
+--  0x00, 0x00, 0x00, 0x00
+--};
+--  prefetchnta [esi] -- 0x0F, 0o030, 0o006, //pre-fetch non-temporal source data for reading
+--  prefetchnta [esi+640] -- 0x0F, 0o030, 0o206, 0x80, 0x02, 0x00, 0x00, //pre-fetch more source data
+--  movups xmm0,[esi] -- 0x0F, 0x10, 0x06, //copy 16 bytes of source data
+--  movups xmm1,[esi+16] -- 0x0F, 0x10, 0x4E, 0x10, //copy more 16 bytes
+--  movups xmm2,[esi+#020] -- 0x0F, 0x10, 0x56, 0x20, //copy more
+--  prefetchnta [esi+704] -- 0x0F, 0x18, 0x86, 0xC0, 0x02, 0x00, 0x00, //pre-fetch more
+--  movups xmm3,[esi+#030] -- 0x0F, 0x10, 0x5E, 0x30, //
+--  movups xmm4,[esi+#040] -- 0x0F, 0x10, 0x66, 0x40, //
+--  movups xmm5,[esi+#050] -- 0x0F, 0x10, 0x6E, 0x50, //
+--  movups xmm6,[esi+#060] -- 0x0F, 0x10, 0x76, 0x60, //
+--  movups xmm7,[esi+#070] -- 0x0F, 0x10, 0x7E, 0x70, //we've copied 128 bytes of source data
+--  movups [edi],xmm0 -- 0x0F, 0x11, 0x07, //past first 16 bytes to non-aligned destination address
+--  movups [edi+#010],xmm1 -- 0x0F, 0x11, 0x4F, 0x10, //past more
+--  movups [edi+#020],xmm2 -- 0x0F, 0x11, 0x57, 0x20, //
+--  movups [edi+#030],xmm3 -- 0x0F, 0x11, 0x5F, 0x30, //
+--  movups [edi+#040],xmm4 -- 0x0F, 0x11, 0x67, 0x40, //
+--  movups [edi+#050],xmm5 -- 0x0F, 0x11, 0x6F, 0x50, //
+--  movups [edi+#060],xmm6 -- 0x0F, 0x11, 0x77, 0x60, //
+--  movups [edi+#070],xmm7 -- 0x0F, 0x11, 0x7F, 0x70, //we've pasted 128 bytes of source data
+--  movntps [edi],xmm0 -- 0x0F, 0x2B, 0x07, //past first 16 bytes to aligned destination address
+--  movntps [edi+#010],xmm1 -- 0x0F, 0x2B, 0x4F, 0x10, //past more
+--  movntps [edi+#020],xmm2 -- 0x0F, 0x2B, 0x57, 0x20, //
+--  movntps [edi+#030],xmm3 -- 0x0F, 0x2B, 0x5F, 0x30, //
+--  movntps [edi+#040],xmm4 -- 0x0F, 0x2B, 0x67, 0x40, //
+--  movntps [edi+#050],xmm5 -- 0x0F, 0x2B, 0x6F, 0x50, //
+--  movntps [edi+#060],xmm6 -- 0x0F, 0x2B, 0x77, 0x60, //
+--  movntps [edi+#070],xmm7 -- 0x0F, 0x2B, 0x7F, 0x70, //we've pasted 128 bytes of source data
+--  add esi,128 -- 0x81, 0xC6, 0x80, 0x00, 0x00, 0x00, //increment source address by 128
+--  add edi,128 -- 0x81, 0xC7, 0x80, 0x00, 0x00, 0x00, //increment destination address by 128
+--  prefetchnta [esi+640] -- 0x0F, 0x18, 0x86, 0x80, 0x02, 0x00, 0x00, //pre-fetch source data
+--  movaps xmm0,[esi] -- 0x0F, 0x28, 0x06, //copy 128 bytes from aligned source address
+--  movaps xmm1,[esi+#010] -- 0x0F, 0x28, 0x4E, 0x10, //copy more
+--  movaps xmm2,[esi+#020] -- 0x0F, 0x28, 0x56, 0x20, //
+--  prefetchnta [esi+704] -- 0x0F, 0x18, 0x86, 0xC0, 0x02, 0x00, 0x00, //pre-fetch more data
+--  movaps xmm3,[esi+#030] -- 0x0F, 0x28, 0x5E, 0x30, //
+--  movaps xmm4,[esi+#040] -- 0x0F, 0x28, 0x66, 0x40, //
+--  movaps xmm5,[esi+#050] -- 0x0F, 0x28, 0x6E, 0x50, //
+--  movaps xmm6,[esi+#060] -- 0x0F, 0x28, 0x76, 0x60, //
+--  movaps xmm7,[esi+#070] -- 0x0F, 0x28, 0x7E, 0x70, //we've copied 128 bytes of source data
+--  movups [edi],xmm0 -- 0x0F, 0x11, 0x07, //past 16 bytes to non-aligned destination address
+--  movups [edi+#010],xmm1 -- 0x0F, 0x11, 0x4F, 0x10, //past more
+--  movups [edi+#020],xmm2 -- 0x0F, 0x11, 0x57, 0x20, //
+--  movups [edi+#030],xmm3 -- 0x0F, 0x11, 0x5F, 0x30, //
+--  movups [edi+#040],xmm4 -- 0x0F, 0x11, 0x67, 0x40, //
+--  movups [edi+#050],xmm5 -- 0x0F, 0x11, 0x6F, 0x50, //
+--  movups [edi+#060],xmm6 -- 0x0F, 0x11, 0x77, 0x60, //
+--  movups [edi+#070],xmm7 -- 0x0F, 0x11, 0x7F, 0x70, //we've pasted 128 bytes of data
+--  movntps [edi],xmm0 -- 0x0F, 0x2B, 0x07, //past 16 bytes to aligned destination address
+--  movntps [edi+#010],xmm1 -- 0x0F, 0x2B, 0x4F, 0x10, //past more
+--  movntps [edi+#020],xmm2 -- 0x0F, 0x2B, 0x57, 0x20, //
+--  movntps [edi+#030],xmm3 -- 0x0F, 0x2B, 0x5F, 0x30, //
+--  movntps [edi+#040],xmm4 -- 0x0F, 0x2B, 0x67, 0x40, //
+--  movntps [edi+#050],xmm5 -- 0x0F, 0x2B, 0x6F, 0x50, //
+--  movntps [edi+#060],xmm6 -- 0x0F, 0x2B, 0x77, 0x60, //
+--  movntps [edi+#070],xmm7 -- 0x0F, 0x2B, 0x7F, 0x70, //we've pasted 128 bytes of data
+--  add esi,128 -- 0x81, 0xC6, 0x80, 0x00, 0x00, 0x00, //increment source address by 128
+--  add edi,128 -- 0x81, 0xC7, 0x80, 0x00, 0x00, 0x00, //increment destination address by 128
+--  rep movsb -- 0xF3, 0xA4, //copy rest of bytes
+--  sfence -- 0x0F, 0xAE, 0xF8, //performs a serializing operation on all store-to-memory instructions
+
+--          [PE64]
+--          pop al  -- guard instruction
+--          [PE32]
+            fstp dword[esp]
+        [32]
+            pop dword[ebx+esi*4+16]             -- [1] new nStatus
+        []
+            fist dword[esp]
+-- from pdelete:
+            pop [res]
+--          fnstsw ax
+        [32]
+            pop dword[esi+12]
+        []
+            shl eax,1
+            add eax,eax
+            shl ecx,1
+            add ecx,ecx
+            fld qword[esp]
+            cdq
+            xor edx,edx
+            idiv ecx
+            cmp [res],0
+            ret 4
+                mov edi,:retaddr
+                mov [ebp+28],edi
+                mov dword[ebp+28,:retaddr
+                jmp dword[ebx+esi*4+40]
+            ::retaddr
+                -- result is in eax, but >31bit stored as a float
+                cmp eax,h4
+
+mov eax,fs:[#00000018]  -- Avast trigger! (not by itself!)
+--mov ecx,fs:[#00000018]    -- Avast trigger!
+--mov ebx,fs:[#00000018]    -- Avast trigger!
+--lea eax,fs:[#00000018]    -- Avast trigger!
+--lea ecx,fs:[#00000018]    -- Avast trigger!
+--lea ebx,fs:[#00000018]    -- Avast trigger!
+--lea edx,fs:[#00000018]    -- Avast trigger!
+--lea edi,fs:[#00000018]    -- Avast trigger!
+--lea esi,fs:[#00000018]    -- Avast trigger!
+--lea ebp,fs:[#00000018]    -- Avast trigger!
+--lea eax,fs:[eax]  -- Avast trigger!
+            mov [res],ebx
+            mov [res],0
+            mov [res],1024
+            call [ebx+esi*4+40]
+            call dword[ebx+esi*4+40]
+            call dword [ebx+esi*4+40]
+
+push SIGDN_FILESYSPATH
+push #80058000
+mov eax,:%glbl
+cmp eax,:%glbl
+cmp byte[ebx+edx*4-1],#82
+            cmp edi,'a'
+            cmp edi,[stdin]
+            cmp edx,[p1]
+
+push MODE
+push 4
+--push x
+mov eax,[x]
+mov eax,[y]
+mov eax,[pFileDialog]
+push [x]
+push [pFileDialog]
+            cmp al,1
+            mov cl,dl
+            cmp dword[esi*4+ebx+36],edx
+            add dword[esi*4+ebx+36],edx
+            sub dword[esi*4+ebx+36],edx
+            cmp byte[esi*4+ebx+36],dl
+            add byte[esi*4+ebx+36],al
+            sub byte[esi*4+ebx+36],cl
+            cmp edx,dword[eax+esi*4+8]
+            cmp dword[edx+esi*2+8],ecx
+            cmp byte[edx+esi*2+8],cl
+            sub eax,dword[edx+ecx*4+8]
+            sub al,byte[edx+ecx*4+8]
+
+            push dword[ebp+eax*4]
+
+            mov dword[eax+ecx*4-8],3
+            push [res]
+            push dword[ebp]
+            push dword[ebp+4]
+            push dword[ebp+444]
+            push dword[ebx+eax*4]
+            push dword[ebp+eax*4]
+            push dword[eax+ebp*2+4]
+            push dword[ebp+esi+444]
+            push dword[edx*4+esi+444]
+            -- 0o377 0o06r      -- push dword[reg]
+            -- 0o377 0o16r      -- push dword[reg+d8]
+            -- 0o377 0o26r d32  -- push dword[reg+d32]
+
+--          push res
+--          push stdin
+        [32]
+            inc edx
+            dec ecx
+            inc dword[ebx+eax*4-8]
+            dec dword[ebx+eax*4-8]
+            inc dword[ebx-8]
+            dec dword[ebx+8]
+        []
+            ret
+[64]
+    lea rsi,[rbp+rcx*8+56]
+            movd xmm1,eax
+            movd xmm2,eax
+            movd xmm3,ecx
+            movd xmm0,dword[rsp]
+            movd xmm0,dword[rsp-8]
+
+[]
+          }
+end if
+--  #ilasm{ 
+--          ret
+--
+--          }
+end procedure
+
+procedure newdone(integer p1, integer p2)
+integer res
+if 01 then
+    #ilASM{ 
+            e_all
+            lea ecx,[p1]
+            lea edx,[p2]
+            lea edi,[res]
+            lea esi,[res]
+
+            mov eax,[p1] 
+            mov dword[ebp-8], 3
+            mov byte[eax+256],255
+            mov byte[ecx],1
+            mov byte[ebp],1
+            mov byte[ebp+8],1
+            mov byte[esi+256],1
+
+            mov ecx,[p2]
+            mov edx,[p1]
+            mov edi,[p2]
+            mov esi,[res]
+
+            mov eax,[symtab]
+            mov ebx,[symtab]
+            mov ecx,[symtab]
+            mov edx,[symtab]
+            mov ebp,[symtab]
+            mov edi,[symtab]
+            mov esi,[symtab]
+
+            mov [res],eax
+            mov [p1],ebx
+            mov [p2],ecx
+            mov [res],edx
+            mov [res],edi
+
+            mov byte[esp], 1
+            mov [esp],word 1
+            mov [esp],dword 1
+            mov [esp+8],byte 1
+            mov [esp+8],word 1
+            mov [esp+8],dword 1
+            mov [esp+256],byte 1
+            mov [esp+256],word 1
+            mov [esp+256],dword 1
+
+            mov al,64
+            mov dl,26
+
+            mov [stdin],eax
+            mov [stdin],ebx
+            mov [stdin],ecx
+            mov [stdin],edx
+            mov [stdin],edi
+
+            mov [stdin],1
+
+            mov eax,ebx
+            mov eax,ecx
+            mov eax,ebp
+            mov eax,esp
+            mov ecx,eax
+            mov ecx,ebx
+            mov ecx,ebp
+            mov ecx,esp
+            mov edx,eax
+            mov edx,ebx
+            mov edx,esp
+            mov edx,edi
+            mov ebp,eax
+            mov esp,ecx
+            mov edi,eax
+            mov edi,ebx
+            mov edi,ebp
+            mov edi,esp
+            mov edi,esp
+
+            mov [edx],ebp
+            mov [edi],eax
+            mov [esi+HNDL],eax
+
+            mov eax,[esi+HNDL]
+            mov edx,[edx]
+            mov esi,[esp]
+
+            mov eax,[esi+MODE]
+            mov edx,[esp+28]
+            mov edx,[esi+MODE]
+            mov edi,[ebp+20]
+            mov edi,[esp+4]
+            mov edi,[edi-8]
+            mov edi,[esi+MODE-1]
+            mov esi,[ebp+24]
+            mov esi,[esp+28]
+
+            mov [edx+10],eax
+            mov [ebp+28],edi
+            mov [esp+28],eax
+            mov [esp+28],esi
+            mov [esi+MODE],eax
+            mov [esi+MODE],ebx --(0)
+            mov [esi+MODE],edx
+            mov [esi+MODE],ecx
+            mov [esi+MODE],edi
+
+            mov [esi+MODE],dword 1
+
+--          call %opRetf
+--          call :%opRetf
+            call :%glbl
+            call :createthread2
+        ::createthread2
+            call :tpop2
+--          call_rel32,3,0,0,0,                         -- call :tpop2
+            call eax
+
+        ::tpop2
+--          call_mem32,%isAPIfn,"user32","GetActiveWindow", -- call [GetActiveWindow]
+--          call_mem32,%isAPIfn,"kernel32.dll","ReadFile",  -- call [kernel32.dll:ReadFile]
+            call "user32","GetActiveWindow"
+            call "kernel32.dll","ReadFile"
+
+            jae :isFunc2
+            jb isFunc2
+            @@:
+            je :isFunc2
+            jl @f
+            jle @b
+            jne :isFunc2
+            jnz :isFunc2
+            jz :isFunc2
+
+            jmp :isFunc2
+            jmp :isFunc2
+--          jmp %opRetf
+--          jmp :%opRetf
+            @@:
+            jmp dword[ebx+esi*4+40]
+         ::isFunc2
+
+        [32]
+            mov eax,:iaddr
+            mov eax,3
+         ::iaddr
+        []
+            mov eax,-1
+            lea ecx,[symtab]
+            mov ecx,5
+            lea edx,[symtab]
+            lea edi,[symtab]
+--          lea edi,retaddr
+            lea esi,[symtab]
+
+            mov eax,[esi+eax*4]
+            mov ecx,[esi+eax*4]
+            mov esi,[edi+eax*4]
+
+            mov eax,[ebx+eax*4-8]
+            mov ecx,[ebx+esi*4+36]
+            mov edi,[ebx+esi*4+32]
+            mov edi,[ebx+esi*4+232]
+            mov esi,[esi+edx*4-4]
+
+            mov bl,[edi+edx-1]
+            mov cl,byte[esi+eax+MODE-1]
+            mov dl,[ebx*4+edx-1]
+            mov dl,[edi+edx-1]
+
+            mov [ebx+edx*4-4],eax
+            mov [ebx+edx*4-4],ecx
+
+            mov byte[esi+eax+MODE-1],cl
+
+--          mov word[edi],#0D0A --(\r\n)
+            mov word[edi],#0A0D --(\r\n, little endian)
+
+            push eax
+            push ebx
+            push ecx
+            push edx
+            push esp
+            push edi
+            push esi
+            push dword 1
+            push dword #01020304
+            push dword MODE
+            push [stdin]
+            push dword[esi]
+
+            pop eax
+            pop ecx
+            pop edx
+            pop edi
+            pop esi
+
+        [32]
+            pushad
+            popad
+        []
+            cmp eax,-1
+            cmp ecx,0
+            cmp edx,0
+            cmp edi,'a'
+            cmp esi,0
+            cmp eax,byte MODE
+            cmp eax,MODE
+
+            cmp cl,'\r'
+
+            cmp eax,h4
+            cmp eax,dword -1 -- ?
+            cmp eax,byte -1
+            cmp eax,dword MODE
+            cmp ecx,h4
+            cmp edx,0x01000004
+            cmp edi,h4
+            cmp esi,h4
+
+            cmp ecx,edx
+            cmp edx,ecx
+
+            cmp eax,[edi-12]
+            cmp eax,[esi+MODE]
+
+            cmp eax,[ebx+esi*4-12]
+
+            cmp dword[symtab],0
+            cmp dword[esi+MODE],0
+
+            cmp byte[ebx+eax*4-1],0x12
+            cmp byte[edi+edx-1],0
+
+            -- 0o201 0o17b d8 imm32 -- cmp dword[base+d8],imm32
+            -- 0o203 0o1ib d8 i8 -- <ins> dword[base+d8],i8
+            --  (where i is 0..7 for add..cmp)
+
+            -- 0o200 0o174 sib d8 i8    -- cmp byte[b32+i32*s+d8],i8
+            -- 0o201 0o274 sib d32 imm32 -- cmp dword[b32+i32*s+d32],imm32
+
+            cmp dword[ebp+4],4097
+            cmp dword[ebp+4],32
+            cmp byte[ebp+4],32
+            cmp byte[ebx+ecx*2+12],16
+            cmp dword[ebx+ecx*2+12],16
+            cmp dword[edx+eax*4+2048],16637
+
+            test eax,eax
+            test ecx,ecx
+            test edx,ecx
+            test edi,edi
+            test edi,MODE
+            test edi,1234
+            test dword[esi+MODE],MODE
+            test byte[esi+MODE],MODE
+
+            add eax,1
+            add eax,1024
+            sub eax,3
+            sub ecx,1
+
+            add esp,4
+            sub esp,8
+            add edi,MODE
+            sub edi,MODE
+
+            add eax,ecx
+            add eax,esi
+            add ecx,edx
+            add esp,eax
+            add edi,eax
+            sub esi,edi
+
+            lea ecx,[esi+MODE]
+            lea edi,[esi+MODE-1]
+            lea edx,[edi+1]
+            lea esi,[esp+48]
+            lea edi,[eax+3]
+
+            and eax,0x0000FFFF
+            and eax,0x00FFFFFF
+            and eax,0xFFFFFF00
+            and eax,#3FFFFFFF
+            and ebx,0x000000FF
+            and ebx,byte 0xFF
+            and ecx,#0000FFFF
+            and ecx,0xFF000000  -- (keep type byte only)
+            and edx,byte 0xFF   --**BUG (equiv to and edx,0xFFFFFFFF)**
+            and edx,0x000000FF
+
+            or eax,ecx
+            or ebp,ecx
+            or dword[edi+MODE],MODE
+
+            xor eax,eax
+            xor eax,ecx
+            xor ebx,ebx
+            xor ecx,ecx
+            xor esi,esi
+            xor edi,edi
+
+            shl eax,2
+            shl ecx,16
+            shl edx,2
+            shl esi,2
+            shl edi,2
+            shl edi,1
+
+            shr eax,16
+
+        [32]
+            inc edx
+            dec ecx
+            inc dword[ebx+eax*4-8]
+            dec dword[ebx+eax*4-8]
+        []
+
+            ret 8
+            ret -- comment
+            ret
+
+            setz cl
+            rep movsb
+            rep movsd
+            lodsd
+            cwde
+
+            fld qword[ebx+eax*4]
+            fldpi
+            fstp qword[esp]
+
+            fild qword[eax]
+            fild dword[esp]
+            fild qword[esp]
+            fistp dword[esp]
+            fistp qword[esp]
+            fistp dword[eax]
+            fistp qword[eax]
+
+            fild dword[esi+MODE]
+            fild qword[esi+MODE]
+
+            fistp dword[esi+MODE]
+            fistp qword[esi+MODE]
+
+        [32]
+            fild dword[symtab]
+            fild dword[p1]
+        [64]
+            fild qword[symtab]
+            fild qword[p1]
+        []
+            fstp qword[ebx+edx*4]
+
+            fistp qword[ecx+esi*4+8]
+            fistp word[edx]
+
+            fild dword[ecx+edx*4+8]
+            fild qword[ecx+edx*4+8]
+            fild word[esi]
+
+            faddp
+            faddp st1,st0
+            faddp st7,st0
+
+            jmp dword[ebx+eax*4+4096]
+            jmp dword[ebx+eax*4+4]
+            jmp dword[ebx+eax*4]
+            jmp dword[ebx+eax+4096]
+            jmp dword[ebx+eax+4]
+            jmp dword[ebx+eax]
+            jmp dword[ebx+4096]
+            jmp dword[ebx+4]
+            jmp dword[ebx]
+            jmp [ebx+eax*4+4096]
+            jmp [ebx+eax*4+4]
+            jmp [ebx+eax*4]
+            jmp [ebx+eax+4096]
+            jmp [ebx+eax+4]
+            jmp [ebx+eax]
+            jmp [ebx+4096]
+            jmp [ebx+4]
+            jmp [ebx]
+            jmp ebx
+
+--          jmp dword[ebp+eax*4+4]
+--          jmp dword[ebp+eax*4]
+--          jmp dword[eax*4+4096]
+--          jmp dword[eax*4+4]
+--          jmp dword[eax*4]
+            }
+end if
+
+end procedure
+
+--procedure olddone(integer p1, integer p2)
+--integer res
+--  #ilasm{ e_all,                                  -- set "all side_effects"
+--          opLeaMov,%ecx,p1,                       -- lea ecx,[p1]
+--          opLeaMov,%edx,p2,                       -- lea edx,[p2]
+--          opLeaMov,%edi,res,                      -- lea edi,[res]
+--          opLeaMov,%esi,res,                      -- lea esi,[res]
+--
+--          opLoadMem,%eax,p1,                      -- mov eax,[p1]
+--          opLoadMem,%ecx,p2,                      -- mov ecx,[p2]
+--          opLoadMem,%edx,p1,                      -- mov edx,[p1]
+--          opLoadMem,%edi,p2,                      -- mov edi,[p2]
+--          opLoadMem,%esi,res,                     -- mov esi,[res]
+--          mov_eax_mem32,%isVar,0,0,symtab,        -- mov eax,[symtab]
+--          mov_ebx_mem32,%isVar,0,0,symtab,        -- mov ebx,[symtab]
+--          mov_ecx_mem32,%isVar,0,0,symtab,        -- mov ecx,[symtab]
+--          mov_edx_mem32,%isVar,0,0,symtab,        -- mov edx,[symtab]
+--          mov_ebp_mem32,%isVar,0,0,symtab,        -- mov ebp,[symtab]
+--          mov_edi_mem32,%isVar,0,0,symtab,        -- mov edi,[symtab]
+--          mov_esi_mem32,%isVar,0,0,symtab,        -- mov esi,[symtab]
+--
+--          opStoreMem,%eax,res,                    -- mov [res],eax
+--          opStoreMem,%ebx,p1,                     -- mov [p1],ebx
+--          opStoreMem,%ecx,p2,                     -- mov [p2],ecx
+--          opStoreMem,%edx,res,                    -- mov [res],edx
+--          opStoreMem,%edi,res,                    -- mov [res],edi
+--
+--          mov_al_imm8,64,                         -- mov al,64
+--          mov_dl_imm8,26,                         -- mov dl,26
+--
+--          mov_mem32_eax,%isVar,0,0,stdin,         -- mov [stdin],eax
+--          mov_mem32_ebx,%isVar,0,0,stdin,         -- mov [stdin],ebx
+--          mov_mem32_ecx,%isVar,0,0,stdin,         -- mov [stdin],ecx
+--          mov_mem32_edx,%isVar,0,0,stdin,         -- mov [stdin],edx
+--          mov_mem32_edi,%isVar,0,0,stdin,         -- mov [stdin],edi
+--
+--          mov_m32_imm32,%isVar,0,0,stdin,1,0,0,0, -- mov [stdin],1
+--
+--          mov_eax_ebx,                                -- mov eax,ebx
+--          mov_eax_ecx,                                -- mov eax,ecx
+--          mov_eax_ebp,                                -- mov eax,ebp
+--          mov_eax_esp,                                -- mov eax,esp
+--          mov_ecx_eax,                                -- mov ecx,eax
+--          mov_ecx_ebx,                                -- mov ecx,ebx
+--          mov_ecx_ebp,                                -- mov ecx,ebp
+--          mov_ecx_esp,                                -- mov ecx,esp
+--          mov_edx_eax,                                -- mov edx,eax
+--          mov_edx_ebx,                                -- mov edx,ebx
+--          mov_edx_esp,                                -- mov edx,esp
+--          mov_edx_edi,                                -- mov edx,edi
+--          mov_ebp_eax,                                -- mov ebp,eax
+--          mov_esp_ecx,                                -- mov esp,ecx
+--          mov_edi_eax,                                -- mov edi,eax
+--          mov_edi_ebx,                                -- mov edi,ebx
+--          mov_edi_ebp,                                -- mov edi,ebp
+--          mov_edi_esp,                                -- mov edi,esp
+--          mov_esi_esp,                                -- mov edi,esp
+--
+--          mov_medx_ebp,                               -- mov [edx],ebp
+--          mov_medi_eax,                               -- mov [edi],eax
+--          mov_mesi_eax,                               -- mov [esi+HNDL],eax
+--
+--          mov_eax_mesi,                               -- mov eax,[esi+HNDL]
+--          mov_edx_medx,                               -- mov edx,[edx]
+--          mov_esi_mesp,                               -- mov esi,[esp]
+--
+--          mov_eax_esid8,%isConst8,MODE,               -- mov eax,[esi+MODE]
+--          mov_edx_espd8,28,                           -- mov edx,[esp+28]
+--          mov_edx_esid8,%isConst8,MODE,               -- mov edx,[esi+MODE]
+--          mov_edi_ebpd8,20,                           -- mov edi,[ebp+20]
+--          mov_edi_espd8,4,                            -- mov edi,[esp+4]
+--          mov_edi_edid8,8,                            -- mov edi,[edi+8]
+--          mov_edi_esid8,%isConst8,MODE,               -- mov edi,[esi+MODE]
+--          mov_esi_ebpd8,24,                           -- mov esi,[ebp+24]
+--          mov_esi_espd8,28,                           -- mov esi,[esp+28]
+--
+--          mov_edxd8_eax,10,                           -- mov [edx+10],eax
+--!         mov_ebpd8_edi,16,                           -- mov [ebp+16],edi
+--          mov_espd8_eax,28,                           -- mov [esp+28],eax
+--          mov_espd8_esi,28,                           -- mov [esp+28],esi
+--          mov_esid8_eax,%isConst8,MODE,               -- mov [esi+MODE],eax
+--          mov_esid8_ebx,%isConst8,MODE,               -- mov [esi+MODE],ebx ;(0)
+--          mov_esid8_edx,%isConst8,MODE,               -- mov [esi+MODE],edx
+--          mov_esid8_ecx,%isConst8,MODE,               -- mov [esi+MODE],ecx
+--          mov_esid8_edi,%isConst8,MODE,               -- mov [esi+MODE],edi
+--
+--          mov_esid8_imm32,%isConst8,MODE,1,0,0,0,     -- mov [esi+MODE],dword 1
+--
+--          call_rel32,%isOpCode,0,0,%opRetf,           -- call %opRetf
+----;       call_mem32,%isApiFn,0,0,%opTlsGetValue,     -- call TlsGetValue
+--          call_rel32,%isJmpG,0,0,:%glbl,              -- call :%glbl
+--          call_rel32,%isJmp,0,0,:createthread,        -- call :createthread
+--      ::createthread
+--          call_rel32,%isJmp,0,0,:tpop,                -- call :tpop
+--          call_rel32,3,0,0,0,                         -- call :tpop
+--          call_eax,  -- see StartThread() above
+--
+--      ::tpop
+--          call_mem32,%isAPIfn,"user32","GetActiveWindow", -- call [GetActiveWindow]
+--          call_mem32,%isAPIfn,"kernel32.dll","ReadFile",  -- call [kernel32.dll:ReadFile]
+--
+--          jae_rel32,%isJmp,0,0,:isFunc,                   -- jae isFunc
+--          jb_rel32,%isJmp,0,0,:isFunc,                    -- jb isFunc
+--       ::Lback                                            -- @@:
+--          je_rel32,%isJmp,0,0,:isFunc,                    -- je isFunc
+--          jl_rel32,%isJmp,0,0,:Lfwd,                      -- jl @f
+--          jle_rel32,%isJmp,0,0,:Lback,                    -- jle @b
+--          jne_rel32,%isJmp,0,0,:isFunc,                   -- jne isFunc
+--          jnz_rel32,%isJmp,0,0,:isFunc,                   -- jnz isFunc
+--          jz_rel32,%isJmp,0,0,:isFunc,                    -- jz isFunc
+--
+--          jump_rel32,%isJmp,0,0,:isFunc,
+--          jmp_rel32,%isJmp,0,0,:isFunc,                   -- jmp isFunc
+--          jmp_rel32,%isOpCode,0,0,%opRetf,                -- jmp %opRetf
+--       ::Lfwd                                             -- @@:
+--          jmp_sibd8,%ebx_esi4,40,                         -- jmp dword[ebx+esi*4+40]
+--       ::isFunc                                           -- ::isFunc
+--
+--          mov_eax_imm32,%isAddr,0,0,5,            -- mov eax,addr iaddr
+--          mov_eax_imm32,3,0,0,0,                  -- mov eax,3
+----         ::iaddr
+--          mov_eax_imm32,#FF,#FF,#FF,#FF,          -- mov eax,-1
+--          mov_ecx_imm32,%isVar,0,0,symtab,        -- mov ecx,addr symtab
+--          mov_ecx_imm32,5,0,0,0,                  -- mov ecx,5
+--          mov_edx_imm32,%isVar,0,0,symtab,        -- mov edx,addr symtab
+--          mov_edi_imm32,%isVar,0,0,symtab,        -- mov edi,addr symtab
+--          mov_edi_imm32,%isAddr,0,0,7,            -- mov edi,retaddr
+--          mov_esi_imm32,%isVar,0,0,symtab,        -- mov esi,addr symtab
+--
+--          mov_eax_sib,%esi_eax4,                      -- mov eax,[esi+eax*4]
+--          mov_ecx_sib,%esi_eax4,                      -- mov ecx,[esi+eax*4]
+--          mov_esi_sib,%edi_eax4,                      -- mov esi,[edi+eax*4]
+--
+--          mov_eax_sibd8,%ebx_eax4,-8,                 -- mov eax,[ebx+eax*4-8]
+--          mov_ecx_sibd8,%ebx_esi4,36,                 -- mov ecx,[ebx+esi*4+36]
+--          mov_edi_sibd8,%ebx_esi4,32,                 -- mov edi,[ebx+esi*4+32]
+--          mov_esi_sibd8,%esi_edx4,-4,                 -- mov esi,[esi+edx*4-4]
+--
+--          mov_bl_sibd8,%edi_edx,-1,                   -- mov bl,[edi+edx-1]
+--          mov_cl_sibd8,%esi_eax,%isConst8,MODE,       -- mov cl,byte[esi+eax+MODE-1]
+--          mov_dl_sibd8,%edx_ebx4,-1,                  -- mov dl,[ebx*4+edx-1]
+--          mov_dl_sibd8,%edi_edx,-1,                   -- mov dl,[edi+edx-1]
+--
+--          mov_sibd8_eax,%ebx_edx4,-4,                 -- mov [ebx+edx*4-4],eax
+--          mov_sibd8_ecx,%ebx_edx4,-4,                 -- mov [ebx+edx*4-4],ecx
+--
+--          mov_sibd8_cl,%esi_eax,%isConst8,MODE,       -- mov byte[esi+eax+MODE-1],cl
+--
+--          mov_word_medi,#0D,#0A,                      -- mov word[edi],#0D0A (\r\n)
+--
+--          push_eax,                                   -- push eax
+--          push_ebx,                                   -- push ebx
+--          push_ecx,                                   -- push ecx
+--          push_edx,                                   -- push edx
+--          push_esp,                                   -- push esp
+--          push_edi,                                   -- push edi
+--          push_esi,                                   -- push esi
+--          push_imm32,1,0,0,0,                         -- push dword 1
+--          push_imm32,#04,#03,#02,#01,                 -- push dword #01020304
+--          push_imm32,%isConst,MODE,                   -- push dword MODE
+--          push_mem32,%isVar,0,0,stdin,                -- push [stdin]
+--          push_mesi,                                  -- push dword[esi]
+--
+--          pop_eax,                                    -- pop eax
+--          pop_ecx,                                    -- pop ecx
+--          pop_edx,                                    -- pop edx
+--          pop_edi,                                    -- pop edi
+--          pop_esi,                                    -- pop esi
+--
+--          pushad,                                     -- pushad
+--          popad,                                      -- popad
+--
+--          cmp_eax_imm8,-1,                            -- cmp eax,-1
+--          cmp_ecx_imm8,0,                             -- cmp ecx,0
+--          cmp_edx_imm8,0,                             -- cmp edx,0
+--          cmp_edi_imm8,#61,                           -- cmp edi,'a'
+--          cmp_esi_imm8,0,                             -- cmp esi,0
+--          cmp_eax_imm8,%isConst8,MODE,                -- cmp eax,byte MODE
+--          cmp_eax_imm8,%isConst8,MODE,                -- cmp eax,MODE
+--
+--          cmp_cl_imm8,13,                             -- cmp cl,'\r'
+--
+--          cmp_eax_imm32,0,0,0,#40,                    -- cmp eax,h4
+--          cmp_eax_imm32,#FF,#FF,#FF,#FF,              -- cmp eax,dword -1 -- ?
+--          cmp_eax_imm32,%isConst,MODE,                -- cmp eax,MODE
+--          cmp_ecx_imm32,0,0,0,#40,                    -- cmp ecx,h4
+--          cmp_edx_imm32,#04,#00,#00,#01,              -- cmp edx,0x01000004
+--          cmp_edi_imm32,0,0,0,#40,                    -- cmp edi,h4
+--          cmp_esi_imm32,0,0,0,#40,                    -- cmp esi,h4
+--
+--          cmp_ecx_edx,                                -- cmp ecx,edx
+--          cmp_edx_ecx,                                -- cmp edx,ecx
+--
+--          cmp_eax_edid8,-12,                          -- cmp eax,[edi-12]
+--          cmp_eax_esid8,%isConst8,MODE,               -- cmp eax,[esi+MODE]
+--
+--          cmp_eax_sibd8,%ebx_esi4,-12,                -- cmp eax,[ebx+esi*4-12]
+--
+--          cmpd_mem32_i8,%isVar,0,0,symtab,0,          -- cmp dword[symtab],0
+--          cmp_desid8_i8,%isConst8,MODE,0,             -- cmp dword[esi+MODE],0
+--
+--          cmpb_sibd8i8,%ebx_eax4,-1,#12,              -- cmp byte[ebx+eax*4-1],0x12
+--          cmpb_sibd8i8,%edi_edx,-1,0,                 -- cmp byte[edi+edx-1],0
+--
+--          test_eax_eax,                               -- test eax,eax
+--          test_ecx_ecx,                               -- test ecx,ecx
+--          test_edx_edx,                               -- test edx,edx
+--          test_edi_edi,                               -- test edi,edi
+--          test_edi_imm32,%isConst,MODE,               -- test edi,MODE
+--          test_byte_esid8,%isConst8,MODE,%isConst8,MODE,  -- test dword[esi+MODE],MODE
+--
+--          add_eax_imm8,1,                             -- add eax,1
+--          sub_eax_imm8,3,                             -- sub eax,3
+--          sub_ecx_imm8,1,                             -- sub ecx,1
+--
+--          add_esp_imm8,4,                             -- add esp,4
+--          sub_esp_imm8,8,                             -- sub esp,8
+--          add_edi_imm8,%isConst8,MODE,                -- add edi,MODE
+--          sub_edi_imm8,%isConst8,MODE,                -- sub edi,MODE
+--
+--          add_eax_ecx,                                -- add eax,ecx
+--          add_eax_esi,                                -- add eax,esi
+--          add_ecx_edx,                                -- add ecx,edx
+--          add_esp_eax,                                -- add esp,eax
+--          add_edi_eax,                                -- add edi,eax
+--          sub_esi_edi,                                -- sub esi,edi
+--
+--          lea_ecx_esid8,%isConst8,MODE,               -- lea ecx,[esi+MODE]
+--          lea_edi_esid8,%isConst8,MODE,               -- lea edi,[esi+MODE]
+--          lea_edx_edid8,1,                            -- lea edx,[edi+1]
+--          lea_esi_espd8,48,                           -- lea esi,[esp+48]
+--          lea_edi_eaxd8,3,                            -- lea edi,[eax+3]
+--
+--          and_eax_imm32,#FF,#FF,#00,#00,              -- and eax,0x0000FFFF
+--          and_eax_imm32,#FF,#FF,#FF,#00,              -- and eax,0x00FFFFFF
+--          and_eax_imm32,#00,#FF,#FF,#FF,              -- and eax,0xFFFFFF00
+--          and_eax_imm32,#FF,#FF,#FF,#3F,              -- and eax,#3FFFFFFF
+--          and_ebx_imm32,255,0,0,0,                    -- and ebx,0x000000FF
+--          and_ecx_imm32,#FF,#FF,0,0,                  -- and ecx,#0000FFFF
+--          and_ecx_imm32,#00,#00,#00,#FF,              -- and ecx,0xFF000000   -- (keep type byte only)
+--          and_edx_imm8,255,                           -- and edx,byte 0xFF    --**BUG (equiv to and edx,0xFFFFFFFF)**
+--          and_edx_imm32,255,0,0,0,                    -- and edx,0x000000FF
+--
+--          or_eax_ecx,                                 -- or eax,ecx
+--          or_ebp_ecx,                                 -- or ebp,ecx
+--          or_dedid8_i8,%isConst8,MODE,%isConst8,MODE, -- or dword[edi+MODE],MODE
+--
+--          xor_eax_eax,                                -- xor eax,eax
+--          xor_ebx_ebx,                                -- xor ebx,ebx
+--          xor_ecx_ecx,                                -- xor ecx,ecx
+--          xor_esi_esi,                                -- xor esi,esi
+--          xor_edi_edi,                                -- xor edi,edi
+--
+--          shl_eax_imm8,2,                             -- shl eax,2
+--          shl_ecx_imm8,16,                            -- shl ecx,16
+--          shl_edx_imm8,2,                             -- shl edx,2
+--          shl_esi_imm8,2,                             -- shl esi,2
+--          shl_edi_imm8,2,                             -- shl edi,2
+--          shl_edi_1,                                  -- shl edi,1
+--
+--          shr_eax_imm8,16,                            -- shr eax,16
+--
+--          inc_edx,                                    -- inc edx
+--          dec_ecx,                                    -- dec ecx
+--          inc_sibd8,%ebx_eax4,-8,                     -- inc dword[ebx+eax*4-8]
+--          dec_sibd8,%ebx_eax4,-8,                     -- dec dword[ebx+eax*4-8]
+--
+--          ret_i16,4,0,                                    -- ret 4
+----;       ret_i16,#90,#90,                                -- ret imm16
+--          ret,
+--
+--          setz,0o301,                                     -- setz cl
+--
+--          rep_movsb,                                      -- rep movsb
+--          rep_movsd,                                      -- rep movsd
+--          lodsd,                              --  eax:=[esi], esi+=4
+--          lodsd,                              -- mov eax,[esi]; esi+=4
+--          cwde,                                   --      cwde (ax->eax) [in range -32768..32767]
+--
+--          fld_qword_sib,%ebx_eax4,                        -- fld qword[ebx+eax*4]
+--          fld_pi,                                         -- fldpi
+--          fstp_qword_esp,                                 -- fstp qword[esp]
+--
+--          fild_qword_eax,                                 -- fild qword[eax]
+--          fild_dword_esp,                                 -- fild dword[esp]
+--          fild_qword_esp,                                 -- fild qword[esp]
+--          fistp_dword_esp,                                -- fistp dword[esp]
+--          fistp_qword_esp,                                -- fistp qword[esp]
+--          fistp_dword_eax,                                -- fistp dword[eax]
+--          fistp_qword_eax,                                -- fistp qword[eax]
+--
+--          fild_dword_esid8,%isConst8,MODE,                -- fild dword[esi+MODE]
+--          fild_qword_esid8,%isConst8,MODE,                -- fild qword[esi+MODE]
+--
+--          fistp_dword_esid8,%isConst8,MODE,               -- fistp dword[esi+MODE]
+--          fistp_qword_esid8,%isConst8,MODE,               -- fistp qword[esi+MODE]
+--
+--          fild_mem32,%isVar,0,0,stdin,                    -- fild dword[symtab]
+--          opFildMem,p1,                                   -- fild dword[p1]
+--          fstp_m64_sib,%ebx_edx4,                         -- fstp qword[ebx+edx*4]
+--
+--          faddp,                                          -- faddp [st1,st0]
+--
+--          }
+--end procedure
+
+p(1)--,2)
+newdone(1,2)
+--olddone(1,2)
+--abort(0)
+
+--      #ilasm{ e_opcode,opRepe[,:label]
+
+--/* since reindent does not like this (**DEV**) --*/
+
+
+--/*
+Searching for: ilasm
+ Files scanned 2945, Directories scanned 469, Lines 2538691
+C:\Program Files (x86)\Phix\b32.e:49 -- DEV pretty pointless with those #ilasm...
+C:\Program Files (x86)\Phix\b32.e:115 --DEV pretty pointless with those #ilasm...
+C:\Program Files (x86)\Phix\pmain.e:4932 procedure ilasm()
+C:\Program Files (x86)\Phix\pmain.e:4955     MatchString(T_ilasm)
+C:\Program Files (x86)\Phix\pmain.e:9701             if    ttidx=T_ilasm then ilasm()
+C:\Program Files (x86)\Phix\pmain.e:9705             else Aborp("ilasm, istype, isinit, or isginfo expected")
+C:\Program Files (x86)\Phix\pmain.e:9769 --  while find(toktype,{LETTER,ILASM,TYPEIS,'?'}) do
+C:\Program Files (x86)\Phix\pmain.e:9773 --          if not find(toktype,{ILASM,TYPEIS,'?'}) then exit end if
+C:\Program Files (x86)\Phix\ptok.e:730 --  ILASM   = 5,    -- #ilasm statement
+C:\Program Files (x86)\Phix\pttree.e:842 global constant T_ilasm         = 668   tt_stringF("ilasm",T_ilasm)
+C:\Program Files (x86)\Phix\pttree.e:888 sequence ilstuff                -- for ilasm().
+C:\Program Files (x86)\Phix\pttree.e:942 -- load ternary tree with #ilasm keywords (terminator of -3)
+C:\Program Files (x86)\Phix\pttree.e:943 -- (only invoked when the compiler first hits a #ilasm construct)
+C:\Program Files (x86)\Phix\pttree.e:994             -- nb the [ebp] versions of these [may] need special treatment in ilasm().
+
+text:
+qword dword word byte
+e_all
+mov
+eax ebx ecx edx ebp esp esi edi
+al bl cl dl
+push pop pushad popad
+cmp test add sub shl shr
+inc dec
+lea
+and or xor  *[legal hll]*
+call %opRetf                    (call_rel32 %isOpCode implied)
+call "user32","GetActiveWindow" (call_mem32 %isApiFn implied)
+call :label                     (call_rel32 %isJmp implied)
+call :%glbl                     (call_rel32 %isJmpG implied)
+::label
+:%glbl
+jae jb jl jle jne jnz jz (:label|@b|@f) (%isJmp implied)
+   (do not allow conditional jumps to global labels or opcodes)
+@@:
+jmp             (%isJmp implied)
+jmp %opRetf     (%isOpCode implied)
+fld
+fldpi
+fstp
+fild
+fistp
+faddp
+st0
+st1 (etc)
+ret [imm16]
+setz (et al)
+rep
+movsb
+movsd
+lodsd
+cwde
+
+DOC:
+00409AB8 >   8D05 01104000  LEA EAX,DWORD PTR DS:[401001]
+00409ABE     B8 01104000    MOV EAX,e01.00401001
+00409AC3     8D45 00        LEA EAX,DWORD PTR SS:[EBP]
+00409AC9     8BC5           MOV EAX,EBP
+00409AC6     8D45 04        LEA EAX,DWORD PTR SS:[EBP+4]
+
+Notes: lea is replaced with shorter equivalent mov statements when such exist.
+       hll variables must always be referenced using something like "[myvar]".
+       there is of course no way to access a hll var named for example "eax".
+
+This is the mov/cmp/lea set!!! (delete as things get implemented...)
+
+        xrw = #04+src*8-8                                 -- 0o0r4
+        xrm = xrw                                         -- 0o0r4
+        iload("mov_sib_"&rs,{{#89,xrm},1})          -- 0o211 0o0r4 0osib -- mov_sib_ecx (for mov [b+i*s],ecx)
+        iload("mov_"&rs&"_sib",{{#8B,xrm},1})       -- 0o213 0o0r4 0osib -- mov_ecx_sib (for mov ecx,[b+i*s])
+
+        iload("mov_sibd8_"&rs,{{#89,xrm},2})        -- 0o211 0o1r4 sib d8  eg mov_sibd8_edi (for mov [b+i*s+d8],edi)
+        iload("mov_"&rs&"_sibd8",{{#8B,xrm},2})     -- 0o213 0o1r4 sib d8  eg mov_edi_sibd8 (for mov edi,[b+i*s+d8])
+
+        iload("lea_"&rs&"_sibd8",{{#8D,xrm},2})     -- 0o215 0o1r4 sib d8               (for lea ecx,[b+i*s+d8])
+        iload("lea_"&rs&"_espd8",{{#8D,xrm,#24},1}) -- 0o215 0o1r4 0o044 i8             (for lea ebx,[esp+d8])
+--DEV d32 versions of above (untried)
+--      xrm = xrw+#80                               -- 0o2r4
+--      iload("mov_sib_d32_"&rs,{{#89,xrm},5})      -- 0o211 0o2r4 o0sib d32 -- mov_sib_d32_edi (for mov [b+i*s+d32],edi)
+--      iload("mov_"&rs&"_sib_d32",{{#8B,xrm},5})   -- o0213 0o2r4 0osib d32 -- mov_edi_sib_d32 (for mov edi,[b+i*s+d32])
+
+        -- 8-bit opcodes:
+        xrm = xrw                                   -- 0o0r4
+        iload("mov_"&rs&"_sib",{{#8A,xrm},1})       -- 0o212 0o0r4 sib      -- eg mov_al_sib
+        xrm = xrw+#40                               -- 0o1r4
+        iload("mov_sibd8_"&rs,   {{#88,xrm},2})     -- 0o210 0o1r4 sib d8   -- eg mov_sibd8_dl
+        iload("mov_"&rs&"_sibd8",{{#8A,xrm},2})     -- 0o212 0o1r4 sib d8   -- eg mov_dl_sibd8
+--       mov_sib_al     = {#88,#04},                -- 0o210 0o004 sib          -- mov [b32+i32*s],al
+--       mov_sib_eax    = {#89,#04},                -- 0o211 0o004 sib          -- mov [b32+i32*s],eax
+--       mov_eax_sib    = {#8B,#04},                -- 0o213 0o004 sib          -- mov eax,[b32+i32*s]
+
+--  iload("mov_sib_imm32",{{#C7,#04},5})            -- 0o307 0o004 sib i32      -- mov [b32+i32*s],imm32    (unused/untested)
+
+--*/
+

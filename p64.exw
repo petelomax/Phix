@@ -1,0 +1,302 @@
+-- m01: very first 32/64 bit windows program, now ELF32/64 too [DEV untested]
+--      this was in fact prior to opRetf [and abort()], so (if they are still
+--      unavailable) either modify p.exw etc (I used -e2/newEmit) to skip the
+--      opRetf, or complete pHeap.e and pStack.e as per requirement for m02.
+--format PE32
+--format PE64
+--format ELF32
+--format ELF64
+--/*
+--include puts1.e
+--puts1("hello world")  -- NO: opFrame!
+constant hw = "hello world\n"
+--integer pGtcb
+    #ilASM{
+        [PE32]
+            xor ebx,ebx
+            push -11                        -- nStdHandle (p1)
+            call "kernel32","GetStdHandle"
+            mov edx,[hw]
+            mov ecx,[ebx+edx*4-12]          -- length
+            shl edx,2
+            push ebx                        -- lpOverlapped (NULL)
+            push esp                        -- lpNumberOfBytesWritten
+            push ecx                        -- nNumberOfBytesToWrite
+            push edx                        -- lpBuffer
+            push eax                        -- hFile,
+            call "kernel32","WriteFile"
+            push eax
+            call "kernel32","ExitProcess"
+        [ELF32]
+            mov ecx,[hw]
+            mov eax,4               -- sys_write(ebx=int fd,ecx=char *buf,edx=int len)
+            mov edx,[ebx+ecx*4-12]  -- length (p3)
+            shl ecx,2               -- raw(hw) (p2)
+            mov ebx,1               -- stdout (p1)
+            int 0x80
+            mov ebx,eax             -- exitcode (p1)
+            mov eax,1               -- sys_exit(ebx=int error_code)
+--          mov ebx,42              -- exitcode (p1)
+            int 0x80
+--          xor ebx,ebx             -- (common requirement)
+        [PE64]
+            sub rsp,8*7                     -- 5 params and space for target of r9, plus align
+            mov rcx,-11                     -- DWORD nStdHandle (p1)
+            call "kernel32","GetStdHandle"
+            mov rdx,[hw]
+            mov qword[rsp+4*8],0            -- LPOVERLAPPED lpOverlapped (p5)
+            shl rdx,2                       -- LPCVOID lpBuffer (p2)
+            --DEV I think this(r9) can be NULL
+            lea r9,[rsp+5*8]                -- LPDWORD lpNumberOfBytesWritten (p4)
+            mov r8,[rdx-24]                 -- DWORD nNumberOfBytesToWrite (p3)
+            mov rcx,rax                     -- HANDLE hFile (p1)
+            call "kernel32","WriteFile"
+            add rsp,8*7
+            mov rcx,rax                     -- UINT uExitCode (p1)
+            call "kernel32","ExitProcess"
+        [ELF64]
+            mov rsi,[hw]
+            mov rdx,[rbx+rsi*4-24]  -- length(hw)
+            shl rsi,2               -- raw(hw)
+            mov rdi,1               -- stdout
+            mov rax,1               -- sys_write(rdi=unsigned int fd,rsi=const char *buf,rdx=size_t count)
+            syscall
+--          xor rdi,rdi
+            mov rdi,rax             -- error_code
+            mov rax,60              -- sys_exit(rdi=int error_code)
+            syscall
+          }
+--*/
+format PE64 --GUI
+--format ELF64
+include p.exw
+--include builtins\puts1h.e -- puts1/puthex32/putsint/getc0
+--include test\t01type.exw  -- OK
+--include test\t38bltns.exw
+--include test\t02parms.exw -- OK
+--include test\t03showt.exw -- OK
+--include test\t04unary.exw -- OK
+--include test\t05inc0.exw  -- OK
+--include test\t06inc1.exw  -- OK
+--include test\t07inc2.exw  -- OK
+--include test\t08inc22.exw -- OK
+--include test\t09inc3.exw  -- OK
+--include test\t10inc4.exw  -- OK
+--include test\t11inc5.exw  -- OK
+--include test\t12inc6.exw  -- OK
+--include test\t13inc7.exw  -- OK
+--include test\t14inc8.exw  -- OK
+--include test\t15inc9.exw  -- OK
+--include test\t16incD.exw  -- OK
+--include test\t17incV.exw  -- OK
+--include test\t18equal.exw -- OK
+--include test\t19find.exw  -- OK
+--include test\t20cast.exw  -- OK
+--include test\t21ret1.exw  -- OK
+--include test\t22cmp.exw   -- OK
+--include test\t23subsc.exw -- OK
+--include test\t24slice.exw -- OK
+--include test\t25rmdr.exw  -- OK
+--include test\t26aprnd.exw -- OK
+--include test\t27rpeat.exw -- OK
+--include test\t28prntf.exw -- OK, with some inaccuracies on 64-bit
+--puts(1,sprintf("%f\n",{1e308}))   -- OK, but on 64-bit not quite the lovely clean 100..00.000000 that we get on 32-bit.
+
+--include test\t29for.exw   -- OK (32:fp unless t38 is included)
+--include test\t30prime.exw -- OK
+--include test\t31sce.exw   -- OK
+--include test\t32sprnt.exw -- OK
+--include test\t33seqop.exw -- OK
+--include test\t34andor.exw -- OK
+--include test\t35cncat.exw -- OK
+--include test\t36match.exw -- OK
+--include test\t37misc.exw  -- OK, but blows up (on 64 bit only??!) if peek2u redefined...
+--include test\t38bltns.exw -- OK
+--include test\t39rndio.exw -- OK
+--include test\t40rtnid.exw -- OK
+--include test\t41infan.exw -- OK
+--include test\t42cback.exw -- OK
+--include test\t43tchk.exw  -- OK
+--include test\t44silly.exw -- OK
+--include test\t45aod.exw   -- OK
+--include test\t46ltype.exw -- OK
+--include test\t47ltth.exw  -- OK
+--include test\t48init.exw  -- OK (not that it runs anything)
+--include test\t49ginfo.exw -- OK   -- glitch on 64
+--include test\t50gscan.exw -- OK
+--include test\t51nstc.exw  -- OK
+--include test\t52oparm.exw -- OK
+--include test\t53switch.exw --OK
+--include test\t54inc.exw   -- OK
+--include test\t55incinc.exw --OK
+--include test\t56inc.exw   -- OK
+--include test\t57masgn.exw -- OK
+--include test\t58rtxt.exw  -- OK
+--include test\t59mri.exw   -- OK
+--include demo\\mandle.exw  -- OK, minor glitches on 64bit
+--include demo\\combo.exw   -- OK
+--include demo\\takeuchi.exw --OK
+
+
+--include demo\99bottles.exw    -- OK
+--include demo\align.exw        -- OK
+--include demo\allsorts.exw     -- OK
+--include demo\ascii.exw        -- OK
+--include demo\asmtime.exw      -- OK
+--include demo\box.exw          -- OK
+--include demo\cbr.exw          -- OK
+--include demo\cbtest.exw       -- OK
+--include demo\CircularBuffer.exw -- OK
+--include demo\color.exw        -- OK
+--include demo\colourmatch.exw  -- OK
+--include demo\columns.exw      -- OK
+--include demo\combo.exw        -- OK
+--include demo\cpuid.exw        -- OK
+--include demo\cursor.exw       -- OK
+--include demo\db01.exw         -- OK
+--include demo\dirc.exw         -- OK
+--include demo\dos.exw          -- OK
+--include demo\eicar.exw        -- OK
+--include demo\enumfont.exw     -- OK
+--include demo\enumproc.exw     -- 64: Says no processes, see "--DEV 32-bit only, for now" in EnumProcesses()[??]
+--include demo\filesort.exw     -- OK
+--include demo\flvmerge.exw     -- (equally broken on 32 and 64 bit)
+--include demo\goto.exw         -- OK
+--include demo\hangman.exw      -- OK (with cd demo)
+--include demo\hd.exw           -- OK
+--include builtins\VM\pfileioN.e
+--include builtins\VM\pcfuncN.e     --DEV: list.asm fouled up (no opRetf) if these two omitted...
+--include demo\HelloUTF8.exw    -- OK
+--include demo\lnklst.exw       -- OK
+--include demo\ltpack.exw       -- OK
+--include demo\mandle.exw       -- OK
+--include demo\mergesort.exw    -- OK
+--include demo\msgbox.exw       -- OK
+--include demo\permutes.exw     -- OK
+--{} = chdir("demo")
+--include demo\pewe.exw         -- OK
+--include demo\pi.exw           -- OK
+--include demo\rdtsc.exw        -- OK
+--include demo\sanity.exw       -- 64: two discrepancies (lines 140/155) and a call() omitted.
+--include demo\scroll.exw       -- OK
+--include demo\showdate.exw     -- OK
+--include demo\tagsort.exw      -- OK
+--include demo\takeuchi.exw     -- OK
+--include demo\test9.exw        -- OK
+--include demo\window.exw       -- 64:FP ***    (just got it working under fdbg...)
+--include demo\winwire.exw      -- 64:FP ***    (may have wrong struct sizes)
+
+-- another 26 (so far: 53)
+
+--include demo\arwen\arwen.ew
+--DOH: too much x86 code in here!!!
+--include demo\Arwen32dibdemo\demo_cube.exw -- memory corruption (pRoot of 0)
+--1407=ERROR_CANNOT_FIND_WND_CLASS
+--include demo\Arwen32dibdemo\feedback.exw      -- ""
+--include demo\Arwen32dibdemo\manip.exw
+--include demo\Arwen32dibdemo\polydib.exw
+--include demo\Arwen32dibdemo\scaledib.exw
+--include demo\Arwen32dibdemo\scrnshot.exw
+--include demo\Arwen32dibdemo\shadepol.exw
+--include demo\Arwen32dibdemo\tiledib.exw
+--include demo\Arwen32dibdemo\a32dclip.ew
+--include demo\Arwen32dibdemo\a32dcolr.ew
+--include demo\Arwen32dibdemo\a32dcore.ew
+--include demo\Arwen32dibdemo\a32dfltr.ew
+--include demo\Arwen32dibdemo\a32dgeom.ew
+--include demo\Arwen32dibdemo\a32dpoly.ew
+
+--/*
+with profile
+--
+-- pprntfN.e
+-- =========
+--
+-- The Phix sprintf() function.
+-- This file is automatically included by the compiler if (and only if) needed.
+-- Compared to the C version, this is just over twice as slow, which is rather
+-- surprising (I expected it would be around 8 to 10 times slower). I suspect
+-- the biggest overhead is allocating space for the result (string), which is
+-- pretty much going to be the same for the C and Phix routines. This may be
+-- converted to asm at a later date, but not until it has been completely
+-- bug- and enhancement- free for at least six months.
+--
+--
+-- **************************************
+-- **** WARNING: FRAGILE CODE AHEAD! ****
+-- **************************************
+--  Test changes exhaustively before rebuilding p.exe!
+--  In particular, take care with type string; subtle changes (such as a
+--  missing floor()) can make the back-end expand a string to a sequence
+--  (which is something prepend, as opposed to append, /always/ does)
+--  which causes a fatal error, eg see 'elsif fmt[i]='s' then'.
+
+integer init2
+        init2 = 0
+
+atom inf,nan
+
+function mysprintf_(sequence fmt, object args)
+integer i, fi
+integer nxt
+string result, r1
+object o
+atom work
+
+    if not init2 then
+--      inf = 1e300*1e300
+        #ilASM{ fld1
+                fldz
+                fdivp
+            [32]
+                lea edi,[inf]
+            [64]
+                lea rdi,[inf]
+            []
+                call :%pStoreFlt }
+        nan = -(inf/inf)
+        init2 = 1
+    end if
+    nxt = 1
+    result = ""
+    i = 1
+    while i<=length(fmt) do
+        fi = fmt[i]
+        if fi='%' then
+            i += 1
+            fi = fmt[i]
+
+            o = args
+            work = 0
+            if o!=nan and o!=-nan and o!=inf then
+                work = floor(o)
+            end if
+            if work then
+                r1 = ""
+                while work do
+                    r1 = append(r1,'1')
+                    work = floor(work/10)
+                end while
+            else
+                if o=nan then
+                    r1 = "nan"
+                elsif o=-nan then
+                    r1 = "-nan"
+                elsif o=inf then
+                    r1 = "inf"
+                else
+                    r1 = "0"
+                end if
+            end if
+            result &= r1
+            nxt += 1
+        else
+            result &= fi
+        end if
+        i += 1
+    end while
+    return result
+end function
+
+    puts(1,mysprintf_("%d\n",1))
+--*/

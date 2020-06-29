@@ -1,0 +1,470 @@
+--
+--  mandel3.exw
+--
+--  See arwendemo\mandel for an updated and improved version, this is only
+--  here for comparison purposes and as a guideline for future porting.
+--
+
+--/*
+include ..\..\..\builtins\machine.e
+include ..\..\..\builtins\dll.e
+include ..\..\..\builtins\misc.e
+include ..\..\..\builtins\porall.e
+include ..\..\..\builtins\msgbox.e
+include ..\..\..\builtins\sort.e
+include ..\..\..\builtins\file.e
+include ..\..\..\builtins\get.e
+include ..\..\..\builtins\wildcard.e
+include ..\..\..\builtins\graphics.e
+include ..\..\..\builtins\image.e
+include ..\..\win32lib6\w32Keys.e
+include ..\..\win32lib6\w32msgs.e
+include ..\..\win32lib6\w32support.e
+include ..\..\win32lib6\w32dll.ew
+include ..\..\win32lib6\w32user.ew
+include ..\..\win32lib6\w32gdi.ew
+--*/
+include win32lib.ew
+--without warning
+
+--------------------------------------------------------------------------------
+--  Window Window1
+constant Window1 = createEx(Window, "Mandelbrot - Set", 0, 50, 50, 520, 520, 0, 0)
+setWindowBackColor(Window1,-2)
+constant Menu_101 = createEx(Menu, "New/Iteration", Window1, 0, 0, 0, 0, 0, 0)
+constant MenuItem_102 = createEx(MenuItem, "restart (Iter100)", Menu_101, 0, 0, 0, 0, 0, 0)
+constant MenuItem_105 = createEx(MenuItem, "Iter25", Menu_101, 0, 0, 0, 0, 0, 0)
+constant MenuItem_106 = createEx(MenuItem, "Iter100", Menu_101, 0, 0, 0, 0, 0, 0)
+constant MenuItem_103 = createEx(MenuItem, "Iter500", Menu_101, 0, 0, 0, 0, 0, 0)
+constant MenuItem_104 = createEx(MenuItem, "Iter1000", Menu_101, 0, 0, 0, 0, 0, 0)
+constant Menu_107 = createEx(Menu, "Zoom", Window1, 0, 0, 0, 0, 0, 0)
+constant MenuItem_108 = createEx(MenuItem, "Factor 2", Menu_107, 0, 0, 0, 0, 0, 0)
+constant MenuItem_109 = createEx(MenuItem, "Factor 4", Menu_107, 0, 0, 0, 0, 0, 0)
+constant MenuItem_110 = createEx(MenuItem, "Factor 8", Menu_107, 0, 0, 0, 0, 0, 0)
+constant Menu_111 = createEx(Menu, "Help", Window1, 0, 0, 0, 0, 0, 0)
+constant MenuItem_112 = createEx(MenuItem, "Help/Info", Menu_111, 0, 0, 0, 0, 0, 0)
+---------------------------------------------------------
+--------------------------------------------------------------------------------
+--  Window Window3
+constant Window3 = createEx(Window, "Info and help", 0, 100, 100, 400, 250, 0, 0)
+---------------------------------------------------------
+--------------------------------------------------------------------------------
+
+atom hBitmap1, hBitmap2, t1, a, b, zf
+integer iter
+integer newbitmap
+atom astart, bstart,astartalt,bstartalt,w, walt
+sequence color, pal,cPosn1,cPosn2,cPosn3
+astart = -2
+bstart = -1.25
+w = 2.5/480
+zf = 2
+iter = 100
+-------------------
+
+function Hcycletest(atom a, atom b)
+-- returns true if point is within the Set
+atom u,t
+    if a>-0.75 then
+        u = a - 0.25;
+        t = u*u + b*b;
+        return ((2*t+u)*(2*t+u) > t);
+    else
+        return ((a+1)*(a+1) + b*b) > 0.0625;
+    end if
+end function
+
+function Hiterate(atom a, atom b, integer iter)
+atom x=0,
+     y=0,
+     xx=0
+integer count=1
+
+    while (count<=iter) and (x*x+y*y<4) do
+        count += 1
+        xx = x*x-y*y+a
+        y = 2*x*y+b
+        x = xx
+    end while
+    if count<=iter  then return count end if
+    return 0
+end function
+
+procedure mandel(atom astart, atom bstart, atom w, integer newflag)
+
+sequence line
+atom athis
+integer c
+    newbitmap = newflag
+
+    t1 = time()
+
+    line = repeat(0,520)
+    if newflag then
+        color = repeat(line,240)
+    else
+        color = repeat(line,480)
+    end if
+
+    b = bstart
+    for ypos=1 to length(color) do
+        a = astart
+        for i=1 to 520 do
+            athis = a+i*w
+            if Hcycletest(athis,b) then     -- only iterate when within the Set
+                c = Hiterate(athis,b,iter)
+            else
+                c = 0   --otherwise black
+            end if
+            color[ypos][i] = c
+        end for
+        b += w
+    end for
+
+
+    pal = repeat({0,0,0},iter+1)
+    for i=2 to iter do
+        pal[i][1] = i*5
+        pal[i][2] = 0
+        pal[i][3] = i*10
+    end for
+
+end procedure
+
+
+--/*
+procedure newmandel(atom astart, atom bstart, atom w)
+
+sequence line
+atom athis
+integer c
+    newbitmap = 1
+
+    t1 = time()
+
+    line = repeat(0,520)
+    color = repeat(line,240)
+
+    b = bstart
+    for ypos=1 to length(color) do
+        a = astart
+        for i=1 to 520 do
+            athis = a+i*w
+            if Hcycletest(athis,b) then -- only iterate when within the Set
+                c = Hiterate(athis,b,iter)
+            else
+                c = 0   --otherwise black
+            end if
+            color[ypos][i] = c
+        end for
+        b += w
+    end for
+
+    pal = repeat({0,0,0},iter+1)
+    for i=2 to iter do
+        pal[i][1] = i*5
+        pal[i][2] = 0
+        pal[i][3] = i*10
+    end for
+
+end procedure
+--*/
+
+procedure showbitmap()
+    hBitmap1 = createDIB({pal, color})
+
+    if newbitmap=1 then
+        hBitmap2 = createDIB({pal, reverse(color)})
+        drawBitmap(Window1, hBitmap1, 1, 1)
+        drawBitmap(Window1, hBitmap2, 1, 241)
+    else
+        drawBitmap(Window1, hBitmap1, 1, 1)
+    end if
+
+    setTextColor(Window1, White)
+    wPrint(Window1,time()-t1)
+end procedure
+-------------
+--------------------------------------------------------------------------------
+procedure Window1_onMouse(integer self, integer event, sequence parms) --parms = { integer event, integer x, integer y, integer shift, integer wheelmove }
+sequence mXY
+--  if self or event or sequence(parms) then end if
+    if self or event then end if
+    -- Find where the mouse is relative to the window.
+    setPenColor(Window1, White)
+
+    if parms[1]=LeftDown then
+
+        mXY = getPointerPos()
+        cPosn1 = ScreenToClient(Window1, mXY[1], mXY[2])
+        setPenPos(Window1,cPosn1[1], cPosn1[2])
+        walt = w
+        astartalt = astart
+        bstartalt = bstart
+
+        wPrint(Window1, {astartalt+cPosn1[1]*walt,bstartalt+cPosn1[2]*walt})
+    end if
+
+    if parms[1]=LeftUp then
+        mXY = getPointerPos()
+        cPosn2 = ScreenToClient(Window1, mXY[1], mXY[2])
+
+        walt = w
+        astartalt = astart
+        bstartalt = bstart
+
+        if cPosn2[1]>cPosn1[1]and cPosn2[2]>cPosn1[2] then
+            w = walt*(cPosn2[1]-cPosn1[1])/480
+            astart = astartalt+(cPosn1[1]*walt)
+            bstart = bstartalt+(cPosn1[2]*walt)
+            drawRectangle(Window1,False,cPosn1[1],cPosn1[2],cPosn2[1],cPosn1[2]+(cPosn2[1]-cPosn1[1]))
+            setPenPos(Window1,cPosn2[1],cPosn1[2]+(cPosn2[1]-cPosn1[1]))
+            wPrint(Window1,{astartalt+cPosn2[1]*walt,bstartalt+(cPosn1[2]+(cPosn2[1]-cPosn1[1]))*walt})
+        end if
+
+        if cPosn2[1]<cPosn1[1] and cPosn2[2]>cPosn1[2] then
+            w = walt*(cPosn1[1]-cPosn2[1])/480
+            astart = astartalt+(cPosn2[1]*walt)
+            bstart = bstartalt+(cPosn1[2]*walt)
+            drawRectangle(Window1,False,cPosn1[1],cPosn1[2],cPosn2[1],cPosn1[2]+(cPosn1[1]-cPosn2[1]))
+            setPenPos(Window1,cPosn2[1],cPosn1[2]+(cPosn1[1]-cPosn2[1]))
+            wPrint(Window1,{astartalt+cPosn2[1]*walt,bstartalt+(cPosn1[2]+(cPosn1[1]-cPosn2[1]))*walt})
+        end if
+
+        if cPosn2[1]<cPosn1[1]and cPosn2[2]<cPosn1[2] then
+            w = walt*(cPosn1[1]-cPosn2[1])/480
+            astart = astartalt+(cPosn2[1]*walt)
+            bstart = bstartalt+(cPosn2[2]*walt)
+            drawRectangle(Window1,False,cPosn1[1],cPosn1[2],cPosn2[1],cPosn1[2]-(cPosn1[1]-cPosn2[1]))
+            setPenPos(Window1,cPosn2[1],cPosn1[2]-(cPosn1[1]-cPosn2[1]))
+            wPrint(Window1,{astartalt+cPosn2[1]*walt,bstartalt+(cPosn1[2]-(cPosn1[1]-cPosn2[1]))*walt})
+        end if
+
+        if cPosn2[1]>cPosn1[1]and cPosn2[2]<cPosn1[2] then
+            w = walt*(cPosn2[1]-cPosn1[1])/480
+            astart = astartalt+(cPosn1[1]*walt)
+            bstart = bstartalt+(cPosn2[2]*walt)
+            drawRectangle(Window1,False,cPosn1[1],cPosn1[2],cPosn2[1],cPosn1[2]-(cPosn2[1]-cPosn1[1]))
+            setPenPos(Window1,cPosn2[1],cPosn1[2]-(cPosn2[1]-cPosn1[1]))
+            wPrint(Window1,{astartalt+cPosn2[1]*walt,bstartalt+(cPosn1[2]-(cPosn2[1]-cPosn1[1]))*walt})
+        end if
+
+        setPenPos(Window1,1, 20)
+        wPuts(Window1, "Please wait....")
+        setPenPos(Window1,1, 1)
+
+        mandel(astart,bstart,w,0)
+
+        hBitmap1 = createDIB({pal, color})
+        drawBitmap(Window1, hBitmap1, 1, 1)
+
+
+        setTextColor(Window1, White)
+        wPrint(Window1,time()-t1)
+    end if
+
+    if parms[1]=RightDown then
+
+        mXY = getPointerPos()
+        cPosn3 = ScreenToClient(Window1, mXY[1], mXY[2])
+        setPenPos(Window1,cPosn3[1], cPosn3[2])
+        walt = w
+        astartalt = astart
+        bstartalt = bstart
+
+        drawRectangle(Window1,False,cPosn3[1]-240/zf,cPosn3[2]+240/zf,cPosn3[1]+240/zf,cPosn3[2]-240/zf)
+
+        w = walt/zf
+        astart = astartalt+(cPosn3[1]-240/zf)*walt
+        bstart = bstartalt+(cPosn3[2]-240/zf)*walt
+
+        setPenPos(Window1,cPosn3[1],cPosn3[2])
+        wPrint(Window1,{astartalt+cPosn3[1]*walt,bstartalt+cPosn3[2]*walt})
+        setPenPos(Window1,cPosn3[1],cPosn3[2]+20)
+        wPrintf(Window1,"Zoom factor: %d",zf)
+
+        setPenPos(Window1,1, 20)
+        wPuts(Window1, "Please wait....")
+        setPenPos(Window1,1, 1)
+
+        mandel(astart,bstart,w,0)
+
+        hBitmap1 = createDIB({pal, color})
+        hBitmap2 = createDIB({pal, reverse(color)})
+        drawBitmap(Window1, hBitmap1, 1, 1)
+
+        wPrint(Window1,time()-t1)
+    end if
+
+end procedure
+--onMouse[Window1]=routine_id("Window1_onMouse")
+setHandler(Window1,w32HMouse,routine_id("Window1_onMouse"))
+--------------------------------------------------------------------------------
+procedure Window1_onOpen(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+--  newmandel(astart,bstart,w)
+    mandel(astart,bstart,w,1)
+end procedure
+--onOpen[Window1]=routine_id("Window1_onOpen")
+setHandler(Window1,w32HOpen,routine_id("Window1_onOpen"))
+--------------------------------------------------------------------------------
+procedure Window1_onPaint(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    showbitmap()
+end procedure
+--onPaint[Window1]=routine_id("Window1_onPaint")
+setHandler(Window1,w32HPaint,routine_id("Window1_onPaint"))
+--------------------------------------------------------------------------------
+procedure MenuItem_102_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    setPenPos(Window1,1,20)
+    wPuts(Window1, "Please wait....")
+    setPenPos(Window1,1,1)
+
+    iter = 100
+    w = 2.5/480
+    astart = -2
+    bstart = -1.25
+
+--  newmandel(astart,bstart,w)
+    mandel(astart,bstart,w,1)
+
+    hBitmap1 = createDIB({pal, color})
+    hBitmap2 = createDIB({pal, reverse(color)})
+    drawBitmap(Window1, hBitmap1, 1, 1)
+    drawBitmap(Window1, hBitmap2, 1, 241)
+
+
+    wPrint(Window1,time()-t1)
+end procedure
+--onClick[MenuItem_102]=routine_id("MenuItem_102_onClick")
+setHandler(MenuItem_102,w32HClick,routine_id("MenuItem_102_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_105_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    setPenPos(Window1,1, 20)
+    wPuts(Window1, "Please wait....")
+    setPenPos(Window1,1, 1)
+
+    iter = 25
+    mandel(astart,bstart,w,0)
+    hBitmap1 = createDIB({pal, color})
+    hBitmap2 = createDIB({pal, reverse(color)})
+    drawBitmap(Window1, hBitmap1, 1, 1)
+    --drawBitmap(Window1, hBitmap2, 1, 241 )
+
+    setTextColor(Window1, White)
+    wPrint(Window1,time()-t1)
+end procedure
+--onClick[MenuItem_105]=routine_id("MenuItem_105_onClick")
+setHandler(MenuItem_105,w32HClick,routine_id("MenuItem_105_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_106_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    setPenPos(Window1,1, 20)
+    wPuts(Window1, "Please wait....")
+    setPenPos(Window1,1, 1)
+
+    iter = 100
+    mandel(astart,bstart,w,0)
+    hBitmap1 = createDIB({pal, color})
+    hBitmap2 = createDIB({pal, reverse(color)})
+    drawBitmap(Window1, hBitmap1, 1, 1)
+    --drawBitmap(Window1, hBitmap2, 1, 241 )
+
+    setTextColor(Window1, White)
+    wPrint(Window1,time()-t1)
+end procedure
+--onClick[MenuItem_106]=routine_id("MenuItem_106_onClick")
+setHandler(MenuItem_106,w32HClick,routine_id("MenuItem_106_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_103_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    setPenPos(Window1,1, 20)
+    wPuts(Window1, "Please wait....")
+    setPenPos(Window1,1, 1)
+
+    iter = 500
+    mandel(astart,bstart,w,0)
+    hBitmap1 = createDIB({pal, color})
+    hBitmap2 = createDIB({pal, reverse(color)})
+    drawBitmap(Window1, hBitmap1, 1, 1)
+    --drawBitmap(Window1, hBitmap2, 1, 241 )
+
+    setTextColor(Window1, White)
+    wPrint(Window1,time()-t1)
+end procedure
+--onClick[MenuItem_103]=routine_id("MenuItem_103_onClick")
+setHandler(MenuItem_103,w32HClick,routine_id("MenuItem_103_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_104_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    setPenPos(Window1,1, 20)
+    wPuts(Window1, "Please wait....")
+    setPenPos(Window1,1, 1)
+
+    iter = 1000
+    mandel(astart,bstart,w,0)
+    hBitmap1 = createDIB({pal, color})
+    hBitmap2 = createDIB({pal, reverse(color)})
+    drawBitmap(Window1, hBitmap1, 1, 1)
+    --drawBitmap(Window1, hBitmap2, 1, 241 )
+
+    setTextColor(Window1, White)
+    wPrint(Window1,time()-t1)
+end procedure
+--onClick[MenuItem_104]=routine_id("MenuItem_104_onClick")
+setHandler(MenuItem_104,w32HClick,routine_id("MenuItem_104_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_108_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    zf = 2
+end procedure
+--onClick[MenuItem_108]=routine_id("MenuItem_108_onClick")
+setHandler(MenuItem_108,w32HClick,routine_id("MenuItem_108_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_109_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    zf = 4
+end procedure
+--onClick[MenuItem_109]=routine_id("MenuItem_109_onClick")
+setHandler(MenuItem_109,w32HClick,routine_id("MenuItem_109_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_110_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    zf = 8
+end procedure
+--onClick[MenuItem_110]=routine_id("MenuItem_110_onClick")
+setHandler(MenuItem_110,w32HClick,routine_id("MenuItem_110_onClick"))
+--------------------------------------------------------------------------------
+procedure MenuItem_112_onClick(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    openWindow(Window3, Normal)
+end procedure
+--onClick[MenuItem_112]=routine_id("MenuItem_112_onClick")
+setHandler(MenuItem_112,w32HClick,routine_id("MenuItem_112_onClick"))
+--------------------------------------------------------------------------------
+procedure Window3_onPaint(integer self, integer event, sequence parms)
+    if self or event or sequence(parms) then end if
+    setPenPos(Window3,5,5)
+    wPuts(Window3,"Programmiert von H.Reger mit Euphoria, Feb 2002")
+    setPenPos(Window3,5,30)
+    wPuts(Window3,"Features of the program:")
+    setPenPos(Window3,5,55)
+    wPuts(Window3,"Left mouse button: Select cutout by dragging while holding down the mouse button")
+    setPenPos(Window3,5,75)
+    wPuts(Window3,"Right mouse button: Zoom by clicking the right mouse button,")
+    setPenPos(Window3,5,90)
+    wPuts(Window3,"Zoom ratio can be selected via menu.")
+    setPenPos(Window3,5,110)
+    wPuts(Window3,"Iterations selectable via menu")
+    setPenPos(Window3,5,190)
+    wPuts(Window3,"                                     ----Euphoria is really easy !----")
+
+end procedure
+--onPaint[Window3]=routine_id("Window3_onPaint")
+setHandler(Window3,w32HPaint,routine_id("Window3_onPaint"))
+---------------------------------------------------------
+
+
+WinMain(Window1,Normal)
