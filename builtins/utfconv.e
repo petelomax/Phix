@@ -46,8 +46,7 @@
 --  string utf8 = utf32_to_utf8(dword_sequence utf32, integer fail_flag=0)
 --
 -- Note that pure ASCII strings (all characters in the range 0..127) are returned unaltered
---  by utf8_to_utf32, with the intention that calls to utf32_to_utf8 can be avoided, hence
---  passing a string to the latter triggers a fatal error.
+--  by utf8_to_utf32, with the intention that calls to utf32_to_utf8 can be avoided.
 --
 -- If fail_flag!=0 the routines yield -1 rather than embed "\#EF\#BF\#BD"/#FFFD.
 --  Obviously the lack of an equivalent fail_flag on the following utf16 routines means
@@ -85,6 +84,20 @@
 --  Using more bits than necessary (long form) is deemed invalid.
 --
 -- [*] #D800..#DFFF are deemed invalid in all forms of UTF.
+--
+-- Douglas Crockford rewrites this a little clearer:
+--  -Binary- Hex Thru  Range Thru   Continuation    Total
+--                                     Bytes    Data Bits
+--  0xxxxxxx  00  7F      00 7F          0          7 (7+6*0)
+--  10xxxxxx  80  BF <---   continuation   --->     -    6
+--  110xxxxx  C0  DF      80 7FF         1         11 (5+6*1)
+--  1110xxxx  E0  EF     800 FFFF        2         16 (4+6*2)
+--  11110xxx  F0  F7   10000 1FFFFF      3         21 (3+6*3)
+--  111110xx  F8  FB  200000 3FFFFFF     4         26 (2+6*4)
+--  111111xx  FC  FF 4000000 FFFFFFFF    5         32 (2+6*5)
+--
+--  (Note these routines respect/implement a limit of #10FFFF, 
+--   making the last two lines of that table irrelevant.)
 --
 --/**/include builtins\VM\pMath.e   -- (not strictly necessary)
 
@@ -165,7 +178,7 @@ integer  utf8len, i, headb, bytes, c
                 c = INVALID_UTF8                    -- utf-8 ends at #10FFFF
             end if
 
-        -- bytes = 0; current byte is not encoded correctly:
+        -- bytes = 0; (or>4-ish) current byte is not encoded correctly:
         else
             c = INVALID_UTF8
             i += 1                      -- check if the next byte is head
@@ -192,22 +205,16 @@ constant INVALID_UNICODE = "\#EF\#BF\#BD"
 global function utf32_to_utf8(sequence utf32, integer fail_flag=0)
 --
 -- convert a utf32 sequence (one element per character) to a utf8 string.
---  note: string results from utf8_to_utf32 are deemed wholly unnecessary
---        calls to this routine, and as such trigger a fatal error.
+-- if utf32 is already string (presumably pure-ascii) it is returned unaltered.
 -- by default, invalid unicode points embed "\#EF\#BF\#BD" in the result.
 --
-object chr
---string utf8 = ""
-string utf8 = repeat(' ',0)
-integer u
+    if string(utf32) then return utf32 end if               -- just makes life simpler!
 
-    if fail_flag=0 then
-        if string(utf32) then ?9/0 end if   -- do /not/ pass strings from utf8_to_utf32() 
-                                            -- [ie all pure ascii] back through this!!
-    end if
+    string utf8 = repeat(' ',0)
 
     for i=1 to length(utf32) do
-        u = utf32[i]                                        -- u = Unicode codepoint
+        integer u = utf32[i]                                    -- u = Unicode codepoint
+        object chr
 
         if u<0
         or u>#10FFFF
@@ -231,7 +238,7 @@ integer u
                   or_bits(and_bits(floor(u/#40), #3F), #80) &   -- 0b10_7..12 tail
                   or_bits(and_bits(u, #3F), #80)                -- 0b10_1..6 tail
 
-        else -- u<=#10FFFF then
+        else -- u<=#10FFFF then (already tested above)
             -- 4 bytes encoding (head byte: 0b_1111_0xxx):
             chr = or_bits(floor(u/#40000), 0b11110000) &        -- 0b11110_19..21 head
                   or_bits(and_bits(floor(u/#1000), #3F), #80) & -- 0b10_13..18 tail

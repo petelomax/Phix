@@ -236,6 +236,8 @@ integer c, jstart = 0
         if c<' ' or c>#7E or c='`' then
             if jstart=0 then jstart = i end if
             for j=jstart to 1 by -1 do
+--added 9/4/20!!!:
+                c = x[j]
 --              if c<' ' or c>#7E or find(c,"\\\"\'") then
                 if c<' ' or c>#7E or find(c,`\"'`) then
 --              if c<' ' or c>#FE or find(c,"\\\"\'") then
@@ -1008,27 +1010,9 @@ constant msgs =
  "routine returns a value\n",                                   -- e118rrav
     -- typically this means the program is using c_proc
     --  to invoke a routine defined using define_c_func
---DEV this should go:
- "file number is not an integer or {fn,c}\n",                   -- e119fninaiofnc
-    -- gets() can accept an integer file number or a sequence
-    -- {fn,c} to read an entire text file in one operation.
-    --  fn is an open file (>2) with filepos 0, and c is one of:
-    --  -2: read file as one long string, with embedded '\n',
-    --  -1: return sequence of '\n'-stripped lines,
-    --   0: return sequence of lines as-is,
-    --   1: return sequence of lines with '\n' forced on last.
-    -- While gets({fn,c}) may be a useful shorthand for small
-    --  files, it is not recommended for anything over 1MB.
-    --  When processing larger files, a strategy which reads
-    --  a chunk (or just one line), processes it and discards
-    --  it before moving onto the next is much more likely to
-    --  achieve better performance than reading the whole hog
-    --  into memory at the start. Also, here are three sound
-    --  reasons not to meddle with working legacy code:
-    --      * You may introduce bugs
-    --      * It is unlikely to be noticeably faster
-    --      * It will be incompatible with RDS Eu
- "for loop error, %s is %s\n",                              -- e120fle
+ "assertion failure%s\n",                                       -- e119af(edi)
+    -- an assertion has failed, doh
+ "for loop error, %s is %s\n",                                  -- e120fle
     -- Phix does not permit floating point for loops, since
     -- they do not work (eg on RDS Eu, try for x=1.1 to 1.3 
     -- by 0.1 do ?x end for; you only get 1.1 and 1.2 output).
@@ -2854,6 +2838,23 @@ X               mov qword[rbp+32],:rbidsret
         or_era = or_edi
     elsif msg_id=58 then        -- e58bfn(edi)
         msg = sprintf(msg,or_edi)
+    elsif msg_id=119 then       -- e119af(edi)
+        #ilASM{
+            -- recover (atom)ref ==> ref
+            --  eg #40487620 ==> "oops"
+            [32]
+                mov eax,[or_edi]
+                call :%pLoadMint
+                mov [msg2],eax
+            [64]
+                mov rax,[or_edi]
+                call :%pLoadMint
+                mov [msg2],rax
+              }
+        if length(msg2) then
+            msg2 &= ": "&msg2
+        end if
+        msg = sprintf(msg,{msg2})
     elsif msg_id=120 then       -- e120fle
 --      c = varIdx(ep1)
         if or_esi=1 then

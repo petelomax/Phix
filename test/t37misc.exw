@@ -181,7 +181,9 @@ if showprogress then puts(1,"9\n") end if
 
 if showprogress then puts(1,"10\n") end if
 
-if not equal(sprint(cos(99)),"0.03982088039") then Abort("cos(99) error\n") end if
+--24/5/20:
+--if not equal(sprint(cos(99)),"0.03982088039") then Abort("cos(99) error\n") end if
+if not equal(sprint(cos(99)),"0.0398208804") then Abort("cos(99) error\n") end if
 if not equal(sprint(sin(99)),"-0.9992068342") then Abort("sin(99) error\n") end if
 if not equal(sprint(sqrt(99)),"9.949874371") then Abort("sqrt(99) error\n") end if
 if not equal(sprint(tan(99)),"-25.09253498") then Abort("tan(99) error\n") end if
@@ -493,4 +495,41 @@ if s!= deserialize(serialize(s)) then ?9/0 end if
 --08/03/2019: (and/or inside iff())
 integer r = rand(10)
 bool doit = iff( false ? r>=5 and r<7 : r>5 and r<=7 )
+
+--26/5/20 (bankers rounding):
+sequence x1 = {-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5}
+if sq_round(x1)!={-4,-3,-2,-1,0,1,2,3,4,5} then ?9/0 end if
+{} = round(true,0)
+if sq_round(x1)!={-4,-4,-2,-2,0,0,2,2,4,4} then ?9/0 end if
+x1 = {0.125, 0.375, 0.625, 0.875}
+if sq_round(x1,100)!={0.12,0.38,0.62,0.88} then ?9/0 end if
+{} = round(false,0)
+if sq_round(x1,100)!={0.13,0.38,0.63,0.88} then ?9/0 end if
+
+--20/06/2020 (nested constant declarations)
+function ff(object o) return o end function
+constant xx = {AA:=1, ff({BB:=2}), {CC:={DD:=3,4}}}
+if {xx,AA,BB,CC,DD}!={{1,{2},{{3,4}}},1,2,{3,4},3} then ?9/0 end if
+
+--26/6/20. Hack, see opJtyp in pilx86, ltAdd not getting undone after if atom(data) being optimised away.
+function custom_sort2(object custom_compare, object data = {})
+
+    sequence args = {0,0}
+    if atom(data) then
+        args &= data
+--DEV... (broke self hosting... wtf??) [it ain't psym... afaict anyway]
+    elsif data!={} then
+--  elsif length(data)!=0 then
+        if length(data)!=1 then ?9/0 end if
+        args = append(args, data[1])
+    elsif sequence(custom_compare) then
+        if data!={} then ?9/0 end if
+--      if length(data)!=0 then ?9/0 end if
+        args = append(args,custom_compare)
+    end if
+    return args
+end function
+
+sequence args = custom_sort2({5,4,3,2,1})
+if args!={0,0,{5,4,3,2,1}} then ?9/0 end if
 

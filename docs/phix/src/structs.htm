@@ -301,10 +301,15 @@ s.name = s.name & " (deceased)"
 name</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">] =</font><font color="#5E005E"> upper</font><font color="#0000FF">(</font><font color="#000000">name</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)   </font><font color="#000080"><i> -- (this line be all-traditional-non-struct-code)
 </i></font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> =</font><font color="#000000"> name
 </font><font color="#000080"><i>-- or --
-</i></font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> =</font><font color="#5E005E"> proper</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">)</font>
+</i></font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> =</font><font color="#5E005E"> proper</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- and, for those last two compound assigments, the obvious workaround...
+</i></font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">.</font><font color="#000000">age</font><font color="#0000FF"> +</font><font color="#000000"> 1
+s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">.</font><font color="#000000">name</font><font color="#0000FF"> &amp;</font><font color="#008000"> " (deceased)"</font>
 </pre>
         Once I get stuck in, I expect/hope such things might be reasonably easy to fix/implement, but I also expect there to be quite a few.
         <br>
+        <a name=constructor></a>
         <br>
         There is some code for handling a simple constructor in new() [see variable ctor]. Currently, for class bridge, 
         <code>new()</code> creates a new instance then looks for a <code>bridge()</code> constructor, and should one be found
@@ -315,20 +320,23 @@ name</font><font color="#0000FF">[</font><font color="#000000">1</font><font col
         rules out using a standard name such as constructor(), new([!!]) or __init__():
 -->
         A derived <code>class pontoon extends bridge</code> could invoke <code>this.bridge([args])</code> without problem, 
-        whereas in contrast there are several potential problems with generic/ambiguous super/parent.constructor/__init__(), 
-        especially under multiple inheritance - hence the decision that (de)constructors should be named (~)bridge/pontoon.<br>
+        unlike a more generic or ambiguous (super|parent).constructor/__init__(), especially under multiple inheritance, hence
+        (de)constructors are more sensibly named as (~)bridge/pontoon.<br>
         I need to have a bit more of a think/play with constructor arguments, specifically x = new bridge(...) syntax - which 
         is much more constructor-specific than anything we have right now, but still gets an implicit this, which might only
-        be permitted/prove sensible for nullable classes. Plus of course document and properly test all these things.<br>
+        be permitted/prove sensible for nullable classes. [Ding, penny just dropped: have builtins/structs.e maintain [CRID]
+        on each class and make is_struct() do a final "if flags!=S_NULLABLE then <check callstack for [CRID]> end if".]
+        Plus of course document and properly test all these things.<br>
         Also note that, currently, destructors are not guaranteed to be called in a timely fashion, or indeed at all. This is
         becase something like s.show(true) is invoked using call_proc(s.show,{s,true}) and that s buried in the opMkSq of the
-        call_proc() clings on to a reference count, potentially forever. There /must/ be a way to fix that... There may also
-        be other (non-opMkSq) things that ultimately cause the same or very similar effects. I am beginning to think that you 
-        should never be allowed to call a destructor directly/explicitly but should instead invoke delete() [optionally and 
-        with appropriate care not to carry on using whatever it is you just threw at delete()], and there should be nothing 
-        in the form of hierarchical/automatic/nested destructors, except that if say ~bridge() calls release_mem() then the
-        ~pontoon() routine w/c/should also need to invoke release_mem() explicitly as well. Destructors would naturally be
-        argument-less, except for the single implicit this.
+        call_proc() clings on to a reference count, potentially forever. There /must/ be a way to fix that... [Erm, test that,
+        shouldn&rsquo;t the tmp be passed non-incref & nulled to call_proc()...]
+        There may also be other (non-opMkSq) things that ultimately cause the same or very similar effects. 
+        I am beginning to think that you should never be allowed to call a destructor directly/explicitly but should instead 
+        invoke delete() [optionally and with appropriate care not to carry on using whatever it is you just threw at delete()], 
+        and there should be nothing in the form of hierarchical/automatic/nested destructors, except that if say ~bridge() 
+        calls release_mem() then the ~pontoon() routine w/c/should also need to invoke release_mem() explicitly as well. 
+        Destructors would naturally be argument-less, except for the single implicit this.
 <!--
         which would be virtually
         (tee hee) impossible from (say) an <code>__init__()</code> routine due to the way virtual routines are overriden, plus 

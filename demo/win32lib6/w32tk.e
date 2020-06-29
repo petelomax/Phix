@@ -98,8 +98,8 @@ global function allotted_size()
 return w32allotted_size()
 end function
 
-global procedure store( atom struct, sequence s, object o )
-w32store(struct,s,o)
+global procedure store( atom pStruct, sequence s, object o )
+w32store(pStruct,s,o)
 end procedure
 
 --/*
@@ -108,8 +108,8 @@ return w32peek_string(a)
 end function
 --*/
 
-global function fetch( atom struct, sequence s )
-return w32fetch(struct,s)
+global function fetch( atom pStruct, sequence s )
+return w32fetch(pStruct,s)
 end function
 
 global function address( atom addr, object offset )

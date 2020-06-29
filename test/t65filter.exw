@@ -1,0 +1,55 @@
+--
+-- test/t65filter.exw
+--
+constant data = {5,8,20,19,3,2,10}
+
+-- Providing user-defined functions:
+function mask_nums(atom a, object t)
+    return atom(t) and (and_bits(a, t) != 0)
+end function
+
+if filter(data, mask_nums, 1)!={5,19,3} then ?9/0 end if
+if filter(data, mask_nums, 2)!={19,3,2,10} then ?9/0 end if
+
+function even_nums(atom a)
+    return and_bits(a,1) = 0
+end function
+
+function odd_nums(atom a)
+    return and_bits(a,1) = 1
+end function
+
+if filter(data, even_nums)!={8,20,2,10} then ?9/0 end if
+if filter(data, odd_nums)!={5,19,3} then ?9/0 end if
+
+-- Using 'in' and 'out' with a set:
+if filter(data, "in",  {3,4,5,6,7,8})!={5,8,3} then ?9/0 end if
+if filter(data, "out", {3,4,5,6,7,8})!={20,19,2,10} then ?9/0 end if
+
+-- Using 'in' and 'out' with inclusive/exclusive ranges:
+if filter(data, "in",  {3,8}, "[]")!={5,8,3} then ?9/0 end if
+if filter(data, "in",  {3,8}, "[)")!={5,3} then ?9/0 end if
+if filter(data, "in",  {3,8}, "(]")!={5,8} then ?9/0 end if
+if filter(data, "in",  {3,8}, "()")!={5} then ?9/0 end if
+if filter(data, "out", {3,8}, "[]")!={20,19,2,10} then ?9/0 end if
+if filter(data, "out", {3,8}, "[)")!={8,20,19,2,10} then ?9/0 end if
+if filter(data, "out", {3,8}, "(]")!={20,19,3,2,10} then ?9/0 end if
+if filter(data, "out", {3,8}, "()")!={8,20,19,3,2,10} then ?9/0 end if
+
+-- Using the built-in comparators:
+function quiksort(sequence s)
+    if length(s)<=1 then
+        return s
+    end if
+    atom s1 = s[1]
+    s = s[2..$]
+    return quiksort(filter(s, "<=", s1)) & s1 & quiksort(filter(s, ">", s1))
+end function
+if quiksort({5,4,7,2,4,9,1,0,4,32,7,54,2,5,8,445,67})!={0,1,2,2,4,4,4,5,5,7,7,8,9,32,54,67,445} then ?9/0 end if
+if quiksort(data)!={2,3,5,8,10,19,20} then ?9/0 end if
+
+function vowels(integer ch)
+    return find(lower(ch),"aeiou")
+end function
+if filter(tagset('Z','A'),vowels)!="AEIOU" then ?9/0 end if
+

@@ -2617,7 +2617,7 @@ function calcnWrap(sequence oneline)
 --
 integer charsLeft
 sequence nWrap
-integer offset, chunklen, class, pclass
+integer offset, chunklen, tclass, pclass
 integer ch
     nWrap = {}
     charsLeft = length(oneline)
@@ -2639,17 +2639,17 @@ integer ch
         for j=chunklen+1 to 2 by -1 do
             ch = oneline[offset+j]
             if ch>128 then
-                class = TokenChar
+                tclass = TokenChar
             else
-                class = charMap[ch+1]
+                tclass = charMap[ch+1]
             end if
-            if class<=TokenLast then class = TokenChar end if
+            if tclass<=TokenLast then tclass = TokenChar end if
             if find(oneline[offset+j],WhiteSpace)
-            or class!=pclass then
+            or tclass!=pclass then
                 chunklen = j
                 exit
             end if
-            pclass = class
+            pclass = tclass
         end for
         offset += chunklen
         charsLeft -= chunklen
@@ -2657,7 +2657,6 @@ integer ch
     end while
     return nWrap
 end function
-
 
 global integer r_toggleWordWrap
 
@@ -7427,7 +7426,7 @@ integer rDownTab
         rDownTab = 0
 
 function handleTABCONTROL(integer id, integer msg, atom wParam, object lParam)
-atom struct
+atom pStruct
 integer x,y, rtab, d
     if id or object(lParam) then end if -- suppress warnings
 --?{id,msg,wParam,lParam,WM_NOTIFY,TCN_SELCHANGE}
@@ -7455,14 +7454,14 @@ integer x,y, rtab, d
        or msg = WM_RBUTTONUP
        or msg = WM_LBUTTONUP then
         if atom(lParam) then
-            struct = allocate_TextSpace(sizeofstruct(TC_HITTESTINFO))
+            pStruct = allocate_TextSpace(sizeofstruct(TC_HITTESTINFO))
             x = loWord(lParam)
             y = hiWord(lParam)
-            poke4(struct+POINT_x, x)
-            poke4(struct+POINT_Y, y)
-            rtab = sendMessage(id, TCM_HITTEST, 0, struct) + 1
-            struct = allocate_Rect()
-            void = sendMessage(id, TCM_GETITEMRECT, rtab-1, struct)
+            poke4(pStruct+POINT_x, x)
+            poke4(pStruct+POINT_Y, y)
+            rtab = sendMessage(id, TCM_HITTEST, 0, pStruct) + 1
+            pStruct = allocate_Rect()
+            void = sendMessage(id, TCM_GETITEMRECT, rtab-1, pStruct)
             if msg=WM_RBUTTONDOWN then
                 rDownTab = rtab
 --              setText(Main,sprintf("Edita : Rdown on %d",rtab))
@@ -7477,7 +7476,7 @@ integer x,y, rtab, d
                 TrackMenu(1,1,0,0)
             else
 --              setText(Main,sprintf("Edita : Rup on %d from %d",{rtab,rDownTab}))
-                if x>floor((peek4s(struct)+peek4s(struct+8))/2) then
+                if x>floor((peek4s(pStruct)+peek4s(pStruct+8))/2) then
                     if rtab<rDownTab-1 then
                         rtab += 1
                     end if

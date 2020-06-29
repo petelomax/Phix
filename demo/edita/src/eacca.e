@@ -185,7 +185,7 @@ sequence oneword
             end if
             ch = GetCh()
         elsif ch='\"' then
-            oneword = {}
+            oneword = ""
             while 1 do
                 oneword &= ch
                 ch = GetCh()
@@ -198,8 +198,44 @@ sequence oneword
                     return 0
                 end if
             end while
-            insertword(oneword&`"`)
             ch = GetCh()
+            if ch='\"' and oneword=`"` then
+                -- tripe-quote
+                oneword = `"""`
+                integer tqc = 0
+                while true do
+                    ch = GetCh()
+                    oneword &= ch
+                    if ch=-1 then
+                        ccabort("missing closing triplequote")
+                        return 0
+                    end if
+                    if ch='\"' then
+                        tqc += 1
+                        if tqc=3 then exit end if
+                    else
+                        tqc = 0
+                    end if
+                end while
+                ch = GetCh()
+                insertword(oneword)
+            else
+                insertword(oneword&`"`)
+            end if
+        elsif ch='`' then
+            -- tripe-quote
+            oneword = `"`
+            while true do
+                ch = GetCh()
+                oneword &= ch
+                if ch=-1 then
+                    ccabort("missing closing backtick")
+                    return 0
+                end if
+                if ch='`' then exit end if
+            end while
+            ch = GetCh()
+            insertword(oneword)
         elsif find(ch,symbol) then
 --PL this allowed eg "]&" to be recorded as one symbol...
 --            oneword = {}

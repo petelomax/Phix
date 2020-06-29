@@ -25,12 +25,6 @@ function resize_cb(Ihandle /*ih*/, integer width, integer height)
     return IUP_DEFAULT
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
-end function
-
 function action(Ihandle /*ih*/)
 
     glClearColor(0.3,0.3,0.3,0.0)
@@ -55,12 +49,12 @@ function action(Ihandle /*ih*/)
     return IUP_DEFAULT
 end function
 
-Ihandle dialog, canvas
+Ihandle dlg, canvas
 
 function map_cb(Ihandle /*ih*/)
     IupGLMakeCurrent(canvas)
-    integer {width, height} = IupGetIntInt(dialog, "RASTERSIZE")
-    {} = resize_cb(dialog, width, height)
+    integer {width, height} = IupGetIntInt(dlg, "RASTERSIZE")
+    {} = resize_cb(dlg, width, height)
     return IUP_DEFAULT
 end function
 
@@ -71,13 +65,13 @@ procedure main()
     canvas = IupGLCanvas(Icallback("action"), "RASTERSIZE=640x480")
     IupSetCallback(canvas, "RESIZE_CB", Icallback("resize_cb"))
 
-    dialog = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
-    IupSetCallback(dialog, "MAP_CB", Icallback("map_cb"))
-    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+    dlg = IupDialog(canvas, "TITLE=Triangle, SHRINK=YES")
+    IupSetCallback(dlg, "MAP_CB", Icallback("map_cb"))
+    IupCloseOnEscape(dlg)
 
-    IupShow(dialog)
+    IupShow(dlg)
     IupMainLoop()
-    IupDestroy(dialog)
+    IupDestroy(dlg)
     IupClose()
 end procedure
 main()

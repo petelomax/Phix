@@ -14,6 +14,7 @@
 -- whereas:
 --    prime_factors(6) is {2,3}
 --    prime_factors(720) is {2,3,5}
+--    prime_factors(720,1) is {2,2,2,2,3,3,5}
 --    prime_factors(12345) is {3,5,823}
 --
 
@@ -29,7 +30,7 @@ procedure check(atom n, string rtn)
         -- divisible by 4, etc. Hence were you to ask for the prime
         -- factors of 9,007,199,254,740,995 you might be surprised when
         -- it does not list 5, since this gets 9,007,199,254,740,994.
-        -- (ie below routines actually get a number ending in 4 not 5)
+        -- (yes, the routines actually get a number ending in 4 not 5)
         crash("argument to %s() exceeds maximum precision",{rtn})
     end if
 end procedure
@@ -74,6 +75,7 @@ global function prime_factors(atom n, bool duplicates=false, integer maxprime=10
 -- returns a list of all prime factors <=get_prine(maxprime) of n
 --  if duplicates is true returns a true decomposition of n (eg 8 --> {2,2,2})
     check(n,"prime_factors")
+    if maxprime=-1 then maxprime = get_maxprime(n) end if
     sequence pfactors = {}
     integer pn = 1,
             p = get_prime(pn), 
@@ -107,7 +109,9 @@ end function
 
 global function square_free(atom n, integer maxprime=100)
 -- returns true if prime_factors(n,duplicates:=true,maxprime) would contain no duplicates
+--  (but terminating early and without building any unnecessary internal lists)
     check(n,"square_free")
+    if maxprime=-1 then maxprime = get_maxprime(n) end if
     integer pn = 1,
             p = get_prime(pn), 
             lim = min(floor(sqrt(n)),get_prime(maxprime))
@@ -123,5 +127,19 @@ global function square_free(atom n, integer maxprime=100)
         p = get_prime(pn)
     end while 
     return true
+end function
+
+global function is_prime(atom n)
+    check(n,"is_prime2")
+    integer pn = 1,
+            p = get_prime(pn), 
+            lim = floor(sqrt(n))
+
+    while p<=lim do
+        if remainder(n,p)=0 then return false end if
+        pn += 1
+        p = get_prime(pn)
+    end while 
+    return n>1
 end function
 

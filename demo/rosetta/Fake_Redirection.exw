@@ -1,0 +1,169 @@
+--
+-- demo/rosetta/Fake_Redirection.exw
+-- =================================
+--
+-- for https://rosettacode.org/wiki/User_defined_pipe_and_redirection_operators
+--
+--{{trans|Go}}
+--You could of course do things more character-by-character or line-by-line, and/or farm things out to separate
+--threads/tasks, but the latter would need some suspend/resume/scheduling, along with explicit eof markers.
+--The distributed version also has a couple of alternatives for pipe_head() and pipe_tail().
+
+constant fs = new_dict()    -- fake file system
+
+class pipe                  -- fake pipe
+  string data = ""
+  integer idx = 0
+  function getch()
+    if idx<length(data) then
+        idx += 1
+        return data[idx] 
+    end if
+    return -1
+  end function
+  function getln()
+    if idx<length(data) then
+        integer start = idx+1
+        idx = find('\n',data,start)
+        return data[start..idx]
+    end if
+    return -1
+  end function
+  procedure putch(integer ch)
+    data &= ch
+  end procedure
+  procedure putln(string line)
+    data &= line
+  end procedure
+  function readall()
+    return split(data,'\n',no_empty:=true)
+  end function
+  function rawdata()
+    return data
+  end function
+end class
+
+function joinup(sequence lines)
+    return join(lines,"\n")&"\n"
+end function
+
+procedure toName(string name, pipe src) -- role of > operator
+    setd(name,src.rawdata(),fs)
+end procedure
+ 
+function fromName(string name)          -- role of < operator
+    return new(pipe,{getd(name,fs)})
+end function
+ 
+function tee(pipe in, string name)
+    string data = in.rawdata()
+    setd(name,data,fs)
+    return new(pipe,{data})
+end function
+ 
+function grep(pipe in, string pat)
+    pipe res = new()
+    while true do
+        object line = in.getln()
+        if atom(line) then exit end if
+        if match(pat,line) then
+            res.putln(line)
+        end if
+    end while
+    return res
+end function
+
+function multireader(sequence pipes)
+    pipe res = new()
+    for i=1 to length(pipes) do
+        pipe p = pipes[i]
+        res.putln(p.rawdata())
+    end for
+    return res
+end function
+
+function pipe_head(pipe in, integer lines)
+    pipe res = new()
+    for i=1 to lines do
+        object line = in.getln()
+        if atom(line) then exit end if
+        res.putln(line)
+    end for
+    return res
+-- or, nicer/neater but potentially much wasted effort:
+--  return new(pipe,{joinup(head(in.readall(),lines))})
+end function
+
+function pipe_tail(pipe in, integer lines)
+--  sequence ring = repeat("",lines)
+--  integer rn = 0, full = false
+--  while true do
+--      object line = in.getln()
+--      if atom(line) then exit end if
+--      rn += 1
+--      if rn>lines then {rn,full} = {1,true} end if
+--      ring[rn] = line
+--  end while
+--  ring = iff(full?ring[rn+1..$]:{}) & ring[1..rn]
+--  return new(pipe,{joinup(ring)})
+    return new(pipe,{joinup(tail(in.readall(),lines))})
+end function
+
+function sort_unique(pipe in)
+    return new(pipe,{joinup(unique(in.readall()))})
+end function
+ 
+procedure showCount(string heading, name)
+    if getd_index(name,fs)=NULL then crash("not found") end if
+    integer n = length(split(getd(name,fs), "\n",no_empty:=true))
+    printf(1,"%s: %v\n", {heading, n})
+end procedure
+
+constant lcs_txt = """
+Wil van der Aalst        business process management, process mining, Petri nets
+Hal Abelson              intersection of computing and teaching
+Serge Abiteboul          database theory
+Samson Abramsky          game semantics
+Leonard Adleman          RSA, DNA computing
+Manindra Agrawal         polynomial-time primality testing
+Luis von Ahn             human-based computation
+Alfred Aho               compilers book, the 'a' in AWK
+Stephen R. Bourne        Bourne shell, portable ALGOL 68C compiler
+Kees Koster              ALGOL 68
+Lambert Meertens         ALGOL 68, ABC (programming language)
+Peter Naur               BNF, ALGOL 60
+Guido van Rossum         Python (programming language)
+Adriaan van Wijngaarden  Dutch pioneer; ARRA, ALGOL
+Dennis E. Wisnosky       Integrated Computer-Aided Manufacturing (ICAM), IDEF
+Stephen Wolfram          Mathematica
+William Wulf             compilers
+Edward Yourdon           Structured Systems Analysis and Design Method
+Lotfi Zadeh              fuzzy logic
+Arif Zaman               Pseudo-random number generator
+Albert Zomaya            Australian pioneer of scheduling in parallel and distributed systems
+Konrad Zuse              German pioneer of hardware and software
+""",
+mainlist = "List_of_computer_scientists.lst"
+setd(mainlist,lcs_txt,fs)
+toName("aa", grep(tee(sort_unique(multireader({pipe_head(fromName(mainlist), 4),
+                                               tee(grep(fromName(mainlist), "ALGOL"),
+                                                   "ALGOL_pioneers.lst"),
+                                               pipe_tail(fromName(mainlist), 4)})),
+                      "the_important_scientists.lst"),
+                  "aa"))
+ 
+printf(1,"Pioneer: %s", getd("aa",fs))
+showCount("Number of ALGOL pioneers", "ALGOL_pioneers.lst")
+showCount("Number of scientists", "the_important_scientists.lst")
+
+?"done"
+{} = wait_key()
+abort(0)
+
+--/*
+Output:
+Pioneer: Adriaan van Wijngaarden  Dutch pioneer; ARRA, ALGOL
+Number of ALGOL pioneers: 5
+Number of scientists: 13
+--*/
+

@@ -30,6 +30,7 @@
 --power(-1..1,>=1) [worthwhile handling separately?]
 --power(0,x) [worthwhile handling separately?]
 
+--#with debug   -- (no effect: I had to disable the without in pprntfN.e instead, last time I tried)
 
 include VM\pHeap.e  -- :%pDealloc/:%pStoreFlt
 include VM\pFPU.e   -- :%down53 etc

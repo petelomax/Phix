@@ -365,6 +365,8 @@ sequence tabwork
     if deleteSelection() then end if
     if ctrl=TABWORK then
         if nTabs+nSpaces then
+            if nTabs<0 then Abort(sprintf("Delete() nTabs=%d",nTabs)) return end if
+            if nSpaces<0 then Abort(sprintf("Delete() nSpaces=%d",nSpaces)) return end if
             tabwork = {repeat('\t',nTabs)&
                        repeat(' ',nSpaces)}
             addAction(INSERTBLOCK,tabwork)
@@ -456,9 +458,10 @@ integer onelen, k, l
                     if col+2<onelen
                     and oneline[col+2]='/'
                     and oneline[col+3]='*' then
+--DEV earein:
 --DEV re-test (/**/ vs /*/...*/, I think)
---                      col += 3
-                        col += 4
+                        col += 3
+--                      col += 4
                         SkipBlockComment()
                     else
                         if col+6<=onelen
@@ -940,7 +943,7 @@ sequence oneline
         end while
         tokend = col-1
         token = oneline[tokstart..tokend]
-        if mapEndToMinusOne=1 and equal(token,"end") and not fromsubss then 
+        if mapEndToMinusOne=1 and equal(token,"end") and not fromsubss then
             token = "-1"
             toktype = DIGIT
         elsif not nPreprocess then
@@ -1936,6 +1939,10 @@ else
         if equal(token,"}") then exit end if
         if parser_tokno=1 then Indent(0) end if
 --      call_proc(rExpression,{})
+--DEV earein:
+        if vch='@' and find(token,vartypes) then
+            getToken()
+        end if
         Expression()
         if not equal(token,",") then exit end if
 --1/2/17: (DEV/doc see trick with IupButton comma at end of plade.exw)
@@ -2119,6 +2126,7 @@ end procedure
 
 integer treatColonAsThen
 
+with trace
 procedure Factor()
 integer wasNest
 integer wasinexpression
@@ -2143,6 +2151,16 @@ integer wasindentandor
         if not treatColonAsThen then
             if Ch=':' then skip_namespace() end if
         end if
+--DEV earein:
+        while Ch='.' and filetext[currfile][CurrLine][col+1]!='.' do
+--if tokline=191 then trace(1) end if
+            getToken()
+            Match(".")
+            if toktype!=LETTER then
+                Match("identifier")
+                return
+            end if
+        end while
         if Ch='(' then  -- a function, we presume
             Params(find(token,{"iff","iif"}))
 --17/12/15: (rescinded)
@@ -2260,6 +2278,7 @@ sequence wasalso
         nest += isTabWidth
     end if
     Match("if",true)
+--if tokline=193 then trace(1) end if
     also = {ExpLength(filetext[currfile][tokline][1..tokstart-1])+inPend()}
     Expression()
     also = {}
@@ -2488,6 +2507,7 @@ integer wasinexpression
         DoSubScripts2()
     end if
     if not find(token,{"=",":=","+=","-=","*=","/=","&="}) then
+--trace(1)
         Abort("assignment operator expected")
         return
     end if
@@ -2524,6 +2544,7 @@ integer wasinexpression
     DoSubScripts()
     if not find(token,{"=",":=","+=","-=","*=","/=","&="}) then
 --?9/0
+trace(1)
         Abort(xl("assignment operator expected"))
         return
     end if
@@ -2549,7 +2570,7 @@ procedure MultiAssignment()
 --  charClass['@'] = SYMBOL
     DoSequence('@')
     if not find(token,{"=",":=","@="}) then
-        Abort(xl("assignment operator expected"))
+        Abort(xl("assignment operator expeRcted"))
         return
     end if
     charClass['@'] = ILLEGAL
@@ -2562,12 +2583,18 @@ procedure MultiAssignment()
 end procedure
 
 --NB keep Statement() in step with this
-constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","class"}
+--DEV earein:[?]
+--constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","class"}
+--constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","try","catch"}
+constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","try"}
+
+integer in_class = 0
 
 --with trace
 procedure DoRoutineDef(integer rType, integer fwd)
 sequence sType, tType
 
+if tokline=1887 then ?{"drd",fwd} end if
 --trace(1)
     sType = token   -- procedure/function/type
     getToken()
@@ -2585,17 +2612,23 @@ sequence sType, tType
         while Ch!=-1 do
             if Ch=':' then skip_namespace() end if
             if not find(token,vartypes) then
+--DEV earein:
                 if charClass[Ch]!=LETTER then
-                    Abort(xl("a type is expected here"))
-                    exit
+                    if Ch!=',' and Ch!=')' then
+                        Abort(xl("a type is expected here"))
+                        exit
+                    end if
+                else
+                    WarnType()
+                    vartypes = append(vartypes,token)
                 end if
-                WarnType()
-                vartypes = append(vartypes,token)
+            else
+                getToken()
             end if
 --if tType="resize_cb" then
 --  trace(1)
 --end if
-            getToken()
+--          getToken()
 --if tType="leftarrow" then
 --  ?token
 --end if
@@ -2628,6 +2661,12 @@ end if
         end while
     end if
     stripleading = 1
+    if in_class and Ch=';' then
+        -- (virtual)
+        Match(")")
+        Match(";")
+        return
+    end if
     Match(")")
     if fwd then return end if
     also = {0,4}
@@ -2695,10 +2734,8 @@ end procedure
 
 forward function TopLevel()
 
-integer in_class = 0
-
---DEV/sug...
-procedure DoClass() -- Process a class definition
+--DEV/sug... earein:
+procedure DoClass(string sc) -- Process a struct/class definition
 integer wasNest = nest
     if in_class then
         Abort(xl("classes may not be nested"))
@@ -2708,37 +2745,83 @@ integer wasNest = nest
 --  if tokstart>1 or nest or inPend() then
 --      nest += isTabWidth
 --  end if
-    Match("class")
---?{"class",token,nest}
-    if Ch='<' then
-        getToken()
-        Match("<")
+    Match(sc)
+    if sc="abstract" then
+        sc = token
+        Match(sc)
     end if
+--?{"class",token,nest}
+--  if Ch='<' then
+--      getToken()
+--      Match("<")
+--  end if
+    vartypes = append(vartypes,token)
+-->     elsif find(token,{"include","with","without","namespace"}) then
     getToken()
+    if token="nullable" then getToken() end if
+    if token="dynamic" then getToken() end if
+    if token="extends" then
+        getToken()
+        while Ch=',' do -- multiple inheritance
+            getToken()
+            Match(",")
+        end while
+        getToken()
+    end if
 --  Block()
-    while 1 do
+    while token!="end" do
 --type?
 --DEV handle property etc specially... prohibit "normal" code?? (NO! ...erm YEP!)
+--DEV earein:
+        if find(token,{"private","public"}) then
+            if Ch=':' then
+                getToken()
+            end if
+            getToken()
+        end if
         if find(token,{"procedure","function","type"}) then
             nest += isTabWidth
         end if
         if not TopLevel() then exit end if
         nest = wasNest
-        if token="end" then exit end if
     end while
     if parser_tokno=1 then Indent(0) end if
     nest = wasNest
     Match("end")
-    Match("class")
+    Match(sc)
     in_class = 0
+end procedure
+
+--DEV earein:
+procedure DoTry() -- Process a while statement
+integer wasNest
+    wasNest = nest
+    if tokstart>1 or nest or inPend() then
+        nest += isTabWidth
+    end if
+    Match("try",false)
+    Block()
+    if parser_tokno=1 then Indent(0) end if
+    nest = wasNest
+    Match("catch",false)
+--  if toktype!=LETTER then
+    getToken()
+    if tokstart>1 or nest or inPend() then
+        nest += isTabWidth
+    end if
+    Block()
+    if parser_tokno=1 then Indent(0) end if
+    nest = wasNest
+    Match("end")
+    Match("try")
 end procedure
 
 procedure Statement()
 integer k
     if toktype = LETTER then
         nestAtStatementStart = nest
---constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","class"}
---                           1     2      3        4        5       6       7        8       9   10   11    12
+--constant ifforwhileetc = {"if","for","while","continue","exit","break","switch","return","end","?","#i","try"}
+--                           1     2      3        4        5       6       7        8       9   10   11   12
         k = find(token,ifforwhileetc)
         if k then
 --1/2/17:
@@ -2759,14 +2842,23 @@ integer k
             elsif k=9 then Abort(xl("unexpected"))
             elsif k=10 then DoQu()
             elsif k=11 then DoIlasmEtc()
-            elsif k=12 then DoClass()
+            elsif k=12 then DoTry()
             end if
         else
             if parser_tokno=1 then Indent(isTabWidth) end if
             if Ch=':' then skip_namespace() end if
+--DEV earein:
+            while Ch='.' and filetext[currfile][CurrLine][col+1]!='.' do
+                getToken()
+                Match(".")
+                if toktype!=LETTER then
+                    Match("identifier")
+                    return
+                end if
+            end while
             if Ch='(' then Params(0)
 --          else Assignment()
-            else 
+            else
 if use2 then
                 Assignment2(True)
 else
@@ -2790,7 +2882,9 @@ procedure Block()
         if toktype=LETTER then
 --DEV break should probably be a statement... (see exit)
 --          if find(token,{"elsif","else","end","case","default","fallthru","fallthrough","break"}) then exit end if
-            if find(token,{"elsif","else","end","case","default","fallthru","fallthrough"}) then exit end if
+--DEV earein:
+--          if find(token,{"elsif","else","end","case","default","fallthru","fallthrough"}) then exit end if
+            if find(token,{"elsif","else","end","case","default","fallthru","fallthrough","catch"}) then exit end if
 -- 13/2/14 ("declare anywhere")
             while toktype=LETTER do
                 if not find(token,vartypes) then    -- see Note1
@@ -2922,11 +3016,14 @@ integer wasMapEndToMinusOne
     end if
 end procedure
 
-function TopLevel()
 integer fwd = 0
+
+function TopLevel()
     if toktype=LETTER then
+--if tokline>190 then trace(1) end if
         nestAtStatementStart = nest
         integer t = find(token,{"procedure","function","type"})
+--      integer t = find(token,{"procedure","function","type","class","struct"})
         if t then
             also = {}
             if parser_tokno=1 then Indent(0) end if
@@ -2955,6 +3052,9 @@ integer fwd = 0
             SkipSpacesAndComments()
             getToken()
             also = {0}
+--DEV earein:
+        elsif find(token,{"abstract","struct","class"}) then
+            DoClass(token)
         else
             if Ch=':' then skip_namespace() end if
             t = find(token,vartypes)
@@ -3077,6 +3177,7 @@ integer wasmapEndToMinusOne, wascursorY
     xlt = xl("Re-Indent complete: %d change%s made")
     errtext &= sprintf(xlt,{adjust_count,repeat('s',adjust_count!=1)})
 --  void = proemh(xl("ReIndent"), errtext, 0)
+puts(1,errtext)
     IupMessage(xl("ReIndent"), errtext)
     if CursorY!=wascursorY then
         forceCursorOnscreen()
@@ -3175,7 +3276,7 @@ setHandler({REIN,TIP,SPACE,ALIGN1,ALIGN0,ALIGNO,GO},
 global procedure ReIndent()
 --/**/sequence ext
     if currfile then
---!/**/ ext = getFileExtension(filenames[currfile])
+--!/!*!*!/ ext = getFileExtension(filenames[currfile])
 --/**/  ext = get_file_extension(filenames[currfile])
 --/**/  if find(ext,{"htm","html","xml"}) then
 --/**/      reinh:htmlreindent()
@@ -3192,5 +3293,7 @@ global procedure ReIndent()
     end if
 end procedure
 --global constant r_ReIndent = routine_id("ReIndent")
-
+--/**/
+--DEV re-test (/**/ vs /*/...*/, I think)
+--/*/...*/
 

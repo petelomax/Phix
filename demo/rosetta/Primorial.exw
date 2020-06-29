@@ -1,0 +1,117 @@
+--
+-- demo/rosetta/Primorial.exw
+--
+include mpfr.e
+atom t0 = time()
+constant tests = tagset(9,0)&sq_power(10,tagset(6)),
+         primes = get_primes(1000000)
+--mpz primorial = mpz_init(1)
+--integer pi = 1
+--/*
+-- 5s
+function vecprod(sequence s)
+    if length(s)<=1 then return mpz_init(iff(s={}?1:s[1])) end if
+    bool first = true
+    mpz tmp
+    while length(s)>1 do
+        sequence snew = {}
+        integer j = 0
+        for i=1 to length(s)-1 by 2 do
+            j = i+1
+            if first then
+                tmp = mpz_init(s[i])
+                mpz_mul_si(tmp,tmp,s[j])
+            else
+                tmp = s[i]
+                mpz_mul(tmp,tmp,s[j])
+            end if
+            snew &= tmp
+        end for
+        if j<length(s) then
+            tmp = iff(length(snew)?snew[$]:mpz_init(1))
+            if first then
+                mpz_mul_si(tmp,tmp,s[$])
+            else
+                mpz_mul(tmp,tmp,s[$])
+            end if
+            if length(snew)=0 then
+                snew &= tmp
+            else
+                snew[$] = tmp   
+            end if
+        end if
+        s = snew
+        first = false
+    end while
+    return s[1]
+end function
+--*/
+--/!*
+function vecprod(sequence s)
+    if s={} then
+        s = {mpz_init(1)}
+    else
+        for i=1 to length(s) do
+            s[i] = mpz_init(s[i])
+        end for
+        while length(s)>1 do
+            for i=1 to floor(length(s)/2) do
+                mpz_mul(s[i],s[i],s[-i])
+            end for
+            s = s[1..ceil(length(s)/2)]
+        end while
+    end if
+    return s[1]
+end function
+--*!/
+
+--/*
+-- 5s
+function vecprod(sequence s)
+    if s={} then s={1} end if
+    bool first = true
+    while true do   -- (must have >= 1 iteration, even if all
+                    --  that does is mpz_init the straggler.)
+        sequence mpzs = {}
+        while length(s)>1 do
+            mpz tmp = iff(first?mpz_init(s[$]):s[$])
+            if first then
+                mpz_mul_si(tmp,tmp,s[$-1])
+            else
+                mpz_mul(tmp,tmp,s[$-1])
+            end if
+            mpzs &= tmp
+            s = s[1..$-2]
+        end while
+        if length(s) then -- "the straggler"
+            mpzs &= iff(first?mpz_init(s[1]):s[1])
+        end if
+        s = mpzs
+        if length(s)<2 then exit end if
+        first = false
+    end while
+    return s[1]
+end function
+--*/
+
+for i=1 to length(tests) do
+    integer ti = tests[i]
+--/*
+    -- 6 mins 41s 
+    for pi=pi to ti do
+        mpz_mul_si(primorial, primorial, primes[pi])
+    end for
+--*/
+    -- 6s (!!!)
+    mpz primorial = vecprod(primes[1..ti])
+    string ps = iff(ti<10?sprintf("= %s",{mpz_get_str(primorial)})
+                         :sprintf("has %d digits",mpz_sizeinbase(primorial,10)))
+    printf(1,"Primorial(%d) %s\n", {ti, ps})
+end for
+--primorial = mpz_free(primorial)
+?elapsed(time()-t0)
+--?60*6+41
+--?401/6.1
+?"done"
+{} = wait_key()
+

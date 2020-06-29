@@ -539,6 +539,10 @@ integer sdx, flags, stype
 --          if sdx=0 then throw("unknown/invalid struct") end if
             flags = structs[sdx][S_FLAGS]
             flags = and_bits(flags,S_NULLABLE)
+--SUG:
+--          if flags!=S_NULLABLE then
+--              <check callstack for [CRID]>/flags := S_NULLABLE
+--          end if
             return flags==S_NULLABLE
         end if
     end if
@@ -833,7 +837,17 @@ global function get_struct_fields(object s)
             flags = structs[sdx][S_FLAGS],
             stype = and_bits(flags,S_CORE)
     if stype=S_CFFI then ?9/0 end if
-    sequence res = structs[sdx][S_FIELDS]
+    sequence res
+    if stype=S_DYNAMIC
+    and not string(s)
+    and not integer(s) then 
+        -- if s is a dynamic instance, get fields as actually set,
+        -- otherwise (string name or integer rid) just predefined.
+        integer tid = s[I_DATA]
+        res = getd_all_keys(tid)
+    else
+        res = structs[sdx][S_FIELDS]
+    end if
     return res
 end function
 
@@ -869,6 +883,7 @@ procedure destroy_instance(struct s)
         destroy_dict(cdx)
     elsif stype=S_CFFI then
         ?9/0    -- should not be delete_routine()'d [by new()]...
+        -- (plus, c_structs should never have a de[/con]structor)
     else
         integer freelist = instances[sdx][C_FREELIST]
         instances[sdx][C_FREELIST] = cdx
@@ -939,6 +954,7 @@ global function new(object sdx, sequence imm={})
             stype = and_bits(flags,S_CORE),
             ctor = field_dx(sdx, sname)
     if and_bits(flags,S_ABSTRACT) then
+        -- (more usually caught at compile-time)
         string cs = iff(stype=S_STRUCT?"struct":"class")
         crash("attempt to instantiate abstract %s",{cs},2)
     end if
@@ -968,7 +984,7 @@ global function new(object sdx, sequence imm={})
                 end if
             end for
         elsif stype=S_CFFI then
-            ?9/0 -- c_structs should never have a constructor! [??]
+            ?9/0 -- c_structs should never have a con[/de]structor!
         end if
     end if
     sequence res
@@ -1125,6 +1141,21 @@ global function get_field_flags(object s, string field_name, bool bAsText=false)
     if stype=S_CFFI then ?9/0 end if -- (see docs)
     integer fdx = field_dx(sdx,field_name),
             res = iff(fdx=0?NULL:structs[sdx][S_FIELDS][fdx][S_FLAGS])
+--  if res=NULL
+    if fdx=0    -- (above will be so)
+    and bAsText
+    and stype=S_DYNAMIC
+    and not string(s)
+    and not integer(s) then 
+        -- if field_name not predefined, and s is a dynamic instance
+        -- (not string name or integer rid), and field_name has been
+        -- set, then return ST_OBJECT (anything) instead of that NULL.
+        integer tid = s[I_DATA]
+        if getd_index(field_name,tid)!=NULL then
+--          res = SF_PUBLIC -- (already is)
+            fdx = 1 -- (let below happen)
+        end if
+    end if
     if bAsText and fdx!=0 then
         string text = decode_flags(FieldFlagSet,res)
         return text
@@ -1138,6 +1169,18 @@ global function get_field_type(object s, string field_name, bool bAsText=false)
     if stype=S_CFFI then ?9/0 end if -- (as per docs)
     integer fdx = field_dx(sdx,field_name),
             res = iff(fdx=0?NULL:structs[sdx][S_FIELDS][fdx][S_TID])
+    if res=NULL
+    and stype=S_DYNAMIC
+    and not string(s)
+    and not integer(s) then 
+        -- if field_name not predefined, and s is a dynamic instance
+        -- (not string name or integer rid), and field_name has been
+        -- set, then return ST_OBJECT (anything) instead of that NULL.
+        integer tid = s[I_DATA]
+        if getd_index(field_name,tid)!=NULL then
+            res = ST_OBJECT
+        end if
+    end if
     if bAsText and res!=NULL then
         object name = getd({"name",res},vtable) -- (can be NULL)
         return name

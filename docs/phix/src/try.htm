@@ -67,7 +67,8 @@
         non-phix code (ie kernel32.dll/ExitProcess or sys_exit from a dll/so or inline assembly) cannot be caught (by any means that I know or care of).
         Also, passing invalid arguments to throw() (e not atom when user_data not {}, or wrong-type-elements) is deemed to be non-catchable.
         Apart from that I am not currently aware of any errors, or any types or classes of error, that can never be caught.<br>
-        <small>(In at least one release a try statement even had the power to prevent you from quitting a debug/trace session; it no longer re-throws e12pa, ie '!' keyed.)</small>
+        <small>(In at least one release a try statement even had the power to prevent you from quitting a debug/trace session; it no longer re-throws e12pa, 
+        ie '!' keyed.)</small>
         <br>
         <br>
         There is no type checking on a catch clause, since <a href="throw.htm">throw</a>() always provides a <a href="sequence.htm">sequence</a>, hence 
@@ -87,43 +88,42 @@
         <br>
         <br>
         Compilation issues the error "invalid (circumvents try handler reset)" when appropriate.<br>
-        The try block may not contain any exit/break/continue statements that would circumvent the reset of the handler. In contrast, return statements are 
-        perfectly valid, as are any exit/break/continue statements within the catch block, or wholly nested within (/not leaking from) the try block.
+        The try block may not contain any exit/break/continue statements that would circumvent the reset of the handler. Said compilation error can/shd 
+        be avoided by something like <code>bool bPanic = false; try ... bPanic = true ... end try; if bPanic then exit/break/continue</code>.
+        In contrast, return statements are perfectly valid, as are any exit/break/continue statements within the catch block, or wholly nested within 
+        (/not leaking from) the try block.
         <dl>
         <dt>aside:</dt>
-        <dd>However, the use of #ilASM{} to effect a jump with said circumvention is <i>not</i> protected against, but it will probably go horribly wrong, 
-        should anything untoward happen, especially before a return discards the handler naturally, or a containing try effects a higher-level handler reset.
+        <dd>Note the use of #ilASM{} to effect a jump of that ilk is <i>not</i> protected against, but it will probably go horribly wrong, should 
+        anything untoward happen, especially before a return discards the handler naturally, or a containing try effects a higher-level handler reset.
         The system stack is rebalanced along with the exception hander reset, mainly in case something happened deep inside a c_func/proc/call_back, and 
         hence jumping to the "wrong" handler may very well unbalance the system stack. (The triggering of a higher level catch may help.)</dd>
         </dl>
-        Said compilation error can be avoided by setting a flag or two, then testing and performing the appropriate exit/break/continue after the end try.
-        <br>
-        <br>
         Compilation issues "Warning: empty catch block" messages when appropriate.<br>
         A blanket "ignore all" handler in the top-level main loop of an application may sound like an easy way to make your code "robust".<br>
         However it also risks making you completely blind towards any emerging problems - which can in some cases be perfectly fine - if a
         "jumping giraffe" game tries to draw the eyeballs off-screen, no-one cares (though one might well ask, "why are you throwing an execption then?"), 
-        but a bug in the compiler (say) is quite different.<br>
+        but a bug in the compiler (for instance) is quite different.<br>
         At the very least you should consider something like <code>if DEBUG then ?9/0 end if</code> and in that way your live customers 
         can experience the trouble-free life you think they deserve, while your development staff are kept honest and immediately informed 
         of any developing issues, and forced to address them.
         <br>
         <br>
         Be warned that "trouble-free life" may turn into the classic headbutting a brick wall experience of no clue as to what is going wrong 
-        - a log file of quietly ignored exceptions may help.
+        - a log file of otherwise quietly ignored exceptions may help, but if that collects 30 million of them it is your problem not mine.
         <br>
         <br>
         I have four recommendations (which may overlap and overpreach a bit):
         <ol>
 
         <li>Write the code without a try container and see how far you get. Typically something like a subscript error can and should be
-        fixed immediately, with the try statement being intended to guard against something completely different.
+        fixed immediately, with the try statement being intended to guard against something rather more sinister and perhaps intermittent.
         If not careful, a try statement <i>will</i> mask errors you would much rather it did not.<br></li>
 
         <li><sup><small>&nbsp;</small></sup>Always try and localise a try statement as much as possible, to cover the least amount of code and 
-        solve a very specific problem.<br>
+        that way (only) solve a very specific problem.<br>
         <sup><small>&nbsp;</small></sup>Your catch clauses will obviously be much easier to write, and later read and understand.<br>
-        <sup><small>&nbsp;</small></sup>While a catch clause can be used to "common up" error handling, don&rsquo;t go overboard.<br></li>
+        <sup><small>&nbsp;</small></sup>While a catch clause can be used to "common up" error handling, do not go overboard.<br></li>
 
         <li><sup><small>&nbsp;</small></sup>Use try statements to deal with third-party code you cannot or would rather not modify, as 
         opposed to permission for your own sloppily-written abomination<sup><small>&#8482;</small></sup>.
@@ -202,9 +202,9 @@ DEV (TO GO):<br>
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
-        <br>
-        <br>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
       </div>
      </stripped>
     </get>

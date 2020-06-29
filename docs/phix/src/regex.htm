@@ -16,7 +16,9 @@
           include builtins\regex.e
           <br>
           <br>
-          <a href="sequence.htm">sequence</a> m = regex(<a href="sequence.htm">sequence</a> re, <a href="string.htm">string</a> target)
+          <a href="sequence.htm">sequence</a> m = regex(<a href="sequence.htm">sequence</a> re,
+                                                        <a href="string.htm">string</a> target,
+                                                        <a href="integer.htm">integer</a> strtndx=1)
          </td>
         </tr>
         <tr>
@@ -29,15 +31,15 @@
             <br>
             <br>
             re: a regular expression such as "a(b*)" or the result of applying regex_compile() to such a string.<br>
-            target: a string to be matched against the regular expression.
+            target: a string to be matched against the regular expression.<br>
+            strtndx: obviously a non-1 value of n skips the first n-1 characters of target and can be significantly faster than
+            repeatedly passing ever-decreasing slices of target and at the same time having to add an offset to any results.
             <br>
             <br>
             Returns: an even-length <a href="sequence.htm">sequence</a> of group indexes, or {} if no match could be found.
             <br>
             <br>
-            The results, corresponding to \0, \1, \2, etc of regular expression afficionado parlance, are start/end+1 pairs, 
-            ie the (odd-numbered) starting indexes can be used directly, however the (even-numbered) ending indexes need a 1 
-            subtracting, as per the example below.
+            The results, corresponding to \0, \1, \2, etc of regular expression afficionado parlance, are start/end pairs.
          </td>
         </tr>
         <tr>
@@ -46,13 +48,16 @@
          </td>
          <td>
 <!--eucode>
-?regex(`(a)(bc)`,"abc") -- yields {1,4, 1,2, 2,4}
+?regex(`(a)(bc)`,"abc") -- yields {1,3, 1,1, 2,3}
 </eucode-->
 <pre>
 <font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">regex</font><font color="#0000FF">(</font><font color="#008000">`(a)(bc)`</font><font color="#0000FF">,</font><font color="#008000">"abc"</font><font color="#0000FF">)</font><font color="#000080"><i> -- yields {1,4, 1,2, 2,4}</i></font>
 </pre>
             <br>
+<!--
             The result is 3 pairs of start/end+1 indexes, which can be read as {target[1..4-1],target[1..2-1],target[2..4-1]} 
+-->
+            The result is 3 pairs of start/end indexes, which can be read as {target[1..3],target[1..1],target[2..3]} 
             which in this case is {"abc","a","bc"}.
             The first element, aka `\0` is the entire match, the second aka `\1` from `(a)` is "a", and obviously the
             third aka `\2` from `(bc)` is "bc".
@@ -65,12 +70,12 @@
          <td>
 <!--eucode>
 string target = "abc"
-sequence res = regex(`(a)(bc)`,target) -- res is {1,4, 1,2, 2,4}
+sequence res = regex(`(a)(bc)`,target) -- res is {1,3, 1,1, 2,3}
 if res!={} then
     sequence capture_groups = {}
     for i=1 to length(res) by 2 do
         integer {s,e} = res[i..i+1]
-        capture_groups = append(capture_groups,target[s..e-1])
+        capture_groups = append(capture_groups,target[s..e])
     end for
     -- capture_groups is now {"abc","a","bc"}
 end if
@@ -99,7 +104,20 @@ end if
           <a href="regex_syntax.htm">regex syntax</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Note that pre-0.8.2 the returns had off-by-1 odd elements, aka start/end+1 pairs, until Tom kindly showed me the obvious and 
+            trivial fix - a simple by 2 loop subtracting 1, whereas I was stuck on the frankly daft notion that the only possible solution 
+            required the rather messy splitting of an internal opcode into some kind of start/end complementary pair of opcodes...
+         </td>
+        </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

@@ -178,25 +178,28 @@ end function
 
 global function serialize(object x)
 -- return the serialized representation of any object, as a sequence of bytes
-sequence x4, s
+string x4, s    -- 20/06/2020 now yields a binary string
 
     if integer(x) then -- and x >= MIN4B and x <= MAX4B then
         if x>=MIN1B and x<=MAX1B then
-            s = {x-MIN1B}
+            x -= MIN1B
+            s = "" & x
 
         elsif x>=MIN2B and x<=MAX2B then
             x -= MIN2B
-            s = {I2B, and_bits(x, #FF), floor(x/#100)}
+            s = I2B & and_bits(x, #FF) & floor(x/#100)
 
         elsif x>=MIN3B and x<=MAX3B then
             x -= MIN3B
-            s = {I3B, and_bits(x, #FF), and_bits(floor(x/#100), #FF), floor(x/#10000)}
+            s = I3B & and_bits(x, #FF) & and_bits(floor(x/#100), #FF) & floor(x/#10000)
 
         elsif x>=MIN4B and x<=MAX4B then
-            s = I4B & int_to_bytes(x-MIN4B)
+            x -= MIN4B
+            s = I4B & int_to_bytes(x)
 
         else
-            s = S4B & I8B & repeat(0,3) & int_to_bytes(x, 8)
+            s = S4B & I8B & repeat('\0',3) & int_to_bytes(x, 8)
+
         end if
 
     elsif atom(x) then
@@ -210,7 +213,7 @@ sequence x4, s
             if x=float64_to_atom(x4) then
                 s = F8B & atom_to_float64(x)
             else
-                s = S4B & F10 & repeat(0,3) & atom_to_float80(x)
+                s = S4B & F10 & repeat('\0',3) & atom_to_float80(x)
             end if
         end if
 
@@ -218,7 +221,7 @@ sequence x4, s
         -- sequence
         integer lx = length(x)
         if lx<=255 then
-            s = {S1B, lx}
+            s = S1B & lx
         else
             s = S4B & int_to_bytes(lx)
         end if

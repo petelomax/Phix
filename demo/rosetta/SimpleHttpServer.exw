@@ -5,20 +5,15 @@
 --  Windows only for now (should be relatively straightforward to get it working on linux)
 --                       (it is the routines in builtins\sockets.e that are windows-only.)
 --
---  Once this is running, open http://localhost:8080/ in your browser, or just run
+--  Once this is running, open http://localhost:8080/ in your browser, or run
 --  "curl http://localhost:8080" (that is, assuming you have installed curl).
 -- 
 free_console() -- (as per docs, ensures output not hidden when running on Edix/Edita)
-include builtins\sockets.e      -- added for 0.8.1 (not yet documented)
+include builtins\sockets.e      -- added for 0.8.1
 
 constant MAX_QUEUE      = 100,
          ESCAPE         = #1B,
-         BUFFER_SIZE    = 2048,
-         buffer         = allocate(BUFFER_SIZE),
-         sock_addr      = new_sock_addr(AF_INET, 8080, NULL),
-         peerAddr       = new_sock_addr(),
-
-response = substitute("""
+         response = substitute("""
 HTTP/1.1 200 OK
 Content-Type: text/html; charset=UTF-8
 
@@ -39,22 +34,61 @@ Content-Type: text/html; charset=UTF-8
 
 ""","\n","\r\n")
 
-?"started"
-atom sock = socket(AF_INET,SOCK_STREAM,NULL)
-bind(sock,sock_addr)
-listen(sock,MAX_QUEUE)
-while get_key()!=ESCAPE do
-    atom peer = accept(sock,peerAddr),
-         ip = get_sin_addr(sock_addr)
-    integer len = recv(peer,buffer,BUFFER_SIZE,0)
-    string request = peek({buffer,len})
-    printf(1,"Client IP: %s\n%s\n",{ip_to_string(ip),request})
-    if length(request)>3 and request[1..4]="GET " then
-        poke(buffer,response)
-        send(peer,buffer,length(response),0)
+puts(1,"server started, open http://localhost:8080/ in browser or curl, press Esc or Q to quit\n")
+atom sock = socket(AF_INET,SOCK_STREAM,NULL),
+     pSockAddr = sockaddr_in(AF_INET, "", 8080)
+if bind(sock, pSockAddr)=SOCKET_ERROR then crash("bind (%v)",{get_socket_error()}) end if
+if listen(sock,MAX_QUEUE)=SOCKET_ERROR then crash("listen (%v)",{get_socket_error()}) end if
+while not find(get_key(),{ESCAPE,'q','Q'}) do
+    {integer code} = select({sock},{},{},250000)    -- (0.25s)
+    if code=SOCKET_ERROR then crash("select (%v)",{get_socket_error()}) end if
+    if code>0 then  -- (not timeout)
+        atom peer = accept(sock),
+             ip = getsockaddr(peer)
+        {integer len, string request} = recv(peer)
+        printf(1,"Client IP: %s\n%s\n",{ip_to_string(ip),request})
+        if length(request)>3 and request[1..4]="GET " then
+            integer bytes_sent = send(peer,response)
+            printf(1,"%d bytes successfully sent\n",bytes_sent)
+        end if
+        shutdown(peer, SD_SEND) -- tell curl it's over
+        closesocket(peer)  --   (as does this)
     end if
 end while
+closesocket(sock)
+WSACleanup()
 
 ?"finished"
 {} = wait_key()
+
+--/* Output (server) - I added two '_' to the Accept line:
+
+server started, open http://localhost:8080/ in browser or curl, press Esc or Q to quit
+Client IP: 127.0.0.1
+GET / HTTP/1.1
+Host: localhost:8080
+User-Agent: curl/7.55.1
+Accept: *_/_*
+
+
+352 bytes successfully sent
+(After which, enter esc/q/Q/<Ctrl C> to terminate the server.)
+
+While running "curl http://localhost:8080" gives:
+<!DOCTYPE html>
+<html>
+ <head>
+  <title>Bye-bye baby bye-bye</title>
+  <style>
+   body { background-color: #111 }
+   h1 { font-size:4cm; text-align: center; color: black;
+        text-shadow: 0 0 2mm red}
+  </style>
+ </head>
+ <body>
+  <h1>Goodbye, world!</h1>
+ </body>
+</html>
+
+--*/
 

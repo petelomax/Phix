@@ -410,7 +410,9 @@ object res
     inverted_precision = sq_abs(inverted_precision)
     if atom(a) then
         if atom(inverted_precision) then
-            res = floor(0.5 + (a * inverted_precision )) / inverted_precision
+--25/5/20
+--          res = floor(0.5 + (a * inverted_precision )) / inverted_precision
+            res = round(a,inverted_precision)
         else
             len = length(inverted_precision)
             res = repeat(0, len)

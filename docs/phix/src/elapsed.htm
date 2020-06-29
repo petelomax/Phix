@@ -43,17 +43,17 @@
             A type check error occurs if s exceeds 100 billion years (probably fixable, but left as is to catch bad input).
             <br>
             <br>
-            The short form returns a string in the format (([minus][N year[s], ][N day[s], ]|[-])[N:[0]]N:[0]N|[-]Ns)<br>
+            The short form returns a string in the format (([minus][N year[s], ][N week[s], ][N day[s], ]|[-])[N:[0]]N:[0]N|[-]Ns)<br>
             For long form results, see Examples below. To explain that short form value more explicitly:<br>
             if the result contains no ':', it is seconds (and has a trailing s),            eg      "3s"<br>
             if the result contains one ':', it is minutes:seconds (':' at [-3]),            eg    "2:30"<br>
             if the result contains two ':', it is hours:minutes:seconds (':' at [-6,-3]),   eg "2:30:00"<br>
             (if you want two and a half hours to appear as "2:30", chop 3 chars off the result!)<br>
-            if required, the result is prefixed with "y year[s]" and "d day[s]", ie in longhand, see technicalia.<br>
-            Negative year and day values are prefixed with "minus ", negative hours/mins/secs with (just the one) "-".
+            if required, the result is prefixed with "y year[s]", "w week[s]", and "d day[s]", ie in longhand, see technicalia.<br>
+            Negative year, week, and day values are prefixed with "minus ", negative hours/mins/secs with (just the one) "-".
             <br>
             <br>
-            Neither routine makes any attempt to express duration in weeks, months, decades, centuries, or millenia.
+            Neither routine makes any attempt to express duration in months, decades, centuries, or millenia.
          </td>
         </tr>
         <tr>
@@ -62,28 +62,42 @@
          </td>
          <td>
 <!--eucode>
-?elapsed(12.34)             --  "12.34s"
-?elapsed_short(12.34)       --  "12s"
-?elapsed(120)               --  "2 minutes"
-?elapsed_short(120)         --  "2:00"
-?elapsed(1234)              --  "20 minutes and 34s"
-?elapsed_short(1234)        --  "20:34"
-?elapsed(123456)            --  "1 day, 10 hours, 17 minutes and 36s"
-?elapsed_short(123456)      --  "1 day, 10:17:36"
-?elapsed(120*60)            --  "2 hours"
-?elapsed_short(120*60)      --  "2:00:00"
+procedure ees(sequence tests)
+    for i=1 to length(tests) do
+        atom s = tests[i]
+        printf(1,"%50s vs %s\n",{elapsed(s),elapsed_short(s)})
+    end for
+end procedure
+ees({12.34,120,1234,123456,120*60,60*60*24*364,60*60*24*364-1,60*60*24*365})
+
+-- Output, comparing std vs short forms:
+--                                           12.3s vs 12s
+--                                       2 minutes vs 2:00
+--                              20 minutes and 34s vs 20:34
+--             1 day, 10 hours, 17 minutes and 36s vs 1 day, 10:17:36
+--                                         2 hours vs 2:00:00
+--                                        52 weeks vs 52 weeks
+--  51 weeks, 6 days, 23 hours, 59 minutes and 59s vs 51 weeks, 6 days, 23:59:59
+--                                          1 year vs 1 year
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">elapsed</font><font color="#0000FF">(</font><font color="#000000">12.34</font><font color="#0000FF">)            </font><font color="#000080"><i> --  "12.34s"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed_short</font><font color="#0000FF">(</font><font color="#000000">12.34</font><font color="#0000FF">)      </font><font color="#000080"><i> --  "12s"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed</font><font color="#0000FF">(</font><font color="#000000">120</font><font color="#0000FF">)              </font><font color="#000080"><i> --  "2 minutes"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed_short</font><font color="#0000FF">(</font><font color="#000000">120</font><font color="#0000FF">)        </font><font color="#000080"><i> --  "2:00"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed</font><font color="#0000FF">(</font><font color="#000000">1234</font><font color="#0000FF">)             </font><font color="#000080"><i> --  "20 minutes and 34s"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed_short</font><font color="#0000FF">(</font><font color="#000000">1234</font><font color="#0000FF">)       </font><font color="#000080"><i> --  "20:34"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed</font><font color="#0000FF">(</font><font color="#000000">123456</font><font color="#0000FF">)           </font><font color="#000080"><i> --  "1 day, 10 hours, 17 minutes and 36s"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed_short</font><font color="#0000FF">(</font><font color="#000000">123456</font><font color="#0000FF">)     </font><font color="#000080"><i> --  "1 day, 10:17:36"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed</font><font color="#0000FF">(</font><font color="#000000">120</font><font color="#0000FF">*</font><font color="#000000">60</font><font color="#0000FF">)           </font><font color="#000080"><i> --  "2 hours"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">elapsed_short</font><font color="#0000FF">(</font><font color="#000000">120</font><font color="#0000FF">*</font><font color="#000000">60</font><font color="#0000FF">)     </font><font color="#000080"><i> --  "2:00:00"</i></font>
+<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> ees</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> tests</font><font color="#0000FF">)
+</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">tests</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#004080">        atom</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#000000"> tests</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]
+</font><font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%50s vs %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">elapsed</font><font color="#800080">(</font><font color="#000000">s</font><font color="#800080">)</font><font color="#0000FF">,</font><font color="#5E005E">elapsed_short</font><font color="#800080">(</font><font color="#000000">s</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#008080">    end for
+end procedure
+</font><font color="#000000">ees</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">12.34</font><font color="#0000FF">,</font><font color="#000000">120</font><font color="#0000FF">,</font><font color="#000000">1234</font><font color="#0000FF">,</font><font color="#000000">123456</font><font color="#0000FF">,</font><font color="#000000">120</font><font color="#0000FF">*</font><font color="#000000">60</font><font color="#0000FF">,</font><font color="#000000">60</font><font color="#0000FF">*</font><font color="#000000">60</font><font color="#0000FF">*</font><font color="#000000">24</font><font color="#0000FF">*</font><font color="#000000">364</font><font color="#0000FF">,</font><font color="#000000">60</font><font color="#0000FF">*</font><font color="#000000">60</font><font color="#0000FF">*</font><font color="#000000">24</font><font color="#0000FF">*</font><font color="#000000">364</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">60</font><font color="#0000FF">*</font><font color="#000000">60</font><font color="#0000FF">*</font><font color="#000000">24</font><font color="#0000FF">*</font><font color="#000000">365</font><font color="#800000">}</font><font color="#0000FF">)
+
+</font><font color="#000080"><i>-- Output, comparing std vs short forms:
+--                                           12.3s vs 12s
+--                                       2 minutes vs 2:00
+--                              20 minutes and 34s vs 20:34
+--             1 day, 10 hours, 17 minutes and 36s vs 1 day, 10:17:36
+--                                         2 hours vs 2:00:00
+--                                        52 weeks vs 52 weeks
+--  51 weeks, 6 days, 23 hours, 59 minutes and 59s vs 51 weeks, 6 days, 23:59:59
+--                                          1 year vs 1 year</i></font>
 </pre>
          </td>
         </tr>
@@ -94,13 +108,21 @@
           </a>
          </td>
          <td>
-            Note the duration in seconds passed in as an argument contains no notion whatsoever of leap years, when the last one was or when the next one
-            will be, or even any indication of which end of whenever that duration starts and ends that any such would apply, and hence any years are simply 
-            calculated as exactly 365 days each. Using 365.25 is no better, and risks making some things quite glaringly 6/12/18 hours out.
+            Note the duration in seconds passed in as an argument contains absolutely no notion whatsoever of any leap years, when the last one was, 
+            when the next one might be, or any indication of which end of whenever that duration starts and ends that any such would apply, if any,
+            and hence any years are simply calculated as exactly 365 days each. 
+            Using 365.25 is no better, and risks making some things quite glaringly 6/12/18 hours out.
+            <br>
+            <br>
+            Likewise this routine cannot assume months of 28/29/30/31 days, and using (say) 365[or 366]/12 would again give some very strange results.
+            <br>
+            <br>
+            Obviously you could probably do something a whole lot better (in terms of months and years) when presented with a pair of 
+            <a href="timedatetype.htm">timedate</a> values, but that is not what these two routines get given.
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

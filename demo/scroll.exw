@@ -19,112 +19,112 @@ integer fn, rows, top, key
 sequence cmd, lines, vc
 object line
 
-    -- get the command line parameters 
-    cmd = command_line()
-    cmd = substitute(lower(cmd[2]),".exe",".exw")
+-- get the command line parameters 
+cmd = command_line()
+cmd = substitute(lower(cmd[2]),".exe",".exw")
 
-    -- hold a buffer of lines 
-    lines = {}
+-- hold a buffer of lines 
+lines = {}
 
-    -- open the file 
-    fn = open(cmd, "r")
-    if fn= -1 then
-        printf(2, "cannot read file: %s\n", {cmd})
-        abort(1)
-    end if
+-- open the file 
+fn = open(cmd, "r")
+if fn= -1 then
+    printf(2, "cannot read file: %s\n", {cmd})
+    abort(1)
+end if
 
-    -- read all the lines into the buffer 
-    line = gets(fn)
-    while sequence(line) do
+-- read all the lines into the buffer 
+line = gets(fn)
+while sequence(line) do
 
-        -- trim the line 
-        while length(line) and find(line[length(line)], " \r\n\t") do
-            line = line[1..length(line)-1]
-        end while
-
-        line = sprintf("%2d %s",{length(lines)+1,line})
-        -- append it to the buffer 
-        lines = append(lines, line)
-
-        -- get the next line 
-        line = gets(fn)
+    -- trim the line 
+    while length(line) and find(line[length(line)], " \r\n\t") do
+        line = line[1..length(line)-1]
     end while
 
-    -- close the file 
-    close(fn)
+    line = sprintf("%2d %s",{length(lines)+1,line})
+    -- append it to the buffer 
+    lines = append(lines, line)
 
-    -- get the screen configuration 
-    vc = video_config()
-    if length(vc)>=VC_SCRNLINES then
-        rows = vc[VC_SCRNLINES]
-    else
-        rows = vc[VC_LINES]
+    -- get the next line 
+    line = gets(fn)
+end while
+
+-- close the file 
+close(fn)
+
+-- get the screen configuration 
+vc = video_config()
+if length(vc)>=VC_SCRNLINES then
+    rows = vc[VC_SCRNLINES]
+else
+    rows = vc[VC_LINES]
+end if
+rows = 25
+
+clear_screen()
+-- turn off cursor and wrap 
+cursor(NO_CURSOR)
+wrap(0)
+
+-- track the top row 
+top = 1
+
+-- display the initial lines on the screen 
+for i=top to length(lines) by 1 do
+
+    position(i, 1)
+    puts(1, lines[i])
+
+    if i=rows then
+        -- that's enough 
+        exit
     end if
-    rows = 25
 
-    clear_screen()
-    -- turn off cursor and wrap 
-    cursor(NO_CURSOR)
-    wrap(0)
+end for
 
-    -- track the top row 
-    top = 1
+-- begin key loop 
+key = wait_key()
+while key!=27 and key!='q' do -- escape or 'q' quits 
 
-    -- display the initial lines on the screen 
-    for i=top to length(lines) by 1 do
+    if key=328 then -- up 
 
-        position(i, 1)
-        puts(1, lines[i])
+        -- are there more lines to display? 
+        if top>1 then
 
-        if i=rows then
-            -- that's enough 
-            exit
+            -- scroll down 
+            scroll( -1, 1, rows)
+            top -= 1
+
+            -- write the top line 
+            position(1, 1)
+            puts(1, lines[top])
+
         end if
 
-    end for
+    elsif key=336 then -- down 
 
-    -- begin key loop 
-    key = wait_key()
-    while key!=27 and key!='q' do -- escape or 'q' quits 
+        -- are there more lines to display? 
+        if (top+rows-1)<length(lines) then
 
-        if key=328 then -- up 
+            -- scroll up 
+            scroll(1, 1, rows)
+            top += 1
 
-            -- are there more lines to display? 
-            if top>1 then
+            -- write the bottom line 
+            position(rows, 1)
+            puts(1, lines[top+rows-1])
 
-                -- scroll down 
-                scroll( -1, 1, rows)
-                top -= 1
+        end if
 
-                -- write the top line 
-                position(1, 1)
-                puts(1, lines[top])
-
-            end if
-
-        elsif key=336 then -- down 
-
-            -- are there more lines to display? 
-            if (top+rows-1)<length(lines) then
-
-                -- scroll up 
-                scroll(1, 1, rows)
-                top += 1
-
-                -- write the bottom line 
-                position(rows, 1)
-                puts(1, lines[top+rows-1])
-
-            end if
-
-else
+    else
 --72/80
 --#48/#50 (H P !!)
 --328/336
 --#148/#150 <- ah!
-    ?key
-        end if
+        ?key
+    end if
 
-        key = wait_key()
-    end while
-    cursor(UNDERLINE_CURSOR)
+    key = wait_key()
+end while
+cursor(UNDERLINE_CURSOR)

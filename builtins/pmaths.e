@@ -29,9 +29,29 @@ global function exp(atom x)
     return power(E,x)
 end function
 
+bool bUseBankersRounding = false
+
 global function round(atom a, atom inverted_precision=1)
-    inverted_precision = abs(inverted_precision)
-    return floor(0.5 + (a * inverted_precision )) / inverted_precision
+    if inverted_precision=0 then
+        if a!=true and a!=false then ?9/0 end if
+        bUseBankersRounding = a
+    elsif bUseBankersRounding then
+        --25/5/20 (round to nearest even)
+        integer s = sign(a)
+        a = abs(a)*inverted_precision
+        atom t = floor(a), f = a-t
+        if f=0.5 then
+            a = t+and_bits(t,1)
+        else
+            a = floor(0.5+a)
+        end if
+        a = s*(a/inverted_precision)
+    else
+        -- (compatible with Euphoria)
+        inverted_precision = abs(inverted_precision)
+        a = floor(0.5 + (a * inverted_precision )) / inverted_precision
+    end if
+    return a
 end function
 
 global function ceil(atom o)

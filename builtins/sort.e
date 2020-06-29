@@ -51,7 +51,11 @@ end function
 
 function tagsort(integer i, integer j, sequence data)
 -- standard function for a standard tagsort
-    return compare(data[i],data[j])
+--26/6/20
+--  return compare(data[i],data[j])
+    integer c = compare(data[i],data[j])
+    if c=0 then c = compare(i,j) end if
+    return c
 end function
 --DEV/SUG column_tagsort???
 

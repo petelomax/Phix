@@ -11,6 +11,11 @@ global type atom_string(object o)
         or (atom(o) and o>=NULL and o=floor(o))
 end type
 
+global type rid_string(object o)
+    return string(o) 
+        or (integer(o) and o>15)
+end type
+
 global type nullable_string(object o)
     return string(o) or o=NULL
 end type

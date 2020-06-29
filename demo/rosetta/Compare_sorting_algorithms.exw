@@ -365,6 +365,46 @@ sequence merged, a, b
     return merged
 end function
 
+--added 26/6/20: (turns out, it's a recursive version of pihism_sort, and as such a bit slower)
+function min_sort(sequence x, integer s=1, e=length(x))
+--
+-- put x into ascending order using a recursive merge-mostly-in-situ sort
+--  each (recursive) call ensures x[s..e] is in order, and 
+--  does even not look sideways at any other part of x.
+--
+    integer n = e-s+1
+    if n>=2 then
+        n = s+floor(n/2)
+        integer mid = n-1
+--      if mid=e then ?9/0 end if   -- (sanity check)
+--      if n=s then ?9/0 end if     --       ""
+        x = min_sort(x,s,mid)   -- sort the first half
+        x = min_sort(x,n,e)     -- sort the second half
+        -- merge the two sorted halves into one
+        object lb = x[n] -- (speedwise)
+        for i=s to mid do
+            if x[i]>lb then
+                -- save (only) the chunk that might get clobbered
+                sequence a = x[i..mid]
+                x[i] = lb
+                s = i+1
+                n += 1
+                for j=1 to length(a) do
+                    object aj = a[j] -- (speedwise)
+                    while n<=e and aj>x[n] do
+                        x[s] = x[n]
+                        s += 1
+                        n += 1
+                    end while
+                    x[s] = aj
+                    s += 1
+                end for
+                exit
+            end if
+        end for
+    end if
+    return x
+end function
 
 function siftDown(sequence arr, integer s, integer last)
 integer root = s
@@ -535,6 +575,7 @@ constant {testnames,testids} = columnize({--tr("bubble_sort"),
                                           tr("shell_sort"),
 --                                        tr("shell_sort2"),
                                           tr("merge_sort"),
+                                          tr("min_sort"),
                                           tr("heap_sort"),
                                           tr("pihism_sort"),
                                           tr("sort"),           -- builtin
@@ -779,11 +820,6 @@ function tabchange_cb(Ihandln /*self*/, Ihandln /*new_tab*/)
     return IUP_DEFAULT;
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if
-    return IUP_CONTINUE
-end function
-
 --DS_COLOR  color of the current dataset. 
 --Default is dynamically set from the list "255 0 0", "0 255 0", "0 0 255", "0 255 255", "255 0 255", "255 255 0", "128 0 0", "0 128 0", "0 0 128", "0 128 128", "128 0 128", "128 128 0". 
 --So I made a copy of that list:
@@ -831,7 +867,7 @@ procedure main()
     dlg = IupDialog(tabs)
     IupSetAttributes(dlg, "RASTERSIZE=%dx%d", {640, 480})
     IupSetAttribute(dlg, "TITLE", "Compare sorting algorithms")
-    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+    IupCloseOnEscape(dlg)
     IupShow(dlg)
     IupSetInt(tabs, "VALUEPOS", tabidx-1)
     IupSetGlobalFunction("IDLE_ACTION", cb_idle_action)

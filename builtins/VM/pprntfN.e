@@ -307,9 +307,10 @@ end for
                     exponent += 1
                     if precision then
                         result &= '0'
-                        if minfieldwidth>0 then
+--24/5/20 (check removed)
+--                      if minfieldwidth>0 then
                             precision -= 1
-                        end if
+--                      end if
                     else
                         f /= 10
                     end if

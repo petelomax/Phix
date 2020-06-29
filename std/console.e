@@ -10,7 +10,7 @@ namespace console
 --!/**/include std/text.e
 --!/**/include std/pretty.e
 include std/get.e
-include std/pretty.e
+--include std/pretty.e
 include std/text.e
 include std/types.e
 --/*
@@ -1521,9 +1521,11 @@ public procedure display(object data_in, object args = 1, integer finalnl = -918
 
         else
             if atom(args) or length(args)=0 then
-                pretty:pretty_print(1, data_in, {2})
+--              pretty:pretty_print(1, data_in, {2})
+                pretty_print(1, data_in, {2})
             else
-                pretty:pretty_print(1, data_in, args)
+--              pretty:pretty_print(1, data_in, args)
+                pretty_print(1, data_in, args)
             end if
         end if
     else

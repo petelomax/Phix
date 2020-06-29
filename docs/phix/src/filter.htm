@@ -1,0 +1,242 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">filter</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+         <a href="sequence.htm">sequence</a> res = filter(<a href="sequence.htm">sequence</a> s,
+                                                          <a href="string.htm">rid_string</a> rs,
+                                                          <a href="object.htm">object</a> userdata={},
+                                                          <a href="string.htm">string</a> rangetype="")
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Select only those elements from a <a href="sequence.htm">sequence</a> that pass a specified test.
+            <br>
+            <br>
+            s: the sequence to be examined<br>
+            rs: if string, one of the 8 builtin tests, otherwise the integer <a href="routine_id.htm">routine_id</a> of a function that implements the test<br>
+            userdata: a range, set, pivot, or object optionally passed to said function<br>
+            rangetype: for rs="in"/"out" only, inclusive/exclusive qualifiers or "" for subset handling.
+            <br>
+            <br>
+            Returns a sequence containing some subset of the elements originally provided in s, possibly {}.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
+            You can supply your own test (as a <a href="routine_id.htm">routine_id</a>) or use one of the 8 built-ins 
+            ("&lt;", "&lt;=", "=", "!=", "&gt=", "&gt;", "in", or "out").
+            <br>
+            <br>
+            <h2>built-ins (string rs)</h2>
+            As well as those 8 just listed, the aliases "lt","le","eq","==","ne","ge","gt" may also be used (must be lowercase).
+            <br>
+            <br>
+            When rs is "in" or "out", rangetype can be one of five values: {"[]","[)","(]","()",""}. <br>
+            For the first four cases userdata must be a sequence of two (lo/hi) values, with [|] indicating inclusive, (|) exclusive.<br>
+            For the fifth case, userdata is a set, and elements are kept depending on whether they are found in that set or not.
+            <br>
+            <br>
+            When rs is one of the string comparison ops, userdata is the value to test against, some examples are given below.
+            <br>
+            <br>
+            See test/t65filter.exw for a comprehensive test set covering all known/supported uses of filter(). It may (or may not)
+            contain some additional edge cases that have arisen since this documentation was written and that way perhaps answer any 
+            remaining questions you may have about how all these built-ins behave (ditto for user-provided functions).
+            <br>
+            <br>
+            <h2>supplied function (integer rs)</h2>
+            fn<small>(nee rs)</small> should be a function that accepts at least one parameter. The optional userdata value of {} is only 
+            passed to fn if it <i>needs</i> it: should fn have no second parameter or the second parameter is optional (already has a 
+            default), it will <b>not</b> get passed the above default. If fn accepts/needs 3 parameters it will get (s[i],i,s).
+            Obviously if you pass a non-{} value that disagrees in any way with fn you will get an error. In contrast, and again 
+            obviously, even if the first parameter of fn is defaulted it <i>will</i> still get passed each s[i] in turn.
+            <br>
+            <br>
+            fn() is expected to return a true/false result indicating whether to keep or discard each element.<br>
+            fn() can accept 1, 2, or 3 parameters. When userdata is not {} it is always invoked as f(s[i],userdata). Otherwise,
+            without any optional parameters, it will be invoked as f(s[i]), f(s[i],userdata), or f(s[i],i,s) respectively, whereas 
+            the presence of any optional parameters basically encourages filter() to pass the <i>fewest</i> parameters possible.
+            <br>
+            <br>
+            The rangetype parameter is not used (when rs is not "in" or "out") and in fact an error occurs if it is not "".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+-- Providing user-defined functions:
+function even_nums(atom a)
+    return and_bits(a,1) = 0
+end function
+
+function odd_nums(atom a)
+    return and_bits(a,1) = 1
+end function
+
+constant data = {5,8,20,19,3,2,10}
+?filter(data, even_nums)            -- ==> {8, 20, 2, 10}
+?filter(data, odd_nums)             -- ==> {5, 19, 3}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- Providing user-defined functions:
+</i></font><font color="#008080">function</font><font color="#000000"> even_nums</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF">)
+</font><font color="#008080">    return</font><font color="#7060A8"> and_bits</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">) =</font><font color="#000000"> 0
+</font><font color="#008080">end function
+
+function</font><font color="#000000"> odd_nums</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF">)
+</font><font color="#008080">    return</font><font color="#7060A8"> and_bits</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">) =</font><font color="#000000"> 1
+</font><font color="#008080">end function
+
+constant</font><font color="#000000"> data</font><font color="#0000FF"> = {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#0000FF">,</font><font color="#000000">19</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#0000FF">}
+?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000"> even_nums</font><font color="#0000FF">)           </font><font color="#000080"><i> -- ==&gt; {8, 20, 2, 10}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#000000"> odd_nums</font><font color="#0000FF">)            </font><font color="#000080"><i> -- ==&gt; {5, 19, 3}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+-- Using 'in' and 'out' with a set:
+?filter(data, "in",  {3,4,5,6,7,8}) -- ==> {5,8,3}
+?filter(data, "out", {3,4,5,6,7,8}) -- ==> {20,19,2,10}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- Using 'in' and 'out' with a set:
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- ==&gt; {5,8,3}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "out"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- ==&gt; {20,19,2,10}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+-- Using 'in' and 'out' with inclusive/exclusive ranges:
+?filter(data, "in",  {3,8}, "[]") -- (aka >=3 & <=8) -- ==> {5,8,3}
+?filter(data, "in",  {3,8}, "[)") -- (aka >=3 & <8)  -- ==> {5,3}
+?filter(data, "in",  {3,8}, "(]") -- (aka >3 & <=8)  -- ==> {5,8}
+?filter(data, "in",  {3,8}, "()") -- (aka >3 & <8)   -- ==> {5}
+?filter(data, "out", {3,8}, "[]") -- (NOT >=3 & <=8) -- ==> {20,19,2,10}
+?filter(data, "out", {3,8}, "[)") -- (NOT >=3 & <8)  -- ==> {8,20,19,2,10}
+?filter(data, "out", {3,8}, "(]") -- (NOT >3 & <=8)  -- ==> {20,19,3,2,10}
+?filter(data, "out", {3,8}, "()") -- (NOT >3 & <8)   -- ==> {8,20,19,3,2,10}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- Using 'in' and 'out' with inclusive/exclusive ranges:
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "[]"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (aka &gt;=3 &amp; &lt;=8) -- ==&gt; {5,8,3}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "[)"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (aka &gt;=3 &amp; &lt;8)  -- ==&gt; {5,3}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "(]"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (aka &gt;3 &amp; &lt;=8)  -- ==&gt; {5,8}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "()"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (aka &gt;3 &amp; &lt;8)   -- ==&gt; {5}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "out"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "[]"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (NOT &gt;=3 &amp; &lt;=8) -- ==&gt; {20,19,2,10}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "out"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "[)"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (NOT &gt;=3 &amp; &lt;8)  -- ==&gt; {8,20,19,2,10}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "out"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "(]"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (NOT &gt;3 &amp; &lt;=8)  -- ==&gt; {20,19,3,2,10}
+</i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "out"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "()"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (NOT &gt;3 &amp; &lt;8)   -- ==&gt; {8,20,19,3,2,10}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 4:</b>
+         </td>
+         <td>
+<!--eucode>
+-- Using the built-in comparators:
+function quiksort(sequence s)
+    if length(s)<=1 then
+        return s
+    end if
+    atom s1 = s[1]
+    s = s[2..$]
+    return quiksort(filter(s, "<=", s1)) & s1 & quiksort(filter(s, ">", s1))
+end function
+?quiksort({5,4,7,2,4,9,1,0,4,32,7,54,2,5,8,445,67})
+------==> {0,1,2,2,4,4,4,5,5,7,7,8,9,32,54,67,445}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>-- Using the built-in comparators:
+</i></font><font color="#008080">function</font><font color="#000000"> quiksort</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF">)
+</font><font color="#008080">    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)&lt;=</font><font color="#000000">1</font><font color="#008080"> then
+        return</font><font color="#000000"> s
+</font><font color="#008080">    end if
+</font><font color="#004080">    atom</font><font color="#000000"> s1</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]
+</font><font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#000000"> s</font><font color="#0000FF">[</font><font color="#000000">2</font><font color="#0000FF">..</font><font color="#000000">$</font><font color="#0000FF">]
+</font><font color="#008080">    return</font><font color="#000000"> quiksort</font><font color="#0000FF">(</font><font color="#5E005E">filter</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#008000"> "&lt;="</font><font color="#0000FF">,</font><font color="#000000"> s1</font><font color="#800000">)</font><font color="#0000FF">) &amp;</font><font color="#000000"> s1</font><font color="#0000FF"> &amp;</font><font color="#000000"> quiksort</font><font color="#0000FF">(</font><font color="#5E005E">filter</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#008000"> "&gt;"</font><font color="#0000FF">,</font><font color="#000000"> s1</font><font color="#800000">)</font><font color="#0000FF">)
+</font><font color="#008080">end function
+</font><font color="#0000FF">?</font><font color="#000000">quiksort</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">32</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">54</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#0000FF">,</font><font color="#000000">445</font><font color="#0000FF">,</font><font color="#000000">67</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#000080"><i>------==&gt; {0,1,2,2,4,4,4,5,5,7,7,8,9,32,54,67,445}</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\pFilter.e (an autoinclude) for details of the actual implementation. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="apply.htm">apply</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Not all of these options will necessarily make perfect sense, for instance it is accepted that keeping items in a set is generally 
+            less useful than excluding items from a set, and while such things may technically work for counting purposes, something like 
+            <a href="find.htm">find_all</a>() might be better in that it delivers a far more readily actionable result.
+            <br>
+            <br>
+            Judicious use of functional programming style techniques can both shorten code and greatly improve clarity.<br>
+            Careful design can completely eliminate many laboriously hand-written looping constructs, for just one example.<br>
+            Equally, however, pig-headed adherence to "pure" functions and excessive nesting can produce quite unreadable and 
+            almost impossible to maintain software. The simple act of regularly saving intermediate results in appropriately
+            named local variables will often make code easier to follow and debugging ten times easier, although admittedly 
+            self-clobbering (ie/eg <code>res = f(res)</code>) can sometimes improve performance significantly, but usually at 
+            some small cost to overall clarity and therefore debugging.
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

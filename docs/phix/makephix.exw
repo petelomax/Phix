@@ -80,7 +80,7 @@ integer level
 integer lineno = 0
 string oneline, onekey, text
 sequence keywords -- (for duplicate checking)
-integer startidx, endidx, k
+integer startidx, endidx, k, s, e
 
     puts(1,"Reading files...\n")
     if fn=-1 then fatal(sprintf("error opening %s\n",{tocname})) end if
@@ -245,6 +245,40 @@ if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
         stubs[i] = content
         close(fn)
     end for
+
+    --
+    --  Added 29/3/20: Get something like this from pglobals.e:
+    --  global constant phixversion = {0,8,1},  -- 0.8.1    -- 23/03/20 (uploaded 23/03/20)
+    --  and match it against banner.htm as:
+    --       <h3>Version 0.8.2</h3>
+    --
+    string pglobals = get_proper_path(join_path({current_dir(),"..","..","pglobals.e"}))
+--Reading files...
+--error opening C:\Program Files (x86)\Phix\pglobals.e
+    fn = open(pglobals,"r")
+    if fn=-1 then fatal("error opening "&pglobals&"\n") end if
+    while 1 do
+        line = gets(fn)
+        if match("phixversion",line) then
+            close(fn)
+            s = match("--",line)+3
+            e = find(' ',line,s)-1
+            pglobals = line[s..e]
+            exit
+        end if
+    end while
+    content = stubs[find("banner",stubnames)]
+    if not match("<h3>Version "&pglobals&"</h3>",content) then
+        s = find(' ',content,match("<h3>Version",content))+1
+        e = match("</h3>",content,s)-1
+        {text,keywords} = {"",{}} -- (debug aid)
+        string bver = content[s..e]
+        crash(`version error: "%s"(from pglobals.e)!="%s"(from banner.htm)`,{pglobals,bver})
+    end if  
+    if pglobals!=version() then
+        crash(`build version error: "%s"(from pglobals.e)!="%s"(from version())`,{pglobals,version()})
+    end if
+    printf(1,"Version checks passed (%s)\n",{pglobals})
 end procedure
 
 function b(string desc)

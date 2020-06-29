@@ -26,6 +26,55 @@ Please note the following entries are probably more for my benefit than yours,
 and contain some references to the low level back end which you may not find 
 very useful. But it is now all open source.
 
+Version 0.8.2
+=============
+22/05/2020: You can now say pMem = free(pMem), setting pMem to NULL. While
+            free() is still a procedure, there is a new function ffree()
+            which returns appropriate NULLs and pmain.e now quietly maps 
+            free() calls to ffree() instead of issuing an error.
+06/06/2020: Removed backtick from Delimiter section of FASM.syn - I have
+            no idea why/when it got put in there. Improves viewing of
+            list.asm files, and hopefully does not break something else.
+08/06/2020: Added a find_all() builtin (documented alongside find()).
+            Make builtins\ordinal.e an auto-include, why not.
+18/06/2020: Added a simple assert() builtin, see crash() docs.
+20/06/2020: Made serialize() return a binary string, rather than a
+            dword-sequence.
+20/06/2020: Nested constant declarations, eg instead of
+                constant WSAEINTR   = 10004,
+                         WSAEACCES  = 10013
+                constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(
+                    {{WSAEINTR,         "WSAEINTR",  "Interrupted function call."},
+                     {WSAEACCES,        "WSAEACCES", "Permission denied."}}
+            (which gets more and more error prone and tedious as the table 
+             grows in size) you can now define them all together like this:
+                constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(
+                    {{WSAEINTR:=10004,  "WSAEINTR",  "Interrupted function call."},
+                     {WSAEACCES:=10013, "WSAEACCES", "Permission denied."},
+            ie on the second line before the first ',' we see both a definition 
+            of WSAEINTR and a reference to it.
+25/06/2020: Added pp_IntCh of -1 handling to show eg 65 as just 'A'.
+26/06/2020: HACKFIX. An "if atom(data) then" which was being optimised away
+            was invoking an ltAdd(TEST+flippable,..) in pilx86/opJtyp which
+            was never getting undone/flipped. For now, I simply removed it,
+            which means it will now properly test a few things that it was
+            previously optimising away. This may need to be revisited.
+            (For some failing example code see end of test/t37misc.exw.)
+28/06/2020: New faster version of is_prime(), now moved to pfactors.e.
+28/06/2020: Added apply() and filter() routines, plus get_routine_info().
+28/06/2020: BUGFIX: Named parameter handling error on auto-includes, eg
+                ?shorten(s,ml:=2)
+                               ^ incompatible type for routine signature
+            In this particular case/call it now effectively/temporarily
+            overrides the psym.e signature from "FPSI" to "FPOO". It may
+            prove better to replace that sig = T_object just added to
+            pmain.e/ParamList() with an outright rejection along the
+            lines of Aborp("named params require explicit include"),
+            which you can find commented-out/untested in ParamList().
+            [Or, of course, shove a gazillion and one tons of code into
+             psym.e to handle named args on autoincludes, and builtins..
+             but I think I'd rather start a brand new Phix 2.0.........!]
+
 Version 0.8.1
 =============
 01/05/2019: Made mpfr.e check for existence of msvcp100.dll/msvcr100.dll.
@@ -179,6 +228,7 @@ Version 0.8.1
             scope, I just realised, making it rather somewhat less useful...
             Left as is for now, need to get demo\rosetta\Nested_function.exw
             working before anything else can be done here.
+            Also [DEV] this remains undocumented, apart from here.
 28/11/2019: BUGFIX (bitbucket issue #27, rmatch length 1 not working.) There
             was a completely spurious "ln -= 1" on line 164, such that if you 
             sought "xyz" it would actually find "xy", and in the length of 1 

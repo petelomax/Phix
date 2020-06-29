@@ -459,13 +459,14 @@ end function
 --
 -- See Also:
 --   [[:filter]]
-
+--/* Phix see builtins/pApply.e
 public function apply(sequence source, integer rid, object userdata = {})
     for a=1 to length(source) do
         source[a] = call_func(rid, {source[a], userdata})
     end for
     return source
 end function
+--*/
 
 --**
 -- Each item from ##source_arg## found in ##from_set## is changed into the
@@ -1344,6 +1345,7 @@ end function
 -- See Also:
 --   [[:head]], [[:mid]], [[:tail]]
 
+--/* Phix deliberately omitted (see docs/compatibility with Euphoria, last item)
 public function slice(sequence source, atom start = 1, atom stop = 0)
 
     if stop<1 then
@@ -1364,6 +1366,7 @@ public function slice(sequence source, atom start = 1, atom stop = 0)
 
     return source[start..stop]
 end function
+--*/
 
 --**
 -- Perform a vertical slice on a nested sequence
@@ -1789,7 +1792,7 @@ end function
 --
 -- See Also:
 --   [[:apply]]
-
+--/* Phix see builtins/pFilter.e
 public function filter(sequence source, object rid, object userdata = {}, object rangetype = "")
 sequence dest
 integer idx
@@ -1960,6 +1963,7 @@ integer idx
     end switch
     return dest[1..idx]
 end function
+--*/
 
 --function filter_alpha(object elem, object ud)
 function filter_alpha(integer ch, object /*userdata*/)
@@ -2104,7 +2108,7 @@ end function
 --
 -- See Also:
 --     [[:slice]]
-
+--/* Not Phix (see builtins\pextract.e)
 public function extract(sequence source, sequence indexes)
 object p
 
@@ -2117,6 +2121,7 @@ object p
     end for
     return indexes
 end function
+--*/
 
 --**
 -- Creates a list of sequences based on selected elements from sequences in the source.
@@ -2388,7 +2393,7 @@ end function
 --
 -- See Also:
 --     [[:split]], [[:split_any]], [[:breakup]]
-
+--/* Phix see builtins\pflatten.e
 public function join(sequence items, object delim=" ")
 object ret
 
@@ -2403,6 +2408,7 @@ object ret
 
     return ret
 end function
+--*/
 
 -- Style options for breakup()
 
@@ -2599,7 +2605,7 @@ end function
 -- -- s is "abc, def, ghi"
 -- </eucode>
 
-
+--/* Phix see builtins\pflatten.e
 public function flatten(sequence s, object delim = "")
 sequence ret
 object x
@@ -2634,7 +2640,7 @@ sequence temp
 
     return ret
 end function
-
+--*/
 
 --**
 -- Returns a sequence of three sub-sequences. The sub-sequences contain

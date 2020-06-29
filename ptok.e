@@ -2064,10 +2064,21 @@ global procedure getToken(bool float_valid=false)
         if Ch='.' and (not ORAC or float_valid) then
             ch2 = text[cp1]
         else
-            if Ch='\'' and text[cp1]=TokN and text[col+2]='\'' then
-                col += 3
-                Ch = text[col]
-                return
+            if Ch='\'' then
+                if text[cp1]=TokN and text[col+2]='\'' then
+                    col += 3
+                    Ch = text[col]
+                    return
+                elsif text[cp1]='\\' and text[col+3]='\'' then
+                    -- (ch2 used as a scratch var here)
+                    ch2 = find(text[col+2],escchar)
+                    ch2 = escbyte[ch2]
+                    if ch2 and ch2=TokN then
+                        col += 4
+                        Ch = text[col]
+                        return
+                    end if
+                end if
             end if
             ch2 = '.'
         end if

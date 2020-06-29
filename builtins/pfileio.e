@@ -1126,7 +1126,6 @@ integer lend
     res = append(res,oneline)
 end procedure
 
---DEV e119 to go (has been replaced with 58/59)
 global function h_get_text(integer fn, integer opt) -- = -2)    -- = WHOLE_FILE)
 --
 --  option is one of:

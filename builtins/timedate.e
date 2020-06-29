@@ -353,7 +353,9 @@ integer vmin, vmax
             end if
         end for
 --added 20/11/19:
-        if s[DT_YEAR]!=0 and s[DT_MONTH]!=0 and s[DT_DAY]!=0
+--7/5/20:
+--      if s[DT_YEAR]!=0 and s[DT_MONTH]!=0 and s[DT_DAY]!=0
+        if s[DT_YEAR]>=1752 and s[DT_MONTH]!=0 and s[DT_DAY]!=0
         and s[DT_DAY]>days_in_month(s[DT_YEAR],s[DT_MONTH]) then
             return 0
         end if
@@ -1710,12 +1712,15 @@ object x
 --              if day<1 then
                 year  = td[DT_YEAR]
                 month = td[DT_MONTH]
+--7/5/20:
+if year>=1752 then
                 if day<1
                 or day>days_in_month(year,month) then
                     ecxtra = sprintf("day is %d",day)
                     ecode = 6
                     exit
                 end if
+end if
                 switch fsize do
                     case 1:
                         x = sprintf("%d",day)

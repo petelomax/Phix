@@ -29,7 +29,8 @@ procedure test(bool success, string re, string s, sequence expected={}, integer 
     end if
     sequence actual = {}
     for i=1 to length(m) by 2 do
-        actual = append(actual,s[m[i]..m[i+1]-1])
+--      actual = append(actual,s[m[i]..m[i+1]-1])
+        actual = append(actual,s[m[i]..m[i+1]])
     end for
     if show then
         ?actual
@@ -404,8 +405,10 @@ procedure test2(integer pikevm, integer early=0)
         if length(m)=0 then exit end if
 --?m
 --      printf(1,"<%s>\n",{testr[first+m[1]-1..first+m[2]-2]})
-        mres &= sprintf("<%s>\n",{testr[first+m[1]-1..first+m[2]-2]})
-        first += m[2]
+--      mres &= sprintf("<%s>\n",{testr[first+m[1]-1..first+m[2]-2]})
+        mres &= sprintf("<%s>\n",{testr[first+m[1]-1..first+m[2]-1]})
+--      first += m[2]
+        first += m[2]+1
     end while
     if not early then
         if mres!="<I>\n<love>\n<PATTERN>\n<matching>\n" then
@@ -529,31 +532,31 @@ regex_options()
 --/* I have picked off most of the low hanging fruit:
 --(from C:\Program Files (x86)\Phix\demo\misc\eu4164\tests\t_regex.e)
 
-object re = regex:new("(?i)[communicate]+")
+object re = new_regex("(?i)[communicate]+")
 test_true("Caseless via (?i) matches case insensitive", is_match(re, "Communicate"))
 
 sequence s =  `Here is a multiline subject string
 We should get several matches can you guess where?`
 
-re = regex:new("[a-z]+")
+re = new_regex("[a-z]+")
 test_equal("find() #3", {{1,3}}, regex:find(re, "the dog is happy", 1))
 test_equal("find() #4", {{5,7}}, regex:find(re, "the dog is happy", 4))
 test_equal("find() #5", {{9,10}}, regex:find(re, "the dog is happy", 8))
 
-re = regex:new("[A-Z]+")
+re = new_regex("[A-Z]+")
 test_equal("find_all() #1", {{{5,7}}, {{13,14}}},
         regex:find_all(re, "the DOG ran UP" ))
 
-re = regex:new("\\b")
+re = new_regex("\\b")
 test_equal("find_all \\b", {{{1,0}},{{6,5}},{{7,6}},{{12,11}}}, regex:find_all(re, "hello world"))
 
-re = regex:new("[A-Z]+")
+re = new_regex("[A-Z]+")
 --test_true("is_match() #1", regex:is_match(re, "JOHN"))    [DONE]
 --test_false("is_match() #2", regex:is_match(re, "john"))
 test_true("has_match() #1", regex:has_match(re, "john DOE had a DOG"))
 test_false("has_match() #2", regex:has_match(re, "john doe had a dog"))
 
-re = regex:new("([A-Z][a-z]+) ([A-Z][a-z]+)")
+re = new_regex("([A-Z][a-z]+) ([A-Z][a-z]+)")
 --test_equal("matches() #1", { "John Doe", "John", "Doe" }, regex:matches(re, "John Doe Jane Doe")) [DONE]
 test_equal("all_matches() #1", { { "John Doe", "John", "Doe" }, { "Jane Doe", "Jane", "Doe" } },
         regex:all_matches(re, "John Doe Jane Doe"))
@@ -573,21 +576,21 @@ test_equal("all_matches() STRING_OFFSET #1",
         regex:all_matches(re, "John Doe and Jane Doe", 1, regex:STRING_OFFSETS))
 test_equal("all_matches() no match #1", ERROR_NOMATCH, regex:all_matches(re, "12"))
 
-re = regex:new(`,\s`)
+re = new_regex(`,\s`)
 test_equal("split() #1", { "euphoria programming", "source code", "reference manual" },
         regex:split(re, "euphoria programming, source code, reference manual"))
 
 test_equal("split_limit() #1", { "euphoria programming", "source code, reference manual" },
         regex:split_limit(re, "euphoria programming, source code, reference manual", 1))
 
-re = regex:new("([A-Z][a-z]+) ([A-Z][a-z]+)")
+re = new_regex("([A-Z][a-z]+) ([A-Z][a-z]+)")
 test_equal("find_replace() #1", "hello Doe, John!", regex:find_replace(re, "hello John Doe!", `\2, \1`))
 test_equal("find_replace() #2", "hello DOE, john!", regex:find_replace(re, "hello John Doe!", `\U\2\e, \L\1\e`))
 test_equal("find_replace() #3", "hello \nDoe, John!", regex:find_replace(re, "hello John Doe!", `\n\2, \1`))
 test_equal("find_replace() #4", "hello John\tDoe!", regex:find_replace(re, "hello John Doe!", `\1\t\2`))
 test_equal("find_replace() #5", "hello Mr. John Doe!", regex:find_replace(re, "hello John Doe!", `Mr. \1 \2`))
 
-re = regex:new("([A-Z][a-z]+) ([A-Z][a-z]+)")
+re = new_regex("([A-Z][a-z]+) ([A-Z][a-z]+)")
 test_equal("find_replace_limit() #1", "JOHN DOE Jane Doe",
         regex:find_replace_limit(re, "John Doe Jane Doe", `\U\1 \2\e`, 1))
 
@@ -605,14 +608,14 @@ test_equal("find_replace_callback() #3", "John Doe JANE DOE",
 test_equal("escape #1", "Payroll is \\$\\*\\*\\*15\\.00", regex:escape("Payroll is $***15.00"))
 
 -- ticket:350 test
-re = re:new(`fixes(\?)? ticket ([0-9]+)`, re:CASELESS)
+re = new_regex(`fixes(\?)? ticket ([0-9]+)`, re:CASELESS)
 test_equal("ticket #350", {
         { "fixes? ticket 384", "?", "384" }, 
         { "fixes ticket 999", "", "999" }
 }, re:all_matches(re, "fixes? ticket 384, fixes ticket 999"))
 
 -- ticket:363 test
-regex re_full_name = re:new(`[A-Z][a-z]+ ?([A-Z][a-z]+)?`)
+regex re_full_name = new_regex(`[A-Z][a-z]+ ?([A-Z][a-z]+)?`)
 
 -- Displays the number of captured groups and displays where the first missing group is.
 -- A missing group is a group that doesn't exist.
@@ -635,14 +638,14 @@ test_equal("ticket 362 #1",{1,0},re:find_replace_callback(re_full_name, "John Do
 test_equal("ticket 362 #2",{0,0},re:find_replace_callback(re_full_name, "Mary ", 
         routine_id("info"))) -- one group first group not matched.  This group not matched is trncated
         -- so it as if there are no groups.
-constant data_ext = re:new(`([A-Z][a-z]+)? ?([A-Z][a-z]+)? ([0-9-]+)?`)
+constant data_ext = new_regex(`([A-Z][a-z]+)? ?([A-Z][a-z]+)? ([0-9-]+)?`)
 test_equal("ticket 362 #3",{2,0},re:find_replace_callback(data_ext, "Micheal Jackson ",
         routine_id("info"))) -- Three groups.  phone number, index value 4, is not matched.
         -- last group is not matched so it is truncated.  Therefore, two groups matching. 
 test_equal("ticket 362 #4",{3,3},re:find_replace_callback(data_ext, "Cher 555-1212",
         routine_id("info"))) -- Three groups, but last name, index value 3, not matched.
 constant message = "fixes? ticket 348, fixes ticket 999" 
-constant re_ticket = re:new(`fixes(\?)? ticket ([0-9]+)`, re:CASELESS)
+constant re_ticket = new_regex(`fixes(\?)? ticket ([0-9]+)`, re:CASELESS)
 test_equal("ticket 362 #5",{2,0} & ", " & {2,2},re:find_replace_callback(re_ticket, message,
         routine_id("info")))
 

@@ -1024,22 +1024,22 @@ integer radd  -- routine_id for w32address()
 --/desc Returns the address of the buffer, while /w32fetch would return the string stored there.
 --/ret (ATOM) The address of the buffer.
 -- /i bDefn must be a field definition defining an Lpsz, Upsz, asBuffer or usBuffer field.
-global function w32buffer_address(atom struct,sequence bDefn)
+global function w32buffer_address(atom pStruct,sequence bDefn)
     if find(bDefn[fieldType],{asBuffer,usBuffer,Lpsz,Upsz}) then
-        return l_SafePeek4u(call_func(radd,{struct,bDefn}))
+        return l_SafePeek4u(call_func(radd,{pStruct,bDefn}))
     else
         return 0
     end if
 end function
 
 --/topic Memory Management
---/func w32buffer_length(atom struct,sequence bDefn)
+--/func w32buffer_length(atom pStruct,sequence bDefn)
 --/desc Returns the stored length of the buffer.
 --/ret (INTEGER) The length of the buffer.
 -- /i bDefn must be a field definition defining an asBuffer or usBuffer field.
-global function w32buffer_length(atom struct,sequence bDefn)
+global function w32buffer_length(atom pStruct,sequence bDefn)
     if find(bDefn[fieldType],{asBuffer,usBuffer}) then
-        return l_SafePeek4u(call_func(radd,{struct,bDefn})+4)
+        return l_SafePeek4u(call_func(radd,{pStruct,bDefn})+4)
     else
         return 0
     end if
@@ -1627,7 +1627,7 @@ end function
 
 -----------------------------------------------------------------------------
               
-function stdElemAddr(atom struct,sequence s)
+function stdElemAddr(atom pStruct, sequence s)
 -- Returns the address of a field with no vlm preceding it. 0 is returned on invalid array position.
 -- Helper for w32address().
     atom offset
@@ -1642,11 +1642,11 @@ function stdElemAddr(atom struct,sequence s)
         offset = 0
     end if
 
-    return struct + s[fieldOffset] + offset
+    return pStruct + s[fieldOffset] + offset
 end function
 
 integer fcsz -- routine_id for fetch_size()
-function inner_fetch(atom struct,atom at,object size,integer cnt)
+function inner_fetch(atom pStruct,atom at,object size,integer cnt)
 -- performs the actual fetching of cnt fields of size size in a structure struct at addr at
 -- mutually calls fetchSize()
     object result,item
@@ -1668,7 +1668,7 @@ function inner_fetch(atom struct,atom at,object size,integer cnt)
         for i=1 to cnt do
             s0=s
             for j=1 to length(s0) do
-                item=call_func(fcsz,{struct,at,s[j],1}) -- size nd contents
+                item=call_func(fcsz,{pStruct,at,s[j],1}) -- size nd contents
                 -- advance pointer
                 if atom(item) then
                     at+=item
@@ -1736,8 +1736,8 @@ function inner_fetch(atom struct,atom at,object size,integer cnt)
         else
             result=repeat(0,cnt)
             for i=1 to cnt do
-                struct = l_SafePeek4u(at)
-                result[i] = w32peek_string( struct )
+                pStruct = l_SafePeek4u(at)
+                result[i] = w32peek_string( pStruct )
                 at+=4
             end for
             return result
@@ -1752,8 +1752,8 @@ function inner_fetch(atom struct,atom at,object size,integer cnt)
         else
             result=repeat(0,cnt)
             for i=1 to cnt do
-                struct = l_SafePeek4u(at)
-                result[i] = w32peek_string16( struct )
+                pStruct = l_SafePeek4u(at)
+                result[i] = w32peek_string16( pStruct )
                 at+=4
             end for
             return result
@@ -1905,13 +1905,12 @@ function inner_fetch(atom struct,atom at,object size,integer cnt)
     end if
 end function
 
-function fetchArray(atom struct,atom at,sequence s,integer flag)
+function fetchArray(atom pStruct,atom at,sequence s,integer flag)
 -- Returns the actual count of a terminated array
 -- helper for fetchSize(), which it calls.
 -- Returns like fetchSize().
     integer totalsize,lterm,size,is_seq
-    sequence term
-    sequence sizes,addresses,contents
+    sequence term,sizes,addresses,contents
     object x
 
     term=s[arrayCount][1]
@@ -1927,7 +1926,7 @@ function fetchArray(atom struct,atom at,sequence s,integer flag)
     addresses={}
     contents={}  
     while 1 do
-        x=call_func(fcsz,{struct,at,s&1,flag})  -- fetch size/contents of next element
+        x=call_func(fcsz,{pStruct,at,s&1,flag}) -- fetch size/contents of next element
         if atom(x) then
             size=x
         else
@@ -1973,7 +1972,8 @@ function fetchArray(atom struct,atom at,sequence s,integer flag)
 end function
 
 integer rsto,rfet -- routine_ids for w32store() and w32fetch()
-function fetchSize(atom struct,atom at,sequence s,integer flag)
+
+function fetchSize(atom pStruct,atom at,sequence s,integer flag)
 -- if flag=-1, return total size; if flag=0, return also ind sizes and addresses if applicable
 -- If flag=1, also return contents.
     integer size
@@ -1987,9 +1987,9 @@ function fetchSize(atom struct,atom at,sequence s,integer flag)
 
     while sequence(s[arrayCount]) do
         if sequence(s[arrayCount][1]) then -- terminated array
-            return fetchArray(struct,at,s,flag)
+            return fetchArray(pStruct,at,s,flag)
         else -- array has indirectly accessed length
-            s[arrayCount]=call_func(rfet,{struct,s[arrayCount]})
+            s[arrayCount]=call_func(rfet,{pStruct,s[arrayCount]})
         end if
     end while
     if s[unitSize]>0 then -- fixed size members
@@ -2005,7 +2005,7 @@ function fetchSize(atom struct,atom at,sequence s,integer flag)
             s[arrayPos..length(s)]-=1                               --*/ -- RDS
         end if
         if flag=1 then
-            return {size,inner_fetch(struct,at+s[unitSize]*s[arrayPos],s[fieldType],count)}
+            return {size,inner_fetch(pStruct,at+s[unitSize]*s[arrayPos],s[fieldType],count)}
         else
             return size
         end if
@@ -2031,7 +2031,7 @@ function fetchSize(atom struct,atom at,sequence s,integer flag)
     elsif s[fieldType]=ByteFill then  -- no contents
         return s[arrayCount]
     elsif s[fieldType]=AlignRel then
-        size=remainder(at-struct,s[arrayCount])
+        size=remainder(at-pStruct,s[arrayCount])
         if size then
             size=s[arrayCount]-size
         end if
@@ -2064,7 +2064,7 @@ function fetchSize(atom struct,atom at,sequence s,integer flag)
                 sizes[i]=size
                 addresses[i]=at
                 if flag=0 then
-                    strings[i]=inner_fetch(struct,at,s,1)
+                    strings[i]=inner_fetch(pStruct,at,s,1)
                 end if
             end if
             totalsize += size
@@ -2088,19 +2088,19 @@ fcsz=routine_id("fetchSize")
 
 integer rElemAddr
 
-function addVirtualField(atom struct,sequence s)
+function addVirtualField(atom pStruct,sequence s)
 -- call only for structures that have a realisation
 -- called by w32fetch(),w32store() and w32ElemAddr()
     atom at
     integer p,orgstatus,q,sel,var
     object x
 
-    p=find(struct,virtualStructs) -- not zero -- DbC would be sooooo useful, but it will be deemed as complicated
+    p=find(pStruct,virtualStructs) -- not zero -- DbC would be sooooo useful, but it will be deemed as complicated
     if sequence(s[fieldOffset]) then
         if not virtualWasBlank[p] then
             q = find(s[numField]-1,virtualFields[p])  -- address of previous field known
             if q=0 then -- no, add it first and so on till we know
-                q = addVirtualField(struct,vLayouts[s[strType]][s[numField]-1])
+                q = addVirtualField(pStruct,vLayouts[s[strType]][s[numField]-1])
                 at = virtualAddresses[p][q] + virtualSizes[p][q]
             else
                 at = virtualAddresses[p][q]
@@ -2109,7 +2109,7 @@ function addVirtualField(atom struct,sequence s)
             return 0  -- should not happen
         end if
     else
-        at = struct + s[fieldOffset]
+        at = pStruct + s[fieldOffset]
     end if
     virtualFields[p]=append(virtualFields[p],s)
     orgstatus = w32iff(s[isVirtual]=1,-1,0)
@@ -2128,7 +2128,7 @@ function addVirtualField(atom struct,sequence s)
     end if
     -- assume now that s[fieldType] isn't a union
 
-    x = fetchSize(struct,at,s,0)
+    x = fetchSize(pStruct,at,s,0)
     if atom(x) then
         virtualSizes[p] &= x
         virtualIndSizes[p] &= x
@@ -2149,13 +2149,13 @@ function addVirtualField(atom struct,sequence s)
     return length(virtualOrgAddresses[p])
 end function
 
-function virtualise(atom struct,sequence s)
+function virtualise(atom pStruct,sequence s)
 -- record a struct as virtual, setting a new container for relocation data
     integer p,q
 
-    p=find(struct,virtualStructs)
+    p=find(pStruct,virtualStructs)
     if not p then
-        virtualStructs &= struct
+        virtualStructs &= pStruct
         virtualTypes &= s[strType]
         virtualWasBlank &= 0
         virtualFields = append(virtualFields,{})
@@ -2176,62 +2176,62 @@ function virtualise(atom struct,sequence s)
     return {p,q}
 end function
 
-function getArrayCount(atom struct,sequence s)
+function getArrayCount(atom pStruct,sequence s)
 -- gets the size of a dynamic array
     integer n,size,rid
     atom base_addr
     sequence s0
 
     if atom(s[arrayCount][1]) then
-        return call_func(rfet,{struct,s[arrayCount]})
+        return call_func(rfet,{pStruct,s[arrayCount]})
     elsif atom(s[arrayCount][1][1]) then -- termination is assessed by calling a routine
-        base_addr=struct
-        struct=call_func(radd,{struct,s})
+        base_addr=pStruct
+        pStruct=call_func(radd,{pStruct,s})
         s0=s[arrayCount][1]
         n=0
         s[arrayCount]=1
-        while compare(s0,peek({struct,length(s0)})) do
+        while compare(s0,peek({pStruct,length(s0)})) do
             n+=1
-            size=fetchSize(base_addr,struct,s,-1)
-            struct+=size
+            size=fetchSize(base_addr,pStruct,s,-1)
+            pStruct+=size
         end while
         return n
     else -- termination is assessed by checking for a specific sequence
-        base_addr=struct
-        struct=call_func(radd,{struct,s})
+        base_addr=pStruct
+        pStruct=call_func(radd,{pStruct,s})
         rid=s[arrayCount][1][1][1]
         n=1
         s[arrayCount]=1
-        while not call_func(rid,{struct}) do
+        while not call_func(rid,{pStruct}) do
             n+=1
-            size=fetchSize(base_addr,struct,s,-1)
-            struct+=size
+            size=fetchSize(base_addr,pStruct,s,-1)
+            pStruct+=size
         end while
         return n
     end if
 end function
 
-function w32ElemAddr(atom struct,sequence s)
--- returns The RAM address of /i field within the /i struct
+function w32ElemAddr(atom pStruct,sequence s)
+-- returns The RAM address of /i field within the /i pStruct
     integer p
     integer q
     sequence s0
 
     if not s[isVirtual] then
-        return stdElemAddr(struct,s)
+        return stdElemAddr(pStruct,s)
     end if
-    s0=virtualise(struct,s)
+    s0=virtualise(pStruct,s)
     p=s0[1]
     q=s0[2]
     s0=s[1..stdFieldEntry]
-    if not q then  -- unknown field for this struct, add to database
+    if not q then  -- unknown field for this pStruct, add to database
         if virtualWasBlank[p] then -- should not happen
             return 0
         end if
-        q=addVirtualField(struct,s0)
+        q=addVirtualField(pStruct,s0)
     end if
     if sequence(s[arrayCount]) and s[arrayPos] then
-        s[arrayCount]=getArrayCount(struct,s)
+        s[arrayCount]=getArrayCount(pStruct,s)
     end if
     if not check_array(s) then
         return 0
@@ -2301,9 +2301,9 @@ radd=routine_id("w32address")
 ------ Storing -----
 
 --/topic Memory management
---/proc w32copy_field(atom struct,sequence s,atom origin)
---/desc Copies contents of the field of the structure at /i origin described by /i s to /i struct.
-global procedure w32copy_field(atom struct,sequence s,atom origin)
+--/proc w32copy_field(atom pStruct,sequence s,atom origin)
+--/desc Copies contents of the field of the structure at /i origin described by /i s to /i pStruct.
+global procedure w32copy_field(atom pStruct,sequence s,atom origin)
     integer sel,var,units
     atom addr
 
@@ -2332,17 +2332,17 @@ global procedure w32copy_field(atom struct,sequence s,atom origin)
     end if
     if s[unitSize]>0 and not s[isVirtual] then -- use raw emory copy
         addr=w32address(origin,s)
-        mem_copy(struct,addr,s[unitSize]*units)
+        mem_copy(pStruct,addr,s[unitSize]*units)
     else -- more complicated, fetch source value and then store it to new location
-        call_proc(rsto,{struct,s,call_func(rfet,{origin,s})})
+        call_proc(rsto,{pStruct,s,call_func(rfet,{origin,s})})
     end if
 end procedure
 
 --/topic Memory Management
---/proc w32copy_struct(atom struct,sequence id,atom origin)
---/desc Copies the structure whose base address is /i origin to /i struct, its type being /i id.
--- Assumes there is enough room at /i struct to store the structure
-global procedure w32copy_struct(atom struct,sequence id,atom origin)
+--/proc w32copy_struct(atom pStruct,sequence id,atom origin)
+--/desc Copies the structure whose base address is /i origin to /i pStruct, its type being /i id.
+-- Assumes there is enough room at /i pStruct to store the structure
+global procedure w32copy_struct(atom pStruct,sequence id,atom origin)
     integer fixed_size,is_v
     sequence layout
 
@@ -2357,7 +2357,7 @@ global procedure w32copy_struct(atom struct,sequence id,atom origin)
         end if
     end if
     -- copy fixed part
-    mem_copy(struct,origin,fixed_size)
+    mem_copy(pStruct,origin,fixed_size)
     -- anything left?
     if is_v then
         layout = vLayouts[id[descType]]
@@ -2366,7 +2366,7 @@ global procedure w32copy_struct(atom struct,sequence id,atom origin)
         end if
         -- copy following fields, whose position/length isn't fixed
         for i=is_v to length(layout) do
-            call_proc(rsto,{struct,layout[i],call_func(rfet,{origin,layout[i]})})
+            call_proc(rsto,{pStruct,layout[i],call_func(rfet,{origin,layout[i]})})
         end for
     end if
 end procedure
@@ -2409,7 +2409,7 @@ global procedure w32poke_words(atom at,object words)
 
 end procedure
 
-procedure internal_store( atom struct, sequence s, object o,integer flag )
+procedure internal_store( atom pStruct, sequence s, object o,integer flag )
 
     -- Store the data based on its type. Doesn't handle virtual members in initially blank structs
     atom ram_addr
@@ -2419,9 +2419,9 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
     sequence bytes
 
     if not flag then
-        ram_addr = w32ElemAddr(struct, s)
+        ram_addr = w32ElemAddr(pStruct, s)
     else
-        ram_addr = struct
+        ram_addr = pStruct
     end if
     datatype = s[fieldType]
     lCnt     = s[arrayCount]
@@ -2456,7 +2456,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
         k=0
         for i=1 to length(bytes) do
             if not find(bytes[i][fieldType],vFillers) then
-                call_proc(rsto,{struct,bytes[i],o[i-k]})
+                call_proc(rsto,{pStruct,bytes[i],o[i-k]})
             else
                 k+=1
             end if
@@ -2497,7 +2497,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
             l_SafePoke4(ram_addr, o )
         else
             -- poke the address of the allotted string
-            l_SafePoke4(ram_addr, w32acquire_mem( struct, o  ) )
+            l_SafePoke4(ram_addr, w32acquire_mem( pStruct, o  ) )
         end if
 
     elsif   datatype = Hndl then
@@ -2510,7 +2510,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
 
     elsif   datatype = HndlAddr then
         -- poke a handle's address
-        at = w32acquire_mem(struct, 4)
+        at = w32acquire_mem(pStruct, 4)
         l_SafePoke4( at, o)
         l_SafePoke4( ram_addr, at )
 
@@ -2558,13 +2558,13 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
                 bytes[lCnt]=o[i]
                 lCnt+=2
             end for
-            l_SafePoke4(ram_addr,w32acquire_mem(struct,bytes))
+            l_SafePoke4(ram_addr,w32acquire_mem(pStruct,bytes))
         end if
     elsif datatype = aszText then
         if atom( o ) then
             l_SafePoke4( ram_addr, o )
         else
-            l_SafePoke4(ram_addr, w32acquire_mem(struct,o))
+            l_SafePoke4(ram_addr, w32acquire_mem(pStruct,o))
         end if
     elsif datatype = uszText then
         if atom( o ) then
@@ -2576,7 +2576,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
                 bytes[lCnt]=o[i]
                 lCnt+=2
             end for
-            l_SafePoke4(ram_addr,w32acquire_mem(struct,bytes))
+            l_SafePoke4(ram_addr,w32acquire_mem(pStruct,bytes))
         end if
     elsif datatype=asBuffer then
         if lCnt=1 then
@@ -2584,7 +2584,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
                 if equal(o[1],{}) then
                     l_SafePoke4(ram_addr,o[2])
                 else
-                    at=w32acquire_mem(struct,o)
+                    at=w32acquire_mem(pStruct,o)
                     l_SafePoke4(ram_addr,{at,length(o)})
                 end if
             elsif o=0 then
@@ -2598,7 +2598,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
                     if equal(o[i][1],{}) then
                         l_SafePoke4(ram_addr,o[i][2])
                     else
-                        at=w32acquire_mem(struct,o[i])
+                        at=w32acquire_mem(pStruct,o[i])
                         l_SafePoke4(ram_addr,{at,length(o[i])})
                     end if
                 else
@@ -2613,7 +2613,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
                 if equal(o[1],{}) then
                     l_SafePoke4(ram_addr,o[2])
                 else
-                    at = w32acquire_mem(struct,length(o)*2)
+                    at = w32acquire_mem(pStruct,length(o)*2)
                     w32poke_words(at,o)
                     l_SafePoke4(ram_addr,{at,length(o)})
                 end if
@@ -2627,7 +2627,7 @@ procedure internal_store( atom struct, sequence s, object o,integer flag )
                         l_SafePoke4(ram_addr,o[i][2])
                     else
                         bytes = o[i]
-                        at = w32acquire_mem(struct,length(bytes)*2)
+                        at = w32acquire_mem(pStruct,length(bytes)*2)
                         w32poke_words(at,bytes)
                         l_SafePoke4(ram_addr,{at,length(bytes)})
                     end if
@@ -2707,7 +2707,7 @@ end procedure
 --      /w32store( rect, bCoords & 2, Row)
 --/endcode
 
-global procedure w32store(atom struct,sequence s,object x)
+global procedure w32store(atom pStruct,sequence s,object x)
     integer p,q,item,len,arcount,u_index
     sequence s0,s1
               
@@ -2717,23 +2717,23 @@ global procedure w32store(atom struct,sequence s,object x)
     while sequence(s[1]) do  -- this is a sequence of nested fields
         p=length(s)
         for i=1 to p-1 do
-            struct=w32address(struct,s[i])
+            pStruct=w32address(pStruct,s[i])
         end for
         s=s[p]
     end while
     if not s[isVirtual] then -- well known field, internal_store() can handle it
-        internal_store(struct,s,x,0)
+        internal_store(pStruct,s,x,0)
         return
     elsif find(s[fieldType],vFillers) then  -- can't store there
         return
     end if
-    s0=virtualise(struct,s)
+    s0=virtualise(pStruct,s)
     p=s0[1]
     q=s0[2]
     s0=s[1..stdFieldEntry]
     if not q then
         if not virtualWasBlank[p] then 
-            q = addVirtualField(struct,s0)
+            q = addVirtualField(pStruct,s0)
         else -- should not happen
             return
         end if
@@ -2760,10 +2760,10 @@ global procedure w32store(atom struct,sequence s,object x)
     end if
     if not s[isVirtual] then -- we have an address, use standard process
         s[fieldOffset] = virtualAddresses[p][q]
-        internal_store(struct,s,x,1)
+        internal_store(pStruct,s,x,1)
     elsif sequence(s[fieldType]) then -- structure type
         if atom(x) then
-            w32copy_struct(struct,s[fieldType],x)
+            w32copy_struct(pStruct,s[fieldType],x)
         else
             internal_store(virtualAddresses[p][q],s[fieldType],x,1)
         end if
@@ -2778,7 +2778,7 @@ global procedure w32store(atom struct,sequence s,object x)
             if virtualStatus[p][q]=-2 then
                 arcount=item
             elsif sequence(s[arrayCount]) then
-                arcount=getArrayCount(struct,s)
+                arcount=getArrayCount(pStruct,s)
             else
                 arcount=s[arrayCount]
             end if
@@ -2789,16 +2789,16 @@ global procedure w32store(atom struct,sequence s,object x)
                 virtualIndStatus[p][q] &= 1
                 virtualIndAddresses[p][q]&= repeat(0,item-len)
                 if sequence(s[arrayCount]) and atom(s[arrayCount][1]) then
-                    w32store(struct,s[arrayCount],item)
+                    w32store(pStruct,s[arrayCount],item)
                 end if
             end if
             virtualSizes[p][q]-=(virtualIndSizes[p][q][item]-length(x))
             virtualIndSizes[p][q][item] = length(x)+1+(s[fieldType]=uszText)  -- problem: s[fieldType] may be a sequence
             virtualIndStatus[p][q][item] = 1
-            virtualIndAddresses[p][q][item] = w32acquire_mem(struct,x)
+            virtualIndAddresses[p][q][item] = w32acquire_mem(pStruct,x)
         else
             virtualSizes[p][q] = length(x)+1+(s[fieldType]=uszText)
-            virtualAddresses[p][q] = w32acquire_mem(struct,x)
+            virtualAddresses[p][q] = w32acquire_mem(pStruct,x)
         end if
         virtualStatus[p][q] = 1
     end if
@@ -2807,7 +2807,7 @@ rsto=routine_id("w32store")
 
 ------- Fetching --------
 
-function internal_fetch( atom struct, sequence s )
+function internal_fetch( atom pStruct, sequence s )
     -- fetch the data based on the type
     integer cnt
     atom at
@@ -2817,20 +2817,20 @@ function internal_fetch( atom struct, sequence s )
         return 0 
     end if
 
-    -- address is struct + fieldOffset
+    -- address is pStruct + fieldOffset
     if atom(s[fieldOffset]) and not s[isVirtual] then
         if length(s)<=stdFieldEntry then
-            at = s[fieldOffset] + struct
+            at = s[fieldOffset] + pStruct
         else
-            at = s[fieldOffset] + struct + (s[arrayPos]-1) * s[unitSize]
+            at = s[fieldOffset] + pStruct + (s[arrayPos]-1) * s[unitSize]
         end if
     elsif cnt=1 then
-        at = w32address(struct,s)
+        at = w32address(pStruct,s)
     else
         -- doesn't happen as w32fetch() has handled this case itself
         return 0
     end if
-    return inner_fetch(struct,at,s[fieldType],cnt)
+    return inner_fetch(pStruct,at,s[fieldType],cnt)
 end function
 
 integer rfrm  -- routine_id for w32from_memoryEx
@@ -2860,7 +2860,7 @@ integer rfrm  -- routine_id for w32from_memoryEx
 --
 -- /endcode
 
-global function w32fetch(atom struct,sequence s)
+global function w32fetch(atom pStruct,sequence s)
     integer p,q,units
     sequence s0,result
     atom at
@@ -2868,18 +2868,18 @@ global function w32fetch(atom struct,sequence s)
     while sequence(s[1]) do -- nested fields
         p=length(s)
         for i=1 to p-1 do
-            struct=w32address(struct,s[i])
+            pStruct=w32address(pStruct,s[i])
         end for
         s=s[p] 
     end while
     if not s[isVirtual] then  --- standard processing
-        return internal_fetch(struct,s)
+        return internal_fetch(pStruct,s)
     elsif sequence(s[fieldType]) then -- fall back on w32from_memoryEx()
-        return call_func(rfrm,{w32address(struct,s),s[fieldType]})
+        return call_func(rfrm,{w32address(pStruct,s),s[fieldType]})
     elsif find(s[fieldType],vFillers) then -- return dummy data
         return 0
     end if
-    s0=virtualise(struct,s)
+    s0=virtualise(pStruct,s)
     p=s0[1]
     q=s0[2]
     s0=s[1..stdFieldEntry]
@@ -2888,7 +2888,7 @@ global function w32fetch(atom struct,sequence s)
             abortErr("Attempt to fetch a structure field that was not w32store()d first")
             return 0
         else
-            q=addVirtualField(struct,s0)
+            q=addVirtualField(pStruct,s0)
         end if
     end if
     -- resolve unions
@@ -2912,12 +2912,12 @@ global function w32fetch(atom struct,sequence s)
     if not units then -- invalid array spec
         return 0
     elsif units=1 then
-        return inner_fetch(struct,virtualIndAddresses[p][q][s[arrayPos]],s[fieldType],1)
+        return inner_fetch(pStruct,virtualIndAddresses[p][q][s[arrayPos]],s[fieldType],1)
     else
         result=repeat(0,units)
         units-=1
         for i=s[arrayPos] to s[arrayPos]+units do
-            result[i-units]=inner_fetch(struct,virtualIndAddresses[p][q][i],s[fieldType],1)
+            result[i-units]=inner_fetch(pStruct,virtualIndAddresses[p][q][i],s[fieldType],1)
         end for
         return result
     end if
@@ -2945,14 +2945,14 @@ procedure devirtualise(integer p)
 end procedure
 
 --/topic Memory management
---/func w32realise(atom struct,integer flag)
+--/func w32realise(atom pStruct,integer flag)
 --/desc Rebuilds a contiguous memory structure, possibly discarding virtual info
 --/ret (SEQUENCE) {Address of rebuilt structure,size of the structure}.
 -- If you ever used w32store() on a variable length field in a structure, the targeted
 -- member was most likely relocated. Since external code expects the structure to
 -- occupy a contiguous space in memory, you have to call w32realise() to get the
 -- address of a structure with the same data, but made   contiguous again.
--- /i struct is the address of the structure to rebuild;
+-- /i pStruct is the address of the structure to rebuild;
 -- /i memset is a memory set where to rebuild the structure;
 -- /i flag is zero if you don't plan to reuse the structure again, so that the old
 -- one and the support data are recycled.
@@ -2960,18 +2960,18 @@ end procedure
 -- Note that, if the structure has Align fields, the created structure will use a slightly oversize
 -- memory block. The amount of slack past the end of the structure is not greater than the sum of
 -- the widths of the Align fields minus their number - usually only a few bytes.
-global function w32realise(atom struct,integer flag)
+global function w32realise(atom pStruct,integer flag)
 -- general problem: compute the size of align fields while the address is not known
     integer p,totalsize,curr_len,q
     atom new_a,ptr
     sequence index,blocklist,sorted,s
 
-    p=find(struct,virtualStructs)
+    p=find(pStruct,virtualStructs)
     if p=0 or not find(1,virtualStatus[p]) then -- structure doesn't need realisation
         if p and flag then
             devirtualise(p)
         end if
-        return struct
+        return pStruct
     end if
     -- some virtual fields were relocated
 
@@ -2991,7 +2991,7 @@ global function w32realise(atom struct,integer flag)
 
     -- get a {start,len} list for the known virtual part
     index = w32index_by(virtualFields[p],numField)
-    ptr = struct
+    ptr = pStruct
     blocklist = {}
     curr_len = 0
     for i=1 to length(index) do
@@ -3009,7 +3009,7 @@ global function w32realise(atom struct,integer flag)
             curr_len=0
         elsif equal(s[fieldType],AlignRel) then
             if curr_len then
-                blocklist=append(blocklist,{ptr-struct,curr_len})
+                blocklist=append(blocklist,{ptr-pStruct,curr_len})
             end if
             blocklist=append(blocklist,{0,s[arrayCount]})
             ptr+=s[arrayCount]
@@ -3045,7 +3045,7 @@ global function w32realise(atom struct,integer flag)
                         blocklist=append(blocklist,{ptr,curr_len})
                     end if
                     q=length(s[1])
-                    new_a=w32acquire_mem(struct,q)
+                    new_a=w32acquire_mem(pStruct,q)
                     poke(new_a,s[1])
                     blocklist=append(blocklist,{new_a,q})
                     ptr+=(curr_len+q)
@@ -3058,7 +3058,7 @@ global function w32realise(atom struct,integer flag)
                 blocklist=append(blocklist,{ptr,curr_len})
             end if
             q=length(s[arrayCount][1])
-            new_a=w32acquire_mem(struct,q)
+            new_a=w32acquire_mem(pStruct,q)
             poke(new_a,s[arrayCount][1])
             blocklist=append(blocklist,{new_a,q})
             ptr+=(curr_len+q)
@@ -3073,7 +3073,7 @@ global function w32realise(atom struct,integer flag)
         s=sorted[index[numField]+1..length(sorted)]
         new_a = ptr
         for i=1 to length(s) do
-            totalsize=fetchSize(struct,new_a,s[i],-1)
+            totalsize=fetchSize(pStruct,new_a,s[i],-1)
             curr_len+=totalsize
             new_a+=totalsize
         end for
@@ -3090,9 +3090,9 @@ global function w32realise(atom struct,integer flag)
     for i=2 to length(blocklist) do
         totalsize+=blocklist[i][2]
     end for
-    new_a = w32acquire_mem(struct,totalsize+curr_len)
+    new_a = w32acquire_mem(pStruct,totalsize+curr_len)
     -- copy fixed part
-    mem_copy(new_a,struct,curr_len)
+    mem_copy(new_a,pStruct,curr_len)
     ptr = new_a + curr_len
     -- copy all blocks in list
     for i=1 to length(blocklist) do
@@ -3113,13 +3113,13 @@ global function w32realise(atom struct,integer flag)
 end function
 
 --/topic Memory Management
---/func w32from_memoryEx(atom struct,sequence s,integer level)
+--/func w32from_memoryEx(atom pStruct,sequence s,integer level)
 --/desc Returns the fields of a structure.
 --/ret (SEQUENCE) List of field values.
 -- If a field is itself a structure, its address is returned if /i level is 0.
 -- Use a positive value in /i level to define a maximum degree of recursion. Use -1 to resolve
 -- at any depth (ie replacing an embedded structure address by a list of field values).
-global function w32from_memoryEx(atom struct,sequence s,integer level)
+global function w32from_memoryEx(atom pStruct,sequence s,integer level)
     integer p,k
     sequence result
 
@@ -3140,11 +3140,11 @@ global function w32from_memoryEx(atom struct,sequence s,integer level)
         if find(s[i][fieldType],vFillers) then
             k+=1
         elsif atom(s[i][fieldType]) then
-            result[i-k]=w32fetch(struct,s[i])
+            result[i-k]=w32fetch(pStruct,s[i])
         elsif level=0 then
-            result[i-k]=w32address(struct,s[i])
+            result[i-k]=w32address(pStruct,s[i])
         else
-            result[i-k]=w32from_memoryEx(w32address(struct,s[i]),s[i][fieldType],level-1)
+            result[i-k]=w32from_memoryEx(w32address(pStruct,s[i]),s[i][fieldType],level-1)
         end if
     end for
     return result
@@ -3152,21 +3152,21 @@ end function
 rfrm=routine_id("w32from_memoryEx")
 
 --/topic Memory Management
---/func w32from_memory(atom struct,sequence s)
+--/func w32from_memory(atom pStruct,sequence s)
 --/desc Returns the fields of a structure.
 --/ret (SEQUENCE) List of field values.
 -- If a field is itself a structure, its address is returned. If you need actual data, use /w32from_memoryEx(),
 -- which this function wraps.
 -- No values are returned for filler fields: Align, AlignRel and ByteFill.
-global function w32from_memory(atom struct,sequence s)
-    return w32from_memoryEx(struct,s,0)
+global function w32from_memory(atom pStruct,sequence s)
+    return w32from_memoryEx(pStruct,s,0)
 end function
 
 --/topic Memory Management
---/proc w32set_memory(atom struct,sequence id,sequence data)
---/desc Performs the same function as /w32to_memory(), but stores data at address /i struct.
+--/proc w32set_memory(atom pStruct,sequence id,sequence data)
+--/desc Performs the same function as /w32to_memory(), but stores data at address /i pStruct.
 -- No realisation is attempted at /i addr.
-global procedure w32set_memory(atom struct,sequence id,sequence data)
+global procedure w32set_memory(atom pStruct,sequence id,sequence data)
     integer num_fields,num_aligns
     sequence layout
 
@@ -3184,7 +3184,7 @@ global procedure w32set_memory(atom struct,sequence id,sequence data)
         elsif find(layout[i][fieldType],vFillers) then
             num_aligns+=1
         else
-            w32store(struct,layout[i],data[i-num_aligns])
+            w32store(pStruct,layout[i],data[i-num_aligns])
         end if
     end for
 end procedure

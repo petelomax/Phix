@@ -33,8 +33,9 @@ An almost complete rewrite of bookmark, fold, and wordwrap table handling,
 from a "packed table" to a "sparse table", plus many other bugfixes.
 
 Download from 
-http://edita.is-great.org
-(DEV was http://palacebuilders.pwp.blueyonder.co.uk/edita.htm#download )
+http://phix.x10.mx
+--was http://edita.is-great.org
+--was http://palacebuilders.pwp.blueyonder.co.uk/edita.htm#download
 
 
 Introduction

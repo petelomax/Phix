@@ -10,22 +10,28 @@ include builtins\timedate.e
 --atom curl = curl_easy_init()
 --curl_easy_setopt(curl, CURLOPT_URL, "https://tycho.usno.navy.mil/cgi-bin/timer.pl")
 --object res = curl_easy_perform_ex(curl)
-object res = curl_easy_perform_ex("https://tycho.usno.navy.mil/cgi-bin/timer.pl")
+--object res = curl_easy_perform_ex("https://tycho.usno.navy.mil/cgi-bin/timer.pl")
+object res = curl_easy_perform_ex("https://rosettacode.org/wiki/Talk:Web_scraping")
 if string(res) then
     res = split(res,'\n')
     for i=1 to length(res) do
         integer k = match("UTC",res[i])
         if k then
-            res = res[i][5..k-2]
+--          res = res[i][5..k-2]
+            res = res[i][1..k-3]
+            k = match("</a> ",res)
+            res = res[k+5..$]
             exit
         end if
     end for
     ?res
     if string(res) then
-        timedate td = parse_date_string(res, {"Mmm. d, hh:mm:ss"})
-        td[DT_YEAR] = date()[DT_YEAR]
-        ?format_timedate(td,"h:mpm Dddd ddth Mmmm")
-        ?format_timedate(date(),"h:mpm Dddd ddth Mmmm")
+--      timedate td = parse_date_string(res, {"Mmm. d, hh:mm:ss"})
+        timedate td = parse_date_string(res, {"hh:mm, d Mmmm yyyy"})
+--      td[DT_YEAR] = date()[DT_YEAR]
+--      ?format_timedate(td,"h:mpm Dddd ddth Mmmm")
+        ?format_timedate(td,"Dddd Mmmm ddth yyyy h:mpm")
+--      ?format_timedate(date(),"h:mpm Dddd ddth Mmmm")
     end if
 else
     ?{"some error",res,curl_easy_strerror(res)}

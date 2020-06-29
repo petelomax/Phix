@@ -35,13 +35,14 @@ procedure add_block()
     sieved += N
 end procedure
 
-global function is_prime(atom p)
-    if sieved=0 then init_sieve() end if
-    while sieved<p do
-        add_block()
-    end while
-    return binary_search(p,primes)>0
-end function
+-- replaced with much faster version in pfactors.e:
+--global function is_prime(atom p)
+--  if sieved=0 then init_sieve() end if
+--  while sieved<p do
+--      add_block()
+--  end while
+--  return binary_search(p,primes)>0
+--end function
 
 global function get_prime(integer n)
     if sieved=0 or n=-1 then init_sieve() end if

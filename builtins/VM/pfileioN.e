@@ -6692,8 +6692,6 @@ integer lend
 end function
 --*/
 
---DEV e119 to go (has been replaced with 58/59/get_text)
--- ( "file number is not an integer or {fn,c}\n",                   -- e119fninaiofnc)
 function fget_text(integer fn, integer option)
 integer fidx, ch
 integer fmode
@@ -6773,7 +6771,6 @@ end if
         ?9/0 
     end if
 
---DEV e119?
 --  if option<-2 or option>1 then return -1 end if
 --  if option<-2 or option>1 then ?9/0 end if
     if option<0 or option>8 then ?9/0 end if

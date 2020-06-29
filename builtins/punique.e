@@ -21,6 +21,22 @@ global function unique(sequence s, string options="SORT")
                 end if
             end for
             destroy_dict(d)
+--/*
+--DEV untested, just an idea, that sorta fell apart before I tried testing it...
+-- (I was aiming for a stable sort, just got a bit flummoxed, and don't really need it right now anyway)
+        elsif options="TAGSORT" then
+            sequence tags = custom_sort(s, tagset(length(s))) 
+            object prev = s[tags[1]]
+--          sequence res = {prev}
+            for i=2 to length(tags) do
+                object next = s[tags[i]]
+                if next!=prev then
+--                  res = append(res,next)
+                    prev = next
+                end if
+            end for
+            return res
+--*/
         else
             if options!="PRESORTED" then
                 if options!="SORT" then

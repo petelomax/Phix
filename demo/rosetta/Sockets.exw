@@ -1,0 +1,39 @@
+--
+-- demo\rosetta\Sockets.exw -- (will be in repository, but not worth putting in distro)
+-- ========================
+--
+--  Windows only for now (should be relatively straightforward to get it working on linux)
+--                       (it is the routines in builtins\sockets.e that are windows-only.)
+--
+--  Note this fails for me with "connection refused", just like the Go/Python/Ruby entries.
+--
+--  Attepted to test using "curl http://localhost:256" but no luck.
+-- 
+free_console() -- (as per docs, ensures output not hidden when running on Edix/Edita)
+?"started..."
+include builtins\sockets.e      -- added for 0.8.1
+
+constant msg = "hello socket world"
+ 
+atom sock = socket(AF_INET, SOCK_STREAM)
+if sock >= 0 then
+    atom pSockAddr = sockaddr_in(AF_INET, "localhost", 256)
+    integer res = connect(sock, pSockAddr)
+    if res=SOCKET_ERROR then
+        crash("connect (%v)",{get_socket_error()})
+    end if
+    string pm = msg
+    while true do
+        integer len = length(pm),
+                slen = send(sock, pm)
+        if slen<0 or slen=len then exit end if
+        pm = pm[slen+1..$]
+    end while
+    closesocket(sock)
+end if
+WSACleanup()
+
+?"finished"
+{} = wait_key()
+
+

@@ -16,20 +16,21 @@ global constant newBase = 2 -- 0 = old style, with base @ ref*4-20 on seq/str
 
 global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 
---global constant phixversion = {0,6,8}     -- 0.6.8
---global constant phixversion = {0,6,9}     -- 0.6.9    -- 25/04/16
---global constant phixversion = {0,7,0}     -- 0.7.0    -- 09/09/16
---global constant phixversion = {0,7,1}     -- 0.7.1    -- 04/12/16
---global constant phixversion = {0,7,2}     -- 0.7.2    -- 10/02/17
---global constant phixversion = {0,7,3}     -- 0.7.3    -- 12/02/17 (internal)
---global constant phixversion = {0,7,4}     -- 0.7.4    -- 15/02/17 (internal, misnamed)
---global constant phixversion = {0,7,5}     -- 0.7.5    -- 22/02/17 (internal)
---global constant phixversion = {0,7,6},    -- 0.7.6    -- 30/06/17
---global constant phixversion = {0,7,7},    -- 0.7.7    -- 09/01/18
---global constant phixversion = {0,7,8},    -- 0.7.8    -- 13/03/18
---global constant phixversion = {0,7,9},    -- 0.7.9    -- 13/04/18
---global constant phixversion = {0,8,0},    -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
-global constant phixversion = {0,8,1},      -- 0.8.1    -- 0?/0?/19 (uploaded ??/??/19)
+--global constant pxversion = {0,6,8}   -- 0.6.8
+--global constant pxversion = {0,6,9}   -- 0.6.9    -- 25/04/16
+--global constant pxversion = {0,7,0}   -- 0.7.0    -- 09/09/16
+--global constant pxversion = {0,7,1}   -- 0.7.1    -- 04/12/16
+--global constant pxversion = {0,7,2}   -- 0.7.2    -- 10/02/17
+--global constant pxversion = {0,7,3}   -- 0.7.3    -- 12/02/17 (internal)
+--global constant pxversion = {0,7,4}   -- 0.7.4    -- 15/02/17 (internal, misnamed)
+--global constant pxversion = {0,7,5}   -- 0.7.5    -- 22/02/17 (internal)
+--global constant pxversion = {0,7,6},  -- 0.7.6    -- 30/06/17
+--global constant pxversion = {0,7,7},  -- 0.7.7    -- 09/01/18
+--global constant pxversion = {0,7,8},  -- 0.7.8    -- 13/03/18
+--global constant pxversion = {0,7,9},  -- 0.7.9    -- 13/04/18
+--global constant pxversion = {0,8,0},  -- 0.8.0    -- 05/04/19 (uploaded 21/04/19)
+--global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20 (uploaded 23/03/20)
+global constant phixversion = {0,8,2},  -- 0.8.2    -- 2?/03/20 (uploaded 2?/03/20)
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...
@@ -694,6 +695,8 @@ global integer T_extend_struct  T_extend_struct = 0
 global integer T_fetch_field    T_fetch_field = 0
 global integer T_store_field    T_store_field = 0
 global integer Z_struct         Z_struct = 0
+global integer T_free           T_free = 0
+global integer T_ffree          T_ffree = 0
 
 global integer TIDX
                TIDX = -1

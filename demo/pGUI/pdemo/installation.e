@@ -1,9 +1,9 @@
 --
 -- installation.e
 -- ==============
---  This is run from ppw.bat (via pdemo) to download/extract phix.0.8.0.1.zip, etc.
+--  This is run from ppw.bat (via pdemo) to download/extract (eg) phix.0.8.1.1.zip, etc.
 --
-constant setupver = "0.8.0",
+constant setupver = version(),
          base_url = "http://phix.x10.mx/",
          num_zips = 2
 

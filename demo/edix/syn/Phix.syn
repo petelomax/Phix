@@ -89,6 +89,7 @@ TokenChar 0123456789
 --
 -- Escape characters are defined using a single leadin followed by the valid 
 -- characters which may follow (this permits \r \n \t \\ \' \" and \#):
+-- (and has now been extended to also permit \x \0 \b \u and \U)
 --
 Escapes \rnt\'"eE#x0buU
 --
@@ -292,7 +293,7 @@ WithClauses
         trace
         type_check
         warning
-        strict
+        strict -- (ignored)
         licence
         debug
         console
@@ -346,6 +347,7 @@ BuiltinRoutines
         define_c_proc
         define_c_var
         equal
+        ffree
         find
         float32_to_atom
         float64_to_atom
@@ -428,6 +430,9 @@ Builtin4
                 
 BuiltinConstants
 ----------------
+        AF_INET
+        AF_UNIX
+        AF_UNSPEC
         BLACK
         BLINKING
         BLUE
@@ -532,6 +537,9 @@ BuiltinConstants
         IDOK
         IDRETRY
         IDYES
+        INADDR_ANY
+        INADDR_NONE
+        INVALID_SOCKET
         LINUX
         LOCK_EXCLUSIVE
         LOCK_SHARED
@@ -593,11 +601,19 @@ BuiltinConstants
         S_NULLABLE
         S_SEQUENCE
         S_STRUCT
+        SD_BOTH
+        SD_RECEIVE
+        SD_SEND
         SF_PRIVATE
         SF_PUBLIC
         SF_FUNC
         SF_PROC
         SF_RTN
+        SO_RCVTIMEO
+        SOCK_DGRAM
+        SOCK_STREAM
+        SOCKET_ERROR
+        SOL_SOCKET
         SQLITE_OK
         SQLITE_ERROR
         SQLITE_INTERNAL
@@ -883,13 +899,13 @@ BuiltinConstants
         CD_RED
         CD_DARK_RED
         CD_ORANGE
-        CD_DARK_ORANGE
+        CD_LIGHT_GREEN
         CD_GREEN
         CD_DARK_GREEN
+        CD_LIGHT_BLUE
         CD_BLUE
         CD_DARK_BLUE
         CD_YELLOW
-        CD_DARK_YELLOW
         CD_MAGENTA
         CD_DARK_MAGENTA
         CD_CYAN
@@ -1499,16 +1515,20 @@ LibraryRoutines
         wrap
 -- All
         abs
+        accept
         allocate
         allocate_string
         allocate_word
         allocate_wstring
         allow_break
         any_key
+        apply
         arccos
         arcsin
+        assert
         atan2
         binary_search
+        bind
         bits_to_int
         bytes_to_int
         call_back
@@ -1520,8 +1540,10 @@ LibraryRoutines
         choose
 --      clear
         clear_directory
+        closesocket
         columnize
         command_line
+        connect
         copy_directory
         copy_file
         crash
@@ -1570,6 +1592,7 @@ LibraryRoutines
         fetch_field
         field_dx
         file_exists
+        find_all
         find_any
         find_replace
         flatten
@@ -1582,21 +1605,31 @@ LibraryRoutines
         get_primes
         get_proper_dir
         get_proper_path
+        get_routine_info
         get_screen_char
+        get_socket_error
         get_text
         get_tzid
         getenv
+        gethostbyname
+        getsockaddr
+        getsockname
+        getsockport
         gmatch
         gsub
         has
         head
+        htonl
+        htons
         include_file
         include_files
         include_path
         include_paths
+        inet_addr
         insert
         int_to_bits
         int_to_bytes
+        ip_to_string
         is_leap_year
         is_prime
         is_struct
@@ -1607,6 +1640,7 @@ LibraryRoutines
         keys
         largest
         lcm
+        listen
         load_map
         log10
         log2
@@ -1623,6 +1657,8 @@ LibraryRoutines
         minsq
         mod
         move_file
+        ntohl
+        ntohs
         or_all
         ord
         ordinal
@@ -1652,6 +1688,7 @@ LibraryRoutines
         put_screen_char
         read_bitmap
         read_lines
+        recv
         regex
         regex_compile
         regex_options
@@ -1666,11 +1703,17 @@ LibraryRoutines
         routine_id
         save_map
         scanf
+        select
+        send
         series
+        setsockopt
         shift_bits
         shorten
         shuffle
+        shutdown
         smallest
+        sockaddr_in
+        socket
         sort
         sort_columns
         splice
@@ -1719,6 +1762,8 @@ LibraryRoutines
         walk_dir
         wildcard_file
         wildcard_match
+        WSACleanup
+        WSAStartup
 
 -- Phix only:
         adjust_timedate
@@ -1850,6 +1895,7 @@ LibraryRoutines
         extract
         extract_json_field
         file_size_k
+        filter
         format_timedate
         g_object_unref
         gdk_pixbuf_get_width
@@ -1889,6 +1935,7 @@ LibraryRoutines
         gmp_randclear
         init_cs
         is_dict
+        isatty
         islower
         isupper
         leave_cs
@@ -1983,6 +2030,8 @@ LibraryRoutines
         mpz_add
         mpz_add_ui
         mpz_add_si
+        mpz_addmul
+        mpz_addmul_ui
         mpz_sub
         mpz_sub_ui
         mpz_ui_sub
@@ -2041,6 +2090,7 @@ LibraryRoutines
         mpz_sizeinbase
         mpz_get_str
         mpz_probable_prime_p
+        mpz_prime
         mpz_prime_factors
         mpz_factorstring
         mpz_re_compose
@@ -2093,6 +2143,7 @@ LibraryRoutines
         rasterize_svg_file
         rasterize_svg_pixbuf
         rasterize_svg_text
+        rid_string
         reinstate
         remove_dups
         resume_thread
@@ -2890,7 +2941,7 @@ Library4
         db_set_caching
 
         absolute_path
-        accept
+--      accept
 --      add
         add_item
         add_to
@@ -2906,7 +2957,7 @@ Library4
         amalgamated_sum
         any_key
         append_lines
-        apply
+--      apply
         approx
         arccosh
         arcsinh
@@ -2939,7 +2990,7 @@ Library4
 --      color
         combine_maps
         compose_map
-        connect
+--      connect
 --      copy
         cosh
 --      count   -- (renamed [as count_atoms] 15/5/14)
@@ -3042,7 +3093,7 @@ Library4
 --      last
         left_shift
         linear
-        listen
+--      listen
 --      load
         locate_file
         lock_type
@@ -3098,7 +3149,7 @@ Library4
         read_file
         read_lines
         receive
-        regex
+--      regex
         remove_dups
         remove_from
         remove_subseq
@@ -3107,13 +3158,13 @@ Library4
         restrict
         reverse_map
         right_shift
-        rmatch
+--      rmatch
 --      rnd
         rnd_1
 --      rotate
 --      section --??
 --      select
-        send
+--      send
         sequence_array
         sequence_to_set
         sequences_to_map
@@ -3136,14 +3187,14 @@ Library4
 --      show
 --      show_block
         show_help
-        shutdown
+--      shutdown
 --      sign
         sim_index
         sinh
 --      size
 --      sizeof
         skewness
-        slice
+--      slice   -- incompatible
         small
 --      socket
         split_limit
@@ -3185,12 +3236,12 @@ Library4
         test_pass
         test_report
         test_true
-        threshold
+--      threshold
         to_unix
 --      top         -- (std/stack.e)
         transform
         trsprintf
-        type_of
+--      type_of
         uname
         union
         unsetenv
@@ -3854,6 +3905,7 @@ Incompatible
         retry
         routine     -- ticket 770 "reserved for possible future use"
         set_vector
+        slice
         until
         
         CURLOPT_DNS_USE_GLOBAL_CACHE

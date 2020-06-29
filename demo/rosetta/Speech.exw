@@ -2,56 +2,109 @@
 -- demo/rosetta/Speech.exw
 -- =======================
 --
+--  Windows 32 bit only, for now...
 
-string text = "This is an example of speech synthesis"
+include pGUI.e
+Ihandle t3, left, red, right, btn, bc, dlg
 
 include pComN.ew
 
-procedure speak(atom pVoice, string text)
---  integer flags = or_bits(SPF_ASYNC,SPF_IS_XML)
-    integer flags = SPF_IS_XML
+procedure speak(atom pVoice, string text, integer flags=NULL)
     {} = cominvk(pVoice,ISpVoice_Speak,{unicode_string(text),flags,0})
 end procedure
 
-function get_status(atom pVoice)
---  atom pMem = allocate(20)
-    atom pMem = allocate(80)
---  atom res = cominvk(pVoice,ISpVoice_GetStatus,{1,pMem,NULL})
-?1
-    object res = cominvk(pVoice,ISpVoice_GetStatus,{1,pMem,pMem+72})
-?res
-?2
---  ?peek({pMem,20})
-    ?peek({pMem,80})
-    free(pMem)
-    return res
+procedure set_interest(atom pVoice, sequence flags)
+    atom lo = #40000000,
+         hi = #00000002
+    for i=1 to length(flags) do
+        lo += power(2,flags[i])
+    end for
+    atom res = cominvk(pVoice,ISpVoice_SetInterest,{lo,hi,lo,hi})
+    if res!=S_OK then crash("invalid") end if
+end procedure
+
+constant text = `<rate speed="-5">Highlight words as they are spoken.`
+atom pVoice = NULL
+
+include cffi.e
+constant tSPEVENT = """
+typedef struct SPEVENT
+{
+    WORD         eEventId;
+    WORD         elParamType;
+    ULONG        ulStreamNum;
+    ULONGLONG    ullAudioStreamOffset;
+    WPARAM       wParam;
+    LPARAM       lParam;
+} SPEVENT;""",
+idSPEVENT = define_struct(tSPEVENT),
+pSPEVENT = allocate_struct(idSPEVENT)
+
+function eventHandler(atom wParam, lParam)
+    while cominvk(pVoice,ISpVoice_GetEvents,{1,pSPEVENT,NULL})=S_OK do
+        integer eEventId = get_struct_field(idSPEVENT,pSPEVENT,"eEventId")
+        if eEventId=SPEI_WORD_BOUNDARY then
+            integer len = get_struct_field(idSPEVENT,pSPEVENT,"wParam"),
+                    pos = get_struct_field(idSPEVENT,pSPEVENT,"lParam")
+            IupSetStrAttribute(left,"TITLE",text[1..pos])
+            IupSetStrAttribute(red,"TITLE",text[pos+1..pos+len])
+            IupSetStrAttribute(right,"TITLE",text[pos+len+1..$])
+        elsif eEventId=SPEI_END_INPUT_STREAM then
+            IupSetStrAttribute(left,"TITLE",text)
+            IupSetStrAttribute(red,"TITLE","")
+            IupSetStrAttribute(right,"TITLE","")
+        end if
+        IupSetAttribute(left, "RASTERSIZE", "x0")
+        IupSetAttribute(red, "RASTERSIZE", "x0")
+        IupSetAttribute(right, "RASTERSIZE", "x0")
+        IupRefresh(t3)
+        IupRedraw(t3)
+    end while
+    return 0
+end function
+constant cb_eventHandler = call_back(eventHandler)
+
+function button_cb(Ihandle /*ih*/)
+    object res
+    if platform()=WINDOWS then
+        if pVoice=NULL then
+            pVoice = allocate(machine_word())
+            res = CoCreateInstance(CLSID_SpVoice,IID_ISpVoice,pVoice)
+            if res!=S_OK then
+                crash("Failed to initialize SpeechAPI. (%08x)\n",res)
+            end if
+        end if
+        if cominvk(pVoice,ISpVoice_SetNotifyCallbackFunction,{cb_eventHandler,0,0})!=S_OK then ?9/0 end if
+        set_interest(pVoice, {SPEI_WORD_BOUNDARY,SPEI_END_INPUT_STREAM})
+        speak(pVoice,text,SPF_IS_XML+SPF_ASYNC)
+    else
+        -- DEV no highlighting here...
+        {} = system_exec(sprintf(`espeak "%s"`,{text}))
+    end if
+    return IUP_CONTINUE
 end function
 
-if platform()=WINDOWS then
-?text
-    CoInitializeEx()
-    atom pVoice = allocate(machine_word()),
-         res = CoCreateInstance(CLSID_SpVoice,IID_ISpVoice,pVoice)
-    if res!=S_OK then
-        crash("Failed to initialize SpeechAPI. (%08x)\n",res)
-    end if
-    speak(pVoice,text)
-while true do
---while false do
-    ?get_status(pVoice)
-    sleep(1)
-end while
+procedure main()
+    IupOpen()
+    left = IupLabel("",`FONT="Verdana, 18"`)
+    red = IupLabel("",`FONT="Verdana, 18", FGCOLOR="255 0 0"`)
+    right = IupLabel(text,`FONT="Verdana, 18"`)
+    t3 = IupHbox({IupFill(),left,red,right,IupFill()},"MARGIN=20x20")
+    btn = IupButton("Speak",Icallback("button_cb"))
+    bc = IupHbox({IupFill(),btn,IupFill()},"MARGIN=10x10")
+    dlg = IupDialog(IupVbox({t3,bc}),"TITLE=Speak")
+    IupCloseOnEscape(dlg)
+    IupShow(dlg)
+    IupMainLoop()
+    IupClose()
+end procedure
 
-    pVoice = com_release(pVoice)
-    CoUnInitialize()
-    freeGUIDS()
-else
-    {} = system_exec(sprintf(`espeak "%s"`,text))
-end if
+main()
 
 ?"done"
 {} = wait_key()
 abort(0)
+
 
 --/*
 typedef enum SPEVENTENUM

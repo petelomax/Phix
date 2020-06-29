@@ -1,0 +1,642 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">sockets</h1>
+      <div id="mainSection">
+        The file builtins/sockets.e (not an autoinclude) contains routines for low-level handling of network sockets.
+        <br>
+        <br>
+        Most (client) applications will not use sockets directly, but although <a href="libcurl.htm">libcurl</a> can perform all 
+        client-related application needs (in a much simpler and better tested way), it does not contain any server-side handling, 
+        for which sockets.e can (perhaps) be used. There may also be some cases where the full might and power of libcurl is not
+        needed, or at least not worth the hassle of ensuring the required dll/so are distributed and installed.
+        <br>
+        <br>
+        Based heavily on the work of Brett A. Pantalone (Windows), and Irv Mullins, jbrown and Pete Eberlein (Linux), the file 
+        builtins/sockets.e (not an autoinclude) is intended to unify those code bases into a single cross-platform file, while
+        adding 64-bit support (achieved via extensive reworking to <a href="cffi.htm">cffi</a>). 
+        At the time of writing, the library is Windows only, however the Linux API is aparently almost identical, so (touch wood) 
+        it should be fairly straightforward (any volunteers?).
+        <br>
+        <br>
+        See demo\pGUI\Chat.exw, demo\rosetta\SimpleHttpServer.exw and demo\rosetta\Sockets.exw for examples of use.
+        <br>
+        <br>
+        As you can clearly see, there is no real attempt to explain socket programming in any depth, such things (done far better 
+        than I ever could) can be found easily enough. This is just a quick lookup of (Phix) result & parameter types, and is more
+        suited to translating existing code than anything else.
+        <br>
+        <br>
+        <a name=constants></a>
+        <h2>constants</h2>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:12em;}
+        </style>
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>AF_UNSPEC</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            AF_UNIX
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            AF_INET 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SOCK_STREAM 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SOCK_DGRAM 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            INVALID_SOCKET  
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = #FFFFFFFF
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            INADDR_ANY
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            INADDR_NONE
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = INVALID_SOCKET
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SOCKET_ERROR
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = -1
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SD_RECEIVE
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0, -- Shutdown receive operations.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SD_SEND 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1,    -- Shutdown send operations.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SD_BOTH
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2     -- Shutdown both send and receive operations.
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SOL_SOCKET
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = #FFFF
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            SO_RCVTIMEO
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = #1006
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+
+        <a name=routines></a>
+        <h2>routines</h2>
+
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=get_socket_error></a>
+            sequence res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>get_socket_error</b>(integer err=SOCKET_ERROR) -- (Phix specific) obtain error details
+            </dt><dd class="pad">
+            <br>
+            err: An error code, if you happen to have one. Should probably be omitted more often than not.
+            <br>
+            <br>
+            res is of the form {integer err, string id, string short}, where:
+            <br>
+            <br>
+            err is eg 10049 (and never SOCKET_ERROR, which is -1)<br>
+            id is eg "WSAEADDRNOTAVAIL" (matching in this case the <code>constant WSAEADDRNOTAVAIL = 10049</code>)<br>
+            short is eg "Cannot assign requested address."
+            <br>
+            <br>
+            Invoked when socket/bind/listen/select/accept/recv/connect/send/etc return SOCKET_ERROR or otherwise indicate failure.
+            <br>
+            <br>
+            Note that SOCKET_ERROR effectively means "go fetch the real error" and obviously there is no point in passing that 
+            along inside an "if res=SOCKET_ERROR then" conditional branch (nor any real harm, apart from proving to everyone that 
+            you don&rsquo;t quite know what you&rsquo;re doing).
+            <br>
+            <br>
+            Also note that many Windows WSA codes are the same as the Linux equivalents, eg WSAEWOULDBLOCK == EWOULDBLOCK. 
+            The (private) constant MAPWSA in builtins\sockets.e is expected to be gradually extended as and when needed, at the 
+            time of writing it only contains about half a dozen entries (including the one just given).
+            <br>
+            <br>
+<!--
+            Typically the calling code often does <i>not</i> know err and leaves it zero, to let this routine 
+            invoke WSAGetLastError() to retrieve it, or fetch it from errno on Linux, or whatever.<br>
+            If is not necessary to pass on SOCKET_ERROR - if you 
+            get a SOCKET_ERROR result, you should <i>not</i> pass that on as err, however this routine also
+            recognises that common slip and treats it as zero.
+-->
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=socket></a>
+            atom hSocket = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>socket</b>(integer af, socktype, pf=0) -- create a new socket bound to a specific transport service provider
+            </dt><dd class="pad">
+            <br>
+            af: Address family, typically AF_INET for internet addresses.<br>
+            socktype: Socket type, use SOCK_DGRAM for UDP or SOCK_STREAM for TCP.<br>
+            pf: Protocol family, eg IPPROTO_xxx, or 0 to let the service provider choose, based on the address family.
+            <br>
+            <br>
+            There should be a matching <a href=#closesocket>closesocket</a>() call for every socket() call.
+            <br>
+            <br>
+            Returns INVALID_SOCKET on error.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=htonl></a>
+            atom long = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>htonl</b>(atom long) -- host to network byte order for a u_long.
+            </dt><dd class="pad">
+            <br>
+            Network byte order is big-endian, but your machine is most likely little-endian.<br>
+            This routine swaps the byte order for a long (4-byte) field, if necessary.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=ntohl></a>
+            atom long = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>ntohl</b>(atom long) -- network to host byte order for a u_long.
+            </dt><dd class="pad">
+            <br>
+            The inverse of htonl (functionally identical, but with different semantics).
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=htons></a>
+            integer short = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>htons</b>(integer short) -- host to network byte order for a u_short.
+            </dt><dd class="pad">
+            <br>
+            Network byte order is big-endian, but your machine is most likely little-endian.<br>
+            This routine swaps the byte order for a short (2-byte) field, if necessary.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=ntohs></a>
+            integer short = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>ntohs</b>(integer short) -- network to host byte order for a u_short.
+            </dt><dd class="pad">
+            <br>
+            The inverse of htons (functionally identical, but with different semantics).
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=getsockname></a>
+            atom pSockAddr = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>getsockname</b>(atom hSocket) -- retrieves the local name for a socket.
+            </dt><dd class="pad">
+            <br>
+            hSocket: a socket handle, typically a result from socket(), or perhaps something out of libcurl, etc.
+            <br>
+            <br>
+<!--            Returns INVALID_SOCKET on error, else a SOCKADDR structure. -->
+            Returns a SOCKADDR structure, terminates on error.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=getsockport></a>
+            integer port = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>getsockport</b>(atom hSocket) -- (Phix specific) retrieves the port number from a socket.
+            </dt><dd class="pad">
+            <br>
+            hSocket: a socket handle, typically a result from socket(), or perhaps something out of libcurl, etc.
+            <br>
+            <br>
+            Returns the port number, from the SOCKADDR structure obtained from getsockname().
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=getsockaddr></a>
+            atom addr = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>getsockaddr</b>(atom hSocket) -- (Phix specific) retrieves the address from a socket.
+            </dt><dd class="pad">
+            <br>
+            hSocket: a socket handle, typically a result from socket(), or perhaps something out of libcurl, etc.
+            <br>
+            <br>
+            Returns the address from the SOCKADDR structure obtained from getsockname(), suitable for passing to eg <a href=#ip_to_string>ip_to_string</a>().
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=gethostbyname></a>
+            atom addr = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>gethostbyname</b>(string host) -- retrieves host information corresponding to a host name from a host database.
+            </dt><dd class="pad">
+            <br>
+            host: a host name, can be "".
+            <br>
+            <br>
+            Returns just the address portion of a hostent structure, INADDR_ANY if host is "", or SOCKET_ERROR if an error occured.<br>
+            Note that the C function of the same name returns the entire hostent structure.
+            <br>
+            <br>
+            Apparently gethostbyname is deprecated and getaddrinfo should be used instead, erm - good luck with that.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=sockaddr_in></a>
+            atom pSockAddr = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>sockaddr_in</b>(integer af=AF_INET, string host="", integer port=0) -- allocate and populate a sockaddr_in structure.
+            </dt><dd class="pad">
+            <br>
+            af: Address family, typically AF_INET for internet addresses.<br>
+            host: a host name, can be "" (for localhost).<br>
+            port: a port number, or 0 (meaning "any").
+            <br>
+            <br>
+            Applies gethostbyname() and takes care of any host-to-network byte order conversions as needed.
+            <br>
+            <br>
+            Returns a sockaddr_in structure, or SOCKET_ERROR if an error occured.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=bind></a>
+            integer res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>bind</b>(atom sock, pSockAddr, integer len=socklen) -- associates a local address with a socket.
+            </dt><dd class="pad">
+            <br>
+            sock: a prior result from socket()<br>
+            pSockAddr: a prior result from (eg) sockaddr_in()<br>
+            len: Defaulted to the value used in sockaddr_in()
+            <br>
+            <br>
+            Must be used on an unconnected socket before a subsequent call to the listen() function.
+            <br>
+            <br>
+            Returns zero or SOCKET_ERROR on failure.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=connect></a>
+            integer res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>connect</b>(atom sock, pSockAddr, integer len=socklen) -- establishes a connection to a specified socket.
+            </dt><dd class="pad">
+            <br>
+            sock: a prior result from socket()<br>
+            pSockAddr: a prior result from (eg) sockaddr_in()<br>
+            len: Defaulted to the value used in sockaddr_in()
+            <br>
+            <br>
+            Returns zero or SOCKET_ERROR on failure.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=listen></a>
+            integer res = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>listen</b>(atom sock, integer backlog) -- places a socket in a state in which it is listening for an incoming connection.
+            </dt><dd class="pad">
+            <br>
+            sock: a prior result from socket()<br>
+            backlog: specifies the maximum number of pending connections.
+            <br>
+            <br>
+            Returns zero or SOCKET_ERROR on failure.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=select></a>
+            <nobr>sequence res = </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>select</b>(sequence read_set={}, write_set={}, error_set={}, object timeout={}) -- determine status of one or more sockets, waiting if necessary.
+            </dt><dd class="pad">
+            <br>
+<!--            Determine the status of one or more sockets, waiting if necessary, to perform synchronous I/O.<br> -->
+            Check/wait the specified socket[s] until one or more is ready to read or write or has an error.<br>
+            The result is of the form <code>{integer ret_code, sequence {read_set, write_set, error_set}} <i>= res</i></code>,<br>
+            or when only checking one socket the simpler <code>integer {ret_code} <i>= select(...)</i></code> suffices.
+            <br>
+            <br>
+            read_set: sockets to check for readiness to read.<br>
+            write_set: sockets to check for readiness to write.<br>
+            error_set: sockets to check for errors.<br>
+            timeout: in {seconds,microseconds} or atom microseconds format:<br>
+            {0,0} or 0 means "return immediately", whereas {} means "wait forever".<br>
+            {2,0} or 2000000 means "timeout after two seconds".
+            <br>
+            <br>
+            Each of the handles in each set should be a result from socket(), usually with listen() or connect() applied.<br>
+            (IANASS - <small><i>I Am Not A Socket Specialist</i></small>).<br>
+            I have also used this successfully with sockets obtained from libcurl/CURLINFO_ACTIVESOCKET.<br>
+            For thread safety you may want to use sequence none = repeat(0,0) rather than {}, and avoid relying on those parameter defaults.
+            <br>
+            <br>
+            ret_code is SOCKET_ERROR, 0 for timeout, or a positive total number of socket handles that are ready.<br>
+            Each of the returned read_set, write_set, and error_set should be a subset of the respective input sets.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=accept></a>
+            atom peer = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+<!-- DEV maybe/not sure we need this/no examples
+            <b>accept</b>(atom sock, pSockAddr=NULL, integer len=socklen) -- permits an incoming connection attempt on a socket.
+-->
+            <b>accept</b>(atom sock) -- permits an incoming connection attempt on a socket.
+            </dt><dd class="pad">
+            <br>
+            sock: previously passed to listen()
+<!--
+            peerAddr: a prior result from new_sock_addr()<br>
+-->
+            <br>
+            <br>
+            Returns a new socket on which the actual connection is made, or INVALID_SOCKET in the case of error.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=recv></a>
+            <nobr>sequence res = </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>recv</b>(atom peer, integer maxlen=2048) -- receives data from a connected socket or a bound connectionless socket.
+            </dt><dd class="pad">
+            <br>
+            peer: a connected or bound socket<br>
+            maxlen: obviously, can be increased if not large enough, or perhaps even reduced.
+            <br>
+            <br>
+            The result is of the form <code>{integer len, string buffer} <i>= res</i></code>, where<br>
+            len is SOCKET_ERROR (-1), 0 if the connection has been gracefully closed, or the number of bytes recieved, and<br>
+            buffer is "" for len&lt;=0, otherwise a binary string of length len (&lt;=maxlen).<br>
+            Note the C function accepts a buffer, but since we allocate a string result anyway, we may as well just use that directly.<br>
+            Also note that some unreliable protocols (eg UDP) may simply discard any data beyond maxlen.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=send></a>
+            <nobr>integer bytes_sent = </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>send</b>(atom peer, string message) -- sends data on a connected socket.
+            </dt><dd class="pad">
+            <br>
+            peer: previously passed to connect()<br>
+            message: can be a binary string.
+            <br>
+            <br>
+            Returns the actual number of bytes transmitted, which may be less than the total message length, or SOCKET_ERROR on failure.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=shutdown></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>shutdown</b>(atom sock, integer how) -- disable sends or recieves on a socket
+            </dt><dd class="pad">
+            <br>
+            sock: a prior result from socket()<br>
+            how: SD_RECEIVE, SD_SEND, or SD_BOTH
+            <br>
+            <br>
+            Deliberately crashes on error, eg with <code>ERROR (shutdown): {10057,"WSAENOTCONN","Socket is not connected."}</code>
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=closesocket></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>closesocket</b>(atom sock) -- close a socket
+            </dt><dd class="pad">
+            <br>
+            There should be a matching closesocket() call for every <a href=#socket>socket</a>() call.
+            <br>
+            <br>
+            Deliberately crashes on error, but does nothing when passed a sock of 0 or SOCKET_ERROR.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=WSACleanup></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>WSACleanup</b>() -- terminates use of the Winsock 2 DLL (Ws2_32.dll).
+            </dt><dd class="pad">
+            <br>
+            The corresponding WSAStartup() is handled automatically for you, should you forget, does nothing on Linux, and is not separately documented.
+            <br>
+            <br>
+            Deliberately crashes on error. The "WSAStartup not called" error should never happen, but it can fail if the network subsystem 
+            has failed or something is still in progress, so occasionally you may need to wrap the call in a <a href="try.htm">try/catch</a>,
+            which I figured was probably better than forcing everyone else to ignore an irrelevant error code and/or in so doing make them 
+            miss out on spotting some other coding error, such as leaving more and more blocked threads hogging resorces for no good reason.<br>
+            Does nothing on Linux, apart from making the program more portable.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=inet_addr></a>
+            atom res =
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>inet_addr</b>(string cp) -- converts a string containing an IPv4 dotted-decimal address into a proper address for the IN_ADDR structure
+            </dt><dd class="pad">
+            <br>
+            Example: inet_addr("127.0.0.1") ==> #100007F
+            <br>
+            <br>
+            Returns INADDR_NONE on error.
+            <br>
+            <br>
+            <a name=ip_to_string></a>
+            There is a simple IPv4-only phix-specific inverse: string cp = <b>ip_to_string</b>(atom ip) - which does things manually, rather 
+            than wrapping the inet_ntoa C function, which might have been a mistake.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>setsockopt</b>(atom sock, integer level, optname, atom pOptVal, integer optlen) -- set a socket option
+            </dt><dd class="pad">
+            <br>
+            sock: a prior result from socket()<br>
+            level: eg SOL_SOCKET<br>
+            optname: eg SO_BROADCAST<br>
+            pOptVal: A pointer to buffer in which the value for the requested options is specified<br>
+            optlen: The size, in bytes, of the buffer pointed to by the optval parameter
+            <br>
+            <br>
+            Not actually used in anger anywhere that I know of yet. Terminates in error on failure.
+            <br>
+            </dd></dl>
+          </td></tr>
+<!--
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            atom ip = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>get_sin_addr</b>(atom sock_addr) -- retrieve the sin_addr element of a sockaddr_in structure
+            </dt></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            atom addrinfo = 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>new_addrinfo</b>(integer family=NULL, socktype=0, flags=NULL) -- allocate an addrinfo structure
+            </dt><dd class="pad">
+            family: AF_UNSPEC, AF_INET, etc.<br>
+            socktype: SOCK_STREAM, etc.<br>
+            flags: combination of AI_PASSIVE .. AI_FILESERVER<br>
+            NB: you should NOT invoke freeaddrinfo(res), instead memory will be automatically reclaimed when it 
+            drops out of scope or is explicitly set to NULL.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>integer error = </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>getaddrinfo</b>(nullable_string node_name, service_name, atom pHints, pResult)
+            </dt><dd class="pad">
+            protocol-independent translation from an ANSI host name to an address.<br>
+            node_name: eg "207.46.197.32" (pHints of AI_NUMERICHOST) or "www.contoso.com"<br>
+            service_name: service name or port number (optional)<br>
+            pHints: typically from new_addrinfo()<br>
+            pResult: an <a href="allocate.htm">allocate_word</a>() that recieves a pointer to a result list.<br>
+            Should invoke freeaddrinfo(pResult) when done.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>atom res = </nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>get_ai_field</b>(atom addrinfo, string field) -- simple <a href="get_struct_field.htm">get_struct_field</a>() wrapper (since id_taddrinfo is not global)
+            </dt><dd class="pad">
+            addrinfo: usually a pResult from getaddrinfo(). A result from new_addrinfo() is also legal, but contents are as put in anyway<br>
+            field: as below plus "ai_addrlen", "ai_addr", or "ai_next". Translate eg "ptr = ptr->ai_next" to `ptr = get_ai_field(ptr,"ai_next")`<br>
+            A field of "ai_family" yields AF_UNSPEC, AF_INET, etc<br>
+            A field of "ai_socktype" yields SOCK_STREAM, etc<br>
+            A field of "ai_protocol" yields IPPROTO_TCP, etc<br>
+            A field of "ai_canonname" probably wants a <a href="peek_string.htm">peek_string</a>(res)<br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>freeaddrinfo</b>(atom pResult) -- free address information that the getaddrinfo function dynamically allocates in addrinfo structures. 
+            </dt><dd class="pad">
+            pResult: from getaddrinfo(), NB not from new_addrinfo().<br>
+            </dd></dl>
+          </td></tr>
+-->
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        Note that none of these routines have yet undergone any significant real-world testing, but should be fairly easy to fix/enhance as needed.<br>
+        Error handling is most likely wholly inadequate, and many constants are as yet missing, as no doubt are some other useful routines.
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

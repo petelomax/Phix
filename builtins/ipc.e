@@ -44,7 +44,9 @@ sequence smNames,
          smPointers
 
 procedure ipc_init()
+
     if platform()=LINUX then
+
 --      lib = open_dll("libc.so.6")
         lib = open_dll("libc.so")
         xshmctl = define_c_func(lib, "shmctl",
@@ -66,10 +68,9 @@ procedure ipc_init()
                                {C_PTR},     --  const void *shmaddr
                                C_INT)       -- int
         xerrno = define_c_var(lib, "errno")
-        smNames = {}
-        smHandles = {}
-        smPointers = {}
+
     elsif platform()=WINDOWS then
+
         lib = open_dll("kernel32")
         xCreateFileMapping = define_c_func(lib, "CreateFileMappingA",
                                            {C_PTR,      --  HANDLE hFile
@@ -100,11 +101,10 @@ procedure ipc_init()
         xGetLastError = define_c_func(lib, "GetLastError",
                                       {},
                                       C_ULONG)      -- DWORD
-        smNames = {}
-        smHandles = {}
-        smPointers = {}
-
     end if
+    smNames = {}
+    smHandles = {}
+    smPointers = {}
 end procedure
 
 -- Linux constants

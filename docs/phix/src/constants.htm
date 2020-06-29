@@ -29,6 +29,42 @@
 <pre>
 <font color="#000000"></font><font color="#008080">    constant</font><font color="#0000FF"> {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> z</font><font color="#0000FF">} = {</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">1.5</font><font color="#0000FF">}</font>
 </pre>
+        Phix also allows nested constant declarations via the ':=' operator, as long as they occur at the top 
+        level of a (nested) {} constant declaration<small><sup>1</sup></small>, so instead of 
+<!--eucode>
+    constant WSAEINTR  = 10004,
+             WSAEACCES = 10013
+    constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(
+            {{WSAEINTR,  "WSAEINTR",  "Interrupted function call."},
+             {WSAEACCES, "WSAEACCES", "Permission denied."}}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    constant</font><font color="#000000"> WSAEINTR </font><font color="#0000FF"> =</font><font color="#000000"> 10004</font><font color="#0000FF">,
+</font><font color="#000000">             WSAEACCES</font><font color="#0000FF"> =</font><font color="#000000"> 10013
+</font><font color="#008080">    constant</font><font color="#0000FF"> {</font><font color="#000000">ERROR_NO</font><font color="#0000FF">,</font><font color="#000000"> ERROR_NAME</font><font color="#0000FF">,</font><font color="#000000"> ERROR_SHORT</font><font color="#0000FF">} =</font><font color="#5E005E"> columnize</font><font color="#0000FF">(
+</font><font color="#800000">            {</font><font color="#800080">{</font><font color="#000000">WSAEINTR</font><font color="#0000FF">, </font><font color="#008000"> "WSAEINTR"</font><font color="#0000FF">, </font><font color="#008000"> "Interrupted function call."</font><font color="#800080">}</font><font color="#0000FF">,
+</font><font color="#800080">             {</font><font color="#000000">WSAEACCES</font><font color="#0000FF">,</font><font color="#008000"> "WSAEACCES"</font><font color="#0000FF">,</font><font color="#008000"> "Permission denied."</font><font color="#800080">}</font><font color="#800000">}</font>
+</pre>
+        (which gets more and more error prone and tedious as the table grows in size) you can define them all together like this:
+<!--eucode>
+    constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(
+            {{WSAEINTR  := 10004, "WSAEINTR",  "Interrupted function call."},
+             {WSAEACCES := 10013, "WSAEACCES", "Permission denied."}})
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    constant</font><font color="#0000FF"> {</font><font color="#000000">ERROR_NO</font><font color="#0000FF">,</font><font color="#000000"> ERROR_NAME</font><font color="#0000FF">,</font><font color="#000000"> ERROR_SHORT</font><font color="#0000FF">} =</font><font color="#5E005E"> columnize</font><font color="#0000FF">(
+</font><font color="#800000">            {</font><font color="#800080">{</font><font color="#000000">WSAEINTR </font><font color="#0000FF"> :=</font><font color="#000000"> 10004</font><font color="#0000FF">,</font><font color="#008000"> "WSAEINTR"</font><font color="#0000FF">, </font><font color="#008000"> "Interrupted function call."</font><font color="#800080">}</font><font color="#0000FF">,
+</font><font color="#800080">             {</font><font color="#000000">WSAEACCES</font><font color="#0000FF"> :=</font><font color="#000000"> 10013</font><font color="#0000FF">,</font><font color="#008000"> "WSAEACCES"</font><font color="#0000FF">,</font><font color="#008000"> "Permission denied."</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+        ie on the second line before the first ',' we see both a definition of WSAEINTR and a reference to it (the spaces around := are optional).
+       <br>
+       <br>
+<!-- nah - this just reiterates what is said in Technicalia, and anyone confused will read that anyway...
+        Specifically, the ":=" operator at the top level of a {} (/sequence) construct on the rhs of a constant definition is treated as a nested 
+        constant definition, and obviously you <i>cannot</i> clash with an existing name or overwrite an existing value.
+       <br>
+       <br>
+-->
         Constants may not be declared inside a subroutine. It may help to know that constants are really just variables which must be assigned 
         on declaration, and for which subsequent assignment or other modification is prohibited. The actual constant values, both named and
         unnamed, are "pooled" so that only a single copy ever gets written out to a compiled executable file.
@@ -37,6 +73,66 @@
         Several builtin constants are automatically defined, in psym.e/syminit(), such as C_CHAR, C_BYTE, C_PTR, NULL, WINDOWS, LINUX, PI,
         LOCK_SHARED, LOCK_EXCLUSIVE, BLACK, GREEN, BLUE, DB_OK, DB_OPEN_FAIL, DB_EXISTS_ALREADY, MB_OK, MB_OKCANCEL, IDOK, IDCANCEL,
         IDYES, IDNO, SEEK_OK, and many more besides.
+       <br>
+       <br>
+       <table>
+        <col style="width: 8%"/>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="multiassign.htm">multiple assignment</a>,
+          <a href="columnize.htm">columnize</a>
+         </td>
+        </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+          <small><sup>1</sup></small> Specifically when pmain.e/DoSequence() with asConst!=-1, as set and reset by DoConstant(), encounters 
+          the aforementioned ":=" operator.
+          <br>
+          <br>
+          Obviously nested constants <i>cannot</i> clash with an existing name or overwrite an existing value.
+          <dl>
+           <dt>aside:</dt>
+           <dd>
+            When first planning nested constant declarations, I (bizarrely) assumed it would be changes to GetMultiAssignSet(), but of course
+            <br>
+            <nobr><code>constant {C1:=1,...} = <i>&lt;expr&gt;</i></code></nobr> would (ill-)logically define C1 as 1 and them immediately try 
+            to re-assign something to C1.
+            <br>
+            In other words there are strict limitations on nested declarations that are not always immediately obvious. They are specifically 
+            only permitted within rhs sequences, so for instance <code>constant X = f({Y:=1})</code> is fine but <code>constant X = f(Y:=1)</code>
+            is not, and besides the latter would encroach on <a href="procedures.htm#namedparams">named parameter</a> syntax anyway.
+           </dd>
+          </dl>
+          It is not possible to micro-manage global status of nested declarations: either ERROR_NO, ERROR_NAME, ERROR_SHORT, WSAEINTR, and 
+          WSAEACCES are all global, or none of them are. However you can of course split the above definition as say
+<!--eucode>
+    constant ERRORS = 
+            {{WSAEINTR  := 10004, "WSAEINTR",  "Interrupted function call."},
+             {WSAEACCES := 10013, "WSAEACCES", "Permission denied."}}
+    global constant {ERROR_NO, ERROR_NAME, ERROR_SHORT} = columnize(ERRORS)
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">    constant</font><font color="#000000"> ERRORS</font><font color="#0000FF"> = 
+            {</font><font color="#800000">{</font><font color="#000000">WSAEINTR </font><font color="#0000FF"> :=</font><font color="#000000"> 10004</font><font color="#0000FF">,</font><font color="#008000"> "WSAEINTR"</font><font color="#0000FF">, </font><font color="#008000"> "Interrupted function call."</font><font color="#800000">}</font><font color="#0000FF">,
+</font><font color="#800000">             {</font><font color="#000000">WSAEACCES</font><font color="#0000FF"> :=</font><font color="#000000"> 10013</font><font color="#0000FF">,</font><font color="#008000"> "WSAEACCES"</font><font color="#0000FF">,</font><font color="#008000"> "Permission denied."</font><font color="#800000">}</font><font color="#0000FF">}
+</font><font color="#008080">    global constant</font><font color="#0000FF"> {</font><font color="#000000">ERROR_NO</font><font color="#0000FF">,</font><font color="#000000"> ERROR_NAME</font><font color="#0000FF">,</font><font color="#000000"> ERROR_SHORT</font><font color="#0000FF">} =</font><font color="#5E005E"> columnize</font><font color="#0000FF">(</font><font color="#000000">ERRORS</font><font color="#0000FF">)</font>
+</pre>
+          <br>
+          and that way make ERROR_NO, ERROR_NAME, and ERROR_SHORT global, but keep WSAEINTR and WSAEACCES (and ERRORS) private.
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+       <br>
       </div>
      </stripped>
     </get>

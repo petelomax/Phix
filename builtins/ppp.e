@@ -223,7 +223,7 @@ integer ppp_Pause       -- pause display after this many lines
 integer ppp_StrFmt      -- 0=text as strings, -1 without quotes,
         ppp_StrFmt = 0  -- 3 as numbers [each as per pp_IntCh]
 --added 22/6/19:
-integer ppp_IntCh = true    -- ints as eg 65'A' (false=just 65)
+integer ppp_IntCh = true    -- ints as eg 65'A' (false=just 65, (-1 and ' '..'~')=just 'A')
 
 integer ppp_Init   ppp_Init    =  0
 
@@ -371,8 +371,9 @@ object chint
 --      if ppp_StrFmt<=0 then
         if string(cl) and ppp_StrFmt<=0 then
 
---!/**/     aschar = string(cl)             --!/* -- Phix
-            aschar = (length(cl)>0)         --!*/ -- RDS Eu:
+--put back 26/4/2020:
+--/**/      aschar = string(cl)             --/* -- Phix
+            aschar = (length(cl)>0)         --*/ -- RDS Eu:
             asbacktick = true
 
             for i=1 to length(cl) do
@@ -556,6 +557,8 @@ object chint
                 -- (just `"'\`, aka "\"\'\\", not "\r\n\t\e\0":)
 --              txt = sprintf("%d'\\%s'",{cl,cl})
                 txt = sprintf(`%d'\%s'`,{cl,cl})
+            elsif ppp_IntCh=-1 and cl<='~' then
+                txt = sprintf(`'%s'`,{cl})
             else
                 txt = sprintf("%d'%s'",{cl,cl})
             end if
@@ -653,10 +656,10 @@ procedure pp_Init()
 end procedure
 
 function setOpt(sequence options)
-integer f, ip1
+integer f, ip1, flvl = 4
 object tmp
     if not ppp_Init then pp_Init() end if
-    if and_bits(1,length(options)) then fatal("length(options) not even",3) end if
+    if and_bits(1,length(options)) then fatal("length(options) not even",flvl) end if
     for i=1 to length(options) by 2 do
         f = options[i]
         ip1 = i+1
@@ -678,11 +681,11 @@ object tmp
             options[ip1] = ppp_StrFmt
             ppp_StrFmt = tmp
             if tmp=-2 then
-                fatal("pp_StrFmt,-2 deprecated: use pp_IntCh,false instead",3)
+                fatal("pp_StrFmt,-2 deprecated: use pp_IntCh,false instead",flvl)
             elsif tmp=-3 then
-                fatal("pp_StrFmt,-3 deprecated: use pp_StrFmt,-1,pp_IntCh,false instead",3)
+                fatal("pp_StrFmt,-3 deprecated: use pp_StrFmt,-1,pp_IntCh,false instead",flvl)
             elsif tmp=1 then
-                fatal("pp_StrFmt,1 behaves as 3: use pp_StrFmt,3,pp_IntCh,false instead",3)
+                fatal("pp_StrFmt,1 behaves as 3: use pp_StrFmt,3,pp_IntCh,false instead",flvl)
             end if
 --             -2:  as 0, but chars number-only like +1                 [DEPRECATED: use pp_IntCh,false instead]
 --             -3:  as -1, ""                                           [ "" (and pp_StrFmt,-1)]
@@ -768,7 +771,8 @@ global procedure ppOpt(sequence options)
     options = setOpt(options)
 end procedure
 
-global procedure ppEx(object o, sequence options)
+-- internal, so that pp() and ppEx() have same nesting/fatal error level:
+procedure pp_Ex(object o, sequence options)
 -- pretty print object with selected options (as per ppOpt)
 -- The previous pretty_print options are restored on exit.
     options = setOpt(options)
@@ -787,10 +791,16 @@ global procedure ppEx(object o, sequence options)
     options = setOpt(options) -- restore
 end procedure
 
+global procedure ppEx(object o, sequence options)
+-- pretty print object with selected options (as per ppOpt)
+-- The previous pretty_print options are restored on exit.
+    pp_Ex(o,options)
+end procedure
+
 global procedure pp(object o, sequence options={})
 -- pretty print
 -- For options see ppEx, ppOpt, and ppExf
-    ppEx(o,options)
+    pp_Ex(o,options)
 end procedure
 
 global function ppExf(object o, sequence options)

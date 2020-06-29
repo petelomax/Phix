@@ -14,6 +14,10 @@
          </td>
          <td>
          free(<a href="object.htm">object</a> addr)
+         <br>
+         <i>-- or --</i>
+         <br>
+         addr = free(<a href="object.htm">object</a> addr) <small><i>-- via ffree(), see technicalia</i></small>
          </td>
         </tr>
         <tr>
@@ -33,12 +37,15 @@
          </td>
          <td>
             Use free() to recycle blocks of memory during execution. This reduces the chance of running out of memory or getting into
-            excessive virtual memory swapping to disk. Do not reference a block of memory that has been freed, in some cases it may
-            help to deliberately zero the variable passed to the addr parameter immediately after free() returns. 
+            excessive virtual memory swapping to disk. Do not reference a block of memory that has been freed, or attempt to free() 
+            it more than once. In some (/many/most) cases it may help to deliberately zero the variable passed to the addr parameter 
+            immediately after free() returns, as per the second invocation method above.
             <br>
             <br>
             If a <a href="delete_routine.htm">delete_routine</a>() is in force for addr, then the call to free() behaves as a call
-            to <a href="delete.htm">delete</a>(). It is assumed that will re-invoke free(), but with the routine field zeroed.
+            to <a href="delete.htm">delete</a>(). It is assumed that will re-invoke free(), but with the internal delete_routine 
+            field zeroed, and by that I mean that the routine passed to delete_routine() <i>explicitly</i> invokes free(), rather 
+            than that aspect being somehow automatic (and/or somehow avoiding a double-free error).
             <br>
             <br>
             When a program terminates, all allocated memory is returned to the system. Strictly speaking it is not necessary to
@@ -80,6 +87,15 @@
           </a>
          </td>
          <td>
+            free() is a procedure that does not return a value. There is a matching function, ffree(), 
+            also defined in builtins\pAlloc.e that returns appropriate NULLs, ie ffree(a) returns NULL
+            and ffree({a,b,c}) returns {NULL,NULL,NULL} [whether or not they were NULL to begin with].
+            For convenience, the front-end maps free() to ffree() rather than issue a compilation error. 
+            This allows eg <code>a = free(a)</code>, in line with <a href="mpfr.htm">mpz_free</a>(),
+            and reduces the chance of inadvertently referencing/modifying freed memory allocations.
+            Obviously you are at liberty to explicitly invoke ffree(), just not as a procedure call.
+            <br>
+            <br>
             There is an experimental (ie unfinished) memory leak checker built into the interpreter.
             At the top of p.exw, you should find the constant MCHK = 0|1. This flag directly controls 
             whether, later on in the same file, it creates a new stack/heap, calls :%RunCleanup, then
@@ -129,7 +145,7 @@
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

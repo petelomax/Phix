@@ -6393,19 +6393,19 @@ global constant
 --                      })
 --/endcode
 
-global function classDefaults(integer class, sequence pData)
+global function classDefaults(integer class_id, sequence pData)
     sequence lCurDefaults
 
     -- Make sure only real class ids are supplied.
-    if   class < 1
-      or class > length(vControlTypes)
+    if   class_id < 1
+      or class_id > length(vControlTypes)
     then
         return {} -- Bad ID supplied.
     end if
 
     -- Collect the current values before changing them.
-    lCurDefaults = {{CCflags, w32get_bits(classStyle[class])},
-                    {CCexflags, w32get_bits(classStyleEx[class])},
+    lCurDefaults = {{CCflags, w32get_bits(classStyle[class_id])},
+                    {CCexflags, w32get_bits(classStyleEx[class_id])},
                     {CCwinstyle, vWindowClassStyle}
                    }
 
@@ -6418,16 +6418,16 @@ global function classDefaults(integer class, sequence pData)
                 -- Is this the Style Flags?
                 if pData[i][1] = CCflags then
                     if atom(pData[i][2]) then
-                        classStyle[class] = pData[i][2]
+                        classStyle[class_id] = pData[i][2]
                     else
-                        classStyle[class] = w32or_all(pData[i][2])
+                        classStyle[class_id] = w32or_all(pData[i][2])
                     end if
                 -- Is this the Extended Style Flags?
                 elsif pData[i][1] = CCexflags then
                     if atom(pData[i][2]) then
-                        classStyleEx[class] = pData[i][2]
+                        classStyleEx[class_id] = pData[i][2]
                     else
-                        classStyleEx[class] = w32or_all(pData[i][2])
+                        classStyleEx[class_id] = w32or_all(pData[i][2])
                     end if
                 -- Is this the Class Style flags
                 elsif pData[i][1] = CCwinstyle then
@@ -12941,12 +12941,12 @@ object attachTo
 atom result
 atom mstyle
 atom mid
-integer class
+integer class_id
 
-        class = ctrl_Family[id]
+        class_id = ctrl_Family[id]
 
         -- if menu and there is no menu for this window, create one
-        if  class = MENU and
+        if  class_id = MENU and
         ctrl_Family[owner] = WINDOW and
         ctrl_Menu[ owner ]= 0  then
             -- create a menu
@@ -12970,7 +12970,7 @@ integer class
 -- +++++++++setID for this hWnd ? ++++++++++++++++
 
         -- attach a menu item if it's not a popup
-        if class = MENU then
+        if class_id = MENU then
             -- where does this attach to?
             if ctrl_Family[owner] = MENU or
             ctrl_Family[owner] = MENUITEM then
@@ -14957,43 +14957,43 @@ end function
 
 global function struct_TVINSERTSTRUCT( atom hParent, atom hInsertAfter,
                            atom hItem )
-    atom struct
+    atom pStruct
     sequence item
 
-    struct = w32acquire_mem(0,  SIZEOF_TVINSERTSTRUCT )
+    pStruct = w32acquire_mem(0, SIZEOF_TVINSERTSTRUCT )
 
-    w32store( struct, TVINSERTSTRUCT_hParent, hParent )
-    w32store( struct, TVINSERTSTRUCT_hInsertAfter, hInsertAfter )
+    w32store( pStruct, TVINSERTSTRUCT_hParent, hParent )
+    w32store( pStruct, TVINSERTSTRUCT_hInsertAfter, hInsertAfter )
 
     item = peek( {hItem, SIZEOF_TVITEM} )
-    poke( struct + TVINSERTSTRUCTITEM_mask[1], item )
+    poke( pStruct + TVINSERTSTRUCTITEM_mask[1], item )
 
-    return struct
+    return pStruct
 end function
 
 global function struct_TVITEM( atom mask, atom hItem, atom state,
             atom stateMask, object text, atom iImage,
             atom iSelectedImage, atom cChildren, atom lParam )
-    atom struct
+    atom pStruct
 
 
-    struct = w32acquire_mem(0,  SIZEOF_TVITEM )
+    pStruct = w32acquire_mem(0, SIZEOF_TVITEM )
 
-    w32store( struct, TVITEM_mask, mask )
-    w32store( struct, TVITEM_hItem, hItem )
-    w32store( struct, TVITEM_state, state )
-    w32store( struct, TVITEM_stateMask, stateMask )
+    w32store( pStruct, TVITEM_mask, mask )
+    w32store( pStruct, TVITEM_hItem, hItem )
+    w32store( pStruct, TVITEM_state, state )
+    w32store( pStruct, TVITEM_stateMask, stateMask )
 
     if sequence(text) then
-        w32store( struct, TVITEM_cchTextMax, length( text ) )
+        w32store( pStruct, TVITEM_cchTextMax, length( text ) )
     end if
-    w32store( struct, TVITEM_pszText, text )
-    w32store( struct, TVITEM_iImage, iImage )
-    w32store( struct, TVITEM_iSelectedImage, iSelectedImage )
-    w32store( struct, TVITEM_cChildren, cChildren )
-    w32store( struct, TVITEM_lParam, lParam )
+    w32store( pStruct, TVITEM_pszText, text )
+    w32store( pStruct, TVITEM_iImage, iImage )
+    w32store( pStruct, TVITEM_iSelectedImage, iSelectedImage )
+    w32store( pStruct, TVITEM_cChildren, cChildren )
+    w32store( pStruct, TVITEM_lParam, lParam )
 
-    return struct
+    return pStruct
 end function
 
 global function struct_TVHITTESTINFO( integer x, integer y, integer flags,
@@ -16351,7 +16351,7 @@ global function createEx(integer pControl, sequence pCaption, atom pOwner,
 integer id
 integer bgControl
 atom hWnd, flags, extendedflags, lParenthWnd
-atom szClassName, szCaption, hMenu, newhWnd, struct, ok
+atom szClassName, szCaption, hMenu, newhWnd, pStruct, ok
 sequence lvcol, BBox
 object sbPanels
 sequence lHintText
@@ -16585,7 +16585,7 @@ object lTemp
         elsif pControl = ReBarBand then
             lUserPre = 0
 
-            struct = struct_REBARBANDINFO(
+            pStruct = struct_REBARBANDINFO(
             w32or_all( {   RBBIM_ID,       -- fMask
                         RBBIM_SIZE,
                         RBBIM_TEXT,
@@ -16610,9 +16610,9 @@ object lTemp
             0,          -- lParam
             0 )         -- cxHeader
 
-            hWnd = sendMessage( pOwner, RB_INSERTBAND, -1, struct )
+            hWnd = sendMessage( pOwner, RB_INSERTBAND, -1, pStruct )
 
-            w32release_mem( struct )
+            w32release_mem( pStruct )
 
 
         elsif pOwner != 0
@@ -16630,20 +16630,20 @@ object lTemp
                 szCaption = -1
             end if
 
-            struct = w32acquire_mem( 0, SIZEOF_TBBUTTON )
-            w32store( struct, TBBUTTON_idCommand, id )
-            w32store( struct, TBBUTTON_dwData, id )
-            w32store( struct, TBBUTTON_iBitmap, pLeft-1 )
-            w32store( struct, TBBUTTON_fsState, TBSTATE_ENABLED )
-            w32store( struct, TBBUTTON_iString, szCaption )
+            pStruct = w32acquire_mem( 0, SIZEOF_TBBUTTON )
+            w32store( pStruct, TBBUTTON_idCommand, id )
+            w32store( pStruct, TBBUTTON_dwData, id )
+            w32store( pStruct, TBBUTTON_iBitmap, pLeft-1 )
+            w32store( pStruct, TBBUTTON_fsState, TBSTATE_ENABLED )
+            w32store( pStruct, TBBUTTON_iString, szCaption )
 
             styleFlags = w32or_all( {styleFlags, classStyle[ pControl ] } )
 
-            w32store( struct, TBBUTTON_fsStyle, styleFlags )
+            w32store( pStruct, TBBUTTON_fsStyle, styleFlags )
 
-            ok = sendMessage( pOwner, TB_ADDBUTTONS, 1, struct )
+            ok = sendMessage( pOwner, TB_ADDBUTTONS, 1, pStruct )
 
-            w32release_mem(struct)
+            w32release_mem(pStruct)
 
             if not ok then
                 warnErr( Err_FLATTOOLBARBTN )
@@ -20331,7 +20331,7 @@ procedure fDoDestruction(integer id)
 -- It is safe to assume that all children of this control
 -- have already been destroyed before this is called.
 
-integer class, parent, lIdx
+integer class_id, parent, lIdx
 atom handle
 integer tabnumber
 object lUserResponse
@@ -20348,7 +20348,7 @@ object lTemp
 
         if equal(lUserResponse,0) then
             -- get class and parent
-            class = ctrl_Family[id]
+            class_id = ctrl_Family[id]
             parent = findParent(id)
 
             if ctrl_Type[id] = TabItem then
@@ -20367,7 +20367,7 @@ object lTemp
                     call_proc(r_setFocus,{ctrl_Tabitems[parent][tabnumber]})
                 end if
 
-            elsif class = WINDOW then
+            elsif class_id = WINDOW then
                 -- destroy window
                 VOID = w32Func( xDestroyWindow,{ctrl_Handle[id]})
                 if ctrl_ClassAddr[id]!=0 then
@@ -20381,14 +20381,14 @@ object lTemp
                 handle = sendMessage(parent,TB_COMMANDTOINDEX,id,0)
                 VOID = sendMessage(parent,TB_DELETEBUTTON,handle,0)
 
-            elsif find(class,{COMMON_CONTROL,BUTTON,COMBO,EDIT,LISTBOX,SCROLLBAR,STATIC}) then
+            elsif find(class_id,{COMMON_CONTROL,BUTTON,COMBO,EDIT,LISTBOX,SCROLLBAR,STATIC}) then
                 -- destroy control
                 VOID = w32Func( xDestroyWindow, { ctrl_Handle[id] } )
 
-            elsif class = PIXMAP then
+            elsif class_id = PIXMAP then
                 deleteObject(ctrl_Handle[id])
 
-            elsif class = MENU or class = MENUITEM then
+            elsif class_id = MENU or class_id = MENUITEM then
                 -- delete from parent
                 if not w32Func( xDeleteMenu, { ctrl_Menu[id][1],
                                               ctrl_Menu[id][3],
@@ -20591,7 +20591,7 @@ global function getRect( atom id )
 -- get metrics for current window
 -- returns { left, top, bottom, right }
 --
-atom struct, hdc, mset, bufsize, hWnd
+atom pStruct, hdc, mset, bufsize, hWnd
 sequence xy, retval
 
 
@@ -20626,15 +20626,15 @@ sequence xy, retval
 
             if bufsize != 0 then
                 -- Allocate a buffer to hold bitmap information
-                struct = w32acquire_mem( mset, bufsize )
+                pStruct = w32acquire_mem( mset, bufsize )
 
                 -- load bitmap data into structure
-                if w32Func( xGetObject, { id, bufsize, struct} ) != bufsize then
+                if w32Func( xGetObject, { id, bufsize, pStruct} ) != bufsize then
                     warnErr( Err_GSGETBITMAP )
                 end if
                 -- get the values from the bitmap
-                retval[3] = w32fetch( struct, bmWidth )
-                retval[4] = w32fetch( struct, bmHeight )
+                retval[3] = w32fetch( pStruct, bmWidth )
+                retval[4] = w32fetch( pStruct, bmHeight )
             else
                 warnErr( Err_GSGETBITMAP )
                 retval[3] = 0
@@ -20651,31 +20651,31 @@ sequence xy, retval
                 bufsize = w32Func( xGetObject, { hWnd, 0, 0} )
                 -- Allocate a buffer to hold bitmap information
                 if bufsize > 0 then
-                    struct = w32acquire_mem( mset, bufsize )
+                    pStruct = w32acquire_mem( mset, bufsize )
 
                     -- load bitmap data into structure
-                    if w32Func( xGetObject, { hWnd, bufsize, struct} ) != bufsize then
+                    if w32Func( xGetObject, { hWnd, bufsize, pStruct} ) != bufsize then
                         warnErr( Err_GSGETPIXMAP )
                     end if
 
                     -- get the values from the bitmap
-                    retval[3] = w32fetch( struct, bmWidth )
-                    retval[4] = w32fetch( struct, bmHeight )
+                    retval[3] = w32fetch( pStruct, bmWidth )
+                    retval[4] = w32fetch( pStruct, bmHeight )
                 end if
             end if
 
         else
 
             -- Allocate a buffer to hold the rectangle information
-            struct  = w32acquire_mem( mset, SIZEOF_RECT )
+            pStruct = w32acquire_mem( mset, SIZEOF_RECT )
 
             -- load rectangle information into the buffer
-            if not w32Func( xGetWindowRect, { getHandle( id ), struct } ) then
+            if not w32Func( xGetWindowRect, { getHandle( id ), pStruct } ) then
                 abortErr( Err_GSGETWINDRECT )
             end if
 
             -- get points
-            retval = peek4s({struct,4})
+            retval = peek4s({pStruct,4})
 
             -- is it owned by a window?
             if ctrl_Parent[id] then
@@ -34726,7 +34726,7 @@ global constant SE_ERR_FNF             = 2,       -- file not found
 --/li SW_SHOWDEFAULT
 --/li SW_MAX
 --
--- The /i struct parameter is not used yet.
+-- The /i pStruct parameter is not used yet.
 --
 -- The return codes for this function are... /n
 -- SE_ERR_FNF                    -- file not found
@@ -34742,13 +34742,13 @@ global constant SE_ERR_FNF             = 2,       -- file not found
 -- SE_ERR_DLLNOTFOUND
 
 global function shellExecuteEx( object verb, sequence file, object parms,
-                      object defdir, atom style, atom struct)
+                      object defdir, atom style, atom pStruct)
 -- call ShellExecuteEx to display a file
 atom mset, parms_p, file_p, verb_p, defdir_p
 atom hWnd
 integer rc
 
---/**/  if struct then end if   -- suppress warnings
+--/**/  if pStruct then end if  -- suppress warnings
         if validId(mainWindow) then
             hWnd = getHandle(mainWindow)
         else

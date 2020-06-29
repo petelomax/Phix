@@ -38,7 +38,7 @@
 --
 --  (programming note: %s is all the wildcard-matching we can handle; ? and * are treated as literals.)
 --
---/**/without debug -- (keep ex.err clean)
+--!/**/without debug -- (keep ex.err clean)
 --
 -- The real gruntwork here is recognising numbers (if you think this is complicated, google "scanf.c").
 --  Much of get_number() and completeFloat() was copied from ptok.e, should really unify I spose, but
@@ -215,19 +215,32 @@ atom fraction
         if esigned then
             exponent = -exponent
         end if
-        if exponent>308 then
-            -- rare case: avoid power() overflow
-            N *= power(10, 308)
-            if exponent>1000 then
-                exponent = 1000 
+        if exponent<0 then
+            if exponent<-308 then
+                -- rare case: avoid power() overflow
+                N /= power(10, 308)
+                if exponent<-1000 then
+                    exponent = -1000 
+                end if
+                for i=1 to -exponent-308 do
+                    N /= 10
+                end for
+            else
+                N /= power(10,-exponent)
             end if
-            for i=1 to exponent-308 do
-                N *= 10
-            end for
-        elsif exponent<0 then
-            N /= power(10,-exponent)
         else
-            N *= power(10, exponent)
+            if exponent>308 then
+                -- rare case: avoid power() overflow
+                N *= power(10, 308)
+                if exponent>1000 then
+                    exponent = 1000 
+                end if
+                for i=1 to exponent-308 do
+                    N *= 10
+                end for
+            else
+                N *= power(10, exponent)
+            end if
         end if
     end if
     return {N*msign,sidx}

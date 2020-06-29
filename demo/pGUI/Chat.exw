@@ -1,0 +1,290 @@
+--
+-- Chat.exw
+--
+-- Author:  Pete Lomax
+--     Translated from a win32lib demo by Brett A. Pantalone
+--
+-- Description:
+--     The obligatory "chat" demo to illustrate the Phix Sockets library.
+--
+-- How to use:
+--     The purpose of this program is to demonstrate the use of sockets in
+--     Phix. Start at least two separate instances of this program, either
+--     on different networked computers or all on the same localhost. In one
+--     of the instances, enter the address and port of another instance (the
+--     listening port is shown on its title bar) and click the "Connect" button.
+--     You can experiment to determine the Windows socket behavior under 
+--     different circumstances.
+--
+-- License: Copyright (C) 2020 Pete Lomax / 2005 Brett A. Pantalone
+--
+--     This software is released into the public domain.  You are free to use 
+--     it in any way you like, except that you may not sell this source code.
+--
+--     This program is distributed in the hope that it will be useful,
+--     but WITHOUT ANY WARRANTY; without even the implied warranty of
+--     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--     GNU General Public License for more details.
+--
+-- TODO: Use ipc, invoke a second instance and get the listeners right
+--         (as opposed to just "guessing" that port+1 will be useful).
+--       Add colour to the output (see IupUser in the IupText docs, and
+--         replace all the commented-out setFont() calls left in below).
+--
+include builtins/sockets.e
+include pGUI.e
+
+Ihandle dlg, hlbl, htxt, plbl, ptxt, cbtn, chat, mtxt, sbtn, vbox, hTimer
+
+enum DISCONNECTED = 0, LISTEN = 1, CONNECTED = 2
+atom hSockListen = 0, hSockConnect = 0, sock_state = DISCONNECTED
+
+procedure handleError()
+    {integer err, string id, string short} = get_socket_error()
+    string title = sprintf("Winsock Error %d", err),
+             msg = sprintf("%s: %s", {id, short})
+    IupMessage(title, msg)
+end procedure
+
+procedure gotoStateListen()
+    integer port = getsockport(hSockListen)
+    IupSetStrAttribute(dlg, "TITLE", "Listen:" & sprint(port))
+--  setFont(chat, {Black,"Arial"}, 10, Bold)
+    IupSetAttribute(chat,"APPEND","Listening on Port " & sprint(port))
+    if IupGetInt(ptxt,"VALUE")=0 then IupSetInt(ptxt, "VALUE", port+1) end if
+    sock_state = LISTEN
+end procedure
+
+procedure gotoStateConnect(string msg)
+    integer port = getsockport(hSockConnect)
+    IupSetStrAttribute(dlg, "TITLE", "Connected:" & sprint(port))
+--  setFont(chat, {Black,"Arial"}, 10, Bold)
+    IupSetAttribute(chat, "APPEND", msg)
+    IupSetAttribute(cbtn, "TITLE", "Disconnect")
+    IupSetInt(htxt, "ACTIVE", false)
+    IupSetInt(ptxt, "ACTIVE", false)
+    IupSetInt(mtxt, "ACTIVE", true)
+    IupSetInt(sbtn, "ACTIVE", true)
+    IupSetFocus(mtxt)
+    sock_state = CONNECTED
+end procedure
+
+-------------------------------------------------------------------------------
+procedure gotoStateDisconnect(string msg)
+    IupSetStrAttribute(dlg, "TITLE", "Disconnected")
+--  setFont(chat, {Black,"Arial"}, 10, Bold)
+    IupSetAttribute(chat, "APPEND", msg)
+    IupSetAttribute(cbtn, "TITLE", "Connect")
+    IupSetInt(htxt, "ACTIVE", true)
+    IupSetInt(ptxt, "ACTIVE", true)
+    IupSetInt(mtxt, "ACTIVE", false)
+    IupSetInt(sbtn, "ACTIVE", false)
+    sock_state = DISCONNECTED
+end procedure
+
+function createListeningSocket()
+
+    if hSockListen>0 then
+        -- Already listening; reuse the existing socket
+        gotoStateListen()
+        return true
+    end if
+
+    -- Create a stream (TCP) socket
+    hSockListen = socket(AF_INET, SOCK_STREAM, 0)
+    if hSockListen!=SOCKET_ERROR then
+
+        -- Setup an IP address/port structure
+        -- Use the localhost address and let Windows choose the port
+        atom pSockAddr = sockaddr_in(AF_INET, "", 0)
+
+        -- Bind this end of the socket to the local port
+        if bind(hSockListen, pSockAddr)!=SOCKET_ERROR then
+
+            -- Listen for a connection request
+            if listen(hSockListen, 1)!=SOCKET_ERROR then
+                gotoStateListen()
+                return true
+            end if
+        end if
+    end if
+
+    handleError()
+    return false -- close window
+end function
+
+function checkPendingConnections()
+    -- Check for pending connections on the listening socket
+    {integer code, sequence {read_set}} = select({hSockListen},{},{},{0,0})
+    if code=0 then
+
+        return true -- nothing waiting
+
+    elsif code>0 and find(hSockListen, read_set) then
+    -- The find() is redundant, since there was only one socket requested
+    -- in the call to select(). Even if there is activity on other sockets,
+    -- only information about hSockListen will be returned.
+
+        -- Accept the waiting connection.
+        -- This returns a new socket, already connected to the remote peer.
+        hSockConnect = accept(hSockListen)
+        if hSockConnect!=SOCKET_ERROR then
+            gotoStateConnect("Connected as Host\r\n")
+            return true
+        end if
+
+    end if
+
+    handleError()
+    return false -- close window
+end function
+
+procedure checkReceiveBuffer()
+--
+-- Check for data waiting in the receive buffer
+--
+    {integer code, sequence {read_set}} = select({hSockConnect},{},{},{0,0})
+    if code=0 then
+
+        return -- no data received
+
+    elsif code>0 and find(hSockConnect, read_set) then -- (ditto)
+
+        -- Fetch the received data
+        {integer len, string buffer} = recv(hSockConnect)
+        if len=0 then -- indicates the connection was closed
+            closesocket(hSockConnect)
+            gotoStateDisconnect("Connection Closed by Peer\r\n")
+            return
+        elsif len>0 then -- number of bytes received
+--          setFont(chat, {Red,"Arial"}, 10, Normal)
+            IupSetAttribute(chat, "APPEND", buffer)
+            return
+        end if
+
+    end if
+
+    handleError()
+    closesocket(hSockConnect)
+    gotoStateDisconnect("Receive Error; Connection Closed\r\n")
+end procedure
+
+function connect_cb(Ihandle /*self*/)
+--
+-- User has clicked the '(Dis)Connect' button. Attempt an outgoing connection 
+-- to a remote server, or close the connection if one already exists.
+--
+    if sock_state=CONNECTED then
+        -- Disconnect the existing socket
+        closesocket(hSockConnect)
+        gotoStateDisconnect("Connection Terminated by User\r\n")
+        return IUP_DEFAULT
+    end if
+
+    -- Create a stream (TCP) socket
+    hSockConnect = socket(AF_INET, SOCK_STREAM, 0)
+    if hSockConnect!=SOCKET_ERROR then
+
+        -- Setup an IP address/port structure
+        -- Use the remote address and port specified in the edit boxes
+        string host = IupGetAttribute(htxt,"VALUE")
+        integer port = IupGetInt(ptxt,"VALUE")
+        atom pSockAddr = sockaddr_in(AF_INET, host, port)
+        if pSockAddr!=SOCKET_ERROR then
+
+            -- Connect the new socket to the remote host
+            if connect(hSockConnect, pSockAddr)!=SOCKET_ERROR then
+                gotoStateConnect("Connected as Client\r\n")
+                return IUP_DEFAULT
+            end if
+        end if
+    end if
+
+    handleError()
+    closesocket(hSockConnect)
+    gotoStateDisconnect("Connect Error; Connection Aborted\r\n")
+    return IUP_DEFAULT
+end function
+
+function send_cb(Ihandle /*sbtn*/)
+--
+-- User has clicked the 'Send' button. Send edit box text to the remote peer.
+--
+    string text = IupGetAttribute(mtxt,"VALUE")
+    if not equal(text,"") then
+        if send(hSockConnect, text)=SOCKET_ERROR then
+            handleError()
+        end if
+        IupSetAttribute(mtxt,"VALUE","")
+--      setFont(chat, {Blue,"Arial"}, 10, Normal)
+        IupSetAttribute(chat,"APPEND",text)
+        IupSetFocus(mtxt)
+    end if
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandle hTimer)
+--
+-- This handler is called every 100 ms. This allows us to use non-blocking
+-- send & receive calls, while avoiding a CPU-intensive while(1) control loop.
+--
+    IupSetInt(hTimer,"RUN",0) -- Prevent reentry
+    if sock_state=DISCONNECTED then
+        if not createListeningSocket() then return IUP_CLOSE end if
+    elsif sock_state=LISTEN then
+        if not checkPendingConnections() then return IUP_CLOSE end if
+    elsif sock_state=CONNECTED then
+        checkReceiveBuffer()
+    end if
+    IupSetInt(hTimer,"RUN",1) -- Restart the timer
+    return IUP_DEFAULT
+end function
+
+function close_cb(Ihandle /*ih*/)
+    IupSetInt(hTimer,"RUN",0)
+    closesocket(hSockListen)
+    closesocket(hSockConnect)
+    WSACleanup()
+    return IUP_CLOSE
+end function
+
+function esc_cb(Ihandle /*dlg*/, atom c)
+    if c=K_ESC then
+        return close_cb(dlg) 
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    hlbl = IupLabel("Host Address")
+    htxt = IupText(`VALUE="127.0.0.1", EXPAND=HORIZONTAL`)
+    plbl = IupLabel("Port")
+    ptxt = IupText()
+    cbtn = IupButton("Connect", "ACTION", Icallback("connect_cb"),"PADDING=5x0")
+    chat = IupMultiLine("FORMATTING=YES, READONLY=YES, SIZE=80x40, EXPAND=YES")
+    mtxt = IupText("EXPAND=HORIZONTAL")
+    sbtn = IupButton("Send", "ACTION", Icallback("send_cb"),"PADDING=5x0")
+    vbox = IupVbox({IupHbox({IupVbox({hlbl,htxt}),IupVbox({plbl,ptxt}),IupVbox({IupFill(),cbtn})}),
+                    IupHbox({IupVbox({chat})}),
+                    IupHbox({IupHbox({mtxt,sbtn},"GAP=25")})},
+                   "MARGIN=5x5,GAP=5")
+    dlg = IupDialog(vbox,`TITLE="Chat (sockets demo)"`)
+    IupSetCallback(dlg, "K_ANY", Icallback("esc_cb"));
+    IupSetAttributeHandle(dlg,"DEFAULTENTER", sbtn)
+    IupSetCallback(dlg, "CLOSE_CB",  Icallback("close_cb"))
+    IupShow(dlg)
+    IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg, "RASTERSIZE"))
+    IupSetAttribute(dlg, "SIZE", "400x200")
+    IupRefresh(dlg)
+    IupSetAttribute(dlg, "SIZE", NULL)
+    IupSetFocus(cbtn)
+    gotoStateDisconnect("")
+    hTimer = IupTimer(Icallback("timer_cb"), 100)
+
+    IupMainLoop()
+    IupDestroy(dlg)
+    IupClose()
+end procedure
+main()
+

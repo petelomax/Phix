@@ -211,8 +211,8 @@ include builtins\VM\puts1.e         -- low-level console i/o
         faddp
         jmp @f  -- (type check error, <int> is x.5)
 
-        [32]
     :%e01tcfediMul -- (opMuliii)
+        [32]
 -- this might want to be push eax:ecx; fild qword[esp]...
             push eax
             fild dword[esp]

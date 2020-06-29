@@ -28,14 +28,10 @@ function OnTimer(Ihandle /*ih*/)
     return IUP_IGNORE
 end function
 
-function esc_close(Ihandle /*ih*/, atom c)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
-end function
-
 procedure main()
 Ihandle separator1, separator2, 
         canvas, frame_1, frame_2, 
-        dialog
+        dlg
 
     IupOpen()
 
@@ -56,16 +52,16 @@ Ihandle separator1, separator2,
                        "EXPAND=HORIZONTAL, RASTERSIZE=200x200")
     frame_2 = IupFrame(canvas, "TITLE=IupCanvas")
 
-    dialog = IupDialog(IupHbox({frame_1,frame_2}, "MARGIN=5x5, GAP=5"))
-    IupSetAttribute(dialog,"TITLE","Mouse motion");
-    IupSetCallback(dialog, "K_ANY", Icallback("esc_close"));
+    dlg = IupDialog(IupHbox({frame_1,frame_2}, "MARGIN=5x5, GAP=5"))
+    IupSetAttribute(dlg,"TITLE","Mouse motion");
+    IupCloseOnEscape(dlg)
 
     IupSetGlobal("INPUTCALLBACKS", "Yes");
     IupSetGlobalFunction("GLOBALMOTION_CB", Icallback("globalmotion_cb"));
 
     Ihandle hTimer = IupTimer(Icallback("OnTimer"), 3000)
 
-    IupShow(dialog)
+    IupShow(dlg)
 
     IupMainLoop()
     IupClose()

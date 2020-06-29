@@ -4974,17 +4974,18 @@ global constant
     --
 --DEV F1 lookup:
     CD_RED          = #FF0000,
-    CD_DARK_RED     = #800000,
-    CD_ORANGE       = #FFA500,
-    CD_DARK_ORANGE  = #FF8C00,
-    CD_GREEN        = #00FF00,
+    CD_DARK_RED     = #800000,  -- (not the best...)
+    CD_ORANGE       = #FF8C00,
+    CD_LIGHT_GREEN  = #00FF00,
+    CD_GREEN        = #3cb44b,
     CD_DARK_GREEN   = #008000,
+    CD_LIGHT_BLUE   = #4363d8,
     CD_BLUE         = #0000FF,
     CD_DARK_BLUE    = #000080,
     CD_YELLOW       = #FFFF00,
-    CD_DARK_YELLOW  = #808000,
-    CD_MAGENTA      = #FF00FF,
-    CD_DARK_MAGENTA = #800080,
+--  CD_MAGENTA      = #FF00FF,
+    CD_MAGENTA      = #f032e6,
+    CD_DARK_MAGENTA = #800080,  -- (not the best...)
     CD_CYAN         = #00FFFF,
     CD_DARK_CYAN    = #008080,
     CD_WHITE        = #FFFFFF,
@@ -4997,7 +4998,8 @@ global constant
     CD_LIGHT_GREY   = #E4E4E4,
     CD_PARCHMENT    = #FFFFE0,
     CD_INDIGO       = #4B0082,
-    CD_PURPLE       = #D080D0,
+--  CD_PURPLE       = #D080D0,
+    CD_PURPLE       = #911eb4,
     CD_VIOLET       = #EE82EE,
 
     --
@@ -5005,7 +5007,7 @@ global constant
     --
     -- These are simply for convenience
     --
-    CD_MM2PT = 2.83465,         -- Milimeters to Points (pt = CD_MM2PT * mm)
+    CD_MM2PT = 2.83465,         -- Millimeters to Points (pt = CD_MM2PT * mm)
 --  CD_DEG2RAD = 0.0174533,     -- Degrees to Radians (rad = CD_DEG2RAD * deg)
 --  CD_RAD2DEG = 57.2958,       -- Radians to Degrees (deg = CD_RAD2DEG * rad)
     CD_DEG2RAD = PI/180,        -- Degrees to Radians (rad = CD_DEG2RAD * deg)
@@ -6153,7 +6155,7 @@ end function
 --  atom pDx = allocate(16),
 --       pDy = pDx+8
 --  c_proc(xcdfCanvasMM2Pixel, {canvas, mm_dx, mm_dy, pDx, pDy})
---  sequene dx_dy = iup_peek_double({pDx, 2})
+--  sequence dx_dy = iup_peek_double({pDx, 2})
 --  free(pDx)
 --  return dx_dy
 --end function

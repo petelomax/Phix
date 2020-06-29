@@ -87,6 +87,49 @@ sequence res
     return res
 end function
 
+--/* SUG: (or maybe reverse_unicode())
+function unicode_reverse(string utf8)
+    sequence utf32 = utf8_to_utf32(utf8)
+    --
+    -- The assumption is made that <char><comb1><comb2>
+    -- and <char><comb2><comb1> etc would work the same.
+    --
+    -- The following loop converts <char><comb1><comb2>
+    -- to <comb1><comb2><char>, as a pre-reverse() step.
+    --
+    for i=1 to length(utf32) do
+        integer ch = utf32[i]
+        if (ch>=0x300 and ch<=0x36f)
+        or (ch>=0x1dc0 and ch<=0x1dff)
+        or (ch>=0x20d0 and ch<=0x20ff)
+        or (ch>=0xfe20 and ch<=0xfe2f) then
+            utf32[i] = utf32[i-1]
+            utf32[i-1] = ch
+        end if
+    end for
+    utf32 = reverse(utf32)
+    utf8 = utf32_to_utf8(utf32)
+    return utf8
+end function
+
+-- and maybe:
+function utf32_length(sequence utf32)
+    integer l = length(utf32)
+    for i=1 to l do
+        integer ch = utf32[i]
+        if (ch>=0x300 and ch<=0x36f)
+        or (ch>=0x1dc0 and ch<=0x1dff)
+        or (ch>=0x20d0 and ch<=0x20ff)
+        or (ch>=0xfe20 and ch<=0xfe2f) then
+            l -= 1
+        elsif ch=0x200D then -- ZERO WIDTH JOINER
+            l -= 2
+        end if
+    end for
+    return l
+end function
+--*/
+
 --/* Not required for Phix (defined in psprint.e):
 global
 function sprint(object x)

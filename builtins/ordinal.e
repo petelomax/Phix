@@ -11,20 +11,40 @@
 --
 
 global function ord(integer n)
-    integer r = remainder(n,10)+1
+integer r = remainder(n,10)+1
     if r<=0 or r>4 or remainder(n,100)=r+9 then r = 1 end if
     string res = {"th","st","nd","rd"}[r]
     return res
 end function
 
-constant twenties = {"zero","one","two","three","four","five","six","seven","eight","nine","ten",
-    "eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"}
- 
+integer oinit = false
+sequence twenties, decades, orders, irregs, ordinals
+
+procedure inito()
+    twenties = {"zero","one","two","three","four","five",
+                "six","seven","eight","nine","ten","eleven",
+                "twelve","thirteen","fourteen","fifteen",
+                "sixteen","seventeen","eighteen","nineteen"}    
+    decades = {"twenty","thirty","forty","fifty",
+               "sixty","seventy","eighty","ninety"}
+    orders = {{power(10,15),"quadrillion"},
+              {power(10,12),"trillion"},
+              {power(10,9),"billion"},
+              {power(10,6),"million"},
+              {power(10,3),"thousand"}}
+    {irregs,ordinals} = columnize({{"one","first"},
+                                   {"two","second"},
+                                   {"three","third"},
+                                   {"five","fifth"},
+                                   {"eight","eighth"},
+                                   {"nine","ninth"},
+                                   {"twelve","twelfth"}})
+    oinit = true
+end procedure
+
 function twenty(integer n)
     return twenties[mod(n,20)+1]
 end function
- 
-constant decades = {"twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"}
  
 function decade(integer n)
     return decades[mod(n,10)-1]
@@ -47,12 +67,6 @@ function thousand(integer n, string withand)
     end if
     return twenty(floor(n/100)) & " hundred and " & hundred(mod(n,100))
 end function
- 
-constant orders = {{power(10,15),"quadrillion"},
-                   {power(10,12),"trillion"},
-                   {power(10,9),"billion"},
-                   {power(10,6),"million"},
-                   {power(10,3),"thousand"}}
  
 function triplet(atom n)
 atom order, high, low
@@ -102,15 +116,8 @@ string res = ""
     return res
 end function
 
-constant {irregs,ordinals} = columnize({{"one","first"},
-                                        {"two","second"},
-                                        {"three","third"},
-                                        {"five","fifth"},
-                                        {"eight","eighth"},
-                                        {"nine","ninth"},
-                                        {"twelve","twelfth"}})
- 
 global function ordinal(atom n, bool bJustSpell=false)
+    if not oinit then inito() end if
     string s = spell(n)
     if not bJustSpell then -- default: "one" => "first", etc
         integer i

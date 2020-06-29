@@ -67,15 +67,15 @@ integer node = freelists[tid]
         trees[tid] = append(trees[tid],1)
         trees[tid] = append(trees[tid],NULL)
         -- no measurable gain:
---      sequence tree=trees[tid]
+--      sequence treet = trees[tid]
 --      trees[tid] = 0
---      tree = append(tree,key)
---      node = length(tree)
---      tree = append(tree,data)
---      tree = append(tree,NULL)
---      tree = append(tree,1)
---      tree = append(tree,NULL)
---      trees[tid] = tree
+--      treet = append(treet,key)
+--      treet = append(treet,data)
+--      treet = append(treet,NULL)
+--      treet = append(treet,1)
+--      treet = append(treet,NULL)
+--      trees[tid] = treet
+--      node = length(treet)
     else
         freelists[tid] = trees[tid][node]
         trees[tid][node+KEY..node+RIGHT] = {key,data,NULL,1,NULL}
@@ -311,23 +311,25 @@ end procedure
 --constant r_gpkv = routine_id("gpk_visitor")
 
 function traverser(sequence res, integer node, bool partial, object pkey, integer tid, bool rev)
-sequence tt = trees[tid]
-object key = tt[node+KEY],
-       data = tt[node+DATA]
-integer left = tt[node+LEFT],
-        right = tt[node+RIGHT]
-integer c = iff(partial?compare(key,pkey):0)
-    if rev then
-        {left,right} = {right,left}
-    end if
-    if left!=NULL then
-        res = traverser(res, left, partial, pkey, tid, rev)
-    end if  
-    if c>=0 and (not partial or length(res)=0) then
-        res = append(res,key)
-    end if
-    if right!=NULL and (not partial or length(res)=0) then
-        res = traverser(res, right, partial, pkey, tid, rev)
+    sequence tt = trees[tid]
+    if node!=NULL then
+        object key = tt[node+KEY],
+               data = tt[node+DATA]
+        integer left = tt[node+LEFT],
+                right = tt[node+RIGHT]
+        integer c = iff(partial?compare(key,pkey):0)
+        if rev then
+            {left,right} = {right,left}
+        end if
+        if left!=NULL then
+            res = traverser(res, left, partial, pkey, tid, rev)
+        end if  
+        if c>=0 and (not partial or length(res)=0) then
+            res = append(res,key)
+        end if
+        if right!=NULL and (not partial or length(res)=0) then
+            res = traverser(res, right, partial, pkey, tid, rev)
+        end if
     end if
     return res
 end function
@@ -366,12 +368,12 @@ global function dict_name(integer tid=1)
 end function
 
 ----DEV temp: (didn't help...)
-function f(object o) return o end function
+--function f(object o) return o end function
 --if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
 
 global function new_dict(object kd_pairs = {}, integer pool_only=0)
-if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
-kd_pairs = f(kd_pairs)
+--if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
+--kd_pairs = f(kd_pairs)
 --pool_only = f(pool_only)
     if not initd then dinit() end if
     integer tid = free_trees
@@ -392,7 +394,7 @@ kd_pairs = f(kd_pairs)
         freelists &= 0
         tid = length(trees)
     elsif pool_only>1 then
---      if length(kd_pairs) then ?9/0 end if
+        if length(kd_pairs) then ?9/0 end if
         if kd_pairs!={} then ?9/0 end if
         for i=1 to pool_only do
 --25/8/16 (spotted in passing!)

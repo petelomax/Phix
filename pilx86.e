@@ -4714,8 +4714,8 @@ fskip
 ,pbr        -- pass by reference optimisation (if = 2), used in opFrst
 ,cmph4,
         wasemitline, -- for opCallOnce & opLabel
-        waspc       -- for opConcatN, opRepe, opMkSq, opJne, opMath, opMovxx
-,flippable,
+        waspc,      -- for opConcatN, opRepe, opMkSq, opJne, opMath, opMovxx
+--flippable,
 useAndBits,     -- see opRmdr
 --doNotXor,     -- see opJcc, opPuts
 dbpos,          -- backpatch point for defaulted params (see opTchk)
@@ -7827,6 +7827,11 @@ else -- 20/4/19
             src = 0
             src2 = 0
             waspc = pc
+--if fileno=1 then
+--  ?{opcode,isGscan,emitline}
+--if fileno=1 and emitline=16 then
+--  trace(1)
+--end if
 
             if isGscan then
                 -- if bothInit and not tii, yet analysis reveals p2,p3 are in fact ints then tii=1:
@@ -10227,6 +10232,8 @@ if NOLT=0 or bind or lint then
                 if not invert then
                     sltype2 = xor_bits(sltype2,T_object)
                 end if
+--26/6/20 this is not getting undone, so I've just removed it completely...
+--/*
                 if sltype!=sltype2 then
                     Lmin = smin
                     Lmax = smax
@@ -10236,6 +10243,7 @@ if NOLT=0 or bind or lint then
                     ltAdd(TEST+flippable,src,sltype,sltype2,pc)
                     -- (nb do not getSrc() again below)
                 end if
+--*/
             end if  -- K_Fres
 end if -- NOLT
 
@@ -11646,7 +11654,12 @@ if smax2>=1024
 or smax>=MAXINT then
     nMax = MAXINT+1
 else
+--15/5/20:
+  try
                 nMax = power(smax,smax2)
+  catch e
+    nMax = MAXINT+1
+  end try
 end if
                 if smin<0 then       -- x can be negative
                     k = smax2
@@ -11682,7 +11695,12 @@ end if
 --                  if smax2>0 then nMin = 0 else nMin = 1 end if
                     nMin = (smax2<=0)
                 else                -- x is positive
+--15/5/20
+  try
                     nMin = power(smin,smin2)
+  catch e
+    nMax = MAXINT+1
+  end try
                 end if
 --              if not integer(nMax)
 --              or not integer(nMin) then

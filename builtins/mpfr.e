@@ -579,6 +579,32 @@ global procedure mpz_add_ui(mpz rop, op1, integer op2)
     c_proc(x_mpz_add_ui,{rop,op1,op2})
 end procedure
 
+integer x_mpz_addmul = NULL
+
+global procedure mpz_addmul(mpz rop, op1, op2)
+-- Set rop to rop + op1 * op2.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_addmul=NULL then
+        x_mpz_addmul = link_c_proc(mpir_dll, "+__gmpz_addmul", {P,P,I})
+    end if
+    c_proc(x_mpz_addmul,{rop,op1,op2})
+end procedure
+
+integer x_mpz_addmul_ui = NULL
+
+global procedure mpz_addmul_ui(mpz rop, op1, integer op2)
+-- Set rop to rop + op1 * op2.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2<0 then ?9/0 end if
+    if x_mpz_addmul_ui=NULL then
+        x_mpz_addmul_ui = link_c_proc(mpir_dll, "+__gmpz_addmul_ui", {P,P,I})
+    end if
+    c_proc(x_mpz_addmul_ui,{rop,op1,op2})
+end procedure
+
 integer x_mpz_sub = NULL
 
 global procedure mpz_sub(mpz rop, op1, op2)
@@ -1495,6 +1521,7 @@ global function mpz_probable_prime_p(mpz n, randstate state, integer prob=5, div
 --
     if n=NULL then ?9/0 end if
     if state=NULL then ?9/0 end if
+    if prob<=0 then ?9/0 end if
     if div<0 then ?9/0 end if
     if x_mpz_probable_prime_p=NULL then
         x_mpz_probable_prime_p = link_c_func(mpir_dll, "+__gmpz_probable_prime_p", {P,P,I,I}, I)
@@ -1560,6 +1587,16 @@ global function gmp_randinit_mt()
     c_proc(x_gmp_randinit_mt,{state})
     gmp_randseed(state)
     return state
+end function
+
+atom state = NULL
+global function mpz_prime(mpz p)
+    if p!=NULL then
+        if state=NULL then state = gmp_randinit_mt() end if
+        return mpz_probable_prime_p(p,state)
+    end if
+    if state!=NULL then state = gmp_randclear(state) end if
+    return NULL
 end function
 
 integer x_mpz_urandomm = NULL
@@ -1813,6 +1850,52 @@ mpz_binom(r,10,4)
 ?mpz_get_str(r)
 --?k_perm(10,4)
 ?choose(10,4)
+
+function mpz_vecprod(sequence s, object zls=1)
+--
+-- Fast vector multiplication.
+-- Multiplying the vector elements in pairs is much faster for essentially 
+--  much the same reason that merge sort is faster than insertion sort.
+--  Improved rosettacode/Primorial_numbers from 6 minutes to 6 seconds!!!!
+-- NB: Input sequence s (must all be mpz) is damaged. Returns an mpz.
+--     Obviously zls allows you to specify the result when {} is passed,
+--     since I imagine there'll be cases where you'd rather get a zero,
+--     and just like mpz_init(), zls can be an integer, atom, or string.
+--
+    if s={} then
+        return mpz_init(zls)
+    end if
+    while length(s)>1 do
+        for i=1 to floor(length(s)/2) do
+            mpz_mul(s[i],s[i],s[-i])
+        end for
+        s = s[1..ceil(length(s)/2)]
+    end while
+    return s[1]
+end function
+
+function mpz_vecprod_si(sequence s, object zls=1)
+--
+-- As above except input sequence s must all be integer. Unlike above, 
+--  s is not damaged, and this entry point is expected to be used more 
+--  often than the above, for such simple practical reasons, that is.
+-- Tests suggest halving mpz_init() calls makes this ~20% faster, more
+--  likely down to all the implicit free_mpz() than anything else.
+--  (Then again, 20% of not much is, erm, not very much...)
+--
+    if and_bits(length(s),1) then
+        s &= 1
+    end if
+    integer j = 0
+    for i=1 to length(s) by 2 do
+        mpz two = mpz_init(s[i])
+        mpz_mul_si(two,two,s[i+1])
+        j += 1
+        s[j] = two
+    end for
+    s = s[1..j] 
+    return mpz_vecprod(s,zls)
+end function
 --*/
 
 -- Technical note: MPFR_PREC_MAX is really 2^31-257 (or 2^63-257 on 64 bit), but
@@ -3579,7 +3662,7 @@ __gmpz_2fac_ui
 --__gmpz_add
 --__gmpz_add_ui
 __gmpz_addmul
-__gmpz_addmul_ui
+--__gmpz_addmul_ui
 __gmpz_and
 __gmpz_aorsmul_1
 __gmpz_array_init
@@ -6444,7 +6527,7 @@ The GNU C Library Reference Manual).
 --void mpz_ui_sub (mpz_t rop, mpir_ui op1, mpz_t op2) 
 --Set rop to op1 - op2.
 void mpz_addmul (mpz_t rop, mpz_t op1, mpz_t op2) 
-void mpz_addmul_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
+--void mpz_addmul_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
 Set rop to rop + op1 * op2.
 void mpz_submul (mpz_t rop, mpz_t op1, mpz_t op2) 
 void mpz_submul_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 

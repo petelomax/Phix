@@ -1585,7 +1585,7 @@ end function
 --      Addr = w32ElemAddr(lFR,FORMATRANGE_rcLeft)
 --/endcode
 
-global function w32ElemAddr(atom struct, sequence s)
+global function w32ElemAddr(atom pStruct, sequence s)
 atom w
 
         if length(s) > 4 and integer(s[5]) and s[5] > 0 and s[5] <= s[3] then
@@ -1593,12 +1593,12 @@ atom w
         else
             s &= 0
         end if
-        w = struct + s[1] + s[5]
+        w = pStruct + s[1] + s[5]
         return w
 end function
 
 --/topic Memory Management Routines
---/proc w32store(atom structure, sequence field, object value)
+--/proc w32store(atom pStruct, sequence field, object value)
 --/desc Store a value into a structure.
 -- Type conversion is automatic. For example, if an /b Lpsz field is
 -- used, the value is automatically converted from a sequence to a
@@ -1627,7 +1627,7 @@ end function
 --      /w32store(rect, bCoords & 2, Row)
 --/endcode
 
-global procedure w32store(atom struct, sequence s, object o)
+global procedure w32store(atom pStruct, sequence s, object o)
 -- Store the data based on its type
 atom w  -- where
 integer datatype
@@ -1635,7 +1635,7 @@ integer lCnt
 atom    at
 sequence bytes
 
-        w = w32ElemAddr(struct, s)
+        w = w32ElemAddr(pStruct, s)
         datatype = s[2]
         lCnt     = s[3]
         -- For sequences, make sure no more than lCnt elements are stored.
@@ -1681,7 +1681,7 @@ sequence bytes
                 l_SafePoke4(w,o)
             else
                 -- poke the address of the allotted string
-                l_SafePoke4(w,w32acquire_mem(struct,o))
+                l_SafePoke4(w,w32acquire_mem(pStruct,o))
             end if
 
         elsif datatype = Hndl then
@@ -1694,7 +1694,7 @@ sequence bytes
 
         elsif datatype = HndlAddr then
             -- poke a handle's address
-            at = w32acquire_mem(struct, 4)
+            at = w32acquire_mem(pStruct, 4)
             l_SafePoke4(at,o)
             l_SafePoke4(w,at)
 
@@ -1773,7 +1773,7 @@ sequence s
 end function
 
 --/topic Memory Management Routines
---/func w32fetch(atom structure, sequence field)
+--/func w32fetch(atom pStruct, sequence field)
 --/desc Fetch field from structure.
 --/ret OBJECT: Field from a structure.
 -- Data conversion is automatic. For example, if the field is
@@ -1797,7 +1797,7 @@ end function
 --
 -- /endcode
 
-global function w32fetch(atom struct, sequence s)
+global function w32fetch(atom pStruct, sequence s)
 -- fetch the data based on the type
 integer size, cnt
 atom at
@@ -1814,8 +1814,8 @@ sequence sbytes
         else
             s   &= 0
         end if
-        -- address is struct + offset
-        at = s[1] + struct + s[5]
+        -- address is pStruct + offset
+        at = s[1] + pStruct + s[5]
 
         -- read, based on size
         if size = Byte then

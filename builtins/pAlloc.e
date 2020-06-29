@@ -142,6 +142,21 @@ global procedure free(object addr)
 end procedure
 constant r_free = routine_id("free")
 
+global function ffree(object addr)
+    if sequence(addr) then
+        if string(addr) then ?9/0 end if
+        for i=1 to length(addr) do
+            atom ai = addr[i]   -- (deliberate typecheck)
+            addr[i] = NULL
+            free(ai)
+        end for
+    elsif addr!=NULL then
+        free(addr)
+        addr = NULL
+    end if
+    return addr -- NULL or repeat(NULL,length(addr))
+end function
+
 global function allocate(integer size, bool cleanup=false)
 atom res
     if size<0 then
@@ -173,9 +188,9 @@ atom res
     return res
 end function
 
-global function allocate_word(atom v=0, bool cleanup=false)
-    atom res = allocate(machine_word(),cleanup)
-    pokeN(res,v,machine_word())
+global function allocate_word(atom v=0, bool cleanup=false, integer size=machine_word())
+    atom res = allocate(size,cleanup)
+    pokeN(res,v,size)
     return res
 end function
 

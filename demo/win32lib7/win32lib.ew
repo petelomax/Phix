@@ -442,7 +442,7 @@
 
 without trace
 without profile
-without warning
+--without warning
 
 --/topic Constants
 --/const w32VOID
@@ -2753,19 +2753,17 @@ global constant
 --                      })
 --/endcode
 
-global function classDefaults(integer class, sequence pData)
+global function classDefaults(integer class_id, sequence pData)
 sequence lCurDefaults
 
     -- Make sure only real class ids are supplied.
-    if   class<1
-    or class>length(w32ControlTypes)
-    then
+    if class_id<1 or class_id>length(w32ControlTypes) then
         return {} -- Bad ID supplied.
     end if
 
     -- Collect the current values before changing them.
-    lCurDefaults = {{CCflags, w32get_bits(classStyle[class])},
-                    {CCexflags, w32get_bits(classStyleEx[class])},
+    lCurDefaults = {{CCflags, w32get_bits(classStyle[class_id])},
+                    {CCexflags, w32get_bits(classStyleEx[class_id])},
                     {CCwinstyle, vWindowClassStyle}
                    }
 
@@ -2778,16 +2776,16 @@ sequence lCurDefaults
                 -- Is this the Style Flags?
                 if pData[i][1]=CCflags then
                     if atom(pData[i][2]) then
-                        classStyle[class] = pData[i][2]
+                        classStyle[class_id] = pData[i][2]
                     else
-                        classStyle[class] = w32or_all(pData[i][2])
+                        classStyle[class_id] = w32or_all(pData[i][2])
                     end if
                 -- Is this the Extended Style Flags?
                 elsif pData[i][1]=CCexflags then
                     if atom(pData[i][2]) then
-                        classStyleEx[class] = pData[i][2]
+                        classStyleEx[class_id] = pData[i][2]
                     else
-                        classStyleEx[class] = w32or_all(pData[i][2])
+                        classStyleEx[class_id] = w32or_all(pData[i][2])
                     end if
                 -- Is this the Class Style flags
                 elsif pData[i][1]=CCwinstyle then
@@ -7771,9 +7769,7 @@ procedure createMenu(integer id, sequence mText, integer owner,integer flag ,seq
 atom ownerHandle
 atom mstyle
 atom mid
-integer class
-
-    class = ctrl_Family[id]
+integer family = ctrl_Family[id]
 
     -- create popup menu for this item
     ctrl_Handle[id] = w32Func(xCreatePopupMenu, {})
@@ -7784,7 +7780,7 @@ integer class
     menu_ids &= id
     menu_handles &= ctrl_Handle[id]
     -- attach a menu item if it's not a popup
-    if class=MENU then
+    if family=MENU then
         -- where does this attach to?
         if ctrl_Family[owner]=MENU or
            ctrl_Family[owner]=MENUITEM then
@@ -9066,7 +9062,7 @@ integer rid,pos,id_pos
     return w32Func(rid,{hmenu,pos,MF_BYPOSITION})
 end function
 
-function insertMenu(atom hp,atom id_or_h,object index,atom struct,integer flag,integer is_id)
+function insertMenu(atom hp,atom id_or_h,object index,atom pStruct,integer flag,integer is_id)
 integer id,lRC,pos
 sequence s
 integer pNewParent
@@ -9103,9 +9099,9 @@ integer pNewParent
 
     if index[1]=MP_END then
         if ctrl_Family[id]=MENU and is_id then
-            lRC = w32Func(xAppendMenu,{hp,flag,ctrl_Handle[id],struct})
+            lRC = w32Func(xAppendMenu,{hp,flag,ctrl_Handle[id],pStruct})
         else
-            lRC = w32Func(xAppendMenu,{hp,flag,id_or_h,struct})
+            lRC = w32Func(xAppendMenu,{hp,flag,id_or_h,pStruct})
         end if
         if lRC then
             ctrl_Group[pNewParent] &= id
@@ -9119,9 +9115,9 @@ integer pNewParent
             pos = getMenuPosn(index[2])+(index[1]=MP_AFTER)
         end if
         if ctrl_Family[id]=MENU and is_id then
-            lRC = w32Func(xInsertMenu,{hp,pos,flag,getHandle(id),struct})
+            lRC = w32Func(xInsertMenu,{hp,pos,flag,getHandle(id),pStruct})
         else
-            lRC = w32Func(xInsertMenu,{hp,pos,flag,id,struct})
+            lRC = w32Func(xInsertMenu,{hp,pos,flag,id,pStruct})
         end if
         if lRC then
             s = ctrl_Group[pNewParent]&0
@@ -9148,7 +9144,7 @@ end function
 
 global function attachMenuHandle(atom hMenu, integer pNewParent,object index,sequence caption)
 integer menubar,lRC
-atom struct,hp,lOldParent
+atom pStruct,hp,lOldParent
 
     if not w32Func(xIsMenu,{hMenu}) or not validId(pNewParent) then
         return 0
@@ -9174,14 +9170,14 @@ atom struct,hp,lOldParent
         return 0
     end if
 
-    struct = w32acquire_mem(0,caption)
+    pStruct = w32acquire_mem(0,caption)
 
-    lRC = insertMenu(hp,hMenu,index,struct,MF_POPUP,0)
+    lRC = insertMenu(hp,hMenu,index,pStruct,MF_POPUP,0)
 
     if lRC and menubar then
         VOID = w32Func(xDrawMenuBar,{lOldParent})
     end if
-    w32release_mem(struct)
+    w32release_mem(pStruct)
 
     return lRC
 end function
@@ -9213,7 +9209,7 @@ end function
 
 global function setParent(integer id, integer pNewParent,object index)
 integer lRC,pos,flag,menubar,release
-atom lOldParent,struct,hp
+atom lOldParent,pStruct,hp
 object data
 sequence s
 
@@ -9269,9 +9265,9 @@ sequence s
         end if
 
         if sequence(index) and length(index)>=3 then
-            struct = w32acquire_mem(0,index[3])
+            pStruct = w32acquire_mem(0,index[3])
         else
-            struct = w32acquire_mem(0,call_func(r_getCaption,{id}))
+            pStruct = w32acquire_mem(0,call_func(r_getCaption,{id}))
         end if
 
         flag = w32Func(xGetMenuState,{ctrl_Handle[ctrl_Parent[id]],getMenuPosn(id),MF_BYPOSITION})
@@ -9279,7 +9275,7 @@ sequence s
             flag = and_bits(flag,#FF)
         end if
 
-        lRC = insertMenu(hp,id,index,struct,flag,1)
+        lRC = insertMenu(hp,id,index,pStruct,flag,1)
 
         if lRC then
             VOID = w32Func(xRemoveMenu,{ctrl_Handle[ctrl_Parent[id]],find(id,ctrl_Group[ctrl_Parent[id]])-1,MF_BYPOSITION})
@@ -9290,14 +9286,14 @@ sequence s
             ctrl_Parent[id] = pNewParent
         end if
     elsif ctrl_Type[id]=TabItem then
-        struct = w32acquire_mem(0,SIZEOF_TC_ITEM)
-        w32store(struct,TC_ITEM_mask,TCIF_TEXT+TCIF_IMAGE+TCIF_PARAM)
+        pStruct = w32acquire_mem(0,SIZEOF_TC_ITEM)
+        w32store(pStruct,TC_ITEM_mask,TCIF_TEXT+TCIF_IMAGE+TCIF_PARAM)
         pos = find(id,ctrl_Specific[ctrl_Parent[id]])
         if pos then
             pos -= 1
             index -= 1
-            VOID = sendMessage(ctrl_Parent[id],TCM_GETITEM,pos,struct)
-            lRC = sendMessage(pNewParent,TCM_INSERTITEM,index-(index>0),struct)
+            VOID = sendMessage(ctrl_Parent[id],TCM_GETITEM,pos,pStruct)
+            lRC = sendMessage(pNewParent,TCM_INSERTITEM,index-(index>0),pStruct)
             if lRC then  -- can optimise when the parent remains the same
                 ctrl_Group[pNewParent] &= id
                 s = ctrl_Specific[pNewParent]&0
@@ -9323,20 +9319,20 @@ sequence s
 --              return 0
 --          end if
 --          hp=tvitem_handle[id[2]]
---          struct=w32to_memory(0,ID_TVITEM, {TVIF_TEXT+TVIF_STATE+TVIF_PARAM+TVIF_IMAGE+TVIF_SELECTEDIMAGE+TVIF_CHILDREN,hp,0,0,0,0,0,0,0,0})
---          instruct=w32to_memory(0,ID_TVINSERTSTRUCT, index & struct)
---          lRC=sendMessage(id[1],TVM_GETITEM,0,struct)
+--          pStruct=w32to_memory(0,ID_TVITEM, {TVIF_TEXT+TVIF_STATE+TVIF_PARAM+TVIF_IMAGE+TVIF_SELECTEDIMAGE+TVIF_CHILDREN,hp,0,0,0,0,0,0,0,0})
+--          inpStruct=w32to_memory(0,ID_TVINSERTSTRUCT, index & pStruct)
+--          lRC=sendMessage(id[1],TVM_GETITEM,0,pStruct)
 --          if lRC then
 --              pos=tvitem_parent[id[2]]
---              lOldParent=sendMessage(pNewParent,TVM_INSERTITEM,0,instruct)
+--              lOldParent=sendMessage(pNewParent,TVM_INSERTITEM,0,inpStruct)
 --              if lOldParent then
 --                  tvitem_parent[id[2]]=index[1]
 --                  tvitem_owner[id[2]]=tvitem_owner[index[1]]
 --                  tvitem_handle[id[2]]=lOldParent
 --                  -- now copy the children, if any
---                  if w32fetch(struct,TVITEM_cChildren) then
---                      w32store(instruct,TVINSERTSTRUCT_hInsertAfter,TVI_LAST)
---                      copyTVChildren(id,tvitem_handle[index[1]],struct,instruct)
+--                  if w32fetch(pStruct,TVITEM_cChildren) then
+--                      w32store(inpStruct,TVINSERTSTRUCT_hInsertAfter,TVI_LAST)
+--                      copyTVChildren(id,tvitem_handle[index[1]],pStruct,inpStruct)
 --                  end if
 --                  VOID=sendMessage(id[1],TVM_DELETEITEM,0,hp)
 --                  lRC=1
@@ -9344,36 +9340,36 @@ sequence s
 --                  lRC=0
 --              end if
 --          end if
---          w32release_mem(instruct)
+--          w32release_mem(inpStruct)
 --      elsif ctrl_Type[id[1]]=ListView then
 --          if ctrl_Type[pNewParent]!=ListView then
 --              return 0
 --          end if
 --          if length(id)>2 then
---              struct=w32acquire_mem(0,20)
---              poke4(struct,LVFI_PARAM)
---              poke4(struct+8,id[2])
---              id[2]=sendMessage(id[1],LVM_FINDITEM,-1,struct)
---              w32release_mem(struct)
+--              pStruct=w32acquire_mem(0,20)
+--              poke4(pStruct,LVFI_PARAM)
+--              poke4(pStruct+8,id[2])
+--              id[2]=sendMessage(id[1],LVM_FINDITEM,-1,pStruct)
+--              w32release_mem(pStruct)
 --          else
 --              id[2]-=1
 --          end if
 --          if id[2]<0 or id[2]>=sendMessage(id[1],LVM_GETITEMCOUNT,0,0) or not integer(index) then
 --              return 0
 --          end if
---          struct=w32acquire_mem(0,SIZEOF_LVITEM)
---          w32store(struct,LVITEM_mask,LVIF_TEXT+LVIF_PARAM+LVIF_IMAGE+LVIF_STATE)
---          w32store(struct,LVITEM_stateMask,LVIS_DROPHILITED+LVIS_CUT+LVIS_FOCUSED+LVIS_SELECTED)
---          w32store(struct,LVITEM_iItem,id[2])
---          w32store(struct,LVITEM_iSubItem,0)
---          VOID=sendMessage(id[1],LVM_GETITEM,0,struct)
+--          pStruct=w32acquire_mem(0,SIZEOF_LVITEM)
+--          w32store(pStruct,LVITEM_mask,LVIF_TEXT+LVIF_PARAM+LVIF_IMAGE+LVIF_STATE)
+--          w32store(pStruct,LVITEM_stateMask,LVIS_DROPHILITED+LVIS_CUT+LVIS_FOCUSED+LVIS_SELECTED)
+--          w32store(pStruct,LVITEM_iItem,id[2])
+--          w32store(pStruct,LVITEM_iSubItem,0)
+--          VOID=sendMessage(id[1],LVM_GETITEM,0,pStruct)
 --          index-=1
 --          if index<0 then
 --              index=0
 --          end if
---          lRC=sendMessage(pNewParent,TVM_INSERTITEM,0,struct)
+--          lRC=sendMessage(pNewParent,TVM_INSERTITEM,0,pStruct)
 --          if lRC>=0 then
---              VOID=sendMessage(id[1],LVM_DELETEITEM,0,struct)
+--              VOID=sendMessage(id[1],LVM_DELETEITEM,0,pStruct)
 --          end if
 --      else
 --          return 0
@@ -9400,7 +9396,7 @@ sequence s
     end if
 
     if release then
-        w32release_mem(struct)
+        w32release_mem(pStruct)
     end if
     if lRC=0 then
         return w32False
@@ -10989,7 +10985,7 @@ end procedure
 -- /i id is either a menu (item) id, a TabItem id, or a pair {parent id,item id}, where the
 -- parent id is the one of a ListView or TreeView control.
 global function idToIndex(object id)
-atom struct,hch
+atom pStruct,hch
 integer idx
 
     if atom(id) then
@@ -11005,21 +11001,21 @@ integer idx
             if lvitem_owner[id[2]]!=id[1] then
                 return 0
             else
-                struct = w32acquire_mem(0,20)
-                poke4(struct,LVFI_PARAM)
-                poke4(struct+8,id[2])
-                id = sendMessage(id[1],LVM_FINDITEM,-1,struct)
-                w32release_mem(struct)
+                pStruct = w32acquire_mem(0,20)
+                poke4(pStruct,LVFI_PARAM)
+                poke4(pStruct+8,id[2])
+                id = sendMessage(id[1],LVM_FINDITEM,-1,pStruct)
+                w32release_mem(pStruct)
                 return id
             end if
         elsif ctrl_Type[id[1]]=TreeView then
             if id[2]=0 or lvitem_owner[id[2]]!=id[1] then
                 return 0
             else
-                struct = tvitem_handle[id[2]]
+                pStruct = tvitem_handle[id[2]]
                 hch = sendMessage(id[1],TVM_GETNEXTITEM,TVGN_CHILD,tvitem_handle[tvitem_parent[id[2]]])
                 idx = 1
-                while hch!=struct do
+                while hch!=pStruct do
                     hch = sendMessage(id[1],TVM_GETNEXTITEM,TVGN_NEXT,hch)
                     idx += 1
                 end while
@@ -11040,19 +11036,19 @@ end function
 -- If the parent is a TreeView, the index must have the form {parent node,index}, where
 -- parent node is the TreeView item id of the parent node of the sought after item.
 global function indexToId(integer parent,object idx)
-atom struct,hch
+atom pStruct,hch
 
     if ctrl_Family[parent]=MENU then
         return ctrl_Group[parent][idx]
     elsif ctrl_Type[parent]=TabControl then
         return ctrl_Specific[parent][idx]
     elsif ctrl_Type[parent]=ListView then
-        struct = w32acquire_mem(0,SIZEOF_LVITEM)
-        w32store(struct,LVITEM_mask,LVIF_PARAM)
-        w32store(struct,LVITEM_iItem,idx-1)
-        parent = sendMessage(parent,LVM_GETITEM,0,struct)
-        parent = w32fetch(struct,LVITEM_lParam)
-        w32release_mem(struct)
+        pStruct = w32acquire_mem(0,SIZEOF_LVITEM)
+        w32store(pStruct,LVITEM_mask,LVIF_PARAM)
+        w32store(pStruct,LVITEM_iItem,idx-1)
+        parent = sendMessage(parent,LVM_GETITEM,0,pStruct)
+        parent = w32fetch(pStruct,LVITEM_lParam)
+        w32release_mem(pStruct)
         return parent
     elsif ctrl_Type[parent]=TreeView then
         if atom(idx) or tvitem_owner[idx[1]]!=parent then
@@ -11363,8 +11359,8 @@ atom mset
 
 end function
 
-function tv_release(atom struct,integer item)
-    w32release_mem(struct)
+function tv_release(atom pStruct,integer item)
+    w32release_mem(pStruct)
     return item
 end function
 
@@ -13045,8 +13041,8 @@ global function createEx(object pControl, sequence pCaption, atom pOwner,
 integer id
 integer bgControl
 atom hWnd, flags, extendedflags, lParenthWnd
-atom szClassName, szCaption, hMenu, newhWnd, struct, ok
-sequence BBox,lvcol
+atom szClassName, szCaption, hMenu, newhWnd, pStruct, ok
+sequence args, BBox, lvcol
 object sbPanels
 sequence lHintText
 integer iIconInfo
@@ -13088,9 +13084,9 @@ integer lControl, cloneIt
         pCaption = ""
         lHintText = ""
 
-    elsif length(pCaption)=2 and
-    w32string(pCaption[1]) and
-    w32string(pCaption[2]) then
+    elsif length(pCaption)=2
+      and w32string(pCaption[1])
+      and w32string(pCaption[2]) then
 
         lHintText = pCaption[2]
         pCaption = pCaption[1]
@@ -13099,8 +13095,8 @@ integer lControl, cloneIt
         lHintText = ""
     end if
 
-    if    (pOwner!=0)
-    and (validId(pOwner)=w32False)  then
+    if pOwner!=0
+    and validId(pOwner)=w32False then
         abortErr(Err_OWNERINVALID)
     end if
 
@@ -13187,11 +13183,8 @@ integer lControl, cloneIt
     -- actual creation
     if sequence(vControlRID[pControl]) and vControlRID[pControl][kCRID_Create]>=0 then
         -- User defined control.
-        lUserPre = call_func(vControlRID[pControl][kCRID_Create],{"Pre",
-                                                                  {id, pCaption, pOwner,
-                                                                   pLeft, pTop, pWidth, pHeight,
-                                                                   styleFlags, exFlags}
-                                                                 })
+        args = {"Pre",{id,pCaption,pOwner,pLeft,pTop,pWidth,pHeight,styleFlags,exFlags}}
+        lUserPre = call_func(vControlRID[pControl][kCRID_Create],args)
         if sequence(lUserPre) and length(lUserPre)=9 and lUserPre[1]=id then
             pCaption = lUserPre[2]
             pOwner = lUserPre[3]
@@ -13242,11 +13235,9 @@ integer lControl, cloneIt
         lUserPre = 0
         -- create a window
         if not cloneIt then
-            createWindow(id, pCaption, pOwner, pLeft, pTop, pWidth, pHeight,
-                         styleFlags, exFlags)
+            createWindow(id, pCaption, pOwner, pLeft, pTop, pWidth, pHeight,styleFlags, exFlags)
         else
-            createWindow({id, cloneIt}, pCaption, pOwner, pLeft, pTop, pWidth, pHeight,
-                         styleFlags, exFlags)
+            createWindow({id, cloneIt}, pCaption, pOwner, pLeft, pTop, pWidth, pHeight,styleFlags, exFlags)
         end if
 
     elsif lControl=Menu then
@@ -13305,35 +13296,36 @@ integer lControl, cloneIt
 
     elsif lControl=ReBarBand then
         lUserPre = 0
+        integer fMask = w32or_all({RBBIM_ID,    
+                                   RBBIM_SIZE,
+                                   RBBIM_TEXT,
+                                   RBBIM_STYLE}),
+                fStyle = w32or_all({RBBS_CHILDEDGE,
+                                    RBBS_GRIPPERALWAYS,
+                                    styleFlags})
+        args = {fMask,      -- fMask
+                fStyle,     -- fStyle
+                0,          -- clrFore
+                0,          -- clrBack
+                pCaption,   -- lpText
+                0,          -- iImage
+                0,          -- hwndChild
+                0,          -- cxMinChild
+                0,          -- cyMinChild
+                pWidth,     -- pWidth
+                0,          -- hbmBack
+                id,         -- wID
+                0,          -- cyChild
+                0,          -- cyMaxChild
+                0,          -- cyIntegral
+                0,          -- cxIdeal
+                0,          -- lParam
+                0}          -- cxHeader
+        pStruct = w32to_memory(0,ID_REBARBANDINFO,args)
 
-        struct = w32to_memory(0,ID_REBARBANDINFO, {
-                                                   w32or_all({RBBIM_ID,    -- fMask
-                                                              RBBIM_SIZE,
-                                                              RBBIM_TEXT,
-                                                              RBBIM_STYLE}),
-                                                   w32or_all({RBBS_CHILDEDGE, -- fStyle
-                                                              RBBS_GRIPPERALWAYS,
-                                                              styleFlags}),
-                                                   0,           -- clrFore
-                                                   0,           -- clrBack
-                                                   pCaption,     -- lpText
-                                                   0,           -- iImage
-                                                   0,           -- hwndChild
-                                                   0,           -- cxMinChild
-                                                   0,           -- cyMinChild
-                                                   pWidth,      -- pWidth
-                                                   0,           -- hbmBack
-                                                   id,      -- wID
-                                                   0,           -- cyChild
-                                                   0,           -- cyMaxChild
-                                                   0,           -- cyIntegral
-                                                   0,           -- cxIdeal
-                                                   0,           -- lParam
-                                                   0})       -- cxHeader
+        hWnd = sendMessage(pOwner, RB_INSERTBAND, -1, pStruct)
 
-        hWnd = sendMessage(pOwner, RB_INSERTBAND, -1, struct)
-
-        w32release_mem(struct)
+        w32release_mem(pStruct)
 
 
     elsif pOwner!=0
@@ -13351,20 +13343,20 @@ integer lControl, cloneIt
             szCaption = -1
         end if
 
-        struct = w32acquire_mem(0, SIZEOF_TBBUTTON)
-        w32store(struct, TBBUTTON_idCommand, id)
-        w32store(struct, TBBUTTON_dwData, id)
-        w32store(struct, TBBUTTON_iBitmap, pLeft-1)
-        w32store(struct, TBBUTTON_fsState, TBSTATE_ENABLED)
-        w32store(struct, TBBUTTON_iString, szCaption)
+        pStruct = w32acquire_mem(0, SIZEOF_TBBUTTON)
+        w32store(pStruct, TBBUTTON_idCommand, id)
+        w32store(pStruct, TBBUTTON_dwData, id)
+        w32store(pStruct, TBBUTTON_iBitmap, pLeft-1)
+        w32store(pStruct, TBBUTTON_fsState, TBSTATE_ENABLED)
+        w32store(pStruct, TBBUTTON_iString, szCaption)
 
         styleFlags = w32or_all({styleFlags, classStyle[lControl]})
 
-        w32store(struct, TBBUTTON_fsStyle, styleFlags)
+        w32store(pStruct, TBBUTTON_fsStyle, styleFlags)
 
-        ok = sendMessage(pOwner, TB_ADDBUTTONS, 1, struct)
+        ok = sendMessage(pOwner, TB_ADDBUTTONS, 1, pStruct)
 
-        w32release_mem(struct)
+        w32release_mem(pStruct)
 
         if not ok then
             warnErr(Err_FLATTOOLBARBTN)
@@ -13533,9 +13525,7 @@ integer lControl, cloneIt
 
     if sequence(vControlRID[pControl]) and vControlRID[pControl][kCRID_Create]!= -1 then
         -- User defined control
-        lUserPost = call_func(vControlRID[pControl][kCRID_Create], {
-                                                                    "Post", {id}
-                                                                   })
+        lUserPost = call_func(vControlRID[pControl][kCRID_Create], {"Post", {id}})
         if sequence(lUserPost) and lUserPost[1]=id then
             if find(lUserPost[2], {w32RecentMenu, w32RecentTabControl, w32RecentWindow})!=0 then
                 vRecent[lUserPost[2]] = id
@@ -13551,7 +13541,6 @@ integer lControl, cloneIt
             else
                 setFont(id, FontDefaults[1],FontDefaults[2],FontDefaults[3])
             end if
-
 
             if lControl=TabControl then
                 vRecent[w32RecentTabControl] = id
@@ -13593,10 +13582,8 @@ integer lControl, cloneIt
 
         elsif lControl=TreeView then
             if not ILlarge then
-                ILlarge = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,
-                                   ILC_COLOR8,0)
-                ILsmall = createEx(ImageList, "", 0, 0,0,SM_CXSMICON,0,
-                                   ILC_COLOR8,0)
+                ILlarge = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,ILC_COLOR8,0)
+                ILsmall = createEx(ImageList, "", 0, 0,0,SM_CXSMICON,0,ILC_COLOR8,0)
                 hILlarge = ctrl_Handle[ILlarge]
                 hILsmall = ctrl_Handle[ILsmall]
             end if
@@ -13614,12 +13601,9 @@ integer lControl, cloneIt
             if himlFTBDefault=0 then
                 -- Need to create imagelists
 
-                himlFTBDefault = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,
-                                          ILC_COLOR8,0)
-                himlFTBHot = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,
-                                      ILC_COLOR8,0)
-                himlFTBDisabled = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,
-                                           ILC_COLOR8,0)
+                himlFTBDefault = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,ILC_COLOR8,0)
+                himlFTBHot = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,ILC_COLOR8,0)
+                himlFTBDisabled = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,ILC_COLOR8,0)
 
             end if
 
@@ -13637,10 +13621,8 @@ integer lControl, cloneIt
         elsif lControl=ComboBoxEx then
 
             if not ILlarge then
-                ILlarge = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,
-                                   ILC_COLOR8,0)
-                ILsmall = createEx(ImageList, "", 0, 0,0,SM_CXSMICON,0,
-                                   ILC_COLOR8,0)
+                ILlarge = createEx(ImageList, "", 0, 0,0,SM_CXICON,0,ILC_COLOR8,0)
+                ILsmall = createEx(ImageList, "", 0, 0,0,SM_CXSMICON,0,ILC_COLOR8,0)
                 hILlarge = ctrl_Handle[ILlarge]
                 hILsmall = ctrl_Handle[ILsmall]
             end if
@@ -14264,7 +14246,7 @@ procedure fDoDestruction(integer id)
 -- It is safe to assume that all children of this control
 -- have already been destroyed before this is called.
 
-integer class, parent, lIdx
+integer family, parent, lIdx
 atom handle
 --  object rc
 --  sequence parenttabs
@@ -14284,7 +14266,7 @@ integer sharedclass
 
     if equal(lUserResponse,0) then
         -- get class and parent
-        class = ctrl_Family[id]
+        family = ctrl_Family[id]
         parent = findParent(id)
 
         if ctrl_Type[id]=TabItem then
@@ -14303,7 +14285,7 @@ integer sharedclass
                 call_proc(r_setFocus,{ctrl_Specific[parent][tabnumber]})
             end if
 
-        elsif class=WINDOW then
+        elsif family=WINDOW then
             -- destroy window
             sharedclass = find(ctrl_ClassAddr[id],sharedClasses)
             VOID = w32Func(xDestroyWindow, {ctrl_Handle[id]})
@@ -14319,22 +14301,20 @@ integer sharedclass
             end if
 
         elsif parent!=0
-        and
-        ctrl_Type[parent]=FlatToolBar then
+          and ctrl_Type[parent]=FlatToolBar then
             handle = sendMessage(parent, TB_COMMANDTOINDEX, id, 0)
             VOID = sendMessage(parent, TB_DELETEBUTTON, handle, 0)
 
-        elsif find(class,
-                   {COMMON_CONTROL,BUTTON,COMBO,EDIT,LISTBOX,SCROLLBAR,STATIC}) then
+        elsif find(family,{COMMON_CONTROL,BUTTON,COMBO,EDIT,LISTBOX,SCROLLBAR,STATIC}) then
             -- destroy control
             VOID = w32Func(xDestroyWindow, {ctrl_Handle[id]})
 
-        elsif class=PIXMAP then
+        elsif family=PIXMAP then
             deleteObject(ctrl_Handle[id])
 
         -- changed CC: ctrl_Menu may hold the handle for the menu bar only.
         -- And the OS takes care of destroying it.
-        elsif find(class,{MENU, MENUITEM}) and ctrl_Family[ctrl_Parent[id]]=MENU then
+        elsif find(family,{MENU, MENUITEM}) and ctrl_Family[ctrl_Parent[id]]=MENU then
             -- delete from parent
             if not removeMenu(ctrl_Parent[id],id,MF_BYPOSITION,0) then
                 abortErr(Err_DESTROYMENU)
@@ -14574,7 +14554,7 @@ global function getRect(atom id)
 -- returns { left, top, bottom, right }
 
 integer top, bottom, left, right, ctltype
-atom struct, pt, hdc, mset, bufsize, hWnd
+atom pStruct, pt, hdc, mset, bufsize, hWnd
 sequence xy, retval
 
 
@@ -14598,15 +14578,15 @@ sequence xy, retval
         if bufsize!=0 then
             mset = w32new_memset()
             -- Allocate a buffer to hold bitmap information
-            struct = w32acquire_mem(mset, bufsize)
+            pStruct = w32acquire_mem(mset, bufsize)
 
             -- load bitmap data into structure
-            if w32Func(xGetObject, {id, bufsize, struct})!=bufsize then
+            if w32Func(xGetObject, {id, bufsize, pStruct})!=bufsize then
                 warnErr(Err_GSGETBITMAP)
             else
                 -- get the values from the bitmap
-                retval[3] = w32fetch(struct, bmWidth)
-                retval[4] = w32fetch(struct, bmHeight)
+                retval[3] = w32fetch(pStruct, bmWidth)
+                retval[4] = w32fetch(pStruct, bmHeight)
             end if
         else -- actually, object is not recognised as a bitmap
             warnErr(Err_GSGETBITMAP)
@@ -14633,30 +14613,30 @@ sequence xy, retval
                 bufsize = w32Func(xGetObject, {hWnd, 0, 0})
                 -- Allocate a buffer to hold bitmap information
                 if bufsize>0 then
-                    struct = w32acquire_mem(mset, bufsize)
+                    pStruct = w32acquire_mem(mset, bufsize)
 
                     -- load bitmap data into structure
-                    if w32Func(xGetObject, {hWnd, bufsize, struct})!=bufsize then
+                    if w32Func(xGetObject, {hWnd, bufsize, pStruct})!=bufsize then
                         warnErr(Err_GSGETPIXMAP)
                     end if
 
                     -- get the values from the bitmap
-                    retval[3] = w32fetch(struct, bmWidth)
-                    retval[4] = w32fetch(struct, bmHeight)
+                    retval[3] = w32fetch(pStruct, bmWidth)
+                    retval[4] = w32fetch(pStruct, bmHeight)
                 end if
             end if
 
         elsif ctltype=0 then -- neither menu or menuitem
             -- Allocate a buffer to hold the rectangle information
-            struct  = w32acquire_mem(mset, SIZEOF_RECT)
+            pStruct = w32acquire_mem(mset, SIZEOF_RECT)
 
             -- load rectangle information into the buffer
-            if not w32Func(xGetWindowRect, {getHandle(id), struct}) then
+            if not w32Func(xGetWindowRect, {getHandle(id), pStruct}) then
                 abortErr(Err_GSGETWINDRECT)
             end if
 
             -- get points
-            retval = peek4s({struct,4})
+            retval = peek4s({pStruct,4})
 
             -- is it owned by a window?
             if ctrl_Parent[id] then
@@ -14689,17 +14669,17 @@ sequence xy, retval
 
             top = findParentWindow(id)
             hWnd = ctrl_Handle[top]
-            struct  = w32acquire_mem(mset, SIZEOF_RECT)
+            pStruct = w32acquire_mem(mset, SIZEOF_RECT)
 
             if ctltype=2 then -- single item
                 pt = ctrl_Handle[ctrl_Parent[id]]
-                if w32Func(xGetMenuItemRect,{hWnd,pt,getMenuPosn(id),struct}) then
-                    retval = peek4s({struct,4})
+                if w32Func(xGetMenuItemRect,{hWnd,pt,getMenuPosn(id),pStruct}) then
+                    retval = peek4s({pStruct,4})
                 end if
             else -- whole menu
                 -- left and top are those of first item
                 pt = ctrl_Handle[id]
-                VOID = w32Func(xGetMenuItemRect,{hWnd,pt,0,struct})
+                VOID = w32Func(xGetMenuItemRect,{hWnd,pt,0,pStruct})
 
                 -- right and bottom usually are those of the last item ...
                 hdc = w32acquire_mem(mset,SIZEOF_RECT)
@@ -14711,14 +14691,14 @@ sequence xy, retval
                     -- width is the parent's width - don't use getClientRect(), since scroll bars don't count
                     xy = getWindowInfo(top,{WINDOWINFO_WLeft,WINDOWINFO_WRight,WINDOWINFO_xWindowBorders})
                     right = xy[2]-xy[1]-2*xy[3]
-                    left = peek4s(struct)
-                    retval = {left,peek4s(struct+4),left+right,peek4s(hdc+12)}
+                    left = peek4s(pStruct)
+                    retval = {left,peek4s(pStruct+4),left+right,peek4s(hdc+12)}
                 else -- a vertical menu
                      -- the right is from last item, but the bottom not always
                     bottom = peek4s(hdc+12)
                     right = peek4s(hdc+8)
-                    retval = {peek4s(struct),peek4s(struct+4),peek4s(hdc+8)}
-                    if right!=peek4s(struct+8) then -- menu has two or more columns
+                    retval = {peek4s(pStruct),peek4s(pStruct+4),peek4s(hdc+8)}
+                    if right!=peek4s(pStruct+8) then -- menu has two or more columns
 
                         -- find bottom item for each column but the last
                         xy = findMenuBreaks(id)
@@ -25543,7 +25523,7 @@ end function
 --/li SW_SHOWDEFAULT
 --/li SW_MAX
 --
--- The /i struct parameter is not used yet.
+-- The /i pStruct parameter is not used yet.
 --
 -- The return codes for this function are... /n
 --/li SE_ERR_FNF                    -- file not found
@@ -25559,13 +25539,13 @@ end function
 --/li SE_ERR_DLLNOTFOUND
 
 global function shellExecuteEx(object verb, sequence file, object parms,
-                  object defdir, atom style, atom struct)
+                  object defdir, atom style, atom pStruct)
 
 -- call ShellExecuteEx to display a file
 atom mset, parms_p, file_p, verb_p, defdir_p
 atom hWnd
 integer rc
-    if struct then end if
+    if pStruct then end if
 
     if validId(mainWindow) then
         hWnd = getHandle(mainWindow)

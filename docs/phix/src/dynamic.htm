@@ -32,9 +32,21 @@ class|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [ 
 <!--        fully dynamic classes by making the base class "extends struct": class flex extends struct -->
             fully dynamic classes by making the base class dynamic.
 <!--            As above class can be used in three very distinct ways, almost identically to <a href="struct.htm">struct</a>. -->
+        
 <!--
-            <br>
-            <br>
+--  As well as dot notation, structs can be referenced by string names, eg:
+--
+--      s["name"] = "boris"
+--      s["age"] = 3.75
+--
+--  Obviously that is more useful with say string field = "name", and then
+--  s[field], rather than literal inline strings. Attempting s.field would 
+--  be equivalent to s["field"] rather than the intended s["name"], iyswim.
+--  Note that for this handling to occur, s must be declared as a struct,
+--  and the subscript must be declared as a string, both must be detected
+--  at compile-time, otherwise a fatal "subscript is not an atom" triggers.
+--      
+
             It can sometimes be helpful to think of simple objects as structs and more complex things as classes, although in Phix there is technically not very much 
             difference between them, apart from the fact that structs cannot be fully <a href="dynamic.htm">dynamic</a>.
 -->
@@ -140,9 +152,79 @@ end class
             The dynamic keyword is optional when extending an already dynamic base class. You cannot disable dynamic half-way down the tree.
             <br>
             <br>
+            Technically speaking, class/struct field access is a subversion of subscripting, such that <code>s.field</code> is the
+            same as <code>s["field"]</code>, except that in the former you are pretty much obliged to reference pre-existing fields
+            whereas the latter syntax allows a fully dynamic field name to be constructed at run-time. Note the following:
+<!--eucode>
+constant one = "two"
+class thing
+    string one = "one",
+           two = "two"
+    function tre()
+        return "tre"
+    end function
+end class
+thing s = new()
+?s.one          -- "one"
+?s.two          -- "two"
+?s.tre          -- 2473 (a routine_id)
+?s.tre()        -- "tre"
+?s["one"]       -- "one"
+?s["two"]       -- "two"
+?s["tre"]       -- 2473 (a routine_id)
+--?s["tre"]()   -- invalid syntax
+?s[one]         -- "two" (because of that constant!)
+--?s[two]       -- two undefined (even though s.two exists)
+--?s[tre]       -- tre undefined (even though s.tre exists)
+--?s."one"      -- invalid syntax
+--?s[3]         -- compile-time and/or run-time error
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> one</font><font color="#0000FF"> =</font><font color="#008000"> "two"
+</font><font color="#008080">class</font><font color="#000000"> thing
+</font><font color="#004080">    string</font><font color="#000000"> one</font><font color="#0000FF"> =</font><font color="#008000"> "one"</font><font color="#0000FF">,
+</font><font color="#000000">           two</font><font color="#0000FF"> =</font><font color="#008000"> "two"
+</font><font color="#008080">    function</font><font color="#000000"> tre</font><font color="#0000FF">()
+</font><font color="#008080">        return</font><font color="#008000"> "tre"
+</font><font color="#008080">    end function
+end class
+</font><font color="#000000">thing s</font><font color="#0000FF"> =</font><font color="#5E005E"> new</font><font color="#0000FF">()
+?</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">one         </font><font color="#000080"><i> -- "one"
+</i></font><font color="#0000FF">?</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">two         </font><font color="#000080"><i> -- "two"
+</i></font><font color="#0000FF">?</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">tre         </font><font color="#000080"><i> -- 2473 (a routine_id)
+</i></font><font color="#0000FF">?</font><font color="#000000">s</font><font color="#0000FF">.</font><font color="#000000">tre</font><font color="#0000FF">()       </font><font color="#000080"><i> -- "tre"
+</i></font><font color="#0000FF">?</font><font color="#000000">s</font><font color="#0000FF">[</font><font color="#008000">"one"</font><font color="#0000FF">]      </font><font color="#000080"><i> -- "one"
+</i></font><font color="#0000FF">?</font><font color="#000000">s</font><font color="#0000FF">[</font><font color="#008000">"two"</font><font color="#0000FF">]      </font><font color="#000080"><i> -- "two"
+</i></font><font color="#0000FF">?</font><font color="#000000">s</font><font color="#0000FF">[</font><font color="#008000">"tre"</font><font color="#0000FF">]      </font><font color="#000080"><i> -- 2473 (a routine_id)
+--?s["tre"]()   -- invalid syntax
+</i></font><font color="#0000FF">?</font><font color="#000000">s</font><font color="#0000FF">[</font><font color="#000000">one</font><font color="#0000FF">]        </font><font color="#000080"><i> -- "two" (because of that constant!)
+--?s[two]       -- two undefined (even though s.two exists)
+--?s[tre]       -- tre undefined (even though s.tre exists)
+--?s."one"      -- invalid syntax
+--?s[3]         -- compile-time and/or run-time error</i></font>
+</pre>
+<br>
+            One other small point to note: while <code>s.employee</code> is equivalent to <cvode>s["employee"]</code>, <code>s.employee.name</code> is 
+            (possibly) legal whereas the square bracket syntax is strictly single-level only and s["employee"]["name"] is treated as invalid syntax, 
+            and therefore if you are using an expression for "employee" rather than a literal string, the latter statement must be broken up into two 
+            or more lines, with appropriate (or base) struct/class types on any temporary variables, in order to give the compiler sufficient hints. 
+            In other words all dynamically-created fields are implicitly "object", and hence must be stored in an explicit struct/class variable 
+            before any further dot or ["string"] field-accessing operations can be performed.
+            Likewise <code>s[expr].field</code> is never valid, but <code>s[expr][<i>int</i>]</code> might sometimes be, ie when the second and 
+            subsequent [] are of the more traditional integer-index subscript variety.
+            <br>
+            <br>
+            Another way of saying this is that in C++ you can pass around a (reference to an) instance as a <code>void*</code>, but it must be cast 
+            to some appropriate class before using dot notation. In a similar fashion, you can pass Phix struct/class references about as objects 
+            (or store them in tables/sequences), but /must/ store them in local struct/class type variables or routine parameters, before you can 
+            use dot notation. 
+            By default the compiler assumes all "dot /and/ []" are traditional integer subscripting of sequences, unless a variable/parameter is 
+            unambiguously a struct/class (that is, according to its declaration).
+            <br>
+            <br>
             Dynamic class instances are simply implemented as independent <a href="dict.htm">dictionaries</a>, with dot-notation and automatic cleanup.<br>
             Obviously you should expect fairly disappointing figures from a pointless benchmark: p["index"] is without any doubt going to be at the very 
-            least 5 times slower than p[1], probably much worse, and even the most mediocre of programmers could apply optimisations much better than any
+            least 5 times slower than p[1], probably much worse, and even the most mediocre of programmers could apply optimisations way better than any
             compiler ever could. Only use dynamic classes when you value the improved code clarity more than the 0.0001s being lost, and yes, ten thousand
             dynamic class instances is probably fairly likely to take (aka waste) a whole second to set up, use, and tear down, if not more, but then again 
             if you only have a dozen or so of them, lightly used, then you simply just don&rsquo;t care one jot about their performance.
@@ -155,7 +237,7 @@ end class
             <br>
             Classes grant Phix object orientated capabilities, however, fear not, you can still write an entire application without being <i>forced</i> to 
             use them at all, whereas already radicalised readers will no doubt be relieved to hear that object orientated techniques can always be applied,
-            even in the most awkward and utterly inappropriate of circumstances. <img src="images/ksk-smile.png" />
+            even in the most awkward and utterly inappropriate of circumstances. <img src="images/ksk-smile.png" alt="smile" />
             <br>
             <br>
             On a personal note, I have always been very sceptical of object orientation, have never seen any <i>proof</i> that it improves productivity 
@@ -176,7 +258,7 @@ end class
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

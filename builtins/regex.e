@@ -135,13 +135,13 @@ function addthread(sequence q, sequence code, integer gen, integer pc, string in
     return q
 end function
 
-function pikevm_execute(sequence code, string input)
+function pikevm_execute(sequence code, string input, integer strtndx)
     sequence matched = {}
     sequence run = {}
     sequence rdy = {}
     integer pc
     integer gen = 1
-    integer sp = 1
+    integer sp = strtndx
     sequence saved = repeat(0,code[2]*2)
     reactivate = {}
     mark = repeat(0,length(code))
@@ -200,10 +200,10 @@ end function
 constant MAXTHREAD = 1000
 --constant MAXTHREAD = 20
 
-function backtrackingvm(sequence code, string input)
+function backtrackingvm(sequence code, string input, integer strtndx)
     integer pc, sp
     sequence saved = repeat(0,code[2]*2)
-    sequence ready = {{4,1,saved}}
+    sequence ready = {{4,strtndx,saved}}
     int nready = 1
     
     -- run threads in stack order
@@ -851,7 +851,7 @@ global function regex_compile(string src)
     return code
 end function
 
-global function regex(sequence re, string s)
+global function regex(sequence re, string s,  integer strtndx=1)
 --
 -- returns {} if no match could be found, otherwise an even-length sequence
 -- of capture indexes, eg regex(`(a)(b)`,"ab") yields {1,3,1,2,2,3}. Note
@@ -869,10 +869,13 @@ sequence code
     end if
     sequence m 
     if and_bits(options,RE_PIKEVM) then
-        m = pikevm_execute(code, s)
+        m = pikevm_execute(code, s, strtndx)
     else
-        m = backtrackingvm(code,s)
+        m = backtrackingvm(code,s, strtndx)
     end if
+    for i=2 to length(m) by 2 do
+        m[i] -= 1
+    end for
     return m
 end function
 
@@ -880,18 +883,9 @@ end function
 -- Draft routines
 --
 
---global function gsub(string re, string target, string rep)
 global function gsub(sequence re, string target, string rep)
---  sequence code = regex_compile(re)
---  sequence m = regex(code,target)
---  sequence m = regex(re,target)
-sequence code
-    if string(re) then
-        code = regex_compile(re)
-    else
-        code = re
-    end if
-    sequence m = regex(code,target)
+    sequence code = iff(string(re)?regex_compile(re):re),
+             m = regex(code,target)
     if length(m) then
         string res = ""
         integer k = find('&',rep)       -- should that be \0?
@@ -899,11 +893,12 @@ sequence code
             integer ai = m[1]
             res &= target[1..ai-1]
             if k then
-                res &= rep[1..k-1]&target[ai..m[2]-1]&rep[k+1..$]
+                res &= rep[1..k-1]&target[ai..m[2]]&rep[k+1..$]
             else
                 res &= rep
             end if
-            target = target[m[2]..$]
+            --DEV/SUG use the new strtndx arg instead of slicing?
+            target = target[m[2]+1..$]
             if length(target)=0 then exit end if
             m = regex(code,target)
             if length(m)=0 then exit end if         
@@ -915,18 +910,13 @@ sequence code
 end function
 
 global function gmatch(sequence re, string target, string res)
-sequence code
-    if string(re) then
-        code = regex_compile(re)
-    else
-        code = re
-    end if
-    sequence m = regex(code,target)
+    sequence code = iff(string(re)?regex_compile(re):re),
+             m = regex(code,target)
     if length(m) then
         for i=1 to length(m)/2-1 do
             integer k = match(sprintf(`\%d`,{i}),res)
             if k!=0 then
-                res[k..k+1] = target[m[i*2+1]..m[i*2+2]-1]
+                res[k..k+1] = target[m[i*2+1]..m[i*2+2]]
             end if
         end for
         return res

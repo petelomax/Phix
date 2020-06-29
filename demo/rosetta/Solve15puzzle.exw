@@ -2573,4 +2573,196 @@ int main (){
   d852
 --*/
 
+--/*
+--#!/usr/bin/lua
+----[[
+--Solve 3X3 sliding tile puzzle using Astar on Lua. Requires 3mb and
+--millions of recursions.
+--by RMM    2020-may-1
+--]]--
+ 
+--with trace
+constant MAX_F_VALUE = 100,
+         N = 4,
+         Goal  = {1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,15,0}
+ 
+sequence goal_cols = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},
+         goal_rows = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},
+         curr_cols = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},
+         curr_rows = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},
+         Tiles = {15,14,1,6, 9,11,4,12, 0,10,7,3, 13,8,5,2},
+--       Tiles = {5,1,4,8, 9,6,3,11, 10,2,15,7, 13,14,12,0},
+--       Tiles = {0,12,9,13, 15,11,10,14, 3,7,2,5, 4,8,6,1},    -- type check failure, recursions is 1073741824.0 (eventually...)
+--       Tiles  = {1,2,3,4, 5,6,7,8, 9,10,11,12, 13,0,14,15},   -- good
+--       Tiles  = {1,2,3,4, 5,6,7,8, 9,10,11,12, 13,14,0,15},   -- good
+--       Tiles  = {1,2,3,4, 5,6,7,8, 9,10,11,0, 13,14,15,12},   -- good
+--       Tiles  = {1,2,3,4, 5,6,7,0, 9,10,11,8, 13,14,15,12},   -- good
+--       Tiles  = {1,2,3,0, 5,6,7,4, 9,10,11,8, 13,14,15,12},   -- good
+         solution = {}, -- final path is instance of desc
+         desc           -- descending path       
+ 
+integer recursions=0, found=0, threshold=0, times=0
 
+function rcidx(integer row, col)
+-- return 1D array index given 2D row,column
+   return (row-1)*N + col
+end function
+ 
+-- @brief recursive search
+-- @return f_score
+function search(integer depth, x_row, x_col, h_score)
+   integer rc1_row = 1,
+           rc1_col = 1,
+           rc2_row = 1,
+           rc2_col = 1,
+--         gr = 1,
+--         gtmp_col = 1,
+           move, go_back_move,
+           last_move_by_current,
+           f_score = depth + h_score
+
+   if f_score > threshold then return f_score end if
+   if h_score == 0 then
+      found = true
+--?{"soln",depth,find('\0',desc)}
+--    Solution = desc[2..find('\0',desc)-1]
+      solution = desc[2..depth]
+      return f_score
+   end if 
+
+   recursions += 1
+   times += 1
+   if times > 200000 then
+         printf(1,"Recursions %d\n",recursions)
+         times = 0
+   end if
+ 
+   integer minres = 999999
+   last_move_by_current = desc[depth];
+   rc1_row = x_row;
+   rc1_col = x_col;
+   for ix=1 to 4 do -- (the four possible moves)
+        move = "udlr"[ix]
+        go_back_move = "durl"[ix]
+        rc2_row = x_row+{-1,+1,0,0}[ix]
+        rc2_col = x_col+{0,0,-1,+1}[ix]
+      if  rc2_row>=1 and rc2_row<=N
+      and rc2_col>=1 and rc2_col<=N
+      and (last_move_by_current!=go_back_move) then
+          integer idx1 = rcidx(rc1_row,rc1_col),
+                  idx2 = rcidx(rc2_row,rc2_col),
+                  tdx = Tiles[idx2]+1,
+                  gtmp_row = goal_rows[tdx],
+                  gtmp_col = goal_cols[tdx],
+                  curr_row = curr_rows[tdx],
+                  curr_col = curr_cols[tdx],
+                  h_adj
+          switch go_back_move do
+            case 'u': h_adj = gtmp_row < curr_row
+            case 'd': h_adj = gtmp_row > curr_row
+            case 'l': h_adj = gtmp_col < curr_col
+            case 'r': h_adj = gtmp_col > curr_col
+          end switch
+          integer hscore2 = h_score + iff(h_adj ? -1 : 1)
+          curr_rows[1] = rc2_row;
+          curr_cols[1] = rc2_col;
+          curr_rows[tdx] = rc1_row;
+          curr_cols[tdx] = rc1_col; 
+          Tiles[idx1] = tdx-1;
+          Tiles[idx2] = 0;
+          desc[depth+1] = move
+ 
+          integer temp = search(depth+1, rc2_row, rc2_col, hscore2); -- descend
+--        minres = min(minres,search(depth+1, rc2_row, rc2_col, hscore2)) -- descend
+          if found then return 0 end if -- (return value not used post-found)
+
+          -- regress
+          Tiles[idx1] = 0
+          Tiles[idx2] = tdx-1
+          curr_rows[1] = rc1_row;
+          curr_cols[1] = rc1_col;
+          curr_rows[tdx] = rc2_row;
+          curr_cols[tdx] = rc2_col;
+          if temp < minres then  minres = temp end if
+      end if
+   end for
+   found = false
+   -- return the minimum f_score greater than threshold
+   return minres;
+end function
+ 
+-- @brief  Run solver using A-star algorithm
+-- @param Tiles .. 3X3 sliding tile puzzle
+procedure solve(sequence Tiles)
+    integer temp, x_row = 0, x_col = 0, h_score = 0
+ 
+    found = false
+    for i=1 to N do
+       for j=1 to N do
+          integer r = rcidx(i,j),
+                  g = Goal[r]+1,
+                  t = Tiles[r]+1
+          goal_rows[g] = i
+          goal_cols[g] = j
+          curr_rows[t] = i
+          curr_cols[t] = j
+          if Tiles[r]==0 then
+                x_row = i;
+                x_col = j;
+          end if
+       end for
+    end for
+    desc = repeat('$',200)
+ 
+   h_score = 0;   -- Manhattan/Taxicab heuristic
+   for i=2 to N*N do -- (do not count the '0' being in the wrong place!)
+      h_score += abs(curr_rows[i] - goal_rows[i]) +
+                 abs(curr_cols[i] - goal_cols[i])
+   end for
+   threshold = h_score
+   printf(1,"solve -> search\n")
+   while true do
+      temp = search( 1, x_row, x_col, h_score);
+      if found then
+            printf(1,"Found solution of length %d\n%s\n",{length(solution),solution})
+            exit
+      end if
+ 
+      if temp > MAX_F_VALUE then
+            printf(1,"Maximum f value reached! terminating! \n");
+            exit
+      end if
+      threshold = temp;
+   end while
+end procedure
+ 
+procedure print_tiles(sequence pt)
+-- show sliding tile puzzle rows and columns
+    for i=1 to N do
+       for j=1 to N do
+          printf(1,"%02d ",pt[rcidx(i,j)])
+       end for
+       printf(1,"\n")
+    end for
+    printf(1,"\n")
+end procedure
+ 
+printf(1,"Solve sliding 15 tile puzzle\n");
+print_tiles(Tiles);
+print_tiles(Goal)
+atom t0 = time()
+solve(Tiles);  
+?elapsed(time()-t0) 
+
+--Output:
+--
+--FOUND SOLUTION of length 52 rrrulddluuuldrurdddrullulurrrddldluurddlulurruldrdrd
+--Found solution of length 199$rrdruulurdlddruulddluulurrddlluurrdlddluurdrdlluuurrrdld$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"done"
+--Found solution of length 56$rrdruulurdlddruulddluulurrddlluurrdlddluurdrdlluuurrrdld"done"
+--Found solution of length 50 $rdlurulurdldrurrddlluruurdddluulurrdlllurrrdlldluu"done"
+--Recursions 27400137
+--Found solution of length 52
+--rrrulddluuuldrurdddrullulurrrddldluurddlulurruldrdrd
+--"44.4s"
+
+--*/
