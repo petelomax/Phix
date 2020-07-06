@@ -29,13 +29,13 @@ A core tenet is that for any line of code there is one and only one possible int
 The principle goal of Phix is to make debugging easier, a whole subject area that does not seem to get the attention it deserves. 
 Not entirely sure I am succeeding, yet.
 
+<!--
 # Donate
 Feel free to donate:
 
 | METHOD        | ADDRESS                                       |
 |--------       |--------------------------------------------   |
 | Paypal        | paypal.me/petelomax                           |
-<!--
 <delete>| Bitcoin       | 1MqYnKBhvtCnknSi8GK3bnX3n5Yo4WWeDd            |</delete>
 -->
 
