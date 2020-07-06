@@ -35,5 +35,7 @@ Feel free to donate:
 | METHOD        | ADDRESS                                       |
 |--------       |--------------------------------------------   |
 | Paypal        | paypal.me/petelomax                           |
-| Bitcoin       | 1MqYnKBhvtCnknSi8GK3bnX3n5Yo4WWeDd            |
+<!--
+<delete>| Bitcoin       | 1MqYnKBhvtCnknSi8GK3bnX3n5Yo4WWeDd            |</delete>
+-->
 
