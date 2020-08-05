@@ -7,15 +7,29 @@
 
 global function or_all(object s)
 -- or together all elements of a sequence
-atom result, si
+    atom result = 0
     if atom(s) then
-        return s
+        result = or_bits(result, s) -- (force 32bit)
+    else
+        for i=1 to length(s) do
+            atom si = s[i] -- (type check is deliberate)
+            result = or_bits(result, si)
+        end for
     end if
-    result = 0
-    for i=1 to length(s) do
-        si = s[i] -- (type check is deliberate)
-        result = or_bits(result, si)
-    end for
+    return result
+end function
+
+global function or_allu(object s)
+-- or together all elements of a sequence
+    atom result = 0
+    if atom(s) then
+        result = or_bitsu(result, s) -- (unsign if rqd)
+    else
+        for i=1 to length(s) do
+            atom si = s[i] -- (type check is deliberate)
+            result = or_bitsu(result, si)
+        end for
+    end if
     return result
 end function
 

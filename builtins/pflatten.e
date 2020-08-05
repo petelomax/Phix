@@ -39,12 +39,16 @@ end function
 global function join_by(sequence s, integer step, integer n, object step_pad="   ", object n_pad="\n")
 sequence res = {}, js
 integer nmax = n
+    integer ls = length(s)
+    ls += remainder(ls,step)
     while length(s)>=step do
 --  while length(s)>step do     -- (needed for auto-widthwise partial<=step)
         for i=1 to step do
             for j=1 to n-1 do
-                if (j+1)*step<=length(s) then
+--              if (j+1)*step<=length(s) then
+                if (j+1)*step<=ls then
                     integer jdx = i+j*step
+                    if jdx>length(s) then exit end if
                     s[i] = join({s[i],s[jdx]},step_pad)
                 elsif nmax=n then
                     nmax = j
@@ -53,7 +57,9 @@ integer nmax = n
         end for
         js = join(s[1..step],n_pad)
         n = nmax
-        s = s[step*n+1..$]
+--      s = s[step*n+1..$]
+        integer sdx = step*n+1
+        s = iff(sdx>length(s)?"":s[sdx..$])
 --      if step!=1 or length(s)=0 then js &= n_pad end if
         if step!=1 or length(s)=0 or length(step_pad)=0 then js &= n_pad end if
         res = append(res,js)

@@ -4777,7 +4777,7 @@ sequence casesfound,        -- error checking (when processing an if/switch stmt
 integer switch_duplicate_found,
         switch_duplicate_line,
         switch_duplicate_value,
-        swecode             -- error code (1..12 to indicate which swecode = nn line triggered)
+        swecode             -- error code (1..1 to indicate which swecode = nn line triggered)
 
 integer swroot
 atom swmin, swmax   -- scratch vars, not preserved between opCtrls
@@ -6127,7 +6127,7 @@ end if
                                     swmin = smin2   -- \ scratch
                                     swmax = smax2   -- /  vars
                                 elsif svar!=tvar then
-                                    swecode = 2
+                                    swecode = 13
                                     switchable = 0
                                     tlink = pc
                                     exit
@@ -6219,7 +6219,7 @@ end if
                                     getSrc2()
 --13/11/16:
                                     if slroot2!=T_integer then
-                                        swecode = 2
+                                        swecode = 14
                                         switchable = 0
                                         tlink = pc
                                         exit
@@ -6263,7 +6263,14 @@ end if
 --                              if s5[link-5]=endIfMerge then
                                 if find(s5[link-5],{endIfMerge,breakMerge}) then
                                     link -= 4
-                                    if s5[link-6]!=opLabel then ?9/0 end if
+                                    if s5[link-6]!=opLabel then
+-- 10/07/2020:
+--                                      ?9/0
+                                        swecode = 15
+                                        switchable = 0
+                                        tlink = pc
+                                        exit
+                                    end if
                                 end if
 --17/6/16. triggered in simple_notepad.exw - I added flags[NO_BREAK] to Block() and it went away, so I undid this change
                                 if s5[link-5]!=ifMerge then ?9/0 end if

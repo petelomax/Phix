@@ -452,12 +452,15 @@ integer onelen, k, l
                 end if
             end while
         else
-            if Ch='-' then
+--10/07/20
+--          if Ch='-' then
+            if find(Ch,"-/") then
                 if col<onelen
-                and oneline[col+1]='-' then
-                    -- This line is a comment (-- just found), check for
+--              and oneline[col+1]='-' then
+                and oneline[col+1]=Ch then
+                    -- This line is a comment (-- (or //) just found), check for
                     -- --/* (block comment) and --# directives
-                    if col+2<onelen
+                    if Ch='-' and col+2<onelen
                     and oneline[col+2]='/'
                     and oneline[col+3]='*' then
                         col += 3
@@ -516,15 +519,19 @@ integer onelen, k, l
                         lexer_tokno = 1
                         col = 1
                     end if
+--10/07/20
+--              else
+--                  exit
+--              end if
+                elsif Ch='/' then
+                    if col<onelen
+                    and oneline[col+1]='*' then
+                        col += 1
+                        SkipBlockComment()
+                    else -- (we just found a divide symbol then)
+                        exit
+                    end if
                 else
-                    exit
-                end if
-            elsif Ch='/' then
-                if col<onelen
-                and oneline[col+1]='*' then
-                    col += 1
-                    SkipBlockComment()
-                else -- (we just found a divide symbol then)
                     exit
                 end if
             else

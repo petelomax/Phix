@@ -136,7 +136,7 @@ integer bracket_level, lastlevel, bcomm, lastbcomm
 sequence lastset
 integer ll      -- length(line)
 integer EuSq -- euphoria/phix style single quote handling
-integer lc
+--integer lc
 --atom t
 --  t = time()
 
@@ -154,7 +154,7 @@ end if
     bCfwd = {}
 --  bCfwd = repeat(0,256)
 --  newbClen = 0
-    lc = length(comment)
+--  lc = length(comment)
 --  for i=1 to length(filetext[currfile]) do
     for i=1 to maxline do
         line = filetext[currfile][i]
@@ -212,11 +212,24 @@ end if
 --              if ch='-' and chidx<ll and line[chidx+1]='-' then exit end if
 --15/03/2010 replaced above:
 if bcomm=0 then -- added 25/3/2013: (no help for the case I had found, but still might be rqd)
-                if lc and ch=comment[1]
-                and (lc<2 or (chidx<ll and line[chidx+1]=comment[2]))
-                and (lc<3 or (chidx<ll-1 and line[chidx+2]=comment[3])) then
-                    exit
-                end if
+--10/07/20
+--              if lc and ch=comment[1]
+--              and (lc<2 or (chidx<ll and line[chidx+1]=comment[2]))
+--              and (lc<3 or (chidx<ll-1 and line[chidx+2]=comment[3])) then
+--                  exit
+--              end if
+                bool cfound = false
+                for c=1 to length(lineComments) do
+                    string comment = lineComments[c]
+                    integer lc = length(comment)
+                    if lc and ch=comment[1]
+                    and (lc<2 or (chidx<ll and line[chidx+1]=comment[2]))
+                    and (lc<3 or (chidx<ll-1 and line[chidx+2]=comment[3])) then
+                        cfound = true
+                        exit
+                    end if
+                end for
+                if cfound then exit end if
 end if
                 if ch>128 then
                     ctype = TokenChar
@@ -576,7 +589,7 @@ integer EuSq -- euphoria/phix style single quote handling
 
 integer allNumbers
 
-integer lc
+--integer lc
 --if lineno=1 then
 --  ?text
 --end if
@@ -584,7 +597,7 @@ integer lc
 --if chovline!=0 then trace(1) end if
 --if lineno=162 then trace(1) end if
     lt = length(text)
-    lc = length(comment)
+--  lc = length(comment)
 --  if not lt then return {} end if     18/7
     chunkMax = 0
     if not lt then
@@ -872,13 +885,23 @@ end if
             if ctype=CloseBrace then
                 bracket_level -= 1
             end if
-        elsif lc and ch=comment[1]
-          and bcomm = 0 -- added 25/3/2013
-          and (lc<2 or (chidx2<=length(text) and text[chidx2]=comment[2]))
-          and (lc<3 or (chidx2<length(text) and text[chidx2+1]=comment[3])) then
+--10/07/20 (ugh)
+--      elsif lc and ch=comment[1]
+--        and bcomm = 0 -- added 25/3/2013
+--        and (lc<2 or (chidx2<=length(text) and text[chidx2]=comment[2]))
+--        and (lc<3 or (chidx2<length(text) and text[chidx2+1]=comment[3])) then
+        elsif bcomm=0
+          and ((length(lineComments) and ch=lineComments[1][1]
+                and (length(lineComments[1])<2 or (chidx2<=length(text) and text[chidx2]=lineComments[1][2]))
+                and (length(lineComments[1])<3 or (chidx2<length(text) and text[chidx2+1]=lineComments[1][3]))) or
+               (length(lineComments)=2 and ch=lineComments[2][1]
+                and (length(lineComments[2])<2 or (chidx2<=length(text) and text[chidx2]=lineComments[2][2]))
+                and (length(lineComments[2])<3 or (chidx2<length(text) and text[chidx2+1]=lineComments[2][3])))) then
             abc = ""  -- (signals line comment scan)
             scanForUrls(text)
             syntaxClass = Comments
+        elsif length(lineComments)>2 then
+            ?9/0 -- placeholder for more code (three line comments?!)
 --23/12/16:
         elsif bcomm=0 
 --        and lineno=1  -- relaxed for htmilse code

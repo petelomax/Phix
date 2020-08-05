@@ -2013,6 +2013,15 @@ atom pi, inf, nan
     initialConstant("MIN_HEAP",-1)
     initialConstant("MAX_HEAP",+1)
 
+    -- for hash.e
+    initialConstant("HSIEH30",-6)
+
+    -- for builtins/unit_test.e
+    initialConstant("TEST_QUIET",0)             -- (summary only when fail)
+    initialConstant("TEST_SUMMARY",1)           -- (summary only [/always])
+    initialConstant("TEST_SHOW_FAILED_ONLY",2)  -- (summary + failed tests)
+    initialConstant("TEST_SHOW_ALL",3)          -- (summary + all tests)
+
 --if not newEmit then
 --
 --  -- the following builtins return an integer:
@@ -2592,6 +2601,7 @@ end if
     initialAutoEntry("allocate_string", S_Func,"FPI",   "pAlloc.e",0,E_other,1)
     initialAutoEntry("allocate_word",   S_Func,"FIII",  "pAlloc.e",0,E_other,0)
     initialAutoEntry("allocate_wstring", S_Func,"FPI",  "pAlloc.e",0,E_other,1)
+    initialAutoEntry("and_bitsu",       S_Func,"FNN",   "ubits.e",0,E_none)
     initialAutoEntry("arccos",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("arcsin",          S_Func,"FN",    "misc.e",0,E_none)
     initialAutoEntry("atan2",           S_Func,"FNN",   "pmaths.e",0,E_none)
@@ -2612,6 +2622,7 @@ end if
     initialAutoEntry("float80_to_atom", S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("get_prime",       S_Func,"FI",    "primes.e",0,E_none)
     initialAutoEntry("get_proc_address",S_Func,"FNS",   "VM\\pcfunc.e",0,E_none)
+    initialAutoEntry("hash",            S_Func,"FON",   "hash.e",0,E_none,1)
     initialAutoEntry("open_dll",        S_Func,"FP",    "VM\\pcfunc.e",0,E_none)
 --else
 --  initialAutoEntry("float80_to_atom", S_Func,"FP",    "pfloat.e",0,E_none)
@@ -2633,7 +2644,10 @@ end if
     initialAutoEntry("log10",           S_Func,"FN",    "log10.e",0,E_none)
     initialAutoEntry("log2",            S_Func,"FN",    "log10.e",0,E_none)
     initialAutoEntry("mod",             S_Func,"FNN",   "pmaths.e",0,E_none)
+    initialAutoEntry("not_bitsu",       S_Func,"FN",    "ubits.e",0,E_none)
     initialAutoEntry("or_all",          S_Func,"FO",    "porall.e",0,E_none)
+    initialAutoEntry("or_allu",         S_Func,"FO",    "porall.e",0,E_none)
+    initialAutoEntry("or_bitsu",        S_Func,"FNN",   "ubits.e",0,E_none)
     initialAutoEntry("poke_string",     S_Func,"FNIP",  "pokestr.e",0,E_other)
     initialAutoEntry("poke_wstring",    S_Func,"FNIP",  "pokestr.e",0,E_other)
     initialAutoEntry("product",         S_Func,"FO",    "psum.e",0,E_none)
@@ -2649,6 +2663,7 @@ end if
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("system_wait",     S_Func,"FP",    "syswait.ew",0,E_other)
     initialAutoEntry("trunc",           S_Func,"FN",    "pmaths.e",0,E_none)
+    initialAutoEntry("xor_bitsu",       S_Func,"FNN",   "ubits.e",0,E_none)
 
     T_AAtm = symlimit
 
@@ -2773,8 +2788,8 @@ end if
     initialAutoEntry("splice",          S_Func,"FPOI",  "pseqc.e",0,E_none)
     initialAutoEntry("split",           S_Func,"FPOII", "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
-    initialAutoEntry("split_any",       S_Func,"FPOII", "psplit.e",0,E_none)
-    symtab[symlimit][S_ParmN] = 1
+    initialAutoEntry("split_any",       S_Func,"FPOII", "psplit.e",0,E_none,1)
+    initialAutoEntry("split_by",        S_Func,"FPI",   "psplit.e",0,E_none)
     initialAutoEntry("split_path",      S_Func,"FPI",   "psplit.e",0,E_none)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("tagset",          S_Func,"FIIII", "ptagset.e",0,E_none)
@@ -2837,8 +2852,8 @@ end if
     initialAutoEntry("maxsq",           S_Func,"FPI",   "pmaths.e",0,E_none,1)      T_maxsq = symlimit
     initialAutoEntry("min",             S_Func,"FOO",   "pmaths.e",0,E_none)        T_min = symlimit
     initialAutoEntry("minsq",           S_Func,"FPI",   "pmaths.e",0,E_none,1)      T_minsq = symlimit
-    initialAutoEntry("peekns",          S_Func,"FOII",  "peekns.e",0,E_none,1)
-    initialAutoEntry("peeknu",          S_Func,"FOII",  "peekns.e",0,E_none,1)
+    initialAutoEntry("peekns",          S_Func,"FOII",  "peekns.e",0,E_other,1)
+    initialAutoEntry("peeknu",          S_Func,"FOII",  "peekns.e",0,E_other,1)
     initialAutoEntry("pq_pop_data",     S_Func,"FI",    "pqueue.e",0,E_other,0)
     initialAutoEntry("read_bitmap",     S_Func,"FS",    "image.e",0,E_none)
 --  initialAutoEntry("round",           S_Func,"FOO",   "pmaths.e",0,E_none)
@@ -3016,6 +3031,7 @@ elsif hllfileio then
     initialAutoEntry("free_console",        S_Proc,"P",     "pfileio.e",0,E_other)
 end if
     initialAutoEntry("machine_proc",        S_Proc,"PIO",   "pmach.e",0,E_other)
+    initialAutoEntry("poken",               S_Proc,"PNOI",  "peekns.e",0,E_other,2)
 if newEmit then
 --  initialAutoEntry("position",            S_Proc,"PII",   "VM\\pfileioN.e",0,E_other)
     -- (puts is now an AutoAsm)
@@ -3036,6 +3052,11 @@ end if
     initialAutoEntry("resume_thread",       S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("suspend_thread",      S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("set_system_doevents", S_Proc,"PIO",   "syswait.ew",0,E_other)
+    initialAutoEntry("set_test_abort",      S_Proc,"PI",    "unit_test.e",0,E_other)
+    initialAutoEntry("set_test_logfile",    S_Proc,"PS",    "unit_test.e",0,E_other)
+    initialAutoEntry("set_test_module",     S_Proc,"PS",    "unit_test.e",0,E_other)
+    initialAutoEntry("set_test_verbosity",  S_Proc,"PI",    "unit_test.e",0,E_other)
+    initialAutoEntry("set_wait_on_summary", S_Proc,"PI",    "unit_test.e",0,E_other)
     initialAutoEntry("setd",                S_Proc,"POOI",  "dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 2
     Alias("putd", symlimit)
@@ -3056,6 +3077,13 @@ end if
     initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_all)
     initialAutoEntry("task_clock_stop",     S_Proc,"P",     "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_clock_start",    S_Proc,"P",     "VM\\pTask.e",0,E_other)
+    initialAutoEntry("test_equal",          S_Proc,"POOSI", "unit_test.e",0,E_other,2)
+    initialAutoEntry("test_fail",           S_Proc,"PS",    "unit_test.e",0,E_other,0)
+    initialAutoEntry("test_false",          S_Proc,"PIS",   "unit_test.e",0,E_other,1)
+    initialAutoEntry("test_not_equal",      S_Proc,"POOSI", "unit_test.e",0,E_other,2)
+    initialAutoEntry("test_pass",           S_Proc,"PS",    "unit_test.e",0,E_other)
+    initialAutoEntry("test_summary",        S_Proc,"PI",    "unit_test.e",0,E_other,1)
+    initialAutoEntry("test_true",           S_Proc,"PIS",   "unit_test.e",0,E_other,1)
     initialAutoEntry("traverse_dict",       S_Proc,"PIOII", "dict.e",0,E_other)
     symtab[symlimit][S_ParmN] = 1
     initialAutoEntry("traverse_dict_partial_key",S_Proc,"PIOOII","dict.e",0,E_other)

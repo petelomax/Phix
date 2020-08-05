@@ -3,7 +3,7 @@
 --
 --  unsigned bit operations (autoinclude).
 --
---  :%opAndBits (ie and_bits()) returns signed results, mainly because it is part of 
+--  :%opAndBits, ie and_bits(), returns signed results, mainly because it is part of 
 --  builtins/pMaths.e and uses the same logic as :%opAdd, etc. Ditto or/xor/not_bits().
 --  However many (esp cryptographic) functions require unsigned results, which is 
 --  where these routines can come in handy.
@@ -17,7 +17,7 @@ function unsign(atom a)
         pMem = allocate(W)
     end if
     pokeN(pMem,a,W)
-    return peekNS(pMem,W,0)
+    return peekNS(pMem,W,false)
 end function
 
 global function and_bitsu(atom x1, x2)

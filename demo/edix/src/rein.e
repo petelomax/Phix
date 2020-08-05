@@ -235,7 +235,10 @@ integer k
                 oneline[k] = ' '
             end while
             CursorY = tokline-1
-            msg = sprintf("line %d:\n%s\n%s^ %s.\n",{tokline,oneline,repeat(' ',tokstart-1),msg})
+--7/7/20
+--          msg = sprintf("line %d:\n%s\n%s^ %s.\n",{tokline,oneline,repeat(' ',tokstart-1),msg})
+            string spaces = repeat(' ',max(0,tokstart-1))
+            msg = sprintf("line %d:\n%s\n%s^ %s.\n",{tokline,oneline,spaces,msg})
         else
 --          msg = sprintf("%s.\n",{msg})
             msg &= ".\n"
@@ -450,12 +453,15 @@ integer onelen, k, l
                 end if
             end while
         else
-            if Ch='-' then
+--10/07/20
+--          if Ch='-' then
+            if find(Ch,"-/") then
                 if col<onelen
-                and oneline[col+1]='-' then
-                    -- This line is a comment (-- just found), check for
+--              and oneline[col+1]='-' then
+                and oneline[col+1]=Ch then
+                    -- This line is a comment (-- (or //) just found), check for
                     -- --/* (block comment) and --# directives
-                    if col+2<onelen
+                    if Ch='-' and col+2<onelen
                     and oneline[col+2]='/'
                     and oneline[col+3]='*' then
 --DEV earein:
@@ -517,17 +523,21 @@ integer onelen, k, l
                         lexer_tokno = 1
                         col = 1
                     end if
-                else
-                    exit
-                end if
-            elsif Ch='/' then
-                if col<onelen
-                and oneline[col+1]='*' then
+--10/07/20
+--              else
+--                  exit
+--              end if
+                elsif Ch='/' then
+                    if col<onelen
+                    and oneline[col+1]='*' then
 --DEV ditto, re-test this
---                  col += 1
-                    col += 2
-                    SkipBlockComment()
-                else -- (we just found a divide symbol then)
+--                      col += 1
+                        col += 2
+                        SkipBlockComment()
+                    else -- (we just found a divide symbol then)
+                        exit
+                    end if
+                else
                     exit
                 end if
             else

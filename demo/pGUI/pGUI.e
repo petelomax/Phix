@@ -40,12 +40,17 @@ sequence callbacks = {}
 sequence cbnames = {}
 
 global type cbfunc(atom cb)
---  return cb=NULL or rfind(cb,callbacks)!=0    --DEV (no idea why rfind was being used...)
-    return cb=NULL or find(cb,callbacks)!=0
+    --
+    -- (aside: rfind() is used (instead of find) on the assumption that 
+    --         nine cases out of ten will use the last one just created
+    --         at least in the IupButton("ok",Icallback("ok_cb")) and 
+    --         [hence] IupSetCallback() etc common use cases anyway.)
+    --
+    return cb=NULL or rfind(cb,callbacks)!=0
 end type
 
 global function Icallback(string name, integer rid = routine_id(name))
---  if rid<=0 then ?9/0 end if -- (call_back() does better than that all by itself anyway)
+--  if rid<=0 then ?9/0 end if -- (call_back() does better than that anyway)
     atom cb = call_back({'+', rid})
     integer k = find(cb,callbacks)
     if k=0 then

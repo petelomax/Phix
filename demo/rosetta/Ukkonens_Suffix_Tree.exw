@@ -1,0 +1,500 @@
+--
+-- demo/rosetta/Ukkonens_Suffix_Tree.exw
+--
+--{{trans|Go}}
+--<lang Phix>-- demo/rosetta/Ukkonens_Suffix_Tree.exw
+integer maxChar = 'z'
+ 
+sequence children = {},
+         suffixLinks = {},
+         starts = {},
+         ends = {},
+         suffixIndices = {}
+string text
+atom pSplitEnd,
+     pRootEnd,
+     pLeafEnd = allocate_word(0,true)
+integer root = NULL,
+        lastNewNode,
+        activeNode,
+        activeEdge = -1,
+        activeLength = 0,
+        remainingSuffixCount = 0,
+        size = -1
+ 
+function newNode(integer start, atom pFinish, bool bKids=false)
+    children = append(children,iff(bKids?repeat(NULL,maxChar):0))
+    suffixLinks = append(suffixLinks,root)
+    starts = append(starts,start)
+    ends = append(ends,pFinish)
+    suffixIndices = append(suffixIndices,-1)
+    return length(children)
+end function
+ 
+function edgeLength(integer n)
+    if n == root then
+        return 0
+    end if
+    return peekns(ends[n]) - starts[n] + 1
+end function
+ 
+function walkDown(integer currNode)
+    integer l = edgeLength(currNode)
+    if activeLength >= l then
+        activeEdge += l
+        activeLength -= l
+        activeNode = currNode
+        return true
+    end if
+    return false
+end function
+ 
+procedure extendSuffixTree(integer pos)
+    poken(pLeafEnd,pos)
+    remainingSuffixCount += 1
+    lastNewNode = NULL
+    while remainingSuffixCount > 0 do
+        if activeLength == 0 then
+            activeEdge = pos
+        end if
+        integer ta = text[activeEdge]
+        object ca = children[activeNode]
+        integer next = iff(ca=0?NULL:ca[ta])
+        if next == null then
+            if ca=0 then
+                children[activeNode] = repeat(NULL,maxChar)
+            end if
+            children[activeNode][ta] = newNode(pos, pLeafEnd)
+            if lastNewNode != NULL then
+                suffixLinks[lastNewNode] = activeNode
+                lastNewNode = NULL
+            end if
+        else
+            if walkDown(next) then
+                continue
+            end if
+            integer tp = text[pos]
+            if text[starts[next]+activeLength] == tp then
+                if lastNewNode != NULL and activeNode != root then
+                    suffixLinks[lastNewNode] = activeNode
+                    lastNewNode = NULL
+                end if
+                activeLength += 1
+                exit
+            end if
+            integer temp = starts[next] + activeLength - 1
+            pSplitEnd = allocate_word(temp,true)
+            integer splitnode = newNode(starts[next], pSplitEnd,true)
+            ta = text[activeEdge]
+            children[activeNode][ta] = splitnode
+            children[splitnode][tp] = newNode(pos, pLeafEnd)
+            starts[next] += activeLength
+            children[splitnode][text[starts[next]]] = next
+            if lastNewNode != NULL then
+                suffixLinks[lastNewNode] = splitnode
+            end if
+            lastNewNode = splitnode
+        end if
+        remainingSuffixCount -= 1
+        if activeNode == root and activeLength > 0 then
+            activeLength -= 1
+            activeEdge = pos - remainingSuffixCount + 1
+        elsif activeNode != root then
+            activeNode = suffixLinks[activeNode]
+        end if
+    end while
+end procedure
+ 
+procedure setSuffixIndexByDFS(integer n, integer labelHeight)
+    if n!=NULL then
+        -- Uncomment the 3 lines below to print suffix tree
+        --if starts[n]!=-1 then
+        --  printf(1,text[starts[n]..peekns(ends[n])])
+        --end if
+        if children[n]=0 then
+            suffixIndices[n] = size - labelHeight
+            -- Uncomment line below to print suffix index
+            --printf(1," [%d]\n", suffixIndices[n])
+        else
+            bool leaf = true
+            for i=1 to maxChar do
+                integer nci = children[n][i]
+                if nci != NULL then
+                    -- Uncomment the 3 lines below to print suffix index
+                    --if leaf and starts[n] != -1 then
+                    --  printf(1," [%d]\n", suffixIndices[n])
+                    --end if
+                    leaf = false
+                    setSuffixIndexByDFS(nci, labelHeight+edgeLength(nci))
+                end if
+            end for
+            if leaf then ?9/0 end if -- (sanity check)
+        end if
+    end if
+end procedure
+ 
+procedure buildSuffixTree()
+    size = length(text)
+    pRootEnd = allocate_word(-1,true)
+    root = newNode(-1, pRootEnd)
+    activeNode = root
+    for i=1 to size do
+        extendSuffixTree(i)
+    end for
+    integer labelHeight = 0
+    setSuffixIndexByDFS(root, labelHeight)
+end procedure
+ 
+procedure doTraversal(integer n, integer labelHeight, atom pMaxHeight, pSubstringStartIndex)
+    if n!=NULL then
+        integer nsi = suffixIndices[n], newHeight
+        if nsi == -1 then
+            for i=1 to maxChar do
+                integer nci = children[n][i]
+                if nci != NULL then
+                    newHeight = labelHeight+edgeLength(nci)
+                    doTraversal(nci, newHeight, pMaxHeight, pSubstringStartIndex)
+                end if
+            end for
+        elsif nsi > -1 then
+            newHeight = labelHeight-edgeLength(n)
+            if peekns(pMaxHeight)<newHeight then
+                poken(pMaxHeight,newHeight)
+                poken(pSubstringStartIndex,nsi)
+            end if
+        end if
+    end if
+end procedure
+ 
+procedure getLongestRepeatedSubstring(string s)
+    atom pMaxHeight = allocate_word(0,true),
+         pSubstringStartIndex = allocate_word(0,true)
+    doTraversal(root, 0, pMaxHeight, pSubstringStartIndex)
+    integer maxHeight = peekns(pMaxHeight),
+            start = peekns(pSubstringStartIndex)
+    -- Uncomment line below to print maxHeight and substringStartIndex
+    --printf(1,"maxHeight %d, substringStartIndex %d\n", {maxHeight, start})
+    string t = iff(maxHeight=0?"No repeated substring"
+                              :text[start+1..start+maxHeight])
+    printf(1,"  %s is: %s\n", {iff(s=""?text:s),t})
+end procedure
+ 
+constant tests = {"GEEKSFORGEEKS$",
+                  "AAAAAAAAAA$",
+                  "ABCDEFG$",
+                  "ABABABA$",
+                  "ATCGATCGA$",
+                  "banana$",
+                  "abcpqrabpqpq$",
+                  "pqrpqpqabab$"}
+printf(1,"Longest Repeated Substring in:\n")
+for i=1 to length(tests) do
+    text = tests[i]
+    buildSuffixTree()
+    getLongestRepeatedSubstring("")
+end for
+printf(1,"\n")
+ 
+-- Sadly gmp crashes when I try 100,000 dp, but I suspect it would be fine with more than my paltry 4GB ram
+include mpfr.e
+mpfr pi = mpfr_init(0,-10001) -- (set precision to 10,000 dp, plus the "3.")
+mpfr_const_pi(pi)
+string piStr =  mpfr_sprintf("%.10000Rf", pi), s="Pi"
+piStr = piStr[3..$] -- discard leading "3."
+maxChar = '9'
+for i=3 to 6 do
+    atom t0 = time()
+    integer n = power(10,i)
+    if i>=5 then
+        text = repeat('0',n)&"$"
+        for c=1 to n do
+            text[c] = rand(10)+'0'-1
+        end for
+        s = "a made up number"
+    else
+        text = piStr[1..n] & "$"
+    end if
+    buildSuffixTree()
+    getLongestRepeatedSubstring(sprintf("first %,d d.p. of %s", {n,s}))
+    printf(1,"  (this took %gs)\n\n", {time()-t0})
+end for
+{} = wait_key()
+/*
+</lang>
+{{out}}
+<pre>
+Longest Repeated Substring in:
+  GEEKSFORGEEKS$ is: GEEKS
+  AAAAAAAAAA$ is: AAAAAAAAA
+  ABCDEFG$ is: No repeated substring
+  ABABABA$ is: ABABA
+  ATCGATCGA$ is: ATCGA
+  banana$ is: ana
+  abcpqrabpqpq$ is: ab
+  pqrpqpqabab$ is: ab
+
+  first 1,000 d.p. of Pi is: 23846
+  (this took 0s)
+
+  first 10,000 d.p. of Pi is: 7111369
+  (this took 0.047s)
+
+  first 100,000 d.p. of a made up number is: 022105155
+  (this took 0.422s)
+
+  first 1,000,000 d.p. of a made up number is: 09014346795
+  (this took 4.734s)
+</pre>
+*/
+
+
+
+--/* OLD:
+--Sadly, phix structs do not yet stretch to the dizzy heights of things like node.children[idx] = thing (tee hee, I can
+--almost picture the mortified expression on your face right now) so I have used sequence kids as a temp. workaround.
+--<lang Phix>
+integer maxChar = 'z'
+ 
+struct Node nullable
+    sequence children
+    Node suffixLink
+    integer start
+    atom finish
+    integer suffixIndex
+end struct
+ 
+string text
+atom pSplitEnd,
+     pRootEnd,
+     pLeafEnd = allocate_word(0,true)
+Node root = NULL, 
+     lastNewNode,
+     activeNode
+integer activeEdge = -1,
+        activeLength = 0,
+        remainingSuffixCount = 0,
+        size = -1
+ 
+function newNode(integer start, atom pFinish)
+    Node node = new({repeat(NULL,maxChar),root,start,pFinish,-1})
+--  node.children = repeat(NULL,maxChar)
+--  node.suffixLink = root
+--  node.start = start
+--  node.finish = pFinish
+--  node.suffixIndex = -1
+    return node
+end function
+ 
+function edgeLength(Node n)
+    if n == root then
+        return 0
+    end if
+    return peekns(n.finish) - n.start + 1
+end function
+ 
+function walkDown(Node currNode)
+    integer l = edgeLength(currNode)
+    if activeLength >= l then
+        activeEdge += l
+        activeLength -= l
+        activeNode = currNode
+        return true
+    end if
+    return false
+end function
+ 
+procedure extendSuffixTree(integer pos)
+sequence kids --DEV (temp)
+    poken(pLeafEnd,pos)
+    remainingSuffixCount += 1
+    lastNewNode = NULL
+    while remainingSuffixCount > 0 do
+        if activeLength == 0 then
+            activeEdge = pos
+        end if
+        integer ta = text[activeEdge]
+        Node next = activeNode.children[ta]
+        if next == null then
+--DEV...
+--          activeNode.children[ta] = newNode(pos, pLeafEnd)
+            kids = activeNode.children
+            kids[ta] = newNode(pos, pLeafEnd)
+            activeNode.children = kids
+            if lastNewNode != NULL then
+                lastNewNode.suffixLink = activeNode
+                lastNewNode = NULL
+            end if
+        else
+            if walkDown(next) then
+                continue
+            end if
+            integer tp = text[pos]
+            if text[next.start+activeLength] == tp then
+                if lastNewNode != NULL and activeNode != root then
+                    lastNewNode.suffixLink = activeNode
+                    lastNewNode = NULL
+                end if
+                activeLength += 1
+                exit
+            end if
+            integer temp = next.start + activeLength - 1
+            pSplitEnd = allocate_word(temp,true)
+            Node splitnode = newNode(next.start, pSplitEnd)
+            ta = text[activeEdge]
+--DEV...(*3)
+--          activeNode.children[text[activeEdge]] = splitnode
+            kids = activeNode.children
+--          kids[text[activeEdge]] = splitnode
+            kids[ta] = splitnode
+            activeNode.children = kids
+--          splitnode.children[text[pos]] = newNode(pos, pLeafEnd)
+            kids = splitnode.children
+--          kids[text[pos]] = newNode(pos, pLeafEnd)
+            kids[tp] = newNode(pos, pLeafEnd)
+--          splitnode.children = kids
+            next.start += activeLength
+--          splitnode.children[text[next.start]] = next
+            kids[text[next.start]] = next
+            splitnode.children = kids
+            if lastNewNode != NULL then
+                lastNewNode.suffixLink = splitnode
+            end if
+            lastNewNode = splitnode
+        end if
+        remainingSuffixCount -= 1
+        if activeNode == root and activeLength > 0 then
+            activeLength -= 1
+            activeEdge = pos - remainingSuffixCount + 1
+        elsif activeNode != root then
+            activeNode = activeNode.suffixLink
+        end if
+    end while
+end procedure
+ 
+procedure setSuffixIndexByDFS(Node n, integer labelHeight)
+    if n!=NULL then
+        -- Uncomment the 3 lines below to print suffix tree
+        --if n.start != -1 then
+        --  printf(1,text[n.start..peekns(n.finish)])
+        --end if
+        bool leaf = true
+        for i=1 to maxChar do
+            Node nci = n.children[i]
+            if nci != NULL then
+                // Uncomment the 3 lines below to print suffix index
+                --if leaf == 1 and n.start != -1 then
+                --  printf(1," [%d]\n", n.suffixIndex)
+                --end if
+                leaf = false
+                setSuffixIndexByDFS(nci, labelHeight+edgeLength(nci))
+            end if
+        end for
+        if leaf then
+            n.suffixIndex = size - labelHeight
+            // Uncomment line below to print suffix index
+            --printf(1," [%d]\n", n.suffixIndex)
+        end if
+    end if
+end procedure
+ 
+procedure buildSuffixTree()
+    size = length(text)
+    pRootEnd = allocate_word(-1,true)
+    root = newNode(-1, pRootEnd)
+    activeNode = root
+    for i=1 to size do
+        extendSuffixTree(i)
+    end for
+    integer labelHeight = 0
+    setSuffixIndexByDFS(root, labelHeight)
+end procedure
+ 
+procedure doTraversal(Node n, integer labelHeight, atom pMaxHeight, pSubstringStartIndex)
+    if n!=NULL then
+        integer nsi = n.suffixIndex, newHeight
+        if nsi == -1 then
+            for i=1 to maxChar do
+                Node nci = n.children[i]
+                if nci != NULL then
+                    newHeight = labelHeight+edgeLength(nci)
+                    doTraversal(nci, newHeight, pMaxHeight, pSubstringStartIndex)
+                end if
+            end for
+        elsif nsi > -1 then
+            newHeight = labelHeight-edgeLength(n)
+            if peekns(pMaxHeight)<newHeight then
+                poken(pMaxHeight,newHeight)
+                poken(pSubstringStartIndex,nsi)
+            end if
+        end if
+    end if
+end procedure
+ 
+procedure getLongestRepeatedSubstring(string s)
+    atom pMaxHeight = allocate_word(0,true),
+         pSubstringStartIndex = allocate_word(0,true)
+    doTraversal(root, 0, pMaxHeight, pSubstringStartIndex)
+    integer maxHeight = peekns(pMaxHeight),
+            start = peekns(pSubstringStartIndex)
+    // Uncomment line below to print maxHeight and substringStartIndex
+    --printf(1,"maxHeight %d, substringStartIndex %d\n", {maxHeight, start})
+    string t = iff(maxHeight=0?"No repeated substring"
+                              :text[start+1..start+maxHeight])
+    printf(1,"  %s is: %s\n", {iff(s=""?text:s),t})
+end procedure
+ 
+constant tests = {"GEEKSFORGEEKS$",
+                  "AAAAAAAAAA$",
+                  "ABCDEFG$",
+                  "ABABABA$",
+                  "ATCGATCGA$",
+                  "banana$",
+                  "abcpqrabpqpq$",
+                  "pqrpqpqabab$"}
+printf(1,"Longest Repeated Substring in:\n")
+for i=1 to length(tests) do
+    text = tests[i]
+    buildSuffixTree()
+    getLongestRepeatedSubstring("")
+end for
+printf(1,"\n")
+ 
+-- Sadly gmp crashes when I try 100,000 dp, but I suspect it would be fine with more than my paltry 4GB ram
+include mpfr.e
+mpfr pi = mpfr_init(0,-10001) -- (set precision to 10,000 dp, plus the "3.")
+mpfr_const_pi(pi)
+string piStr =  mpfr_sprintf("%.10000Rf", pi)
+piStr = piStr[3..$] -- discard leading "3."
+maxChar = '9'
+for i=2 to 4 do
+    atom t0 = time()
+    integer n = power(10,i)
+    text = piStr[1..n] & "$"
+    buildSuffixTree()
+    getLongestRepeatedSubstring(sprintf("first %d d.p. of Pi", n))
+    printf(1,"  (this took %gs)\n\n", {time()-t0})
+end for
+{} = wait_key()
+</lang>
+{{out}}
+<pre>
+Longest Repeated Substring in:
+  GEEKSFORGEEKS$ is: GEEKS
+  AAAAAAAAAA$ is: AAAAAAAAA
+  ABCDEFG$ is: No repeated substring
+  ABABABA$ is: ABABA
+  ATCGATCGA$ is: ATCGA
+  banana$ is: ana
+  abcpqrabpqpq$ is: ab
+  pqrpqpqabab$ is: ab
+
+  first 100 d.p. of Pi is: 592
+  (this took 0.031s)
+
+  first 1000 d.p. of Pi is: 23846
+  (this took 0.234s)
+
+  first 10000 d.p. of Pi is: 7111369
+  (this took 2.313s)
+</pre>
+*/

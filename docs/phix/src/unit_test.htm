@@ -1,0 +1,282 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">unit_test</h1>
+      <div id="mainSection">
+        The file builtins/unit_test.e (an autoinclude) implements a simple unit testing framework for Phix.
+       <br>
+       <h3>Example:</h3>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b78q53-jb33-1223-123h-8b2483c91876');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_18b78q53-jb33-1223-123h-8b2483c91876" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+--set_test_verbosity(TEST_QUIET) -- (the default)
+test_not_equal(2+2,5,"2+2 is 4 !!!!")
+test_summary()
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#000080"><i>--set_test_verbosity(TEST_QUIET) -- (the default)
+</i></font><font color="#5E005E">test_not_equal</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">+</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#008000">"2+2 is 4 !!!!"</font><font color="#0000FF">)
+</font><font color="#5E005E">test_summary</font><font color="#0000FF">()</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+        <br>
+        If all goes well, no output is shown, and the program carries on normally.<br>
+        You can easily force [summary] output, crash/prompt on fail, etc. [See below]
+        <br>
+        <br>
+        Unit testing should be a vital weapon in any half-decent programmer&rsquo;s arsenal.<br>
+        It should be just as easy to write a unit test as it is to perform that test manually.<br>
+        Unit tests not only completely eliminate an otherwise extremely tedious phase of the 
+        release cycle, but also give me the confidence to make changes that would instead be 
+        just far too frightening to even contemplate. I can tell you with absolute certainty 
+        and utter seriousness that the phix compiler simply could not have been written without 
+        the help of unit testing, ever. While it does not actually use these routines, a quick 
+        scan of any of the sixty-odd tests\tnn***.exw files will reveal plenty of opportunities 
+        for using test_equal() and friends. If I have to spend five minutes crafting the perfect
+        test, and then never have to worry about it ever again, that&rsquo;s an absolute bargain.
+        <br>
+        <br>
+        Note that I have used the same routine names as Euphoria, but the parameters are
+        all different [esp their order] and therefore they are not compatibile...
+         In particular you have to give every test a name in Euphoria, whereas here
+         such things are optional. Also, Euphoria works by putting tests in files
+         named "t_*" and running eutest, whereas here they are part of the app, and
+         will start failing on live systems (eg) if not properly installed, which I
+         (very strongly) think is actually far superior...
+         [If you want unit tests to "go away" in production releases, you just need
+          eg "global constant UNIT_TESTS = false" and litter "if UNIT_TESTS then"
+          throughout your code, and maybe something along similar lines to the way
+          that docs/phix/makephix.exw/readtoc() verifies that pglobals.e matches 
+          banner.htm, but in your standard build script (assuming you have one).  ]
+<!--
+-- === Background
+-- Unit testing is the process of assuring that the smallest programming units
+-- are actually delivering functionality that complies with their specification.
+-- The units in question are usually individual routines rather than whole programs
+-- or applications.
+--
+-- The theory is that if the components of a system are working correctly, then
+-- there is a high probability that a system using those components can be made
+-- to work correctly.
+--
+-- In Euphoria terms, this framework provides the tools to make testing and reporting on
+-- functions and procedures easy and standardized. It gives us a simple way to
+-- write a test case and to report on the findings.
+-->
+
+        <br>
+        <br>
+        <a name=constants></a>
+        <h2>constants (defined in psym.e)</h2>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:12em;}
+        </style>
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>TEST_QUIET</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0 -- (summary only when fail)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            TEST_SUMMARY
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1 -- (summary only [/always])
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            TEST_SHOW_FAILED_ONLY 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 2 -- (summary + failed tests)
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            TEST_SHOW_ALL 
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 3 -- (summary + all tests)
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+
+        <a name=routines></a>
+        <h2>routines</h2>
+
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=set_test_verbosity></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>set_test_verbosity</b>(integer level) -- set output verbosity
+            </dt><dd class="pad">
+            level: one of the TEST_XXX constants above, the initial default setting is TEST_QUIET<br>
+            Note that (even) TEST_SHOW_ALL will not show <i>successful</i> tests with no name.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=set_test_abort></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>set_test_abort</b>(integer abort_test) -- set test failure behaviour
+            </dt><dd class="pad">
+            abort_test: 1/0/-1 as below, the initial default setting is 0<br>
+            if 1 then <a href="abort.htm">abort</a>(1) on failure, after showing the summary,<br>
+            if 0 then carry on, <br>
+            if -1 then <a href="crash.htm">crash</a>("unit test failure"), immediately.<br>
+            You may, of course, change this at will for critical and not-so-critical tests.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=set_wait_on_summary></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>set_wait_on_summary</b>(integer to_wait) -- set pause behaviour
+            </dt><dd class="pad">
+            to_wait: 1/0/-1 as below, the initial default setting is -1<br>
+            if 1 always pause, <br>
+            if 0 never pause, <br>
+            if -1 pause on failure.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=set_test_logfile></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>set_test_logfile</b>(string filename) -- set a log file
+            </dt><dd class="pad">
+            filename: the output file<br>
+            If this routine is not called, all output is to stderr only.<br>
+            The file is automatically closed via test_summary().
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=set_test_module></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>set_test_module</b>(string name) -- start a test section (optional)
+            </dt><dd class="pad">
+            name: the test section name<br>
+            If this routine is not called, all output is lumped together<br>
+            &nbsp;(and likewise unique names for every individual test are also optional).<br>
+            Providing appropriate section names may make it easier to locate a failing test.<br>
+            Should the internal tests_run counter be non-zero, this invokes test_summary(<small><i>false</i></small>).
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=test_equal></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>test_equal</b>(object a, b, string name=""<small><i>, bool eq=true</i></small>) -- test two values for (approximate) equality
+            </dt><dd class="pad">
+            a, b: the two values which should be equal.<br>
+            name: the test name (optional).<br>
+            <small><i>eq: do not provide/for internal use: true means it is test_equal rather than test_not_equal, and vice versa.</i></small><br>
+            Omitting the name is probably only sensible when a and/or b already contain sufficient information to identify the failing test.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=test_not_equal></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>test_not_equal</b>(object a, b, string name=""<small><i>, bool eq=false</i></small>) -- test two values for inequality
+            </dt><dd class="pad">
+            a, b: the two values which should <i>not</i> be (approximately) equal.<br>
+            Note this directly invokes test_equal(a,b,name,eq), and relies on the default setting of eq.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=test_true></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>test_true</b>(bool success, string name="") -- test something is true
+            </dt><dd class="pad">
+            success: a value which should be true<br>
+            name: the test name (optional but recommended)<br>
+            Omitting the name will almost certainly make it difficult to identify the failing test, then again if there is a loop
+            construct or similar involved, said name could be fairly meaningless anyway (even with an index or two), or maybe you
+            actually <i>want</i> one named success to show, then 500 un-named successes not to show, then...
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=test_false></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>test_false</b>(bool success, string name="") -- test something is false
+            </dt><dd class="pad">
+            success: a value which should be false<br>
+            Note this directly invokes test_true(not success,name).
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=test_pass></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>test_pass</b>(string name) -- a test has succeeded
+            </dt><dd class="pad">
+            name: since no name makes no practical sense, it is deliberately <i>not</i> optional here<br>
+            Note this directly invokes test_true(true,name), typically used when some condition does not easily fit on one line.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=test_fail></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>test_fail</b>(string name="") -- a test has failed
+            </dt><dd class="pad">
+            name: unlike test_pass(), test_fail() aka test_fail("") <i>may</i> have merit when set_test_abort(-1) is in force.<br>
+            Note this directly invokes test_true(false,name), typically used when some condition does not easily fit on one line.
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=test_summary></a>
+            <i>procedure</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>test_summary</b>(<small><i>bool close_log=true</i></small>) -- show test summary (if appropriate)
+            </dt><dd class="pad">
+            <small><i>close_log: do not provide/for internal use: allows set_test_module() to keep any log file open.</i></small><br>
+            Optionally prints eg "20 tests run, 19 passed, 1 failed, 95% success\n", along with a 
+            "Press any key to continue..." pause, closes any log file, and/or aborts.<br>
+            Should you forget to invoke this routine, and TEST_QUIET or TEST_SUMMARY is in force, it is
+            quite possible that all failures may go completely unnoticed, and even with a higher setting
+            they may flash up on the screen but disappear too quickly to be read.
+            </dd></dl>
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

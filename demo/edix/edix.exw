@@ -2431,7 +2431,8 @@ global procedure changeTo(integer i, integer npos)
 --  sampleBrushClr = reBrush(sampleBrushClr,ColourTab)
     StyleTab = styleTabs[newSyntax]
     charMap = charMaps[newSyntax]   -- fixed hang 17/7
-    comment = LineComments[newSyntax]       -- moved here 19/7
+--  comment = LineComments[newSyntax]       -- moved here 19/7
+    lineComments = LineComments[newSyntax]      -- moved here 19/7
     blockComment = BlockComments[newSyntax]
     autoComplete = AutoCompletes[newSyntax]
 
@@ -6638,7 +6639,9 @@ function canvas_button_cb(Ihandle ih, integer button, integer pressed, integer x
             elsif pressed=1 then
                 x = floor(x/charwidth)-marginRqd
                 y = TopLine+floor(y/charheight)
-                if x>=0 and y<length(filetext[currfile]) then
+--7/7/20:
+--              if x>=0 and y<length(filetext[currfile]) then
+                if x>=0 and currfile<=length(filetext) and y<length(filetext[currfile]) then
                     x = min(x,ExpLength(filetext[currfile][y+1]))
                     startSelection(iup_isshift(pStatus),iup_isalt(pStatus))
                     CursorX = x
@@ -7792,11 +7795,23 @@ integer tabs, taba, tokstart, ctype, tokend, c, IndentIdx, thisII
                     exit
                 end if
             end while
-        elsif length(comment) and c=comment[1]
-        and (length(comment)<2 or (tokstart<k and prevline[tokstart+1]=comment[2]))
-        and (length(comment)<3 or (tokstart<k-1  and prevline[tokstart+2]=comment[3])) then
-            exit        
+--10/07/20
+--      elsif length(comment) and c=comment[1]
+--      and (length(comment)<2 or (tokstart<k and prevline[tokstart+1]=comment[2]))
+--      and (length(comment)<3 or (tokstart<k-1  and prevline[tokstart+2]=comment[3])) then
+--          exit        
         else
+            bool cfound = false
+            for cdx=1 to length(lineComments) do
+                string comment = lineComments[cdx]
+                if length(comment) and c=comment[1]
+                and (length(comment)<2 or (tokstart<k and prevline[tokstart+1]=comment[2]))
+                and (length(comment)<3 or (tokstart<k-1  and prevline[tokstart+2]=comment[3])) then
+                    cfound = true
+                    exit        
+                end if
+            end for
+            if cfound then exit end if
             if length(Indents[newSyntax][3]) then   -- single char indents, eg '{'
                 IndentIdx = find(prevline[tokstart],Indents[newSyntax][3])
                 if IndentIdx then
@@ -7969,9 +7984,11 @@ function key_cb(Ihandle ih, atom c)
             case K_F6, K_F7, K_F8, K_F9: macro:macrokey(base,ctrl,shift,alt)
             case K_F12: F12() -- (jump to error) --ctrl,shift,alt)
 --DEV cannot stop the bell on alt...
-            case '<',',': addAction(UNINDENT,unindent(iff(alt?K_TAB:comment))) --return IUP_IGNORE
+--          case '<',',': addAction(UNINDENT,unindent(iff(alt?K_TAB:comment))) --return IUP_IGNORE
+            case '<',',': addAction(UNINDENT,unindent(iff(alt?K_TAB:lineComments[1]))) --return IUP_IGNORE
 --trace(1)
-            case '>','.': addAction(INDENT,indentWith(iff(alt?K_TAB:comment))) --return IUP_DEFAULT
+--          case '>','.': addAction(INDENT,indentWith(iff(alt?K_TAB:comment))) --return IUP_DEFAULT
+            case '>','.': addAction(INDENT,indentWith(iff(alt?K_TAB:lineComments[1]))) --return IUP_DEFAULT
 --          case '-','+': fold(base,ctrl,shift,alt)
             case '[',']': bracket(base,ctrl,shift,alt)
 --          case K_LSHIFT,K_RSHIFT,K_LCTRL,K_RCTRL,

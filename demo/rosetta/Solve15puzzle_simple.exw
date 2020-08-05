@@ -1,0 +1,187 @@
+--
+-- demo/rosetta/Solve15puzzle_simple.exw
+--
+--  The basic algorithm (credit Nigel Galloway) is just
+--   let all moves which do not increase the manhattan cost be regarded as "free".
+--      -- (if you can solve in mc, clearly it is an optimal solution)
+--   let n=0
+--   while (not solveable_with_at_most_n_non_free_moves(n)) n++
+--      -- (clearly optimal by exhaustively disproving all lesser n)
+--
+enum left, down, up, right  -- (nb 5-move flips it)
+
+constant valid_moves = {{ 0, 0, 5, 2}, { 1, 0, 6, 3}, { 2, 0, 7, 4}, { 3, 0, 8, 0},
+                        { 0, 1, 9, 6}, { 5, 2,10, 7}, { 6, 3,11, 8}, { 7, 4,12, 0},
+                        { 0, 5,13,10}, { 9, 6,14,11}, {10, 7,15,12}, {11, 8,16, 0},
+                        { 0, 9, 0,14}, {13,10, 0,15}, {14,11, 0,16}, {15,12, 0, 0}}
+
+constant zero_cost = {{0b000000000000000,0b000000000000000,0b000000000001111,0b001000100010001},
+                      {0b110111011101110,0b000000000000000,0b000000000001111,0b011001100110011},
+                      {0b100110011001100,0b000000000000000,0b000000000001111,0b111011101110111},
+                      {0b000100010001000,0b000000000000000,0b000000000001111,0b000000000000000},
+                      {0b000000000000000,0b111111111110000,0b000000011111111,0b001000100010001},
+                      {0b110111011101110,0b111111111110000,0b000000011111111,0b011001100110011},
+                      {0b100110011001100,0b111111111110000,0b000000011111111,0b111011101110111},
+                      {0b000100010001000,0b111111111110000,0b000000011111111,0b000000000000000},
+                      {0b000000000000000,0b111111100000000,0b000111111111111,0b001000100010001},
+                      {0b110111011101110,0b111111100000000,0b000111111111111,0b011001100110011},
+                      {0b100110011001100,0b111111100000000,0b000111111111111,0b111011101110111},
+                      {0b000100010001000,0b111111100000000,0b000111111111111,0b000000000000000},
+                      {0b000000000000000,0b111000000000000,0b000000000000000,0b001000100010001},
+                      {0b110111011101110,0b111000000000000,0b000000000000000,0b011001100110011},
+                      {0b100110011001100,0b111000000000000,0b000000000000000,0b111011101110111},
+                      {0b000100010001000,0b111000000000000,0b000000000000000,0b000000000000000}}
+
+constant masks      = {0b000000000000001,0b000000000000010,0b000000000000100,0b000000000001000,
+                       0b000000000010000,0b000000000100000,0b000000001000000,0b000000010000000,
+                       0b000000100000000,0b000001000000000,0b000010000000000,0b000100000000000,
+                       0b001000000000000,0b010000000000000,0b100000000000000}
+
+-- Or, if you prefer to build those with code (but I really wanted to show the above bitmasks):
+--/*
+sequence valid_moves = repeat(repeat(0,4),16),
+         zero_cost   = repeat(repeat(0,4),16)
+constant masks = sq_power(2,tagset(14,0))
+for square=1 to 16 do
+    integer s_row = floor((square+3)/4),
+            s_col = remainder((square-1),4)+1
+    --?{square,s_row,s_col}
+    for move=left to right do -- (via up/down)
+        if (move=left  and s_col>1)
+        or (move=down  and s_row>1)
+        or (move=up    and s_row<4)
+        or (move=right and s_col<4) then
+            integer origin = square+{-1,-4,+4,+1}[move],
+                    o_row = floor((origin+3)/4),
+                    o_col = remainder((origin-1),4)+1
+            --?{"ldur"[move]&"",origin,o_row,o_col}
+            valid_moves[square][move] = origin
+            for piece=1 to 15 do
+                integer t_row = floor((piece+3)/4),
+                        t_col = remainder((piece-1),4)+1,
+                        p_md = abs(t_row-o_row)+abs(t_col-o_col),
+                        n_md = abs(t_row-s_row)+abs(t_col-s_col)
+                --?{piece,t_row,t_col,p_md,n_md}
+                if n_md<=p_md then
+                    zero_cost[square][move] += masks[piece]
+                end if
+            end for
+        end if
+    end for
+end for
+--pp(valid_moves,{pp_IntFmt,"%2d",pp_Maxlen,70})
+--pp(zero_cost,{pp_IntFmt,"%015b"})
+--pp(masks,{pp_IntFmt,"%015b",pp_IntCh,false})
+--*/
+if up or down then end if -- (suppress unused warnings, since the above commented out)
+
+string moves = ""
+sequence board = {15,14, 1, 6, 
+                   9,11, 4,12,
+                   0,10, 7, 3, 
+                  13, 8, 5, 2}
+integer space = 9
+----extra credit: (try again when iterative/inline assembly...)
+--sequence board = { 0,12, 9,13,
+--                15,11,10,14,
+--                 3, 7, 2, 5,
+--                 4, 8, 6, 1}
+--integer space = 1
+--sequence board = { 1, 2, 3, 4,
+--                5, 6, 7, 8,
+--                9,10,11,12,
+--               13,14,0,15}
+--integer space = 15
+--sequence board = { 1, 2, 3, 4,
+--                 5, 6, 7, 8,
+--                 9,10,11, 0,
+--                13,14,15,12}
+--integer space = 12
+
+constant goal = { 1, 2, 3, 4,
+                  5, 6, 7, 8,
+                  9,10,11,12,
+                 13,14,15, 0}
+
+atom t1 = time()+1
+
+-- non-recursive.... sequence spaces, costs, local mdx
+function solve(integer nfree, space, mdx=1, skip_move=0)
+--
+-- nfree is the number of non-free moves we can yet make
+-- space is the location of the space (duh), [1..16] 
+-- mdx is just the move index for building the solution
+-- skip_move significantly narrows search space (1000 or 
+--  more times faster, believe it or not, simply by not 
+--  allowing the immediate undoing of the last move)
+--
+    for move=left to right do -- (via up/down)
+        integer new_space = valid_moves[space][move]
+        if move!=skip_move and new_space then
+--      if new_space and move!=skip_move then
+--      if move!=skip_move then end if
+--      if new_space then -- ~1100 times slower !!!
+            integer piece = board[new_space],
+                    zcsmv = zero_cost[space][move],
+                    maskp = masks[piece],
+                    zcost = (and_bits(zcsmv,maskp)=0) -- (0==free, 1==not)
+            if nfree>=zcost then
+                if mdx>length(moves) then moves &= '?' end if
+--              moves[mdx] = "ludr"[move]
+                moves[mdx] = "ludrLUDR"[move+zcost*4]
+                board[space] = piece
+                board[new_space] = 0
+                if time()>t1 then
+                    printf(1,"%s\r",{moves})
+                    t1 = time()+1
+                end if
+                if space=piece and board=goal then
+                    moves = moves[1..mdx] -- (trim)
+                    return true
+                end if
+                if solve(nfree-zcost,new_space,mdx+1,5-move) then
+                    return true
+                end if
+                board[new_space] = piece
+                board[space] = 0
+--              moves[mdx] = ' '
+            end if
+        end if
+    end for
+    return false
+end function
+
+pp(board,{pp_IntFmt,"%2d",pp_Maxlen,17})
+
+atom t0 = time()
+integer n = 0
+while not solve(n,space) do n += 1 end while
+printf(1,"solution of %d moves found in %s: %s \n",
+         {length(moves),elapsed(time()-t0),moves})
+
+--?((2*60+36)*60+21)/8.5
+
+?"done"
+{} = wait_key()
+abort(0)
+
+--output:
+----uppercase indicates the non-free moves (in manhattan cost terms).
+--{15,14, 1, 6,
+--  9,11, 4,12,
+--  0,10, 7, 3,
+-- 13, 8, 5, 2}
+--solution of 52 moves found in 8.5s: RRruldluulDRurdddlUulurRrdLddrUldluurddlulurruldrrdd
+--"done"
+----Extrapolating from 0.5s/4hrs of C++, as-is this would probably take at least 3 days to solve the extra credit...
+----You could probably make solve() iterative rather than resursive, and then go all full-on-inline-assembly on it...
+
+--without skip_move...
+--{15,14, 1, 6,
+--  9,11, 4,12,
+--  0,10, 7, 3,
+-- 13, 8, 5, 2}
+--solution of 52 moves found in 2 hours, 36 minutes and 21s: RRruldluulDRurdddlUulurRrdLddrUldluurddlulurruldrrdd
+--"done"
+
+

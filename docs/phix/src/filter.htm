@@ -62,21 +62,25 @@
             remaining questions you may have about how all these built-ins behave (ditto for user-provided functions).
             <br>
             <br>
-            <h2>supplied function (integer rs)</h2>
-            fn<small>(nee rs)</small> should be a function that accepts at least one parameter. The optional userdata value of {} is only 
-            passed to fn if it <i>needs</i> it: should fn have no second parameter or the second parameter is optional (already has a 
-            default), it will <b>not</b> get passed the above default. If fn accepts/needs 3 parameters it will get (s[i],i,s).
+            <h2>supplied function (integer fn := rs)</h2>
+            fn should be a function that accepts at least one parameter. The optional userdata value of {} is only passed to fn if 
+            it <i>needs</i> it: should fn have no second parameter or the second parameter is optional (already has a default), it 
+            will <b>not</b> get passed the above default. If fn accepts/needs 3 parameters it will get (s[i],i,s).
             Obviously if you pass a non-{} value that disagrees in any way with fn you will get an error. In contrast, and again 
             obviously, even if the first parameter of fn is defaulted it <i>will</i> still get passed each s[i] in turn.
             <br>
             <br>
             fn() is expected to return a true/false result indicating whether to keep or discard each element.<br>
-            fn() can accept 1, 2, or 3 parameters. When userdata is not {} it is always invoked as f(s[i],userdata). Otherwise,
-            without any optional parameters, it will be invoked as f(s[i]), f(s[i],userdata), or f(s[i],i,s) respectively, whereas 
-            the presence of any optional parameters basically encourages filter() to pass the <i>fewest</i> parameters possible.
+            fn() can accept 1, 2, or 3 parameters. Without any optional parameters, when userdata is {} it is invoked as f(s[i]), 
+            f(s[i],i), or f(s[i],i,s) respectively, otherwise it is invoked as f(s[i],userdata) or f(s[i],i,userdata). The presence 
+            of any optional parameters basically encourages filter() to pass the <i>fewest</i> parameters possible, but always >=1.
+            In that way, fn() can be recursive and not have done=0 or depth=1 style parameters clobbered by the builtin filter(), 
+            though it may end up wiser/necessary to split out any such recursive parts/defaulted args once things outgrow trivial.
+            This handling of defaulted parameters is also consistent with <a href="apply.htm">apply</a>(), though for different
+            and perhaps slightly less convincing reasons.
             <br>
             <br>
-            The rangetype parameter is not used (when rs is not "in" or "out") and in fact an error occurs if it is not "".
+            The rangetype parameter is not used when rs is not "in" or "out", and in fact an error occurs if it is not "".
          </td>
         </tr>
         <tr>
@@ -120,12 +124,12 @@ constant</font><font color="#000000"> data</font><font color="#0000FF"> = {</fon
          </td>
          <td>
 <!--eucode>
--- Using 'in' and 'out' with a set:
+-- Using 'in' and 'out' with a set (same data as above):
 ?filter(data, "in",  {3,4,5,6,7,8}) -- ==> {5,8,3}
 ?filter(data, "out", {3,4,5,6,7,8}) -- ==> {20,19,2,10}
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>-- Using 'in' and 'out' with a set:
+<font color="#000000"></font><font color="#000080"><i>-- Using 'in' and 'out' with a set (same data as above):
 </i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- ==&gt; {5,8,3}
 </i></font><font color="#0000FF">?</font><font color="#5E005E">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "out"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- ==&gt; {20,19,2,10}</i></font>
 </pre>
@@ -216,14 +220,13 @@ end function
           </a>
          </td>
          <td>
-            Not all of these options will necessarily make perfect sense, for instance it is accepted that keeping items in a set is generally 
-            less useful than excluding items from a set, and while such things may technically work for counting purposes, something like 
-            <a href="find.htm">find_all</a>() might be better in that it delivers a far more readily actionable result.
+            Not all of these options will necessarily make perfect sense in all cases, for instance something like 
+            <a href="find.htm">find_all</a>() might be better in that it delivers a more actionable result.
             <br>
             <br>
             Judicious use of functional programming style techniques can both shorten code and greatly improve clarity.<br>
             Careful design can completely eliminate many laboriously hand-written looping constructs, for just one example.<br>
-            Equally, however, pig-headed adherence to "pure" functions and excessive nesting can produce quite unreadable and 
+            Equally, however, pig-headed adherence to "pure functions" and excessive nesting can produce quite unreadable and 
             almost impossible to maintain software. The simple act of regularly saving intermediate results in appropriately
             named local variables will often make code easier to follow and debugging ten times easier, although admittedly 
             self-clobbering (ie/eg <code>res = f(res)</code>) can sometimes improve performance significantly, but usually at 

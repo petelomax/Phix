@@ -1674,5 +1674,9 @@ if length(cmd)>4 then
 else
     puts(1,Get(cmd[3],cmd[4]))
 end if
+
+https://board.flatassembler.net/topic.php?t=16785
+https://board.flatassembler.net/topic.php?t=11955
+https://board.flatassembler.net/topic.php?t=4760
 --*/
 

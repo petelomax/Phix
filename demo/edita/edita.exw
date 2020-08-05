@@ -1601,7 +1601,8 @@ integer prevfile
     sampleBrushClr = reBrush(sampleBrushClr,ColourTab)
     StyleTab = styleTabs[newSyntax]
     charMap = charMaps[newSyntax]   -- fixed hang 17/7
-    comment = LineComments[newSyntax]       -- moved here 19/7
+--  comment = LineComments[newSyntax]       -- moved here 19/7
+    lineComments = LineComments[newSyntax]      -- moved here 19/7
     blockComment = BlockComments[newSyntax]
     autoComplete = AutoCompletes[newSyntax]
 
@@ -4934,11 +4935,23 @@ integer tabs, taba, tokstart, ctype, tokend, c, IndentIdx, thisII
                     exit
                 end if
             end while
-        elsif length(comment) and c=comment[1]
-        and (length(comment)<2 or (tokstart<k and prevline[tokstart+1]=comment[2]))
-        and (length(comment)<3 or (tokstart<k-1  and prevline[tokstart+2]=comment[3])) then
-            exit        
+--10/07/20
+--      elsif length(comment) and c=comment[1]
+--      and (length(comment)<2 or (tokstart<k and prevline[tokstart+1]=comment[2]))
+--      and (length(comment)<3 or (tokstart<k-1  and prevline[tokstart+2]=comment[3])) then
+--          exit        
         else
+            bool cfound = false
+            for cdx=1 to length(lineComments) do
+                string comment = lineComments[cdx]
+                if length(comment) and c=comment[1]
+                and (length(comment)<2 or (tokstart<k and prevline[tokstart+1]=comment[2]))
+                and (length(comment)<3 or (tokstart<k-1  and prevline[tokstart+2]=comment[3])) then
+                    cfound = true
+                    exit        
+                end if
+            end for
+            if cfound then exit end if
             if length(Indents[newSyntax][3]) then   -- single char indents, eg '{'
                 IndentIdx = find(prevline[tokstart],Indents[newSyntax][3])
                 if IndentIdx then
@@ -5451,10 +5464,12 @@ integer alt
         elsif not menu and control then
             k = keycode - 128
             if k = '>' then
-                addAction(INDENT,indentWith(comment))
+--              addAction(INDENT,indentWith(comment))
+                addAction(INDENT,indentWith(lineComments[1]))
                 res = {1}
             elsif k = '<' then
-                addAction(UNINDENT,unindent(comment))
+--              addAction(UNINDENT,unindent(comment))
+                addAction(UNINDENT,unindent(lineComments[1]))
                 res = {1}
             elsif k = ']' then
 -- added 17/2/09:
@@ -5553,8 +5568,10 @@ function sysKey(integer wParam, integer ctrl, integer shift)
 integer newY
 --setText(Main,"Edita: "&sprint({wParam,shift}))
     if ctrl then return 0 end if    -- avoid ctrl+alt & AltGr combos
-    if    wParam=VK_INSERT then addAction(INDENT,indentWith(comment)) -- Alt Insert (comment)
-    elsif wParam=VK_DELETE then addAction(UNINDENT,unindent(comment)) -- Alt Delete (uncomment)
+--  if    wParam=VK_INSERT then addAction(INDENT,indentWith(comment)) -- Alt Insert (comment)
+    if    wParam=VK_INSERT then addAction(INDENT,indentWith(lineComments[1])) -- Alt Insert (comment)
+--  elsif wParam=VK_DELETE then addAction(UNINDENT,unindent(comment)) -- Alt Delete (uncomment)
+    elsif wParam=VK_DELETE then addAction(UNINDENT,unindent(lineComments[2])) -- Alt Delete (uncomment)
     elsif wParam=VK_F12 then F12(1,0)
 --  else    --DEV
 --  if MacroLearn then  -- not supported?

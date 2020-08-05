@@ -1,0 +1,159 @@
+
+--
+-- demo\rosetta\Four.exw
+-- =====================
+--
+--  [Draft task, not posted to rosettacode or in distro yet]
+--
+--  Implement a transpiler for the esoteric programming language 4.
+--  There are insanely difficult ways to do this, we seek the easy.
+--
+--  The syntax and semantics of 4 is loosely defined.
+--  Instead, you are free to choose features which roughly resemble the target language(s).
+--  It should not aim to make things deliberately difficult other than by restricting the
+--  available constructs (while keeping it turing complete) to achieve portability goals,
+--  that is apart from the following silly and rather petty rule (gotta have at least one,
+--  if nothing else than to prohibit entries whereby transpilation is a null operation).
+--
+--  All identifiers and keywords should begin with 4, numeric literals may not begin with 4.
+--   (Fairly obviously I would hope, just use either 04 instead of 4, or if 4base then 10.)
+--
+--  The first line of any 4 program must begin with 4 followed by a comma-separated list of 
+--  transpilers it is known to work on, eg "4 4Phix, 4Go, 4Lua". Extra kudos points are given
+--  the longer you can make that list, as and when other contributions arrive, and/or idly
+--  do nothing while that list magically grows for you.
+--
+--  Obviously each submission must provide their own sample programs and/or a list of other 
+--  examples tested, eg "Examples: see [also] Go, Javascript", and of course at the same 
+--  time add that language moniker (eg "4<Go") to line 1 of those (working) examples.
+--  Note: A moniker such as "4Go" on line 1 should mean both, "4<Go" means that other
+--  sumbission can run this example, and "4>Go" means this submission can produce Go code.
+--   (I am neither picking on nor trying to promote Go here, it is just shorter to type!)
+--  It would be considered rude to modify examples after other language monikers have been
+--  slapped on them, unless you can and do test that they will still work.
+--
+--  Example 1: (recommended/default source file name: 4.4)
+--      4 4Phix
+--      4? "hello world"
+--
+--  Output:
+--      hello world
+--
+--  4.exw:
+--      ?"hello world"
+--
+--  Example 2:
+--      4 4base, 4Phix;
+--
+--      4n 44(41,42)
+--        // this is a comment
+--        4rn (41+42)/2
+--      4 4
+--
+--      ?44(3,11) -- (or ?44(3,5) w/o 4base above)
+--
+--  Output:
+--      4
+--
+--  4.exw:
+--      -- 4 4base, 4Phix;  -- (line 1 can optionally be preserved as a comment)
+--      function v44(object v41, v42)
+--        -- this is a comment
+--        return (v41+v42)/2
+--      end function
+--
+--      ?v44(3,5)
+--
+--  The implementation may be repl or compiler based, but there should always be a way
+--  (specify any required command line options) to write the transpiled source to file,
+--  or if [say] browser based, clipboard and a message would be perfectly good enough.
+--  Semicolon statement terminators (as per eg2 line 1) can be optional if that helps.
+--  Optional: line 1 contains "4base" means numeric literals must be encoded in base 4.
+--  Extra credit: reverse-transpile the output source code back into valid 4, and/or
+--  transpile to more than one execution target (ditto with the command line options).
+--  Stretch goal: make it self-hosting (the Phix entry does this, but also provides an      [ BLUFF! ]
+--  extended off-page version with a full GUI AST browser and other debug tooling).
+--
+--  Aims: keep things as simple as possible
+--        encourage collaboration between different language authors
+--        provide a potential starting point for something much more ambitious
+--        over half the focus should lie on crafting good/useful cross-language examples
+--
+--  Related: Compiler, Brainfuck, 
+--      https://rosettacode.org/wiki/Compiler (and the five subtasks)
+--      https://rosettacode.org/wiki/Execute_Brain****
+--      https://rosettacode.org/wiki/Execute_SNUSP
+--      https://rosettacode.org/wiki/Universal_Turing_machine#Phix
+--
+--  * No run-time error handling, ie don't look at me if your browser's Tools/Console is not enough.
+--  * No decent scope rules, ie don't look at me because the standard JavaScript scope rules suck.
+--
+--  The transpiler raises errors for blatent violations, and any attempt to use namespaces.
+--  All debugging should occur using the standard desktop interpreter/compiler, before any 
+--  attempt to transpile to javascript and run it in the browser. Should you elect to work in a
+--  shortcut edit/transpile fashion, any complaints about run-time errors not being caught the
+--  same way they are on the desktop will (at best) be politely ignored. The phix-web transpiler
+--  is all about enabling a final step, as opposed to living and working on a direct path.
+--  A "with web" compiler directive in the source should cause the desktop version to trigger
+--  the same errors as phix-web, but no doubt some will slip thorough every now and again.
+--  A "with web test" compiler directive causes all "if platform()=WEB" tests to succeed, and
+--  that way ensure any web-only components such as light/dark mode toggle show on the desktop.
+--
+-- Tokeniser: text -> {type,start,end/length[,line,col]}, re-entrant and suspendable[??ish]
+--              Tokeniser output is strictly integers, most in standard global variables.
+--              With the exception of multiline comments, no token occupies >1 line.
+--              A {start->line/col} translation table is built as tokens are fetched.
+--              ? see json.e for tokenising ideas... ?
+--?             Sub-includes are only permitted at the start.[??]
+--?             There is one init routine into which all top-level code is uncerimoniously piled.
+--X             [error handling?? - explicit opLn etc calls?? [ie "mov [line],88", "mov [file],3", etc]
+--X               -- erm, JavaScript! ==> Tools/Console, if you're lucky!
+
+--Maybe: https://github.com/lotabout/write-a-C-interpreter (1400 lines)
+--       https://github.com/rswier/c4 (528 lines)
+--NO! this one: http://lisperator.net/pltut/ (nah...)
+--orac??
+
+--SUG:
+--/*
+string buffer = repeat(' ',2048)
+integer bdx = 0
+--integer fn = ??
+--or:
+string res = ""
+
+procedure outstr(string s, integer sdx=1, edx=length(s))
+    for i=sdx to edx do
+        integer ch = s[i]
+        bdx += 1
+        buffer[bdx] = ch
+        if bdx=2048 then
+--          puts(fn,buffer)
+-- or:
+            res &= buffer
+            bdx = 0
+        end if
+    end for
+end procedure
+
+procedure outch(integer ch)
+    bdx += 1
+    buffer[bdx] = ch
+    if bdx=2048 then
+--      puts(fn,buffer)
+-- or:
+        res &= buffer
+        bdx = 0
+    end if
+end procedure
+
+procedure flush_buffer()
+    if bdx then
+--      puts(fn,buffer[1..bdx])
+--or:
+        res &= buffer[1..bdx]
+    end if
+    bdx = 0
+end procedure
+
+--*/

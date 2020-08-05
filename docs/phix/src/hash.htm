@@ -1,0 +1,112 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">hash</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          <a href="atom.htm">atom</a> res = hash(<a href="object.htm">object</a> key, atom algo=0)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Calculates a hash value from key
+            <br>
+            <br>
+            key : Any Phix object<br>
+            algo : ignored except for HSIEH30, see notes.
+            <br>
+            <br>
+            Returns an unsigned 32-bit atom (0..4294967295 aka #FFFFFFFF), or in the HSIEH30 case a 30-bit integer (0..1073741823 aka #3FFFFFFF).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Uses a completely different algorithm to Euphoria and will not therefore yield the same results.<br>
+            While Euphoria defines HSIEH30/HSIEH32/ADLER32/FLETCHER32/MD5/SHA256 (with the latter two unsupported?),
+            Phix only defines HSIEH30, as things currently stand.
+            <br>
+            <br>
+            The HSIEH30 argument in algo is supported only insofar as it coerces the result into an integer.
+            <br>
+            <br>
+            Note this is <b>not</b> thread-safe and was not specifically written to be particularly fast - I would 
+            expect to get better performance using standard <a href="dict.htm">dictionaries</a> instead, not that 
+            I have actually bothered to run any benchmarks, you understand.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+?hash(0                                                     ) --  438581301
+?hash(1                                                     ) -- 2050536409.0 (not an integer)
+?hash({"some key",12345}                                    ) --  974147209
+?hash("The quick brown fox jumps over the lazy dog."        ) --   96315063
+?hash("The quick brown fox jumps over the lazy dog"         ) -- 2869980142.0 (not an integer)
+?hash({1, {2,3, {4,5,6}, 7}, 8.9}                           ) --  378003995
+?hash("some key",                                    HSIEH30) --  436021236
+?hash({"some key"},                                  HSIEH30) --  878205692
+?hash(12345,                                         HSIEH30) --  454441044
+?hash("The quick brown fox jumps over the lazy dog", HSIEH30) --  722496496
+?hash(123,                                           HSIEH30) --   62934336
+?hash(1.23,                                          HSIEH30) --  432062202
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#000000">0                                                    </font><font color="#0000FF"> )</font><font color="#000080"><i> --  438581301
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#000000">1                                                    </font><font color="#0000FF"> )</font><font color="#000080"><i> -- 2050536409.0 (not an integer)
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"some key"</font><font color="#0000FF">,</font><font color="#000000">12345</font><font color="#800000">}                                   </font><font color="#0000FF"> )</font><font color="#000080"><i> --  974147209
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#008000">"The quick brown fox jumps over the lazy dog."       </font><font color="#0000FF"> )</font><font color="#000080"><i> --   96315063
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#008000">"The quick brown fox jumps over the lazy dog"        </font><font color="#0000FF"> )</font><font color="#000080"><i> -- 2869980142.0 (not an integer)
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800080"> {</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#00FF00"> {</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#00FF00">}</font><font color="#0000FF">,</font><font color="#000000"> 7</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000"> 8.9</font><font color="#800000">}                          </font><font color="#0000FF"> )</font><font color="#000080"><i> --  378003995
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#008000">"some key"</font><font color="#0000FF">,                                   </font><font color="#004600"> HSIEH30</font><font color="#0000FF">)</font><font color="#000080"><i> --  436021236
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"some key"</font><font color="#800000">}</font><font color="#0000FF">,                                 </font><font color="#004600"> HSIEH30</font><font color="#0000FF">)</font><font color="#000080"><i> --  878205692
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#000000">12345</font><font color="#0000FF">,                                        </font><font color="#004600"> HSIEH30</font><font color="#0000FF">)</font><font color="#000080"><i> --  454441044
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#008000">"The quick brown fox jumps over the lazy dog"</font><font color="#0000FF">,</font><font color="#004600"> HSIEH30</font><font color="#0000FF">)</font><font color="#000080"><i> --  722496496
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#000000">123</font><font color="#0000FF">,                                          </font><font color="#004600"> HSIEH30</font><font color="#0000FF">)</font><font color="#000080"><i> --   62934336
+</i></font><font color="#0000FF">?</font><font color="#5E005E">hash</font><font color="#0000FF">(</font><font color="#000000">1.23</font><font color="#0000FF">,                                         </font><font color="#004600"> HSIEH30</font><font color="#0000FF">)</font><font color="#000080"><i> --  432062202</i></font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\hash.e (an autoinclude) for details of the actual implementation.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="dict.htm">dict</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

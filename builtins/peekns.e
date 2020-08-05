@@ -19,3 +19,6 @@ global function peeknu(object addr, integer size=machine_word(), bool signed=fal
     return peekNS(addr,size,signed)
 end function
 
+global procedure poken(object addr, object v, integer size=machine_word())
+    pokeN(addr,v,size)
+end procedure

@@ -14,7 +14,7 @@ global integer newSyntax        -- from ExtensionNos, or 1 if none
                 newSyntax=1
 
 global sequence SynNames,       -- eg "Euphoria" (nb Phix uses "Euphoria")
-                LineComments,   -- eg "--"
+                LineComments,   -- eg {"--"}
                 BlockComments,  -- eg {"<!--","-->"}
                 AutoCompletes,  -- see eauto.e
                 EscapeLeadIns,  -- eg \         (quotes omitted for clarity)
@@ -99,12 +99,13 @@ integer f,          -- file handle
 
 string errorTitle, errorMsg
 
-global sequence comment -- eg "--"  -- set by changeTo()
+--global sequence comment -- eg "--"    -- set by changeTo()
+global sequence lineComments -- eg {"--"}   -- set by changeTo()
 --DEV
---global sequence blockComment      -- ""
-global sequence blockComment = ""   -- ""
-global sequence ColourTab           -- ""
-global sequence StyleTab            -- ""
+--global sequence blockComment              -- ""
+global sequence blockComment = ""           -- ""
+global sequence ColourTab                   -- ""
+global sequence StyleTab                    -- ""
 
 sequence fullname   -- eg "syn\Euphoria.syn" (same for Phix)
 
@@ -160,17 +161,35 @@ procedure skipSpaces()
             end if
             ch = getc(f)
         end while
-        if not length(comment) then return end if
-        for i=1 to length(comment) do
-            if ch!=comment[i] then
-                if i>1 then
-                    if seek(f,where(f)-i+1)!=SEEK_OK then ?9/0 end if
-                    ch = comment[1]
+--      if not length(comment) then return end if
+--      for i=1 to length(comment) do
+--          if ch!=comment[i] then
+--              if i>1 then
+--                  if seek(f,where(f)-i+1)!=SEEK_OK then ?9/0 end if
+--                  ch = comment[1]
+--              end if
+--              return
+--          end if
+--          ch = getc(f)
+--      end for
+        bool found = false
+        for c=1 to length(lineComments) do
+            string comment = lineComments[c]
+            found = true
+            for i=1 to length(comment) do
+                if ch!=comment[i] then
+                    if i>1 then
+                        {} = seek(f,where(f)-i+1)
+                        ch = comment[1]
+                    end if
+                    found = false
+                    exit
                 end if
-                return
-            end if
-            ch = getc(f)
+                ch = getc(f)
+            end for
+            if found then exit end if
         end for
+        if not found then return end if
         while ch>=' ' or ch='\t' do
             ch = getc(f)    -- skip to end of line then
         end while
@@ -525,7 +544,8 @@ integer TokenType
         setMAXnColours()
         defaultColourTab()
     else
-        comment = {}
+--      comment = {}
+        lineComments = {}
         ch = getc(f)
         -- (Note that Expect always returns true when newSyntax=1)
         if not Expect(name&" syntax file") then close(f) return end if
@@ -543,11 +563,17 @@ integer TokenType
             end if
         end if
         if not Expect("LineComment") then close(f) return end if
-        if not columnOne then   -- language does not support line comments!
-            comment = getWord()
-        end if
-        skipSpaces()
-        linecomment = comment
+--      if not columnOne then   -- language does not support line comments!
+--          comment = getWord()
+--      end if
+--      skipSpaces()
+--      linecomment = comment
+        while not columnOne and ch>' ' do
+            word = getWord()
+            lineComments = append(lineComments,word)
+            skipSpaces()
+        end while
+        linecomment = lineComments
         if newSyntax!=1 then
             charMap = repeat(Illegal,256)
 --          charMap[128..255] = TokenChar
@@ -790,7 +816,8 @@ integer lh, f2, k, b1, b2
     else
         ch = getc(f)
         -- (Note that Expect always returns true when newSyntax=1)
-        comment = "--"
+--      comment = "--"
+        lineComments = {"--"}
         if not Expect("Help file") then return end if
         if ch='?' then return end if
         if ch!=':' then fatal("? or : expected") return end if

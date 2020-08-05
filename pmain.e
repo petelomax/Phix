@@ -2880,6 +2880,8 @@ end if
 end procedure
 
 --integer rExpr
+-- precedence levels, written this way for search/replace purposes.
+--constant p7=7, p0 = 0
 forward procedure Expr(integer p, toBool)
 forward procedure GetFactor(integer p, toBool)
 
@@ -3280,7 +3282,7 @@ procedure getOneDefault()
 --  As noted above, this intentionally only supports limited expressions,
 --  mainly because parameters have not been formally added to symtab yet,
 --  and to avoid shuffling blocks of code about (eg if we had a routine
---  f(sequence s, integer l=length(s)), then full rExpr() handling after
+--  f(sequence s, integer l=length(s)), then full Expr() handling after
 --  the '=' would baulk at the (second) s, and if we got round that, it 
 --  would emit the opLen(s) before the opTchk(l), not at all what we want.
 --  Better to add things as needed in real-world situtations, eg length()
@@ -3315,7 +3317,7 @@ object dsig
 --      MatchChar('=')
 -- oktoinit = 1
 --NO!!
---                      call_proc(rExpr,{0,asBool})
+--                      Expr(0,asBool)
 --                      k = 0
 --trace(1)
 integer state, isForward, wasUsed
@@ -3594,7 +3596,7 @@ object Default
 --      MatchChar('-')
 --      notFdone = 0
 ----DEV try GetFactor(asNegatedBool) instead
---      call_proc(rExpr,{7,asNegatedBool})  -- get factor only (negated)
+--      Expr(7,asNegatedBool)   -- get factor only (negated)
 --      if notFdone then
 --          -- a compound op was converted to negated bool
 --          -- eg/ie in -(a and b), the "a and b" expr was  
@@ -4114,7 +4116,6 @@ end if
 --? else
 --?     
             end if
---          call_proc(rExpr,{0,asBool})
             Expr(0, asBool)
             if routineNo = T_floor 
             and opTopIsOp
@@ -5602,6 +5603,11 @@ integer r_lambda
 --string r_routine_name
 bool bFromStruct = false
 
+--11/07/20:
+forward procedure DoConstant()
+bool just_static = false
+forward procedure TopDecls(integer AllowOnDeclaration)
+
 with trace
 --25/11/19:
 --procedure DoRoutineDef(integer Rtype)
@@ -5737,15 +5743,16 @@ end if
         N = InTable(-InAny) -- no errors (namespace rqd etc)
 --if N=325 then trace(1) end if
         if N then
+            if N<=T_Asm then Aborp("builtin overrides are not permitted in Phix\n") end if
 --dbg = symtab[N]
             state = symtab[N][S_State]
             if and_bits(state,S_fwd) then
 --DEV: set up a warning limit for symtab reference.
 -- 2/6/15:
-if newEmit and N<=T_Asm then
-                    Warn("builtin overidden\n",tokline,tokcol,0)
-                N = 0   -- define a new one then...
-else
+--if newEmit and N<=T_Asm then
+--              Warn("builtin overidden\n",tokline,tokcol,0)
+--              N = 0   -- define a new one then...
+--else
                 if symtab[N][S_FPno]!=fileno then
                     if N>T_Ainc then
                         -- ie/eg constant monthlen = {31,28+isLeapYear,31,30...
@@ -5785,7 +5792,7 @@ else
                     state -= K_wdb
                     symtab[N][S_State] = state
                 end if
-end if
+--end if
             elsif symtab[N][S_NTyp]=S_Rsvd
               and (Rtype!=R_Func or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
                 Aborp("illegal use of a reserved word")
@@ -5806,6 +5813,7 @@ end if
 if bFromStruct then
 --?{"DoRoutineDef line 5762","bFromStruct",bFromStruct,"Ch",Ch}
     if Ch=';' then
+        -- virtual function definition (signalled by the ';').
         MatchChar(')')
         r_lambda = 0
         return
@@ -5926,8 +5934,6 @@ end if
         killUsed = not wasGlobal and not bLambda
 --      killUsed = ((not wasGlobal) or lint)    -- maybe more annoying than useful?
     end if
---DEV may not be rqd under newEBP?
-    tvarstart = symlimit+1
 
     if fwd then
         bcptr = symtab[N][S_il]
@@ -5939,6 +5945,33 @@ end if
     end if
     symtab[N][S_1stl] = rtntokline
     if increaseScope(S_Rtn,-1) then end if
+
+--11/07/20: (routine-level static and constant vars)
+    if ttidx=T_constant or ttidx=T_static then
+        while true do
+            if ttidx=T_constant then
+                DoConstant()
+            elsif ttidx=T_static then
+                getToken()
+                tokno = InTable(InAny)
+                if tokno=0 or symtab[tokno][S_NTyp]!=S_Type then
+                    Aborp("a type is expected here")
+                end if
+                just_static = true
+                TopDecls(1)
+                just_static = false
+            else
+                exit
+            end if
+        end while
+        savettidx = ttidx
+--erm...
+--      emitline = lastline
+        wastokline = tokline
+    end if
+
+--DEV may not be rqd under newEBP?
+    tvarstart = symlimit+1
 
     currRtn = N
 
@@ -6533,7 +6566,7 @@ bool wasdot = false,
             end if
 
         else -- (not bStruct)
---          call_proc(rExpr,{0,asBool})
+--          Expr(0,asBool)
             if toktype=ELLIPSE
             or (ORAC and not wasdot and toktype=LETTER and ttidx=T_to) then
                 getToken(float_valid:=true)
@@ -7522,10 +7555,15 @@ integer djmp, T_const
     return BN
 end function
 
-constant ZZops = "*/+-&<>=!",
---       ZZpre = "665543333",
-         ZZpre = {6,6,5,5,4,3,3,3,3},
-         ZZopcodes = {opMul,opDiv,opAdd,opSub,opConcat,opDivf},
+constant ZZops = "*/+-&<>=!|&<>",
+--       ZZpre = "66554333322",
+         ZZpre = {6,6,5,5,4,3,3,3,3,2,2,2,2},
+--       ZZpre = {6,6,5,5,3,2,2,2,2,4,4,4,4},
+--       ZZpre = {8,8,7,7,4,3,3,3,3,5,5,6,6}, -- (untried...)
+--       PMUL = 8, PADD = 7, PAMP = 4, PREL = 3, PBIT = 5, PSFT =6,
+--       ZZpre = {PMUL,PMUL,PADD,PADD,PAMP,PREL,PREL,PREL,PREL,PBIT,PBIT,PSFT,PSFT}, -- (untried...)
+--       ZZpre = {60,60,50,50,40,30,30,30,30,43,43,47,47}, -- (better?)
+         ZZopcodes = {opMul,opDiv,opAdd,opSub,opConcat,opDivf,0,0,0,opOrBits,opAndBits,opPow,opPow},
          ZZlong = {"mul","div","add","sub","","floor_div"},
 --(nb different order to Bcde etc:)
          ZZjcc = {"ge","lt","eq","ne","gt","le"},
@@ -7554,7 +7592,7 @@ procedure Expr(integer p, integer toBool)
 --      5: "" and +,-
 --      4: "" and &
 --      3: "" and relops (<,<=,=,!=,>=,>)
---      2: "" and logicops (and,or,xor)
+--      2: "" and logicops (and,or,xor) [and &&, ||]
 --      0: full expression (effectively the same as 2)
 --  obviously, parentheses override any setting of p.
 --
@@ -7606,8 +7644,12 @@ object sig
     GetFactor(p,toBool)
 
     while 1 do
-        k = find(toktype,ZZops) -- "*/+-&<>=!"
+        k = find(toktype,ZZops) -- "*/+-&<>=!|&"
         if k then
+            if toktype=Ch and find(Ch,"&|<>") then
+                k = rfind(toktype,ZZops)
+                MatchChar(Ch)
+            end if
             thisp = ZZpre[k]
             if thisp<p then exit end if
             if scBP>wasScBP             -- eg "(a or b)+?" -> 0/1+?
@@ -7703,6 +7745,7 @@ object sig
                     PushOp(ZZopcodes[k],MathOp)
                 end if
             elsif thisp=4 then  --wastok='&'
+--          elsif thisp=3 then  --wastok='&'
                 k = 0
 --trace(1)
                 while 1 do
@@ -7765,7 +7808,9 @@ object sig
                     PushOp(opConcatN,ConcatOp)
                 end if
 
-            else    -- relops (thisp=3)
+--          else    -- relops (thisp=3)
+            elsif thisp=3 then  -- relops
+--          elsif thisp=2 then  -- relops
                 if usecmap then -- map eg compare(a,b)>=0 to a>=b?
                     compOp = 0
 --23/10/16(!!)
@@ -7896,6 +7941,32 @@ end if
                     --        prohibit single "=" meaning "equal()" by """ in one char ops.
                     --        (Untested/obviously breaks backward compatibility/legacy code.)
                 end if
+            elsif thisp=2 then  -- bit ops (|| and && and << and >>)
+--          elsif thisp=4 then  -- bit ops (|| and && and << and >>)
+                getToken(float_valid:=true)
+                integer op = ZZopcodes[k]
+                if op=opPow then
+--                  ?9/0    -- not yet ready...
+--                  push 2
+                    PushFactor(addUnnamedConstant(2, T_integer),true,T_integer)
+                end if
+--/*
+  93:  opLn,38,                              --:atom latlon := ilat*power(2,22) + ilon
+                                             --?atom latlon := (ilat << 22) + ilon
+  95:  opPow,1404,41,1403,1,                 opPow,dest,src1,src2,tii[==1]
+ 100:  opMul,1405,1393,1404,                 opMul,dest,src,src2
+ 104:  opAdd,1402,1405,1398,                 opAdd,dest,src,src2
+ 108:  opLn,42,                              --:integer w1 = and_bits(floor(latlon/power(2,28)),0x7fff),
+                                             --?integer w1 = (latlon >> 28) && 0x7fff,
+ 110:  opPow,1408,41,1407,1,                 opPow,dest,src1,src2,tii[==1]
+ 115:  opDivf,1409,1402,1408,                opDivf,dest,src,src2
+ 119:  opAndBits,1406,1409,1410,0,           opAndBits,dest,src,src2,tii
+--*/
+                Expr(4,asBool)  -- subexpression involving || && << >> and above only
+                PushOp(op,BltinOp)
+                if op=opPow then
+                    PushOp(iff(ZZops[k]='<'?opMul:opDivf),MathOp)
+                end if
             end if
 
         else
@@ -8008,9 +8079,9 @@ end procedure
 --  symtab[N] = symtabN
 --end procedure
 
-constant compoundlongs={"add","sub","div","mul","concat"},
-         compoundops = {opAdd,opSub,opDiv,opMul,opConcat},
-         compoundtypes = {MathOp,MathOp,MathOp,MathOp,ConcatOp}
+constant compoundlongs={"add","sub","div","mul","concat","orbits","andbits"},
+         compoundops = {opAdd,opSub,opDiv,opMul,opConcat,opOrBits,opAndBits},
+         compoundtypes = {MathOp,MathOp,MathOp,MathOp,ConcatOp,BltinOp,BltinOp}
 
 integer ntype
         ntype = 0
@@ -8300,7 +8371,9 @@ integer pstype, etype, petype, fN, s, const
     eqline = tokline
     eqcol = tokcol
 
-    if Ch='=' then -- compound assignments
+--14/07/20
+--  if Ch='=' then -- compound assignments
+    if find(Ch,"=&|") then -- compound assignments
 --      if bStruct then Aborp("illegal") end if
 --DEV?? s.a += s.b??
         new_struct = 0
@@ -8309,11 +8382,22 @@ integer pstype, etype, petype, fN, s, const
 --          --DEV replace with sq_op?
 --          Aborp("sequence operations not supported")
 --      end if
-        CompoundAssignment=find(toktype,"+-/*&")
+        CompoundAssignment=find(toktype,"+-/*&|&")
         if CompoundAssignment then
 
 --7/11/17(!):
             symtab[tidx][S_State] = or_bits(symtab[tidx][S_State],S_used)
+
+--14/07/20
+            if toktype='&' and Ch='&' then
+                CompoundAssignment += 2
+--              getCh()
+                MatchChar('&')
+                if toktype!='&' then Aborp("&&= expected") end if
+            elsif toktype='|' then -- (nb there is no |= op)
+                MatchChar('|')
+                if toktype!='|' then Aborp("||= expected") end if
+            end if
 
             if CompoundAssignment=5 -- (ie toktype was '&')
             and subscript=SliceOp then
@@ -8645,7 +8729,9 @@ end if -- emitON
                 Call(sqopNo,symtab[sqopNo][S_sig],FUNC,true)
                 opstype[opsidx] = T_sequence
             else
-                PushOp(compoundops[CompoundAssignment],MathOp)
+--14/7/20
+--              PushOp(compoundops[CompoundAssignment],MathOp)
+                PushOp(compoundops[CompoundAssignment],compoundtypes[CompoundAssignment])
             end if
         end if
 --6/6/20: (undone)
@@ -11148,7 +11234,10 @@ integer Typ, rootInt
                 end if
             else
                 mapEndToMinusOne = 0
-                if InTable(InTop) then Duplicate() end if
+-- untried (see docs? [not yet written])
+--              if not just_static then
+                    if InTable(InTop) then Duplicate() end if
+--              end if
                 N = InTable(-InAny)
                 if N>0 then
                     if symtab[N][S_NTyp]=S_Rsvd then
@@ -11165,6 +11254,7 @@ integer Typ, rootInt
                 --
 --22/2/17:
                 if toktype=':' and Ch='=' then MatchChar(':',false) end if
+                if just_static and toktype!='=' then MatchChar('=',false) end if -- error
                 if  toktype='='
                 or (toktype=LETTER and Name=ttidx) then
                     if toktype=LETTER then
@@ -11184,6 +11274,7 @@ integer Typ, rootInt
             end if
             mapEndToMinusOne = -1
         end while
+        if just_static then exit end if
 --      Semi()
         if Ch<=0 then exit end if
         if toktype!=LETTER then exit end if
@@ -12857,6 +12948,12 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
     k = match("--",name)
     if k then
         ln = k-1
+        name = name[1..ln]
+    end if
+    k = match("//",name)
+    if k then
+        ln = k-1
+        name = name[1..ln]
     end if
     --
     -- remove leading/trailing spaces
@@ -13170,7 +13267,9 @@ bool prevset = false
                 symtabO = symtab[O]
             else
                 mapEndToMinusOne = 0
+--14/07/20! (ah, I see...)
                 GetFactor(0,asBool)
+--              Expr(0,asBool)
                 if opTopIsOp
 --DEV 1/11/2011
 --              or not opsltrl[opsidx]

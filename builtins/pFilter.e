@@ -87,10 +87,16 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
         for i=1 to length(s) do
             si = s[i]
             bool bAdd
-            if userdata={} and (maxp=1 or minp<=1) then
-                bAdd = fn(si)
-            elsif userdata={} and minp=3 then
-                bAdd = fn(si,i,s)
+            if userdata={} then
+                if (maxp=1 or minp<=1) then
+                    bAdd = fn(si)
+                elsif minp=2 then
+                    bAdd = fn(si,i)
+                elsif minp=3 then
+                    bAdd = fn(si,i,s)
+                end if
+            elsif minp=3 then
+                bAdd = fn(si,i,userdata)
             else
                 bAdd = fn(si,userdata)
             end if

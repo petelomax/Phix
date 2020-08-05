@@ -1244,6 +1244,7 @@ global constant T_final         = 5428  tt_stringF("final",T_final)
 global constant T_private       = 5452  tt_stringF("private",T_private)
 global constant T_dynamic       = 5480  tt_stringF("dynamic",T_dynamic)
 global constant T_nullable      = 5512  tt_stringF("nullable",T_nullable)
+global constant T_static        = 5532  tt_stringF("static",T_static)
 
 --          elsif ttidx=T_indirect_includes
 --             or ttidx=T_inline then

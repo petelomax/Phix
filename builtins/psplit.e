@@ -1,7 +1,7 @@
 --
 -- builtins\psplit.e
 --
---  Phix implementation of split(), split_any(), and split_path()
+--  Phix implementation of split(), split_any(), split_by(), and split_path()
 --
 --  This is an auto-include file; there is no need to manually include it, unless you want a namespace.
 --
@@ -123,6 +123,21 @@ integer start = 1, pos
 --      ret = ret[1..k]
 --  end if
     return ret
+end function
+
+global function split_by(sequence s, integer n)
+-- Split a sequence into chucks of at most length n each, eg split_by(tagset(9)) => {{1,2,3},{4,5,6},{7,8,9}}.
+    sequence res = {}
+    integer j = 1, k = n
+    while k<length(s) do
+        res = append(res,s[j..k])
+        j += n
+        k += n
+    end while
+    if j<=length(s) then
+        res = append(res,s[j..$])
+    end if
+    return res
 end function
 
 global function split_path(string path, bool preservetrailsep=false)

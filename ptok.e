@@ -1234,6 +1234,7 @@ string charset, baseset
     charset['`']  = BKTICK
     charset['#']  = HEXDEC
     charset['&']  = SYMBOL
+    charset['|']  = SYMBOL
     charset['\''] = SQUOTE
     charset['('..')'] = BRACES  -- () only
     charset['*'..'/'] = SYMBOL  -- *+,-./
@@ -1377,68 +1378,81 @@ global procedure skipSpacesAndComments()
                 line += 1
             end if
             Ch = text[col]
-        elsif Ch='-' then   -- check for comment
+--10/07/20
+--      elsif Ch='-' then   -- check for comment
+        elsif Ch!='-' and Ch!='/' then  -- check for comment
+            exit
+        else
+--printf(1,"skipSpacesAndComments line 1383, Ch=%c, fileno=%d, col=%d\n",{Ch,fileno,col})
             cp1 = col+1
-            if text[cp1]!='-' then exit end if
-            cp2 = col+2
-            Ch = text[cp2]
-            cp3 = col+3
-            -- check for "--/*" case:
-            if Ch='/' and text[cp3]='*' then
-                col = cp3
+--          if text[cp1]!='-' then exit end if
+            if text[cp1]!=Ch then
+                if Ch!='/' then exit end if
+                if text[cp1]!='*' then exit end if
+                col = cp1
                 SkipBlockComment()
             else
+                cp2 = col+2
+                Ch = text[cp2]
+                cp3 = col+3
+                -- check for "--/*" case:
+--              if Ch='/' and text[cp3]='*' then
+                if Ch='/' and text[cp3]='*' and text[cp1]='-' then
+                    col = cp3
+                    SkipBlockComment()
+                else
 --26/7/17:
 --/*
-                integer ipstart = 0
-                if Ch='#' 
-                and length(text)>col+16
-                and text[col..col+15]="--#include_paths"
-                and find(text[col+16]," \t") then
-                                    -- 12345678901234567
-                    cp2 += 15 -- (ie col+17)
-                    ipstart = cp2
-                end if
+                    integer ipstart = 0
+                    if Ch='#' 
+                    and length(text)>col+16
+                    and text[col..col+15]="--#include_paths"
+                    and find(text[col+16]," \t") then
+                                        -- 12345678901234567
+                        cp2 += 15 -- (ie col+17)
+                        ipstart = cp2
+                    end if
 --*/
 --19/05/2010:
---              col = cp3
-                col = cp2
-                while Ch!='\n' do
-                    col += 1
-                    Ch = text[col]
-                end while
+--                  col = cp3
+                    col = cp2
+                    while Ch!='\n' do
+                        col += 1
+                        Ch = text[col]
+                    end while
 --/*
-                if ipstart!=0 then
-                    string ip = text[ipstart..col-1]
-                    ipstart = match("--",ip)
-                    if ipstart then
-                        ip = ip[1..ipstart-1]
-                    end if
-                    ip = get_proper_path(trim(ip),"")
+                    if ipstart!=0 then
+                        string ip = text[ipstart..col-1]
+                        ipstart = match("--",ip)
+                        if ipstart then
+                            ip = ip[1..ipstart-1]
+                        end if
+                        ip = get_proper_path(trim(ip),"")
 --?{"#include_paths",ip}
-                    addPath(ip)
-                end if
+                        addPath(ip)
+                    end if
 --*/
-                line += 1
-                while Ch<=' ' do
-                    col += 1
-                    if col>ltl then
-                        eof_processing()    -- (sets Ch to -1 and clears activepaths)
-                        return
-                    end if
-                    Ch = text[col]
+                    line += 1
+                    while Ch<=' ' do
+                        col += 1
+                        if col>ltl then
+                            eof_processing()    -- (sets Ch to -1 and clears activepaths)
+                            return
+                        end if
+                        Ch = text[col]
 --19/05/2010:
-                    if Ch='\n' then
-                        line += 1
-                    end if
-                end while
+                        if Ch='\n' then
+                            line += 1
+                        end if
+                    end while
+                end if
             end if
-        else
-            if Ch!='/' then exit end if
-            cp1 = col+1
-            if text[cp1]!='*' then exit end if
-            col = cp1
-            SkipBlockComment()
+--      else
+--          if Ch!='/' then exit end if
+--          cp1 = col+1
+--          if text[cp1]!='*' then exit end if
+--          col = cp1
+--          SkipBlockComment()
         end if
     end while
 end procedure
@@ -1870,6 +1884,7 @@ include builtins\utfconv.e
 --  floating point number. It may or may not be a valid dot-subscript.
 --  A default of true would probably be more sensible (long-term)
 --  [DEV ==> bool float_valid=false] (strip defaults, then kill)
+--with trace
 
 global procedure getToken(bool float_valid=false)
 --
@@ -1904,68 +1919,83 @@ global procedure getToken(bool float_valid=false)
                 line += 1
             end if
             Ch = text[col]
-        elsif Ch='-' then   -- check for comment
+--10/07/20
+--      elsif Ch='-' then   -- check for comment
+        elsif Ch!='-' and Ch!='/' then  -- check for comment
+            exit
+        else    
+--printf(1,"getToken line 1920, Ch=%c, fileno=%d, col=%d, line=%d\n",{Ch,fileno,col,line})
+--if line=14 then trace(1) end if
+--if fileno=2 then ?9/0 end if
             cp1 = col+1
-            if text[cp1]!='-' then exit end if
-            cp2 = col+2
-            Ch = text[cp2]
-            cp3 = col+3
-            -- check for "--/*" case:
-            if Ch='/' and text[cp3]='*' then
-                col = cp3
+--          if text[cp1]!='-' then exit end if
+            if text[cp1]!=Ch then
+                if Ch!='/' then exit end if
+                if text[cp1]!='*' then exit end if
+                col = cp1
                 SkipBlockComment()
-            elsif Ch='*' and text[cp3]='/' then
-                tokcol = col
-                tokline = line
-                Abort("unexpected end block comment")
             else
+                cp2 = col+2
+                Ch = text[cp2]
+                cp3 = col+3
+                -- check for "--/*" case:
+--              if Ch='/' and text[cp3]='*' then
+                if Ch='/' and text[cp3]='*' and text[cp1]='-' then
+                    col = cp3
+                    SkipBlockComment()
+                elsif Ch='*' and text[cp3]='/' then
+                    tokcol = col
+                    tokline = line
+                    Abort("unexpected end block comment")
+                else
 --26/7/17:
 --/*
-                integer ipstart = 0
-                if Ch='#' 
-                and length(text)>col+16
-                and text[col..col+15]="--#include_paths"
-                and find(text[col+16]," \t") then
-                    cp2 += 15 -- (ie col+17)
-                    ipstart = cp2
-                end if
+                    integer ipstart = 0
+                    if Ch='#' 
+                    and length(text)>col+16
+                    and text[col..col+15]="--#include_paths"
+                    and find(text[col+16]," \t") then
+                        cp2 += 15 -- (ie col+17)
+                        ipstart = cp2
+                    end if
 --*/
-                col = cp2
-                while Ch!='\n' do
-                    col += 1
-                    Ch = text[col]
-                end while
+                    col = cp2
+                    while Ch!='\n' do
+                        col += 1
+                        Ch = text[col]
+                    end while
 --/*
-                if ipstart!=0 then
-                    string ip = text[ipstart..col-1]
-                    ipstart = match("--",ip)
-                    if ipstart then
-                        ip = ip[1..ipstart-1]
-                    end if
-                    ip = get_proper_path(trim(ip),"")
+                    if ipstart!=0 then
+                        string ip = text[ipstart..col-1]
+                        ipstart = match("--",ip)
+                        if ipstart then
+                            ip = ip[1..ipstart-1]
+                        end if
+                        ip = get_proper_path(trim(ip),"")
 --?{"#include_paths",ip}
-                    addPath(ip)
-                end if
+                        addPath(ip)
+                    end if
 --*/
-                while Ch<=' ' do
-                    if Ch='\n' then
-                        line += 1
-                    end if
-                    col += 1
-                    if col>ltl then
-                        toktype = EOL
-                        eof_processing()    -- (sets Ch to -1 and clears activepaths)
-                        return
-                    end if
-                    Ch = text[col]
-                end while
+                    while Ch<=' ' do
+                        if Ch='\n' then
+                            line += 1
+                        end if
+                        col += 1
+                        if col>ltl then
+                            toktype = EOL
+                            eof_processing()    -- (sets Ch to -1 and clears activepaths)
+                            return
+                        end if
+                        Ch = text[col]
+                    end while
+                end if
             end if
-        else
-            if Ch!='/' then exit end if
-            cp1 = col+1
-            if text[cp1]!='*' then exit end if
-            col = cp1
-            SkipBlockComment()
+--      else
+--          if Ch!='/' then exit end if
+--          cp1 = col+1
+--          if text[cp1]!='*' then exit end if
+--          col = cp1
+--          SkipBlockComment()
         end if
     end while
 
@@ -1998,7 +2028,7 @@ global procedure getToken(bool float_valid=false)
     col += 1
     Ch = text[col]
     if toktype=SYMBOL then
-        -- !&*+,-./:;<=>?
+        -- !&*+,-./:;<=>?|
         -- note that most compound symbols such as "!=" 
         -- are handled in the parser as two tokens, or
         -- by testing the global Ch for (say) '='.

@@ -166,9 +166,12 @@ procedure SkipSpacesAndComments()
             else
                 Ch = text[CurrLine][col]
             end if
-        elsif Ch='-'
+--10/07/20
+--      elsif Ch='-'
+        elsif find(Ch,"-/")
           and col<length(text[CurrLine])
-          and text[CurrLine][col+1]='-' then
+--        and text[CurrLine][col+1]='-' then
+          and text[CurrLine][col+1]=Ch then
             if col+3<=length(text[CurrLine])
             and text[CurrLine][col+2]='/'
             and text[CurrLine][col+3]='*' then

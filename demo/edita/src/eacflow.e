@@ -196,7 +196,9 @@ integer pchar
                 k = 1
                 while k<=len do
                     ch = oneline[k]
-                    if ch='-' and k<len and oneline[k+1]='-' then       -- skip comments,
+--10/07/20
+--                  if ch='-' and k<len and oneline[k+1]='-' then       -- skip comments,
+                    if find(ch,"-/") and k<len and oneline[k+1]=ch then -- skip comments,
                         exit
                     elsif ch='\"' then                                  -- .. and strings,
                         while k<len do
