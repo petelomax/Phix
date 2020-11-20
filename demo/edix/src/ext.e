@@ -90,6 +90,8 @@ function get_interpreter()
 end function
 
 procedure save_extensions()
+if not find("exw",extensions) then ?9/0 end if
+if length(extensions)!=length(runwiths) then ?9/0 end if
     string extkeys = join(sort(extensions),",")
     IupConfigSetVariableStr(config,"Extensions","KEYS",extkeys)
     for i=1 to length(extensions) do

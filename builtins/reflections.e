@@ -59,6 +59,7 @@ global function reflect(string s)
         end for
         res = append(res,args)
     end if
+res = append(res,si[S_Name])
     return res
 end function
 

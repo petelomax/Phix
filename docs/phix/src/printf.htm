@@ -35,6 +35,10 @@
           <br>
  %s - print a utf-8 or ansi string or sequence as a string of characters, or print an atom as a single character
           <br>
+ %q - as %s but enclosed in quotes, using backticks instead of doublequotes when advantageous
+          <br>
+ %Q - as %q but always using doublequotes with backslash-escaped characters when necessary
+          <br>
  %t - print "true" or "false" from a boolean, from an args[i] of non-zero or zero respectively
           <br>
  %c - print an atom as a single character. NB: not unicode, performs <a href="and_bits.htm">and_bits</a>(args[i],#FF)
@@ -72,6 +76,15 @@
             For %f and %e, the precision specifies how many digits follow the decimal point character, whereas <br>
             for %g, the precision specifies how many significant digits to print, and <br>
             for %s the precision specifies how many (the maximum number of) characters to print.
+            <br>
+            <br>
+            For floating points (%e|f|g), attempts to specify a precision over 20 trigger a format error, since that
+            would exceed the precision limits of IEEE 754 floating point numbers on 64-bit, and any further digits
+            would essentially just be gibberish. See <a href="mpfr.htm">mpfr</a> if you need higher precision than
+            native <a href="atom.htm">atoms</a> allow. On 32-bit, precisions between 17 and 20 are quietly truncated 
+            to 16, to match the IEEE 754 precision limit on 32-bit, so in that way eg "%24.20f" shows the maximum 
+            sensible precision for both 32 and 64 bit (albeit with extra padding on 32 bit, and I have found that in
+            practice a field width of precision+4 can sometimes more nicely align +ve and -ve numbers, however ymmv).
           <br>
           <br>
             If the field width starts with a leading 0, e.g. %08d then leading zeros will be supplied to fill up the field. <br>
@@ -98,6 +111,12 @@
             Note however that Euphoria will just print 'J'.
           <br>
           <br>
+            %q uses backticks in preference to doublequotes when it contains one or more singlequote, doublequote,
+            or (single) backslash, but not when it contains none of them or when it contains other characters which
+            need backslashes, such as '\n', which cannot be represented within backticks. Note that it prefers
+            doublequotes when it would otherwise make no difference - see the "prefer_backtick" setting below.
+          <br>
+          <br>
             Unicode is supported via utf-8 strings, which this routine treats exactly the same as ansi. <br>
             %c does <i><b>not</b></i> support the printing of single unicode characters, but instead performs 
             <a href="and_bits.htm">and_bits</a>(a,#FF) and prints it as a standard ascii character. <br>
@@ -117,26 +136,34 @@
          </td>
          <td>
             [Phix only, there is no equivalent for Euphoria]<br>
-            If called with fn of 0 (stdin, which cannot be printed to anyway) and a fmt of "" (so
-            there wouldn&rsquo;t be any output anyway), then args is treated as a pair-list of settings,
-            eg 
+            If called with fn of 0 (stdin, which cannot be printed to anyway) and a fmt of "" (so there
+            wouldn&rsquo;t be any output anyway), then args is treated as a pair-list of settings, eg 
+            <br>
+            <br>
 <!--eucode>
-
-            printf(0,"",{"unicode_align",true})
+            printf(0,"",{"unicode_align",true,"prefer_backtick",true})
 </eucode-->
 <pre>
-<font color="#000000">
-</font><font color="#5E005E">            printf</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"unicode_align"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#5E005E">            printf</font><font color="#0000FF">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"unicode_align"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#008000">"prefer_backtick"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
-<br>
+            <br>
             "unicode_align" expects a bool and controls whether <a href="utf8_to_utf32.htm">utf8_to_utf32</a>()
             is invoked when padding to the minimum field width, which obviously makes a big difference when
             aligning unicode strings being displayed to a console/terminal, but is a completely unnecessary
             overhead in legacy/ansi-only code. In fact, making the default false significantly sped up some 
-            of the listing and ex.err file generation in the Phix compiler itself.
+            of the listing and ex.err file generation in the Phix compiler itself, or perhaps more accurately 
+            undid a fairly noticeable and starting-to-get-annoying performance drop, specifically on error.
             <br>
             <br>
-            At the moment that is the only option implemented. A fatal error occurs if the odd element is
+            "prefer_backtick" expects a bool and controls whether eg sprintf("%q",{"hello"}) yields `hello`
+            or "hello". Note that doublequotes will still be used if the string contains any characters 
+            which must be escaped, for instance '\n' cannot be represented in a backtick-enclosed string.
+            The default is false, ie prefer doublequotes unless backticks are advantageous, as they are 
+            in eg `name="pete"`, that is compared to "name=\"pete\"". Obviously this setting has no effect
+            whatsoever on the "%Q" format, or for that matter any others.
+            <br>
+            <br>
+            At the moment those are the only options implemented. A fatal error occurs if the odd element is
             not a recognised string or the even element is the wrong type.
             <br>
             <br>
@@ -145,6 +172,14 @@
             Then again, while I have tried my best to make printf() as thread-safe as possible, it should 
             probably be avoided in a background worker thread if at all possible, or perhaps only performed 
             under the protection of a critical section.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          supported, with some minor differences, and no support for unicode_align above (which was really only ever meant to align terminal output anyway).
          </td>
         </tr>
         <tr>
@@ -158,9 +193,9 @@ printf(myfile, "The account balance is: %,10.2f\n", balance)
       The acccount balance is:  12,347.88
 </eucode-->
 <pre>
-<font color="#000000">balance</font><font color="#0000FF"> =</font><font color="#000000"> 12347.879
-</font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">myfile</font><font color="#0000FF">,</font><font color="#008000"> "The account balance is: %,10.2f\n"</font><font color="#0000FF">,</font><font color="#000000"> balance</font><font color="#0000FF">)
-</font><font color="#000000">      The acccount balance is</font><font color="#0000FF">: </font><font color="#000000"> 12</font><font color="#0000FF">,</font><font color="#000000">347.88</font>
+<font color="#000000">balance</font><font color="#0000FF"> =</font><font color="#000000"> 12347.879</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">myfile</font><font color="#0000FF">,</font><font color="#008000"> "The account balance is: %,10.2f\n"</font><font color="#0000FF">,</font><font color="#000000"> balance</font><font color="#0000FF">)</font>
+<font color="#000000">      The acccount balance is</font><font color="#0000FF">: </font><font color="#000000"> 12</font><font color="#0000FF">,</font><font color="#000000">347.88</font>
 </pre>
          </td>
         </tr>
@@ -176,9 +211,9 @@ printf(1, "|%15s, %5d |\n", {name, score})
       |     John Smith,    97 |
 </eucode-->
 <pre>
-<font color="#000000">name</font><font color="#0000FF"> =</font><font color="#008000"> "John Smith"
-</font><font color="#000000">score</font><font color="#0000FF"> =</font><font color="#000000"> 97
-</font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "|%15s, %5d |\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#000000"> score</font><font color="#800000">}</font><font color="#0000FF">)
+<font color="#000000">name</font><font color="#0000FF"> =</font><font color="#008000"> "John Smith"</font>
+<font color="#000000">score</font><font color="#0000FF"> =</font><font color="#000000"> 97</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "|%15s, %5d |\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#000000"> score</font><font color="#800000">}</font><font color="#0000FF">)
       |    </font><font color="#000000"> John Smith</font><font color="#0000FF">,   </font><font color="#000000"> 97</font><font color="#0000FF"> |</font>
 </pre>
          </td>
@@ -193,8 +228,8 @@ printf(1, "%-10.4s $ %s", {"ABCDEFGHIJKLMNOP", "XXX"})
       ABCD       $ XXX
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "%-10.4s $ %s"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"ABCDEFGHIJKLMNOP"</font><font color="#0000FF">,</font><font color="#008000"> "XXX"</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#000000">      ABCD       $ XXX</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "%-10.4s $ %s"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"ABCDEFGHIJKLMNOP"</font><font color="#0000FF">,</font><font color="#008000"> "XXX"</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">      ABCD       $ XXX</font>
 </pre>
          </td>
         </tr>
@@ -208,9 +243,10 @@ printf(1, "error code %d[#%08x]", ERROR_CANCELLED)
       error code 2147943623[#800704C7]
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "error code %d[#%08x]"</font><font color="#0000FF">,</font><font color="#000000"> ERROR_CANCELLED</font><font color="#0000FF">)
-</font><font color="#000000">      error code 2147943623</font><font color="#0000FF">[</font><font color="#000000">#800704C7</font><font color="#0000FF">]</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "error code %d[#%08x]"</font><font color="#0000FF">,</font><font color="#000000"> ERROR_CANCELLED</font><font color="#0000FF">)</font>
+<font color="#000000">      error code 2147943623</font><font color="#0000FF">[</font><font color="#000000">#800704C7</font><font color="#0000FF">]</font>
 </pre>
+            <a name="SEEALSO"></a>
          </td>
         </tr>
         <tr>
@@ -222,11 +258,9 @@ printf(1, "error code %d[#%08x]", ERROR_CANCELLED)
           <a href="puts.htm">puts</a>,
           <a href="open.htm">open</a>,
             and the
-          <a id="ext517" style="color:#9B5565" 
-            href="javascript:ExternalLink('ext517','http://www.gnu.org/software/libc/manual/html_node/Floating_002dPoint-Conversions.html#Floating_002dPoint-Conversions');">gnu clib docs
-          </a>,
+          <a href="javascript:ExternalLink('ext517','http://www.gnu.org/software/libc/manual/html_node/Floating_002dPoint-Conversions.html#Floating_002dPoint-Conversions');"
+             id="ext517" style="color:#9B5565" >gnu clib docs</a>,
             on which the Phix version is partially based, but does not use directly.
-                <a name="SEEALSO"></a>
           <br>
             puthex32(a) and putsint(i) are low-level equivalents of printf(1,"%08x[\n]",{a}) and printf(1,"%d[\n]",{i}) respectively, see builtins\puts1[h].e
          </td>
@@ -250,6 +284,240 @@ printf(1, "error code %d[#%08x]", ERROR_CANCELLED)
             if you see any of h,hh,l,ll,j,z,t, or L, my advice is to simply ignore/delete them. Also, Phix does not have unsigned ints, so after removing
             the h you would then replace %u with %d. Other differences exist: 
             <a id="ext518" style="color:#9B5565" href="javascript:ExternalLink('ext518','https://www.google.co.uk/search?q=printf');">see here</a>.
+            <br>
+            <br>
+            When translating the frankly utterly ridiculous and peculiar specifiers of Euphoria&rsquo;s text:format(), and/or console:display(),
+            I recommend the following Phix (s)printf() equivalents.
+            <br>
+            <div class="parent">
+              <div class="child">
+                [] ==> %v or something better such as %s or %d
+              </div>
+              <div class="child">
+                [&lt;] ==> - as in "%-20s"
+              </div>
+              <div class="child">
+                [c] ==> = or | as in "%=20s"
+              </div>
+              <div class="child">
+                [z] ==> 0 as in "%04d"
+              </div>
+              <div class="child">
+                [0] ==> 0 as in "%04d"
+              </div>
+              <div class="child">
+                [.N] ==> as is, as in "%5.2f"
+              </div>
+              <div class="child">
+                [+] ==> as is, as in "%+d"
+              </div>
+              <div class="child">
+                [X] ==> x as in "%x"
+              </div>
+              <div class="child">
+                [B] ==> b as in "%b"
+              </div>
+              <div class="child">
+                [T] ==> c as in "%c" (in some cases...)
+              </div>
+              <div class="child">
+                [[] ==> [
+              </div>
+              <div class="child">
+                [,,] ==> , as in "%,12d"
+              </div>
+              <div class="child">
+                % ==> %%
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+            <br>
+            The following are not supported:<br>
+            [N] to select args[N] is not supported, instead you must reorder args, or perhaps <a href="extract.htm">extract</a>() might help.<br>
+            {id} replace the utter nonsense that is text:format("{id}{iot}",{"id=st","iot=upid"}) with sprintf("%s%s",{"st","upid"}).<br>
+            [w] try %s with <a href="proper.htm">proper</a>(s,"CAPITALISE").<br>
+            [u] use %s with <a href="upper.htm">upper</a>(s).<br>
+            [l] use %s with <a href="lower.htm">lower</a>(s).<br>
+            [&gt;] simply omit, since right justification is the default in (s)printf() anyway.<br>
+            [:] simply omit, as per "%8s" below, but note that cropping is not supported, you have to do that yourself.<br>
+            %envvar% use <a href="getenv.htm">getenv</a>("envvar") instead.<br>
+            [(] use eg v = sprintf(iff(v<0:"(%f)":" %f "),abs(v)) on a specific arg instead.<br>
+            [b] use eg v = iff(v=0:"  ":sprintf("%f",v) on a specific arg instead.<br>
+            [s] use eg v = iff(v="":" ":v) on a specific arg instead.<br>
+            [t] no idea about this one, no examples given or yet found.<br>
+            [?] use <a href="iff.htm">iff</a>() on a specific arg instead, as per "cats" below.<br>
+            [,X] (where X is <i>not</i> ',' is not supported, maybe <a href="substitute.htm">substitute</a>() after the fact will help?<br>
+            For those in need, links to the originals:<br>
+            <a href="javascriptExternalLink('exti01','https://openeuphoria.org/docs/std_text.html#_3429_format');"
+               id="exti01" style="color#9B5565"      >https://openeuphoria.org/docs/std_text.html#_3429_format</a><br>
+            <a href="javascriptExternalLink('exti01','https://openeuphoria.org/docs/std_console.html#_1043_display');"
+               id="exti01" style="color#9B5565"      >https://openeuphoria.org/docs/std_console.html#_1043_display</a><br>
+            (I certainly agree with the bit that says "Clearly, ... these qualifier codes do not make sense", although the main reason why
+             I dislike these routines quite so intensely is because I have seen their source code.) <img src="images/ksk-smile.png" alt="smile" />
+            <br>
+            <br>
+            The following examples from the Euphoria documentation, translated. Note that since <a href="format.htm">format</a> is a reserved 
+            word in Phix, the std/text.e distributed with it (which I do not recommend you use) has renamed text:format() as text_format(), in
+            much the same way datetime:format() has become dateformat(), albeit slightly inconsistently.
+            <br>
+            <br><small>
+<!--eucode>
+include std/text.e
+?text_format("[4w] [3z:2] [6] [5l] [2z:2], [1:4]", {2009,4,21,"DAY","MONTH","of"})
+sequence args = {proper("DAY","CAPITALISE"),21,"of",lower("MONTH"),4,2009} -- or:
+--sequence argo = {2009,4,21,proper("DAY","CAPITALISE"),lower("MONTH"),"of"}, 
+--         args = extract(argo,{4,3,6,5,2,1})) -- (or all inlined shd you prefer)
+?sprintf("%s %02d %s %s %02d, %4d",args)
+-- "Day 21 of month 04, 2009"
+
+?text_format("The answer is [:6.2]%", {35.22341})
+?sprintf("The answer is %6.2f%%", {35.22341})
+-- "The answer is  35.22%"
+
+?text_format("The answer is [.6]", {1.2345})
+?sprintf("The answer is %.6f", {1.2345})
+-- "The answer is 1.234500"
+
+?text_format("The answer is [,,.2]", {1234.56})
+?sprintf("The answer is %,.2f", {1234.56})
+-- "The answer is 1,234.56"
+
+?text_format("[] [?]", {5, {"cats", "cat"}})
+?sprintf("%d %s",{5,iff(5>1?"cats":"cat")})
+-- "5 cats"
+
+?text_format("[] [?]", {1, {"cats", "cat"}})
+?sprintf("%d %s",{1,iff(1>1?"cats":"cat")})
+-- "1 cat"
+
+?text_format("[>:8]", {"abcdef"})
+?sprintf("%8s",{"abcdef"})
+-- "  abcdef"
+
+?text_format("seq is []", {{1.2, 5, "abcdef", {3}}})
+?sprintf("seq is %v",{{1.2, 5, "abcdef", {3}}}) -- [spacing differs]
+-- `seq is {1.2,5,"abcdef",{3}}`
+
+?text_format("Today is [{day}], the [{date}]", {"date=10/Oct/2012", "day=Wednesday"})
+?sprintf("Today is %s, the %s",{"Wednesday","10/Oct/2012"})
+-- "Today is Wednesday, the 10/Oct/2012"
+
+?text_format("'A' is [T]", 65)
+?sprintf("'A' is %c", 65)
+-- `'A' is A`
+
+display("Some plain text")
+printf(1,"Some plain text\n")
+        -- Displays this string on the console plus a new line.
+display("Your answer:",0)  
+printf(1,"Your answer:")
+       -- Displays this string on the console without a new line.
+display("cat")
+printf(1,"cat\n")
+--display("Your answer:",,0) 
+display("Your answer:",finalnl:=0) 
+printf(1,"Your answer:") 
+        -- Displays this string on the console without a new line.
+display("")
+printf(1,"\n")
+display("Your answer:_")   
+printf(1,"Your answer:") 
+       -- Displays this string, 
+       -- except the '_', on the console without a new line.
+display("dog")
+printf(1,"dog\n")
+display({"abc", 3.44554})       -- (nested)
+--?{"abc", 3.44554}             -- (single line)
+--pp({"abc", 3.44554})          --      ""
+pp({"abc", 3.44554},{pp_Nest,1}) -- (close enough)
+       -- Displays the contents of 'res' on the console.
+display("The answer to [1] was [2]", {"'why'", 42}) 
+printf(1,"The answer to %s was %d\n", {"'why'", 42}) 
+       -- formats these with a new line.
+display("",2)
+printf(1,"\n")
+display({51,362,71}, {1})
+pp({51,362,71}) -- (close enough)
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> std</font><font color="#0000FF">/</font><font color="#000000">text.e</font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"[4w] [3z:2] [6] [5l] [2z:2], [1:4]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">2009</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#008000">"DAY"</font><font color="#0000FF">,</font><font color="#008000">"MONTH"</font><font color="#0000FF">,</font><font color="#008000">"of"</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#004080">sequence</font><font color="#000000"> args</font><font color="#0000FF"> = {</font><font color="#5E005E">proper</font><font color="#800000">(</font><font color="#008000">"DAY"</font><font color="#0000FF">,</font><font color="#008000">"CAPITALISE"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#008000">"of"</font><font color="#0000FF">,</font><font color="#5E005E">lower</font><font color="#800000">(</font><font color="#008000">"MONTH"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">2009</font><font color="#0000FF">}</font><font color="#000080"><i> -- or:
+--sequence argo = {2009,4,21,proper("DAY","CAPITALISE"),lower("MONTH"),"of"}, 
+--         args = extract(argo,{4,3,6,5,2,1})) -- (or all inlined shd you prefer)</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"%s %02d %s %s %02d, %4d"</font><font color="#0000FF">,</font><font color="#000000">args</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "Day 21 of month 04, 2009"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"The answer is [:6.2]%"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">35.22341</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"The answer is %6.2f%%"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">35.22341</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "The answer is  35.22%"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"The answer is [.6]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">1.2345</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"The answer is %.6f"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">1.2345</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "The answer is 1.234500"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"The answer is [,,.2]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">1234.56</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"The answer is %,.2f"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">1234.56</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "The answer is 1,234.56"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"[] [?]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#800080"> {</font><font color="#008000">"cats"</font><font color="#0000FF">,</font><font color="#008000"> "cat"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"%d %s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#7060A8">iff</font><font color="#800080">(</font><font color="#000000">5</font><font color="#0000FF">&gt;</font><font color="#000000">1</font><font color="#0000FF">?</font><font color="#008000">"cats"</font><font color="#0000FF">:</font><font color="#008000">"cat"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "5 cats"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"[] [?]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800080"> {</font><font color="#008000">"cats"</font><font color="#0000FF">,</font><font color="#008000"> "cat"</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"%d %s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#7060A8">iff</font><font color="#800080">(</font><font color="#000000">1</font><font color="#0000FF">&gt;</font><font color="#000000">1</font><font color="#0000FF">?</font><font color="#008000">"cats"</font><font color="#0000FF">:</font><font color="#008000">"cat"</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "1 cat"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"[&gt;:8]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"abcdef"</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"%8s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"abcdef"</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "  abcdef"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"seq is []"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#800080">{</font><font color="#000000">1.2</font><font color="#0000FF">,</font><font color="#000000"> 5</font><font color="#0000FF">,</font><font color="#008000"> "abcdef"</font><font color="#0000FF">,</font><font color="#00FF00"> {</font><font color="#000000">3</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"seq is %v"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1.2</font><font color="#0000FF">,</font><font color="#000000"> 5</font><font color="#0000FF">,</font><font color="#008000"> "abcdef"</font><font color="#0000FF">,</font><font color="#00FF00"> {</font><font color="#000000">3</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- [spacing differs]
+-- `seq is {1.2,5,"abcdef",{3}}`
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"Today is [{day}], the [{date}]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"date=10/Oct/2012"</font><font color="#0000FF">,</font><font color="#008000"> "day=Wednesday"</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"Today is %s, the %s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"Wednesday"</font><font color="#0000FF">,</font><font color="#008000">"10/Oct/2012"</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- "Today is Wednesday, the 10/Oct/2012"
+</i></font>
+<font color="#0000FF">?</font><font color="#000000">text_format</font><font color="#0000FF">(</font><font color="#008000">"'A' is [T]"</font><font color="#0000FF">,</font><font color="#000000"> 65</font><font color="#0000FF">)
+?</font><font color="#5E005E">sprintf</font><font color="#0000FF">(</font><font color="#008000">"'A' is %c"</font><font color="#0000FF">,</font><font color="#000000"> 65</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- `'A' is A`
+</i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">"Some plain text"</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Some plain text\n"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>        -- Displays this string on the console plus a new line.</i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">"Your answer:"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)  </font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Your answer:"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>       -- Displays this string on the console without a new line.</i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">"cat"</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"cat\n"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--display("Your answer:",,0) </i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">"Your answer:"</font><font color="#0000FF">,</font><font color="#000000">finalnl</font><font color="#0000FF">:=</font><font color="#000000">0</font><font color="#0000FF">) </font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Your answer:"</font><font color="#0000FF">) </font>
+<font color="#000080"><i>        -- Displays this string on the console without a new line.</i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\n"</font><font color="#0000FF">)</font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">"Your answer:_"</font><font color="#0000FF">)   </font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Your answer:"</font><font color="#0000FF">) </font>
+<font color="#000080"><i>       -- Displays this string, 
+       -- except the '_', on the console without a new line.</i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">"dog"</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"dog\n"</font><font color="#0000FF">)</font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#000000"> 3.44554</font><font color="#800000">}</font><font color="#0000FF">)      </font><font color="#000080"><i> -- (nested)
+--?{"abc", 3.44554}             -- (single line)
+--pp({"abc", 3.44554})          --      ""</i></font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#000000"> 3.44554</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">pp_Nest</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- (close enough)
+       -- Displays the contents of 'res' on the console.</i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">"The answer to [1] was [2]"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"'why'"</font><font color="#0000FF">,</font><font color="#000000"> 42</font><font color="#800000">}</font><font color="#0000FF">) </font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"The answer to %s was %d\n"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"'why'"</font><font color="#0000FF">,</font><font color="#000000"> 42</font><font color="#800000">}</font><font color="#0000FF">) </font>
+<font color="#000080"><i>       -- formats these with a new line.</i></font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\n"</font><font color="#0000FF">)</font>
+<font color="#000000">display</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">51</font><font color="#0000FF">,</font><font color="#000000">362</font><font color="#0000FF">,</font><font color="#000000">71</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#5E005E">pp</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">51</font><font color="#0000FF">,</font><font color="#000000">362</font><font color="#0000FF">,</font><font color="#000000">71</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- (close enough)</i></font>
+</pre>
+          </small>
          </td>
         </tr>
        </table>

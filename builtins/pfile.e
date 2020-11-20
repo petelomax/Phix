@@ -733,6 +733,11 @@ global function get_text(object file, integer options=GT_WHOLE_FILE)
 --  sequence res = get_text(fn,options)
 --  sequence res = get_text(fn,and_bits(options,0b111))
 --  sequence res = get_textn(fn,options)
+    --
+    -- note that get_textn() is responsible for any final \n placement (pre-split),
+    --      aka anything and everything concerning GT_LF_LEFT vs. GT_LF_LAST, plus
+    --      GT_WHOLE_FILE handling when the file arg was pre-opened in text mode.
+    --
     sequence res = get_textn(fn,options+10) -- (temp)
 --  sequence res = get_text(fn,options+10)  -- (temp)
     if string(file) then close(fn) end if
@@ -744,10 +749,7 @@ global function get_text(object file, integer options=GT_WHOLE_FILE)
     and res[1..3] = x"EFBBBF" then
         res = res[4..$]
     end if
---DEV (tmp)
---  if options!=GT_WHOLE_FILE 
-    if options!=0
-    and options!=-2
+    if options!=GT_WHOLE_FILE 
     and string(res) then
         string src = res
         res = {}
@@ -816,7 +818,7 @@ global function temp_file(string location = "", prefix = "", extn = "tmp", open_
 end function
 
 --/*
---SUG: (replaces/removes read_file.e from distro)
+--SUG: (replaces/removes read_file.e from distro) [ERM, no, use get_text()]
 --global constant BINARY_MODE = 1, TEXT_MODE = 2    -- now in psym.e [**NOT YET!**]
 
 --global 
@@ -845,6 +847,17 @@ function read_file(object file, integer as_text = BINARY_MODE)
     return text
 end function
 --*/
+
+global function read_lines(object file)
+--  integer fn = iff(string(file)?open(file,"r"):file)
+--  if fn<0 then return -1 end if
+--  sequence lines = get_text(fn,GT_LF_STRIPPED)
+--  if string(file) then
+--      close(fn)
+--  end if
+--  return lines
+    return get_text(file,GT_LF_STRIPPED)
+end function
 
 --**
 -- Write a sequence of lines to a file.
@@ -875,25 +888,25 @@ end function
 --     [[:read_lines]], [[:write_file]], [[:puts]]
 
 global function write_lines(object file, sequence lines)
-integer fn
+--global function write_file(object file, sequence lines)   -- NO!
+    integer fn = iif(string(file)?open(file, "w"):file)
+    if fn<0 then return false end if
 
-    if string(file) then
-        fn = open(file, "w")
+    if string(lines) then
+        puts(fn, lines)
     else
-        fn = file
+        for i=1 to length(lines) do
+            string li = lines[i] -- (deliberate typecheck)
+            puts(fn, li)
+            puts(fn, '\n')
+        end for
     end if
-    if fn<0 then return -1 end if
-
-    for i=1 to length(lines) do
-        puts(fn, lines[i])
-        puts(fn, '\n')
-    end for
 
     if string(file) then
         close(fn)
     end if
 
-    return 1
+    return true
 end function
 
 --DEV not yet documented/autoincluded
@@ -1182,4 +1195,20 @@ integer k = 1
     return url
 end function
 
-
+--/* SUG: (done better...)
+String getContentType(String filename){
+  if(filename.endsWith(".htm")) return "text/html";
+  else if(filename.endsWith(".html")) return "text/html";
+  else if(filename.endsWith(".css")) return "text/css";
+  else if(filename.endsWith(".js")) return "application/javascript";
+  else if(filename.endsWith(".png")) return "image/png";
+  else if(filename.endsWith(".gif")) return "image/gif";
+  else if(filename.endsWith(".jpg")) return "image/jpeg";
+  else if(filename.endsWith(".ico")) return "image/x-icon";
+  else if(filename.endsWith(".xml")) return "text/xml";
+  else if(filename.endsWith(".pdf")) return "application/x-pdf";
+  else if(filename.endsWith(".zip")) return "application/x-zip";
+  else if(filename.endsWith(".gz")) return "application/x-gzip";
+  return "text/plain";
+}
+--*/

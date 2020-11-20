@@ -45,13 +45,14 @@ global function is_dict(object tid)
 end function
 
 procedure check(integer tid)
---  if not is_dict(tid) then crash("invalid dictionary id (%d)",{tid},2) end if
-    if not is_dict(tid) then
-        #ilASM{ mov ecx,2           -- no of frames to pop to obtain an era (>=2)
-                mov al,56           -- e56idi (invalid dictionary id)
-                jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
-              }
-    end if
+--28/10/20: (even though p2js.js may yet choose a completely different approach for dictionaries...)
+    if not is_dict(tid) then crash("invalid dictionary id (%d)",{tid},3) end if
+--  if not is_dict(tid) then
+--      #ilASM{ mov ecx,2           -- no of frames to pop to obtain an era (>=2)
+--              mov al,56           -- e56idi (invalid dictionary id)
+--              jmp :!fatalN        -- fatalN(level,errcode,ep1,ep2)
+--            }
+--  end if
     if not initd then dinit() end if
 end procedure
 
@@ -191,9 +192,9 @@ global function getd_by_index(integer node, integer tid=1)
     return trees[tid][node+DATA]
 end function
 
-function minValueNode(integer node, integer tid)
+function minValueNode(integer node, tid, direction)
     while 1 do
-        integer next = trees[tid][node+LEFT]
+        integer next = trees[tid][node+direction]
         if next=NULL then exit end if
         node = next
     end while
@@ -222,7 +223,7 @@ integer c, left, right
         freelists[tid] = temp
         sizes[tid] -= 1
     else                    -- Two child case
-        integer temp = minValueNode(right,tid)
+        integer temp = minValueNode(right,tid,LEFT)
         key = trees[tid][temp+KEY]
         trees[tid][root+KEY] = key
         trees[tid][root+RIGHT] = deleteNode(right, key, tid)
@@ -360,6 +361,25 @@ end function
 global function dict_size(integer tid=1)
     check(tid)
     return sizes[tid]
+end function
+
+function peekpop(integer tid, bool rev, bDelete)
+    integer node = minValueNode(roots[tid],tid,iff(rev?RIGHT:LEFT))
+    if node=0 then return defaults[tid] end if
+    object key = trees[tid][node+KEY],
+           data = trees[tid][node+DATA]
+    if bDelete then
+        roots[tid] = deleteNode(roots[tid],key,tid)
+    end if
+    return {key,data}
+end function
+
+global function peep_dict(integer tid=1, bool rev=false)
+    return peekpop(tid,rev,false)
+end function
+
+global function pop_dict(integer tid=1, bool rev=false)
+    return peekpop(tid,rev,true)
 end function
 
 global function dict_name(integer tid=1)

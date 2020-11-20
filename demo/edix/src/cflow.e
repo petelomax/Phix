@@ -51,7 +51,9 @@ sequence cB_end, cB_global, cB_globali, cB_set1, cB_set2
 --  cB_global = KtoF("global")
     cB_global = {KtoF("global"),KtoF("public"),KtoF("export"),KtoF("override")}
     cB_set1 = {KtoF("if"),KtoF("switch"),KtoF("for"),KtoF("while"),
-               KtoF("procedure"),KtoF("function"),KtoF("type")}
+-- 09/10/2020
+--             KtoF("procedure"),KtoF("function"),KtoF("type")}
+               KtoF("procedure"),KtoF("function"),KtoF("type"),KtoF("try")}
 --DEV case/cB_set3
 --  cB_set2 = {cB_end, KtoF("elsif"),KtoF("else")}
     cB_set2 = {cB_end, KtoF("elsif"),KtoF("else"),KtoF("case"),KtoF("default")}

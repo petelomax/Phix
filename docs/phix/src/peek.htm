@@ -13,11 +13,11 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> i = peek(<a href="atom.htm">atom</a> a)
+          <a href="integer.htm">integer</a> i = peek(<a href="atom.htm">atom</a> addr)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="sequence.htm">sequence</a> s = peek({a, i})
+          <a href="sequence.htm">sequence</a> s = peek({addr, len})
          </td>
         </tr>
         <tr>
@@ -25,8 +25,8 @@
           <b>Description:</b>
          </td>
          <td>
-            Return a single byte value in the range 0 to 255 from machine address a in memory, or return a 
-            <a href="sequence.htm">sequence</a> containing i consecutive byte values starting at address a.
+            Return a single byte value in the range 0 to 255 from machine address addr in memory, or <br>
+            return a <a href="sequence.htm">sequence</a> containing len consecutive byte values starting at address addr.
           <br>
           <br>
             There are in fact eleven further variations of the peek function:
@@ -38,22 +38,19 @@
       peekNS  peekns  peeknu
 </pre>
           <br>
-            which from left to right retrieve bytes, words, dwords, and qwords,
+            The first two rows, from left to right retrieve bytes, words, dwords, and qwords,
             with the first row obtaining signed values and the second unsigned.
           <br>
           <br>
-            The peekNS() function takes three parameters: (a or {a,i}), size, and signed. By way of illustration, peek4u(a)===peekNS(a,4,false).
-          <br>
+            The peekNS() function takes three parameters: (addr or {addr,len}), size, and signed. By way of illustration, peek4u(a)===peekNS(a,4,false).<br>
             The peekns() function is a simple hll wrapper of peekNS() that defaults size to <a href="machine_bits.htm">machine_word</a>()
-            and signed to true; more convenient but less performant (see Implementation notes below).
-          <br>
+            and signed to true; more convenient but less performant (see Implementation notes below).<br>
             The peeknu() function is identical to peekns() except that it defaults signed to false.
           <br>
           <br>
             The peek routine is actually an alias of peek1u, and when passed a
-            parameter of {a,i} returns a <a href="string.htm">string</a>, whereas when given the same 
-            parameter all the others, including peek1s, return a 
-          <a href="html/glossary.htm#dwordseq">dword-sequence</a>.
+            parameter of {addr,len} returns a <a href="string.htm">string</a>, whereas when given the same 
+            parameter all the others, including peek1s, return a <a href="html/glossary.htm#dwordseq">dword-sequence</a>.
          </td>
         </tr>
         <tr>
@@ -107,10 +104,10 @@ s = {peek(addr), peek(addr+1), peek(addr+2), peek(addr+3)}
 s = peek({addr, 4})
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>-- method 1
-</i></font><font color="#000000">s</font><font color="#0000FF"> = {</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#7060A8"> peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#0000FF">+</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#7060A8"> peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#0000FF">+</font><font color="#000000">2</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#7060A8"> peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#800000">)</font><font color="#0000FF">}
-</font><font color="#000080"><i>-- method 2
-</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#7060A8"> peek</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- method 1</i></font>
+<font color="#000000">s</font><font color="#0000FF"> = {</font><font color="#7060A8">peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#7060A8"> peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#0000FF">+</font><font color="#000000">1</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#7060A8"> peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#0000FF">+</font><font color="#000000">2</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#7060A8"> peek</font><font color="#800000">(</font><font color="#000000">addr</font><font color="#0000FF">+</font><font color="#000000">3</font><font color="#800000">)</font><font color="#0000FF">}</font>
+<font color="#000080"><i>-- method 2</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#7060A8"> peek</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -158,13 +155,15 @@ s = peek({addr, 4})
             following example (which assumes little endian) shows. When peek8s or peek8u 
             is used in a 32-bit application (not recommended and not officially supported), 
             it checks for precision loss:
+            <br>
+            <br>
 <!--eucode>
 poke(addr,{0,0,0,0,0,0,0,#80,1,0,0,0,0,0,0,#80})
 result = peek8u({addr,2})
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#7060A8">poke</font><font color="#0000FF">(</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">#80</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">#80</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#000000">result</font><font color="#0000FF"> =</font><font color="#7060A8"> peek8u</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">poke</font><font color="#0000FF">(</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">#80</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">#80</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">result</font><font color="#0000FF"> =</font><font color="#7060A8"> peek8u</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">addr</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
           <br>
             On 64-bit result gets set to {#8000000000000000,#8000000000000001}
@@ -198,6 +197,8 @@ result = peek8u({addr,2})
             In truth, there are two reasons why peek8s/u exist at all on 32-bit: peek8u is used (lightly and in a 
             non-critical manner) when cross-compiling, ie when a 32-bit phix is asked, via a format directive, to create a 
             64-bit executable, and secondly so that code such as
+            <br>
+            <br>
 <!--eucode>
 if machine_bits()=32 then
     r = peek4u(k)
@@ -206,11 +207,11 @@ else -- machine_bits()=64
 end if
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">if</font><font color="#7060A8"> machine_bits</font><font color="#0000FF">()=</font><font color="#000000">32</font><font color="#008080"> then
-</font><font color="#000000">    r</font><font color="#0000FF"> =</font><font color="#7060A8"> peek4u</font><font color="#0000FF">(</font><font color="#000000">k</font><font color="#0000FF">)
-</font><font color="#008080">else</font><font color="#000080"><i> -- machine_bits()=64
-</i></font><font color="#000000">    r</font><font color="#0000FF"> =</font><font color="#7060A8"> peek8u</font><font color="#0000FF">(</font><font color="#000000">k</font><font color="#0000FF">)
-</font><font color="#008080">end if</font>
+<font color="#008080">if</font><font color="#7060A8"> machine_bits</font><font color="#0000FF">()=</font><font color="#000000">32</font><font color="#008080"> then</font>
+<font color="#000000">    r</font><font color="#0000FF"> =</font><font color="#7060A8"> peek4u</font><font color="#0000FF">(</font><font color="#000000">k</font><font color="#0000FF">)</font>
+<font color="#008080">else</font><font color="#000080"><i> -- machine_bits()=64</i></font>
+<font color="#000000">    r</font><font color="#0000FF"> =</font><font color="#7060A8"> peek8u</font><font color="#0000FF">(</font><font color="#000000">k</font><font color="#0000FF">)</font>
+<font color="#008080">end if</font>
 </pre>
           <br>
             compiles cleanly rather than complains that peek8u does not exist, even though you are not going to call it

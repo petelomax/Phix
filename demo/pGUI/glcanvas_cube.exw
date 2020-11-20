@@ -196,40 +196,32 @@ function esc_close(Ihandle /*ih*/, atom c)
     return IUP_CONTINUE
 end function
 
-procedure main()
-Ihandle dialog, canvas
+IupOpen()
+IupGLCanvasOpen()
 
-    IupOpen()
-    IupGLCanvasOpen()
+Ihandle canvas = IupGLCanvas()
+IupSetCallback(canvas, "ACTION", Icallback("action"))
+IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"))
+IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"))
+IupSetAttribute(canvas, "BUFFER", "DOUBLE")
+IupSetAttribute(canvas, "BORDER", "NO")
+IupSetAttribute(canvas, "RASTERSIZE", "400x400")
 
-    canvas = IupGLCanvas()
-    IupSetCallback(canvas, "ACTION", Icallback("action"))
-    IupSetCallback(canvas, "BUTTON_CB", Icallback("button_cb"))
-    IupSetCallback(canvas, "MOTION_CB", Icallback("motion_cb"))
-    IupSetAttribute(canvas, "BUFFER", "DOUBLE")
-    IupSetAttribute(canvas, "BORDER", "NO")
-    IupSetAttribute(canvas, "RASTERSIZE", "400x400")
+Ihandln dialog = IupDialog(IupVbox({canvas},"MARGIN=5x5"))
+IupSetAttribute(dialog, "TITLE", "IupGLCanvas Test (drag cube to rotate it)")
 
-    dialog = IupDialog(IupVbox({canvas},"MARGIN=5x5"))
-    IupSetAttribute(dialog, "TITLE", "IupGLCanvas Test (drag cube to rotate it)")
+IupMap(dialog)
 
-    IupMap(dialog)
+IupGLMakeCurrent(canvas)
+init()
+printf(1,"Vendor: %s\n", glGetString(GL_VENDOR))
+printf(1,"Renderer: %s\n", glGetString(GL_RENDERER))
+printf(1,"Version: %s\n", glGetString(GL_VERSION))
+IupSetAttribute(canvas, "RASTERSIZE", NULL)
+IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
 
-    IupGLMakeCurrent(canvas)
-    init()
-    printf(1,"Vendor: %s\n", glGetString(GL_VENDOR))
-    printf(1,"Renderer: %s\n", glGetString(GL_RENDERER))
-    printf(1,"Version: %s\n", glGetString(GL_VERSION))
-    IupSetAttribute(canvas, "RASTERSIZE", NULL)
-    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
+IupMainLoop()
+dialog = IupDestroy(dialog)
+IupClose()
 
-    IupShowXY(dialog, IUP_CENTER, IUP_CENTER)
-
-    IupMainLoop()
-
-    IupDestroy(dialog)
-
-    IupClose()
-
-end procedure
-main()

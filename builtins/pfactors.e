@@ -30,29 +30,27 @@ procedure check(atom n, string rtn)
         -- divisible by 4, etc. Hence were you to ask for the prime
         -- factors of 9,007,199,254,740,995 you might be surprised when
         -- it does not list 5, since this gets 9,007,199,254,740,994.
-        -- (yes, the routines actually get a number ending in 4 not 5)
+        -- (yes, the routine actually gets a number ending in 4 not 5)
         crash("argument to %s() exceeds maximum precision",{rtn})
     end if
 end procedure
 
 global function factors(atom n, integer include1=0)
---global function factors(atom n, integer include1=0, atom maxfactor=n)
+--
 -- returns a list of all integer factors of n
 --  if include1 is 0 (the default), result does not contain either 1 or n
---  if include1 is 1, and n>1, the result contains 1 and n
---  if include1 is -1, and n>1, the result contains 1 but not n
+--  if include1 is 1 the result contains 1 and n
+--  if include1 is -1 the result contains 1 but not n
+--  
+    if n=0 then return {} end if
     check(n,"factors")
     sequence lfactors = {}, hfactors = {}
     atom hfactor
     integer p = 2,
             lim = floor(sqrt(n))
---          lim = min(floor(sqrt(n)),maxfactor)
 
---13/5/19:
---  if n!=1 and include1!=0 then
     if include1!=0 then
         lfactors = {1}
---      if include1=1 then
         if n!=1 and include1=1 then
             hfactors = {n}
         end if
@@ -74,6 +72,7 @@ include primes.e
 global function prime_factors(atom n, bool duplicates=false, integer maxprime=100)
 -- returns a list of all prime factors <=get_prine(maxprime) of n
 --  if duplicates is true returns a true decomposition of n (eg 8 --> {2,2,2})
+    if n=0 then return {} end if
     check(n,"prime_factors")
     if maxprime=-1 then maxprime = get_maxprime(n) end if
     sequence pfactors = {}
@@ -110,6 +109,7 @@ end function
 global function square_free(atom n, integer maxprime=100)
 -- returns true if prime_factors(n,duplicates:=true,maxprime) would contain no duplicates
 --  (but terminating early and without building any unnecessary internal lists)
+    if n=0 then return true end if
     check(n,"square_free")
     if maxprime=-1 then maxprime = get_maxprime(n) end if
     integer pn = 1,
@@ -130,6 +130,7 @@ global function square_free(atom n, integer maxprime=100)
 end function
 
 global function is_prime(atom n)
+    if n=0 then return false end if
     check(n,"is_prime2")
     integer pn = 1,
             p = get_prime(pn), 

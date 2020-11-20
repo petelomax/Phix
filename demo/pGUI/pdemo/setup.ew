@@ -228,7 +228,7 @@ atom advapi32,
      lpcbData
 
 --
--- The following items are set by setButtonStates(), used by Undo(), Apply(), and CreateDotReg():
+-- The following items are set by setButtonStates(), used by Undo(), apply_action(), and CreateDotReg():
 --
 string basedir      -- eg C:\Program Files (x86)\Phix   (PATHREPLACE)
 string restdir      -- "", but from undo.reg            (PATHRESTORE)
@@ -1903,52 +1903,21 @@ object d
     {} = system_exec(cmd,8)
 end procedure
 
-procedure Apply()
-integer action
---> action = getIndex(cddAct)
-    action = IupGetInt(actdd,"VALUE")
---  switch action do
---      case A_CREATEUNDO:
---          createDotReg(UNDO,1)
---          readUndo()
---      case A_EDITUNDO:
---          edit("undo.reg")
---      case A_RELOADUNDO:
---          readUndo()
---      case A_MERGEUNDO:
---          merge("undo.reg")
---      case A_CREATESETUP:
---          createDotReg(CREATE,1)
---      case A_EDITSETUP:
---          edit("setup.reg")
---      case A_MERGESETUP:
---          merge("setup.reg")
---      case A_APPLY:
---          createDotReg(UNDO,0)
---          createDotReg(CREATE,0)
---          merge("setup.reg")
---  end switch
-    if action=A_CREATEUNDO then
-            createDotReg(UNDO,1)
-            readUndo()
-    elsif action=A_EDITUNDO then
-            edit("undo.reg")
-    elsif action=A_RELOADUNDO then
-            readUndo()
-    elsif action=A_MERGEUNDO then
-            merge("undo.reg")
-    elsif action=A_CREATESETUP then
-            createDotReg(CREATE,1)
-    elsif action=A_EDITSETUP then
-            edit("setup.reg")
-    elsif action=A_MERGESETUP then
-            merge("setup.reg")
-    elsif action=A_APPLY then
-            createDotReg(UNDO,0)
-            createDotReg(CREATE,0)
-            merge("setup.reg")
-    end if
-
+procedure apply_action()
+    integer action = IupGetInt(actdd,"VALUE")
+    switch action do
+        case A_CREATEUNDO:  createDotReg(UNDO,1)
+                            readUndo()
+        case A_EDITUNDO:    edit("undo.reg")
+        case A_RELOADUNDO:  readUndo()
+        case A_MERGEUNDO:   merge("undo.reg")
+        case A_CREATESETUP: createDotReg(CREATE,1)
+        case A_EDITSETUP:   edit("setup.reg")
+        case A_MERGESETUP:  merge("setup.reg")
+        case A_APPLY:       createDotReg(UNDO,0)
+                            createDotReg(CREATE,0)
+                            merge("setup.reg")
+    end switch
 end procedure
 
 --/*
@@ -2039,7 +2008,7 @@ end function
 constant cb_valuechanged = Icallback("valuechanged_cb")
 
 function apply_cb(Ihandle /*bOK*/)
-    Apply()
+    apply_action()
     return IUP_CONTINUE
 end function
 constant cb_apply = Icallback("apply_cb")
@@ -2114,7 +2083,8 @@ Ihandle --runBtn, flbl, helpBtn, closeBtn, rlfhc, tab1, tab2, box,
     bOK = IupButton("OK",cb_apply,"PADDING=10x0")
     bHelp = IupButton("Help",cb_help,"PADDING=10x0")
 
-    IupDestroy(IupNormalizer({lpath,lpad1,lpert,lper2,ldefi,lerri,ledix,lrun1,lrunw,lpad2},"NORMALIZE=HORIZONTAL"))
+    sequence nset = {lpath,lpad1,lpert,lper2,ldefi,lerri,ledix,lrun1,lrunw,lpad2}
+    {} = IupDestroy(IupNormalizer(nset,"NORMALIZE=HORIZONTAL"))
     tab2 = IupHbox({IupFill(),
                     IupVbox({lwino,
 --                           IupHbox({lpath,IupVbox({radio})}),

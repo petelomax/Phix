@@ -71,10 +71,12 @@
              <li>l = list (shows a dropdown list box, with a zero based item index selected)</li>
              <li>o = list (shows a list of toggles inside a radio, with a zero based item index selected)</li>
              <li>t = separator (shows a horizontal line separator label, in this case text can be an empty string, not included in parameter count)</li>
+             <li>d = string, but the interface uses a IupDatePick element to select a date (since 3.17)</li>
              <li>f = string (same as s, but also show a button to open a file selection dialog box)</li>
              <li>c = string (same as s, but also show a color button to open a color selection dialog box)</li>
              <li>n = string (same as s, but also show a font button to open a font selection dialog box)</li>
              <li>h = <a href="Ihandle.htm">Ihandle</a> (a control handle that will be managed by the application, it will be placed after the parameters and before the buttons.) [not yet in Phix]</li>
+             <li>x = attributes for the IupParamBox in the extra options. (since 3.19)</li>
              <li>u = buttons titles (allow to redefine the default button titles (OK and Cancel), and to add a third button, 
                      use [button1,button2,button3] as extra data, can omit one of them, it will use the default name, not included in parameter count)</li>
              </ul></li>
@@ -91,7 +93,9 @@
              <li>[dialogtype|filter|directory|nochangedir|nooverwriteprompt] are the respective attribute values passed to the <a href="IupFileDlg.htm">IupFileDlg</a> control when activated. 
                  All '|' must exist, but you can let empty values to use the default values. No mask can be set.</li>
              </ul></li>
-            <li>tip is a string that is displayed in a <a href="common.htm#TIP">TIP</a> for the main control of the parameter. (since 3.0)</li>
+            <li>tip is a string that is displayed in a <a href="common.htm#TIP">TIP</a> for the main control of the parameter. (since 3.0)
+                Since the tip string can not contain a '\n' because of the param terminator, the '\r' character can be used to break lines in the TIP. 
+                It will be internally converted to '\n' before actually setting the TIP. (since 3.17)</li>
             </ul>
             The number of lines in the format string (number of '\n') will determine the number of required parameters. But separators will not count as parameters. 
             There is no maximum number of parameters (since 3.13). [Internally Phix wraps IupGetParamsv, rather than IupGetParams, not that it matters.]
@@ -105,6 +109,15 @@
             The default precision for real value display is given by the global attribute DEFAULTPRECISION. <br>
             But inside the callback the application can set the param attribute "PRECISION" to use another value. <br>
             It will work only during interactive changes. The decimal symbol will used the DEFAULTDECIMALSYMBOL global attribute.
+            <br>
+            <br>
+            There is no extra parameters for the color string. The mask is automatically set to capture 3 or 4 unsigned integers from 0 to 255 (R G B) or (R G B A) (alpha is optional).
+            <br>
+            <br>
+            The date extra parameters are simply IupDatePick attributes in a single string for IupSetAttributes usage. (since 3.17)
+            <br>
+            <br>
+            When the "s" type is used the size can be controlled using the VISIBLECOLUMNS attribute at the param element. (since 3.16)
             <br>
             <br>
             The function does not allocate memory space to store the text entered by the user. <br>
@@ -191,6 +204,15 @@
             <li>"BUTTON1" - returns an IUP <a href="Ihandle.htm">Ihandle</a>, the button 1.</li>
             <li>"BUTTON2" - returns an IUP <a href="Ihandle.htm">Ihandle</a>, the button 2.</li>
             <li>"BUTTON3" - returns an IUP <a href="Ihandle.htm">Ihandle</a>, the button 3.</li>
+            <li>"PARAMCOUNT" - [read-only]: returns the number of parameters not counting separators and button names.</li>
+            <li>"STATUS" - [read-only]: set to 1 when button1 is activated, and set to 0 when button2 is activated or the IupGetParam dialog close button is clicked.</li>
+            <li>"LABELALIGN" - controls the alignment of all labels. Can be ALEFT or ARIGHT. Default: ALEFT. (since 3.20)</li>
+            <li>"MODIFIABLE" - controls the active state of all controls but when disabled allows the text boxes to be read-only and selectable instead of inactive. 
+                                Default: Yes. (since 3.20)</li>
+            <li>"SPINNING" - defined only during the callback to indicate that the spin was activated.</li>
+            <li>"USERDATA" - will hold the user data passed to the callback.</li>
+            <li>"EXPAND" - (non inheritable*): The default value is "YES". See the documentation of the attribute for EXPAND inheritance.</li>
+            <li>"WID" - (read-only): returns -1 if mapped.</li>
             </ul>
          </td>
         </tr>
@@ -222,11 +244,12 @@
             dialog: dialog handle<br>
             param_index: current parameter being changed. Can have negative values to indicate specific situations: 
             <ul>
-            <li>IUP_GETPARAM_BUTTON1 (-1) = if the user pressed the button 1;</li>
+            <li>IUP_GETPARAM_BUTTON1 (-1, aka IUP_GETPARAM_OK) = if the user pressed the button 1;</li>
             <li>IUP_GETPARAM_INIT (-2)  = after the dialog is mapped and just before it is shown. Not called for IupParamBox;</li>
-            <li>IUP_GETPARAM_BUTTON2 (-3) = if the user pressed the button 2;</li>
-            <li>IUP_GETPARAM_BUTTON3 (-4) = if the user pressed the button 3, if any;</li>
+            <li>IUP_GETPARAM_BUTTON2 (-3, aka IUP_GETPARAM_CANCEL) = if the user pressed the button 2;</li>
+            <li>IUP_GETPARAM_BUTTON3 (-4, aka IUP_GETPARAM_HELP) = if the user pressed the button 3, if any;</li>
             <li>IUP_GETPARAM_CLOSE (-5) = if the user clicked on the dialog close button. Not called for IupParamBox; (since 3.13)</li>
+            <li>IUP_GETPARAM_MAP (-6) = before the IupGetParam dialog is mapped. Not called when IupParamBox is directly used; (since 3.21)</li>
             </ul>
             pUserData: a user pointer (void*) that is passed in the function call.
             <br>
@@ -282,6 +305,8 @@ end if
          </td>
          <td>
         Here is an example showing many of the possible parameters. We show only one for each type, but you can have as many parameters of the same type you want.
+        <br>
+        <br>
 <!--eucode>
 --
 -- demo\pGUI\getparams.exw
@@ -325,27 +350,26 @@ Sep5 %t
              Bt %u[, MyCancel, Help!]
 """  
 
-    IupOpen()
+IupOpen()
 
-    sequence res = IupGetParam("Title", NULL, 0, fmt,
-                               {pboolean, pinteger, preal, 
---                              (sep1)
-                                pinteger2, preal2, 
---                              (sep2)
-                                pangle, pstring, 
---                              (sep3)
-                                poptions, plist, 
---                              (sep4)
-                                file, pcolor, pfont, 
---                              (sep5)
-                                pstring2})
-    string msg = ""
-    for i=1 to length(res) do
-        msg &= sprint(res[i])&'\n'
-    end for
-    IupShow(IupDialog(NULL)) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
-    IupMessage("results",msg)
-
+sequence res = IupGetParam("Title", NULL, 0, fmt,
+                           {pboolean, pinteger, preal, 
+--                          (sep1)
+                            pinteger2, preal2, 
+--                          (sep2)
+                            pangle, pstring, 
+--                          (sep3)
+                            poptions, plist, 
+--                          (sep4)
+                            file, pcolor, pfont, 
+--                          (sep5)
+                            pstring2})
+string msg = ""
+for i=1 to length(res) do
+    msg &= sprint(res[i])&'\n'
+end for
+IupShow(IupDialog(NULL)) -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+IupMessage("results",msg)
 IupClose()
 </eucode-->
 <pre>
@@ -391,27 +415,26 @@ Sep5 %t
              Bt %u[, MyCancel, Help!]
 """  
 
-</font><font color="#5E005E">    IupOpen</font><font color="#0000FF">()
+</font><font color="#5E005E">IupOpen</font><font color="#0000FF">()
 
-</font><font color="#004080">    sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetParam</font><font color="#0000FF">(</font><font color="#008000">"Title"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> fmt</font><font color="#0000FF">,
-</font><font color="#800000">                               {</font><font color="#000000">pboolean</font><font color="#0000FF">,</font><font color="#000000"> pinteger</font><font color="#0000FF">,</font><font color="#000000"> preal</font><font color="#0000FF">, 
-</font><font color="#000080"><i>--                              (sep1)
-</i></font><font color="#000000">                                pinteger2</font><font color="#0000FF">,</font><font color="#000000"> preal2</font><font color="#0000FF">, 
-</font><font color="#000080"><i>--                              (sep2)
-</i></font><font color="#000000">                                pangle</font><font color="#0000FF">,</font><font color="#000000"> pstring</font><font color="#0000FF">, 
-</font><font color="#000080"><i>--                              (sep3)
-</i></font><font color="#000000">                                poptions</font><font color="#0000FF">,</font><font color="#000000"> plist</font><font color="#0000FF">, 
-</font><font color="#000080"><i>--                              (sep4)
-</i></font><font color="#000000">                                file</font><font color="#0000FF">,</font><font color="#000000"> pcolor</font><font color="#0000FF">,</font><font color="#000000"> pfont</font><font color="#0000FF">, 
-</font><font color="#000080"><i>--                              (sep5)
-</i></font><font color="#000000">                                pstring2</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#004080">    string</font><font color="#000000"> msg</font><font color="#0000FF"> =</font><font color="#008000"> ""
-</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> do
-</font><font color="#000000">        msg</font><font color="#0000FF"> &amp;=</font><font color="#5E005E"> sprint</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)&amp;</font><font color="#008000">'\n'
-</font><font color="#008080">    end for
-</font><font color="#5E005E">    IupShow</font><font color="#0000FF">(</font><font color="#5E005E">IupDialog</font><font color="#800000">(</font><font color="#004600">NULL</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
-</i></font><font color="#5E005E">    IupMessage</font><font color="#0000FF">(</font><font color="#008000">"results"</font><font color="#0000FF">,</font><font color="#000000">msg</font><font color="#0000FF">)
-
+</font><font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> IupGetParam</font><font color="#0000FF">(</font><font color="#008000">"Title"</font><font color="#0000FF">,</font><font color="#004600"> NULL</font><font color="#0000FF">,</font><font color="#000000"> 0</font><font color="#0000FF">,</font><font color="#000000"> fmt</font><font color="#0000FF">,
+</font><font color="#800000">                           {</font><font color="#000000">pboolean</font><font color="#0000FF">,</font><font color="#000000"> pinteger</font><font color="#0000FF">,</font><font color="#000000"> preal</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                          (sep1)
+</i></font><font color="#000000">                            pinteger2</font><font color="#0000FF">,</font><font color="#000000"> preal2</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                          (sep2)
+</i></font><font color="#000000">                            pangle</font><font color="#0000FF">,</font><font color="#000000"> pstring</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                          (sep3)
+</i></font><font color="#000000">                            poptions</font><font color="#0000FF">,</font><font color="#000000"> plist</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                          (sep4)
+</i></font><font color="#000000">                            file</font><font color="#0000FF">,</font><font color="#000000"> pcolor</font><font color="#0000FF">,</font><font color="#000000"> pfont</font><font color="#0000FF">, 
+</font><font color="#000080"><i>--                          (sep5)
+</i></font><font color="#000000">                            pstring2</font><font color="#800000">}</font><font color="#0000FF">)
+</font><font color="#004080">string</font><font color="#000000"> msg</font><font color="#0000FF"> =</font><font color="#008000"> ""
+</font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#0000FF">)</font><font color="#008080"> do
+</font><font color="#000000">    msg</font><font color="#0000FF"> &amp;=</font><font color="#5E005E"> sprint</font><font color="#0000FF">(</font><font color="#000000">res</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)&amp;</font><font color="#008000">'\n'
+</font><font color="#008080">end for
+</font><font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#5E005E">IupDialog</font><font color="#800000">(</font><font color="#004600">NULL</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- show an empty dialog [otherwise IupMessage fails, fixed in SVN]
+</i></font><font color="#5E005E">IupMessage</font><font color="#0000FF">(</font><font color="#008000">"results"</font><font color="#0000FF">,</font><font color="#000000">msg</font><font color="#0000FF">)
 </font><font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
 </pre>
             <br>

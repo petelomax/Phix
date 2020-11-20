@@ -32,8 +32,8 @@ procedure check_ansi(string file_name)
     close(fn)
 end procedure
 
-    if UseNativeDialog and platform()=WINDOWS then
-        object res = newGetOpenFileName(NULL)
+if UseNativeDialog and platform()=WINDOWS then
+    object res = newGetOpenFileName(NULL)
 --pp(newGetOpenFileName(NULL,NULL,{0,0,FOS_ALLOWMULTISELECT}))
 --pp(newGetOpenFileName(NULL,NULL,{0,0,0}))
 --pp(newGetOpenFileName(getHwnd(id),NULL,{0,0,0}))
@@ -49,8 +49,8 @@ end procedure
 --trace(1)
 --  res = newGetSaveFileName(NULL,NULL,NULL,`C:\Program Files (x86)\Phix\demo\win32dibademo`,0)
 --  res = newGetSaveFileName(NULL,NULL,NULL,`C:\Program Files (x86)\Phix\demo\win32dibademo`)
-        if sequence(res) then
-            integer r1 = res[1]
+    if sequence(res) then
+        integer r1 = res[1]
 --global constant ENC_NONE  = 0,
 --              ENC_ANSI    = 1,
 --              ENC_UTF8    = 2,
@@ -58,51 +58,51 @@ end procedure
 --              ENC_UTF16BE = 4     -- (rare case)
 --
 --global constant Encodings = {"ANSI","UTF8","UTF16LE","UTF16BE"}
-            if r1=ENC_NONE then
-                res[1] = "0 (ENC_NONE)"
-            else
-                res[1] = sprintf("%d (%s)",{r1,Encodings[r1]})
-            end if
+        if r1=ENC_NONE then
+            res[1] = "0 (ENC_NONE)"
+        else
+            res[1] = sprintf("%d (%s)",{r1,Encodings[r1]})
         end if
-        pp(res)
-        if sequence(res) then
-            check_ansi(res[2])
-        end if
-        {} = wait_key()
-    else
-        IupOpen()
+    end if
+    pp(res)
+    if sequence(res) then
+        check_ansi(res[2])
+    end if
+    {} = wait_key()
+else
+    IupOpen()
 --      IupSetLanguage("ENGLISH")   -- no effect? (correct, I'd seen this: "The IupFileDlg is a native pre-defined dialog that is not altered by IupSetLanguage")
 
-        Ihandle filedlg = IupFileDlg()
+    Ihandle filedlg = IupFileDlg()
 
 --      IupSetAttributes(filedlg, `DIALOGTYPE = SAVE, TITLE = "File Save"`)
-        IupSetAttribute(filedlg, "TITLE", "Open")
+    IupSetAttribute(filedlg, "TITLE", "Open")
 --      IupSetAttributes(filedlg, `FILTER = " .bmp", FILTERINFO = "Bitmap Files"`)
 --      IupSetAttributes(filedlg, `FILTER = "*.txt;*.exw", FILTERINFO = "Bitmap Files"`)
-        IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
+    IupSetAttribute(filedlg, "EXTFILTER", "Text files|*.txt;*.exw|All Files|*.*|")
 --      IupSetAttributes(filedlg, `DIALOGTYPE = DIR, TITLE = "Directory"`)
 
-        IupPopup(filedlg, IUP_CENTER, IUP_CENTER)
+    IupPopup(filedlg, IUP_CENTER, IUP_CENTER)
 
-        integer status = IupGetInt(filedlg, "STATUS")
-        string msg, title
-        if status=-1 then
-            title = "IupFileDlg"
-            msg = "Operation Cancelled"
-        else
-            if status=1 then
-                title = "New file"
-            elsif status=0 then
-                title = "File already exists"
-            end if
-            msg = IupGetAttribute(filedlg, "VALUE")
-            if msg!="" then
-                check_ansi(msg)
-            end if
+    integer status = IupGetInt(filedlg, "STATUS")
+    string msg, title
+    if status=-1 then
+        title = "IupFileDlg"
+        msg = "Operation Cancelled"
+    else
+        if status=1 then
+            title = "New file"
+        elsif status=0 then
+            title = "File already exists"
         end if
-        IupMessage(title,msg)
-
-        IupDestroy(filedlg)
-        IupClose()
+        msg = IupGetAttribute(filedlg, "VALUE")
+        if msg!="" then
+            check_ansi(msg)
+        end if
     end if
+    IupMessage(title,msg)
+
+    filedlg = IupDestroy(filedlg)
+    IupClose()
+end if
 

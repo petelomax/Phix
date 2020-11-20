@@ -1,7 +1,7 @@
 --
 -- eamisc.e
 --
--- UpperCase, LowerCase, iff, min, max, curb, despace
+-- UpperCase, LowerCase, min, max, curb, despace
 --
 without trace
 
@@ -42,13 +42,15 @@ global function LowerCase(object text)
     return text
 end function
 
-global type bool(integer flag)
-    return (flag=0 or flag=1)
-end type
+--global type bool(integer flag)
+--  return (flag=0 or flag=1)
+--end type
 
-global function ifff(bool condition, object Tval, object Fval)
+--/*
+global function iff(bool condition, object Tval, object Fval)
     if condition then return Tval else return Fval end if
 end function
+--*/
 
 global function Min(integer a, integer b)
 --min

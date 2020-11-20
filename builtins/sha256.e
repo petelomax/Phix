@@ -287,6 +287,7 @@ integer block_offset
     string res = peek({mem4*4,32})
     free(mem4*4)
     return rev4(res)
+--  return res
 end function
  
 

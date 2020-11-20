@@ -1,144 +1,146 @@
--- IupSubmenu: Example in C 
+--
+--  demo\pGUI\submenu.exw
+--  =====================
+--
 --   Creates a dialog with a menu with three submenus.
 --   One of the submenus has a submenu, which has another submenu.
-
--- IUP libraries include  
+--
 include pGUI.e
 
-function esc_close(Ihandle /*ih*/, atom c)
--- (I like all my demos to close when escape is keyed)
-    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
-end function
-
----- ****************************************************************************
---  Function:                                                                 -- 
---  Item help callback                                                        -- 
---                                                                            -- 
---  Description:                                                              -- 
---  Shows a message saying that only Help and Exit items performs an operation-- 
---                                                                            -- 
---  Value returned:                                                           -- 
---  IUP_DEFAULT                                                               -- 
--- **************************************************************************** 
-function item_help_cb(object void)
-    if object(void) then end if
-    IupMessage("Warning", "Only Help and Exit items performs an operation")
+function item_help_cb(Ihandle /*ih*/)
+--  IupMessage("Warning", "Only Help and Exit items perform an operation")
+    puts(1,"Warning: Only Help and Exit items perform an operation\n")
     return IUP_DEFAULT
 end function
 
-
----- ****************************************************************************
---  Function:                                                                 -- 
---  Item exit callback                                                        -- 
---                                                                            -- 
---  Description:                                                              -- 
---  Exits the program                                                         -- 
---                                                                            -- 
---  Value returned:                                                           -- 
---  IUP_DEFAULT                                                               -- 
--- **************************************************************************** 
-function item_exit_cb(object void)
-    if object(void) then end if
+function item_exit_cb(Ihandle /*ih*/)
     return IUP_CLOSE
 end function
 
--- IUP identifiers  
-Ihandle  dlg
-Ihandle  text
-Ihandle  menu,   menu_file, menu_edit,   menu_help
-Ihandle  menu_create
-Ihandle  menu_triangle
-Ihandle  submenu_file,   submenu_edit,   submenu_help
-Ihandle  submenu_create
-Ihandle  submenu_triangle
-Ihandle  item_new,   item_open, item_close,   item_exit
-Ihandle  item_copy, item_paste
-Ihandle  item_line, item_circle
-Ihandle  item_equilateral,   item_isoceles, item_scalenus
-Ihandle  item_help
+function exit_cb(Ihandle /*ih*/)
+    ?"exit_cb"
+    return IUP_DEFAULT
+end function
+constant cb_exit = Icallback("exit_cb")
 
-    -- Initializes IUP  
-    IupOpen()
+Ihandln popup_menu = NULL
 
-    -- Program begin    
+--function rightclick_cb(Ihandle /*ih*/, integer /*id*/)
+function button_cb(Ihandle /*ih*/, integer button, pressed, /*x*/, /*y*/, atom /*pStatus*/)
+--ih: identifies the element that activated the event.
+--button: identifies the activated mouse button:
+    if button = IUP_BUTTON3 and pressed=0 then
+--      string status = peek_string(pStatus)
+--?{pressed,{x,y},status}
+--IUP_BUTTON1 - left mouse button (button 1);
+--IUP_BUTTON2 - middle mouse button (button 2);
+--IUP_BUTTON3 - right mouse button (button 3).
+--  char attr[50];
+        if popup_menu = NULL then
+            popup_menu = IupMenu({IupItem("Cut"),
+                                  IupItem("Copy"),
+                                  IupItem("Paste"),
+                                  IupItem("Delete"),
+                                  IupSeparator(),
+                                  IupItem("Reload"),
+                                  IupItem("Exit",cb_exit)})
+        end if  
+        IupPopup(popup_menu, IUP_MOUSEPOS, IUP_MOUSEPOS)
+--?"IupPopup returns"
+        return IUP_IGNORE
+    end if
+    return IUP_DEFAULT
+end function
 
-    -- Creates a multiline  
---  text = IupText()
-    text = IupText(`VALUE = "This text is here only to compose", EXPAND = YES`)
+function main_menu()
+--
+-- Created twice, once for the top (bar) menu, once for the lower drop-down.
+-- Done this way so that you can seen the different display behaviours.
+--
+Ihandle menu_file = IupMenu({IupMenuItem("&New"),
+                             IupMenuItem("&Open"),
+                             IupMenuItem("&Close"),
+                             IupSeparator(),
+                             IupMenuItem("E&xit", Icallback("item_exit_cb"))}),
+        menu_paste = IupMenu({IupMenuItem("Normal"),
+                              IupMenuItem("html-stripped")}),
+        menu_circle = IupMenu({IupMenuItem("Normal"),
+                               IupMenuItem("Dotted"),
+                               IupSeparator(),
+                               IupMenuItem("Filled")}),
+        menu_triangle = IupMenu({IupMenuItem("Equilateral"),
+                                 IupMenuItem("Isoceles"),
+                                 IupMenuItem("Scalenus")}),
+        menu_create = IupMenu({IupMenuItem("Line"),
+                               IupSubmenu("Circle",menu_circle),
+                               IupSeparator(),
+                               IupSubmenu("Triangle", menu_triangle)}),
+        menu_edit = IupMenu({IupMenuItem("Copy"),
+                             IupSubmenu("Paste",menu_paste),
+                             IupSeparator(),
+                             IupSubmenu("Create", menu_create)}),
+--      menu_help = IupMenu({IupMenuItem("&Help", Icallback("item_help_cb"))}),
+        menu_help = IupMenuItem("&Help", Icallback("item_help_cb")),
+        menu = IupMenu({IupSubmenu("&File", menu_file),
+                        IupSubmenu("&Edit", menu_edit),
+--                      IupSubmenu("&Help", menu_help)}),
+                        menu_help})
+    return menu
+end function
 
-    -- Sets value of the text and turns on expand   
---  IupSetAttributes(text, `VALUE = "This text is here only to compose", EXPAND = YES`)
+Ihandln popup_menu2 = NULL
 
-    -- Creates items of menu file  
-    item_new = IupMenuItem("New")
-    item_open = IupMenuItem("Open")
-    item_close = IupMenuItem("Close")
-    item_exit = IupMenuItem("E&xit", "item_exit_act")
+--function rightclick_cb(Ihandle /*ih*/, integer /*id*/)
+function button2_cb(Ihandle /*ih*/, integer button, pressed, /*x*/, /*y*/, atom /*pStatus*/)
+--ih: identifies the element that activated the event.
+--button: identifies the activated mouse button:
+    if button = IUP_BUTTON3 and pressed=0 then
+--      string status = peek_string(pStatus)
+--?{pressed,{x,y},status}
+--IUP_BUTTON1 - left mouse button (button 1);
+--IUP_BUTTON2 - middle mouse button (button 2);
+--IUP_BUTTON3 - right mouse button (button 3).
+--  char attr[50];
+        if popup_menu2 = NULL then
+            popup_menu2 = main_menu() -- (a fresh separate copy)
+/*
+            popup_menu2 = IupMenu({IupItem("A different popup menu"),
+                                   IupItem("Copy"),
+                                  IupItem("Paste"),
+                                  IupItem("Delete"),
+                                  IupSeparator(),
+                                  IupItem("Reload"),
+                                  IupItem("Exit",cb_exit)})
+*/
+        end if  
+        IupPopup(popup_menu2, IUP_MOUSEPOS, IUP_MOUSEPOS)
+--?"IupPopup returns"
+        return IUP_IGNORE
+    end if
+    return IUP_DEFAULT
+end function
 
-    -- Creates items of menu edit  
-    item_copy = IupMenuItem("Copy")
-    item_paste = IupMenuItem("Paste")
+IupOpen()
+Ihandle menu = main_menu(),
+        text = IupText(`VALUE = "Right click here for a Cut Copy Paste Delete Reload Exit popup", EXPAND = YES`),
+        txt2 = IupText(`VALUE = "Right click here for a different menu popup", EXPAND = YES`),
+        vbox = IupVbox({text,txt2}),
+        dlg = IupDialog(vbox,`TITLE="IupSubmenu Example", SIZE = QUARTERxEIGHTH`)
+--IupSetCallback(dlg, "RIGHTCLICK_CB",  Icallback("rightclick_cb")); -- IupTabs/Tree only
+--Affects: IupCanvas, IupButton, IupText, IupList, IupGLCanvas :
+--IupSetCallback(dlg, "BUTTON_CB",  Icallback("button_cb"));
+IupSetCallback(text, "BUTTON_CB",  Icallback("button_cb"));
+IupSetCallback(txt2, "BUTTON_CB",  Icallback("button2_cb"));
 
-    -- Creates items for menu triangle  
-    item_scalenus = IupMenuItem("Scalenus")
-    item_isoceles = IupMenuItem("Isoceles")
-    item_equilateral = IupMenuItem("Equilateral")
 
-    -- Create menu triangle  
-    menu_triangle = IupMenu({item_equilateral, item_isoceles, item_scalenus})
-
-    -- Creates submenu triangle  
-    submenu_triangle = IupSubmenu("Triangle", menu_triangle)
-
-    -- Creates items for menu create    
-    item_line = IupMenuItem("Line")
-    item_circle = IupMenuItem("Circle")
-
-    -- Creates menu create  
-    menu_create = IupMenu({item_line, item_circle, submenu_triangle})
-
-    -- Creates submenu create  
-    submenu_create = IupSubmenu("Create", menu_create)
-
-    -- Creates items of menu help  
-    item_help = IupMenuItem("Help", "item_help_act")
-
-    -- Creates three menus  
-    menu_file = IupMenu({item_new, item_open, item_close, IupSeparator(), item_exit})
-    menu_edit = IupMenu({item_copy, item_paste, IupSeparator(), submenu_create})
-    menu_help = IupMenu({item_help})
-
-    -- Creates three submenus  
-    submenu_file = IupSubmenu("File", menu_file)
-    submenu_edit = IupSubmenu("Edit", menu_edit)
-    submenu_help = IupSubmenu("Help", menu_help)
-
-    -- Creates main menu with file menu  
-    menu = IupMenu({submenu_file, submenu_edit, submenu_help})
-
-    -- Registers callbacks  
-    IupSetCallback(item_help, "ACTION", Icallback("item_help_cb"))
-    IupSetCallback(item_exit, "ACTION", Icallback("item_exit_cb"))
-
-    -- Associates handle "menu" with menu  
---  IupSetHandle("menu", menu)
-
-    -- Creates dialog with a text  
-    dlg = IupDialog(text)
-
-    -- Sets title and size of the dialog and associates a menu to it    
---  IupSetAttributes(dlg, `TITLE="IupSubmenu Example", SIZE = QUARTERxEIGHTH, MENU = menu`)
-    IupSetAttributes(dlg, `TITLE="IupSubmenu Example", SIZE = QUARTERxEIGHTH`)
-    IupSetAttributeHandle(dlg,"MENU",menu)
-    IupSetCallback(dlg, "K_ANY", Icallback("esc_close"));
-
-    -- Shows dialog in the center of the screen  
-    IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
-
-    -- Initializes IUP main loop    
+IupSetAttributeHandle(dlg,"MENU",menu)
+--popup_menu = menu
+IupCloseOnEscape(dlg)
+IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
+--?IupGetAttribute(dlg,"FONT")  -- "Segoe UI,  9"
+if platform()!=WEB then
     IupMainLoop()
-
-    -- Finishes IUP  
     IupClose()
-
+end if
 

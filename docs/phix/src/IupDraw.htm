@@ -26,6 +26,17 @@
         </tr>
         <tr>
          <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupCanvas.htm">IupCanvas</a>,
+          <a href="IupBackgroundBox.htm">IupBackgroundBox</a>,
+          <a href="IupUpdate.htm">IupUpdate</a>,
+          <a href="IupRedraw.htm">IupRedraw</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Functions:</b>
          </td>
          <td>
@@ -35,10 +46,20 @@
             All primitives can be called only between calls to IupDrawBegin and IupDrawEnd.
             <br>
             <br>
-            <b>IupDrawBegin</b>(Ihandle ih) - Initialize the drawing process.<br>
-            <b>IupDrawEnd</b>(Ihandle ih) - Terminates the drawing process.<br>
-            <b>IupDrawSetClipRect</b>(Ihandle ih, int x1, int y1, int x2, int y2) - Defines a rectangular clipping region.<br>
+            <b>IupDrawBegin</b>(Ihandle ih) - Initialize the drawing process.
+            <br>
+            <br>
+            <b>IupDrawEnd</b>(Ihandle ih) - Terminates the drawing process.
+            <br>
+            <br>
+            <b>IupDrawSetClipRect</b>(Ihandle ih, int x1, int y1, int x2, int y2) - Defines a rectangular clipping region.
+            <br>
+            <br>
             <b>IupDrawResetClip</b>(Ihandle ih) - Reset the clipping area to none.
+            <br>
+            <br>
+            integer {x1,y1,x2,y2} = <b>IupDrawGetClipRect</b>(Ihandle ih) - Returns the previous rectangular clipping region 
+            set by IupDrawSetClipRect, if clipping was reset returns 0 in all values. (since 3.25)
             <br>
             <a name=primitives></a>
             <br>
@@ -51,32 +72,61 @@
             Rectangle, Arc and Polygon can be filled or stroked. <br>
             When stroked the line style can be continuous, dashed or dotted. <br>
             These are controlled by the attribute DRAWSTYLE. <br>
-            Can have values: FILL, STROKE, STROKE_DASH or STROKE_DOT. Default: STROKE. <br>
+            Can have values: FILL, STROKE, STROKE_DASH, STROKE_DOT, STROKE_DASH_DOT or STROKE_DASH_DOT_DOT (dash dot and dash dot dot since 3.25). Default: STROKE. <br>
             The FILL value when set before IupDrawLine has the same effect as STROKE.
             <br>
             <br>
             The line width default is 1, but it can be controlled by the DRAWLINEWIDTH attribute. (since 3.24)
             <br>
             <br>
-            <b>IupDrawParentBackground</b>(Ihandle ih) - Fills the canvas with the native parent background color.<br>
-            <b>IupDrawLine</b>(Ihandle ih, integer x1, y1, x2, y2) - Draws a line including start and end points.<br>
-            <b>IupDrawRectangle</b>(Ihandle ih, integer x1, y1, x2, y2) - Draws a rectangle including start and end points.<br>
+            <b>IupDrawParentBackground</b>(Ihandle ih) - Fills the canvas with the native parent background color.
+            <br>
+            <br>
+            <b>IupDrawLine</b>(Ihandle ih, integer x1, y1, x2, y2) - Draws a line including start and end points.
+            <br>
+            <br>
+            <b>IupDrawRectangle</b>(Ihandle ih, integer x1, y1, x2, y2) - Draws a rectangle including start and end points.
+            <br>
+            <br>
             <b>IupDrawArc</b>(Ihandle ih, integer x1, y1, x2, y2, atom a1, a2) - Draws an arc inside a rectangle between the two angles in degrees. <br>
             When filled will draw a pie shape with the vertex at the center of the rectangle. <br>
-            Angles are counter-clock wise relative to the 3 o&rsquo;clock position.<br>
-            <b>IupDrawPolygon</b>(Ihandle ih, sequence points) - Draws a polygon. Coordinates are stored in the array in the sequence: x1, y1, x2, y2, ...<br>
-            <b>IupDrawText</b>(Ihandle ih, string str, integer x, y) - Draws a text in the given position using the font defined by DRAWFONT (since 3.22), 
+            Angles are counter-clock wise relative to the 3 o&rsquo;clock position.
+            <br>
+            <br>
+            <b>IupDrawPolygon</b>(Ihandle ih, sequence points) - Draws a polygon. Coordinates are stored in the array in the sequence: x1, y1, x2, y2, ...
+            <br>
+            <br>
+            <b>IupDrawText</b>(Ihandle ih, string str, integer x, y, w=0, h=0) - Draws a text in the given position using the font defined by DRAWFONT (since 3.22), 
             if not defined then use <a href="common.htm#FONT">FONT</a>. <br>
             The coordinates are relative the top-left corner of the text. <br>
             Strings with multiple line are accepted using '\n' as line separator. <br>
             Horizontal text alignment for multiple lines can be controlled using DRAWTEXTALIGNMENT attribute: ALEFT (default), ARIGHT and ACENTER options (since 3.22).<br>
-            <b>IupDrawImage</b>(Ihandle ih, string name, boolean make_inactive, integer x, y) - Draws an image given its name. <br>
+            For single line texts if the text is larger than its box and DRAWTEXTWRAP=Yes, then the line will be automatically broken in multiple lines. <br>
+            Notice that this is done internally by the system, the element natural size will still use only a single line. <br>
+            For the remaining lines to be visible the element should use EXPAND=VERTICAL or set a SIZE/RASTERSIZE with enough height for the wrapped lines. (since 3.25) <br>
+            If the text is larger that its box and DRAWTEXTELLIPSIS=Yes, an ellipsis ("...") will be placed near the last visible part of the text and replace the invisible part. <br>
+            It will be ignored when WRAP=Yes (since 3.25). w and h are optional and can be -1 or 0, the text size will be used, so WRAP nor ELLIPSIS will not produce any changes. <br>
+            The text is not automatically clipped to the rectangle, if DRAWTEXTCLIP=Yes it will be clipped but depending on the driver may affect the clipping set 
+            by IupDrawSetClipRect (since 3.25). <br>
+            The text can be draw in any angle using DRAWTEXTORIENTATION, in degrees and counterclockwise (since 3.25), its layout is not centered inside the 
+            given rectangle when text is oriented, to center the layout use DRAWTEXTLAYOUTCENTER=Yes. <br>
+            Text orientation, ellipsis and wrap are not supported in X11.
+            <br>
+            <br>
+            <b>IupDrawImage</b>(Ihandle ih, string name, integer x, y, w=0, h=0) - Draws an image given its name. <br>
             The coordinates are relative the top-left corner of the image. <br>
             The image name follows the same behavior as the IMAGE attribute used by many controls. <br>
             Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name.
             See also <a href="IupImage.htm">IupImage</a>. <br>
-            The make_inactive parameter will draw the same image in inactive state.<br>
-            <b>IupDrawSelectRect</b>(Ihandle ih, integer x1, y1, x2, y2) - Draws a selection rectangle.<br>
+            The DRAWMAKEINACTIVE attribute can be used to force the image to be draw with an inactive state appearance. <br>
+            The DRAWBGCOLOR can be used to control the inactive state background color or when transparency is flatten. <br>
+            w and h are optional and can be -1 or 0, then the image size will be used and no zoom will be performed (since 3.25). <br>
+            Image zoom is not supported in X11 and GDK.
+            <br>
+            <br>
+            <b>IupDrawSelectRect</b>(Ihandle ih, integer x1, y1, x2, y2) - Draws a selection rectangle.
+            <br>
+            <br>
             <b>IupDrawFocusRect</b>(Ihandle ih, integer x1, y1, x2, y2) - Draws a focus rectangle.
             <br>
             <a name=info></a>
@@ -84,20 +134,13 @@
             Information:
             <br>
             <br>
-            integer {width,height} = <b>IupDrawGetSize</b>(Ihandle ih) - Returns the drawing area size.<br>
-            integer {width,height} = <b>IupDrawGetTextSize</b>(Ihandle ih, string str) - Returns the given text size using the font defined by DRAWFONT, if not defined then use FONT.<br>
+            integer {width,height} = <b>IupDrawGetSize</b>(Ihandle ih) - Returns the drawing area size.
+            <br>
+            <br>
+            integer {width,height} = <b>IupDrawGetTextSize</b>(Ihandle ih, string str) - Returns the given text size using the font defined by DRAWFONT, if not defined then use FONT.
+            <br>
+            <br>
             integer {width,height,bpp} = <b>IupDrawGetImageInfo</b>(string name) - Returns the given image size and bits per pixel. bpp can be 8, 24 or 32.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>See Also:</b>
-         </td>
-         <td>
-          <a href="IupCanvas.htm">IupCanvas</a>,
-          <a href="IupBackgroundBox.htm">IupBackgroundBox</a>,
-          <a href="IupUpdate.htm">IupUpdate</a>,
-          <a href="IupRedraw.htm">IupRedraw</a>
          </td>
         </tr>
        </table>

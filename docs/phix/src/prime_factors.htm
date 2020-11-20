@@ -14,7 +14,7 @@
          </td>
          <td>
          <a href="sequence.htm">sequence</a> s = prime_factors(<a href="atom.htm">atom</a> n, 
-                                                               <a href="integer.htm#bool">bool</a> duplicates=false,
+                                                               <a href="integer.htm#bool">bool</a> duplicates=<a href="logicops.htm">false</a>,
                                                                <a href="integer.htm">integer</a> maxprime=100)
          </td>
         </tr>
@@ -23,11 +23,12 @@
           <b>Description:</b>
          </td>
          <td>
-            Returns a list of prime factors of n, which must be an integer (as stored in an atom) between 1 and 
+            Returns a list of prime factors of n, which must be an integer (as stored in an atom) between 0 and 
             <a href="power.htm">power</a>(2,<a href="iff.htm">iff</a>(<a href="machine_bits.htm">machine_bits</a>()=32?53:64)).
             <br>
             <br>
-            Note that, when duplicates is false, prime_factors() always returns {} when passed a prime number (or 1).
+            Note that, when duplicates is false, prime_factors() always returns {} when passed a prime number (or 1).<br>
+            If n is 0 the result is {}, irrespective of any other setting.
             <br>
             <br>
             When duplicates is true, returns a list such that multiplying all the elements of it together produces the value n, 
@@ -39,11 +40,20 @@
             <br>
             The maxprime argument limits the number of prime number factors that are checked, for more details see
             <a href="mpfr.htm#mpzextras">mpz_prime_factors</a>(), which is also capable of handling much larger inputs.<br>
-            The <a href="is_prime.htm">get_maxprime</a>() function can be used to obtain a suitable maxprime index by performing
+            The <a href="get_prime.htm">get_maxprime</a>() function can be used to obtain a suitable maxprime index by performing
             a fast <a href="bsearch.htm">binary_search</a>() for floor(sqrt(p)), which ensures all appropriate primes are 
             checked. However that routine is unlikely to be suitable for <a href="mpfr.htm#mpzextras">mpz_prime_factors</a>()
             for reasons outlined therein. Alternatively you can pass -1 to maxprime (in this routine) and have it invoke
-            get_maxprime() for you, but of course that potentially means an unnecessary sqrt() and binary_search() every time. 
+            <a href="get_prime.htm">get_maxprime</a>() for you, but of course that potentially means an unnecessary sqrt() 
+            and binary_search() every time. 
+            <br>
+            <br>
+            Values above the stated limits trigger an exception, since otherwise the <a href="accuracy.htm">dropped bits</a>
+            would make the result quite incorrect and utterly meaningless. Should you by some strange circumstance happen
+            to know that several trailing bits of a very large n are <i>meant</i> to be 0 (something this routine could not
+            possibly test) and therefore there really isn&rsquot any precision loss, I supppose you <i>could</i> divide by
+            <a href="power.htm">power</a>(2,k) and <a href="prepend.htm">prepend</a> <a href="repeat.htm">repeat</a>(2,k) 
+            to the head of the result, for some k.
          </td>
         </tr>
         <tr>
@@ -52,11 +62,13 @@
          </td>
          <td>
             <a href="integer.htm#bool">bool</a> res = <b>square_free</b>(<a href="atom.htm">atom</a> n, <a href="integer.htm">integer</a> maxprime=100)<br>
-            returns true if prime_factors(n,true,maxprime) would contain no duplicates, but without constructing an s, and quitting early on false.
+            returns true if prime_factors(n,true,maxprime) would contain no duplicates, but without constructing any unnecessary internal lists, and 
+            quitting early on failure. square_free(0) yields true, because it is.
             <br>
             <br>
             <a href="integer.htm#bool">bool</a> res = <b>is_prime</b>(<a href="atom.htm">atom</a> n)<br>
-            returns true if prime_factors(n,false,get_maxprime(p)) would yield {}, but using a faster/simplified version of almost the same algorithm.
+            returns true if prime_factors(n,false,<a href="get_prime.htm">get_maxprime</a>(p)) would yield {}, but using a faster/simplified version of 
+            almost the same algorithm. is_prime(0) yields false, because it isn&rsquo;t.
             Bear in mind, however, that while this is pretty fast, even on 15 or 16 digit numbers, it is still a trial division approach and no doubt 
             <a href="mpfr.htm">mpz_prime</a>() will be much faster on larger numbers, plus of course not bound by any 53/64 bit precision limts.
             <br>
@@ -80,14 +92,14 @@ s = prime_factors(a,true)       -- s is {2,2,299209}
 s = prime_factors(a,true,101)   -- s is {2,2,547,547}
 </eucode-->
 <pre>
-<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {2,3}
-</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">720</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {2,3,5}
-</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">12345</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3,5,823}
-</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3}
-</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">,</font><font color="#000000">duplicates</font><font color="#0000FF">:=</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3,3,3}
-</i></font><font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF"> =</font><font color="#7060A8"> power</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">*</font><font color="#5E005E">get_prime</font><font color="#800000">(</font><font color="#000000">101</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)
-</font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)      </font><font color="#000080"><i> -- s is {2,2,299209}
-</i></font><font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">101</font><font color="#0000FF">)  </font><font color="#000080"><i> -- s is {2,2,547,547}</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">6</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {2,3}</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">720</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {2,3,5}</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">12345</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3,5,823}</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3}</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">27</font><font color="#0000FF">,</font><font color="#000000">duplicates</font><font color="#0000FF">:=</font><font color="#004600">true</font><font color="#0000FF">)</font><font color="#000080"><i> -- s is {3,3,3}</i></font>
+<font color="#004080">atom</font><font color="#000000"> a</font><font color="#0000FF"> =</font><font color="#7060A8"> power</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">*</font><font color="#5E005E">get_prime</font><font color="#800000">(</font><font color="#000000">101</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)      </font><font color="#000080"><i> -- s is {2,2,299209}</i></font>
+<font color="#000000">s</font><font color="#0000FF"> =</font><font color="#5E005E"> prime_factors</font><font color="#0000FF">(</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">101</font><font color="#0000FF">)  </font><font color="#000080"><i> -- s is {2,2,547,547}</i></font>
 </pre>
             <br>
             In contrast, <a href="factors.htm">factors</a>(720) is 
@@ -117,7 +129,8 @@ s = prime_factors(a,true,101)   -- s is {2,2,547,547}
           <a href="power.htm">power</a>,
           <a href="iff.htm">iff</a>,
           <a href="machine_bits.htm">machine_bits</a>,
-          <a href="mpfr.htm#mpzextras">mpz_prime_factors</a>
+          <a href="mpfr.htm#mpzextras">mpz_prime_factors</a>,
+          <a href="get_prime.htm">get_maxprime</a>
          </td>
         </tr>
        </table>

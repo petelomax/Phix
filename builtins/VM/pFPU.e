@@ -18,15 +18,13 @@
 --      10 = 0x0200 = 53 bits (REAL8)
 --      11 = 0x0300 = 64 bits (REAL10) (this is the initialized state)
 --
---
---Erm, investigate fcomi[p] instead of sahf etc. (use ja/jb not jl/jg, jz/ne etc are fine)
---DEV ensure we are looping on C2/fprem
--- Not strictly relevant, but while I've got that web page open, some interesting Status Word bits (after compare):
+-- Not strictly relevant, but while that web page is open, some interesting Status Word bits (after compare):
 --      C3 = 0x400 = Z flag
 --      C2 = 0x040 = P flag
 --      C1 = 0x020 = ?
 --      C0 = 0x010 = C flag
---without debug
+--
+without debug
 
 -- fpu round/precision control: (these are treated as 16-bit words)
 integer near53 = 0  -- usual/default setting for 32-bit
@@ -38,41 +36,14 @@ integer down64 = 0  -- used by (32-bit) opFloor, and 64-bit for idx, etc
 integer trunc64 = 0 -- for poke etc
 integer up64 = 0
 
---/*
-procedure :>initFPU(:>)
-end procedure -- (for Edita/CtrlQ)
---*/
---DEV opCallOnceYeNot
---#ilASM{ jmp :%opRetf
---#ilASM{ jmp :fin
 #ilASM{ jmp :!opCallOnceYeNot
-
 --/*
 procedure :>initFPU(:>)
 end procedure -- (for Edita/CtrlQ)
 --*/
     :>initFPU
 -------------
---      call :>initFEH
         fninit                      -- initialise FPU
---DEV tryme: [??]
---/*
-    [32]
---      jmp :%near53
-        push word #027F
-        fldcw word[esp]
-        add esp,2
-    [64]
---      jmp :%near64
-        push word #057F
-        fldcw word[rsp]
-        add rsp,2
-    []
---  near53 = #27F
---  down53 = #67F
---  near64 = 0
---  down64 = #77F
---*/
     [32]
         sub esp,4
         fnstcw word[esp]            --                                                  -- 7F 03 (NB: le notation)
@@ -183,6 +154,4 @@ end procedure -- (for Edita/CtrlQ)
 ------------
         fldcw word[trunc64]
         ret
-
---  ::fin
       }

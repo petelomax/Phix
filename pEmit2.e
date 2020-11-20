@@ -3998,16 +3998,8 @@ end if
             if nTyp>=S_Type
             and g_scan[v]==0 then
 --*/
---DEV: ?9/0 in DoIff()... (suggested but untried fix therein)
---          bool doit = iff(NEWGSCAN ? nTyp>=S_Type and g_scan[v]==0
---                                   : nTyp>S_Type and sv[S_Slink]=-9 )
-            bool doit
-            if NEWGSCAN then
---              doit = nTyp>=S_Type and g_scan[v]==0
-                doit = v>T_object and nTyp>=S_Type and g_scan[v]==0
-            else
-                doit = nTyp>S_Type and sv[S_Slink]=-9
-            end if
+            bool doit = iff(NEWGSCAN ? nTyp>=S_Type and g_scan[v]==0
+                                     : nTyp>S_Type and sv[S_Slink]=-9 )
             if doit then
 -- 17/3/15:
 if bind or listing then

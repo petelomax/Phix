@@ -392,6 +392,13 @@ if digit=10 then exit end if
                 result &= '0'
                 exponent -= 1
             end while
+-- kludge 24/9/2020:
+        elsif dotdone and result[$]='.' then
+            result = result[1..$-1]
+        end if
+        if result="-0"
+        or result="-" then
+            result = "0"
         end if
     end if
     return result
@@ -442,6 +449,62 @@ object o
     return 1
 end function
 
+bool prefer_backtick = false
+--constant tnr = "tnr"
+--constant tnr = "tnr\\\"\'\0"
+--constant tnr = "tnr\\\"\'0e"
+
+--function allascii(string x, bool withquotes)
+function allascii(string x, integer enquote='q')
+-- Phix allows "strings" to hold binary data, so double check 
+-- before printing it as a string.
+integer c
+bool backtick = (enquote='q')
+sequence bsi = {}
+    for i=length(x) to 1 by -1 do
+        c = x[i]
+--31/1/15:
+--      if c<' ' then
+--      if c<' ' or c>#FF or find(c,"\\\"\'") then
+        if c='\\' or c='\"'or c='\'' then
+            if backtick then
+                bsi &= i
+            else
+                x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
+            end if
+        elsif c<' ' or c>#FF then
+--          c = find(c,"\t\n\r")
+--          c = find(c,"\t\n\r\\\"\'\0\e")
+            if c='\t' then c='t'
+            elsif c='\n' then c='n'
+            elsif c='\r' then c='r'
+            elsif c='\0' then c='0'
+            elsif c='\e' then c='e'
+            else
+--DEV or crash?
+                return 0
+            end if
+            if backtick then
+                for j=1 to length(bsi) do   -- (still "last first", btw/iyswim)
+                    integer k = bsi[j]
+                    x[k..k] = '\\'&x[k]
+                end for
+                backtick = false
+            end if
+            x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
+        end if
+    end for
+--  if withquotes then
+--  if backtick then
+--  if backtick and enquote='q' and length(bsi)!=0 then
+    if backtick and (prefer_backtick or length(bsi)!=0) then
+        x = '`'&x&'`'
+    else
+        x = '"'&x&'"'
+    end if
+    return x
+end function
+
 string hexchar, dxoetc
 sequence bases
 
@@ -463,6 +526,7 @@ integer leftjustify
 integer centre
 integer showplus
 integer showcommas
+integer enquote
 integer minfieldwidth
 --      minfieldwidth = 0
 integer precision
@@ -521,6 +585,7 @@ integer tmp
                 centre = 0
                 showplus = 0
                 showcommas = 0
+                enquote = 0
                 -- Note that -=| are mutually exclusive, and cannot co-exist with 0. 
                 -- Likewise 0 and + are also mutually exclusive, however a + can
                 -- co-exist with -=| as long as it is specified first, and , can be
@@ -579,6 +644,11 @@ integer tmp
                 -- 23/2/10 'b' added
                 -- 12/1/19 'v' added
                 -- 11/12/19 't' added
+                -- 16/11/20 'q' and 'Q' added
+                if fi='q' or fi='Q' then
+                    enquote = fi
+                    fi = 's'
+                end if
 --              fidx = find(fi,"dxobstcvefgEXG")
                 fidx = 0
                 for dx=1 to length(dxoetc) do
@@ -732,6 +802,8 @@ end if
                         -- last (ie precision) branch is revelant to %v.
                     elsif fi='t' then
                         o = iff(o?"true":"false")
+                    elsif enquote then
+                        o = allascii(o,enquote)
                     end if
                     if atom(o) then
 --                      r1 = " "
@@ -785,18 +857,11 @@ end if
                 else    -- efg/EG
                     if precision=-1 then
                         precision = 6
---                  elsif precision>16 then
---                      precision = 16
-                    else
-                        if machine_bits()=32 then
-                            if precision>16 then
---                          if precision>17 then
-                                precision = 16
-                            end if
-                        else -- machine_bits()=64
-                            if precision>20 then
-                                precision = 20
-                            end if
+                    elsif precision>20 then
+                        crash("floating point precision may not exceed 20",{},3)
+                    elsif machine_bits()=32 then
+                        if precision>16 then
+                            precision = 16
                         end if
                     end if
                     if atom(args) then
@@ -809,10 +874,14 @@ end if
                     end if
                     r1 = sprintf2(o,fi,showplus,minfieldwidth,precision)
                     if showcommas then -- ('f' only)
-                        if fidx!=9 then badfmt() end if
+--19/09/2020 bugfix (caused by the introduction of %t)
+--                      if fidx!=9 then badfmt() end if
+                        if fidx!=10 then badfmt() end if
                         showcommas = find('.',r1)
                         if showcommas=0 then showcommas = length(r1)+1 end if
-                        while showcommas>4 do
+--19/09/2020 bugfix ("-999" -> "-,999")
+--                      while showcommas>4 do
+                        while showcommas>(4+(r1[1]='-')) do
                             showcommas -= 3
                             r1 = r1[1..showcommas-1]&','&r1[showcommas..length(r1)]
                         end while
@@ -825,7 +894,9 @@ end if
 --              minfieldwidth -= length(iff(r_len!=0?call_func(r_len,{r1}):r1))
                 minfieldwidth -= length(iff(unicode_align?utf8_to_utf32(r1):r1))
                 if minfieldwidth>0 then
-                    if zerofill then
+-- 20/9/2020
+--                  if zerofill then
+                    if zerofill and find('-',r1)=0 then
                         r1 = repeat('0',minfieldwidth)&r1
                     elsif leftjustify then
                         r1 = r1&repeat(' ',minfieldwidth)
@@ -889,6 +960,7 @@ global procedure printf(integer fn, sequence fmt, object args={})
             switch setting do
 --              case "r_len": r_len = args[i+1]
                 case "unicode_align": unicode_align = args[i+1]
+                case "prefer_backtick": prefer_backtick = args[i+1]
 --20/4/19:
 --              default: throw("unknown printf setting")
                 default: ?9/0
@@ -899,4 +971,94 @@ global procedure printf(integer fn, sequence fmt, object args={})
     end if
 end procedure
 
+--global function sprint(object x)
+global function sprint(object x, integer maxlen=-1, integer nest=0)
+-- Return the string representation of any data object. 
+-- This is the same as the output from print(1, x) or '?', 
+--  but returned as a string sequence rather than printed.
+-- Alternative: see ppp.e (ppf/ppOpt/ppExf).
+object s, xi
 
+    if atom(x) then
+--      s = sprintf("%.10g", x)
+        string fmt = '%'&'.'&'1'&'0'&'g'
+        s = sprintf(fmt,x)
+        if not integer(x)
+--removed 3/11/15 (so that eg 2000000000 gets the ".0")
+--      and integer(floor(x))
+        and not find('.',s)
+        and not find('e',s)         -- eg 1e308
+        and not find('n',s) then    -- (inf/nan)
+            -- make sure you can tell 5 and 5.00000000001 
+            --  apart in ex.err, trace, ?x, and the like.
+--          s &= ".0"
+            s &= '.'
+            s &= '0'
+        end if
+        return s
+    end if
+--  if string(x) then
+
+--      s = allascii(x)
+--      if string(s) then return s end if
+--  end if
+--8/8/16:
+--  if maxlen!=-1 and length(x)>maxlen then
+    if maxlen>4 and length(x)>maxlen then
+        x = x[1..maxlen]
+--8/8/16: (change as above)
+        if string(x) then
+--      if string(x) and length(x)>4 then
+--          s = allascii(x[1..maxlen-4],true)
+            s = allascii(x[1..maxlen-4])
+--          if string(s) then return s&".." end if
+            if string(s) then
+                s &= '.'
+                s &= '.'
+                return s
+            end if
+        end if
+    elsif string(x) then
+--      s = allascii(x,nest!=0)
+        s = allascii(x)
+        if string(s) then return s end if
+    end if
+--  s = "{"
+    s = repeat('{',1)
+    for i=1 to length(x) do
+--      s &= sprint(x[i])
+        xi = x[i]
+        if maxlen=-1 then
+--          s &= sprint(xi)
+            s &= sprint(xi,-1,nest+1)
+        else
+            if maxlen>length(s) then
+                s &= sprint(xi,maxlen-length(s),nest+1)
+            end if
+            if length(s)>=maxlen then
+                if nest=0 then
+                    s = s[1..maxlen-2]
+--                  s &= ".."
+                    s &= '.'
+                    s &= '.'
+                else
+                    s = s[1..maxlen]
+                end if
+                return s
+            end if
+        end if
+        if i<length(x) then
+            s &= ','
+        end if
+    end for
+--  s &= "}"
+    s &= '}'
+    return s
+end function
+
+--DEV move this to pfileioN.e:
+global procedure print(integer fn, object x, integer maxlen=-1)
+-- Print a string representation of any data object.
+-- Alternative: see ppp.e (pp/ppOpt/ppEx).
+    puts(fn,sprint(x,maxlen))
+end procedure

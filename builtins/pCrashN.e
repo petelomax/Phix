@@ -37,12 +37,13 @@ global procedure crash(string fmt, object data={})  --, integer nFrames=1)
 end procedure
 --*/
 --/!*
-global procedure crash(string fmt, object data={}, integer nFrames=1)
-    if atom(data) or length(data) then
-        fmt = sprintf(fmt, data)
+global procedure crash(string msg, object data={}, integer nFrames=1)
+--  if atom(data) or length(data) then
+    if data!={} then
+        msg = sprintf(msg, data)
     end if
     if nFrames<1 then ?9/0 end if
-    crash_message(fmt)  -- (yes, that increfs fmt correctly, I just checked!)
+    crash_message(msg)  -- (yes, that increfs msg correctly, I just checked!)
     #ilASM{
         -- while e/rax do issue fake opRetf (including this routine!)
         [32]

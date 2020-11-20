@@ -74,6 +74,51 @@ Version 0.8.2
             [Or, of course, shove a gazillion and one tons of code into
              psym.e to handle named args on autoincludes, and builtins..
              but I think I'd rather start a brand new Phix 2.0.........!]
+27/08/2020: BUGFIX: eax trashed by belayed opScmp: Expr() now has an extra 
+            saveFunctionResultVars(opsidx,INTSTOO) call (see t37misc).
+27/08/2020: BUGFIX: a literal -1073741824 was getting T_N not T_Integer.
+08/10/2020: BUGFIX: printf(1,"x%04dx\n", -1) was yiedling "x00-1x". It
+            now yields "x  -1x", whereas Euphoria yields "x-001x", which
+            I suspect is down to the underlying C implementation and may
+            not even be constent between platforms. I may be persuaded 
+            to attempt futher tweaks to improve compatability should 
+            anyone kick up a big enough fuss about it..
+10/10/2020: BUGFIX: without debug {include} with debug was not properly
+            re-enabling top level diagnostics on the current file, so
+            effectively without debug would continue to apply to all
+            top-level code after the with debug statement. The flag is 
+            binary, btw, you can't turn it off for half the top-level
+            code, but obvs you shd be able to turn it back on for the
+            current file, after hiding some builtins from the ex.err.
+            Subroutines after the with debug were however always fine.
+01/11/2020: BUGFIX: Nested constants were not properly marked as such,
+            eg SPREAD in p2js_basics.e - triggering the compilation
+            error "cannot create jump table" on a switch statement
+            (since to do so all targets must be known at compile-time,
+             and that will be forced by any "fallthrough" statements).
+05/11/2020: BUGFIX: Embedded classes were using the stids rather than
+            the srids in struct_add_field(). This meant that several
+            test cases worked fine interpreted, but crashed with an
+            invlaid routine_id when compiled.
+15/11/2020: BUGFIX: switch length(r) do was suppressing the store of
+            tmp in tmp=length(r), leaving it in a register, then in
+            "if tmp=1, elsif tmp=2..." the first tmp was correctly
+            getting the register, but second (etc) "reloading" tmp.
+            Quite probbly, the real bug was that reginfo was not
+            being correctly maintained, but instead I simply killed
+            pilx86.e/transtmpfer() [maybe I could have limited that
+            damage to IF], and luckily there didn't appear to be any
+            significant performance hit, but time may yet tell...
+16/11/2020: Enhancement: added %q and %Q to (s)printf(), which are
+            like %s but add quotes. %q can use backticks, and favours
+            them if the new "prefer_backtick" option is set, whereas
+            %Q forces doublequotes. Moved (s)print() from their old
+            builtins\VM\psprintN.e home to builtins\VM\pprntfN.e, 
+            so that the internal allascii() could be shared/tweaked.
+17/11/2020: Added Edix\syn\css.syn to syntax-colour .css files, obvs.
+            Be warned it thinks \\ is a css line comment (none such).
+            Feel free to copy it to Edita\syn, but I'm not going to
+            bother with maintaining and shipping two copies of it.
 
 Version 0.8.1
 =============
@@ -243,6 +288,7 @@ Version 0.8.1
             atom eThread = create_thread(mythread,{1}) is now the same. Nice.
             Note that some builtins such as length still have no routine_id,
             and instead you must provide you own mini-shim for such things.
+            [update: fixed in 0.8.2 via autoinclude builtins/hll_stubs.e]
 12/01/2020: day_of_week() changed to return 1..7 (Mon..Sun) [was Sun..Sat]
             (bringing it into line with ISO 8601 and the earlier ISO 2015)
 13/02/2020: Added include_file[s]() to match include_path[s](), see docs.

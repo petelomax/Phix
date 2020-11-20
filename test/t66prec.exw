@@ -1,0 +1,104 @@
+--
+-- test/t66prec.exw
+--
+--  precedence handling tests
+--
+
+--  2+3*4 is 2 + (3 * 4) = 14, not (2 + 3) * 4 = 20.
+if 2+3*4 != 14 then ?9/0 end if
+if 2+3*4 != 2 + (3 * 4) then ?9/0 end if
+if 2 + (3 * 4) !=14 then ?9/0 end if
+if (2 + 3) * 4 != 20 then ?9/0 end if
+
+--  2*3+4 is (2 * 3) + 4 = 10, not 2 * (3 + 4) = 14.
+if 2*3+4 != 10 then ?9/0 end if
+if 2*3+4 != (2 * 3) + 4 then ?9/0 end if
+if (2 * 3) + 4 != 10 then ?9/0 end if
+if 2 * (3 + 4) != 14 then ?9/0 end if
+
+--  1-2+3 is (1-2)+3 = 2, not 1-(2+3) = -4
+if 1-2+3 != 2 then ?9/0 end if
+if 1-2+3 != (1-2)+3 then ?9/0 end if
+if (1-2)+3 != 2 then ?9/0 end if
+if 1-(2+3) != -4 then ?9/0 end if
+
+-- a*b/c*d/e is ((((a*b)/c)*d)/e)
+-- a*-b/c*not d/e is ((((a*(-b))/c)*(not d))/e)
+for a=1 to 2 do
+    for b=2 to 3 do
+        for c=3 to 4 do
+            for d=4 to 5 do
+                for e=5 to 6 do
+                    if a*b/c*d/e != ((((a*b)/c)*d)/e) then ?9/0 end if
+                    if a*-b/c*not d/e != ((((a*(-b))/c)*(not d))/e) then ?9/0 end if
+                end for
+            end for
+        end for
+    end for
+end for
+
+if ~"one" + ~"two" != length("one") + length("two") then ?9/0 end if
+--(obviously 0 && (1 || 2) gives a different result to (0 && 1) || 2, being 0 and 2 respectively.)
+if 0 && (1 || 2) != 0 then ?9/0 end if
+if (0 && 1) || 2 != 2 then ?9/0 end if
+
+function add1(integer x) return x + 1 end function
+if apply({1,2,3},add1)!={2,3,4} then ?9/0 end if
+
+--/*
+        hi << 16 + lo    is treated as 
+        hi << (16 + lo)  rather than the 
+        (hi << 16) + lo  that was needed and initially expected. 
+        Conversely, the (usually) equivalent 
+        hi << 16 || lo   works the same as 
+        (hi << 16) || lo     even without the parenthesis, and likewise
+        lo || hi << 16   is the same as 
+        lo || (hi << 16)
+--*/
+for v1=-5 to 5 do
+    for v2 = -5 to 5 do
+--?{v1,v2}
+--      if v1<v2 || v1>v2 != (v1!=v2) then ?9/0 end if          -- (crashes)
+--      if (v1<v2) || (v1>v2) != (v1!=v2) then ?9/0 end if      -- (crashes)
+        if ((v1<v2) || (v1>v2)) != (v1!=v2) then ?9/0 end if
+        if ( v1<v2  ||  v1>v2 ) != (v1!=v2) then ?9/0 end if
+    end for
+end for
+
+--?3 > 2 && 2 > 1
+if (3 > 2 && 2 > 1)!=true then ?9/0 end if
+if (3 > 2 and 2 > 1)!=true then ?9/0 end if
+for a=-2 to 2 do
+    for b=-2 to 2 do
+        for c=-2 to 2 do
+            if (a > b && b > c) != ((a > b) && (b > c)) then ?9/0 end if
+        end for
+    end for
+end for
+
+for a=0 to 1 do
+    for b=0 to 1 do
+        for c=0 to 1 do
+            if (a = b or c) != ((a = b) or c) then ?9/0 end if      -- not
+--          if (a = b or c) != (a = (b or c)) then ?9/0 end if      -- not
+--          printf(1,"%d = %d or %d :%d\n",{a,b,c,a = b or c})
+--          printf(1,"%d = %d or %d :%d\n",{a,b,c,a = (b or c)})    -- not
+            if (a or b = c) != (a or (b = c)) then ?9/0 end if
+--          if (a or b = c) != ((a or b) = c) then ?9/0 end if      -- not
+--          printf(1,"%d or %d = %d :%d\n",{a,b,c,a or b = c})
+--          printf(1,"%d or %d = %d :%d\n",{a,b,c,a or (b = c)})
+--          printf(1,"%d or %d = %d :%d\n",{a,b,c,(a or b) = c})    -- not
+        end for
+    end for
+end for
+
+if 1 << 2 * 3 != 1 << (2 * 3) then ?9/0 end if
+
+--?12 + 3 - 4 / 2 < 3 + 1
+if 12 + 3 - 4 / 2 < 3 + 1 != false then ?9/0 end if
+--?12 + 3 - 4 / 2 > 3 + 1
+if 12 + 3 - 4 / 2 > 3 + 1 != true then ?9/0 end if
+
+if 20 + 10 * 15 / 5 != 50 then ?9/0 end if
+if (20 + 10) * 15 / 5 != 90 then ?9/0 end if
+

@@ -5,13 +5,15 @@
 --
 
 global function to_string(object data_in, integer string_quote=0, integer embed_string_quote='"')
-sequence data_out
         
     if string(data_in) then
         if string_quote = 0 then
             return data_in
         end if
         data_in = match_replace(`\`, data_in, `\\`)
+        data_in = match_replace("\r", data_in, `\r`)    -- rocco's
+        data_in = match_replace("\n", data_in, `\n`)    -- nasty
+        data_in = match_replace("\t", data_in, `\t`)    -- teens!!
         data_in = match_replace({string_quote}, data_in, `\` & string_quote)
         return string_quote & data_in & string_quote
     end if
@@ -27,7 +29,7 @@ sequence data_out
         return data_in
     end if
     
-    data_out = "{"
+    sequence data_out = "{"
     for i = 1 to length(data_in) do
         data_out &= to_string(data_in[i], embed_string_quote)
         if i != length(data_in) then

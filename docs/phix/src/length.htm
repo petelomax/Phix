@@ -25,7 +25,18 @@
             The compiler issues compile-time errors/tests for run-time errors, if s is/might be an <a href="atom.htm">atom</a> or <a href="integer.htm">integer</a> (see technicalia).<br>
             If s is a string, the result is the number of <i>bytes</i>, see technicalia for utf8/16 handling.<br>
             If s is a sequence, the result is the number of top-level elements.<br>
-            &nbsp;&nbsp;Nested sub-sequences, however complicated, and string elements, each count as one towards the length.<br>
+            &nbsp;&nbsp;<small>(In the latter, nested sub-sequences, however complicated, and string elements, each count as one towards the length.)</small>
+            <br>
+            <br>
+            Alternatively (when constant ORAC is 1 in p.exw, which it is in all released versions), ~s is shorthand for length(s).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported.
          </td>
         </tr>
         <tr>
@@ -44,11 +55,11 @@
                                         --    s[4] is 7.
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)                            </font><font color="#000080"><i> -- 0: the empty string
-</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{}</font><font color="#0000FF">)                            </font><font color="#000080"><i> -- 0: the empty sequence
-</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{}</font><font color="#800000">}</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- 1: s[1] is {}.
-</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#008000">"four"</font><font color="#0000FF">)                        </font><font color="#000080"><i> -- 4: 4 bytes/characters
-</i></font><font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1.2</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#008000">"six"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- 4: s[1] is 1.2
+<font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)                            </font><font color="#000080"><i> -- 0: the empty string</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{}</font><font color="#0000FF">)                            </font><font color="#000080"><i> -- 0: the empty sequence</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#800080">{}</font><font color="#800000">}</font><font color="#0000FF">)                          </font><font color="#000080"><i> -- 1: s[1] is {}.</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#008000">"four"</font><font color="#0000FF">)                        </font><font color="#000080"><i> -- 4: 4 bytes/characters</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">length</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1.2</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#008000">"six"</font><font color="#00FF00">}</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- 4: s[1] is 1.2
                                         --    s[2] is "three",
                                         --    s[3] is {4,{5,"six"}},
                                         --    s[4] is 7.</i></font>
@@ -104,8 +115,8 @@
             <br>
             <br>
             Obviously, for traditional ascii/ansi/latin-1 strings, the number of bytes is the same as the number of characters, however with unicode 
-            encodings such as UTF-8 some characters are multibyte, and therefore they are clearly not the same. Thankfully, UTF-32 uses a much more
-            consistent 4-bytes-per-character, for which Phix almost always uses a <a href="html/glossary.htm#dwordseq">dword_sequence</a> (UTF-32 is
+            encodings such as UTF-8 some characters are multibyte, clearly not the same. Thankfully, UTF-32 uses a much more consistent 
+            4-bytes-per-character(/unicode point), for which Phix almost always uses a <a href="html/glossary.htm#dwordseq">dword_sequence</a> (UTF-32 is
             almost never written to file, so I am not going to talk about theoretical 4-bytes-per-character LE/BE binary <i>strings</i> any further).
             Almost all manipulation of UTF-8 strings can usually be performed without any conversion to UTF-32 whatsoever, in fact UTF-8 was deliberately
             designed for precisely that, however should you really need to consider each individual unicode point separately, it is a relatively simple 
@@ -115,9 +126,10 @@
             with whichever endianness.<br>
             <br>
             In Euphoria, the length() function has been redefined to yield 1 when passed an atom. While that <i>is</i> helpful for certain algorithms, 
-            sometimes making tests for atom() unnecessary, I firmly believe that fatal errors from length() play a far more important and vital role in 
-            debugging, by highlighting errors in logic, and hence Phix will <i>not</i> be following suit.
-            Besides, it is not exactly difficult to write a shim to achieve the same (as Eu) effect/benefit, and use it sparingly.
+            sometimes making tests for atom() or sequence() unnecessary, I firmly believe that fatal errors from length() play a far more important and 
+            vital role in debugging, by highlighting errors in logic, and hence Phix will <i>not</i> be following suit.
+            Besides, it is not exactly difficult to write a tiny shim <small><i>(a teeny tiny tiniest one!)</i></small> to achieve the same 
+            effect/benefit (as Eu), and use it sparingly.
          </td>
         </tr>
        </table>

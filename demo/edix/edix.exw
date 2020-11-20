@@ -218,10 +218,12 @@ include builtins\fileopenN.ew   --                  ""
 
 --constant SLASH = iff(platform()=WINDOWS?'\\':'/')
 
-global Ihandle dlg, sbmsg, config
+global Ihandle dlg, sbmsg
+global Ihandln config
 Ihandle autosavetimer
 Ihandle tbox, rtbox, tree, tcbox, tabs, canvas
-Ihandle sbhbox, sbline, sbinfo, sbdate, clipboard
+Ihandle sbhbox, sbline, sbinfo, sbdate
+Ihandln clipboard = NULL
 --Ihandln sbtemp = NULL
 cdCanvas cddbuffer, cdcanvas
 integer tip_visible = 0
@@ -1709,7 +1711,7 @@ function update_time_cb(Ihandle time_update)
         --  so it updates precisely on the next minute. So first time in,
         --  [and only once] recreate the timer with a 60 second period -
         --  I did try IupSetInt(time_update,"TIME",60000), but no joy.
-        IupDestroy(time_update)
+        {} = IupDestroy(time_update)
         time_update = IupTimer(cb_update_time,60000,true)
     end if
     return IUP_DEFAULT
@@ -2307,6 +2309,8 @@ if c!=currfile then ?9/0 end if
 --              iniHandModded = 1
                 if IupConfigLoad(config)!=0 then
                     IupMessage(xl("Warning"),xl("IupConfigLoad failed"))
+else
+ ?"IupConfig succeeded!"
                 end if
             else
                 -- if we save a .syn file, reload them all.
@@ -2543,7 +2547,7 @@ Ihandle mtab
 end procedure
 
 function saveFileAs()
-Ihandle filedlg
+Ihandln filedlg
 integer encoding = ENC_NONE
 string filename = ""
 
@@ -2595,7 +2599,7 @@ if encoding=0 then encoding = 1 end if
                 encoding = ANSI
             end if
 
-            IupDestroy(filedlg)
+            filedlg = IupDestroy(filedlg)
         end if
         if length(filename) then
             string waspath = filepaths[c],
@@ -2633,12 +2637,12 @@ end if
                         removelast(i)
 --DEV tryme:
 if 0 then
-                        IupDestroy(findtab(i,true))
+                        {} = IupDestroy(findtab(i,true))
 else
                         for pos=0 to IupGetInt(tabs,"COUNT")-1 do
-                            Ihandle dtab = IupGetChild(tabs, pos)
+                            Ihandln dtab = IupGetChild(tabs, pos)
                             if IupGetInt(dtab,"FILEIDX")=i then
-                                IupDestroy(dtab)
+                                dtab = IupDestroy(dtab)
                                 exit
                             end if
                         end for
@@ -4602,7 +4606,7 @@ constant cb_new = Icallback("new_cb")
 --function item_open_action_cb(Ihandle /*item_open*/)
 function open_cb(Ihandle /*item_open*/)
 --?"open"
---Ihandle filedlg;
+--Ihandln filedlg;
 --string d
 --
 --  if save_check(item_open) then
@@ -4623,10 +4627,10 @@ function open_cb(Ihandle /*item_open*/)
 --          IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d);
 --      end if
 --
---      IupDestroy(filedlg);
+--      filedlg = IupDestroy(filedlg);
 --  end if
 
-Ihandle filedlg
+Ihandln filedlg
 --integer encoding = ENC_NONE
 integer encoding = -1
 --ENC_NONE  = 0,
@@ -4646,7 +4650,8 @@ string filename = ""
 --          res = newGetOpenFileName(hWnd,filters,{2,"exw"})
 --      else
 --          res = newGetOpenFileName(hWnd,buildFileFilter2(),{2,"exw"},{filepaths[c]})
-            res = newGetOpenFileName(hWnd,buildFileFilter2(),NULL,{filepaths[c]})
+            object fpc = iff(c?{filepaths[c]}:NULL)
+            res = newGetOpenFileName(hWnd,buildFileFilter2(),NULL,fpc)
 --      end if
         if sequence(res) then
             {encoding,filename} = res
@@ -4749,7 +4754,7 @@ end function
 --              IupMessage("IupFileDlg","Operation Canceled")
 --      end switch
 
-        IupDestroy(filedlg)
+        filedlg = IupDestroy(filedlg)
     end if
     if length(filename) then
         {} = openFile(0,filename,encoding)
@@ -4931,10 +4936,10 @@ integer c
     
 --DEV tryme/findtab()...
         for pos=0 to IupGetInt(tabs,"COUNT")-1 do
-            Ihandle tab = IupGetChild(tabs, pos)
+            Ihandln tab = IupGetChild(tabs, pos)
             if IupGetInt(tab,"FILEIDX")=currfile then
                 {} = tabclose_cb(tabs, pos)
-                IupDestroy(tab)
+                tab = IupDestroy(tab)
                 exit
             end if
         end for
@@ -4985,7 +4990,7 @@ integer c
 --  end if
 --
 --  -- remove the tab
---  IupDestroy(sci)
+--  sci = IupDestroy(sci)
 --  IupRefreshChildren(tabs)
 --
 --  atom count = IupGetChildCount(tabs)
@@ -5113,10 +5118,12 @@ function exit_cb(Ihandle /*item_exit*/)
     end for
 
     IupConfigDialogClosed(config, dlg, "MainWindow");
-    {} = IupConfigSave(config);
-    IupDestroy(config);
---erm, does not seem to be necessary...
---  {} = closeChm()
+    integer errcode = IupConfigSave(config);
+    if errcode!=0 then
+        ?{"IupConfigSave",errcode}
+        ?9/0
+    end if
+    config = IupDestroy(config);
     closeChm()
     return IUP_CLOSE;
 end function
@@ -5176,6 +5183,16 @@ function paste_cb(atom /*self*/)
     return IUP_IGNORE
 end function
 constant cb_paste = Icallback("paste_cb")
+
+function fname_cb(atom /*self*/)
+    if currfile then
+        string filename = filepaths[currfile] & filenames[currfile]
+        IupSetAttribute(clipboard, "TEXT", NULL)    -- (as per docs)
+        IupSetAttribute(clipboard, "TEXT", filename)
+    end if
+    return IUP_IGNORE
+end function
+constant cb_fname = Icallback("fname_cb")
 
 function delete_cb(Ihandle /*item_delete*/)
     if selON then
@@ -5284,8 +5301,7 @@ function backoff_cb(atom /*self*/)
                 "Disable","Cancel")=1 then
         IupSetInt(toolb_back,"ACTIVE",0)
         IupSetAttribute(backtimer,"RUN","NO")
-        IupDestroy(backtimer)
-        backtimer = NULL
+        backtimer = IupDestroy(backtimer)
     end if
     return IUP_IGNORE
 end function
@@ -5715,7 +5731,7 @@ end function
 Ihandle edit_undo, edit_redo, 
         edit_cut, edit_cuta, edit_cutp, 
         edit_copy, edit_copya, edit_copyp, 
-        edit_paste, edit_clip, edit_clips, 
+        edit_paste, copy_fname, edit_clip, edit_clips, 
         edit_delete, edit_find, find_next, find_prev, 
         edit_nextcs, edit_prevcs, 
         edit_goto, edit_selall
@@ -5881,7 +5897,7 @@ function reset_help_cb(Ihandle ih)
 --      fake_menu = IupMenu()
 --      IupSetAttributeHandle(dlg, "MENU", fake_menu)
 --      IupSetAttributeHandle(dlg, "MENU", NULL)
---      IupDestroy(fake_menu)
+--      fake_menu = IupDestroy(fake_menu)
 --      IupSetFocus(canvas)
 --      IupSetFocus(tabs)
 --      IupSetGlobal("KEY",#1B) -- no help...
@@ -5905,7 +5921,7 @@ function reset_help_cb(Ihandle ih)
 --      IupSetAttributeHandle(dlg, "MENU", fake_menu)
 --      IupSetAttributeHandle(dlg, "MENU", NULL)
 --      IupSetAttributeHandle(dlg, "MENU", menu)
---      IupDestroy(fake_menu)
+--      fake_menu = IupDestroy(fake_menu)
 --      IupFlush()
 --      IupSetFocus(canvas)
 --  end if
@@ -5975,7 +5991,9 @@ function menu_item(string text, string image, atom action_cb, integer active=1, 
         text[k+1..$] = keybd:mapkeytext(text[k+1..$])
     end if
     Ihandle ih = IupMenuItem(text, action_cb)
-    IupSetStrAttribute(ih, "IMAGE", get_image(image))
+    if length(image) then
+        IupSetStrAttribute(ih, "IMAGE", get_image(image))
+    end if
     IupSetInt(ih, "ACTIVE", active)
     if id then
         IupSetInt(ih, "ID", id)
@@ -6038,14 +6056,16 @@ function create_file_menu()
     file_reopen = menu_item("&ReOpen\tCtrl Shift O",    "PNG_FileReOpen",   cb_reopen,      0)
     file_save   = menu_item("&Save\t\tCtrl S",          "PNG_FileSave",     cb_save,        0)
     file_saveas = menu_item("Save &As..",               "PNG_FileSaveAs",   cb_saveas,      0)
-    file_list   = menu_item("File Lis&t\tCtrl T",       "PNG_FileList",     cb_filelist,    1)
+--  file_list   = menu_item("File Lis&t\tCtrl T",       "PNG_FileList",     cb_filelist,    1)
+    file_list   = menu_item("File Lis&t\tCtrl T",       "",                 cb_filelist,    1)
     file_close  = menu_item("C&lose\t\tCtrl F4",        "PNG_FileClose",    cb_close,       0)
-    file_prntp  = menu_item("Print Pre&view\t\tCtrl P", "PNG_FilePreview",  cb_preview,     0)
     file_print  = menu_item("&Print\t\tCtrl Shift P",   "PNG_FilePrint",    cb_print,       0)
+    file_prntp  = menu_item("Print Pre&view\t\tCtrl P", "PNG_FilePreview",  cb_preview,     0)
+--DEV: Report painter, Code Publisher
     recent_menu = IupMenu({})
     file_recent = IupSubmenu("Recent &Files", recent_menu)
     IupConfigRecentInit(config, recent_menu, Icallback("config_recent_cb"), 9)
-    IupSetStrAttribute(file_recent, "IMAGE", get_image("PNG_FileRecent"))
+--  IupSetStrAttribute(file_recent, "IMAGE", get_image("PNG_FileRecent"))
     file_exit   = menu_item("E&xit\t\tAlt F4",  "PNG_FileExit",   cb_exit,   1)
     Ihandle file_menu = IupMenu({file_new,
                                  file_open,
@@ -6080,16 +6100,24 @@ function create_edit_menu()
     edit_copya  = menu_item("Copy Append\tCtrl Shift C",        "PNG_EditCopya",    cb_copya,           1)
     edit_copyp  = menu_item("Copy Prepend\tAlt Shift C",        "PNG_EditCopyp",    cb_copyp,           1)
     edit_paste  = menu_item("&Paste\tCtrl V",                   "PNG_EditPaste",    cb_paste,           1)
-    edit_clip = IupMenu({edit_cut,edit_cuta,edit_cutp,edit_copy,edit_copya,edit_copyp,edit_paste})
+    copy_fname  = menu_item("Copy Filename",                    "",                 cb_fname,           1)
+    edit_clip = IupMenu({edit_cut,edit_cuta,edit_cutp,
+                         edit_copy,edit_copya,edit_copyp,
+                         edit_paste,copy_fname})
     edit_delete = menu_item("&Delete\tDelete",                  "PNG_EditErase",    cb_delete,          0)
     edit_find   = menu_item("&Find...\tCtrl F",                 "PNG_EditFind",     fdlg:cb_find,       1)
-    find_next   = menu_item("Find Next\tF3",                    "PNG_FindNext",     fdlg:cb_findnext,   0)
-    find_prev   = menu_item("Find Prev\tShift F3",              "PNG_FindPrev",     fdlg:cb_findprev,   0)
+--  find_next   = menu_item("Find Next\tF3",                    "PNG_FindNext",     fdlg:cb_findnext,   0)
+    find_next   = menu_item("Find Next\tF3",                    "",                 fdlg:cb_findnext,   0)
+--  find_prev   = menu_item("Find Prev\tShift F3",              "PNG_FindPrev",     fdlg:cb_findprev,   0)
+    find_prev   = menu_item("Find Prev\tShift F3",              "",                 fdlg:cb_findprev,   0)
 --DEV Next/prior diff, Ctrl [ ]
-    edit_nextcs = menu_item("Next Control Structure\tCtrl ]",   "PNG_EditNextCS",   cb_nextcs,          1)
-    edit_prevcs = menu_item("Prev Control Structure\tCtrl [",   "PNG_EditPrevCS",   cb_prevcs,          1)
+--  edit_nextcs = menu_item("Next Control Structure\tCtrl ]",   "PNG_EditNextCS",   cb_nextcs,          1)
+    edit_nextcs = menu_item("Next Control Structure\tCtrl ]",   "",                 cb_nextcs,          1)
+--  edit_prevcs = menu_item("Prev Control Structure\tCtrl [",   "PNG_EditPrevCS",   cb_prevcs,          1)
+    edit_prevcs = menu_item("Prev Control Structure\tCtrl [",   "",                 cb_prevcs,          1)
     edit_goto   = menu_item("&Goto...\tCtrl G",                 "PNG_EditGoto",     gdlg:cb_goto,       1)
-    edit_selall = menu_item("Select &All\tCtrl A",              "PNG_EditSelectAll",cb_selectall,       1)
+--  edit_selall = menu_item("Select &All\tCtrl A",              "PNG_EditSelectAll",cb_selectall,       1)
+    edit_selall = menu_item("Select &All\tCtrl A",              "",                 cb_selectall,       1)
 --edit_selwrd = menu_item("Select &Word\tCtrl W",               "PNG_EditSelectWrd",cb_selectwrd,       1)
 
 --  item_goto = IupMenuItem("&Go To...\tCtrl G");
@@ -7178,13 +7206,13 @@ Ihandle list = IupList("EXPAND=HORIZONTAL, EDITBOX=NO")
 --  IupSetInt(list,"VISIBLEITEMS",3)
     IupSetInt(list,"VISIBLELINES",3)
     IupSetInt(list,"VALUE",0)
-    Ihandle idialog = IupDialog(list,"BORDER=NO, RESIZE=NO, MAXBOX=NO, MINBOX=NO, MENUBOX=NO")
+    Ihandln idialog = IupDialog(list,"BORDER=NO, RESIZE=NO, MAXBOX=NO, MINBOX=NO, MENUBOX=NO")
     IupSetCallback(list, "K_ANY", Icallback("isensekey_cb"))
     integer {x,y} = IupGetIntInt(canvas,"SCREENPOSITION")
     x += charwidth*(CursorX+marginRqd)
     y += charheight*(CursorY-TopLine+1)
     IupPopup(idialog,x,y)
-    IupDestroy(idialog)
+    idialog = IupDestroy(idialog)
 end procedure
 
 procedure intellitip()
@@ -7911,10 +7939,11 @@ end function
 --end function
 
 function key_cb(Ihandle ih, atom c)
---?"key_cb"
+--?"key_cb"&c
 --sleep(1)
     if MacroPlaying=0 then
         c = keybd:mapkey(c)
+--?"key_cb=>"&c
     end if
     -- first handle all keys that work without a current file
     switch c do
@@ -8217,17 +8246,25 @@ sequence res = repeat(0,11), work
     return res
 end function
 
+--with trace
+--trace(1)
 procedure main()
+bool normalconfig = true
 
 --  IupOpen(join_path({initialcurrentdir,"..","pGUI"},1))
     IupOpen()
 
     IupSetGlobal("SINGLEINSTANCE", "Edix") -- (must [partially] match the main window title)
     if IupGetGlobal("SINGLEINSTANCE")="" then
+        ?"SINGLEINSTANCE!"
+if 01 then
+        normalconfig = false
+else
 --DEV/temp[?]:
-?"SINGLEINSTANCE!" sleep(1)
+        sleep(1)
         IupClose()
         return
+end if
     end if
 
 --  IupImageLibOpen()   -- (no longer used)
@@ -8237,9 +8274,13 @@ procedure main()
     IupSetGlobal("GLOBALMENU","NO")
 
     config = IupConfig()
-    IupSetAttribute(config, "APP_NAME", "edix")
+--  IupSetAttribute(config, "APP_NAME", "edix")
+    IupSetAttribute(config, "APP_NAME", iff(normalconfig?"edix":"edix2"))
     integer errcode = IupConfigLoad(config)
---  if errcode!=0 then ?9/0 end if
+    if errcode!=0 then
+        ?{"IupConfigLoad error",errcode}
+--      ?9/0
+    end if
 
     clipboard = IupClipboard()
 
@@ -8474,7 +8515,10 @@ procedure main()
 --  IupSetAttribute(vbox, "SHRINK", "YES");
 
     dlg = IupDialog(vbox, "TITLE=Edix, SHRINK=YES")
-    IupSetGlobal("PARENTDIALOG", dlg)
+--  IupSetGlobal("PARENTDIALOG", dlg)
+--  IupSetHandle("PARENTDIALOG", dlg)
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg) -- gah, no better... (1/9/2020)
+--  IupSetAttributePtr(NULL,"PARENTDIALOG",dlg) -- gah, no better... (1/9/2020)
 --  IupSetAttribute(dlg, "MINSIZE", "144x87")   -- 96x46
 --  IupSetAttribute(dlg, "MINSIZE", "216x163")  -- 144x87
     IupSetAttribute(dlg, "MINSIZE", "462x163")
@@ -8536,7 +8580,7 @@ procedure main()
     IupConfigDialogShow(config, dlg, "MainWindow")
 
     -- set parent for pre-defined dialogs in closed functions (IupMessage and IupAlarm)
-    IupSetGlobal("PARENTDIALOG", dlg)
+--  IupSetGlobal("PARENTDIALOG", dlg)
 
     -- restore session
     integer currfileN = IupConfigGetVariableInt(config,"Session","current")
@@ -8587,7 +8631,7 @@ procedure main()
 
     IupMainLoop()
 
-    IupDestroy(clipboard);
+    clipboard = IupDestroy(clipboard)
 
     IupClose()
 end procedure

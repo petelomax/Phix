@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="string.htm">string</a> text = substitute(<a href="string.htm">string</a> text, <a href="string.htm">string</a> s, <a href="string.htm">string</a> r)
+         <a href="sequence.htm">sequence</a> text = substitute(<a href="sequence.htm">sequence</a> text, s, r, <a href="integer.htm">integer</a> limit=-1)
          </td>
         </tr>
         <tr>
@@ -21,7 +21,7 @@
           <b>Description:</b>
          </td>
          <td>
-            Replace all instances of s in text with r.
+            Replace at most limit instances, or all if limit is -1, of s in text with r.
          </td>
         </tr>
         <tr>
@@ -53,8 +53,8 @@
 ?substitute("abracadabra", "a", "")         -- displays "brcdbr"
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#0000FF">?</font><font color="#5E005E">substitute</font><font color="#0000FF">(</font><font color="#008000">"abracadabra"</font><font color="#0000FF">,</font><font color="#008000"> "ra"</font><font color="#0000FF">,</font><font color="#008000"> "X"</font><font color="#0000FF">)      </font><font color="#000080"><i> -- displays "abXcadabX"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">substitute</font><font color="#0000FF">(</font><font color="#008000">"abracadabra"</font><font color="#0000FF">,</font><font color="#008000"> "a"</font><font color="#0000FF">,</font><font color="#008000"> ""</font><font color="#0000FF">)        </font><font color="#000080"><i> -- displays "brcdbr"</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">substitute</font><font color="#0000FF">(</font><font color="#008000">"abracadabra"</font><font color="#0000FF">,</font><font color="#008000"> "ra"</font><font color="#0000FF">,</font><font color="#008000"> "X"</font><font color="#0000FF">)      </font><font color="#000080"><i> -- displays "abXcadabX"</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">substitute</font><font color="#0000FF">(</font><font color="#008000">"abracadabra"</font><font color="#0000FF">,</font><font color="#008000"> "a"</font><font color="#0000FF">,</font><font color="#008000"> ""</font><font color="#0000FF">)        </font><font color="#000080"><i> -- displays "brcdbr"</i></font>
 </pre>
          </td>
         </tr>
@@ -86,14 +86,16 @@
          <td>
             I have reproduced this routine here because I think it is interesting to study, especially since
             it can in some cases prove to be several thousand times faster than a simpler/in situ method.
+            <br>
+            <br>
 <!--eucode>
-global function substitute(string text, string s, string r)
+global function substitute(sequence text, s, r, integer limit=-1)
 -- replace all instances of s in text with r
 integer k = 1, 
         l = length(s),
         startidx = 1
 sequence chunks = {}
-    while 1 do
+    while limit=-1 or length(chunks)<limit do
         k = match(s,text,k)
         if k=0 then exit end if
         chunks = append(chunks,text[startidx..k-1])
@@ -112,30 +114,36 @@ sequence chunks = {}
 end function
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">global function</font><font color="#5E005E"> substitute</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> text</font><font color="#0000FF">,</font><font color="#004080"> string</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#004080"> string</font><font color="#000000"> r</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- replace all instances of s in text with r
-</i></font><font color="#004080">integer</font><font color="#000000"> k</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">, 
-</font><font color="#000000">        l</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">),
-</font><font color="#000000">        startidx</font><font color="#0000FF"> =</font><font color="#000000"> 1
-</font><font color="#004080">sequence</font><font color="#000000"> chunks</font><font color="#0000FF"> = {}
-</font><font color="#008080">    while</font><font color="#000000"> 1</font><font color="#008080"> do
-</font><font color="#000000">        k</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#0000FF">,</font><font color="#000000">k</font><font color="#0000FF">)
-</font><font color="#008080">        if</font><font color="#000000"> k</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if
-</font><font color="#000000">        chunks</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#800000">[</font><font color="#000000">startidx</font><font color="#0000FF">..</font><font color="#000000">k</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#000000">        k</font><font color="#0000FF"> +=</font><font color="#000000"> l
-        startidx</font><font color="#0000FF"> =</font><font color="#000000"> k
-</font><font color="#008080">    end while
-    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">)</font><font color="#008080"> then
-</font><font color="#000000">        chunks</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#800000">[</font><font color="#000000">startidx</font><font color="#0000FF">..</font><font color="#000000">$</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#000000">        text</font><font color="#0000FF"> =</font><font color="#000000"> chunks</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]
-</font><font color="#008080">        for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">2</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">)</font><font color="#008080"> do
-</font><font color="#000000">            text</font><font color="#0000FF"> &amp;=</font><font color="#000000"> r
-            text</font><font color="#0000FF"> &amp;=</font><font color="#000000"> chunks</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]
-</font><font color="#008080">        end for
+<font color="#008080">global function</font><font color="#5E005E"> substitute</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> text</font><font color="#0000FF">,</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#000000"> r</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> limit</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- replace all instances of s in text with r</i></font>
+<font color="#004080">integer</font><font color="#000000"> k</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">, </font>
+<font color="#000000">        l</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">),</font>
+<font color="#000000">        startidx</font><font color="#0000FF"> =</font><font color="#000000"> 1</font>
+<font color="#004080">sequence</font><font color="#000000"> chunks</font><font color="#0000FF"> = {}</font>
+<font color="#008080">    while</font><font color="#000000"> limit</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> or</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">)&lt;</font><font color="#000000">limit</font><font color="#008080"> do</font>
+<font color="#000000">        k</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#0000FF">,</font><font color="#000000">k</font><font color="#0000FF">)</font>
+<font color="#008080">        if</font><font color="#000000"> k</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if</font>
+<font color="#000000">        chunks</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#800000">[</font><font color="#000000">startidx</font><font color="#0000FF">..</font><font color="#000000">k</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#000000">        k</font><font color="#0000FF"> +=</font><font color="#000000"> l
+        startidx</font><font color="#0000FF"> =</font><font color="#000000"> k</font>
+<font color="#008080">    end while
+    if</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">)</font><font color="#008080"> then</font>
+<font color="#000000">        chunks</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#800000">[</font><font color="#000000">startidx</font><font color="#0000FF">..</font><font color="#000000">$</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#000000">        text</font><font color="#0000FF"> =</font><font color="#000000"> chunks</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">]</font>
+<font color="#008080">        for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">2</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">chunks</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#000000">            text</font><font color="#0000FF"> &amp;=</font><font color="#000000"> r
+            text</font><font color="#0000FF"> &amp;=</font><font color="#000000"> chunks</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font>
+<font color="#008080">        end for
     end if
-    return</font><font color="#000000"> text
-</font><font color="#008080">end function</font>
+    return</font><font color="#000000"> text</font>
+<font color="#008080">end function</font>
 </pre>
+            <br>
+            Originally text/r/s were string, and that remains the primary use case, however I did once find a need for sequences,
+            when investigating runs of differences in the sequence/generation of safe numbers. I should note that the replacement
+            had to be nested one more than I first expected, because of the <code>text &= r</code>, not always behaving quite the 
+            same as the <code>text[s..e] = r</code> it logically replaces, that is when r is not a string. Likewise I changed the
+            first parameter/return of <a href="substitute_all.htm">substitute_all</a>() to a sequence.
          </td>
         </tr>
        </table>

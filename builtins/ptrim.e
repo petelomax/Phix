@@ -109,10 +109,10 @@ global function shorten(sequence s, string what="digits", integer ml=20)
     if l>ml*2+iff(string(s)?3+length(ls):2) then
         if string(s) then
             s[ml+1..-ml-1] = "..."
-            s &= ls
+            if length(ls) then s &= ls end if
         else
             s[ml+1..-ml-1] = {"..."}
-            s = append(s,ls)
+            if length(ls) then s = append(s,ls) end if
         end if
     end if
     return s

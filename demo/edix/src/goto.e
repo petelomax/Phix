@@ -56,7 +56,7 @@ Ihandle buttons, box, bt_long, bt_ok, bt_cancel
         buttons = IupHbox({IupFill(),bt_long,bt_ok,bt_cancel},"NORMALIZESIZE=HORIZONTAL")
         box = IupVbox({IupHbox({goto_lbl,goto_txt}),
                        buttons})
-        IupDestroy(IupNormalizer({goto_lbl,goto_txt},"NORMALIZE=VERTICAL"))
+        {} = IupDestroy(IupNormalizer({goto_lbl,goto_txt},"NORMALIZE=VERTICAL"))
 
         IupSetAttribute(box, "MARGIN", "10x10");
         IupSetAttribute(box, "GAP", "5");
@@ -82,8 +82,8 @@ Ihandle buttons, box, bt_long, bt_ok, bt_cancel
         paintall()
     end if
 
---  IupDestroy(goto_dlg);
 --  IupHide(goto_dlg)   -- (not needed)
+--  goto_dlg = IupDestroy(goto_dlg);
 
     return IUP_DEFAULT;
 end function

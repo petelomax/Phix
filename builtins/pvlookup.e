@@ -149,225 +149,195 @@ end function
 -- -- s is { {"colors", "[black, blue, red]"}  } }
 -- </eucode>
 
-public function keyvalues(sequence source, object pair_delim = ";,",
+global function keyvalues(sequence source, object pair_delim = ";,",
                           object kv_delim = ":=", object quotes =  "\"'`",
                           object whitespace = " \t\n\r", integer haskeys = 1)
 
-sequence lKeyValues
-sequence value_
-sequence key_
-sequence lAllDelim
-sequence lWhitePair
-sequence lStartBracket
 sequence lEndBracket
 sequence lBracketed
-integer lQuote
-integer pos_
-integer lChar
-integer lBPos
-integer lWasKV
 
     source = trim(source)
     if length(source)=0 then
         return {}
     end if
 
-    if atom(pair_delim) then
-        pair_delim = {pair_delim}
-    end if
-    if atom(kv_delim) then
-        kv_delim = {kv_delim}
-    end if
-    if atom(quotes) then
-        quotes = {quotes}
-    end if
-    if atom(whitespace) then
-        whitespace = {whitespace}
-    end if
+    if atom(pair_delim) then    pair_delim = {pair_delim}   end if
+    if atom(kv_delim) then      kv_delim = {kv_delim}       end if
+    if atom(quotes) then        quotes = {quotes}           end if
+    if atom(whitespace) then    whitespace = {whitespace}   end if
 
-    lAllDelim = whitespace & pair_delim & kv_delim
-    lWhitePair = whitespace & pair_delim
-    lStartBracket = "{[("
+    sequence all_delim = whitespace & pair_delim & kv_delim,
+             white_pair = whitespace & pair_delim
     lEndBracket   = "}])"
 
-    lKeyValues = {}
-    pos_ = 1
-    while pos_<=length(source) do
+    sequence res = {}
+    integer sdx = 1
+    while sdx<=length(source) do
         -- ignore leading whitespace
-        while pos_<length(source) do
-            if find(source[pos_], whitespace)=0 then
+        while sdx<length(source) do
+            if find(source[sdx], whitespace)=0 then
                 exit
             end if
-            pos_ += 1
+            sdx += 1
         end while
 
         -- Get key. Ends at any of unquoted whitespace or unquoted delimiter
-        key_ = ""
-        lQuote = 0
-        lChar = 0
-        lWasKV = 0
+        string key = ""
+        integer ch = 0, quote_ch = 0, bpos, was_kv = false
         if haskeys then
-            while pos_<=length(source) do
-                lChar = source[pos_]
-                if find(lChar, quotes)!=0 then
-                    if lChar=lQuote then
+            while sdx<=length(source) do
+                ch = source[sdx]
+                if find(ch, quotes)!=0 then
+                    if ch=quote_ch then
                         -- End of quoted span
-                        lQuote = 0
-                        lChar = -1
-                    elsif lQuote=0 then
+                        quote_ch = 0
+                        ch = -1
+                    elsif quote_ch=0 then
                         -- Start of quoted span
-                        lQuote = lChar
-                        lChar = -1
+                        quote_ch = ch
+                        ch = -1
                     end if
 
-                elsif lQuote=0 and find(lChar, lAllDelim)!=0 then
+                elsif quote_ch=0 and find(ch, all_delim)!=0 then
                     exit
 
                 end if
-                if lChar>0 then
-                    key_ &= lChar
+                if ch>0 then
+                    key &= ch
                 end if
-                pos_ += 1
+                sdx += 1
             end while
 
             -- ignore next whitespace
-            if find(lChar, whitespace)!=0 then
-                pos_ += 1
-                while pos_<=length(source) do
-                    lChar = source[pos_]
-                    if find(lChar, whitespace)=0 then
+            if find(ch, whitespace)!=0 then
+                sdx += 1
+                while sdx<=length(source) do
+                    ch = source[sdx]
+                    if find(ch, whitespace)=0 then
                         exit
                     end if
-                    pos_ += 1
+                    sdx += 1
                 end while
             end if
         else
-            pos_ -= 1       -- Put back the last char.
+            sdx -= 1        -- Put back the last char.
         end if
 
-        value_ = ""
-        if find(lChar, kv_delim)!=0  or not haskeys then
+        sequence val = ""
+        if find(ch, kv_delim)!=0  or not haskeys then
 
-            if find(lChar, kv_delim)!=0 then
-                lWasKV = 1
+            if find(ch, kv_delim)!=0 then
+                was_kv = true
             end if
 
             -- ignore next whitespace
-            pos_ += 1
-            while pos_<=length(source) do
-                lChar = source[pos_]
-                if find(lChar, whitespace)=0 then
+            sdx += 1
+            while sdx<=length(source) do
+                ch = source[sdx]
+                if find(ch, whitespace)=0 then
                     exit
                 end if
-                pos_ += 1
+                sdx += 1
             end while
 
             -- Get value. Ends at any of unquoted whitespace or unquoted delimiter
-            lQuote = 0
-            lChar = 0
+            quote_ch = 0
+            ch = 0
             lBracketed = {}
-            while pos_<=length(source) do
-                lChar = source[pos_]
-                if length(lBracketed)=0 and find(lChar, quotes)!=0 then
-                    if lChar=lQuote then
+            while sdx<=length(source) do
+                ch = source[sdx]
+                bpos = find(ch, "{[(")
+                if length(lBracketed)=0 and find(ch, quotes)!=0 then
+                    if ch=quote_ch then
                         -- End of quoted span
-                        lQuote = 0
-                        lChar = -1
-                    elsif lQuote=0 then
+                        quote_ch = 0
+                        ch = -1
+                    elsif quote_ch=0 then
                         -- Start of quoted span
-                        lQuote = lChar
-                        lChar = -1
+                        quote_ch = ch
+                        ch = -1
                     end if
-                elsif find(lChar, lStartBracket)>0 then
-                    lBPos = find(lChar, lStartBracket)
-                    lBracketed &= lEndBracket[lBPos]
+                elsif bpos then
+                    lBracketed &= "}])"[bpos]
 
-                elsif length(value_)=1 and value_[1]='~' and find(lChar, lStartBracket)>0 then
-                    lBPos = find(lChar, lStartBracket)
-                    lBracketed &= lEndBracket[lBPos]
-
-                elsif length(lBracketed)!=0 and lChar=lBracketed[$] then
+                elsif length(lBracketed)!=0 and ch=lBracketed[$] then
                     lBracketed = lBracketed[1..$-1]
 
-                elsif length(lBracketed)=0 and lQuote=0 and find(lChar, lWhitePair)!=0 then
+                elsif length(lBracketed)=0 and quote_ch=0 and find(ch, white_pair)!=0 then
                     exit
 
                 end if
 
-                if lChar>0 then
-                    value_ &= lChar
+                if ch>0 then
+                    val &= ch
                 end if
-                pos_ += 1
+                sdx += 1
             end while
 
-            if find(lChar, whitespace)!=0  then
+            if find(ch, whitespace)!=0  then
                 -- ignore next whitespace
-                pos_ += 1
-                while pos_<=length(source) do
-                    lChar = source[pos_]
-                    if find(lChar, whitespace)=0 then
+                sdx += 1
+                while sdx<=length(source) do
+                    ch = source[sdx]
+                    if find(ch, whitespace)=0 then
                         exit
                     end if
-                    pos_ += 1
+                    sdx += 1
                 end while
             end if
 
-            if find(lChar, pair_delim)!=0  then
-                pos_ += 1
-                if pos_<=length(source) then
-                    lChar = source[pos_]
+            if find(ch, pair_delim)!=0  then
+                sdx += 1
+                if sdx<=length(source) then
+                    ch = source[sdx]
                 end if
             end if
         end if
 
-        if find(lChar, pair_delim)!=0  then
-            pos_ += 1
+        if find(ch, pair_delim)!=0  then
+            sdx += 1
         end if
 
-        if length(value_)=0
-        and length(key_)=0 then
-            lKeyValues = append(lKeyValues, {})
+        if length(val)=0
+        and length(key)=0 then
+            res = append(res, {})
         else
 
-            if length(value_)=0 then
-                if not lWasKV then
-                    value_ = key_
-                    key_ = ""
-                end if
+            if length(val)=0 and not was_kv then
+                val = key
+                key = ""
             end if
 
-            if length(key_)=0 then
-                if haskeys then
-                    key_ =  sprintf("p[%d]", length(lKeyValues)+1)
-                end if
+            if length(key)=0 and haskeys then
+                key = sprintf("p[%d]", length(res)+1)
             end if
 
-            if length(value_)>0 then
-                lChar = value_[1]
-                lBPos = find(lChar, lStartBracket)
-                if lBPos>0 and value_[$]=lEndBracket[lBPos] then
-                    if lChar='(' then
-                        value_ = keyvalues(value_[2..$-1], pair_delim, kv_delim, quotes, whitespace, haskeys)
+            if length(val)>0 then
+                ch = val[1]
+                bpos = find(ch, "{[(")
+                if bpos>0 and val[$]="}])"[bpos] then
+                    if ch='(' then
+                        val = keyvalues(val[2..$-1], pair_delim, kv_delim, quotes, whitespace, haskeys)
                     else
-                        value_ = keyvalues(value_[2..$-1], pair_delim, kv_delim, quotes, whitespace, 0)
+                        val = keyvalues(val[2..$-1], pair_delim, kv_delim, quotes, whitespace, 0)
                     end if
-                elsif lChar='~' then
-                    value_ = value_[2..$]
+                elsif ch='~' then
+                    val = val[2..$]
                 end if
             end if
 
-            key_ = trim(key_)
-            value_ = trim(value_)
-            if length(key_)=0 then
-                lKeyValues = append(lKeyValues, value_)
+            key = trim(key)
+            val = trim(val)
+            if length(key)=0 then
+                res = append(res, val)
             else
-                lKeyValues = append(lKeyValues, {key_, value_})
+                res = append(res, {key, val})
             end if
         end if
 
     end while
 
-    return lKeyValues
+    return res
 end function
 
 --**
@@ -1090,26 +1060,12 @@ end function
 --     [[:ends]], [[:head]]
 
 global function begins(object sub_text, sequence full_text)
-    if length(full_text)=0 then
-        return 0
-    end if
-
+    integer lf = length(full_text)
+    if lf=0 then return false end if
     if atom(sub_text) then
-        if equal(sub_text, full_text[1]) then
-            return 1
-        else
-            return 0
-        end if
+        return sub_text==full_text[1]
     end if
-
-    if length(sub_text)>length(full_text) then
-        return 0
-    end if
-
-    if equal(sub_text, full_text[1..length(sub_text)]) then
-        return 1
-    else
-        return 0
-    end if
+    integer ls = length(sub_text)
+    return ls<=lf and sub_text==full_text[1..ls]
 end function
 

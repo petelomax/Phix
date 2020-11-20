@@ -17,6 +17,7 @@ and the other, called when the right mouse button is pressed, opens a menu with 
 --
 --#include "iup.h"
 --#include "iupkey.h"
+?"" -- prevent console from hiding the gui (due to printf(1,..)'s in the xxx_cb() here)
 
 include pGUI.e
 
@@ -309,6 +310,8 @@ function k_any_cb(Ihandle ih, atom c)
     printf(1,"K_ANY(%s, %d = %s)\n", {parent_title, c, iupKeyCodeToName(c)});
   end if
   return IUP_CONTINUE;
+--  return IUP_DEFAULT
+--  return IUP_IGNORE
 end function
 
 function help_cb(Ihandle /*ih*/)
@@ -360,7 +363,7 @@ function nodeinfo(Ihandle ih)
 end function
 
 function rightclick_cb(Ihandle /*ih*/, integer /*id*/)
-  Ihandle popup_menu;
+  Ihandln popup_menu;
 --  char attr[50];
 
   popup_menu = IupMenu({
@@ -418,7 +421,7 @@ function rightclick_cb(Ihandle /*ih*/, integer /*id*/)
 --  IupSetAttribute(ih, "VALUE", attr);
   IupPopup(popup_menu, IUP_MOUSEPOS, IUP_MOUSEPOS);
 
-  IupDestroy(popup_menu);
+  popup_menu = IupDestroy(popup_menu);
 
   return IUP_DEFAULT;
 end function
@@ -605,6 +608,7 @@ Ihandle butactv, butnext, butprev, butmenu, box;
 --  IupSetCallback(butmenu, "ACTION", Icallback("rightclick_cb"));
 
 --  IupSetHandle("dlg", dlg);
+  IupCloseOnEscape(dlg)
 end procedure
 
 procedure TreeTest()

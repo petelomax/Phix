@@ -2,69 +2,72 @@
 -- demo\rosetta\IbeforeE.exw
 -- =========================
 --
-procedure fatal(string msg)
-    printf(1,"unixdict.txt %s. download it from http://www.puzzlers.org/pub/wordlists/unixdict.txt\n",{msg})
-    if getc(0) then end if
-    abort(1)
-end procedure
+--procedure fatal(string msg)
+--  printf(1,"unixdict.txt %s. download it from http://www.puzzlers.org/pub/wordlists/unixdict.txt\n",{msg})
+--  if getc(0) then end if
+--  abort(1)
+--end procedure
 
 -- I am not confident these are meaningful/correct logical inferences, but the raw numbers are right.<br>
 -- (Being told ib4eeac is more often wrong than right has quite clearly made me start to doubt myself.)
 procedure show_plausibility(string msg, integer w, wo)
-    printf(1, "%s (pro: %3d, anti: %3d) is%s plausible\n",{msg,w,wo," not"[1..-(w<2*wo)]})
+    string no = iff(w<2*wo?" not":"")
+    printf(1, "%s (pro: %3d, anti: %3d) is%s plausible\n",{msg,w,wo,no})
 end procedure
 
-procedure main()
-integer fn
-    fn = open(join_path({"..","unixdict.txt"}),"r")
-    if fn=-1 then
-        fn = open("unixdict.txt","r")
-        if fn=-1 then fatal("not found") end if
-    end if
-    string text = get_text(fn)
-    close(fn)
-    -- Note: my unixdict.txt begins with "10th" and ends 
-    -- with "zygote", so boundary checks can be skipped.
-    integer {cei,xei,cie,xie} @= 0
-    -- The result that suprises:        cei: (13)
-    -- {ceil,    conceit,     conceive,      deceit,     deceitful,
-    --  deceive, fluorescein, imperceivable, inconceivable, perceive,
-    --  receipt, receive,     transceiver}
-    -- whereas (nearly twice as many):  cie: (24)
-    -- {ancient, coefficient, concierge,     conscience, conscientious,
-    --  deficient, efficient, financier,     glacier,    hacienda,
-    --  inefficient, insufficient, muncie,   omniscient, proficient,
-    --  science, scientific,  scientist,     societal,   societe,
-    --  society, specie,      species,       sufficient}
-    for i=1 to length(text) do
-        if text[i]='i' then
-            if text[i-1]='e' then
-                if text[i-2]='c' then
-                    cei += 1
-                else
-                    xei += 1
-                end if
-            end if
-            -- (not elsif here; "eie" occurs twice)
-            if text[i+1]='e' then
-                if text[i-1]='c' then
-                    cie += 1
-                else
-                    xie += 1
-                end if
+--integer fn
+--  fn = open(join_path({"..","unixdict.txt"}),"r")
+--  if fn=-1 then
+--      fn = open("unixdict.txt","r")
+--      if fn=-1 then fatal("not found") end if
+--  end if
+--  string text = get_text(fn)
+--  close(fn)
+object text = get_text(join_path({"..","unixdict.txt"}))
+if not string(text) then
+    crash("unixdict.txt error, download from http://www.puzzlers.org/pub/wordlists/unixdict.txt")
+end if
+
+-- Note: my unixdict.txt begins with "10th" and ends with "zygote", so 
+-- boundary checks (such as "i+1<=length(text) and ") can be skipped.
+integer {cei,xei,cie,xie} @= 0
+-- The result that suprises:        cei: (13)
+-- {ceil,    conceit,     conceive,      deceit,     deceitful,
+--  deceive, fluorescein, imperceivable, inconceivable, perceive,
+--  receipt, receive,     transceiver}
+-- whereas (nearly twice as many):  cie: (24)
+-- {ancient, coefficient, concierge,     conscience, conscientious,
+--  deficient, efficient, financier,     glacier,    hacienda,
+--  inefficient, insufficient, muncie,   omniscient, proficient,
+--  science, scientific,  scientist,     societal,   societe,
+--  society, specie,      species,       sufficient}
+for i=1 to length(text) do
+    if text[i]='i' then
+        if text[i-1]='e' then
+            if text[i-2]='c' then
+                cei += 1
+            else
+                xei += 1
             end if
         end if
-    end for
-    printf(1,"occurances: cie:%d, xie:%d, cei:%d, xei:%d\n", {cie,xie,cei,xei})
-    show_plausibility( "i before e except after c", xie, cie );
-    show_plausibility( "e before i except after c", xei, cei );
-    show_plausibility( "i before e   when after c", cie, cei );
-    show_plausibility( "e before i   when after c", cei, cie );
-    show_plausibility( "i before e     in general", xie + cie, xei + cei );
-    show_plausibility( "e before i     in general", xei + cei, xie + cie )
-end procedure
+        -- (not elsif here; "eie" occurs twice)
+        if text[i+1]='e' then
+            if text[i-1]='c' then
+                cie += 1
+            else
+                xie += 1
+            end if
+        end if
+    end if
+end for
+printf(1,"occurances: cie:%d, xie:%d, cei:%d, xei:%d\n", {cie,xie,cei,xei})
+show_plausibility( "i before e except after c", xie, cie );
+show_plausibility( "e before i except after c", xei, cei );
+show_plausibility( "i before e   when after c", cie, cei );
+show_plausibility( "e before i   when after c", cei, cie );
+show_plausibility( "i before e     in general", xie + cie, xei + cei );
+show_plausibility( "e before i     in general", xei + cei, xie + cie )
 
-main()
 {} = wait_key()
 
 --/* me

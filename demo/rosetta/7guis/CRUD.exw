@@ -40,13 +40,13 @@ constant select_cb = Icallback("value_changed")
 function prefix_changed_cb(Ihandle /*Tprefix*/)
 integer prev = IupGetInt(L,"VALUE"),
         k = iff(prev!=0?tags[prev]:0)
-string filter = lower(IupGetAttribute(Tprefix,"VALUE"))
+string filter_prefix = lower(IupGetAttribute(Tprefix,"VALUE"))
     tags = {}
     IupSetAttribute(L,"REMOVEITEM","ALL")
     for i=1 to length(data) do
         string di = data[i]
-        if filter=""
-        or match(filter,lower(di))=1 then
+        if filter_prefix=""
+        or match(filter_prefix,lower(di))=1 then
             tags &= i
             IupSetAttributeId(L,"",length(tags),di)
             if i=k then
@@ -122,11 +122,11 @@ L = IupList("VALUECHANGED_CB",select_cb,"EXPAND=YES")
 BC = IupButton("Create",cb_create)
 BU = IupButton("Update",cb_update)
 BD = IupButton("Delete",cb_delete)
-Ihandle filter = IupHbox({IupLabel("Filter prefix:"),Tprefix},"GAP=10,ALIGNMENT=ACENTER")
+Ihandle filter_prefix = IupHbox({IupLabel("Filter prefix:"),Tprefix},"GAP=10,ALIGNMENT=ACENTER")
 Ihandle names = IupVbox({IupHbox({IupLabel("Name:"),IupFill(),Tname},"GAP=12,ALIGNMENT=ACENTER"),
                          IupHbox({IupLabel("Surname:"),Tsurname},"GAP=9,ALIGNMENT=ACENTER")},
                         "NMARGIN=10x0,GAP=10")
-Ihandle grid = IupGridBox({filter,IupFill(),
+Ihandle grid = IupGridBox({filter_prefix,IupFill(),
                            L,     names},
                          "NUMDIV=2,SIZELIN=1,NMARGIN=10x10,GAPLIN=10")
 Ihandle buttons = IupHbox({BC,BU,BD},"GAP=30,NORMALIZESIZE=HORIZONTAL,MARGIN=10x5,PADDING=10x0")
@@ -134,8 +134,8 @@ dlg = IupDialog(IupVbox({grid,
                          buttons}),
                 "TITLE=CRUD, MINSIZE=435x195")
 IupCloseOnEscape(dlg)
-IupDestroy(IupNormaliser({filter,L},"NORMALIZE=HORIZONTAL"))
-IupDestroy(IupNormaliser({Tname,Tsurname},"NORMALIZE=VERTICAL"))
+{} = IupDestroy(IupNormaliser({filter_prefix,L},"NORMALIZE=HORIZONTAL"))
+{} = IupDestroy(IupNormaliser({Tname,Tsurname},"NORMALIZE=VERTICAL"))
 IupShow(dlg)
 {} = prefix_changed_cb(Tprefix)
 IupMainLoop()

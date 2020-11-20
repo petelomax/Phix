@@ -32,6 +32,9 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {0,8,1},  -- 0.8.1    -- 23/03/20 (uploaded 23/03/20)
 global constant phixversion = {0,8,2},  -- 0.8.2    -- 2?/03/20 (uploaded 2?/03/20)
                 phixverstr = sprintf("%d.%d.%d",phixversion)
+sequence phixver = phixversion  -- (debug aid, otherwise unused)
+if sequence(phixver) then end if
+
 --DEV todo:
 global constant q86 = 01    -- quick x86 handling for interpretation, possibly more...
                             --  0 = old style handling, (DEV remove)
@@ -679,6 +682,7 @@ global integer T_platform       T_platform = 0
 global integer T_machine_bits   T_machine_bits = 0
 global integer T_machine_word   T_machine_word = 0
 global integer Z_version        Z_version = 0       -- (T_version used in format)
+--global integer Z_requires     Z_requires = 0      -- (consistent with T_version)
 global integer T_min            T_min = 0
 global integer T_minsq          T_minsq = 0
 global integer T_max            T_max = 0
@@ -697,6 +701,24 @@ global integer T_store_field    T_store_field = 0
 global integer Z_struct         Z_struct = 0
 global integer T_free           T_free = 0
 global integer T_ffree          T_ffree = 0
+
+-- these are actually temps for setting up hll_stubs, but may as well make them global:
+global integer T_and_bits = 0, 
+               T_not_bits = 0,
+               T_or_bits = 0,
+               T_xor_bits = 0,
+               T_remainder = 0,
+               T_power = 0, 
+               T_cos = 0,
+               T_sin = 0,
+               T_tan = 0,
+               T_arctan = 0,
+               T_log = 0,
+               T_sqrt = 0,
+               T_rand = 0,
+               Z_append = 0,    -- (T_xxx got nicked by ttree.e)
+               Z_prepend = 0    --              ""
+
 
 global integer TIDX
                TIDX = -1

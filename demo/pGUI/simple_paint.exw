@@ -27,10 +27,10 @@ include pGUI.e
 --#withtype cdCanvas
 --#withtype cdCanvan
 
-Ihandle dlg, canvas, config, toolbar, statusbar, main_menu, zoom_lbl, size_lbl, status_lbl, zoom_val,
+Ihandle dlg, canvas, toolbar, statusbar, main_menu, zoom_lbl, size_lbl, status_lbl, zoom_val,
         item_toolbar, item_statusbar, item_revert, item_save, item_paste, item_zoomgrid, item_toolbox,
         filltol_label, toolcolor_btn, toolwidth_txt, toolstyle_lst, toolfont_btn, filltol_val
-Ihandln toolbox=NULL
+Ihandln config, toolbox=NULL
 Ihandle clipboard
 
 --imImage image=NULL    -- (this was a step too far, not really needed/useful anyway)
@@ -309,7 +309,7 @@ end function
 
 
 procedure show_error(string message, integer is_error)
-Ihandle mdlg = IupMessageDlg()
+    Ihandln mdlg = IupMessageDlg()
 --  IupSetStrAttribute(mdlg, "PARENTDIALOG", dlg)
     IupSetAttributeHandle(mdlg, "PARENTDIALOG", dlg)
     IupSetAttribute(mdlg, "DIALOGTYPE", iff(is_error ? "ERROR" : "WARNING"))
@@ -317,7 +317,7 @@ Ihandle mdlg = IupMessageDlg()
     IupSetStrAttribute(mdlg, "TITLE", iff(is_error ? "Error" : "Warning"))
     IupSetStrAttribute(mdlg, "VALUE", message)
     IupPopup(mdlg, IUP_CENTERPARENT, IUP_CENTERPARENT)
-    IupDestroy(mdlg)
+    mdlg = IupDestroy(mdlg)
 end procedure
 
 procedure show_file_error(integer error)
@@ -481,7 +481,7 @@ imImage old_image = IupGetInt(canvas, "IMAGE")
     IupSetInt(canvas, "IMAGE", image)
 
     if old_image!=NULL then
-        imImageDestroy(old_image)
+        old_image = imImageDestroy(old_image)
     end if
     if update_size then
         atom zoom_index = IupGetDouble(zoom_val, "VALUE")
@@ -512,7 +512,7 @@ imImage old_image = IupGetInt(canvas, "IMAGE")
     if im_color_space(image)!=IM_RGB then
         imImage new_image = imImageCreateBased(image, -1, -1, IM_RGB, -1)
         imConvertColorSpace(image, new_image)
-        imImageDestroy(image)
+        image = imImageDestroy(image)
         image = new_image
     end if
 
@@ -528,14 +528,14 @@ imImage old_image = IupGetInt(canvas, "IMAGE")
     IupSetStrAttribute(size_lbl, "TITLE", "%d x %d px", {im_width(image), im_height(image)})
 
     if old_image!=NULL then
-        imImageDestroy(old_image)
+        old_image = imImageDestroy(old_image)
     end if
     IupSetDouble(zoom_val, "VALUE", 0)
     zoom_update(0)
 end procedure
 
 procedure check_new_file()
-imImage image = IupGetInt(canvas, "IMAGE")
+    imImage image = IupGetInt(canvas, "IMAGE")
     if image=NULL then
         integer width = IupConfigGetVariableInt(config, "NewImage", "Width", 640)
         integer height = IupConfigGetVariableInt(config, "NewImage", "Height", 480)
@@ -553,7 +553,7 @@ imImage image = IupGetInt(canvas, "IMAGE")
 end procedure
 
 procedure open_file(string filename)
-atom image = read_file(filename)
+    atom image = read_file(filename)
     if image!=NULL then
         set_new_image(image, filename, 0)
         IupConfigRecentUpdate(config, filename)
@@ -586,7 +586,7 @@ string fmt = "JPEG"
 end procedure
 
 procedure saveas_file(string filename)
-imImage image = IupGetInt(canvas, "IMAGE")
+    imImage image = IupGetInt(canvas, "IMAGE")
 --DEV
     set_file_format(image, filename)
 
@@ -657,8 +657,8 @@ end procedure
 --*/
 
 function select_file(integer is_open)
-string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory")
-Ihandle filedlg = IupFileDlg()
+    string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory")
+    Ihandln filedlg = IupFileDlg()
     if is_open then
         IupSetAttribute(filedlg, "DIALOGTYPE", "OPEN")
     else
@@ -681,14 +681,13 @@ Ihandle filedlg = IupFileDlg()
         IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d)
     end if
 
-    IupDestroy(filedlg)
+    filedlg = IupDestroy(filedlg)
     return IUP_DEFAULT
 end function
 
 function view_fit_rect(integer canvas_width, integer canvas_height, integer image_width, integer image_height)
-integer view_width, view_height
-    view_width = canvas_width
-    view_height = (canvas_width*image_height)/image_width
+    integer view_width = canvas_width,
+            view_height = (canvas_width*image_height)/image_width
 
     if view_height>canvas_height then
         view_height = canvas_height
@@ -746,18 +745,16 @@ function tool_get_text_enter_cb()
 end function
 
 procedure tool_get_text()
-Ihandle text, text_dlg
 
-string txt = IupGetAttribute(toolbox, "TOOLTEXT")
-string font = IupGetAttribute(toolbox, "TOOLFONT")
-
-    text = IupText()
+    Ihandle text = IupText()
     IupSetAttribute(text, "EXPAND", "YES")
+    string txt = IupGetAttribute(toolbox, "TOOLTEXT"),
+          font = IupGetAttribute(toolbox, "TOOLFONT")
     IupSetStrAttribute(text, "VALUE", txt)
     IupSetStrAttribute(text, "FONT", font)
     IupSetAttribute(text, "VISIBLECOLUMNS", "20")
 
-    text_dlg = IupDialog(text)
+    Ihandln text_dlg = IupDialog(text)
 
     IupSetStrAttribute(text_dlg, "TITLE", "Enter Text:")
     IupSetAttribute(text_dlg, "MINBOX", "NO")
@@ -770,7 +767,7 @@ string font = IupGetAttribute(toolbox, "TOOLFONT")
     txt = IupGetAttribute(text, "VALUE")
     IupSetStrAttribute(toolbox, "TOOLTEXT", txt)
 
-    IupDestroy(text_dlg)
+    text_dlg = IupDestroy(text_dlg)
 end procedure
 
 procedure tool_draw_pencil(atom image, integer start_x, integer start_y, integer end_x, integer end_y)
@@ -1338,11 +1335,11 @@ imImage image = IupGetInt(canvas, "IMAGE")
     end if
 
     if image!=NULL then
-        imImageDestroy(image)
+        image = imImageDestroy(image)
     end if
     IupConfigDialogClosed(config, dlg, "MainWindow")
     {} = IupConfigSave(config)
-    IupDestroy(config)
+    config = IupDestroy(config)
     return IUP_CLOSE
 end function
 
@@ -1368,8 +1365,8 @@ function item_paste_action_cb(Ihandle /*item_paste*/)
 end function
 
 function item_background_action_cb(Ihandle /*item_background*/)
-Ihandle colordlg = IupColorDlg()
-string background = IupConfigGetVariableStr(config, "Canvas", "Background", "255 255 255")
+    Ihandln colordlg = IupColorDlg()
+    string background = IupConfigGetVariableStr(config, "Canvas", "Background", "255 255 255")
     IupSetStrAttribute(colordlg, "VALUE", background)
 --DEV
 --if IupGetDialog(item_background)!=dlg then ?9/0 end if
@@ -1385,7 +1382,7 @@ string background = IupConfigGetVariableStr(config, "Canvas", "Background", "255
         IupUpdate(canvas)
     end if
 
-    IupDestroy(colordlg)
+    colordlg = IupDestroy(colordlg)
     return IUP_DEFAULT
 end function
 
@@ -1486,9 +1483,9 @@ function tool_action_cb(Ihandle ih, integer state)
 end function
 constant cb_tool_action = Icallback("tool_action_cb")
 
---DEV merge with above...
+--DEV merge with above... (item_background_action_cb)
 function toolcolor_action_cb(Ihandle /*toolcolor_btn*/)
-Ihandle colordlg2 = IupColorDlg()
+Ihandln colordlg2 = IupColorDlg()
 string color = IupGetAttribute(toolcolor_btn, "BGCOLOR")
     IupSetStrAttribute(colordlg2, "VALUE", color)
 --DEV
@@ -1505,7 +1502,7 @@ if IupGetDialog(toolcolor_btn)!=toolbox then ?9/0 end if
 --      IupSetStrAttribute(toolbox, "TOOLCOLOR", color)
     end if
 
-    IupDestroy(colordlg2)
+    colordlg2 = IupDestroy(colordlg2)
     return IUP_DEFAULT
 end function
 
@@ -1524,7 +1521,7 @@ string value = IupGetAttribute(toolstyle_lst, "VALUE")
 end function
 
 function toolfont_action_cb(Ihandle /*toolfont_btn*/)
-Ihandle font_dlg = IupFontDlg()
+Ihandln font_dlg = IupFontDlg()
 string font = IupGetAttribute(toolfont_btn, "TOOLFONT")
 --DEV
 if IupGetDialog(toolfont_btn)!=toolbox then ?9/0 end if
@@ -1538,7 +1535,7 @@ if IupGetDialog(toolfont_btn)!=toolbox then ?9/0 end if
 --      IupSetStrAttribute(IupGetDialog(toolfont_btn), "TOOLFONT", font)
         IupSetStrAttribute(toolbox, "TOOLFONT", font)
     end if
-    IupDestroy(font_dlg)
+    font_dlg = IupDestroy(font_dlg)
     return IUP_DEFAULT
 end function
 
@@ -1736,7 +1733,7 @@ imImage new_image = imImageClone(image)
                                "Contrast Factor: %r[-100,100]\n",
                                {0,0})
     if res[$]=0 then
-        imImageDestroy(new_image)
+        new_image = imImageDestroy(new_image)
         return IUP_DEFAULT
     end if
     imProcessToneGamut(image, new_image, IM_GAMUT_BRIGHTCONT, res[1..2])

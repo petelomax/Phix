@@ -1,0 +1,318 @@
+--
+-- demo/pGUI/mglplotdemo.exw
+--
+-- Translation of https://metacpan.org/source/KMX/IUP-0.305/examples/1-apps/app-plot-demo.pl
+--
+--  Incomplete... started before realising the IupMglPlot() was actually commented out!
+
+include pGUI.e
+ 
+Ihandle mainplot, 
+        mainfunc,
+        dial1, dial2,   -- dials for zooming
+        tgg1, tgg2,     -- auto scale on|off toggles
+        tgg3, tgg4,     -- grid show|hide toggles
+        tgg5            -- legend show|hide toggle
+ 
+function delete_cb(Ihandle /*ih*/, integer index, sample_index, atom x, y)
+    printf(1, "DELETE_CB(%d, %d, %g, %g)\n", {index, sample_index, x, y})
+    return IUP_DEFAULT
+end function
+
+function select_cb(Ihandle /*ih*/, integer index, sample_index, atom x, y, integer selected)
+    printf(1, "SELECT_CB(%d, %d, %g, %g, %d)\n", {index, sample_index, x, y, selected})
+    return IUP_DEFAULT
+end function
+
+function edit_cb(Ihandle /*ih*/, integer index, sample_index, atom x, y, pNew_x, pNew_y)
+    -- xxxTODO: references
+    -- perhaps - return (IUP_DEFAULT, $new_x, $new_y);
+    printf(1,"EDIT_CB(%d, %d, %g, %g, %g, %g)\n", {index, sample_index, x, y, iup_peek_double(pNew_x), iup_peek_double(pNew_y)})
+    return IUP_DEFAULT
+end function
+
+function postdraw_cb(Ihandle ih, cdCanvas cnv)
+atom {ix, iy} = IupPlotTransform(ih, 0.003, 0.02)
+    cdCanvasFont(cnv, NULL, CD_BOLD, 10)
+    {} = cdCanvasTextAlignment(cnv, CD_SOUTH)
+    cdCanvasText(cnv, ix, iy, "My Inline Legend")
+    printf(1,"POSTDRAW_CB()\n")
+    return IUP_DEFAULT
+end function
+
+-- commented out??
+--sub postdraw_cb {
+--  my ($self, $cnv) = @_;
+--  #my ($ix, $iy) = $self->PlotTransform(0.003, 0.02);  
+--  #$cnv->cdFont(undef, CD_BOLD, 10);
+--  #$cnv->cdTextAlignment(CD_SOUTH);
+--  #$cnv->cdText($ix, $iy, "My Inline Legend");
+--  return IUP_DEFAULT;
+--}
+ 
+function predraw_cb(Ihandle /*ih*/, cdCanvas /*cnv*/)
+    printf(1,"PREDRAW_CB()\n")
+    return IUP_DEFAULT
+end function
+
+--sub predraw_cb {
+--  my ($self, $cnv) = @_;
+--  #printf STDERR "PREDRAW_CB()\n";
+--  return IUP_DEFAULT;
+--}
+ 
+procedure InitPlot()
+    IupSetAttribute(mainplot,"TITLE","Sample Plot")
+    IupSetInt(mainplot,"AXS_XORIGIN",0)
+    IupSetInt(mainplot,"AXS_YORIGIN",0)
+    IupSetAttribute(mainplot,"TITLEFONTSIZE","1.2")
+--  #TITLEFONTSIZE => 1.2,
+    IupSetAttribute(mainplot,"TITLEFONTSTYLE","BOLD")
+    IupSetInt(mainplot,"MARGINTOP",40)
+    IupSetInt(mainplot,"OPENGL",true)
+ 
+    atom factor = 100.0/(100*100*100)
+--  IupPlotBegin(mainplot, 2)
+    IupPlotBegin(mainplot)
+    for i=-10 to 10 do
+        atom x = 0.001*i,
+             y = 0.01+factor*i*i*i
+        IupPlotAdd(mainplot, x, y)
+    end for
+    {} = IupPlotEnd(mainplot)
+    IupSetAttribute(mainplot,"DS_COLOR","100 100 200")
+    IupSetAttribute(mainplot,"DS_EDIT", "YES")
+    IupSetCallback(mainplot, "DELETE_CB", Icallback("delete_cb"));
+--  $mainplot->SetCallback("DELETE_CB", \&delete_cb);
+    IupSetCallback(mainplot, "SELECT_CB", Icallback("select_cb"));
+    IupSetCallback(mainplot, "POSTDRAW_CB", Icallback("postdraw_cb"));
+    IupSetCallback(mainplot, "PREDRAW_CB", Icallback("predraw_cb"));
+    IupSetCallback(mainplot, "EDIT_CB", Icallback("edit_cb"));
+end procedure
+ 
+function tgg1_cb(Ihandle /*self*/, integer v)
+    -- autoscale Y
+    IupSetInt(dial1, "ACTIVE", not v)
+    IupSetInt(mainplot, "AXS_YAUTOMIN", v)
+    IupSetInt(mainplot, "AXS_YAUTOMAX", v)
+    IupSetAttribute(mainplot, "REDRAW", NULL)
+    return IUP_DEFAULT
+end function
+
+function tgg2_cb(Ihandle /*self*/, integer v)
+    -- autoscale X
+    IupSetInt(dial2, "ACTIVE", not v)
+    IupSetInt(mainplot, "AXS_XAUTOMIN", v)
+    IupSetInt(mainplot, "AXS_XAUTOMAX", v)
+    IupSetAttribute(mainplot, "REDRAW", NULL)
+    return IUP_DEFAULT
+end function
+
+function show_grid(integer vgrid, hgrid)
+    string v = iff(vgrid?iff(hgrid?"YES":"VERTICAL"):iff(not hgrid?"NO":"HORIZONTAL"))
+    IupSetAttribute(mainplot, "GRID", v)
+    IupSetAttribute(mainplot, "REDRAW", NULL)
+    return IUP_DEFAULT
+end function
+    
+function tgg3_cb(Ihandle /*self*/, integer vgrid)
+    -- show/hide V grid
+    integer hgrid = IupGetInt(tgg4, "VALUE")
+    return show_grid(vgrid,hgrid)
+end function
+
+function tgg4_cb(Ihandle /*self*/, integer hgrid)
+    -- show/hide H grid
+    integer vgrid = IupGetInt(tgg3, "VALUE")
+    return show_grid(vgrid,hgrid)
+end function
+
+function tgg5_cb(Ihandle /*self*/, integer legend)
+    -- show/hide legend
+    IupSetInt(mainplot, "LEGENDSHOW", legend)
+    IupSetAttribute(mainplot, "REDRAW", NULL)
+    return IUP_DEFAULT
+end function
+ 
+function dial1_btndown_cb(Ihandle /*self*/, atom /*angle*/)
+    -- Y zoom
+    printf(1,"dial1_btndown_cb: %s:%s\n",{IupGetAttribute(mainplot, "AXS_YMIN"),
+                                          IupGetAttribute(mainplot, "AXS_YMAX")})
+    IupStoreAttribute(mainplot, "OLD_YMIN", IupGetAttribute(mainplot, "AXS_YMIN"))
+    IupStoreAttribute(mainplot, "OLD_YMAX", IupGetAttribute(mainplot, "AXS_YMAX"))
+    return IUP_DEFAULT
+end function
+
+function dial1_btnup_cb(Ihandle /*self*/, atom angle)
+    atom x1 = IupGetFloat(mainplot, "OLD_YMIN"),
+         x2 = IupGetFloat(mainplot, "OLD_YMAX"), xm
+    nullable_string ss = IupGetAttribute(mainplot, "AXS_YMODE")
+    if ss!=NULL and length(ss)>=4 and find(ss[4],"12") then
+        atom f = iff(ss[4]='2'?4.0:10.0)
+        /* '2': LOG2:  one circle will zoom 2 times */
+        /* '1': LOG10:  one circle will zoom 10 times */
+        xm = f*abs(angle)/PI
+        if angle>0 then
+            x2 /= xm; x1 *= xm;
+        else
+            x2 *= xm; x1 /= xm;
+        end if
+    else
+        /* LIN: one circle will zoom 2 times */
+        xm = (x1+x2)/2
+        x1 = xm-(xm-x1)*(1-angle/PI)
+        x2 = xm+(x2-xm)*(1-angle/PI)
+    end if
+    if x1<x2 then
+        IupSetStrAttribute(mainplot, "AXS_YMIN", "%g", {x1})
+        IupSetStrAttribute(mainplot, "AXS_YMAX", "%g", {x2})
+    end if
+    IupSetAttribute(mainplot, "REDRAW", NULL)
+    return IUP_DEFAULT
+end function
+
+function dial2_btndown_cb(Ihandle /*self*/, atom /*angle*/)
+    -- X zoom
+    IupStoreAttribute(mainplot, "OLD_XMIN", IupGetAttribute(mainplot, "AXS_XMIN"))
+    IupStoreAttribute(mainplot, "OLD_XMAX", IupGetAttribute(mainplot, "AXS_XMAX"))
+    return IUP_DEFAULT
+end function
+
+function dial2_btnup_cb(Ihandle /*self*/, atom angle)
+    atom x1 = IupGetFloat(mainplot, "OLD_XMIN"),
+         x2 = IupGetFloat(mainplot, "OLD_XMAX"),
+         xm = (x1+x2)/2
+    x1 = xm-(xm-x1)*(1-angle/PI)
+    x2 = xm+(x2-xm)*(1-angle/PI)
+    if x1<x2 then
+        IupSetStrAttribute(mainplot, "AXS_XMIN", "%g", {x1})
+        IupSetStrAttribute(mainplot, "AXS_XMAX", "%g", {x2})
+    end if
+    IupSetAttribute(mainplot, "REDRAW", NULL)
+    return IUP_DEFAULT
+end function
+ 
+function bt1_cb(Ihandle /*self*/)
+    string filename = "testfile"
+--; #BEWARE: no spaces
+    IupMglPlotPaintTo(mainplot, "SVG", 0, 0, 0, filename&".svg")
+    IupMglPlotPaintTo(mainplot, "PNG", 0, 0, 0, filename&".png")
+
+/*
+  use IupCanvas::FileVector;
+   
+  my $cnv1 = IupCanvas::FileVector->new(format=>"SVG", filename=>"$filename.svg", width=>300, height=>210, resolution=>4);
+  $mainplot->PlotPaintTo($cnv1);
+  $cnv1->cdKillCanvas();
+   
+  my $cnv2 = IupCanvas::FileVector->new(format=>"EMF", filename=>"$filename.emf", width=>'800', height=>600);
+  $mainplot->PlotPaintTo($cnv2);
+  $cnv2->cdKillCanvas();
+   
+  IUP->Message("Warning", "Exported to '$filename.emf' + '$filename.svg'!");
+*/
+?"bt1_cb incomplete..."
+    return IUP_DEFAULT
+end function
+ 
+function bt2_cb(Ihandle /*self*/)
+?"Auto\n"
+    IupSetAttribute(mainplot,"AXS_XAUTOMIN", "YES")
+    IupSetAttribute(mainplot,"AXS_XAUTOMAX", "YES")
+    IupSetAttribute(mainplot, "REDRAW", NULL)
+    return IUP_DEFAULT
+end function
+ 
+function bt3_cb(Ihandle /*self*/)
+printf(1,"Draw '%v'\n", {IupGetAttribute(mainfunc,"VALUE")})
+--/*
+  sequence xvalues = {},
+           yvalues = {}
+  my $y;
+  for (my $x=-10; $x<=10; $x+=0.1) {    
+    $y = eval $mainfunc->VALUE;
+    if ($@) {
+      my $msg = $@;
+      $msg =~ s/[\r\n]*"/"/g;
+      IUP->Message("ERROR", $msg);
+      last;
+    }
+    push @xvalues, $x;
+    push @yvalues, $y;
+  }
+ 
+  $mainplot->CLEAR(1);
+  $mainplot->PlotSet2D($mainplot->PlotNewDataSet(2), \@xvalues, \@yvalues);  
+  $mainplot->SetAttribute("TITLE", 'func: $y='.$mainfunc->VALUE);
+  $mainplot->SetAttribute("AXS_XAUTOMIN", "YES");
+  $mainplot->SetAttribute("AXS_XAUTOMAX", "YES");
+  $mainplot->REDRAW(1);
+--*/
+    return IUP_DEFAULT
+end function
+ 
+ 
+--### main ###
+IupOpen()
+ 
+--### left panel: plot control
+--# Y zooming
+dial1 = IupDial("VERTICAL", "ACTIVE=NO, SIZE=20x52")
+IupSetCallback(dial1, "BUTTON_PRESS_CB", Icallback("dial1_btndown_cb"))
+IupSetCallback(dial1, "MOUSEMOVE_CB", Icallback("dial1_btnup_cb"))
+IupSetCallback(dial1, "BUTTON_RELEASE_CB", Icallback("dial1_btnup_cb"))
+tgg1 = IupToggle("Y Autoscale", "ACTION", Icallback("tgg1_cb"), "VALUE=ON")
+Ihandle boxinfo = IupVbox({IupLabel("-", "EXPAND=NO"),
+                           IupFill(),
+                           IupLabel("+", "EXPAND=NO")},
+                          "ALIGNMENT=ACENTER, SIZE=20x52, GAP=2, MARGIN=4, EXPAND=YES")
+Ihandle boxdial1 = IupHbox({boxinfo, dial1}, "ALIGNMENT=ACENTER")
+Ihandle f1 = IupFrame(IupVbox({boxdial1, tgg1}, "TITLE=\"Y Zoom\""))
+ 
+--# X zooming
+dial2 = IupDial("HORIZONTAL", "ACTIVE=NO, SIZE=64x16") 
+IupSetCallback(dial2, "BUTTON_PRESS_CB", Icallback("dial2_btndown_cb"))
+IupSetCallback(dial2, "MOUSEMOVE_CB", Icallback("dial2_btnup_cb"))
+IupSetCallback(dial2, "BUTTON_RELEASE_CB", Icallback("dial2_btnup_cb"))
+tgg2 = IupToggle("X Autoscale", "ACTION", Icallback("tgg2_cb"), "VALUE=ON")
+Ihandle boxinfoxxx = IupHbox({IupLabel("-", "EXPAND=NO"),
+                              IupFill(),
+                              IupLabel("+", "EXPAND=NO")},
+                             "ALIGNMENT=ACENTER, SIZE=64x16, GAP=2, MARGIN=4, EXPAND=HORIZONTAL")
+Ihandle boxdial2 = IupVbox({dial2, boxinfoxxx}, "ALIGNMENT=ACENTER")
+Ihandle f2 = IupFrame(IupVbox({boxdial2, tgg2}, "TITLE=\"X Zoom\""))
+ 
+--# checkboxes + buttons
+tgg3 = IupToggle("Vertical Grid", "ACTION", Icallback("tgg3_cb"))
+tgg4 = IupToggle("Horizontal Grid", "ACTION",Icallback("tgg4_cb"))
+tgg5 = IupToggle("Legend", "ACTION",Icallback("tgg5_cb"))
+Ihandle lbl1 = IupLabel("", "SEPARATOR=HORIZONTAL")
+Ihandle lbl2 = IupLabel("", "SEPARATOR=HORIZONTAL")
+Ihandle lbl3 = IupLabel("", "SEPARATOR=HORIZONTAL")
+Ihandle bt1 = IupButton("Export EMF", "ACTION", Icallback("bt1_cb"))
+Ihandle bt2 = IupButton("Autofocus", "ACTION", Icallback("bt2_cb"))
+ 
+Ihandle vboxl = IupVbox({f1,f2,lbl1,tgg3,tgg4,lbl2,tgg5,lbl3,bt1,bt2}, "GAP=4, EXPAND=NO")
+ 
+--### right panel: plot control
+mainplot = IupPlot()
+--mainplot = IupMglPlot()
+mainfunc = IupText("VALUE='sin($x)', VISIBLECOLUMNS=50, VISIBLELINES=3, MULTILINE=YES, EXPAND=YES")
+ 
+--### the main dialog
+Ihandle hbox1 = IupHbox({vboxl, mainplot}, "MARGIN=4x4, GAP=10")
+Ihandle hbox2 = IupHbox({IupLabel("$y ="),
+                         mainfunc,
+                         IupButton("Draw", "ACTION", Icallback("bt3_cb"))},
+                        "MARGIN=4x4, GAP=2")
+  
+Ihandle dlg = IupDialog(IupVbox({hbox1, hbox2}), "SIZE=500x300")
+IupSetAttribute(dlg,"TITLE","IupPlot Example")
+ 
+InitPlot() -- It must be able to be done independent of dialog Mapping
+ 
+IupShowXY(dlg,IUP_CENTER, IUP_CENTER)
+IupSetAttribute(dlg,"SIZE", NULL) -- autofit trick
+ 
+--### the main loop
+IupMainLoop()

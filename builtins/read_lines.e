@@ -1,3 +1,4 @@
+DEAD (now in pfile.e)
 --
 -- read_lines.e
 --
@@ -5,23 +6,13 @@
 --
 --  does not support read_lines(0)
 --
-
-global function read_lines(object filename)
-sequence lines
-integer fn
-    if sequence(filename) then
-        fn = open(filename, "r")
-    else
-        fn = filename
-    end if
+global function read_lines(object file)
+    integer fn = iff(string(file)?open(file,"r"):file)
     if fn<0 then return -1 end if
-
-    lines = get_text(fn,GT_LF_STRIPPED)
-
-    if sequence(filename) then
+    sequence lines = get_text(fn,GT_LF_STRIPPED)
+    if string(file) then
         close(fn)
     end if
-
     return lines
 end function
 

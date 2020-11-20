@@ -82,13 +82,9 @@
             optional parameters of <a href="IupSetStrAttribute.htm#utility">IupSetStrAttributeId</a>.
             <br>        
             <br>        
-            They work just like the respective traditional set and get functions, but the attribute string is complemented with the id value. For example:
-<!--eucode>
-IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", value)
-</eucode-->
-<pre>
-<font color="#000000"></font><font color="#5E005E">IupSetAttributeId</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "TABTITLE"</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">) ==</font><font color="#5E005E"> IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "TABTITLE3"</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">)</font>
-</pre>
+            They work just like the respective traditional set and get functions, but the attribute string is complemented with the id value. 
+            For example IupSetAttributeId(ih, "TABTITLE", 3, value) is the same as IupSetAttribute(ih, "TABTITLE3", value)
+            <br>
             <br>
             These functions are faster than the traditional functions because they do not need to parse the attribute name string and the application 
             does not need to concatenate the attribute name with the id.
@@ -128,6 +124,14 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
         </tr>
         <tr>
          <td>
+          CHILDSIZEALL
+         </td>
+         <td>
+            (non inheritable): compute the natural size using all children. If set to NO will compute using only the current tab. Default: Yes. (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
           COUNT
          </td>
          <td>
@@ -157,16 +161,6 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
          <td>
             [Windows Only] (non inheritable) Enable multiple lines of tab buttons. This will hide the tab scroll and fits to make all tab buttons visible. 
             Can be "YES" or "NO". Default "NO". It is always enabled when TABTYPE=LEFT or TABTYPE=RIGHT. (since 3.0)
-         </td>
-        </tr>
-        <tr>
-         <td>
-          PADDING
-         </td>
-         <td>
-            (non inheritable) internal margin of the tab title. 
-            Works just like the MARGIN attribute of the <a href="IupHbox.htm">IupHbox</a> and <a href="IupVbox.htm">IupVbox</a> containers, 
-            but uses a different name to avoid inheritance problems. Default value: "0x0". (since 3.0)
          </td>
         </tr>
         <tr>
@@ -211,6 +205,17 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
             if TABTYPE=LEFT or TABTYPE=RIGHT then TABORIENTATION=VERTICAL, 
             if TABTYPE=TOP or TABTYPE=BOTTOM then TABORIENTATION=HORIZONTAL. (GTK 2.6)
           <a name=TABVISIBLE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABPADDING
+         </td>
+         <td>
+            (non inheritable) internal margin of the tab title. 
+            Works just like the MARGIN attribute of the <a href="IupHbox.htm">IupHbox</a> and <a href="IupVbox.htm">IupVbox</a> containers, 
+            but uses a different name to avoid inheritance problems. Default value: "0x0". (since 3.0)<br>
+            (renamed in 3.19 to avoid conflict with PADDING)
          </td>
         </tr>
         <tr>
@@ -300,7 +305,15 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
           <b>Attributes:</b>
          </td>
          <td>
-            (at Children)
+            (non inheritable, at children only)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FLOATING
+         </td>
+         <td>
+            If a child has FLOATING=YES then its size and position will be ignored by the layout processing. Default: "NO". (since 3.27)
          </td>
         </tr>
         <tr>
@@ -308,7 +321,7 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
           TABTITLE
          </td>
          <td>
-            (non inheritable) (at children only) Same as TABTITLEn but set in each child. Works only if set before the child is added to the tabs.
+            Same as TABTITLEn but set in each child. Works only if set before the child is added to the tabs.
          </td>
         </tr>
         <tr>
@@ -316,7 +329,7 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
           TABIMAGE
          </td>
          <td>
-            (non inheritable) (at children only) Same as TABIMAGEn but set in each child. Works only if set before the child is added to the tabs.
+            Same as TABIMAGEn but set in each child. Works only if set before the child is added to the tabs.
          </td>
         </tr>
 
@@ -374,6 +387,21 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
             If <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a> is returned does nothing.
          </td>
         </tr>
+
+        <tr>
+         <td>
+          FOCUS_CB
+         </td>
+         <td>
+            Called when a child of the container gets or looses the focus. <br>
+            It is called only if PROPAGATEFOCUS is defined in the child. (since 3.23)
+            <br>
+            <br>
+            function focus_cb(a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> focus)<br>
+            ih: identifier of the element that activated the event.<br>
+            focus: is non zero if the canvas is getting the focus, is zero if it is loosing the focus.
+         </td>
+        </tr>
         <tr>
          <td>
           RIGHTCLICK_CB
@@ -412,50 +440,62 @@ IupSetAttributeId(ih, "TABTITLE", 3, value) == IupSetAttribute(ih, "TABTITLE3", 
             In Windows, the Visual Styles work only when TABTYPE is TOP.
             <br>
             <br>
-            <table align="center">
-            <tr>
-                <th>Windows <br>
-                Classic</th>
-                <th>Windows <br>
-                w/ Styles</th>
-            </tr>
-            <tr><td class="bg_win2k"><img src="images/iuptabs_win2k_top.png"/></td>
-                <td class="bg_winxp"><img src="images/iuptabs_winxp_top.png"/></td> </tr>
-            <tr><td class="bg_win2k"><img src="images/iuptabs_win2k_left.png"/></td>
-                <td class="bg_winxp"><img src="images/iuptabs_winxp_left.png"/></td> </tr>
-            <tr><td class="bg_win2k"><img src="images/iuptabs_win2k_top_multi.png"/></td>
-                <td class="bg_winxp"><img src="images/iuptabs_winxp_top_multi.png"/></td>
-            </tr>
-            </table>
-            <br>
-            &nbsp;
+            Windows Classic
+            <div class="parent">
+              <div class="child">
+                <img src="images/iuptabs_win2k_top.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_win2k_top_multi.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_win2k_left.png"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+            Windows w/ Styles
+            <div class="parent">
+              <div class="child">
+                <img src="images/iuptabs_winxp_top.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_winxp_top_multi.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_winxp_left.png"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
             <br>
             GTK is the only one that supports vertical text in the TOP configuration, but does not support multiple lines of tab buttons.
             <br>
-            <br>
-            <table align="center">
-            <tr>
-                <th colspan="2">GTK</th>
-            </tr>
-            <tr><td class="bg_gtk"><img src="images/iuptabs_gtk_top.png"/></td>
-                <td class="bg_gtk"><img src="images/iuptabs_gtk_left.png"/></td>        </tr>
-            <tr><td class="bg_gtk"><img src="images/iuptabs_gtk_top_vert.png"/></td>
-                <td class="bg_gtk"><img src="images/iuptabs_gtk_left_vert.png"/></td>
-            </tr>
-            </table>
-            <br>
-            &nbsp;
+            <div class="parent">
+              <div class="child">
+                <img src="images/iuptabs_gtk_top.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_gtk_left.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_gtk_top_vert.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_gtk_left_vert.png"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
             <br>
             Motif does not support vertical text.
             <br>
-            <br>
-            <table align="center">
-            <tr>
-                <th>Motif</th>
-            </tr>
-            <tr><td class="bg_mot"><img src="images/iuptabs_mot_top.png"/></td> </tr>
-            <tr><td class="bg_mot"><img src="images/iuptabs_mot_left.png"/></td>  </tr>
-          </table>
+            <div class="parent">
+              <div class="child">
+                <img src="images/iuptabs_mot_top.png"/>
+              </div>
+              <div class="child">
+                <img src="images/iuptabs_mot_left.png"/>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
             <br>
             &nbsp;
             <br>

@@ -124,7 +124,9 @@ object res
             {res,pos} = getflt(sf,8,pos)
             res = float64_to_atom(res)
 
-        case else
+-- 30/10/2020 (p2js_parse.e)
+--      case else
+        default:
             -- sequence
             if c=S1B then
                 {len,pos} = getonebyte(sf,pos)

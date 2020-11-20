@@ -145,6 +145,7 @@ global procedure SetCType( object pChar, object pSet)
 w32SetCType(pChar,pSet)
 end procedure
 
+--/* Not Phix (now buitin)
 global constant False = 0, True = not 0
 
 global type int(object x)
@@ -154,3 +155,4 @@ end type
 global type seq(object x)
     return sequence(x)
 end type
+--*/

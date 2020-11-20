@@ -1,0 +1,1054 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">pwa/p2js</h1>
+      <div id="mainSection">
+        <b>***** EXPERIMENTAL/INCOMPLETE *****</b>
+        <br>
+        <br>
+        <b>NOTE</b>: The references to p2js that have sprung up all over the docs are actually there to help <i>me</i>, not you, for now.<br>
+        <small>(No, I&rsquo;m not deliberately torturing you with vaporware [nor claiming this isn&rsquo;t], a building site is <i>meant</i> 
+        to look like a building site.)</small>
+        <br>
+        <br>
+        The program Phix\pwa.exw and the contents of the Phix\pwa directory (esp Phix\pwa\p2js.e) represent the next big step for Phix: <br>
+        running the exact same program source code both on the desktop and directly in a web browser. Naturally, responsive handling for
+        smaller mobile/table screens is on the radar, but a secondary consideration to achieving correct full-size operation first.
+        <br>
+        <br>
+        The files pwa\p2js.js, pwa\pGUI.js and pGUI.css contain a basic JavaScript re-implementation of a subset of the standard builtins
+        and <a href="PGUI.htm">pGUI.e</a>: by the time you read this, the documentation should contain quite a few back-links to this page. 
+        However even the briefest of scans should convince you this is rather unlikely to reach 10%, let alone 100%, but hopefully it will 
+        be the right few percent, that allows a fair few useful things to be written. There are quite a few things I can avoid completely, 
+        such as file i/o, locking, video_config, allocate/peek/poke, open_dll, task_create, create_thread, ...
+        <br>
+        <br>
+        Assumes full ES6 compatibility in the browser<sup><small>1</small></sup>. 
+        <br>
+        <br>
+        All runtime error handling, once it has been transpiled to JavaScript, is delegated to the browser development tools.<br>
+        Press &lt;Ctrl+Shift+I&gt; to open the latter in the browser, if anything appears amiss, and hunt for/open the "console".<br>
+        Ideally, however, you should iron out all bugs in the desktop version, before the very first test in the browser.
+        <br>
+        <br>
+<!-- rename then?? js and pwa\phix -->
+<!--
+        The directory pwa\regression\ is for holding read-only regression tests, please ignore that for now.<br>
+        <br>
+-->
+       <h3>Example:</h3>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18b74j93-qx54-6374-123h-8b2483c92846');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_18b74j93-qx54-6374-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+--
+-- pwa\phix\hello_world.exw
+-- ========================
+--
+include pGUI.e
+
+IupOpen()
+Ihandle lbl = IupFlatLabel("World","EXPAND=YES, ALIGNMENT=ACENTER")
+Ihandln dlg = IupDialog(lbl,`TITLE="Hello", MINSIZE=225x75`)
+--X IupSetAttribute(dlg,"HIDEHEADERS","YES")
+--if SIZE <?? then
+--IupSetInt(dlg,"HIDEHEADERS",true)
+--end if
+IupCloseOnEscape(dlg)
+
+IupShow(dlg)
+IupMainLoop()
+dlg = IupDestroy(dlg)
+IupClose()
+</eucode-->
+<pre>
+<font color="#000080"><i>--
+-- pwa\phix\hello_world.exw
+-- ========================
+--</i></font>
+<font color="#008080">include</font><font color="#000000"> pGUI.e
+</font>
+<font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
+<font color="#5E005E">Ihandle</font><font color="#000000"> lbl</font><font color="#0000FF"> =</font><font color="#5E005E"> IupFlatLabel</font><font color="#0000FF">(</font><font color="#008000">"World"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">)</font>
+<font color="#5E005E">Ihandln</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">lbl</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Hello", MINSIZE=225x75`</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--X IupSetAttribute(dlg,"HIDEHEADERS","YES")
+--if SIZE &lt;?? then
+--IupSetInt(dlg,"HIDEHEADERS",true)
+--end if</i></font>
+<font color="#5E005E">IupCloseOnEscape</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)
+</font>
+<font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#000000">dlg</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+       <br>
+        Look familiar? Well it should:
+       <br>
+       <br>
+        <div class="parent">
+          <div class="child">
+            Desktop<br><br>
+            <img src="images/hello_desktop.png"/>
+          </div>    
+          <div class="child">
+            Browser<br><br>
+            <img src="images/hello_browser.png"/>
+          </div>    
+        </div>  
+        <div style="clear:both;height:1px;"> </div>
+        <br>
+        As you can see, the aim is "reasonably similar" rather than "pixel perfect". <br>
+        You can move, resize, and maximise/restore the window just like the desktop.<br>
+        , and hide the window decorations in the browser if desired, simply by setting the 
+        pGUI.js-specific attribute HIDEHEADERS [DEV], which pGUI.e simply ignores.
+>> Often web applications do not have such window decorations, in fact I suspect the whole "single page applications"
+movement is (partly) an attempt to re-frame (see what I did there) the situation from a browser weakness to a browser 
+strength. Then again, such window decorations simply waste too much real estate for a tablet or mobile phone. If you
+uncomment out the HIDEHEADERS setting (which pGUI.e simply ignores) then the window is maximised and the window
+decorations are removed, in this case leaving a fairly lonely-looking "World" in the middle of an otherwise blank screen.
+Note however that would not be reactive, whereas this would: ...
+
+<!--
+SUG: in IupSetAttributes, if not found then [] = IupAttrError(ih,name,v,INT|TXT):
+function IupAttrError(ih, name, v, flags)
+    static_flags |= flags;
+[[if we can rely on t/f results...]]
+    if (!(static_flags & INT) && IupSetInt(ih,name,v)) {
+        error "name must be set with IupSetInt()"
+    } else if (!(static_flags & TXT) && IupSetAttribute(ih,name,v)) {
+        error "name must be set with IupSetAttribute()"
+    } else {
+        error "name not supported..."   
+    }
+    static_flags = 0;
+}
+-->
+        <br>
+        <br>
+        Note that pwa/p2js does <b><i>not</i></b> support:<br>
+        file i/o, other than output to 1 (stdout, appended to docbody) and 2 (stderr, prepended to docbody).<br>
+        &nbsp;&nbsp;&nbsp;<small>(That includes locking/getc/get_key/wait_key(except as a dummy function)/...)</small><br>
+        memory management, such as allocate/peek/poke.<br>
+        cffi, such as open_dll/c_func/c_proc.<br>
+        tasks/threads.<br>
+        routine_id, other than as first class use (which on 0.8.2+ is, vs. implicit, quite unnecessary anyway).<br>
+        &nbsp;&nbsp;&nbsp;<small>(ie/eg no routine_id(expr), as opposed to routine_id("<i>string</i>"))</small>
+<!-- dev?? - you do know JavaScript is a pretty capabable language, right?
+        routine_id, other than as first class use.<br>
+        &nbsp;&nbsp;&nbsp;<small><i>(ie/eg instead of <code>fn = routine_id("myfunc"), call_func(fn,args)</code> just use <code>fn = myfunc; fn(...args)</code>)</a></small><br>
+        &nbsp;&nbsp;&nbsp;<small><i>(and by "..." I mean longhand spreading or [fixed plus] single-sequence-argument-style routines only)</i></small><br>
+-->
+<!--
+locking, video_config,  ...
+-->     
+        <br>
+        <br>
+        Likewise, realistically pwa/pGUI.js probably only actually supports around 1% of pGUI.e - but hopefully the good/right/necessary bits.
+        <br>
+        <br>
+        Also note that mid-statement comment handling proved somewhat problematical: while most things are now correctly handled, when
+        processing (say) if-then-else, what I&rsquo;d like to do is insert "skip_comments()" calls before the checks for 'then' and 'else',
+        however since we are building an abstract syntax <i>tree</i>, it ain&rsquo;t quite that simple. In some cases you may need to move 
+        comments so they are <i>between</i> statements, as a temporary workaround - and obviously raise an issue with a small failing example.
+        <br>
+        <br>
+        The annotations below are written in a JavaScript-esque style.<br>
+        Since JavaScript is typeless, p2js converts eg "integer a" into "/* integer */ a", ie comments out any type.<br>
+        &nbsp;&nbsp;&nbsp;<small>(I initially tried that style here, but not surprisingly it quickly became completely unreadable.)</small><br>
+        Phix sequences, which use {}, become JavaScript arrays, which use [], rather than {} of JavaScript objects, <br>
+        which are more like a <a href="dict.htm">dictonary</a>, with unordered (or alphabetically ordered) non-integer keys.<br>
+        <br>
+        <br>
+        The following builtins are supported via p2js.js
+        <br>
+        <br>
+        <style type="text/css">
+          .flexbox { display: flex; }
+        </style>
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="append.htm">append</a>(</nobr>
+         </div>
+         <div>
+            <nobr>a,</nobr> <nobr>b);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="atom.htm">atom</a>(</nobr>
+         </div>
+         <div>
+            <nobr>a,</nobr> <nobr>name="");</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small>Note that within JavaScript, (eg) atom(a) is a normal test yielding true/false whereas atom(a,"a") is an explicit typecheck<br>
+             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="compare.htm">compare</a>(</nobr>
+         </div>
+         <div>
+            <nobr>a,</nobr> <nobr>b);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="crash.htm">crash</a>(</nobr>
+         </div>
+         <div>
+            <nobr>msg,</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Displays an error at the top of the document, and throws an exception.<br>
+            Error handling is responsibility of browser development tools.<br>
+            <small>(Note that any nFrames parameter is simply ignored.)</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="equal.htm">equal</a>(</nobr>
+         </div>
+         <div>
+            <nobr>a,</nobr> <nobr>b);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="factors.htm">factors</a>(</nobr>
+         </div>
+         <div>
+            <nobr>n,</nobr> <nobr>include1=0);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="find.htm">find</a>(</nobr>
+         </div>
+         <div>
+            <nobr>needle,</nobr> <nobr>haystack,</nobr> <nobr>start=1);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="integer.htm">integer</a>(</nobr>
+         </div>
+         <div>
+            <nobr>i,</nobr> <nobr>name="");</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small>Note that within JavaScript, (eg) integer(fn) is a normal test yielding true/false whereas integer(fn,"fn") is an explicit typecheck<br>
+             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.<br>
+            Also, javascript integers are +/-9,007,199,254,740,992 (ie 2^53) rather than -1073741824..+1073741823 (ie 31-bit), or 63-bit.</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="length.htm">length</a>(</nobr>
+         </div>
+         <div>
+            <nobr>s);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="match.htm">match</a>(</nobr>
+         </div>
+         <div>
+            <nobr>needle,</nobr> <nobr>haystack,</nobr> <nobr>start=1,</nobr> <nobr>case_insensitive=false);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small>Note that under p2js this only works for strings.</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="object.htm">object</a>(</nobr>
+         </div>
+         <div>
+            <nobr>o,</nobr> <nobr>name="");</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small>Note that within JavaScript, (eg) object(p) is a normal test yielding true/false whereas object(o,"o") is an explicit typecheck<br>
+             - the latter as emitted by p2js rather than something it will accept or you can write, you understand. <br>
+            On the desktop, unassigned variables trigger that specific error before an object typecheck, but that is not necessarily so under p2js.</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="prepend.htm">prepend</a>(</nobr>
+         </div>
+         <div>
+            <nobr>a,</nobr> <nobr>b);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="print.htm">print</a>(</nobr>
+         </div>
+         <div>
+            <nobr>fn,</nobr> <nobr>x);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>Uses sprint() and puts(), so the same applies here too.</i></small>
+         </div>
+        </div>
+        <!-- (deliberately hard against each other) -->
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="printf.htm">printf</a>(</nobr>
+         </div>
+         <div>
+            <nobr>fn,</nobr> <nobr>fmt,</nobr> <nobr>args=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>Uses sprintf() and puts(), ditto.</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="sum.htm">product</a>(</nobr>
+         </div>
+         <div>
+            <nobr>x);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="platform.htm">platform</a>(</nobr>
+         </div>
+         <div>
+            <nobr>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Optimised to literal (WEB==4) by p2js in much the same way as the desktop version, and no code is emitted for irrelevant if-branches.<br>
+            Note the presence of an "else" without an explicit WEB(/JS/JAVASCRIPT) branch triggers a transpile-time error.<br>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="puts.htm">puts</a>(</nobr>
+         </div>
+         <div>
+            <nobr>fn,</nobr> <nobr>x);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            fn must be 1 (append to document body) or 2 (prepend to document body)<br>
+            Any '\n' in x are automatically replaced with '&lt;br&gt;', <br>
+            likewise <small>(beforehand, so they appear normal)</small> '&amp;|&lt;|&gt;' ==&gt; '&amp;amp|lt|gt;', <br>
+            and should you want to show say '&amp;amp;' you&rsquo;ll have to output it as '&amp;amp;amp;'.<br>
+            <small>(TIP: do NOT look at p2js.htm for that: my txt->chm bears little or no resemblence to your txt->puts->browser!)</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="repeat.htm">repeat</a>(</nobr>
+         </div>
+         <div>
+            <nobr>item,</nobr> <nobr>count);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="sequence.htm">sequence</a>(</nobr>
+         </div>
+         <div>
+            <nobr>p,</nobr> <nobr>name="");</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small>Note that within JavaScript, (eg) sequence(p) is a normal test yielding true/false whereas sequence(p,"p") is an explicit typecheck<br>
+             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="sprint.htm">sprint</a>(</nobr>
+         </div>
+         <div>
+            <nobr>x);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Uses JavaScript .toString(), which instead of eg "{1,{2,3}}" just yields (a flattened) "1,2,3". <br>
+            I have however artificially glued on an outer top-level "{" and "}" for respectability&rsquo;s sake.<br>
+            There is no maxlen parameter (anything provided will simply be ignored).
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="sprintf.htm">sprintf</a>(</nobr>
+         </div>
+         <div>
+            <nobr>fmt,</nobr> <nobr>args=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Should give a reasonable approximation to the desktop builtin, but unlikely to ever be perfect...<br>
+            Expect occasional [] instead of {}, some minor rounding differences, %g picks %f or %e differently. <br>
+            <small><i>Uses puts(), so the same applies here too. See also pwa\printf_tests.html</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="string.htm">string</a>(</nobr>
+         </div>
+         <div>
+            <nobr>s,</nobr> <nobr>name="");</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small>Note that within JavaScript, (eg) string(s) is a normal test yielding true/false whereas string(s,"s") is an explicit typecheck<br>
+             - the latter as emitted by p2js rather than something it will accept or you can write, you understand.</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="sum.htm">sum</a>(</nobr>
+         </div>
+         <div>
+            <nobr>x);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>[] =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="wait_key.htm">wait_key</a>(</nobr>
+         </div>
+         <div>
+            <nobr>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Dummy routine, returns [] for the {} = wait_key() case.<br>
+            I am assuming it is being used to allow the console to be read before it vanishes, which the browser is not too likely to do
+            <small>(although it does close the tab when you close the last window)</small>, rather than as a pause before something scrolls 
+            off screen because of reams and reams of further (console) output.
+         </div>
+        </div>
+        <br>
+        <br>
+        The following constants, routines, elements, and containers of <a href="pGUI.htm">pGUI</a> are supported/imitated/emulated in pGUI.js<br>
+        pGUI.js fully supports the <a href="paranormal.htm">paranormalised functions</a> of pGUI.e [some of them anyway].
+        <br>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="Icallback.htm">Icallback</a>(</nobr>
+         </div>
+         <div>
+            <nobr>func);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Dummy function, returns it&rsquo;s argument unaltered. <br>
+            <small>(Exists primariliy so that phix &lt;==&gt; js can be bi-directional, for testing purposes.)</small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>ih =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="IupButton.htm">IupButton</a>(</nobr>
+         </div>
+         <div>
+            <nobr>title=NULL,</nobr> <nobr>[[action=NULL,]</nobr> <nobr>func=NULL,]</nobr> <nobr>attributes="",</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            IupFlatButton() is treated identically.<br>
+            Supported attributes: <br>
+            Untested: ALIGNMENT, BGCOLOR, CANFOCUS, PROPAGATEFOCUS, FLAT, FGCOLOR, IMAGE, 
+                      IMINACTIVE, IMPRESS, IMPRESSBORDER, IMAGEPOSITION, PADDING,
+                      CPADDING, SPACING, CSPACING, TITLE  <br>
+            Unsupported: MARKUP
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>constant&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="platform.htm">IUP_DEFAULT</a></nobr>
+         </div>
+         <div>
+            <nobr> = -2;</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupClose.htm">IupClose</a>(</nobr>
+         </div>
+         <div>
+            <nobr>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Dummy routine, as per IupMainLoop(). (Doesn&rsquo;t really appear to do very much on the desktop, anyway.)
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupClose.htm">IupCloseOnEscape</a>(</nobr>
+         </div>
+         <div>
+            <nobr>dlg);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>res =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="IupDestroy.htm">IupDestroy</a>(</nobr>
+         </div>
+         <div>
+            <nobr>dlg);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Dummy function, returns it&rsquo;s argument unaltered. <br>
+            I had planned to return null, however IupMainLoop() being dummy meant that a following dlg = IupDestroy(dlg) would
+            spanner the whole show. Such final calls may, like IupMainLoop(), need to end up inside an `if platform()!=JS then` guard.
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>ih =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="IupDialog.htm">IupDialog</a>(</nobr>
+         </div>
+         <div>
+            <nobr>child,</nobr> <nobr>attributes="",</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Supported attributes: GAP[?], MARGIN, MINSIZE, RASTERSIZE, TITLE
+                                  <br>
+            Untested: ACTIVE, ACTIVEWINDOW, BACKGROUND, BGCOLOR, BORDER, BORDERSIZE, BRINGFRONT, CHILDOFFSET, CLIENTSIZE, 
+                      CURSOR, DEFAULTENTER, DEFAULTESC, DIALOGFRAME, EXPAND, FONT, ICON, 
+                      MAXBOX, MAXIMIZED, MAXSIZE, MENU, MENUBOX, MINBOX, MINIMIZED, MODAL, 
+                      NACTIVE, NAME, PARENTDIALOG, PLACEMENT, RESIZE, SCREENPOSITION,
+                      SHRINK, SIMULATEMODAL, SIZE, STARTFOCUS, TIP, TOOLBOX, TOPMOST, VISIBLE, ZORDER
+                      <br>
+            Unsupported: COMPOSITED, CONTROL, CUSTOMFRAME, CUSTOMFRAMECAPTION, CUSTOMFRAMECAPTIONHEIGHT, CUSTOMFRAMECAPTIONLIMITS, CUSTOMFRAMEDRAW, CUSTOMFRAMESIMULATE, 
+                         DIALOGHINT, DROPFILESTARGET, FULLSCREEN, HELPBUTTON, HIDETASKBAR, HIDETITLEBAR, HWND, MAXIMIZEATPARENT, 
+                         MDIACTIVATE, MDIACTIVE, MDIARRANGE, MDICHILD, MDICLIENT, MDICLOSEALL, MDIFRAME, MDIMENU, MDINEXT,
+                         NATIVEPARENT, OPACITY, OPACITYIMAGE, SAVEUNDER, SHAPEIMAGE, SHOWMINIMIZENEXT, SHOWNOACTIVE, SHOWNOFOCUS,
+                         TASKBARBUTTON, TASKBARPROGRESS, TASKBARPROGRESSSTATE, TASKBARPROGRESSVALUE, 
+                         TRAY, TRAYIMAGE, TRAYTIP, TRAYTIPBALLOON, TRAYTIPBALLOONDELAY, TRAYTIPBALLOONTITLE, TRAYTIPBALLOONTITLEICON, TRAYTIPMARKUP,
+                         WID, XWINDOW
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>ih =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="IupFill.htm">IupFill</a>(</nobr>
+         </div>
+         <div>
+            <nobr>attributes="",</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Supported attributes: <br>
+            Untested: EXPAND, FONT, MINSIZE, MAXSIZE, NAME, POSITION, RASTERSIZE, SIZE 
+                      <br>
+            Unsupported: WID
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>ih =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="IupHbox.htm">IupHbox</a>(</nobr>
+         </div>
+         <div>
+            <nobr>children,</nobr> <nobr>attributes="",</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Supported attributes: <br>
+            Untested: ALIGNMENT, CLIENTSIZE, CLIENTOFFSET, EXPAND, EXPANDCHILDREN, EXPANDWEIGHT, 
+                      FLOATING, FONT, GAP, CGAP, NGAP, NCGAP, HOMOGENEOUS, MARGIN, CMARGIN, NMARGIN, NCMARGIN, 
+                      MINSIZE, MAXSIZE, NAME, NORMALIZESIZE, POSITION, ORIENTATION, SIZE, RASTERSIZE, 
+                      <br>
+            Unsupported: WID
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupHide.htm">IupHide</a>(</nobr>
+         </div>
+         <div>
+            <nobr>ih);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            When then last window is hidden/closed, the browser tab is automatically closed.
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>ih =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="IupLabel.htm">IupLabel</a>(</nobr>
+         </div>
+         <div>
+            <nobr>title=NULL,</nobr> <nobr>attributes="",</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            IupFlatLabel() is treated identically.<br>
+            Supported attributes: ALIGNMENT, EXPAND, TITLE<br>
+            Untested: ACTIVE, DROPFILESTARGET, ELLIPSIS, FGCOLOR, IMAGE, IMINACTIVE, 
+                      PADDING, CPADDING, SEPARATOR, WORDWRAP  <br>
+            Unsupported: MARKUP
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupMainLoop.htm">IupMainLoop</a>(</nobr>
+         </div>
+         <div>
+            <nobr>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Dummy routine, does nothing. We simply rely on the JavaScript event loop instead.<br>
+            [DEV? - TBC] This may print an error/ need to be inside an `if platform()!=JS then`, as yet undecided.
+            It has already meant that IupDestroy has to be dummy, whereas if a final one was "" then it wouldn&rsquo;t have to be.
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupOpen.htm">IupOpen</a>(</nobr>
+         </div>
+         <div>
+            <nobr>);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(Performs some important initialisation.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(</nobr>
+         </div>
+         <div>
+            <nobr>ih,</nobr> <nobr>name,</nobr> <nobr>v,</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues, beyond being rather limited in what attributes are actually supported.)</i></small><br>
+            IupStoreAttribute() and IupSetAttribute() are treated identically, also [DEV?] IupSetInt(). 
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupSetAttributes.htm">IupSetAttributes</a>(</nobr>
+         </div>
+         <div>
+            <nobr>ih,</nobr> <nobr>attributes,</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues, beyond being rather limited in what attributes are actually supported.)</i></small><br>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <small><i>procedure&nbsp;</i></small>
+         </div>
+         <div>
+            <nobr><a href="IupShow.htm">IupShow</a>(</nobr>
+         </div>
+         <div>
+            <nobr>ih);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            <small><i>(No known issues.)</i></small>
+         </div>
+        </div>
+        <br>
+
+        <div class="flexbox">
+         <div>
+            <nobr>ih =&nbsp;</nobr>
+         </div>
+         <div>
+            <nobr><a href="IupHbox.htm">IupHbox</a>(</nobr>
+         </div>
+         <div>
+            <nobr>children,</nobr> <nobr>attributes="",</nobr> <nobr>data=[]);</nobr>
+         </div>
+         <div>
+            &nbsp;&nbsp;
+         </div>
+         <div>
+            Supported attributes: <i>&lt;none&gt;</i><br>
+            Untested: ALIGNMENT, CLIENTSIZE, CLIENTOFFSET, EXPAND, EXPANDCHILDREN, EXPANDWEIGHT, 
+                      FLOATING, FONT, GAP, CGAP, NGAP, NCGAP, HOMOGENEOUS, MARGIN, CMARGIN, NMARGIN, NCMARGIN, 
+                      MINSIZE, MAXSIZE, NAME, NORMALIZESIZE, POSITION, ORIENTATION, SIZE, RASTERSIZE 
+                      <br>
+            Unsupported: WID
+         </div>
+        </div>
+       <br>
+       <table>
+        <col style="width: 8%"/>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+          <sup>1</sup> The highly esteemed and ever capable Mr Donald Trump Snr, Grand Ex-President of the United States 
+            of America, has agreed to use his special tiny hands to write any polyfills needed to get this running on 
+            IE 11 (wow, what a great piece of software) all the way back to IE 6 (can I just say, all American, you 
+            know, built by one of the greatest companies - no <i>the</i> greatest company this world has ever seen, 
+            in Redmond, Washington State (a beautiful, beautiful state, by the way, with lovely trees, and great, great 
+            people), let me tell you, all American, no Chinese there, good old fashioned American software at it&rsquo;s 
+            finest, that&rsquo;s for sure). <small><i>(not)</i></small>
+         </td>
+        </tr>
+       </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

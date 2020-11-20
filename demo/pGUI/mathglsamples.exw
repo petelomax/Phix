@@ -1,0 +1,976 @@
+--
+-- demo\pGUI\mathglsamples.exw
+--
+--  MathGL samples w/ IupMglPlot 
+--  Based on MathGL documentation
+--  Translation of http://iup.sourceforge.net/examples/C/mathglsamples.c
+include pGUI.e
+
+Ihandle plot,                           /* plot */
+        minmaxY_dial, minmaxX_dial,     /* dials for zooming */
+        autoscaleY_tgg, autoscaleX_tgg, /* auto scale on|off toggles */
+        grid_tgg,                       /* grid show|hide toggles */
+        legend_tgg,                     /* legend show|hide toggle */
+        box_tgg,                        /* box show|hide toggle */
+        aa_tgg,                         /* antialias enable|disable toggle */
+        transp_tgg,                     /* transparent enable|disable toggle */
+        light_tgg,                      /* light enable|disable toggle */
+        opengl_tgg;                     /* opengl enable|disable toggle */
+
+string filenameSVG, filenameEPS, filenamePNG;
+
+procedure ResetClear()
+    IupSetAttribute(plot, "RESET", NULL);
+    IupSetAttribute(plot, "CLEAR", NULL);
+
+    // Some defaults in MathGL are different in IupMglPlot
+    IupSetAttribute(plot, "AXS_X", "NO");
+    IupSetAttribute(plot, "AXS_Y", "NO");
+    IupSetAttribute(plot, "AXS_Z", "NO");
+
+//  IupSetAttribute(plot, "FONT", "Heros, 12");
+//  IupSetAttribute(plot, "FONT", "Termes, 12");
+
+    IupSetCallback(plot, "POSTDRAW_CB", NULL);
+end procedure
+
+procedure UpdateFlags()
+
+    /* auto scaling Y axis */
+    if IupGetInt(plot, "AXS_YAUTOMIN")
+    and IupGetInt(plot, "AXS_YAUTOMAX") then
+        IupSetAttribute(autoscaleY_tgg, "VALUE", "ON");
+        IupSetAttribute(minmaxY_dial, "ACTIVE", "NO");
+    else 
+        IupSetAttribute(autoscaleY_tgg, "VALUE", "OFF");
+        IupSetAttribute(minmaxY_dial, "ACTIVE", "YES");
+    end if
+
+    /* auto scaling X axis */
+    if IupGetInt(plot, "AXS_XAUTOMIN") 
+    and IupGetInt(plot, "AXS_XAUTOMAX") then
+        IupSetAttribute(autoscaleX_tgg, "VALUE", "ON");
+        IupSetAttribute(minmaxX_dial, "ACTIVE", "NO");
+    else 
+        IupSetAttribute(autoscaleX_tgg, "VALUE", "OFF");
+        IupSetAttribute(minmaxX_dial, "ACTIVE", "YES");
+    end if
+
+    /* grid */
+    IupSetInt(grid_tgg, "VALUE", match("XYZ",IupGetAttribute(plot, "GRID"))!=0);
+
+    /* legend */
+    IupSetInt(legend_tgg, "VALUE", IupGetInt(plot, "LEGEND")!="");
+
+    /* box */
+    IupSetInt(box_tgg, "VALUE", IupGetInt(plot, "BOX")!="");
+
+    /* antialias */
+    IupSetInt(aa_tgg, "VALUE", IupGetInt(plot, "ANTIALIAS")!="");
+
+    /* transparent */
+    IupSetInt(transp_tgg, "VALUE", IupGetInt(plot, "TRANSPARENT")!="");
+
+    /* light */
+    IupSetInt(light_tgg, "VALUE", IupGetInt(plot, "LIGHT")!="");
+
+    /* opengl */
+    IupSetInt(opengl_tgg, "VALUE", IupGetInt(plot, "OPENGL")!="");
+
+end procedure
+
+procedure SampleVolume(string ds_mode)
+    int ds = IupMglPlotNewDataSet(plot, 1);
+    string formula = "-2*((2*x-1)^2 + (2*y-1)^2 + (2*z-1)^4 - (2*z-1)^2 - 0.1)"
+    IupMglPlotSetFromFormula(plot, ds, formula, 60, 50, 40);
+    IupSetAttribute(plot, "DS_MODE", ds_mode);
+
+    IupSetAttribute(plot, "ROTATE", "40:0:60");
+    IupSetAttribute(plot, "LIGHT", "YES");
+    IupSetAttribute(plot, "TRANSPARENT", "YES");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleDensityProjectVolume()
+    SampleVolume("VOLUME_DENSITY");
+    IupSetAttribute(plot, "PROJECT", "YES");
+    IupSetAttribute(plot, "PROJECTVALUEX", "-1");
+    IupSetAttribute(plot, "PROJECTVALUEY", "1");
+    IupSetAttribute(plot, "PROJECTVALUEZ", "-1");
+    IupSetAttribute(plot, "TRANSPARENT", "NO");
+    IupSetAttribute(plot, "LIGHT", "NO");
+end procedure
+
+procedure SampleContourProjectVolume()
+    SampleVolume("VOLUME_CONTOUR");
+    IupSetAttribute(plot, "PROJECT", "YES");
+    IupSetAttribute(plot, "PROJECTVALUEX", "-1");
+    IupSetAttribute(plot, "PROJECTVALUEY", "1");
+    IupSetAttribute(plot, "PROJECTVALUEZ", "-1");
+    IupSetAttribute(plot, "TRANSPARENT", "NO");
+//  IupSetAttribute(plot, "LIGHT", "NO");
+end procedure
+
+procedure SampleContourFilledProjectVolume()
+    SampleVolume("VOLUME_CONTOUR");
+    IupSetAttribute(plot, "PROJECT", "YES");
+    IupSetAttribute(plot, "PROJECTVALUEX", "-1");
+    IupSetAttribute(plot, "PROJECTVALUEY", "1");
+    IupSetAttribute(plot, "PROJECTVALUEZ", "-1");
+    IupSetAttribute(plot, "CONTOURFILLED", "YES");
+    IupSetAttribute(plot, "TRANSPARENT", "NO");
+//  IupSetAttribute(plot, "LIGHT", "NO");
+end procedure
+
+procedure SampleContourFilledVolume()
+    SampleVolume("VOLUME_CONTOUR");
+    IupSetAttribute(plot, "CONTOURFILLED", "YES");
+    IupSetAttribute(plot, "TRANSPARENT", "NO");
+end procedure
+
+procedure SampleContourVolume()
+    SampleVolume("VOLUME_CONTOUR");
+    IupSetAttribute(plot, "TRANSPARENT", "NO");
+//  IupSetAttribute(plot, "LIGHT", "NO");
+end procedure
+
+procedure SampleDensityVolume()
+    SampleVolume("VOLUME_DENSITY");
+    IupSetAttribute(plot, "AXS_XORIGIN", "0");
+    IupSetAttribute(plot, "AXS_YORIGIN", "0");
+    IupSetAttribute(plot, "AXS_ZORIGIN", "0");
+    IupSetAttribute(plot, "AXS_X", "Yes");
+    IupSetAttribute(plot, "AXS_Y", "Yes");
+    IupSetAttribute(plot, "AXS_Z", "Yes");
+    IupSetAttribute(plot, "LIGHT", "NO");
+end procedure
+
+procedure SampleCloudVolume()
+    SampleVolume("VOLUME_CLOUD");
+    IupSetAttribute(plot, "COLORSCHEME", "wyrRk");
+    IupSetAttribute(plot, "LIGHT", "NO");
+end procedure
+
+procedure SampleIsoSurfaceVolume()
+    SampleVolume("VOLUME_ISOSURFACE");
+end procedure
+
+--#if 0
+--void mgls_prepare2d(mglData *a, mglData *b = 0, mglData *v = 0)
+--{
+--  register long i, j, n = 50, m = 40, i0;
+--  if (a) a->Create(n, m); if (b) b->Create(n, m);
+--  if (v) { v->Create(9); v->Fill(-1, 1); }
+--  mreal x, y;
+--  for (i = 0; i<n; i++) for (j = 0; j<m; j++)
+--  {
+--  x = i / (n - 1.); y = j / (m - 1.); i0 = i + n*j;
+--  if (a) a->a[i0] = 0.6*sin(2 * M_PI*x)*sin(3 * M_PI*y) + 0.4*cos(3 * M_PI*x*y);
+--  if (b) b->a[i0] = 0.6*cos(2 * M_PI*x)*cos(3 * M_PI*y) + 0.4*cos(3 * M_PI*x*y);
+--  }
+--}
+--#endif
+
+--#ifndef M_PI
+--#define M_PI 3.14159265358979323846
+--#endif
+
+procedure SamplePlanarCreateData(int ds)
+    integer n = 50, m = 40
+    sequence data = repeat(0,n*m)
+    for i=0 to n-1 do
+        for j=0 to m-1 do
+            atom x = i/(n-1),
+                 y = j/(m-1)
+            integer i0 = i + n*j +1
+            data[i0] = 0.6*sin(2*PI*x)*sin(3*PI*y) + 0.4*cos(3*PI*x*y)
+        end for
+    end for
+    IupMglPlotSetData(plot, ds, data, n, m, 1)
+end procedure
+
+procedure SamplePlanar(string ds_mode)
+    int ds = IupMglPlotNewDataSet(plot, 1);
+    //IupMglPlotSetFromFormula(plot, ds, "0.6*sin(2*pi*x)*sin(3*pi*y) + 0.4*cos(3*pi*(x*y))", 50, 40, 1);
+    SamplePlanarCreateData(ds);
+
+    IupSetAttribute(plot, "DS_MODE", ds_mode);
+
+    IupSetAttribute(plot, "ROTATE", "40:0:60");
+    IupSetAttribute(plot, "LIGHT", "YES");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleGradientLinesPlanar()
+    SamplePlanar("PLANAR_GRADIENTLINES");
+    SamplePlanar("PLANAR_DENSITY");
+    IupSetAttribute(plot, "TRANSPARENT", "YES");
+    IupSetAttribute(plot, "ROTATE", NULL);
+end procedure
+
+procedure SampleAxialContourPlanar()
+    SamplePlanar("PLANAR_AXIALCONTOUR");
+    IupSetAttribute(plot, "TRANSPARENT", "YES");
+end procedure
+
+procedure SampleContourFilledPlanar()
+    SamplePlanar("PLANAR_CONTOUR");
+    IupSetAttribute(plot, "CONTOURFILLED", "Yes");
+end procedure
+
+procedure SampleContourPlanar()
+    SamplePlanar("PLANAR_CONTOUR");
+    IupSetAttribute(plot, "CONTOURLABELS", "BELLOW");
+end procedure
+
+procedure SampleDensityPlanar()
+    SamplePlanar("PLANAR_DENSITY");
+    IupSetAttribute(plot, "COLORBAR", "Yes");
+    IupSetAttribute(plot, "ROTATE", NULL);
+end procedure
+
+procedure SampleBoxesPlanar()
+    SamplePlanar("PLANAR_BOXES");
+    IupSetAttribute(plot, "AXS_XORIGIN", "0");
+    IupSetAttribute(plot, "AXS_YORIGIN", "0");
+    IupSetAttribute(plot, "AXS_ZORIGIN", "0");
+end procedure
+
+procedure SampleTilePlanar()
+    SamplePlanar("PLANAR_TILE");
+end procedure
+
+procedure SampleBeltPlanar()
+    SamplePlanar("PLANAR_BELT");
+end procedure
+
+procedure SampleFallPlanar()
+    SamplePlanar("PLANAR_FALL");
+end procedure
+
+procedure SampleMeshPlanar()
+    SamplePlanar("PLANAR_MESH");
+end procedure
+
+procedure SampleSurfaceColorsPlanar()
+    SamplePlanar("PLANAR_SURFACE");
+    IupSetAttribute(plot, "COLORSCHEME", "BbcyrR|");
+end procedure
+
+procedure SampleSurfacePlanar()
+    SamplePlanar("PLANAR_SURFACE");
+end procedure
+
+procedure SampleSurfaceContourPlanar()
+    SamplePlanar("PLANAR_SURFACE");
+    SamplePlanar("PLANAR_CONTOUR");
+end procedure
+
+procedure SampleDotsLinear3D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+--  IupMglPlotLoadData(plot, 0, "../test/hotdogs.pts", 0, 0, 0);
+    IupMglPlotLoadData(plot, 0, "hotdogs.pts", 0, 0, 0);
+    IupSetAttribute(plot, "DS_MODE", "DOTS");
+    IupSetAttribute(plot, "DS_REARRANGE", NULL);
+
+    IupSetAttribute(plot, "ROTATE", "40:0:60");
+    IupSetAttribute(plot, "LIGHT", "YES");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleCrustLinear3D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+--  IupMglPlotLoadData(plot, 0, "../test/hotdogs.pts", 0, 0, 0);
+    IupMglPlotLoadData(plot, 0, "hotdogs.pts", 0, 0, 0);
+    IupSetAttribute(plot, "DS_MODE", "CRUST");
+    IupSetAttribute(plot, "DS_REARRANGE", NULL);
+
+    IupSetAttribute(plot, "ROTATE", "40:0:60");
+    IupSetAttribute(plot, "LIGHT", "YES");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SamplePieLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "rnd+0.1", 7, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "CHART");
+
+    IupSetAttribute(plot, "COLORSCHEME", "bgr cmy");
+    IupSetAttribute(plot, "PIECHART", "Yes");
+    IupSetAttribute(plot, "DATAGRID", "Yes");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleChartLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "rnd+0.1", 7, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "CHART");
+    IupSetAttribute(plot, "DATAGRID", "Yes");
+
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleStemLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "0.7*sin(2*pi*x) + 0.5*cos(3*pi*x) + 0.2*sin(pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "STEM");
+    IupSetAttribute(plot, "DS_MARKSTYLE", "HOLLOW_CIRCLE");
+    IupSetAttribute(plot, "DS_SHOWMARKS", "Yes");
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 1, "sin(2*pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "STEM");
+    IupSetAttribute(plot, "DS_MARKSTYLE", "HOLLOW_CIRCLE");
+    IupSetAttribute(plot, "DS_SHOWMARKS", "Yes");
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 2, "cos(2*pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "STEM");
+    IupSetAttribute(plot, "DS_MARKSTYLE", "HOLLOW_CIRCLE");
+    IupSetAttribute(plot, "DS_SHOWMARKS", "Yes");
+
+    IupSetAttribute(plot, "AXS_XORIGIN", "0");
+    IupSetAttribute(plot, "AXS_YORIGIN", "0");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleStepLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "0.7*sin(2*pi*x) + 0.5*cos(3*pi*x) + 0.2*sin(pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "STEP");
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 1, "sin(2*pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "STEP");
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 2, "cos(2*pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "STEP");
+
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleBarhLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "0.8*sin(pi*(2*x+y/2))+0.2*rnd", 10, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "BARHORIZONTAL");
+
+    IupSetAttribute(plot, "AXS_XORIGIN", "0");
+    IupSetAttribute(plot, "AXS_YORIGIN", "0");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleBarsLinear3D()
+    {} = IupMglPlotNewDataSet(plot, 3);
+    IupMglPlotSetFormula(plot, 0, "cos(pi*2*x-pi)", "sin(pi*(2*x-1))", "2*x-1", 50);
+    IupSetAttribute(plot, "DS_MODE", "BAR");
+    IupSetAttribute(plot, "DS_LINESTYLE", "SMALLDASH_DOT");
+
+    IupSetAttribute(plot, "ROTATE", "40:0:60");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleBarsLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "0.8*sin(pi*(2*x+y/2))+0.2*rnd", 10, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "BAR");
+
+    //TODO: allow combination of several datasets into one bar plot
+    //TODO: allow bars "above" sample
+
+    IupSetAttribute(plot, "AXS_XORIGIN", "0");
+    IupSetAttribute(plot, "AXS_YORIGIN", "0");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleAreaLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "0.7*sin(2*pi*x) + 0.5*cos(3*pi*x) + 0.2*sin(pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "AREA");
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 1, "sin(2*pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "AREA");
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 2, "cos(2*pi*x)", 50, 1, 1);
+    IupSetAttribute(plot, "DS_MODE", "AREA");
+
+    IupSetAttribute(plot, "AXS_XORIGIN", "0");
+    IupSetAttribute(plot, "AXS_YORIGIN", "0");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleRadarLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "0.4*sin(pi*(2*x+y/2))+0.1*rnd", 10, 3, 1);
+    IupSetAttribute(plot, "DS_MODE", "RADAR");
+    IupSetAttribute(plot, "DS_SPLIT", NULL);
+
+    IupSetAttribute(plot, "CURRENT", "1");
+    IupSetAttribute(plot, "DS_MODE", "RADAR");
+
+    IupSetAttribute(plot, "CURRENT", "2");
+    IupSetAttribute(plot, "DS_MODE", "RADAR");
+
+    IupSetAttribute(plot, "RADARSHIFT", "0.4");  // So all datasets will use the same radarshift
+    IupSetAttribute(plot, "DATAGRID", "Yes");
+end procedure
+
+procedure SamplePlotLinear3D()
+    {} = IupMglPlotNewDataSet(plot, 3);
+    IupMglPlotSetFormula(plot, 0, "cos(pi*2*x-pi)", "sin(pi*(2*x-1))", "2*x-1", 50);
+    IupSetAttribute(plot, "DS_MODE", "MARKLINE");
+    IupSetAttribute(plot, "DS_MARKSTYLE", "BOX");
+
+    IupSetAttribute(plot, "ROTATE", "40:0:60");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SamplePlotLinear1D()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 0, "0.7*sin(2*pi*x)+0.5*cos(3*pi*x)+0.2*sin(pi*x)", 50, 1, 1);
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 1, "sin(2*pi*x)", 50, 1, 1);
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupMglPlotSetFromFormula(plot, 2, "cos(2*pi*x)", 50, 1, 1);
+
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+function text_postdraw_cb(Ihandle ih)
+    IupMglPlotDrawText(ih, "It can be \\wire{wire}, \\big{big} or #r{colored}", 0, 1.0, 0);
+    IupMglPlotDrawText(ih, "One can change style in string: \\b{bold}, \\i{italic, \\b{both}}", 0, 0.6, 0);
+    IupMglPlotDrawText(ih, "Easy to \\a{overline} or \\u{underline}", 0, 0.2, 0);
+    IupMglPlotDrawText(ih, "Easy to change indexes ^{up} _{down} @{center}", 0, -0.2, 0);
+    IupMglPlotDrawText(ih, "It parse TeX: \\int \\alpha \\sqrt{sin(\\pi x)^2 + \\gamma_{i_k}} dx", 0, -0.6, 0);
+//  IupMglPlotDrawText(ih, "It parse TeX: \\int \\alpha \\cdot \\sqrt3{sin(\\pi x)^2 + \\gamma_{i_k}} dx", 0, -0.6, 0);
+    IupMglPlotDrawText(ih, "And more TeX: \\sqrt{\\frac{\\alpha^{\\gamma^2}+\\overset 1{\\big\\infty}}{\\sqrt{2+b}}}", 0, -1.0, 0);
+//  IupMglPlotDrawText(ih, "And more TeX: \\sqrt{\\frac{\\alpha^{\\gamma^2}+\\overset 1{\\big\\infty}}{\\sqrt3{2+b}}}", 0, -1.0, 0);
+    return IUP_DEFAULT;
+end function
+
+procedure SampleText()
+    IupSetCallback(plot, "POSTDRAW_CB", Icallback("text_postdraw_cb"));
+end procedure
+
+function fonts_postdraw_cb(Ihandle ih)
+    IupSetAttribute(plot, "DRAWFONT", "Cursor, 12");
+    IupMglPlotDrawText(ih, "Cursor - ABCDEFGabcdefg", -0.5, 0.5, 0);
+    IupSetAttribute(plot, "DRAWFONT", "Heros, 12");
+    IupMglPlotDrawText(ih, "Heros - ABCDEFGabcdefg", -0.5, 0.0, 0);
+    IupSetAttribute(plot, "DRAWFONT", "Termes, 12");
+    IupMglPlotDrawText(ih, "Termes - ABCDEFGabcdefg", -0.5, -0.5, 0);
+    return IUP_DEFAULT;
+end function
+
+procedure SampleFonts()
+    IupSetCallback(plot, "POSTDRAW_CB", Icallback("fonts_postdraw_cb"));
+end procedure
+
+procedure SampleLegend()
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupSetAttribute(plot, "DS_LEGEND", "sin(\\pi {x^2})");
+    IupMglPlotSetFromFormula(plot, 0, "sin(2*pi*x*x)", 50, 1, 1);
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupSetAttribute(plot, "DS_LEGEND", "sin(\\pi x)");
+    IupMglPlotSetFromFormula(plot, 1, "sin(2*pi*x)", 50, 1, 1);
+
+    {} = IupMglPlotNewDataSet(plot, 1);
+    IupSetAttribute(plot, "DS_LEGEND", "sin(\\pi \\sqrt{\\a x})");
+    IupMglPlotSetFromFormula(plot, 2, "sin(2*pi*sqrt(x))", 50, 1, 1);
+
+    IupSetAttribute(plot, "LEGEND", "YES");
+    IupSetAttribute(plot, "AXS_X", "Yes");
+    IupSetAttribute(plot, "AXS_Y", "Yes");
+    IupSetAttribute(plot, "BOX", "YES");
+end procedure
+
+procedure SampleSemiLog()
+    IupSetAttribute(plot, "FORMULA_XMIN", "0.01");
+    IupSetAttribute(plot, "FORMULA_XMAX", "100");
+    IupSetAttribute(plot, "FORMULA_YMIN", "-1");
+    IupSetAttribute(plot, "FORMULA_YMAX", "1");
+
+    {} = IupMglPlotNewDataSet(plot, 2);
+    IupMglPlotSetFormula(plot, 0, "0.01/(x+10^(-5))", "sin(1/x)", NULL, 2000);
+//  {} = IupMglPlotNewDataSet(plot, 1);
+//  IupMglPlotSetFromFormula(plot, 0, "sin(1/x)", 2000, 1, 1);
+    IupSetAttribute(plot, "DS_COLOR", "0 0 255");
+  //IupSetAttribute(plot, "DS_LINEWIDTH", "2");
+
+    IupSetAttribute(plot, "AXS_XSCALE", "LOG10");
+  //IupSetAttribute(plot, "AXS_XMIN", "0.01");
+  //IupSetAttribute(plot, "AXS_XMAX", "100");
+  //IupSetAttribute(plot, "AXS_YMIN", "-1.0");
+  //IupSetAttribute(plot, "AXS_YMAX", "1.0");
+    IupSetAttribute(plot, "AXS_X", "Yes");
+    IupSetAttribute(plot, "AXS_Y", "Yes");
+//  IupSetAttribute(plot, "AXS_XLABEL", "x");       // TODO crashing the application
+//  IupSetAttribute(plot, "AXS_YLABEL", "y = sin 1/x");
+    IupSetAttribute(plot, "BOX", "YES");
+    IupSetAttribute(plot, "GRID", "YES");
+    IupSetAttribute(plot, "GRIDCOLOR", "0 255 0");
+end procedure
+
+procedure SampleLogLog()
+    {} = IupMglPlotNewDataSet(plot, 2);
+    IupMglPlotSetFormula(plot, 0, "pow(10,6*x-3)", "sqrt(1+x^2)", NULL, 100);
+    IupSetAttribute(plot, "DS_COLOR", "0 0 255");
+
+    IupSetAttribute(plot, "AXS_XSCALE", "LOG10");
+    IupSetAttribute(plot, "AXS_YSCALE", "LOG10");
+    IupSetAttribute(plot, "AXS_X", "Yes");
+    IupSetAttribute(plot, "AXS_Y", "Yes");
+//  IupSetAttribute(plot, "AXS_XLABEL", "x");       // TODO crashing the application
+//  IupSetAttribute(plot, "AXS_YLABEL", "y=\\sqrt{1+x^2}");
+    IupSetAttribute(plot, "BOX", "YES");
+    IupSetAttribute(plot, "GRID", "YES");
+    IupSetAttribute(plot, "GRIDCOLOR", "0 255 0");
+    IupSetAttribute(plot, "GRIDLINESTYLE", "DASHED");
+end procedure
+
+procedure Dummy()
+end procedure
+
+--typedef struct _TestItems{
+--  char* title;
+--  void (*func)(void);
+--}TestItems;
+
+--static TestItems test_list[] = {
+constant test_list = {
+  {"Plot (Linear 1D)", SamplePlotLinear1D},
+  {"Plot (Linear 3D)", SamplePlotLinear3D},
+  {"Radar (Linear 1D)", SampleRadarLinear1D},
+  {"Area (Linear 1D)", SampleAreaLinear1D},
+  {"Bars (Linear 1D)", SampleBarsLinear1D}, 
+  {"Bars (Linear 3D)", SampleBarsLinear3D}, 
+  {"Barh (Linear 1D)", SampleBarhLinear1D}, 
+  {"Step (Linear 1D)", SampleStepLinear1D}, 
+  {"Stem (Linear 1D)", SampleStemLinear1D}, 
+  {"Chart (Linear 1D)", SampleChartLinear1D}, 
+  {"Pie (Linear 1D)", SamplePieLinear1D}, 
+  {"Dots (Linear 3D)", SampleDotsLinear3D}, 
+  {"Crust (Linear 3D)", SampleCrustLinear3D},
+  {"----------", Dummy},
+  {"Surface (Planar)", SampleSurfacePlanar},
+  {"Surface Colors (Planar)", SampleSurfaceColorsPlanar},
+  {"Surface Contour (Planar)", SampleSurfaceContourPlanar},
+  {"Mesh (Planar)", SampleMeshPlanar},
+  {"Fall (Planar)", SampleFallPlanar},
+  {"Belt (Planar)", SampleBeltPlanar},
+  {"Tile (Planar)", SampleTilePlanar},
+  {"Boxes (Planar)", SampleBoxesPlanar},
+  {"Density (Planar)", SampleDensityPlanar},
+  {"Contour (Planar)", SampleContourPlanar},
+  {"Contour Filled (Planar)", SampleContourFilledPlanar},
+  {"Axial Contour (Planar)", SampleAxialContourPlanar},
+  {"GradientLines (Planar)", SampleGradientLinesPlanar},
+  {"----------", Dummy},
+  {"Iso Surface (Volume)", SampleIsoSurfaceVolume},
+  {"Cloud (Volume)", SampleCloudVolume},
+  {"Density (Volume)", SampleDensityVolume},
+  {"Contour (Volume)", SampleContourVolume},
+  {"ContourFilled (Volume)", SampleContourFilledVolume},
+  {"ContourProject (Volume)", SampleContourProjectVolume},
+  {"ContourFilledProject (Volume)", SampleContourFilledProjectVolume},
+  {"DensityProject (Volume)", SampleDensityProjectVolume},
+  {"----------", Dummy},
+  {"Text Styles", SampleText},
+  {"Fonts", SampleFonts },
+  { "Legend", SampleLegend },
+  {"Semi-log", SampleSemiLog},
+  {"Log-log", SampleLogLog},
+};
+
+procedure ChangePlot(int item)
+    ResetClear();
+    {string title, integer rid} = test_list[item]
+    rid()
+    UpdateFlags();
+    filenameSVG = sprintf("../%s.svg", title);
+    filenameEPS = sprintf("../%s.eps", title);
+    filenamePNG = sprintf("../%s.png", title);
+//  filenamePNG = sprintf("../html/en/ctrl/images/iupmglplot_%s.png", IupGetAttribute(plot, "DS_MODE"));
+//  filenamePNG = lower(filenamePNG);
+    IupSetAttribute(plot, "REDRAW", NULL);
+
+    string errmsg = IupGetAttribute(plot, "ERRORMESSAGE");
+    if errmsg!="" then
+        IupMessage("Error", errmsg);
+    end if
+end procedure
+
+function k_enter_cb(Ihandle ih)
+    int pos = IupGetInt(ih, "VALUE")
+    if pos>0 then ChangePlot(pos) end if
+    return IUP_DEFAULT;
+end function
+
+function action_cb(Ihandle /*ih*/, atom /*pText*/, int item, int state)
+    if state==1 then ChangePlot(item) end if
+    return IUP_DEFAULT;
+end function
+
+function close_cb(Ihandle /*ih*/)
+    return IUP_CLOSE;
+end function
+
+/* Y zoom */
+function minmaxY_dial_btndown_cb(Ihandle /*self*/, atom /*angle*/)
+    IupStoreAttribute(plot, "OLD_YMIN", IupGetAttribute(plot, "AXS_YMIN"));
+    IupStoreAttribute(plot, "OLD_YMAX", IupGetAttribute(plot, "AXS_YMAX"));
+    return IUP_DEFAULT;
+end function
+
+function minmaxY_dial_btnup_cb(Ihandle /*self*/, atom angle)
+    atom x1 = IupGetFloat(plot, "OLD_YMIN"),
+         x2 = IupGetFloat(plot, "OLD_YMAX"),
+         xm;
+
+    string ss = IupGetAttribute(plot, "AXS_YMODE");
+    if ss!="" and ss[4]=='2' then
+        /* LOG2:  one circle will zoom 2 times */
+        xm = 4.0 * abs(angle) / PI;
+        if angle>0.0 then
+            x2 /= xm;
+            x1 *= xm;
+        else
+            x2 *= xm;
+            x1 /= xm;
+        end if
+    end if
+
+    if ss!="" and ss[4]=='1' then
+        /* LOG10:  one circle will zoom 10 times */
+        xm = 10.0 * abs(angle) / PI;
+        if angle>0.0 then
+            x2 /= xm;
+            x1 *= xm;
+        else
+            x2 *= xm;
+            x1 /= xm
+        end if
+    else
+        /* LIN: one circle will zoom 2 times */
+        xm = (x1 + x2) / 2.0;
+        x1 = xm - (xm - x1)*(1.0-angle*1.0/PI);
+        x2 = xm + (x2 - xm)*(1.0-angle*1.0/PI);
+    end if
+
+    if x1<x2 then
+        IupSetStrAttribute(plot, "AXS_YMIN", "%g", {x1});
+        IupSetStrAttribute(plot, "AXS_YMAX", "%g", {x2});
+    end if
+
+    IupSetAttribute(plot, "REDRAW", NULL);
+
+    return IUP_DEFAULT;
+end function
+
+/* X zoom */
+function minmaxX_dial_btndown_cb(Ihandle /*self*/, atom /*angle*/)
+    IupStoreAttribute(plot, "OLD_XMIN", IupGetAttribute(plot, "AXS_XMIN"));
+    IupStoreAttribute(plot, "OLD_XMAX", IupGetAttribute(plot, "AXS_XMAX"));
+    return IUP_DEFAULT; 
+end function
+
+function minmaxX_dial_btnup_cb(Ihandle /*self*/, atom angle)
+
+    atom x1 = IupGetFloat(plot, "OLD_XMIN"),
+         x2 = IupGetFloat(plot, "OLD_XMAX"),
+         xm = (x1 + x2) / 2.0;
+
+    x1 = xm - (xm - x1)*(1.0-angle*1.0/3.141592); /* one circle will zoom 2 times */
+    x2 = xm + (x2 - xm)*(1.0-angle*1.0/3.141592);
+
+    IupSetStrAttribute(plot, "AXS_XMIN", "%g", {x1})
+    IupSetStrAttribute(plot, "AXS_XMAX", "%g", {x2})
+
+    IupSetAttribute(plot, "REDRAW", NULL);
+
+    return IUP_DEFAULT;
+end function
+
+/* auto scale Y */
+function autoscaleY_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(minmaxY_dial, "ACTIVE", v=0)
+    IupSetInt(plot, "AXS_YAUTOMIN", v!=0)
+    IupSetInt(plot, "AXS_YAUTOMAX", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* auto scale X */
+function autoscaleX_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(minmaxX_dial, "ACTIVE", v=0)
+    IupSetInt(plot, "AXS_XAUTOMIN", v!=0)
+    IupSetInt(plot, "AXS_XAUTOMAX", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* show/hide grid */
+function grid_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(plot, "GRID", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* show/hide legend */
+function legend_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(plot, "LEGEND", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* show/hide box */
+function box_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(plot, "BOX", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* enable/disable antialias */
+function aa_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(plot, "ANTIALIAS", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* enable/disable transparent */
+function transp_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(plot, "TRANSPARENT", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* enable/disable light */
+function light_tgg_cb(Ihandle /*self*/, int v)
+    IupSetInt(plot, "LIGHT", v!=0)
+    IupSetAttribute(plot, "REDRAW", NULL);
+    return IUP_DEFAULT;
+end function
+
+/* enable/disable opengl */
+function opengl_tgg_cb(Ihandle /*self*/, int v)
+    if v then
+        IupSetInt(plot, "OPENGL", true)
+    else
+        IupSetAttribute(aa_tgg, "VALUE", "OFF");
+        IupSetAttribute(plot, "ANTIALIAS", "NO");
+        IupSetInt(plot, "OPENGL", false)
+    end if
+    IupSetAttribute(plot, "REDRAW", NULL)
+    return IUP_DEFAULT;
+end function
+
+function bt1_cb(Ihandle /*self*/)
+    IupMglPlotPaintTo(plot, "SVG", 0, 0, 0, filenameSVG);
+    return IUP_DEFAULT;
+end function
+
+function bt2_cb(Ihandle /*self*/)
+    IupMglPlotPaintTo(plot, "EPS", 0, 0, 0, filenameEPS);
+    return IUP_DEFAULT;
+end function
+
+--#ifdef USE_IM
+function bt3_cb(Ihandle /*self*/)
+    Ihandln clipboard = IupClipboard();
+    integer {w,h} = IupGetIntInt(plot, "DRAWSIZE");
+    atom gldata = allocate(w*h*3);
+    imImage image = imImageCreate(w, h, IM_RGB, IM_BYTE);
+    IupMglPlotPaintTo(plot, "RGB", w, h, 0, gldata);
+--  imConvertPacking(gldata, image->data[0], w, h, 3, 3, IM_BYTE, 1);
+    imConvertPacking(gldata, im_data(image), w, h, 3, 3, IM_BYTE, 1);
+    imProcessFlip(image, image);
+    IupSetAttribute(clipboard, "TEXT", NULL); /* clear clipboard */
+    IupSetAttribute(clipboard, "NATIVEIMAGE", IupGetImageNativeHandle(image));
+    clipboard = IupDestroy(clipboard);
+    free(gldata);
+    image = imImageDestroy(image);
+    return IUP_DEFAULT;
+end function
+
+function bt4_cb(Ihandle /*self*/)
+    integer {w,h} = IupGetIntInt(plot, "DRAWSIZE");
+    atom gldata = allocate(w*h*3);
+    imImage image = imImageCreate(w, h, IM_RGB, IM_BYTE);
+    IupMglPlotPaintTo(plot, "RGB", w, h, 0, gldata);
+--  imConvertPacking(gldata, image->data[0], w, h, 3, 3, IM_BYTE, 1);
+    imConvertPacking(gldata, im_data(image), w, h, 3, 3, IM_BYTE, 1);
+    imProcessFlip(image, image);
+    integer error = imFileImageSave(filenamePNG, "PNG", image);
+    free(gldata);
+    image = imImageDestroy(image);
+    return IUP_DEFAULT;
+end function
+--#endif
+
+function controlPanel()
+    Ihandln vbox1, vbox2, vbox3, lbl1, lbl2, lbl3, lbl4, 
+            bt1, bt2, bt3=NULL, bt4=NULL,
+            boxminmaxY_dial, boxminmaxX_dial, f1, f2;
+
+    /* left panel: plot control
+         Y zooming               */
+    lbl1 = IupLabel("+");
+    lbl2 = IupLabel("-");
+
+    minmaxY_dial = IupDial("VERTICAL");
+    IupSetAttribute(minmaxY_dial, "ACTIVE", "NO");
+    IupSetAttribute(minmaxY_dial, "SIZE", "20x52");
+    IupSetCallback(minmaxY_dial, "BUTTON_PRESS_CB", Icallback("minmaxY_dial_btndown_cb"));
+    IupSetCallback(minmaxY_dial, "MOUSEMOVE_CB", Icallback("minmaxY_dial_btnup_cb"));
+    IupSetCallback(minmaxY_dial, "BUTTON_RELEASE_CB", Icallback("minmaxY_dial_btnup_cb"));
+
+    boxminmaxY_dial = IupVbox({lbl1, minmaxY_dial, lbl2});
+    IupSetAttribute(boxminmaxY_dial, "ALIGNMENT", "ACENTER");
+    IupSetAttribute(boxminmaxY_dial, "GAP", "2");
+    IupSetAttribute(boxminmaxY_dial, "MARGIN", "2");
+
+    autoscaleY_tgg = IupToggle("Y Autoscale","ACTION",Icallback("autoscaleY_tgg_cb"));
+    IupSetAttribute(autoscaleY_tgg, "VALUE", "ON");
+
+    f1 = IupFrame( IupVbox({boxminmaxY_dial, autoscaleY_tgg}) );
+    IupSetAttribute(f1, "TITLE", "Y Zoom");
+    IupSetAttribute(f1, "GAP", "0");
+    IupSetAttribute(f1, "MARGIN", "5x5");
+
+    /* X zooming */
+    lbl1 = IupLabel("-");
+    lbl2 = IupLabel("+");
+
+    minmaxX_dial = IupDial("HORIZONTAL");
+    IupSetAttribute(minmaxX_dial, "ACTIVE", "NO");
+    IupSetAttribute(minmaxX_dial, "SIZE", "64x16");
+    IupSetCallback(minmaxX_dial, "BUTTON_PRESS_CB", Icallback("minmaxX_dial_btndown_cb"));
+    IupSetCallback(minmaxX_dial, "MOUSEMOVE_CB", Icallback("minmaxX_dial_btnup_cb"));
+    IupSetCallback(minmaxX_dial, "BUTTON_RELEASE_CB", Icallback("minmaxX_dial_btnup_cb"));
+
+    boxminmaxX_dial = IupHbox({lbl1, minmaxX_dial, lbl2});
+    IupSetAttribute(boxminmaxX_dial, "ALIGNMENT", "ACENTER");
+    IupSetAttribute(boxminmaxX_dial, "GAP", "2");
+    IupSetAttribute(boxminmaxX_dial, "MARGIN", "2");
+
+    autoscaleX_tgg = IupToggle("X Autoscale","ACTION",Icallback("autoscaleX_tgg_cb"));
+
+    f2 = IupFrame( IupVbox({boxminmaxX_dial, autoscaleX_tgg}) );
+    IupSetAttribute(f2, "TITLE", "X Zoom");
+    IupSetAttribute(f2, "GAP", "0");
+    IupSetAttribute(f2, "MARGIN", "5x5");
+
+    grid_tgg = IupToggle("Grid","ACTION",Icallback("grid_tgg_cb"));
+    box_tgg = IupToggle("Box","ACTION",Icallback("box_tgg_cb"));
+    legend_tgg = IupToggle("Legend","ACTION",Icallback("legend_tgg_cb"));
+
+    lbl3 = IupLabel("");
+    IupSetAttribute(lbl3, "SEPARATOR", "HORIZONTAL");
+    IupSetAttribute(lbl3, "EXPAND", "NO");
+    IupSetAttribute(lbl3, "RASTERSIZE", "160x2");
+
+    transp_tgg = IupToggle("Transparent","ACTION",Icallback("transp_tgg_cb"));
+
+    light_tgg = IupToggle("Light","ACTION",Icallback("light_tgg_cb"));
+
+    lbl4 = IupLabel("");
+    IupSetAttribute(lbl4, "SEPARATOR", "HORIZONTAL");
+    IupSetAttribute(lbl4, "EXPAND", "NO");
+    IupSetAttribute(lbl4, "RASTERSIZE", "160x2");
+
+    aa_tgg = IupToggle("Antialias","ACTION",Icallback("aa_tgg_cb"));
+    opengl_tgg = IupToggle("OpenGL","ACTION",Icallback("opengl_tgg_cb"));
+    bt1 = IupButton("Export SVG","ACTION",Icallback("bt1_cb"));
+    bt2 = IupButton("Export EPS","ACTION", Icallback("bt2_cb"));
+
+--#ifdef USE_IM
+    bt3 = IupButton("Copy To Clipboard","ACTION",Icallback("bt3_cb"));
+
+    bt4 = IupButton("Save To PNG","ACTION",Icallback("bt4_cb"));
+--#endif
+
+    vbox1 = IupFrame(IupVbox({f1, 
+                              f2, 
+                              grid_tgg, 
+                              box_tgg, 
+                              legend_tgg, 
+                              lbl3, 
+                              transp_tgg, 
+                              light_tgg, 
+                             }));
+    IupSetAttribute(vbox1, "GAP", "4");
+    IupSetAttribute(vbox1, "MARGIN", "5x5");
+
+    vbox2 = IupVbox({aa_tgg, opengl_tgg, 
+                     lbl4, IupVbox({bt1, bt2, 
+--#ifdef USE_IM
+                                    bt3, bt4, 
+--#endif
+                                   }), 
+                    });
+    IupSetAttribute(vbox2, "GAP", "4");
+    IupSetAttribute(vbox2, "MARGIN", "5x0");
+
+    vbox3 = IupVbox({vbox1, vbox2});
+    IupSetAttribute(vbox3, "GAP", "7");
+    IupSetAttribute(vbox3, "MARGIN", "0x0");
+
+    return vbox3;
+end function
+
+procedure main()
+    int i, count = length(test_list)
+    string str
+    Ihandle dlg, list, panel;
+
+    IupOpen()
+    IupControlsOpen();
+    IupMglPlotOpen();   /* init IupMGLPlot library */
+
+    IupSetGlobal("MGLFONTS", "../etc/mglfonts");
+
+    list = IupList(NULL);
+    plot = IupMglPlot();
+    panel = controlPanel();
+
+    dlg = IupDialog(IupHbox({list, panel, IupVbox({IupFill(), plot, IupFill()})}));
+    IupSetAttribute(dlg, "MARGIN", "10x10");
+    IupSetAttribute(dlg, "GAP", "5");
+    IupSetAttribute(dlg, "TITLE", "MathGL samples w/ IupMglPlot");
+    IupSetCallback(dlg, "CLOSE_CB", Icallback("close_cb"));
+
+    IupSetAttribute(plot, "RASTERSIZE", "700x500");  // Minimum initial size
+//  IupSetAttribute(plot, "RASTERSIZE", "350x250");
+//  IupSetAttribute(plot, "RASTERSIZE", "460x280");
+//  IupSetAttribute(plot, "EXPAND", "NO");
+
+    IupSetAttribute(list, "EXPAND", "VERTICAL");
+    IupSetAttribute(list, "VISIBLELINES", "15");    // Not all, because the dialog will be too big
+    IupSetAttribute(list, "VISIBLECOLUMNS", "15");
+    IupSetCallback(list, "ACTION", Icallback("action_cb"));
+
+    for i=1 to count do
+        str = sprintf("%d", i)
+        IupSetAttribute(list, str, test_list[i][1]);
+    end for
+
+    IupSetAttribute(list, "VALUE", "1");
+
+    IupShowXY(dlg, 100, IUP_CENTER);
+    IupCloseOnEscape(dlg)
+
+    IupSetAttribute(plot, "RASTERSIZE", NULL);  // Clear initial size
+
+    ChangePlot(1)
+
+    IupMainLoop();
+
+    IupClose();
+
+end procedure
+main()

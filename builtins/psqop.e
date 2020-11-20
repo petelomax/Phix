@@ -97,6 +97,26 @@ type string(object s)
 end type
 --*/
 
+global function sq_cmp(object a, object b)
+    if atom(a) then
+        if atom(b) then return compare(a,b) end if
+        for i=1 to length(b) do
+            b[i] = sq_cmp(a,b[i])
+        end for
+        return b
+    elsif atom(b) then
+        for i=1 to length(a) do
+            a[i] = sq_cmp(a[i],b)
+        end for
+        return a
+    end if
+    if length(a)!=length(b) then fatal(a,b) end if
+    for i=1 to length(a) do
+        a[i] = sq_cmp(a[i],b[i])
+    end for
+    return a
+end function
+
 global function sq_eq(object a, object b)
     if atom(a) then
         if atom(b) then return a=b end if
@@ -683,9 +703,12 @@ global function sq_tan(object a)
     return a
 end function
 
-include builtins\misc.e as misc
+--1/11/20 (p2js)
+--include builtins\misc.e as misc
+include builtins\misc.e
 global function sq_arccos(object a)
-    if atom(a) then return misc:arccos(a) end if
+--  if atom(a) then return misc:arccos(a) end if
+    if atom(a) then return arccos(a) end if
     for i=1 to length(a) do
         a[i] = sq_arccos(a[i])
     end for
@@ -693,7 +716,8 @@ global function sq_arccos(object a)
 end function
 
 global function sq_arcsin(object a)
-    if atom(a) then return misc:arcsin(a) end if
+--  if atom(a) then return misc:arcsin(a) end if
+    if atom(a) then return arcsin(a) end if
     for i=1 to length(a) do
         a[i] = sq_arcsin(a[i])
     end for
@@ -764,12 +788,15 @@ end function
 
 --DEV not even sure these return anything different from upper/lower...
 -- (ie: this might just be a sad hangover from trying to cope with the one in wildcard.e)
-include builtins\pcase.e as pcase
+--include builtins\pcase.e as pcase
+include builtins\pcase.e
 
 global function sq_upper(object a)
-    if integer(a) then return pcase:upper(a) end if
+--  if integer(a) then return pcase:upper(a) end if
+    if integer(a) then return upper(a) end if
     if atom(a) then return a end if
-    if string(a) then return pcase:upper(a) end if
+--  if string(a) then return pcase:upper(a) end if
+    if string(a) then return upper(a) end if
     for i=1 to length(a) do
         a[i] = sq_upper(a[i])
     end for
@@ -779,9 +806,11 @@ global function sq_upper(object a)
 end function
 
 global function sq_lower(object a)
-    if integer(a) then return pcase:lower(a) end if
+--  if integer(a) then return pcase:lower(a) end if
+    if integer(a) then return lower(a) end if
     if atom(a) then return a end if
-    if string(a) then return pcase:lower(a) end if
+--  if string(a) then return pcase:lower(a) end if
+    if string(a) then return lower(a) end if
     for i=1 to length(a) do
         a[i] = sq_lower(a[i])
     end for

@@ -5,7 +5,7 @@
 --
 --DEV make this a standard builtin? (see also demo/PGUI/pdemo.exw and filedump.exw)
 
-function matchew(string path, string endswith)
+function match_ew(string path, endswith)
     if length(endswith)=0 then return 1 end if
     sequence segments = split_path(path)
     return length(segments) and lower(segments[$])=lower(endswith)
@@ -20,12 +20,12 @@ function add_path(sequence pathset, string path)
     return pathset
 end function
 
-function add_paths(sequence pathset, sequence paths, sequence endswiths)
+function add_paths(sequence pathset, paths, endswiths)
     for i=1 to length(paths) do
         string path = paths[i]
         for j=1 to length(endswiths) do
             string endswith = endswiths[j]
-            if matchew(path,endswith) then
+            if match_ew(path,endswith) then
                 pathset = add_path(pathset,path)
                 exit
             end if
@@ -69,32 +69,33 @@ function ibits(string filepath, integer plat=platform())
 --
 -- DEV/SUG may also be sensible to verify data section starts "Phix"?
 --
-integer fn = open(filepath,"rb")
-integer bits = 0
-    if plat=WINDOWS then
-        if seek(fn,#80)=SEEK_OK then
-            sequence s6 = {}
-            for i=1 to 6 do
-                s6 = append(s6,getc(fn))
+    integer fn = open(filepath,"rb"), bits = 0
+    if fn!=-1 then
+        if plat=WINDOWS then
+            if seek(fn,#80)=SEEK_OK then
+                sequence s6 = {}
+                for i=1 to 6 do
+                    s6 = append(s6,getc(fn))
+                end for
+                if s6="PE\0\0\x4C\x01" then
+                    bits = 32
+                elsif s6="PE\0\0\x64\x86" then
+                    bits = 64
+                end if
+            end if
+        else -- platform()=LINUX
+            sequence s5 = {}
+            for i=1 to 5 do
+                s5 = append(s5,getc(fn))
             end for
-            if s6="PE\0\0\x4C\x01" then
+            if s5="\x7FELF\x01" then
                 bits = 32
-            elsif s6="PE\0\0\x64\x86" then
+            elsif s5="\x7FELF\x02" then
                 bits = 64
             end if
         end if
-    else -- platform()=LINUX
-        sequence s5 = {}
-        for i=1 to 5 do
-            s5 = append(s5,getc(fn))
-        end for
-        if s5="\x7FELF\x01" then
-            bits = 32
-        elsif s5="\x7FELF\x02" then
-            bits = 64
-        end if
+        close(fn)
     end if
-    close(fn)
     return bits
 end function
 
@@ -103,14 +104,68 @@ constant itestset = {{`C:\Program Files (x86)\Phix\pw.exe`,WINDOWS},
                      {`C:\Program Files (x86)\Phix\pth.exe`,WINDOWS},
                      {`C:\Program Files (x86)\Phix\phix`,LINUX}}
 for i=1 to length(itestset) do
-    ?{itestset[i],ibits(itestset[i][1],itestset[i][2])}
+    {string d, integer plat} = itestset[i]
+    ?{d,plat,ibits(d,plat)}
 end for
 --*/
 
-global function get_interpreter(bool enquote=false, object mb=machine_bits(), integer plat=platform())
--- returns "" on failure
-sequence vset   -- permitted filenames
-string filepath
+
+--
+-- aside: on windows, the pw/p ordering may [one day] be swapped to implement a preference,
+--        for instance p32.exe hitting "requires(64)" should favour p64.exe over pw64.exe,
+--            whereas pw32.exe hitting "requires(64)" should favour pw64.exe over p64.exe.
+--
+sequence vsets, platforms
+bool vinit = false
+procedure initv()
+    vsets = {{},    -- subscripted by platform(), so [DOS(==1)] is blank.
+--           {"pw.exe","p.exe","pw64.exe","p64.exe","pw32.exe","p32.exe"}, -- [WINDOWS]
+             {"pw.exe","pw32.exe","pw64.exe","p64.exe","p32.exe","p.exe"}, -- [WINDOWS]
+             {"p","p32","p64","pth"}} -- [LINUX]
+    -- (must match constants in psym.e)
+    platforms = {"DOS32","WINDOWS","LINUX","JAVASCRIPT"}
+    vinit = true
+end procedure
+
+--/*
+bool bPreferW = true
+global procedure set_pref_w(bool b)
+    bPreferW = b
+end procedure
+
+function reorderW(sequence set)
+    sequence rl = {}, rh = {}
+    for i=1 to length(s) do
+        if find('w',s[i]) then
+            rl = append(rl,s[i])
+        else
+            rh = append(rh,s[i])
+        end if
+    end for
+    if not bPreferW then {rl,rh} = {rh,rl} end if
+    set = rl & rh
+    return set
+end function
+--*/
+
+function enquote(string filepath)
+    if find(' ',filepath) then
+        filepath = '"'&filepath&'"'
+    end if
+    return filepath
+end function
+
+global function get_interpreter(bool bQuote=false, object mb=machine_bits(), integer plat=platform(), bool bPrefW=false)
+--
+-- returns "" (the empty string) on failure
+--
+    if not vinit then initv() end if
+    integer mbmb = sequence(mb)
+    if mbmb then
+        mb = mb[1]
+    end if
+    if not find(mb,{32,64}) then ?9/0 end if -- sanity check
+
     sequence cl = command_line()
     string res = cl[1]
     string file = get_file_name(res)
@@ -120,13 +175,17 @@ string filepath
     cpaths = cpaths[1..find("demo",lower(cpaths))-1]
     res = join_path(cpaths,1)   -- eg/ie ../Phix/demo/pGUI/ -> ../Phix/
 
-    if plat=WINDOWS then
-        vset = {"pw.exe","p.exe","pw64.exe","p64.exe","pw32.exe","p32.exe","pth.exe"}
-    else -- platform()=LINUX
---      vset = {"p","phix","phix64","phix32","pth"}
-        vset = {"p","p32","p64","pth"}
-    end if
-    filepath = join_path({res,crun})
+--  sequence vset = reorderW(vsets[plat])
+    sequence vset = vsets[plat]
+    if not bPrefW then vset = reverse(vset) end if
+    -- permitted filenames
+--  if plat=WINDOWS then
+--      vset = {"pw.exe","p.exe","pw64.exe","p64.exe","pw32.exe","p32.exe","pth.exe"}
+--  else -- platform()=LINUX
+----        vset = {"p","phix","phix64","phix32","pth"}
+--      vset = {"p","p32","p64","pth"}
+--  end if
+    string filepath = join_path({res,crun})
     if not validexe(crun,vset)
     or get_file_type(filepath)!=FILETYPE_FILE
     or ibits(filepath,plat)!=mb then
@@ -143,10 +202,6 @@ string filepath
         end if
 
         string maybe = "", definitely = ""
-        integer mbmb = sequence(mb)
-        if mbmb then
-            mb = mb[1]
-        end if
         for i=1 to length(paths) do
             for j=1 to length(vset) do
                 filepath = join_path({paths[i],vset[j]})
@@ -165,11 +220,76 @@ string filepath
         end for
         filepath = iff(mbmb?definitely:maybe)
     end if
-    if enquote then
-        if find(' ',filepath) then
-            filepath = '"'&filepath&'"'
-        end if
+    if bQuote then
+        filepath = enquote(filepath)
     end if
     return filepath
 end function
+
+global procedure requires(object x, bool bPrefW=false)
+--
+-- x: should be eg "0.8.2" for a version requirement, or 32/64 for a machine_bits() check.
+--
+    if not vinit then initv() end if
+    if string(x) then
+        string v = version()
+        sequence reqs = scanf(substitute(x,"."," "),"%d %d %d"),
+                 acts = scanf(substitute(v,"."," "),"%d %d %d")
+        if length(reqs)!=1
+        or length(acts)!=1
+        or reqs>acts then
+            crash("requires %s, this is %s",{x,v},2)
+        end if
+--  elsif x>0 and x<length(platforms) then
+    elsif x>=0 and x<31 then
+        if x!=platform() then
+            string that = platforms[min(max(x,1),JS)],
+                   this = platforms[platform()]
+            if x=5 then -- (technically 5==JS+DOS32...)[1]
+                x = not find(platform(),{WINDOWS,LINUX})                -- (aka not JS)
+                that = "WINDOWS or LINUX"
+            elsif x=6 then -- (validly! 6==JS+WINDOWS)
+                x = not find(platform(),{WINDOWS,JAVASCRIPT})           -- (aka not LINUX)
+                that = "WINDOWS or JAVASCRIPT"
+            elsif x=7 then -- (technically 7==JS+LINUX...)
+                x = not find(platform(),{WINDOWS,LINUX,JAVASCRIPT})     -- (all[?])
+                that = "WINDOWS or LINUX or JAVASCRIPT"
+            elsif x=8 then -- (technically 8==WINDOWS+LINUX+JS...)
+                x = not find(platform(),{LINUX,JAVASCRIPT})             -- (aka not WINDOWS)
+                that = "LINUX or JAVASCRIPT"
+            elsif x=0 then
+                x = 1                                                   -- (aka none)
+                that = "FIXING(!)"
+            end if
+            -- [1] note that WINDOWS+LINUX yields JS, not what you meant!
+            if x then
+                crash("requires %s, this is %s",{that,this},2)
+            end if
+        end if
+    elsif x!=machine_bits() then
+        integer m = abs(x)
+        sequence cl = command_line()
+        string {c1,c2} = cl, cmd, msg
+        bool precompiled = (c1==c2)
+        if not precompiled then
+            if bPrefW=-1 then bPrefW = find('w',get_file_base(c1))!=0 end if
+            string p = get_interpreter(false,{m},platform(),bPrefW)
+            if c1!=p or m!=x then
+                cl[1] = p
+                cmd = join(apply(cl,enquote))
+                msg = iff(m==x?sprintf("%d bit",m):"restart")
+                printf(1,"requires %s: %s\n",{msg,cmd})
+                printf(1,"Press Escape to abandon, Enter to retry as above...")
+                if not find(upper(wait_key()),{'Q','N',#1B}) then
+                    puts(1,"\n")
+                    {} = system_exec(cmd)
+                end if
+                abort(0)
+            end if
+        end if
+        msg = iff(precompiled?"incorrectly packaged?"
+                :"no such interpreter could be found")
+        crash("requires %d bit (%s)...",{m,msg},2)
+    end if
+end procedure
 

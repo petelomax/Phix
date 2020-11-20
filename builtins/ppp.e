@@ -20,8 +20,8 @@
 -- Version 2.0.1
 --   05/06/04: float format default changed to %g (was %3.2g)
 --
---!/**/without debug -- keep ex.err clean (remove to debug!)
---/**/with debug
+--/**/without debug -- keep ex.err clean (remove to debug!)
+--!/**/with debug
 --  NB: the "without debug" in pdiag.e overshadows the one here; you may
 --      need to "with debug" here to get a listing, or use -nodiag.
 --without trace -- (covered by without debug)

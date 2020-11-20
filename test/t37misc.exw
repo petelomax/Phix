@@ -496,14 +496,18 @@ if s!= deserialize(serialize(s)) then ?9/0 end if
 integer r = rand(10)
 bool doit = iff( false ? r>=5 and r<7 : r>5 and r<=7 )
 
---26/5/20 (bankers rounding):
+--26/5/20 (bankers rounding): [reworked 11/10/2020]
 sequence x1 = {-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5}
 if sq_round(x1)!={-4,-3,-2,-1,0,1,2,3,4,5} then ?9/0 end if
-{} = round(true,0)
-if sq_round(x1)!={-4,-4,-2,-2,0,0,2,2,4,4} then ?9/0 end if
+--{} = round(true,0)
+--if sq_round(x1)!={-4,-4,-2,-2,0,0,2,2,4,4} then ?9/0 end if
+if apply(x1,bankers_rounding)!={-4,-4,-2,-2,0,0,2,2,4,4} then ?9/0 end if
 x1 = {0.125, 0.375, 0.625, 0.875}
-if sq_round(x1,100)!={0.12,0.38,0.62,0.88} then ?9/0 end if
-{} = round(false,0)
+--?sq_round(x1*100,10)
+function precision100(atom xi) return bankers_rounding(round(xi*100,10),1)/100 end function
+--if sq_round(x1,100)!={0.12,0.38,0.62,0.88} then ?9/0 end if
+if apply(x1,precision100)!={0.12,0.38,0.62,0.88} then ?9/0 end if
+--{} = round(false,0)
 if sq_round(x1,100)!={0.13,0.38,0.63,0.88} then ?9/0 end if
 
 --20/06/2020 (nested constant declarations)
@@ -551,4 +555,17 @@ end function
 
 integer rOX = oxStringToWords()
 if rOX!=5 then ?9/0 end if
+
+--27/8/2020. The result from sign() [ie eax] trashed by a belayed opScmp: Expr() 
+--           now has an additional saveFunctionResultVars(opsidx,INTSTOO) call.
+sequence res2 = {}
+string strange = "Z", ending = "X"
+integer inc = -1
+while true do
+    res2 = append(res2,strange)
+    strange[$] += inc
+    if compare(strange,ending)==sign(inc) then exit end if
+end while
+if res2!={"Z","Y","X"} then ?9/0 end if
+
 

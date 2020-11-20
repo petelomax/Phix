@@ -1,0 +1,52 @@
+--
+-- demo\pGUI\IupFlowBox.exw
+-- ========================
+--
+--?"IupFlowBox test"
+--with trace
+--trace(1)
+include pGUI.e
+
+function resize_cb(Ihandle dlg, integer width, height) 
+--  ?{"resize_cb", dlg, width, height}
+    {} = IupResizeFlow_cb(dlg,width,height)
+    return IUP_DEFAULT
+end function
+constant cb_resize = Icallback("resize_cb")
+
+IupOpen()
+sequence children = {}
+for i=1 to 10 do
+--  children &= IupLabel(NULL,"TITLE=Label%d, EXPAND=NO",{i})
+--  children &= IupButton(NULL,"TITLE=Label%d",{i})
+    children &= IupFlowBox({IupLabel(NULL,"TITLE=ALongerLengthLabel%d, EXPAND=NO",{i}),
+                            IupButton(NULL,"TITLE=Label%d, EXPAND=NO",{i})})
+end for
+--?{"labels",children}
+Ihandle fb = IupFlowBox(children)
+--Ihandle fb = IupFlowBox(children,"ALIGNMENT=ACENTER, NORMALIZESIZE=HORIZONTAL, EXPAND=YES")
+--Ihandle fb = IupFlowBox(children,"ALIGNMENT=ACENTER, NORMALIZESIZE=BOTH, EXPAND=YES")
+--Ihandle fb = IupFlowBox(children,"ALIGNMENT=ACENTER, NORMALIZESIZE=VERTICAL, EXPAND=YES")
+--Ihandle fb = IupFlowBox(children,"ALIGNMENT=ACENTER, EXPANDCHILDREN=YES") -- no help...
+--fb = IupGridBox(fb,"ALIGNMENTLIN=ACENTER") -- no help
+--fb = IupGridBox(fb},"ALIGNMENTLIN=ACENTER") -- no help
+--fb = IupGridBox({IupFill(),fb,IupFill()}) -- nope
+--fb = IupVbox({IupFill(),fb,IupFill()}) -- (works fine)
+--fb = IupHbox({IupFill(),fb,IupFill()}) -- erm, almost...
+--fb = IupHbox(fb,"ALIGNMENT=ACENTER, EXPAND=YES, EXPANDCHILDREN=YES") -- nope
+--?{"fb",fb}
+--IupResizeFlow(fb)                                     -- not called...
+--IupSetCallback(fb,"RESIZE_CB",Icallback("resize_cb")) -- not called...
+Ihandln dlg = IupDialog(fb,`TITLE="IupFlowBox test", SIZE=180x`)
+--?{"dlg",dlg}
+if 0 then
+    IupSetCallback(dlg,"RESIZE_CB",cb_resize)
+else
+    IupResizeFlow(dlg)
+end if
+IupCloseOnEscape(dlg)
+IupShow(dlg)
+IupMainLoop()
+dlg = IupDestroy(dlg)
+IupClose()
+

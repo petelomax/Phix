@@ -4135,8 +4135,17 @@ procedure transtmpfer(atom val, integer reg)
         if nextop=opLn then
             npc += 2
         else
+--15/11/20 (over switch length(r) do)
+            exit
+--/*
             if nextop!=opCtrl then exit end if
+if pfileno=1 then
+    ?s5[npc..npc+3]
+    ?pfileno
+?9/0
+end if
             npc += 4
+--*/
         end if
     end while
 
@@ -4262,8 +4271,13 @@ procedure jinit(integer mpc)
         tgt = s5[mpc+1]
 --      link = s5[mpc+2]
         if s5[tgt-3]!=opLabel then ?9/0 end if
-        if s5[tgt-2]!=mergeSet then ?9/0 end if
+--      if s5[tgt-2]!=mergeSet then ?9/0 end if
+        integer tmSet = s5[tgt-2]
+        if tmSet!=mergeSet then ?9/0 end if
+-- 15/10/2020 (until)
+if tmSet!=0 then
         if tgt<mpc then ?9/0 end if -- see opJmp
+end if
         lastJmp = (s5[tgt]=(mpc+2))
     end if
 end procedure
@@ -4628,7 +4642,10 @@ if not isGscan then
                     end if
                 end if -- schidx
             end if -- sched
+-- 15/10/2020 (until)
+if mergeSet!=0 then
             merge(mergeSet,0)
+end if
             emitHex6j(jcode,0)                  -- jcc xxx (to be backpatched)
             s5[pc+2] = length(x86)
         end if
@@ -13059,6 +13076,8 @@ end if
            or opcode=opSne              -- 39
            or opcode=opSgt              -- 40
            or opcode=opSle then         -- 41
+--if opcode=opSne   and emitline=55 then trace(1) end if
+
             dest = s5[pc+1]
             src = s5[pc+2]  -- a
             src2 = s5[pc+3] -- b

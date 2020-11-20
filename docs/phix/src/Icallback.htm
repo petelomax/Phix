@@ -18,6 +18,10 @@
             <br>
             <a href="Icallback.htm">cbfunc</a> res = Icallback(<a href="string.htm">string</a> name, 
                                                                <a href="integer.htm">integer</a> rid = <a href="routine_id.htm">routine_id</a>(name)))
+            <br>
+            <i>-- or --</i>
+            <br>
+            <a href="Icallback.htm">cbfunc</a> res = Icallback(<a href="integer.htm">integer</a> rid) -- <small>(see Technicalia)</small>
          </td>
         </tr>
         <tr>
@@ -51,10 +55,13 @@
             Instead the function cbfunc func = <b>iup_cb_from_name</b>(<a href="string.htm">string</a> name) can be
             used when needed, and declare constant <i>&lt;possibly_otherwise_unused&gt;</i>=Icallback(<i>"routine"</i>), immediately 
             following the actual definition of each and every routine that you might require this for. It returns null when unable to 
-            find a previously generated Icallback() of that name, and any name conflicts should have been caught by Icallback().
+            find a previously generated Icallback() of that name. It is <i>entirely</i> the programmer&rsquo;s responsibility to
+            only ever use this with application-wide unique names, any attempt to retrieve say "close_cb" will deliberately crash
+            should there be, say, a dozen callbacks of that name scattered throughout the current application.
             <br>
             <br>
-            When translating C code to Phix, a common requirement is to replace <code>(Icallback)xxx_cb</code> with <code>Icallback("xxx_cb")</code>.
+            When translating C code to Phix, a common requirement is to replace <code>(Icallback)xxx_cb</code> with <code>Icallback("xxx_cb")</code>.<br>
+            In 0.8.2 and later you can also use Icallback(xxx_cb), without the quotes, to exactly the same effect (see Technicalia).
          </td>
         </tr>
         <tr>
@@ -97,7 +104,34 @@ constant</font><font color="#000000"> cb_quit</font><font color="#0000FF"> =</fo
           <a href="routine_id.htm">routine_id</a>
          </td>
         </tr>
+        <tr id="Technicalia" style="display:none;">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            There is in fact a secondary global function <b>Icallbacki</b>(<a href="integer.htm">integer</a> rid) that the compiler quietly 
+            maps Icallback(<a href="integer.htm">integer</a> rid) to, rather than raising an argument type mismatch error. <br>
+            That means that you can now code either Icallback("action_cb") or Icallback(action_cb), with the latter being automatically mapped 
+            for you, otherwise they behave in an entirely identical fashion (since 0.8.2).<br>
+            [Obviously the compiler will not flinch should you invoke Icallbacki() directly, or for that matter use routine_id("action_cb").]
+            <br>
+            <br>
+            It does however coerce the interpreter into populating the symbol table with names (instead of ternary tree indexes), as explained 
+            in the documentation for <a href="routine_id.htm#aux">get_routine_info</a>().
+<!--
+of which may make 
+            startup a fraction of a second slower when interpreting, especially on larger programs - hopefully not quite enough for anyone to
+            actually notice, but it&rsquo;s only right to properly document these things, even if there&rsquo;s not much you can do to stop it.
+            Though hang on, I suppose if you cripple the setting/testing of N_Icallback[i] in pmain.e and force the team to use that version of 
+            the compiler, then that would stop them accidentally triggering this. I could even make that a with/without setting, if there is
+            ever a real need for it.
+-->
+         </td>
+        </tr>
        </table>
+       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
        <br>
        <br>
       </div>

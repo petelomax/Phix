@@ -1,0 +1,2045 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupMglPlot</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pGUI.e
+            <br>
+            <br>
+            <a href="Ihandle.htm">Ihandle</a> ih = IupMglPlot(<a href="string.htm">string</a> attributes="", 
+                                                              <a href="sequence.htm">sequence</a> data={})
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a plot of one or more data sets. It inherits from IupCanvas. Uses the MathGL library.
+            <br>
+            <br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            <br>
+            <br>
+            MathGL is a library for creating plots that is system independent. <br>
+            It is maintained by Alexey Balakin and available at SourceForge 
+            <a href="javascript:ExternalLink('ext114','http://mathgl.sourceforge.net/');"
+               id="ext114" style="color:#9B5565"      >http://mathgl.sourceforge.net/</a>
+            with GPL and LGPL licenses.
+            <br>
+            <br>
+            IupMglPlot library includes the MathGL 2.3.5 source code, so no external references are needed, but contains only the LGPL part of the library.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupCanvas.htm">IupCanvas</a>,
+          <a href="IupPlot.htm">IupPlot</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            <h3>Initialization and Usage</h3>
+            The IupMglPlotOpen() function must be called after a IupOpen, so that the control can be used, however this is done automatically by IupMglPlot. 
+            <br>
+            <br>
+            <h3>Guide</h3>
+            Each plot can contain 2 or 3 axes (X and Y and/or Z), a title, a legend box, a colorbar, a grid, a dataset area and as many datasets you want.
+            <br>
+            <br>
+            Each dataset is added using the Auxiliary Functions. All other plot parameters are configured by attributes.
+            <br>
+            <br>
+            If no attribute is set, the default values were selected to best display the plot.
+            <br>
+            <br>
+            IMPORTANT: When setting attributes the plot is NOT redrawn until the REDRAW attribute is set or a redraw event occurs.
+            <br>
+            <br>
+            The dataset area is delimited by the min/max axis attributes. <br>
+            Data is only plotted inside the dataset area. <br>
+            This area defines the 2D or 3D plot coordinate space. <br>
+            The screen area is a 2D pixels coordinate space. <br>
+            And finally the dataset also defines a normalized space, that means min/max is converted to 0-1.
+            <br>
+            <br>
+            The legend box is a list of the dataset names, each one drawn with the same color of the correspondent dataset. <br>
+            The box is located in one of the four corners of the dataset area.
+            <br>
+            <br>
+            The colorbar is an additional axis showing the the colors used to pseudo color the data for some plot modes.
+            <br>
+            <br>
+            The grid is automatically spaced accordingly the current axis displayed values.
+            <br>
+            <br>
+            The title is always centered in the top of the plot.
+            <br>
+            <br>
+            The axes are positioned at the origin (0,0,0), but can be automatically positioned at the left-bottom. <br>
+            If values are only positive then the origin will be placed in left bottom position. <br>
+            If values are negative and positive then origin will be placed inside the plot. <br>
+            The ticks in the axis are also automatically distributed. 
+            <br>
+            <br>
+            <h3>Data</h3>
+            MathGL supports several kinds of data. IupMglPlot restricts this to a few combinations. First there are 3 major classes:
+            <br>
+            <br>
+            Linear sequential data are simply a sequence of points whether in 1D ([y1],[y2],...), 2D ([x1,y1],[x2,y2],...) or 3D ([x1,y1,z1],[x2,y2,z2],...) coordinates.
+            <br>
+            <br>
+            Planar data is a bi-dimensional array of values, just like a digital image. <br>
+            Each value is f(x,y), where x belongs to [AXS_XMIN, AXS_XMAX] and y to [AXS_YMIN, AXS_YMAX].
+            <br>
+            <br>
+            Volumetric data is a tri-dimensional array of values, that represents a 3D volume. <br>
+            Each value is f(x,y,z), where x belongs to [AXS_XMIN, AXS_XMAX] and y to [AXS_YMIN, AXS_YMAX] and z to [AXS_ZMIN, AXS_ZMAX].
+            <br>
+            <br>
+            Linear data is the same representation accepted by IupPlot, with the addition that IupMglPlot has support for 3D coordinates. <br>
+            When plotting linear 1D data the automatic range will be XMIN=0 and XMAX=count-1.
+            <br>
+            <br>
+            Planar and volumetric data can be very memory consuming, so be careful when using them. <br>
+            Planar and volumetric data in IupMglPlot have x, y and z coordinates equidistantly distributed. <br>
+            Planar and volumetric data are stored in a 1D dataset created by IupMglPlotNewDataSet, and filled with 
+            IupMglPlotSetData, IupMglPlotLoadData or IupMglPlotSetFromFormula functions only.
+            <br>
+            <br>
+            <h3>Interaction</h3>
+            Zoom and Pan operations can be done using keyboard or mouse actions in 2D and 3D plots.
+            <br>
+            <br>
+            Zoom can be done using the mouse wheel (Zoom in: scroll down; Zoom out: scroll up), <br>
+            the Ctrl+Left mouse button pressed and vertical mouse movements (Zoom in: bottom-up; Zoom out: top-down) or <br>
+            the plus '+' (Zoom in) and minus '−' (Zoom out) keys.
+            <br>
+            <br>
+            Pan is done using horizontal and vertical mouse movements with the left mouse button pressed. <br>
+            By keyboard, the Ctrl+arrow keys combinations can be used to shift the window. <br>
+            Arrow keys can also be used without using the Ctrl key to slower movements.
+            <br>
+            <br>
+            Rotation operations can also be done using keyboard or mouse actions, but only for 3D plots.
+            <br>
+            <br>
+            Rotation in X axis: right mouse button pressed and vertical mouse movements, or 'w' and 's' keys.<br>
+            Rotation in Y axis: right mouse button pressed and horizontal mouse movements, or 'a' and 'd' keys.<br>
+            Rotation in Z axis: Ctrl+right mouse button pressed and vertical mouse movements, or 'e' and 'q' keys.
+            <br>
+            <br>
+            Reseting: The interaction can be reset with a mouse double-click inside the plot area or by pressing the HOME key. <br>
+            This action restores the plot to the default view (no zoom, no pan and no rotation).
+            <br>
+            <br>
+            <h3>Text and Fonts</h3>
+            MathGL provides support for parsing LaTeX-like syntax. <br>
+            So all labels and title can contain formatting commands and equation symbols. <br>
+            For example: \b (bold), \i (italic), \u (underline), \big (bigger size), @ (smaller size), ^ (upper), _ (lower),  etc. <br>
+            The full list contain approximately 2000 commands. Multiline text is accepted. For example:
+            <br>
+            <br>
+            "It can be \\wire{wire}, \\big{big} or #r{colored}" <br>
+            "One can change style in string: " "\\b{bold}, \\i{italic, \\b{both}}"<br>
+            "Easy to \\a{overline} or \\u{underline}" <br>
+            "Easy to change indexes ^{up} _{down} @{center}"<br>
+            "It parse TeX: \\int \\alpha \\cdot \\sqrt3{sin(\\pi x)^2 + \\gamma_{i_k}} dx"<br>
+            "\\sqrt{\\frac{\\alpha^{\\gamma^2}+" "\\overset 1{\\big\\infty}}{\\sqrt3{2+b}}}"<br>
+            <br>
+            <img src="images/iup_mglplot_text.png">
+            <div style="clear:both;height:1px;"> </div>
+            <br>
+            The IupMglPlot function returns the identifier of the created plot, or NULL if an error occurs.
+            <br>
+            <a name=aux></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Auxiliary Functions:</b>
+         </td>
+         <td>
+            <dl>
+            <dt><b>IupMglPlotBegin</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> dim)</dt>
+            <dd>Prepares a dataset to receive samples. The dimension of the data can be 1, 2 or 3. Linear data only.<br><br></dd>
+
+            <dt><b>IupMglPlotAdd1D</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">nullable_string</a> name, 
+                                       <a href="atom.htm">atom</a> y)</dt>
+            <dd>Adds a sample to the dataset. Can only be called if IupMglPlotBegin was called with dim=1. <br>
+            name is an optional string used for tick labels in the X axis, and it can be NULL. <br>
+            Names are allowed only for the first dataset and when set ticks configuration for the X axis is ignored, all the names are shown. <br>
+            The X axis data is automatically generated (0,1,2,3,...). Linear data only.<br><br></dd>
+
+            <dt><b>IupMglPlotAdd2D</b>(<a href="Ihandle.htm">Ihandle</a> ih, double x, double y)</dt>
+            <dd>Adds a sample to the dataset. Can only be called if IupMglPlotBegin was called with dim=2. Linear data only.<br><br></dd>
+
+            <dt><b>IupMglPlotAdd3D</b>(<a href="Ihandle.htm">Ihandle</a> ih, double x, double y, double z)</dt>
+            <dd>Adds a sample to the dataset. Can only be called if IupMglPlotBegin was called with dim=3. Linear data only.<br><br></dd>
+
+            <dt><a href="integer.htm">integer</a> ds_index = <b>IupMglPlotEnd</b>(<a href="Ihandle.htm">Ihandle</a> ih)</dt>
+            <dd>Adds the dataset to the plot and returns the dataset index. <br>
+            The dataset can be empty. Redraw is NOT done until the REDRAW attribute is set. <br>
+            Also it will change the current dataset index (CURRENT) to the return value. <br>
+            You can only set attributes of a dataset AFTER you added the dataset. <br>
+            Can only be called if IupMglPlotBegin was called. <br>
+            Whenever you create a dataset all its "DS_*" attributes will be set to the default values. <br>
+            Notice that DS_MODE must be set before other "DS_*" attributes. Linear data only.<br><br></dd>
+
+            <dt><a href="integer.htm">integer</a> ds_index = <b>IupMglPlotNewDataSet</b>(<a href="Ihandle.htm">Ihandle</a> ih, 
+                                                                                         <a href="integer.htm">integer</a> dim)</dt>
+            <dd>Creates an empty dataset to receive samples. <br>
+            The dimension of the data can be 1, 2 or 3. <br>
+            Linear data can have 1, 2 or 3 dimensions. <br>
+            Planar data has 2 dimensions, but use dim=1. <br>
+            Volumetric data has 3 dimensions, but use dim=1.
+            <br>
+            <br>
+            Planar and volumetric data distribute their data in 2D and 3D continuous arrays, so the number of dimensions is given only when 
+            the array is set in IupMglPlotSetData, IupMglPlotLoadData or IupMglPlotSetFromFormula. <br>
+            You can convert planar data into linear data using the DS_REARRANGE and DS_SPLIT attributes.<br><br></dd>
+
+            <dt><b>IupMglPlotInsert1D</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, sample_index, 
+                                          <a href="object.htm">object</a> names, <a href="sequence.htm">sequence</a> y, 
+                                          <a href="integer.htm">integer</a> count=-1)</dt>
+            <dt><b>IupMglPlotInsert2D</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, sample_index, 
+                                          <a href="sequence.htm">sequence</a> x, y, <a href="integer.htm">integer</a> count=-1)</dt>
+            <dt><b>IupMglPlotInsert3D</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, sample_index, 
+                                          <a href="sequence.htm">sequence</a> x, y, z, <a href="integer.htm">integer</a> count=-1)</dt>
+            <dd>Inserts an array of samples in the dataset ds_index at the given sample_index. <br>
+            Can be used only after the dataset is added to the plot. <br>
+            sample_index can be after the last sample so data is appended to the array, current data is shifted if necessary. <br>
+            names are optional strings used for tick labels in the X axis, and it can be NULL.<br>
+            Names are allowed only for the first dataset and when set ticks configuration for the X axis is ignored, all the names are shown. <br>
+            If count is not provided it will be deduced from length(names and/or x/y/z), and is validated against those lengths.<br>
+            Also for the 1D version, the X axis data is automatically generated (0,1,2,3,...). Linear data only.<br><br></dd>
+
+            <dt><b>IupMglPlotSet1D</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, 
+                                       <a href="object.htm">object</a> names, <a href="sequence.htm">sequence</a> y, 
+                                       <a href="integer.htm">integer</a> count=-1)</dt>
+            <dt><b>IupMglPlotSet2D</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, 
+                                       <a href="sequence.htm">sequence</a> x, y, <a href="integer.htm">integer</a> count=-1)</dt>
+            <dt><b>IupMglPlotSet3D</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, 
+                                       <a href="sequence.htm">sequence</a> x, y, z, <a href="integer.htm">integer</a> count=1)</dt>
+            <dd>Sets an array of samples in the dataset ds_index.  Existing data is removed. <br>
+            Can be used only after the dataset is added to the plot. <br>
+            names is an optional array of strings used for tick labels in the X axis, and it can be NULL. <br>
+            Names are allowed only for the first dataset and when set ticks configuration for the X axis is ignored, all the names are shown. <br>
+            If count is not provided it will be deduced from length(names and/or x/y/z), and is validated against those lengths.<br>
+            Also for the 1D version, the X axis data is automatically generated (0,1,2,3,...). Linear data only.<br><br></dd>
+
+            <dt><b>IupMglPlotSetFormula</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, 
+                                            <a href="string.htm">string</a> formulaX, <a href="string.htm">nullable_string</a> formulaY, formulaZ, 
+                                            <a href="integer.htm">integer</a> count)</dt>
+            <dd>Same as IupMglPlotSet* but data is generated from a formula. <br>
+            If count is 0 the current size is used. <br>
+            If 2D data then formulaY must be non NULL. <br>
+            If 3D data then formulaZ must be non NULL. <br>
+            The variables of the formulas must be x, y and/or z. <br>
+            Coordinates are evaluated in the [AXS_?MIN, AXS_?MAX] interval. <br>
+            There is no difference between lower or upper case in formulas. Linear data only.
+            <br>
+            <br>
+            The operators and functions can be:
+            <br>
+            <br>
+ <pre>
++ - * / ^  <small>('^' is 'integer power')</small>
+&lt; &gt; = & |  <small>(logical operators, '&' is 'and', '|' is 'or')</small>
+sqrt(a)  pow(a,b)  log(a,b)  ln(a)    lg(a)  <small>(ln(a)=log(e,a), lg(a)=log(10,a)</small>
+abs(a)   sign(a)   mod(a,b)  step(a)  int(a)   rnd      pi
+sin(a)   cos(a)    tan(a)    asin(a)  acos(a)  atan(a)
+sinh(a)   cosh(a)  tanh(a)   asinh(a) acosh(a) atanh(a)
+ </pre>
+<br></dd>
+
+            <dt><b>IupMglPlotSetData</b>(<a href="Ihandle.htm">Ihandle</a> ih, 
+                                         <a href="integer.htm">integer</a> ds_index, 
+                                         <a href="sequence.htm">sequence</a> data, 
+                                         <a href="integer.htm">integer</a> count_x, count_y, count_z)</dt>
+            <dd>Sets an array of samples in the dataset ds_index. All previous values are removed. <br>
+            Can be used only after a 1D dataset is added to the plot, the actual dimension will be defined by the count_* parameters. <br>
+            If count_y is greater than 1 the data will be Planar (like a raster 2D image), if count_z is also greater than 1 the data will be Volumetric (a 3D volume).
+            <br>
+            <br>
+            Notice that when count_y and/or count_z are greater than 0 a large amount of memory is used. <br>
+            All previous functions create linear data (a sequence of points) even though their coordinates can have 1, 2 or 3 dimensions. <br>
+            The data should be arranged so the element (x0, y0, z0) is accessed using the position [x0 + count_x*y0 + count_x*count_y*z0].
+            <br>
+            <br>
+            DS_COUNT is set to count_x*count_x*count_y. Existing data is removed.
+            <br>
+            <br>
+            Can be used for linear, planar or volumetric data, but linear data is limited to 1D coordinates. <br>
+            You can convert planar data into linear data using the DS_REARRANGE and DS_SPLIT attributes.<br><br></dd>
+
+            <dt><b>IupMglPlotLoadData</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, 
+                                          <a href="string.htm">string</a> filename, 
+                                          <a href="integer.htm">integer</a> count_x, count_y, count_z)</dt>
+            <dd>Same as IupMglPlotSetData but loads the data from a file. <br>
+            The file must contains space (' ') separated numeric data in text format. <br>
+            The text can contains line comments starting with '#'.
+            <br>
+            <br>
+            DS_COUNT is set to count_x*count_x*count_y. Existing data is removed. Linear data is limited to 1D coordinates.
+            <br>
+            <br>
+            If any count_* is 0 all their values are automatically calculated. <br>
+            The number of elements in the first line defines count_x, <br>
+            the number of lines before an empty line or before a form feed (&rsquo;\f&rsquo;) defines count_y, and <br>
+            the number of empty lines or the number of form feeds (&rsquo;\f&rsquo;) defines count_z.
+            <br>
+            <br>
+            Can be used for linear, planar or volumetric data, but linear data is limited to 1D coordinates. <br>
+            You can convert planar data into linear data using the DS_REARRANGE and DS_SPLIT attributes.<br><br></dd>
+
+            <dt><b>IupMglPlotSetFromFormula</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> ds_index, 
+                                                <a href="string.htm">string</a> formula, 
+                                                <a href="integer.htm">integer</a> count_x, count_y, count_z)</dt>
+            <dd>Same as IupMglPlotSetData but data is generated from a formula. <br>
+            If all count_* are 0 the current size remains, and the existing data is preserved but overwritten if the formula results that. <br>
+            If any count_* is NOT zero then the existing data size is removed. <br>
+            The variables of the formulas must be 'x', 'y' and/or 'z'. <br>
+            Coordinates are evaluated in the [AXS_?MIN, AXS_?MAX] interval. <br>
+            There is no difference between lower or upper case in formulas. The operators and functions can be:
+            <br>
+            <br>
+ <pre>
++ - * / ^  <small>('^' is 'integer power')</small>
+&lt; &gt; = & |  <small>(logical operators, '&' is 'and', '|' is 'or')</small>
+sqrt(a)  pow(a,b)  log(a,b)  ln(a)    lg(a)  <small>(ln(a)=log(e,a) lg(a)=log(10,a)</small>
+abs(a)   sign(a)   mod(a,b)  step(a)  int(a)   rnd      pi
+sin(a)   cos(a)    tan(a)    asin(a)  acos(a)  atan(a)
+sinh(a)   cosh(a)  tanh(a)   asinh(a) acosh(a) atanh(a)
+ </pre>
+            DS_COUNT is set to count_x*count_x*count_y.
+            <br>
+            <br>
+            Can be used for linear, planar or volumetric data, but linear data is limited to 1D coordinates. <br>
+            You can convert planar data into linear data using the DS_REARRANGE and DS_SPLIT attributes.<br><br></dd>
+
+            <dt><a href="integer.htm">integer</a> {ix,iy} = <b>IupMglPlotTransform</b>(<a href="Ihandle.htm">Ihandle</a> ih, 
+                                                                                       <a href="atom.htm">atom</a> x, y, z)</dt>
+            <dd>Converts coordinates from plot coordinates to pixels. <br>
+            It can be used only inside PREDRAW_CB and POSTDRAW_CB callbacks.<!-- Output variables can be NULL if not used.--><br><br></dd>
+
+            <dt><a href="atom.htm">atom</a> {x,y,z} = <b>IupMglPlotTransformTo</b>(<a href="Ihandle.htm">Ihandle</a> ih, 
+                                                                                   <a href="integer.htm">integer</a> ix, iy)</dt>
+            <dd>Converts coordinates from pixels to plot coordinates. <br>
+            It can be used only inside PREDRAW_CB and POSTDRAW_CB callbacks. <!--Output variables can be NULL if not used.--><br><br></dd>
+
+            <dt><b>IupMglPlotDrawMark</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> x, y, z)</dt>
+            <dd>Draws a mark at given position in plot coordinates. <br>
+            It can be used only inside PREDRAW_CB and POSTDRAW_CB callbacks. <br>
+            The attributes DRAWCOLOR, DRAWMARKSTYLE and DRAWMARKSIZE can be used to control mark appearance.<br><br></dd>
+
+            <dt><b>IupMglPlotDrawLine</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="atom.htm">atom</a> x1, y1, z1, x2, y2, z2)</dt>
+            <dd>Draws a line from position 1 to position 2 in plot coordinates. <br>
+            It can be used only inside PREDRAW_CB and POSTDRAW_CB callbacks. <br>
+            The attributes DRAWCOLOR, DRAWLINESTYLE and DRAWLINEWIDTH can be used to control line appearance.<br><br></dd>
+
+            <dt><b>IupMglPlotDrawText</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> text, 
+                                          <a href="atom.htm">atom</a> x, y, z)</dt>
+            <dd>Draws a text at given position in plot coordinates. <br>
+            It can be used only inside PREDRAW_CB and POSTDRAW_CB callbacks. <br>
+            The attributes DRAWCOLOR, DRAWFONT, DRAWFONTSTYLE and DRAWFONTSIZE (a factor) can be used to control text appearance. <br>
+            DRAWFONTSTYLE can be a combination of Plain (Regular), Bold, Italic (Oblique), Wired, Underline, Strikeout, Left, Center and Right.<br><br></dd>
+
+            <dt><b>IupMglPlotPaintTo</b>(<a href="Ihandle.htm">Ihandle</a> ih, <a href="string.htm">string</a> fmt, 
+                                         <a href="integer.htm">integer</a> w, h, <a href="atom.htm">atom</a> dpi, 
+                                         <a href="object.htm">object</a> data)</dt>
+            <dd>Plots to a metafile or a bitmap instead of the display canvas. <br>
+            fmt will define the interpretation of the data parameter. <br>
+            fmt can be: "EPS", <wbr>"SVG", <wbr>"RGB", or <wbr>"RGBA". <br>
+            When fmt is EPS or SVG, data is a filename string. <br>
+            When fmt is RGB or RGBA data is the image buffer where the pixels will be copied, must be already allocated. <br>
+            w and h is the size in pixels, and dpi is the resolution in dots or pixels per inch. <br>
+            If w, h or dpi are 0 the screen equivalent is used.<br></dd>
+            </dl>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+        <tr>
+         <td>
+            ALPHA
+         </td>
+         <td>
+            (non inheritable): Alpha value for overall transparency. Used only when TRANSPARENT=Yes. Default: 0.5
+         </td>
+        </tr>
+        <tr>
+         <td>
+            ANTIALIAS
+         </td>
+         <td>
+            (non inheritable): Enable or disable the anti-aliasing support when in OpenGL. <br>
+            Ignored when OPENGL=NO. Default: Yes. <br>
+            When enabled text has a much better rendering, but 3D graphs will not process depth properly.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            BGCOLOR
+         </td>
+         <td>
+            the background color. Default: "255 255 255".
+         </td>
+        </tr>
+        <tr>
+         <td>
+            ERRORMESSAGE
+         </td>
+         <td>
+            (read-only, non inheritable): If not NULL returns the last error message reported by MathGL.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            SUPPRESSWARNING
+         </td>
+         <td>
+            (write-only, non inheritable): Suppress de print of warning messages in stderr. Can be Yes or No. Default: No. (since 3.21)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            FONT
+         </td>
+         <td>
+            the default font used in all text elements of the plot: title, legend and labels. <br>
+            Font support is done using custom font files in MathGL font format (*.vfm). <br>
+            The font file must be located in the path pointed by the "IUP_MGLFONTS" environment variable, or in the path pointed by the "MGLFONTS" global attribute. <br>
+            The font name will be automatically combined with the path to compose a file name. <br>
+            If the font load fail, an internal MathGL font is used. <br>
+            Font loading is a very slow process in MathGL. <br>
+            TrueType (*.ttf) and OpenType (*.otf) font files support removed in version 3.11.
+            <br>
+            <br>
+            All *FONTSTYLE attributes can have a combination of the following styles: Plain (Regular), Bold, Italic (Oblique), Wired, Underline, Strikeout, Left, Center and Right.<br>
+            All *FONTSIZE attributes are actually a factor that multiplies the size defined by the FONT attribute and an internal MathGL factor. <br>
+            So the actual size will be fontsize_factor * internal_factor * font_size.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            FGCOLOR
+         </td>
+         <td>
+            the default color used in all text elements of the plot: title, legend and labels. Default: "0 0 0 255".
+            <br>
+            <br>
+            All color values can have an optional alpha value. Hexadecimal format is also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            MARGINLEFT, MARGINRIGHT, MARGINTOP, MARGINBOTTOM
+         </td>
+         <td>
+            (non inheritable): internal MathGL margin configuration of the dataset area. Can be Yes or No. Default: "Yes". (since 3.11)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            MGLGRAPH
+         </td>
+         <td>
+            (read-only, non inheritable): returns the mglGraph* handle used internally. (since 3.11)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            OPENGL
+         </td>
+         <td>
+            (non inheritable): Enable or disable the rendering in OpenGL. Default: No. <br>
+            When NO the rendering is slower, but when Yes some features does not behave as expected. See Known Issues.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            REDRAW
+         </td>
+         <td>
+            (write-only, non inheritable): redraw the plot and update the display. Value is ignored. <br>
+            All other attributes will NOT update the display, so you can set many attributes without visual output. <br>
+            If the element is redraw by the system because of a redraw event or by a call to IupUpdate, it will have the same effect as if REDRAW was set.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            RESET
+         </td>
+         <td>
+            (write-only, non inheritable): restores all attributes to their default values. Value is ignored.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            TRANSPARENT
+         </td>
+         <td>
+            (non inheritable): Enable or disable the transparency support. Default: No.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Interaction:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            ROTATE
+         </td>
+         <td>
+            (non inheritable): define the angles of the axis rotation in degrees for 3D plots. <br>
+            The format is "angleX:angleY:angleZ". As example, the "0.0:90:0.0" rotates the Y-axis plot in 90 degrees. <br>
+            Partial values are also accepted, like "60::−45" or "::30" or "120". Default: 0:0:0.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            ZOOM
+         </td>
+         <td>
+            (non inheritable): define the zoom to 2D and 3D plots. <br>
+            The format is "x1:y1:x2:y2" in normalized coordinates, limited to the interval [0-1]. <br>
+            As example, the "0:0:1:1" set a plot to default view (centered in the drawing area). <br>
+            Partial values are also accepted, like "0.2:0.2" or ":0.3::1.3" or "-0.4". <br>
+            If values are set only to x1 and/or x2 coordinates, the zoom is restricted to the X axis. <br>
+            On the other hand, if values are set only to y1 and/or y2 coordinates, the zoom is restricted to the Y axis. Default: 0:0:1:1
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Title Configuration:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            TITLE
+         </td>
+         <td>
+            (non inheritable): the title. Located always at the top center area.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            TITLECOLOR
+         </td>
+         <td>
+            title color. Default: FGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            TITLEFONTSIZE
+         </td>
+         <td>
+            title font size factor. Default: 1.0. The internal MathGL factor is 2.0.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            TITLEFONTSTYLE
+         </td>
+         <td>
+            title font style.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Legend Configuration:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            LEGEND
+         </td>
+         <td>
+            shows or hides the legend box. Can be YES or NO. Default: NO. LEGENDSHOW is also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            LEGENDBOX
+         </td>
+         <td>
+            draws a box around the legend area. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            LEGENDCOLOR
+         </td>
+         <td>
+            title color. Default: FGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            LEGENDFONTSIZE
+         </td>
+         <td>
+            legend font size factor. Default: 1.0.  The internal MathGL factor is 0.8.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            LEGENDFONTSTYLE
+         </td>
+         <td>
+            legend font style.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            LEGENDPOS
+         </td>
+         <td>
+            legend box position. Can be: "TOPLEFT", <wbr>"TOPRIGHT", <wbr>"BOTTOMLEFT", or <wbr>"BOTTOMRIGHT". Default: "TOPRIGHT".
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Colorbar Configuration:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            COLORBAR
+         </td>
+         <td>
+            shows or hides the colorbar. Can be YES or NO. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            COLORBARPOS
+         </td>
+         <td>
+            colorbar position. Can be: "LEFT", <wbr>"TOP", <wbr>"RIGHT", <wbr>"BOTTOM". Default: "RIGHT".
+         </td>
+        </tr>
+        <tr>
+         <td>
+            COLORBARRANGE
+         </td>
+         <td>
+            interval of data values used for pseudo coloring in some plot modes. <br>
+            Must be "min:max" ("%g:%g" in C). Default from AXS_?MIN to AXS_?MAX according to COLORBARAXISTICKS.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            COLORBARAXISTICKS
+         </td>
+         <td>
+            axis used as reference for colorbar ticks. Default: Z
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Grid Configuration:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            GRID
+         </td>
+         <td>
+            shows or hides the grid in both or a specific axis. <br>
+            Can be: XYZ (YES), X, Y, Z, XY, XZ, YZ or NO. Default: NO. <br>
+            The values HORIZONTAL (Y) and X (VERTICAL) are accepted for IupPlot compatibility.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            GRIDCOLOR
+         </td>
+         <td>
+            grid color. Default: "200 200 200".
+         </td>
+        </tr>
+        <tr>
+         <td>
+            GRIDLINESTYLE
+         </td>
+         <td>
+            line style of the grid. Can be: "CONTINUOUS", <wbr>"DASHED", <wbr>"DOTTED", <wbr>"DASH_DOT", <wbr>"DASH_DOT_DOT". Default is "CONTINUOUS".
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Box Configuration:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            BOX
+         </td>
+         <td>
+            draws a bounding box around the dataset area. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            BOXTICKS
+         </td>
+         <td>
+            if BOX=Yes then major ticks are also drawn along the box. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            BOXCOLOR
+         </td>
+         <td>
+            box color. Default: FGCOLOR.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Dataset List Management:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            CLEAR
+         </td>
+         <td>
+            (write-only): removes all datasets. Value is ignored.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            COUNT
+         </td>
+         <td>
+            (read-only): total number of datasets.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            CURRENT
+         </td>
+         <td>
+            current dataset index. Default is -1. When a dataset is added it becomes the current dataset. <br>
+            The index starts at 0. All "DS_*" attributes are dependent on this value.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            REMOVE
+         </td>
+         <td>
+            (write-only): removes a dataset given its index.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Dataset Configuration:</b>
+         </td>
+         <td>
+            (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_COLOR
+         </td>
+         <td>
+            color of the current dataset and it legend text. <br>
+            Default is dynamically generated for the 6 first datasets, others are default to black "0 0 0". <br>
+            The first 6 are: 0="255 0 0", 1="0 0 255", 2="0 255 0", 3="0 255 255", 4="255 0 255", 5="255 255 0".
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_COUNT
+         </td>
+         <td>
+            (read-only): returns the number of samples of the current dataset. <br>
+            For planar or volumetric datasets returns count_x * count_y * count_z.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_DIMENSION
+         </td>
+         <td>
+            (read-only): returns the number of dimensions of the data: 1, 2 or 3. <br>
+            For planar and volumetric datasets returns the actual size of each dimension "<count_x>x<count_y>x<count_y>", for example "600x400x1" (planar) or "512x512x512" (volumetric).
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_LEGEND
+         </td>
+         <td>
+            legend text of the current dataset. Default is dynamically generated: "plot 0", <wbr>"plot 1", <wbr>"plot 2", ...
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_LINESTYLE
+         </td>
+         <td>
+            line style of the current dataset. <br>
+            Can be: "CONTINUOUS" <wbr>(or <wbr>"SOLID"), <wbr>"LONGDASHED", <wbr>"DASHED", <wbr>"SMALLDASHED", <wbr>"DOTTED", <wbr>"DASH_DOT", <wbr>"SMALLDASH_DOT". Default is "CONTINUOUS".
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_LINEWIDTH
+         </td>
+         <td>
+            line width of the current dataset. Default: 1. Can be 1 to 9 (since 3.11).
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_MARKSTYLE
+         </td>
+         <td>
+            mark style of the current dataset. <br>
+            Can be: "PLUS", <wbr>"STAR", <wbr>"CIRCLE", <wbr>"X", <wbr>"BOX", <wbr>"DIAMOND", <wbr>"HOLLOW_CIRCLE", <wbr>"HOLLOW_BOX", <wbr>"HOLLOW_DIAMOND", 
+            <wbr>"DOT", <wbr>"ARROW_UP", <wbr>"ARROW_LEFT", <wbr>"ARROW_DOWN", <wbr>"ARROW_RIGHT". Default is "X".
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_MARKSIZE
+         </td>
+         <td>
+            mark size of the current dataset in normalized coordinates. Default: 1.0.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_MODE
+         </td>
+         <td>
+            drawing mode of the current dataset. Default: "LINE".
+            <br>
+            <br>
+            Can be: LINE, BAR, MARK, MARKLINE, RADAR, AREA, BARHORIZONTAL, CHART, STEP or STEM for linear datasets.
+            <br>
+            <br>
+            Can be: PLANAR_MESH, PLANAR_FALL, PLANAR_BELT, PLANAR_SURFACE, PLANAR_BOXES, PLANAR_TILE, PLANAR_DENSITY, 
+            PLANAR_CONTOUR, PLANAR_AXIALCONTOUR or PLANAR_GRADIENTLINES for planar datasets.
+            <br>
+            <br>
+            Can be: VOLUME_ISOSURFACE, VOLUME_DENSITY, VOLUME_CONTOUR or VOLUME_CLOUD for volumetric datasets.
+            <br>
+            <br>
+            Each of these modes can have secondary attributes, that can be configured only for the plot, and not for a specific dataset. See more at DS_MODE Options.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_REARRANGE
+         </td>
+         <td>
+            (write-only): rearrange planar data into linear data. Value is ignored. <br>
+            It can rearrange planar data with count_y=2 or count_y=3, into 2D or 3D linear data accordingly. <br>
+            It can also rearrange planar data with count_y!=1 and count_x=2 or count_x=3 into 2D or 3D linear data accordingly.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_SPLIT
+         </td>
+         <td>
+            (write-only): rearrange planar data into linear data, but spliting into different datasets. <br>
+            It can rearrange planar data with count_y=2 or count_y=3, into 2 or 3 datasets of 1D linear data accordingly. <br>
+            The current dataset is modified and 1 or 2 new datasets are created accordingly.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_SHOWVALUES
+         </td>
+         <td>
+            enable or disable the display of the values near each sample. Can be YES or NO. <br>
+            Default: NO. Values are drawn with LEGENDFONTSIZE and LEGENDFONTSTYLE.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            DS_REMOVE
+         </td>
+         <td>
+            (write-only): removes a sample from the current dataset given its index. <br>
+            It can specify a range of samples using "index:count" (%d:%d). Ignored for planar and volumetric datasets.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Axis Configuration:</b>
+         </td>
+         <td>
+            (non inheritable) (for X, Y and Z)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?
+         </td>
+         <td>
+            enable or disable the axis display. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?AUTOMIN, AXS_?AUTOMAX
+         </td>
+         <td>
+            configures the automatic scaling of the minimum and maximum display values. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?ARROW
+         </td>
+         <td>
+            enable or disable the axis arrow display. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?COLOR
+         </td>
+         <td>
+            ticks values and label color. Default: "0 0 0".
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?CROSSORIGIN
+         </td>
+         <td>
+            same as setting AXS_?ORIGIN to 0 or NULL. Can be YES or NO. Default: NO. <br>
+            Returns YES if AXS_?ORIGIN is 0 and returns NO if AXS_?ORIGIN in NULL. <br>
+            Available for compatibility with IupPlot, but the default is different.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?FONTSIZE
+         </td>
+         <td>
+            axis label font size factor. Default: 0.8. The internal MathGL factor is 1.4.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?FONTSTYLE
+         </td>
+         <td>
+            axis label font style.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?LABEL
+         </td>
+         <td>
+            text label of the respective axis.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?LABELCENTERED
+         </td>
+         <td>
+            text label position at center (YES) or at top/right (NO). Default: YES. <br>
+            Will set/get AXS_?LABELPOSITION to CENTER or MAX. Available for compatibility with IupPlot.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?LABELPOSITION
+         </td>
+         <td>
+            text label position. Can be CENTER, MAX or MIN. Default: CENTER.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?LABELROTATION
+         </td>
+         <td>
+            enable or disable the text label rotation along the 3D axis. Can be YES or NO. Default: Yes. <br>
+            This means that text will be aligned with the axis even when rotating the graph. <br>
+            When NO text will be horizontal, always facing the camera, independently from graph rotation. <br>
+            For 2D graphs is useful to the Y axis only.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?MAX, AXS_?MIN
+         </td>
+         <td>
+            minimum and maximum displayed values of the respective axis in plot coordinates. <br>
+            Automatically calculated values when AUTOMIN or AUTOMAX are enabled. Default: 1.0 and -1.0. <br>
+            When set will set the correspondent AUTOMIN or AUTOMAX to NO (since 3.11).
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?ORIGIN
+         </td>
+         <td>
+            position the origin of the axis in plot coordinates (%g). <br>
+            But if set to NULL will automatically position the origin at the bottom-left corner of the dataset area. Default: not defined.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?REVERSE
+         </td>
+         <td>
+            reverse the axis direction. Can be YES or NO. Default: NO. <br>
+            Default is Y oriented bottom to top, and X oriented from left to right.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?SCALE
+         </td>
+         <td>
+            configures the scale of the respective axis. <br>
+            Can be: LIN (linear) or LOG10 (decimal logarithm base 10). Default: LIN.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Axis Ticks Configuration:</b>
+         </td>
+         <td>
+            (non inheritable) (for X, Y and Z)
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICK
+         </td>
+         <td>
+            enable or disable the axis tick display. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKAUTO
+         </td>
+         <td>
+            configures the automatic tick spacing. Can be YES or NO. Default: YES. AXS_?AUTOTICK is also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKAUTOSIZE
+         </td>
+         <td>
+            configures the automatic tick size. Can be YES or NO. Default: YES. AXS_?AUTOTICKSIZE is also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKFONTSIZE
+         </td>
+         <td>
+            axis tick number font size factor. Default: 0.8. The internal MathGL factor is 1.0.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKFONTSTYLE
+         </td>
+         <td>
+            axis tick number font style.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKFORMAT
+         </td>
+         <td>
+            axis tick number C format string. Default: is internally computed according to the Min-Max range.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKMAJORSIZE
+         </td>
+         <td>
+            axis major ticks size in normalized coordinates. Default is 0.1. Used only when TICKAUTOSIZE is disabled.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKMAJORSPAN
+         </td>
+         <td>
+            spacing between major ticks in plot coordinates if positive, or number of major ticks along the axis range if negative. Default is -5 when TICKAUTO is disabled.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKMINORDIVISION
+         </td>
+         <td>
+            number of minor ticks intervals between each major tick. Default is 5 when TICKAUTO is disabled. AXS_?TICKDIVISION is also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKMINORSIZE
+         </td>
+         <td>
+            axis minor ticks size factor. It is a multiple of the AXS_?TICKMAJORSIZE. Default is 0.6. Used only when AUTOTICKSIZE is disabled. AXS_?TICKSIZE is also accepted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKVALUES
+         </td>
+         <td>
+            enable or disable the axis tick values display. Can be YES or NO. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+            AXS_?TICKVALUESROTATION
+         </td>
+         <td>
+            enable or disable the axis tick values rotation along the 3D axis. <br>
+            Can be YES or NO. Default: YES (NO for Y axis). <br>
+            This means that text will be aligned with the axis even when rotating the graph. <br>
+            When NO text will be horizontal, always facing the camera, independently from graph rotation. <br>
+            For 2D graphs is useful to the Y axis only.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+            also
+         </td>
+         <td>
+            <a href="common.htm#ACTIVE">ACTIVE</a>, 
+            <a href="common.htm#SCREENPOSITION">SCREENPOSITION</a>, 
+            <a href="common.htm#POSITION">POSITION</a>, 
+            <a href="common.htm#MINSIZE">MINSIZE</a>, 
+            <a href="common.htm#MAXSIZE">MAXSIZE</a>,
+            <a href="common.htm#WID">WID</a>,
+            <a href="common.htm#TIP">TIP</a>, 
+            <a href="common.htm#SIZE">SIZE</a>,
+            <a href="common.htm#RASTERSIZE">RASTERSIZE</a>,
+            <a href="common.htm#ZORDER">ZORDER</a>,
+            <a href="common.htm#VISIBLE">VISIBLE</a>: also accepted.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          PREDRAW_CB, POSTDRAW_CB
+         </td>
+         <td>
+            Actions generated before and after the redraw operation. <br>
+            They can be used to draw additional information in the plot. <br>
+            Use only the IupMglPlotDraw* functions. For display output OpenGL primitives can also be used.
+            <br>
+            <br>
+            function pre/postdraw_cb(<a href="Ihandle.htm">Ihandle</a> ih)<br>
+            ih: identifier of the element that activated the event.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+            <a href="callbacks.htm#MAP_CB">MAP_CB</a>,
+            <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a>,
+            <a href="callbacks.htm#DESTROY_CB">DESTROY_CB</a>, 
+            <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, 
+            <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+            <a href="callbacks.htm#K_ANY">K_ANY</a>, 
+            <a href="callbacks.htm#HELP_CB">HELP_CB</a>: All common callbacks are supported.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          Examples
+         </td>
+         <td>
+            See demo\pGUI\mathglsamples.exw - the images below are all from that program.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          DS_MODES Options
+         </td>
+         <td>
+            <h3>For Linear Datasets</h3>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          LINE
+         </td>
+         <td>
+            Draws lines between points. DS_COLOR, DS_LINESTYLE and DS_LINEWIDTH are used 
+            to configure the lines.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_line.png">
+                <div class="imside"><br>
+                  (3 plots)<br>
+                  BOX=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_line3d.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MARK
+         </td>
+         <td>
+            Draws a mark in each point. DS_COLOR, DS_MARKSTYLE and DS_MARKSIZE are used 
+            to configure the marks.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MARKLINE
+         </td>
+         <td>
+            Draws lines between points and draws a mark in each point. Same as if LINE 
+            and MARK where set together.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RADAR
+         </td>
+         <td>
+            Draws a radar chart. Like a LINE plot in polar coordinates. RADARSHIFT 
+            configures an additional radial shift of the data [If rs&lt;0 then rs=max(0, 
+            -min(a))], default=-1. If DATAGRID=Yes then a grid of radial lines and a circle 
+            for rs are drawn. DS_COLOR, DS_LINESTYLE and DS_LINEWIDTH are used to configure the lines. 
+            DS_COLOR, DS_MARKSTYLE and DS_MARKSIZE are used to configure the marks.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_radar.png">
+                <div class="imside"><br>
+                  (3 plots)<br>
+                  RADARSHIFT=0.4<br>
+                  DATAGRID=Yes<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          AREA
+         </td>
+         <td>
+            Draws lines between points and fills it to axis plane. DS_COLOR is used to 
+            configure fill color. The order of the datasets will define which one will be 
+            drawn first.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_area.png">
+                <div class="imside"><br>
+                  (3 plots)<br>
+                  AXS_XORIGIN=0<br>
+                  AXS_YORIGIN=0<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BAR
+         </td>
+         <td>
+            Draws vertical bars from points to axis plane. If DATAGRID=Yes then grid 
+            lines are drawn, default=No. BARWIDTH sets relative width of rectangles, 
+            default=0.7.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_bar.png">
+                <div class="imside"><br>
+                  AXS_XORIGIN=0<br>
+                  AXS_YORIGIN=0<br>
+                  BOX=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_bar3d.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BARHORIZONTAL
+         </td>
+         <td>
+            Draws horizontal bars from points to axis plane. If DATAGRID=Yes then grid 
+            lines are drawn, default=No. BARWIDTH sets relative width of rectangles, 
+            default=0.7.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_barhorizontal.png">
+                <div class="imside"><br>
+                  AXS_XORIGIN=0<br>
+                  AXS_YORIGIN=0<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CHART
+         </td>
+         <td>
+            Draws colored stripes (boxes). If DATAGRID=Yes then black border lines are 
+            drawn, default=No. If PIECHART=Yes cylindrical coordinates are used, default=No.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_chart.png">
+                <div class="imside"><br>
+                  DATAGRID=Yes<br>
+                  BOX=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_chartpie.png">
+                <div class="imside"><br>
+                  DATAGRID=Yes<br>
+                  BOX=Yes<br>
+                  PIECHART=Yes<br>
+                  COLORSCHEME=bgr cmy
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          STEP
+         </td>
+         <td>
+            Draws continuous stairs for points to axis plane. <br>
+            DS_COLOR, DS_LINESTYLE and DS_LINEWIDTH are used to configure the lines. <br>
+            DS_COLOR, DS_MARKSTYLE and DS_MARKSIZE are used to configure the marks.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_step.png">
+                <div class="imside"><br>
+                  (3 plots)<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          STEM
+         </td>
+         <td>
+            Draws vertical lines from points to axis plane. <br>
+            DS_COLOR, DS_LINESTYLE and DS_LINEWIDTH are used to configure the lines. <br>
+            DS_COLOR, DS_MARKSTYLE and DS_MARKSIZE are used to configure the marks.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_stem.png">
+                <div class="imside"><br>
+                  (3 plots)<br>
+                  DS_MARKSTYLE=HOLLOW_CIRCLE<br>
+                  DS_SHOWMARKS=Yes<br>
+                  AXS_XORIGIN=0<br>
+                  AXS_YORIGIN=0<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DOTS
+         </td>
+         <td>
+            Draws arbitrary placed points. Colors will be used from the previous color 
+            scheme or from COLORSCHEME if defined.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_dots.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CRUST
+         </td>
+         <td>
+            This will reconstruct and draw the surface for arbitrary placed points. 
+            If DATAGRID=Yes then wire plot is produced, default=No. Colors will 
+            be used from the previous color scheme or from COLORSCHEME if defined.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_crust.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+         </td>
+         <td>
+            <h3>For Planar Datasets</h3>
+            For all planar modes colors will be used from the previous color scheme or 
+            from COLORSCHEME if defined. COLORSCHEME is a string that can specify a group of 
+            colors to be used by the plot.
+            <br>
+            <br>
+            Colors in a color scheme are specified by the codes &quot;wkrgbcymhRGBCYMHWlenupqLENUPQ&quot; 
+            only. A brightness weight from 1 to 9 can also be used to change the default 
+            value from 5 normal, to 1 very dark, and to 9 very bright.
+            <br>
+            <br>
+            Also the symbol 'd' denotes the interpolation by 3D position instead of the 
+            coloring by amplitude. Symbol '|' disables color interpolation in color scheme, 
+            which can be useful, for example, for sharp colors during matrix plotting.
+            <br>
+            <br>
+            For coloring by amplitude (most common) the final color is a linear 
+            interpolation of color array. The color array is constructed from the string 
+            ids. The argument is the amplitude normalized based on COLORBARRANGE. When 
+            coloring by coordinate, the final color is determined by the position of the 
+            point in 3D space and is calculated from combining the first three elements of 
+            color array with the x, y and z normalizes values. This type of coloring is 
+            useful for isosurface plot where color may show the exact position of a piece of 
+            surface.
+            <br>
+            <br>
+            Here are some examples or color codes and color schemes:<br>
+            <div class="parent">
+              <div class="child">
+                <img width="454" height="330" src="images/iupmglplot_colorcodes.png">
+              </div>
+              <div class="child">
+                <img width="600" height="400" src="images/iupmglplot_colorschemes.png">
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_MESH
+         </td>
+         <td>
+            Draws mesh lines for the surface. Mesh lines are plotted for each z slice of 
+            the data. DS_LINESTYLE and DS_LINEWIDTH are used to configure the lines.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_mesh.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_FALL
+         </td>
+         <td>
+            Draws fall lines for the surface. DS_LINESTYLE and DS_LINEWIDTH are used to configure the lines. 
+            If DIR=X, then lines are drawn along x-direction else lines are drawn along 
+            y-direction, default=Y.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_fall.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_BELT
+         </td>
+         <td>
+            Draws belts for the surface. If DIR=X, then lines are drawn along x-direction 
+            else lines are drawn along y-direction, default=Y.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_belt.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_SURFACE
+         </td>
+         <td>
+            Draws the surface. If DATAGRID=Yes then grid lines are drawn, default=No.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_surface.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_surface_colors.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes<br>
+                  COLORSCHEME=BbcyrR|
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_BOXES
+         </td>
+         <td>
+            Draws vertical boxes for the surface. If DATAGRID=Yes then box lines are 
+            drawn, default=No.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_boxes.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes<br>
+                  AXS_XORIGIN=0<br>
+                  AXS_YORIGIN=0<br>
+                  AXS_ZORIGIN=0
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_TILE
+         </td>
+         <td>
+            Draws horizontal tiles for the surface, it can be seen as 3D generalization 
+            of STEP.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_tile.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_DENSITY
+         </td>
+         <td>
+            Draws density plot for the surface at minimum z coordinate.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_density.png">
+                <div class="imside"><br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  COLORBAR=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_CONTOUR
+         </td>
+         <td>
+            Draws contour lines for the surface at the minimum z coordinate. CONTOURCOUNT defines 
+            the number of contour lines, default=7. If CONTOURFILLED=Yes 
+            draws solid (or filled) contour lines for the surface, default=No. If CONTOURLABELS 
+            is defined then contour labels will be drawn BELLOW or ABOVE the contours.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_contour.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes<br>
+                  CONTOURLABELS=BELLOW
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_contour_filled.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes<br>
+                  CONTOURFILLED=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_surface_contour.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>
+                  LIGHT=Yes
+                  <br>
+                  <br>
+                  (dual plot)<br>
+                  DS_MODE=PLANAR_SURFACE<br>
+                  DS_MODE=PLANAR_CONTOUR
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_AXIALCONTOUR
+         </td>
+         <td>
+            Draws a surface which is result of the contour plot rotation for the surface. 
+            AXIALCOUNT defines the number of elements distributed in the COLORBARRANGE 
+            interval, default=3.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_axialcontour.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=Yes<br>
+                  LIGHT=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PLANAR_GRADIENTLINES
+         </td>
+         <td>
+            Draws gradient lines for scalar field defined by the surface at minimum z 
+            coordinate. Number of lines is proportional to GRADLINESCOUNT, default=5 . If 
+            GRADLINESCOUNT&lt;0 then lines start from borders only. Lines are plotted for each 
+            z slice of the data.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_gradientlines.png">
+                <div class="imside"><br>
+                  BOX=Yes<br>
+                  TRANSPARENT=Yes<br>LIGHT=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_planar_density_gradientlines.png">
+                <div class="imside"><br>
+                  BOX=Yes<br>
+                  TRANSPARENT=Yes<br>LIGHT=Yes<br><br>(dual plot)<br>
+                  DS_MODE=PLANAR_GRADIENTLINES <br>DS_MODE=PLANAR_DENSITY
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          
+         </td>
+         <td>
+            <h3>For Volumetric Datasets</h3>
+            For all volumetric modes colors will be used from the previous color scheme 
+            or from COLORSCHEME if defined.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VOLUME_ISOSURFACE
+         </td>
+         <td>
+            Draws isosurface plot for the volume. If DATAGRID=Yes then wire plot is 
+            produced, default=No. if ISOVALUE is defined only 1 isosurface is plot, else 
+            ISOCOUNT (default=3) surfaces are plot distributed in the COLORBARRANGE 
+            interval.
+            <br>
+            <br>
+            Note, that there is possibility of incorrect plotting due to uncertainty of 
+            cross-section defining if there are two or more isosurface intersections inside 
+            one cell.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_isosurface.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=Yes<br>LIGHT=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VOLUME_DENSITY
+         </td>
+         <td>
+            Draws density plot for the volume. If DATAGRID=Yes then grid lines are drawn, 
+            default=No. If PROJECT=Yes draws density plot in x, y, or z plain, default=No. 
+            When PROJECT=Yes, PROJECTVALUEX, PROJECTVALUEY and PROJECTVALUEZ, are used to 
+            select data at the given coordinate, if they are not defined AXS_?ORIGIN is used 
+            accordingly. When PROJECT=No, SLICEX, SLICEY and SLICEZ, are used to define the 
+            slice where the plot is done, default is -1 (central). SLICEDIR defines which 
+            directions are used, default &quot;XYZ&quot;.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_density.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=Yes<br>LIGHT=No<br>
+                  AXS_XORIGIN=0<br>AXS_YORIGIN=0<br>AXS_ZORIGIN=0<br>AXS_X=Yes<br>
+                  AXS_Y=Yes<br>AXS_Z=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_densityproject.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>LIGHT=No<br>PROJECT=Yes<br>
+                  PROJECTVALUEX=-1<br>PROJECTVALUEY=1<br>
+                  PROJECTVALUEZ=-1
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VOLUME_CONTOUR
+         </td>
+         <td>
+            Draws contour plot for the volume. If DATAGRID=Yes then grid lines are drawn, 
+            default=No. If PROJECT=Yes draws contour plot in x, y, or z plain, default=No. 
+            When PROJECT=Yes, PROJECTVALUEX, PROJECTVALUEY and PROJECTVALUEZ, are used to 
+            select data at the given coordinate, if they are not defined AXS_?ORIGIN is used 
+            accordingly. When PROJECT=No, SLICEX, SLICEY and SLICEZ, are used to define the 
+            slice where the plot is done, default is -1 (central). SLICEDIR defines which 
+            directions are used, default &quot;XYZ&quot;. If CONTOURFILLED=Yes draws solid (or filled) 
+            contour lines for the surface, default=No. CONTOURCOUNT defines the number of 
+            contour lines, default=7. Where lines are used, DS_LINESTYLE and DS_LINEWIDTH are used to configure the lines.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_contour.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>BOX=Yes<br>
+                  TRANSPARENT=No<br>LIGHT=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_contourproject.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>LIGHT=Yes<br>PROJECT=Yes<br>PROJECTVALUEX=-1<br>
+                  PROJECTVALUEY=1<br>PROJECTVALUEZ=-1
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_contourfilled.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>BOX=Yes<br>
+                  TRANSPARENT=No<br>LIGHT=Yes<br>CONTOURFILLED=Yes
+                </div>
+              </div>
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_contourfilledproject.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=No<br>LIGHT=Yes<br>PROJECT=Yes<br>PROJECTVALUEX=-1<br>
+                  PROJECTVALUEY=1<br>PROJECTVALUEZ=-1<br>CONTOURFILLED=Yes
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VOLUME_CLOUD
+         </td>
+         <td>
+            Draws cloud plot for the volume. This plot is a set of cubes with color and 
+            transparency proportional to value of ALPHA. The resulting plot is like cloud - 
+            low value is transparent but higher ones are not. If CLOUDLOW=Yes then lower 
+            quality plot will be produced with much low memory usage.
+            <div class="parent">
+              <div class="child">
+                <img width="348" height="248" src="images/iupmglplot_volume_cloudcubes.png">
+                <div class="imside"><br>
+                  ROTATE=40:0:60<br>
+                  BOX=Yes<br>
+                  TRANSPARENT=Yes<br>LIGHT=No<br>COLORSCHEME=wyrRk
+                </div>
+              </div>
+            </div>
+            <div style="clear:both;height:1px;"> </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Differences from IupPlot
+         </td>
+         <td>
+            Uses OpenGL for screen output and internal drivers for metafile output. IupPlot uses CD for screen and metafile output.
+            <br>
+            <br>
+            Selection and editing of a dataset using the DS_EDIT attribute are not implemented.
+            <br>
+            <br>
+            All functions use double floating point. (since 3.11)
+            <br>
+            <br>
+            New support for 3D data and 3D plots. New support for planar and volumetric data. <br>
+            New ALPHA, ANTIALIAS, DS_DIMENSION, LEGENDBOX, BOX, BOXTICKS, BOXCOLOR, AXS_*ORIGIN, AXS_?LABELPOSITION, AXS_?LABELROTATION, 
+            AXS_?TICKVALUESROTATION, LEGENDCOLOR, TITLECOLOR, LIGHT, COLORBAR*, COLORSCHEME attributes. Many new DS_MODE options.
+            <br>
+            <br>
+            USE_IMAGERGB and USE_GDI+ attributes are NOT supported. MARGIN* attributes are NOT supported. <br>
+            AXS_?SCALE attribute does NOT support the LOG2 and LOGN values. The Crosshair cursor is not supported.
+            <br>
+            <br>
+            The PREDRAW_CB, POSTDRAW_CB callbacks does not includes the CD canvas parameter. <br>
+            *FONTSIZE attributes are a multiple factor of the FONT size. <br>
+            DASH_DOT_DOT line style is not supported, but has new line styles: LONGDASHED, SMALLDASHED and SMALLDASH_DOT. <br>
+            AXS_?TICKMAJORSIZE, MARKSIZE are in normalized coordinates. <br>
+            New options for GRID: Z, XYZ, XZ, YZ. AXS_?TICKSIZE renamed to AXS_?TICKMINORSIZE, and is a factor of the AXS_?TICKMAJORSIZE. <br>
+            AXS_?TICKMAJORSPAN default value is  -5. AXS_?TICKFORMAT default is internally computed according to the Min-Max range.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          Function Mapping:
+         </td>
+         <td>
+ <pre>
+IupPlotBegin  -> IupMglPlotBegin  <small>(IMPORTANT: parameter is the dimension 1, 2 or 3)</small>
+IupPlotAddStr -> IupMglPlotAdd1D
+IupPlotAdd    -> IupMglPlotAdd2D
+   (none)         IupMglPlotAdd3D
+IupPlotEnd    -> IupMglPlotEnd
+   (none)            IupMglPlotNewDataSet
+IupPlotInsertStr    (not mapped, use IupMglPlotInsert1D)
+IupPlotInsert       (not mapped, use IupMglPlotInsert2D)
+IupPlotInsertStrPoints -> IupMglPlotInsert1D   <small>(names array is optional)</small>
+IupPlotInsertPoints    -> IupMglPlotInsert2D
+   (none)                  IupMglPlotInsert3D
+IupPlotAddStrPoints    -> IupMglPlotInsert1D   <small>(insert at DS_COUNT)</small>
+IupPlotAddPoints       -> IupMglPlotInsert2D   <small>(insert at DS_COUNT)</small>
+   (none)                  IupMglPlotInsert3D
+   (none)                  IupMglPlotSet1D
+   (none)                  IupMglPlotSet2D
+   (none)                  IupMglPlotSet3D
+   (none)                  IupMglPlotSetData
+   (none)                  IupMglPlotLoadData
+   (none)                  IupMglPlotSetFromFormula
+IupPlotTransform       -> IupMglPlotTransform  <small>(includes z coordinate)</small>
+   (none)                  IupMglPlotTransformXYZ
+   (cdCanvasMark)       -> IupMglPlotDrawMark
+   (cdCanvasLine)       -> IupMglPlotDrawLine
+   (cdCanvasText)       -> IupMglPlotDrawText
+IupPlotPaintTo         -> IupMglPlotPaintTo    <small>(parameters are different)</small>
+ </pre>
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          Known Issues/To Do
+         </td>
+         <td>
+            Add UTF-8 mode using MathGL unicode support.<br>
+            Compile MathGL using OpenMP support.<br>
+            Text render quality is lower than in IupPlot.<br>
+            Logarithm scale is not working properly.<br>
+            Automatic ticks computation needs to be improved.<br>
+            Text rotation when DS_SHOWVALUES=Yes is not ok. (MathGL)<br>
+            When OPENGL=Yes initial size is smaller. (MathGL)<br>
+            There is still lots of MathGL features not available in IupMglPlot.
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

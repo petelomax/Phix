@@ -1,0 +1,44 @@
+--
+-- demo\pGUI\IupProgressDlg.exw
+-- ============================
+--
+include pGUI.e
+
+Ihandln dlg
+
+function cancel_cb(Ihandle ih)
+  integer ret = IupAlarm("Warning!", "Interrupt Processing?", "Yes", "No", NULL)
+  if ret==1 then /* Yes Interrupt */
+    IupExitLoop()
+    return IUP_DEFAULT
+  end if
+  return IUP_CONTINUE
+end function
+
+function timer_cb(Ihandle /*ih*/)
+    IupSetAttribute(dlg, "INC", NULL)
+    if IupGetInt(dlg, "COUNT")==IupGetInt(dlg, "TOTALCOUNT") then
+        IupHide(dlg)
+        return IUP_CLOSE
+    end if
+    return IUP_DEFAULT
+end function
+
+IupOpen()
+
+dlg = IupProgressDlg()
+  
+IupSetAttribute(dlg, "TITLE", "IupProgressDlg Test")
+IupSetAttribute(dlg, "DESCRIPTION", "Description first line\nSecond Line") // Actually can have any number of lines.
+IupSetCallback(dlg, "CANCEL_CB", Icallback("cancel_cb"))
+IupSetAttribute(dlg, "TOTALCOUNT", "300")
+IupCloseOnEscape(dlg)
+  
+IupShowXY(dlg, IUP_CENTER, IUP_CENTER)
+
+Ihandle timer = IupTimer(Icallback("timer_cb"),50)
+
+IupMainLoop()
+dlg = IupDestroy(dlg)
+IupClose()
+

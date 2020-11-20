@@ -2,8 +2,7 @@
 -- builtins\ordinal.e
 -- ==================
 --
---  A collection of routines for ordinal number handling.
---   (*NOT* an autoinclude, must be included manually)
+--  A collection of routines for ordinal number handling. (autoinclude)
 --
 --      ord(integer n) yields "st", "nd", "rd", or "th".
 --      ordinal(atom n) yields "first", "second", etc.

@@ -9,7 +9,8 @@ include builtins/VM/pStack.e    -- :%opGetST
 --   related global variables that do not belong in application code.)
 --SUG: since this is *not* an autoinclude, we /could/ make these global...
 
-constant S_NTyp  = 2,   -- Const/GVar/TVar/Nspc/Type/Func/Proc
+constant S_Name  = 1,    -- const/var/rtn name (now a ttidx number or -1)
+         S_NTyp  = 2,   -- Const/GVar/TVar/Nspc/Type/Func/Proc
          S_sig   = 7,   -- routine signature, eg {'F',T_integer} (nb S_sig must be = S_vtype)
          S_ParmN = 9,   -- minimum no of parameters (max is length(S_sig)-1)
          S_Type  = 6,   -- [S_NTyp] settings
@@ -21,6 +22,10 @@ constant S_NTyp  = 2,   -- Const/GVar/TVar/Nspc/Type/Func/Proc
 --       T_sequence = 12,
          T_object   = 15
 
+-- hack: force [the entire] symtab name population...
+function rtnid(string name) return routine_id(name) end function
+integer grid = 0
+
 global function get_routine_info(integer rid)
 --global function get_arg_count(integer rid, bMin = false)
 --
@@ -29,6 +34,7 @@ global function get_routine_info(integer rid)
 --  minp is the minmum            """				"""
 --  sig is the signature, in (roottype) string form, eg "FISO".
 --
+    if grid=0 then grid = rtnid("get_routine_info") end if
     object symtab
     enter_cs()
     #ilASM{
@@ -40,6 +46,8 @@ global function get_routine_info(integer rid)
             call :%opGetST      -- [e/rdi]=symtab (ie our local:=the real symtab)
           }
     object sr = symtab[rid]
+    string name = sr[S_Name]
+--  object name = sr[S_Name]
     integer ntype = sr[S_NTyp],
             minp = sr[S_ParmN]
     if ntype<S_Type or ntype>S_Proc then ?9/0 end if
@@ -61,7 +69,7 @@ global function get_routine_info(integer rid)
         end if
         res[i] = si
     end for
-    res = {maxp,minp,res}
+    res = {maxp,minp,res,name}
     sr = 0
     symtab = 0
     leave_cs()

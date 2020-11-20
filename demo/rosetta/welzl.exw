@@ -1,0 +1,163 @@
+--
+-- demo/rosetta/welzl.exw
+--
+--  (not in distro, but available on github)
+--  some workings from https://rosettacode.org/wiki/Smallest_enclosing_circle_problem
+--
+
+--=={{header|Phix}}==
+--
+-- Based on the same code as Wren, and likewise limited to 2D circles.
+-- I believe (but cannot prove) the main barrier to coping with more 
+-- than two dimensions lies wholly within the circle_from3() routine.
+--
+--<lang Phix>
+type point(sequence) return true end type
+enum CENTRE, RADIUS
+type circle(sequence) return true end type
+
+function distance(point a, b)
+    return sqrt(sum(sq_power(sq_sub(a,b),2)))
+end function
+
+function in_circle(point p, circle c)
+    return distance(p,c[CENTRE]) <= c[RADIUS]
+end function
+
+function circle_from2(point a, b)
+    -- return the smallest circle that intersects 2 points:
+    point midpoint = sq_div(sq_add(a,b),2)
+    atom halfdiameter = distance(a,b)/2
+    circle res = { midpoint, halfdiameter }
+    return res
+end function
+
+function circle_from3(point a, b, c)
+    -- return a unique circle that intersects three points 
+    point bma = sq_sub(b,a),
+          cma = sq_sub(c,a)
+    atom {{aX,aY},{bX,bY},{cX,cY}} = {a,bma,cma},
+         B = sum(sq_power(bma,2)),
+         C = sum(sq_power(cma,2)),
+         D = (bX*cY - bY*cX)*2 
+    point centre = {(cY*B - bY*C)/D + aX, 
+                    (bX*C - cX*B)/D + aY }
+    atom radius = distance(centre,a) -- (=== b,c)
+    circle res = { centre, radius }
+    return res
+end function
+  
+function trivial(sequence r)
+    integer l = length(r)
+    switch l do
+        case 0: return {{0,0},0}
+        case 1: return { r[1],0}
+        case 2: return circle_from2(r[1],r[2])
+        case 3: return circle_from3(r[1],r[2],r[3])
+    end switch
+end function
+
+function welzlr(sequence p, r)
+    if p={} or length(r)=3 then return trivial(r) end if
+    point p1 = p[1]
+    p = p[2..$]
+    circle d = welzlr(p, r)
+    if in_circle(p1,d) then return d end if
+    return welzlr(p, append(r,p1))
+end function
+
+procedure welzl(sequence p)
+    circle c = welzlr(shuffle(p),{})
+    string s = sprintf("centre %v radius %.14g",c)
+    printf(1,"Points %v ==> %s\n",{p,s})
+end procedure
+
+constant tests = {{{0, 0},{ 0, 1},{ 1,0}},
+                  {{5,-2},{-3,-2},{-2,5},{1,6},{0,2}}}
+papply(tests,welzl)
+--/*
+</lang>
+{{out}}
+<pre>
+Points {{0,0},{0,1},{1,0}} ==> centre {0.5,0.5} radius 0.70710678118655
+Points {{5,-2},{-3,-2},{-2,5},{1,6},{0,2}} ==> centre {1,1} radius 5
+</pre>
+"done"
+                  { { 2, 4, -1.0], [1.0, 5.0, -3.0], [8.0, -4.0, 1.0], [3.0, 9.0, -5.0]]
+    Center is at: [5.5, 2.5, -2.0]
+    Radius is: 7.582875444051551
+
+For points: [[-0.6400900432782123, 2.643703255134232, 0.4016122094706093, 1.8959601399652273, -1.1624046608380516],
+             [0.5632393652621324, -0.015981105190064373, -2.193725940351997, -0.9094586577358262, 0.7165036664470906],
+             [-1.7704367632976061, 0.2518283698686299, -1.3810444289625348, -0.597516704360172, 1.089645656962647],
+             [1.3448578652803103, -0.18140877132223002, -0.4288734015080915, 1.53271973321691, 0.41896461833399573],
+             [0.2132336397213029, 0.07659442168765788, 0.148636431531099, 2.3386893481333795, -2.3000459709300927],
+             [0.6023153188617328, 0.3051735340025314, 1.0732600437151525, 1.1148388039984898, 0.047605838564167786],
+             [1.3655523661720959, 0.5461416420929995, -0.09321951900362889, -1.004771137760985, 1.6532914656050117],
+             [-0.14974382165751837, -0.5375672589202939, -0.15845596754003466, -0.2750720340454088, -0.441247015836271]]
+    Center is at: [0.0405866077655439, 0.5556683897981481, -0.2313678300507679, 0.6074066023194586, -0.2003463948612026]
+    Radius is: 2.7946020036995454
+
+    X    Y    Z
+1    17    300    4
+2    -99    56    2
+3    8    5    -33
+            
+Centre    20.6    148.6    14.4
+Radius    151.8        
+
+--bust...
+--?circle_from3({17,300},{-99,56},{8,5})
+--?circle_from3({300,4},{56,2},{5,-33})
+{{12.64738946,152.4955034},147.5687018}
+{{179.9364778,-233.2502963},265.9002678}
+"done"
+sequence p1 = {17,300,4},
+         p2 = {-99,56,2},
+         p3 = {8,5,-33},
+         c  = {20.6,148.6,14.4}
+?distance(p1,c)
+?distance(p2,c)
+?distance(p3,c)
+151.799473
+151.7652134
+151.7447857
+
+*/
+--{{{0.5,0.5},0.7071067812},{{1,1},5}}
+--"done"
+--for i=1 to length(tests) do
+----    sequence ti = tests[i]
+----    {sequence centre, atom radius} = welzl(tests[i])
+--  circle c = 
+--  welzl(tests[i])
+--  printf(1,"For points %35v, centre is %-9v and radius is %.14g\n",
+--           {tests[i],c[CENTRE],c[RADIUS]})
+--end for
+
+--/*
+sequence pts = {{-0.6400900432782123, 2.643703255134232, 0.4016122094706093, 1.8959601399652273, -1.1624046608380516},
+                {0.5632393652621324, -0.015981105190064373, -2.193725940351997, -0.9094586577358262, 0.7165036664470906},
+                {-1.7704367632976061, 0.2518283698686299, -1.3810444289625348, -0.597516704360172, 1.089645656962647},
+                {1.3448578652803103, -0.18140877132223002, -0.4288734015080915, 1.53271973321691, 0.41896461833399573},
+                {0.2132336397213029, 0.07659442168765788, 0.148636431531099, 2.3386893481333795, -2.3000459709300927},
+                {0.6023153188617328, 0.3051735340025314, 1.0732600437151525, 1.1148388039984898, 0.047605838564167786},
+                {1.3655523661720959, 0.5461416420929995, -0.09321951900362889, -1.004771137760985, 1.6532914656050117},
+                {-0.14974382165751837, -0.5375672589202939, -0.15845596754003466, -0.2750720340454088, -0.441247015836271}},
+    center = {0.0405866077655439, 0.5556683897981481, -0.2313678300507679, 0.6074066023194586, -0.2003463948612026}
+--  Radius is: 2.7946020036995454
+for i=1 to length(pts) do
+    ?distance(pts[i],center)
+end for
+--{{{0.5,0.5},0.7071067812},{{1,1},5}}
+--2.794602004
+--2.755411522
+--2.794602004
+--1.87700965
+--2.794602004
+--1.548970128
+--2.794602004
+--1.439967933
+-- (yep, you need four points)
+--*/
+

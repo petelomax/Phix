@@ -1,0 +1,129 @@
+--
+-- demo/pGUI/IupFlatVal.exw
+--
+include pGUI.e
+
+Ihandln lbl_h=NULL, lbl_v=NULL
+
+procedure print_value(Ihandle ih, atom a, string orientation)
+  switch orientation[1]
+    case 'V': IupSetStrAttribute(lbl_v, "TITLE", "VALUE=%.2f", {a})
+    case 'H': IupSetStrAttribute(lbl_h, "TITLE", "VALUE=%.2f", {a})
+  end switch
+  IupSetStrAttribute(ih, "TIP", "%.2f", {a})
+  IupSetAttribute(ih, "TIPVISIBLE", "Yes")
+end procedure
+
+function valuechanging_cb(Ihandle ih, int change)
+  string orientation = IupGetAttribute(ih, "ORIENTATION");
+
+  printf(1,"valuechanging_cb(%d)\n", change);
+  print_value(ih, IupGetDouble(ih, "VALUE"), orientation);
+  if (change) then
+    switch orientation[1]
+      case 'V': IupSetAttribute(lbl_v, "FGCOLOR", "255 0 0");
+      case 'H': IupSetAttribute(lbl_h, "FGCOLOR", "255 0 0");
+    end switch
+  else
+    switch orientation[1]
+      case 'V': IupSetAttribute(lbl_v, "FGCOLOR", "0 0 0");
+      case 'H': IupSetAttribute(lbl_h, "FGCOLOR", "0 0 0");
+    end switch
+  end if
+
+  return IUP_DEFAULT;
+end function
+
+function valuechanged_cb(Ihandle ih)
+  string orientation = IupGetAttribute(ih, "ORIENTATION");
+
+  printf(1,"valuechanged_cb()\n");
+  print_value(ih, IupGetDouble(ih, "VALUE"), orientation);
+
+  return IUP_DEFAULT;
+end function
+
+function k_any(Ihandle ih, atom c)
+  if (iup_isprint(c)) then
+    printf(1,"K_ANY(%d = %s \'%c\')\n", {c, iupKeyCodeToName(c), c});
+  else
+    printf(1,"K_ANY(%d = %s)\n", {c, iupKeyCodeToName(c)});
+  end if
+  return IUP_CONTINUE;
+end function
+
+function getfocus_cb(Ihandle ih)
+  printf(1,"GETFOCUS_CB()\n");
+  return IUP_DEFAULT;
+end function
+
+function help_cb(Ihandle ih)
+  printf(1,"HELP_CB()\n");
+  return IUP_DEFAULT;
+end function
+     
+function killfocus_cb(Ihandle ih)
+  printf(1,"KILLFOCUS_CB()\n");
+  return IUP_DEFAULT;
+end function
+
+function leavewindow_cb(Ihandle ih)
+  printf(1,"LEAVEWINDOW_CB()\n");
+  return IUP_DEFAULT;
+end function
+
+function enterwindow_cb(Ihandle ih)
+  printf(1,"ENTERWINDOW_CB()\n");
+  return IUP_DEFAULT;
+end function
+
+procedure FlatValTest()
+  Ihandle dlg, val_h, val_v;
+
+  lbl_v = IupFlatLabel("VALUE=");
+  IupSetAttribute(lbl_v, "SIZE", "70x");
+
+  lbl_h = IupFlatLabel("VALUE=");
+  IupSetAttribute(lbl_h, "SIZE", "70x");
+
+  val_v = IupFlatVal("VERTICAL");
+  IupSetAttribute(val_v, "MAX", "10.0");
+  IupSetAttribute(val_v, "STEP", ".02");
+  IupSetAttribute(val_v, "PAGESTEP", ".2");
+  IupSetCallback(val_v, "HELP_CB",      Icallback("help_cb"));
+  IupSetCallback(val_v, "GETFOCUS_CB",  Icallback("getfocus_cb")); 
+  IupSetCallback(val_v, "KILLFOCUS_CB", Icallback("killfocus_cb"));
+  IupSetCallback(val_v, "ENTERWINDOW_CB", Icallback("enterwindow_cb"));
+  IupSetCallback(val_v, "LEAVEWINDOW_CB", Icallback("leavewindow_cb"));
+  IupSetCallback(val_v, "K_ANY", Icallback("k_any"));
+  IupSetAttribute(val_v, "EXPAND", "VERTICAL");
+  IupSetAttribute(val_v, "TIP", "Val Tip");
+
+  val_h = IupFlatVal("HORIZONTAL");
+  IupSetAttribute(val_h, "MAX", "100.0");
+//  IupSetAttribute(val_h, "RASTERSIZE", "x60");
+  IupSetAttribute(val_h, "EXPAND", "HORIZONTAL");
+//  IupSetAttribute(val_h, "CANFOCUS", "NO");
+  
+  dlg = IupDialog(IupHbox({IupHbox({val_v,lbl_v}, "ALIGNMENT=ACENTER"),
+                           IupVbox({val_h,lbl_h}, "ALIGNMENT=ACENTER")}))
+
+  IupSetCallback(val_v, "VALUECHANGING_CB", Icallback("valuechanging_cb"));
+  IupSetCallback(val_h, "VALUECHANGING_CB", Icallback("valuechanging_cb"));
+  IupSetCallback(val_v, "VALUECHANGED_CB", Icallback("valuechanged_cb"));
+  IupSetCallback(val_h, "VALUECHANGED_CB", Icallback("valuechanged_cb"));
+
+  IupSetAttribute(dlg, "TITLE", "IupFlatVal Test");
+//  IupSetAttribute(IupGetChild(dlg, 0), "BGCOLOR", "50 50 255");
+//  IupSetAttribute(IupGetChild(dlg, 0), "ACTIVE", "NO");
+  IupSetAttribute(dlg, "MARGIN", "10x10");
+  IupCloseOnEscape(dlg)
+  puts(1,"") -- (show console before dlg)
+  IupShowXY(dlg,IUP_CENTER,IUP_CENTER);
+end procedure
+
+IupOpen()
+FlatValTest()
+IupMainLoop()
+IupClose()
+

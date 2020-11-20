@@ -122,7 +122,7 @@ global enum XML_ATTRNAMES,  -- eg {"Name","Gender",...}
 
 global constant XML_DECODE = #0001, -- convert eg &gt; to '>'
                 XML_ENCODE = #0002, -- reverse ""
-                HTML       = #0004,
+                HTML_INPUT = #0004, -- input is html
                 CRASHFATAL = #1000
 
 string text
@@ -146,7 +146,7 @@ end procedure
 procedure xml_next_ch(integer options)
     if col<=textlen then
         ch = text[col]
-        if not and_bits(options,HTML) then
+        if not and_bits(options,HTML_INPUT) then
             xml_skip_spaces()
         end if
     else
@@ -384,7 +384,7 @@ function xml_parse_attributes(integer options)
             xml_next_ch(NULL)
             integer valuestart, valueend, wasquote = 1
             if ch!='\"' and ch!='\'' then
-                if not and_bits(options,HTML) then
+                if not and_bits(options,HTML_INPUT) then
                     return xml_fatal("quote expected",options)
                 end if
                 valuestart = col
@@ -416,7 +416,7 @@ function xml_parse_attributes(integer options)
             xml_next_ch(NULL)
         end if
     end while       
-    if not and_bits(options,HTML) then
+    if not and_bits(options,HTML_INPUT) then
         if ch='<' then return xml_fatal("'<' *not* expected",options) end if
         if not find(ch,">/") then ?9/0 end if -- internal error
     end if
@@ -757,13 +757,17 @@ end function
 --
 --The overall result is always a sequence of tags, some of which can just be plain strings, eg parse_html("text") --> {"text"}.
 --The maximum length of a tag is 3 (ie {tagname, attributes, contents}).
---If a tag has no attributes, res[HTML[ATTRIBS] is {}.
+--If the ith tag has no attributes, res[i][HTML_ATTRIBS] is {}.
+--If the ith tag has no body, res[i][HTML_CONTENTS] is {''}.
+--If the ith tag is self-closing, res[i][HTML_CONTENTS] is {}.
 --The contents can be a plain string, or a sequence of nested tags (some of which can also be plain strings).
+
 global constant HTML_TAGNAME = 1,
                 HTML_ATTRIBS = 2, -- (can be accessed using XML_ATTRNAMES and XML_ATTRVALUES)
                 HTML_CONTENTS = 3
 
-function ns_append(sequence content, string what)
+function ns_append(sequence content, string what)--, integer options)
+-- (not used on <script> contents)
     for i=1 to length(what) do
         if not find(what[i]," \r\n\t") then
             content = append(content,what)
@@ -775,7 +779,7 @@ end function
 
 function html_parse_tag(integer options)
     if ch!='<' then return xml_fatal("'<' expected[0]",options) end if
-    integer tagstart = col+1
+    integer tagstart = col+1, tagend
     while true do
         col += 1
 --      xml_next_ch(options)    -- NO!
@@ -823,15 +827,26 @@ function html_parse_tag(integer options)
         if ce=0 then return xml_fatal("missing -->",options) end if
         contents = append(contents,text[tagstart+3..ce-1])
         col = ce+3
+    elsif tagname=`!DOCTYPE` then
+        tagend = match(">",text,tagstart+9)
+        contents = append(contents,text[tagstart+9..tagend-1])
+        col = tagend+1
     else
         xml_skip_spaces()
         if not find(ch,"/>") then
+--?"ch is "&ch
             attributes = xml_parse_attributes(options)
             if is_xml_fatal(attributes) then return attributes end if
         end if
         if ch='/' then  -- self-closing tag
             col += 1
             xml_next_ch(options)
+-- and style??
+        elsif tagname=`script` then
+            tagend = match("</script>",text,col)
+            contents = append(contents,text[col+1..tagend-1])
+--?{"script",col,contents[$]}
+            col = tagend+9
         elsif not find(tagname,{"hr","br","wbr"}) then
             if ch!='>' then return xml_fatal("'>' expected[1]",options) end if
             col += 1
@@ -866,7 +881,11 @@ function html_parse_tag(integer options)
     return {tagname,attributes,contents}
 end function
 
-global function strict_html_parse(string html)
+global function strict_html_parse(string html, integer options=NULL)
+--
+-- options can be CRASHFATAL, which can help or hinder debugging
+--
+    options = or_bits(options,HTML_INPUT)
     sequence res = {}
     text = html
     textlen = length(text)
@@ -886,7 +905,8 @@ global function strict_html_parse(string html)
             col = k
             ch = '<'
         end if
-        sequence this = html_parse_tag(HTML+CRASHFATAL)
+--      sequence this = html_parse_tag(HTML_INPUT+CRASHFATAL)
+        sequence this = html_parse_tag(options)
         if is_xml_fatal(this) then return this end if
         res = append(res,this)
     end while

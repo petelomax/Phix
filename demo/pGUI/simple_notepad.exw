@@ -9,10 +9,11 @@ include pGUI.e
 --#withtype Ihandle
 --#withtype Ihandln
 
-Ihandle dlg, toolbar_hb, multitext, lbl_statusbar, config
-Ihandln find_dlg = 0
+Ihandle dlg, toolbar_hb, multitext, lbl_statusbar
+Ihandln config, find_dlg = 0
 Ihandle find_txt, find_case, replace_txt, replace_lbl, replace_bt
-Ihandle goto_dlg, goto_txt
+Ihandln goto_dlg
+Ihandle goto_txt
 Ihandle item_revert, item_save, item_paste, item_cut, item_delete, item_copy, item_find_next,
         item_toolbar, item_statusbar
 Ihandle clipboard
@@ -238,7 +239,7 @@ function item_open_action_cb(Ihandle /*item_open*/)
     if save_check() then
         string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
 
-        Ihandle fileopendlg = IupFileDlg();
+        Ihandln fileopendlg = IupFileDlg();
         IupSetAttribute(fileopendlg, "DIALOGTYPE", "OPEN");
         IupSetAttribute(fileopendlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
         IupSetAttributeHandle(fileopendlg, "PARENTDIALOG", dlg);
@@ -253,14 +254,14 @@ function item_open_action_cb(Ihandle /*item_open*/)
             IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d);
         end if
 
-        IupDestroy(fileopendlg);
+        fileopendlg = IupDestroy(fileopendlg);
     end if
     return IUP_DEFAULT;
 end function
 
 function item_saveas_action_cb(Ihandle /*item_saveas*/)
-string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
-Ihandle filesavedlg = IupFileDlg();
+    string d = IupConfigGetVariableStr(config, "MainWindow", "LastDirectory");
+    Ihandln filesavedlg = IupFileDlg();
     IupSetAttribute(filesavedlg, "DIALOGTYPE", "SAVE");
     IupSetAttribute(filesavedlg, "EXTFILTER", "Text Files|*.txt|All Files|*.*|");
     IupSetAttributeHandle(filesavedlg, "PARENTDIALOG", dlg);
@@ -277,7 +278,7 @@ Ihandle filesavedlg = IupFileDlg();
         IupConfigSetVariableStr(config, "MainWindow", "LastDirectory", d);
     end if
 
-    IupDestroy(filesavedlg);
+    filesavedlg = IupDestroy(filesavedlg);
     return IUP_DEFAULT;
 end function
 
@@ -308,7 +309,7 @@ function item_exit_action_cb(Ihandle /*item_exit*/)
     end if
     IupConfigDialogClosed(config, dlg, "MainWindow");
     {} = IupConfigSave(config);
-    IupDestroy(config);
+    config = IupDestroy(config);
     return IUP_CLOSE;
 end function
 
@@ -371,7 +372,7 @@ integer line_count = IupGetInt(multitext, "LINECOUNT");
         IupSetInt(multitext, "SCROLLTOPOS", pos);
     end if
 
-    IupDestroy(goto_dlg);
+    goto_dlg = IupDestroy(goto_dlg);
 
     return IUP_DEFAULT;
 end function
@@ -387,7 +388,8 @@ function find_next_action_cb(Ihandle /*ih*/)
 
 -- LES 
 --        integer casesensitive = IupGetInt(find_case, "VALUE"); 
-        integer casesensitive = IupGetInt(find_case, "VALUE") xor 1; 
+--      integer casesensitive = IupGetInt(find_case, "VALUE") xor 1; 
+        integer casesensitive = not IupGetInt(find_case, "VALUE")
 
         /* test again, because it can be called from the hot key */
         if length(str_to_find)=0 then
@@ -579,8 +581,8 @@ function item_select_all_action_cb(Ihandle item_select_all)
 end function
 
 function item_font_action_cb(Ihandle item_font)
-Ihandle fontdlg = IupFontDlg();
-string font = IupGetAttribute(multitext, "FONT");
+    Ihandln fontdlg = IupFontDlg();
+    string font = IupGetAttribute(multitext, "FONT");
     IupSetStrAttribute(fontdlg, "VALUE", font);
     IupSetAttributeHandle(fontdlg, "PARENTDIALOG", IupGetDialog(item_font));
 
@@ -593,7 +595,7 @@ string font = IupGetAttribute(multitext, "FONT");
         IupConfigSetVariableStr(config, "MainWindow", "Font", font);
     end if
 
-    IupDestroy(fontdlg);
+    fontdlg = IupDestroy(fontdlg);
     return IUP_DEFAULT;
 end function
 

@@ -13,7 +13,12 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="sequence.htm">sequence</a> res = apply(<a href="sequence.htm">sequence</a> s,
+         <a href="sequence.htm">sequence</a> res = apply(<a href="object.htm">object</a> s,
+                                                         <a href="integer.htm">integer</a> fn,
+                                                         <a href="object.htm">object</a> userdata={})
+         <br>
+         <i>-- or --</i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                                  papply(<a href="object.htm">object</a> s,
                                                          <a href="integer.htm">integer</a> fn,
                                                          <a href="object.htm">object</a> userdata={})
          </td>
@@ -23,12 +28,14 @@
           <b>Description:</b>
          </td>
          <td>
-            Apply a function to every element of a sequence returning a new sequence of the same size.
+            Apply a routine to every element of a sequence and in the case of apply() return a new sequence of the same size (or
+            max(length(userdata[i])) when s is true).
             <br>
             <br>
-            s : the sequence to map<br>
-            fn : the (<a href="routine_id.htm">routine_id</a> of a) function to use as converter<br>
-            userdata : an object optionally passed to each invocation of fn (see comments re the default).
+            s : the <a href="sequence.htm">sequence</a> to map, or <a href="logicops.htm">true</a>/<a href="logicops.htm">false</a><br>
+            fn : the (<a href="routine_id.htm">routine_id</a> of a) procedure to invoke or function to use as converter<br>
+            userdata : an object optionally passed to each invocation of fn (see comments re the default),
+            or if s is true/false then this specifies all the arguments.
          </td>
         </tr>
         <tr>
@@ -36,30 +43,81 @@
           <b>Comments:</b>
          </td>
          <td>
-            fn should be a function that accepts at least one parameter. The optional userdata value of {} is only is passed 
-            to fn if it <i>needs</i> it: should fn have no second parameter or the second parameter is optional (already has a 
-            default), it will <b>not</b> get passed the above default. Such handling proved necessary to allow things like 
-            <a href="sprint.htm">sprint</a>() to be used. Obviously if you pass a non-{} value that disagrees in any way with 
-            fn you will get an error. In contrast, and again obviously, even if the first parameter of fn is defaulted it 
-            <i>will</i> still get passed each s[i] in turn.
+            <b>apply, when s is a sequence:</b>
+            <br>
+            <br>
+            fn should be a function that accepts at least one parameter, which gets each s[i].<br>
+            The optional userdata value of {} is only is passed to fn if it <i>needs</i> it: <br>
+            should fn have no second parameter or the second parameter is optional (already has a default), it will 
+            <b>not</b> get passed the above default. In fact, fn can have more than two parameters, as long as the
+            third and later are all defaulted parameters. Such handling proved necessary to allow things like 
+            <a href="sprint.htm">sprint</a>() to be used. Obviously if you pass a non-{} userdata that disagrees in 
+            any way with fn&rsquo;s second parameter you will get an error. In contrast, and again obviously, even 
+            if the first parameter of fn is defaulted it <i>will</i> still get passed each s[i] in turn.
+            <br>
+            <br>
+            Compatibility note: In the Euphoria version of apply, fn must always accept two parameters, and is always
+            passed userdata as the second argument. <br>
+            Also, Euphoria does not allow an <a href="atom.htm">atom</a> in s, or have papply().
+            <br>
+            <br>
+            <b>apply, when s is true:</b>
+            <br>
+            <br>
+            fn should be a function that accepts length(userdata) parameters.<br>
+            if userdata[i] is an <a href="atom.htm">atom</a>, it is passed to every call.<br>
+            if userdata[i] is length(1), then userdata[i][1] is passed to every call.<br>
+            otherwise (n:=)length(userdata[i]) must match all other non-atom/length(1) elements of it.<br>
+            fn is then invoked n times (can be 0), and always with exactly length(userdata) args.
+            <br>
+            <br>
+            <b>apply, when s is false:</b>
+            <br>
+            <br>
+            fn should be a function that can accept length(userdata[i]) parameters for all elements of userdata, <br>
+            and is passed each in turn, aka invoked length(userdata) times, without hindrance or modification, except as follows.<br>
+            Any <a href="atom.htm">atom</a> or <a href="string.htm">string</a> elements of userdata are treated as/converted to a 
+            length-one sequence, which is then passed as a single argument to fn.<br>
+            Shorter elements of userdata will result in/require more naturally defaulted arguments than longer elements.
+            <br>
+            <br>
+            papply() is identical, except that fn must be a procedure, and there is no return value.
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          supported.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
 sequence s = tagset(5)
-?s                  -- displays {1,2,3,4,5}
-?sprint(s)          -- displays "{1,2,3,4,5}"
-?apply(s,sprint)    -- displays {"1","2","3","4","5"}
+?s                      -- displays {1,2,3,4,5}
+?sprint(s)              -- displays "{1,2,3,4,5}"
+?apply(s,sprint)        -- displays {"1","2","3","4","5"}
+?apply(true,sprint,{s}) -- displays {"1","2","3","4","5"}
+?apply(true,sprintf,{{"%d"},s})  -- {"1","2","3","4","5"}
+papply(true,printf,{1,{"%d,"},s})  -- 1,2,3,4,5,
+function plusn(integer n=0, m=5) return n+m end function
+?apply(false,plusn,{{1,2},{3},4,{}})  -- {3,8,9,5}
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#5E005E"> tagset</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">)
-?</font><font color="#000000">s                 </font><font color="#000080"><i> -- displays {1,2,3,4,5}
-</i></font><font color="#0000FF">?</font><font color="#5E005E">sprint</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)         </font><font color="#000080"><i> -- displays "{1,2,3,4,5}"
-</i></font><font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#5E005E">sprint</font><font color="#0000FF">)   </font><font color="#000080"><i> -- displays {"1","2","3","4","5"}</i></font>
+<font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#5E005E"> tagset</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">)
+?</font><font color="#000000">s                     </font><font color="#000080"><i> -- displays {1,2,3,4,5}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">sprint</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)             </font><font color="#000080"><i> -- displays "{1,2,3,4,5}"</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#5E005E">sprint</font><font color="#0000FF">)       </font><font color="#000080"><i> -- displays {"1","2","3","4","5"}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#5E005E">sprint</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- displays {"1","2","3","4","5"}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#5E005E">sprintf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"%d"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- {"1","2","3","4","5"}</i></font>
+<font color="#5E005E">papply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#5E005E">printf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"%d,"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- 1,2,3,4,5,</i></font>
+<font color="#008080">function</font><font color="#000000"> plusn</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> n</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000"> m</font><font color="#0000FF">=</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> n</font><font color="#0000FF">+</font><font color="#000000">m</font><font color="#008080"> end function</font>
+<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#004600">false</font><font color="#0000FF">,</font><font color="#000000">plusn</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">3</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#800080">{}</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- {3,8,9,5}</i></font>
 </pre>
          </td>
         </tr>
@@ -86,12 +144,8 @@ sequence s = tagset(5)
           </a>
          </td>
          <td>
-            Side effects of fn are not necessarily honoured by apply(). The apply() routine is deemed to have no side-effects, and the compiler may
-            therefore optimise away an apparently unnecessary apply() invocation without fully taking any side effects of fn() into consideration.
-            Should this cause a problem, you may need to take a second copy of it and add some minor side effect, but for obvious reasons I would
-            rather not do that to the original unless absolutely necessary. There are indeed many, many ways this could be fixed, but I am yet to
-            find the one that minimises the impact on pretty much the whole reason for adding this routine in the first place, which is of course
-            special handling of side effects, or lack thereof...
+            Passing any <a href="atom.htm">atom</a> value in s other than <a href="logicops.htm">true</a> or 
+            <a href="logicops.htm">false</a> triggers a fatal error.
             <br>
             <br>
             Judicious use of functional programming style techniques can both shorten code and greatly improve clarity.<br>
@@ -99,8 +153,8 @@ sequence s = tagset(5)
             Equally, however, pig-headed adherence to "pure functions" and excessive nesting can produce quite unreadable and 
             almost impossible to maintain software. The simple act of regularly saving intermediate results in appropriately
             named local variables will often make code easier to follow and debugging ten times easier, although admittedly 
-            self-clobbering (ie/eg <code>res = f(res)</code>) can sometimes improve performance significantly, but usually at 
-            some small cost to overall clarity and therefore debugging.
+            self-clobbering, ie/eg res = f(res), can sometimes improve performance significantly, but usually at some small 
+            cost to overall clarity and therefore debugging.
          </td>
         </tr>
        </table>

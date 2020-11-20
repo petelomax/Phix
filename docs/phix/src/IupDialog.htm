@@ -16,7 +16,9 @@
             include pGUI.e
             <br>
             <br>
-            <a href="Ihandle.htm">Ihandle</a> ih = IupDialog(<a href="Ihandle.htm">Ihandln</a> child=NULL, <a href="string.htm">string</a> attributes="", <a href="sequence.htm">sequence</a> data={})
+            <a href="Ihandle.htm">Ihandle</a> ih = IupDialog(<a href="Ihandle.htm">Ihandln</a> child=NULL, 
+                                                             <a href="string.htm">string</a> attributes="", 
+                                                             <a href="sequence.htm">sequence</a> data={})
          </td>
         </tr>
         <tr>
@@ -39,21 +41,62 @@
           <b>Notes:</b>
          </td>
          <td>
-            Do not associate an IupDialog with the native "dialog" nomenclature in Windows, GTK or Motif. IupDialog use native standard windows in all drivers.
+            Do not associate an IupDialog with the native "dialog" nomenclature in Windows, GTK or Motif.<br>
+            IupDialog use native standard windows in all drivers.
             <br>
-            Except for the menu, all other elements must be inside a dialog to interact with the user. Therefore, an interface element will only be visible if its dialog is also visible.
+            Except for the menu, all other elements must be inside a dialog to interact with the user.<br>
+            An interface element will only be visible if the containing dialog is also visible.
             <br>
-            The order of callback calling is system dependent. For instance, the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> and the SHOW_CB 
-            are called in a different order in Win32 and in X-Windows when the dialog is shown for the first time.
+            The order of callback calling is system dependent. For instance, the <a href="callbacks.htm#RESIZE_CB">RESIZE_CB</a> 
+            and the SHOW_CB are called in a different order in Win32 and in X-Windows when the dialog is shown for the first time.
             <br>
-            Windows MDI support is composed of 3 components: the MDI frame window (IupDialog), the MDI client window (<a href="IupCanvas.htm">IupCanvas</a>) and the MDI children (IupDialog). 
-            Although the MDI client is a <a href="IupCanvas.htm">IupCanvas</a> it is not used directly by the application, but it must be created and included in the dialog that will be the MDI frame, 
+            Windows MDI support is composed of 3 components: <br>
+            the MDI frame window (IupDialog), <br>
+            the MDI client window (<a href="IupCanvas.htm">IupCanvas</a>) and <br>
+            the MDI children (IupDialog). <br>
+            Although the MDI client is a <a href="IupCanvas.htm">IupCanvas</a> it is not used directly by the application, 
+            but it must be created and included in the dialog that will be the MDI frame, 
             other controls can also be available in the same dialog, like buttons and other canvases composing toolbars and status area. 
             <br>
             <br>
             The following picture illustrates the 3 components:
             <br>
             <img src="images/mdi.gif"/>
+            <br>
+            <h3>Custom Frame</h3>
+            The use of custom frame is very popular nowadays. <br>
+            But the system support is very poor, in Windows and in GTK. <br>
+            So use it carefully and consciously of its glitches.
+            <br>
+            <br>
+            In GTK is easier to understand because the frame is managed by the Window Manager. <br>
+            So depending on the system it may be provided by the Windows Manager or it is simulated by IUP removing the window decoration.
+            <br>
+            <br>
+            In Windows, there is no function or attribute to activate this feature in the Win32 API 
+            (maybe in WPF there is, but we are stuck with the old API). <br>
+            It is a combination of message handling with returned values in the WindowProc. <br>
+            So sometimes the result is not what was expected. <br>
+            For instance, if the application is not responding the old title bar interface is drawn over the top of the dialog just to 
+            show the "Not Responding" at the window caption, even if the window does not have a caption. <br>
+            We don&rsquo;t know how to avoid that. <br>
+            Also the internal double buffer processing for the dialog is some how affected and a sequential of full redraw of the dialog has more flicker than usual.
+            <br>
+            <br>
+            The CUSTOMFRAMESIMULATE attribute is a workaround that tries to solve the double buffer problem and has more control over 
+            the custom frame behavior in general.
+            <br>
+            <br>
+            <b>Important:</b><br>
+            Almost all applications will benefit from <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a>(<i>[NULL]</i>,"PARENTDIALOG",dlg).<br>
+            It can really help to explicitly control focus behaviour, rather than rely on the often somewhat erratic default focus behaviour, especially 
+            on Windows. Should closing a child window suddenly gift focus to a completely different application (often hiding the window that should have
+            regained focus), or perhaps the Windows taskbar, then you need to think about setting PARENTDIALOG.<br>
+            Obviously the top-level dialog should be set in the global attribute (I can&rsquo;t find any specific documentation about that) at program 
+            startup, and each child dialog should (probably) use it&rsquo;s own private setting where possible, but some dialogs do not always have a 
+            single specific parent, and things like <a href="IupMessage.htm">IupMessage</a>() simply don&rsquo;t have a private setting at all. For 
+            those you may need to push/override and pop/restore the global PARENTDIALOG as various child windows are opened and closed, however as yet 
+            there is no specific mechanism to assist with that, at least not in pGUI itself. <!-- pwa/p2js and PARENTDIALOG == ??? [DEV] -->
          </td>
         </tr>
         <tr>
@@ -83,6 +126,14 @@
          <td>
             (creation only) Shows a resize border around the dialog. Default: "YES". <br>
             BORDER=NO is useful only when RESIZE=NO, MAXBOX=NO, MINBOX=NO, MENUBOX=NO and TITLE=NULL, if any of these are defined there will be always some border.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BORDERSIZE
+         </td>
+         <td>
+            (non inheritable) (read only): returns the border size. (since 3.18)
          </td>
         </tr>
         <tr>
@@ -132,7 +183,7 @@
           <a href="common.htm#SIZE">SIZE</a>
          </td>
          <td>
-            Dialog’s size. Additionally the following values can also be defined for width and/or height: 
+            Dialog&rsquo;s size. Additionally the following values can also be defined for width and/or height:
             <br>
             <br>
             "FULL": Makes the dialog width (or height) equal to the screen width (or height) <br>
@@ -162,10 +213,18 @@
         </tr>
         <tr>
          <td>
+          SIMULATEMODAL
+         </td>
+         <td>
+            (write-only): disable all other visible dialogs, just like when the dialog is made modal. (since 3.21)
+         </td>
+        </tr>
+        <tr>
+         <td>
           <a href="common.htm#TITLE">TITLE</a>
          </td>
          <td>
-            Dialog’s title. Default: NULL. If you want to remove the title bar you must also set MENUBOX=NO, MAXBOX=NO and MINBOX=NO, before map. <br>
+            Dialog&rsquo;s title. Default: NULL. If you want to remove the title bar you must also set MENUBOX=NO, MAXBOX=NO and MINBOX=NO, before map. <br>
             But in Motif and GTK it will hide it only if RESIZE=NO also.
          </td>
         </tr>
@@ -206,13 +265,50 @@
          <td>
             Exclusive
             <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CUSTOMFRAMESIMULATE
+         </td>
+         <td>
+            Allows the application to customize the dialog frame elements (the title and its buttons) by using IUP controls for its elements like 
+            caption, minimize button, maximize button, and close buttons. <br>
+            The custom frame support is entirely simulated by IUP, no native support for custom frame is used (this seems to have less drawbacks 
+            on the application behavior). <br>
+            The application is responsible for leaving space for the borders. <br>
+            One drawback is that menu bars will not work. <br>
+            For the dialog to be able to be moved an IupLabel, or a IupFlatLabel or an IupCanvas must be at the top of the dialog and must have 
+            the NAME attribute set to CUSTOMFRAMECAPTION. <br>
+            See the Custom Frame notes above. (since 3.28)
+            <br>
+            <br>
+            By setting this attribute the following attributes will be set:
+            <br>
+            <br>
+            <small><pre>
+RESIZE=NO
+MENUBOX=NO
+MAXBOX=NO
+MINBOX=NO
+BORDER=NO
+TITLE=NULL
+MENU=NULL
+TASKBARBUTTON=SHOW
+            </pre></small>
+            <br>
+            The BUTTON_CB and MOTION_CB callbacks of the dialog will be set too, so the dialog can be resized. <br>
+            The BUTTON_CB and MOTION_CB callbacks of the element with NAME=CUSTOMFRAMECAPTION  will also be changed 
+            so the dialog can be moved and maximized with double click. <br>
+            It is the application&rsquo;s responsibility to implement the minimize, maximize and close buttons.
             <a name=DEFAULTENTER></a>
             <a name=DEFAULTESC></a>
          </td>
         </tr>
         <tr>
          <td>
-          DEFAULTENTER<br>DEFAULTESC
+          DEFAULTENTER<br>
+          DEFAULTESC
          </td>
          <td>
             Name of the button activated when the user press Enter/Esc when focus is in another control of the dialog. <br>
@@ -233,7 +329,7 @@
           ICON
          </td>
          <td>
-            Dialog’s icon. The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time. 
+            Dialog&rsquo;s icon. The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time. 
          </td>
         </tr>
         <tr>
@@ -377,7 +473,7 @@
             [Windows and Motif Only] (creation only) When this attribute is true (YES), the dialog stores the original image of the desktop region it occupies 
             (if the system has enough memory to store the image). <br>
             In this case, when the dialog is closed or moved, a redrawing event is not generated for the windows that were shadowed by it. <br>
-            Its default value is YES. To save memory disable it for your main dialog. Not available in GTK.
+            Its default value is YES if the dialog has a parent dialog (since 3.24). To save memory disable it for your main dialog. Not available in GTK.
          </td>
         </tr>
         <tr>
@@ -397,6 +493,14 @@
             <a href="IupPopup.htm">IupPopup</a>. <br>
             If not defined then the first control than can receive the focus is selected (same effect of calling IupNextField for the dialog). <br>
             Updated after SHOW_CB is called and only if the focus was not changed during the callback.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHOWNOFOCUS
+         </td>
+         <td>
+            do not set focus after show. (since 3.30)
          </td>
         </tr>
         <tr>
@@ -425,6 +529,22 @@
         </tr>
         <tr>
          <td>
+          CUSTOMFRAME
+         </td>
+         <td>
+            [Windows and GTK Only] (non inheritable): allows the application to customize the dialog frame elements (the title and its buttons) by using 
+            IUP controls for its elements like caption, minimize button, maximize button, and close buttons. <br>
+            The custom frame support uses the native system support for custom frames. <br>
+            The application is responsible for leaving space for the borders. <br>
+            One drawback is that menu bars will not work. <br>
+            For the dialog to be able to be moved an IupLabel or an IupCanvas must be at the top of the dialog and must have the NAME attribute set 
+            to CUSTOMFRAMECAPTION (since 3.22). <br>
+            Native custom frames are supported only in Windows and in GTK version 3.10, so for older GTK versions we have to simulate the support 
+            using CUSTOMFRAMESIMULATE. (since 3.18) (renamed in 3.22) (GTK support since 3.22) See the Custom Frame notes above.
+         </td>
+        </tr>
+        <tr>
+         <td>
           OPACITY
          </td>
          <td>
@@ -440,6 +560,16 @@
             [Windows and GTK Only] sets a transparent image as the dialog shape so it is possible to create a non rectangle window. <br>
             In Windows must be set before map so the native window would be properly initialized when mapped. <br>
             In GTK the shape works only as a bitmap mask, to view a color image must also use a label. (GTK 2.12)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHAPEIMAGE
+         </td>
+         <td>
+            [Windows and GTK Only] sets a RGBA image as the dialog shape so it is possible to create a non rectangle window with children. <br>
+            (GTK 2.12) Only the fully transparent pixels will be transparent. <br>
+            The pixels colors will be ignored, only the alpha channel is used. (since 3.26)
          </td>
         </tr>
         <tr>
@@ -561,7 +691,15 @@
           DIALOGHINT
          </td>
          <td>
-            (creation-only) if enabled sets the window type hint to a dialog hint.
+            [GTK Only] (creation-only) if enabled sets the window type hint to a dialog hint.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HIDETITLEBAR
+         </td>
+         <td>
+            [GTK Only] (non inheritable): hides the title bar with al its elements. (since 3.20) (GTK 3.10)
          </td>
         </tr>
         <tr>
@@ -599,6 +737,40 @@
         </tr>
         <tr>
          <td>
+          CUSTOMFRAMEDRAW
+         </td>
+         <td>
+            [Windows Only] (non inheritable): allows the application to customize the dialog frame elements (the title and its buttons) by drawing 
+            them with the CUSTOMFRAMEDRAW_CB callback. <br>
+            Can be Yes or No. <br>
+            The Window client area is expanded to include the whole window. <br>
+            Notice that the dialog attributes like BORDER, RESIZE, MAXBOX, MINBOX and TITLE must still be defined. <br>
+            But maximize, minimize and close buttons must be manually implemented in the BUTTON_CB callback. <br>
+            One drawback is that menu bars will not work. (since 3.18) (renamed in 3.22)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CUSTOMFRAMECAPTIONHEIGHT
+         </td>
+         <td>
+            [Windows Only] (non inheritable): height of the caption area. If not defined it will use the system size. (since 3.18) (renamed in 3.22)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CUSTOMFRAMECAPTIONLIMITS
+         </td>
+         <td>
+            [Windows Only] (non inheritable): limits of the caption area at left and at right. <br>
+            The caption area is always expanded inside the limits when the dialog is resized. <br>
+            Format is "left:right" or in C "%d:%d". Default: "0:0". <br>
+            This will allow the dialog to be moved by the system when the user click and drag the caption area. <br>
+            If not defined but CUSTOMFRAMECAPTION is defined, then it will use the caption element horizontal position and size for the limits (since 3.22). (since 3.18)
+         </td>
+        </tr>
+        <tr>
+         <td>
           HELPBUTTON
          </td>
          <td>
@@ -606,6 +778,14 @@
             It can only be used for dialogs without the minimize and maximize buttons, and with the menu box. <br>
             For the next interaction of the user with a control in the dialog, the callback <a href="callbacks.htm#HELP_CB">HELP_CB</a> will be called instead of 
             the control defined ACTION callback. Possible values: YES, NO. Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MAXIMIZEATPARENT
+         </td>
+         <td>
+            [Windows Only]: when using multiple monitors, maximize the dialog in the same monitor that the parent dialog is. (since 3.28)
          </td>
         </tr>
         <tr>
@@ -649,6 +829,16 @@
          <td>
             [Windows Only] (write-only) updates a progress bar hosted in a taskbar button to show the specific percentage completed of the full operation. <br>
             The value must be between 0 and 100.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TASKBARBUTTON
+         </td>
+         <td>
+            [Windows Only]: If set to SHOW force the application button to be shown on the taskbar even if the dialog does not have decorations. <br>
+            If set to HIDE force the application button to be hidden from the taskbar, but also in this case the system menu, the maximize and minimize buttons 
+            will be hidden. (since 3.28)
          </td>
         </tr>
         <tr>
@@ -816,6 +1006,49 @@
         </tr>
         <tr>
          <td>
+          CUSTOMFRAME_CB
+         </td>
+         <td>
+            [Windows Only]: Called when the dialog must be redraw. <br>
+            Although it is designed for drawing the frame elements, all the dialog must be painted. <br>
+            Works only when CUSTOMFRAME or CUSTOMFRAMEEX is defined. <br>
+            The dialog can be used just like an IupCanvas to draw its elements, the HDC_WMPAINT and CLIPRECT attributes are defined during the callback. <br>
+            For mouse callbacks use the same callbacks as IupCanvas, such as BUTTON_CB and MOTION_CB. (since 3.18)
+            <br>
+            <br>
+            function customframe_cb(Ihandle ih)<br>
+            ih: identifier of the element that activated the event.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CUSTOMFRAMEACTIVATE_CB
+         </td>
+         <td>
+            [Windows Only]: Called when the dialog active state is changed (for instance the user Alt+Tab to another application, or clicked in another window). <br>
+            Works only when CUSTOMFRAME or CUSTOMFRAMEEX is defined. (since 3.23)
+            <br>
+            <br>
+            function customframeactivate_cb(Ihandle ih, integer active)<br>
+            ih: identifier of the element that activated the event.<br>
+            active: is non zero if the dialog is active or zero if it is inactive.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FOCUS_CB
+         </td>
+         <td>
+            Called when the dialog or any of its children gets the focus, or when another dialog or any control in another dialog gets the focus. It is called after the common callbacks GETFOCUS_CB and KILL_FOCUS_CB. (since 3.21)
+
+int function(Ihandle *ih, int focus); [in C]
+ih:focus_cb(focus: number) -> (ret: number) [in Lua]
+ih: identifier of the element that activated the event.
+focus: is non zero if the dialog or any of its children is getting the focus, is zero if it is loosing the focus.
+         </td>
+        </tr>
+        <tr>
+         <td>
           MDIACTIVATE_CB
          </td>
          <td>
@@ -901,76 +1134,59 @@
          </td>
          <td>
             Very simple dialog with a label and a button. The application is closed when the button is pressed.
+            <br>
+            <br>
 <!--eucode>
 --
 -- demo\pGUI\dialog2.exw
 -- =====================
 --
-
 include pGUI.e
 
 function quit_cb(Ihandle /*self*/)
     return IUP_CLOSE
 end function
 
-Ihandle dialog, quit_bt, label, vbox
-
-    IupOpen()
-
-    -- Creating the button   
-    quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb"))
-
-    -- the container with a label and the button    
-    label = IupLabel("Very Long Text Label","EXPAND=YES, ALIGNMENT=ACENTER")
-    vbox = IupVbox({label, quit_bt},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15")
-
-    -- Creating the dialog   
-    dialog = IupDialog(vbox,`TITLE="Dialog Title"`)
-    IupSetAttributeHandle(dialog, "DEFAULTESC", quit_bt)
---  IupSetAttribute(dialog, "SIZE", "200x100") -- (try me!)
-
-    IupShow(dialog)
-
-    IupMainLoop()
-
-    IupDestroy(dialog)
-    IupClose()
+IupOpen()
+Ihandle quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb")),
+        label = IupLabel("Very Long Text Label","EXPAND=YES, ALIGNMENT=ACENTER"),
+        vbox = IupVbox({label, quit_bt},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15")
+Ihandln dialog = IupDialog(vbox,`TITLE="Dialog Title", SIZE=180x`)
+IupSetAttributeHandle(dialog, "DEFAULTESC", quit_bt)
+IupShow(dialog)
+IupMainLoop()
+dialog = IupDestroy(dialog)
+IupClose()
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>--
+<font color="#000080"><i>--
 -- demo\pGUI\dialog2.exw
 -- =====================
---
-
-</i></font><font color="#008080">include</font><font color="#000000"> pGUI.e
-
-</font><font color="#008080">function</font><font color="#000000"> quit_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*self*/</i></font><font color="#0000FF">)
-</font><font color="#008080">    return</font><font color="#004600"> IUP_CLOSE
-</font><font color="#008080">end function
-
-</font><font color="#5E005E">Ihandle</font><font color="#000000"> dialog</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#0000FF">,</font><font color="#000000"> label</font><font color="#0000FF">,</font><font color="#000000"> vbox
-
-</font><font color="#5E005E">    IupOpen</font><font color="#0000FF">()
-
-</font><font color="#000080"><i>    -- Creating the button   
-</i></font><font color="#000000">    quit_bt</font><font color="#0000FF"> =</font><font color="#5E005E"> IupButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">,</font><font color="#008000"> "ACTION"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"quit_cb"</font><font color="#800000">)</font><font color="#0000FF">)
-
-</font><font color="#000080"><i>    -- the container with a label and the button    
-</i></font><font color="#000000">    label</font><font color="#0000FF"> =</font><font color="#5E005E"> IupLabel</font><font color="#0000FF">(</font><font color="#008000">"Very Long Text Label"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">)
-</font><font color="#000000">    vbox</font><font color="#0000FF"> =</font><font color="#5E005E"> IupVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"</font><font color="#0000FF">)
-
-</font><font color="#000080"><i>    -- Creating the dialog   
-</i></font><font color="#000000">    dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">vbox</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Dialog Title"`</font><font color="#0000FF">)
-</font><font color="#5E005E">    IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "DEFAULTESC"</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#0000FF">)
-</font><font color="#000080"><i>--  IupSetAttribute(dialog, "SIZE", "200x100") -- (try me!)
-
-</i></font><font color="#5E005E">    IupShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)
-
-</font><font color="#5E005E">    IupMainLoop</font><font color="#0000FF">()
-
-</font><font color="#5E005E">    IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)
-</font><font color="#5E005E">    IupClose</font><font color="#0000FF">()</font>
+--</i></font>
+<font color="#008080">include</font><font color="#000000"> pGUI.e
+</font>
+<font color="#008080">function</font><font color="#000000"> quit_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*self*/</i></font><font color="#0000FF">)</font>
+<font color="#008080">    return</font><font color="#004600"> IUP_CLOSE</font>
+<font color="#008080">end function
+</font>
+<font color="#5E005E">IupOpen</font><font color="#0000FF">()</font>
+<font color="#5E005E">Ihandle</font><font color="#000000"> quit_bt</font><font color="#0000FF"> =</font><font color="#5E005E"> IupButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">,</font><font color="#008000"> "ACTION"</font><font color="#0000FF">,</font><font color="#5E005E"> Icallback</font><font color="#800000">(</font><font color="#008000">"quit_cb"</font><font color="#800000">)</font><font color="#0000FF">),</font>
+<font color="#000000">        label</font><font color="#0000FF"> =</font><font color="#5E005E"> IupLabel</font><font color="#0000FF">(</font><font color="#008000">"Very Long Text Label"</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=YES, ALIGNMENT=ACENTER"</font><font color="#0000FF">),</font>
+<font color="#000000">        vbox</font><font color="#0000FF"> =</font><font color="#5E005E"> IupVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">label</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"</font><font color="#0000FF">)</font>
+<font color="#5E005E">Ihandln</font><font color="#000000"> dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDialog</font><font color="#0000FF">(</font><font color="#000000">vbox</font><font color="#0000FF">,</font><font color="#008000">`TITLE="Dialog Title", SIZE=180x`</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetAttributeHandle</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">,</font><font color="#008000"> "DEFAULTESC"</font><font color="#0000FF">,</font><font color="#000000"> quit_bt</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupShow</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupMainLoop</font><font color="#0000FF">()</font>
+<font color="#000000">dialog</font><font color="#0000FF"> =</font><font color="#5E005E"> IupDestroy</font><font color="#0000FF">(</font><font color="#000000">dialog</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupClose</font><font color="#0000FF">()</font>
 </pre>
+            <br>
+            Note that dialog has an <a href="Ihandle.htm">Ihandln</a> type for the benefit of <a href="IupDestroy.htm">IupDestroy</a>(); 
+            IupDialog() will throw a (catchable) exception rather than return NULL.
+            <br>
+            <br>
+            <p align="center">
+            <img alt="IupDialog" src="images/iupdialog.gif" width="256" height="105"></p>
          </td>
         </tr>
         <tr>
@@ -978,12 +1194,18 @@ Ihandle dialog, quit_bt, label, vbox
           <b>See Also:</b>
          </td>
          <td>
+<!--
           <a href="IupFileDlg.htm">IupFileDlg</a>,
           <a href="IupMessageDlg.htm">IupMessageDlg</a>,
-          <a href="IupDestroy.htm">IupDestroy</a>,
-          <a href="IupShowXY.htm">IupShowXY</a>,
+-->
+          <a href="IupOpen.htm">IupOpen</a>,
           <a href="IupShow.htm">IupShow</a>,
-          <a href="IupPopup.htm">IupPopup</a>
+          <a href="IupShowXY.htm">IupShowXY</a>,
+          <a href="IupPopup.htm">IupPopup</a>,
+          <a href="IupMainLoop.htm">IupMainLoop</a>,
+          <a href="IupHide.htm">IupHide</a>,
+          <a href="IupDestroy.htm">IupDestroy</a>,
+          <a href="IupClose.htm">IupClose</a>
          </td>
         </tr>
        </table>

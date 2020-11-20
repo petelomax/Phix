@@ -3155,7 +3155,7 @@ end if
         s5symn = {}
     end if
     if showfileprogress then
-        printf(1,"performing f0inal fixups, gvar_scan started at %3.2f...\n",time()-t)
+        printf(1,"performing final fixups, gvar_scan started at %3.2f...\n",time()-t)
         t0 = time()
     end if
 

@@ -1,0 +1,151 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">progress</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          progress(<a href="string.htm">string</a> msg, <a href="object.htm">object</a> args={})
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            A simple console-based progress indicator.<br>
+            For gui apps see (eg) <a href="IupProgressBar.htm">IupProgressBar</a>() or <a href="IupGauge.htm">IupGauge</a>(), or just use
+            an <a href="IupLabel.htm">IupLabel</a>() or even (my fave) <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(dlg,"TITLE",msg).<br>
+            <small>[See demo\rosetta\VoronoiDiagram.exw for a good (and interruptable) example of the latter, just maximise the window and/or 
+            press '+' a few times to see it in action.]</small>
+            <br>
+            <br>
+            Display (eg) 1%, 2%, ... 100% on the console while working, overwriting each time, and clearing it away once done.
+            <br>
+            <br>
+            If args is not {} then <code>msg = <a href="sprintf.htm">sprintf</a>(msg,args)</code> is performed automatically for you.<br>
+            Obviously, to display "1%".."100%" when args is not {}, you&rsquo;ll need "%%", or better yet "%d%%".
+            <br>
+            <br>
+            Note a '\r' at the end of msg is critical to overwriting/clearing output, one will be provided if required, but '\n'
+            at the end (and mid-msg) will prevent overwriting.
+            <br>
+            <br>
+            A final <code>progress("")</code> should be performed to clean up the display.
+            <br>
+            <br>
+            If used correctly, adds progress messages to a console app, but does not change the final output.<br>
+            Correct use requires the cursor be on a blank line in column 1 while displaying progress messages,<br>
+            or that line be completely redrawn after progress("") [which w/could make using this a bit pointless].
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 1:</b>
+         </td>
+         <td>
+<!--eucode>
+-- displays Working... (100%) .. (0%)
+constant N = 100
+for i=N to 0 by -1 do
+    -- (by -1 to test that trailing "))" does NOT appear,
+    --  that is, when a message is shorter than previous)
+    progress("Working... (%d%%)\r",{(i/N)*100})
+    sleep(0.1+(i=N or i=0)) -- (1.1 first/last, 0.1 rest)
+end for
+progress("") -- (clears away the last one)
+puts(1,"\ndone\n")
+{} = wait_key()
+</eucode-->
+<pre>
+<font color="#000080"><i>-- displays Working... (100%) .. (0%)</i></font>
+<font color="#008080">constant</font><font color="#000000"> N</font><font color="#0000FF"> =</font><font color="#000000"> 100</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">N</font><font color="#008080"> to</font><font color="#000000"> 0</font><font color="#008080"> by</font><font color="#0000FF"> -</font><font color="#000000">1</font><font color="#008080"> do</font>
+<font color="#000080"><i>    -- (by -1 to test that trailing "))" does NOT appear,
+    --  that is, when a message is shorter than previous)</i></font>
+<font color="#5E005E">    progress</font><font color="#0000FF">(</font><font color="#008000">"Working... (%d%%)\r"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">(</font><font color="#000000">i</font><font color="#0000FF">/</font><font color="#000000">N</font><font color="#800080">)</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">0.1</font><font color="#0000FF">+</font><font color="#800000">(</font><font color="#000000">i</font><font color="#0000FF">=</font><font color="#000000">N</font><font color="#008080"> or</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- (1.1 first/last, 0.1 rest)</i></font>
+<font color="#008080">end for</font>
+<font color="#5E005E">progress</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)</font><font color="#000080"><i> -- (clears away the last one)</i></font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)
+{} =</font><font color="#7060A8"> wait_key</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            <small>The parenthesis around (i/N) is strictly speaking unnecessary, but reinforces intent.</small>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 2:</b>
+         </td>
+         <td>
+<!--eucode>
+-- displays fourth|seventh|tenth of ten
+atom t1 = time()+1
+for i=1 to 10 do
+    if time()>t1 then
+        progress("Working... (%s of ten)\r",{ordinal(i)})
+        t1 = time()+1
+    end if
+    sleep(0.4)
+end for
+progress("") -- (clears away the last one)
+puts(1,"\ndone\n")
+{} = wait_key()
+</eucode-->
+<pre>
+<font color="#000080"><i>-- displays fourth|seventh|tenth of ten</i></font>
+<font color="#004080">atom</font><font color="#000000"> t1</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()+</font><font color="#000000">1</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 10</font><font color="#008080"> do
+    if</font><font color="#7060A8"> time</font><font color="#0000FF">()&gt;</font><font color="#000000">t1</font><font color="#008080"> then</font>
+<font color="#5E005E">        progress</font><font color="#0000FF">(</font><font color="#008000">"Working... (%s of ten)\r"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">ordinal</font><font color="#800080">(</font><font color="#000000">i</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">        t1</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()+</font><font color="#000000">1</font>
+<font color="#008080">    end if</font>
+<font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">0.4</font><font color="#0000FF">)</font>
+<font color="#008080">end for</font>
+<font color="#5E005E">progress</font><font color="#0000FF">(</font><font color="#008000">""</font><font color="#0000FF">)</font><font color="#000080"><i> -- (clears away the last one)</i></font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)
+{} =</font><font color="#7060A8"> wait_key</font><font color="#0000FF">()</font>
+</pre>
+            <br>
+            <small>Obviously this avoids unnecessary displays during fast phases.</small><br>
+            <small>aside: only i=1 has time()-t1 of 0, i=5 and i=8 have time()-t1 of 0.4, hence it shows 4th/7th/10th rather than 4th/8th[/12th].</small><br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Implementation:</b>
+         </td>
+         <td>
+            See builtins\progress.e (an autoinclude) for details of the actual implementation.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="sprintf.htm">sprintf</a>,
+          <a href="sleep.htm">sleep</a>,
+          <a href="time.htm">time</a>,
+          <a href="ordinal.htm">ordinal</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

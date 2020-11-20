@@ -1423,6 +1423,7 @@ integer trimming
 integer hexout
 integer binout
 integer tsep
+integer istext
 object prevargv
 object currargv
 sequence idname
@@ -1472,6 +1473,7 @@ integer bracketed
                 binout = 0
                 trimming = 0
                 tsep = 0
+                istext = 0
                 idname = ""
                 envvar = ""
                 envsym = ""
@@ -1531,6 +1533,9 @@ integer bracketed
 
             elsif tch='?' then
                 alt = 1
+
+            elsif tch='T' then
+                istext = 1
 
             elsif tch=':' then
                 while i<length(format_pattern) do
@@ -1672,7 +1677,9 @@ integer bracketed
                         end if
 
                     elsif integer(arg_list[argn]) then
-                        if bwz!=0 and arg_list[argn]=0 then
+                        if istext then
+                            argtext = and_bits(arg_list[argn],#FF)&""
+                        elsif bwz!=0 and arg_list[argn]=0 then
                             argtext = ""
                         elsif binout=1 then
 --/**/                      argtext = sprintf("%b", arg_list[argn])                                     --/*
@@ -1734,7 +1741,9 @@ integer bracketed
                         end if
 
                     elsif atom(arg_list[argn]) then
-                        if bwz!=0 and arg_list[argn]=0 then
+                        if istext then
+                            argtext = and_bits(arg_list[argn],#FF)&""
+                        elsif bwz!=0 and arg_list[argn]=0 then
                             argtext = ""
                         else
                             if hexout then
@@ -1802,14 +1811,18 @@ integer bracketed
                             if string(tempv) then
                                 argtext = tempv
                             elsif integer(tempv) then
-                                if bwz!=0 and tempv=0 then
+                                if istext then
+                                    argtext = and_bits(arg_list[argn],#FF)&""
+                                elsif bwz!=0 and tempv=0 then
                                     argtext = ""
                                 else
                                     argtext = sprintf("%d", tempv)
                                 end if
 
                             elsif atom(tempv) then
-                                if bwz!=0 and tempv=0 then
+                                if istext then
+                                    argtext = and_bits(arg_list[argn],#FF)&""
+                                elsif bwz!=0 and tempv=0 then
                                     argtext = ""
                                 else
                                     argtext = trim(sprintf("%15.15g", tempv))
@@ -1837,8 +1850,7 @@ integer bracketed
                     elsif cap='l' then
                         argtext = lower(argtext)
                     elsif cap='w' then
---DEV:
---                      argtext = proper(argtext)
+                        argtext = proper(argtext,"CAPITALISE")
                     elsif cap=0 then
                         -- do nothing
                         cap = cap

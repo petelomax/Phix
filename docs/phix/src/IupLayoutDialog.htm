@@ -53,7 +53,9 @@
           <b>Notes</b>
          </td>
          <td>
-        <b>Menu</b><pre>Dialog
+        <b>Menu</b><br><small>
+ <pre>
+Dialog
         New  - creates a new empty dialog, it will be destroyed when the layout is destroyed.
         Load - loads an existent dialog from the application.
         Load Visible - lists only visible dialogs from the application to be loaded.
@@ -66,6 +68,7 @@
         Redraw - send a redraw to the current dialog (<a href="IupRedraw.htm">IupRedraw</a>).
         Show - shows the current dialog (<a href="IupShow.htm">IupShow</a>) 
         Hide - hides the current dialog (<a href="IupHide.htm">IupHide</a>) 
+        Globals... - displays an <a href="IupGlobalsDialog.htm">IupGlobalsDialog</a>() popup
         Close - hides the Layout Dialog, optionally self destroy according to DESTROYWHENCLOSED.
 Layout
         Hierarchy - shows or hides the layout hierarchy tree at left.
@@ -74,6 +77,7 @@ Layout
         Show Hidden - show hidden elements in the layout.
         Opacity - controls the Layout Dialog opacity so you can composite it on top of the selected dialog.
  </pre>
+        </small><br>
         Use Reload when the dialog has been changed and the layout was modified by the application. <br>
         Use Update when attributes of the dialog were changed by the application and the layout needs to be redrawn.<br>
 <!-- DEV (never seen this work..)
@@ -96,7 +100,7 @@ Since IUP 3.15 we added a global hot key to display the layout dialog loading th
         Some containers have internal children that are displayed but can not be changed.
         <br>
         <br>
-        <b>Layout Display</b>
+        <b>Layout Display</b><br>
         The layout of an element is drawn with its Current size using its <a href="common.htm#FONT">FONT</a>, <a href="common.htm#TITLE">TITLE</a>, 
         <a href="common.htm#BGCOLOR">BGCOLOR</a> and <a href="common.htm#FGCOLOR">FGCOLOR</a> if any. <br>
         But inheritance is not used intentionally to emphasize the element attributes. <br>
@@ -116,16 +120,30 @@ Since IUP 3.15 we added a global hot key to display the layout dialog loading th
         When an element in the layout is double clicked and the actual element is visible, then the actual element will blink twice.
         <br>
         <br>
-        <b>Context Menu</b><pre>Properties - shows the properties dialog for the selected element.
+        <b>Context Menu</b><br><small>
+ <pre>
+Properties - shows the properties dialog for the selected element.
 Map - maps the selected element to the native system.
 Unmap - unmaps the selected element from the native system. Its attribute are saved before unmapping.
 Copy - copy the selected element to an internal clipboard. Its attributes are also copied.
-Paste Child - paste the copied element as the first child of the selected container. 
-Paste Brother - paste the copied element as brother of the selected element.
-Add Child - adds a new element as the first child of the selected container. The new element is not mapped.
-Add Brother - adds a new element as brother of the selected element. The new element is not mapped.
-Remove - removes the selected element.
+Cut - Prepare the selected element to be cut (re-parent). The cut occurs only when pasted.
+Paste Insert Child - paste the copy or cut element as the first child of the selected container. 
+Paste Insert at Cursor - paste the copy or cut element at the cursor mark of the selected container.
+Paste Append Child - paste the copy or cut element as the last child of the selected container.
+Paste Insert Brother - paste the copy or cut element as brother of the selected element.
+-----------------
+New Insert Child - selects a class of control and creates a new element of that class, then insert it 
+                    as the first child of the selected container. The new element is not mapped.
+New Insert at Cursor - selects a class of control and creates a new element of that class, then insert 
+                    it at the cursor mark of the selected container. The new element is not mapped.
+New Append Child - selects a class of control and creates a new element of that class, then insert it 
+                    as the last child of the selected container. The new element is not mapped.
+New Insert Brother - selects a class of control and creates a new element of that class, then insert 
+                      it as brother of the selected element. The new element is not mapped.
+-----------------
+Remove - removes the selected element. 
  </pre>
+        </small><br>
         <b>Properties</b><br>
         The properties dialog allows the inspection and change of the elements attributes. <br>
         It contains 3 Tab sections: <br>
@@ -135,6 +153,32 @@ Remove - removes the selected element.
         The callbacks are just for inspection, and custom attributes should be handled carefully because they may be not strings. <br>
         Registered attributes values are shown in red when they were changed by the application. <br>
         It uses the <a href="IupElementPropertiesDialog.htm">IupElementPropertiesDialog</a>.
+        <br>
+        <br>
+        <b>Insert Cursor</b> (since 3.28)<br>
+        The cursor mark in green is shown only inside a selected container that can receive more children. <br>
+        In the IupCbox container the cursor is a point, on the other containers the cursor is a vertical or horizontal line accordingly. <br>
+        Elements can be pasted, created a new one, or dropped in a cursor mark.
+        <br>
+        <br>
+        <b>Drag & Drop of Elements</b> (since 3.28)<br>
+        It was possible only to drag & drop controls in the tree.
+        <br>
+        <br>
+        But now it is possible to drag & drop in the layout too. <br>
+        When the element is dragged the selection is not changed, when there is a cursor mark in a container is where the drop will occur. <br>
+        So before dragging an element first select the container you want to drop it, so the cursor mark can be displayed while dragging. <br>
+        Also like in the tree it is possible to drag a container with all its children. <br>
+        But there will be no visual feedback of the drag, with the exception of a mouse cursor changed to a "move" symbol.
+        <br>
+        <br>
+        Inside a IupCbox container the drag &drop is different. <br>
+        First when dragging immediate children of the IupCbox the change occurs simultaneously and can be visually seen in the layout and 
+        in the IupCbox itself if the dialog is visible. <br>
+        When the IupCbox is not selected the move occurs only from one point to another inside the container, i.e. the hierarchy is not 
+        changed, just its position inside the container. <br>
+        When the IupCbox is selected any element from the IupCbox hierarchy can be moved (re-parent) to be a direct child of the IupCbox. <br>
+        When another container is selected, and there is a cursor mark the drop will be placed in that container.
          </td>
         </tr>
         <tr>
@@ -156,9 +200,48 @@ Remove - removes the selected element.
 
         <tr>
          <td>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+            Check the <a href="IupDialog.htm">IupDialog</a> callbacks.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          ATTRIBCHANGED_CB
+         </td>
+         <td>
+            Called when an attribute is changed in the Properties dialog. (since 3.28)
+            <br>
+            <br>
+            function attribchanged_cb(Ihandle ih, atom pName)<br>
+            ih: identifier of the element that activated the event.<br>
+            pName: (char*) name of the attribute that changed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          LAYOUTCHANGED_CB
+         </td>
+         <td>
+            Called when the layout is changed. (since 3.28)
+            <br>
+            <br>
+            function layoutchanged_cb(Ihandle ih, Ihandln elem)<br>
+            ih: identifier of the element that activated the event.<br>
+            elem: identifier of the element that changed the layout. Can be NULL.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
           <b>Example:</b>
          </td>
          <td>
+            Just add (eg) IupShow(IupLayoutDialog(dlg)), normally under some suitable trigger such as a button or menu entry, 
+            or perhaps (temporarily) right at the top, straight after the main IupShow(dlg), to almost any existing program:
+            <br>
+            <br>
             <div class="wraptocenter">
              <span></span>
              <img src="images/layoutdlg1.png" />
@@ -183,8 +266,11 @@ Remove - removes the selected element.
           </a>
          </td>
          <td>
-            I translated the C code for this to Phix/pGUI, in the hope that it might be a useful basis for an IDE. See demo\pGUI\iup_layoutdlg.e<br>
+            Normally I&rsquo;d recommend using the latest pre-compiled C routine, however I once translated the (version 3.24) C code for this 
+            to Phix/pGUI, in the hope that it might be a useful basis for an IDE. See demo\pGUI\iup_layoutdlg.e<br>
             Use/testing is simply a matter of adding something like the following to an existing program, replacing "dialog" as appropriate:
+            <br>
+            <br>
 <!--eucode>
 include iup_layoutdlg.e
     Ihandle layout = IupLayoutDialog2(dialog)
@@ -197,6 +283,8 @@ include iup_layoutdlg.e
 </font><font color="#5E005E">    IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">layout</font><font color="#0000FF">,</font><font color="#008000"> "SIZE"</font><font color="#0000FF">,</font><font color="#008000"> "500x300"</font><font color="#0000FF">)
 </font><font color="#5E005E">    IupShowXY</font><font color="#0000FF">(</font><font color="#000000">layout</font><font color="#0000FF">,</font><font color="#004600"> IUP_CURRENT</font><font color="#0000FF">,</font><font color="#004600"> IUP_CURRENT</font><font color="#0000FF">)</font>
 </pre>
+            <br>
+            Note that translation predates the introduction of "Globals..."/<a href="IupGlobalsDialog.htm">IupGlobalsDialog</a>().
          </td>
         </tr>
        </table>

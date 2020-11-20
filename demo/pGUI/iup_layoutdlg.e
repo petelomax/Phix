@@ -3,7 +3,7 @@
 -- iuplayoutdlg.e
 -- ==============
 --
--- This is a straight translation of iup_layoutdlg.c to Phix.
+-- This is a straight translation of iup_layoutdlg.c (3.17 or 3.23 ish?) to Phix.
 --
 --  The original c version is included in the distribution for the express purpose
 --  of comparing against any new releases of IUP and applying changes manually. [DEV no point...]
@@ -275,11 +275,11 @@ end function
 -- (struct _iLayoutDialog made static and extended:)
 integer layoutdlg_destroy = 0   -- destroy the selected dialog, when the layout dialog is destroyed
 integer layoutdlg_changed
-Ihandle layoutdlg_dialog    -- the selected dialog
+Ihandln layoutdlg_dialog    -- the selected dialog
 Ihandle layoutdlg_dlg -- (this is the one with the tree and the canvas mimic of layoutdlg_dialog)
 Ihandle layoutdlg_tree
 Ihandle layoutdlg_status
-Ihandle layoutdlg_timer
+Ihandln layoutdlg_timer
 Ihandln layoutdlg_properties=NULL
 Ihandle layoutdlg_canvas
 Ihandln layoutdlg_copy
@@ -1206,40 +1206,37 @@ end procedure
 
 string fdir = "" -- persist from one call to another if not defined
 function iLayoutGetExportFile(Ihandle parent, string filename)
-Ihandle file_dlg = IupFileDlg()
-integer ret;
-string filt = ""
-nullable_string icon
+    Ihandln file_dlg = IupFileDlg()
+    string filt = ""
+    {fdir, filt} = iupStrFileNameSplit(filename, fdir, filt)
 
-  {fdir,filt} = iupStrFileNameSplit(filename, fdir, filt)
-
-  IupSetAttribute(file_dlg, "FILTER", filt);
-  IupSetAttribute(file_dlg, "DIRECTORY", fdir);
-  IupSetAttribute(file_dlg, "DIALOGTYPE", "SAVE");
-  IupSetAttribute(file_dlg, "ALLOWNEW", "YES");
-  IupSetAttribute(file_dlg, "NOCHANGEDIR", "YES");
-  IupSetAttributeHandle(file_dlg, "PARENTDIALOG", parent);
-  icon = IupGetGlobal("ICON")
-  if string(icon) then
-    IupSetAttribute(file_dlg, "ICON", icon);
+    IupSetAttribute(file_dlg, "FILTER", filt);
+    IupSetAttribute(file_dlg, "DIRECTORY", fdir);
+    IupSetAttribute(file_dlg, "DIALOGTYPE", "SAVE");
+    IupSetAttribute(file_dlg, "ALLOWNEW", "YES");
+    IupSetAttribute(file_dlg, "NOCHANGEDIR", "YES");
+    IupSetAttributeHandle(file_dlg, "PARENTDIALOG", parent);
+    nullable_string icon = IupGetGlobal("ICON")
+    if string(icon) then
+        IupSetAttribute(file_dlg, "ICON", icon);
 --  else
 --    IupSetAttributePtr(file_dlg, "ICON", NULL);
-  end if
-
-  IupPopup(file_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
-
-  ret = IupGetInt(file_dlg, "STATUS");
-  if ret!=-1 then
-    string val = IupGetAttribute(file_dlg, "VALUE");
-    if val!="" then
-      filename = val
-      {fdir} = iupStrFileNameSplit(val, fdir, "");
     end if
-  end if
 
-  IupDestroy(file_dlg);
+    IupPopup(file_dlg, IUP_CENTERPARENT, IUP_CENTERPARENT);
 
-  return {ret,filename}
+    integer ret = IupGetInt(file_dlg, "STATUS");
+    if ret!=-1 then
+        string val = IupGetAttribute(file_dlg, "VALUE");
+        if val!="" then
+            filename = val
+            {fdir} = iupStrFileNameSplit(val, fdir, "");
+        end if
+    end if
+
+    file_dlg = IupDestroy(file_dlg);
+
+    return {ret,filename}
 end function
 
 
@@ -1250,7 +1247,7 @@ end function
 
 function iLayoutMenuNew_CB(Ihandle /*ih*/)
   if layoutdlg_destroy then
-    IupDestroy(layoutdlg_dialog)
+    layoutdlg_dialog = IupDestroy(layoutdlg_dialog)
   end if
   layoutdlg_dialog = IupDialog(NULL)
   layoutdlg_destroy = 1
@@ -1297,9 +1294,9 @@ string filename
 end function
 
 function iLayoutMenuClose_CB(Ihandle ih)
-  Ihandle dlg = IupGetDialog(ih)
+  Ihandln dlg = IupGetDialog(ih)
   if IupGetInt(dlg, "DESTROYWHENCLOSED") then
-    IupDestroy(dlg)
+    dlg = IupDestroy(dlg)
     return IUP_IGNORE
   end if
   IupHide(dlg)
@@ -1450,7 +1447,7 @@ Ihandln old_parent_dlg
 --  if ret!=-1 then
   if ret>0 then
     if layoutdlg_destroy then
-      IupDestroy(layoutdlg_dialog);
+      layoutdlg_dialog = IupDestroy(layoutdlg_dialog);
     end if
     layoutdlg_dialog = dlg_list[ret];
     layoutdlg_destroy = 0;
@@ -2042,7 +2039,7 @@ function iLayoutPropertiesSet_CB(Ihandle button)
 end function
 
 function iLayoutPropertiesSetColor_CB(Ihandle colorbut)
-  Ihandle color_dlg = IupColorDlg();
+  Ihandln color_dlg = IupColorDlg();
   IupSetAttributeHandle(color_dlg, "PARENTDIALOG", IupGetDialog(colorbut));
   IupSetAttribute(color_dlg, "TITLE", "Choose Color");
   IupStoreAttribute(color_dlg, "VALUE", IupGetAttribute(colorbut, "BGCOLOR"));
@@ -2077,13 +2074,13 @@ function iLayoutPropertiesSetColor_CB(Ihandle colorbut)
 --  end if
   end if
 
-  IupDestroy(color_dlg);
+  color_dlg = IupDestroy(color_dlg);
 
   return IUP_DEFAULT;
 end function
 
 function iLayoutPropertiesSetFont_CB(Ihandle fontbut)
-  Ihandle font_dlg = IupFontDlg();
+  Ihandln font_dlg = IupFontDlg();
   Ihandle txt1 = IupGetDialogChild(fontbut, "VALUE1A");
   IupSetAttributeHandle(font_dlg, "PARENTDIALOG", IupGetDialog(fontbut));
   IupSetAttribute(font_dlg, "TITLE", "Choose Font");
@@ -2104,7 +2101,7 @@ function iLayoutPropertiesSetFont_CB(Ihandle fontbut)
 --  end if
   end if
 
-  IupDestroy(font_dlg)
+  font_dlg = IupDestroy(font_dlg)
 
   return IUP_DEFAULT
 end function
@@ -2610,7 +2607,7 @@ end function
 
 function iLayoutContextMenuRemove_CB(Ihandle /*menu*/)
   Ihandle msg_dlg;
-  Ihandle elem = layoutcontextelement
+  Ihandln elem = layoutcontextelement
   if elem=NULL then  /* can be called from a key press */
     elem = IupTreeGetUserId(layoutdlg_tree, IupGetInt(layoutdlg_tree, "VALUE"))
   end if
@@ -2651,7 +2648,7 @@ function iLayoutContextMenuRemove_CB(Ihandle /*menu*/)
     if elem=layoutcontextelement then   -- \
         layoutcontextelement = NULL     --  } PL added 19/5/16 (on a whim)
     end if                              -- /
-    IupDestroy(elem);
+    elem = IupDestroy(elem);
     IupRefresh(layoutdlg_dialog);
     IupUpdate(layoutdlg_canvas);
   end if
@@ -3048,21 +3045,21 @@ function iLayoutDialogShow_CB(Ihandle dlg, integer state)
   return IUP_DEFAULT;
 end function
 
-function iLayoutDialogClose_CB(Ihandle dlg)
+function iLayoutDialogClose_CB(Ihandln dlg)
   if IupGetInt(dlg, "DESTROYWHENCLOSED") then
-    IupDestroy(dlg)
+    dlg = IupDestroy(dlg)
     return IUP_IGNORE
   end if
   return IUP_DEFAULT
 end function
 
 function iLayoutDialogDestroy_CB(Ihandle /*dlg*/)
-  IupDestroy(layoutdlg_timer);
+  layoutdlg_timer = IupDestroy(layoutdlg_timer);
   if layoutdlg_properties!=NULL and iupObjectCheck(layoutdlg_properties) then
-    IupDestroy(layoutdlg_properties)
+    layoutdlg_properties = IupDestroy(layoutdlg_properties)
   end if
   if layoutdlg_destroy!=NULL and iupObjectCheck(layoutdlg_dialog) then
-    IupDestroy(layoutdlg_dialog)
+    layoutdlg_dialog = IupDestroy(layoutdlg_dialog)
   end if
   return IUP_DEFAULT;
 end function

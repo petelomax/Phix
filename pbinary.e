@@ -1766,7 +1766,7 @@ function resourceSection(sequence resources)
 sequence res -- {binary,ResourceRVA}
 string iconfile -- a filename
 sequence icons  -- integer ID/idx of icons (in "") to use
-sequence version -- pairs of strings
+sequence versions -- pairs of strings
 string manifest -- a single string
 sequence params -- scratch var
 
@@ -1775,9 +1775,9 @@ sequence params -- scratch var
     rsLblRefs = {}
     rsLblAddrs = {}
 
-    {{iconfile, icons},version,manifest} = resources
+    {{iconfile, icons},versions,manifest} = resources
     params = {{RT_ICON, "icons"},{RT_GROUP_ICON, "group_icons"}}
-    if length(version) then
+    if length(versions) then
         params = append(params,{RT_VERSION, "versions"})
     end if
     params = append(params,{RT_MANIFEST, "manifest"})
@@ -1793,10 +1793,10 @@ sequence params -- scratch var
         params = append(params,{sprintf("icon_data%d",i),icons[i]})
     end for
     res = rsMultiIcon(res,"main_icon", iconfile, params)
-    if length(version) then
+    if length(versions) then
         res = rsResource(res,"versions", {{1,LANG_NEUTRAL,"version"}})
         -- Naturally, if you fancy extending the format statement and passing a few more of these as parameters, feel free.
-        res = rsVersionInfo(res, "version",VOS__WINDOWS32,VFT_APP,VFT2_UNKNOWN,LANG_ENGLISH+SUBLANG_DEFAULT,0,version)
+        res = rsVersionInfo(res, "version",VOS__WINDOWS32,VFT_APP,VFT2_UNKNOWN,LANG_ENGLISH+SUBLANG_DEFAULT,0,versions)
     end if
     res = rsResource(res,"manifest",{{1,LANG_NEUTRAL,"man"}})
 --  res = rsManifest(res,"man",manifest,machine)
@@ -1908,9 +1908,9 @@ procedure CreatePE(integer fn, integer machine, integer subsystem, integer subve
 --                      and obviously and likewise CODE/code section/BaseOfCode. Note
 --                      these are merged before being passed to peHeader().
 -- code and data are raw binary, subject to final fixups once codeBase and dataBase are known.
--- resources is {icons,version,manifest}, where
+-- resources is {icons,versions,manifest}, where
 --     icons is {filename,{ids}},
---   version is (an even number of|(name,value)) strings
+--  versions is (an even number of|(name,value)) strings
 --  manifest is a single string (xml)
 --  for more details/examples, see pglobals.e (default_rs_icon) and/or pe32.fmt
 --

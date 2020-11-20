@@ -127,7 +127,6 @@ function addthread(sequence q, sequence code, integer gen, integer pc, string in
                     end if
                     reactivate[l] = append(reactivate[l],{pc+2, saved})
                 end if
-
             else
                 q = append(q,{pc, saved})
         end switch

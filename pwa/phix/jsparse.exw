@@ -1,0 +1,646 @@
+// parse.js
+// Parser for Simplified JavaScript written in Simplified JavaScript
+// From Top Down Operator Precedence
+// http://javascript.crockford.com/tdop/index.html
+// Douglas Crockford
+// 2010-06-26
+
+-- PL:
+--  The one thing this has that I really covet is the scope....
+--
+
+--/*
+The technique we will develop here uses token objects whose members include binding powers (or precedence levels), and 
+simple methods called nud (null denotation) and led (left denotation). 
+A nud does not care about the tokens to the left. A led does. 
+A nud method is used by values (such as variables and literals) and by prefix operators. 
+A led method is used by infix operators and suffix operators. 
+A token may have both a nud method and a led method. 
+For example, - might be both a prefix operator (negation) and an infix operator (subtraction), so it would have both nud and led methods.
+
+In our parser, we will use these binding powers:
+
+0       non-binding operators like ;
+10      assignment operators like =
+20      ?
+30      || &&
+40      relational operators like ===
+50      + -
+60      * /
+70      unary operators like !
+80      . [ (
+Expressions
+The heart of Pratt's technique is the expression function. 
+It takes a right binding power that controls how aggressively it binds to tokens on its right.
+
+var expression = function (rbp) {
+    var left;
+    var t = token;
+    advance();
+    left = t.nud();
+    while (rbp < token.lbp) {
+        t = token;
+        advance();
+        left = t.led(left);
+    }
+    return left;
+}
+expression calls the nud method of the token. 
+The nud is used to process literals, variables, and prefix operators. 
+Then as long as the right binding power is less than the left binding power of the next token, the led method is invoked on the following token. 
+The led is used to process infix and suffix operators. This process can be recursive because the nud and led methods can call expression.
+===
+nud: the specification of how an operator consumes to the right with no left-context its "Null-Denotation", or "NUD" for short
+--*/
+
+procedure error(string message)
+    crash("SyntaxError "&message)
+end procedure
+
+--enum DEF,?,PARENT
+sequence scope
+
+sequence symbol_table = {}
+integer std = new_dict()
+enum ID = 1,        -- on both tokens and symbol table entries
+     TOKTYPE,
+     ARITY,
+     VALUE,
+     ST_SIZE = $
+--.def should be a dict??
+--.std is a function (/integer)
+-- def, reserved, nud, led, std, lbp, /*scope,*/ first, second, third, [toktype]
+sequence token
+sequence tokens
+integer tdx
+
+let itself = function () {
+    return this;
+--  return scope;
+};
+
+procedure define(sequence n)
+-- n is a token?
+    let t = scope.def[n[VALUE]];
+    if typeof t == "object" then
+        string e = iff(t.reserved?"Already reserved."
+                                 :"Already defined.")
+        error(e)
+    end if
+    scope.def[n[VALUE]] = n;
+    n.reserved = false;
+    n.nud      = itself;
+    n.led      = null;
+    n.std      = null;
+    n.lbp      = 0;
+--  n.scope    = scope;
+end procedure
+
+function find_name(string n)
+-- returns a symbol table entry (sequence)
+    sequence e = scope
+    while true do
+        object o = e.def[n];
+        if o and typeof o !== "function" then
+--          return e.def[n];
+            return o
+        end if
+        e = e.parent;
+        if e==null then
+            o = symbol_table[n];
+            if (o and typeof o !== "function") then
+                return o
+            end if
+            return symbol_table["(name)"]
+        end if
+    end while
+end function
+
+procedure pop_scope()
+    scope = scope.parent;
+--  scope = scope[PARENT]
+end procedure
+
+procedure reserve(sequence n)
+-- n is a token
+    if n.arity != "name" or n.reserved then
+        return
+    end if
+    object t = scope.def[n[VALUE]];
+    if t!=null then
+        if t.reserved then
+            return
+        end if
+        if t.arity == "name" then
+            error("Already defined.")
+        end if
+    end if
+    scope.def[n[VALUE]] = n;
+    n.reserved = true;
+end procedure
+
+procedure new_scope()
+    let s = scope;
+    scope = {}
+    scope.def = {};
+    scope.parent = s;
+--  return scope;
+--SUG:
+--  scope[$] = scope
+--better:
+--  scope[PARENT] = scope
+--  scope.def = {}
+end procedure
+
+procedure advance(string id="")
+    if id!="" and token[ID]!=id then
+        error("Expected '" + id + "'.");
+    end if
+    if tdx>length(tokens) then
+        token = symbol_table["(end)"]
+        return
+    end if
+    sequence t = tokens[tdx]
+    tdx += 1;
+    object v = t[VALUE]
+    string a = t[TOKTYPE]
+    object o
+    if a == "name" then
+        o = find_name(v)
+    elsif a == "punctuator" then
+        o = symbol_table[v];
+        if o=null then
+            error("Unknown operator.")
+        end if
+    elsif a == "string" 
+       or a == "number" then
+        o = symbol_table["(literal)"];
+        a = "literal"
+    else
+        error("Unexpected token.");
+    end if
+--  token = Object.create(o);
+    token = o
+--token = symbol_table[sdx]
+    token.line_nr = t.line_nr;
+    token.column_nr = t.column_nr;
+    token[VALUE] = v;
+    token.arity = a;
+end procedure
+
+function expression(rbp)
+    sequence t = token
+    advance()
+    let left = t.nud();
+    while rbp<token.lbp do
+        t = token
+        advance()
+        left = t.led(left);
+    end while
+    return left
+end function
+
+function statement()
+    sequence n = token
+    integer ns = n.std;
+    if ns then
+        advance()
+        reserve(n)
+        return ns()
+    end if
+    sequence v = expression(0)
+    if (!v.assignment && v[ID] !== "(") then
+        error("Bad expression statement.")
+    end if
+    advance(";")
+    return v
+end function
+
+function short(sequence a)
+    if length(a)=0 then return null end if
+    if length(a)=1 then a = a[1] end if
+    return a
+end function
+
+function statements()
+    sequence a = {}, s
+    while not find(token[ID],{"}","(end)"}) do
+        s = statement()
+        if s then
+            a = append(a,s)
+        end if
+    end while
+    return short(a)
+end function
+
+let block = function () {
+    sequence t = token
+    advance("{");
+    return t.std();
+};
+
+function undef_nud()
+    error("Undefined.")
+end function
+
+function undef_led(left)
+    error("Missing operator.")
+end function
+
+--DEV needs to return an index really... (we can have a dict that yields said)
+--procedure def_symbol()
+--function symbol_dx()
+let symbol = function (string id, integer bp=0) {
+    sequence s = symbol_table[id];
+--  bp = bp || 0;
+    if s then
+        if bp>s.lbp then
+            s.lbp = bp;
+        end if
+    else
+        s = repeat(null,ST_SIZE)
+        s.nud = undef_nud
+        s.led = undef_led
+        s[ID] = id;
+        s[VALUE] = id
+        s.lbp = bp;
+        symbol_table[id] = s;
+    end if
+    return s;
+};
+
+function constnud() {
+    reserve(this);
+    this[VALUE] = symbol_table[this[ID]][VALUE];
+    this.arity = "literal";
+    return this;
+}
+
+procedure defconstant(string s, object v)
+    let x = symbol(s);
+    x.nud = constnud;
+    x[VALUE] = v;
+end procedure
+
+function infixled(left) {
+    this.first = left;
+    this.second = expression(bp);
+    this.arity = "binary";
+    return this;
+}
+    
+procedure infix(string id, integer bp, led=infixled)
+    let s = symbol(id, bp);
+--  s.led = led || infixled;
+    s.led = led;
+end procedure
+
+function baseled(left) {
+    this.first = left;
+    this.second = expression(bp - 1);
+    this.arity = "binary";
+    return this;
+}
+
+procedure infixr(id, bp, led=baseled)
+    let s = symbol(id, bp);
+--  s.led = led || baseled;
+    s.led = led
+end procedure
+
+function assign(left) {
+    if left[ID] !== "."
+    and left[ID] !== "["
+    and left.arity !== "name" then
+        error("Bad lvalue.");
+    end if
+    this.first = left;
+    this.second = expression(9);
+    this.assignment = true;
+    this.arity = "binary";
+    return this;
+}
+
+procedure assignment(string id)
+    infixr(id, 10, assign)
+end procedure
+
+function basenud()
+    reserve(this);
+    this.first = expression(70);
+    this.arity = "unary";
+    return this;
+end function
+
+procedure prefix(string id, integer nud=basenud)
+    let s = symbol(id);
+--  s.nud = nud || basenud;
+    s.nud = nud
+end procedure
+
+procedure stmt(string s, integer f)
+    let x = symbol(s);
+    x.std = f;
+end procedure
+
+symbol("(end)");
+symbol("(name)");
+symbol(":");
+symbol(";");
+symbol(")");
+symbol("]");
+symbol("}");
+symbol(",");
+symbol("else");
+
+defconstant("true", true);
+defconstant("false", false);
+defconstant("null", null);
+defconstant("pi", 3.141592653589793);
+defconstant("Object", {});
+defconstant("Array", []);
+
+symbol("(literal)").nud = itself;
+
+symbol("this").nud = function () {
+    reserve(this);
+    this.arity = "this";
+    return this;
+};
+
+assignment("=")
+assignment("+=")
+assignment("-=")
+
+function ternary(left) {
+    this.first = left;
+    this.second = expression(0);
+    advance(":");
+    this.third = expression(0);
+    this.arity = "ternary";
+    return this;
+}
+infix("?", 20, ternary);
+
+infixr("&&", 30);
+infixr("||", 30);
+
+infixr("===", 40);
+infixr("!==", 40);
+infixr("<", 40);
+infixr("<=", 40);
+infixr(">", 40);
+infixr(">=", 40);
+
+infix("+", 50);
+infix("-", 50);
+
+infix("*", 60);
+infix("/", 60);
+
+function dot(left) {
+    this.first = left;
+    if (token.arity !== "name") {
+        error("Expected a property name.");
+    }
+    token.arity = "literal";
+    this.second = token;
+    this.arity = "binary";
+    advance();
+    return this;
+}
+infix(".", 80, dot);
+
+function sqbr(left) {
+    this.first = left;
+    this.second = expression(0);
+    this.arity = "binary";
+    advance("]");
+    return this;
+}
+infix("[", 80, sqbr);
+
+function parenth(left) {
+    sequence a = {}
+    string lid = left[ID]
+    if lid === "." or lid === "[" then
+        this.arity = "ternary";
+        this.first = left.first;
+        this.second = left.second;
+        this.third = a;
+    else
+        this.arity = "binary";
+        this.first = left;
+        this.second = a;
+        if (left.arity != "unary" or lid != "function") and
+            left.arity != "name" and not find(lid,{"(","&&","||","?"}) then
+            error("Expected a variable name.");
+        end if
+    end if
+    if token[ID] !== ")" then
+        while true do
+            a = append(a,expression(0))
+            if token[ID] !== "," then
+                exit
+            end if
+            advance(",")
+        end while
+    end if
+    advance(")")
+    return this;
+}
+infix("(", 80, parenth);
+
+
+prefix("!");
+prefix("-");
+prefix("typeof");
+
+function nest() {
+    let e = expression(0);
+    advance(")");
+    return e;
+}
+prefix("(", nest);
+
+function func() {
+    sequence a = {}
+    new_scope()
+    if token.arity === "name" then
+        define(token)
+        this.name = token[VALUE];
+        advance()
+    end if
+    advance("(")
+    if token[ID] !== ")" then
+        while true do
+            if token.arity !== "name" then
+                error("Expected a parameter name.")
+            end if
+            define(token)
+            a = append(a,token)
+            advance()
+            if token[ID] !== "," then
+                exit
+            end if
+            advance(",")
+        end while
+    end if
+    this.first = a;
+    advance(")")
+    advance("{")
+    this.second = statements();
+    advance("}")
+    this.arity = "function";
+    pop_scope()
+    return this;
+}
+prefix("function", func);
+
+function subscr() {
+    sequence a = {}
+    if token[ID] !== "]" then
+        while true do
+            a = append(a,expression(0))
+            if token[ID] !== "," then
+                exit
+            end if
+            advance(",")
+        end while
+    end if
+    advance("]")
+    this.first = a;
+    this.arity = "unary";
+    return this;
+}
+prefix("[", subscr);
+
+function objdef() {
+    sequence a = {}, n, v;
+    if token[ID] !== "}" then
+        while true do
+            n = token
+            if n.arity !== "name" and n.arity !== "literal" then
+                error("Bad property name.")
+            end if
+            advance()
+            advance(":")
+            v = expression(0)
+            v.key = n[VALUE];
+            a = append(a,v)
+            if token[ID] !== "," then
+                exit
+            end if
+            advance(",")
+        end while
+    end if
+    advance("}")
+    this.first = a;
+    this.arity = "unary";
+    return this;
+}
+prefix("{", objdef);
+
+
+function multistmt()
+    new_scope()
+    sequence a = statements()
+    advance("}")
+    pop_scope()
+    return a
+end function
+stmt("{", multistmt)
+
+function letstmt()
+    sequence a = {}, n, t
+    while true do
+        n = token
+        if n.arity != "name" then
+            error("Expected a new variable name.")
+        end if
+        define(n)
+        advance()
+        if token[ID] === "=" then
+            t = token
+            advance("=")
+            t.first = n;
+            t.second = expression(0);
+            t.arity = "binary";
+            a = append(a,t)
+        end if
+        if token[ID] !== "," then
+            exit
+        end if
+        advance(",")
+    end while
+    advance(";")
+    return short(a)
+end function
+stmt("let", letstmt)
+
+function ifstmnt() {
+    advance("(")
+    this.first = expression(0);
+    advance(")")
+    this.second = block();
+    if token[ID] == "else" then
+        reserve(token)
+        advance("else")
+        if token[ID] === "if" then
+            this.third = statement();
+        else
+            this.third = block();
+        end if
+    else
+        this.third = null;
+    end if
+    this.arity = "statement";
+    return this;
+}
+stmt("if", ifstmnt);
+
+function returnstmt() {
+    if token[ID] !== ";" then
+        this.first = expression(0);
+    end if
+    advance(";")
+    if token[ID] !== "}" then
+        error("Unreachable statement.");
+    end if
+    this.arity = "statement";
+    return this;
+}
+stmt("return", returnstmt);
+
+function breakstmt() {
+    advance(";")
+    if token[ID] !== "}" then
+        error("Unreachable statement.")
+    end if
+    this.arity = "statement";
+    return this;
+}
+stmt("break", breakstmt);
+
+function whilestmt() {
+    advance("(")
+    this.first = expression(0);
+    advance(")")
+    this.second = block();
+    this.arity = "statement";
+    return this;
+}
+stmt("while", whilestmt);
+
+--  return function (array_of_tokens) {
+function parse(sequence array_of_tokens)
+    tokens = array_of_tokens
+    tdx = 0
+    new_scope()
+    advance()
+    sequence s = statements()
+    advance("(end)")
+    pop_scope()
+    return s
+end function
+

@@ -947,6 +947,19 @@ global function mpz_mod_ui(mpz r, n, integer d)
     return res
 end function
 
+integer x_mpz_xor = NULL
+
+global procedure mpz_xor(mpz rop, op1, op2)
+--rop := xor_bits(op1,op2)
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpz_xor=NULL then
+        x_mpz_xor = link_c_proc(mpir_dll, "+__gmpz_xor", {P,P,P})
+    end if
+    c_proc(x_mpz_xor,{rop,op1,op2})
+end procedure
+
 integer x_mpz_cmp = NULL
 
 global function mpz_cmp(mpz op1, op2)
@@ -1990,38 +2003,49 @@ global procedure mpfr_set_default_rounding_mode(integer rounding)
     default_rounding = rounding
 end procedure
 
-integer x_mpfr_set_d = NULL
+integer x_mpfr_set = NULL
 
-global procedure mpfr_set_d(mpfr x, atom v, integer rounding=default_rounding)
--- set x from a phix atom
-    if x=NULL then ?9/0 end if
-    if x_mpfr_set_d=NULL then
-        x_mpfr_set_d = link_c_proc(mpfr_dll, "+mpfr_set_d", {P,D,I})
+global procedure mpfr_set(mpfr tgt, src, integer rounding=default_rounding)
+    if tgt=NULL then ?9/0 end if
+    if src=NULL then ?9/0 end if
+    if x_mpfr_set=NULL then
+        x_mpfr_set = link_c_proc(mpfr_dll, "+mpfr_set", {P,P,I})
     end if
-    c_proc(x_mpfr_set_d,{x,v,rounding})
+    c_proc(x_mpfr_set,{tgt,src,rounding})
 end procedure
 
 integer x_mpfr_set_si = NULL
 
-global procedure mpfr_set_si(mpfr x, integer v, integer rounding=default_rounding)
--- set x from a phix integer
-    if x=NULL then ?9/0 end if
+global procedure mpfr_set_si(mpfr tgt, integer i, integer rounding=default_rounding)
+-- set tgt from a phix integer
+    if tgt=NULL then ?9/0 end if
     if x_mpfr_set_si=NULL then
         x_mpfr_set_si = link_c_proc(mpfr_dll, "+mpfr_set_si", {P,I,I})
     end if
-    c_proc(x_mpfr_set_si,{x,v,rounding})
+    c_proc(x_mpfr_set_si,{tgt,i,rounding})
+end procedure
+
+integer x_mpfr_set_d = NULL
+
+global procedure mpfr_set_d(mpfr tgt, atom a, integer rounding=default_rounding)
+-- set tgt from a phix atom
+    if tgt=NULL then ?9/0 end if
+    if x_mpfr_set_d=NULL then
+        x_mpfr_set_d = link_c_proc(mpfr_dll, "+mpfr_set_d", {P,D,I})
+    end if
+    c_proc(x_mpfr_set_d,{tgt,a,rounding})
 end procedure
 
 integer x_mpfr_set_str = NULL
 
-global procedure mpfr_set_str(mpfr x, string s, integer base=0, rounding=default_rounding)
--- set x from a string
-    if x=NULL then ?9/0 end if
+global procedure mpfr_set_str(mpfr tgt, string s, integer base=0, rounding=default_rounding)
+-- set tgt from a string
+    if tgt=NULL then ?9/0 end if
     if base<0 or base=1 or base>62 then ?9/0 end if
     if x_mpfr_set_str=NULL then
         x_mpfr_set_str = link_c_func(mpfr_dll, "+mpfr_set_str", {P,P,I,I},I)
     end if
-    if c_func(x_mpfr_set_str,{x,s,base,rounding})!=0 then ?9/0 end if
+    if c_func(x_mpfr_set_str,{tgt,s,base,rounding})!=0 then ?9/0 end if
 end procedure
 if "abc"="def" then mpfr_set_str(NULL,"") end if --DEV/temp
 
@@ -2030,18 +2054,18 @@ if "abc"="def" then mpfr_set_str(NULL,"") end if --DEV/temp
 --mpfr_set_q might fail if the numerator (or the denominator) can not be represented as a mpfr_t.
 integer x_mpfr_set_q = NULL
 
-global procedure mpfr_set_q(mpfr rop, mpq op, integer rounding=default_rounding)
--- set the mpfr rop from an mpz
-    if rop=NULL then ?9/0 end if
-    if op=NULL then ?9/0 end if
+global procedure mpfr_set_q(mpfr tgt, mpq q, integer rounding=default_rounding)
+-- set the mpfr rop from an mpq
+    if tgt=NULL then ?9/0 end if
+    if q=NULL then ?9/0 end if
     if x_mpfr_set_q=NULL then
 --      x_mpfr_set_q = link_c_func(mpfr_dll, "+mpfr_set_q", {P,P,I},I)
         x_mpfr_set_q = link_c_proc(mpfr_dll, "+mpfr_set_q", {P,P,I})
     end if
     -- not quite sure exactly what the result is, seems to be -1/0/+1, 
     -- I would hazard it is some kind of comparison/rounding thing...
---  if c_func(x_mpfr_set_q,{rop,op,rounding})!=0 then ?9/0 end if
-    c_proc(x_mpfr_set_q,{rop,op,rounding})
+--  if c_func(x_mpfr_set_q,{tgt,q,rounding})!=0 then ?9/0 end if
+    c_proc(x_mpfr_set_q,{tgt,q,rounding})
 end procedure
 
 
@@ -2050,16 +2074,16 @@ end procedure
 --Function: int mpfr_set_z (mpfr_t rop, mpz_t op, mpfr_rnd_t rnd)
 integer x_mpfr_set_z = NULL
 
-global procedure mpfr_set_z(mpfr rop, mpz op, integer rounding=default_rounding)
+global procedure mpfr_set_z(mpfr tgt, mpz z, integer rounding=default_rounding)
 -- set the mpfr rop from an mpz
-    if rop=NULL then ?9/0 end if
-    if op=NULL then ?9/0 end if
+    if tgt=NULL then ?9/0 end if
+    if z=NULL then ?9/0 end if
     if x_mpfr_set_z=NULL then
 --      x_mpfr_set_z = link_c_func(mpfr_dll, "+mpfr_set_z", {P,P,I},I)
         x_mpfr_set_z = link_c_proc(mpfr_dll, "+mpfr_set_z", {P,P,I})
     end if
 --  if c_func(x_mpfr_set_z,{rop,op,rounding})!=0 then ?9/0 end if
-    c_proc(x_mpfr_set_z,{rop,op,rounding})
+    c_proc(x_mpfr_set_z,{tgt,z,rounding})
 end procedure
 
 integer x_mpfr_clear = NULL
@@ -2127,17 +2151,6 @@ global function mpfr_inits(integer n, object v=0, precision=default_precision, r
     return res
 end function
 
-integer x_mpfr_set = NULL
-
-global procedure mpfr_set(mpfr tgt, src, integer rounding=default_rounding)
-    if tgt=NULL then ?9/0 end if
-    if src=NULL then ?9/0 end if
-    if x_mpfr_set=NULL then
-        x_mpfr_set = link_c_proc(mpfr_dll, "+mpfr_set", {P,P,I})
-    end if
-    c_proc(x_mpfr_set,{tgt,src,rounding})
-end procedure
-
 integer x_mpfr_get_prec = NULL
 
 global function mpfr_get_prec(mpfr x, boolean decimal=false)
@@ -2156,6 +2169,18 @@ global function mpfr_init_set(mpfr src, integer rounding=default_rounding)
     atom res = mpfr_init(0,precision,rounding)
     mpfr_set(res,src)
     return res  
+end function
+
+global function mpfr_init_set_q(mpq q, integer rounding=default_rounding)
+    mpfr res = mpfr_init()
+    mpfr_set_q(res,q,rounding)
+    return res
+end function
+
+global function mpfr_init_set_z(mpz z, integer rounding=default_rounding)
+    mpfr res = mpfr_init()
+    mpfr_set_z(res,z,rounding)
+    return res
 end function
 
 global function mpfr_free(object x)
@@ -2636,6 +2661,17 @@ global function mpfr_get_si(mpfr op, integer rounding=default_rounding)
     return res
 end function
 
+integer x_mpfr_get_d = NULL
+
+global function mpfr_get_d(mpfr op, integer rounding=default_rounding)
+    if op=NULL then ?9/0 end if
+    if x_mpfr_get_d=NULL then
+        x_mpfr_get_d = link_c_func(mpfr_dll, "+mpfr_get_d", {P,I},D)
+    end if
+    atom res = c_func(x_mpfr_get_d,{op,rounding})
+    return res
+end function
+
 --integer x_mpfr_sgn = NULL
 --
 --global function mpfr_sgn(mpfr op)
@@ -2748,74 +2784,19 @@ end function
 
 integer x_mpq_set = NULL
 
-global procedure mpq_set(mpq rop, op)
--- rop := op
-    if rop=NULL then ?9/0 end if
-    if op=NULL then ?9/0 end if
+global procedure mpq_set(mpq tgt, q)
+-- tgt := q
+    if tgt=NULL then ?9/0 end if
+    if q=NULL then ?9/0 end if
     if x_mpq_set=NULL then
         x_mpq_set = link_c_proc(mpir_dll, "+__gmpq_set", {P,P})
     end if
-    c_proc(x_mpq_set,{rop,op})
+    c_proc(x_mpq_set,{tgt,q})
 end procedure
 
-integer x_mpq_set_z = NULL
-
-global procedure mpq_set_z(mpq rop, mpz op)
--- rop := op/1
-    if rop=NULL then ?9/0 end if
-    if op=NULL then ?9/0 end if
-    if x_mpq_set_z=NULL then
-        x_mpq_set_z = link_c_proc(mpir_dll, "+__gmpq_set_z", {P,P})
-    end if
-    c_proc(x_mpq_set_z,{rop,op})
-end procedure
-
-integer x_mpq_set_si = NULL
-
-global procedure mpq_set_si(mpq rop, integer op1, op2=1)
--- rop := op1/op2
-    if rop=NULL then ?9/0 end if
-    if op2<0 then ?9/0 end if
-    if x_mpq_set_si=NULL then
-        x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_si", {P,I,I})
---      x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_ui", {P,I,I})
-    end if
-    c_proc(x_mpq_set_si,{rop,op1,op2})
-end procedure
-
-integer x_mpq_set_str = NULL
-
-global procedure mpq_set_str(mpq rop, string str, integer base=0)
--- rop := str
-    if rop=NULL then ?9/0 end if
-    if base<0 or base=1 or base>62 then ?9/0 end if
-    if x_mpq_set_str=NULL then
-        x_mpq_set_str = link_c_proc(mpir_dll, "+__gmpq_set_str", {P,P,I})
-    end if
-    c_proc(x_mpq_set_str,{rop,str,base})
-end procedure
-
-global function mpq_init_set(mpq op)
+global function mpq_init_set(mpq q)
     mpq res = mpq_init()
-    mpq_set(res,op)
-    return res
-end function
-
-global function mpq_init_set_z(mpz op)
-    mpq res = mpq_init()
-    mpq_set_z(res,op)
-    return res
-end function
-
-global function mpq_init_set_si(integer op1, op2=1)
-    mpq res = mpq_init()
-    mpq_set_si(res, op1, op2)
-    return res
-end function
-
-global function mpq_init_set_str(string str, integer base=0)
-    mpq res = mpq_init()
-    mpq_set_str(res,str,base)
+    mpq_set(res,q)
     return res
 end function
 
@@ -2983,6 +2964,84 @@ global procedure mpq_canonicalize(mpq op)
     c_proc(x_mpq_canonicalize,{op})
 end procedure
 
+integer x_mpq_set_z = NULL
+
+global procedure mpq_set_z(mpq tgt, mpz n, d=NULL)
+-- tgt := op/1
+    if tgt=NULL then ?9/0 end if
+    if n=NULL then ?9/0 end if
+    if x_mpq_set_z=NULL then
+        x_mpq_set_z = link_c_proc(mpir_dll, "+__gmpq_set_z", {P,P})
+    end if
+    c_proc(x_mpq_set_z,{tgt,n})
+    if d!=NULL then
+        mpq dq = mpq_init()
+        mpq_set_z(dq,d)
+        mpq_div(tgt,tgt,dq)
+        dq = mpq_free(dq) -- (not really rqd)
+        mpq_canonicalize(tgt)
+    end if
+end procedure
+
+integer x_mpq_set_si = NULL
+
+global procedure mpq_set_si(mpq tgt, integer n, d=1)
+-- tgt := op1/op2
+    if tgt=NULL then ?9/0 end if
+    if d<=0 then ?9/0 end if
+    if x_mpq_set_si=NULL then
+        x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_si", {P,I,I})
+--      x_mpq_set_si = link_c_proc(mpir_dll, "+__gmpq_set_ui", {P,I,I})
+    end if
+    c_proc(x_mpq_set_si,{tgt,n,d})
+    mpq_canonicalize(tgt)
+end procedure
+
+integer x_mpq_set_str = NULL
+
+global procedure mpq_set_str(mpq tgt, string s, integer base=0)
+-- tgt := s
+    if tgt=NULL then ?9/0 end if
+    if base<0 or base=1 or base>62 then ?9/0 end if
+    if x_mpq_set_str=NULL then
+        x_mpq_set_str = link_c_proc(mpir_dll, "+__gmpq_set_str", {P,P,I})
+    end if
+    c_proc(x_mpq_set_str,{tgt,s,base})
+    mpq_canonicalize(tgt)
+end procedure
+
+global function mpq_init_set_z(mpz n, d=null)
+    mpq res = mpq_init()
+    mpq_set_z(res,n,d)
+    return res
+end function
+
+global function mpq_init_set_si(integer n, d=1)
+    mpq res = mpq_init()
+    mpq_set_si(res, n, d)
+    return res
+end function
+
+global function mpq_init_set_str(string s, integer base=0)
+    mpq res = mpq_init()
+    mpq_set_str(res,s,base)
+    return res
+end function
+
+integer x_mpq_cmp = NULL
+
+global function mpq_cmp(mpq op1, op2)
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpq_cmp=NULL then
+        x_mpq_cmp = link_c_func(mpir_dll, "+__gmpq_cmp", {P,P},I)
+    end if
+    integer res = c_func(x_mpq_cmp,{op1,op2})
+--if not find(res,{-1,0,+1}) then ?9/0 end if
+    res = sign(res)
+    return res
+end function
+
 integer x_mpq_cmp_si = NULL
 
 global function mpq_cmp_si(mpq op1, integer num2, den2)
@@ -3001,6 +3060,19 @@ end function
 --<clean to here>
 
 --/*
+char * mpq_get_str (char *str, int base, mpq t op) [Function]
+Convert op to a string of digits in base base. The base may vary from 2 to 36. The string
+will be of the form ‘num/den’, or if the denominator is 1 then just ‘num’.
+If str is NULL, the result string is allocated using the current allocation function (see
+Chapter 13 [Custom Allocation], page 86). The block will be strlen(str)+1 bytes, that
+being exactly enough for the string and null-terminator.
+If str is not NULL, it should point to a block of storage large enough for the result, that being
+mpz_sizeinbase (mpq_numref(op), base)
++ mpz_sizeinbase (mpq_denref(op), base) + 3
+The three extra bytes are for a possible minus sign, possible slash, and the null-terminator.
+A pointer to the result string is returned, being either the allocated block, or the given str.
+
+
 mpfr_prec_t typedef sdword
 mpfr_sign_t typedef sdword
 mp_limb_t typedef dword

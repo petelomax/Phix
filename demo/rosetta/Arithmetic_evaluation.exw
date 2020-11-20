@@ -84,24 +84,19 @@ procedure Match(string t)
 end procedure
 
 procedure PopFactor()
-object p2 = opstack[$]
+    object p1, p2 = opstack[$]
     if op="u-" then
-        if op_p_p=1 then                        -- op_p_p
-            opstack[$] = {op,0,p2}
-        elsif op_p_p=0 then                     -- p_op_p
-            opstack[$] = {0,op,p2}
-        else -- -1                              -- p_p_op
-            opstack[$] = {0,p2,op}
-        end if
+        p1 = 0
     else
         opstack = opstack[1..$-1]
-        if op_p_p=1 then                        -- op_p_p
-            opstack[$] = {op,opstack[$],p2}
-        elsif op_p_p=0 then                     -- p_op_p
-            opstack[$] = {opstack[$],op,p2}
-        else -- -1                              -- p_p_op
-            opstack[$] = {opstack[$],p2,op}
-        end if
+        p1 = opstack[$]
+    end if
+    if op_p_p=1 then
+        opstack[$] = {op,p1,p2}  -- op_p_p
+    elsif op_p_p=0 then
+        opstack[$] = {p1,op,p2}  -- p_op_p
+    else -- -1
+        opstack[$] = {p1,p2,op}  -- p_p_op
     end if
     op = 0
 end procedure
@@ -235,7 +230,7 @@ end function
 --s = "-30 + -5"    -- -35
 --s = "-(-30 + -5)" -- 35
 --s = "-(3^2)"
-s = "-3^2"
+--s = "-3^2"
 --s = "-15/2.0" -- -7.5
 --s = "-(15/2.0)"   -- -7.5
 --s = "1+2+3+4" -- 10
@@ -245,13 +240,15 @@ s = "-3^2"
 --s = "2+3/4" -- 2.75
 --s = "2*3-4"   -- 2
 --s = "2*(3+4)+5/6" -- 14.8333
+--s = "-2 / 2 + 4 + 3 * 2" -- 9
 --s = "2 * (3 + (4 * 5 + (6 * 7) * 8) - 9) * 10" -- 7000
 --s = "2*-3--4+-0.25"   -- -2.25
 --s = "(((2 * -3) - -4) + -1/4)" -- -2.25
 --s = "2+(3-4)*6/5^2^3%3"   -- 1.99998464
-
---s = "3+4+5+6*7/1*5^2^3"       -- 16406262
+--s = "1 + 2*(3 - 2*(3 - 2)*((2 - 4)*5 - 22/(7 + 2*(3 - 1)) - 1)) + 1" -- 60
+s = "3+4+5+6*7/1*5^2^3"     -- 16406262
 --?3+4+5+6*7/1*power(5,power(2,3))
+--?((3+4)+5)+(((6*7)/1)*power(5,power(2,3)))
 sidx = 0
 nxtch()
 get_token()
@@ -262,7 +259,7 @@ printf(1,"expression: \"%s\"\n",{s})
 puts(1,"AST (flat): ")
 ?opstack[1]
 puts(1,"AST (tree):\n")
-ppEx(opstack[1],{pp_Nest,6})
+ppEx(opstack[1],{pp_Nest,9999})
 puts(1,"result: ")
 ?eval(opstack[1])
 {} = wait_key()

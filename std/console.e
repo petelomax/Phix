@@ -924,11 +924,13 @@ end procedure
 -- See Also:
 --      [[:wait_key]]
 
+--/*
 public procedure maybe_any_key(sequence prompt="Press Any Key to continue...", integer con = 1)
         if not has_console() then
             any_key(prompt, con)
         end if
 end procedure
+--*/
 
 --**
 -- Description:
@@ -1500,6 +1502,7 @@ end procedure
 -- {51'3',362,71'G'}
 -- }}}
 --
+include builtins\pretty.e
 
 public procedure display(object data_in, object args = 1, integer finalnl = -918_273_645)
 

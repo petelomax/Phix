@@ -21,7 +21,10 @@
             <i>-- and --</i>
             <br>
             <a href="Ihandle.htm">Ihandle</a> ih = IupSpinBox(<a href="Ihandle.htm">Ihandln</a> child=NULL,
-            <a href="string.htm">string</a> attributes="", <a href="sequence.htm">sequence</a> data={})
+                                                              [[<a href="string.htm">nullable_string</a> action=NULL,]
+                                                               <a href="Icallback.htm">cbfunc</a> func=NULL,] 
+                                                              <a href="string.htm">string</a> attributes="",
+                                                              <a href="sequence.htm">sequence</a> data={})
          </td>
         </tr>
         <tr>
@@ -29,13 +32,18 @@
           <b>Description:</b>
          </td>
          <td>
-            The IupSpin function creates a control set with a vertical box containing two buttons, one 
-            with an up arrow and the other with a down arrow, to be used to increment and decrement values.
+            The IupSpin function creates a control set with a vertical box containing two buttons, one an up arrow and the other down.<br>
+            Typically and intuitively they would be used to increment and decrement values, but there is no absolute law on that.
             <br>
             <br>
             Unlike the <a href="IupText.htm#SPIN">SPIN</a> attribute of the <a href="IupText.htm">IupText</a> element, 
-            the IupSpin element can NOT automatically increment the value and it is NOT inserted inside the IupText area. 
-            But they can be used with any element.
+            the IupSpin element does NOT automatically increment the value and it is NOT inserted inside the IupText area
+            (that is, assuming you passed an IupText in as the child). But they can be used with any element.
+            <br>
+            <br>
+            In other words, it is <i>entirely</i> the programmer&rsquo;s responsibility to implement the desired behaviour of
+            the up/down buttons in the SPIN_CB callback. Omitting the latter makes the control completely useless (except 
+            perhaps as part of one of those find-and-seek-the-button-or-control-that-actually-does-something games...).
             <br>
             <br>
             IupSpin inherits from <a href="IupVbox.htm">IupVbox</a>, and contains two <a href="IupButton.htm">IupButton</a>.
@@ -44,9 +52,12 @@
             IupSpinBox is a horizontal container that already contains an IupSpin.
             <br>
             <br>
-            child: Identifier of an interface element which will receive the spinbox.<br>
-            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>,
-            and <a href="IupVbox.htm">IupVbox</a> for a list of the attributes that may apply here.
+            child: Identifier of an interface element to be placed next to the spinbox.<br>
+            action: Name of the action generated when the button is selected. It can be NULL/omitted.<br>
+            func: a callback address, usually specified as <a href="Icallback.htm">Icallback</a>(<i>"name"</i>).<br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>,<br>
+            and <a href="IupVbox.htm">IupVbox</a> for a list of the attributes that may apply here.<br>
+            This is a <a href="paranormal.htm">paranormalised function</a>.
             <br>
             <br>
             Returns: the identifier of the created element.
@@ -54,21 +65,34 @@
         </tr>
         <tr>
          <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupText.htm">IupText</a>,
+          <a href="IupVbox.htm">IupVbox</a>,
+          <a href="IupHbox.htm">IupHbox</a>,
+          <a href="IupButton.htm">IupButton</a>
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Notes:</b>
          </td>
          <td>
-            An IupSpinBox can be created with no elements and filled dynamically using <a href="IupAppend.htm">IupAppend</a>() or <a href="IupInsert.htm">IupInsert</a>().
+            If you want a number field with up/down that increment/decrement it automatically, then instead of this 
+            use an <a href="IupText.htm">IupText</a>() with the <a href="IupText.htm#SPIN">SPIN</a> attribute set. 
+            There is an example of just that ("Width:") on the toolbox ("Tools" window) of demo\pGUI\simple_paint.exw
+            and several more in demo\pGUI\boids3d.exw
+            <br>
+            <br>
+            An IupSpinBox can be created with no elements and filled dynamically using <a href="IupAppend.htm">IupAppend</a>() or 
+            <a href="IupInsert.htm">IupInsert</a>().
             <br>
             <br>
             IupSpinbox (with a lower case 'b') is a simple alias of IupSpinBox and behaves identically.
             <br>
             <br>
-            There is little point using an IupSpin directly, without associating it to some other visual element in much the same way that IupSpinBox does.
-<!--(DEV)   , and pGUI-IDE does not support the use of raw IupSpin elements. -->
-            <br>
-            <br>
-            In many cases an <a href="IupText.htm">IupText</a> element with the <a href="IupText.htm#SPIN">SPIN</a> attribute may be a better choice.<br>
-            There is an example ("Width:") of an IupText with the SPIN attribute on the toolbox ("Tools" window) of demo\pGUI\simple_paint.exw
+            See demo/pGUI/spin.exw for an example (not that as-is it does very much, but that&rsquo;s deliberate).
          </td>
         </tr>
         <tr>
@@ -83,12 +107,14 @@
           SPIN_CB
          </td>
          <td>
-            Called each time the user clicks in the buttons.<br>
-            It will increment 1 and decrement -1 by default. <br>
-            Holding the Shift key will set a factor of 2, holding Ctrl a factor of 10, and both a factor of 100.
+            Called each time the user clicks in the buttons.
             <br>
             <br>
             function spin_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> inc)
+            <br>
+            <br>
+            With neither Shift or Ctrl held down, inc will be 1 for up and -1 for down.<br>
+            Holding the Shift key will set a factor of 2, holding Ctrl a factor of 10, and both a factor of 100.
          </td>
         </tr>
         <tr>
@@ -96,24 +122,13 @@
           <b>Example:</b>
          </td>
          <td>
-            <a href="Ihandle.htm">Ihandle</a> spinbox = IupSpinBox(IupText(NULL))
+            <a href="Ihandle.htm">Ihandle</a> spinbox = IupSpinBox(IupText()), see also demo/pGUI/spin.exw
             <br>
             <br>
             <div class="wraptocenter">
              <span></span>
              <img src="images/iupspin.png" />
             </div>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>See Also:</b>
-         </td>
-         <td>
-          <a href="IupText.htm">IupText</a>,
-          <a href="IupVbox.htm">IupVbox</a>,
-          <a href="IupHbox.htm">IupHbox</a>,
-          <a href="IupButton.htm">IupButton</a>
          </td>
         </tr>
        </table>

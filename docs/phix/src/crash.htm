@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-         crash(<a href="string.htm">string</a> fmt, <a href="object.htm">object</a> data={}, integer nFrames=1)
+         crash(<a href="string.htm">string</a> msg, <a href="object.htm">object</a> data={}, integer nFrames=1)
          </td>
         </tr>
         <tr>
@@ -24,8 +24,8 @@
             Crash the running program, displaying a formatted error message the way <a href="printf.htm">printf</a>() does.
             <br>
             <br>
-            fmt: the message text, optionally with format specifiers as per <a href="sprintf.htm">sprintf</a>.<br>
-            data: an object, defaulted to {}, as per <a href="sprintf.htm">sprintf</a>.<br>
+            msg: the message text, optionally with embedded <a href="sprintf.htm">sprintf</a> format specifiers.<br>
+            data: if not {}, then msg = <a href="sprintf.htm">sprintf</a>(msg,data) is performed first of all.<br>
             nFrames: number of frames to pop from the stack, see below.
          </td>
         </tr>
@@ -34,16 +34,13 @@
           <b>Comments:</b>
          </td>
          <td>
-            The actual message shown, both on the standard error console and in ex.err[or as specified via crash_file()], is <a href="sprintf.htm">sprintf</a>(fmt, data). 
-            <br>
-            <br>
             The default value for nFrames pops the crash routine itself, and that is suitable for most application code.<br>
             Several builtins\ and builtins\VM\ files try to report the error on the calling statement rather than in themselves, 
             for instance it is easily several thousand times more likely that the wrong parameters were passed to printf(), 
             than the actual problem being a bug within printf() itself.
             <br>
             <br>
-            The program terminates as for any runtime error, unless there exists a containing <a href="try.htm">try/catch</a> statement.
+            The program terminates as for any runtime error, unless there is a containing <a href="try.htm">try/catch</a> statement.
 <!--
             <br>
             <br>
@@ -56,14 +53,30 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          supported, however nFrames is ignored (any error handling is the responsibility of the browser development tools anyway).
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Auxillary Functions</b>
          </td>
          <td>
             <b>assert</b>(<a href="integer.htm#bool">bool</a> condition, <a href="string.htm">string</a> msg="") is roughly the same as
+            <code>crash("assertion failure: "&msg)</code> when condition is false, albeit not actually implemented like that.
+            <br>
+            <br>
+            Note there is as yet no option to suppress code generation for a production build, for that define DEBUG as a true/false 
+            constant, wrap all assert() in <code>if DEBUG then</code>, and let me know if that becomes too cumbersome in one of your
+            projects.
+<!--
             <code>if not <i>condition</i> then crash("assertion failure: "&msg) end if</code>, albeit not actually implemented like that.
-            Note there is as yet no option to suppress code generation for a production build, and that will only be added if someone 
+            and that will only be added if someone 
             produces a compelling argument for it, in the form of unacceptable real-world size/performance results, with every assert
-            statement wrapped in <code>if DEBUG then</code> where DEBUG is a true/false constant, so that things can be tested/compared.
+            statement wrapped in  where so that things can be tested/compared.
+-->
          </td>
         </tr>
         <tr>
@@ -81,13 +94,13 @@ assert(fn!=-1)
 assert(fn!=-1,"cannot open config file")
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">if</font><font color="#000000"> fn</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then
-</font><font color="#5E005E">    crash</font><font color="#0000FF">(</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)
-</font><font color="#008080">end if
-</font><font color="#000080"><i>-- or
-</i></font><font color="#5E005E">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- or
-</i></font><font color="#5E005E">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)</font>
+<font color="#008080">if</font><font color="#000000"> fn</font><font color="#0000FF">=-</font><font color="#000000">1</font><font color="#008080"> then</font>
+<font color="#5E005E">    crash</font><font color="#0000FF">(</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)</font>
+<font color="#008080">end if</font>
+<font color="#000080"><i>-- or</i></font>
+<font color="#5E005E">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- or</i></font>
+<font color="#5E005E">assert</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">!=-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"cannot open config file"</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>

@@ -192,7 +192,7 @@ procedure display()
 
 end procedure
 
-function esc_close(Ihandle ih, atom c)
+function key_cb(Ihandle ih, atom c)
 -- (I like all my demos to close when escape is keyed)
     if c=K_ESC then return IUP_CLOSE end if
     if c=' ' and fog_supported!=0 then
@@ -224,19 +224,18 @@ function action_cb(Ihandle ih)
 end function
 
 procedure main()
-Ihandle dialog, canvas
 
     IupOpen()
     IupGLCanvasOpen()
 
-    canvas = IupGLCanvas("ACTION", Icallback("action_cb"))
+    Ihandle canvas = IupGLCanvas("ACTION", Icallback("action_cb"))
     IupSetAttribute(canvas, "BUFFER", "DOUBLE")
     IupSetAttribute(canvas, "BORDER", "NO")
     IupSetAttribute(canvas, "RASTERSIZE", "480x432")
 
-    dialog = IupDialog(IupVbox({canvas},"MARGIN=5x5"))
+    Ihandln dialog = IupDialog(IupVbox({canvas},"MARGIN=5x5"))
     IupSetAttribute(dialog, "TITLE", "Volumetric fog (space toggles fog)")
-    IupSetCallback(dialog, "K_ANY",  Icallback("esc_close"))
+    IupSetCallback(dialog, "K_ANY",  Icallback("key_cb"))
 
     IupMap(dialog)
 
@@ -255,7 +254,7 @@ Ihandle dialog, canvas
 
     IupMainLoop()
 
-    IupDestroy(dialog)
+    dialog = IupDestroy(dialog)
 
     IupClose()
 

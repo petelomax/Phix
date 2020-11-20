@@ -36,7 +36,8 @@
          </td>
          <td>
             The id number can be passed to call_proc() or call_func(), to indirectly call the routine named by rtn_name.<br>
-            It can also be called directly, as of 0.8.1+ routine_ids are first class, see example 1 below.
+            It can also be called directly, as of 0.8.1 routine_ids are first class, and as of 0.8.2 a bare reference to
+            an existing routine name not followed by '(' is treated as if routine_id had been used, see example 1 below.
           <br>
           <br>
             The routine named by rtn_name must be visible, i.e. callable, at the place where routine_id() is used to get the id number. 
@@ -61,17 +62,93 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <b>Not supported</b> - as of 0.8.2, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. Since there
+            is no symbol table as such in JavaScript, the ability to "stitch together" and lookup a routine name is not possible.
+            <br>
+            <br>
+            Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
+            <a href="apply.htm">apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
+            <br>
+            <br>
+            Likewise since core components are coded without inline assembly in p2js.js there is no need for hll_stubs.
+            <br>
+            <br>
+            On a related note, <a href="Icallback">Icallback</a>() is in fact a dummy function in pGUI.js which does not attempt to
+            replicate the safety/sanity checks of <a href="Icallback">cbfunc</a>() - of course that is still valuable when developing
+            on the desktop, and of course if you forego testing things first on the desktop and switch to a direct edit/browser mode
+            of development instead, that&rsquo;s on you. It would be perfectly possible and fairly straightforward for p2js.js to 
+            contain a similar dummy routine_id(), just in that case utterly pointless.
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Auxillary function:</b>
          </td>
          <td>
-            {<a href="integer.htm">integer</a> maxp, <a href="integer.htm">integer</a> minp, <a href="string.htm">string</a> sig} = 
-            <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid)<br>
-            returns the maximum and minimum number of parameters along with a string representing the signature in roottype format.<br>
-            For instance get_routine_info(<a href="apply.htm">apply</a>) yields {3,2,"FPIO"}.
+            {<a href="integer.htm">integer</a> maxp, 
+             <a href="integer.htm">integer</a> minp, 
+             <a href="string.htm">string</a> sig, 
+             <a href="string.htm">string</a> name} = <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid)<br>
+            Returns the maximum and minimum number of parameters, along with a string representing the signature in roottype format,
+            and the actual name of the routine.<br>
+            For instance get_routine_info(<a href="apply.htm">apply</a>) yields {3,2,"FOIO","apply"}. Note that invoking this routine
+            coerces the compiler into populating the symbol table with actual names, which may make startup a fraction of a second slower 
+            when interpreting, especially on larger programs - hopefully not quite enough for anyone to actually notice, but it&rsquo;s 
+            only right to properly document these things, even if there might not be much you can really do to stop it.
             <br>
             <br>
-            Intended for internal use in routines such as <a href="apply.htm">apply</a>() to make a more informed choice about precisely how to
-            invoke a routine, but of course it is also available for use at the application level.
+            Intended for internal use in routines such as <a href="apply.htm">apply</a>() to make a more informed choice about precisely 
+            how to invoke a routine, but of course it is also available for use at the application level. It is also used in the new
+            <a href="Icallback.htm">Icallback[i]</a>() routine.
+            <a name=hllstubs></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>hll_stubs:</b>
+         </td>
+         <td>
+            The file builtins/hll_stubs.e (an auto-include, except as noted below) contains hll verions of many builtins implemented in 
+            assembly, for use when you need a routine_id. Prior to 0.8.2 you would have had to roll your own such mini-shim(s).
+            <br>
+            <br>
+            While you should not really care much, the overwhelming majority of routines documented in this file are implemented as 
+            standard hll routines (eg <a href="abs.htm">abs</a>), but many what you might call "true builtins" are written in assembly 
+            for performance or practical reasons, eg you might struggle to use a hll routine as any part of the mechanism for calling a 
+            hll routine, and between them <a href="length.htm">length</a>() and <a href="append.htm">append</a>() are so ubiquitous that 
+            just making those two alone always use a hll wrapper could easily make almost everything (including the compiler itself) 
+            run three or four times slower<sup><small>2</small></sup>.<br>
+            It would probably not be helpful (except as noted below) for either you to study or me to document which is which, rather 
+            simply you should just assume anything (genuinely useful) should be available, and let me know of anything that ain&rsquo;t.<br>
+            Equally you should not get too miffed should a new release "upgrade" an existing hll routine to asm in the name of performance,
+            or (as has happened to <a href="find.htm">find</a>(), <a href="match.htm">match</a>() and <a href="repeat.htm">repeat</a>()
+            already) "downgraded" in the name of simplicity and sanity or enhanced functionality, although that sort of thing should 
+            probably only ever matter when grafting on the "hll_" manually, as described below.<br>
+            One thing you should <i>not</i> assume is that everything goes through such wrappers, in fact the vast majority won&rsquo;t.
+            <br>
+            <br>
+            The compiler automatically substitutes routine_id("length") with routine_id("hll_length") and likewise a bare 'length' with 
+            no following '(' with the same implied routine_id.
+            <br>
+            <br>
+            Note the equivalent existing <a href="seqops.htm">sq_xxx</a> routines may prove significantly faster, and perhaps easier.<br>
+            For instance <a href="atom.htm">sq_atom</a>(s) and <a href="apply.htm">apply</a>(s,<a href="atom.htm">atom</a>) both yield
+            exactly the same results, the former however being noticeably quicker. For completeness, I should also note that
+            <a href="apply.htm">apply</a>(true,[hll_]<a href="atom.htm">atom</a>,{s}) also yields the same results, however
+            <a href="apply.htm">apply</a>(true,<a href="atom.htm">sq_atom</a>,{s}) yields something subtly different.
+            <br>
+            <br>
+            Also, if you are dynamically constructing the names passed to routine_id, you may need to graft on the "hll_" part yourself. <br>
+            The compiler only does so for inline literals and not for anything like "len"&"gth" or apply({"length","integer"},routine_id).<br>
+            At the last count, there are some 25 such hll_xxx routines, and despite what I said above I suppose you do need to know which
+            is which to figure out which is going to need the hll_prefix, but you can gather that from builtins/hll_stubs.e easily enough,
+            or if you prefer they are all listed alphabetically in the index of phix.chm (and all linking directly to this very section),
+            just type "hll" in the index and they&rsquo;ll all appear.<br>
+            Also I would hope obviously this file is only an auto-include in the cases where the compiler has spotted it is needed: if 
+            you are having to graft on the "hll_" yourself, then you will probably need to "include hll_stubs.e" explicitly as well.
          </td>
         </tr>
         <tr>
@@ -86,14 +163,16 @@ end procedure
 constant r_foo = routine_id("foo")
 call_proc(r_foo, {})    -- same as calling foo()
 r_foo()                 -- "", in 0.8.1+
+call_proc(foo, {})      -- "", in 0.8.2+
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">procedure</font><font color="#000000"> foo</font><font color="#0000FF">()
-</font><font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Hello World\n"</font><font color="#0000FF">)
-</font><font color="#008080">end procedure
-constant</font><font color="#000000"> r_foo</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)
-</font><font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">r_foo</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- same as calling foo()
-</i></font><font color="#000000">r_foo</font><font color="#0000FF">()                </font><font color="#000080"><i> -- "", in 0.8.1+</i></font>
+<font color="#008080">procedure</font><font color="#000000"> foo</font><font color="#0000FF">()</font>
+<font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Hello World\n"</font><font color="#0000FF">)</font>
+<font color="#008080">end procedure
+constant</font><font color="#000000"> r_foo</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)</font>
+<font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">r_foo</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- same as calling foo()</i></font>
+<font color="#000000">r_foo</font><font color="#0000FF">()                </font><font color="#000080"><i> -- "", in 0.8.1+</i></font>
+<font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">foo</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)     </font><font color="#000080"><i> -- "", in 0.8.2+</i></font>
 </pre>
          </td>
         </tr>
@@ -115,22 +194,24 @@ function add1(atom x)
     return x + 1
 end function
 
-? apply_to_all({1, 2, 3}, routine_id("add1"))  -- displays {2,3,4}
+?apply_to_all({1, 2, 3}, routine_id("add1"))  -- displays {2,3,4}
+?apply({1, 2, 3}, add1)  -- (equivalent in 0.8.2+ - add1 valid & apply builtin)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">function</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> f</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- apply the specified function to all elements of a sequence
-</i></font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do
-</font><font color="#000000">        s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#7060A8"> call_func</font><font color="#0000FF">(</font><font color="#000000">f</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">s</font><font color="#800080">[</font><font color="#000000">i</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#008080">    end for
-    return</font><font color="#000000"> s
-</font><font color="#008080">end function
+<font color="#008080">function</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> f</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- apply the specified function to all elements of a sequence</i></font>
+<font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#000000">        s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#7060A8"> call_func</font><font color="#0000FF">(</font><font color="#000000">f</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">s</font><font color="#800080">[</font><font color="#000000">i</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">    end for
+    return</font><font color="#000000"> s</font>
+<font color="#008080">end function
 
-function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> x</font><font color="#0000FF">)
-</font><font color="#008080">    return</font><font color="#000000"> x</font><font color="#0000FF"> +</font><font color="#000000"> 1
-</font><font color="#008080">end function
-
-</font><font color="#0000FF">?</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#5E005E"> routine_id</font><font color="#800000">(</font><font color="#008000">"add1"</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#000080"><i> -- displays {2,3,4}</i></font>
+function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> x</font><font color="#0000FF">)</font>
+<font color="#008080">    return</font><font color="#000000"> x</font><font color="#0000FF"> +</font><font color="#000000"> 1</font>
+<font color="#008080">end function
+</font>
+<font color="#0000FF">?</font><font color="#000000">apply_to_all</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#5E005E"> routine_id</font><font color="#800000">(</font><font color="#008000">"add1"</font><font color="#800000">)</font><font color="#0000FF">) </font><font color="#000080"><i> -- displays {2,3,4}</i></font>
+<font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000"> 2</font><font color="#0000FF">,</font><font color="#000000"> 3</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> add1</font><font color="#0000FF">) </font><font color="#000080"><i> -- (equivalent in 0.8.2+ - add1 valid &amp; apply builtin)</i></font>
 </pre>
             <br>
             Note that add1 could be a private function in a completely different file; there is no need for it to be in scope when (actually) called.
@@ -157,6 +238,7 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
          <td>
           <a href="call_proc.htm">call_proc</a>,
           <a href="call_func.htm">call_func</a>,
+          <a href="apply.htm">apply</a>,
           <a href="call_back.htm">call_back</a>,
           <a href="define_c_func.htm">define_c_func</a>,
           <a href="define_c_proc.htm">define_c_proc</a>,
@@ -200,16 +282,16 @@ function</font><font color="#000000"> add1</font><font color="#0000FF">(</font><
 </eucode-->
 <pre>
 <font color="#000000">    #</font><font color="#008080">ilASM</font><font color="#0000FF">{
-            ...
-</font><font color="#000000">            mov edx</font><font color="#0000FF">,</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#000000">fopen</font><font color="#800000">)          </font><font color="#000080"><i> -- mov edx,imm32 (sets K_ridt)
-</i></font><font color="#000000">            mov ecx</font><font color="#0000FF">,</font><font color="#000000">$_Ltot                     </font><font color="#000080"><i> -- (symtab[fopen][S_Ltot])
-</i></font><font color="#7060A8">            call</font><font color="#0000FF"> :</font><font color="#000000">%opFrame
-            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#800000">]                     </font><font color="#000080"><i> -- filepath
-</i></font><font color="#000000">            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#0000FF">-</font><font color="#000000">4</font><font color="#800000">]                   </font><font color="#000080"><i> -- openmode
-</i></font><font color="#000000">            mov</font><font color="#800000"> [</font><font color="#000000">ebp</font><font color="#0000FF">+</font><font color="#000000">28</font><font color="#800000">]</font><font color="#0000FF">,:</font><font color="#000000">openret
-            jmp $_il                           </font><font color="#000080"><i> -- (symtab[fopen][S_il])
-</i></font><font color="#0000FF">          ::</font><font color="#000000">openret
-</font><font color="#0000FF">            ...
+            ...</font>
+<font color="#000000">            mov edx</font><font color="#0000FF">,</font><font color="#5E005E">routine_id</font><font color="#800000">(</font><font color="#000000">fopen</font><font color="#800000">)          </font><font color="#000080"><i> -- mov edx,imm32 (sets K_ridt)</i></font>
+<font color="#000000">            mov ecx</font><font color="#0000FF">,</font><font color="#000000">$_Ltot                     </font><font color="#000080"><i> -- (symtab[fopen][S_Ltot])</i></font>
+<font color="#7060A8">            call</font><font color="#0000FF"> :</font><font color="#000000">%opFrame
+            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#800000">]                     </font><font color="#000080"><i> -- filepath</i></font>
+<font color="#000000">            pop dword</font><font color="#800000">[</font><font color="#000000">ebp</font><font color="#0000FF">-</font><font color="#000000">4</font><font color="#800000">]                   </font><font color="#000080"><i> -- openmode</i></font>
+<font color="#000000">            mov</font><font color="#800000"> [</font><font color="#000000">ebp</font><font color="#0000FF">+</font><font color="#000000">28</font><font color="#800000">]</font><font color="#0000FF">,:</font><font color="#000000">openret
+            jmp $_il                           </font><font color="#000080"><i> -- (symtab[fopen][S_il])</i></font>
+<font color="#0000FF">          ::</font><font color="#000000">openret</font>
+<font color="#0000FF">            ...
           }</font>
 </pre>
              </div>
@@ -246,50 +328,59 @@ old/partially attempted before deciding against:
 -->
             <br>
             <br>
-            As of 0.8.1, routine_ids are first class, ie [also] callable directly. Eg:
+            As of 0.8.1, routine_ids are first class, ie [also] callable directly, and as of 0.8.2 known routine names not followed by '(' are
+            treated as valid routine_ids [routine_id() itself still exists and is still sometimes necessary, eg for constructed string names]. Eg:
+            <br>
+            <br>
 <!--eucode>
             procedure show(string s) ?s end procedure
             constant r_show = routine_id("show")
             -- show("40")   (normal non-routine_id call [still valid!])
             call_proc(r_show,{"41"})                -- old style [""!]
-            r_show("42")                            -- ***new***
+            r_show("42")                            -- *** new (0.8.1) ***
+            call_proc(show,{"43"})                  -- *** new (0.8.2) ***
 
             function f(integer i) return i end function
             constant r_f = routine_id("f")
             --?f(40)        (normal non-routine_id call [still valid!])
             ?call_func(r_f,{41})                    -- old style [""!]
-            ?r_f(42)                                -- ***new***
+            ?r_f(42)                                -- *** new (0.8.1) ***
+            ?call_func(f,{43})                      -- *** new (0.8.2) ***
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">            procedure</font><font color="#000000"> show</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">) ?</font><font color="#000000">s</font><font color="#008080"> end procedure
-            constant</font><font color="#000000"> r_show</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"show"</font><font color="#0000FF">)
-</font><font color="#000080"><i>            -- show("40")   (normal non-routine_id call [still valid!])
-</i></font><font color="#7060A8">            call_proc</font><font color="#0000FF">(</font><font color="#000000">r_show</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"41"</font><font color="#800000">}</font><font color="#0000FF">)               </font><font color="#000080"><i> -- old style [""!]
-</i></font><font color="#000000">            r_show</font><font color="#0000FF">(</font><font color="#008000">"42"</font><font color="#0000FF">)                           </font><font color="#000080"><i> -- ***new***
-
-</i></font><font color="#008080">            function</font><font color="#000000"> f</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> i</font><font color="#008080"> end function
-            constant</font><font color="#000000"> r_f</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"f"</font><font color="#0000FF">)
-</font><font color="#000080"><i>            --?f(40)        (normal non-routine_id call [still valid!])
-</i></font><font color="#0000FF">            ?</font><font color="#7060A8">call_func</font><font color="#0000FF">(</font><font color="#000000">r_f</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">41</font><font color="#800000">}</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- old style [""!]
-</i></font><font color="#0000FF">            ?</font><font color="#000000">r_f</font><font color="#0000FF">(</font><font color="#000000">42</font><font color="#0000FF">)                               </font><font color="#000080"><i> -- ***new***</i></font>
+<font color="#008080">            procedure</font><font color="#000000"> show</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">) ?</font><font color="#000000">s</font><font color="#008080"> end procedure
+            constant</font><font color="#000000"> r_show</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"show"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>            -- show("40")   (normal non-routine_id call [still valid!])</i></font>
+<font color="#7060A8">            call_proc</font><font color="#0000FF">(</font><font color="#000000">r_show</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"41"</font><font color="#800000">}</font><font color="#0000FF">)               </font><font color="#000080"><i> -- old style [""!]</i></font>
+<font color="#000000">            r_show</font><font color="#0000FF">(</font><font color="#008000">"42"</font><font color="#0000FF">)                           </font><font color="#000080"><i> -- *** new (0.8.1) ***</i></font>
+<font color="#7060A8">            call_proc</font><font color="#0000FF">(</font><font color="#000000">show</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"43"</font><font color="#800000">}</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- *** new (0.8.2) ***
+</i></font>
+<font color="#008080">            function</font><font color="#000000"> f</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> i</font><font color="#008080"> end function
+            constant</font><font color="#000000"> r_f</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"f"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>            --?f(40)        (normal non-routine_id call [still valid!])</i></font>
+<font color="#0000FF">            ?</font><font color="#7060A8">call_func</font><font color="#0000FF">(</font><font color="#000000">r_f</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">41</font><font color="#800000">}</font><font color="#0000FF">)                   </font><font color="#000080"><i> -- old style [""!]</i></font>
+<font color="#0000FF">            ?</font><font color="#000000">r_f</font><font color="#0000FF">(</font><font color="#000000">42</font><font color="#0000FF">)                               </font><font color="#000080"><i> -- *** new (0.8.1) ***</i></font>
+<font color="#0000FF">            ?</font><font color="#7060A8">call_func</font><font color="#0000FF">(</font><font color="#000000">f</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">43</font><font color="#800000">}</font><font color="#0000FF">)                     </font><font color="#000080"><i> -- *** new (0.8.2) ***</i></font>
 </pre>
             <br>
             Any integer followed by '(' is treated as a call_func() or a call_proc(), depending on the context, and obviously as above the normal/old styles remain perfectly 
             valid and fully supported. However I decided against supporting this sort of thing (at least not before someone comes up with a compelling reason to):
+            <br>
+            <br>
 <!--eucode>
-            --?r_f(r_f)(43)
-            --r_f(r_show)(44)
+            --?r_f(r_f)(44)
+            --r_f(r_show)(45)
             --sequence rids = {r_show}
-            --rids[1](45)
+            --rids[1](46)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#000080"><i>            --?r_f(r_f)(43)
-            --r_f(r_show)(44)
+<font color="#000080"><i>            --?r_f(r_f)(44)
+            --r_f(r_show)(45)
             --sequence rids = {r_show}
-            --rids[1](45)</i></font>
+            --rids[1](46)</i></font>
 </pre>
             <br>
-            Instead you have to code integer rid=r_f(r_f) then ?rid(43), etc. (Some wag might say that makes them second class, but it is not like you could ever do anything 
+            Instead you have to code integer rid=r_f(r_f) then ?rid(44), etc. (Some wag might say that makes them second class, but it is not like you could ever do anything 
             like that with "show" anyway.) Note that i(5) where i is not a routine_id will fail just as badly and in exactly the same way as call_func/proc(i,{5}) always did.<br>
             Likewise the additional compile-time validation of argument types that occurs on a show() call is not performed/deferred until run-time on r_show(), in exactly 
             the same way as it always was for explicit/old-style call_func/proc() calls. <br>
@@ -301,7 +392,10 @@ old/partially attempted before deciding against:
             a tight inner loop rather than just the one inner loop that can call any of three different routines.<br>
             <sup><small>1</small></sup> The arguments are boxed into a single sequence, additional validation occurs on rid and the length of said sequence, then each element
             of the sequence is individually extracted and put into place (same deal for r_show()-style), whereas of course a direct call has no rid to validate, the number 
-            and type of arguments is validated (and fairly often only) at compile-time, and each argument is put directly into place.
+            and type of arguments is validated (and fairly often only) at compile-time, and each argument is put directly into place. Each routine that might be a target of
+            routine_id/call_func/proc is also marked with K_ridt, which forces full typechecking on all parameters, whereas for direct-only routines the compiler uses type
+            inferencing and omits any provably unnecessary typechecking.
+            <sup><small>2</small></sup> A similar argument applies to hll routines with their variables in memory and typechecks vs. asm and direct/specific CPU registers.
          </td>
         </tr>
        </table>

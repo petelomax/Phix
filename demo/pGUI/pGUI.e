@@ -36,8 +36,17 @@ global type Ihandln(integer i)
     return i>=0
 end type
 
+global type Ihandlns(object o)
+    if atom(o) then return Ihandln(o) end if
+    for i=1 to length(o) do
+        if not Ihandln(o[i]) then return 0 end if
+    end for
+    return 1
+end type
+
 sequence callbacks = {}
-sequence cbnames = {}
+sequence cbnames = {},
+         cbrids = {}
 
 global type cbfunc(atom cb)
     --
@@ -56,20 +65,42 @@ global function Icallback(string name, integer rid = routine_id(name))
     if k=0 then
         callbacks = append(callbacks,cb)
         cbnames = append(cbnames,name)
+        cbrids = append(cbrids,rid)
     else
         if cbnames[k]!=name then ?9/0 end if
     end if
     return cb
 end function
 
+--
+-- 4/10/2020 to allow Icallback(action_cb) as well as Icallback("action_cb")
+--           Note that pmain.e substitutes Icallback with Icallbacki, that
+--           is instead of raising an error, and the signatures of both
+--           Icallback and Icallbacki are effectively hard-coded there.
+--           (There is no problem in calling this explicitly, of course.)
+--
+global function Icallbacki(integer rid)
+    string name = get_routine_info(rid)[4]
+    return Icallback(name,rid)
+end function
+
+
 global function iup_name_from_cb(atom cb)
-    return cbnames[find(cb,callbacks)]
+    string name = cbnames[find(cb,callbacks)]
+    return name
+end function
+
+function rid_from_cb(atom cb)
+    integer rid = cbrids[find(cb,callbacks)]
+    return rid
 end function
 
 global function iup_cb_from_name(string name)
     integer idx = find(name,cbnames)
     if idx=0 then return NULL end if
-    return callbacks[idx]
+    if find(name,cbnames,idx+1)!=0 then ?9/0 end if
+    atom cb = callbacks[idx]
+    return cb
 end function
 
 --type non_null_atom(object o)
@@ -109,7 +140,9 @@ function sizeof(atom ctype)
 end function
 --end ifdef
 
-function paranormalise(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+-- (defaulted parameters version is for running the unit tests that follow)
+--function paranormalise(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+function paranormalise(object action, func, sequence attributes, dword_seq data) -- (see Technicalia below)
 --
 --  This routine implements a little trickery to make certain routines easier to use, for example the documentation contains
 --
@@ -155,6 +188,13 @@ function paranormalise(object action=NULL, object func=NULL, sequence attributes
 --  may have more than one, and of course in those cases you may still need a name to specify which (see the
 --  documentation of the specific interface elements).
 --
+-- Since this is a private internal function, which is always called with all four parameters, the defaults
+--  are omitted. Logically you can/should think of it as having the commented-out defaults, however they
+--  are provided by and individually implemented by every callee, so duplicating that exact same handling 
+--  here is just completely unnecessary overhead, that would only ever encourage/permit internal slip-ups.
+--  (Obviously if there was any way this could be the one and only place that implements said defaulting,
+--   I would gladly take it, but there ain't, so I can't. No biggie. Unit tests below now also removed.)
+--
 -- This routine is designed to crash on the slightest oddity. It may be posssible to crib fatalN (eg from   [DEV/SUG]
 --  builtins\VM\pcallfunc.e) and use crash_message() to get an error reported on offending user code line.
 --
@@ -169,7 +209,8 @@ function paranormalise(object action=NULL, object func=NULL, sequence attributes
                 data = attributes
 --              if not dword_seq(data) then ?9/0 end if -- (ple/autoverified)
                 attributes = func           -- (forced typecheck)
-            elsif sequence(func) then
+--          elsif sequence(func) then   // replaced 27/9/2020 (when working on pGUI.e)
+            elsif string(func) then
                 -- (func,attributes)
                 attributes = func           -- (typecheck avoided)
             elsif func!=NULL then
@@ -236,10 +277,6 @@ function paranormalise(object action=NULL, object func=NULL, sequence attributes
     return {action,func,attributes,data}
 end function
 
-function testcb()
-    return 1
-end function
-constant tcb = Icallback("testcb")
 --tests:
 --  1   IupButton(title)
 --  2   IupButton(title,action,func) [NB func is /not/ optional in this case]
@@ -247,6 +284,8 @@ constant tcb = Icallback("testcb")
 --  4   IupButton(title,attributes[,data])
 --  5   IupButton(title,func,attributes[,data])
 --  6   IupButton(title,action,func,attributes[,data])
+--/* -- You would need to restore the default args for these unit tests to work:
+function testcb() return 1 end function constant tcb = Icallback("testcb")
 if paranormalise()!={NULL,NULL,"",{}} then ?9/0 end if                      -- 1
 if paranormalise(NULL,tcb)!={NULL,tcb,"",{}} then ?9/0 end if               -- 2
 if paranormalise("act",tcb)!={"act",tcb,"",{}} then ?9/0 end if             -- 2
@@ -260,6 +299,7 @@ if paranormalise(NULL,tcb,"x",{1})!={NULL,tcb,"x",{1}} then ?9/0 end if     -- 6
 --named parameters:
 if paranormalise(func:=tcb)!={NULL,tcb,"",{}} then ?9/0 end if
 if paranormalise(attributes:="x")!={NULL,NULL,"x",{}} then ?9/0 end if
+--*/
 
 --DEV (make this a builtin)
 global function rand_range(integer lo, integer hi)
@@ -405,12 +445,10 @@ global function iup_isShiftXkey(atom c)
     return and_bits(c, 0x10000000)!=0
 end function
 
---/*
-global function iup_isSysXkey( atom _c)
-    return and_bits( _c, 0x80000000)
+global function iup_isSysXkey(atom c)
+    return and_bits(c, 0x80000000)!=0
 end function
 
---*/
 global function iup_XkeyBase(atom c)
     return and_bits(c, 0x0FFFFFFF)
 end function
@@ -484,6 +522,7 @@ global constant
     IUP_GETPARAM_BUTTON2 = -3,
     IUP_GETPARAM_BUTTON3 = -4,
     IUP_GETPARAM_CLOSE   = -5,
+    IUP_GETPARAM_MAP     = -5,
     IUP_GETPARAM_OK      = IUP_GETPARAM_BUTTON1,
     IUP_GETPARAM_CANCEL  = IUP_GETPARAM_BUTTON2,
     IUP_GETPARAM_HELP    = IUP_GETPARAM_BUTTON3,
@@ -1099,8 +1138,6 @@ atom
 atom
     xIupOpen,
     xIupClose,
---  xIupSetLanguage,
---  xIupGetLanguage,
 --DEV these are documented in elements...
     xIupCreate,
     xIupCreatev,
@@ -1111,12 +1148,14 @@ atom
     xIupVersion,
     xIupVersionDate,
     xIupVersionNumber,
+    xIupVersionShow,
 
     xIupMainLoop,
     xIupMainLoopLevel,
     xIupLoopStep,
     xIupLoopStepWait,
     xIupExitLoop,
+    xIupPostMessage,
     xIupFlush,
     xIupRecordInput,
     xIupPlayInput,
@@ -1142,6 +1181,8 @@ atom
       xIupSetRGBId2,
       xIupStoreAttribute,
      xIupSetAttributeHandle,
+     xIupSetAttributeHandleId,
+     xIupSetAttributeHandleId2,
       xIupSetHandle,
     xIupSetAttributes,
     xIupResetAttribute,
@@ -1151,6 +1192,8 @@ atom
 --   xIupGetAttributes, --(deprecated)
      xIupGetAllAttributes,
      xIupGetAttributeHandle,
+     xIupGetAttributeHandleId,
+     xIupGetAttributeHandleId2,
       xIupGetHandle,
      xIupGetInt,
      xIupGetInt2,
@@ -1170,6 +1213,12 @@ atom
      xIupSetStrGlobal,
      xIupStoreGlobal,
     xIupGetGlobal,
+     xIupSetLanguage,
+     xIupGetLanguage,
+     xIupSetLanguagePack,
+     xIupSetLanguageString,
+     xIupStoreLanguageString,
+     xIupGetLanguageString,
     xIupSetCallback,
      xIupGetCallback,
     xIupGetClassName,
@@ -1178,10 +1227,12 @@ atom
      xIupGetClassAttributes,
      xIupGetClassCallbacks,
      xIupSaveClassAttributes,
+     xIupCopyAttributes,
      xIupCopyClassAttributes,
      xIupSetClassDfltAttribute,
 
     xIupFill,
+    xIupSpace,
     xIupHboxv,
     xIupVboxv,
     xIupZboxv,
@@ -1192,6 +1243,7 @@ atom
     xIupSbox,
     xIupSplit,
     xIupGridBoxv,
+    xIupMultiBoxv,
 
     xIupAppend,
     xIupDetach,
@@ -1221,6 +1273,8 @@ atom
 
     xIupAlarm,
     xIupMessage,
+    xIupMessageError,
+    xIupMessageAlarm,
     xIupMessageDlg,
     xIupCalendar,
     xIupColorDlg,
@@ -1233,26 +1287,37 @@ atom
     xIupGetText,
     xIupListDialog,
     xIupLayoutDialog,
+    xIupGlobalsDialog,
     xIupProgressDlg,
 
     xIupButton,
     xIupCanvas,
     xIupFrame,
+    xIupFlatFrame,
     xIupLabel,
+    xIupFlatLabel,
+    xIupFlatList,
+    xIupFlatSeparator,
     xIupList,
     xIupProgressBar,
+    xIupGauge,
     xIupSpin,
     xIupSpinbox,
     xIupTabsv,
+    xIupFlatTabsv,
     xIupText,
     xIupMultiLine,
     xIupTextConvertLinColToPos,
     xIupTextConvertPosToLinCol,
     xIupToggle,
+    xIupFlatToggle,
     xIupTree,
+    xIupFlatTree,
     xIupVal,
+    xIupFlatVal,
 
     xIupConfig,
+    xIupConfigCopy,
     xIupConfigLoad,
     xIupConfigSave,
     xIupConfigSetVariableInt,
@@ -1277,6 +1342,9 @@ atom
     xIupConfigRecentUpdate,
     xIupConfigDialogShow,
     xIupConfigDialogClosed,
+    xIupExecute,
+    xIupExecuteWait,
+    xIupLog,
 
     xIupPreviousField,
     xIupNextField,
@@ -1303,10 +1371,12 @@ atom
     xIupControlsOpen,
     
     xIupCells,
---  xIupColorbar,       -- removed in 3.24
---  xIupColorBrowser,   -- removed in 3.24
-    xIupDial,           -- removed in 3.24
+    xIupColorbar,       -- moved to main lib in 3.24
+    xIupColorBrowser,   -- moved to main lib in 3.24
+    xIupDial,           -- moved to main lib in 3.24
     xIupMatrix,
+    xIupMatrixEx,
+    xIupMatrixList,
 --  xIupMatSetAttribute,
 --  xIupMatStoreAttribute,
 --  xIupMatGetAttribute,
@@ -1315,21 +1385,23 @@ atom
 
     xIupLoad,
     xIupLoadBuffer,
-    xIupSetLanguage,
-    xIupGetLanguage,
-    xIupSetLanguageString,
-    xIupStoreLanguageString,
-    xIupGetLanguageString,
-    xIupSetLanguagePack,
+--  xIupSetLanguage,
+--  xIupGetLanguage,
+--  xIupSetLanguageString,
+--  xIupStoreLanguageString,
+--  xIupGetLanguageString,
+--  xIupSetLanguagePack,
     xIupGetFunction,
     xIupSetFunction,
     xIupClassMatch,
     xIupScrollBox,
+    xIupFlatScrollBox,
     xIupExpander,
     xIupDetachBox,
     xIupBackgroundBox,
     xIupLink,
     xIupFlatButton,
+    xIupDropButton,
     xIupStoreAttributeId,
     xIupStoreAttributeId2,
     xIupTreeSetUserId,
@@ -1346,6 +1418,7 @@ atom
 --  xIupParamf,
 --  xIupParamBox,
     xIupElementPropertiesDialog,
+    xIupClassInfoDialog,
     xiupKeyCodeToName,
 
     $
@@ -1443,11 +1516,21 @@ procedure iup_init1(nullable_string dll_root)
 --4/7/18:
 --      if chdir(dll_path)=0 then ?9/0 end if
         if dll_path!="" and chdir(dll_path)=0 then ?9/0 end if
-        if open_dll("msvcr120.dll")=0 then
-            puts(1,"fatal error: msvcr120.dll could not be loaded\n")
-            puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
-            puts(1," from https://www.microsoft.com/en-us/download/details.aspx?id=40784 \n")
-            -- ( https://www.microsoft.com/en-us/download/details.aspx?id=40784 )
+--      string runtime = msvcr120.dll
+        -- aside: don't ask me why 64bit apparently needs the "_1"...
+        string runtime = iff(machine_bits()=32?"VCRUNTIME140.DLL","VCRUNTIME140_1.DLL")
+        if open_dll(runtime)=0 then
+            printf(1,"fatal error: %s could not be loaded\n",{runtime})
+--          puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2013\n")
+--          puts(1," from ht--tps://www.microsoft.com/en-us/download/details.aspx?id=40784 \n")
+--          -- ( ht--tps://www.microsoft.com/en-us/download/details.aspx?id=40784 )
+            puts(1," try installing Visual C++ Redistributable Packages for Visual Studio 2015..19\n")
+            -- aside: these *are* the genuine official urls from Microsoft, btw...
+            sequence mo = iff(machine_bits()=32?{"x86","x64"}:{"x64","x86"})
+            printf(1," from https://aka.ms/vs/16/release/VC_redist.%s.exe\n"&
+                     " [and maybe https://aka.ms/vs/16/release/VC_redist.%s.exe]\n",mo)
+            -- ( https://aka.ms/vs/16/release/VC_redist.x86.exe )
+            -- ( https://aka.ms/vs/16/release/VC_redist.x64.exe )
             {} = wait_key()
             ?9/0
         end if
@@ -1461,8 +1544,6 @@ procedure iup_init1(nullable_string dll_root)
     -- Control
     xIupOpen            = iup_c_func(iup, "IupOpen", {I,P}, I)
     xIupClose           = iup_c_proc(iup, "IupClose", {})
---  xIupSetLanguage     = iup_c_proc(iup, "IupSetLanguage", {P})
---  xIupGetLanguage     = iup_c_func(iup, "IupGetLanguage", {}, P)
 --DEV these are documented in elements...
     xIupCreate          = iup_c_func(iup, "IupCreate", {P},P)
     xIupCreatev         = iup_c_func(iup, "IupCreatev", {P,P},P)
@@ -1473,12 +1554,14 @@ procedure iup_init1(nullable_string dll_root)
     xIupVersion         = iup_c_func(iup, "IupVersion", {}, P)
     xIupVersionDate     = iup_c_func(iup, "IupVersionDate", {}, P)
     xIupVersionNumber   = iup_c_func(iup, "IupVersionNumber", {}, I)
+    xIupVersionShow     = iup_c_proc(iup, "IupVersionShow", {})
 
     xIupMainLoop        = iup_c_proc(iup, "IupMainLoop", {})
     xIupMainLoopLevel   = iup_c_func(iup, "IupMainLoopLevel", {}, I)
     xIupLoopStep        = iup_c_func(iup, "IupLoopStep", {}, I)
     xIupLoopStepWait    = iup_c_func(iup, "IupLoopStepWait", {}, I)
     xIupExitLoop        = iup_c_proc(iup, "IupExitLoop", {})
+    xIupPostMessage     = iup_c_proc(iup, "IupPostMessage", {P,P,I,D,P})
     xIupFlush           = iup_c_proc(iup, "IupFlush", {})
     xIupRecordInput     = iup_c_func(iup, "IupRecordInput", {P,I}, I)
     xIupPlayInput       = iup_c_proc(iup, "IupPlayInput", {P})
@@ -1504,6 +1587,8 @@ procedure iup_init1(nullable_string dll_root)
       xIupSetRGBId2                 = iup_c_proc(iup, "IupSetRGBId2", {P,P,I,I,UC,UC,UC})
       xIupStoreAttribute            = iup_c_proc(iup, "IupStoreAttribute", {P,P,P})
      xIupSetAttributeHandle         = iup_c_proc(iup, "IupSetAttributeHandle", {P,P,P})
+     xIupSetAttributeHandleId       = iup_c_proc(iup, "IupSetAttributeHandleId", {P,P,I,P})
+     xIupSetAttributeHandleId2      = iup_c_proc(iup, "IupSetAttributeHandleId2", {P,P,I,I,P})
       xIupSetHandle                 = iup_c_proc(iup, "IupSetHandle", {P,P})
     xIupSetAttributes               = iup_c_proc(iup, "IupSetAttributes", {P,P})
     xIupResetAttribute              = iup_c_proc(iup, "IupResetAttribute", {P,P})
@@ -1513,6 +1598,8 @@ procedure iup_init1(nullable_string dll_root)
 --   xIupGetAttributes              = iup_c_func(iup, "IupGetAttributes", {P}, P) --(deprecated)
      xIupGetAllAttributes           = iup_c_func(iup, "IupGetAllAttributes", {P,P,I}, I)
      xIupGetAttributeHandle         = iup_c_func(iup, "IupGetAttributeHandle", {P,P}, P)
+     xIupGetAttributeHandleId       = iup_c_func(iup, "IupGetAttributeHandleId", {P,P,I}, P)
+     xIupGetAttributeHandleId2      = iup_c_func(iup, "IupGetAttributeHandleId2", {P,P,I,I}, P)
       xIupGetHandle                 = iup_c_func(iup, "IupGetHandle", {P}, P)
      xIupGetInt                     = iup_c_func(iup, "IupGetInt", {P,P}, I)
      xIupGetInt2                    = iup_c_func(iup, "IupGetInt2", {P,P}, I)
@@ -1532,6 +1619,12 @@ procedure iup_init1(nullable_string dll_root)
      xIupSetStrGlobal               = iup_c_proc(iup, "IupSetStrGlobal", {P,P})
      xIupStoreGlobal                = iup_c_proc(iup, "IupStoreGlobal", {P,P})
     xIupGetGlobal                   = iup_c_func(iup, "IupGetGlobal", {P}, P)
+     xIupSetLanguage                = iup_c_proc(iup, "IupSetLanguage", {P})
+     xIupGetLanguage                = iup_c_func(iup, "IupGetLanguage", {},P)
+     xIupSetLanguagePack            = iup_c_proc(iup, "IupSetLanguagePack", {P})
+     xIupSetLanguageString          = iup_c_proc(iup, "IupSetLanguageString", {P,P})
+     xIupStoreLanguageString        = iup_c_proc(iup, "IupStoreLanguageString", {P,P})
+     xIupGetLanguageString          = iup_c_func(iup, "IupGetLanguageString", {P},P)
     xIupSetCallback                 = iup_c_func(iup, "IupSetCallback", {P,P,P}, P)
      xIupGetCallback                = iup_c_func(iup, "IupGetCallback", {P,P}, P)
     xIupGetClassName                = iup_c_func(iup, "IupGetClassName", {P},P)
@@ -1540,10 +1633,12 @@ procedure iup_init1(nullable_string dll_root)
      xIupGetClassAttributes         = iup_c_func(iup, "IupGetClassAttributes", {P,P,I}, I)
      xIupGetClassCallbacks          = iup_c_func(iup, "IupGetClassCallbacks", {P,P,I}, I)
      xIupSaveClassAttributes        = iup_c_proc(iup, "IupSaveClassAttributes", {P})
+     xIupCopyAttributes             = iup_c_proc(iup, "IupCopyAttributes", {P,P})
      xIupCopyClassAttributes        = iup_c_proc(iup, "IupCopyClassAttributes", {P,P})
      xIupSetClassDfltAttribute      = iup_c_proc(iup, "IupSetClassDefaultAttribute", {P,P,P})
 
     xIupFill            = iup_c_func(iup, "IupFill", {}, P)
+    xIupSpace           = iup_c_func(iup, "IupSpace", {}, P)
     xIupHboxv           = iup_c_func(iup, "IupHboxv", {P}, P)
     xIupVboxv           = iup_c_func(iup, "IupVboxv", {P}, P)
     xIupZboxv           = iup_c_func(iup, "IupZboxv", {P}, P)
@@ -1554,6 +1649,7 @@ procedure iup_init1(nullable_string dll_root)
     xIupSbox            = iup_c_func(iup, "IupSbox", {P}, P)
     xIupSplit           = iup_c_func(iup, "IupSplit", {P,P}, P)
     xIupGridBoxv        = iup_c_func(iup, "IupGridBoxv", {P}, P)
+    xIupMultiBoxv       = iup_c_func(iup, "IupMultiBoxv", {P}, P)
 
     xIupAppend          = iup_c_func(iup, "IupAppend", {P,P}, P)
     xIupDetach          = iup_c_proc(iup, "IupDetach", {P})
@@ -1583,6 +1679,8 @@ procedure iup_init1(nullable_string dll_root)
 
     xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I)
     xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P})
+    xIupMessageError    = iup_c_proc(iup, "IupMessageError", {P,P})
+    xIupMessageAlarm    = iup_c_func(iup, "IupMessageAlarm", {P,P,P,P}, I)
     xIupMessageDlg      = iup_c_func(iup, "IupMessageDlg", {}, P)
     xIupCalendar        = iup_c_func(iup, "IupCalendar", {}, I)
     xIupColorDlg        = iup_c_func(iup, "IupColorDlg", {}, P)
@@ -1592,29 +1690,40 @@ procedure iup_init1(nullable_string dll_root)
     xIupGetColor        = iup_c_func(iup, "IupGetColor", {I,I,P,P,P}, I)
     xIupGetFile         = iup_c_func(iup, "IupGetFile", {P}, I)
     xIupGetParamv       = iup_c_func(iup, "IupGetParamv", {P,P,P,P,I,I,P}, I)
-    xIupGetText         = iup_c_func(iup, "IupGetText", {P,P}, I)
+    xIupGetText         = iup_c_func(iup, "IupGetText", {P,P,I}, I)
     xIupListDialog      = iup_c_func(iup, "IupListDialog", {I,P,I,P,I,I,I,P}, I)
     xIupLayoutDialog    = iup_c_func(iup, "IupLayoutDialog", {P}, P)
+    xIupGlobalsDialog   = iup_c_func(iup, "IupGlobalsDialog", {}, P)
     xIupProgressDlg     = iup_c_func(iup, "IupProgressDlg", {}, P)
 
     xIupButton                  = iup_c_func(iup, "IupButton", {P,P}, P)
     xIupCanvas                  = iup_c_func(iup, "IupCanvas", {P}, P)
     xIupFrame                   = iup_c_func(iup, "IupFrame", {P}, P)
+    xIupFlatFrame               = iup_c_func(iup, "IupFlatFrame", {P}, P)
     xIupLabel                   = iup_c_func(iup, "IupLabel", {P}, P)
+    xIupFlatLabel               = iup_c_func(iup, "IupFlatLabel", {P}, P)
+    xIupFlatList                = iup_c_func(iup, "IupFlatList", {}, P)
+    xIupFlatSeparator           = iup_c_func(iup, "IupFlatSeparator", {}, P)
     xIupList                    = iup_c_func(iup, "IupList", {P}, P)
     xIupProgressBar             = iup_c_func(iup, "IupProgressBar", {}, P)
+    xIupGauge                   = iup_c_func(iup, "IupGauge", {}, P)
     xIupSpin                    = iup_c_func(iup, "IupSpin", {}, P)
     xIupSpinbox                 = iup_c_func(iup, "IupSpinbox", {P}, P)
     xIupTabsv                   = iup_c_func(iup, "IupTabsv", {P}, P)
+    xIupFlatTabsv               = iup_c_func(iup, "IupFlatTabsv", {P}, P)
     xIupText                    = iup_c_func(iup, "IupText", {P}, P)
     xIupMultiLine               = iup_c_func(iup, "IupMultiLine", {P},P)
     xIupTextConvertLinColToPos  = iup_c_proc(iup, "IupTextConvertLinColToPos", {P,I,I,P})
     xIupTextConvertPosToLinCol  = iup_c_proc(iup, "IupTextConvertPosToLinCol", {P,I,P,P})
     xIupToggle                  = iup_c_func(iup, "IupToggle", {P,P}, P)
+    xIupFlatToggle              = iup_c_func(iup, "IupFlatToggle", {P,P}, P)
     xIupTree                    = iup_c_func(iup, "IupTree", {}, P)
+    xIupFlatTree                = iup_c_func(iup, "IupFlatTree", {}, P)
     xIupVal                     = iup_c_func(iup, "IupVal", {P}, P)
+    xIupFlatVal                 = iup_c_func(iup, "IupFlatVal", {P}, P)
 
     xIupConfig                        = iup_c_func(iup, "IupConfig", {}, P)
+    xIupConfigCopy                    = iup_c_proc(iup, "IupConfigCopy", {P,P,P})
     xIupConfigLoad                    = iup_c_func(iup, "IupConfigLoad", {P}, I)
     xIupConfigSave                    = iup_c_func(iup, "IupConfigSave", {P}, I)
     xIupConfigSetVariableInt          = iup_c_proc(iup, "IupConfigSetVariableInt", {P,P,P,I})
@@ -1639,6 +1748,9 @@ procedure iup_init1(nullable_string dll_root)
     xIupConfigRecentUpdate            = iup_c_proc(iup, "IupConfigRecentUpdate", {P,P})
     xIupConfigDialogShow              = iup_c_proc(iup, "IupConfigDialogShow", {P,P,P})
     xIupConfigDialogClosed            = iup_c_proc(iup, "IupConfigDialogClosed", {P,P,P})
+    xIupExecute                       = iup_c_func(iup, "IupExecute", {P,P},I)
+    xIupExecuteWait                   = iup_c_func(iup, "IupExecuteWait", {P,P},I)
+    xIupLog                           = iup_c_proc(iup, "IupLog", {P,P,P})
 
     xIupPreviousField   = iup_c_func(iup, "IupPreviousField", {P},P)
     xIupNextField       = iup_c_func(iup, "IupNextField", {P},P)
@@ -1670,8 +1782,12 @@ procedure iup_init1(nullable_string dll_root)
 --  xIupColorbar            = iup_c_func(iupControls, "IupColorbar", {},P)      -- removed in 3.24
 --  xIupColorBrowser        = iup_c_func(iupControls, "IupColorBrowser", {},P)  -- removed in 3.24
 --  xIupDial                = iup_c_func(iupControls, "IupDial", {P},P)         -- removed in 3.24
+    xIupColorbar            = iup_c_func(iup, "IupColorbar", {},P)      -- moved in 3.24
+    xIupColorBrowser        = iup_c_func(iup, "IupColorBrowser", {},P)  -- moved in 3.24
     xIupDial                = iup_c_func(iup, "IupDial", {P},P)         -- moved in 3.24
     xIupMatrix              = iup_c_func(iupControls, "IupMatrix", {P},P)
+    xIupMatrixEx            = iup_c_func(iupControls, "IupMatrixEx", {},P)
+    xIupMatrixList          = iup_c_func(iupControls, "IupMatrixList", {},P)
 --  xIupMatSetAttribute     = iup_c_proc(iupControls, "IupMatSetAttribute",{P,P,I,I,P})
 --  xIupMatStoreAttribute   = iup_c_proc(iupControls, "IupMatStoreAttribute",{P,P,I,I,P})
 --  xIupMatGetAttribute     = iup_c_func(iupControls, "IupMatGetAttribute",{P,P,I,I},P)
@@ -1680,21 +1796,23 @@ procedure iup_init1(nullable_string dll_root)
 
     xIupLoad                          = iup_c_func(iup, "+IupLoad", {P}, P)
     xIupLoadBuffer                    = iup_c_func(iup, "+IupLoadBuffer", {P}, P)
-    xIupSetLanguage                   = iup_c_proc(iup, "+IupSetLanguage", {P})
-    xIupGetLanguage                   = iup_c_func(iup, "+IupGetLanguage", {}, P)
-    xIupSetLanguageString             = iup_c_proc(iup, "+IupSetLanguageString", {P,P})
-    xIupStoreLanguageString           = iup_c_proc(iup, "+IupStoreLanguageString", {P,P})
-    xIupGetLanguageString             = iup_c_func(iup, "+IupGetLanguageString", {P}, P)
-    xIupSetLanguagePack               = iup_c_proc(iup, "+IupSetLanguagePack", {P})
+--  xIupSetLanguage                   = iup_c_proc(iup, "+IupSetLanguage", {P})
+--  xIupGetLanguage                   = iup_c_func(iup, "+IupGetLanguage", {}, P)
+--  xIupSetLanguageString             = iup_c_proc(iup, "+IupSetLanguageString", {P,P})
+--  xIupStoreLanguageString           = iup_c_proc(iup, "+IupStoreLanguageString", {P,P})
+--  xIupGetLanguageString             = iup_c_func(iup, "+IupGetLanguageString", {P}, P)
+--  xIupSetLanguagePack               = iup_c_proc(iup, "+IupSetLanguagePack", {P})
     xIupGetFunction                   = iup_c_func(iup, "+IupGetFunction", {P}, P)
     xIupSetFunction                   = iup_c_func(iup, "+IupSetFunction", {P,P}, P)
     xIupClassMatch                    = iup_c_func(iup, "+IupClassMatch", {P,P}, I)
     xIupScrollBox                     = iup_c_func(iup, "+IupScrollBox", {P}, P)
+    xIupFlatScrollBox                 = iup_c_func(iup, "+IupFlatScrollBox", {P}, P)
     xIupExpander                      = iup_c_func(iup, "+IupExpander", {P}, P)
     xIupDetachBox                     = iup_c_func(iup, "+IupDetachBox", {P}, P)
     xIupBackgroundBox                 = iup_c_func(iup, "+IupBackgroundBox", {P}, P)
     xIupLink                          = iup_c_func(iup, "+IupLink", {P,P}, P)
     xIupFlatButton                    = iup_c_func(iup, "+IupFlatButton", {P}, P)
+    xIupDropButton                    = iup_c_func(iup, "+IupDropButton", {P}, P)
     xIupStoreAttributeId              = iup_c_proc(iup, "+IupStoreAttributeId", {P,P,I,P})
     xIupStoreAttributeId2             = iup_c_proc(iup, "+IupStoreAttributeId2", {P,P,I,I,P})
     xIupTreeSetUserId                 = iup_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I)
@@ -1710,7 +1828,8 @@ procedure iup_init1(nullable_string dll_root)
 --  xIupUnMapFont                     = iup_c_func(iup, "+IupUnMapFont", {P}, P)
 --  xIupParamf                        = iup_c_func(iup, "+IupParamf", {P}, P)
 --  xIupParamBox                      = iup_c_func(iup, "+IupParamBox", {P,P,I}, P)
-    xIupElementPropertiesDialog       = iup_c_func(iup, "+IupElementPropertiesDialog", {P}, P)
+    xIupElementPropertiesDialog       = iup_c_func(iup, "+IupElementPropertiesDialog", {P,P}, P)
+    xIupClassInfoDialog               = iup_c_func(iup, "+IupClassInfoDialog", {P}, P)
     xiupKeyCodeToName                 = iup_c_func(iup, "iupKeyCodeToName", {I},P)
 
 end procedure
@@ -1760,16 +1879,17 @@ end function
 --  return peek_string(c_func(xIupGetLanguage, {}))
 --end function
 
-global procedure IupDestroy(Ihandles ih)
+global function IupDestroy(Ihandlns ih)
     if sequence(ih) then
         for i=1 to length(ih) do
-            Ihandle ihi = ih[i]
-            c_proc(xIupDestroy, {ihi})
+            ih[i] = IupDestroy(ih[i])
         end for
-    else
+    elsif ih!=NULL then
         c_proc(xIupDestroy, {ih})
+        ih = NULL
     end if
-end procedure
+    return ih
+end function
 
 global procedure IupMap(Ihandle ih)
     if c_func(xIupMap, {ih})!=IUP_NOERROR then ?9/0 end if
@@ -1794,6 +1914,9 @@ global function IupVersionNumber()
     return version_number
 end function
 
+global procedure IupVersionShow()
+    c_proc(xIupVersionShow, {})
+end procedure
 
 --constant
 --  xIupMainLoop        = iup_c_proc(iup, "IupMainLoop", {}),
@@ -1829,6 +1952,10 @@ global procedure IupExitLoop()
     c_proc(xIupExitLoop, {})
 end procedure
 
+global procedure IupPostMessage(Ihandle ih, nullable_string s, integer i, atom d, p)
+    c_proc(xIupPostMessage, {ih, s, i, d, p})
+end procedure
+
 global procedure IupFlush()
     c_proc(xIupFlush, {})
 end procedure
@@ -1848,68 +1975,6 @@ end procedure
 --  string name = peek_string(pName)
 --  return name
 --end function
-
- -- Attributes
---------------
---constant
---  xIupSetAttribute            = iup_c_proc(iup, "IupSetAttribute", {P,P,P}),
---   xIupSetAttributeId         = iup_c_proc(iup, "IupSetAttributeId", {P,P,I,P}),
---   xIupSetAttributeId2        = iup_c_proc(iup, "IupSetAttributeId2", {P,P,I,I,P}),
---   xIupSetStrAttribute        = iup_c_proc(iup, "IupSetStrAttribute", {P,P,P}),
---    xIupSetStrAttributeId     = iup_c_proc(iup, "IupSetStrAttributeId", {P,P,I,P}),
---    xIupSetStrAttributeId2    = iup_c_proc(iup, "IupSetStrAttributeId2", {P,P,I,I,P}),
---    xIupSetInt                = iup_c_proc(iup, "IupSetInt", {P,P,I}),
---    xIupSetIntId              = iup_c_proc(iup, "IupSetIntId", {P,P,I,I}),
---    xIupSetIntId2             = iup_c_proc(iup, "IupSetIntId2", {P,P,I,I,I}),
---    xIupSetFloat              = iup_c_proc(iup, "IupSetFloat", {P,P,F}),
---    xIupSetFloatId            = iup_c_proc(iup, "IupSetFloatId", {P,P,I,F}),
---    xIupSetFloatId2           = iup_c_proc(iup, "IupSetFloatId2", {P,P,I,I,F}),
---    xIupSetDouble             = iup_c_proc(iup, "IupSetDouble", {P,P,D}),
---    xIupSetDoubleId           = iup_c_proc(iup, "IupSetDoubleId", {P,P,I,D}),
---    xIupSetDoubleId2          = iup_c_proc(iup, "IupSetDoubleId2", {P,P,I,I,D}),
---    xIupSetRGB                = iup_c_proc(iup, "IupSetRGB", {P,P,UC,UC,UC}),
---    xIupSetRGBId              = iup_c_proc(iup, "IupSetRGBId", {P,P,I,UC,UC,UC}),
---    xIupSetRGBId2             = iup_c_proc(iup, "IupSetRGBId2", {P,P,I,I,UC,UC,UC}),
---    xIupStoreAttribute        = iup_c_proc(iup, "IupStoreAttribute", {P,P,P}),
---   xIupSetAttributeHandle     = iup_c_proc(iup, "IupSetAttributeHandle", {P,P,P}),
---    xIupSetHandle             = iup_c_proc(iup, "IupSetHandle", {P,P}),
---  xIupSetAttributes           = iup_c_proc(iup, "IupSetAttributes", {P,P}),
---  xIupResetAttribute          = iup_c_proc(iup, "IupResetAttribute", {P,P}),
---  xIupGetAttribute            = iup_c_func(iup, "IupGetAttribute", {P,P}, P),
---   xIupGetAttributeId         = iup_c_func(iup, "IupGetAttributeId", {P,P,I}, P),
---   xIupGetAttributeId2        = iup_c_func(iup, "IupGetAttributeId2", {P,P,I,I}, P),
-----     xIupGetAttributes          = iup_c_func(iup, "IupGetAttributes", {P}, P), (deprecated)
---   xIupGetAllAttributes       = iup_c_func(iup, "IupGetAllAttributes", {P,P,I}, I),
---   xIupGetAttributeHandle     = iup_c_func(iup, "IupGetAttributeHandle", {P,P}, P),
---    xIupGetHandle             = iup_c_func(iup, "IupGetHandle", {P}, P),
---   xIupGetInt                 = iup_c_func(iup, "IupGetInt", {P,P}, I),
---   xIupGetInt2                = iup_c_func(iup, "IupGetInt2", {P,P}, I),
---   xIupGetIntInt              = iup_c_func(iup, "IupGetIntInt", {P,P,P,P}, I),
---   xIupGetIntId               = iup_c_func(iup, "IupGetIntId", {P,P,I}, I),
---   xIupGetIntId2              = iup_c_func(iup, "IupGetIntId2", {P,P,I,I}, I),
---   xIupGetFloat               = iup_c_func(iup, "IupGetFloat", {P,P}, F),
---   xIupGetFloatId             = iup_c_func(iup, "IupGetFloatId", {P,P,I}, F),
---   xIupGetFloatId2            = iup_c_func(iup, "IupGetFloatId2", {P,P,I,I}, F),
---   xIupGetDouble              = iup_c_func(iup, "IupGetDouble", {P,P}, D),
---   xIupGetDoubleId            = iup_c_func(iup, "IupGetDoubleId", {P,P,I}, D),
---   xIupGetDoubleId2           = iup_c_func(iup, "IupGetDoubleId2", {P,P,I,I}, D),
---   xIupGetRGB                 = iup_c_proc(iup, "IupGetRGB", {P,P,P,P,P}),
---   xIupGetRGBId               = iup_c_proc(iup, "IupGetRGBId", {P,P,I,P,P,P}),
---   xIupGetRGBId2              = iup_c_proc(iup, "IupGetRGBId2", {P,P,I,I,P,P,P}),
---  xIupSetGlobal               = iup_c_proc(iup, "IupSetGlobal", {P,P}),
---   xIupSetStrGlobal           = iup_c_proc(iup, "IupSetStrGlobal", {P,P}),
---   xIupStoreGlobal            = iup_c_proc(iup, "IupStoreGlobal", {P,P}),
---  xIupGetGlobal               = iup_c_func(iup, "IupGetGlobal", {P}, P),
---  xIupSetCallback             = iup_c_func(iup, "IupSetCallback", {P,P,P}, P),
---   xIupGetCallback            = iup_c_func(iup, "IupGetCallback", {P,P}, P),
---  xIupGetClassName            = iup_c_func(iup, "IupGetClassName", {P},P),
---   xIupGetAllClasses          = iup_c_func(iup, "IupGetAllClasses", {P,I}, I),
---   xIupGetClassType           = iup_c_func(iup, "IupGetClassType", {P}, P),
---   xIupGetClassAttributes     = iup_c_func(iup, "IupGetClassAttributes", {P,P,I}, I),
---   xIupGetClassCallbacks      = iup_c_func(iup, "IupGetClassCallbacks", {P,P,I}, I),
---   xIupSaveClassAttributes    = iup_c_proc(iup, "IupSaveClassAttributes", {P}),
---   xIupCopyClassAttributes    = iup_c_proc(iup, "IupCopyClassAttributes", {P,P}),
---   xIupSetClassDfltAttribute  = iup_c_proc(iup, "IupSetClassDefaultAttribute", {P,P,P})
 
 global procedure IupSetAttribute(Ihandln ih, string name, atom_string v)
     if name!=upper(name) then ?9/0 end if
@@ -1962,6 +2027,10 @@ global procedure IupSetInt(Ihandles ih, string name, integer v)
     else
         c_proc(xIupSetInt, {ih,name,v})
     end if
+end procedure
+
+global procedure IupSetGlobalInt(string name, integer v)
+    c_proc(xIupSetInt, {NULL,name,v})
 end procedure
 
 global procedure IupSetIntId(Ihandle ih, string name, integer id, integer v)
@@ -2164,6 +2233,16 @@ global procedure IupSetAttributeHandle(Ihandln ih, string name, Ihandln ih_named
     c_proc(xIupSetAttributeHandle, {ih, name, ih_named})
 end procedure
 
+global procedure IupSetAttributeHandleId(Ihandln ih, string name, integer id, Ihandln ih_named)
+--  if name!=upper(name) then ?9/0 end if
+    c_proc(xIupSetAttributeHandleId, {ih, name, id, ih_named})
+end procedure
+
+global procedure IupSetAttributeHandleId2(Ihandle ih, string name, integer lin, col, Ihandln ih_named)
+--  if name!=upper(name) then ?9/0 end if
+    c_proc(xIupSetAttributeHandle, {ih, name, lin, col, ih_named})
+end procedure
+
 -- removed 18/1/17 (unused)
 --global function IupSetAttributeHandlef(Ihandln ih, string name, Ihandle ih_named)
 --  IupSetAttributeHandle(ih, name, ih_named)
@@ -2235,6 +2314,16 @@ end function
 
 global function IupGetAttributeHandle(Ihandln ih, string name)
     Ihandln ih_named = c_func(xIupGetAttributeHandle, {ih, name})
+    return ih_named
+end function
+
+global function IupGetAttributeHandleId(Ihandln ih, string name, integer id)
+    Ihandln ih_named = c_func(xIupGetAttributeHandleId, {ih, name, id})
+    return ih_named
+end function
+
+global function IupGetAttributeHandleId2(Ihandln ih, string name, integer lin, col)
+    Ihandln ih_named = c_func(xIupGetAttributeHandleId2, {ih, name, lin, col})
     return ih_named
 end function
 
@@ -2355,6 +2444,36 @@ global function IupGetGlobal(string name)
     return peek_string(ptr)
 end function
 
+global function IupGetGlobalInt(string name)
+    return IupGetInt(NULL,name)
+end function
+
+global procedure IupSetLanguage(string language_name)
+    c_proc(xIupSetLanguage, {language_name})
+end procedure
+
+global function IupGetLanguage()
+    atom ptr = c_func(xIupGetLanguage, {})
+    return peek_string(ptr)
+end function
+
+global procedure IupSetLanguageString(string name, val)
+    c_proc(xIupSetLanguageString, {name, val})
+end procedure
+
+global procedure IupStoreLanguageString(string name, val)
+    c_proc(xIupStoreLanguageString, {name, val})
+end procedure
+
+global function IupGetLanguageString(string name)
+    atom ptr = c_func(xIupGetLanguageString, {name})
+    return peek_string(ptr)
+end function
+
+global procedure IupSetLanguagePack(Ihandln ih)
+    c_proc(xIupSetLanguagePack, {ih})
+end procedure
+
 global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
     if sequence(ih) then
         for i=1 to length(ih) do
@@ -2362,6 +2481,16 @@ global procedure IupSetCallback(Ihandles ih, string name, cbfunc func)
             IupSetCallback(ihi,name,func)
         end for
     else
+        if name="K_ANY" then
+            -- verify func takes the right args
+            integer rid = rid_from_cb(func)
+            sequence ri = get_routine_info(rid)
+--          if ri[1]!=2 then ?9/0 end if
+--          if ri[2]!=2 then ?9/0 end if
+--          if ri[3][1]!='F' then ?9/0 end if
+--          if ri[3][3]!='N' then ?9/0 end if
+            if ri[1..3]!={2,2,"FIN"} then ?9/0 end if
+        end if
         atom prev = c_func(xIupSetCallback, {ih, name, func})
     end if
 end procedure
@@ -2384,6 +2513,7 @@ atom func = c_func(xIupGetCallback, {ih, name})
 end function
 
 function key_cb(Ihandle /*ih*/, atom c)
+    -- private version for IupCloseOnEscape()
     return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
 end function
 constant cb_key = Icallback("key_cb")
@@ -2431,6 +2561,10 @@ end function
 
 global procedure IupSaveClassAttributes(Ihandle ih)
     c_proc(xIupSaveClassAttributes, {ih})
+end procedure
+
+global procedure IupCopyAttributes(Ihandle src_ih, Ihandle dst_ih)
+    c_proc(xIupCopyAttributes, {src_ih,dst_ih})
 end procedure
 
 global procedure IupCopyClassAttributes(Ihandle src_ih, Ihandle dst_ih)
@@ -2570,6 +2704,10 @@ global function iup_isbutton5(atom pStatus)
     return peek(pStatus+9)='5'
 end function
 
+global function iupKeyCodeToName(atom ch)
+    atom pKeyName = c_func(xiupKeyCodeToName,{ch})
+    return peek_string(pKeyName)
+end function
 
 global procedure IupImageLibOpen()
 atom iupimglib = iup_open_dll({"iupimglib.dll",
@@ -2603,21 +2741,16 @@ global function has_iup()
 end function
 --*/
 
---constant
---  xIupFill        = iup_c_func(iup, "IupFill", {}, P),
---  xIupHboxv       = iup_c_func(iup, "IupHboxv", {P}, P),
---  xIupVboxv       = iup_c_func(iup, "IupVboxv", {P}, P),
---  xIupZboxv       = iup_c_func(iup, "IupZboxv", {P}, P),
---  xIupRadio       = iup_c_func(iup, "IupRadio", {P}, P),
---  xIupNormalizerv = iup_c_func(iup, "IupNormalizerv", {P}, P),
---  xIupCboxv       = iup_c_func(iup, "IupCboxv", {P}, P),
---  xIupSbox        = iup_c_func(iup, "IupSbox", {P}, P),
---  xIupSplit       = iup_c_func(iup, "IupSplit", {P,P}, P),
---  xIupGridBoxv    = iup_c_func(iup, "IupGridBoxv", {P}, P),
---  $
---
 global function IupFill(string attributes="", sequence data={})
     Ihandle ih = c_func(xIupFill, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupSpace(string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupSpace, {})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
     end if
@@ -2700,6 +2833,10 @@ global function IupSbox(Ihandln child=NULL, string attributes="", sequence data=
     return ih
 end function
 
+global function IupSizeBox(Ihandln child=NULL, string attributes="", sequence data={})
+    return IupSbox(child, attributes, data)
+end function
+
 global function IupSplit(Ihandln child1=NULL, Ihandln child2=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupSplit, {child1,child2})
     if length(attributes) then
@@ -2722,6 +2859,15 @@ atom pChildren = iup_ptr_array(children)
     return ih
 end function
 
+global function IupMultiBox(Ihandles children={}, string attributes="", sequence data={})
+atom pChildren = iup_ptr_array(children)
+    Ihandle ih = c_func(xIupMultiBoxv, {pChildren})
+    free(pChildren)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
 
 --****
 -- === Layout/Hierarchy
@@ -2902,9 +3048,8 @@ global procedure IupPopup(Ihandle ih, integer x=IUP_CURRENT, integer y=IUP_CURRE
 end procedure
 
 global procedure IupShow(Ihandle ih)
-integer r
-    r = c_func(xIupShow, {ih})
-    if r!=IUP_NOERROR then ?9/0 end if
+    integer r = c_func(xIupShow, {ih})
+    if r!=IUP_NOERROR then ?9/0 end if  -- (r==1 is just IUP_ERROR...)
 end procedure
 
 global procedure IupShowXY(Ihandle ih, integer x=IUP_CURRENT, integer y=IUP_CURRENT)
@@ -2915,27 +3060,6 @@ end procedure
 global procedure IupHide(Ihandle ih)
     c_proc(xIupHide, {ih})
 end procedure
-
---****
--- === Predefined
---
-
---constant
---  xIupAlarm           = iup_c_func(iup, "IupAlarm", {P,P,P,P,P}, I),
---  xIupMessage         = iup_c_proc(iup, "IupMessage", {P,P}),
---  xIupMessageDlg      = iup_c_func(iup, "IupMessageDlg", {}, P),
---  xIupCalendar        = iup_c_func(iup, "IupCalendar", {}, I),
---  xIupColorDlg        = iup_c_func(iup, "IupColorDlg", {}, P),
---  xIupDatePick        = iup_c_func(iup, "IupDatePick", {}, I),  
---  xIupFileDlg         = iup_c_func(iup, "IupFileDlg", {}, P),
---  xIupFontDlg         = iup_c_func(iup, "IupFontDlg", {}, P),
---  xIupGetColor        = iup_c_func(iup, "IupGetColor", {I,I,P,P,P}, I),
---  xIupGetFile         = iup_c_func(iup, "IupGetFile", {P}, I),
---  xIupGetParamv       = iup_c_func(iup, "IupGetParamv", {P,P,P,P,I,I,P}, I),
---  xIupGetText         = iup_c_func(iup, "IupGetText", {P,P}, I),
---  xIupListDialog      = iup_c_func(iup, "IupListDialog", {I,P,I,P,I,I,I,P}, I),
---  xIupLayoutDialog    = iup_c_func(iup, "IupLayoutDialog", {P}, P)
---
 
 global function IupAlarm(string title, string msg, string b1, nullable_string b2=NULL, nullable_string b3=NULL)
     return c_func(xIupAlarm, {title,msg,b1,b2,b3})
@@ -2956,6 +3080,24 @@ global procedure IupMessage(nullable_string title=NULL, nullable_string msg=NULL
     end if
     c_proc(xIupMessage, {title,msg})
 end procedure
+
+global procedure IupMessageError(Ihandln parent, string message)
+    if iup=NULL then iup_init1(NULL) end if
+    if find('\n',message) then
+        -- make each paragraph a single line, improves wordwrap
+        -- (note: this may be a windows only thing, not yet tested on lnx)
+        message = substitute(message,"\n\n","\r\r")
+        message = substitute(message,"\n"," ")
+        message = substitute(message,"  "," ")
+        message = substitute(message,"\r\r","\n\n")
+    end if
+    c_proc(xIupMessageError, {parent, message})
+end procedure
+
+global function IupMessageAlarm(Ihandln parent, nullable_string title, string message, buttons)
+    integer res = c_func(xIupMessageAlarm, {parent, title, message, buttons})
+    return res
+end function
 
 global function IupMessageDlg()
     Ihandle ih = c_func(xIupMessageDlg, {})
@@ -3115,11 +3257,20 @@ string fmts = ""
     return vals
 end function
 
-global function IupGetText(string title, string text)
-    atom pText = allocate(10240)
---  text &= '\0'
-    poke(pText, text&0)
-    if c_func(xIupGetText, {title, pText})=0 then
+global function IupGetText(string title, text, integer maxsize=10240)
+    if maxsize=-1 then
+        {} = c_func(xIupGetText, {title, text, -1})
+        return ""
+    end if
+    text &= '\0'
+    if maxsize=0 then
+        maxsize = length(text)
+    elsif length(text)>=maxsize then
+        ?9/0 -- (prevent memory corruption!)
+    end if  
+    atom pText = allocate(maxsize)
+    poke(pText, text)
+    if c_func(xIupGetText, {title, pText, maxsize})=0 then
         text = ""
     else
         text = peek_string(pText)
@@ -3166,27 +3317,14 @@ global function IupLayoutDialog(Ihandln dialog)
     return ih
 end function
 
-----include controls.e
---constant
---  xIupButton                  = iup_c_func(iup, "IupButton", {P,P}, P),
---  xIupCanvas                  = iup_c_func(iup, "IupCanvas", {P}, P),
---  xIupFrame                   = iup_c_func(iup, "IupFrame", {P}, P),
---  xIupLabel                   = iup_c_func(iup, "IupLabel", {P}, P),
---  xIupList                    = iup_c_func(iup, "IupList", {P}, P),
---  xIupProgressBar             = iup_c_func(iup, "IupProgressBar", {}, P),
---  xIupSpin                    = iup_c_func(iup, "IupSpin", {}, P),
---  xIupSpinbox                 = iup_c_func(iup, "IupSpinbox", {P}, P),
---  xIupTabsv                   = iup_c_func(iup, "IupTabsv", {P}, P),
---  xIupText                    = iup_c_func(iup, "IupText", {P}, P),
---  xIupMultiLine               = iup_c_func(iup, "IupMultiLine", {P},P),
---  xIupTextConvertLinColToPos  = iup_c_proc(iup, "IupTextConvertLinColToPos", {P,I,I,P}),
---  xIupTextConvertPosToLinCol  = iup_c_proc(iup, "IupTextConvertPosToLinCol", {P,I,P,P}),
---  xIupToggle                  = iup_c_func(iup, "IupToggle", {P,P}, P),
---  xIupTree                    = iup_c_func(iup, "IupTree", {}, P),
---  xIupVal                     = iup_c_func(iup, "IupVal", {P}, P),
---  $
+global function IupGlobalsDialog(sequence attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupGlobalsDialog, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
 
---global function IupButton(nullable_string title=NULL, nullable_string action=NULL, cbfunc func=NULL, string attributes="", sequence data={})
 global function IupButton(object title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupButton, {title, action})
     {action,func,attributes,data} = paranormalise(action,func,attributes,data)
@@ -3194,7 +3332,7 @@ global function IupButton(object title=NULL, object action=NULL, object func=NUL
         if action=NULL then
             action = "ACTION"
         end if
-        IupSetCallback(ih, action, func)    -- action?
+        IupSetCallback(ih, action, func)
     end if
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -3219,13 +3357,22 @@ end function
 
 --DEV: IupFlatFrame
 
-global function IupFrame(Ihandle child=NULL, string attributes="", sequence data={})
+global function IupFrame(Ihandln child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupFrame, {child})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
     end if
     return ih
 end function
+
+global function IupFlatFrame(Ihandln child=NULL, string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupFlatFrame, {child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
 
 --DEV: IupAnimatedLabel
 
@@ -3234,6 +3381,30 @@ end function
 --  {action,func,attributes,data} = paranormalise(action,func,attributes,data)
 global function IupLabel(nullable_string title=NULL, string attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupLabel, {title})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupFlatLabel(nullable_string title=NULL, string attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupFlatLabel, {title})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupFlatList(string attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupFlatList, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupFlatSeparator(string attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupFlatSeparator, {})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
     end if
@@ -3263,23 +3434,51 @@ global function IupProgressBar(sequence attributes="", dword_seq data={})
     return ih
 end function
 
+global function IupGauge(sequence attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupGauge, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
 global function IupSpin()
     Ihandle ih = c_func(xIupSpin, {})
     return ih
 end function
 
-global function IupSpinBox(Ihandln child=NULL)
+global function IupSpinBox(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupSpinbox, {child})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action=NULL then
+            action = "SPIN_CB"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
     return ih
 end function
 
-global function IupSpinbox(Ihandln child=NULL)
-    return IupSpinBox(child)
+global function IupSpinbox(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    return IupSpinBox(child, action, func, attributes, data)
 end function
 
 global function IupTabs(Ihandles children={}, sequence attributes="", dword_seq data={})
 atom pChildren = iup_ptr_array(children)
     Ihandle ih = c_func(xIupTabsv, {pChildren})
+    free(pChildren)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupFlatTabs(Ihandles children={}, sequence attributes="", dword_seq data={})
+    atom pChildren = iup_ptr_array(children)
+    Ihandle ih = c_func(xIupFlatTabsv, {pChildren})
     free(pChildren)
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -3348,8 +3547,32 @@ global function IupToggle(nullable_string title=NULL, object action=NULL, object
     return ih
 end function
 
+global function IupFlatToggle(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupFlatToggle, {title, NULL})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action="ACTION" then ?9/0 end if -- see docs!
+        if action=NULL then
+            action = "FLAT_ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
 global function IupTree(sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupTree, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupFlatTree(sequence attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupFlatTree, {})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
     end if
@@ -3374,6 +3597,19 @@ end function
 global function IupVal(nullable_string orientation=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     return IupValuator(orientation, action, func, attributes, data)
 end function
+
+global function IupFlatValuator(nullable_string orientation=NULL, string attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupFlatVal, {orientation})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupFlatVal(nullable_string orientation=NULL, string attributes="", dword_seq data={})
+    return IupFlatValuator(orientation, attributes, data)
+end function
+
 
 --global constant -- function delcarations
 --  xIupConfig                        = iup_c_func(iup, "IupConfig", {}, P),
@@ -3407,6 +3643,10 @@ global function IupConfig()
     Ihandle config = c_func(xIupConfig, {})
     return config
 end function
+
+global procedure IupConfigCopy(Ihandle config1, config2, nullable_string exclude_prefix=NULL)
+    c_proc(xIupConfigCopy, {config1,config2,exclude_prefix})
+end procedure
 
 global function IupConfigLoad(Ihandle config)
     integer errcode = c_func(xIupConfigLoad, {config})
@@ -3528,6 +3768,22 @@ integer m = IupGetInt(dialog,"MAXIMIZED")   -- (windows-only; 0 elsewhere)
     IupConfigSetVariableInt(config, name, "MaxiSized", m)
 end procedure
 
+global function IupExecute(string filename, nullable_string parameters=NULL)
+    integer res = c_func(xIupExecute,{filename,parameters})
+    return res
+end function
+
+global function IupExecuteWait(string filename, nullable_string parameters=NULL)
+    integer res = c_func(xIupExecuteWait,{filename,parameters})
+    return res
+end function
+
+global procedure IupLog(string typ, fmt, sequence args={})
+    if length(args) then
+        fmt = sprintf(fmt,args)
+    end if
+    c_proc(xIupLog, {typ,"%s",fmt})
+end procedure
 
 --****
 -- === Additional
@@ -3542,27 +3798,24 @@ global function IupCells(string attributes="", dword_seq data={})
     return ih
 end function
 
--- removed in 3.24:
---global function IupColorbar(string attributes="", dword_seq data={})
---  IupControlsOpen()
---  Ihandle ih = c_func(xIupColorbar, {})
---  if length(attributes) then
---      IupSetAttributes(ih, attributes, data)
---  end if
---  return ih
---end function
+global function IupColorbar(string attributes="", dword_seq data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupColorbar, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
 
--- removed in 3.24:
---global function IupColorBrowser(string attributes="", dword_seq data={})
---  IupControlsOpen()
---  Ihandle ih = c_func(xIupColorBrowser, {})
---  if length(attributes) then
---      IupSetAttributes(ih, attributes, data)
---  end if
---  return ih
---end function
+global function IupColorBrowser(string attributes="", dword_seq data={})
+    IupControlsOpen()
+    Ihandle ih = c_func(xIupColorBrowser, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
 
--- removed in 3.24:
 global function IupDial(string orientation, string attributes="", dword_seq data={})
     IupControlsOpen()
     Ihandle ih = c_func(xIupDial, {orientation})
@@ -3583,47 +3836,53 @@ global function IupMatrix(string attributes="", sequence data={})
     return ih
 end function
 
-atom
-    iupMatrixEx = 0,
+--atom
+--  iupMatrixEx = 0,
+--
+--  xIupMatrixEx
+----    xIupMatrixExInit,
+----    xIupMatrixExOpen
+--
+--procedure iup_init_matrix()
+--  IupControlsOpen()
+--  if iupMatrixEx=0 then
+--      iupMatrixEx = iup_open_dll({
+--                                  "iupmatrixex.dll",
+--                                  "libiupmatrixex.so",
+--                                  "libiupmatrixex.dylib"
+--                                 })
+--
+--      xIupMatrixEx            = iup_c_func(iupMatrixEx, "IupMatrixEx", {},P)
+----        xIupMatrixExInit        = iup_c_proc(iupMatrixEx, "IupMatrixExInit", {P})
+----        xIupMatrixExOpen        = iup_c_proc(iupMatrixEx, "IupMatrixExOpen", {})
+--  end if
+--end procedure
 
-    xIupMatrixEx,
-    xIupMatrixExInit,
-    xIupMatrixExOpen
-
-procedure iup_init_matrix()
-    IupControlsOpen()
-    if iupMatrixEx=0 then
-        iupMatrixEx = iup_open_dll({
-                                    "iupmatrixex.dll",
-                                    "libiupmatrixex.so",
-                                    "libiupmatrixex.dylib"
-                                   })
-
-        xIupMatrixEx            = iup_c_func(iupMatrixEx, "IupMatrixEx", {},P)
-        xIupMatrixExInit        = iup_c_proc(iupMatrixEx, "IupMatrixExInit", {P})
-        xIupMatrixExOpen        = iup_c_proc(iupMatrixEx, "IupMatrixExOpen", {})
-    end if
-end procedure
-
-integer matrixexopen = 0
-global procedure IupMatrixExOpen()
-    iup_init_matrix()
-    if not matrixexopen then
-        c_proc(xIupMatrixExOpen,{})
-        matrixexopen = 1
-    end if
-end procedure
+--integer matrixexopen = 0
+--global procedure IupMatrixExOpen()
+--  iup_init_matrix()
+--  if not matrixexopen then
+--      c_proc(xIupMatrixExOpen,{})
+--      matrixexopen = 1
+--  end if
+--end procedure
 
 global function IupMatrixEx()
-    IupMatrixExOpen()
+--  IupMatrixExOpen()
     Ihandle res = c_func(xIupMatrixEx,{})
     return res
 end function
 
-global procedure IupMatrixExInit(Ihandle ih)
-    IupMatrixExOpen()
-    c_proc(xIupMatrixExInit,{ih})
-end procedure
+global function IupMatrixList()
+--  IupMatrixExOpen()
+    Ihandle res = c_func(xIupMatrixList,{})
+    return res
+end function
+
+--global procedure IupMatrixExInit(Ihandle ih)
+--  IupMatrixExOpen()
+--  c_proc(xIupMatrixExInit,{ih})
+--end procedure
 
 global procedure IupMatSetAttribute(Ihandle ih, string name, integer lin, integer col, atom_string v)
 --  c_proc(xIupMatSetAttribute, {ih, name, lin, col, v})
@@ -3671,7 +3930,12 @@ atom iupGLControls = NULL,
      xIupGLSeparator,
      xIupGLSizeBox,
      xIupGLSubCanvas,
+     xIupGLDrawText,
+     xIupGLDrawImage,
+     xIupGLDrawGetTextSize,
+     xIupGLDrawGetImageInfo,
      xIupGLToggle,
+     xIupGLText,
      xIupGLVal
 
 procedure iup_gl_controls_init()
@@ -3679,20 +3943,25 @@ procedure iup_gl_controls_init()
         iupGLControls = iup_open_dll({"iupglcontrols.dll",
                                       "libiupglcontrols.so",
                                       "libiupglcontrols.dylib"})
-        xIupGLControlsOpen  = iup_c_proc(iupGLControls, "IupGLControlsOpen", {})
-        xIupGLCanvasBoxv    = iup_c_func(iupGLControls, "IupGLCanvasBoxv", {P}, P)
-        xIupGLButton        = iup_c_func(iupGLControls, "IupGLButton", {P}, P)
-        xIupGLExpander      = iup_c_func(iupGLControls, "IupGLExpander", {P}, P)
-        xIupGLFrame         = iup_c_func(iupGLControls, "IupGLFrame", {P}, P)
-        xIupGLLabel         = iup_c_func(iupGLControls, "IupGLLabel", {P}, P)
-        xIupGLLink          = iup_c_func(iupGLControls, "IupGLLink", {P,P}, P)
-        xIupGLProgressBar   = iup_c_func(iupGLControls, "IupGLProgressBar", {}, P)
-        xIupGLScrollBox     = iup_c_func(iupGLControls, "IupGLScrollBox", {P}, P)
-        xIupGLSeparator     = iup_c_func(iupGLControls, "IupGLSeparator", {}, P)
-        xIupGLSizeBox       = iup_c_func(iupGLControls, "IupGLSizeBox", {P}, P)
-        xIupGLSubCanvas     = iup_c_func(iupGLControls, "IupGLSubCanvas", {P}, P)
-        xIupGLToggle        = iup_c_func(iupGLControls, "IupGLToggle", {P}, P)
-        xIupGLVal           = iup_c_func(iupGLControls, "IupGLVal", {P}, P)
+        xIupGLControlsOpen      = iup_c_proc(iupGLControls, "IupGLControlsOpen", {})
+        xIupGLCanvasBoxv        = iup_c_func(iupGLControls, "IupGLCanvasBoxv", {P}, P)
+        xIupGLButton            = iup_c_func(iupGLControls, "IupGLButton", {P}, P)
+        xIupGLExpander          = iup_c_func(iupGLControls, "IupGLExpander", {P}, P)
+        xIupGLFrame             = iup_c_func(iupGLControls, "IupGLFrame", {P}, P)
+        xIupGLLabel             = iup_c_func(iupGLControls, "IupGLLabel", {P}, P)
+        xIupGLLink              = iup_c_func(iupGLControls, "IupGLLink", {P,P}, P)
+        xIupGLProgressBar       = iup_c_func(iupGLControls, "IupGLProgressBar", {}, P)
+        xIupGLScrollBox         = iup_c_func(iupGLControls, "IupGLScrollBox", {P}, P)
+        xIupGLSeparator         = iup_c_func(iupGLControls, "IupGLSeparator", {}, P)
+        xIupGLSizeBox           = iup_c_func(iupGLControls, "IupGLSizeBox", {P}, P)
+        xIupGLSubCanvas         = iup_c_func(iupGLControls, "IupGLSubCanvas", {P}, P)
+        xIupGLDrawText          = iup_c_proc(iupGLControls, "IupGLDrawText", {P,P,I,I,I})
+        xIupGLDrawImage         = iup_c_proc(iupGLControls, "IupGLDrawImage", {P,P,I,I,I})
+        xIupGLDrawGetTextSize   = iup_c_proc(iupGLControls, "IupGLDrawGetTextSize", {P,P,P,P})
+        xIupGLDrawGetImageInfo  = iup_c_proc(iupGLControls, "IupGLDrawGetImageInfo", {P,P,P,P})
+        xIupGLToggle            = iup_c_func(iupGLControls, "IupGLToggle", {P}, P)
+        xIupGLText              = iup_c_func(iupGLControls, "IupGLText", {}, P)
+        xIupGLVal               = iup_c_func(iupGLControls, "IupGLVal", {P}, P)
     end if
 end procedure
 
@@ -3717,6 +3986,33 @@ Ihandle ih = c_func(xIupGLSubCanvas,{})
         IupSetAttributes(ih, attributes, data)
     end if
     return ih
+end function
+
+global procedure IupGLDrawText(Ihandle ih, string str, integer len, x, y)
+    c_proc(xIupGLDrawText,{ih,str,len,x,y})
+end procedure
+
+global procedure IupGLDrawImage(Ihandle ih, string name, integer x, y, active)
+    c_proc(xIupGLDrawImage,{ih,name,x,y,active})
+end procedure
+
+global function IupGLDrawGetTextSize(Ihandle ih, string str)
+    atom pW = allocate(2*W),
+         pH = pW+W
+    c_proc(xIupGLDrawGetTextSize,{ih,str,pW,pH})
+    sequence wh = peekns({pW,2})
+    free(pW)
+    return wh -- integer {w,h}
+end function
+
+global function IupGLDrawGetImageInfo(string name)
+    atom pW = allocate(3*W),
+         pH = pW+W,
+         pBpp = pH+W
+    c_proc(xIupGLDrawGetImageInfo,{name,pW,pH,pBpp})
+    sequence whb = peekns({pW,3})
+    free(pW)
+    return whb -- integer {w,h,bpp}
 end function
 
 global function IupGLButton(nullable_string title, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
@@ -3796,6 +4092,23 @@ end function
 
 global function IupGLSizeBox(Ihandln child=NULL, string attributes="", sequence data={})
 Ihandle ih = c_func(xIupGLSizeBox,{child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupGLText(object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupGLText,{})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action=NULL then
+            action = "VALUECHANGED_CB"
+        elsif action!="VALUECHANGED_CB" then
+            ?9/0
+        end if
+        IupSetCallback(ih, action, func)
+    end if
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
     end if
@@ -3901,6 +4214,7 @@ atom
     xIupDrawBegin,
     xIupDrawEnd,
     xIupDrawSetClipRect,
+    xIupDrawGetClipRect,
     xIupDrawResetClip,
     xIupDrawParentBackground,
     xIupDrawLine,
@@ -3919,6 +4233,7 @@ atom
     xIupSaveImageAsText,
     xIupGetNativeHandleImage,
     xIupGetImageNativeHandle,
+    xIupImageGetHandle,
     xIupImageFromImImage,
     xIupImageToImImage,
     ximFileImageLoadBitmap,
@@ -3942,6 +4257,7 @@ atom
     ximConvertColorSpace,
     ximImageClone,
     ximImageDestroy,
+    ximConvertPacking,
     ximImageGetOpenGLData
 
 
@@ -3966,24 +4282,26 @@ procedure iup_image_init()
         xIupDrawBegin               = iup_c_proc(iup, "IupDrawBegin",{P})
         xIupDrawEnd                 = iup_c_proc(iup, "IupDrawEnd",{P})
         xIupDrawSetClipRect         = iup_c_proc(iup, "IupDrawSetClipRect",{P,I,I,I,I})
+        xIupDrawGetClipRect         = iup_c_proc(iup, "IupDrawGetClipRect",{P,P,P,P,P})
         xIupDrawResetClip           = iup_c_proc(iup, "IupDrawResetClip",{P})
         xIupDrawParentBackground    = iup_c_proc(iup, "IupDrawParentBackground",{P})
         xIupDrawLine                = iup_c_proc(iup, "IupDrawLine",{P,I,I,I,I})
         xIupDrawRectangle           = iup_c_proc(iup, "IupDrawRectangle",{P,I,I,I,I})
         xIupDrawArc                 = iup_c_proc(iup, "IupDrawArc",{P,I,I,I,I,D,D})
         xIupDrawPolygon             = iup_c_proc(iup, "IupDrawPolygon",{P,P,I})
-        xIupDrawText                = iup_c_proc(iup, "IupDrawText",{P,P,I,I,I})
-        xIupDrawImage               = iup_c_proc(iup, "IupDrawImage",{P,P,I,I,I})
+        xIupDrawText                = iup_c_proc(iup, "IupDrawText",{P,P,I,I,I,I,I})
+        xIupDrawImage               = iup_c_proc(iup, "IupDrawImage",{P,P,I,I,I,I})
         xIupDrawSelectRect          = iup_c_proc(iup, "IupDrawSelectRect",{P,I,I,I,I})
         xIupDrawFocusRect           = iup_c_proc(iup, "IupDrawFocusRect",{P,I,I,I,I})
         xIupDrawGetSize             = iup_c_proc(iup, "IupDrawGetSize",{P,P,P})
-        xIupDrawGetTextSize         = iup_c_proc(iup, "IupDrawGetTextSize",{P,P,P,P})
+        xIupDrawGetTextSize         = iup_c_proc(iup, "IupDrawGetTextSize",{P,P,I,P,P})
         xIupDrawGetImageInfo        = iup_c_proc(iup, "IupDrawGetImageInfo",{P,P,P,P})
         xIupLoadImage               = iup_c_func(iupIm, "IupLoadImage", {P}, P)
         xIupSaveImage               = iup_c_func(iupIm, "IupSaveImage", {P,P,P}, I)
         xIupSaveImageAsText         = iup_c_func(iup, "IupSaveImageAsText", {P,P,P,P}, I)
         xIupGetNativeHandleImage    = iup_c_func(iupIm, "IupGetNativeHandleImage", {P}, P)
         xIupGetImageNativeHandle    = iup_c_func(iupIm, "IupGetImageNativeHandle", {P}, P)
+        xIupImageGetHandle          = iup_c_func(iup, "IupImageGetHandle", {P}, P)
         xIupImageFromImImage        = iup_c_func(iupIm, "IupImageFromImImage", {P}, P)
         xIupImageToImImage          = iup_c_func(iupIm, "IupImageToImImage", {P}, P)
         ximFileImageLoadBitmap      = iup_c_func(hIm, "imFileImageLoadBitmap", {P,I,P}, P)
@@ -4006,6 +4324,7 @@ procedure iup_image_init()
         ximConvertColorSpace        = iup_c_func(hIm, "imConvertColorSpace", {P,P}, I)
         ximImageClone               = iup_c_func(hIm, "imImageClone", {P}, P)
         ximImageDestroy             = iup_c_proc(hIm, "imImageDestroy", {P})
+        ximConvertPacking           = iup_c_proc(hIm, "imConvertPacking", {P,P,I,I,I,I,I,I})
         ximImageGetOpenGLData       = iup_c_proc(hIm, "imImageGetOpenGLData", {P,P})
     end if
 end procedure
@@ -4096,6 +4415,15 @@ global procedure IupDrawResetClip(Ihandle ih)
     c_proc(xIupDrawResetClip,{ih})
 end procedure
 
+global function IupDrawGetClipRect(Ihandle ih)
+    iup_image_init()
+    atom pX = allocate(W*4)
+    c_proc(xIupDrawGetClipRect,{ih,pX, pX+W, pX+2*W, pX+3*W})
+    sequence s = peeknu({pX,4})
+    free(pX)
+    return s -- integer {x1,y1,x2,y2}
+end function
+
 global procedure IupDrawParentBackground(Ihandle ih)
     iup_image_init()
     c_proc(xIupDrawParentBackground,{ih})
@@ -4125,15 +4453,17 @@ global procedure IupDrawPolygon(Ihandle ih, sequence points)
     free(pPoints)
 end procedure
 
-global procedure IupDrawText(Ihandle ih, string text, integer x, y)
+global procedure IupDrawText(Ihandle ih, string text, integer x, y, w=0, h=0)
     iup_image_init()
     integer len = length(text)
-    c_proc(xIupDrawText,{ih,text,len,x,y})
+    c_proc(xIupDrawText,{ih,text,len,x,y,w,h})
 end procedure
 
-global procedure IupDrawImage(Ihandle ih, string name, boolean make_inactive, integer x, y)
+--global procedure IupDrawImage(Ihandle ih, string name, boolean make_inactive, integer x, y)
+global procedure IupDrawImage(Ihandle ih, string name, integer x, y, w=0, h=0)
     iup_image_init()
-    c_proc(xIupDrawImage,{ih,name,make_inactive,x,y})
+--  c_proc(xIupDrawImage,{ih,name,make_inactive,x,y})
+    c_proc(xIupDrawImage,{ih,name,x,y,w,h})
 end procedure
 
 global procedure IupDrawSelectRect(Ihandle ih, integer x1, y1, x2, y2)
@@ -4157,9 +4487,9 @@ end function
 
 global function IupDrawGetTextSize(Ihandle ih, string str)
     iup_image_init()
-    atom pWH = allocate(8)
-    c_proc(xIupDrawGetTextSize,{ih,str,pWH,pWH+4})
-    sequence wh = peek4s({pWH,2})
+    atom pWH = allocate(2*W)
+    c_proc(xIupDrawGetTextSize,{ih,str,length(str),pWH,pWH+W})
+    sequence wh = peekns({pWH,2})
     free(pWH)
     return wh -- {width,height}
 end function
@@ -4206,6 +4536,12 @@ end function
 global function IupGetImageNativeHandle(imImage image)
 --  iup_image_init()
     atom result = c_func(xIupGetImageNativeHandle, {image})
+    return result
+end function
+
+global function IupImageGetHandle(string name)
+--  iup_image_init()
+    Ihandln result = c_func(xIupImageGetHandle, {name})
     return result
 end function
 
@@ -4441,10 +4777,19 @@ end function
 void imImageDestroy(imImage* image)
 Destroys the image and frees the memory used. image data is destroyed only if its data[0] is not NULL
 --*/
-global procedure imImageDestroy(imImage image)
+global function imImageDestroy(imImage image)
+    if image!=NULL then
+        iup_image_init()
+        c_proc(ximImageDestroy,{image})
+    end if
+    return NULL
+end function
+
+global procedure imConvertPacking(atom pSrcData, pDstData, integer width, height, src_depth, dst_depth, data_type, src_is_packed)
     iup_image_init()
-    c_proc(ximImageDestroy,{image})
+    c_proc(ximConvertPacking,{pSrcData, pDstData, width, height, src_depth, dst_depth, data_type, src_is_packed})
 end procedure
+
 
 --/*
 void* imImageGetOpenGLData(const imImage *image, int *glformat)
@@ -5019,6 +5364,7 @@ global constant
     CD_RAD2DEG = 180/PI,        -- Radians to Degrees (deg = CD_RAD2DEG * rad)
 
     CD_IUP          = {"CD_IUP"},
+    CD_IUPDRAW      = {"CD_IUPDRAW"},
     CD_PRINTER      = {"CD_PRINTER"},
     CD_PS           = {"CD_PS"},
     CD_PICTURE      = {"CD_PICTURE"},
@@ -5070,11 +5416,13 @@ atom
     xcdCanvasPutImImage,
 
     xcdContextIup,
+    xcdContextIupDraw,
     xcdContextPrinter,
     xcdContextPS,
     xcdContextPicture,
     xcdContextGL,
     xcdContextIupDBuffer,
+--  xcdContextNativeWindow,
     xcdContextDBuffer,
     xcdContextImageRGB,
     xcdContextPPTX,
@@ -5095,6 +5443,7 @@ atom
     xcdGetScreenColorPlanes,
 
     XCD_IUP,
+    XCD_IUPDRAW,
     XCD_PRINTER,
     XCD_PS,
     XCD_PICTURE,
@@ -5118,6 +5467,7 @@ atom
     XCD_CLIPBOARD
 
 sequence XCD_STR = {"CD_IUP",
+                    "CD_IUPDRAW",
                     "CD_PRINTER",
                     "CD_PS",
                     "CD_PICTURE",
@@ -5460,6 +5810,7 @@ procedure iup_init_cd()
         -- Canvas Initialization Routines
         --
         xcdContextIup           = iup_c_func(hCdIup, "cdContextIup", {}, P)
+        xcdContextIupDraw       = iup_c_func(hCdIup, "cdContextIupDraw", {}, P)
         xcdContextPrinter       = iup_c_func(hCd, "cdContextPrinter", {}, P)
         xcdContextPS            = iup_c_func(hCd, "cdContextPS", {}, P)
         xcdContextPicture       = iup_c_func(hCd, "cdContextPicture", {}, P)
@@ -5495,6 +5846,7 @@ end if
 --  of pGUI, just use eg cd_context(CD_IUP).
 
         XCD_IUP          = c_func(xcdContextIup, {})
+        XCD_IUPDRAW      = c_func(xcdContextIupDraw, {})
         XCD_PRINTER      = c_func(xcdContextPrinter, {})
         XCD_PS           = c_func(xcdContextPS, {})
         XCD_PICTURE      = c_func(xcdContextPicture, {})
@@ -5518,6 +5870,7 @@ end if
         XCD_CLIPBOARD    = c_func(xcdContextClipboard,{})
 
         XCDS = {XCD_IUP,
+                XCD_IUPDRAW,
                 XCD_PRINTER,
                 XCD_PS,
                 XCD_PICTURE,
@@ -5832,22 +6185,6 @@ end function
 ----****
 ---- === Canvas Initialization Routines
 ----
---
---constant
---  xcdContextIup           = iup_c_func(hCdIup, "cdContextIup", {}, P),
---  xcdContextPrinter       = iup_c_func(hCd, "cdContextPrinter", {}, P),
---  xcdContextPS            = iup_c_func(hCd, "cdContextPS", {}, P),
---  xcdContextPicture       = iup_c_func(hCd, "cdContextPicture", {}, P),
---  xcdContextGL            = iup_c_func(hCdGL,"cdContextGL", {}, P),
---  xcdContextIupDBuffer    = iup_c_func(hCdIup,"cdContextIupDBuffer", {}, P)
---
---global constant
---  CD_IUP          = c_func(xcdContextIup, {}),
---  CD_PRINTER      = c_func(xcdContextPrinter, {}),
---  CD_PS           = c_func(xcdContextPS, {}),
---  CD_PICTURE      = c_func(xcdContextPicture, {}),
---  CD_GL           = c_func(xcdContextGL, {}),
---  CD_IUPDBUFFER   = c_func(xcdContextIupDBuffer, {})
 --
 --global function cdContextIup()    -- removed 2/5/18: replace with cd_context(CD_IUP)
 --  iup_init_cd()
@@ -8001,12 +8338,15 @@ atom
     xIupPlotGetSample,
     xIupPlotGetSampleStr,
     xIupPlotGetSampleSelection,
+    xIupPlotGetSampleExtra,
     xIupPlotSetSample,
     xIupPlotSetSampleStr,
     xIupPlotSetSampleSelection,
+    xIupPlotSetSampleExtra,
     xIupPlotTransform,
     xIupPlotTransformTo,
     xIupPlotFindSample,
+    xIupPlotFindSegment,
     xIupPlotPaintTo,
 --  xIupPlotSetFormula
     $
@@ -8037,12 +8377,15 @@ procedure iup_init_plot()
         xIupPlotGetSample           = iup_c_proc(hIupPlot, "IupPlotGetSample", {P,I,I,P,P})
         xIupPlotGetSampleStr        = iup_c_proc(hIupPlot, "IupPlotGetSampleStr", {P,I,I,P,P})
         xIupPlotGetSampleSelection  = iup_c_func(hIupPlot, "IupPlotGetSampleSelection", {P,I,I},I)
+        xIupPlotGetSampleExtra      = iup_c_func(hIupPlot, "IupPlotGetSampleExtra", {P,I,I},D)
         xIupPlotSetSample           = iup_c_proc(hIupPlot, "IupPlotSetSample", {P,I,I,D,D})
         xIupPlotSetSampleStr        = iup_c_proc(hIupPlot, "IupPlotSetSampleStr", {P,I,I,P,D})
         xIupPlotSetSampleSelection  = iup_c_proc(hIupPlot, "IupPlotSetSampleSelection", {P,I,I,I})
+        xIupPlotSetSampleExtra      = iup_c_proc(hIupPlot, "IupPlotSetSampleExtra", {P,I,I,D})
         xIupPlotTransform           = iup_c_proc(hIupPlot, "IupPlotTransform", {P,D,D,P,P})
         xIupPlotTransformTo         = iup_c_proc(hIupPlot, "IupPlotTransformTo", {P,D,D,P,P})
         xIupPlotFindSample          = iup_c_proc(hIupPlot, "IupPlotFindSample", {P,D,D,P,P})
+        xIupPlotFindSegment         = iup_c_proc(hIupPlot, "IupPlotFindSegment", {P,D,D,P,P,P})
         xIupPlotPaintTo             = iup_c_proc(hIupPlot, "IupPlotPaintTo", {P,P})
 --link error (using v3.17)
 --      xIupPlotSetFormula          = iup_c_proc(hIupPlot, "IupPlotSetFormula", {P,I,P,P})
@@ -8159,7 +8502,7 @@ global function IupPlotGetSample(Ihandle ih, integer ds_index, integer sample_in
 end function
 
 --void IupPlotGetSampleStr(Ihandle *ih, int ds_index, int sample_index, const char* *x, double *y);
-global function IupPlotGetSampleStr(Ihandle ih, integer ds_index, integer sample_index)
+global function IupPlotGetSampleStr(Ihandle ih, integer ds_index, sample_index)
     atom pX = allocate(8*2),
          pY = allocate(8)
     c_proc(xIupPlotGetSampleStr, {ih, ds_index, sample_index, pX, pY})
@@ -8170,10 +8513,15 @@ global function IupPlotGetSampleStr(Ihandle ih, integer ds_index, integer sample
 end function
 
 --int IupPlotGetSampleSelection(Ihandle *ih, int ds_index, int sample_index);
-global function IupPlotGetSampleSelection(Ihandle ih, integer ds_index, integer sample_index)
+global function IupPlotGetSampleSelection(Ihandle ih, integer ds_index, sample_index)
 -- returns -1 if an error occurs (hence a bool res rather than boolean)
     bool selected = c_func(xIupPlotGetSampleSelection, {ih, ds_index, sample_index})
     return selected
+end function
+
+global function IupPlotGetSampleExtra(Ihandle ih, integer ds_index, sample_index)
+    atom v = c_func(xIupPlotGetSampleExtra, {ih, ds_index, sample_index})
+    return v
 end function
 
 --void IupPlotSetSample(Ihandle *ih, int ds_index, int sample_index, double x, double y);
@@ -8189,6 +8537,10 @@ end procedure
 --void IupPlotSetSampleSelection(Ihandle *ih, int ds_index, int sample_index, int selected);
 global procedure IupPlotSetSampleSelection(Ihandle ih, integer ds_index, integer sample_index, boolean selected)
     c_proc(xIupPlotSetSampleSelection, {ih, ds_index, sample_index, selected})
+end procedure
+
+global procedure IupPlotSetSampleExtra(Ihandle ih, integer ds_index, integer sample_index, atom extra)
+    c_proc(xIupPlotSetSampleExtra, {ih, ds_index, sample_index, extra})
 end procedure
 
 --void IupPlotTransform(Ihandle* ih, double x, double y, double *cnv_x, double *cnv_y); 
@@ -8221,6 +8573,18 @@ global function IupPlotFindSample(Ihandle ih, atom x, atom y)
     return {ds_index, sample_index}
 end function
 
+global function IupPlotFindSegment(Ihandle ih, atom x, atom y)
+    atom p_ds_index = allocate(W*3),
+         p_sample_index1 = p_ds_index+W,
+         p_sample_index2 = p_ds_index+W*2
+    if c_func(xIupPlotFindSegment, {ih, x, y, p_ds_index, p_sample_index1, p_sample_index2}) then return 0 end if
+    integer ds_index = peekNS(p_ds_index,W,0)
+    integer sample_index1 = peekNS(p_sample_index1,W,0),
+            sample_index2 = peekNS(p_sample_index2,W,0)
+    free(p_ds_index)
+    return {ds_index, sample_index1, sample_index2}
+end function
+
 --void IupPlotPaintTo(Ihandle ih, cdCanvas cnv); 
 global procedure IupPlotPaintTo(Ihandle ih, cdCanvas cnv)
     c_proc(xIupPlotPaintTo, {ih, cnv})
@@ -8230,6 +8594,295 @@ end procedure
 --global procedure IupPlotSetFormula(Ihandle ih, integer sample_count, string formula, nullable_string init)
 --  c_proc(xIupPlotSetFormula, {ih, sample_count, formula, init})
 --end procedure
+
+atom
+    hIupMglPlot = 0,
+    xIupMglPlotOpen,
+    xIupMglPlot,
+    xIupMglPlotBegin,
+    xIupMglPlotAdd1D,
+    xIupMglPlotAdd2D,
+    xIupMglPlotAdd3D,
+    xIupMglPlotDrawLine,
+    xIupMglPlotDrawMark,
+    xIupMglPlotDrawText,
+    xIupMglPlotEnd,
+    xIupMglPlotInsert1D,
+    xIupMglPlotInsert2D,
+    xIupMglPlotInsert3D,
+    xIupMglPlotLoadData,
+    xIupMglPlotNewDataSet,
+    xIupMglPlotPaintTo,
+    xIupMglPlotSet1D,
+    xIupMglPlotSet2D,
+    xIupMglPlotSet3D,
+    xIupMglPlotSetData,
+    xIupMglPlotSetFormula,
+    xIupMglPlotSetFromFormula,
+    xIupMglPlotTransform,
+    xIupMglPlotTransformTo,
+    $
+
+procedure iup_init_mglplot()
+    if hIupMglPlot=0 then
+        hIupMglPlot = iup_open_dll({
+                                 "iup_mglplot.dll",
+                                 "libiup_mglplot.so",
+                                 "libiup_mglplot.dylib"
+                                })
+
+        xIupMglPlotOpen                 = iup_c_proc(hIupMglPlot, "IupMglPlotOpen", {})
+        xIupMglPlot                     = iup_c_func(hIupMglPlot, "IupMglPlot", {},P)
+        xIupMglPlotBegin                = iup_c_proc(hIupMglPlot, "IupMglPlotBegin", {P,I})
+        xIupMglPlotAdd1D                = iup_c_proc(hIupMglPlot, "IupMglPlotAdd1D", {P,P,D})
+        xIupMglPlotAdd2D                = iup_c_proc(hIupMglPlot, "IupMglPlotAdd2D", {P,D,D})
+        xIupMglPlotAdd3D                = iup_c_proc(hIupMglPlot, "IupMglPlotAdd3D", {P,D,D,D})
+        xIupMglPlotDrawLine             = iup_c_proc(hIupMglPlot, "IupMglPlotDrawLine", {P,D,D,D,D,D,D})
+        xIupMglPlotDrawMark             = iup_c_proc(hIupMglPlot, "IupMglPlotDrawMark", {P,D,D,D})
+        xIupMglPlotDrawText             = iup_c_proc(hIupMglPlot, "IupMglPlotDrawText", {P,P,D,D,D})
+        xIupMglPlotEnd                  = iup_c_func(hIupMglPlot, "IupMglPlotEnd", {P},I)
+        xIupMglPlotInsert1D             = iup_c_proc(hIupMglPlot, "IupMglPlotInsert1D", {P,I,I,P,P,I})
+        xIupMglPlotInsert2D             = iup_c_proc(hIupMglPlot, "IupMglPlotInsert2D", {P,I,I,P,P,I})
+        xIupMglPlotInsert3D             = iup_c_proc(hIupMglPlot, "IupMglPlotInsert3D", {P,I,I,P,P,P,I})
+        xIupMglPlotLoadData             = iup_c_proc(hIupMglPlot, "IupMglPlotLoadData", {P,I,P,I,I,I})
+        xIupMglPlotNewDataSet           = iup_c_func(hIupMglPlot, "IupMglPlotNewDataSet", {P,I},I)
+        xIupMglPlotPaintTo              = iup_c_proc(hIupMglPlot, "IupMglPlotPaintTo", {P,P,I,I,D,P})
+        xIupMglPlotSet1D                = iup_c_proc(hIupMglPlot, "IupMglPlotInsert1D", {P,I,I,P,P,I})
+        xIupMglPlotSet2D                = iup_c_proc(hIupMglPlot, "IupMglPlotInsert2D", {P,I,I,P,P,I})
+        xIupMglPlotSet3D                = iup_c_proc(hIupMglPlot, "IupMglPlotInsert3D", {P,I,I,P,P,P,I})
+        xIupMglPlotSetData              = iup_c_proc(hIupMglPlot, "IupMglPlotSetData", {P,I,P,I,I,I})
+        xIupMglPlotSetFormula           = iup_c_proc(hIupMglPlot, "IupMglPlotSetFormula", {P,I,P,P,P,I})
+        xIupMglPlotSetFromFormula       = iup_c_proc(hIupMglPlot, "IupMglPlotSetFromFormula", {P,I,P,I,I,I})
+        xIupMglPlotTransform            = iup_c_proc(hIupMglPlot, "IupMglPlotTransform", {P,D,D,D,P,P})
+        xIupMglPlotTransformTo          = iup_c_proc(hIupMglPlot, "IupMglPlotTransformTo", {P,I,I,P,P,P})
+    end if
+end procedure
+
+integer did_mglplot_open = 0
+
+global procedure IupMglPlotOpen()
+    did_mglplot_open = 1
+    iup_init_mglplot()
+    c_proc(xIupMglPlotOpen, {})
+end procedure
+
+global function IupMglPlot(string attributes="", sequence data={})
+    if not did_mglplot_open then
+        IupMglPlotOpen()
+    end if
+    Ihandle ih = c_func(xIupMglPlot, {})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global procedure IupMglPlotBegin(Ihandle ih, integer dim)
+    c_proc(xIupMglPlotBegin, {ih,dim})
+end procedure
+
+global procedure IupMglPlotAdd1D(Ihandle ih, nullable_string name, atom y)
+    c_proc(xIupMglPlotAdd1D, {ih,name,y})
+end procedure
+
+global procedure IupMglPlotAdd2D(Ihandle ih, atom x, y)
+    c_proc(xIupMglPlotAdd2D, {ih,x,y})
+end procedure
+
+global procedure IupMglPlotAdd3D(Ihandle ih, atom x, y, z)
+    c_proc(xIupMglPlotAdd3D, {ih,x,y,z})
+end procedure
+
+global function IupMglPlotEnd(Ihandle ih)
+    integer ds_index = c_func(xIupMglPlotEnd,{ih})
+    return ds_index
+end function
+
+global function IupMglPlotNewDataSet(Ihandle ih, integer dim)
+    integer ds_index = c_func(xIupMglPlotNewDataSet, {ih,dim})
+    return ds_index
+end function
+
+global procedure IupMglPlotInsert1D(Ihandle ih, integer ds_index, sample_index, object names, sequence y, integer count=-1)
+    atom pNames = NULL
+    if sequence(names) then
+        if count=-1 then
+            count = length(names)
+        else
+            if length(names)!=count then ?9/0 end if
+        end if
+        atom pX = allocate(count*W)
+        iup_poke_string_pointer_array(pX, names)
+    end if
+    if count=-1 then
+        count = length(y)
+    else
+        if length(y)!=count then ?9/0 end if
+    end if
+    atom pY = allocate(count*8)
+    iup_poke_double(pY, y)
+    c_proc(xIupMglPlotInsert1D, {ih, ds_index, sample_index, pNames, pY, count})
+    if pNames!=NULL then
+        free(pNames)
+    end if
+    free(pY)
+end procedure
+
+global procedure IupMglPlotInsert2D(Ihandle ih, integer ds_index, sample_index, sequence x, y, integer count=-1)
+    if count=-1 then
+        count = length(x)
+    else
+        if length(x)!=count then ?9/0 end if
+    end if
+    if length(y)!=count then ?9/0 end if
+
+    atom pX = allocate(count*W),
+         pY = allocate(count*W)
+    iup_poke_double(pX, x)
+    iup_poke_double(pY, y)
+    c_proc(xIupMglPlotInsert2D, {ih, ds_index, sample_index, pX, pY, count})
+    free(pX)
+    free(pY)
+end procedure
+
+global procedure IupMglPlotInsert3D(Ihandle ih, integer ds_index, sample_index, sequence x, y, z, integer count=-1)
+    if count=-1 then
+        count = length(x)
+    else
+        if length(x)!=count then ?9/0 end if
+    end if
+    if length(y)!=count then ?9/0 end if
+    if length(z)!=count then ?9/0 end if
+
+    atom pX = allocate(count*W),
+         pY = allocate(count*W),
+         pZ = allocate(count*W)
+    iup_poke_double(pX, x)
+    iup_poke_double(pY, y)
+    iup_poke_double(pZ, z)
+    c_proc(xIupMglPlotInsert3D, {ih, ds_index, sample_index, pX, pY, pZ, count})
+    free(pX)
+    free(pY)
+    free(pZ)
+end procedure
+
+global procedure IupMglPlotSet1D(Ihandle ih, integer ds_index, sample_index, object names, sequence y, integer count=-1)
+    atom pNames = NULL
+    if sequence(names) then
+        if count=-1 then
+            count = length(names)
+        else
+            if length(names)!=count then ?9/0 end if
+        end if
+        atom pX = allocate(count*W)
+        iup_poke_string_pointer_array(pX, names)
+    end if
+    if count=-1 then
+        count = length(y)
+    else
+        if length(y)!=count then ?9/0 end if
+    end if
+    atom pY = allocate(count*8)
+    iup_poke_double(pY, y)
+    c_proc(xIupMglPlotSet1D, {ih, ds_index, sample_index, pNames, pY, count})
+    if pNames!=NULL then
+        free(pNames)
+    end if
+    free(pY)
+end procedure
+
+global procedure IupMglPlotSet2D(Ihandle ih, integer ds_index, sample_index, sequence x, y, integer count=-1)
+    if count=-1 then
+        count = length(x)
+    else
+        if length(x)!=count then ?9/0 end if
+    end if
+    if length(y)!=count then ?9/0 end if
+
+    atom pX = allocate(count*W),
+         pY = allocate(count*W)
+    iup_poke_double(pX, x)
+    iup_poke_double(pY, y)
+    c_proc(xIupMglPlotSet2D, {ih, ds_index, sample_index, pX, pY, count})
+    free(pX)
+    free(pY)
+end procedure
+
+global procedure IupMglPlotSet3D(Ihandle ih, integer ds_index, sample_index, sequence x, y, z, integer count=-1)
+    if count=-1 then
+        count = length(x)
+    else
+        if length(x)!=count then ?9/0 end if
+    end if
+    if length(y)!=count then ?9/0 end if
+    if length(z)!=count then ?9/0 end if
+
+    atom pX = allocate(count*W),
+         pY = allocate(count*W),
+         pZ = allocate(count*W)
+    iup_poke_double(pX, x)
+    iup_poke_double(pY, y)
+    iup_poke_double(pZ, z)
+    c_proc(xIupMglPlotSet3D, {ih, ds_index, sample_index, pX, pY, pZ, count})
+    free(pX)
+    free(pY)
+    free(pZ)
+end procedure
+
+global procedure IupMglPlotSetFormula(Ihandle ih, integer ds_index, string formulaX, nullable_string formulaY, formulaZ, integer count)
+    c_proc(xIupMglPlotSetFormula, {ih, ds_index, formulaX, formulaY, formulaZ, count})
+end procedure
+
+global procedure IupMglPlotSetData(Ihandle ih, integer ds_index, sequence data, integer count_x, count_y, count_z)
+    if length(data)!=count_x*count_y*count_z then ?9/0 end if
+    atom pData = allocate(count_x*count_y*count_z*8)
+    iup_poke_double(pData, data)
+    c_proc(xIupMglPlotSetData, {ih, ds_index, pData, count_x, count_y, count_z})
+    free(pData)
+end procedure
+
+global procedure IupMglPlotLoadData(Ihandle ih, integer ds_index, string filename, integer count_x, count_y, count_z)
+    c_proc(xIupMglPlotLoadData, {ih, ds_index, filename, count_x, count_y, count_z})
+end procedure
+
+global procedure IupMglPlotSetFromFormula(Ihandle ih, integer ds_index, string formula, integer count_x, count_y, count_z)
+    c_proc(xIupMglPlotSetFromFormula, {ih, ds_index, formula, count_x, count_y, count_z})
+end procedure
+
+global function IupMglPlotTransform(Ihandle ih, atom x, y, z)
+    atom pX = allocate(W*2),
+         pY = pX+W
+    c_proc(xIupMglPlotTransform, {ih, x, y, z, pX, pY})
+    sequence ixy = peekns({pX, 2})  -- {ix,iy}
+    free(pX)
+    return ixy  -- {ix,iy}
+end function
+
+global function IupMglPlotTransformTo(Ihandle ih, integer ix, iy)
+    atom pX = allocate(8*3),
+         pY = pX+8,
+         pZ = pY+8
+    c_proc(xIupMglPlotTransformTo, {ih, ix, iy, pX, pY, pZ})
+    sequence xyz = iup_peek_double({pX, 3})
+    free(pX)
+    return xyz  -- {x,y,z}
+end function
+
+global procedure IupMglPlotDrawMark(Ihandle ih, atom x, y, z)
+    c_proc(xIupMglPlotDrawMark, {ih, x, y, z})
+end procedure
+
+global procedure IupMglPlotDrawLine(Ihandle ih, atom x1, y1, z1, x2, y2, z2)
+    c_proc(xIupMglPlotDrawLine, {ih, x1, y1, z1, x2, y2, z2})
+end procedure
+
+global procedure IupMglPlotDrawText(Ihandle ih, string text, atom x, y, z)
+    c_proc(xIupMglPlotDrawText, {ih, text, x, y, z})
+end procedure
+
+global procedure IupMglPlotPaintTo(Ihandle ih, string fmt, integer w, h, atom dpi, object data)
+    c_proc(xIupMglPlotPaintTo, {ih, fmt, w, h, dpi, data})
+end procedure
 
 --
 -- OpenGL Canvas
@@ -8854,7 +9507,7 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --      xIupExpander                      = iup_c_func(iup, "+IupExpander", {P}, P),
 --      xIupDetachBox                     = iup_c_func(iup, "+IupDetachBox", {P}, P),
 --      xIupBackgroundBox                 = iup_c_func(iup, "+IupBackgroundBox", {P}, P),
---      xIupFrame                         = iup_c_func(iup, "+IupFrame", {P}, P),
+--X     xIupFrame                         = iup_c_func(iup, "+IupFrame", {P}, P),
 --      xIupImage                         = iup_c_func(iup, "+IupImage", {I,I,P}, P),
 --      xIupImageRGB                      = iup_c_func(iup, "+IupImageRGB", {I,I,P}, P),
 --      xIupImageRGBA                     = iup_c_func(iup, "+IupImageRGBA", {I,I,P}, P),
@@ -8878,8 +9531,8 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --      xIupTabs                          = iup_c_func(iup, "+IupTabsv", {P}, P),
 --      xIupTree                          = iup_c_func(iup, "+IupTree", {}, P),
 --      xIupLink                          = iup_c_func(iup, "+IupLink", {P,P}, P),
---      xIupFlatButton                    = iup_c_func(iup, "+IupFlatButton", {P}, P),
---      xIupSpin                          = iup_c_func(iup, "+IupSpin", {}, P),
+--x     xIupFlatButton                    = iup_c_func(iup, "+IupFlatButton", {P}, P),
+--x     xIupSpin                          = iup_c_func(iup, "+IupSpin", {}, P),
 --      xIupSpinbox                       = iup_c_func(iup, "+IupSpinbox", {P}, P),
 --      xIupSaveImageAsText               = iup_c_func(iup, "+IupSaveImageAsText", {P,P,P,P}, I),
 --      xIupTextConvertLinColToPos        = iup_c_proc(iup, "+IupTextConvertLinColToPos", {P,I,I,P}),
@@ -8914,7 +9567,6 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 --      xIupParamf                        = iup_c_func(iup, "+IupParamf", {P}, P),
 --      xIupParamBox                      = iup_c_func(iup, "+IupParamBox", {P,P,I}, P),
 --      xIupLayoutDialog                  = iup_c_func(iup, "+IupLayoutDialog", {P}, P),
---      xIupElementPropertiesDialog       = iup_c_func(iup, "+IupElementPropertiesDialog", {P}, P),
 --$
 
 --if xIupSetCallback=0 then ?9/0 end if
@@ -8922,9 +9574,10 @@ global constant K_yAsterisk = iup_XkeySys(K_asterisk )
 global constant IUP_NAME = "IUP - Portable User Interface"
 global constant IUP_DESCRIPTION = "Multi-platform Toolkit for Building Graphical User Interfaces"
 global constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
-global constant IUP_VERSION = "3.16" /* bug fixes are reported only by IupVersion functions */
-global constant IUP_VERSION_NUMBER = 316000
-global constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix releases */
+--Use IupVersion() etc instead:
+--global constant IUP_VERSION = "3.16" /* bug fixes are reported only by IupVersion functions */
+--global constant IUP_VERSION_NUMBER = 316000
+--global constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix releases */
 
 ----void IupSetLanguageString(const char* name, const char* str);
 --global procedure IupSetLanguageString(string name, string str)
@@ -8981,6 +9634,221 @@ global function IupScrollBox(Ihandln child=NULL, string attributes="", sequence 
     return ih
 end function
 
+global function IupFlatScrollBox(Ihandln child=NULL, string attributes="", sequence data={})
+    Ihandle ih = c_func(xIupFlatScrollBox, {child})
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+--/*
+-- The original proof-of-concept for IupFlowBox(), and full tests, preserved for posterity:
+function reflow(sequence s, integer w)
+    integer tgt = 1,
+            rw = w
+    for i=1 to length(s) do
+        integer j = 1
+        while j<=length(s[i]) do
+            --?{i,j,rw,tgt,s}
+            rw -= 10    -- (IupGetInt(?,"SIZE"))
+            if rw<0 then
+                tgt += 1
+                if i=tgt-1 then
+                    -- spill as rqd,
+                    j = max(2,j) -- but keep at least 1
+                    -- eg {{1,2,3,4,5,6},{}}
+                    -- ==> {{1,2,3,4,5},{6}}
+                    -- ==> {{1,2,3,4},{5,6}}
+                    for k=length(s[i]) to j by -1 do
+                        s[tgt] = prepend(s[tgt],s[i][k])
+                        s[i] = s[i][1..k-1] -- trim right
+                    end for
+--                  -- (aside: perfectly valid, but pointless:)
+--                  rw = w
+--                  exit
+                else
+                    if j!=1 then ?9/0 end if -- (sanity [as below])
+                end if
+                rw = w
+                -- (whereas an exit here is wrong for non-spill)
+                -- [you wouldn't believe how many times I tried]
+            elsif i>tgt then
+                -- shuffle up as rqd
+                -- eg {{1},{2},{3}} ==> {{1,2},{},{3}}
+                -- or {{1,2},{},{3}} ==> {{1,2,3},{},{}}
+                -- or {{1,2},{},{3}} ==> {{1,2},{3},{}}
+                --  (just do them one at a time, here)
+                if j!=1 then ?9/0 end if -- (sanity)
+                -- ("" ie there should never be anything
+                --  betwixt s[tgt][$] and s[i][j] here,
+                --  that we haven't already moved up)
+                s[tgt] = append(s[tgt],s[i][1])
+                s[i] = s[i][2..$]   -- trim left
+                -- (j stays the same, although now it
+                --  actually refers to the next item)
+            else
+                j += 1 -- (already in place, move on)
+            end if
+        end while
+    end for
+    return s
+end function
+
+sequence s = columnize({tagset(10)}), s0 = s
+?s
+----trace(1)
+--s = reflow(s,40)
+--?s
+--s = reflow(s,100)
+--?s
+------trace(1)
+s = reflow(s,1)
+?s
+sequence r = repeat(0,10)
+for i=1 to 10 do
+    r[i] = reflow(s,i*10)
+end for
+pp(r,{pp_Nest,1})
+for i=1 to 10 do
+    for j=1 to 10 do
+        if r[j]!=reflow(r[i],j*10) then ?9/0 end if
+    end for
+    if reflow(r[i],1)!=s0 then ?9/0 end if
+end for
+?"done"
+{} = wait_key()
+abort(0)
+--*/
+
+--function flow(Ihandle vbox, Ihandles hbox, integer w)
+function flow(Ihandles hbox, integer w)
+--?{"flow",vbox, hbox, w}
+    integer tgt = 1,    -- fill/flow hbox
+            rw = w,     -- remaining width
+            err
+    Ihandle ih, new_parent  -- (scratch vars)
+    Ihandln ref_child       -- (     ""     )
+    sequence s = repeat({},length(hbox))
+    for i=1 to length(s) do
+        for pos=0 to IupGetChildCount(hbox[i])-1 do
+            s[i] &= IupGetChild(hbox[i],pos)
+        end for
+    end for
+    bool bMoved = false
+    for i=1 to length(s) do
+        integer j = 1
+        while j<=length(s[i]) do
+            rw -= IupGetInt(s[i][j],"RASTERSIZE")
+            if rw<0 then
+                tgt += 1
+                if i=tgt-1 then
+                    -- spill as rqd,
+                    j = max(2,j) -- but keep at least 1
+                    -- eg {{1,2,3,4,5,6},{}}
+                    -- ==> {{1,2,3,4,5},{6}}
+                    -- ==> {{1,2,3,4},{5,6}}
+                    for k=length(s[i]) to j by -1 do
+                        ih = s[i][k]
+                        new_parent = hbox[tgt]
+                        ref_child = iff(length(s[tgt])?s[tgt][1]:NULL)
+                        err = IupReparent(ih, new_parent, ref_child) 
+                        if err!=IUP_NOERROR then ?9/0 end if
+                        bMoved = true
+                        s[tgt] = prepend(s[tgt],s[i][k])
+                        s[i] = s[i][1..k-1] -- trim right
+                    end for
+--                  -- (aside: perfectly valid, but pointless:)
+--                  rw = w
+--                  exit
+                else
+                    if j!=1 then ?9/0 end if -- (sanity [as below])
+                end if
+                rw = w
+                -- (whereas an exit here is wrong for non-spill)
+                -- [you wouldn't believe how many times I tried]
+            elsif i>tgt then
+                -- shuffle up as rqd
+                -- eg {{1},{2},{3}} ==> {{1,2},{},{3}}
+                -- or {{1,2},{},{3}} ==> {{1,2,3},{},{}}
+                -- or {{1,2},{},{3}} ==> {{1,2},{3},{}}
+                --  (just do them one at a time, here)
+                if j!=1 then ?9/0 end if -- (sanity)
+                -- ("" ie there should never be anything
+                --  betwixt s[tgt][$] and s[i][j] here,
+                --  that we haven't already moved up)
+                ih = s[i][1]
+                new_parent = hbox[tgt]
+                ref_child = NULL
+                err = IupReparent(ih, new_parent, ref_child) 
+                if err!=IUP_NOERROR then ?9/0 end if
+                bMoved = true
+                s[tgt] = append(s[tgt],s[i][1])
+                s[i] = s[i][2..$]   -- trim left
+                -- (j stays the same, although now it
+                --  actually refers to the next item)
+            else
+                j += 1 -- (already in place, move on)
+            end if
+        end while
+    end for
+    return bMoved
+end function
+
+function find_flow(Ihandle ih, integer width)
+    integer count = IupGetChildCount(ih)
+    bool bFlow = find("FLOWBOX",IupGetAllAttributes(ih)) and 
+                 IupGetAttribute(ih,"FLOWBOX")="FlowBox"
+--  integer w = IupGetInt(ih,"CLIENTSIZE")  -- (maybe??)
+    sequence children = {}
+    bool bMoved = false
+    for pos=0 to count-1 do
+        Ihandle child = IupGetChild(ih,pos)
+        if bFlow then
+            children &= child
+        end if
+        bMoved = find_flow(child,width)
+--      bMoved = find_flow(child,iff(bFlow?width:w)) -- (untested...)
+    end for
+    if bFlow then
+--      bMoved = flow(ih,children,width)
+        bMoved = flow(children,width)
+    end if
+    return bMoved
+end function
+
+global function IupResizeFlow_cb(Ihandle dlg, integer width, /*height*/)
+--?{"IupResizeFlow_cb", dlg, width}
+    if find_flow(dlg,width) then
+        IupRefresh(dlg)
+        {} = find_flow(dlg,width)
+        IupRefresh(dlg)
+    end if
+    return IUP_DEFAULT
+end function
+
+global procedure IupSetResizeFlowCallback(Ihandle dlg)
+    IupSetCallback(dlg,"RESIZE_CB",Icallback("IupResizeFlow_cb"))
+end procedure
+
+global procedure IupResizeFlow(Ihandle dlg)
+    IupSetResizeFlowCallback(dlg)
+end procedure
+
+global function IupFlowBox(Ihandles children, string attributes="", sequence data={})
+    for i=1 to length(children) do
+        -- Put each child in it's own IupHbox. After the first flow(), 
+        -- many may end up empty, but we never have to create any more.
+        children[i] = IupHbox(children[i])
+    end for
+    Ihandle ih = IupVbox(children)
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    IupSetAttribute(ih,"FLOWBOX","FlowBox") -- and properly label it.
+    return ih
+end function
+
 global function IupExpander(Ihandln child=NULL, string attributes="", sequence data={})
     Ihandle ih = c_func(xIupExpander, {child})
     if length(attributes) then
@@ -9030,6 +9898,22 @@ end function
 
 global function IupFlatButton(nullable_string title=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupFlatButton, {title})
+    {action,func,attributes,data} = paranormalise(action,func,attributes,data)
+    if func!=NULL then
+        if action="ACTION" then ?9/0 end if -- see docs!
+        if action=NULL then
+            action = "FLAT_ACTION"
+        end if
+        IupSetCallback(ih, action, func)
+    end if
+    if length(attributes) then
+        IupSetAttributes(ih, attributes, data)
+    end if
+    return ih
+end function
+
+global function IupDropButton(Ihandln child=NULL, object action=NULL, object func=NULL, sequence attributes="", dword_seq data={})
+    Ihandle ih = c_func(xIupDropButton, {child})
     {action,func,attributes,data} = paranormalise(action,func,attributes,data)
     if func!=NULL then
         if action=NULL then
@@ -9236,9 +10120,13 @@ end function
 --  return ih
 --end function
 
---Ihandle* IupElementPropertiesDialog(Ihandle* elem);
-global function IupElementPropertiesDialog(Ihandle elem)
-    Ihandle ih = c_func(xIupElementPropertiesDialog, {elem})
+global function IupElementPropertiesDialog(Ihandln parent, Ihandle elem)
+    Ihandle ih = c_func(xIupElementPropertiesDialog, {parent, elem})
+    return ih
+end function
+
+global function IupClassInfoDialog(Ihandln parent)
+    Ihandle ih = c_func(xIupClassInfoDialog, {parent})
     return ih
 end function
 
@@ -9365,16 +10253,6 @@ end function
 ------------------
 -- ======
 --
-
-
---constant
---  xiupKeyCodeToName = iup_c_func(iup, "iupKeyCodeToName", {I},P),
---  $
---
-global function iupKeyCodeToName(atom ch)
-    atom pKeyName = c_func(xiupKeyCodeToName,{ch})
-    return peek_string(pKeyName)
-end function
 
 
 --dev WIERD ERROR...
@@ -9926,7 +10804,7 @@ IupSaveImageAsText
 iupSaveImageAsText
 IupSbox
 IupScanf
-IupScrollBox
+--IupScrollBox
 IupSeparator
 IupSetAtt
 IupSetAttribute

@@ -19,8 +19,8 @@
         version of a program that had to process over 800,000 numbers in a different order to the way they were 
         created, by a factor of 17.5 (0.8s vs 14s), and yet the only real difference was how those numbers were 
         being stored and sorted. While a standard <a href="sort.htm">sort</a>() is generally pretty fast, it can 
-        be completely outclassed by a priority queue<sup><small>1</small></sup>, and obviously a priority queue
-        will also outclass any algorithm that uses repeated sorting or scanning.
+        (sometimes) be completely outclassed by a priority queue, especially if (as per the example below) we 
+        can avoid the need to generate everything up-front, and/or avoid any repeated sorting or scanning.
         <br>
         <br>
         For more technical details about the implementation of priority queues (a kind of shape-constrained
@@ -32,10 +32,9 @@
         returned 1, which can simplify things slightly when only one (MIN_HEAP) queue is required.
         <br>
         <br>
-        Traditionally the priority is an integer (as in the example below), but here it can also be a float, 
-        a string, or even a complex nested sequence. Plus, a custom priority comparison routine can also be 
-        provided for things on which the standard builtin <a href="compare.htm">compare</a>() function will 
-        not work as needed, such as <a href="mpfr.htm">mpfr or mpz</a>.
+        Traditionally the priority is an integer (as in the example below), but it can also be a float, string, 
+        or even a complex nested sequence. A custom comparison routine can also be provided for priorities held 
+        as (say) <a href="mpfr.htm">mpfr or mpz</a>.
         <br>
         <br>
         Priority queues particularly shine when used with generators, whereby as each item is popped the next 
@@ -70,17 +69,17 @@ printf(1,"The first 35 primes or perfect powers are:\n")
 ?res -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49,53,59,61,64,67,71,73,79,81,83,89,97}
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> powers</font><font color="#0000FF"> =</font><font color="#5E005E"> pq_new</font><font color="#0000FF">(),</font><font color="#000000"> p</font><font color="#0000FF">,</font><font color="#000000"> v
-</font><font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> = {}
-</font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 35</font><font color="#008080"> do
-</font><font color="#000000">    p</font><font color="#0000FF"> =</font><font color="#5E005E"> get_prime</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">)
-</font><font color="#5E005E">    pq_add</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">p</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">powers</font><font color="#0000FF">)       </font><font color="#000080"><i> -- {2,3,5,7,11,...}, aka power(prime,1)
-</i></font><font color="#0000FF">    {</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">} =</font><font color="#5E005E"> pq_pop</font><font color="#0000FF">(</font><font color="#000000">powers</font><font color="#0000FF">)
-</font><font color="#000000">    res</font><font color="#0000FF"> &amp;=</font><font color="#000000"> v
-</font><font color="#5E005E">    pq_add</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">*</font><font color="#000000">p</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">powers</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {4,8,9,16,25,...}, aka power(prime,&gt;1)
-</i></font><font color="#008080">end for
-</font><font color="#5E005E">pq_destroy</font><font color="#0000FF">(</font><font color="#000000">powers</font><font color="#0000FF">)
-</font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"The first 35 primes or perfect powers are:\n"</font><font color="#0000FF">)
+<font color="#004080">integer</font><font color="#000000"> powers</font><font color="#0000FF"> =</font><font color="#5E005E"> pq_new</font><font color="#0000FF">(),</font><font color="#000000"> p</font><font color="#0000FF">,</font><font color="#000000"> v</font>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> = {}</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> 35</font><font color="#008080"> do</font>
+<font color="#000000">    p</font><font color="#0000FF"> =</font><font color="#5E005E"> get_prime</font><font color="#0000FF">(</font><font color="#000000">i</font><font color="#0000FF">)</font>
+<font color="#5E005E">    pq_add</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">p</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">powers</font><font color="#0000FF">)       </font><font color="#000080"><i> -- {2,3,5,7,11,...}, aka power(prime,1)</i></font>
+<font color="#0000FF">    {</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">} =</font><font color="#5E005E"> pq_pop</font><font color="#0000FF">(</font><font color="#000000">powers</font><font color="#0000FF">)</font>
+<font color="#000000">    res</font><font color="#0000FF"> &amp;=</font><font color="#000000"> v</font>
+<font color="#5E005E">    pq_add</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">p</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">*</font><font color="#000000">p</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">powers</font><font color="#0000FF">)     </font><font color="#000080"><i> -- {4,8,9,16,25,...}, aka power(prime,&gt;1)</i></font>
+<font color="#008080">end for</font>
+<font color="#5E005E">pq_destroy</font><font color="#0000FF">(</font><font color="#000000">powers</font><font color="#0000FF">)</font>
+<font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"The first 35 primes or perfect powers are:\n"</font><font color="#0000FF">)
 ?</font><font color="#000000">res</font><font color="#000080"><i> -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49,53,59,61,64,67,71,73,79,81,83,89,97}</i></font>
 </pre>
               </div>
@@ -89,7 +88,8 @@ printf(1,"The first 35 primes or perfect powers are:\n")
            </div>
         Obviously the key point is it gets 2<small><sup>6</sup></small> (64) before 3<small><sup>4</sup></small> (81), which it 
         achieves by popping and re-adding the p=2 generator more times than the p=3 generator. Without a priority queue, that
-        kind of thing can get real fiddly real fast.
+        kind of thing can get real fiddly real fast. Note that if you are looking for a true (in-order-of-addition) queue, simply 
+        use a standard Phix <a href="sequence.htm">sequence</a>.
         <br>
         <br>
         <style type="text/css">
@@ -101,7 +101,7 @@ printf(1,"The first 35 primes or perfect powers are:\n")
         <div id="nopad" class="nopad" align="center">
          <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
           <tr><td align="right" style="padding: 0; border-style: none;">
-            integer pqid =
+            integer pqid =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
             <b>pq_new</b>(integer t=MIN_HEAP, crid=PQ_COMPARE) - optional: creates a new priority queue.<br>
@@ -116,14 +116,17 @@ printf(1,"The first 35 primes or perfect powers are:\n")
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
-            integer res =
+            integer res =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>pq_size</b>(integer pqid=1) - obtains the number of entries currently in the list.<br>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
-            bool res =
+            bool res =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
-            <b>pq_empty</b>(integer pqid=1) - yields true when the list is empty, false otherwise.<small>(literally just returns pq_size(pqid)==0)</small><br>
+            <b>pq_empty</b>(integer pqid=1) - yields true when the list is empty, false otherwise.<br>
+            </dt><dd class="pad">
+            <small> (it is literally implemented as just simply <code>return pq_size(pqid)==0</code>)</small><br>
+            </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
             <!-- procedure -->
@@ -135,7 +138,7 @@ printf(1,"The first 35 primes or perfect powers are:\n")
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
-            sequence item =
+            sequence item =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
             <b>pq_pop</b>(integer pqid=1) - obtains highest/lowest priority item.<br>
@@ -144,7 +147,7 @@ printf(1,"The first 35 primes or perfect powers are:\n")
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
-            object data =
+            object data =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
             <b>pq_pop_data</b>(integer pqid=1) - as pq_pop but discards priority.<br>
@@ -153,7 +156,7 @@ printf(1,"The first 35 primes or perfect powers are:\n")
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
-            sequence item =
+            sequence item =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>pq_peek</b>(integer pqid=1) - as pq_pop but leaves item in the queue.<br>
           </td></tr>
@@ -175,13 +178,8 @@ printf(1,"The first 35 primes or perfect powers are:\n")
         Note there is no way to examine any element in the queue other than the head.<br>
         If you define a MIN_HEAP queue, the minimum priority is readily available, the maximum is not.<br>
         If you define a MAX_HEAP queue, the maximum priority is readily available, the minimum is not.<br>
-        Should you require both min and max to be available, and perhaps a few things in the middle, use a 
-        <a href="dict.htm">dictionary</a> instead - and accept the slight performance loss.
-        <br>
-        <br>
-        <sup><small>1</small></sup> Unless perhaps there is an overhead in the construction of individual 
-        {data,priority} elements, and/or tearing apart of data, that is simply not present in a plain 
-        sort(data) operation (ie ymmv).
+        Should you require both min and max to be available, and perhaps a few things in the middle, just
+        use a <a href="dict.htm">dictionary</a> instead.
         <br>
         <br>
       </div>

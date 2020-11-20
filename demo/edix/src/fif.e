@@ -863,7 +863,15 @@ Cancel: close the window and return to the editor (or press escape)."""
 function help_cb(Ihandle /*ih*/)
 --DEV no help?
 --  IupSetGlobal("PARENTDIALOG", fifdlg)
-    IupMessage("Find in Files",help_text)
+--  IupSetAttributeHandle(NULL,"PARENTDIALOG", fifdlg)
+--8/10/2020:
+--  IupMessage("Find in Files",help_text)
+    Ihandle msgdlg = IupMessageDlg()
+    IupSetAttribute(msgdlg,"TITLE","Find in Files")
+    IupSetAttribute(msgdlg,"VALUE",help_text)
+    IupSetAttributeHandle(msgdlg,"PARENTDIALOG", fifdlg)
+    IupPopup(msgdlg)
+    msgdlg = IupDestroy(msgdlg)
 --  IupSetGlobal("PARENTDIALOG", dlg)
     return IUP_DEFAULT
 end function

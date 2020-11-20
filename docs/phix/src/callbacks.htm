@@ -163,7 +163,7 @@ IupSetCallback(myButton, "ACTION", Icallback("myButton_action"))
             <br>
             <br>
             A double click is preceded by two single clicks, one for pressed=1 and one for pressed=0, and followed by a pressed=0, all three without the double click flag set. <br>
-            In GTK, it is preceded by an additional two single clicks sequence. For example, for one double click all the following calls are made:
+            In GTK, it is preceded by an additional two single clicks sequence. For example, for one double click all the following calls are made:<br><br>
  <pre>
 BUTTON_CB(but=1 (1), x=154, y=83 [  1       ])
 BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
@@ -172,6 +172,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
 BUTTON_CB(but=1 (1), x=154, y=83 [  1  D    ])
 BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
  </pre>
+            <br>
             Affects: <a href="IupCanvas.htm">IupCanvas</a>, <a href="IupButton.htm">IupButton</a>, <a href="IupText.htm">IupText</a>, 
                      <a href="IupList.htm">IupList</a>, <a href="IupGLCanvas.htm">IupGLCanvas</a>
             <br>
@@ -322,7 +323,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             It is important it be set NULL when not used, otherwise the application consumes CPU even if the callback is doing nothing.
             <br>
             <br>
-            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("IDLE_ACTION", Icallback("idle_action")).
+            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("IDLE_ACTION", <a href="Icallback.htm">Icallback</a>("idle_action")).
             <br>
             <br>
             Long Time Operations<br>
@@ -348,9 +349,77 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>, <a href="IupTimer.htm">IupTimer</a>.
             <br>
+              <a name=GLOBALCTRLFUNC_CB></a>
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          GLOBALCTRLFUNC_CB
+         </td>
+         <td>
+            Global callback for a restricted set of keys. (since 3.20)<br>
+            Called only when the Ctrl+F? key combinations are pressed. <br>
+            It was designed to be used for internal application debugging porpoises only. <br>
+            Do not use it for release code.
+            <br>
+            <br>
+            function ctrl_func(integer c)<br>
+            c: identifier of typed key. Please refer to K_ANY below for a list of possible values.
+            <br>
+            <br>
+            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("GLOBALCTRLFUNC_CB", <a href="Icallback.htm">Icallback</a>("ctrl_func")).
+            <br>
+            <br>
+            See Also: <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>.
+            <br>
+              <a name=ENTRY_POINT></a>
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          ENTRY_POINT
+         </td>
+         <td>
+            (since 3.28)
+            Global callback for an entry point. Used when main is not possible, such as in iOS and Android systems (which
+            Phix does not currently support).
+            <br>
+            <br>
+            It is called only once, when the main loop is processed, but after <a href="IupOpen.htm">IupOpen</a>(). <br>
+            For regular systems is called right before the actual event loop is started.<br>
+            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("ENTRY_POINT", 
+            <a href="Icallback.htm">Icallback</a>("entry_func")).
+            <br>
+            <br>
+            See also EXIT_CB (next), <a href="IupMainLoopLevel.htm">IupMainLoopLevel</a>
+            <br>
+              <a name=EXIT_CB></a>
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          EXIT_CB
+         </td>
+         <td>
+            (since 3.28)
+            Global callback for an exit. Used when main is not possible, such as in iOS and Android systems (which Phix does not
+            currently support).
+            <br>
+            <br>
+            It is called every time the last main loop is ended. <br>
+            For regular systems is called right after the actual event loop is ended, every time when the main loop level returns to 0.
+            <br>
+            <br>
+            It can only be set using (eg) <a href="IupSetGlobalFunction.htm">IupSetGlobalFunction</a>("EXIT_CB", 
+            <a href="Icallback.htm">Icallback</a>("exit_func")).
+            <br>
               <a name=K_ANY></a>
          </td>
         </tr>
+
         <tr>
          <td>
           K_ANY
@@ -373,23 +442,27 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             K_LSHIFT, K_RSHIFT, K_LCTRL, K_RCTRL, K_LALT, K_RALT, K_SCROLL, K_NUM, and K_CAPS.
             <br>
             <br>
-            Other standard key identifiers include:<br>
+            Other standard key (aside: full lists rather than say "K_A, K_B, .. K_Z" permit search/index) identifiers include:<br>
             K_SP (' '), K_exclam ('!'), K_quotedbl ('\"'), K_numbersign ('#'), K_dollar ('$'), K_percent ('%'),
             K_ampersand ('&'), K_apostrophe '\'', K_parentleft ('('), K_parentright (')'), K_asterisk ('*'), K_plus ('+'),
-            K_comma (','), K_minus ('-'), K_period ('.'), K_slash ('/'), K_0..K_9 ('0'..'9'), K_colon (':'), K_semicolon (';'),
-            K_less ('&lt;'), K_equal ('='), K_greater ('&gt;'), K_question ('?'), K_at ('@'), K_A..K_Z ('A'..'Z'), K_a..K_z ('a'..'z'),
-            K_bracketleft ('['), K_backslash ('\\'), K_bracketright (']'), K_circum ('^'), K_underscore ('_'), K_grave ('`'),
-            K_braceleft ('{'), K_bar ('|'), K_braceright ('}'), and K_tilde ('~'). My preference and recommendation is to use the literal
-            values instead of the constant names for 'plain' keystrokes, since for example I <i>cannot</i> get '!' wrong, however I could 
-            very easily mis-spell K_exclam as K_exclaim, or K_parentleft as K_parenthleft or K_leftparenth, K_period as K_dot, K_greater 
-            as K_gt, ... sure the syntax colouring/compiler would catch it, but there is little benefit in you or me sitting there going 
-            "OK, how <i>do</i> you spell it then?". In contrast, the modified keystrokes as listed below are usually much easier, for
-            instance using <code>K_cA</code> beats <code>iup_XkeyCtrl('A')</code> hands down.
+            K_comma (','), K_minus ('-'), K_period ('.'), K_slash ('/'), K_0, K_1, K_2, K_3, K_4, K_5, K_6, K_7, K_8, K_9 ('0'..'9'), 
+            K_colon (':'), K_semicolon (';'), K_less ('&lt;'), K_equal ('='), K_greater ('&gt;'), K_question ('?'), K_at ('@'), K_A, K_B,
+            K_C, K_D, K_E, K_F, K_G, K_H, K_I, K_J, K_K, K_L, K_M, K_N, K_O, K_P, K_Q, K_R, K_S, K_T, K_U, K_V, K_W, K_X, K_Y, K_Z 
+            ('A'..'Z'), K_a, K_b, K_c, K_d, K_e, K_f, K_g, K_h, K_i, K_j, K_k, K_l, K_m, K_n, K_o, K_p, K_q, K_r, K_s, K_t, K_u, K_v, K_w, 
+            K_x, K_y, K_z ('a'..'z'), K_bracketleft ('['), K_backslash ('\\'), K_bracketright (']'), K_circum ('^'), K_underscore ('_'), 
+            K_grave ('`'), K_braceleft ('{'), K_bar ('|'), K_braceright ('}'), and K_tilde ('~'). 
+            My preference and recommendation is to use the literal values instead of the constant names for 'plain' keystrokes, since 
+            for example I <i>cannot</i> get '!' wrong, however I could very easily mis-spell K_exclam as K_exclaim, or K_parentleft as 
+            K_parenthleft or K_leftparenth, K_period as K_dot, K_greater as K_gt, ... sure the syntax colouring/compiler would catch it, 
+            but there is little benefit in you or me sitting there going "OK, how <i>do</i> you spell it then?". 
+            In contrast, the modified keystrokes as listed below are usually much easier, for instance using <code>K_cA</code> beats 
+            <code>iup_XkeyCtrl('A')</code> hands down.
             <br>
             <br>
             The following are deprecated/untested:<br>
             K_acute ('´', #B4), K_ccedilla ('ç', #E7), and K_diaeresis ('¨', #A8). While those are valid for UTF-32, Windows-1252, and
             ISO 8859-1, the same cannot be said for UTF-8, and quite possibly several legacy 8-bit code pages, hence the exclusion.
+            pGUI/IUP would probably understand them, but your app probably won&rsquo;t.
             <br>
             <br>
             Special note: When using Edix, and therefore similar pGUI applications, you may notice that it will not let you type a pound 
@@ -406,7 +479,8 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             Note that some keys have not yet made it into pGUI. Only keys that make sense and I get round to testing will (ever) be added: 
             for instance K_sexclam (heh) makes no sense because you cannot (on my keyboard anyhow) get a '!' without the shift key being 
             down, and the same for K_sPrint, K_sSCROLL, and K_sPAUSE. (Apart from a general reluctance to add rafts of untested things, I
-            am also trying to keep the documentation in step with the implementation.) The following keys do however exist:
+            am also trying to keep the documentation in step with the implementation.) <br>
+            The following keys (ditto re full lists) do however exist:
             <br>
             <br>
             Ctrl:<br>
@@ -574,6 +648,7 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             <br>
             <br>
             The above keys are also used in <a href="callbacks.htm#KEYPRESS_CB">KEYPRESS_CB</a> callbacks.
+             <a name=iup_isxxx></a>
             <br>
             <br>
             The iup_isprint(key) function returns true if a key can be directly used as a printable character.<br>
@@ -581,7 +656,8 @@ BUTTON_CB(but=1 (0), x=154, y=83 [  1       ])
             The iup_isShiftXkey(key) function returns true if a given key is an extended code using the Shift modifier.<br>
             The iup_isCtrlXkey(key) function returns true for the Ctrl modifier.<br>
             The iup_isAltXkey(key) function returns true for the Alt modifier.<br>
-            The iup_isSysXkey(key) function returns true for the Sys modifier.
+            The iup_isSysXkey(key) function returns true for the Sys modifier.<br>
+            <a href="string.htm">string</a> name = iupKeyCodeToName(key) returns a human-readable version of the key.
             <br>
             <br>
             Note: GTK in Windows does not generate the Win modifier key, the K_Print and the K_Pause keys (up to GTK version 2.8.18).

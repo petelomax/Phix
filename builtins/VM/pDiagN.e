@@ -834,7 +834,8 @@ constant msgs =
     -- Note that prepend("two","one") is {"one",'t','w','o'},
     -- whereas "one"&"two" is "onetwo", although they 
     -- give the same results if b is an atom.
- "invalid dictionary id\n",                                     -- e56idi
+ -1, -- spare (dict.e now invokes crash(msg,args,3))
+-- "invalid dictionary id\n",                                   -- e56idi
     -- triggered from builtins\dict.e via :!fatalN so that
     -- the error occurs on the calling statement.
  "invalid file name\n",                                         -- e57ifn

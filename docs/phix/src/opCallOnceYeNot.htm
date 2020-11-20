@@ -43,10 +43,12 @@
           <b>Description:</b>
          </td>
          <td>
-            Ensures a builtins\VM component has compiled correctly.
+            Ensures a builtins/VM component has compiled correctly.
             <br>
             <br>
-            Suppose you have a (normal, hll) file my_include.e as follows:
+            Suppose you have a file my_include.e (normal, hll) as follows:
+            <br>
+            <br>
 <!--eucode>
 puts(1,"Hi\n")
 global procedure bye()
@@ -62,7 +64,9 @@ puts(1,"There\n")
 </font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"There\n"</font><font color="#0000FF">)</font>
 </pre>
             <br>
-            And a litte test program:
+            And a little test program:
+            <br>
+            <br>
 <!--eucode>
 include my_include.e
 bye()
@@ -72,9 +76,12 @@ bye()
 bye</font><font color="#0000FF">()</font>
 </pre>
             <br>
-            Obviously you would expect the "Hi" (and "There") to be displayed before the "Bye". Each file generates a hidden top-level 
-            subroutine, which the compiler invokes, but only when it needs to. There are hundreds of files in builtins\VM so the last 
-            thing we want is to call hundreds of empty top-level subroutines that do nothing, when each and every program starts.
+            Now, obviously you would expect the "Hi" (and "There") to be displayed before the "Bye". <br>
+            Each file generates a hidden top-level subroutine, which the compiler invokes, but only when it needs to. <br>
+            There are hundreds of files in builtins\VM so the last thing we want is to call hundreds of empty top-level 
+            subroutines that do nothing, when each and every program starts. Now while I can optimise that away (and have),
+            equally we don&rsquo;t want each and every program to be invoking lots of such piddly little routines from 
+            builtins\VM, and this is the mechanism I use to stop myself accidentally adding (more of) them.
             <br>
             <br>
             The definition of :!opCallOnceYeNot is simply just an int3 statement, and there is not much point making that a more
@@ -83,6 +90,8 @@ bye</font><font color="#0000FF">()</font>
             <br>
             <br>
             An example of something that can trigger this error is adding say
+            <br>
+            <br>
 <!--eucode>
 constant something = somefunc()
 </eucode-->
@@ -90,8 +99,10 @@ constant something = somefunc()
 <font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> something</font><font color="#0000FF"> =</font><font color="#000000"> somefunc</font><font color="#0000FF">()</font>
 </pre>
             <br>
-            to a builtins\VM source file (above the jmp). Of course that sort of thing&rsquo;s fine if really needed, in which case 
+            to a builtins/VM source file (above the jmp). Of course that sort of thing is fine if really needed, in which case 
             you probably want to replace the jmp :!opCallOnceYeNot with
+            <br>
+            <br>
 <!--eucode>
 #ilASM{ jmp :fin
         ...
@@ -105,7 +116,10 @@ constant something = somefunc()
 </font><font color="#0000FF">      }</font>
 </pre>
             <br>
-            However, in most cases it is probably better to defer such initialisation until it is actually needed.
+            However, in most cases [in builtins/VM] it is probably better to defer such initialisation until it is actually needed,
+            and it should be no big deal to make that private "constant something" into a private variable instead, given that it
+            does not actually help for the compiler to re-check you are not accidentally modifying it, every single time it runs,
+            from now until the end of time.
          </td>
         </tr>
         <tr>

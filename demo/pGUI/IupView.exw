@@ -224,16 +224,16 @@ function destroyall_cb(Ihandle self)
         end if
     end for
     for i=1 to length(ih_names) do
-        Ihandle elem = ih_names[i]
+        Ihandln elem = ih_names[i]
         if iupObjectCheck(elem) then
             string classname = IupGetClassName(elem);
 
             if classname="dialog" then
-                IupDestroy(elem);
+                elem = IupDestroy(elem);
             else
                 Ihandln dialog = IupGetDialog(elem);
                 if dialog!=NULL then
-                    IupDestroy(elem);
+                    elem = IupDestroy(elem);
                 end if
             end if
         end if
@@ -276,7 +276,7 @@ function showallimages_cb(Ihandle ih)
     sequence names = IupGetAllNames()
     sequence images = {}
     sequence params = {}
-    Ihandle files = IupUser();
+    Ihandln files = IupUser();
 
 --  num_images = 0;
     for i=1 to length(names) do
@@ -355,7 +355,7 @@ function showallimages_cb(Ihandle ih)
     IupSetAttributePtr(toggle, "TABS", tabs);
     IupSetAttribute(label, "EXPAND", "HORIZONTAL");
 
-    Ihandle dialog = IupDialog(box);
+    Ihandln dialog = IupDialog(box);
     IupSetAttribute(dialog, "TITLE", "All Images");
     IupSetCallback(dialog, "CLOSE_CB", Icallback("close_cb"))
     IupSetAttributePtr(dialog, "_INFO_LABEL", label);
@@ -363,8 +363,8 @@ function showallimages_cb(Ihandle ih)
 
     IupPopup(dialog, IUP_CENTER, IUP_CENTER);
 
-    IupDestroy(dialog);
-    IupDestroy(files);
+    dialog = IupDestroy(dialog)
+    files = IupDestroy(files);
 
     return IUP_DEFAULT;
 end function
@@ -381,7 +381,7 @@ function getfileformat(int all)
 end function
 
 function GetSaveAsFile(string file, imgtype)
-    Ihandle gf = IupFileDlg();
+    Ihandln gf = IupFileDlg();
     IupSetAttribute(gf, "DIALOGTYPE", "SAVE");
     IupSetStrAttribute(gf, "TITLE", "Save %s File", {imgtype})
     IupSetStrAttribute(gf, "FILTER", "*.%s", {lower(imgtype)})
@@ -390,7 +390,7 @@ function GetSaveAsFile(string file, imgtype)
     string val = IupGetAttribute( gf, "VALUE" );
     if val="" then val = file end if
     integer ret = IupGetInt( gf, "STATUS" );
-    IupDestroy(gf);
+    gf = IupDestroy(gf);
     return {val,ret}
 end function
 
@@ -438,7 +438,7 @@ end function
 
 function getfolder()
     string folder = ""
-    Ihandle filedlg = IupFileDlg(); 
+    Ihandln filedlg = IupFileDlg(); 
  
     IupSetAttribute(filedlg, "DIALOGTYPE", "DIR");
     IupSetAttribute(filedlg, "TITLE", "Select Folder for Images");
@@ -448,7 +448,7 @@ function getfolder()
     if IupGetInt(filedlg, "STATUS")!=-1 then
         folder = IupGetAttribute(filedlg, "VALUE")
     end if
-    IupDestroy(filedlg)
+    filedlg = IupDestroy(filedlg)
     return folder
 end function
 
@@ -576,7 +576,9 @@ function about_cb()
 Show dialogs and popup menus
 defined in LED files.
 Can show all defined images.
-Can import and export images.""")
+Can import and export images.
+
+IUP version: %s""",{IupVersion()})
     return IUP_DEFAULT;
 end function
 
@@ -650,6 +652,10 @@ function mainDialog()
     IupSetCallback(main_dialog, "CLOSE_CB", Icallback("close_cb"))
     IupSetCallback(main_dialog, "DROPFILES_CB", Icallback("dropfile_cb"))
     IupSetAttribute(main_dialog, "_INTERNAL", "YES")
+--  IupSetHandle("PARENTDIALOG",main_dialog)    -- nope
+--  IupSetGlobal("PARENTDIALOG",main_dialog)    -- nope
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",main_dialog) -- works
+    IupCloseOnEscape(main_dialog)
     
     IupSetAttributePtr(menu, "mainList", list)
     IupSetAttributePtr(menu, "mainLabel", label)
@@ -730,13 +736,12 @@ integer --outfile,
 
 --DEV as above, can only do one at a time... or maybe ... I could perhaps add get_file_handle(outfile) to pfileioN.e???
 --      if not iupSaveImageAsText(image, outfile, imgtype, intitle) then
-        if not IupSaveImageAsText(image, outname, imgtype, intitle) then
-            printf(1,"Error: Failed to write to the output file.");
-            IupDestroy(image)
+        object res = IupSaveImageAsText(image, outname, imgtype, intitle)
+        image = IupDestroy(image)
+        if res!=1 then
+            printf(1,"Error: Failed to write to the output file (%v).",{res})
             exit
         end if
-
-        IupDestroy(image);
     end while
 --  close(outfile)
     IupClose()
@@ -890,11 +895,10 @@ end function
 
 function getOpenFileName(char* file)
 {
-  Ihandle *gf;
   int ret;
   char *value;
 
-  gf = IupFileDlg();
+  Ihandln gf = IupFileDlg()
   IupSetAttribute(gf, "DIALOGTYPE", "OPEN");
   IupSetAttribute(gf, "TITLE", "Load Image File(s)");
   IupSetAttribute(gf, "MULTIPLEFILES", "YES");
@@ -904,7 +908,7 @@ function getOpenFileName(char* file)
   if (value) strcpy(file, value);
   ret = IupGetInt(gf, "STATUS");
 
-  IupDestroy(gf);
+  gf = IupDestroy(gf)
 
   return ret;
 end function
@@ -1177,7 +1181,7 @@ Ihandle menu_file
     y = IupGetInt(ih, "Y")+IupGetInt2(ih, "RASTERSIZE");
 
     IupPopup(text_menu, x, y);
---  IupDestroy(text_menu);
+--  text_menu = IupDestroy(text_menu);
 end procedure
 
 function text_click_cb(Ihandle ih)

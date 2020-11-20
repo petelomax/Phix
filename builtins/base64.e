@@ -2,7 +2,7 @@
 -- builtins\base64.e
 -- =================
 --
---   Base 64 Encoding and Decoding
+--   Base 64 Encoding and Decoding (autoinclude)
 --
 --   Author: Pete Lomax  Jul 3 2002
 --

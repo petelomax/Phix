@@ -477,11 +477,15 @@ if bcomm>0 then
                         bcomm -= 1
 end if
                     end if
-                    chidx2 += abcl
+--15/10/2020! (nested block comments, --/* /**/ --*/)
+--                  chidx2 += abcl
+                    chidx2 += abcl-1
                     exit
                 end if
             end for
-            if bcomm=0 then exit end if
+--08/11/2020
+--          if bcomm=0 then exit end if
+            if bcomm=0 then chidx2 += 1 exit end if
 end if
         end if
         chidx2 += 1
@@ -656,7 +660,7 @@ integer allNumbers
 --  chidx = 1
 --  chidx = from
     getBrktCfwd(lineno)
---if lineno=51 then trace(1) end if
+--if lineno=16 then trace(1) end if
     bracket_level = startlevel
     bcomm = startblockcomment
     resetBackSlash = 0
@@ -918,7 +922,8 @@ end if
             chidx2 = chidx
             syntaxClass = Strings
             -- Euphoria/Phix has special single quote handling --DEV .syn file option
-            EuSq = (ch='\'' and equal(SynNames[newSyntax],"Euphoria"))
+--          EuSq = (ch='\'' and equal(SynNames[newSyntax],"Euphoria"))
+            EuSq = (ch='\'' and equal(SynNames[newSyntax],"Phix"))
 --DEV
 if bcomm<0 then
     if bcomm=-1 then
@@ -990,11 +995,14 @@ end if
                         exit
                     end if
                     ch2 = text[chidx2+1]
-                    if not find(ch2,Escapes[newSyntax]) then
+--17/9/2020:
+--                  if not find(ch2,Escapes[newSyntax]) then
+                    if not find(ch2,Escapes[newSyntax])
+                    or (EuSq and ch='\'' and find(ch2,"uU")) then
                         syntaxClass = Illegals
                         exit
                     end if
-                    if ch2='#' then
+                    if ch2='#' or ch2='x' then
                         if chidx2>=length(text)-2
                         or not find(text[chidx2+2],"0123456789ABCDEFabcdef")
                         or not find(text[chidx2+3],"0123456789ABCDEFabcdef") then

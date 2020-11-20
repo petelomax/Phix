@@ -107,7 +107,15 @@ bool eof_msg = false
 procedure eof_message()
     if eof_msg then
         eof_msg = false
-        IupMessage("End", "Search has reached end of document.")
+--      IupMessage("End", "Search has reached end of document.")
+        Ihandln md = IupMessageDlg()
+        IupSetAttribute(md,"TITLE","End")
+        IupSetAttribute(md,"VALUE","Search has reached end of document")
+--      IupSetAttribute(md,"PARENTDIALOG",dlg)
+--      IupSetAttributePtr(md,"PARENTDIALOG",dlg)
+        IupSetAttributeHandle(md,"PARENTDIALOG",dlg)    -- WOW!!!
+        IupPopup(md)
+        md = IupDestroy(md)
     end if
 end procedure
 
@@ -254,7 +262,7 @@ function find_close_action_cb(Ihandle /*bt_close*/)
 --/*
 Ihandle find_dlg = IupGetDialog(bt_close);
 Ihandle multitext = IupGetInt(find_dlg, "MULTITEXT");
-Ihandle config = IupGetInt(multitext, "CONFIG");
+--Ihandle config = IupGetInt(multitext, "CONFIG");
 --*/
     hide_find()
     return IUP_DEFAULT

@@ -40,6 +40,57 @@
         </tr>
         <tr>
          <td>
+          <b>Auxillary Function</b>
+         </td>
+         <td>
+            <a href="integer.htm">integer</a> pennies = <b>bankers_rounding</b>(<a href="atom.htm">atom</a> pence, 
+                                                                                <a href="integer.htm">integer</a> precison=1)
+            <br>
+            <br>
+            In the standard round() function, exact .5s are rounded up (matching Euphoria) whereas banker&rsquo;s rounding yields the nearest even number, eg:
+            <br>
+            <br>
+<!--eucode>
+constant x1 = {-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5}
+?apply(x1,round)
+?apply(x1,bankers_rounding)
+function precision100(atom xi) return bankers_rounding(xi*100,100) end function
+?apply(x1,precision100)
+-- output:
+-- {-4,-3,-2,-1,0,1,2,3,4,5}
+-- {-4,-4,-2,-2,0,0,2,2,4,4}
+-- {-400,-400,-200,-200,0,0,200,200,400,400}
+</eucode-->
+<pre>
+<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> x1</font><font color="#0000FF"> = {-</font><font color="#000000">4.5</font><font color="#0000FF">, -</font><font color="#000000">3.5</font><font color="#0000FF">, -</font><font color="#000000">2.5</font><font color="#0000FF">, -</font><font color="#000000">1.5</font><font color="#0000FF">, -</font><font color="#000000">0.5</font><font color="#0000FF">,</font><font color="#000000"> 0.5</font><font color="#0000FF">,</font><font color="#000000"> 1.5</font><font color="#0000FF">,</font><font color="#000000"> 2.5</font><font color="#0000FF">,</font><font color="#000000"> 3.5</font><font color="#0000FF">,</font><font color="#000000"> 4.5</font><font color="#0000FF">}
+?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">x1</font><font color="#0000FF">,</font><font color="#5E005E">round</font><font color="#0000FF">)
+?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">x1</font><font color="#0000FF">,</font><font color="#5E005E">bankers_rounding</font><font color="#0000FF">)
+</font><font color="#008080">function</font><font color="#000000"> precision100</font><font color="#0000FF">(</font><font color="#004080">atom</font><font color="#000000"> xi</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#5E005E"> bankers_rounding</font><font color="#0000FF">(</font><font color="#000000">xi</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#008080"> end function
+</font><font color="#0000FF">?</font><font color="#5E005E">apply</font><font color="#0000FF">(</font><font color="#000000">x1</font><font color="#0000FF">,</font><font color="#000000">precision100</font><font color="#0000FF">)
+</font><font color="#000080"><i>-- output:
+-- {-4,-3,-2,-1,0,1,2,3,4,5}
+-- {-4,-4,-2,-2,0,0,2,2,4,4}
+-- {-400,-400,-200,-200,0,0,200,200,400,400}</i></font>
+</pre>
+            <br>
+            The reason you might want to use banker&rsquo;s rounding is so that the average of the rounded numbers is as close as possible to 
+            the average of the original numbers (ditto total), whereas always rounding up obviously introduces a systemic bias. <br>
+            Above, the standard rounding average is out by 0.1, whereas the average x1 and the average bankers are both exactly zero (not
+            that it would be difficult to construct a deliberately biased x1 such that the opposite were true; you only get better outputs
+            for evenly-dispersed/unbiased inputs).
+            <br>
+            <br>
+            Note that this is only possible when working in whole (integer) pennies/cents (and above), <i>not</i> pounds/dollars to 2dp, and the 
+            precision is <i>not</i> inverted (see Technicalia). Should you want to store things in 2dp format, that&rsquo;s fine as long as you 
+            round(*100) to get exact whole integer penny/cent values back out when you retrieve them, that is prior to attempting any subsequent 
+            calculations that are likely to end up requiring any further banker&rsquo;s rounding, but of course you don&rsquo;t need to do that
+            if all you&rsquo;re going to do is print or add and subtract them. [It should make no difference whatsoever if you use round() or
+            bankers_rounding() to retrieve the whole integer penny/cent values.]
+         </td>
+        </tr>
+
+        <tr>
+         <td>
           <b>Example:</b>
          </td>
          <td>
@@ -63,6 +114,14 @@ r = round(8.136,100)    -- r is 8.14
             See builtins\pmaths.e (an autoinclude) for details of the actual implementation.
          </td>
         </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="apply.htm">apply</a>
+         </td>
+        </tr>
         <tr id="Technicalia" style="display:none;">
          <td>
           <a href="glossary.htm#technicalia">
@@ -81,53 +140,18 @@ r = round(8.136,100)    -- r is 8.14
             insignificant, and less likely to be multiplied by a very big number, and therefore less critical.
             <br>
             <br>
-            <h3>Banker&rsquo;s rounding</h3>
-            It is in now, and staying, but I think the final analysis would be that I wasted my time adding it.
+            Since eg 0.045 cannot be held exactly in an IEEE 754 floating point, it would be rather difficult 
+            to coerce it to (almost) 0.04 rather than (almost) 0.05 - it would instead naturally fall depending 
+            on whether the nearest admissible representation was out by +/-epsilon. An abs(frac-0.5)<1e-13 or 
+            similar rather than frac=0.5 (see pmaths.e) might work, but could introduce another (small) bias of 
+            the very same kind that we are trying to eliminate. Best to just stick with integers. There is of
+            course nothing to stop you taking a copy of bankers_rounding() and creating a (renamed) application
+            specific version of it, tweaked however you like.
             <br>
             <br>
-            If the precision is zero, then x1 must be true/false specifying whether to use banker&rsquo;s rounding on
-            subsequent calls. By default lone trailing 5s are rounded up (matching Euphoria) whereas under 
-            banker&rsquo;s rounding, ie after <code>{} = round(true,0)</code>, they are rounded to the nearest even 
-            number, eg:
-            <br>
-            <br>
-<!--eucode>
-              x1  -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5
-        standard  -4   -3   -2   -1    0    1    2    3    4    5  
-        bankers   -4   -4   -2   -2    0    0    2    2    4    4  
-</eucode-->
-<pre>
-<font color="#000000">              x1 </font><font color="#0000FF"> -</font><font color="#000000">4.5</font><font color="#0000FF"> -</font><font color="#000000">3.5</font><font color="#0000FF"> -</font><font color="#000000">2.5</font><font color="#0000FF"> -</font><font color="#000000">1.5</font><font color="#0000FF"> -</font><font color="#000000">0.5  0.5  1.5  2.5  3.5  4.5
-        standard </font><font color="#0000FF"> -</font><font color="#000000">4  </font><font color="#0000FF"> -</font><font color="#000000">3  </font><font color="#0000FF"> -</font><font color="#000000">2  </font><font color="#0000FF"> -</font><font color="#000000">1    0    1    2    3    4    5  
-        bankers  </font><font color="#0000FF"> -</font><font color="#000000">4  </font><font color="#0000FF"> -</font><font color="#000000">4  </font><font color="#0000FF"> -</font><font color="#000000">2  </font><font color="#0000FF"> -</font><font color="#000000">2    0    0    2    2    4    4  </font>
-</pre>
-            <br>
-            Note that banker&rsquo;s rounding operates as you might expect on exact halves, however the inherent 
-            inaccuracies of floating point numbers may easily fool you: if you are rounding to the nearest penny/cent, 
-            only eighths (0.125*[1..7]) can be held exactly, a number such as 0.045 is not quite what you think it is 
-            and which way that falls depends on whether the nearest admissible representation was out by +/-epsilon. 
-            Likewise rounding to the nearest 10 and above is affected by 0.1 not being held exactly. The real reason 
-            you might want to use banker&rsquo;s rounding is so that the average of the rounded numbers is as close 
-            as possible to the average of the original numbers, whereas rounding up obviously introduces a systemic 
-            bias.
-            <br>
-            <br>
-            Sadly a bias might also be introduced by 0.1 and downwards being consistently slightly wrong, mind you 
-            rounding to the nearest 10<sup><small>n</small></sup> is very unlikely to sum to anywhere near the total 
-            of the originals anyway, and even though there is a small bias, you would probably need to be quite 
-            unlucky for the rounded totals not to match exactly (under banker&rsquo;s rounding). If you were paying
-            attention above, you would have noticed that the standard rounding average is out by 0.1, whereas the
-            average x1 and the average bankers are both exactly zero.
-            <br>
-            <br>
-            You should also be aware that if you do set banker&rsquo;s rounding mode, it applies to the entire 
-            application, unless of course you toggle it on and off quite a bit. It is also true to say that if
-            inverted_precision is 100, banker&rsquo;s rounding only has any real impact on just four fractional
-            values of x1, being 0.125, 0.375, 0.625, and 0.875, and two of those give the same result as standard 
-            rounding. And yes, I really do mean that out of all possible valid bit patterns of IEEE 754 floating 
-            point numbers that lie between 0 and 1 (equally true for 64 or 80 bit), just <b>two</b> of them make 
-            any difference at all, although of course there are another 2 in 1..2, and in 2..3, and so on, and
-            similar things will happen for other (>=10) values of inverted_precision.
+            Likewise if bankers_rounding() had an inverted precision, inaccuracies in the representation of 
+            (eg) 0.01 could totally spanner it, hence it has an non-inverted (and integer) precision.<br>
+            The integer return type of bankers_rounding is quite, quite, deliberate.
          </td>
         </tr>
        </table>

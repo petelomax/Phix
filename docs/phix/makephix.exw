@@ -34,6 +34,7 @@
 --  a, b, c -> a, <wbr>b, <wbr>c (if hh.exe decides they are "hard spaces"...)
 --  &shy; (soft hyphen)
 --  &#8226; (bullet)
+--  <b>, <i>, <u>, <del> for bold, italic, underline, strikethrough
 free_console()
 
 constant justcompile = 0    -- (occasionally helpful if you need to manually edit something)
@@ -58,7 +59,9 @@ constant stdhdr = "<head>\n <body>\n  <toc>\n   <these>\n    <get>\n     <stripp
          stdtail = "     </stripped>\n    </get>\n   </these>\n  </toc>\n </body>\n</head>\n",
          lenstdtail = length(stdtail),
          ctitle = "<h1 class=\"title\">",
+--       ctitlep = "<h1 class=\"title pwsp2js\">",
          lenctitle = length(ctitle)
+--       lenctitlep = length(ctitlep)
 
 procedure fatal(string msg)
     puts(1,msg)
@@ -214,10 +217,19 @@ if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
         content = content[lenstdhdr+1..-lenstdtail-1]
         dstart = match(ctitle,content)
         if dstart=0 then fatal("title error in "&filename&"\n") end if
-        dstart += lenctitle
+--      if dstart=0 then
+--          dstart = match(ctitlep,content)
+--          if dstart=0 then fatal("title error in "&filename&"\n") end if
+--          dstart += lenctitlep
+--      else
+            dstart += lenctitle
+--      end if
         dend = match("</h1>",content,dstart)
         if dend=0 then fatal("close title error in "&filename&"\n") end if
         description = content[dstart..dend-1]
+        dend = match(" <a href=",description)
+        if dend then description = description[1..dend-1] end if
+--    <h1 class="title">IupLabel <a href="common.htm#TITLE">(<span class="pwap2js">pwap2js</span>)</a></h1>
         contents[i] = content
         if wikidocs then
             description = substitute(description,"/","")
@@ -290,7 +302,9 @@ function b(string desc)
 --  Likewise "Operating System" becomes "O<b></b>perating S<b></b>ystem".
     desc = desc[1]&"<b></b>"&desc[2..$]
     for i=length(desc) to 10 by -1 do   -- (10 is length("x<b></b>x")+1)
-        if desc[i] = ' '
+-- 14/10/2020, for <a href="p2js.htm">p<b></b>wa/p2js</a>
+--      if desc[i] = ' '
+        if find(desc[i]," /")
         and desc[i+1]!='&' then
             desc = desc[1..i+1]&"<b></b>"&desc[i+2..$]
         end if
@@ -2286,9 +2300,15 @@ procedure compile()
     string cd = current_dir(),
            cmd = "hhc \""&cd&"\\phix.hhp\""
     puts(1,cmd&"\n")
-    integer exit_code = system_exec(cmd,2)
---  if exit_code!=1 then ?{"exit_code (I think 1 means success)",exit_code} end if
-    printf(1,"exit_code: %d (I think 1 means success)\n",exit_code)
+    while true do
+        integer exit_code = system_exec(cmd,2)
+        if exit_code=1 then exit end if
+        printf(1,"exit_code %d, retry?:",exit_code)
+        exit_code = wait_key()
+        printf(1,"%c\n",exit_code)
+        if not find(exit_code,"Yy\r\n ") then exit end if
+    end while
+--  printf(1,"exit_code: %d (I think 1 means success)\n",exit_code)
 --DEV (temp, because I have *TWO* phix.chm linked into Edita...)
 --  cmd = "copy /Y \"C:\\Program Files (x86)\\Phix\\docs\\phix\\phix.chm\" \"C:\\Program Files (x86)\\Phix\\docs\\phix\\phixN.chm\""
 --  cmd = "copy /Y \""&cd&"\\phix.chm\" \""&cd&"\\phixN.chm\""

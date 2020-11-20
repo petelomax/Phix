@@ -1,0 +1,1891 @@
+--
+-- pwa/p2js.exw
+-- ============
+--
+--  Phix Web Application / Phix to JavaScript transpiler.
+--
+--  Develop on desktop, publish to the web.
+--
+-- TODO (prioritised):
+--  menu, list, tree.
+--  scope: [easily removable] links in the ttree.... all the basics from p2js.js and pGUI.e pre-loaded...
+--         [presumably addScope() and dropScope()...]
+--  get the basic parser working...
+--    *** STOP TRYING TO PRESERVE COMMENTS! *** (mid-statement/expression ones anyway,      [OK, panic over!]
+--                                               block = {statement|comment} is easy.)
+--      The phix => js => phix test is that it still works, not character-perfect!!!
+--  get some basic precedence handling in there, to match rosetta\Compiler\parse.exw
+--      (see also C:\Program Files (x86)\Phix\demo\rosetta\Compiler\Verify_Syntax.exw)
+--      2+3*4 is 2 + (3 x 4) = 14, not (2 + 3) x 4 = 20.
+--      2*3+4 is (2 x 3) + 4 = 10, not 2 x (3 + 4) = 14.
+--      a-b+c is (a-b)+2 not a-(b+c).
+--      Note to self: when emitting nested expressions, parenths are needed if left/right is an operator with a <= precedence,
+--          eg {*,{+,3,4},5} is (3+4)*5, not 3+4*5, whereas
+--             {+,{*,3,4},5} is 3*4+5, not (3*4)+5.
+--  parse test\t66prec.exw (if...) [DONE]
+--  add a basic letter-only ternary tree... (p2js_ttree.e, charwise, no take-backs) [DONE]
+--  make a reactive sample, with resize_cb setting HIDEHEADERS depending on width.
+--  make a menu sample, see also C:\Program Files (x86)\Phix\pwa\phix\budget\budget.exw (plus includes)
+--  sort out the final directory structure, add to phix7zip.lst, etc.
+--  (tabs/)toggle-able panes: source [scrollable with cross-hairs], tokens, ast, output... 
+--  start on the GUI (run itself in browser, albeit with fixed samples and cut/paste/copy only, no direct file i/o.)
+--                   (also: no result pane on the desktop, and the run button does something quite different...)
+--                   [options] Minimise: X off, X css, X css+js, X all. Split lines : 0+/- (max 132 or 512?)
+--                             Phix metalink: X (<meta Written in Phix - http://phix.x10.mx />
+--  revisit plade.exw: (only) deal with working samples/controls, get it going in the browser...
+--  minifier: create/test pGUI.min.js and pGUI.min.css (and pwa.min.html?)
+--  reindenter: exw -> AST, twiddle a few numbers on the AST, AST -> exw, maybe...
+--  include file handling/treeview of source files [desktop only]
+--  (put in a special check to prohibit overwriting of pwa.exw, pGUI.js, and friends...??)
+--  make meta tags automatically self-closing
+--  just write down what you want, eg
+--      integer i[;]        ==>  {T_integer, tdx[integer], tdx[i] [, tdx[;]]}                   (where tdx[i] can be a list of vars)
+--      /* integer */ i;    ==>  {T_integer, tdx[/*integer*/], tdx[i], tdx[;]}
+--      integer i = 0;      ==>  {T_integer, tdx[integer], {tdx[i], tdx[=], tdx[0]}, tdx[;]}    (where tdx[0] can be a nested sub-expression)
+--      procedure ...       ==>  {T_procedure, tdx[procedure], tdx[name], tdx[(], {tdx[arg]}, tdx[)], {tdx[body]}, tdx[end], tdx[procedure]}
+--                                 [ ^^^ or INCLUDE/VARIABLE/etc as defined below ]
+--  one line at a time!  ==> all the way to the GUI!
+--  proper error handling: {T_error, ...[msg/line/col/snippet]} in[stead of] ast, as display-able as anything else!
+--      (where practical, it could try to carry on parsing, as long as first error stays first & is immediately visible)
+--
+global constant CRASH = true    -- (may or may not help debugging [true=>ex.err, false=>msg in gui])
+
+
+with trace
+--trace(1)
+--
+--DEV?? - NO, use the shortest paths we can [DONE]
+-- Aside: "include pwa\..." assumes pwa\ is a sister directory of builtins\ and 
+--         works exactly the same way that eg include builtins\timedate.e does.
+--         I have intentionally used that throughout, even though shorter paths
+--         would probably work just as well, and maybe even a tiny bit better.
+--
+--include src\p2js_basics.e -- includes/constants/globals/utilities (included by next anyway)
+include src\p2js_tok.e
+include src\p2js_parse.e
+
+--include builtins\xml.e -- (now in p2jsbasics.e, w/o debug)
+
+--DEV temp, until listview/treeview is up and running...
+function shortast(object s)
+    if sequence(s) then
+        integer l = length(s)
+        for i=1 to min(l,5) do
+            s[i] = shortast(s[i])
+        end for
+        if l>6 then
+            s[6..$] = {"..."}
+        end if
+    end if
+    return s
+end function
+
+procedure transpile(string filename)
+    if load_text(filename) then
+        if is_html() then
+            sequence xml = strict_html_parse(text)
+            pp(xml)
+        else
+            tokenise()
+            if not tok_error() then
+--?shorten(text,"chars")
+printf(1,"Tokenised successfully (%,d chars, %,d tokens)\n",{lt,length(tokens)}) 
+--?tokens
+--pp(shorten(tokens,"tokens",3),{pp_Nest,1,pp_IntCh,false})
+                sequence ast = parse()
+                if not parse_error() then
+--                  pp(ast)
+                    pp(shortast(ast))
+                end if
+            end if
+        end if
+    end if
+end procedure
+
+--transpile(join_path({pwadir,`p2js.js`}))                                      -- [ 25,076 chars, 4,213 tokens ]   [OK!! (although SPREAD aka "..." ain't actually handled)]
+--transpile(join_path({pwadir,`pGUI.js`}))                                      -- [ 38,274 chars, 4,300 tokens ]   [OK!!]
+--transpile(join_path({pwadir,`js`,`hello_world.html`}))                        -- [ 798 chars, 157 tokens ]        [OK!! (nonest)]
+--X transpile(join_path({pwadir,`js`,`hello_world.js`})) -- or rely on "" having a link to it...
+--transpile(join_path({pwadir,`hello_world.html`})) -- (if working on it)       -- [ 828 chars, 149 tokens ]        [OK!! (nonest)]
+--X transpile(join_path({pwadir,`js`,`Simple_window.html`}))    -- (not there yet)
+--transpile(join_path({pwadir,`Simple_window.html`}))   -- (if working on it)   -- [ 1,336 chars, 223 tokens ]      [OK!! (nonest)]
+--transpile(join_path({pwadir,`Phib_Window.html`})) -- (if working on it)       -- [ 1,351 chars, 145 tokens ]      [OK!! (nonest)]
+--transpile(join_path({pwadir,`phix`,`hello_world.exw`}))                       -- [ 360 chars, 58 tokens ]         [OK!!]
+--transpile(join_path({pwadir,`phix`,`Simple_window.exw`}))                     -- [ 676 chars, 127 tokens ]        [OK!!]
+--   {{`ASSIGN`, {8,155,160,10,4,1192}, {7,165,165,10,14}},
+--    {`PROC`, {8,172,189,11,4,1280}, {8,191,193,11,23,1136},
+--transpile(`C:\Program Files (x86)\Phix\test\t66prec.exw`)                     -- [ 1,224 chars, 345 tokens ]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\c\jsmin.c`)                        --                                  [static int the_a;...]
+--  ???trace how it handles C:\Program Files (x86)\Phix\pwa\src\p2js_basics.e:260 global constant string charset = set_chars({{"\r\n",EOL},???
+--transpile(`C:\Program Files (x86)\Phix\pwa\phix\adp.exw`)                     -- [ 596 chars, 89 tokens ]         [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\adp.html`)                         --                                  [OK!! (nonest)]
+--transpile(`E:\downloads\misc\js\pwa\adp.html`)                                --                                  [OK!! (but no nested script yet)]
+--transpile(`C:\Program Files (x86)\Phix\pwa.exw`)                              -- [ 24 chars, 6 tokens ]           [OK!!] (single include statement)
+--transpile(`C:\Program Files (x86)\Phix\pwa\p2js.exw`)                         -- [ 81,781 chars, 729 tokens ]     [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_basics.e`)                -- [ 15,139 chars, 1,333 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_tok.e`)                   -- [ 17,052 chars, 1,579 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_tree.e`)                  -- [ 14,378 chars, 1,017 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_keywords.e`)              -- [ 2,909 chars, 430 tokens ]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_parse.e`)                 -- [ 41,702 chars, 3,659 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\pfactors.e`)                  -- [ 4,995 chars, 702 tokens ]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\psum.e`)                      -- [ 668 chars, 112 tokens ]        [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\xml.e`)                       -- [ 35,992 chars, 5,011 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\utfconv.e`)                   -- [ 19,232 chars, 1,227 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\timedate.e`)                  -- [ 86,569 chars, 7,521 tokens]    [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\serialize.e`)                 -- [ 9,266 chars, 1,065 tokens ]    [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\regex.e`)                     -- [ 35,038 chars, 5,945 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\pqueue.e`)                    -- [ 8,656 chars, 809 tokens ]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\ordinal.e`)                   -- [ 4,222 chars, 817 tokens ]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\json.e`)                      -- [ 14,571 chars, 1,824 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\complex.e`)                   -- [ 20,672 chars, 1,460 tokens ]   [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\base64.e`)                    -- [ 6,952 chars, 891 tokens]       [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\pdecodeflags.e`)              -- [ 2,700 chars, 214 tokens]       [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\porall.e`)                    -- [ 864 chars, 130 tokens]         [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\pmaths.e`)                    -- [ 3,828 chars, 581 tokens]       [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\misc.e`)                      -- [ 12,003 chars, 475 tokens]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\log10.e`)                     -- [ 216 chars, 36 tokens]          [OK!!]
+--Xtranspile(`C:\Program Files (x86)\Phix\builtins\prnd.e`)                     -- [ ]                              [NO: #ilASM..]
+--transpile(`C:\Program Files (x86)\Phix\builtins\psum.e`)                      -- [ 668 chars, 112 tokens ]        [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\gcd.e`)                       -- [ 1,677 chars, 250 tokens ]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\factorial.e`)                 -- [ 1,559 chars, 167 tokens ]      [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\builtins\pfactors.e`)                  -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\primes.e`)                    -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\pcase.e`)                     -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\scanf.e`)                     -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\to_int.e`)                    -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\wildcard.e`)                  -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\psqop.e`)                     -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\psmall.e`)                    -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\pfindall.e`)                  -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\VM\pFind.e`) --[?]            -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\VM\pMatch.e`) --[?]           -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\bsearch.e`)                   -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\sort.e`)                      -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\punique.e`)                   -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\vslice.e`)                    -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\pextract.e`)                  -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\ptrim.e`)                     -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\ptagset.e`)                   -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\substitute.e`)                -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\psplit.e`)                    -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\shuffle.e`)                   -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\permute.e`)                   -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\pflatten.e`)                  -- [ 
+--transpile(`C:\Program Files (x86)\Phix\builtins\pcolumn.e`)                   -- [                                [OK!!]
+--transpile(`C:\Program Files (x86)\Phix\demo\pGUI\sample.exw`)                 -- fails on ",--\n}"
+--transpile(`C:\Program Files (x86)\Phix\demo\pGUI\menu.exw`)
+--transpile(`C:\Program Files (x86)\Phix\demo\pGUI\separator.exw`)
+transpile(`C:\Program Files (x86)\Phix\demo\pGUI\submenu.exw`)
+--transpile(`C:\Program Files (x86)\Phix\demo\pGUI\tee.exw`)                    -- nope, ifdef LINUX...
+
+?"done"
+{} = wait_key()
+abort(0)
+
+-- menus:
+--/*
+Notes: There is no support for mnemonics/accelerator/alt keys: Pressing eg ALt-F in the browser is going to open the browser's File menu,
+        not the application-runnning-in-the-browser's (not that it can realistically have a "File menu" anyway). -- ERM...
+
+window.addEventListener('keydown', function(e) {
+  if (e.altKey == true && e.keyCode == 78)
+    console.log('Alt + N'); 
+});
+    
+(F12 or Alt L [test] you may also want/need to trap onkeyup, hunt through active window...)
+document.onkeydown = function (event) {
+    event = (event || window.event);
+    if (event.keyCode == 123 || (event.keyCode === 76 && event.altKey)) {
+        //do something
+//maybe?:
+//      event.preventDefault();
+        return false;
+    }
+}
+
+function selectLink(e) {
+  var el = e.target;
+
+  if (e.altKey) {
+    window.open(el.getAttribute("alternative"), '_blank');
+    e.preventDefault();
+  }
+}
+<a href="http://www.google.com" onclick="selectLink(event)" alternative="http://www.yahoo.com">Click</a>
+
+
+<div class="windowbar">
+        <span>File</span><span>Editing</span><span>Search</span><span>Show</span><span>Navigation</span><span>Development</span><span>Tools</span><span>Help</span>
+        <div class="controls">
+                <span class="min"><ion-icon name="arrow-down"></ion-icon></span>
+                <span class="max"><ion-icon name="arrow-up"></ion-icon></span>
+                <a class="close" href="#save"><ion-icon name="close"></ion-icon></a>
+        </div>
+</div>
+
+--CodePen_Export_PoZzeJB                                    Windows 98 looks, sticky drop, no hover, mnemonics, yuk
+--CodePen_Export_rNBZajp                                X   sticky drop, good clear ex-click, no hover, no nesting that I can see... ugh: bootstrap+jquery (no idea why)
+--conditional-right-click-menu                          pop-up, good clear ex-click, clean code, but looks a bit hideous. [not a proper menu at all]
+--custom-right-click-context-menu                       ==> crud
+--custom-right-click-menu                               ==> crud
+disable-mouse-right-click                               (one-liner)
+--drop-menu-by-hover                                        ==> crud
+--expandable-menu                                       == crud
+--  Another Simple CSS3 Dropdown Menu                   origin of fixed_header, -stick, +hover... css-only
+fullscreen-utility-classes                              (meh)
+--greedynav-update                                      ==> crud
+--minimum-js-responsive-menu                                ==> crud
+--responsive-nav-with-element-queries                   CORS bollocks...
+--responsive-one-level-dropdown-menu-using-
+--  css-transitions-and-jquery                          jQuery, single level, +resize, sticky drop, clear ex, no hover, (maybe)
+--right-click-js                                            ==> crud (same as something ele)
+--right-click-menu5                                     popup, hmm
+--right-click-menu-by-smd                               popup, miss, no clear, not really
+--right-click-menu-context                              popup, jQuery, miss, not really
+--right-dropdown-menu                                   hover only, not really, some IE6 crud
+--simple-drop-menu                                      hover only, css-only, ugly, not really.
+--sticky-menu                                               nice, no clear, resize, but bootstrap+jQuery...
+--windows-7-right-click-menu                                ==> crud (static only)
+
+jQuery -> vanilla: (just the ones I have already used)
+$(window)   - (ie no quotes) this is just a way of converting window to a jQuery-compatible-internal-structure.
+var divs = $('div') --> let divs = document.querySelectorAll('div');
+     (note that document.querySelector(selector) - fetches the first matching node only
+                document.getElementById(idname) - fetches a single node by its ID name
+                document.getElementsByTagName(tagname) - fetches nodes matching an element (e.g. h1, p, strong, etc).
+                document.getElementsByClassName(class) - fetches nodes with a specific class name
+      will all be faster)
+$(document).ready(fn) --> document.addEventListener('DOMContentLoaded',fn);
+$('a').click(fn) --> Array.prototype.forEach.call(document.querySelectorAll('a'), function(el) { el.addEventListener('click', fn); });
+el.addClass('foo') --> el.classList.add('foo');
+el.toggleClass('foo') --> el.classList.toggle('foo');
+el.parent() -> el.parentNode;
+$() -> $ = document.querySelectorAll;   (maybe...!)
+$(el).on(eventName, eventHandler); --> el.addEventListener(eventName, eventHandler);
+$.each(array, function(i, item){}); --> array.forEach(function(item, i){});
+--http://youmightnotneedjquery.com/
+
+B: box shadow
+C: colours background grey & hover cyan
+H: hits
+S: space for icon and separator looking good
+R: right click on menu item suppressed
+X: clears when click (Xc) & escape & resize
+N: nofocus on separator
+W: min-width 120
+Z: right height (or near enough, and in Tahoma 12 pt font)
+
+Xpop1-right-click-menu-by-theprogrammingexpert          BCH    W    (popup, hits, no clear, not really)
+Xpop2-right-click-menu2                                 BCH  Xc     popup, hits, good clear ex-click, fair code.
+Xpop3-right-click-menu3                                 BCH  Xc     popup, hits, array->ul, otherwise so-so
+Xpop4-custom-right-click-menu                           BC s Xc     popup, misses window, clean code, fair/maybe looks (wrong colour).
+Xpop7-custom-context-right-click-menu-in-js-example     BC s X      pop-up, misses window, clean code, ugly, esc clear.         [**SEP/FOCUS**]
+Xpop8-context-menu                                      BCH  Xc     pop-up, good clear ex-click, clean code, fractionally less hideous hits-x, misses-y [FIXED], noesc  [**NOSEP**]
+Xpop9-customize-right-click-menu                        BCH RX W    pop_up, good clear ex-click (inc resize), hits window, clean code, nicer                            [**NOSEP**]
+pop5-custom-right-click-menuadjustable                  BCHS xcWZ   popup, nested, no rt clear, ish code (array->ul), ul/li-based
+pop6-custom-right-click-menu                            BCHSRXNWZ   popup, div-based
+popA-right-click-menu                                   BCHSRXNWZ   popup, ul/li-based
+
+--Aims:
+-- looks reasonable: left space for possible icon, box-shadow, slim separators, 12px sans-serif
+-- alt-key displays accelerator keys underlined (main bar only)
+-- alt-X works
+-- click outside and escape close window
+-- nested menus show correctly
+-- sticky, hover shifts - for resize/mobile, we can't have that jump [on lower menus] - but we can/should on desktop menus.
+
+A: Alt keys (display underline only, more work needed once actions are in...)
+B: box shadow
+C: colours background grey & hover cyan
+D: sticky drop
+M: multilevel
+N: nofocus on separator
+P: ResPonsive
+R: right click on menu item suppressed
+S: space for icon and separator looking good
+T: Tahoma 12pt (main bar)
+X: clears when click (Xc) & escape & resize
+W: min-width 120
+Z: right height (or near enough, and in Tahoma 12 pt font)
+
+--these five for the main:
+Xsimple-css-drop-menu                                   _Bc_m____T_W_   hover only, nested, css-only, not really?
+css-only-drop-menu                                                      hover only, clean code (css-only), ul/li-based, nested, no sep, not responsive.
+pure-css-animated-navigation-menu                       _BC_MN__ST_WZ   hover only, ul/li-based, multilevel, no resize. [*** good, as far as we can go without js ***]
+simple-window-menu-bar                                  aBCDmN__sT_WZ   sticky drop, ul/li-based, no nesting, but still a maybe
+fixed-header-with-responsive-drop-down-sliding-menu     ABCDMNpRSTXWZ   sticky drop, ul/li-based, +resize [which got kinda broken..]
+"done"
+
+listviews/tables...
+IupListView?
+IupTable?
+Aims:
+C - Clickable and selectable lines (with cursor up/down)
+E - Edaitable in-place (as per the excel demo)
+F - Filter (as per Edix/file list, pdemo)
+G - Grid lines
+H - Headers properly shaded
+S - proper sorting (numbers, dates, case-insensitive)
+R - (auto)resizable and reorderable columns
+P - resPonsive
+E:/downloads/misc/js/vanillajs/magic-table/dist/index.html  -- nice, sortable, no row selection, no column resize, table-based, somewhat messy innards (475 lines of js, 136 of css).
+E:/downloads/misc/js/vanillajs/sortable-table-pure-js/dist/index.html       "" (92 lines of js, 66 of css)
+XE:/downloads/misc/js/vanillajs/sort-table-with-just-javascript-js-css-html/dist/index.html     "" (but nah, 161 lines of js, 246 of css)
+E:/downloads/misc/js/vanillajs/spreadsheet-using-javascript/dist/index.html (jfw, table-based, fixed, Excel in 35 lines of js, 51 of css)
+E:/downloads/misc/js/vanillajs/vanillajs-sortable-table/dist/index.html     table-based, rubbish sort (438 lines of js, of which 190 are dummy data, 141 of css)
+http://phix.x10.mx/mint.html - (rework to allow local development... -- get a fresh copy of RC_POP.XML, maybe in json?)
+                                                                     -- better yet, use output from C:\Program Files (x86)\Phix\demo\rosetta\Rank_Languages.exw !!
+file:///E:/downloads/misc/js/vanillajs/responsive_table.html -- div based, can we rework so css don't need to know #columns?
+C:\Program Files (x86)\Phix\demo\pGUI\listview.exw -- 227 lines
+C:\Program Files (x86)\Phix\demo\arwendemo\demo_listview.exw -- 155 lines
+oh, where's dat ting?
+
+This is fair: (and of course you can probably cut it down to a single rule/class, programmatically)
+
+While not particularly elegant, I like to toss something like this in my site-wide css file:
+
+.tr1 td:nth-child(1), .tr1 th:nth-child(1),
+.tr2 td:nth-child(2), .tr2 th:nth-child(2),
+.tr3 td:nth-child(3), .tr3 th:nth-child(3),
+.tr4 td:nth-child(4), .tr4 th:nth-child(4),
+.tr5 td:nth-child(5), .tr5 th:nth-child(5),
+.tr6 td:nth-child(6), .tr6 th:nth-child(6),
+.tr7 td:nth-child(7), .tr7 th:nth-child(7),
+.tr8 td:nth-child(8), .tr8 th:nth-child(8),
+.tr9 td:nth-child(9), .tr9 th:nth-child(9) { text-align:right }
+
+.tc1 td:nth-child(1), .tc1 th:nth-child(1),
+.tc2 td:nth-child(2), .tc2 th:nth-child(2),
+.tc3 td:nth-child(3), .tc3 th:nth-child(3),
+.tc4 td:nth-child(4), .tc4 th:nth-child(4),
+.tc5 td:nth-child(5), .tc5 th:nth-child(5),
+.tc6 td:nth-child(6), .tc6 th:nth-child(6),
+.tc7 td:nth-child(7), .tc7 th:nth-child(7),
+.tc8 td:nth-child(8), .tc8 th:nth-child(8),
+.tc9 td:nth-child(9), .tc9 th:nth-child(9) { text-align:center }
+
+Then just specify which column numbers you want center or right aligned, i.e. if you want column 2 & 7 right aligned, and 3 centered, just do:
+
+<table class="tr2 tc3 tr7">
+
+While the CSS isn't super elegant, the alternatives are even less elegant: i.e. a custom class for each table, or requiring each tr to have a class="ralign" or similar.
+
+How about using "tr >" to handle both TD and TH tags? You can replace each .tr1 td:nth-child(1), .tr1 th:nth-child(1) with .tr1 tr > :nth-child(1) to reduce it by 50%. – Garland Pope Jun 17 at 3:35 
+
+<style>
+.baseball tr > :nth-child(1) {
+  text-align: left;
+}
+.baseball tr > :nth-child(2) {
+  text-align: center;
+}
+.baseball tr > :nth-child(3) {
+  text-align: right;
+}
+</style>
+ <table class="baseball">
+   <tr>
+     <th>Left</th>
+     <th>Center</th>
+     <th>Right</th>
+   </tr>
+   <tr>
+     <td>Handed</td>
+     <td>Fast</td>
+     <td>Handed</td>
+   </tr>
+   <tr>
+    <td>First base</td>
+    <td>Center field</td>
+    <td>Catcher</td>
+   </tr>
+ </table> 
+
+<tr class="highlight">
+
+no joy:
+col:nth-child(3) {
+  background: yellow; 
+}
+
+this is the skinny: https://css-tricks.com/complete-guide-table-element/
+
+
+tabs:
+E:/downloads/misc/js/vanillajs/tabs-with-vanillajs/dist/index.html
+
+for images, we could do this:
+constant filename = `E:\downloads\misc\js\vanillajs\Red-dot-5px.png`,
+         filedata = get_text(filename)
+?encode_base64(filedata)
+/*
+"iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
+<img src="data:image/png;base64,iVBORw0KGgoAAA
+ANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4
+//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU
+5ErkJggg==" alt="Red dot" />
+and/or:
+ul.checklist li.complete {
+    padding-left: 20px;
+    background: white url('data:image/png;base64,iVB\
+ORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAABlBMVEU\
+AAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8\
+yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAEl\
+FTkSuQmCC') no-repeat scroll left top;
+}
+*/
+
+--*/
+--/menus
+
+-- borken: file:///C:/Program%20Files%20(x86)/Phix/pwa/adp.html
+-- working: file:///E:/downloads/misc/js/pwa/adp.html
+
+--/* from https://rosettacode.org/mw/index.php?title=Almost_prime#JavaScript
+function almostPrime (n, k) {
+    var divisor = 2, count = 0
+    while(count < k + 1 && n != 1) {
+        if (n % divisor == 0) {
+            n = n / divisor
+            count = count + 1
+        } else {
+            divisor++
+        }
+    }
+    return count == k
+}
+ 
+for (var k = 1; k <= 5; k++) {
+    document.write("<br>k=", k, ": ")
+    var count = 0, n = 0
+    while (count <= 10) {
+        n++
+        if (almostPrime(n, k)) {
+            document.write(n, " ")
+            count++
+        }
+    }
+}
+
+from https://rosettacode.org/mw/index.php?title=Almost_prime#Phix
+sequence res = columnize({tagset(5)}) -- ie {{1},{2},{3},{4},{5}}
+integer n = 2, found = 0
+while found<50 do
+    integer l = length(prime_factors(n,true))
+    if l<=5 and length(res[l])<=10 then
+        res[l] &= n
+        found += 1
+    end if
+    n += 1
+end while
+string fmt = "k = %d: "&join(repeat("%4d",10))&"\n"
+for i=1 to 5 do
+    printf(1,fmt,res[i])
+end for
+
+--*/
+
+-- Simple: Ihandle ih <==> let /* Ihandle */ ih
+--    and: integer /*x*/ <==> let /* integer **/ x [ parameters only ]
+-- Simple: ?x <==> print(1,x+"\n")
+-- Maybe: var /* mpz */ bigIntSample = 1234567890987654321n; <==> mpz bigIntSample = mpz_new("1234567890987654321")
+-- Maybe: cond ? truthy : falsy  <==> iff(cond?truthy:falsy)
+-- Maybe: {a.b} @= c <==> [a, b] = repeat(c,2); (destructuring)
+-- Nested comments:
+--          constant extensions = {{PHIX :=1, ...
+-- <==>
+--          const /*nested*/ PHIX=1, ...
+--          const extensions = [[PHIX /*:=1*/, ...
+--  NB: types are supported "in name only" by pwa/p2js, since there is no JavaScript equivalent. [added to docs]
+-- for eg integer {?,optmin,optmax,greedy} = res2:
+-- in js, let [,a,, b, ...rest] = [10, 20, 30, 40, 50]; ==> 20,40,[50].
+--  NB: while optional parameters are fine, named p[arameters are not supported by p2js ... oh drat, timedelta
+--          (can we find the definition and re-jig? timedelta(hours:=7, minutes:=30) <==> 
+--           timedelta(/*:=*/0,/*:=*/0,/*hours:=*/7,/*minutes:=*/30[,0,0,0])? [iyswim])
+--          (something similar for un-named parameters?)
+-- Maybe: enum R,G,B <==> const /*enum*/ R=1,G=2,B=3;
+--          (fixed literals that match expectation can simply be omitted, on the return trip)
+--Note: <!DOCTYPE html> is self-closing, no "/>", parses as {`!DOCTYPE`, {}, {`html`}}. 
+--      note that <meta charset='utf-8'/> parses as {{`meta`, {{`charset`}, {`utf-8`}}, {}},
+--      conversely, <script src="pGUI.js"></script> parses as {`script`, {{`src`}, {`pGUI.js`}}, {``}},
+--      **but** <script src="pGUI.js"/> is illegal/unrecognised... (oh, they /are/ actually different...)
+-- Erm: if platform()... [els...] end if <==> /* if platform()... */ <js> /* [els...] end if */ (error out if "else" but no explicit js branch)
+--routine_id
+--Challenge: https://www.codeproject.com/Articles/5284262/WPF-Drag-and-Drop-using-Behavior
+
+--no need to go mad on var names...:
+--for i=1 to 6 do
+--  printf(1,"%d chars:%,d\n",{i,26*power(36,i-1)}) -- a-z,0-9
+--end for
+--1 chars:26
+--2 chars:936
+--3 chars:33,696
+--4 chars:1,213,056
+--5 chars:43,670,016
+--6 chars:1,572,120,576
+--for i=1 to 6 do
+--  printf(1,"%d chars:%,d\n",{i,52*power(62,i-1)}) -- a-z,A-Z,0-9
+--end for
+--1 chars:52
+--2 chars:3,224
+--3 chars:199,888
+--4 chars:12,393,056
+--5 chars:768,369,472
+--6 chars:47,638,907,264
+-- and check with 7zip and/or http://www.gidnetwork.com/tools/gzip-test.php if it saves anything (Douglas Crockford says not)
+
+-- Note that C support is a bit of an afterthought, more of a "text processing translation assistant" and
+--  never meant to be an "ok, done, now throw that at a compiler" kind of thing (which /is/ the intention
+--  for the JavaScript part). The C part is (hopefully) just a timesaver in an otherwise manual process.
+
+-- Of necessity, the tokeniser/parser of p2js is very generic and therefore may blithely permit certain
+-- blatent syntax errors that the desktop compiler catches immediately.. (Niggles)
+
+-- Only lowercase html tags are supported [DEV?].
+
+--//    console.log("one");
+--/*
+--  console.log("two");
+--// nope, js does not support nested comments...
+--  /x*
+--  console.log("three");
+--  *x/
+--  console.log("four");
+--*/
+--//    console.log("five");
+--
+--1) This must be able to parse pGUI.js... (and the four examples I've already got...)
+--      (although we're only really interested in collating the store_attr() calls)
+-- Note: Phix and js allow nested comments, html and css do not [CHECKED, TRUE]
+
+--view-source:file:///E:/downloads/misc/js/vanillajs/making-a-simple-programming-language-pl-0-in-javascript/dist/index.html    [AST-side is drivel]
+-- https://codepen.io/Nondera/pen/qLVNwQ (plain excel, no guts, no resize, but looks fair)
+--<input type="range">
+--https://shoelace.style/
+--https://ishadeed.com/article/finding-the-root-cause/ (hmm)
+--  I only added "vertical-align: top;" and the issue is fixed instantly.
+--
+-->>
+--  title: max 56 characters
+--  Define keywords for search engines: <meta name="keywords" content="HTML, CSS, JavaScript">
+--  Define a description of your web page: <meta name="description" content="Free Web tutorials">
+--  Define the author of a page: <meta name="author" content="John Doe">           
+--   <meta name = "revised" content = "Tutorialspoint, 3/7/2014" />
+--   <meta http-equiv = "cookie" content = "userid = xyz; expires = Wednesday, 08-Aug-15 23:59:59 GMT;" />
+--   <meta http-equiv = "Content-Type" content = "text/html; charset = UTF-8" /> -- **DEPRECATED**, use this instead:
+--   <meta charset='utf-8'>                                                     [YEP]
+--   <meta name="viewport" content="width=device-width, initial-scale=1">       [YEP]
+--   https://www.webdesignerdepot.com/2019/12/metatags-101-a-simple-guide-for-designers/ [done]
+--   <meta name="robots" content="noindex, nofollow">
+--   <meta name="robots" content="index, follow">       (default)
+--   <meta name="robots" content="noindex, follow">
+--   <meta name="robots" content="index, nofollow">
+--   <html lang="en"> (instead of <meta name="Content-Language" content="english">) [YEP]
+--   <meta name="generator" content="http://phix.x10.mx">
+--   <meta property="og:site_name" content="The Official SpyFu Blog" />
+--   <meta property="og:type" content="article" />
+--   <meta property="og:title" content="What is Search Intent and Why Does it Matter?" />
+--   <meta property="og:title" content="The best site">
+--   <meta property="og:image" content="link_to_image">
+--   <meta property="og:description" content="description goes here">
+
+--
+--E:\downloads\misc\js\treeview\tree.js-master -- that's it! (almost, just get rid of the trailing lines...)
+-- better: E:\downloads\misc\js\treeview\vanillatree-master (just replace with +/-, and[/or] maybe some icons)  *** THIS ONE! ***
+--  erm: E:\downloads\misc\js\treeview\aimaraJS-master
+--work area: E:\downloads\misc\js\pwa       -- (all runnables/tests live here)
+--           E:\downloads\misc\js\pwa\js    -- (read-only, not meant to be run)
+--           E:\downloads\misc\js\pwa\phix  -- (read-only, not meant to be run, but should)
+-- to become: Phix\pwa      -- (all editable/runnable/test/temps live here)
+--            Phix\pwa\js   -- (read-only, not meant to be run)
+--            Phix\pwa\phix -- (read-only, not meant to be run, but should)
+--
+--      The /js and /phix directories are for final/backup copies to be used
+--      primarily for regression and unit testing, specifically can it still
+--      create one from the other perfectly? Copies of every file in /js and 
+--      /phix may also exist in pwa, however the latter can be overwritten.
+--
+--  "p2js" opens a gui [with a proper history and most recent as defaults,
+--                     plus js/serve/run/profile/tree/edit etc options.]
+--  "p2js test[.exw]" behaves just like "pw test" except the source is first parsed for web-compatibility.
+--  "p2js -js [-run] test[.exw]" creates test.js (useful for packaging, etc) [and opens it in the browser]
+--  "p2js [-js] -server test[.exw]" creates/serves test.js to localhost:8080
+--                                 (with live updates [if at all possible,
+--                                  and all sub-includes auto-monitored.])
+--  "p2js (--|-server)" resumes/restarts a crashed or edited server.
+--
+--DOC: puts,printf: pwa/p2js: fn=1 appends to the end of the document.
+--                            fn=2 prepends to the start of the document (NB puts(2,"1"); puts(2,"2"); shows "21", //**not**// "12"!)
+--                            all other values of fn are invalid under pwa/p2js.
+--
+-- IupDialog: pwa/p2js: The only currently supported/properly tested attributes are: EXPAND...
+-- IupLabel: pwa/p2js: The only currently supported/properly tested attributes are: EXPAND...
+-- ALIGNMENT: pwa/p2js: The only currently supported/properly tested attributes are: YES, HORIZONTAL, VERTICAL...
+-- *** use class="pwsp2js" as per IupLabel. (note this currently overrides link/hover/visited...)
+--
+-- Mnemonics: replace &x with <u>x</u>; save {ih,x} in a table somewhere; google for examples.
+--
+-- SUG: Run this <a href="http://phix.x10.mx/runrc.htm?src='xxx'">online</a>:
+--      fetch https://www.rosettacode.org/wiki/xxx and extract the <lang Phix>..</lang> part(s?)
+--      (or runrc.htm could understand xxx as an internal lookup...)
+--      then codepen-style phix [libs] result it...
+--      erm, get something similar working on the desktop first... [there's a task to be submitted there]
+--      crib one of the existing rc-fetch tasks, and list online/not online (GUI with totals), pdemo-style.
+--      extra credit: record how many times each was run [and construct a drop-down/pop-up listview/search doobrie [NO: pdemo-style]].
+
+--/*
+<!DOCTYPE html>
+<html>
+<body>
+
+<p>Press a key on the keyboard in the input field to find out if the ALT key was pressed or not.</p>
+
+<input type="text" onkeydown="isKeyPressed(event)">
+
+<p id="demo"></p>
+
+<script>
+function isKeyPressed(event) {
+  var x = document.getElementById("demo");
+  if (event.altKey) {
+    x.innerHTML = "The ALT key was pressed!";
+  } else {
+    x.innerHTML = "The ALT key was NOT pressed!";
+  }
+}
+</script>
+
+</body>
+</html>
+
+$(function()
+{
+    //Flag to check if another key was pressed with alt
+    var vAnotherKeyWasPressed = false;      // PL we might want null/char instead
+    //ALT keycode const
+    var ALT_CODE = 18;
+
+    //When some key is pressed
+    $(window).keydown(function(event)
+    {
+        //Identifies the key
+        var vKey = event.keyCode ? event.keyCode : event.which ? event.which : event.charCode;
+        //The last key pressed is alt or not? 
+        vAnotherKeyWasPressed = vKey != ALT_CODE;
+    });
+
+    //When some key is left
+    $(window).keyup(function(event)
+    {
+        //Identifies the key
+        var vKey = event.keyCode ? event.keyCode : event.which ? event.which : event.charCode;
+
+        //If the key left is ALT and no other key is pressed at the same time...
+        if (!vAnotherKeyWasPressed && vKey == ALT_CODE)
+        {
+            //Focus the menu
+            $('#myMenu').focus();
+            //Stop the events for the key to avoid windows set the focus to the browser toolbar 
+            return false;
+        }
+    });
+});
+http://gcctech.org/csc/javascript/javascript_keycodes.htm
+https://www.w3schools.com/JSREF/obj_keyboardevent.asp
+altKey/charCode/code/ctrlKey/getModifierState()/key/keyCode/shiftKey/which...
+onkeydown/onkeypress/onkeyup.
+
+<script type="text/javascript">
+document.onkeydown = clickRadio;
+
+function clickRadio(e) {
+
+    if (window.event) {
+        var keyCode = window.event.keyCode; // IE
+    } else {
+        var keyCode = e.which;
+    }
+
+    if (e.altKey && (keyCode == 65 || keyCode == 97 || keyCode == 78 || keyCode == 110)){
+        setRadioButton(keyCode);
+    }
+}
+</script>
+window.addEventListener('keydown', function(e) {
+  if (e.altKey == true && e.keyCode == 78)
+    console.log('Alt + N'); 
+});
+
+--/?? [test this theory] Note that pGUI.e associates a mnemonic label with the following
+--//  control in the layout hierarchy, whereas pGUI.js associates it with the next defined
+--//  element (at runtime) instead. Often, of course, they would be the same, except for 
+--//  say lbl1, lbl2, txt1, txt2 (==> reorder source as lbl1, txt1, lbl2, txt2 [with =s,
+--//  by which I mean "Ihandle lbl1, lbl2, txt1, txt2" is unimportant, it is the order of
+--//  IupLabel(), IupText(), IupLabel(), IupText() as actually executed at runtime.]).
+--//  In other words an IupText inherits any outstanding key association at declaration.
+--//  Likewise in pGUI.js an IupDialog inherits all outstanding mnemonics (aka Alt keys)
+--//  when it is defined, whereas pGUI.e does so from the child argument and MENU.
+
+It is not the intention to make pwa/p2js execute legacy code, but rather instead to allow
+new desktop/browser gui development in tandem, with appropriate warnings when you try to
+run something on the former which won't work on the latter. Said warnings can of course
+be used to lick some old legacy code into shape, hopefully. Equally, pwa/p2js retains a
+"desktop first" attitude. If you get it to work in the browser first, no problem, but it
+assumes that a developer would much prefer to rely on the existing debug and diagnostic
+capabilites available during desktop development over the rather more muted experience
+of syntax/typo/runtime errors occuring in the browser with an initially hidden console.
+Type checks are strictly desktop-only, and trace, ex.err, and profile quite different.
+
+Early adopters should also take note of the sheer number of attributes, elements, and
+containers that pGUI.e supports, each of which must be individually implemented, and
+hence not expect too much from pGUI.js too soon. Check the existing examples first.
+It remains unlikely that everything in pGUI.e will be supported in pGUI.js, ever.
+--*/
+
+--
+-- JavaScript as used/understood by pwa/p2js:
+--  Obviously more complete references can be found easily enough - the whole point of this is to hook
+--  into the Edita/Edix F1 Help system, and that way speed up the development of pwa/p2js itself.
+--
+-- Syntax colouring examples:
+--      IupButton() -- normal (not that all such are yet supported by p2js)
+--      IupExecute() -- desktop only
+--      IupThread() -- neither desktop nor p2js
+--
+-- STEP 1: write some working examples by hand
+-- STEP 2: lexer/ttree/parser/treeview & output the *same* text
+--          (my plans to simplify comment handling go awol if this is the new reindenter)
+--          (the treeview should be fully expand-on-demand, aka delayed load, btw)
+--          lexer: job is just to spit out start/end etc.
+--          ttree: job is (text-only) unique id, with a single idx local store.
+--          parser: tree contains current position/indent info, which reindent can later tweak.
+-- STEP 3: cross-compile & verify the examples
+--          reindent can add/set some flags for the minimal editing stuff[?]
+--
+-- OK,  1: js strings are immutable.
+--      2: Phix sequence {} notation needs to become [].
+--      3: Phix 1-based indexes need to become 0-based. (map to function calls?)
+--      1+2+3 => "s[i] := e" --> s = replace(s,i,e), other "s[i]" --> "subscript(s,i)". (in phix-web.js)
+--
+--  The basic idea is to support a subset of Phix and a subset of IUP, and transpile to HTML/JavaScript.
+--  Use "if platform()=WEB / else" or similar to control any fiddly/incompatible bits.
+--  The pwa/p2js.exw application itself can read local files etc, however the web version cannot ("").
+--  Outwardly pwa/p2js.exw is a gui front-end to the transpiler/interpreter, internally it performs a 
+--  bunch of checks to keep your desktop development process on-track, making sure you do not start to
+--  use things that later cannot be transpiled (such as #ilASM{}, outside of a platform() test anyway).
+--
+-- *** should work on Phix, JavaScript, and C ***
+-- *** should work from clipboard ***
+-- *** should have -test [infile outfile] command-line handling *** (not found -> create? prompt, otherwise never overwrite)
+--
+-- We need: fast source -> AST, integer-only, using a ttree directly.
+-- It does not need to load numbers, a start/end/ttidx would suffice (maybe).
+--  - I should find permitted js number formats, though
+-- It should be possible to manipulate the AST, eg to perform CSE (common subexpression elimination).
+--XXXX It does not help one iota to make JavaScript arrays that are zero-based... so stick with 1-based. -- UTTER BOLLOCKS: str[0] is the first character! (erm, no, it's a string!!!)
+-- Note that Phix's 1-based [idx] is transpiler to js 0-based [idx-1] (where "idx" is any expression).
+-- var a = 'Hi there!';  // using single quotes
+--  document.write(typeof(a.charAt(1)) + "<br>");       -- string
+--  document.write(typeof(a.charCodeAt(1)) + "<br>");   -- number
+--  document.write(a.charAt(1) + "<br>");               -- i
+--  document.write(a.charCodeAt(1) + "<br>");           -- 105
+-- hmm: https://rosettacode.org/wiki/Compiler/lexical_analyzer
+--      C:\Program Files (x86)\Phix\demo\rosetta\Compiler\lex.exw
+--      https://rosettacode.org/wiki/Compiler/lexical_analyzer#JavaScript ( file:E:\downloads\misc\js\lexer.js )
+--Searching for: include
+-- Files scanned 27, Directories scanned 1, Lines 5510
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\cgen.e:8 include parse.e
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\cgen.e:317 include builtins/VM/puts1.e -- low-level console i/o routines
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\cgen.exw:8 include cgen.e
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\interp.exw:5 include parse.e
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\lex.e:8 include core.e
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\lex.exw:12 include lex.e
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\parse.e:8 include lex.e
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\parse.exw:5 include parse.e
+--C:\Program Files (x86)\Phix\demo\rosetta\Compiler\vm.exw:23 include cgen.e
+--      https://rosettacode.org/wiki/GUI_component_interaction (below)
+--      https://rosettacode.org/wiki/GUI_enabling/disabling_of_controls
+--      https://rosettacode.org/wiki/GUI/Maximum_window_dimensions
+--      https://rosettacode.org/wiki/Hello_world/Graphical
+--      https://rosettacode.org/wiki/Parsing/RPN_calculator_algorithm
+--      https://rosettacode.org/wiki/Parsing/RPN_to_infix_conversion
+--      https://rosettacode.org/wiki/Parsing/Shunting-yard_algorithm
+--      https://github.com/alexei/sprintf.js ( file:E:\downloads\misc\js\sprintf.js ) [DONE]
+--
+--  https://rosettacode.org/wiki/GUI_component_interaction#Phix (no js entry)
+-- (gotta be able to do better than http://lambdaway.free.fr/lambdawalks/?view=interaction - no-one else offers an online demo...)
+--/*
+include pGUI.e
+ 
+Ihandle txt, increment, random, hbx, vbx, dlg
+ 
+function action_cb(Ihandle /*ih*/, integer ch)
+    if not find(ch,"0123456789-") then return IUP_IGNORE end if
+    return IUP_CONTINUE
+end function
+ 
+function increment_cb(Ihandle /*ih*/)
+    integer v = IupGetInt(txt,"VALUE")+1
+    IupSetInt(txt,"VALUE",v)
+    return IUP_CONTINUE
+end function
+ 
+function random_cb(Ihandle /*ih*/)
+    if IupAlarm("Confirm","Replace wth random value?","Yes","No")=1 then
+        IupSetInt(txt,"VALUE",rand(1000))
+    end if
+    return IUP_CONTINUE
+end function
+ 
+IupOpen()
+txt = IupText(Icallback("action_cb"),"EXPAND=YES")
+increment = IupButton("increment",Icallback("increment_cb"))
+random = IupButton("random",Icallback("random_cb"))
+hbx = IupHbox({increment,random},"MARGIN=0x10, GAP=20")
+vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+dlg = IupDialog(vbx)
+IupCloseOnEscape(dlg)
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+--*/
+
+--other (from pdemo):
+-- call(/pass!) by reference
+-- ipcdemo
+-- named pipes
+-- raycast
+-- progress window
+-- treeview drag and drop
+-- aaline
+-- gears
+-- 7 guis
+-- teselation
+-- web browser
+--rc:
+--  2048 (rc/js uses p5.js...)
+--  https://rosettacode.org/wiki/Animation#JavaScript_.2B_HTML - demo\rosetta\Animation.exw
+--  https://rosettacode.org/wiki/Animate_a_pendulum#JavaScript - demo\rosetta\animate_pendulum2.exw (hmm)
+--  https://rosettacode.org/wiki/Archimedean_spiral#JavaScript
+--  https://rosettacode.org/wiki/Barnsley_fern#JavaScript
+--  demo\rosetta\Chaos_game.exw
+--  demo\rosetta\Conways_Game_of_Life.exw (maybe)
+--  demo\rosetta\FractalTree.exw
+--  demo\rosetta\Greyscale_bars.exw
+--  https://rosettacode.org/wiki/Greyscale_bars/Display#JavaScript
+--  demo\rosetta\ImageNoise.exw
+--  demo\rosetta\Mouse_position.exw  https://rosettacode.org/wiki/Mouse_position#JavaScript
+--  file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/OpenGL.html  demo\pGUI\triangle.exw
+--  https://rosettacode.org/wiki/Plasma_effect#JavaScript demo\rosetta\plasma.exw
+--  demo\rosetta\Playing_cards.exw (no real js equiv, sadly it's only black-and-white...)
+--  demo\rosetta\Polyspiral.exw (== PolyAnim.html, apart from speed + colours)
+--  demo\rosetta\PythagorasTree.exw
+--  demo\rosetta\SierpinskyTriangle.exw (not quite the same)
+--  demo\rosetta\Simple_window.exw (no js equiv as yet)
+--  demo\rosetta\Superellipse.exw (meh)
+--  demo\rosetta\Sutherland_Hodgman_polygon_clipping.exw (<==nice one)
+--  https://rosettacode.org/wiki/System_time#Phix (advanced, needs ability to compile datetime.e in full, no real js equiv as yet)
+--  https://rosettacode.org/wiki/Time_a_function#JavaScript (maybe/idea for a time() function... see phix_web.js)
+--  https://rosettacode.org/wiki/Tokenize_a_string_with_escaping#JavaScript (just uses document.write()...)
+--  https://rosettacode.org/mw/index.php?title=Colour_bars/Display#Phix (maybe, demo\rosetta\Colour_bars.exw )
+
+--C:\Program Files (x86)\Phix\demo\libxlsxwriter\js\
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/pendulum_canvas.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/ArchiSpiral.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/BarnsleyFern.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/CreateHTMLtable.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/chaos.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/Conway.html (maybe)
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/DrawOutlineTable.html (UGH: needs work, wikitable->html)
+-- C:\Program Files (x86)\Phix\demo\libxlsxwriter\js\adbc.html (do-able, console? - is that actually the trick I've been looking for?!!!)
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/FractalTree.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/Greyscale_bars.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/Image_noise.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/mint.html http://phix.x10.mx/mint.html (RCPOP==>const?, exw rqd)
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/OpenGL.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/plasma.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/PolyAnim.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/PythagorasTree.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/SierpinskiTriangle.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/Superelipse.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/Sutherland_Hodgman_polygon_clipping.html
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/VisualizeTree.html [??]
+
+-- https://www.codeproject.com/Articles/345888/How-to-write-a-simple-interpreter-in-JavaScript?msg=4649602#xx4649602xx
+-- see file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/Calculator/Calculator.html (good, but not my preferred parsing method...)
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/FlowSharpWeb/flowSharpWeb.html -- implement via pGUI..//PhixLogo...
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/jsFormGen/formgen/jsFormGen.html
+--  - basis for IupLabel, IupText (+IupMultiLine), IupCheckBox, I mean IupToggle, IupButton, IupList (DROPDOWN), IupCalendar[?], IupDatePick, IupRadio,
+--              IupValuator,
+-- file:///C:/Program%20Files%20(x86)/Phix/demo/libxlsxwriter/js/phix-web/tabindex.html --?? (maybe/unlikely)
+
+--E:\downloads\misc\js\
+--  rc/Animation.html (hmm, not so great...)
+--  rc/Animation.svg.html (broken)
+--  file:///E:/downloads/misc/js/1-Line%20Layouts.html
+--  file:///E:/downloads/misc/js/calculator-master/index.html (meh - but the layout (or rather concept) in a window, we should do that...)
+--  file:///E:/downloads/misc/js/except.html (so it /is/ doable as string, only)
+--  file:///E:/downloads/misc/js/Download/rc/js/Calculator/Calculator.html (but I think the one above is now the master...)
+--  E:\downloads\misc\js\terminal-window\ :
+--      (perhaps puts(1,xxx) ==> document.write(xxx) is all we need/should be the default... "format console", however...)
+--      file:///E:/downloads/misc/js/terminal-window/linux-terminal/dist/index.html (gets input and scroll right... ["clear" is the only working command])
+--      file:///E:/downloads/misc/js/terminal-window/site-terminal/dist/index.html ("", no '&', expands width, no cursor or editing facilities...)
+--      Xfile:///E:/downloads/misc/js/terminal-window/terminal2/terminal/dist/index.html (as 1, but help [EEK, no, uses jquery!] )
+--      file:///E:/downloads/misc/js/terminal-window/terminal-js/dist/index.html (maybe, weaker, flicker, drag a bit suspect)
+--  E:\downloads\misc\js\treeview\ :
+--      file:///E:/downloads/misc/js/treeview/a-css-treeview-control/dist/index.html (need to separate out click on expand and click on node, no lines)
+--      file:///E:/downloads/misc/js/treeview/react-vertualwindow/dist/index.html (ugh, react obfuscated... [but might be debuggable?] )
+--      file:///E:/downloads/misc/js/treeview/select-tag-dialog/dist/index.html (select/expand almost there) [odd effect commenting out this.onDblClick = onDblClick...] [2nd best?]
+--      file:///E:/downloads/misc/js/treeview/treeview-static/dist/index.html (pretty, but rubbish)
+--      file:///E:/downloads/misc/js/treeview/usmle-competencies/dist/index.html (jQuery, but easily the best so far [debuggable?])
+--      file:///E:/downloads/misc/js/treeview/  -- hey, if you just open a directory, opera/chromium creates a nice fake index.htm for you....
+--                                              -- (copying it will obvs. effectively enact a dynamic -> static transition..[?] which shd actually be just what we want...)
+--                                              -- (no shit, it is properly column-sortable, with drag and drop too... [albeit more of a listview])
+--                                              -- (one such now copied and tweaked [root], see E:\downloads\misc\js\native.html [nb links are misleading!!])
+--  E:\downloads\misc\js\uilang\ :
+--      file:///E:/downloads/misc/js/uilang/examples/accordion/accordion/index.html (maybe, no pGUI equivalent)
+--      file:///E:/downloads/misc/js/uilang/examples/exploremenu/explore.html               ("")
+--      file:///E:/downloads/misc/js/uilang/examples/gallery/gallery.html                   ("")
+--      file:///E:/downloads/misc/js/uilang/examples/hamburger/hamburger.html               ("")
+--      file:///E:/downloads/misc/js/uilang/examples/keynote/keynote.html                   ("") (aka slideshow)
+--      file:///E:/downloads/misc/js/uilang/examples/notification/notification/index.html   ("")
+--      file:///E:/downloads/misc/js/uilang/examples/overlay/overlay/index.html     (maybe, aka button & popup)
+--      file:///E:/downloads/misc/js/uilang/examples/panels/panels.html             (not really)
+--      file:///E:/downloads/misc/js/uilang/examples/popover/popover/index.html     (not really, menu bar)
+--      file:///E:/downloads/misc/js/uilang/examples/switch/switch/index.html       (maybe, aka toggle)
+--      file:///E:/downloads/misc/js/uilang/examples/tabs/tabs/index.html           (good, see also tabs-with-vanillajs below)
+--  E:\downloads\misc\js\vanillajs\ :
+--      file:///E:/downloads/misc/js/vanillajs/svg.html (just the cross?)
+--      file:///E:/downloads/misc/js/vanillajs/bytesize-icon-sheet/dist/index.html ("")
+--      file:///E:/downloads/misc/js/vanillajs/single-line-svg-icons/dist/index.html ("")
+--      file:///E:/downloads/misc/js/vanillajs/form-validation-vanillajs/dist/index.html (maybe)
+--      file:///E:/downloads/misc/js/vanillajs/login-signup-form/dist/index.html (not really [bit fancy but we should be able to do something similar but plainer])
+--      file:///E:/downloads/misc/js/vanillajs/magic-table/dist/index.html (maybe, sortable listview)
+--      file:///E:/downloads/misc/js/vanillajs/sortable-table-pure-js/dist/index.html ("")
+--      file:///E:/downloads/misc/js/vanillajs/vanillajs-crud-application/dist/index.html ("", with add and delete buttons)
+--      file:///E:/downloads/misc/js/vanillajs/vanillajs-sortable-table/dist/index.html ("", but with json-load instead)
+--      file:///E:/downloads/misc/js/vanillajs/progress-bar-vanillajs/dist/index.html (progressbar/gauge)
+--      file:///E:/downloads/misc/js/vanillajs/pure-css-date-picker/dist/index.html (good)
+--      file:///E:/downloads/misc/js/vanillajs/pure-css-delightful-checkbox-animation/dist/index.html (good, but uses jquery/modernizr/prefixfree libs)
+--      file:///E:/downloads/misc/js/vanillajs/pure-css-material-components-showcase/dist/index.html (good, but pure css/may be on the heavy side)
+--      file:///E:/downloads/misc/js/vanillajs/pwa-vanillajs-master/index.html (recipies, maybe, if we can get pGUI to do that flow thing)
+--      file:///E:/downloads/misc/js/vanillajs/tabs-with-vanillajs/dist/index.html (good)
+--      file:///E:/downloads/misc/js/vanillajs/ui-statistic-pop-out-css/dist/index.html (maybe, if we can get pGUI to hover-zoom)
+--      file:///E:/downloads/misc/js/vanillajs/vanillajs-copy-text-to-clipboard/dist/index.html (good, not really planned but why not)
+--      file:///E:/downloads/misc/js/vanillajs/vanillajs-resizable-panes/dist/index.html (splitter?)
+--      file:///E:/downloads/misc/js/vanillajs/vanillajs-todolist/dist/index.html (good, best to-do yet seen, but no permanent save)
+--      E:\downloads\misc\js\vanillajs\10print\10print.htm - cdCanvasBegin???
+--      E:\downloads\misc\js\vanillajs\dotchain\dotchain.htm    ""
+--      E:\downloads\misc\js\vanillajs\click\click.htm - 7Guis circle_drawer!!!!
+-- C:\Program Files (x86)\Phix\demo\arwendemo:
+--      clip.exw
+--      demo_controls.exw
+--      demo_curve_fit.exw
+--      demo_title.exw
+--      demo_treeview.exw [?]
+--      scowel.exw
+--      demo_xpm.exw
+--      GraphR.exw
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis:
+--      Counter.exw
+--      Converter.exw
+--      Booker.exw
+--      Timer.exw
+--      CRUD.exw
+--      CircleDraw.exw
+--      Cells.exw
+-- And try to convert these from C to Phix... (from http://webserver2.tecgraf.puc-rio.br/iup/en/7gui/7gui.html )
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis\IUP\counter.c
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis\IUP\temperature_converter.c
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis\IUP\flight_booker.c
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis\IUP\timer.c
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis\IUP\crud.c
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis\IUP\circle_drawer.c
+-- C:\Program Files (x86)\Phix\demo\rosetta\7guis\IUP\cells.c
+-- maybe: demo\pGUI\iup_layoutdlg.e <-> .c (newer version?)
+-- from https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API
+--      From the other way: something easy in js we can easily mimic in pGUI?:
+--      <canvas id="canvas"></canvas>
+--      const canvas = document.getElementById('canvas');
+--      const ctx = canvas.getContext('2d');
+--
+--      ctx.fillStyle = 'green';
+--      ctx.fillRect(10, 10, 150, 100);
+--
+--  Aside: While manually-written js uses getElementById() alot, in pGUI.e 
+--                                                   (and therefore pGUI.js) [[ <<== HEY! ]]
+--         we use (eg) Ihandle|let dlg = IupDialog(); instead... (just sayin)
+--
+-- possibly useful checklist: https://en.wikipedia.org/wiki/Graphical_widget
+-- maybe: E:\downloads\misc\js\animatedPendulumElm.htm (9,993 lines anyway)
+
+--/*
+--SUG:
+constant LANG_SET  = 0b0001,
+         LANG_ANY  = 0b1110,    -- phix or js or c
+         LANG_PHIX = 0b0011,
+         LANG_JSC  = 0b1100,    -- js or c
+         LANG_JS   = 0b0101,
+         LANG_C    = 0b1001
+
+sequence tokens = {},
+         tflags = {}
+
+procedure add_token(string token, integer flags)
+-- erm, use one of them there ternary tree doobries..
+    tokens = append(tokens,token)
+    tflags = append(tflags,flags)
+end procedure
+
+add_token("function",LANG_ANY)
+add_token("if",LANG_ANY)
+add_token("then",LANG_PHIX)
+add_token("{",LANG_ANY)     -- (LANG_JSC in some contexts)
+add_token("}",LANG_ANY)
+add_token("(",LANG_ANY)
+add_token(")",LANG_ANY)
+add_token("[",LANG_ANY)
+add_token("]",LANG_ANY)
+add_token("--",LANG_PHIX)
+add_token("--/"&"*",LANG_PHIX)
+add_token("//",LANG_ANY)
+add_token("/"&"*",LANG_ANY)
+add_token("=",LANG_ANY)
+add_token("==",LANG_ANY)
+add_token(":=",LANG_PHIX)
+add_token("..",LANG_PHIX)
+
+step 1: get **ONE** program tht is //believably// translatable! [DONE, in fact I got 2]
+step 2: tokeniser -> just list and show counts...
+
+-- Note that comments may not be used mid-factor, they can only occur between statements and before/after a comma operator. [[BLUFF!!]]
+-- (This rule may be relaxed/extended if (and only if) suitable compelling examples arise.)
+-- [erm, as noted in pwa.exw: my plans to simplify comment handling go awol if this is the new reindenter, plus we
+--  absolutely *MUST* support things like "xxx_cb(Ihande /*ih*/, ...)"]
+-- Note that IUP.js is written to imitate the Phix/pGUI.e/C api and therefore may not contain all the usual js niceities,
+-- for instance IupDialog(ih,"SIZE=200x200") is fine, but (as yet) IupDialog(ih,{SIZE:"200x200"}) is not.
+-- (it may be better off named phix-web.js rather than IUP.js)
+
+Big list of unsupported things: open, seek, where, [puts], getc, gets, get_text, get_key, [wait_key], dir, current_dir,
+chdir, allow_break, check_break, file_exists..join_path, command_line, getenv(?), system[_exec], abort?, include_paths,
+clear_screen, [get_]position, video_config, scrfoll, wrap, text_color, bk_color, save_bitmap, cursor, get/put_screen_char,
+save/display_text_image, free_console, allocate, call, delete_routine[?], peek, poke, [un]lock_file, finally, 
+mem_copy, mem_set, [un]register_block, open_dll, get_proc_address, [define_]c_func/proc/var, instance, task_create,
+init_cs, create_thread, canonical_path, prompt_number, prompt_string, get_bytes, read_lines, read_file, any_key, 
+machine_func/proc, cffi, database, ipc, libcurl[?], LiteZip, mpfr/gmp[?], pSQLite[?], sockets, ...
+
+try/catch: can only throw string, and catch e can only use e[E_USER], as a string.
+
+Maybe, or (special) comments:
+Hungarian notation:     Type:   Examples/notable exceptions:
+a                       atom
+b               bool/boolean    bFlag
+c                    integer    ch
+d                       atom    dwLength, delta
+h                       atom    hWnd
+i                    integer
+l                    integer    lSize
+o                     object
+p                       atom    pAddr
+q                   sequence    qSet
+s                     string    sName
+If a variable does not begin as above, it is prefixed by a_/i_/q_/s_/o_ - and/or those prefixes are/may be automatically removed.
+Note that user-defined types are not suported in Phix->Js, or restored in Js->Phix.
+Note that Js->Phix is not fully supported, but allows web-page-only code (not subsequently altered) to be run on the desktop.
+
+The attribute "class" (lowercase) is ignored on the desktop, but impacts on generated css [??] [ditto "style"?]
+pGUI has been modified to permit (selected?) lowercase attributes? (for "")
+IupButton <=> createElement(`button`)?? (etc) [better: function IupButton(...) in IUP.js?]
+IupSetAttribute <=> setAttribute??              [""]
+IupAppend <=> appendChild??                     [""]
+Callbacks are translated to addEventListener/
+
+--*/
+
+--/*
+latest rework: [js version DONE, this may [yet] be useful right here...]
+--with trace
+string text
+
+function iAttribCapture(integer asdx, lim, string delims)
+    while asdx<=lim and not find(text[asdx],delims) do
+        asdx += 1
+    end while
+    return asdx
+end function
+
+function iAttribSkipComment(integer asdx, lim)
+    while asdx<=lim do
+        if text[asdx]='\n' then exit end if
+        asdx += 1
+    end while
+    return asdx
+end function
+
+enum TK_END, TK_SET, TK_COMMA, TK_NAME
+
+function iAttribToken(integer asdx, lim)
+    integer start = asdx
+    while 1 do
+        if asdx>lim then return {TK_END,lim+1,lim+1} end if
+        integer c = text[asdx]
+        asdx += 1
+--      if find(c,"#") then
+--?9/0
+--          start = iAttribSkipComment(start, lim)
+--      els
+        if find(c," \t\n\r") then
+            start = asdx
+        else
+            if c='=' then
+                return {TK_SET,start,asdx}
+            elsif c=',' then
+                return {TK_COMMA,start,asdx}
+            elsif c='"' then
+                asdx = iAttribCapture(start+1,lim,`"`)	-- string
+                asdx += 1
+            else
+                asdx = iAttribCapture(start,lim,"=, \t\n\r")
+            end if
+            return {TK_NAME,start,asdx}
+        end if
+    end while
+end function
+
+function parse_attributes(integer asdx, lim)
+sequence names = {}, vals = {}
+string name = "", val
+integer state = 'a',    -- get attribute
+        tk, start
+
+    if lim>asdx then
+        if find('=',text,asdx)=0 then ?9/0 end if
+    end if
+
+    while 1 do
+        {tk,start,asdx} = iAttribToken(asdx,lim)
+        switch tk do
+            case TK_END,
+                 TK_COMMA:
+                if length(name) then
+                    names  = append(names,name)
+                    vals = append(vals,val)
+                end if
+                if tk=TK_END then exit end if
+--              name = ""
+--              val = ""
+                state = 'a'
+
+            case TK_SET:
+                state = 'v' -- get value
+
+            case TK_NAME:
+                -- (you /could/ do this on idx, but is
+                --  {start,asdx-1} really any better?)
+                if state=='a' then
+                    name = text[start..asdx-1]
+                else
+                    val = text[start..asdx-1]
+                end if
+
+        end switch
+    end while
+    return {names,vals}
+end function
+
+procedure show(sequence r)
+    ?r
+end procedure
+
+text = """
+IupSetAttributes(dlg,"EXPAND=YES, ALIGNMENT=ACENTER")
+IupSetAttributes(dlg,`TITLE="Hello", MINSIZE=225x75`)
+"""
+constant s1 = find('"',text)+1,
+         e1 = find('"',text,s1)-1,
+         s2 = find('`',text)+1,
+         e2 = find('`',text,s2)-1
+show(parse_attributes(s1,e1))
+show(parse_attributes(s2,e2))
+--?parse_attributes("EXPAND=YES, ALIGNMENT=ACENTER")
+--?parse_attributes(`TITLE="Hello", MINSIZE=225x75`)
+--{{"EXPAND","ALIGNMENT"},{"YES","ACENTER"}}
+--{{"TITLE","MINSIZE"},{"Hello","225x75"}}
+--"done"
+
+from https://www.rosettacode.org/wiki/Tokenize_a_string_with_escaping#JavaScript
+function tokenize(s, esc, sep) {
+    let a = [],
+        t = '',
+        e = s.length;
+    for (var i=0; i<e; i+=1) {
+        var c = s.charAt(i)
+        if (c == esc) t+=s.charAt(++i)
+        else if (c != sep) t+=c
+        else a.push(t), t=''            
+    }
+    a.push(t)
+    return a
+}
+ 
+var s = 'one^|uno||three^^^^|four^^^|^cuatro|'
+document.write(s, '<br>')       
+for (var a=tokenize(s,'^','|'), i=0; i<a.length; i+=1) document.write(i, ': ', a[i], '<br>')
+
+--*/
+
+--https://rosettacode.org/wiki/GUI_component_interaction#Phix (no js entry)
+--/*
+include pGUI.e
+ 
+Ihandle txt, increment, random, hbx, vbx, dlg
+ 
+function action_cb(Ihandle /*ih*/, integer ch)
+    if not find(ch,"0123456789-") then return IUP_IGNORE end if
+    return IUP_CONTINUE
+end function
+ 
+function increment_cb(Ihandle /*ih*/)
+    integer v = IupGetInt(txt,"VALUE")+1
+    IupSetInt(txt,"VALUE",v)
+    return IUP_CONTINUE
+end function
+ 
+function random_cb(Ihandle /*ih*/)
+    if IupAlarm("Confirm","Replace wth random value?","Yes","No")=1 then
+        IupSetInt(txt,"VALUE",rand(1000))
+    end if
+    return IUP_CONTINUE
+end function
+ 
+IupOpen()
+txt = IupText(Icallback("action_cb"),"EXPAND=YES")
+increment = IupButton("increment",Icallback("increment_cb"))
+random = IupButton("random",Icallback("random_cb"))
+hbx = IupHbox({increment,random},"MARGIN=0x10, GAP=20")
+vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+dlg = IupDialog(vbx)
+IupCloseOnEscape(dlg)
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+--*/
+--https://rosettacode.org/wiki/GUI_enabling/disabling_of_controls#Phix (no js entry)
+-- (not brill...)
+/*
+include pGUI.e
+ 
+Ihandle txt, inc, dec, hbx, vbx, dlg
+ 
+function activate(integer v)
+    IupSetInt(txt,"VALUE",v)
+    IupSetAttribute(inc,"ACTIVE",iff(v<10,"YES":"NO"))
+    IupSetAttribute(dec,"ACTIVE",iff(v>0,"YES":"NO"))
+    IupSetAttribute(txt,"ACTIVE",iff(v=0,"YES":"NO"))
+    return IUP_CONTINUE
+end function
+ 
+function valuechanged_cb(Ihandle /*ih*/)
+    return activate(IupGetInt(txt,"VALUE"))
+end function
+ 
+function inc_cb(Ihandle /*ih*/)
+    return activate(IupGetInt(txt,"VALUE")+1)
+end function
+ 
+function dec_cb(Ihandle /*ih*/)
+    return activate(IupGetInt(txt,"VALUE")-1)
+end function
+ 
+function esc_close(Ihandle /*ih*/, atom c)
+    return iff(c=K_ESC?IUP_CLOSE:IUP_CONTINUE)
+end function
+ 
+IupOpen()
+txt = IupText("VALUECHANGED_CB",Icallback("valuechanged_cb"),"FILTER=NUMBER, EXPAND=YES")
+inc = IupButton("increment",Icallback("inc_cb"))
+dec = IupButton("decrement",Icallback("dec_cb"),"ACTIVE=NO")
+hbx = IupHbox({inc,dec},"MARGIN=0x10, GAP=20")
+vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+dlg = IupDialog(vbx)
+IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+IupShow(dlg)
+IupMainLoop()
+*/
+--https://rosettacode.org/wiki/Hello_world/Graphical#Phix
+--js:
+--/*
+ alert("Goodbye, World!"); // no title, better off using our own??
+--*/
+/*
+include pGUI.e
+IupOpen()
+IupMessage("Bye","Goodbye, World!")
+IupClose()
+*/
+--https://rosettacode.org/wiki/Simple_windowed_application#Phix (no js entry)
+--/*
+include pGUI.e
+ 
+Ihandle dlg, lbl, btn, vbox
+integer clicks = 0
+ 
+function click_cb(Ihandle /*btn*/)
+    clicks += 1
+    IupSetStrAttribute(lbl,"TITLE","clicked %d times",{clicks})
+    return IUP_DEFAULT;
+end function
+ 
+IupOpen()
+lbl = IupLabel("There have been no clicks yet")
+btn = IupButton("Click me", Icallback("click_cb"))
+vbox = IupVbox({lbl, IupHbox({IupFill(),btn,IupFill()})})
+dlg = IupDialog(vbox,"MARGIN=10x10, GAP=10, RASTERSIZE=400x0")
+IupSetAttribute(dlg, "TITLE", "Simple windowed application")
+IupCloseOnEscape(dlg)
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+--*/
+--https://rosettacode.org/wiki/User_input/Graphical#Phix
+--js:
+--/*
+var str = prompt("Enter a string");
+var value = 0;
+while (value != 75000) {
+    value = parseInt( prompt("Enter the number 75000") );
+}
+--*/
+--/*
+-- demo\rosetta\User_Input_Graphical.exw
+include pGUI.e
+ 
+Ihandle dlg, label1, input1, label2, input2, OK, Cancel
+ 
+function ok_cb(Ihandle self)
+    if self=OK then
+        string in1 = IupGetAttribute(input1,"VALUE")
+        integer in2 = IupGetInt(input2,"VALUE")
+        string msg = sprintf("\"%s\" and %d",{in1,in2})
+        IupMessage("You entered",msg)
+        -- (return IUP_CONTINUE if unhappy with input)
+    end if
+    return IUP_CLOSE
+end function
+ 
+IupOpen()
+label1 = IupLabel("Please enter a string")
+input1 = IupText("VALUE=\"a string\", EXPAND=HORIZONTAL")
+label2 = IupLabel("and the number 75000")
+input2 = IupText("VALUE=75000, EXPAND=HORIZONTAL")
+IupSetAttribute(input2,"MASK",IUP_MASK_INT)
+OK     = IupButton("OK", "ACTION", Icallback("ok_cb"))
+Cancel = IupButton("Cancel", "ACTION", Icallback("ok_cb"))
+dlg = IupDialog(IupVbox({IupHbox({label1,input1},"ALIGNMENT=ACENTER, PADDING=5"),
+                         IupHbox({label2,input2},"ALIGNMENT=ACENTER, PADDING=5"),
+                         IupHbox({IupFill(),OK,Cancel,IupFill()},"PADDING=15")},
+                        "GAP=5,MARGIN=5x5"))
+IupSetAttribute(dlg,"TITLE","User Input/Graphical")
+IupCloseOnEscape(dlg)
+IupDestroy(IupNormalizer({OK,Cancel},"NORMALIZE=BOTH"))
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+--*/
+--https://rosettacode.org/wiki/Window_creation#Phix (no usable js entry)
+-- demo\rosetta\Window_creation.exw
+--/*
+include pGUI.e
+ 
+IupOpen()
+Ihandle dlg = IupDialog(IupVbox({IupLabel("hello")},"MARGIN=200x200"))
+IupSetAttribute(dlg,"TITLE","Hello")
+IupCloseOnEscape(dlg)
+IupShow(dlg)
+IupMainLoop()
+IupClose()
+--*/
+--https://rosettacode.org/wiki/Window_management#Phix (no js entry)
+--hmm? (no need to sweat this one...)
+--/*
+-- demo\rosetta\Window_management.exw
+include pGUI.e
+ 
+Ihandle dlg
+ 
+function doFull(Ihandle /*ih*/)
+    IupSetAttribute(dlg,"FULLSCREEN","YES")
+    return IUP_DEFAULT
+end function
+ 
+function doMax(Ihandle /*ih*/)
+    IupSetAttribute(dlg,"PLACEMENT","MAXIMIZED")
+    -- this is a work-around to get the dialog minimised (on win platform)
+    IupSetAttribute(dlg,"VISIBLE","YES")
+    return IUP_DEFAULT
+end function
+ 
+function doMin(Ihandle /*ih*/)
+    IupSetAttribute(dlg,"PLACEMENT","MINIMIZED")
+    -- this is a work-around to get the dialog minimised (on win platform)
+    IupSetAttribute(dlg,"VISIBLE","YES")
+    return IUP_DEFAULT
+end function
+ 
+function doRestore(Ihandle /*ih*/)
+    IupSetAttribute(dlg,"OPACITY","255")
+    IupSetAttribute(dlg,"FULLSCREEN","NO")
+    IupSetAttribute(dlg,"PLACEMENT","NORMAL")
+    IupSetAttribute(dlg,"VISIBLE","YES")
+    return IUP_DEFAULT
+end function
+ 
+function doDim(Ihandle /*ih*/)
+    IupSetAttribute(dlg,"OPACITY","60")
+    return IUP_DEFAULT
+end function
+ 
+function doShow(Ihandle /*ih*/)
+    IupSetAttribute(dlg,"OPACITY","255")
+    return IUP_DEFAULT
+end function
+ 
+function doMove(Ihandle /*ih*/)
+    integer {x,y} = IupGetIntInt(dlg,"SCREENPOSITION")
+    integer shift = iff(IupGetInt(NULL,"SHIFTKEY")?-10,+10)
+    IupShowXY(dlg,x+shift,y+shift)
+    return IUP_DEFAULT
+end function
+ 
+procedure main()
+    IupOpen()
+ 
+    Ihandle hbox = IupHbox({IupButton("restore",    Icallback("doRestore")),
+                            IupButton("full screen",Icallback("doFull")),
+                            IupButton("maximize",   Icallback("doMax")),
+                            IupButton("minimize",   Icallback("doMin")),
+                            IupButton("dim",        Icallback("doDim")),
+                            IupButton("show",       Icallback("doShow")),
+                            IupButton("move",       Icallback("doMove"))})
+    IupSetAttribute(hbox,"MARGIN", "10x10")
+    IupSetAttribute(hbox,"PADDING", "5x5")
+ 
+    dlg = IupDialog(hbox)
+    IupSetAttribute(dlg,"OPACITY","255")
+    IupCloseOnEscape(dlg)
+ 
+    IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
+    IupMainLoop()
+    IupClose()
+end procedure
+main()
+--*/
+--C:\Program Files (x86)\Phix\demo\pGUI\list[2/3/view].exw
+--C:\Program Files (x86)\Phix\demo\pGUI\matrix[3].exw
+--C:\Program Files (x86)\Phix\demo\pGUI\PhixLogo.exw
+--C:\Program Files (x86)\Phix\demo\pGUI\sample.exw  [one bit at a time!]
+--C:\Program Files (x86)\Phix\demo\pGUI\tree.exw    [or ""]
+-- plus, the 7guis... (Counter, Converter, Booker, Timer, CRUD, CircleDraw, Cells, in that order)
+--That's all folks!
+
+-- things you'll miss:
+--  no user-defined types
+--  hex numbers must be written 0xNNN, rather than #NNN (erm, that's easily fixable! [do -#NN too])
+--  octal numbers (in js, 010 is decimal 8, ugh)
+--  binary/octal/general numbers bases in 0bNN, 0oNN, 0tNN, o(2..36)NN formats.
+--  single quoted characters ('a' is a length-1 string in js, same as "a")
+--  escapes: \', \", \r, \n, \t, \b, \\, but **NOT** \0, \e, \E, \#, \x, \u, \U.
+
+--/*
+-- demo\rosetta\Arithmetic_evaluation.exw
+sequence opstack = {}       -- atom elements are literals,
+                            -- sequence elements are subexpressions
+                            -- on completion length(opstack) should be 1
+object token
+ 
+constant op_p_p = 0         --  1: expressions stored as op,p1,p2
+    --   p_op_p             --  0: expressions stored as p1,op,p2
+    --   p_p_op             -- -1: expressions stored as p1,p2,op
+ 
+object op = 0   -- 0 if none, else "+", "-", "*", "/", "^", "%", or "u-"
+ 
+string s        -- the expression being parsed
+integer ch
+integer sidx
+ 
+procedure err(string msg)
+    printf(1,"%s\n%s^ %s\n\nPressEnter...",{s,repeat(' ',sidx-1),msg})
+    {} = wait_key()
+    abort(0)
+end procedure
+ 
+procedure nxtch(object msg="eof")
+    sidx += 1
+    if sidx>length(s) then
+        if string(msg) then err(msg) end if
+        ch = -1
+    else
+        ch = s[sidx]
+    end if
+end procedure
+ 
+procedure skipspaces()
+    while find(ch," \t\r\n")!=0 do nxtch(0) end while
+end procedure
+ 
+procedure get_token()
+atom n, fraction
+integer dec
+    skipspaces()
+    if ch=-1 then token = "eof" return end if
+    if ch>='0' and ch<='9' then
+        n = ch-'0'
+        while 1 do
+            nxtch(0)
+            if ch<'0' or ch>'9' then exit end if
+            n = n*10+ch-'0'
+        end while
+        if ch='.' then
+            dec = 1
+            fraction = 0
+            while 1 do
+                nxtch(0)
+                if ch<'0' or ch>'9' then exit end if
+                fraction = fraction*10 + ch-'0'
+                dec *= 10
+            end while
+            n += fraction/dec
+        end if
+--      if find(ch,"eE") then   -- you get the idea
+--      end if
+        token = n
+        return
+    end if
+    if find(ch,"+/-*()^%")=0 then err("syntax error") end if
+    token = s[sidx..sidx]
+    nxtch(0)
+    return
+end procedure
+ 
+procedure Match(string t)
+    if token!=t then err(t&" expected") end if
+    get_token()
+end procedure
+ 
+procedure PopFactor()
+    object p1, p2 = opstack[$]
+    if op="u-" then
+        p1 = 0
+    else
+        opstack = opstack[1..$-1]
+        p1 = opstack[$]
+    end if
+    if op_p_p=1 then                        -- op_p_p
+        opstack[$] = {op,p1,p2}
+    elsif op_p_p=0 then                     -- p_op_p
+        opstack[$] = {p1,op,p2}
+    else -- -1                              -- p_p_op
+        opstack[$] = {p1,p2,op}
+    end if
+    op = 0
+end procedure
+ 
+procedure PushFactor(atom t)
+    if op!=0 then PopFactor() end if
+    opstack = append(opstack,t)
+end procedure
+ 
+procedure PushOp(string t)
+    if op!=0 then PopFactor() end if
+    op = t
+end procedure
+ 
+procedure Factor()
+    if atom(token) then
+        PushFactor(token)
+        if ch!=-1 then
+            get_token()
+        end if
+    elsif token="-" then
+        get_token()
+--      Factor()
+        Expr(3) -- makes "-3^2" yield -9 (ie -(3^2)) not 9 (ie (-3)^2).
+        if op!=0 then PopFactor() end if
+        if integer(opstack[$]) then
+            opstack[$] = -opstack[$]
+        else
+            PushOp("u-")
+        end if
+    elsif token="(" then
+        get_token()
+        Expr(0)
+        Match(")")
+    elsif token="+" then -- (ignore)
+        nxtch()
+        Factor()
+    else
+        err("syntax error")
+    end if
+end procedure
+ 
+constant {operators,
+          precedence,
+          associativity} = columnize({{"^",3,0},
+                                      {"%",2,1},
+                                      {"*",2,1},
+                                      {"/",2,1},
+                                      {"+",1,1},
+                                      {"-",1,1},
+                                      $})
+ 
+procedure Expr(integer p)
+--
+-- Parse an expression, using precedence climbing.
+--
+-- p is the precedence level we should parse to, eg/ie
+--      4: Factor only (may as well just call Factor)
+--      3: "" and ^
+--      2: "" and *,/,%
+--      1: "" and +,-
+--      0: full expression (effectively the same as 1)
+--  obviously, parentheses override any setting of p.
+--
+integer k, thisp
+    Factor()
+    while 1 do
+        k = find(token,operators) -- *,/,+,-
+        if k=0 then exit end if
+        thisp = precedence[k]
+        if thisp<p then exit end if
+        get_token()
+        Expr(thisp+associativity[k])
+        PushOp(operators[k])
+    end while
+end procedure
+ 
+function eval(object s)
+object lhs, rhs
+string op
+    if atom(s) then
+        return s
+    end if
+    if op_p_p=1 then            -- op_p_p
+        {op,lhs,rhs} = s
+    elsif op_p_p=0 then         -- p_op_p
+        {lhs,op,rhs} = s
+    else -- -1                  -- p_p_op
+        {lhs,rhs,op} = s
+    end if
+    if sequence(lhs) then lhs = eval(lhs) end if
+    if sequence(rhs) then rhs = eval(rhs) end if
+    if op="+" then
+        return lhs+rhs
+    elsif op="-" then
+        return lhs-rhs
+    elsif op="*" then
+        return lhs*rhs
+    elsif op="/" then
+        return lhs/rhs
+    elsif op="^" then
+        return power(lhs,rhs)
+    elsif op="%" then
+        return remainder(lhs,rhs)
+    elsif op="u-" then
+        return -rhs
+    else
+        ?9/0
+    end if
+end function
+ 
+s = "3+4+5+6*7/1*5^2^3"
+sidx = 0
+nxtch()
+get_token()
+Expr(0)
+if op!=0 then PopFactor() end if
+if length(opstack)!=1 then err("some error") end if
+puts(1,"AST (flat): ")
+?opstack[1]
+puts(1,"AST (tree):\n")
+ppEx(opstack[1],{pp_Nest,6})
+puts(1,"result: ")
+?eval(opstack[1])
+{} = wait_key()
+--*/
+
+-- v0:
+--/*
+function quit_cb(Ihandle /*self*/)
+    return IUP_CLOSE
+end function
+
+IupOpen()
+Ihandle quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb")),
+        label = IupLabel("Hello World","EXPAND=YES, ALIGNMENT=ACENTER:ACENTER"),
+        vbox = IupVbox({label, quit_bt},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"),
+        dlg = IupDialog(vbox,`TITLE="Dialog Title", SIZE=180x`)
+IupSetAttributeHandle(dlg, "DEFAULTESC", quit_bt)
+--*/
+--?IupGetAttribute(dlg,"RASTERSIZE")
+--IupSetAttribute(dlg,"RASTERSIZE",NULL)
+
+/*
+Searching for: GUI
+ Files scanned 3980, Directories scanned 93, Lines 4688482
+C:\Program Files (x86)\Phix\demo\rosetta\2048.exw:6 --  ported to pGUI July 2017
+C:\Program Files (x86)\Phix\demo\rosetta\2048.exw:8 --  Faithful desktop gui (windows only) reproduction of https://gabrielecirulli.github.io/2048/
+C:\Program Files (x86)\Phix\demo\rosetta\2048.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\9billionnames.exw:76 include pGUI.e [IupPlot]
+C:\Program Files (x86)\Phix\demo\rosetta\Abelian_sandpile_model.exw:23 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\animate_pendulum.exw:7 -- This has now been ported to pGUI, see animate_pendulum2.exw
+C:\Program Files (x86)\Phix\demo\rosetta\animate_pendulum2.exw:7 -- Port of animate_pendulum.exw from arwen to pGUI
+C:\Program Files (x86)\Phix\demo\rosetta\animate_pendulum2.exw:17 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Animation.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Archimedean_spiral.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Audio_frequency_generator.exw:4 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\BarnsleyFern.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Bilinear_interpolation.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Black_Box.exw:5 --  A configurable GUI version of the Black Box game, with a Knuth solver/helper.
+C:\Program Files (x86)\Phix\demo\rosetta\Black_Box.exw:466 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\BrownianTree.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Chaos_game.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Clock.exw:5 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Draw_a_clock.raw:3564 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Color_quantization.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_bars.exw:9 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Colour_bars\Display.raw:1146 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Colour_bars\Display.raw:1150 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_pinstripe.exw:9 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Colour_pinstripe\Display.raw:810 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Colour_pinstripe\Display.raw:815 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Colour_wheel.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Compare_sorting_algorithms.exw:15 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Conways_Game_of_Life.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Count_examples.exw:240 GUI_component_interaction 44
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Curve_that_touches_three_points.raw:294 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\DeathStar.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Determine_if_two_triangles_overlap.raw:3124 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Determine_if_two_triangles_overlap.raw:3127 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\DragonCurve.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\DrawRotatingCube.exw:8 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Draw_a_rotating_cube.raw:994 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Draw_a_rotating_cube.raw:998 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Draw_a_sphere.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\draw_cuboid.exw:7 --  Ported to pGUI August 2017
+C:\Program Files (x86)\Phix\demo\rosetta\draw_cuboid.exw:20 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Extensible_prime_generator.exw:13 --  I investigated the use of so-called "wheels", beguiled by the claim that "a 2-3-5-7 
+C:\Program Files (x86)\Phix\demo\rosetta\FibonacciFractal.exw:5 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Fibonacci_word\fractal.raw:1395 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Fibonacci_word\fractal.raw:1399 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Forest_fire.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Four.exw:75 --  extended off-page version with a full GUI AST browser and other debug tooling).
+C:\Program Files (x86)\Phix\demo\rosetta\FractalTree.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Gallery_Generator.exw:4 --DEV incomplete (port to pGUI in progress, will not yet compile)
+C:\Program Files (x86)\Phix\demo\rosetta\Gallery_Generator.exw:203 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\GaltonBox.exw:9 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Galton_box_animation.raw:2571 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\Greyscale_bars.exw:10 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Greyscale_bars\Display.raw:1188 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Greyscale_bars\Display.raw:1192 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\GUI_component_interaction.raw:2371 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\GUI_component_interaction.raw:2372 <lang Phix>include pGUI.e
+--^ see above, https://rosettacode.org/wiki/GUI_component_interaction#Phix (no js entry)
+C:\Program Files (x86)\Phix\demo\rosetta\hexapawn.exw:18 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\hexapawn.exw:233 -- === ott gui version ===
+C:\Program Files (x86)\Phix\demo\rosetta\hilbert_curve.exw:7 include pGUI.e
+// needs translating to pGUI:
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Honeycombs.raw:1 {{task}}[[CategoryGUI]]
+C:\Program Files (x86)\Phix\demo\rosetta\Hough_transform.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\ImageNoise.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Image_convolution.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Julia_set.exw:5 -- Interactive gui (zoom/pan incomplete).
+C:\Program Files (x86)\Phix\demo\rosetta\Julia_set.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Keyboard_macros.raw:546 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Keyboard_macros.raw:550 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Koch_curve.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\K_means_clustering.exw:8 --  the GUI code, or modifying it to produce an n-dimensional representation. Obviously 
+C:\Program Files (x86)\Phix\demo\rosetta\K_means_clustering.exw:15 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\mastermind.exw:52 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Matrix_Digital_Rain.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Morpion_solitaire.exw:5 --  I focused on a half-decent gui and playing back the 178-record.
+C:\Program Files (x86)\Phix\demo\rosetta\Morpion_solitaire.exw:67 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Morpion_solitaire.exw:107 -- (It turned out pretty easy to map that to a fairly nice gui, plus of course
+C:\Program Files (x86)\Phix\demo\rosetta\Mouse_position.exw:11 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Munching_squares.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\OpenGL.raw:1971 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\OpenGL.raw:1972 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\OpenGLShader.exw:5 --[DEV incomplete - ah, this is a copy of demo\pGUI\triangle.exw for https://rosettacode.org/wiki/OpenGL#Phix but
+C:\Program Files (x86)\Phix\demo\rosetta\OpenGLShader.exw:11 --  Converted to pGUI by Pete Lomax
+C:\Program Files (x86)\Phix\demo\rosetta\OpenGLShader.exw:14 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\OpenGLShader.exw:15 include ..\pGUI\opengl.e
+C:\Program Files (x86)\Phix\demo\rosetta\peano_curve.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Penrose_tiling.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Pentagram.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Perceptron.exw:12 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\plasma.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Playing_cards.exw:5 -- Includes both ascii (for a console) and unicode (for a gui) displays
+C:\Program Files (x86)\Phix\demo\rosetta\Playing_cards.exw:38 --GUI:
+C:\Program Files (x86)\Phix\demo\rosetta\Playing_cards.exw:52 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Playing_cards.exw:56 procedure gui_show()
+C:\Program Files (x86)\Phix\demo\rosetta\Playing_cards.exw:81 gui_show()
+C:\Program Files (x86)\Phix\demo\rosetta\Plot_coordinate_pairs.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Polynomial_regression.raw:1534 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Polynomial_regression.raw:1535 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Polyspiral.exw:10 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\PythagorasTree.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Raster_bars.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SHA.ASM:57  format PE GUI 4.0 DLL
+C:\Program Files (x86)\Phix\demo\rosetta\Sierpinski_arrowhead_curve.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sierpinski_curve.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sierpinski_square_curve.exw:57 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyPentagon.exw:6 --  1 standard pGUI drawing
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyPentagon.exw:29 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyPentagon.exw:523 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\SierpinskyTriangle.exw:5 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Sierpinski_triangle\Graphical.raw:1537 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Sierpinski_triangle\Graphical.raw:1541 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Simple_window.exw:4 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Simple_windowed_application.raw:1983 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Simple_windowed_application.raw:1984 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Single_instance.exw:6 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Speech.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sunflower.exw:7 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Superellipse.exw:9 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Sutherland_Hodgman_polygon_clipping.exw:53 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Tetrominoes.exw:21 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\User_Input_Graphical.exw:4 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\User_input\Graphical.raw:1109 {{libheader|pGUI}}
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\User_input\Graphical.raw:1113 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\vibrect.exw:12 include pGUI.e
+--C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Vibrating_rectangles.raw:717 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\VoronoiDiagram.exw:8 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Window_creation.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Window_management.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Wireworld.exw:92 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\XiaolinWuLine.exw:7 --  For education/comparision purposes only see demo\pGUI\aaline.exw
+C:\Program Files (x86)\Phix\demo\rosetta\XiaolinWuLine.exw:16 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\Yin_and_yang.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Booker.exw:2 -- demo\rosetta\7guis\Booker.exw
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Booker.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Cells.exw:2 -- demo\rosetta\7guis\Cells.exw
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Cells.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\CircleDraw.exw:2 -- demo\rosetta\7guis\CircleDraw.exw
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\CircleDraw.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Converter.exw:2 -- demo\rosetta\7guis\Converter.exw
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Converter.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Counter.exw:2 -- demo\rosetta\7guis\Counter.exw
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Counter.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\CRUD.exw:2 -- demo\rosetta\7guis\CRUD.exw
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\CRUD.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\CRUD.exw:145 -- Notes GAP/MARGIN/PADDING etc obtained using the incomplete pGUI-IDE;
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Timer.exw:2 -- demo\rosetta\7guis\Timer.exw
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Timer.exw:5 include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\7guis\Timer.exw:71 --        been retained to match the specs of 7GUIs.
+
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\GUI\Maximum_window_dimensions.raw:738 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\GUI\Maximum_window_dimensions.raw:739 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\GUI_enabling\disabling_of_controls.raw:2004 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\GUI_enabling\disabling_of_controls.raw:2005 <lang Phix>include pGUI.e
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Hello_world\Graphical.raw:2510 {{libheader|pGUI}}
+C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Hello_world\Graphical.raw:2511 <lang Phix>include pGUI.e
+*/

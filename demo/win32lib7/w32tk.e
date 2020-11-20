@@ -158,6 +158,7 @@ end procedure
 global constant False = 0, True = not 0
 --*/
 
+--/* Not Phix (now builtin)
 global type int(object x)
     return integer(x)
 end type
@@ -165,3 +166,4 @@ end type
 global type seq(object x)
     return sequence(x)
 end type
+--*/

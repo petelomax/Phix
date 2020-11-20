@@ -1232,7 +1232,7 @@ if NESTEDFUNC then
 --       C_sti = 3,     -- symtab index
 --       C_wdb = 4      -- modified K_wdb flag
 --          ?ctrl[i]
-            printf(1,"C_Fno:%d, C_lNo:%d, C_sti:%d, C_wdb:%0x\n",ctrl[i])
+            printf(1,"C_Fno:%d, C_lNo:%d, C_sti:%d, C_wdb:%08x\n",ctrl[i])
             ?symtab[ctrl[i][C_sti]]
 --/*
 C:\Program Files (x86)\Phix>p p -d! e01

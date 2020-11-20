@@ -6924,9 +6924,9 @@ end if
             call "kernel32.dll","ReadFile"
             pop ecx
             test eax,eax
-            jz :retZ2
+            jz :retZ2       -- ReadFile failed (see GetLastError)
             test ecx,ecx
-            jz :retZ2
+            jz :retZ2       -- ReadFile read 0 bytes
         [ELF32]
 --#     Name                        Registers                                                                                                               Definition
 --                                  eax     ebx                     ecx                     edx                     esi                     edi

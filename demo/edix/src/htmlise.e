@@ -1,6 +1,7 @@
 --
 -- htmlise.e
 --
+--with trace
 
 function htmlclr(atom c)
 -- convert 0x00bbggrr hex values (as used by eg setbkColor) into #RRGGBB (text) for html.
@@ -16,15 +17,30 @@ sequence res
     return res
 end function
 
+bool closing = false
 sequence r, ct
 --integer toClip, fn
 procedure addpCode(object x)
 --  if toClip then
+-- 14/10/2020:
+    if not closing
+    and find(x,{"</font>","</i>"})
+    and r="" then
+        ct[$] &= x
+    elsif x="</font>"
+      and length(r)>=22
+      and r[$]='>'
+      and r[-22..-9]=`<font color="#` then
+--  r = `<font color="#000000">`
+--      32109876543210987654321
+        r = r[1..-23]
+    else
         r &= x
-        if r[length(r)]='\n' then
-            ct = append(ct,r[1..length(r)-1])
-            r = {}
+        if r[$]='\n' then
+            ct = append(ct,r[1..-2])
+            r = ""
         end if
+    end if
 --  else
 --      puts(fn,x)
 --  end if
@@ -87,6 +103,7 @@ integer wasSelON, offset, ch
     if toClipBoard=4 then
         addpCode("<pre>\n")
     end if
+--trace(1)
     addpCode(`<font color="#000000">`)
 --else
 --  addpCode(sprintf("<html><head><title>%s %02d/%02d/%04d %02d:%02d</title></head>\n",
@@ -218,6 +235,7 @@ integer wasSelON, offset, ch
         chunk = {}
     end for
     selON=wasSelON
+closing = true
     if bold then
         addpCode("</b>")
     end if
@@ -227,6 +245,7 @@ integer wasSelON, offset, ch
     if uline then
         addpCode("</u>")
     end if
+closing = false
 --if toClipBoard=2 then
 --  addpCode("[/color][/pre]\n")
 --elsif toClipBoard>=3 then
@@ -236,8 +255,10 @@ integer wasSelON, offset, ch
 --  oneline = oneline[1..length(oneline)-1]&"</font>\n"
 --  ct[length(ct)] = oneline
 --  ct[length(ct)-1] &= "</font>"
+if ct[$]!="" then ?9/0 end if -- sanity check added 14/10/2020
     ct[length(ct)-1] &= r&"</font>"
-    r = {}
+--  r = {}
+    r = ""
     if toClipBoard=4 then
         addpCode("</pre>\n")
     end if

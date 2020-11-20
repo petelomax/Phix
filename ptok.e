@@ -626,6 +626,10 @@ end if
             end if
             intellisense = 3
         end if
+        -- aside: this is actually almost the polar opposite of requires()...
+        --        this is the compiler trying to make sure it is getting 
+        --        the builtins it shipped with; the latter is anything or
+        --        anyone asking the compiler to make an explicit check.
         cversion = {0}
         k = find(lower(file),phixcompat)
         if k then

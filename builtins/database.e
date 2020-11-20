@@ -99,8 +99,8 @@ constant INIT_FREE = 5,
 
 constant TRUE = 1
 
-integer current_db  current_db = -1
-atom current_table  current_table = -1
+integer current_db = -1
+atom current_table = -1
 sequence db_names, db_file_nums, db_lock_methods
 integer current_lock
 
@@ -807,6 +807,27 @@ sequence tname
         t_header += SIZEOF_TABLE_HEADER
     end for
     return -1
+end function
+
+global function db_current_table()
+    if current_table=-1 then return "" end if
+    -- find the current_table name 
+    safe_seek(TABLE_HEADERS)
+    atom tables = get4()
+    safe_seek(tables)
+    atom nt = get4(),
+         t_header = tables+4
+    for i=1 to nt do
+        safe_seek(t_header)
+        atom name_ptr = get4()
+        if name_ptr=current_table then
+            safe_seek(name_ptr)
+            string table_name = get_string()
+            return table_name
+        end if
+        t_header += SIZEOF_TABLE_HEADER
+    end for
+    return 9/0
 end function
 
 global function db_select_table(sequence name)

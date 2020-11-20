@@ -1,0 +1,966 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">IupFlatTabs</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include pGUI.e
+            <br>
+            <br>
+            <a href="Ihandle.htm">Ihandle</a> ih = IupFlatTabs(<a href="Ihandle.htm">Ihandles</a> children={},
+                                                               <a href="string.htm">string</a> attributes="",
+                                                               <a href="sequence.htm">sequence</a> data={})
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a native container for composing elements in hidden layers with only one layer visible (just like <a href="IupZbox.htm">IupZbox</a>), 
+            but its visibility can be interactively controlled. <br>
+            The interaction is done in a line of tabs with titles and arranged according to the tab type. Also known as Notebook in native systems. <br>
+            Identical to the <a href="IupTabs.htm">IupTabs</a> control but the decorations and buttons are manually drawn. 
+            It inherits from <a href="IupCanvas.htm">IupCanvas</a>.
+            <br>
+            <br>
+            children: List of the elements that will be placed in the box. It can be empty.<br>
+            For more information on the attributes and data parameters see <a href="IupSetAttributes.htm">IupSetAttributes</a>.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            The Tabs can be created with no children and be dynamic filled using IupAppend.
+            <br>
+            <br>
+            Its children automatically receives a name when the child is appended or inserted into the tabs.
+            <br>
+            <br>
+            IMPORTANT: Similar to <a href="IupZbox.htm">IupZbox</a>, IupFlatTabs does depends on the VISIBLE attribute. <br>
+            To proper functioning we strongly recommend using a IupBackgroundBox for each child.
+            <br>
+            <br>
+            When you change the current tab the focus is usually not changed. <br>
+            If you want to control the focus behavior call IupSetFocus in the TABCHANGE_CB callback.
+            <br>
+            <br>
+            When flattabs has the focus, the current tab can be changed using the left and right arrow keys. (since 3.25)
+            <br>
+            <br>
+            <h3>Differences from IupTabs:</h3>
+            Appearance can be controlled for global features and for individual tabs.<br>
+            Child focus can be controlled without native problems.<br>
+            Tabs can be individually disabled using TABACTIVEid attribute.<br>
+            Tab change can be controlled by the callbacks and ignored.<br>
+<!--
+            TABTYPE is NOT supported. Only TOP tabs are implemented.<br>
+-->
+            MULTILINE is NOT supported.<br>
+            Mnemonics are NOT supported.
+            <br>
+            <br>
+            All the usual Iup(Get|Set)(Attribute|Int|Float)[Id] functions can be used here.
+            <br>
+            <br>
+            The C functions IupFlatTabsV and IupFlatTabsv are not wrapped: children must be a sequence, rather than varargs or a pointer to 
+            dword-null-terminated memory.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+            (non inheritable) Inherits all attributes and callbacks of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few attributes. <br>
+            BORDER and SCROLLBAR are always NO.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="common.htm#BGCOLOR">BGCOLOR</a>
+         </td>
+         <td>
+            background color for the current Tab and the children. Default: "255 255 255". <br>
+            It is non inheritable, but when set will internally propagate to the children (since 3.25).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CANFOCUS
+         </td>
+         <td>
+            (creation only) (non inheritable): enables the focus traversal of the control. Default: YES.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FOCUSFEEDBACK
+         </td>
+         <td>
+            (non inheritable): draw the focus feedback. Can be Yes or No. Default: Yes. (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          PROPAGATEFOCUS
+         </td>
+         <td>
+            (non inheritable): enables the focus callback forwarding to the next native parent with FOCUS_CB defined. Default: NO. (since 3.23)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CHILDSIZEALL
+         </td>
+         <td>
+            (non inheritable): compute the natural size using all children. If set to NO will compute using only the current tab. Default: Yes. (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FORECOLOR
+         </td>
+         <td>
+            text color for the current Tab. Default: "50 150 255".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HIGHCOLOR
+         </td>
+         <td>
+            text color for the highlighted Tab. The current Tab is never highlighted, so it affects only the other tabs. If not defined FORECOLOR will be used.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          CHILDOFFSET
+         </td>
+         <td>
+            Allow to specify a position offset for the child. Available for native containers only. 
+            It will not affect the natural size, and allows to position controls outside the client area. 
+            Format "dxxdy", where dx and dy are integer values corresponding to the horizontal and vertical offsets, respectively, in pixels. Default: 0x0.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          COUNT
+         </td>
+         <td>
+            (read-only) returns the number of tabs. Same value returned by <a href="IupGetChildCount.htm">IupGetChildCount</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="common.htm#EXPAND">EXPAND</a>
+         </td>
+         <td>
+            The default value is "YES".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FIXEDWIDTH
+         </td>
+         <td>
+            forces all tabs to use the same width, given by the attribute. <br>
+            It does not include padding, nor the close button space if any, i.e. padding and close button space will be added to the fixed width.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          HASFOCUS
+         </td>
+         <td>
+            (read-only): returns the tabs state if it has focus. Can be Yes or No. (since 3.25)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHOWCLOSE
+         </td>
+         <td>
+            enables the close button on each tab. Default value: "NO". By default when closed the tab is hidden. <br>
+            To change that behavior use the TABCLOSE_CB callback.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SHOWLINES
+         </td>
+         <td>
+            when enabled the current tab will be separated of the other tabs by a line. Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="common.htm#SIZE">SIZE</a>
+         </td>
+         <td>
+            The default size is the smallest size that fits its largest child. All child elements are considered even invisible ones.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABCHANGEONCHECK
+         </td>
+         <td>
+            call the TABCHANGE* callbacks when current tab is removed or hidden, so a new tab is made current internally. (since 3.22)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSPADDING
+         </td>
+         <td>
+            internal margin of the tab title. Works just like the MARGIN attribute of the IupHbox and IupVbox containers, but uses a 
+            different name to avoid inheritance problems. Alignment does not includes the padding area. Default value: "6x4" (default changed in 3.29).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSFORECOLOR
+         </td>
+         <td>
+            text color of the tabs that are not the current tab. Default: the global attribute DLGFGCOLOR.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSBACKCOLOR
+         </td>
+         <td>
+            background color of the tabs that are not the current tab. If not defined it will use the background color of the parent.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSHIGHCOLOR
+         </td>
+         <td>
+            background highlight color of the tabs that are not the current tab. When not defined the background is not highlighted.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSFONT
+         </td>
+         <td>
+            text font of the tabs. When not defined FONT is used. It is a non inheritable option for setting the font.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSFONTSTYLE
+         </td>
+         <td>
+            text font style. When change will actually set TABSFONT.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSFONTSIZE
+         </td>
+         <td>
+            text font size. When change will actually set TABSFONT.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSTEXTALIGNMENT
+         </td>
+         <td>
+            (non inheritable): Horizontal text alignment for multiple lines. Can be: ALEFT, ARIGHT or ACENTER. Default: ALEFT. (since 3.22)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSTEXTWRAP
+         </td>
+         <td>
+            (non inheritable): For single line texts if the text is larger than its box the line will be automatically broken in multiple lines. <br>
+            Notice that this is done internally by the system, the element natural size will still use only a single line. <br>
+            For the remaining lines to be visible the element should use EXPAND=VERTICAL or set a SIZE/RASTERSIZE with enough height for the wrapped lines. (since 3.25)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSTEXTELLIPSIS
+         </td>
+         <td>
+            (non inheritable): If the text is larger that its box, an ellipsis ("...") will be placed near the last visible part of the text and 
+            replace the invisible part. It will be ignored when TEXTWRAP=Yes. (since 3.25)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSTEXTORIENTATION
+         </td>
+         <td>
+            (non inheritable): text angle in degrees and counterclockwise. The text size will adapt to include the rotated space. (since 3.25)
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          TABTYPE
+         </td>
+         <td>
+<!-- DEV test (conflicts with notes) -->
+            (non inheritable): the type of tabs, which can be "TOP", "BOTTOM", "LEFT" or "RIGHT". Default is "TOP". <br>
+            It will not automatically change the TABORIENTATION. <br>
+            When changed with the dialog visible the application should call IupRefresh or IupRefresh children to updated the layout when ready. (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABORIENTATION
+         </td>
+         <td>
+            (non inheritable) the orientation of tab text, which can be "HORIZONTAL" or "VERTICAL". Default is "HORIZONTAL". 
+            When set to vertical it will simply set TABSTEXTORIENTATION to 90. (since 3.25)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSLINECOLOR
+         </td>
+         <td>
+            color of the separator line. Default: "160 160 160"
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSIMAGEPOSITION
+         </td>
+         <td>
+            position of the image relative to the text when both are displayed. Can be: LEFT, RIGHT, TOP, BOTTOM. Default: LEFT.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSIMAGESPACING
+         </td>
+         <td>
+            spacing between the image and the text. Default: "2".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABSALIGNMENT
+         </td>
+         <td>
+            horizontal and vertical alignment of the set image+text. <br>
+            Possible values: "ALEFT", "ACENTER" and "ARIGHT", combined to "ATOP", "ACENTER" and "ABOTTOM". <br>
+            Alignment does not includes the padding area. Default: "ACENTER:ACENTER". <br>
+            Partial values are also accepted, like "ARIGHT" or ":ATOP", the other value will be obtained from the default value.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+         </td>
+         <td>
+            Tab Attributes (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABIMAGEn
+         </td>
+         <td>
+            image name to be used in the respective tab. <br>
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
+            n starts at 0. See also <a href="IupImage.htm">IupImage</a>. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABIMAGEHIGHTLIGHTn
+         </td>
+         <td>
+            same as TABIMAGEn when in highlight state. If not defined TABIMAGEn is used. (since 3.22)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABIMAGEINACTIVEn
+         </td>
+         <td>
+            same as TABIMAGEn when in inactive state. <br>
+            If not defined TABIMAGEn is used and its colors will be replaced by a modified version creating the disabled effect. (since 3.22)
+          <a name=TABVISIBLE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABVISIBLEn
+         </td>
+         <td>
+            controls the visibility of a tab. n starts at 0. When a tab is hidden the tabs indices are not changed. Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABTITLEn
+         </td>
+         <td>
+            Contains the text to be shown in the respective tab title. n starts at 0. If this value is NULL, it will remain empty. 
+<!-- (DEV test... [above says not, and I would indeed agree that "mnemonics on tabs" is just outright wrong (menus buttons and labels is more than enough)])
+            The "&" character can be used to define a mnemonic, the next character will be used as key. 
+            Use "&&" to show the "&" character instead on defining a mnemonic. 
+            The button can be activated from any control in the dialog using the "Alt+key" combination. (mnemonic support since 3.3). 
+            When set after map will update the TABTITLE attribute on the respective child (since 3.10). (since 3.0)
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABACTIVEn
+         </td>
+         <td>
+            active state of the tab.  Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABFORECOLORn
+         </td>
+         <td>
+            text color of the tab title. When not defined TABSFORECOLOR is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABBACKCOLORn
+         </td>
+         <td>
+            background color of the tab. When not defined TABSBACKCOLOR is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABHIGHCOLORn
+         </td>
+         <td>
+            highlight color of the tab title. When not defined TABSHIGHCOLOR is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABFONTn
+         </td>
+         <td>
+            text font of the tab. When not defined TABSFONT is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABFONTSTYLEn
+         </td>
+         <td>
+            text font style. When change will actually set TABFONTn.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABFONTSIZEn
+         </td>
+         <td>
+            text font size. When change will actually set TABFONTn.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABTIPn
+         </td>
+         <td>
+            TIP of the tab. (since 3.22)
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+         </td>
+         <td>
+            Tab Close Button Attributes
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLOSEIMAGE
+         </td>
+         <td>
+            image name to be used in the close button. Default: "IMGFLATCLOSE". <br>
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
+            n starts at 0. See also <a href="IupImage.htm">IupImage</a>. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLOSEIMAGEPRESS
+         </td>
+         <td>
+            image name to be used in the close button in pressed state. Default: "IMGFLATCLOSEPRESS".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLOSEIMAGEHIGHLIGHT
+         </td>
+         <td>
+            image name to be used in the close button in highlight state.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLOSEIMAGEINACTIVE
+         </td>
+         <td>
+            image name to be used in the close button in inactive state. <br>
+            If it is not defined then the CLOSEIMAGE is used and its colors will be replaced by a modified version creating the disabled effect. (since 3.22)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLOSEPRESSCOLOR
+         </td>
+         <td>
+            background color of the close button in pressed state. Default: "50 150 255". (since 3.22)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLOSEHIGHCOLOR
+         </td>
+         <td>
+            background color of the close button in highlight state. Default: "200 225 245".
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+         </td>
+         <td>
+            Extra Buttons Attributes (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRABUTTONS
+         </td>
+         <td>
+            sets the number of extra image buttons at right in the free space area. There can be any number of buttons. See the EXTRABUTTON_CB callback. Default: 0.
+            <br>
+            <br>
+            Button id starts at 1, and are positioned from right to left. Just like the tabs they do not affect natural width. <br>
+            But they also don&rsquo;t affect the tabs title height, if button title or image are larger than the tabs title height they will be cropped.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRATITLEid
+         </td>
+         <td>
+            text of the respective button.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAACTIVEid
+         </td>
+         <td>
+            active state of the button. Can be Yes or No. When not defined works as "Yes".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRABORDERWIDTHid
+         </td>
+         <td>
+            width of the button border. Set this attribute to at least 1 to enable the border. Default: 0 (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRASHOWBORDERid
+         </td>
+         <td>
+            always show the button border. If not defined the border is shown when highlighted or pressed. Default: NO (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRABORDERCOLORid
+         </td>
+         <td>
+            color of the border. Default: "50 150 255" (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAFORECOLORid
+         </td>
+         <td>
+            text color of the button title. When not defined TABSFORECOLOR is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAPRESSCOLORid
+         </td>
+         <td>
+            background color of the button in pressed state. Default: "150 200 235".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAHIGHCOLORid
+         </td>
+         <td>
+            background color of the button in highlight state. Default: "200 225 245".
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAFONTid
+         </td>
+         <td>
+            text font of the button. When not defined TABSFONT is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAIMAGEid
+         </td>
+         <td>
+            image name to be used in the respective button. <br>
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate an image to a name. 
+            n starts at 0. See also <a href="IupImage.htm">IupImage</a>. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAIMAGEPRESSid
+         </td>
+         <td>
+            same as EXTRAIMAGEid when in pressed state. If not defined EXTRAIMAGEid is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAIMAGEHIGHLIGHTid
+         </td>
+         <td>
+            same as EXTRAIMAGEid when in highlight state. If not defined EXTRAIMAGEid is used.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAIMAGEINACTIVEid
+         </td>
+         <td>
+            same as EXTRAIMAGEid when in inactive state. If not defined EXTRAIMAGEid is used and its colors will be replaced by a modified version creating the disabled effect.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRATIPid
+         </td>
+         <td>
+            TIP of the button.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRATOGGLEid
+         </td>
+         <td>
+            enabled the toggle behavior. Default: NO. (since 3.27)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRAVALUEid
+         </td>
+         <td>
+            Toggle&rsquo;s state. Values can be "ON" or "OFF". Default: "OFF". (since 3.27)
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+         </td>
+         <td>
+            Expand Button Attributes (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXPANDBUTTON
+         </td>
+         <td>
+            uses the next free extra button to configure an expand button. The button allows to dynamically expand and collapse the tabs contents. <br>
+            When collapsed a click on a tab causes that tab to be temporarily expanded until it looses the focus.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXPANDBUTTONPOS
+         </td>
+         <td>
+            (read-only): position of the expand button in the extra buttons.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXPANDBUTTONSTATE
+         </td>
+         <td>
+            The expand button is on expand state. Can be Yes or No. Default: Yes.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+         </td>
+         <td>
+            Current Tab (non inheritable)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VALUE
+         </td>
+         <td>
+            Changes the active tab by its name. The value passed must be the name of one of the elements contained in the tabs. <br>
+            Use <a href="IupSetHandle.htm">IupSetHandle</a> or <a href="IupSetAttributeHandle.htm">IupSetAttributeHandle</a> to associate a child to a name.<br>
+            When the tabs is created, the first element inserted is set as the current tab. When the current tab is changed is also scrolled to be visible (since 3.23).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VALUE_HANDLE
+         </td>
+         <td>
+            Changes the current tab by its handle. The value passed must be the handle of a child contained in the tabs. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          VALUEPOS
+         </td>
+         <td>
+            Changes the active tab by its position, starting at 0. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+         </td>
+         <td>
+            Attributes (at Children)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          FLOATING
+         </td>
+         <td>
+            (non inheritable) (at children only): If a child has FLOATING=YES then its size and position will be ignored by the layout processing. Default: "NO".
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          TABTITLE
+         </td>
+         <td>
+            (non inheritable) (at children only) Same as TABTITLEn but set in each child. Works only if set before the child is added to the tabs.<br>
+            It is not updated if TABTITLEn is changed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABIMAGE
+         </td>
+         <td>
+            (non inheritable) (at children only) Same as TABIMAGEn but set in each child. Works only if set before the child is added to the tabs.<br>
+            It is not updated if TABIMAGEn is changed.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+            <a href="common.htm#ACTIVE">ACTIVE</a>, 
+            <a href="common.htm#FONT">FONT</a>, 
+            <a href="common.htm#SCREENPOSITION">SCREENPOSITION</a>, 
+            <a href="common.htm#POSITION">POSITION</a>, 
+            <a href="common.htm#CLIENTSIZE">CLIENTSIZE</a>, 
+            <a href="common.htm#CLIENTOFFSET">CLIENTOFFSET</a>,
+            <a href="common.htm#MINSIZE">MINSIZE</a>, 
+            <a href="common.htm#MAXSIZE">MAXSIZE</a>,
+            <a href="common.htm#WID">WID</a>,
+            <a href="common.htm#TIP">TIP</a>, 
+            <a href="common.htm#RASTERSIZE">RASTERSIZE</a>,
+            <a href="common.htm#THEME">THEME</a>,
+            <a href="common.htm#ZORDER">ZORDER</a>,
+            <a href="common.htm#VISIBLE">VISIBLE</a>: also accepted.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Callbacks:</b>
+         </td>
+         <td>
+            Inherits all callbacks of the <a href="IupCanvas.htm">IupCanvas</a>, but redefines a few of them. <br>
+            Including BUTTON_CB, MOTION_CB, GETFOCUS_CB, KILLFOCUS_CB and LEAVEWINDOW_CB. <br>
+            To allow the application to use those callbacks the same callbacks are exported with the "FLAT_" prefix using the same parameters. <br>
+            They are all called before the internal callbacks and if they return IUP_IGNORE the internal callbacks are not processed. <br>
+            In FLATBUTTON_CB and FLAT_MOTION_CB use IupConvertXYToPos to convert (x,y) coordinates in tab position (same as VALUEPOS) (since 3.23).
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABCHANGE_CB
+         </td>
+         <td>
+            Callback called when the user shifts the active tab.
+            <br>
+            <br>
+            function tabchange_cb(<a href="Ihandle.htm">Ihandle</a> ih, new_tab, old_tab)<br>
+            ih: identifier of the element that activated the event.<br>
+            new_tab: the new tab selected by the user <br>
+            old_tab: the previously selected tab 
+            <br>
+            <br>
+            Returns: if IUP_IGNORE is returned the current tab is NOT changed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABCHANGEPOS_CB
+         </td>
+         <td>
+            Callback called when the user shifts the active tab. Called only when TABCHANGE_CB is not defined.
+            <br>
+            <br>
+            function tabchangepos_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> new_pos, old_pos)<br>
+            ih: identifier of the element that activated the event.<br>
+            new_pos: the new tab position selected by the user <br>
+            old_pos: the previously selected tab position
+            <br>
+            <br>
+            Returns: if IUP_IGNORE is returned the current tab is NOT changed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          TABCLOSE_CB
+         </td>
+         <td>
+            Callback called when the user clicks on the close button. Called only when SHOWCLOSE=Yes.
+            <br>
+            <br>
+            function tabclose_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> pos)<br>
+            ih: identifier of the element that activated the event.<br>
+            pos: the tab position
+            <br>
+            <br>
+            Returns: the tab will be hidden if the callback returns <a href="callbacks.htm#IUP_DEFAULT">IUP_DEFAULT</a> or if it does not exists. 
+            If <a href="callbacks.htm#IUP_CONTINUE">IUP_CONTINUE</a> is returned the tab is removed and its children are destroyed. <br>
+            If <a href="callbacks.htm#IUP_IGNORE">IUP_IGNORE</a> is returned does nothing.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RIGHTCLICK_CB
+         </td>
+         <td>
+            Callback called when the user clicks on some tab using the right mouse button.
+            <br>
+            <br>
+            function rightclick_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> pos)<br>
+            ih: identifier of the element that activated the event.<br>
+            pos: the tab position
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXTRABUTTON_CB
+         </td>
+         <td>
+            Action generated when any mouse button is pressed or released.
+            <br>
+            <br>
+            function extrabutton_cb(<a href="Ihandle.htm">Ihandle</a> ih, <a href="integer.htm">integer</a> button, pressed)<br>
+            ih: identifier of the element that activated the event.<br>
+            button: identifies the extra button. Can be 1, 2, 3, 4, and so on. (this is not the same as BUTTON_CB)<br>
+            pressed: indicates the state of the button (1=pressed, 0=released)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+            <a href="callbacks.htm#MAP_CB">MAP_CB</a>,
+            <a href="callbacks.htm#UNMAP_CB">UNMAP_CB</a>,
+            <a href="callbacks.htm#DESTROY_CB">DESTROY_CB</a>, 
+            <a href="callbacks.htm#GETFOCUS_CB">GETFOCUS_CB</a>, 
+            <a href="callbacks.htm#KILLFOCUS_CB">KILLFOCUS_CB</a>, 
+            <a href="callbacks.htm#ENTERWINDOW_CB">ENTERWINDOW_CB</a>,
+            <a href="callbacks.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>, 
+            <a href="callbacks.htm#K_ANY">K_ANY</a>, 
+            <a href="callbacks.htm#HELP_CB">HELP_CB</a>: All common callbacks are supported.
+         </td>
+        </tr>
+
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+            See demo/pGUI/IupFlatTabs.exw
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href="IupTabs.htm">IupTabs</a>,
+          <a href="IupImage.htm">IupImage</a>,
+          <a href="IupButton.htm">IupButton</a>
+         </td>
+        </tr>
+       </table>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>
