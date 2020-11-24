@@ -3563,7 +3563,7 @@ global function IupFlatToggle(nullable_string title=NULL, object action=NULL, ob
     return ih
 end function
 
-global function IupTree(sequence attributes="", dword_seq data={})
+global function IupTree(string attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupTree, {})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)
@@ -3571,7 +3571,7 @@ global function IupTree(sequence attributes="", dword_seq data={})
     return ih
 end function
 
-global function IupFlatTree(sequence attributes="", dword_seq data={})
+global function IupFlatTree(string attributes="", dword_seq data={})
     Ihandle ih = c_func(xIupFlatTree, {})
     if length(attributes) then
         IupSetAttributes(ih, attributes, data)

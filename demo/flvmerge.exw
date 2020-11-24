@@ -1,0 +1,396 @@
+--
+-- flvmerge.exw
+-- ============
+--
+-- A quick ditty I whipped up to handle the following:
+--  I bought a cheap 7" tablet (the biggest thing that will still fit in a jacket pocket) and 
+--  like to copy the odd movie or tv program onto it before a long journey or daily commute.
+--  <aside>
+--      While this does not work on YouTube or 4OD, it does on Filenuke/ShareSix/PrimeWire/etc.
+--      The trick I use is to run ProcMon (with lots of filters) to see where it is writing, eg 
+--      C:\Users\Pete\AppData\Local\Opera\Opera\cache\g_0052\opr0HS8X.tmp, and open that in VLC 
+--      or FLVPlayer while it is downloading/playing, to stop it getting deleted/hidden as soon 
+--      as it completes. I pause the playback in the browser (and pause/quit ProcMon asap) and 
+--      go do something else until the bar has crawled all the way to the right, then copy that 
+--      file (opr0HS8X.tmp) somewhere else, rename, and maybe run it though Handbrake, before 
+--      copying it to my tablet.
+--  </aside>
+--  One time I was downloading a 403MB movie, which crapped out at around 385MB. Tired of starting it all
+--  over again, costing time and a healthy chunk of quota, I decided to try this. Sure, I could repoen the
+--  web page and yank the slider to where it died (or a couple of mins before), but files so captured will
+--  not then play. So I wrote this to bolt together the two pieces. It worked first time, and has again on
+--  4 or 5 similar occasions. This is not the finished/polished article: if you use it often, or on very
+--  large files, you may want to consider append/rename file1 to speed things up, and maybe a simple gui
+--  to select the inputs and output. In reality it is only here just so that I know where to find it the 
+--  next time that I need it.
+--
+
+constant file1 = "H:\\DexterS7E2pt1.flv"        -- \
+constant file2 = "H:\\pt2.tmp"                  --  } edit this!
+constant ofile = "H:\\DexterS7E2.flv"           -- /
+
+integer fn1 = open(file1,"rb")
+integer fn2 = open(file2,"rb")
+integer size1, size2
+sequence block, block2
+    if seek(fn1,-1)!=0 then ?9/0 end if
+    size1 = where(fn1)
+    if seek(fn2,-1)!=0 then ?9/0 end if
+    size2 = where(fn2)
+
+function get1(integer len)
+    block = repeat(0,len)
+    if seek(fn1, size1-len)!=0 then ?9/0 end if
+    for i=1 to len do
+        block[i] = getc(fn1)
+    end for
+    return block
+end function
+
+function get2()
+    block2 = repeat(0,size2)
+    if seek(fn2, 0)!=0 then ?9/0 end if
+    for i=1 to size2 do
+        block2[i] = getc(fn2)
+    end for
+    return block2
+end function
+
+    block = get1(100)
+    block2 = get2()
+--?length(block2)
+integer k,l,m
+k = match(block,block2) 
+    block = get1(200)
+l = match(block,block2) 
+    block = get1(300)
+m = match(block,block2) 
+?{k,l,m}
+integer fn3
+if k=l+100 and l=m+100 then
+    fn3 = open(ofile,"wb")
+    if seek(fn1,0)!=0 then ?9/0 end if
+    for i=1 to size1 do
+        puts(fn3,getc(fn1))
+    end for
+    for i=k+100 to size2 do
+        puts(fn3,block2[i])
+    end for
+    close(fn3)
+    puts(1,"finished")
+else
+    puts(1,"no match\n")
+end if
+close(fn1)
+close(fn2)
+if getc(0) then end if
+
+--DEV (FP)
+--
+-- t02parms.exw (params.exw)
+--
+-- Test parameter passing in Phix.
+-- This was originally for testing some really horrid processing 
+-- in Call() in posemit.e (Posetf), but all that has gone now.
+-- Nevermind, may as well still do this testing, now it's written.
+--
+--atom t
+--  t=time()
+
+integer i1,j2,k3,l4,m5
+        i1=1 j2=2 k3=3 l4=4 m5=5
+
+function f1() return 1 end function
+function f2() return 2 end function
+function f3() return 3 end function
+function f4() return 4 end function
+function f5() return 5 end function
+
+procedure Abort(sequence msg) puts(1,msg) if getc(0) then end if abort(1) end procedure
+
+procedure check5(integer a1, integer b2, integer c3, integer d4, integer e5)
+    if a1!=1 then Abort("a1!=1\n") end if
+    if b2!=2 then Abort("b2!=2\n") end if
+    if c3!=3 then Abort("c3!=3\n") end if
+    if d4!=4 then Abort("d4!=4\n") end if
+    if e5!=5 then Abort("e5!=5\n") end if
+end procedure
+
+--atom t
+--  t=time()
+--for x=1 to 10000 do
+check5(   1,   2,   3,   4,   5)
+check5(   1,   2,   3,   4,  m5)
+check5(   1,   2,   3,   4,f5())
+check5(   1,   2,   3,  l4,   5)
+check5(   1,   2,   3,  l4,  m5)
+check5(   1,   2,   3,  l4,f5())
+check5(   1,   2,   3,f4(),   5)
+check5(   1,   2,   3,f4(),  m5)
+check5(   1,   2,   3,f4(),f5())
+check5(   1,   2,  k3,   4,   5)
+check5(   1,   2,  k3,   4,  m5)
+check5(   1,   2,  k3,   4,f5())
+check5(   1,   2,  k3,  l4,   5)
+check5(   1,   2,  k3,  l4,  m5)
+check5(   1,   2,  k3,  l4,f5())
+check5(   1,   2,  k3,f4(),   5)
+check5(   1,   2,  k3,f4(),  m5)
+check5(   1,   2,  k3,f4(),f5())
+check5(   1,   2,f3(),   4,   5)
+check5(   1,   2,f3(),   4,  m5)
+check5(   1,   2,f3(),   4,f5())
+check5(   1,   2,f3(),  l4,   5)
+check5(   1,   2,f3(),  l4,  m5)
+check5(   1,   2,f3(),  l4,f5())
+check5(   1,   2,f3(),f4(),   5)
+check5(   1,   2,f3(),f4(),  m5)
+check5(   1,   2,f3(),f4(),f5())
+puts(1,".")
+check5(   1,  j2,   3,   4,   5)
+check5(   1,  j2,   3,   4,  m5)
+check5(   1,  j2,   3,   4,f5())
+check5(   1,  j2,   3,  l4,   5)
+check5(   1,  j2,   3,  l4,  m5)
+check5(   1,  j2,   3,  l4,f5())
+check5(   1,  j2,   3,f4(),   5)
+check5(   1,  j2,   3,f4(),  m5)
+check5(   1,  j2,   3,f4(),f5())
+check5(   1,  j2,  k3,   4,   5)
+check5(   1,  j2,  k3,   4,  m5)
+check5(   1,  j2,  k3,   4,f5())
+check5(   1,  j2,  k3,  l4,   5)
+check5(   1,  j2,  k3,  l4,  m5)
+check5(   1,  j2,  k3,  l4,f5())
+check5(   1,  j2,  k3,f4(),   5)
+check5(   1,  j2,  k3,f4(),  m5)
+check5(   1,  j2,  k3,f4(),f5())
+check5(   1,  j2,f3(),   4,   5)
+check5(   1,  j2,f3(),   4,  m5)
+check5(   1,  j2,f3(),   4,f5())
+check5(   1,  j2,f3(),  l4,   5)
+check5(   1,  j2,f3(),  l4,  m5)
+check5(   1,  j2,f3(),  l4,f5())
+check5(   1,  j2,f3(),f4(),   5)
+check5(   1,  j2,f3(),f4(),  m5)
+check5(   1,  j2,f3(),f4(),f5())
+puts(1,".")
+check5(   1,f2(),   3,   4,   5)
+check5(   1,f2(),   3,   4,  m5)
+check5(   1,f2(),   3,   4,f5())
+check5(   1,f2(),   3,  l4,   5)
+check5(   1,f2(),   3,  l4,  m5)
+check5(   1,f2(),   3,  l4,f5())
+check5(   1,f2(),   3,f4(),   5)
+check5(   1,f2(),   3,f4(),  m5)
+check5(   1,f2(),   3,f4(),f5())
+check5(   1,f2(),  k3,   4,   5)
+check5(   1,f2(),  k3,   4,  m5)
+check5(   1,f2(),  k3,   4,f5())
+check5(   1,f2(),  k3,  l4,   5)
+check5(   1,f2(),  k3,  l4,  m5)
+check5(   1,f2(),  k3,  l4,f5())
+check5(   1,f2(),  k3,f4(),   5)
+check5(   1,f2(),  k3,f4(),  m5)
+check5(   1,f2(),  k3,f4(),f5())
+check5(   1,f2(),f3(),   4,   5)
+check5(   1,f2(),f3(),   4,  m5)
+check5(   1,f2(),f3(),   4,f5())
+check5(   1,f2(),f3(),  l4,   5)
+check5(   1,f2(),f3(),  l4,  m5)
+check5(   1,f2(),f3(),  l4,f5())
+check5(   1,f2(),f3(),f4(),   5)
+check5(   1,f2(),f3(),f4(),  m5)
+check5(   1,f2(),f3(),f4(),f5())
+puts(1,".")
+check5(  i1,   2,   3,   4,   5)
+check5(  i1,   2,   3,   4,  m5)
+check5(  i1,   2,   3,   4,f5())
+check5(  i1,   2,   3,  l4,   5)
+check5(  i1,   2,   3,  l4,  m5)
+check5(  i1,   2,   3,  l4,f5())
+check5(  i1,   2,   3,f4(),   5)
+check5(  i1,   2,   3,f4(),  m5)
+check5(  i1,   2,   3,f4(),f5())
+check5(  i1,   2,  k3,   4,   5)
+check5(  i1,   2,  k3,   4,  m5)
+check5(  i1,   2,  k3,   4,f5())
+check5(  i1,   2,  k3,  l4,   5)
+check5(  i1,   2,  k3,  l4,  m5)
+check5(  i1,   2,  k3,  l4,f5())
+check5(  i1,   2,  k3,f4(),   5)
+check5(  i1,   2,  k3,f4(),  m5)
+check5(  i1,   2,  k3,f4(),f5())
+check5(  i1,   2,f3(),   4,   5)
+check5(  i1,   2,f3(),   4,  m5)
+check5(  i1,   2,f3(),   4,f5())
+check5(  i1,   2,f3(),  l4,   5)
+check5(  i1,   2,f3(),  l4,  m5)
+check5(  i1,   2,f3(),  l4,f5())
+check5(  i1,   2,f3(),f4(),   5)
+check5(  i1,   2,f3(),f4(),  m5)
+check5(  i1,   2,f3(),f4(),f5())
+puts(1,".")
+check5(  i1,  j2,   3,   4,   5)
+check5(  i1,  j2,   3,   4,  m5)
+check5(  i1,  j2,   3,   4,f5())
+check5(  i1,  j2,   3,  l4,   5)
+check5(  i1,  j2,   3,  l4,  m5)
+check5(  i1,  j2,   3,  l4,f5())
+check5(  i1,  j2,   3,f4(),   5)
+check5(  i1,  j2,   3,f4(),  m5)
+check5(  i1,  j2,   3,f4(),f5())
+check5(  i1,  j2,  k3,   4,   5)
+check5(  i1,  j2,  k3,   4,  m5)
+check5(  i1,  j2,  k3,   4,f5())
+check5(  i1,  j2,  k3,  l4,   5)
+check5(  i1,  j2,  k3,  l4,  m5)
+check5(  i1,  j2,  k3,  l4,f5())
+check5(  i1,  j2,  k3,f4(),   5)
+check5(  i1,  j2,  k3,f4(),  m5)
+check5(  i1,  j2,  k3,f4(),f5())
+check5(  i1,  j2,f3(),   4,   5)
+check5(  i1,  j2,f3(),   4,  m5)
+check5(  i1,  j2,f3(),   4,f5())
+check5(  i1,  j2,f3(),  l4,   5)
+check5(  i1,  j2,f3(),  l4,  m5)
+check5(  i1,  j2,f3(),  l4,f5())
+check5(  i1,  j2,f3(),f4(),   5)
+check5(  i1,  j2,f3(),f4(),  m5)
+check5(  i1,  j2,f3(),f4(),f5())
+puts(1,".")
+check5(  i1,f2(),   3,   4,   5)
+check5(  i1,f2(),   3,   4,  m5)
+check5(  i1,f2(),   3,   4,f5())
+check5(  i1,f2(),   3,  l4,   5)
+check5(  i1,f2(),   3,  l4,  m5)
+check5(  i1,f2(),   3,  l4,f5())
+check5(  i1,f2(),   3,f4(),   5)
+check5(  i1,f2(),   3,f4(),  m5)
+check5(  i1,f2(),   3,f4(),f5())
+check5(  i1,f2(),  k3,   4,   5)
+check5(  i1,f2(),  k3,   4,  m5)
+check5(  i1,f2(),  k3,   4,f5())
+check5(  i1,f2(),  k3,  l4,   5)
+check5(  i1,f2(),  k3,  l4,  m5)
+check5(  i1,f2(),  k3,  l4,f5())
+check5(  i1,f2(),  k3,f4(),   5)
+check5(  i1,f2(),  k3,f4(),  m5)
+check5(  i1,f2(),  k3,f4(),f5())
+check5(  i1,f2(),f3(),   4,   5)
+check5(  i1,f2(),f3(),   4,  m5)
+check5(  i1,f2(),f3(),   4,f5())
+check5(  i1,f2(),f3(),  l4,   5)
+check5(  i1,f2(),f3(),  l4,  m5)
+check5(  i1,f2(),f3(),  l4,f5())
+check5(  i1,f2(),f3(),f4(),   5)
+check5(  i1,f2(),f3(),f4(),  m5)
+check5(  i1,f2(),f3(),f4(),f5())
+puts(1,".")
+check5(f1(),   2,   3,   4,   5)
+check5(f1(),   2,   3,   4,  m5)
+check5(f1(),   2,   3,   4,f5())
+check5(f1(),   2,   3,  l4,   5)
+check5(f1(),   2,   3,  l4,  m5)
+check5(f1(),   2,   3,  l4,f5())
+check5(f1(),   2,   3,f4(),   5)
+check5(f1(),   2,   3,f4(),  m5)
+check5(f1(),   2,   3,f4(),f5())
+check5(f1(),   2,  k3,   4,   5)
+check5(f1(),   2,  k3,   4,  m5)
+check5(f1(),   2,  k3,   4,f5())
+check5(f1(),   2,  k3,  l4,   5)
+check5(f1(),   2,  k3,  l4,  m5)
+check5(f1(),   2,  k3,  l4,f5())
+check5(f1(),   2,  k3,f4(),   5)
+check5(f1(),   2,  k3,f4(),  m5)
+check5(f1(),   2,  k3,f4(),f5())
+check5(f1(),   2,f3(),   4,   5)
+check5(f1(),   2,f3(),   4,  m5)
+check5(f1(),   2,f3(),   4,f5())
+check5(f1(),   2,f3(),  l4,   5)
+check5(f1(),   2,f3(),  l4,  m5)
+check5(f1(),   2,f3(),  l4,f5())
+check5(f1(),   2,f3(),f4(),   5)
+check5(f1(),   2,f3(),f4(),  m5)
+check5(f1(),   2,f3(),f4(),f5())
+puts(1,".")
+check5(f1(),  j2,   3,   4,   5)
+check5(f1(),  j2,   3,   4,  m5)
+check5(f1(),  j2,   3,   4,f5())
+check5(f1(),  j2,   3,  l4,   5)
+check5(f1(),  j2,   3,  l4,  m5)
+check5(f1(),  j2,   3,  l4,f5())
+check5(f1(),  j2,   3,f4(),   5)
+check5(f1(),  j2,   3,f4(),  m5)
+check5(f1(),  j2,   3,f4(),f5())
+check5(f1(),  j2,  k3,   4,   5)
+check5(f1(),  j2,  k3,   4,  m5)
+check5(f1(),  j2,  k3,   4,f5())
+check5(f1(),  j2,  k3,  l4,   5)
+check5(f1(),  j2,  k3,  l4,  m5)
+check5(f1(),  j2,  k3,  l4,f5())
+check5(f1(),  j2,  k3,f4(),   5)
+check5(f1(),  j2,  k3,f4(),  m5)
+check5(f1(),  j2,  k3,f4(),f5())
+check5(f1(),  j2,f3(),   4,   5)
+check5(f1(),  j2,f3(),   4,  m5)
+check5(f1(),  j2,f3(),   4,f5())
+check5(f1(),  j2,f3(),  l4,   5)
+check5(f1(),  j2,f3(),  l4,  m5)
+check5(f1(),  j2,f3(),  l4,f5())
+check5(f1(),  j2,f3(),f4(),   5)
+check5(f1(),  j2,f3(),f4(),  m5)
+check5(f1(),  j2,f3(),f4(),f5())
+puts(1,".")
+check5(f1(),f2(),   3,   4,   5)
+check5(f1(),f2(),   3,   4,  m5)
+check5(f1(),f2(),   3,   4,f5())
+check5(f1(),f2(),   3,  l4,   5)
+check5(f1(),f2(),   3,  l4,  m5)
+check5(f1(),f2(),   3,  l4,f5())
+check5(f1(),f2(),   3,f4(),   5)
+check5(f1(),f2(),   3,f4(),  m5)
+check5(f1(),f2(),   3,f4(),f5())
+check5(f1(),f2(),  k3,   4,   5)
+check5(f1(),f2(),  k3,   4,  m5)
+check5(f1(),f2(),  k3,   4,f5())
+check5(f1(),f2(),  k3,  l4,   5)
+check5(f1(),f2(),  k3,  l4,  m5)
+check5(f1(),f2(),  k3,  l4,f5())
+check5(f1(),f2(),  k3,f4(),   5)
+check5(f1(),f2(),  k3,f4(),  m5)
+check5(f1(),f2(),  k3,f4(),f5())
+check5(f1(),f2(),f3(),   4,   5)
+check5(f1(),f2(),f3(),   4,  m5)
+check5(f1(),f2(),f3(),   4,f5())
+check5(f1(),f2(),f3(),  l4,   5)
+check5(f1(),f2(),f3(),  l4,  m5)
+check5(f1(),f2(),f3(),  l4,f5())
+check5(f1(),f2(),f3(),f4(),   5)
+check5(f1(),f2(),f3(),f4(),  m5)
+check5(f1(),f2(),f3(),f4(),f5())
+puts(1,"\n")
+--printf(1," (%3.2fs)",{time()-t})
+--end for
+
+-- Added 24/1/15: (newEmit only)
+-- (was not planting multiple entries in gvar table, then crashing on incref, as Tmap still 0/h4)
+-- (annoyingly, the same rqd fix had been applied to floats and strings, but not dword_sequences)
+
+constant typeINSPO  = {1,3,8,12,15}
+
+if sequence(typeINSPO) then end if
+
+constant Tmap = {1,3,8,12,15}
+
+function mp(object o)
+    return o
+end function
+{} = mp(Tmap)
+--?Tmap
+
+--printf(1,"\n\nEnd of emulation (%3.2fs)\n",{time()-t})
+--if getc(0) then end if
+abort(0)
+

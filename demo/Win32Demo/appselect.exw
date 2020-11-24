@@ -1,0 +1,79 @@
+-- AppSelect.exw
+without warning
+
+include win32lib.ew
+if setAppName("Application Launcher") then end if
+VOID = setSearchPaths("..\\demoresources\\")
+
+integer Win
+integer TB
+integer B1
+integer B2
+integer B3
+sequence icons
+atom iconApp1
+atom iconApp2
+atom iconApp3                                                   
+
+------------------
+procedure LaunchApp(integer self, integer event, sequence parms)
+------------------
+    sequence lAppName
+    
+    lAppName = getUserProperty(self, "Application Name")
+    
+    VOID = message_box(sprintf("Launching '%s' ...", {lAppName[1]}),
+                       "LaunchPad", 0)
+    -- Here is where you can build or show the appropriate screen forms.
+        
+end procedure
+
+------------------
+procedure AppInit()
+------------------
+sequence th
+     
+    -- Note that 'argv' contains the command line args
+    
+    Win = createEx( Window, "Application Launchpad",  0, 0, 0, 300, 80, 
+            {WS_BORDER, WS_SYSMENU, WS_DLGFRAME},
+            {WS_EX_TOOLWINDOW} )
+
+    -- Calc the size of the toolbar required.
+    th = getTextExtent(Screen, "|")
+    TB  = create( FlatToolBar, "", Win, 0, 0, 0, (44 + th[2]), 0)
+    
+    -- Prepare the image lists
+    iconApp1 = extractIcon( "disk05.ico" )
+    iconApp2 = extractIcon( "disk06.ico" )
+    iconApp3 = extractIcon( "disks04.ico" )
+
+    icons = {}
+    icons &= addIcon( {iconApp1, iconApp2, iconApp3 } )
+    icons &= addIcon( {iconApp2, iconApp3, iconApp1 } )
+    icons &= addIcon( {iconApp3, iconApp1, iconApp2 } )
+                              
+    -- Add the buttons to the toolbar
+    B1  = create( PushButton, {"Transactions", "This will allow you to add and change transactions"},
+                         TB, icons[1],  10,  0,  0, 0)
+    VOID= create( SepButton,         "",  TB,        0,  0,  0,  0, 0)
+    B2  = create( PushButton, {"Statements", "This will print customer statements"},
+                         TB, icons[2],  10,  0,  0, 0)
+    VOID= create( SepButton,         "",  TB,        0,  0,  0,  0, 0)
+    B3  = create( PushButton, {"Audit", "This shows the list of recent audit entries"},
+                         TB, icons[3],  10,  0,  0, 0)
+                                     
+    -- Initialize the button's link to their applications
+    setUserProperty(B1, "Application Name", "Record Transactions")
+    setUserProperty(B2, "Application Name", "Print Statement")
+    setUserProperty(B3, "Application Name", "View Audit Trail")
+         
+    -- Establish the handlers.
+    setHandler({B1, B2, B3}, w32HClick, routine_id("LaunchApp"))    
+    
+   
+    WinMain( Win, Normal )
+end procedure
+
+AppInit()      
+

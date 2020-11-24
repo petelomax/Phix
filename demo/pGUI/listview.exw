@@ -82,6 +82,7 @@ end function
 integer eiskip = 1
 
 function enteritem_cb(Ihandle ih, integer lin, integer col)
+--?{"enteritem_cb",ih, lin, col}
     IupSetAttribute(ih,"MARKED", NULL)  /* clear all marks */
     IupMatSetAttribute(ih,"MARK", lin, 0, "Yes")
     IupSetStrAttribute(ih,"REDRAW", "L%d", {lin})
@@ -89,7 +90,8 @@ function enteritem_cb(Ihandle ih, integer lin, integer col)
     if eiskip then
         eiskip -= 1 -- (don't clobber inital buildDummyData() msg)
     else
-        IupSetAttribute(statusbar, "TITLE", sprint(data[tags[lin]]))
+--?sprint(data[tags[lin]])
+        IupSetStrAttribute(statusbar, "TITLE", sprint(data[tags[lin]]))
     end if
     return IUP_DEFAULT
 end function
@@ -107,6 +109,7 @@ procedure showselected()
 integer idx = IupGetInt(matrix,"FOCUSCELL") -- (we only want the line)
 string msg = sprint(data[tags[idx]])
     IupMessage("Selected", msg)
+    IupSetFocus(matrix)
 end procedure
 
 function click_cb(Ihandle self, integer l, integer c, atom pStatus)
@@ -186,10 +189,12 @@ procedure main()
     IupSetInt(matrix, "HEIGHT0", 10)
 --  IupSetInt(matrix, "WIDTH0", NULL)   -- (no help)
     IupSetAttribute(matrix, "RESIZEMATRIX", "YES")
+    IupSetAttribute(matrix, "RESIZEDRAG", "YES")
     IupSetAttribute(matrix, "MARKMODE", "LIN")
     IupSetAttribute(matrix, "MARKAREA", "CONTINUOUS")
 --DEV does not seem to work...
 --  IupSetAttribute(matrix, "MULTIPLE", "YES") -- (or is that "MARKMULTIPLE"? the default is NO anyway)
+--  IupSetAttribute(matrix, "MARKMULTIPLE", "YES")
 
 --  IupSetAttribute(matrix, "READONLY", "YES") -- with VALUE_CB set, non-setting of VALUE_EDIT_CB (also) makes it read-only
     IupSetAttribute(matrix, "HIDEFOCUS", "YES")
@@ -217,6 +222,9 @@ procedure main()
     IupSetAttribute(dlg, "TITLE", "IupMatrix in Callback Mode")
     IupSetCallback(dlg, "RESIZE_CB", Icallback("resize_cb"))
     IupSetCallback(dlg, "K_ANY", Icallback("key_cb"))
+--  IupSetGlobal("PARENTDIALOG",dlg) -- NO
+--  IupSetHandle("PARENTDIALOG",dlg) -- NO
+    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
     IupShow(dlg)
 
     IupMainLoop()

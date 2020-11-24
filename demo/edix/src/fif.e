@@ -866,7 +866,7 @@ function help_cb(Ihandle /*ih*/)
 --  IupSetAttributeHandle(NULL,"PARENTDIALOG", fifdlg)
 --8/10/2020:
 --  IupMessage("Find in Files",help_text)
-    Ihandle msgdlg = IupMessageDlg()
+    Ihandln msgdlg = IupMessageDlg()
     IupSetAttribute(msgdlg,"TITLE","Find in Files")
     IupSetAttribute(msgdlg,"VALUE",help_text)
     IupSetAttributeHandle(msgdlg,"PARENTDIALOG", fifdlg)

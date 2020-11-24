@@ -375,8 +375,23 @@ function branchopen_cb(Ihandle tree, integer id)
     return IUP_DEFAULT;
 end function
 
+Ihandle dlg
+
+function about_cb(Ihandle /*ih*/)
+    Ihandln msgdlg = IupMessageDlg()
+    IupSetAttribute(msgdlg,"TITLE","About")
+    string help_text = sprintf("IupVersion: %s %s\nCdVersion: %s %s",
+        {IupVersion(),IupVersionDate(),cdVersion(),cdVersionDate()})
+    IupSetAttribute(msgdlg,"VALUE",help_text)
+    IupSetAttributeHandle(msgdlg,"PARENTDIALOG", dlg)
+    IupPopup(msgdlg)
+    msgdlg = IupDestroy(msgdlg)
+    return IUP_DEFAULT
+end function
+constant cb_about = Icallback("about_cb")
+
 procedure SampleTest()
-Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, dlg, img,
+Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, img,
     btn_1, btn_2, btn_3, btn_4, btn_5,
     tgl_1, tgl_2, tgl_3, tgl_4, tgl_5, exp_3,
     frm_1, frm_2, frm_3, frm_4, frm_5, val, tabs,
@@ -408,7 +423,8 @@ Ihandle mnu, menu1, backmenu, hbox_1, cnv_1, vbox_1, dlg, img,
     mnu = IupMenu({IupSubmenu("IupSubmenu 1", menu1),
                    IupMenuItem("IupMenuItem 3", NULL),
                    IupMenuItem("IupMenuItem 4", NULL),
-                   IupSubmenu("Background",backmenu)});
+                   IupSubmenu("Background",backmenu),
+                   IupMenuItem("About", cb_about)});
 
     IupSetHandle("mnu",mnu);
 

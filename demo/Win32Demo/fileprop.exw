@@ -1,0 +1,173 @@
+include win32lib.ew
+
+without warning
+
+integer MainWin
+integer FileList
+integer PropList
+integer CurrentPath
+integer FileIcon
+
+object vFileList
+
+sequence vAttribs
+vAttribs = {
+	    {"CANCOPY          " , #00000001},
+	    {"CANMOVE          " , #00000002},
+	    {"CANLINK          " , #00000004},
+	    {"CANRENAME        " , #00000010},
+	    {"CANDELETE        " , #00000020},
+	    {"HASPROPSHEET     " , #00000040},
+	    {"DROPTARGET       " , #00000100},
+	    {"LINK             " , #00010000},
+	    {"SHARE            " , #00020000},
+	    {"READONLY         " , #00040000},
+	    {"GHOSTED          " , #00080000},
+	    {"FILESYSANCESTOR  " , #10000000},
+	    {"FOLDER           " , #20000000},
+	    {"FILESYSTEM       " , #40000000},
+	    {"HASSUBFOLDER     " , #80000000},
+	    {"CONTENTSMASK     " , #80000000},
+	    {"VALIDATE         " , #01000000},
+	    {"REMOVABLE        " , #02000000},
+	    {"COMPRESSED       " , #04000000},
+	    {"BROWSABLE        " , #08000000},
+	    {"NONENUMERATED    " , #00100000},
+	    {"NEWCONTENT       " , #00200000},
+	    {"CANMONIKER       " , #00400000}
+	   }
+
+procedure LoadFileList(sequence pDir)
+sequence lPath
+
+    Set_Directory(pDir)
+    lPath = Current_Directory()
+    setText(CurrentPath, lPath)
+    eraseItems(FileList)
+    vFileList = dir(lPath)
+
+    if atom(vFileList) then
+	addItem(FileList, "..  >>")
+	addItem(FileList, "  -- no files --")
+	return
+    end if
+
+    for i = 1 to length(vFileList) do
+	if find('d', vFileList[i][D_ATTRIBUTES]) then
+	    vFileList[i][D_NAME] = vFileList[i][D_NAME] & "  >>"
+	else
+	    vFileList[i][D_NAME] = vFileList[i][D_NAME] & "    "
+	end if
+	if not equal(vFileList[i][D_NAME], ".  >>") then
+	    addItem(FileList, vFileList[i][D_NAME])
+	end if
+    end for
+end procedure
+
+procedure Click_FileList(integer self, integer event, sequence parms)
+sequence lName
+sequence lProps
+sequence lFileAndPath
+
+    lName = getText(self)
+    if length(lName) = 0 then
+	return
+    end if
+
+    if atom(vFileList) then
+	LoadFileList("..")
+    else
+	for i = 1 to length(vFileList) do
+	    if equal(vFileList[i][D_NAME], lName) then
+		if find('d', vFileList[i][D_ATTRIBUTES]) then
+		    LoadFileList(lName[1..length(lName)-4])
+		    return
+		end if
+	    end if
+	end for
+    end if
+
+    lProps = getFileInfo(lName[1..length(lName)-4],
+			 0,
+			 or_all({
+				 SHGFI_ICON,
+				 SHGFI_DISPLAYNAME,
+				 SHGFI_TYPENAME,
+				 SHGFI_ATTRIBUTES
+--,SHGFI_SYSICONINDEX
+--  return {lName, lType, lAttrib, lhIcon, liIcon, lExeType, lImageList}
+
+				})
+			)
+--setText(MainWin,sprintf("iIcon=%d",lProps[5]))
+
+    eraseItems(PropList)
+
+    lFileAndPath = getFullPathName(lProps[1], w32True)
+    addItem(PropList, lFileAndPath[1])
+    addItem(PropList, lFileAndPath[2])
+    addItem(PropList, lProps[2])
+    VOID = getUserProperty(FileIcon, "ICONHANDLE")
+    if length(VOID) = 1 then
+	VOID = w32Func(xDestroyIcon, {VOID[1]})
+    end if
+    setIcon(FileIcon, lProps[4])
+    setUserProperty(FileIcon, "ICONHANDLE", lProps[4])
+    for i = 1 to length(vAttribs) do
+	if and_bits(lProps[3], vAttribs[i][2]) then
+	    addItem(PropList, vAttribs[i][1])
+	end if
+    end for
+
+    lProps = getFileInfo(lName[1..length(lName)-4], 0, SHGFI_EXETYPE)
+    addItem(PropList, lProps[6])
+
+end procedure
+
+
+procedure KeyPress_FileList(integer self, integer event, sequence parms)
+    if parms[1] = VK_RETURN and parms[2] = 0 then
+	Click_FileList(self, event, parms)
+    end if
+end procedure
+
+procedure Close_App(integer self, integer event, sequence parms)
+
+    VOID = getUserProperty(FileIcon, "ICONHANDLE")
+    if length(VOID) = 1 then
+	VOID = w32Func(xDestroyIcon, {VOID[1]})
+    end if
+
+end procedure
+
+procedure AppInit()
+    integer lTH
+
+    MainWin = createEx(Window, "File Properties", 0, 0, 0, 800,600, 0, 0)
+    lTH = getTextHeight(MainWin, "|")
+    CurrentPath = createEx(LText, "", MainWin, 5, 5, 700, 0, or_bits(WS_BORDER,SS_NOPREFIX), WS_EX_STATICEDGE)
+    setFont(CurrentPath, "Arial", 16, Bold)
+    setCtlSize(CurrentPath, 700, getTextHeight(CurrentPath, "|") + 4)
+
+    VOID = createEx(LText, "&Files", MainWin, 8, 3*lTH, 50, lTH, 0, 0)
+    FileList = createEx(List, "", MainWin, 5, 4*lTH+5, 295, 500, LBS_SORT, 0)
+
+    FileIcon = createEx(Icon, "", MainWin, 308, 3*lTH, 32,32,0,0)
+    VOID = createEx(LText, "&Properties", MainWin, 308, 3*lTH+34, 90, lTH, 0, 0)
+    PropList = createEx(List, "", MainWin, 305, 4*lTH+39, 485, 500, LBS_NOINTEGRALHEIGHT, 0)
+
+    VOID = getCtlSize(FileList)
+    setCtlSize(PropList, 485, VOID[2]-32)
+    setWindowBackColor(PropList, Cyan)
+    setFont(PropList, "Arial", 16, 0)
+
+    LoadFileList(current_dir())
+
+    setHandler(FileList, w32HClick, routine_id("Click_FileList"))
+    setHandler(FileList, w32HKeyPress, routine_id("KeyPress_FileList"))
+    setHandler(MainWin, w32HClose, routine_id("Close_App"))
+end procedure
+
+
+AppInit()
+WinMain(MainWin, Normal)

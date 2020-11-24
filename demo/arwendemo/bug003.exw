@@ -1,0 +1,917 @@
+--
+-- bug003.exw
+-- ==========
+--
+--  Hacked-down copy of demo_toolbar.exw, which had missing icons.
+--  It turned out to be a problem in opJif, which has now been fixed (20/7/15).
+--
+
+--with profile
+
+object void -- ubiquitous assignee variable
+
+constant
+
+    GWL_WNDPROC = -4,
+    GWL_USERDATA = -21,
+    CS_VREDRAW = 1,
+    CS_HREDRAW = 2,
+    CS_DBLCLKS = 8,
+    CS_OWNDC = #20,
+    WS_VISIBLE          =  #10000000,
+    WS_CHILD            =  #40000000,
+    WS_OVERLAPPEDWINDOW =  #00CF0000,   --= WS_BORDER+WS_DLGFRAME+WS_SYSMENU+WS_SIZEBOX+WS_MINIMISEBOX+WS_MAXIMISEBOX
+    WS_EX_ACCEPTFILES       =  #00000010,
+    SW_NORMAL          = 1,
+    WM_DESTROY = 2,
+    WM_PAINT = 15,
+    WM_CLOSE = 16,
+    WM_CHAR = 258,
+    COLOR_BTNFACE = 15,
+    DIB_RGB_COLORS = 0,
+    BI_RGB = 0,
+    BS_PUSHBUTTON = 0,
+    BS_BITMAP = #80,
+    BS_CENTER =  #300,
+    BS_VCENTER =  #C00,
+    BM_SETIMAGE = 247,
+    TB_AUTOSIZE = 1057,
+    TB_SETBITMAPSIZE = 1056,
+    IMAGE_BITMAP = 0,
+    VK_ESCAPE = 27
+
+constant
+    user32   = open_dll("user32.dll"),
+    gdi32    = open_dll("gdi32.dll")
+
+--#without reformat
+constant
+    xGetDC = define_c_func(user32, "GetDC",
+        {C_PTR},    --  HWND  hWnd  // handle of window
+        C_PTR),     -- HDC
+
+    xReleaseDC = define_c_func(user32, "ReleaseDC",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_PTR},    --  HDC  hdc    // handle of device context
+        C_INT),     -- BOOL
+
+    xBeginPaint = define_c_func(user32, "BeginPaint",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_PTR},    --  LPPAINTSTRUCT  lpPaint  // address of structure for paint information
+        C_PTR),     -- HDC
+
+    xEndPaint = define_c_proc(user32, "EndPaint",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_PTR}),   -- CONST PAINTSTRUCT  *lpPaint  // address of structure for paint data
+
+    xGetSysColor = define_c_func(user32, "GetSysColor",
+        {C_INT},    --  int  nIndex     // display element
+        C_LONG),    -- DWORD
+
+    xCreateDIBitmap         = define_c_func(gdi32, "CreateDIBitmap", {C_PTR, C_PTR, C_LONG, C_LONG, C_PTR, C_LONG}, C_PTR),
+
+    xRegisterClassEx = define_c_func(user32, "RegisterClassExA",
+        {C_PTR},    --  CONST WNDCLASSEX FAR *lpwcx // address of structure with class data
+        C_PTR),     -- ATOM
+
+    xCreateWindowEx     = define_c_func(user32,"CreateWindowExA",
+        {C_LONG,    --  DWORD  dwExStyle,   // extended window style
+         C_PTR,     --  LPCTSTR  lpClassName,       // address of registered class name
+         C_PTR,     --  LPCTSTR  lpWindowName,      // address of window name
+         C_LONG,    --  DWORD  dwStyle,     // window style
+         C_INT,     --  int  x,     // horizontal position of window
+         C_INT,     --  int  y,     // vertical position of window
+         C_INT,     --  int  nWidth,        // window width
+         C_INT,     --  int  nHeight,       // window height
+         C_PTR,     --  HWND  hWndParent,   // handle of parent or owner window
+         C_PTR,     --  HMENU  hMenu,       // handle of menu or child-window identifier
+         C_PTR,     --  HANDLE  hInstance,  // handle of application instance
+         C_PTR},    --  LPVOID  lpParam     // address of window-creation data
+        C_PTR),     -- HWND
+
+    xShowWindow = define_c_proc(user32, "ShowWindow",
+        {C_PTR,     --  HWND  hwnd, // handle of window
+         C_INT}),   --  int  nCmdShow   // show state of window
+
+    xDestroyWindow = define_c_func(user32, "DestroyWindow",
+        {C_PTR},    --  HWND  hWnd  // handle of window to destroy
+        C_LONG),    -- BOOL
+
+    xGetWindowLong = define_c_func(user32, "GetWindowLongA",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT},   --  int  nIndex     // offset of value to retrieve
+        C_LONG),    -- LONG
+
+    xSetWindowLong = define_c_func(user32, "SetWindowLongA", {C_PTR, C_INT, C_LONG}, C_LONG),
+
+    xGetMessage = define_c_func(user32, "GetMessageA",
+        {C_PTR,     --  LPMSG  lpMsg,       // address of structure with message
+         C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  wMsgFilterMin,        // first message
+         C_UINT},   --  UINT  wMsgFilterMax         // last message
+         C_INT),    -- BOOL
+
+    xTranslateMessage = define_c_proc(user32, "TranslateMessage",
+        {C_PTR}),   --  CONST MSG  *lpmsg   // address of structure with message
+        -- BOOL
+
+    xDispatchMessage = define_c_func(user32, "DispatchMessageA",
+        {C_PTR},    --  CONST MSG  * lpmsg  // address of structure with message
+        C_LONG),    -- LONG
+
+    xSendMessage            = define_c_func(user32, "SendMessageA",
+        {C_PTR,     --  HWND  hwnd, // handle of destination window
+         C_UINT,    --  UINT  uMsg, // message to send
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_LONG),    -- LRESULT
+
+    xPostQuitMessage = define_c_proc(user32, "PostQuitMessage",
+        {C_INT}),   --  int  nExitCode      // exit code
+
+    xDefWindowProc = define_c_func(user32, "DefWindowProcA",
+        {C_PTR,     --  HWND  hWnd, // handle of window
+         C_UINT,    --  UINT  Msg,  // message identifier
+         C_UINT,    --  WPARAM  wParam, // first message parameter
+         C_UINT},   --  LPARAM  lParam  // second message parameter
+        C_PTR),     -- LRESULT
+
+    xCallWindowProc         = define_c_func(user32, "CallWindowProcA",  {C_PTR,C_PTR,C_UINT,C_UINT,C_UINT}, C_PTR)
+
+sequence
+    ListOfStructures    -- holds sizes of each structure
+
+integer
+    CurrentStructure,   -- points to latest structure being built
+    LatestSize          -- current size of latest structure being built
+
+------------------------------------
+
+function new_struct()
+    ListOfStructures &= 0
+    CurrentStructure = length(ListOfStructures)
+    LatestSize = 0
+    return CurrentStructure
+    end function
+
+function sizeofstruct(integer id)
+    return ListOfStructures[id]
+end function
+
+function struc(integer sType)
+    integer disp, size
+    disp = LatestSize
+    if sType > #00FFFFFF then -- this type is defined in dll.e
+        size = and_bits(sType, #00FFFFFF)
+    else
+        size = ListOfStructures[sType]
+    end if
+    LatestSize += size
+    ListOfStructures[CurrentStructure] = LatestSize
+    return disp
+end function
+
+function anySize(integer size) -- allow arbitrary sized elements
+    return or_bits(#01000000, size)
+end function
+
+ListOfStructures = {}
+
+constant sizeofRGBQUAD = 4
+constant sizeofPAINTSTRUCT =64
+
+constant
+
+    BITMAPINFOHEADER    = new_struct(),
+    BIH_biSize          = struc(C_UINT),
+    BIH_biWidth         = struc(C_LONG),
+    BIH_biHeight        = struc(C_LONG),
+    BIH_biPlanes        = struc(C_USHORT),
+    BIH_biBitCount      = struc(C_USHORT),
+    BIH_biCompression   = struc(C_UINT),
+    BIH_biSizeImage     = struc(C_UINT),
+    BIH_biXPelsPerMeter = struc(C_LONG),
+    BIH_biYPelsPerMeter = struc(C_LONG),
+    BIH_biClrUsed       = struc(C_UINT),
+    BIH_biClrImportant  = struc(C_UINT),
+    
+    BITMAPINFO              = new_struct(),
+    BITMAPINFO_bmiHeader    = struc(BITMAPINFOHEADER),
+    BITMAPINFO_bmiColors    = struc(anySize(256*sizeofRGBQUAD)),
+
+    WNDCLASSEX                  = new_struct(),
+    WNDCLASSEX_cbSize           = struc(C_LONG), 
+    WNDCLASSEX_style            = struc(C_LONG), 
+    WNDCLASSEX_lpfnWndProc      = struc(C_POINTER), 
+    WNDCLASSEX_cbClsExtra       = struc(C_LONG), 
+    WNDCLASSEX_cbWndExtra       = struc(C_LONG), 
+    WNDCLASSEX_hInstance        = struc(C_LONG), 
+    WNDCLASSEX_hIcon            = struc(C_LONG), 
+    WNDCLASSEX_hCursor          = struc(C_LONG), 
+    WNDCLASSEX_hbrBackground    = struc(C_LONG), 
+    WNDCLASSEX_lpszMenuName     = struc(C_POINTER), 
+    WNDCLASSEX_lpszClassName    = struc(C_POINTER), 
+    WNDCLASSEX_hIconSm          = struc(C_LONG)
+
+if BITMAPINFO then end if
+--/*
+?{BIH_biSize,BIH_biWidth,BIH_biHeight,BIH_biPlanes,BIH_biBitCount,BIH_biCompression,BIH_biSizeImage,BIH_biXPelsPerMeter,BIH_biYPelsPerMeter,BIH_biClrUsed,BIH_biClrImportant}
+    BIH_biSize          = 0,--struc(C_UINT),
+    BIH_biWidth         = 4,--struc(C_LONG),
+    BIH_biHeight        = 8,--struc(C_LONG),
+    BIH_biPlanes        = 12,--struc(C_USHORT),
+    BIH_biBitCount      = 14,--struc(C_USHORT),
+    BIH_biCompression   = 16,--struc(C_UINT),
+    BIH_biSizeImage     = 20,--struc(C_UINT),
+    BIH_biXPelsPerMeter = 24,--struc(C_LONG),
+    BIH_biYPelsPerMeter = 28,--struc(C_LONG),
+    BIH_biClrUsed       = 32,--struc(C_UINT),
+    BIH_biClrImportant  = 36,struc(C_UINT),
+    sizeofBITMAPINFO    = 40
+--*/
+
+function prepareBlocks(integer sizeofblock, integer numberofblocks)
+sequence blocks
+atom lpBlock
+    sizeofblock = 4*(floor((sizeofblock+3)/4)) -- ensure is a multiple of 4
+    lpBlock = allocate(sizeofblock*numberofblocks)
+    blocks = repeat(lpBlock, numberofblocks)
+    for i=2 to numberofblocks do
+        lpBlock += sizeofblock
+        blocks[i] = lpBlock
+    end for
+    return blocks
+end function
+
+---------------------------------
+
+atom LabelPointerStart, LabelBlockSize, LabelPointer, LabelPointerEnd
+
+LabelBlockSize = 100000
+LabelPointerStart = allocate(LabelBlockSize)
+LabelPointer = LabelPointerStart
+LabelPointerEnd = LabelPointerStart+LabelBlockSize-2
+
+function allocate_StringZ(sequence s)
+-- allocate, poke & null-terminate a text string
+
+integer len,len4
+atom res
+
+    len = length(s)
+
+    res = LabelPointer
+    len4 = len+4-and_bits(len,3)    -- round to next dword
+    LabelPointer += len4
+    if LabelPointer>LabelPointerEnd then
+        LabelPointer = LabelPointerStart+len4
+        if LabelPointer>LabelPointerEnd then ?9/0 end if
+        res = LabelPointerStart
+    end if
+
+    poke(res, s)
+    poke(res+len, 0)
+
+    return res
+end function
+
+---------------------------------
+
+sequence PaintBlocks
+integer CurrentPaintBlock
+
+constant NUMPAINTBLOCKS = 100
+CurrentPaintBlock = 0
+PaintBlocks = prepareBlocks(sizeofPAINTSTRUCT, NUMPAINTBLOCKS)
+
+function allocate_Paint()
+    CurrentPaintBlock += 1
+    if CurrentPaintBlock>NUMPAINTBLOCKS then
+        CurrentPaintBlock = 1
+    end if
+    return PaintBlocks[CurrentPaintBlock]
+end function
+
+---------------------------------
+
+procedure deallocate_AllMemory()
+    free(LabelPointerStart)
+    free(PaintBlocks[1])
+end procedure
+
+
+sequence
+    AppClassName            -- name with which to register the window classes
+    AppClassName = "ARWEN Win32"
+
+constant UNDEFINED = -1
+
+integer
+    PrimaryWindowID
+    PrimaryWindowID = UNDEFINED
+
+
+atom
+    WndProcCallBack,    -- 32-bit callback address for WndProc routine
+    SubProcCallBack     -- 32-bit callback address for SubProc routine
+
+sequence
+    ObjectHwnd,         -- atom:        Hwnd of each control.
+    WndProcAddress,     -- atom:            store the (original) WndProc address here
+    SubProcAddress,     -- atom:            store the (new) SubProc address here
+    HandlerRoutine      -- integer:     routine id's for each control
+
+    ObjectHwnd = {}
+    WndProcAddress  = {}
+    SubProcAddress = {}
+    HandlerRoutine = {}
+
+function addControl(atom hwnd)
+
+integer id
+
+    ObjectHwnd      &= 0
+    WndProcAddress &= 0
+    SubProcAddress &= 0
+    HandlerRoutine &= 0
+    id = length(ObjectHwnd)
+
+    -- set default values
+    ObjectHwnd      [id] = hwnd
+    WndProcAddress [id] = UNDEFINED
+    SubProcAddress [id] = UNDEFINED
+    HandlerRoutine [id] = UNDEFINED
+
+    return id
+
+end function
+
+function getID(atom hwnd)
+    return c_func(xGetWindowLong,{hwnd,GWL_USERDATA})
+end function
+
+procedure setID(atom hwnd, integer id)
+    void = c_func(xSetWindowLong,{hwnd,GWL_USERDATA,id})
+end procedure
+
+procedure openWindow(integer id, integer styleFlag)
+atom hwnd
+    hwnd = ObjectHwnd[id]
+    c_proc(xShowWindow,{hwnd,styleFlag})
+end procedure
+
+procedure closeWindow(integer id)
+    void = c_func(xSendMessage,{ObjectHwnd[id],WM_CLOSE,0,0})
+end procedure
+
+procedure setHandler(object id, integer r_id)
+    if integer(id) then
+        HandlerRoutine[id] = r_id
+    else -- set a sequence of id's
+        for i=1 to length(id) do
+            setHandler( id[i], r_id)
+        end for
+    end if
+end procedure
+
+function registerClass(atom szAppName, atom classstyle, atom wndproc, atom icon_handle, atom cursor_handle, atom brush)
+atom wndclass
+atom regdclass
+
+    wndclass = allocate(sizeofstruct(WNDCLASSEX))
+    poke4(wndclass + WNDCLASSEX_cbSize,             sizeofstruct(WNDCLASSEX))
+    poke4(wndclass + WNDCLASSEX_style,              classstyle)
+    poke4(wndclass + WNDCLASSEX_lpfnWndProc,        wndproc) -- default message handler
+    poke4(wndclass + WNDCLASSEX_cbClsExtra,         0) -- no more than 40 bytes for win95
+    poke4(wndclass + WNDCLASSEX_cbWndExtra,         0) -- "		"      "		"        "
+    poke4(wndclass + WNDCLASSEX_hInstance,          instance())
+    poke4(wndclass + WNDCLASSEX_hIcon,              icon_handle)    -- (32 x 32)
+    poke4(wndclass + WNDCLASSEX_hIconSm,            icon_handle)    -- (16 x 16)
+    poke4(wndclass + WNDCLASSEX_hCursor,            cursor_handle)
+    poke4(wndclass + WNDCLASSEX_hbrBackground,      brush)
+    poke4(wndclass + WNDCLASSEX_lpszMenuName,       NULL)
+    poke4(wndclass + WNDCLASSEX_lpszClassName,      szAppName)
+
+    -- attempt to register the WNDCLASSEX structure
+    regdclass = c_func(xRegisterClassEx,{wndclass})
+
+    free(wndclass)
+
+    return regdclass -- could be NULL at times
+
+end function
+
+function createW()
+atom hwnd, lpszClassName
+integer id
+atom tmp
+sequence createWindowParams
+atom vWindowClassStyle = or_all({CS_DBLCLKS, CS_HREDRAW, CS_VREDRAW, CS_OWNDC})
+
+    lpszClassName = allocate_StringZ(AppClassName)
+
+    if not registerClass(lpszClassName,
+                         vWindowClassStyle,
+                         WndProcCallBack,
+                         NULL,
+                         NULL,
+                         COLOR_BTNFACE+1) then  -- NB: other brushes have restrictions
+                                                --  (see GetStockObject in win32.hlp)
+        ?9/0 --FatalErr("Registration of new window class: "& classname &" failed.")
+    end if
+
+    createWindowParams = {WS_EX_ACCEPTFILES,    -- extended style
+                          lpszClassName,        -- window class name
+                          NULL,                 -- window caption or Button text etc..
+                          WS_OVERLAPPEDWINDOW,  -- window style
+                          100,                  -- initial x position
+                          100,                  -- initial y position
+                          400,                  -- initial x size
+                          310,                  -- initial y size
+                          NULL,                 -- parent window handle
+                          NULL,                 -- window menu handle OR user id for child windows
+                          NULL,                 -- program instance handle - Legacy of Win16 apps. 0 will work too.
+                          NULL}                 -- creation parameters
+
+    hwnd = c_func(xCreateWindowEx, createWindowParams)
+
+    -- add new object to internally maintained object list
+    id = addControl(hwnd)
+
+    tmp = c_func(xGetWindowLong, {hwnd, GWL_WNDPROC})
+    WndProcAddress[id] = tmp
+    setID(hwnd, id)
+
+    PrimaryWindowID = id
+
+    return id
+end function
+
+function createT(atom pID)
+atom pHwnd, hwnd, lpszClassName
+object dwStyle, dwExStyle
+integer id
+atom tmp
+sequence createWindowParams
+
+    dwStyle = or_all({WS_CHILD,WS_VISIBLE})
+    dwExStyle = 0
+
+    pHwnd = ObjectHwnd[pID]
+
+    lpszClassName = allocate_StringZ("ToolbarWindow32")
+    createWindowParams = {dwExStyle,        -- extended style
+                          lpszClassName,    -- window class name
+                          NULL,             -- window caption or Button text etc..
+                          dwStyle,          -- window style
+                          0,                -- initial x position
+                          0,                -- initial y position
+                          24,               -- initial x size
+                          32,               -- initial y size
+                          pHwnd,            -- parent window handle
+                          NULL,             -- window menu handle OR user id for child windows
+                          NULL,             -- program instance handle - Legacy of Win16 apps. 0 will work too.
+                          NULL}             -- creation parameters
+
+    hwnd = c_func(xCreateWindowEx, createWindowParams)
+
+    id = addControl(hwnd)
+
+    tmp = c_func(xGetWindowLong, {hwnd, GWL_WNDPROC})
+    WndProcAddress[id] = tmp
+    setID(hwnd, id)
+
+    void = c_func(xSendMessage,{hwnd, TB_SETBITMAPSIZE, 0, #180020})
+    void = c_func(xSendMessage,{hwnd, TB_AUTOSIZE, 0, 0})
+
+    return id
+end function
+
+integer bx = 0
+function createB(object hBitmap, atom pID)
+atom pHwnd, hwnd, lpszClassName
+object dwStyle, dwExStyle
+integer id
+atom tmp
+sequence createWindowParams
+
+    dwStyle = or_all({WS_CHILD,WS_VISIBLE,BS_PUSHBUTTON,BS_BITMAP,BS_VCENTER,BS_CENTER})
+    dwExStyle = 0
+
+    pHwnd = ObjectHwnd[pID]
+
+    lpszClassName = allocate_StringZ("button")
+    createWindowParams = {dwExStyle,        -- extended style
+                          lpszClassName,    -- window class name
+                          NULL,             -- window caption or Button text etc..
+                          dwStyle,          -- window style
+                          bx,               -- initial x position
+                          0,                -- initial y position
+                          28,               -- initial x size
+                          28,               -- initial y size
+                          pHwnd,            -- parent window handle
+                          NULL,             -- window menu handle OR user id for child windows
+                          NULL,             -- program instance handle - Legacy of Win16 apps. 0 will work too.
+                          NULL}             -- creation parameters
+    bx += 28
+    hwnd = c_func(xCreateWindowEx, createWindowParams)
+
+    id = addControl(hwnd)
+
+    tmp = c_func(xGetWindowLong, {hwnd, GWL_WNDPROC})
+    WndProcAddress[id] = tmp
+    setID(hwnd, id)
+
+    void = c_func(xSendMessage,{hwnd, BM_SETIMAGE, IMAGE_BITMAP, hBitmap})
+
+    return id
+end function
+
+function SubProc(atom hwnd, atom msg, atom wParam, atom lParam)
+integer id, iHandler
+atom PrevWndProc
+    id = getID(hwnd)
+    iHandler = HandlerRoutine[id]
+    if iHandler!=UNDEFINED then
+        {} = call_func(iHandler, {id, msg, wParam, lParam})
+    end if
+    PrevWndProc = WndProcAddress[id]
+    return c_func(xCallWindowProc, {PrevWndProc, hwnd, msg, wParam, lParam})
+end function
+
+
+function WndProc(atom hwnd, atom msg, atom wParam, atom lParam)
+integer id, iHandler
+object return_value
+atom struct, hdc
+
+    id = getID(hwnd)
+
+    if id=0 then
+        return c_func(xDefWindowProc, {hwnd, msg, wParam, lParam})
+    end if
+
+    iHandler = HandlerRoutine[id]
+
+    return_value = 0
+
+    if msg=WM_PAINT then
+        -- get the DC & paint coordinates
+        struct = allocate_Paint()
+        hdc = c_func(xBeginPaint,{hwnd,struct})
+        c_proc(xEndPaint, {hwnd, struct})
+        return 0
+
+    elsif msg=WM_CLOSE then
+
+        if id=PrimaryWindowID then
+            void = c_func(xDestroyWindow,{hwnd})
+        end if
+        return 0
+
+
+    elsif msg=WM_DESTROY and id=PrimaryWindowID then
+
+        c_proc(xPostQuitMessage, {0})
+
+        return  0
+
+    end if
+
+
+    if iHandler!=UNDEFINED then -- call user handler
+        return_value = call_func(iHandler, {id, msg, wParam, lParam})
+    end if
+
+    return c_func(xDefWindowProc, {hwnd, msg, wParam, lParam})
+
+end function
+
+
+---------------------------------------------------------------
+
+WndProcCallBack = call_back(routine_id("WndProc"))
+SubProcCallBack = call_back(routine_id("SubProc"))
+
+
+constant sizeofMSG = 28
+
+procedure WinMain(integer id, integer sw_style) -- main routine
+atom lpMSG
+    if id then end if
+    openWindow(PrimaryWindowID, sw_style)
+    lpMSG = allocate(sizeofMSG)
+    while c_func(xGetMessage, {lpMSG, NULL, 0, 0})<=0 do
+        c_proc(xTranslateMessage,{lpMSG})
+        void = c_func(xDispatchMessage,{lpMSG})
+    end while
+    free(lpMSG)
+    deallocate_AllMemory()
+end procedure
+
+
+integer xpmErrFlag
+sequence xpmErrMsg
+constant
+    XPM_OK          =  0,   -- no error
+    XPM_ERR_COLOR   = -4
+
+constant CBM_INIT = #4   --  initialize bitmap
+
+sequence validHex                   -- hex chars 0..9, A..F, a..f xlation map.
+         validHex=repeat(-1,256)    -- -1=invalid.
+
+    for i= 0 to  9 do validHex[i+'0'+1]=i end for
+    for i=10 to 15 do validHex[i+'A'-9]=i end for
+    for i=10 to 15 do validHex[i+'a'-9]=i end for
+
+function hex2(integer ch1, integer ch2)
+--
+-- Converts a pair of hex chars, eg hex2('F','F') returns 255, =#FF.
+--
+    ch1 = validHex[ch1+1]
+    ch2 = validHex[ch2+1]
+    if ch1=-1 or ch2=-1 then xpmErrFlag = XPM_ERR_COLOR return NULL end if
+    return ch1*16+ch2
+end function
+
+atom transColor   -- transparent colour
+     transColor=0.1 -- impossible value
+
+sequence transTuple, transQuad
+
+integer lineNo
+
+integer width,      -- width of the xpm
+        height      -- height of the xpm
+
+function createDIBfromXPM(sequence xpm, integer transparency)
+-- NB: severly cut down, no error handling, 1 bpp, etc.
+object data             -- scratch var
+integer ch,             -- char (scratch var)
+        nn,             -- scratch var
+        colours,        -- colours in the xpm
+        codeWide,       -- width of the colour code
+        pwidth          -- packed scanline width
+atom    N               -- number decode (scratch var)
+
+sequence cc
+
+integer palSize,        -- colours rounded up to supported sizes
+        headerSize,     -- BITMAPINFO header + palSize RGBQuads
+        bitMapSize,     -- h*packed scanline size
+        bpp             -- bits per pixel (1, 4, 8, or 24)
+
+atom memBitmapInfo,     -- allocate(headerSize+bitMapSize)
+     mbPtr,             -- for poking the above
+     hdc,               -- screenDC needed for xCreateDIBitmap
+     hDIB               -- result
+
+integer bytes,          -- loop limit for packing scanlines, [ *3 | *1 | /2 | /8 ] see code
+        oidx
+
+
+sequence pi,            -- one line as colour indexes
+         packed         -- "" packed as per bpp and padded to dword boundary
+
+integer rr, gg, bb      -- red green and blue bytes
+
+    xpmErrFlag = XPM_OK
+    lineNo = 0
+
+    if transparency!=transColor then
+        transColor = transparency
+        transTuple = {and_bits(transColor/#10000,#FF),
+                      and_bits(transColor/#100,#FF),
+                      and_bits(transColor,#FF)}
+        transQuad = {and_bits(transColor/#10000,#FF),
+                     and_bits(transColor/#100,#FF),
+                     and_bits(transColor,#FF),0}
+    end if
+
+    data = xpm[1]
+    lineNo += 1
+    xpmErrMsg = data
+    nn = 1
+    N = 0
+    for i=1 to length(data) do
+        ch = data[i]
+        if ch<=' ' then
+            if N then
+                data[nn] = N
+                N = 0
+                nn+=1
+            end if
+        else
+            if ch<'0' or ch>'9' then nn=1 exit end if   -- nn=1 forces error below
+            N = N*10 + ch-'0'
+        end if
+    end for
+    if N then
+        data[nn] = N
+        nn+=1
+    end if
+
+    width    = data[1]
+    height   = data[2]
+    colours  = data[3]
+    codeWide = data[4]
+
+    palSize = 2     bpp = 1
+    headerSize = sizeofstruct(BITMAPINFOHEADER) + (sizeofRGBQUAD * palSize)
+
+    pi = repeat(0,width)
+
+    while remainder(length(pi),8) do pi = append(pi,0) end while    -- pad to multiple of 8
+    bytes = floor(length(pi) / 8)
+    packed = repeat(0, bytes + 4-remainder(bytes, 4))
+
+    pwidth = length(packed)
+    bitMapSize = height*pwidth
+
+    -- Allocate memory for header and DIB in one block
+    memBitmapInfo = allocate(headerSize+bitMapSize)
+
+    -- build the bitmap info header
+    poke4(memBitmapInfo + BIH_biSize, sizeofstruct(BITMAPINFOHEADER))
+    poke4(memBitmapInfo + BIH_biWidth, width)           -- Width in pixels.
+    poke4(memBitmapInfo + BIH_biHeight, -height)        -- Height in pixels (-ve=topdown).
+    poke2(memBitmapInfo + BIH_biPlanes, 1)              -- 1 colour plane. (always)
+    poke2(memBitmapInfo + BIH_biBitCount, bpp)          -- no. of bits per pixel (0, 1, 4, 8, 16, 24, 32)
+    poke4(memBitmapInfo + BIH_biCompression, BI_RGB)    -- compression format - none in this case
+    poke4(memBitmapInfo + BIH_biSizeImage, 0)           -- size in bytes of image, set to 0 (unneeded) if no compression
+    poke4(memBitmapInfo + BIH_biXPelsPerMeter, 0)       -- Not needed
+    poke4(memBitmapInfo + BIH_biYPelsPerMeter, 0)       -- Not needed
+    poke4(memBitmapInfo + BIH_biClrUsed, colours)       -- colours actually used by the bitmap
+    poke4(memBitmapInfo + BIH_biClrImportant, 0)        -- no. colours needed to display image, 0=all
+
+    -- get the address of the first rgb tuple
+    mbPtr = memBitmapInfo+BITMAPINFO_bmiColors
+
+    -- create a palatte and data
+    cc = repeat(0,colours)  -- colour code map of <charsWide> chars --> palette index
+
+    xpm = xpm[2..length(xpm)]   -- discard header
+
+    for i = 1 to colours do
+
+        data = xpm[i]
+        lineNo += 1
+        cc[i] = data[codeWide]  -- use faster method when possible
+        xpmErrFlag = XPM_ERR_COLOR
+        for j=codeWide+2 to length(data) do
+            if data[j]='c' and data[j+1]=' ' then
+                for k=j+2 to length(data) do
+                    if data[k]>' ' then
+                        xpmErrFlag = XPM_OK
+                        data = lower(data[k..length(data)])
+                        exit
+                    end if
+                end for
+                exit
+            end if
+        end for
+        if data[1] = '#' then
+            rr = hex2(data[2],data[3])
+            gg = hex2(data[4],data[5])
+            bb = hex2(data[6],data[7])
+            poke(mbPtr,{bb,gg,rr,0})
+        elsif equal(data, "none") then
+            poke(mbPtr, transQuad)
+        end if
+        mbPtr+=4
+
+    end for
+    xpm = xpm[colours+1..length(xpm)]   -- discard colour table
+    mbPtr = memBitmapInfo+headerSize
+    for i = 1 to height do
+        data = xpm[i]
+        lineNo += 1
+        for j = 1 to length(data) do
+            pi[j] = find(data[j], cc) - 1
+        end for
+        oidx = 1
+        for j = 1 to bytes*8 by 8 do
+            packed[oidx] = (pi[j]   * 128) +
+                           (pi[j+1] * 64) +
+                           (pi[j+2] * 32) +
+                           (pi[j+3] * 16) +
+                           (pi[j+4] * 8) +
+                           (pi[j+5] * 4) +
+                           (pi[j+6] * 2) +
+                           (pi[j+7] * 1)
+            oidx+=1
+        end for
+        poke(mbPtr, packed)
+        mbPtr+=pwidth
+    end for
+
+    hdc = c_func(xGetDC,{0})        -- Get the screen's device context.
+
+    -- Create the DIB.
+    hDIB = c_func(xCreateDIBitmap, {hdc,                                    -- create DDB for/compatible with this
+                                    memBitmapInfo+BITMAPINFO_bmiHeader,     -- info about the DIB to create, eg h*w
+                                    CBM_INIT,                               -- int it please with...
+                                    memBitmapInfo+headerSize,               --      this bitmap,
+                                    memBitmapInfo,                          --      which has this structure
+                                    DIB_RGB_COLORS})                        --      and has explicit RGB values
+
+    if c_func(xReleaseDC, {0, hdc}) then end if   -- release the screen dc
+
+    free(memBitmapInfo)
+
+    return hDIB
+end function
+
+constant -- nb do not alter this! (since createDIBfromXPM hacked)
+close_xpm = {
+"24 24 2 1",
+"         c None",
+".        c #000000",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"       .    ..          ",
+"       ..  ....         ",
+"        .. ...          ",
+"        .....           ",
+"         ...            ",
+"         ....           ",
+"        ......          ",
+"        .. ....         ",
+"       ..   ....        ",
+"       .     ..         ",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                        "}
+
+constant SCB = c_func(xGetSysColor, {COLOR_BTNFACE})
+
+-----------------------------------------------------------------------------
+function ToolbarButton(integer toolbar, object xpm)
+--
+-- create a button in the toolbar (here always GTools)
+-- if tooltip is 0, creates a seperation instead.
+-- tooltip can be "" if no hint text is required.
+-- xpm can be a constant or a freshly open file handle.
+--
+integer button
+atom dib
+
+    if atom(xpm) and xpm<=2 then ?9/0 end if
+
+    -- convert the xpm to a dib, converting transparent colours to the button colour:
+    dib = createDIBfromXPM(xpm, SCB)
+--?{dib,tooltip}
+--printf(1,"{#%08x}\n",{dib})
+    if dib=NULL then puts(1,"oops, dib is NULL\n") end if   -- sanity check
+    button = createB(dib, toolbar)
+    return button
+end function
+
+-----------------------------------------------------------------------------
+-- THE CONTROLS
+-----------------------------------------------------------------------------
+
+constant
+    Generic = createW(),
+
+    GTools  = createT(Generic),
+
+    ToolNew     = ToolbarButton(GTools, close_xpm),
+    ToolOpen    = ToolbarButton(GTools, close_xpm),
+    ToolSave    = ToolbarButton(GTools, close_xpm),
+    ToolSaveAs  = ToolbarButton(GTools, close_xpm),
+    ToolClose   = ToolbarButton(GTools, close_xpm),
+
+    ToolUndo    = ToolbarButton(GTools, close_xpm),
+    ToolCut     = ToolbarButton(GTools, close_xpm),
+    ToolCopy    = ToolbarButton(GTools, close_xpm),
+    ToolPaste   = ToolbarButton(GTools, close_xpm),
+    ToolDelete  = ToolbarButton(GTools, close_xpm),
+
+    ToolAbout   = ToolbarButton(GTools, close_xpm)
+
+function gHandler(integer id, integer msg, atom wParam, object lParam)
+    if id or object(lParam) then end if -- suppress warnings
+    if msg=WM_CHAR and wParam=VK_ESCAPE then
+        closeWindow(Generic)
+    end if
+    return 0
+end function
+setHandler({Generic,--FileMenu,EditMenu,HelpMenu,--MenuPrint,
+            GTools,ToolNew,ToolOpen,ToolSave,ToolSaveAs,--ToolPrint,
+            ToolClose,ToolUndo,ToolCut,ToolCopy,ToolPaste,ToolDelete,ToolAbout},
+           routine_id("gHandler"))
+
+
+WinMain(Generic, SW_NORMAL)
+

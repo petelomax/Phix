@@ -13146,6 +13146,7 @@ end procedure
 string autoinclude
 
 --integer ntrace = 0
+integer cfb_count = 0
 
 function checkforbuiltins()
 --  if builtinsReferenced and not isGlobal 
@@ -13163,7 +13164,11 @@ if 01 then
                 autoinclude = getBuiltin()
                 if length(autoinclude)=0 then exit end if
                 if gb_fwd!=0 then
-                    if find({autoinclude,gb_fwd},done) then trace(1) end if
+                    if find({autoinclude,gb_fwd},done) then
+?{"autoinclude",autoinclude,"gb_fwd",gb_fwd,getname(symtab[gb_fwd][S_Name],-2)}
+cfb_count += 1 if cfb_count>100 then ?9/0 end if
+                        trace(1)
+                    end if
                     done = append(done,{autoinclude,gb_fwd})
                 end if
                 wasfileno = fileno

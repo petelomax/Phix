@@ -1,0 +1,171 @@
+-- Viewing XPM files.
+
+include win32lib.ew
+
+--?createXpmFromBmpFile("C:\\Program Files\\Phix\\demo\\arwendemo\\scowel4.bmp",
+--                      "C:\\Program Files\\Phix\\demo\\xpm\\sco4.xpm")
+
+
+without warning
+constant win=create(Window,"XPM Icons",0,0,0,600,640,0)
+constant SB = create(StatusBar, "Move over an ICON to see its name.", win, 0, 0, 0, 0, 0)
+
+sequence XPM  XPM = {}
+sequence XPMNames XPMNames = {}
+sequence XPMdib XPMdib = {}
+function trims(sequence text)
+    integer start, finish
+
+    start = 1
+    finish = length(text)
+    --now trim text at right
+    for i=length(text) to 1 by -1 do
+        if text[i]!=' ' then
+            finish = i
+            exit
+        end if
+    end for
+
+    --now trim text from left
+    for i=1 to finish do
+        if text[i]!=' ' then
+            start = i
+            exit
+        end if
+    end for
+
+    return text[start .. finish]
+end function
+
+procedure onOpen_win(integer self, integer event, sequence parms)
+    integer handle, ignore, at
+    object text
+    sequence fName
+--  , text2
+    integer eof, XPMI
+    integer x, y
+
+    fName={"XPM_Icon.e", "tbar_xpm.e", "tool_xpm.e", "sco4.xpm"}
+
+    XPM={}
+    XPMNames = {}
+
+    for fn = 1 to length(fName) do
+    eof = w32False
+
+    handle = open(fName[fn], "r")
+    if handle = -1 then
+        -- give message and exit
+        ignore = message_box("Open File Error",
+                                "Unable to read the file " & fName[fn],
+                                MB_ICONHAND+MB_TASKMODAL)
+        return
+    end if
+
+    -- parse the file
+    while not eof do
+
+        -- get a line of text
+        text = gets(handle)
+        if atom(text) then
+            exit   --EOF
+        end if
+
+        -- remove line feed
+        if text[length(text)] = '\n' then
+            text= text[1 .. length(text) - 1]
+        end if
+        text=trims(text)
+
+        at = match(" = {", text)
+        if at = (length(text) - 3) then
+           XPMNames = append(XPMNames, fName[fn] & ":" & text[1..at-1])
+           XPM  = append(XPM, {})
+           XPMI = length(XPM)
+           -- If ONLY we had a "continue" statement, this would look a lot cleaner.
+        elsif length(XPM) != 0 then
+            --see dummy test below to see what data looks like
+            text = trims(text)
+            if length(text) > 0 then
+                at = 1
+                while at <= length(text) do
+                    if text[at] = '"' then
+                        exit
+                    end if
+                    at += 1
+                end while
+                if at <= length(text) then
+                    text = text[at+1 .. length(text)]
+                end if
+                at = length(text)
+                while at >= 1 do
+                    if text[at] = '"' then
+                        exit
+                    end if
+                    at -= 1
+                end while
+                if at >= 1 then
+                    text = text[1..at-1]
+                end if
+                if length(text) > 0 then
+                    if text[1] = '"' then
+                       text = text[2 .. length(text)-2]
+                    end if
+                    if length(text) > 0 then
+                     XPM[XPMI] = append(XPM[XPMI], text)
+                    end if
+                end if
+            end if
+        end if
+    end while
+    close(handle)
+    end for
+
+    -- Build bitmaps for them and create mouse traps
+    x = 10
+    y = 10
+    for i = 1 to length(XPM) do
+        XPMdib &= xpmToPixmap(XPM[i])
+        VOID = createMouseTrap(win, {x,y, x+39, y+39})
+        setTagMouseTrap(win, VOID, XPMNames[i])
+        filterMouseTrap(win, VOID, {MouseMove})
+        x += 40
+        if x > 260 then
+           y += 40
+           x = 10
+        end if
+    end for
+
+    repaintWindow(win)
+end procedure
+
+procedure paint_win(integer self, integer event, sequence parms)
+    integer x, y
+    -- These values are hard coded but
+    -- you should really get the Rect size of each bitmap
+    -- and window to adjust for full viewing.
+    x = 10
+    y = 10
+    for i = 1 to length(XPMdib) do
+        transBlt(win,x,y,XPMdib[i])
+        x += 40
+        if x > 260 then
+           y += 40
+           x = 10
+        end if
+    end for
+end procedure
+
+procedure trap_win(integer self, integer event, sequence parms)
+    sequence lTrap
+
+    lTrap = parms[5]
+    setText(SB, lTrap[1][7])
+end procedure
+
+setHandler(win, w32HMouseTrap, routine_id("trap_win"))
+setHandler(win, w32HPaint, routine_id("paint_win"))
+setHandler(win, w32HOpen, routine_id("onOpen_win"))
+WinMain(win, Normal)
+
+

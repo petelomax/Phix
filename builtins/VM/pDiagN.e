@@ -107,7 +107,7 @@ constant show_low_level_diagnostics = 0
 --/**/  -- not really needed, but avoids an opCallOnce:
 --include builtins\VM\pcfunc.e
 --/**/  include builtins\VM\pprntfN.e
---/**/  include builtins\VM\psprintN.e
+--!/!*!*!/  include builtins\VM\psprintN.e
 --/**/  include builtins\pcurrdir.e
 --/**/  include builtins\pcase.e
 --include builtins\VM\pfileioN.e

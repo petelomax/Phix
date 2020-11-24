@@ -1,0 +1,322 @@
+--
+-- demo/rosetta/virtunome.exw
+--
+--  Originally by ghaberek
+--  Translated from win32lib by Pete Lomax
+--
+--  I will note that accuracy drops sharply above 5 beats per second.
+--
+include pGUI.e
+Ihandle dlg
+
+function rle_decode_image(sequence data)
+-- (not my best work, will rethink: ideally new builtins that pack/unpack any downloaded bmp...)
+    atom mem = allocate(4)
+    sequence img = {}
+    for i=1 to length(data) do
+        sequence rle = data[i], line = {}, val
+        integer rpt = rle[1]
+        for j=2 to length(rle)-1 by 2 do
+            integer RGB = rle[j],
+                    count = rle[j+1]
+            if RGB=-1 then
+                string RGBs = IupGetGlobal("DLGBGCOLOR")
+                {val} = scanf(RGBs,"%d %d %d")
+            else
+                poke4(mem, RGB)
+                val = reverse(peek({mem,3}))
+            end if
+            line &= flatten(repeat(val,count))
+        end for
+        img &= flatten(repeat(line,rpt))
+    end for
+    free(mem)
+    return img
+end function
+
+constant 
+Whole_note = {
+    {13,-1,32},
+    {1,-1,12,0,9,-1,11},
+    {1,-1,10,0,4,-1,3,0,6,-1,9},
+    {1,-1,9,0,5,-1,4,0,6,-1,8},
+    {1,-1,8,0,5,-1,6,0,5,-1,8},
+    {2,-1,8,0,5,-1,6,0,6,-1,7},
+    {1,-1,8,0,6,-1,5,0,6,-1,7},
+    {1,-1,8,0,6,-1,5,0,5,-1,8},
+    {1,-1,9,0,6,-1,3,0,5,-1,9},
+    {1,-1,11,0,11,-1,10},
+    {9,-1,32},
+},
+Half_note = {
+    {30,-1,21,0,1,-1,10},
+    {1,-1,14,0,8,-1,10},
+    {1,-1,12,0,10,-1,10},
+    {1,-1,11,0,6,-1,3,0,2,-1,10},
+    {1,-1,10,0,5,-1,5,0,2,-1,10},
+    {1,-1,10,0,4,-1,5,0,3,-1,10},
+    {1,-1,10,0,3,-1,5,0,4,-1,10},
+    {1,-1,10,0,2,-1,5,0,5,-1,10},
+    {1,-1,10,0,2,-1,3,0,6,-1,11},
+    {1,-1,10,0,10,-1,12},
+    {1,-1,11,0,7,-1,14}
+},
+Eigth_note = {
+    {2,-1,17,0,1,-1,14},
+    {2,-1,17,0,2,-1,13},
+    {1,-1,17,0,3,-1,12},
+    {1,-1,17,0,4,-1,11},
+    {1,-1,17,0,5,-1,10},
+    {1,-1,17,0,6,-1,9},
+    {1,-1,17,0,1,-1,1,0,5,-1,8},
+    {1,-1,17,0,1,-1,3,0,4,-1,7},
+    {1,-1,17,0,1,-1,4,0,4,-1,6},
+    {1,-1,17,0,1,-1,5,0,3,-1,6},
+    {1,-1,17,0,1,-1,6,0,3,-1,5},
+    {1,-1,17,0,1,-1,7,0,2,-1,5},
+    {1,-1,17,0,1,-1,7,0,3,-1,4},
+    {2,-1,17,0,1,-1,8,0,2,-1,4},
+    {4,-1,17,0,1,-1,9,0,1,-1,4},
+    {3,-1,17,0,1,-1,8,0,1,-1,5},
+    {6,-1,17,0,1,-1,14},
+    {1,-1,11,0,7,-1,14},
+    {1,-1,9,0,9,-1,14},
+    {1,-1,8,0,10,-1,14},
+    {1,-1,7,0,11,-1,14},
+    {2,-1,6,0,12,-1,14},
+    {2,-1,6,0,11,-1,15},
+    {1,-1,6,0,10,-1,16},
+    {1,-1,7,0,7,-1,18},
+    {1,-1,9,0,2,-1,21}
+},
+Quarter_note = {
+    {30,-1,21,0,1,-1,10},
+    {1,-1,15,0,7,-1,10},
+    {1,-1,13,0,9,-1,10},
+    {1,-1,12,0,10,-1,10},
+    {1,-1,11,0,11,-1,10},
+    {2,-1,10,0,12,-1,10},
+    {2,-1,10,0,11,-1,11},
+    {1,-1,10,0,10,-1,12},
+    {1,-1,11,0,7,-1,14},
+    {1,-1,13,0,2,-1,17}
+},
+Sixteenth_note = {
+    {2,-1,17,0,1,-1,14},
+    {2,-1,17,0,2,-1,13},
+    {1,-1,17,0,3,-1,12},
+    {1,-1,17,0,4,-1,11},
+    {1,-1,17,0,5,-1,10},
+    {1,-1,17,0,6,-1,9},
+    {1,-1,17,0,7,-1,8},
+    {1,-1,17,0,2,-1,2,0,4,-1,7},
+    {1,-1,17,0,2,-1,3,0,4,-1,6},
+    {1,-1,17,0,2,-1,4,0,3,-1,6},
+    {1,-1,17,0,3,-1,4,0,3,-1,5},
+    {1,-1,17,0,4,-1,4,0,2,-1,5},
+    {1,-1,17,0,5,-1,3,0,3,-1,4},
+    {1,-1,17,0,6,-1,3,0,2,-1,4},
+    {1,-1,17,0,7,-1,2,0,2,-1,4},
+    {1,-1,17,0,1,-1,2,0,5,-1,1,0,2,-1,4},
+    {1,-1,17,0,1,-1,4,0,6,-1,4},
+    {1,-1,17,0,1,-1,5,0,5,-1,4},
+    {1,-1,17,0,1,-1,6,0,4,-1,4},
+    {2,-1,17,0,1,-1,8,0,2,-1,4},
+    {1,-1,17,0,1,-1,9,0,1,-1,4},
+    {4,-1,17,0,1,-1,9,0,2,-1,3},
+    {2,-1,17,0,1,-1,9,0,1,-1,4},
+    {1,-1,11,0,7,-1,8,0,2,-1,4},
+    {1,-1,9,0,9,-1,8,0,1,-1,5},
+    {1,-1,8,0,10,-1,8,0,1,-1,5},
+    {1,-1,7,0,11,-1,14},
+    {2,-1,6,0,12,-1,14},
+    {2,-1,6,0,11,-1,15},
+    {1,-1,6,0,10,-1,16},
+    {1,-1,7,0,7,-1,18},
+    {1,-1,9,0,2,-1,21}
+}
+
+integer note = 4 -- quarter initially
+atom vLastTime = 0.0 -- for time resolution
+
+constant
+    -- in bpm
+    MIN_TEMPO   =   1,
+    DEF_TEMPO   =  90,
+    MAX_TEMPO   = 200
+
+integer vMSPB = 667     -- default milliseconds per beat
+
+constant Tempos = {"Grave", "Largo", "Adagio", "Lento", "Adante", "Moderato",
+            "Allegretto", "Allegro", "Presto", "Vivance", "Prestissimo"}
+
+function setTempo( integer pBPM, atom pNote )
+-- returns tempo index
+    integer index = floor(((length(Tempos)-1)*pBPM)/(MAX_TEMPO-MIN_TEMPO))+1
+    atom lSPB = 60 / pBPM / pNote   -- seconds per beat
+    vMSPB = floor( lSPB * 1000 )
+
+    Ihandle spb = IupGetDialogChild(dlg,"spb_label"),
+            timer = IupGetAttributePtr(dlg,"timer")
+    IupSetStrAttribute(spb,"TITLE","%.2f",{lSPB})
+    IupSetInt(timer,"TIME",vMSPB)
+    if IupGetInt(timer,"RUN") then
+        -- restart needed to apply new TIME (not doc?)
+        IupSetInt(timer,"RUN",false)
+        IupSetInt(timer,"RUN",true)
+    end if
+    return index
+end function
+
+procedure tempo_change()
+    Ihandle tbl = IupGetDialogChild(dlg,"val_label"),
+            frm_2 = IupGetDialogChild(dlg,"frame_2")
+    integer lBPM = IupGetInt(tbl,"TITLE"),
+            lIndex = setTempo( lBPM, note/4 )
+    IupSetStrAttribute(frm_2, "TITLE", "Tempo: %s ", {Tempos[lIndex]} )
+    vLastTime = time()
+end procedure
+
+function toggle_state_cb(Ihandle ih, integer state)
+    if state then
+        note = IupGetInt(ih,"NOTE") -- 1/2/4/8/16
+        tempo_change()
+    end if
+    -- and shift focus away, since it looks ugly w/o any text
+    {} = IupNextField(ih)
+    return IUP_DEFAULT
+end function
+
+function valuechanged_cb(Ihandle val)
+    integer v = IupGetInt(val,"VALUE")
+    Ihandle tbl = IupGetDialogChild(dlg,"val_label"),
+            bpm = IupGetDialogChild(dlg,"bpm_label")
+    IupSetInt(tbl,"TITLE",v)
+    IupSetStrAttribute(bpm,"TITLE","%.2f",{v})
+    tempo_change()
+    return IUP_DEFAULT
+end function
+
+atom k32=0, xBeep
+
+--integer low_freq = #200, low_duration = 20,
+--      high_freq = #400, high_duration = 20
+
+function timer_cb(Ihandle /*ih*/)
+    if platform()=WINDOWS then
+        if k32=0 then
+            k32 = open_dll("kernel32.dll")
+            xBeep = define_c_proc(k32, "Beep", {C_INT,C_INT})
+        end if
+--      if j=1 then
+--          c_proc(xBeep,{high_freq,high_duration})
+--          if count=0 then t0 = time() end if
+--      else
+--          c_proc(xBeep,{low_freq,low_duration})
+--      end if
+        c_proc(xBeep,{#200,20})
+    else
+        puts(1,#07)
+    end if
+
+    atom lThisTime = time()
+    if vLastTime > 0.0 then
+        atom lDiff = (lThisTime - vLastTime),
+             lResolution = ((lDiff * 1000)/ vMSPB) * 100
+        Ihandle act = IupGetDialogChild(dlg,"act_label"),
+                acc = IupGetDialogChild(dlg,"acc_label")
+        IupSetStrAttribute(act, "TITLE", "%0.2f", {lDiff})
+        IupSetStrAttribute(acc, "TITLE", "%d%%", {lResolution})
+    end if
+    vLastTime = lThisTime
+
+    return IUP_DEFAULT
+end function
+
+function button_cb(Ihandle ih)
+    Ihandle timer = IupGetAttributePtr(dlg,"timer")
+    bool active = not IupGetInt(timer,"RUN")
+    IupSetInt(timer,"RUN",active)
+    IupSetAttribute(ih,"TITLE",{"Off","On"}[active+1])
+    return IUP_DEFAULT
+end function
+
+procedure main()
+    Ihandle frm_1, frm_2, frm_3
+    
+    IupOpen()
+
+    sequence notes = {IupImageRGB(32, 32, rle_decode_image(Whole_note)),
+                      IupImageRGB(32, 40, rle_decode_image(Half_note)),
+                      IupImageRGB(32, 40, rle_decode_image(Quarter_note)),
+                      IupImageRGB(32, 40, rle_decode_image(Eigth_note)),
+                      IupImageRGB(32, 40, rle_decode_image(Sixteenth_note))}
+
+    sequence btns = {}
+    for i=1 to length(notes) do
+        Ihandle btn = IupToggle(NULL, Icallback("toggle_state_cb"), "CANFOCUS=NO, NOTE=%d", {power(2,i-1)}),
+                lbl = IupLabel()
+        IupSetAttributeHandle(lbl,"IMAGE",notes[i])
+        btns &= {btn,lbl}
+    end for
+    IupDestroy(IupNormalizer(btns,"NORMALIZE=VERTICAL"))
+    Ihandle radio = IupRadio(IupHbox(btns,"GAP=20"))
+    frm_1 = IupFrame(radio,"MARGIN=20x10")
+    IupSetAttribute(frm_1,"TITLE","Note ")
+
+    Ihandle tbl = IupLabel(" 200","ALIGNMENT=ARIGHT,NAME=val_label"),
+            val = IupValuator("HORIZONTAL","EXPAND=HORIZONTAL, CANFOCUS=NO")
+    IupSetInt(val,"MIN",MIN_TEMPO)
+    IupSetInt(val,"MAX",MAX_TEMPO)
+    IupSetInt(val,"VALUE",DEF_TEMPO)
+    IupSetCallback(val, "VALUECHANGED_CB", Icallback("valuechanged_cb"))
+
+    frm_2 = IupFrame(IupHbox({tbl,val}),"NAME=frame_2")
+    IupSetAttribute(frm_2,"TITLE","Tempo: ")
+
+    Ihandle lbl_1 = IupLabel("Beats Per Minute:"),
+            lbl_2 = IupLabel("90.00","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=bpm_label"),
+            pair_1 = IupHbox({lbl_1,lbl_2}),
+            lbl_3 = IupLabel("Actual Seconds Per Beat:"),
+            lbl_4 = IupLabel("0.00","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=act_label"),
+            pair_2 = IupHbox({lbl_3,lbl_4}),
+            lbl_5 = IupLabel("Seconds Per Beat:"),
+            lbl_6 = IupLabel("0.67","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=spb_label"),
+            pair_3 = IupHbox({lbl_5,lbl_6}),
+            lbl_7 = IupLabel("Accuracy:"),
+            lbl_8 = IupLabel("0%","ALIGNMENT=ARIGHT, EXPAND=HORIZONTAL, NAME=acc_label"),
+            pair_4 = IupHbox({lbl_7,lbl_8})
+
+    frm_3 = IupFrame(IupHbox({IupVbox({pair_1,pair_3},"GAP=10,MARGIN=10x0"),
+                              IupVbox({pair_2,pair_4},"GAP=10,MARGIN=10x0")}),
+                     "MARGIN=4x8")
+    IupSetAttribute(frm_3,"TITLE","Statistics ")
+
+    Ihandle onoff = IupHbox({IupFill(),IupButton("On",Icallback("button_cb"),"PADDING=30x0")},"MARGIN=0x20")
+
+    dlg = IupDialog(IupVbox({frm_1,
+                             frm_2,
+                             frm_3,
+                             onoff}, "MARGIN=10x5, GAP=5"))
+    IupSetAttribute(dlg,"TITLE","Virtunome")
+    IupSetAttribute(dlg,"RASTERSIZE","500x330")
+    IupSetAttribute(dlg,"DIALOGFRAME","YES") -- non-resizeable..
+    IupCloseOnEscape(dlg)
+
+    IupShow(dlg)
+
+    -- The TIME and RUN attributes are set dynamically:
+    Ihandle timer = IupTimer(Icallback("timer_cb"), vMSPB, active:=false)
+    IupSetAttributePtr(dlg,"timer",timer)
+
+    IupSetInt(tbl,"TITLE",DEF_TEMPO)
+    IupSetHandle("QUARTER",btns[5])
+    IupSetAttribute(radio,"VALUE","QUARTER")
+    tempo_change()
+
+    IupMainLoop()
+    IupClose()
+end procedure
+main()
+
+

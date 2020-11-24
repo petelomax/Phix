@@ -1,0 +1,34 @@
+include win32lib.ew  
+constant Win1 = create(Window,"Strange",0,Default,Default,400,400,0),  
+                TabCtl = create(TabControl,"",Win1,5,5,380,355,0),  
+                Tab1 = create(TabItem,"First",TabCtl,0,0,0,0,0),  
+                Label1 = create(CText,"Nothing important",Tab1,10,30,360,25,0),  
+                Cbox1 = create(Combo,"",Tab1,20,80,250,100,0), 
+                StyleButton = create( Button, "Change Style", Tab1, 20, 100, 90, 30, 0 ), 
+                $ 
+ 
+--/*
+include std/dll.e 
+include std/machine.e 
+--*/
+constant  
+        UXTHEME = open_dll("UxTheme.dll"), 
+        xSetThemeAppProperties = define_c_proc( UXTHEME, "SetThemeAppProperties", { C_INT } ) 
+ 
+addItem( Cbox1, "foo") 
+integer theme = 3 
+constant WM_THEMECHANGED = 0x031A 
+procedure StyleButton_onClick(integer self, integer event, sequence parms) 
+    if self or event or sequence(parms) then end if -- suppress warnings
+        theme = 3 - theme 
+        c_proc( xSetThemeAppProperties, { theme } ) 
+--      VOID = sendMessage( Win1, WM_THEMECHANGED, 0, 0 ) 
+        VOID = sendMessage( TabCtl, WM_THEMECHANGED, 0, 0 ) 
+        VOID = sendMessage( Label1, WM_THEMECHANGED, 0, 0 ) 
+        VOID = sendMessage( Cbox1, WM_THEMECHANGED, 0, 0 ) 
+        VOID = sendMessage( StyleButton, WM_THEMECHANGED, 0, 0 ) 
+ 
+end procedure 
+setHandler( StyleButton, w32HClick, routine_id("StyleButton_onClick")) 
+ 
+WinMain(Win1,Normal)  

@@ -1,0 +1,43 @@
+--
+-- movewin.exw
+-- ===========
+--  Moves all windows to the top left
+--  DEV it should really prompt, and move them back where it found them...
+--
+--DEV
+global function or_all(object s)
+-- or together all elements of a sequence
+atom result
+    if atom(s) then
+        return s
+    end if
+    result = 0
+    for i=1 to length(s) do
+        result = or_bits(result, s[i])
+    end for
+    return result
+end function
+
+include tinewg.ew
+--include std/math.e 
+
+sequence rect
+sequence app_handles = {}
+sequence window_handles = EnumWindows()
+atom hwnd
+
+    for i=1 to length(window_handles) do
+        hwnd = window_handles[i]
+        if and_bits(GetWindowLong(hwnd,GWL_STYLE), or_all({WS_VISIBLE,not(WS_POPUP)})) then  -- ignore POPUPS and Invisible Windows 
+            if length(GetText(hwnd))!=0 then                                                 -- ignore Windows without a Caption 
+                app_handles = append(app_handles,hwnd)
+            end if
+        end if
+    end for
+
+    for i=1 to length(app_handles) do
+        hwnd = app_handles[i]
+        rect = GetWindowRect(hwnd)
+        MoveWindow(hwnd,0,0,rect[3]-rect[1],rect[4]-rect[2],True)
+    end for
+

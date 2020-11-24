@@ -1,0 +1,256 @@
+--
+-- morse.exw
+-- =========
+--
+-- Phix/windows only version
+--
+
+sequence morse = repeat(0,255)
+
+procedure setMorse(sequence data)
+object di
+    for i=1 to length(data) do
+        di = data[i]
+        if string(di) then
+            if morse[di[1]]!=0 then ?9/0 end if
+            morse[di[1]] = di[2..$]
+        end if
+    end for
+end procedure
+
+--function encode(string s)
+--sequence res = "", ch
+--  for i=1 to length(s) do
+--      ch = morse[s[i]]
+--      res &= ch
+--  end for
+--  return res
+--end function
+
+--setMorse({"!-.-.--","\".-..-.",'#',"$...-..-",'%',"&.-...","'.----.","(-.--.",")-.--.-",'*',
+--        "+.-.-.",",--..--","--....-","..-.-.-","/-..-.",
+--        "0-----","1.----","2..---","3...--","4....-","5.....","6-....","7--...","8---..","9----.",
+--        ":---...",";-.-.-.",'<',"=-...-",'>',"?..--..","@.--.-.",
+--        "A.-","B-...","C-.-.","D-..","E.","F..-.","G--.","H....","I..","J.---","K-.-","L.-..",
+--        "M--","N-.","O---","P.--.","Q--.-","R.-.","S...","T-","U..-","V...-","W.--","X-..-",
+--        "Y-.--","Z--..","[-.--.",'\\',"]-.--.-",'^',"_..--.-","     "})
+
+procedure subextend(string root, sequence dotdash)
+object dot, dash
+    {dot,dash} = dotdash
+    if sequence(dot) then
+        subextend(root&'.',dot)
+    elsif dot!=0 then
+        if morse[dot]!=0 then ?9/0 end if
+        morse[dot] = root&'.'
+    end if
+    if sequence(dash) then
+        subextend(root&'-',dash)
+    elsif dash!=0 then
+        if morse[dash]!=0 then ?9/0 end if
+        morse[dash] = root&'-'
+    end if
+end procedure
+
+procedure extend(sequence extensions)
+integer ch
+sequence dotdash
+    for i=1 to length(extensions) do
+        {ch,dotdash} = extensions[i]
+        subextend(morse[ch],dotdash)
+    end for
+end procedure
+          
+if 01 then
+setMorse({"     ","$...-..-","E.","T-"})
+extend({{'E',{'I','A'}},
+        {'I',{'S','U'}},
+        {'S',{'H','V'}},
+        {'H',{'5','4'}},
+        {'V',{0,'3'}},
+        {'U',{'F',{{'?','_'},'2'}}},
+        {'A',{'R','W'}},
+        {'R',{'L',{'+',0}}},
+        {'L',{'&',{'"',0}}},
+        {'+',{0,'.'}},
+        {'W',{'P','J'}},
+        {'P',{0,{'@',0}}},
+        {'J',{0,'1'}},
+        {'1',{''',0}},
+        {'T',{'N','M'}},
+        {'N',{'D','K'}},
+        {'D',{'B','X'}},
+        {'B',{'6','='}},
+        {'6',{0,'-'}},
+        {'X',{'/',0}},
+        {'K',{'C','Y'}},
+        {'Y',{'(',0}},
+        {'(',{0,')'}},
+        {'C',{0,{';','!'}}},
+        {'M',{'G','O'}},
+        {'G',{'Z','Q'}},
+        {'Z',{'7',{0,','}}},
+        {'O',{{'8',0},{'9','0'}}},
+        {'8',{':',0}}})
+end if
+
+sequence morse0 = morse
+
+    morse = repeat(0,255)
+    morse[' '] = "    "
+
+procedure ext2(string root, object data)
+object dot, dash
+    if sequence(data) then
+        {data,dot,dash} = data
+        ext2(root,data)
+        ext2(root&'.',dot)
+        ext2(root&'-',dash)
+    elsif data!=0 then
+        morse[data] = root
+--      printf(1,"morse['%c']:=%s\n",{data,root})
+    end if
+end procedure
+
+       ext2("",{0,
+                {'E',{'I',{'S',{'H','5','4'},
+                               {'V',{0,{0,0,'$'},0},'3'}},
+                          {'U','F',{0,{0,'?','_'},'2'}}},
+                     {'A',{'R',{'L','&',{0,'"',0}},
+                               {0,{'+',0,'.'},0}},
+                          {'W',{'P',0,{0,'@',0}},
+                               {'J',0,{'1','\'',0}}}}},
+                {'T',{'N',{'D',{'B',{'6',0,'-'},'='},
+                               {'X','/',0}},
+                          {'K',{'C',0,{0,';','!'}},
+                               {'Y',{'(',0,')'},0}}},
+                     {'M',{'G',{'Z','7',{0,0,','}},
+                               'Q'},
+                          {'O',{0,{'8',':',0},0},
+                               {0,'9','0'}}}}})
+        
+        
+
+--trace(1)
+--      ext2("",{{'E',{{'I',{{'S',{{ 'H',{'5','4'}},
+--                                 { 'V',{0,'3'}}}},
+--                           {'U',{  'F',{{'?','_'},'2'}}}}},
+--                     {'A',{{'R',{{ 'L',{'&',{'"',0}}},
+--                                 {{'+',{0,'.'}},0}}},
+--                           {'W',{{ 'P',{0,{'@',0}}},
+--                                 { 'J',{0,{'1',{''',0}}}}}}}}}},
+--               {'T',{{'N',{{'D',{{ 'B',{{'6',{0,'-'}},'='}},
+--                                 { 'X',{'/',0}}}},
+--                           {'K',{{ 'C',{0,{';','!'}}},
+--                                 { 'Y',{{'(',{0,')'}},0}}}}}},
+--                     {'M',{{'G',{{ 'Z',{'7',{0,','}}},'Q'}},
+--                           {'O',{{{'8',{':',0}},0},
+--                                 { '9','0'}}}}}}}
+--              })
+
+
+--  morse['['] = morse['(']
+--  morse[']'] = morse[')']
+
+--if morse!=morse0 then ?9/0 end if
+for i=1 to length(morse) do
+    if morse[i]!=morse0[i] then
+        printf(1,"error on %c: %s!=%s\n",{i,sprint(morse[i]),sprint(morse0[i])})
+        ?9/0
+    end if
+end for
+
+--procedure test()
+--object ch
+--  for i=1 to length(morse) do
+--      ch = morse[i]
+--      if string(ch) and length(ch)>1 then
+--          printf(1,"%c:%c+%s\n",{i,find(ch[1..-2],morse),ch[-1]})
+--      end if
+--  end for
+--end procedure
+--test()
+
+    morse['a'..'z'] = morse['A'..'Z']
+    morse['['] = morse['(']
+    morse[']'] = morse[')']
+
+constant EOM = ".-.-."
+
+--constant samples = {encode("The quick brown fox jumped over the lazy dog."),
+--                  encode("Cumberland sausages!"),
+--                  encode("sos titanic")}
+constant samples = {"- .... .      --.- ..- .. -.-. -.-      -... .-. --- .-- -.      ..-. --- -..-      "&
+                    ".--- ..- -- .--. . -..      --- ...- . .-.      - .... .      .-.. .- --.. -.--      "&
+                    "-.. --- --. .-.-.- ",
+                    "-.-. ..- -- -... . .-. .-.. .- -. -..      ... .- ..- ... .- --. . ... -.-.-- ",
+                    "... --- ...      - .. - .- -. .. -.-. "}
+
+constant kernel32 = open_dll("kernel32.dll"),
+         xBeep = define_c_proc(kernel32, "Beep", {C_INT,C_INT})
+
+constant frequency = 1280
+constant dit = 200,
+         dah = 3*dit,
+         lettergap = 2*dit/1000,
+         wordgap = 4*dit/1000
+
+procedure Beep(integer duration)
+    c_proc(xBeep,{frequency,duration})
+end procedure
+
+procedure playAndRebuild(string line)
+string rebuilt = ""
+integer start = 1
+integer ch
+    if length(line)=0 then
+        line = samples[rand(length(samples))]
+        puts(1,line)
+    end if
+    for i=1 to length(line) do
+        ch = line[i]
+        if ch=' ' then
+            ch = find(line[start..i-1],morse)
+            if ch!=0 then
+                rebuilt &= ch
+                start = i+1
+                if ch=' ' then
+                    sleep(wordgap)
+                else
+                    sleep(lettergap)
+                end if
+            end if
+        else
+            if ch='.' then
+                Beep(dit)
+            elsif ch='-' then
+                Beep(dah)
+            end if
+        end if
+    end for
+    puts(1,rebuilt)
+    puts(1,"\n")
+end procedure
+
+integer key
+object code
+string line = ""
+ 
+puts(1,"enter text, return to play/rebuild, escape to quit\n")
+while 1 do 
+    key = wait_key() 
+    if key = 27 then exit end if    -- escape
+    if key = 13 then                -- return
+        playAndRebuild(line)
+        line = ""
+    else
+        code = morse[key]
+        if string(code) then
+            code &= ' '
+            puts(1,code)
+            line &= code
+        end if 
+    end if
+end while 
+ 
+puts(1,EOM)
